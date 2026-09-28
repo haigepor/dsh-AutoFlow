@@ -45,6 +45,7 @@
 .card {
   box-sizing: border-box;
   position: relative; /* overlay anchor positioning context */
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   /* figma Input 75:8208: 12px between the text area and the button row; the
@@ -53,27 +54,37 @@
   width: 100%;
   max-width: var(--dsh-composer-card-max-width);
   padding-top: 8px;
-  /* Input stroke: the light neutral (l2, one step above the menus' l1),
-     drawn as the elevation hairline so it costs no layout; the shadow is the
-     soft elevation tier. Fill: the input surface token (elevated in dark). */
+  /* The light neutral (l2) rebinds the shared elevation hairline without
+     consuming layout; the frosted fill is painted on the isolated layer below. */
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
   border-radius: 22px;
-  background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-elevation-soft);
+  background: transparent;
   /* The draft text follows the Settings font-size preference (the textarea,
      mirror, and backdrop all inherit from here, so the three layers stay in
      step); the line height keeps the default 10px leading via the shared px
      delta. */
   font-size: var(--dsh-content-font-size, 14px);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
-  /* Elevated surface in dark, same as the menus: the draft scrollport inside
-     scrolls once the composer hits its height cap, so the thumb takes the l2
+  /* The draft scrollport scrolls once the composer hits its height cap, so
+     the thumb takes the l2
      pair. Declared on the card because the elevation belongs to the surface,
      and the custom properties inherit down to the box that actually scrolls
      (see ui-theme styles/scrollbar.css for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.card::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-soft);
+  content: '';
+  pointer-events: none;
 }
 
 /* No-workspace trigger state: an inset 1px dashed outline marks the card as a
@@ -366,9 +377,8 @@
   cursor: default;
 }
 
-/* Primary send (figma IconButton 34:10465): 34px circle, #3964FE light /
-   #679EFE dark — the info-fill pair (500→400), NOT button-primary (ink);
-   white glyph; empty text = 0.4 opacity. */
+/* Primary send uses the theme's info fill with its matching foreground.
+   Empty text reduces the whole control to 0.4 opacity. */
 .primary {
   display: grid;
   place-items: center;
@@ -379,9 +389,7 @@
   border-radius: 999px;
   corner-shape: round;
   background: var(--dsw-alias-button-info-fill);
-  /* Static white, not the foreground token: the arrow stays white on the blue
-     fill in both themes (design 34:10465). */
-  color: #fff;
+  color: var(--dsw-alias-label-primary-foreground);
   cursor: pointer;
   transition: background-color 100ms ease;
   /* Opts out of the row's 2px downward shift (.row top pad): the send circle

@@ -1,19 +1,19 @@
 @import url('./assets/window-material.css');
 
-/* Figma 2121:39336 / 2138:44626, Platform modes. Native material supplies the blur. */
+/* The welcome renderer follows the built-in light and dark palettes; native material supplies the blur. */
 :root {
   color-scheme: light dark;
-  --dsw-alias-label-primary: #0f1115;
-  --dsw-alias-label-secondary: #61666b;
-  --dsw-alias-label-tertiary: #81858c;
+  --dsw-alias-label-primary: #292927;
+  --dsw-alias-label-secondary: #565650;
+  --dsw-alias-label-tertiary: #71716A;
   --dsw-alias-label-primary-inverted: #fff;
   --dsw-alias-brand-primary: var(--dsw-alias-label-primary);
-  --dsw-alias-button-primary-hover: #43454a;
+  --dsw-alias-button-primary-hover: #44443F;
   --dsw-alias-button-elevated-fill: #fff;
-  --dsw-alias-button-floating-hover: #f1f3f5;
-  --dsw-alias-border-l2: #0000001a;
-  --dsw-alias-border-l4: #00000029;
-  --dsw-alias-label-caption: #adb2b8;
+  --dsw-alias-button-floating-hover: #F1F0ED;
+  --dsw-alias-border-l2: #29292717;
+  --dsw-alias-border-l4: #29292724;
+  --dsw-alias-label-caption: #71716A;
   --welcome-tint: var(--dsw-desktop-window-tint);
   --ds-transition-duration: 0.2s;
   --ds-transition-duration-slow: 0.3s;
@@ -24,16 +24,16 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --dsw-alias-label-primary: #f9fafb;
-    --dsw-alias-label-secondary: #cfd3d6;
-    --dsw-alias-label-tertiary: #adb2b8;
-    --dsw-alias-label-primary-inverted: #353638;
-    --dsw-alias-button-primary-hover: #ebeef2;
-    --dsw-alias-button-elevated-fill: #43454a;
-    --dsw-alias-button-floating-hover: #353638;
-    --dsw-alias-border-l2: #ffffff1f;
-    --dsw-alias-border-l4: #ffffff33;
-    --dsw-alias-label-caption: #81858c;
+    --dsw-alias-label-primary: #ECECE7;
+    --dsw-alias-label-secondary: #C3C3BB;
+    --dsw-alias-label-tertiary: #A3A39B;
+    --dsw-alias-label-primary-inverted: #292927;
+    --dsw-alias-button-primary-hover: #D5D5CF;
+    --dsw-alias-button-elevated-fill: #343431;
+    --dsw-alias-button-floating-hover: #343431;
+    --dsw-alias-border-l2: #ECECE717;
+    --dsw-alias-border-l4: #ECECE72B;
+    --dsw-alias-label-caption: #A3A39B;
   }
 }
 

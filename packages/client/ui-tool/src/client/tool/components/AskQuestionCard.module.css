@@ -6,9 +6,13 @@
   margin: 4px 0 4px 4px;
   padding: 16px 20px;
   overflow-y: auto;
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  border: 0;
   border-radius: 12px;
-  background: var(--dsw-alias-bg-base);
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
 .item {

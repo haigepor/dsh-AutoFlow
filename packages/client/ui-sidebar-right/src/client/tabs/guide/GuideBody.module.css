@@ -55,14 +55,16 @@
   color: var(--dsw-alias-label-primary);
   font: inherit;
   text-align: left;
-  background: var(--dsw-alias-bg-layer-1);
-  border: 0.5px solid var(--dsw-alias-border-l3);
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  border: 0;
   border-radius: 24px;
+  box-shadow: var(--dsw-elevation-panel);
   cursor: pointer;
 }
 
 .entry:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: color-mix(in srgb, var(--dsw-specific-menu) 88%, var(--dsw-alias-interactive-bg-hover));
 }
 
 /* A fixed 26px box — the described glyph's size — so an entry's glyph sits

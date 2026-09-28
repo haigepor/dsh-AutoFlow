@@ -138,18 +138,18 @@
 @keyframes dsh-plugin-highlight {
   0%,
   55% {
-    box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary);
+    box-shadow: var(--dsw-elevation-panel), 0 0 0 2px var(--dsw-alias-state-business-primary);
   }
 
   100% {
-    box-shadow: 0 0 0 0 transparent;
+    box-shadow: var(--dsw-elevation-panel), 0 0 0 0 transparent;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .card[data-plugin-highlight] {
     animation: none;
-    box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary);
+    box-shadow: var(--dsw-elevation-panel), 0 0 0 2px var(--dsw-alias-state-business-primary);
   }
 }
 
@@ -175,7 +175,11 @@
   /* The hover surface reaches 8px past the content on both sides while the
      row's content stays aligned with the page header. */
   margin: 0 -8px;
+  border: 0;
   border-radius: 12px;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
   /* The page itself scrolls on the base surface. Anything that scrolls inside
      a card draws the l2 thumb (ui-theme styles/scrollbar.css rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
@@ -496,9 +500,12 @@
   flex-direction: column;
   gap: 10px;
   padding: 8px 14px 14px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
+  border: 0;
   border-radius: 14px;
-  background: var(--dsw-alias-bg-layer-1);
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
 }
 
 .guideHint {
@@ -650,7 +657,8 @@
   padding: 8px 10px 12px;
   border: 0;
   border-radius: 12px;
-  background: var(--dsw-alias-bg-layer-2);
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
   /* The neutral stroke is the elevation's hairline, not a border beside it. */
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
   box-shadow: var(--dsw-elevation-prominent);

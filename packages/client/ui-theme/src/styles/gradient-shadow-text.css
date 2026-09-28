@@ -1,43 +1,48 @@
 body {
-  --dsw-linear-gradient-think: linear-gradient(180deg, #fff 20.19%, rgba(255, 255, 255, 0) 100%);
-  --dsw-linear-think-select: linear-gradient(180deg, #f5f6f7 20.19%, rgba(245, 246, 247, 0) 100%);
+  --dsw-linear-gradient-think: linear-gradient(180deg, #FAF9F7 20.19%, rgba(250, 249, 247, 0) 100%);
+  --dsw-linear-think-select: linear-gradient(180deg, #F1F0ED 20.19%, rgba(241, 240, 237, 0) 100%);
   /* 阴影 */
   --dsw-shadow-lv1: 0 2px 4px 0 rgba(0, 0, 0, 0.05);
   --dsw-shadow-lv1-blur: 0 4px 12px 0 rgba(0, 0, 0, 0.02);
   --dsw-shadow-lv2: 0 4px 12px 0 rgba(0, 0, 0, 0.02), 0 2px 8px 0 rgba(0, 0, 0, 0.04);
   --dsw-shadow-lv3:
     0 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 4px 0 rgba(0, 0, 0, 0.02), 0 12px 32px 0 rgba(0, 0, 0, 0.08);
-  /* Elevation：浮层/面板/面型按钮的描边+投影三件套。0.5px 发丝描边画在
-     box-shadow 里（组件配 border: 0，不占布局），叠两层极淡柔光；深色主题下
-     柔光几乎不可见，由描边承担分离。描边颜色经 --dsw-elevation-stroke-color
-     间接，组件可重绑（菜单面重绑最浅的 l1、输入框重绑 l2，输入框的
-     workspace-trigger 态置 transparent 只保留柔光）。soft 供输入框：更大
-     模糊、更低透明度的柔光。默认色只声明在 body 上，让表面的重绑沿继承
-     传给真正消费投影的后代。 */
+  /* Elevated surfaces combine a rebindable hairline, a theme-aware inner rim,
+     and two soft shadows. The composer uses the wider, quieter soft tier. */
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l4);
-  /* Shared blur treatments for blocking masks and translucent menus. */
+  --dsw-glass-highlight: rgba(255, 255, 255, 0.48);
+  --dsw-elevation-shadow-panel: 0 2px 8px -2px rgba(41, 41, 39, 0.025), 0 8px 24px -8px rgba(41, 41, 39, 0.035);
+  --dsw-elevation-shadow-prominent: 0 3px 12px -4px rgba(41, 41, 39, 0.035), 0 12px 32px -10px rgba(41, 41, 39, 0.045);
+  --dsw-elevation-shadow-soft: 0 2px 8px -2px rgba(41, 41, 39, 0.018), 0 6px 20px -8px rgba(41, 41, 39, 0.025);
+  /* Shared blur treatments for blocking masks and frosted surfaces. */
   --dsw-mask-blur: blur(2px);
-  --dsw-menu-backdrop-filter: blur(40px) saturate(150%);
+  --dsw-menu-backdrop-filter: blur(18px) saturate(105%);
+  --dsw-dialog-backdrop-filter: blur(22px) saturate(105%);
 }
 
-/* 派生 elevation 值逐元素声明而非从 body 继承：继承传下来的是在 body 上就
-   已替换完 var() 的值，组件重绑 --dsw-elevation-stroke-color 将无法进入
-   var(--dsw-elevation-*)；逐元素声明让每个元素按自己看到的描边色重新替换
-   （同 scrollbar.css 对 --dsh-scrollbar-thumb 的处理）。 */
+body[data-ds-dark-theme] {
+  --dsw-glass-highlight: rgba(255, 255, 255, 0.07);
+  --dsw-elevation-shadow-panel: 0 2px 8px -2px rgba(0, 0, 0, 0.055), 0 8px 24px -8px rgba(0, 0, 0, 0.07);
+  --dsw-elevation-shadow-prominent: 0 3px 12px -4px rgba(0, 0, 0, 0.075), 0 12px 32px -10px rgba(0, 0, 0, 0.095);
+  --dsw-elevation-shadow-soft: 0 2px 8px -2px rgba(0, 0, 0, 0.035), 0 6px 20px -8px rgba(0, 0, 0, 0.05);
+}
+
+/* Re-declare derived shadows per element so stroke-color overrides reach the
+   box-shadow; inherited custom properties would retain body's resolved color. */
 body,
 body * {
   --dsw-elevation-stroke: 0 0 0 0.5px var(--dsw-elevation-stroke-color);
   --dsw-elevation-panel:
-    var(--dsw-elevation-stroke), 0 3px 8px 0 rgba(0, 0, 0, 0.03), 0 0 16px 0 rgba(0, 0, 0, 0.02);
+    var(--dsw-elevation-stroke), inset 0 1px 0 var(--dsw-glass-highlight), var(--dsw-elevation-shadow-panel);
   --dsw-elevation-prominent:
-    var(--dsw-elevation-stroke), 0 3px 8px 0 rgba(0, 0, 0, 0.04), 0 0 20px 0 rgba(0, 0, 0, 0.05);
+    var(--dsw-elevation-stroke), inset 0 1px 0 var(--dsw-glass-highlight), var(--dsw-elevation-shadow-prominent);
   --dsw-elevation-soft:
-    var(--dsw-elevation-stroke), 0 4px 16px 0 rgba(0, 0, 0, 0.03), 0 0 24px 0 rgba(0, 0, 0, 0.03);
+    var(--dsw-elevation-stroke), inset 0 1px 0 var(--dsw-glass-highlight), var(--dsw-elevation-shadow-soft);
 }
 
 body[data-ds-dark-theme] {
-  --dsw-linear-gradient-think: linear-gradient(180deg, #151517 20.19%, rgba(21, 21, 23, 0) 100%);
-  --dsw-linear-think-select: linear-gradient(180deg, #232325 20.19%, rgba(35, 35, 37, 0) 100%);
+  --dsw-linear-gradient-think: linear-gradient(180deg, #1B1B1A 20.19%, rgba(27, 27, 26, 0) 100%);
+  --dsw-linear-think-select: linear-gradient(180deg, #272725 20.19%, rgba(39, 39, 37, 0) 100%);
 }
 
 /* ---------- 字体 ---------- */

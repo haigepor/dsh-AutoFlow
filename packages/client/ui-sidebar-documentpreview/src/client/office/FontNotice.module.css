@@ -22,12 +22,23 @@
   padding: 16px;
   overflow: auto;
   color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-bg-layer-2);
+  background: transparent;
   border: 0;
   border-radius: 12px;
   box-shadow: var(--dsw-elevation-prominent);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.panel::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  content: '';
+  pointer-events: none;
 }
 
 .panelHeader {

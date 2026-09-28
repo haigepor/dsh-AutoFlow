@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-`ui-theme` 将 `--dsw-specific-menu` 定义为明暗主题各自的半透明填充，并将 `--dsw-menu-backdrop-filter` 定义为 `blur(40px) saturate(150%)`。每个绘制菜单填充的包级高层级表面同时应用该 backdrop filter、设置 `border: 0`，并使用带可重绑发丝描边的 elevation 投影。包含 fixed 定位浮层的表面把填充与滤镜绘制在隔离的背景伪元素上，因为带滤镜的祖先会改变这些浮层的包含块。后代 sticky 行可以再次绘制继承的填充，无需重复 filter。不支持 backdrop filtering 的浏览器仍渲染主题持有的半透明填充。
+`ui-theme` 将 `--dsw-specific-menu` 定义为明暗主题各自带色调的半透明填充，并将 `--dsw-menu-backdrop-filter` 定义为 `blur(18px) saturate(105%)`。每个绘制菜单填充的包级高层级表面同时应用该 backdrop filter、设置 `border: 0`，并使用组合可重绑发丝线、主题适配内缘高光与柔和投影的 elevation token。内层详情卡可以使用半透明染色底，但不重复模糊，让外壳成为唯一玻璃层。包含 fixed 定位浮层的表面把填充与滤镜绘制在隔离的背景伪元素上，因为带滤镜的祖先会改变这些浮层的包含块。后代 sticky 行可以再次绘制继承的填充，无需重复 filter。不支持 backdrop filtering 的浏览器和启用减少透明度的用户会使用不透明主题底色；macOS 透明桌面窗口保留近不透明填充。
 
 共享 `Menu` 与 composer 输入触发菜单使用同一套紧凑基准：16px 外圆角、3px 边框内距、34px 普通行、13px 主文字配 20px 行高、6px 图文间距，以及 8px 行圆角。dense 与 compact 变体在该基准上继续缩小，不再保留旧的普通几何。composer 菜单保留其功能包持有的分组与 400px 高度上限；别名和说明使用 12px 字号与 18px 行高。
 
@@ -26,4 +26,4 @@ WebKit 系全局滚动条宽度为 5px。composer 菜单通过既有滚动条几
 
 ## Consequences
 
-高层级菜单填充消费方必须在同一规则中同时使用填充与 backdrop-filter token，规则可以属于表面本身，也可以属于其隔离的背景伪元素；样式表门禁会拒绝漏掉 filter 的材质层。共享菜单几何影响每个 `Menu` 渲染点，composer 菜单仍保留自身内容与交互规则。浏览器与组件快照覆盖装配结构，主题测试固定 token、紧凑尺寸、滚动条几何与完整的菜单 filter 配对。
+高层级菜单填充消费方必须在同一规则中同时使用填充与 backdrop-filter token，规则可以属于表面本身，也可以属于其隔离的背景伪元素；样式表门禁会拒绝漏掉 filter 的材质层。内层内容与外层玻璃保持材质区分，以建立清晰层级并避免重复模糊。共享菜单几何影响每个 `Menu` 渲染点，composer 菜单仍保留自身内容与交互规则。浏览器与组件快照覆盖装配结构，主题测试固定 token、紧凑尺寸、滚动条几何与完整的菜单 filter 配对。

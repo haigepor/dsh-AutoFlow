@@ -26,8 +26,8 @@ body {
      Firefox macOS equivalent; other engines ignore both lines. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: var(--dsw-alias-label-primary, #0f1115);
-  background: var(--dsw-alias-bg-base, #fff);
+  color: var(--dsw-alias-label-primary, #292927);
+  background: var(--dsw-alias-bg-base, #FAF9F7);
   /* Supporting browsers insert CJK/Latin spacing in inherited prose. */
   text-autospace: normal;
 }
@@ -41,15 +41,29 @@ html[data-platform='darwin'] body {
 
 /* The transparent window disables backdrop-filter: Chromium composites it
    against the root surface, which vibrancy leaves transparent, so the blur in
-   --dsw-menu-backdrop-filter renders as nothing and half-opaque menu fills
+   --dsw-menu-backdrop-filter renders as nothing and translucent card/menu fills
    let underlying text bleed through. Compensate with near-opaque fills on the
-   same design-platform hues (light 248 249 250 / dark 48 49 54). */
+   design-platform hues. */
 html[data-platform='darwin'] body {
-  --dsw-specific-menu: rgba(248, 249, 250, 0.94);
+  --dsw-specific-menu: rgba(255, 255, 255, 0.94);
+  --dsw-specific-dialog: rgba(255, 255, 255, 0.96);
 }
 
 html[data-platform='darwin'] body[data-ds-dark-theme] {
-  --dsw-specific-menu: rgba(48, 49, 54, 0.94);
+  --dsw-specific-menu: rgba(39, 39, 37, 0.94);
+  --dsw-specific-dialog: rgba(39, 39, 37, 0.96);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-platform='darwin'] body {
+    --dsw-specific-menu: rgb(255 255 255);
+    --dsw-specific-dialog: rgb(255 255 255);
+  }
+
+  html[data-platform='darwin'] body[data-ds-dark-theme] {
+    --dsw-specific-menu: rgb(39 39 37);
+    --dsw-specific-dialog: rgb(39 39 37);
+  }
 }
 
 /* macOS desktop: the app frame publishes window drag bands, and Electron

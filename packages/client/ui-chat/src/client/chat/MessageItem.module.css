@@ -348,9 +348,11 @@
   width: 240px;
   min-height: 64px;
   padding: 8px 12px;
-  border: 0.5px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.12));
+  border: 0;
   border-radius: 16px;
-  background: var(--dsw-specific-input-major, transparent);
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
   box-sizing: border-box;
 }
 

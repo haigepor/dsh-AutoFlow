@@ -35,9 +35,12 @@
   justify-content: center;
   gap: 4px;
   padding: 20px 32px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l4);
   border-radius: 20px;
-  background: transparent;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
   font: inherit;
   font-size: 14px;
   line-height: 22px;
@@ -46,12 +49,11 @@
 }
 
 .themeCube:hover:not(.selected) {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: color-mix(in srgb, var(--dsw-specific-menu) 88%, var(--dsw-alias-interactive-bg-hover));
 }
 
-/* Selected cube: #F5F6F7 fill + #ADB2B8 border (static token — the bluish-400
- * step has no alias-layer name). */
+/* The selected cube keeps the frosted fill and adds the bluish-400 border
+ * (the static token has no alias-layer name). */
 .selected {
-  background: var(--dsw-alias-bg-module-platform);
-  border-color: var(--dsw-static-neutral-bluish-400);
+  border: 0.5px solid var(--dsw-static-neutral-bluish-400);
 }

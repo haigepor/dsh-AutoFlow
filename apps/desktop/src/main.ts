@@ -158,14 +158,13 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
 }
 
 /**
- * Opaque chrome fallback matching the built-in sidebar palette (the resolved
- * `--dsw-static-neutral-bluish-900` / `-50` tokens). An approximation for
+ * Opaque chrome fallback matching the built-in sidebar palette. An approximation for
  * custom themes: Windows swaps in the renderer's measured palette over the
  * windowsAppearance IPC, and macOS shows it only while minimized or hidden.
  * @returns the sidebar fill hex for the active system color scheme.
  */
 function chromeFallbackFill(): string {
-  return nativeTheme.shouldUseDarkColors ? '#1b1b1c' : '#f9fafb'
+  return nativeTheme.shouldUseDarkColors ? '#161615' : '#F1F0ED'
 }
 
 /**
@@ -192,7 +191,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     ...(process.platform === 'win32' && primary ? {
       titleBarStyle: 'hidden' as const,
       titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
-        symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
+        symbolColor: nativeTheme.shouldUseDarkColors ? '#ECECE7' : '#292927' },
     } : {}),
     // hiddenInset places traffic lights inside the sidebar; sidebar vibrancy
     // needs a transparent window background to show through the page.

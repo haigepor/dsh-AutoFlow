@@ -8,8 +8,8 @@
 import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
 import { DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE, type ThemePreference } from './theme-settings.ts'
 
-const LIGHT_BACKGROUND = '#fff'
-const DARK_BACKGROUND = '#151517'
+const LIGHT_BACKGROUND = '#FAF9F7'
+const DARK_BACKGROUND = '#1B1B1A'
 
 /** CSS that colors the document canvas before any script executes. */
 function bootThemeStyle(preference: ThemePreference): string {

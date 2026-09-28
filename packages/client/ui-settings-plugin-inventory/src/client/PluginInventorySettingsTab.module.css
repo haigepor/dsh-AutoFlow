@@ -121,7 +121,8 @@
   border: 0;
   box-shadow: var(--dsw-elevation-stroke);
   border-radius: 14px;
-  background: var(--dsw-alias-bg-layer-3);
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
 }
 
 .card[data-open='true'] {
@@ -383,7 +384,7 @@
 .cardDetails {
   border-top: 0.5px solid var(--dsw-alias-border-l2);
   padding: 10px 14px 12px;
-  background: var(--dsw-alias-bg-module-platform);
+  background: color-mix(in srgb, var(--dsw-alias-bg-module-platform) 68%, transparent);
 }
 
 .entryValue {

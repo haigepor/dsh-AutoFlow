@@ -89,31 +89,49 @@
 }
 
 .card {
-  border: 0.5px solid var(--dsw-alias-border-l4);
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+  border: 0;
   border-radius: 20px;
   display: flex;
   flex-direction: column;
   background: transparent;
-  transition: border-color .16s, background .16s;
+  transition: border-color .16s;
 }
 
-
-.card:hover:not(.cardActive):not(.cardSelectionDisabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
+.card::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
+  content: '';
+  pointer-events: none;
+  transition: background .16s;
 }
 
-/* The default preset reads as selected exactly like the Appearance cubes:
-   platform fill + the bluish-400 border (static token — the bluish-400 step
-   has no alias-layer name). */
+.card:hover,
+.card:focus-within {
+  z-index: 1;
+}
+
+.card:hover:not(.cardActive):not(.cardSelectionDisabled)::before {
+  background: color-mix(in srgb, var(--dsw-specific-menu) 88%, var(--dsw-alias-interactive-bg-hover));
+}
+
+/* The default preset keeps the frosted fill and uses the bluish-400 border
+   for selection (the static token has no alias-layer name). */
 .cardActive {
-  background: var(--dsw-alias-bg-module-platform);
-  border-color: var(--dsw-static-neutral-bluish-400);
+  border: 0.5px solid var(--dsw-static-neutral-bluish-400);
 }
 
 /* Mode selection is off, not the preset itself: mute only the selectable
    body while the independent view/copy/location actions stay fully usable. */
 .cardSelectionDisabled {
-  background: var(--dsw-alias-bg-module-platform);
+  background: transparent;
 }
 
 .cardSelectionDisabled .cardMain {

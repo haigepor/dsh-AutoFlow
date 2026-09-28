@@ -29,7 +29,7 @@
 .preferences select, .sourceChoice select { border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 6px; padding: 6px 10px; background: transparent; color: inherit; font: inherit; }
 .sourceChoice { display: grid; gap: 6px; }
 .preferences p { margin: 0; }
-.settingsCard { list-style: none; padding: 16px; border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
+.settingsCard { list-style: none; padding: 16px; border: 0; border-radius: 10px; background: var(--dsw-specific-menu); backdrop-filter: var(--dsw-menu-backdrop-filter); box-shadow: var(--dsw-elevation-panel); }
 .settingsCard > p { font-size: 13px; color: var(--dsw-alias-label-secondary); margin: 8px 0 0; }
 .setupEstimate { display: grid; gap: 10px; padding: 12px; border-radius: 8px; background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); line-height: 1.6; }
 .setupEstimate dl { display: grid; gap: 6px; margin: 0; }

@@ -50,10 +50,13 @@
   gap: 8px;
 }
 
-/* A configured provider: outlined on the panel fill, so the filled editor
-   card it expands into reads as the nested object. */
+/* A configured provider uses the shared frosted card material; the editor
+   keeps its separate module fill when expanded. */
 .rowCard {
-  border: 0.5px solid var(--dsw-alias-border-l4);
+  border: 0;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
   border-radius: 16px;
   padding: 12px 14px;
   display: flex;
@@ -348,7 +351,9 @@
 .addCard,
 .setupCard {
   border-radius: 12px;
-  background: var(--dsw-alias-bg-module-platform);
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -458,8 +463,11 @@
 }
 
 .modelEntry {
-  border: 0.5px solid var(--dsw-alias-border-l4);
+  border: 0;
   border-radius: 10px;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
   padding: 6px;
 }
 

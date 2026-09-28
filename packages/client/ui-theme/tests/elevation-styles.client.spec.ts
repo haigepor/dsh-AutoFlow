@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { packageStylesheets, parseRules } from './stylesheet-scan.ts'
+import { atRuleBlock, packageStylesheets, parseRules } from './stylesheet-scan.ts'
 
 /** Stroke-color indirection components may rebind per surface or state. */
 const STROKE_COLOR = '--dsw-elevation-stroke-color'
@@ -24,6 +24,12 @@ const sheetCss = readFileSync(
   fileURLToPath(new URL('../src/styles/gradient-shadow-text.css', import.meta.url)), 'utf8')
 const platformCss = readFileSync(
   fileURLToPath(new URL('../src/styles/design-platform.css', import.meta.url)), 'utf8')
+
+function declarationsIn(rules: ReturnType<typeof parseRules>) {
+  return (selector: string) => new Map(rules
+    .filter(rule => rule.selectors.length === 1 && rule.selectors[0] === selector)
+    .flatMap(rule => rule.declarations))
+}
 
 describe('elevation tokens', () => {
   const rules = parseRules(sheetCss)
@@ -51,20 +57,46 @@ describe('elevation tokens', () => {
     // scrollbar.css states for --dsh-scrollbar-thumb).
     expect(perElement.get('--dsw-elevation-stroke')).toBe(`0 0 0 0.5px var(${STROKE_COLOR})`)
     for (const name of ['--dsw-elevation-panel', '--dsw-elevation-prominent', '--dsw-elevation-soft']) {
-      expect(perElement.get(name), name).toMatch(/^var\(--dsw-elevation-stroke\), 0 /)
+      expect(perElement.get(name), name).toMatch(
+        /^var\(--dsw-elevation-stroke\), inset 0 1px 0 var\(--dsw-glass-highlight\), var\(--dsw-elevation-shadow-/,
+      )
       expect(bodyOnly.has(name), name).toBe(false)
     }
   })
 
   it('defines the translucent menu material for both palettes', () => {
-    expect(bodyOnly.get('--dsw-menu-backdrop-filter')).toBe('blur(40px) saturate(150%)')
+    expect(bodyOnly.get('--dsw-menu-backdrop-filter')).toBe('blur(18px) saturate(105%)')
+    expect(bodyOnly.get('--dsw-dialog-backdrop-filter')).toBe('blur(22px) saturate(105%)')
     const platformRules = parseRules(platformCss)
-    const value = (selector: string): string | undefined => platformRules
+    const value = (selector: string, property: string): string | undefined => platformRules
       .filter(rule => rule.selectors.includes(selector))
       .flatMap(rule => rule.declarations)
-      .findLast(([property]) => property === '--dsw-specific-menu')?.[1]
-    expect(value('body')).toBe('rgba(248, 249, 250, 0.58)')
-    expect(value('body[data-ds-dark-theme]')).toBe('rgba(48, 49, 54, 0.5)')
+      .findLast(([name]) => name === property)?.[1]
+    expect(value('body', '--dsw-specific-menu')).toBe('rgba(255, 255, 255, 0.86)')
+    expect(value('body[data-ds-dark-theme]', '--dsw-specific-menu')).toBe('rgba(39, 39, 37, 0.88)')
+    expect(value('body', '--dsw-specific-dialog')).toBe('rgba(255, 255, 255, 0.9)')
+    expect(value('body[data-ds-dark-theme]', '--dsw-specific-dialog')).toBe('rgba(39, 39, 37, 0.92)')
+  })
+
+  it('uses opaque material when blur is unavailable or transparency is reduced', () => {
+    const assertFallback = (prelude: string) => {
+      const block = atRuleBlock(platformCss, prelude)
+      expect(block, prelude).toBeDefined()
+      const rules = parseRules(platformCss.slice(block!.start + 1, block!.end))
+      const declarations = declarationsIn(rules)
+
+      expect(declarations('html body').get('--dsw-specific-menu')).toBe('rgb(255 255 255)')
+      expect(declarations('html body').get('--dsw-specific-dialog')).toBe('rgb(255 255 255)')
+      expect(declarations('html body').get('--dsw-menu-backdrop-filter')).toBe('none')
+      expect(declarations('html body').get('--dsw-dialog-backdrop-filter')).toBe('none')
+      expect(declarations('html body[data-ds-dark-theme]').get('--dsw-specific-menu')).toBe('rgb(39 39 37)')
+      expect(declarations('html body[data-ds-dark-theme]').get('--dsw-specific-dialog')).toBe('rgb(39 39 37)')
+      expect(declarations('html body[data-ds-dark-theme]').get('--dsw-menu-backdrop-filter')).toBe('none')
+      expect(declarations('html body[data-ds-dark-theme]').get('--dsw-dialog-backdrop-filter')).toBe('none')
+    }
+
+    assertFallback('@supports not (backdrop-filter: blur(1px))')
+    assertFallback('@media (prefers-reduced-transparency: reduce)')
   })
 })
 
@@ -116,9 +148,7 @@ describe('translucent menu surfaces pair fill and filter', () => {
       const file = files.find(candidate => candidate.endsWith(suffix))
       expect(file, suffix).toBeDefined()
       const rules = parseRules(readFileSync(file!, 'utf8'))
-      const declarations = (selector: string) => new Map(rules
-        .filter(rule => rule.selectors.length === 1 && rule.selectors[0] === selector)
-        .flatMap(rule => rule.declarations))
+      const declarations = declarationsIn(rules)
       expect(declarations(container).has('backdrop-filter'), container).toBe(false)
       expect(declarations(background).get('background'), background).toBe('var(--dsw-specific-menu)')
       expect(declarations(background).get('backdrop-filter'), background)

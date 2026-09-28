@@ -1,8 +1,13 @@
 .root {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+
   min-width: 0;
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  border: 0;
   border-radius: 16px;
-  background: var(--dsw-alias-markdown-code-block);
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-panel);
   transition: background-color 100ms ease;
 }
 .root:hover { background: var(--dsw-alias-interactive-bg-hover); }

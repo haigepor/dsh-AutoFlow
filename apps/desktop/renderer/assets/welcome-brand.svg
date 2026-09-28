@@ -1,13 +1,13 @@
 <svg width="472" height="40" viewBox="0 0 472 40" fill="none" xmlns="http://www.w3.org/2000/svg">
 <style>
   :root {
-    --dsw-alias-label-primary: #0f1115;
+    --dsw-alias-label-primary: #292927;
     --dsw-alias-label-primary-inverted: #fff;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --dsw-alias-label-primary: #f9fafb;
-      --dsw-alias-label-primary-inverted: #353638;
+      --dsw-alias-label-primary: #ECECE7;
+      --dsw-alias-label-primary-inverted: #292927;
     }
   }
 </style>

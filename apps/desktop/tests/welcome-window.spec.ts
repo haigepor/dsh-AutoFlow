@@ -67,7 +67,7 @@ describe('desktop welcome window', () => {
       expect(options.backgroundMaterial).toBe('acrylic')
       expect(options.titleBarOverlay).toMatchObject({ height: 42 })
     } else {
-      expect(options.backgroundColor).toBe('#FFFFFF')
+      expect(options.backgroundColor).toBe('#FAF9F7')
       expect(options.vibrancy).toBeUndefined()
       expect(options.backgroundMaterial).toBeUndefined()
     }

@@ -34,4 +34,4 @@ The welcome flow shares the Desktop backend controller with startup recovery. Th
 
 ## Consequences
 
-Native blur strength and font fallback vary by system. macOS uses menu vibrancy with the onboarding window tint: 40% white in light mode and 50% rgb(24 25 28) in dark mode. Native materials own the blur strength. Windows compositing needs platform QA. Owner-local text expectations cover both pages and locales, and a built-Host acceptance test proves credential persistence across restarts. Account sign-out preserves independently configured API keys. Onboarding presentation produces no Session events.
+Native blur strength and font fallback vary by system. macOS uses menu vibrancy with the onboarding window tint: 40% rgb(250 249 247) in light mode and 50% rgb(27 27 26) in dark mode. Native materials own the blur strength. Windows compositing needs platform QA. Owner-local text expectations cover both pages and locales, and a built-Host acceptance test proves credential persistence across restarts. Account sign-out preserves independently configured API keys. Onboarding presentation produces no Session events.

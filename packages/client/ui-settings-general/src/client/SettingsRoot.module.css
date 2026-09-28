@@ -56,8 +56,8 @@
   white-space: nowrap;
 }
 
-/* Full-viewport layer (figma Mask 501:29946 #000@24%): mask tokens match the
-   Modal primitive (--dsw-alias-bg-mask-1 + --dsw-mask-blur). */
+/* Full-viewport layer: mask tokens match the Modal primitive
+   (--dsw-alias-bg-mask-1 + --dsw-mask-blur). */
 .overlay {
   position: fixed;
   inset: 0;
@@ -81,7 +81,8 @@
    The viewport height leaves 24px of air above and below, widened to the
    frame's published top clearance (the macOS window strip, where clicks drag
    the window) on both sides, so the panel sits centered and clear of the
-   strip. */
+   strip. The panel uses the shared frosted material; its filter stays on a
+   background layer so fixed tooltips keep viewport positioning. */
 .panel {
   position: relative;
   z-index: 1;
@@ -91,7 +92,7 @@
   max-width: calc(100vw - 48px);
   border-radius: 32px;
   overflow: hidden;
-  background: var(--dsw-alias-bg-layer-2);
+  background: transparent;
   box-shadow: var(--dsw-elevation-prominent);
   /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens.
      Declared on the panel rather than the scrolling `.options` child so the
@@ -100,6 +101,17 @@
      styles/scrollbar.css for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.panel::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dsw-specific-dialog);
+  backdrop-filter: var(--dsw-dialog-backdrop-filter);
+  content: '';
+  pointer-events: none;
 }
 
 /* Nav rail (figma .Setting-nav 501:29958): 188 wide, pad (12,22,12,0),
