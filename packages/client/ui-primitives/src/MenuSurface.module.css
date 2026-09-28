@@ -14,6 +14,9 @@
 .surface {
   anchor-name: var(--dsh-menu-anchor);
   isolation: isolate;
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-menu-stroke-color);
+  box-shadow: var(--dsw-elevation-menu);
 }
 
 /* Filtering only the background keeps nested menus and fixed overlays free of

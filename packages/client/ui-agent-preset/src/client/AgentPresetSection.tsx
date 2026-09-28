@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
-  Button, IconBrowseOutlineRegular, IconPlusOutlineRegular, Modal, Tag, Tooltip,
+  Button, IconAgentPresetOutlineMedium, IconBrowseOutlineRegular, IconPlusOutlineRegular, Modal, Tag, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -99,8 +99,13 @@ export function AgentPresetSection({
       </button>
     )
   return <section className={css.section}>
-    <h2 className={css.title}>{t('nav')}</h2>
-    <p className={css.intro}>{t('sectionIntro')}</p>
+    <header className={css.pageHeader}>
+      <span className={css.pageIcon} aria-hidden="true"><IconAgentPresetOutlineMedium size={24} /></span>
+      <div>
+        <h1 className={css.title}>{t('nav')}</h1>
+        <p className={css.intro}>{t('sectionIntro')}</p>
+      </div>
+    </header>
     {state.error === null ? null : <p className={css.error} role="alert">{state.error}</p>}
     {([true, false] as const).map((builtIn) => {
       const rows = state.rows.filter(row => isBuiltInPreset(row) === builtIn)

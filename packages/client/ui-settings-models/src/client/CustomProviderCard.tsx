@@ -33,7 +33,8 @@ import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
 import type { ModelDraft } from './ModelListEditor.tsx'
 import { deriveKeyRef } from './store.ts'
-import { protocolLabel } from './protocol-label.ts'
+import { ProtocolPicker } from './ProtocolPicker.tsx'
+import { FieldHelp } from './FieldHelp.tsx'
 import type { ModelsOperations } from './operations.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
@@ -209,62 +210,62 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
 
   return (
     <div className={styles['editor']}>
-      <div className={styles['field']}>
-        <span className={styles['fieldLabel']}>{t('customRoute')}</span>
-        <input
-          className={styles['input']}
-          type="text"
-          value={route}
-          placeholder="acme-gateway"
-          aria-label={t('customRoute')}
-          disabled={profileDisabled}
-          onChange={(event) => { setRoute(event.target.value) }}
-        />
+      <div className={styles['fieldGrid']}>
+        <div className={styles['field']}>
+          <span className={styles['fieldLabel']}>{t('customRoute')}<FieldHelp title={t('customRoute')} text={t('customRouteHint')} t={t} /></span>
+          <input
+            className={styles['input']}
+            type="text"
+            value={route}
+            placeholder="acme-gateway"
+            aria-label={t('customRoute')}
+            disabled={profileDisabled}
+            onChange={(event) => { setRoute(event.target.value) }}
+          />
+          {routeInvalid || routeTaken
+            ? <p className={styles['error']}>{t(routeInvalid ? 'customRouteInvalid' : 'customRouteTaken')}</p>
+            : null}
+        </div>
+        <div className={styles['field']}>
+          <span className={styles['fieldLabel']}>{t('customDisplayName')}</span>
+          <input
+            className={styles['input']}
+            type="text"
+            value={displayName}
+            placeholder={route.length === 0 ? t('customDisplayName') : route}
+            aria-label={t('customDisplayName')}
+            disabled={profileDisabled}
+            onChange={(event) => { setDisplayName(event.target.value) }}
+          />
+        </div>
       </div>
-      {/* A rejected id reads as a fault, not as guidance — the same split the
-          key field below already makes between its failure and its hint. */}
-      {routeInvalid || routeTaken
-        ? <p className={styles['error']}>{t(routeInvalid ? 'customRouteInvalid' : 'customRouteTaken')}</p>
-        : <p className={styles['advancedHint']}>{t('customRouteHint')}</p>}
-      <div className={styles['field']}>
-        <span className={styles['fieldLabel']}>{t('customDisplayName')}</span>
-        <input
-          className={styles['input']}
-          type="text"
-          value={displayName}
-          placeholder={route.length === 0 ? t('customDisplayName') : route}
-          aria-label={t('customDisplayName')}
-          disabled={profileDisabled}
-          onChange={(event) => { setDisplayName(event.target.value) }}
-        />
-      </div>
-      <div className={styles['field']}>
-        <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
-        <input
-          className={styles['input']}
-          type="text"
-          value={baseURL}
-          placeholder={t(protocol === 'anthropic-messages'
-            ? 'customAnthropicBaseUrlPlaceholder'
-            : 'customBaseUrlPlaceholder')}
-          aria-label={t('baseUrl')}
-          aria-invalid={baseUrlInvalid}
-          disabled={profileDisabled}
-          onChange={(event) => { setBaseURL(event.target.value) }}
-        />
-      </div>
-      {baseUrlInvalid ? <p className={styles['error']}>{t('customBaseUrlInvalid')}</p> : null}
-      <div className={styles['field']}>
-        <span className={styles['fieldLabel']}>{t('customApi')}</span>
-        <select
-          className={`${styles['input']} ${styles['selectInput']}`}
-          value={protocol}
-          aria-label={t('customApi')}
-          disabled={profileDisabled}
-          onChange={(event) => { setProtocol(event.target.value) }}
-        >
-          {protocols.map(choice => <option key={choice} value={choice}>{protocolLabel(t, choice)}</option>)}
-        </select>
+      <div className={`${styles['fieldGrid']} ${styles['endpointGrid']}`}>
+        <div className={styles['field']}>
+          <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
+          <input
+            className={styles['input']}
+            type="text"
+            value={baseURL}
+            placeholder={t(protocol === 'anthropic-messages'
+              ? 'customAnthropicBaseUrlPlaceholder'
+              : 'customBaseUrlPlaceholder')}
+            aria-label={t('baseUrl')}
+            aria-invalid={baseUrlInvalid}
+            disabled={profileDisabled}
+            onChange={(event) => { setBaseURL(event.target.value) }}
+          />
+          {baseUrlInvalid ? <p className={styles['error']}>{t('customBaseUrlInvalid')}</p> : null}
+        </div>
+        <div className={styles['field']}>
+          <span className={styles['fieldLabel']}>{t('customApi')}</span>
+          <ProtocolPicker
+            value={protocol}
+            choices={protocols}
+            disabled={profileDisabled}
+            t={t}
+            onChange={setProtocol}
+          />
+        </div>
       </div>
       <div className={styles['field']}>
         <span className={styles['fieldLabel']}>{t('keyInput')}</span>

@@ -10,7 +10,7 @@
   box-shadow: var(--dsw-elevation-panel);
   transition: background-color 100ms ease;
 }
-.root:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.root:hover { background: color-mix(in srgb, var(--dsw-specific-menu) 94%, var(--dsw-alias-label-primary) 6%); }
 .header {
   display: flex;
   align-items: center;

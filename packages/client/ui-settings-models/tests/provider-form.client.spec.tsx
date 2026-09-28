@@ -22,6 +22,13 @@ afterEach(cleanup)
 
 const t: ModelsSectionInjected['t'] = key => en[key]
 
+function expectFieldHelp(title: string, text: string): void {
+  fireEvent.click(screen.getByRole('button', { name: en.helpFor.replace('{field}', title) }))
+  const panel = screen.getByRole('dialog', { name: title })
+  expect(within(panel).getByText(text)).toBeTruthy()
+  fireEvent.click(within(panel).getByRole('button', { name: en.close }))
+}
+
 const PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages']
 
 /** The pi-ai profile shape as the host serializes it, including the layer-1 fields. */
@@ -218,11 +225,12 @@ async function mountSection(options: Parameters<typeof scriptedFace>[0] = {}) {
   return { ...scripted, controller }
 }
 
-/** Open the editor of one configured row and expand its customized fold. */
+/** Select a configured provider in the rail and expand its customized fold. */
 function openEditor(provider: string): void {
-  const row = screen.getByText(provider).closest('li')
-  if (row === null) throw new Error(`no row for ${provider}`)
-  fireEvent.click(within_(row, en.edit))
+  const row = [...document.querySelectorAll<HTMLButtonElement>('[data-provider-row]')]
+    .find(button => button.getAttribute('aria-label')?.includes(provider) === true)
+  if (row === undefined) throw new Error(`no row for ${provider}`)
+  fireEvent.click(row)
   const summary = document.querySelector('summary')
   if (summary === null) throw new Error('no customized fold')
   fireEvent.click(summary)
@@ -405,7 +413,7 @@ describe('model list editing', () => {
 
     // The user layer names no models, so the list belongs to the adapter and
     // says so; taking it over is an explicit act, not a side effect of opening.
-    expect(screen.getByText(en.modelsInherited)).toBeTruthy()
+    expectFieldHelp(en.models, en.modelsInherited)
     expect(screen.queryByText(en.resetModels)).toBeNull()
   })
 
@@ -465,7 +473,7 @@ describe('model list editing', () => {
 
     // An empty override is a route that serves no models — a different intent
     // from handing the catalog back, which is what the reset affordance does.
-    expect(screen.getByText(en.modelsCustomized)).toBeTruthy()
+    expectFieldHelp(en.models, en.modelsCustomized)
     fireEvent.click(screen.getByText(en.resetModels))
     fireEvent.click(screen.getByText(en.apply))
     await waitFor(() => { expect(mutate).toHaveBeenCalled() })
@@ -803,8 +811,9 @@ describe('provider rows', () => {
     })
 
     const rowOf = (provider: string): HTMLElement => {
-      const row = screen.getByText(provider).closest('li')
-      if (row === null) throw new Error(`no row for ${provider}`)
+      const row = [...document.querySelectorAll<HTMLElement>('[data-provider-row]')]
+        .find(button => button.getAttribute('aria-label')?.includes(provider) === true)
+      if (row === undefined) throw new Error(`no row for ${provider}`)
       return row
     }
     expect(rowOf('acme-gateway').textContent).toContain(en.customTag)
@@ -916,7 +925,7 @@ describe('hand-declared providers', () => {
     // control could only be set to a value some of them reject — which would
     // take the whole provider out of the picker. The composer's model picker
     // owns the choice, and a switch there records provider+model+effort together.
-    const fields = () => [...document.querySelectorAll('input,select')]
+    const fields = () => [...document.querySelectorAll('input,select,button[aria-haspopup="menu"]')]
       .map(el => el.getAttribute('aria-label')).filter(Boolean)
 
     mountCard()
@@ -939,7 +948,7 @@ describe('hand-declared providers', () => {
       declaredRoutes: ['acme-gateway'],
     })
     openEditor('acme-gateway')
-    expect(fields()).toEqual([en.keyInput, en.customDisplayName, en.baseUrl, en.customApi])
+    expect(fields()).toEqual([en.keyInput, en.customDisplayName, en.customApi, en.baseUrl])
   })
 
   it('renames a declared route and falls back to its id when the name is cleared', async () => {
@@ -1041,9 +1050,10 @@ describe('hand-declared providers', () => {
     })
     openEditor('acme-gateway')
 
-    const protocol = screen.getByLabelText<HTMLSelectElement>(en.customApi)
-    expect(protocol.value).toBe('openai-completions')
-    fireEvent.change(protocol, { target: { value: 'anthropic-messages' } })
+    const protocol = screen.getByRole('button', { name: en.customApi })
+    expect(protocol.textContent).toContain(en.protocolOpenAiCompletions)
+    fireEvent.click(protocol)
+    fireEvent.click(screen.getByRole('menuitem', { name: en.protocolAnthropicMessages }))
     fireEvent.click(screen.getByText(en.apply))
 
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
@@ -1066,7 +1076,7 @@ describe('hand-declared providers', () => {
     })
     openEditor('acme-gateway')
 
-    expect(screen.getByLabelText<HTMLSelectElement>(en.customApi).value).toBe('')
+    expect(screen.getByRole('button', { name: en.customApi }).textContent).toContain(en.customApiUnset)
   })
 
   it('retries only the key after the profile landed, and reports the provider on cancel', async () => {
@@ -1165,7 +1175,7 @@ describe('hand-declared providers', () => {
     const routeField = screen.getByLabelText(en.customRoute)
     // Same split the key field makes: what the user got wrong reads as a
     // fault, what they have yet to do reads as guidance.
-    expect(screen.getByText(en.customRouteHint).className).toMatch(/advancedHint/)
+    expectFieldHelp(en.customRoute, en.customRouteHint)
 
     fireEvent.change(routeField, { target: { value: '2' } })
     expect(screen.getByText(en.customRouteInvalid).className).toMatch(/error/)
@@ -1407,12 +1417,14 @@ describe('hand-declared providers', () => {
     const protocol = screen.getByLabelText(en.customApi)
 
     expect(baseUrl.placeholder).toBe('https://gateway.example/v1')
-    fireEvent.change(protocol, { target: { value: 'openai-responses' } })
+    fireEvent.click(protocol)
+    fireEvent.click(screen.getByRole('menuitem', { name: en.protocolOpenAiResponses }))
     expect(baseUrl.placeholder).toBe('https://gateway.example/v1')
 
     fireEvent.change(screen.getByLabelText(en.customRoute), { target: { value: 'acme' } })
     fireEvent.change(baseUrl, { target: { value: 'https://acme.test/anthropic' } })
-    fireEvent.change(protocol, { target: { value: 'anthropic-messages' } })
+    fireEvent.click(protocol)
+    fireEvent.click(screen.getByRole('menuitem', { name: en.protocolAnthropicMessages }))
     expect(baseUrl.placeholder).toBe('https://gateway.example')
     expect(baseUrl.value).toBe('https://acme.test/anthropic')
     fireEvent.click(screen.getByRole('button', { name: en.addModel }))
@@ -1433,7 +1445,7 @@ describe('hand-declared providers', () => {
 
   it('offers no protocol when the namespace declares none', () => {
     mountCard({ protocols: [] })
-    expect(screen.getByLabelText<HTMLSelectElement>(en.customApi).value).toBe('')
+    expect(screen.getByRole('button', { name: en.customApi }).textContent).toBe('')
   })
 
   it('closes without writing on cancel, and honors a read-only deployment', () => {
@@ -1474,13 +1486,12 @@ describe('hand-declared providers', () => {
 
   it('names each protocol by its product name and falls back to the identifier of an unknown one', () => {
     mountCard({ protocols: [...PROTOCOLS, 'google-generative-ai'] })
-    const protocol = screen.getByLabelText<HTMLSelectElement>(en.customApi)
-    const labels = [...protocol.options].map(option => [option.value, option.textContent])
-    expect(labels).toEqual([
-      ['openai-completions', en.protocolOpenAiCompletions],
-      ['openai-responses', en.protocolOpenAiResponses],
-      ['anthropic-messages', en.protocolAnthropicMessages],
-      ['google-generative-ai', 'google-generative-ai'],
+    fireEvent.click(screen.getByRole('button', { name: en.customApi }))
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      en.protocolOpenAiCompletions,
+      en.protocolOpenAiResponses,
+      en.protocolAnthropicMessages,
+      'google-generative-ai',
     ])
   })
 

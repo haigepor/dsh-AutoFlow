@@ -1,6 +1,6 @@
 /** Shared model fields and actions for both adapter catalog editors. */
 
-import type { ReactNode } from 'react'
+import type { DragEvent, ReactNode } from 'react'
 import {
   IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconTrashOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -21,6 +21,7 @@ interface CapacityInput {
 interface ModelRowProps {
   model: DeepSeekModelDraft
   position: number
+  total: number
   inputField: 'inputModalities' | 'input'
   inputFallback?: readonly string[] | undefined
   inputLoading?: boolean
@@ -34,6 +35,13 @@ interface ModelRowProps {
   onChange: (model: DeepSeekModelDraft) => void
   onToggle: () => void
   onRemove: () => void
+  dragging: boolean
+  dropTarget: boolean
+  onDragStart: (event: DragEvent<HTMLButtonElement>) => void
+  onDragOver: (event: DragEvent<HTMLDivElement>) => void
+  onDrop: (event: DragEvent<HTMLDivElement>) => void
+  onDragEnd: () => void
+  onMove: (to: number) => void
 }
 
 /**
@@ -44,23 +52,45 @@ interface ModelRowProps {
 export function ModelRow(props: ModelRowProps): ReactNode {
   const { model, position, t, disabled } = props
   return (
-    <div className={styles['modelEntry']}>
+    <div className={`${styles['modelEntry']} ${props.dragging ? styles['modelDragging'] : ''} ${props.dropTarget ? styles['modelDropTarget'] : ''}`}
+      onDragOver={props.onDragOver} onDrop={props.onDrop}>
       <div className={styles['modelRow']}>
+        <div className={styles['modelOrder']}>
+          <span className={styles['modelOrderNumber']}>{String(position).padStart(2, '0')}</span>
+          <button type="button" className={styles['modelDragHandle']} disabled={disabled || props.total < 2}
+            draggable={!disabled && props.total > 1} data-model-order-position={position}
+            aria-label={`${t('reorderModel')} ${String(position)}`} title={t('reorderModel')}
+            onDragStart={props.onDragStart} onDragEnd={props.onDragEnd}
+            onKeyDown={(event) => {
+              const to = event.key === 'ArrowUp' ? position - 1 : event.key === 'ArrowDown' ? position + 1 : position
+              if (to === position || to < 1 || to > props.total) return
+              event.preventDefault()
+              const list = event.currentTarget.closest('[data-model-list]')
+              props.onMove(to - 1)
+              requestAnimationFrame(() => {
+                list?.querySelector<HTMLButtonElement>(`[data-model-order-position="${String(to)}"]`)?.focus()
+              })
+            }}>
+            <span className={styles['modelGrip']} aria-hidden="true" />
+          </button>
+        </div>
         {(['id', 'name'] as const).map(field => (
-          <input
-            key={field}
-            className={styles['input']}
-            type="text"
-            value={typeof model[field] === 'string' ? model[field] : ''}
-            placeholder={t(field === 'id' ? 'modelId' : 'modelName')}
-            aria-label={`${t(field === 'id' ? 'modelId' : 'modelName')} ${String(position)}`}
-            disabled={disabled}
-            onChange={(event) => {
-              const value = event.target.value
-              props.onFieldChange(field, field === 'name' && value === '' ? undefined : value)
-            }}
-            onBlur={field === 'id' ? event => props.onIdBlur?.(event.target.value) : undefined}
-          />
+          <label className={styles['modelIdentityField']} key={field}>
+            <span className={styles['modelMobileLabel']}>{t(field === 'id' ? 'modelId' : 'modelName')}</span>
+            <input
+              className={styles['input']}
+              type="text"
+              value={typeof model[field] === 'string' ? model[field] : ''}
+              placeholder={t(field === 'id' ? 'modelId' : 'modelName')}
+              aria-label={`${t(field === 'id' ? 'modelId' : 'modelName')} ${String(position)}`}
+              disabled={disabled}
+              onChange={(event) => {
+                const value = event.target.value
+                props.onFieldChange(field, field === 'name' && value === '' ? undefined : value)
+              }}
+              onBlur={field === 'id' ? event => props.onIdBlur?.(event.target.value) : undefined}
+            />
+          </label>
         ))}
         <button
           type="button"

@@ -31,9 +31,10 @@ export interface ILayout {
   /**
    * Select a global central panel without changing the current Session.
    * @param panelId - registered main key, or null to show the Conversation.
+   * @param options - temporary full-window presentation for a page that owns the whole frame.
    * @throws if the selected main key is not registered; preserves the current selection.
    */
-  selectPanel(panelId: MainPanelId | null): void
+  selectPanel(panelId: MainPanelId | null, options?: { fullWindow?: boolean }): void
   /**
    * Start an asynchronous navigation, superseding any earlier pending navigation.
    * @returns a signal aborted by the next navigation or layout disposal; check it before committing UI state.
@@ -69,12 +70,13 @@ export class LayoutController implements ILayout {
   ) {}
 
   /** Select a global panel or return to the Conversation. */
-  selectPanel(panelId: MainPanelId | null): void {
+  selectPanel(panelId: MainPanelId | null, options?: { fullWindow?: boolean }): void {
     if (panelId !== null && !this.hasMainPanel(panelId)) {
       throw new Error(`layout.selectPanel: main panel "${panelId}" is not registered`)
     }
     this.navigation.abort()
-    this.panels.selectPanel(panelId)
+    if (options?.fullWindow) this.panels.selectPanel(panelId, true)
+    else this.panels.selectPanel(panelId)
   }
 
   /** @returns the new pending navigation's cancellation signal. */

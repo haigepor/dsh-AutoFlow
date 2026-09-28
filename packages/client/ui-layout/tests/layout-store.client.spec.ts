@@ -21,6 +21,7 @@ describe('createLayoutStore', () => {
         rightbarTrack: false,
         rightbarFullscreen: false,
         rightbarInstant: false,
+        fullWindow: false,
       },
     })
   })
@@ -103,6 +104,29 @@ describe('main panel selection', () => {
     actions.selectPanel(panelA)
     expect(store.getSnapshot()).toBe(selected)
     expect(store.getSnapshot().panelInfo.activePanelId).toBe(panelA)
+  })
+
+  it('uses one full-window track only for the requested panel and restores saved geometry', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setSidebar(400)
+    actions.openRightbar(true, false)
+    const before = store.getSnapshot().layoutInfo
+    actions.selectPanel(panelA, true)
+    expect(store.getSnapshot().layoutInfo).toMatchObject({ fullWindow: true, sidebar: 400, rightbarShown: true })
+    actions.selectPanel(panelB)
+    expect(store.getSnapshot().layoutInfo).toMatchObject({ fullWindow: false, sidebar: 400, rightbarShown: true })
+    actions.selectPanel(panelA, true)
+    actions.selectPanel(null)
+    expect(store.getSnapshot().layoutInfo).toEqual(before)
+  })
+
+  it('clears full-window presentation if its main registration disappears', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.selectPanel(panelA, true)
+    actions.retainMainPanels(['conversation', panelB])
+    expect(store.getSnapshot()).toMatchObject({
+      panelInfo: { activePanelId: null }, layoutInfo: { fullWindow: false },
+    })
   })
 
   it('returns to the Conversation only when the selected main registration disappears', () => {

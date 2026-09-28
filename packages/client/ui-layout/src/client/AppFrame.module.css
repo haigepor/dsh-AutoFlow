@@ -1,5 +1,6 @@
 .frame {
-  position: relative; /* anchors the drag handles, which straddle column borders */
+  --dsh-frame-content-top-gap: 8px;
+  position: relative; /* anchors the drag handles, which straddle column edges */
   display: grid;
   grid-template-rows: 100%;
   height: 100%;
@@ -46,10 +47,6 @@
   -webkit-app-region: drag;
 }
 
-:global([data-windows-titlebar]) .sidebarCol {
-  border-right: none;
-}
-
 :global([data-windows-titlebar]) .handle {
   top: var(--dsh-windows-titlebar-height);
 }
@@ -64,7 +61,6 @@
   min-width: 0;
   overflow: hidden;
   background: var(--dsw-specific-sidebar-fill);
-  border-right: 0.5px solid var(--dsw-alias-border-l3);
 }
 
 .centerCol {
@@ -74,11 +70,24 @@
   overflow: hidden;
 }
 
+/* Keep both columns mounted so their stores survive while a page owns the frame. */
+.frame[data-full-window] .sidebarCol,
+.frame[data-full-window] .rightbarCol {
+  display: none;
+}
+
+.frame[data-full-window],
+.frame[data-full-window] .centerCol {
+  transition: none;
+}
+
+:global([data-windows-titlebar]) .frame[data-full-window] .centerCol {
+  border-radius: 0;
+}
+
 /* macOS desktop: the frame goes transparent so window vibrancy reaches the
    sidebar column, which keeps only a translucent tint; the centre paints the
-   base background itself to stay opaque. The sidebar/centre separator moves
-   to the opaque centre: on the translucent sidebar the alpha border mixes
-   with the wallpaper and reads as a dark seam. */
+   base background itself to stay opaque. */
 :global([data-platform='darwin']) .frame {
   background: transparent;
 }
@@ -108,7 +117,6 @@
       rgb(143 137 184 / 0.09)
     ),
     color-mix(in srgb, color-mix(in srgb, var(--dsw-specific-sidebar-fill) 97%, rgb(122 155 240)) 40%, transparent);
-  border-right: none;
 }
 
 /* Dark drops the blue cast (the light-mode wash reads purple over dark fills)
@@ -138,7 +146,6 @@
 
 :global([data-platform='darwin']) .centerCol {
   background: var(--dsw-alias-bg-base);
-  border-left: 0.5px solid var(--dsw-alias-border-l3);
 }
 
 /* The right track paints the base ground on the transparent frame: while the
@@ -150,10 +157,16 @@
   background: var(--dsw-alias-bg-base);
 }
 
-/* The darwin closed sidebar has no rail: the centre reaches the window edge,
-   where a separator would draw a seam against nothing. */
-:global([data-platform='darwin']) [data-sidebar-collapsed] .centerCol {
-  border-left: none;
+/* The Conversation paints its own inset surface; this fill shows through its
+   rounded corner without changing the backgrounds of other main panels. */
+.centerCol:has([data-conversation-main]) {
+  padding-top: var(--dsh-frame-content-top-gap);
+  background: var(--dsw-specific-sidebar-fill);
+}
+
+/* With no sidebar column, keep the window-edge corner on the frame surface. */
+:global([data-platform='darwin']) .frame[data-sidebar-collapsed] .centerCol:has([data-conversation-main]) {
+  background: var(--dsw-specific-conversation-fill);
 }
 
 /* Published while the shell.leading seat is mounted (same condition as the

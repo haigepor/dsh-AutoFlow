@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for autoflow-appearance-proposal.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/autoflow-appearance-proposal.md
+/autoflow-appearance-page-proposal:
+  en: 6f16e4b56e1edbf3
+  zh: 660e4da67eeb8486
+/autoflow-appearance-page-proposal/current-behavior-and-ownership:
+  en: 921e1f3104c92ab4
+  zh: 69011604d1df36ed
+/autoflow-appearance-page-proposal/visual-structure:
+  en: 87a89609704be5e7
+  zh: 3de3e403bf0d6179
+/autoflow-appearance-page-proposal/implementation-sequence:
+  en: ce450fc4d57effd3
+  zh: d506bef06d2953b9
+/autoflow-appearance-page-proposal/review-criteria:
+  en: a5ea59a5d3a087be
+  zh: a5b95d60d13ef8d4

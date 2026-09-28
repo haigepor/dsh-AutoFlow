@@ -24,8 +24,6 @@
   display: flex;
   flex-direction: column;
   border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
 }
 
 /* The hint covers content, not the scrollbar rail, and disappears once the
@@ -37,7 +35,7 @@
   bottom: 4px;
   left: 4px;
   height: 16px;
-  background: linear-gradient(to bottom, transparent, var(--dsw-specific-menu));
+  background: linear-gradient(to bottom, transparent, var(--dsw-menu-surface-fill));
   pointer-events: none;
 }
 

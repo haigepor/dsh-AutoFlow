@@ -47,6 +47,8 @@ kind: "package-reference"
 
 -----
 
+插件清单填满设置内容栏，使用 44px 高的搜索框和双列卡片；容器较窄时，卡片改为单列。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

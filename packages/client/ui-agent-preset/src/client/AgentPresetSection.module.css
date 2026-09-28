@@ -2,20 +2,49 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 720px;
+  width: 100%;
+  min-width: 0;
   color: var(--dsw-alias-label-primary);
 }
 
 .title {
   margin: 0;
-  font-size: 18px;
+  font-size: 26px;
+  line-height: 36px;
   font-weight: 600;
+  color: var(--dsw-alias-label-primary);
 }
 
 .intro {
-  margin: 0;
-  font-size: 13px;
-  color: var(--dsw-alias-label-tertiary);
+  margin: 6px 0 0;
+  max-width: 64ch;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.pageHeader > div {
+  min-width: 0;
+}
+
+.pageIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
 }
 
 /* Cards, not rows: a preset is a thing you pick, and the description is the
@@ -46,7 +75,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   /* Match neighboring cards within a row, without stretching shorter rows. */
   gap: 12px;
 }
@@ -55,7 +84,7 @@
   position: relative;
   isolation: isolate;
   z-index: 0;
-  border: 0;
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 20px;
   display: flex;
   flex-direction: column;
@@ -85,10 +114,9 @@
   background: color-mix(in srgb, var(--dsw-specific-menu) 88%, var(--dsw-alias-interactive-bg-hover));
 }
 
-/* The default preset keeps the frosted fill and uses the bluish-400 border
-   for selection (the static token has no alias-layer name). */
+/* 默认预设只强调轮廓，保留与主题一致的卡片材质。 */
 .cardActive {
-  border: 0.5px solid var(--dsw-static-neutral-bluish-400);
+  border-color: var(--dsw-alias-label-tertiary);
 }
 
 /* Mode selection is off, not the preset itself: mute only the selectable
@@ -194,7 +222,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 16px 12px;
+  padding: 20px;
+  min-height: 148px;
+  box-sizing: border-box;
   border-radius: var(--dsw-radius-xl) var(--dsw-radius-xl) 0 0;
 }
 
@@ -209,6 +239,7 @@
 
 .cardHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
   /* Anchors the broken badge's tooltip: the badge itself stays unpositioned so
@@ -274,7 +305,7 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 2px;
-  padding: 6px 10px;
+  padding: 10px 16px;
   border-top: 0.5px solid var(--dsw-alias-border-l2);
 }
 
@@ -403,4 +434,10 @@
 .creatorButton:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+@media (max-width: 960px) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

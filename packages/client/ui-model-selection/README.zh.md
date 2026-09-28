@@ -54,7 +54,7 @@ DeepSeek 账号和 API Key 路由显示为独立提供方分组，各自展示�
 <a id="understand-the-implementation"></a>
 ## 理解实现
 
-菜单采用共享 `MenuSurface` 材质，包括用于背景模糊的 macOS 底层；自定义内容遵循[菜单规则](../../../docs/web-styling.zh.md#component-rules)。
+菜单采用共享 `MenuSurface` 材质，包括用于背景模糊的 macOS 底层；已选模型与推理强度行使用主题的柔和强调色填充和文字，并保留右侧勾选标记。自定义内容遵循[菜单规则](../../../docs/web-styling.zh.md#component-rules)。
 
 <details>
 <summary>实现细节——点击展开</summary>

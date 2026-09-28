@@ -101,11 +101,8 @@
   max-height: min(360px, calc(100vh - 96px));
   overflow: hidden;
   padding: 4px;
-  /* Surface tokens match the Menu primitive card (ui-primitives
-   * Menu.module.css) so every dropdown reads as the same material. */
+  /* MenuSurface supplies the shared material and elevation. */
   border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
   color: var(--dsw-alias-label-primary);
   /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens.
      Declared here rather than on the scrolling `.groups` child so the
@@ -199,10 +196,19 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-/* Selection marker is the trailing check, not a fill — matches the Menu
- * primitive's selected treatment. */
-.selected {
-  background: transparent;
+/* Keep the selected value visible while the pointer or keyboard focus moves. */
+.option.selected {
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+}
+
+.option.selected:hover:not(:disabled),
+.option.selected:focus-visible {
+  background: var(--dsw-alias-button-ghost-active-hover);
+}
+
+.selected .modelName,
+.selected .check {
+  color: var(--dsw-alias-state-business-primary);
 }
 
 .option:disabled {

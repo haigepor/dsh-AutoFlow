@@ -64,12 +64,12 @@ describe('SidebarRoot.module.css', () => {
     expect(declarations('.collapsed .newSession')?.get('width')).toBe('36px')
   })
 
-  it('keeps the slotted brand row at the full artwork height', () => {
+  it('keeps the slotted brand at the artwork height with compact navigation type', () => {
     expect(declarations('.brandIdentity')?.get('height')).toBe('24px')
     expect(declarations('.brandName')?.get('height')).toBe('24px')
     expect(declarations('.brandName')?.get('line-height')).toBe('24px')
-    expect(declarations('.brandName')?.get('font-size')).toBe('18px')
-    expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('17px')
+    expect(declarations('.brandName')?.get('font-size')).toBe('14px')
+    expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('14px')
     expect(declarations('.fallbackBrandName')?.get('white-space')).toBe('nowrap')
   })
 })

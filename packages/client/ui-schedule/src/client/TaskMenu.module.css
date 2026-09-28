@@ -1,5 +1,5 @@
-/* Rules the task manager's four menus use, copied from the shared
- * ui-primitives Menu.module.css so this package owns its own card. */
+/* The task manager's four menus keep the shared Menu geometry and use the
+ * theme's standalone menu material. */
 
 .root {
   position: relative;
@@ -16,10 +16,10 @@
   gap: 0;
   border: 0;
   border-radius: 16px;
-  background: var(--dsw-specific-menu);
+  background: var(--dsw-menu-standalone-fill);
   backdrop-filter: var(--dsw-menu-backdrop-filter);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
+  --dsw-elevation-stroke-color: var(--dsw-menu-stroke-color);
+  box-shadow: var(--dsw-elevation-menu);
   /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens. The
      declaration sits on the card rather than on `.scrollable .viewport`
      because the elevation is a property of this surface, and the custom

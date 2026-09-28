@@ -551,12 +551,8 @@
   flex-direction: column;
   min-width: 96px;
   padding: 3px;
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
   border: 0;
   border-radius: 8px;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
-  box-shadow: var(--dsw-elevation-prominent);
 }
 
 .menu:not(:has([role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'])) {

@@ -47,6 +47,8 @@ The Plugin list also shows synchronization failures on the current page. Its ret
 
 -----
 
+The inventory fills its settings column, with a 44px search field and two-column cards that become a single column when their container is narrow.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

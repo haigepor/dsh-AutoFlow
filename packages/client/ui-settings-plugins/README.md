@@ -31,6 +31,8 @@ To contribute a tab, register into `settings.plugins.tab` with an `id`, an `orde
 
 -----
 
+The section uses one icon-led heading and compact segmented tabs when multiple contributions exist. Tab content follows the width of the centered settings column.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

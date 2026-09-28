@@ -27,6 +27,8 @@ The dsh web client sidebar lets users recognize the active build, start a new se
 <a id="use-this-package"></a>
 ## Use this package
 
+The expanded sidebar uses a compact workspace-navigation rhythm: quiet brand and New Session rows, 32px navigation entries with 8px corners, and one gliding hover/focus layer shared by New Session and panel rows. Selected panels retain a neutral fill while the hover layer moves. The 56px collapsed rail keeps its 36px targets while sharing the 8px corners, hover fill, and compact panel-row gap; platform titlebar controls retain their own geometry. A divider separates the bottom Settings seat.
+
 The sidebar is the navigation shell: users see the brand, start new sessions, collapse the rail, and reach Settings. Feature plugins fill its seats — ui-workspace fills `sidebar.workspaces`, ui-settings registers the trigger row and settings panel at `sidebar.settings`.
 
 ### Brand and New Session

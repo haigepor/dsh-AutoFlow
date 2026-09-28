@@ -243,6 +243,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
     <div
       className={clsx(css.projectRow, menuOpen && css.menuOpen)}
       data-row-key={`workspace:${group.key}`}
+      data-glide-row
       role="treeitem"
       aria-expanded={row.expanded}
       onClick={onToggle}
@@ -481,6 +482,7 @@ export function SearchResultItem({ result, currentId, onOpen, onUnarchive, t }: 
   return (
     <div
       className={clsx(css.searchResultRow, selected && css.selected, result.archived && css.archived)}
+      data-glide-row
       role="treeitem"
       aria-selected={selected}
       aria-description={result.archived ? t('toast.archivedNotOpenable') : undefined}
@@ -587,6 +589,7 @@ export function SessionNodeItem({
     <div
       ref={rowRef}
       data-row-key={`session:${node.id}`}
+      data-glide-row
       className={clsx(
         css.sessionRow, selected && css.selected, menuOpen && css.menuOpen,
         row.archived && css.archived,

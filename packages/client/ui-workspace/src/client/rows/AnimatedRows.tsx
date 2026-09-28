@@ -1,5 +1,6 @@
 /** React-commit-driven movement and entry/exit fades for the sidebar's keyed rows. */
 import { Component, createRef, type ReactNode } from 'react'
+import { GlideHighlight } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './AnimatedRows.module.css'
 
 const ROW_FADE_MS = 100
@@ -8,6 +9,7 @@ const ROW_GLIDE_MS = 200
 interface AnimatedRowsProps {
   children: ReactNode
   className: string
+  glideClassName?: string | undefined
   label: string
   /** Unique DOM-order keys matching the rendered data-row-key attributes. */
   rowKeys: readonly string[]
@@ -175,6 +177,9 @@ export class AnimatedRows extends Component<AnimatedRowsProps> {
         onPointerDownCapture={() => { this.armed = true }}
         onKeyDownCapture={() => { this.armed = true }}
       >
+        {this.props.glideClassName !== undefined && (
+          <GlideHighlight className={this.props.glideClassName} rowSelector="[data-glide-row]" />
+        )}
         {this.props.children}
       </div>
       <div ref={this.overlay} className={css.exits} aria-hidden="true" />

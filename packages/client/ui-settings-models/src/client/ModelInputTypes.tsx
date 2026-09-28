@@ -39,6 +39,7 @@ export function ModelInputTypes({ model, field, position, disabled, fallback, t,
         {(['text', 'image'] as const).map(modality => (
           <Checkbox
             key={modality}
+            className={styles['modelChoice']}
             label={t(modality === 'text' ? 'modelInputText' : 'modelInputImage')}
             checked={selected.includes(modality)}
             disabled={disabled || (selected.length === 1 && selected.includes(modality))}

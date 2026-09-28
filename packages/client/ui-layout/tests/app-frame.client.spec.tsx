@@ -183,6 +183,18 @@ afterEach(() => {
 })
 
 describe('AppFrame', () => {
+  it('gives a full-window page one track and restores the previous columns on return', () => {
+    const f = mountFrame()
+    const columns = f.frame.style.gridTemplateColumns
+    act(() => { f.instance.actions.selectPanel('settings' as MainPanelId, true) })
+    expect(f.frame.getAttribute('data-full-window')).toBe('true')
+    expect(f.frame.style.gridTemplateColumns).toBe('minmax(0, 1fr)')
+    expect(f.frame.querySelector('[data-side="sidebar"]')).toBeNull()
+    expect(f.frame.querySelector('[data-side="rightbar"]')).toBeNull()
+    act(() => { f.instance.actions.selectPanel(null) })
+    expect(f.frame.hasAttribute('data-full-window')).toBe(false)
+    expect(f.frame.style.gridTemplateColumns).toBe(columns)
+  })
   it('localizes the product title without a configured build title', () => {
     mountFrame()
     expect(document.title).toBe('DSH Local Build')

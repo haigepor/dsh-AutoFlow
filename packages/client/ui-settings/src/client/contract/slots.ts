@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
-    /** Optional sidebar account launcher; opens the shell-owned settings panel. */
+    /** Optional sidebar account launcher; opens the shell-owned settings page. */
     'settings.launcher': { kind: 'single'; scope: 'root'; owner: SettingsLauncherOwnerProps }
 
     /**
@@ -25,22 +25,17 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * the shipped composition always registers the seat).
      */
     'settings.trigger': { kind: 'single'; scope: 'root'; owner: SettingsTriggerOwnerProps }
-    /**
-     * The panel title text seat. Content renders inside the nav heading row;
-     * the dialog's accessible name points at that node via aria-labelledby.
-     * Absent contribution leaves the heading empty.
-     */
+    /** The accessible title of the settings navigation; each section owns its visible heading. */
     'settings.header': { kind: 'single'; scope: 'root'; owner: SettingsHeaderOwnerProps }
     /**
-     * Optional actions rendered in the content-column header before Close.
+     * Optional actions rendered below the selected section.
      * Registrants own visibility, behavior, copy, and failure presentation;
      * the shell supplies only the ordered render site.
      */
     'settings.action': { kind: 'list'; scope: 'root'; owner: SettingsHeaderOwnerProps }
     /**
-     * The close button's visually-hidden label text (the button itself —
-     * icon, geometry, focus — is shell chrome). Absent contribution leaves
-     * the button without an accessible name (broken-composition state).
+     * The return button's label text (the button itself — icon, geometry,
+     * focus — is shell chrome). Absent contribution leaves it unnamed.
      */
     'settings.close': { kind: 'single'; scope: 'root'; owner: SettingsHeaderOwnerProps }
     /**
@@ -117,14 +112,14 @@ export interface SettingsHeaderOwnerProps {
 }
 
 /**
- * Owner share of a settings section entry. The shell owns modal visibility
+ * Owner share of a settings section entry. The shell owns page visibility
  * and navigation; a section's data arrives through its own inject faces and
  * stores. `close` is the one shell affordance a section receives, for flows
  * that leave settings altogether (starting a session from a section) — the
  * onboarding coordinator's `openSection`/`complete` precedent, inverted.
  */
 export interface SettingsSectionOwnerProps {
-  /** Close the settings panel (the shell owns the open state). */
+  /** Leave the settings page (the shell owns the return target). */
   close: () => void
 }
 
@@ -136,7 +131,7 @@ export interface SettingsOnboardingOwnerProps {
   explicit?: boolean
   /** Complete or skip this step and transfer ownership to the next entry. */
   complete: () => void
-  /** Open the settings panel directly on one registered section. */
+  /** Open the settings page directly on one registered section. */
   openSection: (id: string) => void
 }
 
@@ -144,11 +139,11 @@ export interface SettingsOnboardingOwnerProps {
 export interface SettingsLauncherOwnerProps {
   /** Whether the sidebar shows labels. */
   wide: boolean
-  /** Whether the settings dialog covers the sidebar; a launcher may treat a false-to-true edge as one Settings entry. */
+  /** Whether the settings page is active; a launcher may treat a false-to-true edge as one Settings entry. */
   settingsOpen: boolean
   /** Effective Settings key labels and accessible combination; omitted when unbound. */
   settingsShortcut?: { readonly keys: readonly string[]; readonly aria?: string | undefined }
-  /** Open the settings panel. */
+  /** Open the settings page. */
   openSettings: () => void
   /** @param id - registered onboarding editor to open explicitly. */
   openOnboarding: (id: string) => void

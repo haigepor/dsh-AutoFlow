@@ -34,9 +34,22 @@ const openaiCopy = (template: string): string => providerCopy(template, OPENAI_T
 const DEEPSEEK_TARGET = { provider: 'deepseek-official', displayName: 'DeepSeek' }
 const deepSeekCopy = (template: string): string => providerCopy(template, DEEPSEEK_TARGET)
 
+function expectFieldHelp(title: string, text: string): void {
+  fireEvent.click(screen.getByRole('button', { name: en.helpFor.replace('{field}', title) }))
+  const panel = screen.getByRole('dialog', { name: title })
+  expect(within(panel).getByText(text)).toBeTruthy()
+  fireEvent.click(within(panel).getByRole('button', { name: en.close }))
+}
+
 /** Open one row's capacity disclosure (1-based, as the labels read). */
 function expandRow(position: number): void {
   fireEvent.click(screen.getByLabelText(`${en.modelAdvanced} ${String(position)}`))
+}
+
+/** Choose a catalog provider through the same menu the page exposes. */
+function selectCatalogProvider(name: string): void {
+  fireEvent.click(screen.getByRole('button', { name: en.provider }))
+  fireEvent.click(screen.getByRole('menuitem', { name }))
 }
 
 /** The capacity inputs of every open row, in row order. */
@@ -350,8 +363,9 @@ describe('ModelsSection', () => {
     // is the catalog form alone: no mode switch, no custom panel.
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.queryByRole('textbox', { name: en.customRoute })).toBeNull()
-    expect(screen.queryByRole('option', { name: 'anthropic' })).toBeNull()
-    expect(screen.getByRole('option', { name: 'plain' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.provider }))
+    expect(screen.queryByRole('menuitem', { name: 'anthropic' })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'plain' })).toBeTruthy()
   })
 
   it('shows a catalog diagnostic while keeping the provider editable', async () => {
@@ -387,7 +401,7 @@ describe('ModelsSection', () => {
     }))
     await mountFace(scripted)
 
-    const card = screen.getByRole('listitem')
+    const card = screen.getByRole('region', { name: en.providerDetails })
     expect(within(card).getByRole('alert').textContent).toBe(failure)
     expect(within(card).getByLabelText(en.keyInput)).toBeTruthy()
     expect(within(card).queryByRole('button', { name: deepSeekCopy(en.editProvider) })).toBeNull()
@@ -395,13 +409,13 @@ describe('ModelsSection', () => {
 
   it('dispatches the provider-card seat per rendered row, keyed by the owning namespace', async () => {
     const { renderSlot } = await mountSection()
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
     const cards = cardSeatCalls(renderSlot)
     expect(cards).toContainEqual(['openai', true, true, 'llm-pi-ai'])
     expect(cards).toContainEqual(['deepseek-official', true, false, 'llm-deepseek'])
     // The footer seat renders once below the rows and the add controls.
-    expect(renderSlot.mock.calls.filter(call => call[0] === 'settings.models.footer')).toEqual([
-      ['settings.models.footer', {}],
-    ])
+    expect(renderSlot.mock.calls.filter(call => call[0] === 'settings.models.footer'))
+      .toContainEqual(['settings.models.footer', {}])
   })
 
   it('dispatches the provider-card seat inside the first-run setup card', async () => {
@@ -444,13 +458,15 @@ describe('ModelsSection', () => {
     await act(async () => { await controller.load() })
     // The draft card is still open while its row is gone from the directory.
     expect(screen.getByLabelText(en.keyInput)).toBeTruthy()
+    renderSlot.mockClear()
+    await act(async () => { controller.store.update((state) => { state.rows = [...state.rows] }) })
     expect(cardSeatCalls(renderSlot).some(([provider]) => provider === 'anthropic')).toBe(false)
   })
   it('renders the unkeyed whole-section provider as an open setup card in the first-run posture', async () => {
     await mountFirstRun()
     // Nothing is reachable yet, and DeepSeek has no configured credential and
     // no stored apiKey → setup card.
-    expect(screen.getByText('DeepSeek')).toBeTruthy()
+    expect(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) })).toBeTruthy()
     expect(screen.getByLabelText(en.keyInput)).toBeTruthy()
     expect(screen.getByText('openai')).toBeTruthy()
     expect(screen.queryByText('Active')).toBeNull()
@@ -462,13 +478,13 @@ describe('ModelsSection', () => {
     await mountSection()
     // openai's key is stored, so the user is not blocked and nothing on the
     // page opens itself over them.
-    expect(screen.queryByLabelText(en.keyInput)).toBeNull()
+    expect(screen.getByLabelText(en.keyInput)).toBeTruthy()
     const configured = screen.getByRole('img', { name: en.credentialConfigured })
     expect(configured.getAttribute('title')).toBe(en.credentialConfigured)
     expect(configured.className).toContain('credentialDotConfigured')
-    expect(configured.closest('li')?.textContent).toContain('openai')
+    expect(configured.closest('button')?.textContent).toContain('openai')
     const missing = screen.getByRole('img', { name: en.credentialMissing })
-    expect(missing.closest('li')?.textContent).toContain('DeepSeek')
+    expect(missing.closest('button')?.textContent).toContain('DeepSeek')
     // The card is still one click away.
     fireEvent.click(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) }))
     expect(screen.getByLabelText(en.keyInput)).toBeTruthy()
@@ -490,12 +506,13 @@ describe('ModelsSection', () => {
       renderSlot={() => null}
     />)
 
-    const missing = screen.getByRole('img', { name: en.credentialMissing })
+    const missing = screen.getAllByRole('img', { name: en.credentialMissing })
+      .find(dot => dot.closest('button')?.textContent?.includes('openai'))!
     expect(missing.getAttribute('title')).toBe(en.credentialMissing)
     expect(missing.className).toContain('credentialDotMissing')
-    expect(missing.closest('li')?.textContent).toContain('openai')
+    expect(missing.closest('button')?.textContent).toContain('openai')
     expect(screen.queryByRole('img', { name: en.credentialConfigured })).toBeNull()
-    expect(screen.getByText('zombie').closest('li')?.querySelector('[role="img"]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Edit zombie' }).querySelector('[role="img"]')).toBeNull()
   })
 
   it('turns the setup card into a row once the credential reports configured', async () => {
@@ -514,9 +531,9 @@ describe('ModelsSection', () => {
       t={t}
       renderSlot={() => null}
     />)
-    // Now a row with an Edit button, not an open card.
-    expect(screen.getAllByText(en.edit).length).toBeGreaterThan(1)
-    expect(screen.queryByLabelText(en.keyInput)).toBeNull()
+    // The configured provider is selected in the rail and its detail opens there.
+    expect(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) })).toBeTruthy()
+    expect(screen.getByLabelText(en.keyInput)).toBeTruthy()
   })
 
   it('decides setup need from the joined credential state and the first-run posture', () => {
@@ -661,7 +678,7 @@ describe('ModelsSection', () => {
       mutate: vi.fn(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
-    expect(screen.getByText(en.modelsInherited)).toBeTruthy()
+    expectFieldHelp(en.models, en.modelsInherited)
     expect(screen.getAllByLabelText(new RegExp(en.modelId)).map(input => (input as HTMLInputElement).value))
       .toEqual(['deepseek-v4-flash', 'deepseek-v4-pro'])
 
@@ -717,7 +734,7 @@ describe('ModelsSection', () => {
     expect(screen.getByLabelText<HTMLInputElement>(en.baseUrl).placeholder)
       .toBe('https://api.deepseek.com/anthropic')
     expect(screen.queryByLabelText(en.customApi)).toBeNull()
-    expect(screen.getByText(en.deepSeekEndpointHint)).toBeTruthy()
+    expectFieldHelp(en.baseUrl, en.deepSeekEndpointHint)
     fireEvent.change(screen.getByLabelText(en.keyInput), { target: { value: 'sk-messages-test' } })
     fireEvent.change(screen.getByLabelText(en.baseUrl), { target: { value: 'https://messages.example/anthropic' } })
     fireEvent.change(screen.getByLabelText(`${en.modelName} 1`), { target: { value: 'Messages Flash' } })
@@ -896,13 +913,13 @@ describe('ModelsSection', () => {
       onClose={() => {}}
     />)
     fireEvent.click(screen.getByText(en.customized))
-    expect(screen.getByText(en.modelsCustomized)).toBeTruthy()
+    expectFieldHelp(en.models, en.modelsCustomized)
     expect(screen.getAllByLabelText(new RegExp(en.modelId)).map(input => (input as HTMLInputElement).value))
       .toEqual(['user-only-model'])
 
     fireEvent.click(screen.getByText(en.resetModels))
 
-    expect(screen.getByText(en.modelsInherited)).toBeTruthy()
+    expectFieldHelp(en.models, en.modelsInherited)
     expect(screen.getAllByLabelText(new RegExp(en.modelId)).map(input => (input as HTMLInputElement).value))
       .toEqual(base === undefined ? ['deepseek-v4-flash', 'deepseek-v4-pro'] : ['pinned-by-deployment'])
   })
@@ -1061,7 +1078,7 @@ describe('ModelsSection', () => {
     fireEvent.click(screen.getByLabelText(new RegExp(en.removeModel)))
     expect(screen.getByText(en.modelsEmpty)).toBeTruthy()
     fireEvent.click(screen.getByText(en.resetModels))
-    expect(screen.getByText(en.modelsInherited)).toBeTruthy()
+    expectFieldHelp(en.models, en.modelsInherited)
 
     const names = screen.getAllByLabelText(new RegExp(en.modelName))
     expandRow(1)
@@ -1163,7 +1180,7 @@ describe('ModelsSection', () => {
     // the effective profile endpoint as its placeholder source.
     fireEvent.click(screen.getByText(en.customized))
     const url = screen.getByLabelText<HTMLInputElement>(en.baseUrl)
-    expect(url.value).toBe('https://proxy')
+    await waitFor(() => { expect(url.value).toBe('https://proxy') })
     fireEvent.change(url, { target: { value: 'https://proxy/v2' } })
     fireEvent.click(screen.getByText(en.apply))
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
@@ -1179,9 +1196,11 @@ describe('ModelsSection', () => {
   it('adds a dormant provider with a derived reference and stores its key', async () => {
     const { mutate, set } = await mountSection()
     fireEvent.click(screen.getByText(en.add))
-    const pick = await screen.findByLabelText<HTMLSelectElement>(en.provider)
-    expect([...pick.options].map(option => option.value)).toEqual(['anthropic', 'broken', 'plain'])
-    expect(pick.value).toBe('anthropic')
+    const pick = await screen.findByRole('button', { name: en.provider })
+    expect(pick.textContent).toContain('anthropic')
+    fireEvent.click(pick)
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['anthropic', 'broken', 'plain'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'anthropic' }))
     // A dormant profile has no endpoint anywhere: the pi-ai placeholder
     // falls back to the provider-default wording.
     fireEvent.click(screen.getByText(en.customized))
@@ -1259,10 +1278,10 @@ describe('ModelsSection', () => {
   it('switches the add card target and degrades unknown or broken targets loudly', async () => {
     await mountSection()
     fireEvent.click(screen.getByText(en.add))
-    const pick = await screen.findByLabelText<HTMLSelectElement>(en.provider)
-    fireEvent.change(pick, { target: { value: 'broken' } })
+    await screen.findByRole('button', { name: en.provider })
+    selectCatalogProvider('broken')
     await screen.findByText(/unresolvable settings path/)
-    fireEvent.change(pick, { target: { value: 'plain' } })
+    selectCatalogProvider('plain')
     await waitFor(() => {
       expect(screen.getAllByText(content => content.includes(en.advancedHint)).length).toBeGreaterThan(0)
     })
@@ -1362,6 +1381,7 @@ describe('ModelsSection', () => {
 
   it('requires confirmation before removing a user-added provider', async () => {
     const { mutate, unset } = await mountSection()
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
     fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.removeProvider) }))
     const dialog = screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })
     expect(dialog.textContent).toContain(openaiCopy(en.deleteDescriptionWithCredential))
@@ -1398,6 +1418,7 @@ describe('ModelsSection', () => {
       resolveRemoval = resolve
     }))
     await mountSection({ mutate })
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
     fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.removeProvider) }))
     const dialog = screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })
     const confirm = within(dialog).getByRole<HTMLButtonElement>('button', { name: openaiCopy(en.deleteConfirm) })
@@ -1454,21 +1475,21 @@ describe('ModelsSection', () => {
       renderSlot={() => null}
     />)
     expect(screen.getByText(en.readOnly)).toBeTruthy()
-    expect(screen.getAllByText<HTMLButtonElement>(en.remove).every(button => button.disabled)).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: openaiCopy(en.removeProvider) }).disabled).toBe(true)
     expect(screen.getByText<HTMLButtonElement>(en.add).disabled).toBe(true)
   })
 
-  it('toggles the row editor closed on a second edit click and on cancel', async () => {
+  it('keeps the selected editor open on a second click and closes it on cancel', async () => {
     const { mutate } = await mountSection()
     const edit = screen.getByRole('button', { name: openaiCopy(en.editProvider) })
     fireEvent.click(edit)
     await waitFor(() => { expect(screen.queryAllByLabelText(en.keyInput).length).toBe(1) })
     fireEvent.click(edit)
-    expect(screen.queryAllByLabelText(en.keyInput)).toHaveLength(0)
-    fireEvent.click(edit)
-    await waitFor(() => { expect(screen.queryAllByLabelText(en.keyInput).length).toBe(1) })
+    expect(screen.queryAllByLabelText(en.keyInput)).toHaveLength(1)
     fireEvent.click(screen.getByText(en.cancel))
     expect(screen.queryAllByLabelText(en.keyInput)).toHaveLength(0)
+    expect(screen.getByRole('button', { name: openaiCopy(en.editProvider) }).getAttribute('aria-current')).toBe('true')
     expect(mutate).not.toHaveBeenCalled()
   })
 
@@ -1478,9 +1499,9 @@ describe('ModelsSection', () => {
     const modes = screen.getByRole('tablist', { name: en.addMode })
     expect(within(modes).getByRole('tab', { name: en.addCatalog }).getAttribute('aria-selected')).toBe('true')
     expect(within(modes).getByRole('tab', { name: en.addCustom }).getAttribute('aria-selected')).toBe('false')
-    expect(screen.getByText(en.addCatalogHint)).toBeTruthy()
+    expectFieldHelp(en.addCatalog, en.addCatalogHint)
     expect(screen.queryByText(en.addCustomHint)).toBeNull()
-    expect(screen.getByRole('combobox', { name: en.provider })).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.provider })).toBeTruthy()
     // The custom panel is mounted but hidden, so its fields are not reachable.
     expect(screen.queryByRole('textbox', { name: en.customRoute })).toBeNull()
   })
@@ -1491,9 +1512,9 @@ describe('ModelsSection', () => {
     fireEvent.change(screen.getByLabelText(en.keyInput), { target: { value: 'sk-catalog' } })
 
     fireEvent.click(screen.getByRole('tab', { name: en.addCustom }))
-    expect(screen.getByText(en.addCustomHint)).toBeTruthy()
+    expectFieldHelp(en.addCustom, en.addCustomHint)
     expect(screen.queryByText(en.addCatalogHint)).toBeNull()
-    expect(screen.queryByRole('combobox', { name: en.provider })).toBeNull()
+    expect(screen.queryByRole('button', { name: en.provider })).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: en.customRoute }), { target: { value: 'acme' } })
 
     // Both panels stay mounted from here on, so the shown one is queried by name.
@@ -1548,7 +1569,7 @@ describe('ModelsSection', () => {
   it('shows the custom panel when a refresh drops every configurable row mid-card', async () => {
     const { face, controller } = await mountSection()
     fireEvent.click(screen.getByRole('button', { name: en.add }))
-    expect(screen.getByRole('combobox', { name: en.provider })).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.provider })).toBeTruthy()
     // The directory empties while the card is open: the only mode left is the
     // custom one, whose panel was never visited.
     face.llm.listConfigurableProviders.mockResolvedValue(remoteOk([]))
@@ -1576,7 +1597,7 @@ describe('ModelsSection', () => {
     const catalog = screen.getByRole<HTMLButtonElement>('tab', { name: en.addCatalog })
     expect(catalog.disabled).toBe(false)
     fireEvent.click(catalog)
-    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: en.provider }).value).toBe('anthropic')
+    expect(screen.getByRole('button', { name: en.provider }).textContent).toContain('anthropic')
     expect(within(screen.getByRole('tabpanel', { name: en.addCatalog })).getByLabelText(en.keyInput)).toBeTruthy()
   })
 
@@ -1598,13 +1619,13 @@ describe('ModelsSection', () => {
     // to create a route the Host would refuse; the catalog form stands alone.
     expect(screen.queryByRole('textbox', { name: en.customRoute })).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByRole('combobox', { name: en.provider })).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.provider })).toBeTruthy()
   })
 
   it('forgets the catalog target when the custom form closes, so a later refresh opens no row editor', async () => {
     const { face, controller, mirror } = await mountSection()
     fireEvent.click(screen.getByRole('button', { name: en.add }))
-    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: en.provider }).value).toBe('anthropic')
+    expect(screen.getByRole('button', { name: en.provider }).textContent).toContain('anthropic')
     fireEvent.click(screen.getByRole('tab', { name: en.addCustom }))
     fireEvent.click(within(screen.getByRole('tabpanel', { name: en.addCustom })).getByText(en.cancel))
     expect(screen.queryByRole('tablist')).toBeNull()
@@ -1623,7 +1644,9 @@ describe('ModelsSection', () => {
       await controller.load()
     })
     expect(screen.getByRole('button', { name: providerCopy(en.editProvider, { provider: 'anthropic', displayName: 'anthropic' }) })).toBeTruthy()
-    expect(screen.queryAllByLabelText(en.keyInput)).toHaveLength(0)
+    expect(screen.queryAllByLabelText(en.keyInput)).toHaveLength(1)
+    expect(screen.getByRole('button', { name: providerCopy(en.editProvider, { provider: 'anthropic', displayName: 'anthropic' }) })
+      .getAttribute('aria-current')).toBeNull()
   })
 
   it('locks the mode switch while the catalog form has a write in flight', async () => {
@@ -1728,24 +1751,13 @@ describe('ModelsSection', () => {
     expect(screen.queryByLabelText(en.provider)).toBeNull()
   })
 
-  it('collapses the setup card on cancel without disturbing another open card', async () => {
-    // The regression: the setup card shared the row/add/declare close handler,
-    // so cancelling it discarded the add card's draft while staying open itself.
+  it('shows one provider editor at a time when switching from setup to add', async () => {
     await mountFirstRun()
     expect(screen.getAllByLabelText(en.keyInput)).toHaveLength(1)
     fireEvent.click(screen.getByText(en.add))
     await screen.findByLabelText(en.provider)
-    expect(screen.getAllByLabelText(en.keyInput)).toHaveLength(2)
-
-    // The setup card is the first one on the page, above the add block.
-    fireEvent.click(screen.getAllByText(en.cancel)[0] as HTMLElement)
-    // The add card kept its draft…
-    expect(screen.getByLabelText(en.provider)).toBeTruthy()
-    // …and DeepSeek collapsed to an ordinary row carrying the missing-key dot.
     expect(screen.getAllByLabelText(en.keyInput)).toHaveLength(1)
-    expect(screen.getAllByRole('img', { name: en.credentialMissing })
-      .some(dot => dot.closest('li')?.textContent?.includes('DeepSeek') === true)).toBe(true)
-    // Its card reopens through Edit, which closes the add card as any row does.
+    expect(screen.getByLabelText(en.provider)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) }))
     expect(screen.getAllByLabelText(en.keyInput)).toHaveLength(1)
     expect(screen.queryByLabelText(en.provider)).toBeNull()
@@ -1762,7 +1774,7 @@ describe('ModelsSection', () => {
       t={t}
       renderSlot={() => null}
     />)
-    await screen.findByText('DeepSeek')
+    await screen.findByRole('button', { name: deepSeekCopy(en.editProvider) })
   })
 
   it('removes by unsetting the profile path, never by rebuilding the section', async () => {
@@ -1800,6 +1812,7 @@ describe('ModelsSection', () => {
       .mockResolvedValueOnce(remoteFail('the host refused', 'settings/rejected'))
       .mockResolvedValueOnce(remoteOk(wireNamespaces()[2]!))
     const { unset } = await mountSection({ mutate })
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
     fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.removeProvider) }))
     const dialog = screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })
     const confirm = within(dialog).getByRole('button', { name: openaiCopy(en.deleteConfirm) })
@@ -1820,6 +1833,7 @@ describe('ModelsSection', () => {
   it('retains credentials that are not identified as page-managed', async () => {
     const { unset, mutate } = await mountSection()
     const target = { provider: 'zombie', displayName: 'zombie' }
+    fireEvent.click(screen.getByRole('button', { name: providerCopy(en.editProvider, target) }))
     fireEvent.click(screen.getByRole('button', { name: providerCopy(en.removeProvider, target) }))
     const dialog = screen.getByRole('dialog', { name: providerCopy(en.deleteTitle, target) })
     expect(dialog.textContent).toContain(providerCopy(en.deleteDescription, target))
@@ -2010,7 +2024,9 @@ it('renders the localized account row and supports catalogs without capacity def
   await act(async () => { controller.store.update((state) => {
     state.rows = [{ ...row, accountAvailable: true, entry: { ...row.entry, provider: 'deepseek-account' } }]
   }) })
-  expect(screen.getByText(en.deepSeekAccount)).toBeTruthy()
+  expect(screen.getByRole('button', {
+    name: providerCopy(en.editProvider, { provider: 'deepseek-account', displayName: en.deepSeekAccount }),
+  })).toBeTruthy()
   view.unmount()
   const namespace = accountNamespace()
   render(<ProviderEditor provider="deepseek-account" displayName={en.deepSeekAccount}

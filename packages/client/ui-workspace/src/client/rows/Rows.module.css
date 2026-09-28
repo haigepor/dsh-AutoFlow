@@ -1,26 +1,38 @@
 .projectRow,
 .sessionRow {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 6px;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--dsw-radius-sm);
   padding: 0 8px;
   padding-inline-start: calc(8px + var(--dsh-workspace-indent, 0px));
   cursor: pointer;
   user-select: none;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-label-secondary);
+  transition: background-color 150ms var(--ds-ease-in-out), color 150ms var(--ds-ease-in-out);
 }
 
 .projectRow:hover,
 .sessionRow:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--dsw-specific-sidebar-nav-item-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+:global([data-glide-active='true']) .projectRow:hover:not(.menuOpen),
+:global([data-glide-active='true']) .sessionRow:hover:not(.selected):not(.menuOpen) {
+  background: transparent;
 }
 
 .sessionRow.selected {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--dsw-specific-sidebar-nav-item-hover);
+  color: var(--dsw-alias-label-primary);
 }
 
 .searchResultRow {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -28,20 +40,25 @@
   min-height: 48px;
   box-sizing: border-box;
   border: none;
-  border-radius: var(--dsw-radius-lg);
+  border-radius: var(--dsw-radius-sm);
   padding: 4px 8px;
   background: transparent;
   cursor: pointer;
   text-align: left;
   color: var(--dsw-alias-label-primary);
+  transition: background-color 150ms var(--ds-ease-in-out);
 }
 
 .searchResultRow:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--dsw-specific-sidebar-nav-item-hover);
 }
 
 .searchResultRow.selected {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--dsw-specific-sidebar-nav-item-hover);
+}
+
+:global([data-glide-active='true']) .searchResultRow:hover:not(.selected) {
+  background: transparent;
 }
 
 .searchResultHeading {
@@ -97,7 +114,7 @@
 
 /* Compact one-line Workspace row after removing the session-count subtitle. */
 .projectRow {
-  height: 34px;
+  height: 32px;
   align-items: center;
   box-sizing: border-box;
 }
@@ -168,6 +185,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
+  font-weight: 500;
   line-height: 20px;
 }
 
@@ -303,7 +321,7 @@
    hover fill while its dropdown is up). */
 .projectRow.menuOpen,
 .sessionRow.menuOpen {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--dsw-specific-sidebar-nav-item-hover);
 }
 
 /* Session drag insert marker: a leading chevron and 2px rule between rows,
@@ -416,6 +434,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .projectRow,
+  .sessionRow,
+  .searchResultRow {
+    transition: none;
+  }
+
   .arrow {
     animation: none;
     transition: none;

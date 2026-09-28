@@ -24,6 +24,8 @@ const sheetCss = readFileSync(
   fileURLToPath(new URL('../src/styles/gradient-shadow-text.css', import.meta.url)), 'utf8')
 const platformCss = readFileSync(
   fileURLToPath(new URL('../src/styles/design-platform.css', import.meta.url)), 'utf8')
+const webCss = readFileSync(
+  fileURLToPath(new URL('../../web/src/base.css', import.meta.url)), 'utf8')
 
 function declarationsIn(rules: ReturnType<typeof parseRules>) {
   return (selector: string) => new Map(rules
@@ -56,7 +58,7 @@ describe('elevation tokens', () => {
     // re-substitute against the color each element sees (the same contract
     // scrollbar.css states for --dsh-scrollbar-thumb).
     expect(perElement.get('--dsw-elevation-stroke')).toBe(`0 0 0 0.5px var(${STROKE_COLOR})`)
-    for (const name of ['--dsw-elevation-panel', '--dsw-elevation-prominent', '--dsw-elevation-soft']) {
+    for (const name of ['--dsw-elevation-panel', '--dsw-elevation-prominent', '--dsw-elevation-menu', '--dsw-elevation-soft']) {
       expect(perElement.get(name), name).toMatch(
         /^var\(--dsw-elevation-stroke\), inset 0 1px 0 var\(--dsw-glass-highlight\), var\(--dsw-elevation-shadow-/,
       )
@@ -65,15 +67,23 @@ describe('elevation tokens', () => {
   })
 
   it('defines the translucent menu material for both palettes', () => {
-    expect(bodyOnly.get('--dsw-menu-backdrop-filter')).toBe('blur(18px) saturate(105%)')
+    expect(bodyOnly.get('--dsw-menu-backdrop-filter')).toBe('blur(16px) saturate(108%)')
+    expect(bodyOnly.get('--dsw-menu-stroke-color')).toBe('var(--dsw-alias-border-l3)')
+    expect(bodyOnly.get('--dsw-elevation-shadow-menu')).toBe('0 2px 8px -3px rgba(41, 41, 39, 0.025), 0 9px 24px -10px rgba(41, 41, 39, 0.045)')
+    expect(declarationsIn(parseRules(sheetCss))('body[data-ds-dark-theme]').get('--dsw-menu-stroke-color'))
+      .toBe('var(--dsw-alias-border-l3)')
     expect(bodyOnly.get('--dsw-dialog-backdrop-filter')).toBe('blur(22px) saturate(105%)')
     const platformRules = parseRules(platformCss)
     const value = (selector: string, property: string): string | undefined => platformRules
       .filter(rule => rule.selectors.includes(selector))
       .flatMap(rule => rule.declarations)
       .findLast(([name]) => name === property)?.[1]
-    expect(value('body', '--dsw-specific-menu')).toBe('rgba(255, 255, 255, 0.86)')
+    expect(value('body', '--dsw-specific-menu')).toBe('rgba(255, 254, 252, 0.76)')
     expect(value('body[data-ds-dark-theme]', '--dsw-specific-menu')).toBe('rgba(39, 39, 37, 0.88)')
+    expect(value('body', '--dsw-menu-surface-fill')).toBe('rgba(255, 254, 252, 0.68)')
+    expect(value('body[data-ds-dark-theme]', '--dsw-menu-surface-fill')).toBe('rgba(39, 39, 37, 0.82)')
+    expect(value('body', '--dsw-menu-standalone-fill')).toBe('rgba(255, 254, 252, 0.74)')
+    expect(value('body[data-ds-dark-theme]', '--dsw-menu-standalone-fill')).toBe('rgba(39, 39, 37, 0.86)')
     expect(value('body', '--dsw-specific-dialog')).toBe('rgba(255, 255, 255, 0.9)')
     expect(value('body[data-ds-dark-theme]', '--dsw-specific-dialog')).toBe('rgba(39, 39, 37, 0.92)')
   })
@@ -85,11 +95,15 @@ describe('elevation tokens', () => {
       const rules = parseRules(platformCss.slice(block!.start + 1, block!.end))
       const declarations = declarationsIn(rules)
 
-      expect(declarations('html body').get('--dsw-specific-menu')).toBe('rgb(255 255 255)')
+      expect(declarations('html body').get('--dsw-specific-menu')).toBe('rgb(255 254 252)')
+      expect(declarations('html body').get('--dsw-menu-surface-fill')).toBe('rgb(255 254 252)')
+      expect(declarations('html body').get('--dsw-menu-standalone-fill')).toBe('rgb(255 254 252)')
       expect(declarations('html body').get('--dsw-specific-dialog')).toBe('rgb(255 255 255)')
       expect(declarations('html body').get('--dsw-menu-backdrop-filter')).toBe('none')
       expect(declarations('html body').get('--dsw-dialog-backdrop-filter')).toBe('none')
       expect(declarations('html body[data-ds-dark-theme]').get('--dsw-specific-menu')).toBe('rgb(39 39 37)')
+      expect(declarations('html body[data-ds-dark-theme]').get('--dsw-menu-surface-fill')).toBe('rgb(39 39 37)')
+      expect(declarations('html body[data-ds-dark-theme]').get('--dsw-menu-standalone-fill')).toBe('rgb(39 39 37)')
       expect(declarations('html body[data-ds-dark-theme]').get('--dsw-specific-dialog')).toBe('rgb(39 39 37)')
       expect(declarations('html body[data-ds-dark-theme]').get('--dsw-menu-backdrop-filter')).toBe('none')
       expect(declarations('html body[data-ds-dark-theme]').get('--dsw-dialog-backdrop-filter')).toBe('none')
@@ -98,6 +112,29 @@ describe('elevation tokens', () => {
     assertFallback('@supports not (backdrop-filter: blur(1px))')
     assertFallback('@media (prefers-reduced-transparency: reduce)')
   })
+
+  it('keeps standalone menus readable over macOS window vibrancy', () => {
+    const declarations = declarationsIn(parseRules(webCss.slice(0, webCss.indexOf('@supports not (backdrop-filter: blur(1px))'))))
+    expect(declarations("html[data-platform='darwin'] body").get('--dsw-menu-standalone-fill'))
+      .toBe('rgba(255, 254, 252, 0.94)')
+    expect(declarations("html[data-platform='darwin'] body").get('--dsw-specific-menu'))
+      .toBe('rgba(255, 254, 252, 0.94)')
+    expect(declarations("html[data-platform='darwin'] body[data-ds-dark-theme]").get('--dsw-menu-standalone-fill'))
+      .toBe('rgba(39, 39, 37, 0.94)')
+    for (const prelude of ['@supports not (backdrop-filter: blur(1px))', '@media (prefers-reduced-transparency: reduce)']) {
+      const block = atRuleBlock(webCss, prelude)
+      expect(block, prelude).toBeDefined()
+      const fallback = declarationsIn(parseRules(webCss.slice(block!.start + 1, block!.end)))
+      expect(fallback("html[data-platform='darwin'] body").get('--dsw-menu-standalone-fill'))
+        .toBe('rgb(255 254 252)')
+      expect(fallback("html[data-platform='darwin'] body").get('--dsw-specific-menu'))
+        .toBe('rgb(255 254 252)')
+      expect(fallback("html[data-platform='darwin'] body[data-ds-dark-theme]").get('--dsw-menu-standalone-fill'))
+        .toBe('rgb(39 39 37)')
+      expect(fallback("html[data-platform='darwin'] body[data-ds-dark-theme]").get('--dsw-specific-menu'))
+        .toBe('rgb(39 39 37)')
+    }
+  })
 })
 
 /** Elevated or isolated-background menu-fill rules that omit the shared backdrop filter. */
@@ -105,7 +142,7 @@ function translucentMenusWithoutBackdrop(css: string): string[] {
   return parseRules(css)
     .filter(rule => rule.declarations.some(([property, value]) =>
       (property === 'background' || property === 'background-color')
-      && /^var\(--dsw-(?:specific-menu|menu-surface-fill)\)$/.test(value)))
+      && /^var\(--dsw-(?:specific-menu|menu-surface-fill|menu-standalone-fill)\)$/.test(value)))
     .filter(rule => rule.declarations.some(([property, value]) =>
       property === 'box-shadow' && ELEVATED_SHADOW.test(value))
       || rule.selectors.some(selector => /::(?:before|after)$/.test(selector)))

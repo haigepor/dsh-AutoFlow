@@ -44,22 +44,40 @@ html[data-platform='darwin'] body {
    on the design-platform hues to keep underlying text from bleeding through. */
 html[data-platform='darwin'] body {
   isolation: isolate;
-  --dsw-specific-menu: rgba(255, 255, 255, 0.94);
+  --dsw-menu-standalone-fill: rgba(255, 254, 252, 0.94);
+  --dsw-specific-menu: rgba(255, 254, 252, 0.94);
   --dsw-specific-dialog: rgba(255, 255, 255, 0.96);
 }
 
 html[data-platform='darwin'] body[data-ds-dark-theme] {
+  --dsw-menu-standalone-fill: rgba(39, 39, 37, 0.94);
   --dsw-specific-menu: rgba(39, 39, 37, 0.94);
   --dsw-specific-dialog: rgba(39, 39, 37, 0.96);
 }
 
-@media (prefers-reduced-transparency: reduce) {
+@supports not (backdrop-filter: blur(1px)) {
   html[data-platform='darwin'] body {
-    --dsw-specific-menu: rgb(255 255 255);
+    --dsw-menu-standalone-fill: rgb(255 254 252);
+    --dsw-specific-menu: rgb(255 254 252);
     --dsw-specific-dialog: rgb(255 255 255);
   }
 
   html[data-platform='darwin'] body[data-ds-dark-theme] {
+    --dsw-menu-standalone-fill: rgb(39 39 37);
+    --dsw-specific-menu: rgb(39 39 37);
+    --dsw-specific-dialog: rgb(39 39 37);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-platform='darwin'] body {
+    --dsw-menu-standalone-fill: rgb(255 254 252);
+    --dsw-specific-menu: rgb(255 254 252);
+    --dsw-specific-dialog: rgb(255 255 255);
+  }
+
+  html[data-platform='darwin'] body[data-ds-dark-theme] {
+    --dsw-menu-standalone-fill: rgb(39 39 37);
     --dsw-specific-menu: rgb(39 39 37);
     --dsw-specific-dialog: rgb(39 39 37);
   }

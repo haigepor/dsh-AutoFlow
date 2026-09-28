@@ -250,17 +250,23 @@ body {
   --dsw-alias-state-warn-primary: #866427;
   --dsw-alias-state-warn-secondary: #A58343;
   --dsw-alias-state-warn-tertiary: #F5EEDB;
-  --dsw-alias-toast-bg: #343431;
+  --dsw-alias-toast-bg: #FDFCF9;
+  --dsw-alias-toast-label: #292927;
+  --dsw-alias-toast-warn: #866427;
+  --dsw-alias-toast-success: #39705D;
+  --dsw-alias-toast-action: #515095;
   --dsw-alias-tooltip-bg: #343431;
   --dsw-specific-bubble-highlight: var(--dsw-static-deepseek-200);
   --dsw-specific-bubble: #EEEDF5;
   --dsw-specific-input-major: #FFFFFF;
   --dsw-specific-login-input: #F7F6F3;
-  --dsw-menu-surface-fill: rgba(255, 255, 255, 0.72);
-  --dsw-specific-menu: rgba(255, 255, 255, 0.86);
+  --dsw-menu-surface-fill: rgba(255, 254, 252, 0.68);
+  --dsw-menu-standalone-fill: rgba(255, 254, 252, 0.74);
+  --dsw-specific-menu: rgba(255, 254, 252, 0.76);
   --dsw-specific-dialog: rgba(255, 255, 255, 0.9);
   --dsw-specific-selector: #F1F0ED;
   --dsw-specific-sidebar-fill: #F1F0ED;
+  --dsw-specific-conversation-fill: #FFFFFF;
   --dsw-specific-sidebar-nav-item-active-accent: #EEEDF5;
   --dsw-specific-sidebar-nav-item-active: #EEEDF5;
   --dsw-specific-sidebar-nav-item-hover: rgba(41, 41, 39, 0.055);
@@ -359,16 +365,22 @@ body[data-ds-dark-theme] {
   --dsw-alias-state-warn-secondary: #B99A61;
   --dsw-alias-state-warn-tertiary: #403829;
   --dsw-alias-toast-bg: #343431;
+  --dsw-alias-toast-label: #F6F5F1;
+  --dsw-alias-toast-warn: #D2B57C;
+  --dsw-alias-toast-success: #93C6AC;
+  --dsw-alias-toast-action: #BCBCE8;
   --dsw-alias-tooltip-bg: #343431;
   --dsw-specific-bubble-highlight: var(--dsw-static-neutral-bluish-750);
   --dsw-specific-bubble: #363544;
   --dsw-specific-input-major: #272725;
   --dsw-specific-login-input: #20201E;
-  --dsw-menu-surface-fill: rgba(39, 39, 37, 0.72);
+  --dsw-menu-surface-fill: rgba(39, 39, 37, 0.82);
+  --dsw-menu-standalone-fill: rgba(39, 39, 37, 0.86);
   --dsw-specific-menu: rgba(39, 39, 37, 0.88);
   --dsw-specific-dialog: rgba(39, 39, 37, 0.92);
   --dsw-specific-selector: #343431;
   --dsw-specific-sidebar-fill: #161615;
+  --dsw-specific-conversation-fill: #20201E;
   --dsw-specific-sidebar-nav-item-active-accent: #363544;
   --dsw-specific-sidebar-nav-item-active: #363544;
   --dsw-specific-sidebar-nav-item-hover: rgba(236, 236, 231, 0.07);
@@ -379,8 +391,9 @@ body[data-ds-dark-theme] {
    asks the system to reduce transparency. */
 @supports not (backdrop-filter: blur(1px)) {
   html body {
-    --dsw-menu-surface-fill: rgb(255 255 255);
-    --dsw-specific-menu: rgb(255 255 255);
+    --dsw-menu-surface-fill: rgb(255 254 252);
+    --dsw-menu-standalone-fill: rgb(255 254 252);
+    --dsw-specific-menu: rgb(255 254 252);
     --dsw-specific-dialog: rgb(255 255 255);
     --dsw-menu-backdrop-filter: none;
     --dsw-dialog-backdrop-filter: none;
@@ -388,6 +401,7 @@ body[data-ds-dark-theme] {
 
   html body[data-ds-dark-theme] {
     --dsw-menu-surface-fill: rgb(39 39 37);
+    --dsw-menu-standalone-fill: rgb(39 39 37);
     --dsw-specific-menu: rgb(39 39 37);
     --dsw-specific-dialog: rgb(39 39 37);
     --dsw-menu-backdrop-filter: none;
@@ -397,8 +411,9 @@ body[data-ds-dark-theme] {
 
 @media (prefers-reduced-transparency: reduce) {
   html body {
-    --dsw-menu-surface-fill: rgb(255 255 255);
-    --dsw-specific-menu: rgb(255 255 255);
+    --dsw-menu-surface-fill: rgb(255 254 252);
+    --dsw-menu-standalone-fill: rgb(255 254 252);
+    --dsw-specific-menu: rgb(255 254 252);
     --dsw-specific-dialog: rgb(255 255 255);
     --dsw-menu-backdrop-filter: none;
     --dsw-dialog-backdrop-filter: none;
@@ -406,6 +421,7 @@ body[data-ds-dark-theme] {
 
   html body[data-ds-dark-theme] {
     --dsw-menu-surface-fill: rgb(39 39 37);
+    --dsw-menu-standalone-fill: rgb(39 39 37);
     --dsw-specific-menu: rgb(39 39 37);
     --dsw-specific-dialog: rgb(39 39 37);
     --dsw-menu-backdrop-filter: none;

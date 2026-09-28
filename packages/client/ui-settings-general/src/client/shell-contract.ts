@@ -13,6 +13,7 @@ import type {
 // Type-only: pulls ui-sidebar's SlotMap merge (the 'sidebar.settings' entry)
 // into every program that sees this contract.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the settings slot declarations the shell renders into.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { PropsStore } from '@deepseek-ai/dsh-client-store'
@@ -39,6 +40,10 @@ export interface SettingsOnboardingStep {
  * sources, while the reconnect command remains a plain callback.
  */
 export type SettingsRootInjected = {
+  /** Enter the full-window settings page, optionally on a registered section. */
+  openSettings: (id?: string) => void
+  /** Return to the preceding page and optionally restore focus to its opener. */
+  closeSettings: (restoreFocus: boolean) => void
   /** Request the current shell-owned update action. */
   openDesktopUpdate: () => void
   /** Request a fresh logical generation and physical WebSocket immediately. */
@@ -60,7 +65,7 @@ export type SettingsRootInjected = {
 /**
  * Full component props of the settings shell root: the sidebar owner share
  * (wide/rail state) plus the declared render shares and the injected face
- * (hooks compartment bound to useSections). The declared store shares modal
+ * (hooks compartment bound to useSections). The declared store shares page
  * visibility and section selection with application commands.
  */
 export type SettingsRootComponentProps =
@@ -68,12 +73,16 @@ export type SettingsRootComponentProps =
   & PropsRenderSlots<
     | 'settings.launcher'
     | 'settings.trigger'
-    | 'settings.header'
-    | 'settings.action'
-    | 'settings.close'
-    | 'settings.section'
     | 'settings.onboarding'
   >
+  & InjectFace<SettingsRootInjected>
+  & PropsLocale<'settings'>
+  & PropsStore<ReturnType<typeof createSettingsShellStore>>
+
+/** Main-panel settings page with the existing section and action seats. */
+export type SettingsPageComponentProps =
+  PropsRuntime<'main'>
+  & PropsRenderSlots<'settings.header' | 'settings.action' | 'settings.close' | 'settings.section'>
   & InjectFace<SettingsRootInjected>
   & PropsLocale<'settings'>
   & PropsStore<ReturnType<typeof createSettingsShellStore>>

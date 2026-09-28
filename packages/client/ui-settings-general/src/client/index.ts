@@ -1,7 +1,7 @@
 /**
  * Settings shell and ownerless-copy plugin, browser half: renders the
- * `sidebar.settings` occupant — panel chrome, section navigation, and the
- * onboarding stage — and registers everything on the Settings pages that
+ * `sidebar.settings` occupant, full-window main page, and onboarding stage;
+ * registers everything on the Settings pages that
  * belongs to no single feature: the trigger/header chrome content,
  * local-document action, General section, and `settings` dictionaries.
  * Feature-owned rows and sections stay with their features.
@@ -12,7 +12,7 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
-import { closeTopModal } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: the settings slot declarations plus the ctx.configForms Context
 // merge. Cross-plugin collaboration goes through the service, never a value
 // import (client bundle purity gate).
@@ -27,6 +27,7 @@ import type {
 import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import { createSettingsShellStore } from './shell-store.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
+import { SettingsPage } from './SettingsPage.tsx'
 import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
 import type { DesktopUpdateBridge } from '../types.ts'
 import { DesktopUpdateSource } from './desktop-update-source.ts'
@@ -59,13 +60,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Dictionary namespace owned by this plugin (shell chrome + General copy). */
 const NS = 'settings'
+const PANEL_ID = 'settings' as MainPanelId
 
 /**
  * Required services (cordis fiber inject). The target slots are declared by
  * ui-settings' apply, whose activation order relative to this one is NOT
  * constrained; registrations depend on their slots through `slots.inject()`.
  */
-export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts', 'layout']
 
 /**
  * Register the `settings` dictionaries, the chrome content, and the General
@@ -109,6 +111,40 @@ export function apply(ctx: ClientContext): void {
       hooks: { snapshot: documentController.store },
     })
   ctx.effect(() => () => { documentController?.dispose() }, 'ui-settings-general: document action directory')
+  const shellHandle = createSettingsShellStore()
+  const shellInstance = shellHandle.create()
+  const shellStore: typeof shellHandle = { ...shellHandle, create: () => shellInstance }
+  let returnPanel: MainPanelId | null = null
+  let opener: HTMLElement | null = null
+
+  const openSettings = (id?: string): void => {
+    if (ctx.layout.panelInfo.getSnapshot().activePanelId !== PANEL_ID) {
+      returnPanel = ctx.layout.panelInfo.getSnapshot().activePanelId
+      opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    }
+    if (id === undefined) shellInstance.actions.open()
+    else shellInstance.actions.openSection(id)
+    ctx.layout.selectPanel(PANEL_ID, { fullWindow: true })
+  }
+  const closeSettings = (restoreFocus: boolean): void => {
+    const wasOpen = ctx.layout.panelInfo.getSnapshot().activePanelId === PANEL_ID
+    const destination = returnPanel !== null && ctx.slots.entries('main').some(entry => entry.options.key === returnPanel)
+      ? returnPanel : null
+    const focusTarget = opener
+    shellInstance.actions.close()
+    if (wasOpen) ctx.layout.selectPanel(destination)
+    returnPanel = null
+    opener = null
+    if (wasOpen && restoreFocus && focusTarget?.isConnected) {
+      requestAnimationFrame(() => { if (focusTarget.isConnected) focusTarget.focus({ preventScroll: true }) })
+    }
+  }
+  ctx.effect(() => ctx.layout.panelInfo.subscribe(() => {
+    if (ctx.layout.panelInfo.getSnapshot().activePanelId === PANEL_ID || !shellInstance.getSnapshot().open) return
+    shellInstance.actions.close()
+    returnPanel = null
+    opener = null
+  }), 'ui-settings-general: leave settings page')
   // The settings shell: this package occupies the sidebar-owned hole and
   // declares the settings slots. Ledger → nav-row projection as an observable
   // source (uSES contract: getSnapshot returns the cached rows until the
@@ -120,6 +156,8 @@ export function apply(ctx: ClientContext): void {
   let onboardingVersion = -1
   let onboardingSteps: readonly SettingsOnboardingStep[] = []
   const shellInjected = (): SettingsRootInjected => ({
+    openSettings,
+    closeSettings,
     openDesktopUpdate: () => { desktopUpdate.open() },
     reconnect: () => { connection.reconnect() },
     hooks: {
@@ -173,9 +211,6 @@ export function apply(ctx: ClientContext): void {
     },
   })
   ctx.slots.inject('sidebar.settings', () => {
-    const shellHandle = createSettingsShellStore()
-    const shellInstance = shellHandle.create()
-    const shellStore: typeof shellHandle = { ...shellHandle, create: () => shellInstance }
     const disposeCommand = ctx.shortcuts.register({
       id: 'settings.open' as ShortcutCommandId, label: () => t('shortcut.open'), aliases: ['settings', 'preferences'],
       defaults: {
@@ -185,12 +220,12 @@ export function apply(ctx: ClientContext): void {
         'web:macos': { code: 'Comma', modifiers: ['primary'] },
         'web:windows': { code: 'Comma', modifiers: ['primary'] },
       },
-      regions: ['page', 'editable', 'terminal'], modals: ['settings'],
+      regions: ['page', 'editable', 'terminal'], modals: [],
       resolve: ({ modal }) => {
-        if (modal !== null && modal !== 'settings') return { status: 'blocked', reason: 'modal' }
+        if (modal !== null) return { status: 'blocked', reason: 'modal' }
         return { status: 'handled', run: () => {
-          if (modal === 'settings') closeTopModal(document)
-          else shellInstance.actions.open()
+          if (ctx.layout.panelInfo.getSnapshot().activePanelId === PANEL_ID) closeSettings(true)
+          else openSettings()
         } }
       },
     })
@@ -202,16 +237,21 @@ export function apply(ctx: ClientContext): void {
       children: {
         'settings.launcher': { kind: 'single', scope: 'root' },
         'settings.trigger': { kind: 'single', scope: 'root' },
-        'settings.header': { kind: 'single', scope: 'root' },
-        'settings.action': { kind: 'list', scope: 'root' },
-        'settings.close': { kind: 'single', scope: 'root' },
-        'settings.section': { kind: 'list', scope: 'root' },
         'settings.onboarding': { kind: 'list', scope: 'root' },
       },
       inject: shellInjected,
     }, SettingsRoot)
     return () => { disposeCommand(); disposeSlot() }
   })
+  ctx.slots.inject('main', () => ctx.slots.register({
+    name: 'main', key: PANEL_ID, locale: NS, store: shellStore, inject: shellInjected,
+    children: {
+      'settings.header': { kind: 'single', scope: 'root' },
+      'settings.action': { kind: 'list', scope: 'root' },
+      'settings.close': { kind: 'single', scope: 'root' },
+      'settings.section': { kind: 'list', scope: 'root' },
+    },
+  }, SettingsPage))
 
   ctx.slots.inject('settings.trigger', () =>
     ctx.slots.register({ name: 'settings.trigger', locale: NS }, TriggerContent))

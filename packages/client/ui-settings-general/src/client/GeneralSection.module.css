@@ -10,3 +10,10 @@
 .section > :global([data-slot='settings.general.item']) > :last-child {
   border-bottom: none;
 }
+
+.title {
+  margin: 0 0 24px;
+  font-size: 26px;
+  line-height: 36px;
+  font-weight: 600;
+}

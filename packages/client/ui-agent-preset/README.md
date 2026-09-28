@@ -31,6 +31,8 @@ Coding Tools in General Settings decide whether a mode can be chosen at all: wit
 
 Known shipped presets offer mode details and usage examples in a read-only dialog. Its tabs preserve each page's scroll position; closing returns focus to the opening action. Help does not change the new-task default. The default badge replaces the card's group badge, and the preset id appears beside the title. Guide copy and examples belong to this package.
 
+Preset cards use two columns in wide windows and one column below 960px, with separate title, description, and action areas. Card colors and selected outlines follow the active theme.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

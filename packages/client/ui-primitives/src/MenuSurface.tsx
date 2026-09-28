@@ -1,4 +1,4 @@
-/** Shared menu material and the macOS backing that lets Chromium blur transparent windows. */
+/** Shared menu material, elevation, and the macOS backing for transparent windows. */
 import { forwardRef, useId, useLayoutEffect, useRef, type ComponentPropsWithoutRef, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -11,7 +11,7 @@ export interface MenuSurfaceProps extends ComponentPropsWithoutRef<'div'> {
 }
 
 /**
- * Paint a menu and, on macOS, an opaque backing behind the page content within its bounds.
+ * Paint a frosted menu and, on macOS, an opaque backing behind the page content within its bounds.
  * CSS anchors keep each backing aligned during placement, resizing, and nested-menu movement.
  * @param props - Div content and placement, and compact geometry.
  * @param ref - The visible menu div, excluding the non-interactive backing.

@@ -1,4 +1,4 @@
-/** Optional settings-header action for opening a file-backed Host document. */
+/** Optional settings-page action for opening a file-backed Host document. */
 
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
@@ -17,7 +17,7 @@ export interface SettingsDocumentActionInjected {
   }
 }
 
-/** Header-action owner share, localized copy, and the registrant's state face. */
+/** Settings-action owner share, localized copy, and the registrant's state face. */
 export type SettingsDocumentActionProps =
   PropsRuntime<'settings.action'> & PropsLocale<'settings'> & InjectFace<SettingsDocumentActionInjected>
 

@@ -19,7 +19,8 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  FishLogo, IconNewChatOutlineMedium, IconNewChatOutlineRegular, IconPanelLeftOutlineRegular, isDarwinDesktop, ShortcutKeys, Tooltip,
+  FishLogo, GlideHighlight, IconNewChatOutlineMedium, IconNewChatOutlineRegular,
+  IconPanelLeftOutlineRegular, isDarwinDesktop, ShortcutKeys, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
@@ -62,13 +63,14 @@ function PanelRow({ id, label, wide, usePanelInfo, selectPanel, renderSlot }: Pa
     <Tooltip label={label} delayMs={500} disabled={wide}>
       <button
         type="button"
+        data-glide-row
         className={clsx(css.panelRow, active && css.panelActive)}
         aria-label={label}
         aria-current={active ? 'page' : undefined}
         onClick={() => { selectPanel(id) }}
       >
         <span className={css.panelGlyph} aria-hidden="true">
-          {renderSlot('sidebar.panellist', { size: wide ? 16 : 18, active }, { only: id })}
+          {renderSlot('sidebar.panellist', { size: 18, active }, { only: id })}
         </span>
         {wide && (
           <span className={clsx(css.panelTitle, css.wide)}>
@@ -257,42 +259,46 @@ export function SidebarRoot({
         {!darwinDesktop && toggle}
       </div>
 
-      {/* The label fades before the hover/focus shortcut, including on translucent backgrounds. */}
-      <Tooltip label={t('session.new.label')} shortcutKeys={newShortcut?.keys} delayMs={500} side={captionTooltipSide} disabled={wide}>
-        <button
-          type="button"
-          className={css.newSession}
-          aria-label={t('session.new.label')}
-          aria-keyshortcuts={newShortcut?.aria}
-          onClick={() => { startSession() }}
-        >
-          <span className={css.newSessionLabelMask}><span className={css.newSessionContent}>
-            {wide
-              ? <IconNewChatOutlineMedium size={14} />
-              : <IconNewChatOutlineRegular size={windowsTitlebar ? 16 : 18} />}
-            {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
-          </span></span>
-          {wide && newShortcut !== undefined && newShortcut.keys.length > 0 && <span className={css.newSessionShortcut} aria-hidden="true">
-            <ShortcutKeys keys={newShortcut.keys} />
-          </span>}
-        </button>
-      </Tooltip>
+      <div className={css.primaryNavigation}>
+        {(!windowsTitlebar || wide) && <GlideHighlight className={css.glideHighlight} rowSelector="[data-glide-row]" />}
+        {/* The label fades before the hover/focus shortcut, including on translucent backgrounds. */}
+        <Tooltip label={t('session.new.label')} shortcutKeys={newShortcut?.keys} delayMs={500} side={captionTooltipSide} disabled={wide}>
+          <button
+            type="button"
+            data-glide-row
+            className={css.newSession}
+            aria-label={t('session.new.label')}
+            aria-keyshortcuts={newShortcut?.aria}
+            onClick={() => { startSession() }}
+          >
+            <span className={css.newSessionLabelMask}><span className={css.newSessionContent}>
+              {wide
+                ? <IconNewChatOutlineMedium size={18} />
+                : <IconNewChatOutlineRegular size={windowsTitlebar ? 16 : 18} />}
+              {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
+            </span></span>
+            {wide && newShortcut !== undefined && newShortcut.keys.length > 0 && <span className={css.newSessionShortcut} aria-hidden="true">
+              <ShortcutKeys keys={newShortcut.keys} />
+            </span>}
+          </button>
+        </Tooltip>
 
-      {panels.length > 0 && (
-        <nav className={css.panelList} aria-label={t('panels.label')}>
-          {panels.map(({ id, label }) => (
-            <PanelRow
-              key={id}
-              id={id}
-              label={label}
-              wide={wide}
-              usePanelInfo={usePanelInfo}
-              selectPanel={selectPanel}
-              renderSlot={renderSlot}
-            />
-          ))}
-        </nav>
-      )}
+        {panels.length > 0 && (
+          <nav className={css.panelList} aria-label={t('panels.label')}>
+            {panels.map(({ id, label }) => (
+              <PanelRow
+                key={id}
+                id={id}
+                label={label}
+                wide={wide}
+                usePanelInfo={usePanelInfo}
+                selectPanel={selectPanel}
+                renderSlot={renderSlot}
+              />
+            ))}
+          </nav>
+        )}
+      </div>
 
       {/* The browsing region fills the column between the controls and the
           foot in both states; its rail icon column rides the same slot. */}

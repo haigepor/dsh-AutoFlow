@@ -10,6 +10,8 @@ import type { ReactNode } from 'react'
 import { IconPlusOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { en } from './locales.ts'
 import { ModelRow } from './ModelRow.tsx'
+import { ModelCatalogHeading } from './ModelCatalogHeading.tsx'
+import { useModelReorder } from './useModelReorder.ts'
 import styles from './ModelsSection.module.css'
 
 /** One catalog entry kept structurally open so hidden or future fields survive an edit. */
@@ -161,6 +163,7 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
   // because the rows they annotated are gone.
   const [editing, setEditing] = useState<ReadonlyMap<string, string>>(() => new Map())
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set())
+  const order = useModelReorder({ models: props.models, onChange: props.onChange, setEditing, setExpanded, disabled: props.disabled })
 
   const update = (index: number, key: CatalogField, value: unknown): void => {
     const next = props.models.map((model, at) => {
@@ -247,12 +250,7 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
   return (
     <section className={styles['modelCatalog']} aria-label={props.t('models')}>
       <div className={styles['modelListHead']}>
-        <div className={styles['modelCatalogHeading']}>
-          <span className={styles['modelCatalogTitle']}>{props.t('models')}</span>
-          <span className={styles['modelCatalogMeta']}>
-            {props.overridden ? props.t('modelsCustomized') : props.t('modelsInherited')}
-          </span>
-        </div>
+        <ModelCatalogHeading t={props.t} overridden={props.overridden} />
         {props.overridden
           ? (
             <button
@@ -269,12 +267,26 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
       {props.models.length === 0
         ? <p className={styles['modelEmpty']}>{props.t('modelsEmpty')}</p>
         : (
-          <div className={styles['modelList']}>
+          <div className={styles['modelList']} data-model-list>
+            <div className={styles['modelTableHead']} aria-hidden="true">
+              <span>{props.t('modelOrder')}</span>
+              <span>{props.t('modelId')}</span>
+              <span>{props.t('modelName')}</span>
+              <span>{props.t('modelActions')}</span>
+            </div>
             {props.models.map((model, index) => (
               <ModelRow
                 key={index}
                 model={model}
                 position={index + 1}
+                total={props.models.length}
+                dragging={order.dragged === index}
+                dropTarget={order.over === index}
+                onDragStart={(event) => { order.dragStart(index, event) }}
+                onDragOver={(event) => { order.dragOver(index, event) }}
+                onDrop={(event) => { order.drop(index, event) }}
+                onDragEnd={order.dragEnd}
+                onMove={(to) => { order.move(index, to) }}
                 inputField="inputModalities"
                 expanded={expanded.has(index)}
                 disabled={props.disabled}

@@ -23,6 +23,8 @@ type LayoutState = {
 
 type LayoutInfo = {
   sidebar: number
+  /** The active main page temporarily owns the whole frame. */
+  fullWindow: boolean
   /** Last positive frame measurement; window width bootstraps the first render. */
   viewportWidth: number
   narrowExpanded: boolean
@@ -56,7 +58,7 @@ type LayoutInfo = {
  * return type); drift fails assignability at the defineStore call.
  */
 type LayoutActions = {
-  selectPanel: (draft: LayoutState, panelId: MainPanelId | null) => void
+  selectPanel: (draft: LayoutState, panelId: MainPanelId | null, fullWindow?: boolean) => void
   retainMainPanels: (draft: LayoutState, panelIds: readonly string[]) => void
   setSidebar: (draft: LayoutState, px: number) => void
   toggleSidebar: (draft: LayoutState) => void
@@ -81,6 +83,7 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       panelInfo: { activePanelId: null },
       layoutInfo: {
         sidebar: SIDEBAR_DEFAULT,
+        fullWindow: false,
         viewportWidth: window.innerWidth,
         narrowExpanded: false,
         rightbar: null,
@@ -91,12 +94,14 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       },
     }),
     actions: {
-      selectPanel: (d, panelId: MainPanelId | null) => {
+      selectPanel: (d, panelId: MainPanelId | null, fullWindow: boolean = false) => {
         d.panelInfo.activePanelId = panelId
+        d.layoutInfo.fullWindow = panelId !== null && fullWindow
       },
       retainMainPanels: (d, panelIds: readonly string[]) => {
         if (d.panelInfo.activePanelId !== null && !panelIds.includes(d.panelInfo.activePanelId)) {
           d.panelInfo.activePanelId = null
+          d.layoutInfo.fullWindow = false
         }
       },
       setSidebar: (d, px: number) => {

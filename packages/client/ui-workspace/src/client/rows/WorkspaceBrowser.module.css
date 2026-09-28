@@ -56,11 +56,11 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  height: 36px;
+  height: 32px;
   padding-left: 4px;
   margin-bottom: 4px;
   box-sizing: border-box;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--dsw-radius-sm);
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -76,7 +76,9 @@
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  line-height: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
   opacity: 1;
   visibility: visible;
   transition:
@@ -171,8 +173,8 @@
   margin-inline: -2px;
   padding: 0 4px 0 0;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
-  background: transparent;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-caption);
 }
 
@@ -249,13 +251,13 @@
 }
 
 /* Rail variant (own .rail class from the wide owner prop — the region never
-   reads the shell's class names): the two icon controls stack as 36x36
-   circles matching the shell's rail rhythm. Both use the rail's shared base
-   left anchor so the outer shell can translate the whole region uniformly. */
+   reads the shell's class names): the two 36x36 controls use the expanded
+   navigation radius and share a left anchor for the shell's translation. */
 .rail .sectionHeader {
+  height: 36px;
   gap: 0;
   padding-left: 0;
-  margin-bottom: 12px;
+  margin-bottom: 2px;
   justify-content: flex-start;
 }
 
@@ -266,9 +268,12 @@
 .rail .iconButton {
   width: 36px;
   height: 36px;
-  /* Rail hovers share the shell rail's 12px rounding. */
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-primary);
+}
+
+.rail .iconButton:hover {
+  background: var(--dsw-specific-sidebar-nav-item-hover);
 }
 
 .rail .search {
@@ -277,9 +282,8 @@
   padding: 0;
   margin: 0 0 12px;
   gap: 0;
-  /* The collapsed search frame clips its button's hover, so it must carry the
-     rail's 12px rounding itself. */
-  border-radius: var(--dsw-radius-md);
+  /* The clipped search frame and its button share the navigation row radius. */
+  border-radius: var(--dsw-radius-sm);
   border-color: transparent;
   background: transparent;
 }
@@ -287,12 +291,12 @@
 .rail .searchButton {
   width: 36px;
   height: 36px;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-primary);
 }
 
 .rail .searchButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: var(--dsw-specific-sidebar-nav-item-hover);
 }
 
 /* List seat: always mounted so the shell foot never moves. */
@@ -356,6 +360,7 @@
    and remaining padding equal the shell's right inset, with or without
    overflow, so moving the bar does not move the rows. */
 .list {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -373,10 +378,32 @@
   scrollbar-gutter: stable;
 }
 
+.searchTree {
+  position: relative;
+}
+
+.glideHighlight {
+  position: absolute;
+  z-index: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-specific-sidebar-nav-item-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.glideHighlight[data-glide-placed='true'] {
+  transition: top 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    height 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    left 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    width 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 150ms ease;
+}
+
 .flatList > * + *,
 .searchTree > [role='treeitem'] + [role='treeitem'],
 .groupSection > * + * {
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .searchStatus {
@@ -497,6 +524,8 @@
 }
 
 .sessionOverflowButton {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 28px;
   border: none;
@@ -514,8 +543,12 @@
 }
 
 .sessionOverflowButton:hover {
-  background: transparent;
+  background: var(--dsw-specific-sidebar-nav-item-hover);
   color: var(--dsw-alias-label-secondary);
+}
+
+.list[data-glide-active='true'] .sessionOverflowButton:hover {
+  background: transparent;
 }
 
 .empty {
@@ -602,6 +635,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .glideHighlight {
+    transition: none;
+  }
+  .glideHighlight[data-glide-placed='true'] {
+    transition: none;
+  }
   .wide {
     animation: none;
   }

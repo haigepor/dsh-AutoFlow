@@ -23,6 +23,8 @@ import type { ModelsOperations } from './operations.ts'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import type { en } from './locales.ts'
 import { ModelRow } from './ModelRow.tsx'
+import { ModelCatalogHeading } from './ModelCatalogHeading.tsx'
+import { useModelReorder } from './useModelReorder.ts'
 import styles from './ModelsSection.module.css'
 
 /**
@@ -178,6 +180,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   // FIELD: a single buffer would be displaced by editing any other field, and
   // the abandoned one would render its stored NaN as the literal `NaN`.
   const [editing, setEditing] = useState<ReadonlyMap<string, string>>(new Map())
+  const order = useModelReorder({ models, onChange, setEditing, setExpanded, disabled })
 
   /** Buffer key for one capacity field; the row half moves when rows do. */
   const bufferKey = (index: number, field: CapacityField): string => `${String(index)}:${field}`
@@ -318,16 +321,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   return (
     <section className={styles['modelCatalog']} aria-label={t('models')}>
       <div className={styles['modelListHead']}>
-        <div className={styles['modelCatalogHeading']}>
-          <span className={styles['modelCatalogTitle']}>{t('models')}</span>
-          {props.overridden === undefined
-            ? null
-            : (
-              <span className={styles['modelCatalogMeta']}>
-                {props.overridden ? t('modelsCustomized') : t('modelsInherited')}
-              </span>
-            )}
-        </div>
+        <ModelCatalogHeading t={t} overridden={props.overridden} />
         {props.overridden === true && props.onReset !== undefined
           ? (
             <button
@@ -353,12 +347,28 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
         </button>
       </div>
       {models.length === 0 ? <p className={styles['modelEmpty']}>{t('modelsEmpty')}</p> : null}
-      <div className={styles['modelList']}>
+      <div className={styles['modelList']} data-model-list>
+        {models.length > 0 ? (
+          <div className={styles['modelTableHead']} aria-hidden="true">
+            <span>{t('modelOrder')}</span>
+            <span>{t('modelId')}</span>
+            <span>{t('modelName')}</span>
+            <span>{t('modelActions')}</span>
+          </div>
+        ) : null}
         {models.map((model, index) => (
           <ModelRow
             key={index}
             model={model}
             position={index + 1}
+            total={models.length}
+            dragging={order.dragged === index}
+            dropTarget={order.over === index}
+            onDragStart={(event) => { order.dragStart(index, event) }}
+            onDragOver={(event) => { order.dragOver(index, event) }}
+            onDrop={(event) => { order.drop(index, event) }}
+            onDragEnd={order.dragEnd}
+            onMove={(to) => { order.move(index, to) }}
             inputField="input"
             inputFallback={inputDefaults.get(textOf(model, 'id')) ?? props.defaultInput}
             inputLoading={catalogProvider !== undefined && catalog === undefined}

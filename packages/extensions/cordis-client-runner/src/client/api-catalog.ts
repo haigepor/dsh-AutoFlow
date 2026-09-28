@@ -87,9 +87,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Panel navigation and geometry actions exposed through ctx.layout.',
     methods: [
       {
-        signature: 'selectPanel(panelId: MainPanelId | null): void',
+        signature: 'selectPanel(panelId: MainPanelId | null, options?: { fullWindow?: boolean }): void',
         description: 'Select a global central panel without changing the current Session.',
-        parameters: [{ name: 'panelId', description: 'registered main key, or null to show the Conversation.' }],
+        parameters: [{ name: 'panelId', description: 'registered main key, or null to show the Conversation.' }, { name: 'options', description: 'temporary full-window presentation for a page that owns the whole frame.' }],
         throws: ['if the selected main key is not registered; preserves the current selection.'],
       },
       {

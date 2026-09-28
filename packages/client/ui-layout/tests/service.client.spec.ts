@@ -59,6 +59,16 @@ describe('LayoutController', () => {
     expect(panels.closeRightbar).not.toHaveBeenCalled()
   })
 
+  it('forwards the optional full-window mode without changing legacy calls', () => {
+    const panels = fakePanels()
+    const service = new LayoutController(panels, () => true, createSnapshotStore({ activePanelId: null }))
+    const panelId = 'settings' as MainPanelId
+    service.selectPanel(panelId, { fullWindow: true })
+    service.selectPanel(null)
+    expect(panels.selectPanel).toHaveBeenNthCalledWith(1, panelId, true)
+    expect(panels.selectPanel).toHaveBeenNthCalledWith(2, null)
+  })
+
   it('keeps separately constructed controllers bound to their own instances', () => {
     const first = fakePanels()
     const second = fakePanels()

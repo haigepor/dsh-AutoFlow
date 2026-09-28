@@ -2,8 +2,7 @@
 .card {
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
- --changes-fill: var(--dsw-static-neutral-50); --changes-hover: var(--dsw-static-neutral-100); --dsw-elevation-stroke-color: var(--dsw-alias-border-l2); display: flex; flex-direction: column; min-width: 0; margin-top: 4px; overflow: hidden; border: 0; border-radius: 18px; background: var(--dsw-specific-menu); backdrop-filter: var(--dsw-menu-backdrop-filter); box-shadow: var(--dsw-elevation-panel); color: var(--dsw-alias-label-primary); }
-:global(body[data-ds-dark-theme]) .card { --changes-fill: var(--dsw-static-neutral-850); --changes-hover: var(--dsw-static-neutral-800); }
+ --changes-fill: color-mix(in srgb, var(--dsw-alias-bg-layer-2) 38%, transparent); --changes-hover: color-mix(in srgb, var(--dsw-alias-bg-layer-2) 54%, transparent); --dsw-elevation-stroke-color: var(--dsw-alias-border-l2); display: flex; flex-direction: column; min-width: 0; margin-top: 4px; overflow: hidden; border: 0; border-radius: 18px; background: var(--dsw-specific-menu); backdrop-filter: var(--dsw-menu-backdrop-filter); box-shadow: var(--dsw-elevation-panel); color: var(--dsw-alias-label-primary); }
 .header { display: flex; align-items: center; gap: 10px; box-sizing: border-box; width: 100%; min-width: 0; height: 60px; margin: 0; padding: 8px 10px; border: 0; background: var(--changes-fill); color: inherit; font: inherit; text-align: left; }
 button.header { cursor: pointer; transition: background-color 120ms ease; }
 button.header:hover:not(:disabled), button.header:focus-visible { background: var(--changes-hover); }

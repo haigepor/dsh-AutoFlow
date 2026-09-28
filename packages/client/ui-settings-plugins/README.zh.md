@@ -31,6 +31,8 @@ kind: "package-reference"
 
 -----
 
+分区使用单一图标标题，多个贡献项通过紧凑的分段标签切换；标签内容沿用设置页居中内容栏的宽度。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

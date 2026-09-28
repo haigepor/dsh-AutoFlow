@@ -69,10 +69,10 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(list!.get('scrollbar-gutter')).toBe('stable')
   })
 
-  it('keeps 2px between rows and 4px between workspace groups', () => {
-    expect(declarations('.flatList > * + *')?.get('margin-top')).toBe('2px')
-    expect(declarations(".searchTree > [role='treeitem'] + [role='treeitem']")?.get('margin-top')).toBe('2px')
-    expect(declarations('.groupSection > * + *')?.get('margin-top')).toBe('2px')
+  it('keeps 1px between rows and 4px between workspace groups', () => {
+    expect(declarations('.flatList > * + *')?.get('margin-top')).toBe('1px')
+    expect(declarations(".searchTree > [role='treeitem'] + [role='treeitem']")?.get('margin-top')).toBe('1px')
+    expect(declarations('.groupSection > * + *')?.get('margin-top')).toBe('1px')
     expect(declarations('.groupSection + .groupSection')?.get('margin-top')).toBe('4px')
   })
 
@@ -100,7 +100,7 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(declarations('.fade')?.get('height')).toBe('24px')
     expect(declarations('.sessionOverflowButton')?.get('height')).toBe('28px')
     expect(declarations('.searchExpanded')?.get('height')).toBe('30px')
-    expect(rowDeclarations('.projectRow')?.get('height')).toBe('34px')
+    expect(rowDeclarations('.projectRow')?.get('height')).toBe('32px')
     expect(rowDeclarations('.sessionRow')?.get('height')).toBe('32px')
     // One leading status cell for every session row, grouped or flat: the cell
     // hosts either the row's status dot or the leading seat, and it reserves its
@@ -110,7 +110,7 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(rowDeclarations('.sessionRow .title')?.get('margin')).toBe('0 6px 0 4px')
     expect(rowDeclarations('.searchResultRow')?.get('min-height')).toBe('48px')
     expect(rowDeclarations('.sessionRow.selected')?.get('background'))
-      .toBe('var(--dsw-alias-interactive-bg-hover)')
+      .toBe('var(--dsw-specific-sidebar-nav-item-hover)')
   })
 
   it('marquees a clipped session title on row hover', () => {

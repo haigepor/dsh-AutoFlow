@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="2220" viewBox="0 0 1320 2220" role="img" aria-labelledby="title desc">
+  <title id="title">AutoFlow 外观设置页示意图</title>
+  <desc id="desc">设置侧栏中的外观分区，采用带 SVG 缩略预览的主题、颜色预设、字体、圆角、密度、侧边栏、布局、内容宽度与方向选项。</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-30%" width="140%" height="170%"><feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#473f37" flood-opacity=".08"/></filter>
+    <linearGradient id="rainbow" x2="1" y2="1"><stop stop-color="#f8c65d"/><stop offset=".26" stop-color="#ef8c65"/><stop offset=".5" stop-color="#65b87b"/><stop offset=".75" stop-color="#399ed5"/><stop offset="1" stop-color="#b890d5"/></linearGradient>
+    <linearGradient id="peach" x2="1" y2="1"><stop stop-color="#ffe1d2"/><stop offset="1" stop-color="#d88470"/></linearGradient>
+    <linearGradient id="mono" x2="1" y2="1"><stop stop-color="#181818"/><stop offset="1" stop-color="#f6f6f3"/></linearGradient>
+    <linearGradient id="night" x2="1" y2="1"><stop stop-color="#315f56"/><stop offset="1" stop-color="#946b88"/></linearGradient>
+    <linearGradient id="rose" x2="1" y2="1"><stop stop-color="#dc3b72"/><stop offset="1" stop-color="#ff9bb0"/></linearGradient>
+    <linearGradient id="tidal" x2="1" y2="1"><stop stop-color="#00bf9d"/><stop offset="1" stop-color="#198f91"/></linearGradient>
+    <linearGradient id="sunset" x2="1" y2="1"><stop stop-color="#d55150"/><stop offset="1" stop-color="#ff9e78"/></linearGradient>
+    <linearGradient id="forest" x2="1" y2="1"><stop stop-color="#087b72"/><stop offset="1" stop-color="#617c8d"/></linearGradient>
+    <style>
+      text{font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;fill:#292722}
+      .muted{fill:#89867f}.section{font-size:17px;font-weight:600}.label{font-size:13px}.small{font-size:12px}.nav{font-size:15px}.selected{fill:#fff;stroke:#dc846e;stroke-width:1.6}.plain{fill:#fff;stroke:#dcdad4;stroke-width:1}.check{fill:#dc846e;stroke:#fff;stroke-width:2}.checkMark{fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+    <g id="tick"><circle r="11" class="check"/><path d="M-4 0l3 3 5-6" class="checkMark"/></g>
+    <g id="mini-lines" fill="#aba8a1"><rect x="0" y="0" width="43" height="5" rx="2.5"/><rect x="0" y="9" width="57" height="5" rx="2.5"/><rect x="0" y="18" width="31" height="5" rx="2.5"/></g>
+  </defs>
+
+  <rect width="1320" height="2220" fill="#f7f6f3"/>
+  <rect x="0" y="0" width="244" height="2220" fill="#eeede9"/>
+  <rect x="244" y="0" width="1076" height="2220" fill="#fbfaf8"/>
+  <path d="M243.5 0v2220" stroke="#e7e5df"/>
+  <text x="30" y="50" font-size="18" font-weight="700">设置</text>
+  <path d="M30 84h184" stroke="#dddcd6"/>
+  <text x="47" y="125" class="nav muted">通用设置</text>
+  <rect x="20" y="146" width="204" height="46" rx="10" fill="#dedbd4"/>
+  <circle cx="43" cy="169" r="7" fill="none" stroke="#a46350" stroke-width="1.6"/><circle cx="43" cy="169" r="2" fill="#a46350"/>
+  <text x="64" y="175" class="nav" font-weight="600">外观</text>
+  <text x="47" y="227" class="nav muted">模型</text>
+  <text x="47" y="275" class="nav muted">内置插件</text>
+  <text x="47" y="323" class="nav muted">Agent 预设</text>
+  <path d="M30 2140h184" stroke="#dddcd6"/><text x="46" y="2174" class="nav muted">‹  返回</text>
+
+  <text x="284" y="57" font-size="29" font-weight="700">外观</text>
+  <text x="284" y="84" font-size="14" class="muted">用可视化预览选择界面风格；更改后可立即在当前窗口查看。</text>
+  <rect x="1124" y="36" width="145" height="38" rx="10" class="plain"/><text x="1196" y="60" text-anchor="middle" class="label">恢复默认外观</text>
+  <path d="M284 112h984" stroke="#e6e3dd"/>
+
+  <text x="284" y="153" class="section">主题</text>
+  <text x="284" y="176" class="small muted">系统模式会随设备外观自动切换</text>
+  <g transform="translate(284 193)">
+    <rect width="303" height="142" rx="13" class="selected" filter="url(#shadow)"/>
+    <rect x="10" y="10" width="283" height="94" rx="8" fill="#f9f8f5" stroke="#e7e1d9"/>
+    <rect x="11" y="11" width="61" height="92" rx="7" fill="#eeeae4"/>
+    <use href="#mini-lines" x="22" y="27" transform="translate(22 27) scale(.55) translate(-22 -27)"/>
+    <rect x="84" y="23" width="88" height="6" rx="3" fill="#aaa39b"/><rect x="84" y="39" width="151" height="5" rx="2.5" fill="#d0cac3"/>
+    <rect x="84" y="58" width="175" height="33" rx="6" fill="#e6d7cd"/>
+    <circle cx="292" cy="9" r="11" class="check"/><path d="M288 9l3 3 5-6" class="checkMark"/>
+    <text x="151" y="128" text-anchor="middle" class="label">跟随系统</text>
+  </g>
+  <g transform="translate(602 193)">
+    <rect width="303" height="142" rx="13" class="plain"/>
+    <rect x="10" y="10" width="283" height="94" rx="8" fill="#f7f6f3" stroke="#e7e5e0"/>
+    <rect x="11" y="11" width="61" height="92" rx="7" fill="#e8e7e3"/>
+    <rect x="23" y="26" width="35" height="5" rx="2.5" fill="#aaa8a3"/><rect x="23" y="38" width="27" height="4" rx="2" fill="#c2c0bb"/><rect x="84" y="23" width="90" height="6" rx="3" fill="#aaa8a3"/><rect x="84" y="39" width="151" height="5" rx="2.5" fill="#ceccc7"/><rect x="84" y="58" width="175" height="33" rx="6" fill="#fff"/>
+    <text x="151" y="128" text-anchor="middle" class="label">浅色</text>
+  </g>
+  <g transform="translate(920 193)">
+    <rect width="303" height="142" rx="13" class="plain"/>
+    <rect x="10" y="10" width="283" height="94" rx="8" fill="#151d2b"/>
+    <rect x="11" y="11" width="61" height="92" rx="7" fill="#263449"/>
+    <rect x="23" y="26" width="35" height="5" rx="2.5" fill="#55749d"/><rect x="23" y="38" width="27" height="4" rx="2" fill="#486584"/><rect x="84" y="23" width="90" height="6" rx="3" fill="#6a809e"/><rect x="84" y="39" width="151" height="5" rx="2.5" fill="#354763"/><rect x="84" y="58" width="175" height="33" rx="6" fill="#243450"/>
+    <text x="151" y="128" text-anchor="middle" class="label">深色</text>
+  </g>
+
+  <path d="M284 369h984" stroke="#e6e3dd"/>
+  <text x="284" y="408" class="section">颜色预设</text><text x="387" y="407" font-size="16" class="muted">↺</text>
+  <text x="284" y="431" class="small muted">预设同时提供浅色与深色的语义色，不覆盖主题明暗选择。</text>
+  <g transform="translate(284 449)">
+    <rect x="0" y="0" width="226" height="66" rx="11" fill="url(#rainbow)"/>
+    <rect x="242" y="0" width="226" height="66" rx="11" fill="url(#peach)" stroke="#dc846e" stroke-width="1.6"/>
+    <use href="#tick" x="468" y="0"/>
+    <rect x="484" y="0" width="226" height="66" rx="11" fill="url(#mono)"/>
+    <rect x="726" y="0" width="226" height="66" rx="11" fill="url(#night)"/>
+    <text x="113" y="87" text-anchor="middle" class="label">默认</text><text x="355" y="87" text-anchor="middle" class="label">暖珊瑚</text><text x="597" y="87" text-anchor="middle" class="label">极简灰</text><text x="839" y="87" text-anchor="middle" class="label">暗夜</text>
+    <rect x="0" y="108" width="226" height="66" rx="11" fill="url(#rose)"/>
+    <rect x="242" y="108" width="226" height="66" rx="11" fill="url(#tidal)"/>
+    <rect x="484" y="108" width="226" height="66" rx="11" fill="url(#sunset)"/>
+    <rect x="726" y="108" width="226" height="66" rx="11" fill="url(#forest)"/>
+    <text x="113" y="195" text-anchor="middle" class="label">玫瑰花园</text><text x="355" y="195" text-anchor="middle" class="label">潮光</text><text x="597" y="195" text-anchor="middle" class="label">日落霞光</text><text x="839" y="195" text-anchor="middle" class="label">森林低语</text>
+  </g>
+
+  <path d="M284 681h984" stroke="#e6e3dd"/>
+  <text x="284" y="720" class="section">字体</text><text x="284" y="743" class="small muted">跟随系统、无衬线与衬线；下方字号继续只作用于会话正文。</text>
+  <g transform="translate(284 762)">
+    <rect width="303" height="76" rx="11" class="selected" filter="url(#shadow)"/><use href="#tick" x="303" y="0"/><text x="151" y="46" text-anchor="middle" font-size="25">Aa</text><text x="151" y="102" text-anchor="middle" class="label">跟随系统</text>
+    <rect x="318" width="303" height="76" rx="11" class="plain"/><text x="469" y="46" text-anchor="middle" font-size="25" font-family="Arial,sans-serif">Aa</text><text x="469" y="102" text-anchor="middle" class="label">无衬线</text>
+    <rect x="636" width="303" height="76" rx="11" class="plain"/><text x="787" y="46" text-anchor="middle" font-size="25" font-family="Georgia,serif">Aa</text><text x="787" y="102" text-anchor="middle" class="label">衬线</text>
+  </g>
+
+  <path d="M284 892h984" stroke="#e6e3dd"/>
+  <text x="284" y="931" class="section">圆角</text><text x="284" y="954" class="small muted">按比例调整卡片与控件圆角，胶囊按钮和圆形图标保持原样。</text>
+  <g transform="translate(284 974)">
+    <rect width="176" height="72" rx="11" class="selected" filter="url(#shadow)"/><use href="#tick" x="176" y="0"/><path d="M44 44q0-18 18-18h70" fill="none" stroke="#7d7972" stroke-width="2"/><text x="88" y="96" text-anchor="middle" class="label">自动</text>
+    <rect x="192" width="176" height="72" rx="11" class="plain"/><path d="M236 44V26h88" fill="none" stroke="#7d7972" stroke-width="2"/><text x="280" y="96" text-anchor="middle" class="label">直角</text>
+    <rect x="384" width="176" height="72" rx="11" class="plain"/><path d="M428 44v-12q0-6 6-6h82" fill="none" stroke="#7d7972" stroke-width="2"/><text x="472" y="96" text-anchor="middle" class="label">微圆</text>
+    <rect x="576" width="176" height="72" rx="11" class="plain"/><path d="M620 44v-8q0-10 10-10h78" fill="none" stroke="#7d7972" stroke-width="2"/><text x="664" y="96" text-anchor="middle" class="label">标准</text>
+    <rect x="768" width="176" height="72" rx="11" class="plain"/><path d="M812 44q0-18 18-18h70" fill="none" stroke="#7d7972" stroke-width="2"/><text x="856" y="96" text-anchor="middle" class="label">柔和</text>
+  </g>
+
+  <path d="M284 1106h984" stroke="#e6e3dd"/>
+  <text x="284" y="1145" class="section">密度</text>
+  <g transform="translate(284 1164)">
+    <rect width="226" height="72" rx="11" class="plain"/><use href="#mini-lines" x="27" y="20" transform="translate(27 20) scale(1.6) translate(-27 -20)"/><text x="113" y="96" text-anchor="middle" class="label">紧凑</text>
+    <rect x="242" width="226" height="72" rx="11" class="selected" filter="url(#shadow)"/><use href="#tick" x="468" y="0"/><rect x="269" y="22" width="134" height="4" rx="2" fill="#77736d"/><rect x="269" y="34" width="112" height="4" rx="2" fill="#77736d"/><rect x="269" y="46" width="91" height="4" rx="2" fill="#77736d"/><text x="355" y="96" text-anchor="middle" class="label">默认</text>
+    <rect x="484" width="226" height="72" rx="11" class="plain"/><rect x="511" y="22" width="122" height="4" rx="2" fill="#77736d"/><rect x="511" y="42" width="96" height="4" rx="2" fill="#77736d"/><text x="597" y="96" text-anchor="middle" class="label">宽松</text>
+    <rect x="726" width="226" height="72" rx="11" class="plain"/><rect x="754" y="35" width="133" height="4" rx="2" fill="#77736d"/><text x="839" y="96" text-anchor="middle" class="label">超大</text>
+  </g>
+
+  <path d="M284 1306h984" stroke="#e6e3dd"/>
+  <text x="284" y="1345" class="section">侧边栏</text>
+  <g transform="translate(284 1364)">
+    <rect width="303" height="104" rx="11" class="selected" filter="url(#shadow)"/><use href="#tick" x="303" y="0"/><rect x="12" y="12" width="279" height="80" rx="7" fill="#f5f1ed"/><rect x="12" y="12" width="64" height="80" rx="7" fill="#d98570"/><rect x="86" y="24" width="142" height="8" rx="4" fill="#dfc6bb"/><rect x="86" y="43" width="179" height="35" rx="5" fill="#e9d5cb"/><text x="151" y="128" text-anchor="middle" class="label">内嵌</text>
+    <rect x="318" width="303" height="104" rx="11" class="plain"/><rect x="330" y="12" width="279" height="80" rx="7" fill="#f5f3f0"/><rect x="337" y="20" width="58" height="64" rx="7" fill="#aaa8a1"/><rect x="406" y="23" width="92" height="7" rx="3" fill="#aaa8a1"/><rect x="406" y="44" width="173" height="35" rx="5" fill="#d8d6d1"/><text x="469" y="128" text-anchor="middle" class="label">浮动</text>
+    <rect x="636" width="303" height="104" rx="11" class="plain"/><rect x="648" y="12" width="279" height="80" rx="7" fill="#dcdad5"/><rect x="648" y="12" width="64" height="80" rx="7" fill="#f8f7f4"/><rect x="722" y="23" width="77" height="7" rx="3" fill="#a9a6a0"/><rect x="722" y="44" width="176" height="35" rx="5" fill="#cccac5"/><text x="787" y="128" text-anchor="middle" class="label">独立</text>
+  </g>
+
+  <path d="M284 1531h984" stroke="#e6e3dd"/>
+  <text x="284" y="1570" class="section">布局</text>
+  <g transform="translate(284 1589)">
+    <rect width="303" height="102" rx="11" class="selected" filter="url(#shadow)"/><use href="#tick" x="303" y="0"/><rect x="12" y="12" width="279" height="77" rx="7" fill="#f3eeea"/><rect x="20" y="20" width="52" height="61" rx="5" fill="#dd8e78"/><rect x="80" y="20" width="105" height="9" rx="4" fill="#d8a38f"/><rect x="80" y="38" width="190" height="42" rx="5" fill="#e7c7b8"/><text x="151" y="126" text-anchor="middle" class="label">默认</text>
+    <rect x="318" width="303" height="102" rx="11" class="plain"/><rect x="330" y="12" width="279" height="77" rx="7" fill="#f3f2ef"/><rect x="338" y="20" width="37" height="61" rx="5" fill="#a4a29b"/><rect x="383" y="20" width="92" height="9" rx="4" fill="#aaa8a2"/><rect x="383" y="38" width="206" height="42" rx="5" fill="#d9d7d2"/><text x="469" y="126" text-anchor="middle" class="label">紧凑</text>
+    <rect x="636" width="303" height="102" rx="11" class="plain"/><rect x="648" y="12" width="279" height="77" rx="7" fill="#f3f2ef"/><rect x="656" y="20" width="80" height="9" rx="4" fill="#aaa8a2"/><rect x="656" y="38" width="263" height="42" rx="5" fill="#d9d7d2"/><text x="787" y="126" text-anchor="middle" class="label">全屏布局</text>
+  </g>
+  <path d="M284 1750h984" stroke="#e6e3dd"/>
+  <text x="284" y="1789" class="section">内容宽度</text>
+  <g transform="translate(284 1808)">
+    <rect width="461" height="94" rx="11" class="plain"/><rect x="13" y="15" width="435" height="9" rx="4" fill="#aaa8a1"/><rect x="13" y="35" width="435" height="7" rx="3" fill="#c1bfb9"/><rect x="13" y="53" width="312" height="7" rx="3" fill="#c1bfb9"/><text x="230" y="119" text-anchor="middle" class="label">全宽</text>
+    <rect x="478" width="461" height="94" rx="11" class="selected" filter="url(#shadow)"/><use href="#tick" x="939" y="0"/><rect x="555" y="15" width="307" height="9" rx="4" fill="#aaa8a1"/><rect x="555" y="35" width="307" height="7" rx="3" fill="#c1bfb9"/><rect x="555" y="53" width="232" height="7" rx="3" fill="#c1bfb9"/><text x="708" y="119" text-anchor="middle" class="label">居中</text>
+  </g>
+  <path d="M284 1977h984" stroke="#e6e3dd"/>
+  <text x="284" y="2016" class="section">方向</text>
+  <g transform="translate(284 2035)">
+    <rect width="461" height="94" rx="11" class="selected" filter="url(#shadow)"/><use href="#tick" x="461" y="0"/><rect x="14" y="13" width="81" height="68" rx="6" fill="#d98570"/><rect x="107" y="19" width="124" height="7" rx="3" fill="#d8a38f"/><rect x="107" y="36" width="311" height="36" rx="5" fill="#e8cfc4"/><text x="230" y="119" text-anchor="middle" class="label">从左到右</text>
+    <rect x="478" width="461" height="94" rx="11" class="plain"/><rect x="845" y="13" width="81" height="68" rx="6" fill="#aaa8a1"/><rect x="710" y="19" width="124" height="7" rx="3" fill="#aaa8a1"/><rect x="505" y="36" width="328" height="36" rx="5" fill="#dad8d3"/><text x="708" y="119" text-anchor="middle" class="label">从右到左</text>
+  </g>
+  <text x="284" y="2190" class="small muted">设计示意 · 实际控件按窗口宽度换行，右侧内容独立滚动</text>
+</svg>

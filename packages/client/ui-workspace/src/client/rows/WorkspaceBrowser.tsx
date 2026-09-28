@@ -21,7 +21,7 @@ import {
   IconChevronsUpDownOutlineRegular, IconClockOutlineRegular, IconCloseFillRegular,
   IconFlatListOutlineRegular, IconFolderCloseRegular, IconProjectAddOutlineRegular,
   IconQueueOutlineRegular, IconSearchOutlineRegular, IconSlidersTwoOutlineRegular,
-  IconWorkspaceTreeOutlineRegular, Menu, Modal, Toast, Tooltip,
+  IconWorkspaceTreeOutlineRegular, GlideHighlight, Menu, Modal, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   SessionListState, SessionSearchResultItem,
@@ -582,6 +582,7 @@ function SessionTree({
           <button
             type="button"
             className={css.sessionOverflowButton}
+            data-glide-row
             data-row-key={`overflow:${group.key}`}
             aria-expanded={sessionsExpanded}
             onClick={() => {
@@ -610,6 +611,7 @@ function SessionTree({
       {workspaceDropAtListStart && <span className={css.listTopDropIndicator} aria-hidden="true" />}
       <AnimatedRows
         className={clsx(css.list, workspaceDropAtListStart && css.listTopDropActive)}
+        glideClassName={css.glideHighlight}
         label={t('section.sessions')}
         rowKeys={rowKeys}
         ready={list.phase === 'ready' && workspaceReady && !nativeDragActive}
@@ -673,6 +675,7 @@ function FlatList({
     <div className={clsx(css.treeBody, css.wide)}>
       <AnimatedRows
         className={clsx(css.list, css.flatList)}
+        glideClassName={css.glideHighlight}
         label={t('section.sessions')}
         rowKeys={rows.length === 0 ? ['empty'] : rows.map(row => `session:${row.id}`)}
         ready={list.phase === 'ready' && workspaceReady && drag === null}
@@ -788,6 +791,7 @@ function SearchResults({
     <div className={clsx(css.treeBody, css.wide)}>
       <div className={css.list}>
         <div className={css.searchTree} role="tree" aria-label={t('search.results.aria')}>
+          <GlideHighlight className={css.glideHighlight} rowSelector="[data-glide-row]" />
           {results.items.map(result => (
             <SearchResultItem
               key={result.id}

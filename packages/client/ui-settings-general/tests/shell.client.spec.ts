@@ -11,6 +11,8 @@ import { createClientTest, type TestClient, webApp } from '@deepseek-ai/dsh-clie
 import { inject } from '../src/client/index.ts'
 import type { SettingsRootInjected } from '../src/client/shell-contract.ts'
 import { SettingsRoot } from '../src/client/SettingsRoot.tsx'
+import { SettingsPage } from '../src/client/SettingsPage.tsx'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { DesktopUpdatePresentation } from '../src/types.ts'
 
 const SELF = '@deepseek-ai/dsh-client-ui-settings-general'
@@ -77,13 +79,33 @@ describe('ui-settings-general shell', () => {
   }, COLD_BOOT_TIMEOUT_MS)
 
   it('declares its services', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts'])
+    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts', 'layout'])
   })
 
   it('occupies sidebar.settings, declared by ui-sidebar, and declares every child slot', async ({ start }) => {
     const c = await start()
     expect(c.ctx.slots.entries('sidebar.settings').map(entry => entry.component)).toEqual([SettingsRoot])
+    expect(c.ctx.slots.entries('main').find(entry => entry.options.key === 'settings')?.component).toBe(SettingsPage)
     for (const name of CHILD_NAMES) expect(c.ctx.slots.spec(name)).toEqual(CHILD_SPECS[name])
+  }, COLD_BOOT_TIMEOUT_MS)
+
+  it('returns to the page that opened Settings and falls back when that page unloads', async ({ start }) => {
+    const c = await start()
+    const settings = injectedOf(c)
+    const disposeTask = c.ctx.slots.register({ name: 'main', key: 'tasks' as MainPanelId }, () => null)
+    for (const page of [null, 'plugins', 'tasks'] as const) {
+      if (page !== null) c.ctx.layout.selectPanel(page as MainPanelId)
+      settings.openSettings('models')
+      expect(c.ctx.layout.panelInfo.getSnapshot().activePanelId).toBe('settings')
+      expect(c.ctx.slots.entries('main').find(entry => entry.options.key === 'settings')).toBeDefined()
+      settings.closeSettings(false)
+      expect(c.ctx.layout.panelInfo.getSnapshot().activePanelId).toBe(page)
+    }
+    c.ctx.layout.selectPanel('tasks' as MainPanelId)
+    settings.openSettings()
+    disposeTask()
+    settings.closeSettings(false)
+    expect(c.ctx.layout.panelInfo.getSnapshot().activePanelId).toBeNull()
   }, COLD_BOOT_TIMEOUT_MS)
 
   it('projects the section ledger: product sections in order, defaults for bare rows, stable snapshots', async ({ start }) => {

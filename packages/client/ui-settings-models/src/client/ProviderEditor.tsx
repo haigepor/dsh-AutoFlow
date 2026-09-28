@@ -33,8 +33,9 @@ import {
 import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
+import { FieldHelp } from './FieldHelp.tsx'
 import { deriveKeyRef, protocolChoices } from './store.ts'
-import { protocolLabel } from './protocol-label.ts'
+import { ProtocolPicker } from './ProtocolPicker.tsx'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type { en } from './locales.ts'
@@ -403,30 +404,39 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                 its catalog entry and neither belongs on its card. */}
             {ownsIdentity
               ? (
-                <div className={styles['field']}>
-                  <span className={styles['fieldLabel']}>{t('customDisplayName')}</span>
-                  <input
-                    className={styles['input']}
-                    type="text"
-                    value={stringAt(draft, 'displayName') ?? ''}
-                    // What this route is called the moment the field is
-                    // cleared, which is the layer beneath the one this field
-                    // edits: a `cordis.yml` may pin a name for a route the
-                    // catalog does not ship, and only when nothing does is
-                    // the answer the route id. Reading the effective value
-                    // instead would echo the stored override back as the
-                    // thing clearing restores.
-                    placeholder={stringAt(schema.getPath(namespace.base, settingsPath), 'displayName')
+                <div className={styles['fieldGrid']}>
+                  <div className={styles['field']}>
+                    <span className={styles['fieldLabel']}>{t('customDisplayName')}</span>
+                    <input
+                      className={styles['input']}
+                      type="text"
+                      value={stringAt(draft, 'displayName') ?? ''}
+                      // What this route is called the moment the field is
+                      // cleared, which is the layer beneath the one this field
+                      // edits: a `cordis.yml` may pin a name for a route the
+                      // catalog does not ship, and only when nothing does is
+                      // the answer the route id. Reading the effective value
+                      // instead would echo the stored override back as the
+                      // thing clearing restores.
+                      placeholder={stringAt(schema.getPath(namespace.base, settingsPath), 'displayName')
                       ?? props.provider}
-                    aria-label={t('customDisplayName')}
-                    disabled={disabled}
-                    onChange={(event) => { setField('displayName', event.target.value) }}
-                  />
+                      aria-label={t('customDisplayName')}
+                      disabled={disabled}
+                      onChange={(event) => { setField('displayName', event.target.value) }}
+                    />
+                  </div>
+                  <div className={styles['field']}>
+                    <span className={styles['fieldLabel']}>{t('customApi')}</span>
+                    <ProtocolPicker value={probeApi} choices={protocols} disabled={disabled} t={t}
+                      onChange={(value) => { setField('api', value) }} />
+                  </div>
                 </div>
               )
               : null}
             <div className={styles['field']}>
-              <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
+              <span className={styles['fieldLabel']}>{t('baseUrl')}
+                {family === 'deepseek' ? <FieldHelp title={t('baseUrl')} text={t('deepSeekEndpointHint')} t={t} /> : null}
+              </span>
               <input
                 className={styles['input']}
                 type="text"
@@ -434,40 +444,13 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                 placeholder={family === 'deepseek'
                   ? t('deepSeekBaseUrl')
                   : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
-                aria-describedby={family === 'deepseek' ? `${props.provider}-endpoint-hint` : undefined}
                 aria-label={t('baseUrl')}
                 disabled={disabled}
                 onChange={(event) => {
                   setField('baseURL', event.target.value === '' ? undefined : event.target.value)
                 }}
               />
-              {family === 'deepseek' ? <span id={`${props.provider}-endpoint-hint`} className={styles['advancedHint']}>{t('deepSeekEndpointHint')}</span> : null}
             </div>
-            {/* The protocol sits beside the endpoint it describes, as it does
-                on the create card. */}
-            {ownsIdentity
-              ? (
-                <div className={styles['field']}>
-                  <span className={styles['fieldLabel']}>{t('customApi')}</span>
-                  <select
-                    className={`${styles['input']} ${styles['selectInput']}`}
-                    value={probeApi ?? ''}
-                    aria-label={t('customApi')}
-                    disabled={disabled}
-                    onChange={(event) => { setField('api', event.target.value) }}
-                  >
-                    {/* A profile naming no protocol — hand-written into
-                        cordis.patch.yml with no model to need one — selects
-                        nothing rather than reading as if it had picked the
-                        first choice. The option is named because a screen
-                        reader announces it either way, and an empty one is
-                        announced as a choice with no identity. */}
-                    {probeApi === undefined ? <option value="">{t('customApiUnset')}</option> : null}
-                    {protocols.map(choice => <option key={choice} value={choice}>{protocolLabel(t, choice)}</option>)}
-                  </select>
-                </div>
-              )
-              : null}
             {/* Both families edit the same rows through the same contract; only
                 the extras differ — DeepSeek's inherited capacities, pi-ai's
                 endpoint interrogation. */}

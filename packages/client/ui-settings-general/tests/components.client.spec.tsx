@@ -108,7 +108,7 @@ describe('chrome content', () => {
     render(<HeaderContent {...kit} t={t} />)
     render(<CloseLabel {...kit} t={t} />)
     expect(screen.getByText('Settings')).toBeTruthy()
-    expect(screen.getByText('Close')).toBeTruthy()
+    expect(screen.getByText('Back')).toBeTruthy()
   })
 })
 
@@ -117,7 +117,7 @@ describe('GeneralSection', () => {
     const renderSlot = vi.fn(
       ((key: string) => <div data-testid={`slot-${key}`} />) as GeneralSectionComponentProps['renderSlot'],
     )
-    const props: GeneralSectionComponentProps = { ...kit, renderSlot, close: vi.fn() }
+    const props: GeneralSectionComponentProps = { ...kit, t, renderSlot, close: vi.fn() }
     const view = render(<GeneralSection {...props} />)
     return { view, renderSlot }
   }

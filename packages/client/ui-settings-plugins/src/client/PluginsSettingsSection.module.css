@@ -4,34 +4,71 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 760px;
+  width: 100%;
+  min-width: 0;
   color: var(--dsw-alias-label-primary);
 }
 
 .heading {
   margin: 0;
-  font-size: 18px;
+  font-size: 26px;
+  line-height: 36px;
   font-weight: 600;
+  color: var(--dsw-alias-label-primary);
 }
 
 .intro {
-  margin: 0;
-  font-size: 13px;
-  color: var(--dsw-alias-label-tertiary);
+  margin: 6px 0 0;
+  max-width: 64ch;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.pageHeader > div {
+  min-width: 0;
+}
+
+.pageIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .tabs {
   display: flex;
-  align-items: flex-end;
-  gap: 22px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
-  margin-top: 2px;
+  align-items: center;
+  align-self: flex-start;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  gap: 4px;
+  padding: 4px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-2);
 }
 
 .tab {
   position: relative;
   border: 0;
-  padding: 7px 1px 9px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  white-space: nowrap;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
@@ -45,22 +82,15 @@
   color: var(--dsw-alias-label-primary);
 }
 
-.tab[data-active='true']::after,
-.tab:focus-visible::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: var(--dsw-alias-label-primary);
-  content: '';
+.tab[data-active='true'] {
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 1px 2px var(--dsw-alias-border-l1);
 }
 
 .tab:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: 10px;
   color: var(--dsw-alias-label-primary);
 }
 

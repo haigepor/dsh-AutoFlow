@@ -38,6 +38,8 @@ The layout itself — the split tree, its operations, the drag gestures, the flo
 
 Normal and fullscreen presentations share the same content tree, so switching does not remount tabs. The normal panel anchors to the right column; fullscreen covers the viewport while retaining the wide-screen columns underneath. Opening below 768px uses fullscreen automatically; leaving fullscreen on a narrow viewport closes the panel, and widening does not reopen a closed panel. A fullscreen opening keeps the underlying columns unchanged until its slide finishes, then prepares the normal track without a column transition. Before a fullscreen panel retreats, closing prepares a full-width conversation and restoring prepares the normal right track; the background does not animate during the retreat.
 
+In both presentations, the docked content begins below the frame's 8px top gap. The exposed band uses the sidebar fill while the panel is open; floating panels keep their viewport placement.
+
 | Mode | The track | The panel |
 |---|---|---|
 | `push` (default) | Panel width: the conversation makes room | In the track; its left edge and the conversation's right edge travel together, on the frame's own curve |

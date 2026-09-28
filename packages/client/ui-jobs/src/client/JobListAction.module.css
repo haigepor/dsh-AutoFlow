@@ -56,12 +56,12 @@
   list-style: none;
   border: 0;
   border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-specific-menu);
+  background: var(--dsw-menu-standalone-fill);
   backdrop-filter: var(--dsw-menu-backdrop-filter);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
+  --dsw-elevation-stroke-color: var(--dsw-menu-stroke-color);
+  box-shadow: var(--dsw-elevation-menu);
 }
 
 /* Section labels over the live rows and the settled tail. */

@@ -10,7 +10,7 @@ type Actions = {
 }
 
 /**
- * Declare the settings dialog state and its complete mutation API.
+ * Declare the settings page state and its complete mutation API.
  * @returns one root-scoped store handle for the settings shell.
  */
 export function createSettingsShellStore(): EngineStoreHandle<State, Actions> {

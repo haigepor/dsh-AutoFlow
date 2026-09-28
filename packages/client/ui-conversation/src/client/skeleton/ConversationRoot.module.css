@@ -1,10 +1,13 @@
 .root {
+  --dsh-conversation-surface-fill: var(--dsw-specific-conversation-fill);
   position: relative; /* positioning context for slot-owned absolute chrome */
   display: flex;
   flex-direction: column;
   height: 100%;
   min-width: 0;
-  background: var(--dsw-alias-bg-base);
+  background: var(--dsh-conversation-surface-fill);
+  border-radius: var(--dsw-radius-lg) 0 0 0;
+  corner-shape: round;
 }
 
 /* 76px with its rule: the height of the Sidebar's tab strip and header row
@@ -442,13 +445,12 @@ button.crumb:hover {
   /* Input mask (figma 1205:27463): transcript fades out under a FIXED 36px
      band at the seat's top (the figma 24% of the resting ~150px composer),
      solid below — px stops, not %, so a growing draft only widens the solid
-     region and the fade band never stretches. The 0px stop is bg-base at
-     zero alpha (not white, which the figma export hardcodes) so both themes
-     fade from their own base. */
+     region and the fade band never stretches. The 0px stop uses the enclosing
+     surface fill at zero alpha, so embedded content keeps its base fill. */
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--dsw-alias-bg-base) 0%, transparent) 0px,
-    var(--dsw-alias-bg-base) 36px
+    color-mix(in srgb, var(--dsh-conversation-surface-fill, var(--dsw-alias-bg-base)) 0%, transparent) 0px,
+    var(--dsh-conversation-surface-fill, var(--dsw-alias-bg-base)) 36px
   );
 }
 

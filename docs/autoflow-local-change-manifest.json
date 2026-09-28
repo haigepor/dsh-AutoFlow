@@ -1,0 +1,895 @@
+{
+  "snapshotDate": "2026-09-28",
+  "officialRef": "autoflow-v0.2.0^2",
+  "mainRef": "autoflow-v0.2.0",
+  "committedChanges": [
+    {
+      "status": "M",
+      "path": ".agents/notes/implemented/architecture/2026-09-08-desktop-welcome-window-material.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": ".agents/notes/implemented/architecture/2026-09-08-desktop-welcome-window-material.md"
+    },
+    {
+      "status": "M",
+      "path": ".agents/notes/implemented/architecture/2026-09-08-desktop-welcome-window-material.zh.md"
+    },
+    {
+      "status": "M",
+      "path": ".agents/notes/implemented/feature/2026-09-17-compact-translucent-menu-surfaces.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": ".agents/notes/implemented/feature/2026-09-17-compact-translucent-menu-surfaces.md"
+    },
+    {
+      "status": "M",
+      "path": ".agents/notes/implemented/feature/2026-09-17-compact-translucent-menu-surfaces.zh.md"
+    },
+    {
+      "status": "M",
+      "path": ".agents/notes/implemented/testing/2026-06-19-real-api-e2e-ci.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": ".agents/notes/implemented/testing/2026-06-19-real-api-e2e-ci.md"
+    },
+    {
+      "status": "M",
+      "path": ".agents/notes/implemented/testing/2026-06-19-real-api-e2e-ci.zh.md"
+    },
+    {
+      "status": "D",
+      "path": ".github/dependabot.yml"
+    },
+    {
+      "status": "M",
+      "path": ".github/workflows/e2e.yml"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/README.md"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/renderer/assets/welcome-brand.svg"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/renderer/assets/window-material.css"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/renderer/update-dialog.css"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/renderer/welcome.css"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/src/main.ts"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/src/welcome-window.ts"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/tests/main-startup.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "apps/desktop/tests/welcome-window.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "apps/web/tests/expected/sidebar-terminal/theme.expected.md"
+    },
+    {
+      "status": "M",
+      "path": "apps/web/tests/settings-chrome.e2e.ts"
+    },
+    {
+      "status": "M",
+      "path": "apps/web/tests/sidebar-terminal.e2e.ts"
+    },
+    {
+      "status": "M",
+      "path": "docs/web-styling.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "docs/web-styling.md"
+    },
+    {
+      "status": "M",
+      "path": "docs/web-styling.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetSection.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-approval/src/client/ApprovalPanel.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-attachment/src/FileCard.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-chat/src/client/chat/MessageItem.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-chat/src/client/chat/TurnNavigator.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-chat/src/client/chat/TurnTriggerNodeView.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-conversation/src/client/skeleton/InputBar.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-deliverables/src/client/ChangedFiles.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-dockkit/src/components/dockkit.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-jobs/src/client/JobListAction.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-message-feedback/src/client/FeedbackDialog.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-plan/src/client/PlanPreview.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/src/HoverCard.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/src/Modal.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-account/src/client/AccountSection.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-account/src/client/SignInDialog.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/SettingsRoot.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/ModelsSection.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/tests/styles.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugin-inventory/src/client/PluginInventorySettingsTab.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-documentpreview/src/client/office/FontNotice.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-documentpreview/src/client/zoom/ZoomControls.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-right/src/client/tabs/guide/GuideBody.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-terminal/src/client/TerminalGuide.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-subagent/src/client/SubagentReadOnlyComposer.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/src/boot-theme.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/src/client/AppearanceRow.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/src/styles/design-platform.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/src/styles/gradient-shadow-text.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/tests/boot-theme.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/tests/elevation-styles.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-tool/src/client/tool/components/AskQuestionCard.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-user-questions/src/client/PlanReviewPanel.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-user-questions/src/client/QuestionComposer.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/web/src/base.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/web/src/boot-page.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/experimental/client-ui-agent-team/src/client/TeamAction.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/experimental/client-ui-voice-input/src/client/VoiceInput.module.css"
+    }
+  ],
+  "trackedWorkingTreeChanges": [
+    {
+      "status": "M",
+      "path": "docs/web-styling.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "docs/web-styling.md"
+    },
+    {
+      "status": "M",
+      "path": "docs/web-styling.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-agent-preset/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-agent-preset/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-agent-preset/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetSection.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-agent-preset/src/client/AgentPresetSection.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-chat/src/client/chat/TurnTriggerNodeView.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-commands/src/client/PopupSelectView.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-conversation/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-conversation/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-conversation/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-conversation/src/client/skeleton/ConversationMainPanel.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-deliverables/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-deliverables/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-deliverables/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-deliverables/src/client/ChangedFiles.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-dockkit/src/components/dockkit.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-input-trigger/src/client/MenuView.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-jobs/src/client/JobListAction.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/src/client/AppFrame.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/src/client/AppFrame.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/src/client/service.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/src/client/stores.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/tests/app-frame.client.spec.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/tests/layout-store.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-layout/tests/service.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-model-selection/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-model-selection/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-model-selection/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-model-selection/src/client/ModelSelect.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-plugin-manager/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-plugin-manager/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-plugin-manager/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/src/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/src/Menu.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/src/MenuSurface.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/src/MenuSurface.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-primitives/src/Toast.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-schedule/src/client/PickerPopover.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-schedule/src/client/ScheduleCatalogAction.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-schedule/src/client/TaskMenu.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-account/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-account/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-account/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-account/src/client/AccountMenu.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-account/src/client/AccountNotice.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/chrome.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/GeneralSection.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/GeneralSection.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/index.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/locales.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/SettingsDocumentAction.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/SettingsRoot.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/SettingsRoot.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/shell-contract.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/src/client/shell-store.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/tests/apply.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/tests/components.client.spec.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/tests/settings-root.client.spec.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/tests/shell.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-general/tsconfig.client.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/CustomProviderCard.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/DeepSeekModelsEditor.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/locales.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/ModelInputTypes.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/ModelListEditor.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/ModelRow.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/ModelsSection.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/ModelsSection.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/src/client/ProviderEditor.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/tests/components.client.spec.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/tests/expected/deepseek-account-en.txt"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/tests/expected/deepseek-account-zh.txt"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-models/tests/provider-form.client.spec.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugin-inventory/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugin-inventory/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugin-inventory/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugin-inventory/src/client/PluginInventorySettingsTab.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugins/package.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugins/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugins/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugins/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugins/src/client/PluginsSettingsSection.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugins/src/client/PluginsSettingsSection.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings-plugins/tsconfig.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-settings/src/client/contract/slots.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-right/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-right/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-right/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-right/src/client/shell/SidebarRight.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-terminal/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-terminal/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-terminal/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar-terminal/src/client/TerminalGuide.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar/src/client/SidebarRoot.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar/src/client/SidebarRoot.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar/tests/__snapshots__/sidebar-snapshot.client.spec.tsx.snap"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-sidebar/tests/sidebar-styles.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-subagent/src/client/SubagentHeaderLineage.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/src/styles/design-platform.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/src/styles/gradient-shadow-text.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/tests/app-region-styles.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/tests/elevation-styles.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/tests/menu-surfaces.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-workspace/README.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-workspace/README.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-workspace/README.zh.md"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-workspace/src/client/rows/AnimatedRows.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-workspace/src/client/rows/Rows.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-workspace/src/client/rows/Rows.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.module.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-workspace/tests/browser-styles.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/web/src/base.css"
+    },
+    {
+      "status": "M",
+      "path": "packages/extensions/cordis-client-runner/src/client/api-catalog.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/extensions/cordis-client-runner/src/client/slot-catalog.ts"
+    },
+    {
+      "status": "M",
+      "path": "pnpm-lock.yaml"
+    }
+  ],
+  "untrackedPaths": [
+    ".agents/research/2026-09-24-frosted-glass-ui.md",
+    "docs/assets/autoflow-appearance-concept.svg",
+    "docs/autoflow-appearance-proposal.i18n.yaml",
+    "docs/autoflow-appearance-proposal.md",
+    "docs/autoflow-appearance-proposal.zh.md",
+    "docs/autoflow-upstream-integration.i18n.yaml",
+    "docs/autoflow-upstream-integration.md",
+    "docs/autoflow-upstream-integration.zh.md",
+    "packages/client/ui-primitives/src/GlideHighlight.tsx",
+    "packages/client/ui-settings-general/src/client/SettingsPage.module.css",
+    "packages/client/ui-settings-general/src/client/SettingsPage.tsx",
+    "packages/client/ui-settings-general/tests/settings-page.client.spec.tsx",
+    "packages/client/ui-settings-models/src/client/FieldHelp.tsx",
+    "packages/client/ui-settings-models/src/client/ModelCatalogHeading.tsx",
+    "packages/client/ui-settings-models/src/client/ProtocolPicker.tsx",
+    "packages/client/ui-settings-models/src/client/useModelReorder.ts"
+  ]
+}

@@ -10,20 +10,24 @@ body {
   /* Elevated surfaces combine a rebindable hairline, a theme-aware inner rim,
      and two soft shadows. The composer uses the wider, quieter soft tier. */
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l4);
+  --dsw-menu-stroke-color: var(--dsw-alias-border-l3);
   --dsw-glass-highlight: rgba(255, 255, 255, 0.48);
-  --dsw-elevation-shadow-panel: 0 2px 8px -2px rgba(41, 41, 39, 0.025), 0 8px 24px -8px rgba(41, 41, 39, 0.035);
+  --dsw-elevation-shadow-panel: 0 2px 8px -2px rgba(41, 41, 39, 0.035), 0 8px 24px -8px rgba(41, 41, 39, 0.055);
   --dsw-elevation-shadow-prominent: 0 3px 12px -4px rgba(41, 41, 39, 0.035), 0 12px 32px -10px rgba(41, 41, 39, 0.045);
+  --dsw-elevation-shadow-menu: 0 2px 8px -3px rgba(41, 41, 39, 0.025), 0 9px 24px -10px rgba(41, 41, 39, 0.045);
   --dsw-elevation-shadow-soft: 0 2px 8px -2px rgba(41, 41, 39, 0.018), 0 6px 20px -8px rgba(41, 41, 39, 0.025);
   /* Shared blur treatments for blocking masks and frosted surfaces. */
   --dsw-mask-blur: blur(2px);
-  --dsw-menu-backdrop-filter: blur(18px) saturate(105%);
+  --dsw-menu-backdrop-filter: blur(16px) saturate(108%);
   --dsw-dialog-backdrop-filter: blur(22px) saturate(105%);
 }
 
 body[data-ds-dark-theme] {
+  --dsw-menu-stroke-color: var(--dsw-alias-border-l3);
   --dsw-glass-highlight: rgba(255, 255, 255, 0.07);
   --dsw-elevation-shadow-panel: 0 2px 8px -2px rgba(0, 0, 0, 0.055), 0 8px 24px -8px rgba(0, 0, 0, 0.07);
   --dsw-elevation-shadow-prominent: 0 3px 12px -4px rgba(0, 0, 0, 0.075), 0 12px 32px -10px rgba(0, 0, 0, 0.095);
+  --dsw-elevation-shadow-menu: 0 3px 12px -4px rgba(0, 0, 0, 0.075), 0 12px 32px -10px rgba(0, 0, 0, 0.095);
   --dsw-elevation-shadow-soft: 0 2px 8px -2px rgba(0, 0, 0, 0.035), 0 6px 20px -8px rgba(0, 0, 0, 0.05);
 }
 
@@ -36,6 +40,8 @@ body * {
     var(--dsw-elevation-stroke), inset 0 1px 0 var(--dsw-glass-highlight), var(--dsw-elevation-shadow-panel);
   --dsw-elevation-prominent:
     var(--dsw-elevation-stroke), inset 0 1px 0 var(--dsw-glass-highlight), var(--dsw-elevation-shadow-prominent);
+  --dsw-elevation-menu:
+    var(--dsw-elevation-stroke), inset 0 1px 0 var(--dsw-glass-highlight), var(--dsw-elevation-shadow-menu);
   --dsw-elevation-soft:
     var(--dsw-elevation-stroke), inset 0 1px 0 var(--dsw-glass-highlight), var(--dsw-elevation-shadow-soft);
 }

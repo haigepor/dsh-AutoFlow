@@ -89,7 +89,7 @@ function setPageUrl(url: string): void {
 
 describe('ui-settings-general apply', () => {
   it('declares the services it uses', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts'])
+    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts', 'layout'])
   })
 
   it('fills the five seats of the shell it declares, with the locale-following General label', async ({ mock, start }) => {
@@ -130,7 +130,7 @@ describe('ui-settings-general apply', () => {
     expect(t('connection.connecting')).toBe('重新连接中')
     expect(t('connection.connected')).toBe('连接成功')
     c.ctx.locale.setLocale('en')
-    expect(t('close')).toBe('Close')
+    expect(t('back')).toBe('Back')
     expect(t('connection.reconnect')).toBe('Disconnected, reconnect now')
     expect(t('connection.connecting')).toBe('Reconnecting')
     await vi.waitFor(() => {
@@ -210,7 +210,8 @@ describe('ui-settings-general apply', () => {
     await c.flush()
     expectSeated(c)
     SEATS.forEach(([name], index) => {
-      expect(ownEntries(c, name)[0]).not.toBe(before[index])
+      if (name === 'settings.trigger') expect(ownEntries(c, name)[0]).not.toBe(before[index])
+      else expect(ownEntries(c, name)[0]).toBe(before[index])
     })
     expect(c.ctx.slots.spec('settings.general.item')).toEqual({ kind: 'list', scope: 'root' })
     expect(c.ctx.slots.entries('settings.general.item').filter(row => row.locale === NS).map(row => row.options.id)).toEqual(['developer-tools', 'current-version'])
