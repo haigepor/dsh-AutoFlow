@@ -12,7 +12,7 @@ Status: implemented
 
 ## 决策
 
-一个与 ci.yml 分离的专用工作流 [.github/workflows/e2e.yml](../../../../.github/workflows/e2e.yml) 使用 repo secret 对外部 API 运行且仅运行 `pnpm run test:e2e`，仅在可信事件上触发，并带有一个 preflight 检查：将缺失的 secret 转化为明确的失败而非虚假的绿色。无密钥工作流保持独立，使可 fork 的质量门禁与消费 secret 的真实 API 门禁各自拥有不同的触发和凭证策略。
+一个与 ci.yml 分离的专用工作流 [.github/workflows/e2e.yml](../../../../.github/workflows/e2e.yml) 使用 repo secret 对外部 API 运行且仅运行 `pnpm run test:e2e`，仅在官方仓库或已启用副本的可信事件上运行，并带有一个 preflight 检查：将缺失的 secret 转化为明确的失败而非虚假的绿色。无密钥工作流保持独立，使可 fork 的质量门禁与消费 secret 的真实 API 门禁各自拥有不同的触发和凭证策略。
 
 ### 独立工作流，而非 ci.yml 中的一个 job
 
@@ -20,11 +20,13 @@ ci.yml 的价值在于它无密钥、可 fork、始终为绿：任何贡献者�
 
 ### 约束不是成本，而是可靠性
 
-内部推理（inference）成本不是限制因素，因此工作流针对覆盖面和信号优化。它会在多种触发条件和每个受信任 PR（Pull Request）上运行所有匹配的 `*.e2e.ts` 文件，以落实 [docs/testing.md](../../../../docs/testing.zh.md) 的有密钥策略。
+内部推理（inference）成本不是限制因素，因此工作流针对覆盖面和信号优化。仓库启用该工作流后，它会在多种触发条件和每个受信任 PR（Pull Request）上运行所有匹配的 `*.e2e.ts` 文件，以落实 [docs/testing.md](../../../../docs/testing.zh.md) 的有密钥策略。
 
 ### 触发条件：仅限可信事件
 
 `workflow_dispatch` + `push` 到 `main`/`master` + 每夜 `schedule`（`17 0 * * *`，即北京时间 08:17）+ `pull_request`。push 提供合并后信号；schedule 捕捉外部 API 漂移；dispatch 是手动逃生通道；可信 PR 获得合并前门禁。该合并前信号有意接受 § 安全性中描述的更大密钥暴露面。
+
+job 在 `deepseek-ai/deepseek-harness` 中默认运行。其他仓库需要将仓库变量 `DSH_REAL_API_E2E_ENABLED` 设为 `true`，并配置仓库 secret `DEEPSEEK_API_KEY_EXTERNAL`。配置完成前，所有触发条件都会跳过该 job；只设置变量而没有 secret 时，preflight 会失败。这样，没有 API 密钥的副本不会每夜重复报错，也不会把空测试套件当作真实 API 覆盖。
 
 ### 不可信 PR 的门禁
 
@@ -41,7 +43,7 @@ Dependabot 子句基于 PR **作者**（`pull_request.user.login`）而非 `gith
 
 ### Preflight：明确失败，绝不虚假报绿
 
-由于 job 仅在 secret 应当存在的可信事件上运行，preflight 是一个无条件的存在性检查：密钥为空→`exit 1` 并附带 `::error::` 注解指明需要配置的 secret 名称。这是让自跳过套件可以安全地作为门禁的关键。没有它，被删除/重命名/错误配置的 secret 会让 `test:e2e` 跳过所有真实套件并报告全绿——整个安全网的静默退化。该守卫将「secret 缺失」从不可见的虚假通过转化为可见的失败。（其正确性已在实际中验证：secret 存在之前的运行恰好在此步骤失败。）
+由于 job 仅在官方仓库或已启用副本的可信事件上运行，此时 secret 应当存在，preflight 是一个无条件的存在性检查：密钥为空→`exit 1` 并附带 `::error::` 注解指明需要配置的 secret 名称。这是让自跳过套件可以安全地作为门禁的关键。没有它，被删除/重命名/错误配置的 secret 会让 `test:e2e` 跳过所有真实套件并报告全绿——整个安全网的静默退化。该守卫将「secret 缺失」从不可见的虚假通过转化为可见的失败。（其正确性已在实际中验证：secret 存在之前的运行恰好在此步骤失败。）
 
 ### Secret 映射与卫生
 

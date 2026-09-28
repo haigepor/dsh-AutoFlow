@@ -12,7 +12,7 @@ The default gate ([.github/workflows/ci.yml](../../../../.github/workflows/ci.ym
 
 ## Decision
 
-A dedicated workflow, [.github/workflows/e2e.yml](../../../../.github/workflows/e2e.yml), separate from ci.yml, runs only `pnpm run test:e2e` against the external API using a repo secret, on trusted events, with a preflight that converts a missing secret into a loud failure instead of a false green. The keyless workflow remains separate so forkable quality gates and secret-consuming real-API gates keep different trigger and credential policies.
+A dedicated workflow, [.github/workflows/e2e.yml](../../../../.github/workflows/e2e.yml), separate from ci.yml, runs only `pnpm run test:e2e` against the external API using a repo secret, on trusted events in the official repository or an opted-in copy, with a preflight that converts a missing secret into a loud failure instead of a false green. The keyless workflow remains separate so forkable quality gates and secret-consuming real-API gates keep different trigger and credential policies.
 
 ### A separate workflow, not a job in ci.yml
 
@@ -20,11 +20,13 @@ ci.yml's value is that it is keyless, forkable, and always-green: any contributo
 
 ### Cost is not the constraint; reliability is
 
-Internal inference cost is not the limiting constraint, so the workflow optimizes for coverage and signal. It runs every matching `*.e2e.ts` file on multiple triggers and every trusted PR, implementing the [docs/testing.md](../../../../docs/testing.md) with-key policy.
+Internal inference cost is not the limiting constraint, so the workflow optimizes for coverage and signal. Once enabled for a repository, it runs every matching `*.e2e.ts` file on multiple triggers and every trusted PR, implementing the [docs/testing.md](../../../../docs/testing.md) with-key policy.
 
 ### Triggers: trusted events only
 
 `workflow_dispatch` + `push` to `main`/`master` + nightly `schedule` (`17 0 * * *`, 08:17 Asia/Shanghai) + `pull_request`. Push gives a post-merge signal; schedule catches external-API drift; dispatch is the manual escape hatch; and trusted pull requests get a pre-merge gate. That pre-merge signal deliberately accepts the larger key-exposure surface described under § Security.
+
+The job runs by default in `deepseek-ai/deepseek-harness`. Copies set the repository variable `DSH_REAL_API_E2E_ENABLED` to `true` and configure the repository secret `DEEPSEEK_API_KEY_EXTERNAL` to enable it. Until then, the job is skipped on all triggers; enabling the variable without the secret fails preflight. This keeps a copy without an API key from producing repeated nightly failures without treating an empty test suite as real-API coverage.
 
 ### The untrusted-PR gate
 
@@ -41,7 +43,7 @@ The gate is a *clean-skip nicety*, not the secret's security boundary (see § Se
 
 ### Preflight: fail loud, never false-green
 
-Because the job only runs on trusted events where the secret is expected, the preflight is an unconditional presence check: empty key → `exit 1` with a `::error::` annotation naming the secret to configure. This is the crux that makes a self-skipping suite safe to gate on. Without it, a deleted/renamed/misconfigured secret would make `test:e2e` skip every real suite and report all-green — a silent regression of the entire safety net. The guard turns "secret missing" from an invisible false pass into a visible failure. (Its correctness was verified live: the run before the secret existed failed at exactly this step.)
+Because the job only runs on trusted events in the official repository or an opted-in copy where the secret is expected, the preflight is an unconditional presence check: empty key → `exit 1` with a `::error::` annotation naming the secret to configure. This is the crux that makes a self-skipping suite safe to gate on. Without it, a deleted/renamed/misconfigured secret would make `test:e2e` skip every real suite and report all-green — a silent regression of the entire safety net. The guard turns "secret missing" from an invisible false pass into a visible failure. (Its correctness was verified live: the run before the secret existed failed at exactly this step.)
 
 ### Secret mapping and hygiene
 
