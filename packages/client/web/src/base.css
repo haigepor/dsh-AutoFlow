@@ -39,12 +39,11 @@ html[data-platform='darwin'] body {
   background: transparent;
 }
 
-/* The transparent window disables backdrop-filter: Chromium composites it
-   against the root surface, which vibrancy leaves transparent, so the blur in
-   --dsw-menu-backdrop-filter renders as nothing and translucent card/menu fills
-   let underlying text bleed through. Compensate with near-opaque fills on the
-   design-platform hues. */
+/* The transparent window leaves no pixels for Chromium to blur over vibrancy.
+   MenuSurface supplies its own backing; other overlays need near-opaque fills
+   on the design-platform hues to keep underlying text from bleeding through. */
 html[data-platform='darwin'] body {
+  isolation: isolate;
   --dsw-specific-menu: rgba(255, 255, 255, 0.94);
   --dsw-specific-dialog: rgba(255, 255, 255, 0.96);
 }
@@ -66,23 +65,29 @@ html[data-platform='darwin'] body[data-ds-dark-theme] {
   }
 }
 
-/* macOS desktop: the app frame publishes window drag bands, and Electron
-   composes app-regions from geometry, not hit testing — a surface covering a
-   band would otherwise drag the window instead of receiving clicks. Every
-   overlay portals to document.body beside #root, so one rule subtracts them
-   all; drag surfaces all live inside #root. */
+/* macOS desktop: a marked chrome row supplies draggable geometry. Overlays
+   portal to body after the rows, so their controls can subtract themselves. */
+html[data-platform='darwin'] [data-window-drag] {
+  -webkit-app-region: drag;
+}
+
+/* Electron must recollect app-region geometry when a marked row moves; the
+   window drag watcher pulses this attribute for one frame (electron#32341). */
+html[data-platform='darwin'] [data-window-drag-recall] {
+  -webkit-app-region: no-drag;
+}
+
 html[data-platform='darwin'] body > :not(#root) {
   -webkit-app-region: no-drag;
 }
 
 /* Inside #root, interactive controls and raised surfaces (dialogs, menus)
-   subtract themselves from any drag band they overlap, wherever they render.
-   Electron composes app-regions from geometry in document order, so this works
-   only because the bands are declared before all content (AppFrame's first
-   child; the sidebar rows that precede the column's overlay slots) — a drag
-   rule on a content container would override every overlay mounted earlier in
-   the DOM. One selector on the native elements, ARIA roles, and tabindexed
-   custom widgets replaces per-component no-drag opt-outs. */
+   subtract themselves from any drag row they overlap, wherever they render.
+   Electron composes app-regions from geometry in document order, so a drag rule
+   must sit on a chrome row that precedes the overlays covering it — never on a
+   content container, which would override every overlay mounted earlier in the
+   DOM. One selector on the native elements, ARIA roles, and tabindexed custom
+   widgets replaces per-component no-drag opt-outs. */
 html[data-platform='darwin'] :is(
   button, a, input, select, textarea, summary, [contenteditable='true'], [tabindex],
   [role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox'], [role='tooltip'],

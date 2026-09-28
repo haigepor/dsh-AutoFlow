@@ -256,6 +256,7 @@ body {
   --dsw-specific-bubble: #EEEDF5;
   --dsw-specific-input-major: #FFFFFF;
   --dsw-specific-login-input: #F7F6F3;
+  --dsw-menu-surface-fill: rgba(255, 255, 255, 0.72);
   --dsw-specific-menu: rgba(255, 255, 255, 0.86);
   --dsw-specific-dialog: rgba(255, 255, 255, 0.9);
   --dsw-specific-selector: #F1F0ED;
@@ -363,6 +364,7 @@ body[data-ds-dark-theme] {
   --dsw-specific-bubble: #363544;
   --dsw-specific-input-major: #272725;
   --dsw-specific-login-input: #20201E;
+  --dsw-menu-surface-fill: rgba(39, 39, 37, 0.72);
   --dsw-specific-menu: rgba(39, 39, 37, 0.88);
   --dsw-specific-dialog: rgba(39, 39, 37, 0.92);
   --dsw-specific-selector: #343431;
@@ -377,6 +379,7 @@ body[data-ds-dark-theme] {
    asks the system to reduce transparency. */
 @supports not (backdrop-filter: blur(1px)) {
   html body {
+    --dsw-menu-surface-fill: rgb(255 255 255);
     --dsw-specific-menu: rgb(255 255 255);
     --dsw-specific-dialog: rgb(255 255 255);
     --dsw-menu-backdrop-filter: none;
@@ -384,6 +387,7 @@ body[data-ds-dark-theme] {
   }
 
   html body[data-ds-dark-theme] {
+    --dsw-menu-surface-fill: rgb(39 39 37);
     --dsw-specific-menu: rgb(39 39 37);
     --dsw-specific-dialog: rgb(39 39 37);
     --dsw-menu-backdrop-filter: none;
@@ -393,6 +397,7 @@ body[data-ds-dark-theme] {
 
 @media (prefers-reduced-transparency: reduce) {
   html body {
+    --dsw-menu-surface-fill: rgb(255 255 255);
     --dsw-specific-menu: rgb(255 255 255);
     --dsw-specific-dialog: rgb(255 255 255);
     --dsw-menu-backdrop-filter: none;
@@ -400,6 +405,7 @@ body[data-ds-dark-theme] {
   }
 
   html body[data-ds-dark-theme] {
+    --dsw-menu-surface-fill: rgb(39 39 37);
     --dsw-specific-menu: rgb(39 39 37);
     --dsw-specific-dialog: rgb(39 39 37);
     --dsw-menu-backdrop-filter: none;

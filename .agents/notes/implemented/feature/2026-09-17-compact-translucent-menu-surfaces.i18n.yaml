@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-17-compact-translucent-menu-surfaces.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-17-compact-translucent-menu-surfaces.md
-2026-09-17-compact-translucent-menu-surfaces.md: 780192a8ea5b93c39401c87acb09500c64d8ff25
-2026-09-17-compact-translucent-menu-surfaces.zh.md: 4c175652a9ecb6dfe81ce27a3a46c75bc9aa2f1e
+/agent-note-compact-translucent-menu-surfaces:
+  en: 629cdf857a84d1f3
+  zh: 676a34bac03903be
+/agent-note-compact-translucent-menu-surfaces/problem:
+  en: f1ff5b408b409003
+  zh: 1f548352bc075cc4
+/agent-note-compact-translucent-menu-surfaces/decision:
+  en: be75191a7f264ed1
+  zh: 3ef693828bd0b851
+/agent-note-compact-translucent-menu-surfaces/alternatives-considered:
+  en: f06228674ee82029
+  zh: 385603bebcd17d5f
+/agent-note-compact-translucent-menu-surfaces/consequences:
+  en: fff51124854bd891
+  zh: 2860c2854b157ece

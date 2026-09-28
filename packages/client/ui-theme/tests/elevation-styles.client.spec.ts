@@ -105,7 +105,7 @@ function translucentMenusWithoutBackdrop(css: string): string[] {
   return parseRules(css)
     .filter(rule => rule.declarations.some(([property, value]) =>
       (property === 'background' || property === 'background-color')
-      && value === 'var(--dsw-specific-menu)'))
+      && /^var\(--dsw-(?:specific-menu|menu-surface-fill)\)$/.test(value)))
     .filter(rule => rule.declarations.some(([property, value]) =>
       property === 'box-shadow' && ELEVATED_SHADOW.test(value))
       || rule.selectors.some(selector => /::(?:before|after)$/.test(selector)))
@@ -130,6 +130,15 @@ describe('translucent menu surfaces pair fill and filter', () => {
     )).toEqual([])
   })
 
+  it('rejects a backed menu fill without the shared backdrop filter', () => {
+    expect(translucentMenusWithoutBackdrop(
+      '.a { background: var(--dsw-menu-surface-fill); box-shadow: var(--dsw-elevation-panel); }',
+    )).toEqual(['.a'])
+    expect(translucentMenusWithoutBackdrop(
+      '.a { background: var(--dsw-menu-surface-fill); box-shadow: var(--dsw-elevation-panel); backdrop-filter: var(--dsw-menu-backdrop-filter); }',
+    )).toEqual([])
+  })
+
   it('covers every package menu-fill consumer', () => {
     const missing = packageStylesheets().flatMap(file =>
       translucentMenusWithoutBackdrop(readFileSync(file, 'utf8'))
@@ -139,6 +148,7 @@ describe('translucent menu surfaces pair fill and filter', () => {
 
   it('keeps backdrop filtering on background layers when descendants use fixed positioning', () => {
     const surfaces = [
+      ['packages/client/ui-primitives/src/MenuSurface.module.css', '.surface', '.material'],
       ['packages/client/ui-goal/src/client/GoalBar.module.css', '.bar', '.bar::before'],
       ['packages/client/ui-conversation/src/client/queue/QueueDock.module.css', '.panel', '.panel::before'],
       ['packages/extensions/ui-cordis/src/client/CordisPanel.module.css', '.panel', '.panel::before'],
@@ -150,7 +160,7 @@ describe('translucent menu surfaces pair fill and filter', () => {
       const rules = parseRules(readFileSync(file!, 'utf8'))
       const declarations = declarationsIn(rules)
       expect(declarations(container).has('backdrop-filter'), container).toBe(false)
-      expect(declarations(background).get('background'), background).toBe('var(--dsw-specific-menu)')
+      expect(declarations(background).get('background'), background).toBe(container === '.surface' ? 'var(--dsw-menu-surface-fill)' : 'var(--dsw-specific-menu)')
       expect(declarations(background).get('backdrop-filter'), background)
         .toBe('var(--dsw-menu-backdrop-filter)')
     }
