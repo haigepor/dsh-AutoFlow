@@ -544,6 +544,12 @@ describe('ui-workspace apply', () => {
     expect(browser.searchResultLimit).toBe(20)
     await browser.renameWorkspace('ws' as never, 'renamed')
     expect(b.rename).toHaveBeenCalledWith('ws', 'renamed')
+    const archiveSession = vi.spyOn(b.ctx.uiWorkspace, 'archiveSession').mockResolvedValue(undefined)
+    await expect(browser.archiveSessions([sid('one'), sid('two')])).resolves.toEqual({ archived: 2, failed: 0 })
+    expect(archiveSession).toHaveBeenNthCalledWith(1, sid('one'))
+    expect(archiveSession).toHaveBeenNthCalledWith(2, sid('two'))
+    archiveSession.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('archive unavailable'))
+    await expect(browser.archiveSessions([sid('three'), sid('four')])).resolves.toEqual({ archived: 1, failed: 1 })
     await browser.createWorkspace({ path: '/tmp/browser-project' })
     expect(b.create).toHaveBeenCalledWith({ path: '/tmp/browser-project' })
 

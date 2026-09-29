@@ -69,10 +69,10 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(list!.get('scrollbar-gutter')).toBe('stable')
   })
 
-  it('keeps 1px between rows and 4px between workspace groups', () => {
-    expect(declarations('.flatList > * + *')?.get('margin-top')).toBe('1px')
-    expect(declarations(".searchTree > [role='treeitem'] + [role='treeitem']")?.get('margin-top')).toBe('1px')
-    expect(declarations('.groupSection > * + *')?.get('margin-top')).toBe('1px')
+  it('keeps 4px between rows and workspace groups', () => {
+    expect(declarations('.flatList > * + *')?.get('margin-top')).toBe('4px')
+    expect(declarations(".searchTree > [role='treeitem'] + [role='treeitem']")?.get('margin-top')).toBe('4px')
+    expect(declarations('.groupSection > * + *')?.get('margin-top')).toBe('4px')
     expect(declarations('.groupSection + .groupSection')?.get('margin-top')).toBe('4px')
   })
 

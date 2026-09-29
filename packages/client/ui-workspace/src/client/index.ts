@@ -243,6 +243,11 @@ export function apply(ctx: Context): void {
       await workspaces.insertBefore(workspaceId, beforeWorkspaceId)
     },
     unarchiveSession: async (sessionId) => { await uiWorkspace.unarchiveSession(sessionId) },
+    archiveSessions: async (sessionIds) => {
+      const outcomes = await Promise.allSettled(sessionIds.map(sessionId => uiWorkspace.archiveSession(sessionId)))
+      const archived = outcomes.filter(outcome => outcome.status === 'fulfilled').length
+      return { archived, failed: outcomes.length - archived }
+    },
     createWorkspace: input => workspaces.create(input),
     requestSearch: shortcutControls.search,
     requestAddWorkspace: shortcutControls.add,

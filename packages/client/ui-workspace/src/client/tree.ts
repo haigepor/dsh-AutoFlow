@@ -81,6 +81,8 @@ export interface GroupNode {
   containsCurrent: boolean
   /** Visible session rows (empty while the group is folded). */
   sessions: readonly SessionNode[]
+  /** All group members for header actions, including when the rows are folded. */
+  bulkSessions?: readonly SessionNode[]
 }
 
 /** One flat search row combining list metadata with an optional content match. */
@@ -240,7 +242,9 @@ function sessionVisible(
   current: SessionId | undefined,
   archived: ReadonlySet<SessionId>,
   archivedFilter: ArchivedFilter,
+  dismissed: ReadonlySet<string> = new Set(),
 ): boolean {
+  if (dismissed.has(session.id)) return false
   if (session.origin === 'subagent') return false
   if (session.blank && session.id !== current) return false
   switch (archivedFilter) {
@@ -264,6 +268,8 @@ export interface SessionRowState {
   archivedSessionIds: readonly SessionId[]
   /** Archived-row visibility choice applied to lists and search alike. */
   archivedFilter: ArchivedFilter
+  /** Browser-local rows deliberately removed after an ungrouped cleanup. */
+  dismissedSessionIds?: readonly string[]
 }
 
 /**
@@ -337,6 +343,7 @@ function groupByWorkspace(
   archived: ReadonlySet<SessionId>,
   archivedFilter: ArchivedFilter,
   ungroupedOrder: readonly string[] | undefined,
+  dismissed: ReadonlySet<string>,
 ): Group[] {
   const current = mainSessionId(list)
   const groups: Group[] = []
@@ -347,7 +354,7 @@ function groupByWorkspace(
       const summary = list.byId[id]
       if (summary === undefined) continue // account may lead the list pull; the row appears when the summary lands
       accounted.add(id)
-      if (!sessionVisible(summary, current, archived, archivedFilter)) continue
+      if (!sessionVisible(summary, current, archived, archivedFilter, dismissed)) continue
       members.push(summary)
     }
     // The archived-only view lists archives, not the Workspace inventory, so
@@ -361,7 +368,7 @@ function groupByWorkspace(
   const stray = list.ids
     .map(id => list.byId[id])
     .filter((s): s is SessionSummary =>
-      s !== undefined && !accounted.has(s.id) && sessionVisible(s, current, archived, archivedFilter))
+      s !== undefined && !accounted.has(s.id) && sessionVisible(s, current, archived, archivedFilter, dismissed))
   if (stray.length > 0) {
     groups.push(buildGroup(
       UNGROUPED_KEY,
@@ -442,14 +449,17 @@ export function deriveGroups(
 ): GroupNode[] {
   const archived = new Set(rowState.archivedSessionIds)
   const pinned = new Set(rowState.pinnedSessionIds)
+  const dismissed = new Set(rowState.dismissedSessionIds)
   const expandedGroups = new Set(view.expandedGroups)
   const current = mainSessionId(list)
   const currentGroup = current === undefined
     ? undefined
     : owningGroupKey(workspaces, current)
   const groups: GroupNode[] = []
-  for (const g of groupByWorkspace(list, workspaces, archived, rowState.archivedFilter, view.ungroupedOrder)) {
+  for (const g of groupByWorkspace(list, workspaces, archived, rowState.archivedFilter, view.ungroupedOrder, dismissed)) {
     const expanded = expandedGroups.has(g.key)
+    const members = sectionMembers(g.sessions, pinned, archived)
+      .map(session => sessionNode(session, list, statuses, pinned, archived))
     groups.push({
       key: g.key,
       workspaceId: g.workspaceId,
@@ -459,10 +469,8 @@ export function deriveGroups(
       sessionCount: g.sessions.length,
       expanded,
       containsCurrent: g.key === currentGroup,
-      sessions: expanded
-        ? sectionMembers(g.sessions, pinned, archived)
-          .map(session => sessionNode(session, list, statuses, pinned, archived))
-        : [],
+      sessions: expanded ? members : [],
+      bulkSessions: members,
     })
   }
   return groups
@@ -514,10 +522,11 @@ export function deriveFlat(
 ): SessionNode[] {
   const archived = new Set(rowState.archivedSessionIds)
   const pinned = new Set(rowState.pinnedSessionIds)
+  const dismissed = new Set(rowState.dismissedSessionIds)
   const current = mainSessionId(list)
   const members = sessionIds.flatMap((id) => {
     const session = list.byId[id]
-    return session !== undefined && sessionVisible(session, current, archived, rowState.archivedFilter)
+    return session !== undefined && sessionVisible(session, current, archived, rowState.archivedFilter, dismissed)
       ? [session]
       : []
   })
@@ -537,6 +546,7 @@ export function deriveFlat(
  * @param statuses - unified UI status by Session.
  * @param content - ranked Host content-search page.
  * @param limit - protocol-owned maximum merged row count.
+ * @param dismissedSessionIds - browser-local rows removed by an explicit cleanup.
  * @returns bounded deduplicated flat rows and a refine-query hint bit.
  */
 export function deriveSearchResults(
@@ -548,10 +558,12 @@ export function deriveSearchResults(
   statuses: SessionStatuses,
   content: { items: readonly SessionSearchResultItem[]; hasMore: boolean },
   limit: number,
+  dismissedSessionIds: readonly string[] = [],
 ): SearchResultSet {
   const q = query.trim().toLowerCase()
   if (q === '') return { items: [], hasMore: false }
   const archived = new Set(archivedSessionIds)
+  const dismissed = new Set(dismissedSessionIds)
   const current = mainSessionId(list)
 
   const workspaceBySession = new Map<SessionId, string>()
@@ -572,7 +584,7 @@ export function deriveSearchResults(
     const summary = list.byId[id]
     // Blank placeholders never match a query (their canonical title displays
     // localized, so matching it would tie search to one language).
-    if (summary === undefined || summary.blank || !sessionVisible(summary, current, archived, archivedFilter)) continue
+    if (summary === undefined || summary.blank || !sessionVisible(summary, current, archived, archivedFilter, dismissed)) continue
     if (
       sessionTitle(summary).toLowerCase().includes(q)
       || labelOf(summary).toLowerCase().includes(q)
@@ -594,7 +606,7 @@ export function deriveSearchResults(
   for (const summary of orderedLocal) include(summary)
   for (const item of content.items) {
     const summary = list.byId[item.sessionId]
-    if (summary !== undefined && !summary.blank && sessionVisible(summary, current, archived, archivedFilter)) include(summary)
+    if (summary !== undefined && !summary.blank && sessionVisible(summary, current, archived, archivedFilter, dismissed)) include(summary)
   }
 
   return {

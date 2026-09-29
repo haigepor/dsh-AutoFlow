@@ -403,7 +403,7 @@
 .flatList > * + *,
 .searchTree > [role='treeitem'] + [role='treeitem'],
 .groupSection > * + * {
-  margin-top: 1px;
+  margin-top: 4px;
 }
 
 .searchStatus {
@@ -609,6 +609,12 @@
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-state-error-primary);
+}
+
+.archiveNotice {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .deleteAction:not(:disabled) {

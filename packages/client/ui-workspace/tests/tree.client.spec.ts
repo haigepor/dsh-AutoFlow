@@ -848,6 +848,16 @@ describe('createWorkspaceViewStore', () => {
     expect(snapshot.groupExpansion).toEqual({ '': true, alpha: true })
     expect(snapshot.sessionOrderByAccount).toEqual({ alpha: ['alpha-session'] })
   })
+
+  it('removes dismissed Sessions from saved orders while retaining the other rows', () => {
+    const store = createWorkspaceViewStore().create()
+    store.actions.setSessionOrder('alpha', ['gone', 'kept'], {})
+    store.actions.dismissSessions(['gone'])
+    expect(store.getSnapshot()).toMatchObject({
+      dismissedSessionIds: ['gone'],
+      sessionOrderByAccount: { alpha: ['kept'] },
+    })
+  })
 })
 
 describe('workspaceLabel', () => {

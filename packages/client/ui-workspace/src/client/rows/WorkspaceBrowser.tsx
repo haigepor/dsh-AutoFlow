@@ -253,6 +253,10 @@ type SessionTreeProps = Pick<
   onRenameRequest: (workspaceId: WorkspaceId, currentTitle: string) => void
   /** Open the browser-owned delete-confirmation dialog for a real Workspace group. */
   onDeleteRequest: (workspaceId: WorkspaceId, currentTitle: string) => void
+  /** Open the browser-owned confirmation dialog for the current ungrouped Sessions. */
+  onArchiveRequest: (sessions: readonly SessionNode[]) => void
+  /** Open the browser-owned cleanup confirmation for current ungrouped Sessions. */
+  onDismissRequest: (sessions: readonly SessionNode[]) => void
   /** Open the rename dialog from a row title double-click. */
   onSessionRenameRequest: (sessionId: SessionNode['id'], currentTitle: string) => void
   /** One Session chosen from search that must be exposed and scrolled into view. */
@@ -282,7 +286,7 @@ function SessionTree({
   list, useSessionStatus, startSession, open, workspaces, ungroupedSessionIds,
   rowState, onLeaveArchivedOnly,
   workspaceReady, animationResetKey, usePanelInfo,
-  onRenameRequest, onDeleteRequest, onSessionRenameRequest,
+  onRenameRequest, onDeleteRequest, onArchiveRequest, onDismissRequest, onSessionRenameRequest,
   renderSlot,
   insertWorkspaceBefore,
   nestWorkspaces, groupExpansion, setGroupExpanded,
@@ -513,7 +517,10 @@ function SessionTree({
           }}
           drag={workspaceDragProps}
           actions={group.workspaceId === undefined
-            ? undefined
+            ? {
+              archive: () => { onArchiveRequest(group.bulkSessions ?? group.sessions) },
+              dismiss: () => { onDismissRequest(group.bulkSessions ?? group.sessions) },
+            }
             : {
               rename: () => {
               /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
@@ -747,6 +754,7 @@ function SearchResults({
   workspaces,
   archivedSessionIds,
   archivedFilter,
+  dismissedSessionIds,
   query,
   remote,
   resultLimit,
@@ -757,6 +765,8 @@ function SearchResults({
   archivedSessionIds: readonly SessionNode['id'][]
   /** Search matches follow the archived filter selected for the list. */
   archivedFilter: ArchivedFilter
+  /** Browser-local rows removed by an explicit cleanup. */
+  dismissedSessionIds: readonly string[]
   /** Unarchive an archived result row in place. */
   onUnarchive: (id: SessionNode['id']) => void
   query: string
@@ -779,8 +789,9 @@ function SearchResults({
       statuses,
       currentRemote,
       resultLimit,
+      dismissedSessionIds,
     ),
-    [list, workspaces, query, archivedSessionIds, archivedFilter, statuses, currentRemote, resultLimit],
+    [list, workspaces, query, archivedSessionIds, archivedFilter, statuses, currentRemote, resultLimit, dismissedSessionIds],
   )
   const pending = currentRemote.status === 'loading'
   const currentId = panelActive
@@ -854,6 +865,7 @@ export function WorkspaceBrowser({
   deleteWorkspace,
   insertWorkspaceBefore,
   unarchiveSession,
+  archiveSessions,
   createWorkspace,
   searchSessions,
   searchResultLimit,
@@ -899,6 +911,7 @@ export function WorkspaceBrowser({
   // Persisted view blobs written before the archived filter existed rehydrate
   // without the field; they read as the default hide-archived view.
   const archivedFilter = useStore(s => s.archivedFilter ?? 'default')
+  const dismissedSessionIds = useStore(s => s.dismissedSessionIds ?? [])
   const groupExpansion = useStore(s => s.groupExpansion)
   const sessionOrderByAccount = useStore(s => s.sessionOrderByAccount)
   // Archived sessions are not openable: the row stays visible under the
@@ -926,8 +939,8 @@ export function WorkspaceBrowser({
     [archivedSessionIds, pinnedSessionIds],
   )
   const rowState = useMemo<SessionRowState>(
-    () => ({ ...orderState, archivedFilter }),
-    [orderState, archivedFilter],
+    () => ({ ...orderState, archivedFilter, dismissedSessionIds }),
+    [orderState, archivedFilter, dismissedSessionIds],
   )
   const flatMemberIds = useMemo(() => sessionMemberIds(list), [list])
   const orderedWorkspaces = useMemo(() => workspaces.map((workspace) => {
@@ -1173,6 +1186,53 @@ export function WorkspaceBrowser({
     })
   }
 
+  // The virtual Ungrouped bucket owns no Workspace record. Its action operates
+  // only on idle Session ids, so ongoing work remains visible and uninterrupted.
+  const [archiveTarget, setArchiveTarget] = useState<{ sessionIds: readonly SessionId[]; skipped: number } | null>(null)
+  const [archiving, setArchiving] = useState(false)
+  const [archiveError, setArchiveError] = useState<string | null>(null)
+  const requestArchive = (sessions: readonly SessionNode[]) => {
+    const sessionIds = sessions
+      .filter(session => !session.running && session.runningSubagentCount === 0)
+      .map(session => session.id)
+    setArchiveTarget({ sessionIds, skipped: sessions.length - sessionIds.length })
+    setArchiveError(null)
+  }
+  const closeArchive = () => {
+    if (archiving) return
+    setArchiveTarget(null)
+    setArchiveError(null)
+  }
+  const confirmArchive = () => {
+    if (archiving || archiveTarget === null || archiveTarget.sessionIds.length === 0) return
+    setArchiving(true)
+    setArchiveError(null)
+    archiveSessions(archiveTarget.sessionIds).then(({ failed }) => {
+      setArchiving(false)
+      if (failed === 0) setArchiveTarget(null)
+      else setArchiveError(t('archive.ungrouped.failed', { count: failed }))
+    }).catch((reason: unknown) => {
+      setArchiving(false)
+      setArchiveError(reason instanceof Error ? reason.message : String(reason))
+    })
+  }
+
+  // The Host deliberately has no Session-delete operation. This removes only
+  // stale sidebar entries and preserves both their logs and workspace files.
+  const [dismissTarget, setDismissTarget] = useState<{ sessionIds: readonly SessionId[]; skipped: number } | null>(null)
+  const requestDismiss = (sessions: readonly SessionNode[]) => {
+    const sessionIds = sessions
+      .filter(session => !session.running && session.runningSubagentCount === 0)
+      .map(session => session.id)
+    setDismissTarget({ sessionIds, skipped: sessions.length - sessionIds.length })
+  }
+  const closeDismiss = () => { setDismissTarget(null) }
+  const confirmDismiss = () => {
+    if (dismissTarget === null || dismissTarget.sessionIds.length === 0) return
+    actions.dismissSessions(dismissTarget.sessionIds)
+    setDismissTarget(null)
+  }
+
   // Delete dialog is separate from the row so a successful removal can
   // unmount that row without tearing down the in-flight confirmation state.
   const [deleteTarget, setDeleteTarget] = useState<{ workspaceId: WorkspaceId; title: string } | null>(null)
@@ -1356,6 +1416,7 @@ export function WorkspaceBrowser({
               workspaces={workspaces}
               archivedSessionIds={archivedSessionIds}
               archivedFilter={archivedFilter}
+              dismissedSessionIds={dismissedSessionIds}
               query={normalizedQuery}
               remote={remoteSearch}
               resultLimit={searchResultLimit}
@@ -1419,6 +1480,8 @@ export function WorkspaceBrowser({
                   setDeleteTarget({ workspaceId, title })
                   setDeleteError(null)
                 }}
+                onArchiveRequest={requestArchive}
+                onDismissRequest={requestDismiss}
               />
             ))}
       </div>
@@ -1459,6 +1522,34 @@ export function WorkspaceBrowser({
       </Modal>
 
       <Modal
+        open={dismissTarget !== null}
+        onClose={closeDismiss}
+        closeLabel={t('close')}
+        title={t('dismiss.ungrouped.title')}
+        {...dismissTarget === null
+          ? {}
+          : { description: t('dismiss.ungrouped.desc', { count: dismissTarget.sessionIds.length }) }}
+        footer={(
+          <>
+            <Button variant="outline" onClick={closeDismiss}>{t('cancel')}</Button>
+            <Button
+              variant="outline"
+              className={css.deleteAction}
+              disabled={dismissTarget?.sessionIds.length === 0}
+              onClick={confirmDismiss}
+            >
+              {t('dismiss.ungrouped.action')}
+            </Button>
+          </>
+        )}
+      >
+        {dismissTarget?.skipped !== undefined && dismissTarget.skipped > 0 && (
+          <div className={css.archiveNotice}>{t('dismiss.ungrouped.skip', { count: dismissTarget.skipped })}</div>
+        )}
+        {dismissTarget?.sessionIds.length === 0 && <div className={css.archiveNotice}>{t('dismiss.ungrouped.empty')}</div>}
+      </Modal>
+
+      <Modal
         open={deleteTarget !== null}
         onClose={closeDelete}
         closeLabel={t('close')}
@@ -1482,6 +1573,35 @@ export function WorkspaceBrowser({
       >
         {deleting && <div className={css.deleteStatus} role="status">{t('delete.pending')}</div>}
         {deleteError !== null && <div className={css.renameError} role="alert">{deleteError}</div>}
+      </Modal>
+
+      <Modal
+        open={archiveTarget !== null}
+        onClose={closeArchive}
+        closeLabel={t('close')}
+        title={t('archive.ungrouped.title')}
+        {...archiveTarget === null
+          ? {}
+          : { description: t('archive.ungrouped.desc', { count: archiveTarget.sessionIds.length }) }}
+        footer={(
+          <>
+            <Button variant="outline" disabled={archiving} onClick={closeArchive}>{t('cancel')}</Button>
+            <Button
+              variant="primary"
+              disabled={archiving || archiveTarget?.sessionIds.length === 0}
+              onClick={confirmArchive}
+            >
+              {t('archive.ungrouped.action')}
+            </Button>
+          </>
+        )}
+      >
+        {archiveTarget?.skipped !== undefined && archiveTarget.skipped > 0 && (
+          <div className={css.archiveNotice}>{t('archive.ungrouped.skip', { count: archiveTarget.skipped })}</div>
+        )}
+        {archiveTarget?.sessionIds.length === 0 && <div className={css.archiveNotice}>{t('archive.ungrouped.empty')}</div>}
+        {archiving && <div className={css.deleteStatus} role="status">{t('archive.ungrouped.pending')}</div>}
+        {archiveError !== null && <div className={css.renameError} role="alert">{archiveError}</div>}
       </Modal>
       {shortcutState.forkError !== null && <Toast key={shortcutState.forkError.seq}
         text={t(shortcutState.forkError.reason === 'unavailable' ? 'shortcut.noCompletedTurn' : 'shortcut.forkFailed')}

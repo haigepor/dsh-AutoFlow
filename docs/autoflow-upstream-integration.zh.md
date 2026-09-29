@@ -24,7 +24,7 @@
 
 ## `dsh-v0.2.0-rc.1` 集成决定
 
-2026-09-29 将官方镜像分支 `deepseek-harness` 从 `21638c56315ae6a2b552d6091945d3144c9af32e` 推进到官方 `dsh-v0.2.0-rc.1` 与 `master` 共同指向的 `4878cdabd87d4041bdaff61d04c966883b9fd07a`，再合入 `main`。旧官方基线到新提交共 106 个提交；下表只列影响本地自定义界面的交叉区域，其余官方功能与修复随合并提交保留。
+2026-09-29 将官方镜像分支 `deepseek-harness` 从此前基线推进到官方 `dsh-v0.2.0-rc.1` 发布标签，该标签同时位于 `master`，再合入 `main`。旧官方基线到新提交共 106 个提交；下表只列影响本地自定义界面的交叉区域，其余官方功能与修复随合并提交保留。
 
 | 区域 | 官方新增或修改 | 本次决定 |
 | --- | --- | --- |
@@ -60,7 +60,22 @@
 | 模型设置 | 固定提供商列表与独立滚动详情；表格化模型目录、序号与拖拽手柄、紧凑双列字段、按需说明、优化的单选框和图形标题。 | `ui-settings-models` |
 | 插件 | 插件管理卡片之间的纵向间距，以及插件设置页的标题、分组、页签和卡片间距。 | `ui-plugin-manager`、`ui-settings-plugins` |
 
-此表说明本地要保留的视觉意图；具体路径以[文件清单](autoflow-local-change-manifest.json)为准。外观设置的图形化选项仍是[设计方案](autoflow-appearance-proposal.zh.md)，不作为已交付样式处理。
+此表说明本地要保留的视觉意图；具体路径以[文件清单](autoflow-local-change-manifest.json)为准。此前的外观设置图形化方案已由已交付的外观设置页取代。
+
+## `autoflow-v0.4.0` 之后的本地界面改动（2026-09-29）
+
+下列标签后改动属于本地 AutoFlow 工作，不属于历史[文件清单](autoflow-local-change-manifest.json)。下次集成官方代码前，先将这些改动保存为可审查的提交或标签；恢复准确文件内容时以该 Git 状态为准，不依赖本段描述。
+
+| 区域 | 本地行为与视觉意图 | 对比文件 |
+| --- | --- | --- |
+| 插件列表 | 「官方」与「已安装」分组自身宽度达到 800px 时卡片改为两列，卡片之间可见间距为 10px；较窄分组与加载占位沿用响应式布局。 | [插件管理样式](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css) |
+| 插件详情 | 组合包、组件和官方插件页把图标放在更醒目的标题、说明、标签与现有操作上方。组合包组件使用分区细线和开放式列表；说明使用正文文字，已有标识、包名、模块名和版本移到「信息」分区。较窄页面把操作放到标题下方。 | [插件管理页面](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.tsx)、[样式](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css)、[本地化文案](../packages/client/ui-plugin-manager/src/client/locales.ts) |
+| 返回控件 | 沿用侧边栏导航项的悬浮、圆角、焦点与主题颜色；宽度随文字收紧，较长包名截断，箭头复用设置页的 16px 左向 SVG。返回目标仍是原插件列表或上级组合包。 | [插件管理页面](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.tsx)、[样式](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css) |
+| 设置折叠控件 | 面板图标与首页侧栏一致：展开时或 Windows 顶栏为 16px，普通收起轨道为 18px。设置导航与折叠行为不变。 | [设置页面](../packages/client/ui-settings-general/src/client/SettingsPage.tsx) |
+| 外观设置 | 独立分区持久化官方与当前项目配色、跟随系统/亮色/深色模式、界面字体、圆角、菜单速度和会话字号。 | [主题设置](../packages/client/ui-theme/src/client/ThemeSettingsPage.tsx)、[主题包](../packages/client/ui-theme/README.zh.md) |
+| 侧边栏和未分组会话 | 侧边栏会话行使用 4px 纵向间距。未分组操作仅归档或从列表移除空闲会话，折叠分组时也能获取完整目标。 | [工作区浏览器](../packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx)、[侧边栏样式](../packages/client/ui-sidebar/src/client/SidebarRoot.module.css) |
+
+插件操作、启停开关、卸载、组件配置插槽和设置导航沿用原有行为。[插件管理](../packages/client/ui-plugin-manager/README.zh.md)与[设置](../packages/client/ui-settings-general/README.zh.md)包说明及其英文版本记录当前展示。集成官方更新时，分别检查这些 TSX 与 CSS 代码块：接入新行为及其必需样式；如需替换本地布局或图标样式，先询问用户。此次改动的 TypeScript、lint、本地化、双语文档配对、UTF-8 与差异检查已通过；此快照未进行浏览器外观和交互验收。
 
 ## 集成决策规则
 
@@ -76,15 +91,15 @@
 
 1. 以最新集成标签 `autoflow-v0.4.0` 为起点；集成前将后续自定义工作保存为可审查的 Git 状态。文件清单用于定位旧版改动，不能恢复文件内容。
 2. 将 `deepseek-harness` 推进到新的官方提交，并记录前后两个官方提交 ID。官方分支不加入 AutoFlow 修改。
-3. 按子系统比较这段官方更新，再对照 `main` 的同名文件、[文件清单](autoflow-local-change-manifest.json)和本次样式基线。先处理有状态功能与公开接口，再列出拟覆盖的视觉差异并询问用户。
+3. 按子系统比较这段官方更新，再对照 `main` 的同名文件、[文件清单](autoflow-local-change-manifest.json)、本次样式基线和上面的标签后界面改动。先处理有状态功能与公开接口，再列出拟覆盖的视觉差异并询问用户。
 4. 将功能新增连同消费者和文档集成到 `main`。功能依赖的新增样式一并合入；本地样式保持原样，除非用户已确认具体替换。
 5. 对受影响范围进行聚焦类型、构建、交互、双语文档和浏览器检查。失败项明确记录为未解决，已知回归不能标记为集成完成。
 6. 集成后更新本文和文件清单；大版本发布时再创建中文版本标签记录。
 
 ## 外观设置后续设计
 
-当前通用设置包含亮色/暗色/跟随系统选项和会话正文字号。[外观页方案](autoflow-appearance-proposal.zh.md)及其 [SVG 示意图](assets/autoflow-appearance-concept.svg)展示了独立分区的设计。方案中的颜色预设、字体家族、圆角、密度、侧边栏形式、布局、内容宽度和方向仍属于候选设计；当前主题设置 schema 尚未持久化这些选项。以后对比官方更新时需要保留这一区分。
+独立外观设置分区包含亮色/暗色/跟随系统选项、配色、界面字体、圆角、菜单动效速度和会话正文字号。此前的[外观页方案](autoflow-appearance-proposal.zh.md)保留为历史设计材料。密度、侧边栏形式、布局、内容宽度和方向仍属于后续候选设计。
 
 ## 限制
 
-文件清单保留 `autoflow-v0.3.0` 提交前的路径和 Git 状态，用于定位当时的改动；完整代码分别由 `autoflow-v0.3.0` 与 `autoflow-v0.4.0` 标签保存。官方更新结论仅对应上面的核对时间和 `master` 分支，不代表后续状态或其他分支与标签。外观设置页尚为设计方案。
+文件清单保留 `autoflow-v0.3.0` 提交前的路径和 Git 状态，用于定位当时的改动；完整代码分别由 `autoflow-v0.3.0` 与 `autoflow-v0.4.0` 标签保存。官方更新结论仅对应上面的核对时间和 `master` 分支，不代表后续状态或其他分支与标签。

@@ -650,7 +650,7 @@ describe('PluginManagerPage', () => {
     expect(screen.getByRole('form', { name: 'theme settings' })).toBeTruthy()
   })
 
-  it('shows a row id only once when it is the localized title in lists and configuration pages', () => {
+  it('keeps a row technical id in information when its localized title is the same', () => {
     const moduleName = '@acme/dsh-sidebar/navigation'
     const { setLanguage } = renderTab(
       { packages: [pkg({ rows: [row({ moduleName, meta: { title: { en: 'Sidebar component', zh: 'sidebar' } } })] })] },
@@ -669,8 +669,8 @@ describe('PluginManagerPage', () => {
     fireEvent.click(within(listed).getByRole('button', { name: zh.configureRow.replace('{name}', 'sidebar') }))
     const detail = document.querySelector('[data-plugin-row-detail="dsh-better-sidebar#sidebar"]') as HTMLElement
     expect(within(detail).getByRole('heading', { level: 3 }).textContent).toBe('sidebar')
-    expect(within(detail).getAllByText('sidebar')).toHaveLength(1)
-    expect(within(detail).queryByText('sidebar', { selector: 'code' })).toBeNull()
+    expect(within(detail).getAllByText('sidebar')).toHaveLength(2)
+    expect(within(detail).getByText('sidebar', { selector: 'code' })).toBeTruthy()
     expect(within(detail).getByText(moduleName, { selector: 'code' })).toBeTruthy()
     expect(within(detail).getByRole('form', { name: 'sidebar settings' })).toBeTruthy()
     setLanguage(en)
@@ -936,7 +936,7 @@ describe('PluginManagerPage', () => {
     const detail = document.querySelector('[data-plugin-detail="dsh-better-sidebar"]') as HTMLElement
     expect(within(detail).getByRole('heading', { level: 3 }).textContent).toBe('dsh-better-sidebar')
     // The version sits beside the name as a tag; the crumb only leads back.
-    expect(within(detail).getByText('v0.16.0')).toBeTruthy()
+    expect(within(detail).getByText('0.16.0')).toBeTruthy()
     expect(document.querySelector('[data-plugin-name]')?.textContent).toBe('dsh-better-sidebar')
     expect(within(detail).getByRole('button', { name: en.backToList }).textContent).toBe(en.crumbRoot)
     expect(within(detail).getByText('A sidebar.')).toBeTruthy()

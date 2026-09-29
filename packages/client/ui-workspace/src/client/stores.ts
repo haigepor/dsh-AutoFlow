@@ -28,6 +28,8 @@ type WorkspaceViewState = {
   sessionOrderByAccount: Record<string, string[]>
   /** Archived-row visibility; omitted in pre-filter v5 snapshots and read as 'default'. */
   archivedFilter?: ArchivedFilter
+  /** Session rows removed from this browser by an explicit ungrouped cleanup. */
+  dismissedSessionIds?: string[]
 }
 
 type SessionOrderSource = {
@@ -66,6 +68,8 @@ type WorkspaceViewActions = {
     source: SessionOrderSource,
   ) => void
   setArchivedFilter: (draft: WorkspaceViewState, filter: ArchivedFilter) => void
+  /** Hide stale Session rows locally and discard their saved display positions. */
+  dismissSessions: (draft: WorkspaceViewState, sessionIds: readonly string[]) => void
 }
 
 /** Copy read-only projections into the persisted mutable store representation. */
@@ -125,6 +129,17 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
         }))
       },
       setArchivedFilter: (d, filter: ArchivedFilter) => { d.archivedFilter = filter },
+      dismissSessions: (d, sessionIds) => {
+        const dismissed = new Set(d.dismissedSessionIds ?? [])
+        for (const sessionId of sessionIds) dismissed.add(sessionId)
+        d.dismissedSessionIds = [...dismissed]
+        d.sessionOrderByAccount = Object.fromEntries(
+          Object.entries(d.sessionOrderByAccount).map(([key, order]) => [
+            key,
+            order.filter(sessionId => !dismissed.has(sessionId)),
+          ]),
+        )
+      },
     },
   })
 }

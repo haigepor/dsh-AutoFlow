@@ -3,7 +3,7 @@
  * all data and callbacks arrive via props. Hover swaps (folder->chevron,
  * time->ellipsis, action buttons) are CSS-only, and a session row's clipped
  * title marquees programmatically while the row is hovered. Workspace row
- * menus are visual-only except Rename/Delete. A Session row's "..." menu and
+ * menus are visual-only except Workspace and Ungrouped actions. A Session row's "..." menu and
  * its hover buttons are the `sidebar.workspaces.session.menu.item` and
  * `sidebar.workspaces.session.row.action` lists, rendered through the
  * browser's `renderSlot` with the menu's open state as the occurrence's hook
@@ -222,8 +222,8 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
   containsCurrentDescendant?: boolean
   onToggle: () => void
   onCreate: () => void
-  /** Real-Workspace actions; absent for the ungrouped bucket (no menu shown). */
-  actions?: { rename: () => void; delete: () => void } | undefined
+  /** Workspace rename/delete actions, or the ungrouped bucket's bulk actions. */
+  actions?: { rename: () => void; delete: () => void } | { archive: () => void; dismiss: () => void } | undefined
   /** Present only for real Workspace rows in the grouped view. */
   drag?: WorkspaceRowDragProps | undefined
   /** Host account home; POSIX home-rooted hover paths display as `~`. */
@@ -235,10 +235,16 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
   const label = row.workspaceId === undefined ? t('group.ungrouped') : row.label
   const active = containsCurrentDescendant || (group.expanded && group.containsCurrent)
   const [menuOpen, setMenuOpen] = useState(false)
-  const workspaceMenuItems = [
-    { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
-    { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutlineRegular />, danger: true },
-  ]
+  const ungroupedActions = actions !== undefined && 'archive' in actions
+  const workspaceMenuItems = ungroupedActions
+    ? [
+      { id: 'archive', label: t('archive.ungrouped.menu'), icon: <IconArchiveOutlineRegular /> },
+      { id: 'dismiss', label: t('dismiss.ungrouped.menu'), icon: <IconTrashOutlineRegular />, danger: true },
+    ]
+    : [
+      { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
+      { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutlineRegular />, danger: true },
+    ]
   const ownRow = (
     <div
       className={clsx(css.projectRow, menuOpen && css.menuOpen)}
@@ -274,10 +280,15 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
             items={workspaceMenuItems}
             onSelect={(id) => {
               setMenuOpen(false)
+              if (ungroupedActions) {
+                if (id === 'archive') actions.archive()
+                else if (id === 'dismiss') actions.dismiss()
+                return
+              }
               // Unknown ids leave before the dispatch: a future menu row must
               // not inherit the destructive branch as an else fallback.
               /* v8 ignore next -- Menu can emit only the rename and delete rows supplied above. */
-              if (id !== 'rename' && id !== 'delete') return
+              if (actions === undefined || id !== 'rename' && id !== 'delete') return
               if (id === 'rename') actions.rename()
               else actions.delete()
             }}
@@ -287,7 +298,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
               <button
                 type="button"
                 className={css.iconButton}
-                aria-label={t('actions.workspace.aria', { name: label })}
+                aria-label={ungroupedActions ? t('actions.ungrouped.aria') : t('actions.workspace.aria', { name: label })}
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
               >
                 <IconEllipsisOutlineRegular />

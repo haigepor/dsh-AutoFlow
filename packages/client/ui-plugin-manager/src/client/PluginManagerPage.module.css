@@ -97,6 +97,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  container: plugin-list / inline-size;
 }
 
 .groupHead {
@@ -177,6 +178,15 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+@container plugin-list (min-width: 800px) {
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* Each card extends 8px beyond its track; 26px leaves a visible 10px gap. */
+    column-gap: 26px;
+  }
 }
 
 .card {
@@ -392,12 +402,15 @@
   --dsw-alias-interactive-bg-hover: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent);
 }
 
-/* Retry, uninstall, and the switch at the end of the page's head. */
+/* Detail actions share the title row and wrap before they crowd the title. */
 .detailActions {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  margin-left: auto;
 }
 
 .actions {
@@ -1126,9 +1139,10 @@ label.registryOption {
 .detail {
   display: flex;
   flex-direction: column;
+  container: plugin-detail / inline-size;
 }
 
-/* The head row every detail view shares: the crumb over the icon/actions row.
+/* The head row every detail view shares: the crumb over the artwork.
    It carries the same top clearance as .pageHead — the crumb is the detail
    views' leading content and otherwise lands under the traffic lights — and the
    same drag ownership: it marks itself `data-window-drag`, so this row's own box
@@ -1147,39 +1161,58 @@ label.registryOption {
 }
 
 .crumb {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: min(100%, 240px);
+  min-height: 32px;
   border: 0;
-  padding: 0;
-  background: none;
-  color: var(--dsw-alias-label-tertiary);
+  border-radius: var(--dsw-radius-sm);
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: left;
   cursor: pointer;
+  transition: background-color 150ms var(--ds-ease-in-out), color 150ms var(--ds-ease-in-out);
 }
 
 .crumb:hover {
+  background: var(--dsw-specific-sidebar-nav-item-hover);
   color: var(--dsw-alias-label-primary);
 }
 
 .crumb:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .crumbIcon {
-  transform: rotate(90deg);
+  flex: none;
 }
 
-/* Head row: the pack's icon at one edge, its actions at the other; the name
-   block sits under the icon (figma detail handoff). */
+.crumb span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .detailHead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 32px 0 0;
+  margin: 28px 0 0;
+}
+
+.detailHead .cardIcon {
+  width: 64px;
+  height: 64px;
+  background: var(--dsw-alias-bg-layer-2);
 }
 
 .detailMain {
@@ -1187,40 +1220,30 @@ label.registryOption {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  margin-top: 20px;
+  margin-top: 18px;
+}
+
+.detailTitleLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  min-width: 0;
 }
 
 .detailTitle {
   margin: 0;
-  font-size: 20px;
-  line-height: 28px;
+  font-size: 24px;
+  line-height: 32px;
   font-weight: 500;
-}
-
-.versionTag {
-  flex: none;
-  font-variant-numeric: tabular-nums;
 }
 
 .detailDesc {
   margin: 0;
+  max-width: 74ch;
   color: var(--dsw-alias-label-secondary);
   font-size: 14px;
   line-height: 22px;
-}
-
-/* The package or row identity under the title: the exact spec that installs the
-   package elsewhere, where a title of its own or a shortened name hides it. */
-.detailName {
-  margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
-  overflow-wrap: anywhere;
-}
-
-.detailName code {
-  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
 }
 
 /* The unknown-package note under the name block. */
@@ -1231,8 +1254,8 @@ label.registryOption {
 .detailSections {
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  margin-top: 32px;
+  gap: 40px;
+  margin-top: 40px;
 }
 
 .detailSection {
@@ -1245,12 +1268,14 @@ label.registryOption {
   display: flex;
   align-items: baseline;
   gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 16px;
+  line-height: 22px;
   font-weight: 500;
 }
 
@@ -1260,13 +1285,63 @@ label.registryOption {
   color: var(--dsw-alias-label-secondary);
 }
 
+.detailInformation {
+  margin-top: 40px;
+}
+
+.informationList {
+  display: flex;
+  flex-direction: column;
+  margin: 14px 0 0;
+}
+
+.informationRow {
+  display: grid;
+  grid-template-columns: minmax(96px, 140px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.informationRow dt {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.informationRow dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.informationRow code {
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+@container plugin-detail (max-width: 520px) {
+  .detailTitleLine {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .detailActions {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .informationRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
 /* The way into a package's page. */
 .cardArrow {
   flex: none;
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* Rows sit on the page ground, one hairline apart, so they read on a white page too. */
+/* The section rule establishes the group; rows keep the reference's open rhythm. */
 .rows {
   display: flex;
   flex-direction: column;
@@ -1276,12 +1351,7 @@ label.registryOption {
 }
 
 .row {
-  padding: 12px 2px;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
-}
-
-.row:last-child {
-  border-bottom: 0;
+  padding: 14px 2px;
 }
 
 .rowLine {
@@ -1329,6 +1399,19 @@ label.registryOption {
   line-height: 16px;
   color: var(--dsw-alias-label-tertiary);
   overflow-wrap: anywhere;
+}
+
+.rowDescription {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.rowMetadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
 }
 
 /* A row with a configuration page: its name opens the page, the arrow says so. */

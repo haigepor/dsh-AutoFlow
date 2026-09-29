@@ -245,9 +245,15 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
                         </button>
                       )
                       : <span className={css.rowId}>{title}</span>}
-                    {description === undefined ? null : <span className={css.rowModule}>{description}</span>}
-                    {title === row.rowId ? null : <code className={css.rowModule}>{row.rowId}</code>}
-                    {title === row.moduleName ? null : <code className={css.rowModule}>{row.moduleName}</code>}
+                    {description === undefined ? null : <span className={css.rowDescription}>{description}</span>}
+                    {title === row.rowId && title === row.moduleName
+                      ? null
+                      : (
+                        <span className={css.rowMetadata}>
+                          {title === row.rowId ? null : <code className={css.rowModule}>{row.rowId}</code>}
+                          {title === row.moduleName ? null : <code className={css.rowModule}>{row.moduleName}</code>}
+                        </span>
+                      )}
                   </div>
                   <span className={css.rowState}>
                     <StateDot state={rowDotState(row)} />
@@ -356,25 +362,43 @@ function ListSkeleton({ label }: { readonly label: string }): ReactNode {
   )
 }
 
-/** The top every page shares: the crumb that leads back, then the icon with the page's actions at its right. */
-function DetailTop({ crumbLabel, crumbText, onBack, icon, actions }: {
+/** The top every page shares: the crumb and artwork remain in the window drag region. */
+function DetailTop({ crumbLabel, crumbText, onBack, icon }: {
   readonly crumbLabel: string
   readonly crumbText: string
   readonly onBack: () => void
   readonly icon: ReactNode
-  readonly actions?: ReactNode
 }): ReactNode {
   return (
     <div className={css.detailTop} data-window-drag>
       <button type="button" className={css.crumb} aria-label={crumbLabel} onClick={onBack}>
-        <IconChevronDownOutlineRegular className={css.crumbIcon} aria-hidden="true" />
+        <IconChevronLeftOutlineMedium className={css.crumbIcon} size={16} aria-hidden="true" />
         <span>{crumbText}</span>
       </button>
       <div className={css.detailHead}>
         <span className={css.cardIcon} aria-hidden="true">{icon}</span>
-        {actions}
       </div>
     </div>
+  )
+}
+
+/** Existing identifiers remain available below configuration without crowding the page heading. */
+function DetailInformation({ title, entries }: {
+  readonly title: string
+  readonly entries: readonly { readonly label: string; readonly value: ReactNode }[]
+}): ReactNode {
+  return (
+    <section className={css.detailInformation}>
+      <div className={css.sectionHead}><h4 className={css.sectionTitle}>{title}</h4></div>
+      <dl className={css.informationList}>
+        {entries.map(({ label, value }) => (
+          <div key={label} className={css.informationRow}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   )
 }
 
@@ -469,12 +493,14 @@ function ItemDetail({ item, t, onBack, renderSlot, form }: {
         crumbText={t('crumbRoot')}
         onBack={onBack}
         icon={itemArtwork(item.id)}
-        actions={<div className={css.detailActions}>{renderSlot('plugins.detail.actions', { subject })}</div>}
       />
       <div className={css.detailMain}>
-        <div className={css.titleRow}>
-          <h3 className={css.detailTitle}>{item.label}</h3>
-          {renderSlot('plugins.detail.badge', { subject })}
+        <div className={css.detailTitleLine}>
+          <div className={css.titleRow}>
+            <h3 className={css.detailTitle}>{item.label}</h3>
+            {renderSlot('plugins.detail.badge', { subject })}
+          </div>
+          <div className={css.detailActions}>{renderSlot('plugins.detail.actions', { subject })}</div>
         </div>
         <p className={css.detailDesc}>{renderSlot('plugins.item', { view: 'summary' }, { only: item.id })}</p>
       </div>
@@ -484,13 +510,14 @@ function ItemDetail({ item, t, onBack, renderSlot, form }: {
         </section>
         {renderSlot('plugins.detail.section', { subject })}
       </div>
+      <DetailInformation title={t('detailInformation')} entries={[{ label: t('detailId'), value: <code>{item.id}</code> }]} />
     </div>
   )
 }
 
 /**
- * A row's configuration page keeps its technical identity beside local package
- * text and the form supplied by its configuration entry.
+ * A row's configuration page keeps its technical identity below the form
+ * supplied by its configuration entry.
  */
 function RowDetail({ pkg, row, t, resolveText, onBack, renderSlot, form }: {
   readonly pkg: PackageView
@@ -512,15 +539,15 @@ function RowDetail({ pkg, row, t, resolveText, onBack, renderSlot, form }: {
         crumbText={title}
         onBack={onBack}
         icon={<PackageArtwork key={row.meta?.icon} src={row.meta?.icon} row size={CARD_ARTWORK_SIZE} />}
-        actions={<div className={css.detailActions}>{renderSlot('plugins.detail.actions', { subject })}</div>}
       />
       <div className={css.detailMain}>
-        <div className={css.titleRow}>
-          <h3 className={css.detailTitle}>{rowTitle}</h3>
-          {renderSlot('plugins.detail.badge', { subject })}
+        <div className={css.detailTitleLine}>
+          <div className={css.titleRow}>
+            <h3 className={css.detailTitle}>{rowTitle}</h3>
+            {renderSlot('plugins.detail.badge', { subject })}
+          </div>
+          <div className={css.detailActions}>{renderSlot('plugins.detail.actions', { subject })}</div>
         </div>
-        {rowTitle === row.rowId ? null : <p className={css.detailName}><code>{row.rowId}</code></p>}
-        <p className={css.detailName}><code>{row.moduleName}</code></p>
         <p className={css.detailDesc}>{description ?? renderSlot('plugins.row.config', { view: 'summary' }, { entryKey: key })}</p>
       </div>
       <MetadataError error={row.meta?.error} t={t} />
@@ -528,17 +555,18 @@ function RowDetail({ pkg, row, t, resolveText, onBack, renderSlot, form }: {
         {renderSlot('plugins.row.config', { view: 'page', form }, { entryKey: key })}
         {renderSlot('plugins.detail.section', { subject })}
       </div>
+      <DetailInformation title={t('detailInformation')} entries={[
+        { label: t('detailId'), value: <code>{row.rowId}</code> },
+        { label: t('detailModule'), value: <code>{row.moduleName}</code> },
+      ]} />
     </div>
   )
 }
 
 /**
- * One package's page: the crumb back to the list; its icon with its switch
- * and, for a package the profile installed, uninstall; its title beside its
- * version tag, its beta tag, and its problem tag; the package name the title
- * stands for, which is what installs it elsewhere; its one-liner; the Host's
- * problem when it reports one; the configuration the bundle registered for
- * itself; and its rows with their switches and configure controls.
+ * One package's page: the crumb and icon, title with status tags and actions,
+ * description, Host problems, bundle configuration, component rows, and the
+ * package name and version in its information section.
  */
 function PackageDetail({
   pkg, t, resolveText, busy, rowBusy, configured, configure, renderSlot,
@@ -569,7 +597,15 @@ function PackageDetail({
         crumbText={t('crumbRoot')}
         onBack={onBack}
         icon={<PackageArtwork key={pkg.meta?.icon} src={pkg.meta?.icon} />}
-        actions={(
+      />
+      <div className={css.detailMain}>
+        <div className={css.detailTitleLine}>
+          <div className={css.titleRow}>
+            <h3 className={css.detailTitle}>{title}</h3>
+            {beta ? <Tag className={css.statusTag} tone="info">{t('statusBeta')}</Tag> : null}
+            {status === 'problem' ? <Tag className={css.statusTag} tone="danger">{t('statusProblem')}</Tag> : null}
+            {renderSlot('plugins.detail.badge', { subject })}
+          </div>
           <div className={css.detailActions}>
             {renderSlot('plugins.detail.actions', { subject })}
             {pkg.installed
@@ -589,17 +625,7 @@ function PackageDetail({
               : null}
             <EnableSwitch pkg={pkg} title={title} t={t} busy={busy} onSetEnabled={onSetEnabled} />
           </div>
-        )}
-      />
-      <div className={css.detailMain}>
-        <div className={css.titleRow}>
-          <h3 className={css.detailTitle}>{title}</h3>
-          {pkg.version === undefined ? null : <Tag className={css.versionTag} tone="neutral">{t('versionTag', { version: pkg.version })}</Tag>}
-          {beta ? <Tag className={css.statusTag} tone="info">{t('statusBeta')}</Tag> : null}
-          {status === 'problem' ? <Tag className={css.statusTag} tone="danger">{t('statusProblem')}</Tag> : null}
-          {renderSlot('plugins.detail.badge', { subject })}
         </div>
-        <p className={css.detailName}><code data-plugin-name>{pkg.name}</code></p>
         {description === undefined ? null : <p className={css.detailDesc}>{description}</p>}
       </div>
       <MetadataError error={pkg.meta?.error} t={t} />
@@ -622,6 +648,10 @@ function PackageDetail({
         />
         {renderSlot('plugins.detail.section', { subject })}
       </div>
+      <DetailInformation title={t('detailInformation')} entries={[
+        { label: t('detailPackage'), value: <code data-plugin-name>{pkg.name}</code> },
+        ...(pkg.version === undefined ? [] : [{ label: t('detailVersion'), value: pkg.version }]),
+      ]} />
     </div>
   )
 }

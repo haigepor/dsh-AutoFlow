@@ -267,6 +267,8 @@ export type WorkspaceBrowserInjected = {
   insertWorkspaceBefore: (workspaceId: WorkspaceId, beforeWorkspaceId?: WorkspaceId) => Promise<void>
   /** Remove a Session from the registry-global archived set (the search results' restore button). */
   unarchiveSession: (sessionId: SessionId) => Promise<void>
+  /** Archive the requested idle Sessions and report the Host's per-Session outcome. */
+  archiveSessions: (sessionIds: readonly SessionId[]) => Promise<{ archived: number; failed: number }>
   /** Adopt a picked host directory as a real Workspace before targeting a Session. */
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
 }

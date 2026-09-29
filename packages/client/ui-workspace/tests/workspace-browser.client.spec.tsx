@@ -132,6 +132,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     renameWorkspace: vi.fn(async () => {}),
     deleteWorkspace: vi.fn(async () => {}),
     unarchiveSession: vi.fn(async () => {}),
+    archiveSessions: vi.fn(async (sessionIds: readonly SessionId[]) => ({ archived: sessionIds.length, failed: 0 })),
     insertWorkspaceBefore: vi.fn(async () => {}),
     createWorkspace: vi.fn(async () => workspace('created', [])),
     useDirectoryFlow: bindSnapshotSelector({ getSnapshot: () => true, subscribe: () => () => {} }),
@@ -1259,18 +1260,93 @@ describe('WorkspaceBrowser', () => {
     expect(startSession).toHaveBeenCalledWith(wid('alpha'))
   })
 
-  it('auto-expands the Ungrouped bucket for a loose current session; its header has no menu and its ＋ is inert', () => {
+  it('auto-expands the Ungrouped bucket, batches idle archives, and leaves running work alone', async () => {
     const startSession = vi.fn()
+    const archiveSessions = vi.fn(async (sessionIds: readonly SessionId[]) => ({ archived: sessionIds.length, failed: 0 }))
     mount({
-      useSessions: hook(sessionState([summary('loose', 1)], { main: sid('loose') })),
+      useSessions: hook(sessionState([
+        summary('loose', 1),
+        summary('active', 0, { running: true }),
+      ], { main: sid('loose') })),
       useWorkspaces: hook(workspaceState([workspace('alpha', [])])),
       startSession,
+      archiveSessions,
     })
     // The loose session's group is UNGROUPED_KEY: expanded by the effect.
     expect(screen.getByText('loose')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '工作区“未分组”的操作' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '未分组操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档未分组会话' }))
+    const dialog = screen.getByRole('dialog', { name: '归档未分组会话' })
+    expect(dialog.textContent).toContain('将归档 1 个未分组会话')
+    expect(dialog.textContent).toContain('正在运行的 1 个会话不会归档')
+    fireEvent.click(within(dialog).getByRole('button', { name: '归档会话' }))
+    await waitFor(() => { expect(archiveSessions).toHaveBeenCalledWith([sid('loose')]) })
+    await waitFor(() => { expect(screen.queryByRole('dialog', { name: '归档未分组会话' })).toBeNull() })
     fireEvent.click(screen.getByRole('button', { name: '在“未分组”中新建会话' }))
     expect(startSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps the bulk archive confirmation open when the Host rejects a Session', async () => {
+    const archiveSessions = vi.fn(async () => ({ archived: 0, failed: 1 }))
+    mount({
+      useSessions: hook(sessionState([summary('loose', 1)], { main: sid('loose') })),
+      useWorkspaces: hook(workspaceState([])),
+      archiveSessions,
+    })
+    fireEvent.click(screen.getByRole('button', { name: '未分组操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档未分组会话' }))
+    const dialog = screen.getByRole('dialog', { name: '归档未分组会话' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '归档会话' }))
+    await waitFor(() => { expect(archiveSessions).toHaveBeenCalledWith([sid('loose')]) })
+    expect((await within(dialog).findByRole('alert')).textContent).toContain('1 个会话未能归档')
+  })
+
+  it('removes idle ungrouped rows from this browser without archiving their logs', () => {
+    const archiveSessions = vi.fn(async (sessionIds: readonly SessionId[]) => ({ archived: sessionIds.length, failed: 0 }))
+    const b = mount({
+      useSessions: hook(sessionState([
+        summary('stale', 1),
+        summary('active', 0, { running: true }),
+      ], { main: sid('stale') })),
+      useWorkspaces: hook(workspaceState([])),
+      archiveSessions,
+    })
+    fireEvent.click(screen.getByRole('button', { name: '未分组操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '从列表移除会话' }))
+    const dialog = screen.getByRole('dialog', { name: '从列表移除未分组会话' })
+    expect(dialog.textContent).toContain('不会删除会话记录或工作区文件')
+    expect(dialog.textContent).toContain('正在运行的 1 个会话不会移除')
+    fireEvent.click(within(dialog).getByRole('button', { name: '从列表移除' }))
+    expect(archiveSessions).not.toHaveBeenCalled()
+    expect(screen.queryByText('stale')).toBeNull()
+    expect(screen.getByText('active')).toBeTruthy()
+    expect(b.store.getSnapshot().dismissedSessionIds).toEqual([sid('stale')])
+  })
+
+  it('explains when every ungrouped Session is still running', () => {
+    mount({
+      useSessions: hook(sessionState([summary('active', 1, { running: true })], { main: sid('active') })),
+      useWorkspaces: hook(workspaceState([])),
+    })
+    fireEvent.click(screen.getByRole('button', { name: '未分组操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档未分组会话' }))
+    const dialog = screen.getByRole('dialog', { name: '归档未分组会话' })
+    expect(dialog.textContent).toContain('没有可归档的未分组会话')
+    expect(within(dialog).getByRole('button', { name: '归档会话' }).getAttribute('disabled')).not.toBeNull()
+  })
+
+  it('targets folded ungrouped sessions from its header menu', () => {
+    const archiveSessions = vi.fn(async (sessionIds: readonly SessionId[]) => ({ archived: sessionIds.length, failed: 0 }))
+    mount({
+      useSessions: hook(sessionState([summary('loose', 1)])),
+      useWorkspaces: hook(workspaceState([])),
+      archiveSessions,
+    })
+    fireEvent.click(screen.getByText('未分组'))
+    fireEvent.click(screen.getByRole('button', { name: '未分组操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档未分组会话' }))
+    const dialog = screen.getByRole('dialog', { name: '归档未分组会话' })
+    expect(dialog.textContent).toContain('将归档 1 个未分组会话')
   })
 
   it('keeps an already-expanded group when the selection moves within it', () => {

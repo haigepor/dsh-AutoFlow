@@ -24,7 +24,7 @@ On 2026-09-28, a direct read of `refs/heads/master` on the official `upstream` r
 
 ## `dsh-v0.2.0-rc.1` integration decisions
 
-On 2026-09-29, the official mirror branch `deepseek-harness` advanced from `21638c56315ae6a2b552d6091945d3144c9af32e` to `4878cdabd87d4041bdaff61d04c966883b9fd07a`, the commit shared by the official `dsh-v0.2.0-rc.1` tag and `master`, before merging into `main`. The official range contains 106 commits. The table names the areas that intersect local UI work; other official features and fixes remain in the merge.
+On 2026-09-29, the official mirror branch `deepseek-harness` advanced from its preceding baseline to the official `dsh-v0.2.0-rc.1` release tag, also present on `master`, before merging into `main`. The official range contains 106 commits. The table names the areas that intersect local UI work; other official features and fixes remain in the merge.
 
 | Area | Official change | Decision |
 | --- | --- | --- |
@@ -60,7 +60,22 @@ The manifest records paths and Git status rather than trying to infer intent fro
 | Models Settings | A stable provider rail and independently scrolling details; tabular model catalog, row numbers and drag handles, compact two-column fields, optional help, refined checkboxes, and an illustrated heading. | `ui-settings-models` |
 | Plugins | Vertical spacing between Plugin Manager cards and the heading, group, tab, and card spacing on the Plugins Settings page. | `ui-plugin-manager`, `ui-settings-plugins` |
 
-This table identifies the local visual intent; the [path manifest](autoflow-local-change-manifest.json) lists exact files. The graphical Appearance choices remain a [proposal](autoflow-appearance-proposal.md), not delivered styling.
+This table identifies the local visual intent; the [path manifest](autoflow-local-change-manifest.json) lists exact files. Earlier graphical Appearance proposal material is superseded by the delivered Appearance settings page.
+
+## Local UI work after `autoflow-v0.4.0` (2026-09-29)
+
+The following post-tag changes are local AutoFlow work and are not part of the historical [path manifest](autoflow-local-change-manifest.json). Preserve them in reviewable commits or a tag before the next official integration; use that Git state, rather than this description, to recover exact file contents.
+
+| Area | Local behavior and visual intent | Files to compare |
+| --- | --- | --- |
+| Plugin list | Official and Installed cards become two columns when their own group is at least 800px wide, with a 10px visible gap; narrower groups and loading placeholders follow the same responsive layout. | [Plugin Manager styles](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css) |
+| Plugin details | Bundle, row, and official-plugin pages place the artwork above a larger title, description, badges, and existing actions. Bundle components use a section rule and open rows; descriptions use body text, and existing IDs, package name, module name, and version move to an Information section. A narrow detail page places actions below the title. | [Plugin Manager page](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.tsx), [styles](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css), [locale copy](../packages/client/ui-plugin-manager/src/client/locales.ts) |
+| Return control | The back control keeps the sidebar navigation hover, radius, focus ring, and theme colors while fitting its text, truncating long package names, and using the Settings page's 16px left-chevron SVG. It returns to the same list or parent package as before. | [Plugin Manager page](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.tsx), [styles](../packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css) |
+| Settings collapse control | The panel glyph matches the home sidebar: 16px while expanded or in a Windows titlebar, 18px on the ordinary collapsed rail. The Settings navigation and collapse behavior are unchanged. | [Settings page](../packages/client/ui-settings-general/src/client/SettingsPage.tsx) |
+| Appearance settings | A dedicated section persists official and project palette sets, system/light/dark mode, interface font, corner scale, menu speed, and conversation size. | [Theme settings](../packages/client/ui-theme/src/client/ThemeSettingsPage.tsx), [theme package](../packages/client/ui-theme/README.md) |
+| Sidebar and ungrouped sessions | Sidebar session rows use a 4px vertical gap. Ungrouped-session actions archive or remove only visible idle sessions, including when the group is folded. | [Workspace browser](../packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx), [sidebar styles](../packages/client/ui-sidebar/src/client/SidebarRoot.module.css) |
+
+The plugin actions, enable switches, uninstall action, row configuration slots, and Settings navigation retain their existing behavior. The package [Plugin Manager](../packages/client/ui-plugin-manager/README.md) and [Settings](../packages/client/ui-settings-general/README.md) READMEs and their Chinese pairs document the current presentation. During an official merge, review these TSX and CSS hunks separately: integrate new behavior and its required styles, but ask the user before replacing this local layout or icon treatment. Static TypeScript, lint, localization, translation-pairing, UTF-8, and diff checks passed for these edits; browser appearance and interaction were not verified in this snapshot.
 
 ## Integration decisions
 
@@ -76,15 +91,15 @@ For each area, record the old and new official commit, affected paths, chosen be
 
 1. Start from the latest integration tag `autoflow-v0.4.0` and save any later custom work as a reviewable Git state before integrating. The path manifest locates older changes but does not recover their contents.
 2. Advance `deepseek-harness` to the new official commit and write down the previous and new official IDs. Keep the official branch free of AutoFlow edits.
-3. Compare that official range by subsystem, then compare the same files against `main`, the [path manifest](autoflow-local-change-manifest.json), and the local style baseline. Start with stateful features and public interfaces, then present any proposed visual replacement for user approval.
+3. Compare that official range by subsystem, then compare the same files against `main`, the [path manifest](autoflow-local-change-manifest.json), the local style baseline, and the post-tag UI work above. Start with stateful features and public interfaces, then present any proposed visual replacement for user approval.
 4. Integrate functional additions into `main` with their consumers and docs. Add styles required by those features; keep existing local styling unless the user has approved its specific replacement.
 5. Run focused type, build, interaction, bilingual-doc, and browser checks for the changed areas. Record failures as unresolved; do not label a slice integrated while a known regression remains.
 6. Update this record and the manifest after the integration, and create a Chinese version tag entry for a major release.
 
 ## Appearance follow-up
 
-The current General section owns the light/dark/system control and conversation font size. The [Appearance page proposal](autoflow-appearance-proposal.md) and its [SVG preview](assets/autoflow-appearance-concept.svg) show how these can move to a dedicated section. Color presets, font family, radius, density, sidebar style, layout, content width, and direction in that proposal are design candidates; the current theme settings schema does not persist them. Keep this distinction visible during a future upstream comparison.
+The dedicated Appearance section owns the light/dark/system control, palette set, interface font, corner scale, menu animation speed, and conversation font size. The earlier [Appearance page proposal](autoflow-appearance-proposal.md) remains historical design material. Density, sidebar style, layout, content width, and direction remain future design candidates.
 
 ## Limitations
 
-The manifest keeps the paths and Git statuses before `autoflow-v0.3.0` for locating those changes; `autoflow-v0.3.0` and `autoflow-v0.4.0` store the complete code at each release. The official update finding applies only to the check date and the `master` branch, not to later states or other branches and tags. The Appearance page remains a proposal.
+The manifest keeps the paths and Git statuses before `autoflow-v0.3.0` for locating those changes; `autoflow-v0.3.0` and `autoflow-v0.4.0` store the complete code at each release. The official update finding applies only to the check date and the `master` branch, not to later states or other branches and tags.
