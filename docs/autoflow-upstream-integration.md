@@ -10,16 +10,30 @@ This record identifies the custom work in this AutoFlow release and defines how 
 | --- | --- | --- |
 | Snapshot date | 2026-09-28 | The inventory applies to this checkout at this date. |
 | Custom branch `main` | Tag `autoflow-v0.2.0` | AutoFlow changes and the previous official integration. |
-| Current custom version | Tag `autoflow-v0.3.0` | Pins this Settings, Models, sidebar, and menu visual update. |
+| Previous custom version | Tag `autoflow-v0.3.0` | Pins the Settings, Models, sidebar, and menu visual baseline. |
+| Current integration version | Tag `autoflow-v0.4.0` | Pins the official `dsh-v0.2.0-rc.1` integration. |
 | Official branch `deepseek-harness` | Second parent of `autoflow-v0.2.0` | The exact official source integrated by that tag. |
 | Official remote | `upstream` → `deepseek-ai/deepseek-harness` | Read official changes before integrating them. |
 | Custom remote | `origin` → `haigepor/dsh-AutoFlow` | Holds `main` and the official mirror branch. |
 
-The two branches are the comparison anchors. The second parent of the `autoflow-v0.2.0` merge commit pins the previous official baseline, while `autoflow-v0.3.0` pins this custom baseline. Advance `deepseek-harness` to the official commit first; select and integrate changes into `main` only after reviewing the resulting diff. Retain both tags so the next reviewer can distinguish official updates from local styling.
+The two branches are the comparison anchors. The second parent of the `autoflow-v0.2.0` merge commit pins the previous official baseline; `autoflow-v0.3.0` pins the custom visual baseline; `autoflow-v0.4.0` pins this official integration. Advance `deepseek-harness` to the official commit first; select and integrate changes into `main` only after reviewing the resulting diff. Retain these tags so the next reviewer can distinguish official updates from local styling.
 
 ## Official update check
 
 On 2026-09-28, a direct read of `refs/heads/master` on the official `upstream` remote matched local `upstream/master`, `deepseek-harness`, and the second parent of `autoflow-v0.2.0`. There were no new commits on official `master` relative to the mirror branch. The matching commit was dated 2026-09-27 22:30:17 (+08:00) and merged [PR #5282](https://github.com/deepseek-ai/deepseek-harness/pull/5282). This check did not advance either branch or integrate code into `main`. Read the remote again before the next integration.
+
+## `dsh-v0.2.0-rc.1` integration decisions
+
+On 2026-09-29, the official mirror branch `deepseek-harness` advanced from `21638c56315ae6a2b552d6091945d3144c9af32e` to `4878cdabd87d4041bdaff61d04c966883b9fd07a`, the commit shared by the official `dsh-v0.2.0-rc.1` tag and `master`, before merging into `main`. The official range contains 106 commits. The table names the areas that intersect local UI work; other official features and fixes remain in the merge.
+
+| Area | Official change | Decision |
+| --- | --- | --- |
+| Conversation and plugins | Process animation and spacing, retry summaries, plugin installation guidance, and the Session Log upload preference. | Integrate behavior and required controls; retain the local sidebar, plugin-card spacing, and Settings page layout. |
+| Desktop overlays | Windows caption and macOS top clearance, including modal and menu placement in fullscreen. | Adopt the new overlay tokens and mask placement; retain the local menu material and full-window Settings page rather than restoring the older official dialog. |
+| Theme colors | New tokens for document selection, switch thumbs, tooltip keys, and activity text shimmer. | Keep the local warm-white and charcoal palettes with a violet accent. Selection uses the violet link color at 36% opacity in light mode and 34% in dark mode; the dark switch thumb uses warm gray. |
+| Models and onboarding | The first-run notice becomes a preview notice and repeats after an older version was accepted. | Integrate the updated copy and behavior; retain the provider rail, independently scrolling detail pane, and model table. |
+
+“Retain local” applies to existing layout, colors, and materials. CSS, copy, configuration, and callers required for new official features are included. Future integrations still compare individual visual changes under the rules below.
 
 ## What this snapshot contains
 
@@ -60,7 +74,7 @@ For each area, record the old and new official commit, affected paths, chosen be
 
 ## Next official update
 
-1. Start from the `autoflow-v0.3.0` tag and save any later custom work as a reviewable Git state before integrating. The path manifest locates changes but does not recover their contents.
+1. Start from the latest integration tag `autoflow-v0.4.0` and save any later custom work as a reviewable Git state before integrating. The path manifest locates older changes but does not recover their contents.
 2. Advance `deepseek-harness` to the new official commit and write down the previous and new official IDs. Keep the official branch free of AutoFlow edits.
 3. Compare that official range by subsystem, then compare the same files against `main`, the [path manifest](autoflow-local-change-manifest.json), and the local style baseline. Start with stateful features and public interfaces, then present any proposed visual replacement for user approval.
 4. Integrate functional additions into `main` with their consumers and docs. Add styles required by those features; keep existing local styling unless the user has approved its specific replacement.
@@ -73,4 +87,4 @@ The current General section owns the light/dark/system control and conversation 
 
 ## Limitations
 
-The manifest keeps pre-commit paths and Git statuses for locating this release's changes; `autoflow-v0.3.0` stores the complete code. The official update finding applies only to the check date and the `master` branch, not to later states or other branches and tags. The Appearance page remains a proposal.
+The manifest keeps the paths and Git statuses before `autoflow-v0.3.0` for locating those changes; `autoflow-v0.3.0` and `autoflow-v0.4.0` store the complete code at each release. The official update finding applies only to the check date and the `master` branch, not to later states or other branches and tags. The Appearance page remains a proposal.
