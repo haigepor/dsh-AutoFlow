@@ -1,5 +1,5 @@
 ---
-description: "Theme and content-font-size settings for the dsh web client: --dsw-* token stylesheets, ThemeRuntime state, General settings rows, and the pre-plugin bootstrap."
+description: "Appearance theme settings for the dsh web client: color mode, accent, interface font, corner scale, content size, and pre-plugin bootstrap."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-theme` lets Web GUI users choose `light`, `dark`, or `system` and set conversation content text from 12 to 17 px in Settings. A loopback client stores both values in the `ui-theme` settings namespace, which the local provider persists in `$DSH_HOME/cordis.patch.yml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package also ships the `--dsw-*` token stylesheets and injects a synchronous bootstrap so the selected palette and font size apply before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.
+`dsh-client-ui-theme` owns the Appearance theme Settings section: system/light/dark mode previews, official and current-project palettes, five interface fonts, five corner scales, menu animation speed, and conversation content size from 12 to 17 px. A loopback client persists these choices in the `ui-theme` settings namespace, which the local provider stores in `$DSH_HOME/cordis.patch.yml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package ships the `--dsw-*` token stylesheets and injects synchronous bootstrap values before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.
 
 ## Table of Contents
 
@@ -25,11 +25,13 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Users switch the color scheme and content font size from two rows in Settings (General section); both choices persist across restarts on a loopback browser. Feature plugins consume the current snapshot through `ctx.theme` and read the `--dsw-*` tokens in CSS; they do not manage theme state themselves.
+Users choose their appearance from the dedicated Appearance theme section in the Settings sidebar. Feature plugins consume the current snapshot through `ctx.theme` and read the `--dsw-*` tokens in CSS; they do not manage theme state themselves.
 
-### Appearance and font size
+### Appearance choices
 
-The plugin registers Appearance preference cubes and a font-size stepper in the General section. The stepper accepts integer values from 12 through 17 px and defaults to 14 px. It changes conversation headings and base text by the same increment, including the user bubble and composer draft; flow-row titles, summaries, and tables follow one step under the body size, while small text and code keep fixed sizes. Each accepted change writes through the Host settings API. Rapid changes serialize in gesture order with namespace revisions, and a rejected latest write reloads the durable values. Non-loopback pages keep both choices process-local.
+The Appearance page uses the three mode-preview SVGs from the project-owned [Gitee source](https://gitee.com/sea-pigeon/deepseek-harness/tree/master/packages/client/ui-theme/src/client/previews) inside one clipped, token-radius frame. Palette cards use a draggable carousel with a capacity of four compact cards per page; its controls appear only after a fifth selectable palette is registered. The official palette is copied from the `dsh-v0.2.0-rc.1` release tag; the current-project palette keeps the warm-gray and iris-purple treatment. The five font cards are system default, Source Sans 3, IBM Plex Serif, JetBrains Mono, and IBM Plex Sans Condensed. Mode cards use two columns in a medium narrow container, then switch to one column only below 460px; other choice grids and the palette carousel use one column at that phone width so previews retain a readable proportion. The menu-speed selector uses the shared client menu, including its tokenized surface, selected check, and keyboard navigation. The page also persists five corner scales and five menu-glide durations (80, 140, 220, 300, and 400 ms). Code and brand text retain their own font stacks. Accepted service writes pass through the Host settings API in gesture order with namespace revisions, and a rejected latest write reloads durable values. Non-loopback pages keep choices process-local.
+
+Existing user layers without `themeSet` retain the current-project palette and their old accent selection. A new installation and Reset appearance select the official palette, system mode, system font, the standard corner scale, and 220 ms motion. Legacy Inter and Noto Sans SC values remain readable until a user picks a new font.
 
 ### Registering a theme
 
@@ -37,7 +39,7 @@ A composition can register a third-party theme id with alias-token overrides thr
 
 ### Pre-plugin palette
 
-When the host composition includes an HTTP server, the host half embeds the registered `ui-theme` settings, or schema defaults, into each index response. Head CSS selects the document canvas color scheme before any script runs, including a `prefers-color-scheme` query for the `system` preference. A body script then sets `body[data-ds-dark-theme]` and `--dsh-content-font-size` before the loading page and application scripts, so the first paint uses the selected palette and text size.
+When the host composition includes an HTTP server, the host half embeds the registered `ui-theme` settings, or schema defaults, into each index response. Head CSS selects the document canvas color scheme before any script runs, including a `prefers-color-scheme` query for the `system` preference. A body script then sets `body[data-ds-dark-theme]`, the accent/font/corner attributes, and `--dsh-content-font-size` before the loading page and application scripts, so the first paint uses the selected values.
 
 -----
 
@@ -53,7 +55,7 @@ System toast colors are paired per theme: `--dsw-alias-toast-bg` and `--dsw-alia
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The service owns theme and font-size state and publishes snapshots. The ui-layout presenter applies those snapshots, and the token sheets own the color and conversation text scales.
+The service owns appearance state and publishes snapshots. The ui-layout presenter applies those snapshots, and the token sheets own color, font, corner, and conversation text scales.
 
 ### Stylesheets
 
@@ -73,7 +75,9 @@ System toasts use `--dsw-alias-toast-bg` and `--dsw-alias-toast-label` for a sha
 
 `--dsw-alias-label-shimmer` supplies an overlay for the shared text shimmer: black at 30% alpha in the light palette and white at 45% alpha in the dark palette. `--dsw-alias-label-deep-diving` and `--dsw-alias-label-deep-diving-shimmer` supply the local violet activity label and sweep; the dark palette uses a lighter, less saturated label with a brighter violet sweep.
 
-`brand-font.css` exports the local Montserrat Light, Regular and Medium faces (normal style, weights 300, 400 and 500), with `montserrat-light.woff2`, `montserrat-regular.woff2`, `montserrat-medium.woff2` and its SIL Open Font License in `lib/styles/`. Desktop bundles the same stylesheet, font and license for offline welcome brand text; ordinary UI keeps its system font stack.
+`brand-font.css` exports the local Montserrat Light, Regular and Medium faces (normal style, weights 300, 400 and 500), with `montserrat-light.woff2`, `montserrat-regular.woff2`, `montserrat-medium.woff2` and its SIL Open Font License in `lib/styles/`. Desktop bundles the same stylesheet, font and license for offline welcome brand text; the interface font choice does not alter brand text.
+
+`appearance-font.css` loads the selected local font with CJK system fallbacks. Source Sans 3, IBM Plex Serif, JetBrains Mono, and IBM Plex Sans Condensed are downloaded from Google Fonts commit `23e54b51ddffbc7713c583748e3bd86f62b1fa4a`; their OFL files ship beside the assets in `lib/styles/`. Inter and Noto Sans SC stay bundled only to read legacy saved choices. The system option avoids web-font downloads.
 
 `corner-shape.css` smooths every rounded corner: inside `@supports (corner-shape: superellipse(1.5))` it defines `--dsw-corner-shape` and applies it to all elements and their `::before`/`::after` through the universal selector, so engines without `corner-shape` keep circular corners. Full-round shapes — `border-radius: 50%` circles and pill radii — pair `corner-shape: round` with their radius in the owning component sheet because a superellipse deforms them; the corner-shape stylesheet spec enforces that pairing across every package stylesheet.
 
@@ -85,7 +89,7 @@ System toasts use `--dsw-alias-toast-bg` and `--dsw-alias-toast-label` for a sha
 
 ### Preference persistence
 
-The service provides itself immediately with the schema defaults on a loopback browser, then loads the `ui-theme` namespace and writes each accepted theme or font-size change through the Host settings API. Pushed settings changes and reconnects refetch the namespace. Non-loopback pages do not create that Host-backed scope. The persistence boundary is owned by the [Host-backed preferences note](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.md).
+The service provides itself immediately with the schema defaults on a loopback browser, then loads the `ui-theme` namespace and writes each accepted appearance change through the Host settings API. Pushed settings changes and reconnects refetch the namespace. Non-loopback pages do not create that Host-backed scope. The persistence boundary is owned by the [Host-backed preferences note](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.md).
 
 </details>
 

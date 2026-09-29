@@ -23,6 +23,9 @@ afterEach(() => {
   delete document.documentElement.dataset.dsThemeSource
   document.body.removeAttribute(DARK_ATTRIBUTE)
   document.body.style.removeProperty('--dsh-content-font-size')
+  delete document.body.dataset.dsAccent
+  delete document.body.dataset.dsFontFamily
+  delete document.body.dataset.dsCorners
 })
 
 describe('theme bootstrap row', () => {
@@ -32,7 +35,7 @@ describe('theme bootstrap row', () => {
     expect(head).toMatchObject({ kind: 'style' })
     expect(body).toMatchObject({ kind: 'script', placement: 'body' })
     if (head?.kind !== 'style') throw new Error('theme head bootstrap row is not a style')
-    expect(head.text).toBe(':root{color-scheme:dark}body{background-color:#1B1B1A;--dsh-boot-bg:#1B1B1A}')
+    expect(head.text).toBe(':root{color-scheme:dark}body{background-color:#151517;--dsh-boot-bg:#151517}')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
     if (body?.kind !== 'script') throw new Error('theme body bootstrap row is not a script')
     runInNewContext(body.text, { document, matchMedia: globalThis.matchMedia })
@@ -45,7 +48,7 @@ describe('theme bootstrap row', () => {
     mockSystemDark(true)
     const [head] = bootThemeInjections('light')
     if (head?.kind !== 'style') throw new Error('theme head bootstrap row is not a style')
-    expect(head.text).toBe(':root{color-scheme:light}body{background-color:#FAF9F7;--dsh-boot-bg:#FAF9F7}')
+    expect(head.text).toBe(':root{color-scheme:light}body{background-color:#FFFFFF;--dsh-boot-bg:#FFFFFF}')
     executeBootstrap('light')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
   })
@@ -64,8 +67,8 @@ describe('theme bootstrap row', () => {
     const [head] = bootThemeInjections('system')
     if (head?.kind !== 'style') throw new Error('theme head bootstrap row is not a style')
     expect(head.text).toBe(
-      ':root{color-scheme:light}body{background-color:#FAF9F7;--dsh-boot-bg:#FAF9F7}'
-      + '@media(prefers-color-scheme:dark){:root{color-scheme:dark}body{background-color:#1B1B1A;--dsh-boot-bg:#1B1B1A}}',
+      ':root{color-scheme:light}body{background-color:#FFFFFF;--dsh-boot-bg:#FFFFFF}'
+      + '@media(prefers-color-scheme:dark){:root{color-scheme:dark}body{background-color:#151517;--dsh-boot-bg:#151517}}',
     )
   })
 
@@ -81,5 +84,15 @@ describe('theme bootstrap row', () => {
     expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('17px')
     executeBootstrap('light')
     expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('14px')
+  })
+
+  it('installs durable accent, font, and corners before client activation', () => {
+    mockSystemDark(false)
+    for (const row of bootThemeInjections('light', 14, 'ocean', 'inter', 'soft')) {
+      if (row.kind === 'script') runInNewContext(row.text, { document, matchMedia: globalThis.matchMedia })
+    }
+    expect(document.body.dataset).toMatchObject({
+      dsAccent: 'ocean', dsFontFamily: 'inter', dsCorners: 'soft', dsPalette: 'official', dsGlideDuration: '220',
+    })
   })
 })

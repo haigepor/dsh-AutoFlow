@@ -2,11 +2,13 @@ import type { Context } from '@deepseek-ai/cordis'
 import base from '../styles/base.css?inline'
 import cornerShape from '../styles/corner-shape.css?inline'
 import designPlatform from '../styles/design-platform.css?inline'
+import officialPalette from '../styles/official-palette.css?inline'
 import focus from '../styles/focus.css?inline'
 import onboarding from '../styles/onboarding.css?inline'
 import scrollbar from '../styles/scrollbar.css?inline'
 import gradientShadowText from '../styles/gradient-shadow-text.css?inline'
 import shiki from '../styles/shiki.css?inline'
+import personalization from '../styles/personalization.css?inline'
 
 const PLUGIN_ID = '@deepseek-ai/dsh-client-ui-theme'
 
@@ -14,11 +16,13 @@ const STYLES = [
   ['base.css', base],
   ['corner-shape.css', cornerShape],
   ['design-platform.css', designPlatform],
+  ['official-palette.css', officialPalette],
   ['focus.css', focus],
   ['onboarding.css', onboarding],
   ['scrollbar.css', scrollbar],
   ['gradient-shadow-text.css', gradientShadowText],
   ['shiki.css', shiki],
+  ['personalization.css', personalization],
 ] as const
 
 /**

@@ -27,12 +27,21 @@ describe('ui-theme host', () => {
     const ctx = new Context()
     const configuration = await liveConfig(ctx, { Config, apply })
     const { fiber } = configuration
-    expect(plainConfig(configuration.fiber.config)).toEqual({ preference: DEFAULT_PREFERENCE, fontSize: 14 })
-    await configuration.update({ preference: 'dark', fontSize: 16 })
-    expect(plainConfig(configuration.fiber.config)).toEqual({ preference: 'dark', fontSize: 16 })
+    expect(plainConfig(configuration.fiber.config)).toEqual({
+      preference: DEFAULT_PREFERENCE, fontSize: 14, accent: 'iris', themeSet: 'official', glideDuration: 220, fontFamily: 'system', corners: 'standard',
+    })
+    await configuration.update({ preference: 'dark', fontSize: 16, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft' })
+    expect(plainConfig(configuration.fiber.config)).toEqual({
+      preference: 'dark', fontSize: 16, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft',
+    })
     await expect(configuration.update({ preference: 'sepia' })).rejects.toThrow()
     await expect(configuration.update({ fontSize: 11 })).rejects.toThrow()
     await expect(configuration.update({ fontSize: 18 })).rejects.toThrow()
+    await expect(configuration.update({ accent: 'unknown' })).rejects.toThrow()
+    await expect(configuration.update({ fontFamily: 'unknown' })).rejects.toThrow()
+    await expect(configuration.update({ corners: 'unknown' })).rejects.toThrow()
+    await expect(configuration.update({ themeSet: 'unknown' })).rejects.toThrow()
+    await expect(configuration.update({ glideDuration: 100 })).rejects.toThrow()
     await fiber.dispose()
   })
 

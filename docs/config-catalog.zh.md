@@ -657,7 +657,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-client-ui-theme`
 
 - `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/client/ui-theme/src/index.ts:22`](../packages/client/ui-theme/src/index.ts)
+- `source`: [`packages/client/ui-theme/src/index.ts:28`](../packages/client/ui-theme/src/index.ts)
 
 ```ts config-catalog
 /** Runtime preferences projected to the browser. */
@@ -666,10 +666,35 @@ export interface Config {
   preference: Volatile<ThemePreference>
   /** Browser font size in pixels. */
   fontSize: Volatile<number>
+  /** Product accent palette. */
+  accent: Volatile<AccentPreset>
+  /** Complete built-in color palette. */
+  themeSet: Volatile<ThemeSet>
+  /** Sidebar menu glide duration. */
+  glideDuration: Volatile<GlideDuration>
+  /** Application text family. */
+  fontFamily: Volatile<FontFamily>
+  /** Shared corner scale. */
+  corners: Volatile<CornerPreset>
 }
 
 /** Theme preference persisted by the product Appearance row. */
 export type ThemePreference = typeof THEME_PREFERENCES[number]
+
+/** Built-in accent palette id. */
+export type AccentPreset = typeof ACCENT_PRESETS[number]
+
+/** Built-in color palette. */
+export type ThemeSet = typeof THEME_SETS[number]
+
+/** Menu glide duration in milliseconds. */
+export type GlideDuration = typeof GLIDE_DURATIONS[number]
+
+/** Interface text family id. */
+export type FontFamily = typeof FONT_FAMILIES[number]
+
+/** Shared corner scale id. */
+export type CornerPreset = typeof CORNER_PRESETS[number]
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-ui-theme -->
 

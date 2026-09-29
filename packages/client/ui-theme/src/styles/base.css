@@ -24,6 +24,14 @@
 body {
   --dsw-alias-settings-card-fill: var(--dsw-alias-bg-layer-2);
   --dsw-alias-settings-card-stroke: var(--dsw-alias-border-l4);
+  --dsh-radius-sm: var(--dsw-radius-sm);
+  --dsh-radius-md: var(--dsw-radius-md);
+  --dsh-radius-xl: var(--dsw-radius-xl);
+  --dsh-radius-card: var(--dsw-radius-lg);
+  --dsh-radius-control: var(--dsw-radius-md);
+  --dsh-radius-window: var(--dsw-radius-sm);
+  --dsh-radius-circle: 50%;
+  --dsh-radius-pill: 9999px;
 }
 
 [data-dsh-automatic-focus]:focus,

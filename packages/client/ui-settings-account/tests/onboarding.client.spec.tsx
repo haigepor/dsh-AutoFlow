@@ -12,7 +12,8 @@ import { en } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 const theme: ThemeSnapshot = {
-  preference: 'light', fontSize: 14,
+  preference: 'light', fontSize: 14, accent: 'iris', themeSet: 'official', legacyAccent: false,
+  glideDuration: 220, fontFamily: 'system', corners: 'standard',
   active: { id: 'light', colorScheme: 'light', tokens: {} }, themes: [], revision: 0,
 }
 

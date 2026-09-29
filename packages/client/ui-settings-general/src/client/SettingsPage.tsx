@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import {
   IconAgentPresetOutlineMedium, IconArchiveOutlineMedium, IconChevronLeftOutlineMedium,
   GlideHighlight, IconDataOutlineMedium, IconPersonalizationOutlineMedium, IconSettingsOutlineMedium,
-  IconUserOutlineMedium, IconPanelLeftOutlineRegular, Tooltip,
+  IconUserOutlineMedium, IconPanelLeftOutlineRegular, IconLightOutlineMedium, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsPageComponentProps } from './shell-contract.ts'
 import css from './SettingsPage.module.css'
@@ -13,6 +13,7 @@ import css from './SettingsPage.module.css'
 function navIcon(id: string) {
   if (id === 'account') return <IconUserOutlineMedium size={16} />
   if (id === 'models') return <IconDataOutlineMedium size={16} />
+  if (id === 'appearance-theme') return <IconLightOutlineMedium size={16} />
   if (id === 'agent-presets') return <IconAgentPresetOutlineMedium size={16} />
   if (id === 'plugins') return <IconPersonalizationOutlineMedium size={16} />
   if (id === 'archived-sessions') return <IconArchiveOutlineMedium size={16} />
@@ -32,6 +33,7 @@ export function SettingsPage({ renderSlot, useSections, useStore, actions, close
   const titleId = useId()
   const navId = useId()
   const [collapsed, setCollapsed] = useState(false)
+  const windowsTitlebar = document.documentElement.hasAttribute('data-windows-titlebar')
   const [pointerInside, setPointerInside] = useState(false)
   const quietTimer = useRef<number | undefined>(undefined)
   const toggleLabel = t(collapsed ? 'sidebar.expand' : 'sidebar.collapse')
@@ -58,7 +60,8 @@ export function SettingsPage({ renderSlot, useSections, useStore, actions, close
           <Tooltip label={toggleLabel} side="right">
             <button type="button" className={css.toggle} aria-label={toggleLabel} aria-expanded={!collapsed}
               aria-controls={navId} onClick={() => { setCollapsed(value => !value) }}>
-              <IconPanelLeftOutlineRegular size={18} />
+              {/* 与主页侧栏一致：普通收起轨道用 18px，Windows 顶栏始终用 16px。 */}
+              <IconPanelLeftOutlineRegular size={collapsed && !windowsTitlebar ? 18 : 16} />
             </button>
           </Tooltip>
         </div>

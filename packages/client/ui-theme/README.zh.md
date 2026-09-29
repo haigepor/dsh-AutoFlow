@@ -1,5 +1,5 @@
 ---
-description: "dsh Web 客户端的主题与正文字号设置：--dsw-* token 样式表、ThemeRuntime 状态、「通用」设置行与插件前引导。"
+description: "dsh Web 客户端的外观主题设置：配色模式、强调色、界面字体、圆角、正文字号与插件前引导。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-theme` 让 Web GUI 用户在设置中选择 `light`、`dark` 或 `system`，并把会话正文字号设为 12 至 17 px。回环客户端把两个值存入 `ui-theme` 设置命名空间，本地提供方默认将其持久化到 `$DSH_HOME/cordis.patch.yml`。插件通过 `prefers-color-scheme` 解析 `system` 并发布不可变的 `ThemeSnapshot`；ui-layout 把每份快照应用到文档。本包还提供 `--dsw-*` token 样式表，并注入同步引导，使所选调色板与字号在外壳加载前生效。第三方主题可通过 `ctx.theme` 注册别名 token 覆盖。
+`dsh-client-ui-theme` 拥有设置中的「外观主题」分区：跟随系统／浅色／深色模式预览、官方默认与当前项目两套配色、五种界面字体、五档圆角、菜单动效速度，以及 12 至 17 px 的会话正文字号。回环客户端把这些选择存入 `ui-theme` 设置命名空间，本地提供方默认将其持久化到 `$DSH_HOME/cordis.patch.yml`。插件通过 `prefers-color-scheme` 解析 `system` 并发布不可变的 `ThemeSnapshot`；ui-layout 把每份快照应用到文档。本包还提供 `--dsw-*` token 样式表，并在外壳加载前同步注入所选值。第三方主题可通过 `ctx.theme` 注册别名 token 覆盖。
 
 ## 目录
 
@@ -25,11 +25,13 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-用户从设置（「通用」分区）的两行中切换配色方案与正文字号；在回环浏览器上，两个选择都会跨重启持久化。功能插件通过 `ctx.theme` 消费当前快照，并在 CSS 中读取 `--dsw-*` token；它们不自行管理主题状态。
+用户在设置侧边栏的「外观主题」独立分区选择外观。功能插件通过 `ctx.theme` 消费当前快照，并在 CSS 中读取 `--dsw-*` token；它们不自行管理主题状态。
 
-### 外观与字号
+### 外观选项
 
-插件在「通用」分区注册外观偏好方块与字号步进器。步进器接受 12 至 17 px 的整数，默认值为 14 px。它以相同增量调整会话标题与基础文本，包括用户气泡与 composer 草稿；流内行的标题、摘要与表格跟随比正文低一档的字号，小号文本和代码保持固定字号。每次通过的变更都经 Host settings API 写入。连续快速变更按操作顺序携带命名空间 revision 串行写入，最新写入被拒时重新加载持久值。非 loopback 页面把两个选择都保留在进程内。
+外观页直接使用项目拥有的 [Gitee 源码](https://gitee.com/sea-pigeon/deepseek-harness/tree/master/packages/client/ui-theme/src/client/previews)中的三张模式预览 SVG，并将其裁切在一套 token 圆角框内。主题卡使用可拖动轮播，每页最多容纳四张紧凑卡；只有注册到第五套可选配色后才显示翻页箭头与圆点。官方默认配色取自 `dsh-v0.2.0-rc.1` 发布标签；当前项目配色保留暖灰与鸢尾紫。五张字体卡依次为系统默认、Source Sans 3、IBM Plex Serif、JetBrains Mono 与 IBM Plex Sans Condensed。中等窄屏中的外观模式卡维持两列，到 460px 以下才切为单列；同一手机宽度下的其他选项网格和主题轮播也改为单列，使预览图保持可读比例。菜单动效速度选择器复用客户端共享菜单，采用 token 化表面、选中勾选和键盘导航。页面还会持久化五档圆角与 80、140、220、300、400 ms 五档菜单动效。代码和品牌文字保留独立字体栈。服务接受的写入经 Host settings API 按操作顺序携带命名空间 revision 串行处理，最新写入被拒时重新加载持久值。非 loopback 页面把选择保留在进程内。
+
+旧用户设置没有 `themeSet` 字段时，会继续使用当前项目配色和原来的强调色。新安装与「重置外观」会恢复官方默认、跟随系统、系统字体、标准圆角和 220 ms 动效。已保存的 Inter 与思源黑体仍可读取，并在用户主动选择新字体前保留显示。
 
 ### 注册主题
 
@@ -37,7 +39,7 @@ kind: "package-reference"
 
 ### 插件前调色板
 
-当主机组合包含 HTTP 服务器时，宿主侧会把已注册的 `ui-theme` 设置或 schema 默认值嵌入每份 index 响应。head CSS 会在任何脚本运行前选择文档画布的配色方案，其中 `system` 偏好使用 `prefers-color-scheme` 查询；随后，body 脚本会在加载页面和应用脚本之前设置 `body[data-ds-dark-theme]` 与 `--dsh-content-font-size`，因此首帧绘制就采用所选调色板与字号。
+当主机组合包含 HTTP 服务器时，宿主侧会把已注册的 `ui-theme` 设置或 schema 默认值嵌入每份 index 响应。head CSS 会在任何脚本运行前选择文档画布的配色方案，其中 `system` 偏好使用 `prefers-color-scheme` 查询；随后，body 脚本会在加载页面和应用脚本之前设置 `body[data-ds-dark-theme]`、强调色／字体／圆角属性与 `--dsh-content-font-size`，因此首帧绘制就采用所选值。
 
 -----
 
@@ -53,7 +55,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-服务拥有主题与字号状态并发布快照。ui-layout 展示转换器应用这些快照，token 样式表则拥有颜色与会话文本尺度。
+服务拥有外观状态并发布快照。ui-layout 展示转换器应用这些快照，token 样式表则拥有颜色、字体、圆角与会话文本尺度。
 
 ### 样式表
 
@@ -73,7 +75,9 @@ kind: "package-reference"
 
 `--dsw-alias-label-shimmer` 为共享文字扫光提供叠加色：浅色配色使用 30% alpha 的黑色，深色配色使用 45% alpha 的白色。`--dsw-alias-label-deep-diving` 和 `--dsw-alias-label-deep-diving-shimmer` 提供本地紫色活动文本和扫光颜色；深色主题使用更亮、饱和度更低的文字，并以更亮的紫色扫光。
 
-`brand-font.css` 导出本地 Montserrat Light、Regular 和 Medium 字体（正体、字重 300、400 和 500），`lib/styles/` 同时提供 `montserrat-light.woff2`、`montserrat-regular.woff2`、`montserrat-medium.woff2` 及其 SIL Open Font License。Desktop 将同一份样式表、字体和许可证打包，用于欢迎页品牌文字的离线显示；普通界面保留系统字体栈。
+`brand-font.css` 导出本地 Montserrat Light、Regular 和 Medium 字体（正体、字重 300、400 和 500），`lib/styles/` 同时提供 `montserrat-light.woff2`、`montserrat-regular.woff2`、`montserrat-medium.woff2` 及其 SIL Open Font License。Desktop 将同一份样式表、字体和许可证打包，用于欢迎页品牌文字的离线显示；界面字体选项不改变品牌文字。
+
+`appearance-font.css` 按选择加载本地字体，并为中文回退到系统字体。Source Sans 3、IBM Plex Serif、JetBrains Mono 和 IBM Plex Sans Condensed 固定下载自 Google Fonts 提交 `23e54b51ddffbc7713c583748e3bd86f62b1fa4a`，其 OFL 许可证与资源一同打入 `lib/styles/`。Inter 与思源黑体仅用于读取旧的保存设置。系统默认选项无需下载 Web 字体。
 
 `corner-shape.css` 平滑所有圆角：在 `@supports (corner-shape: superellipse(1.5))` 内定义 `--dsw-corner-shape`，并通过通配选择器应用到所有元素及其 `::before`/`::after`，因此不支持 `corner-shape` 的引擎保持普通圆弧。正圆形状——`border-radius: 50%` 的圆与胶囊半径——因超级椭圆会使其变形，须在所属组件样式表中把 `corner-shape: round` 与半径声明配对；corner-shape 样式表 spec 跨全部包样式表强制这一配对。
 
@@ -85,7 +89,7 @@ kind: "package-reference"
 
 ### 偏好持久化
 
-在 loopback 浏览器上，服务先以 schema 默认值立即提供自身，随后加载 `ui-theme` 命名空间，并把每次通过的主题或字号变更经 Host settings API 写入。收到推送的设置变更时或重连后都会重新拉取该命名空间。非 loopback 页面不会创建该 Host-backed scope。该持久化边界由 [Host 支撑的偏好笔记](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.zh.md) 拥有。
+在 loopback 浏览器上，服务先以 schema 默认值立即提供自身，随后加载 `ui-theme` 命名空间，并把每次通过的外观变更经 Host settings API 写入。收到推送的设置变更时或重连后都会重新拉取该命名空间。非 loopback 页面不会创建该 Host-backed scope。该持久化边界由 [Host 支撑的偏好笔记](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.zh.md) 拥有。
 
 </details>
 

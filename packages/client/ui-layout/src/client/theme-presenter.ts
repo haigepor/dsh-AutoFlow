@@ -59,6 +59,13 @@ export class ThemePresenter {
     if (scheme === 'dark') body.setAttribute(DARK_ATTRIBUTE, '')
     else body.removeAttribute(DARK_ATTRIBUTE)
     body.style.setProperty(CONTENT_FONT_SIZE_VARIABLE, `${snapshot.fontSize}px`)
+    body.dataset.dsAccent = snapshot.accent
+    body.dataset.dsPalette = snapshot.themeSet
+    body.dataset.dsLegacyAccent = String(snapshot.legacyAccent)
+    body.dataset.dsGlideDuration = String(snapshot.glideDuration)
+    body.style.setProperty('--dsh-glide-duration', `${snapshot.glideDuration}ms`)
+    body.dataset.dsFontFamily = snapshot.fontFamily
+    body.dataset.dsCorners = snapshot.corners
     for (const name of this.appliedTokens) body.style.removeProperty(name)
     this.appliedTokens = []
     for (const [name, value] of Object.entries(snapshot.active.tokens)) {
@@ -79,6 +86,13 @@ export class ThemePresenter {
     const body = document.body
     body.removeAttribute(DARK_ATTRIBUTE)
     body.style.removeProperty(CONTENT_FONT_SIZE_VARIABLE)
+    delete body.dataset.dsAccent
+    delete body.dataset.dsPalette
+    delete body.dataset.dsLegacyAccent
+    delete body.dataset.dsGlideDuration
+    body.style.removeProperty('--dsh-glide-duration')
+    delete body.dataset.dsFontFamily
+    delete body.dataset.dsCorners
     for (const name of this.appliedTokens) body.style.removeProperty(name)
     this.appliedTokens = []
     this.themeColorMeta.remove()

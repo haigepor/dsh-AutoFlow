@@ -22,7 +22,7 @@ Use this package to give the dsh web client a full-window Settings page, connect
 
 -----
 
-The Settings page occupies the application window without changing the browser URL. Its 280px navigation column can collapse to a 56px icon rail without changing the main sidebar preference. The Back button and collapse control use the same quiet navigation chrome as the home sidebar; each section owns its visible title. The right column uses the main-content palette, centers content within 1100px, and scrolls longer sections; configuration-file actions follow the section content. Below 720px, navigation moves above the content and can be hidden with the same toggle.
+The Settings page occupies the application window without changing the browser URL. Its 280px navigation column can collapse to a 56px icon rail without changing the main sidebar preference. The Back button and collapse control use the same quiet navigation chrome as the home sidebar; the collapse glyph matches the home sidebar at 16px when expanded or in the Windows titlebar and 18px on the ordinary collapsed rail. Each section owns its visible title. The right column uses the main-content palette, centers content within 1100px, and scrolls longer sections; configuration-file actions follow the section content. At 840px or below, navigation moves above the content as a horizontal, touch-scrollable list with snap-aligned 36px targets, and the same toggle can hide it.
 
 <a id="use-this-package"></a>
 ## Use this package

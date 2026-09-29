@@ -1,66 +1,52 @@
-/**
- * Appearance and font-size row slot stores: mirrors of the theme service
- * snapshot. The plugin's apply-world change listener is the only writer; the
- * row components read via props.useStore.
- */
+/** Theme settings page store mirrors the service's durable choices. */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
-import { DEFAULT_FONT_SIZE, type ThemePreference } from '../theme-settings.ts'
+import {
+  DEFAULT_ACCENT, DEFAULT_CORNER_PRESET, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
+  DEFAULT_GLIDE_DURATION, DEFAULT_THEME_SET,
+  type AccentPreset, type CornerPreset, type FontFamily, type GlideDuration, type ThemePreference, type ThemeSet,
+} from '../theme-settings.ts'
 
-/** Store state mirrored from the theme snapshot. */
-export interface AppearanceRowState {
-  /** Persisted preference (selection state reads this, never the resolved active theme). */
+/** Settings page values mirrored from the theme service. */
+export interface ThemePageState {
+  /** Color mode preference, including system. */
   preference: ThemePreference
-  /** Service revision; -1 until first sync so revision 0 lands as a change. */
-  revision: number
-}
-
-/** Declared action shape giving the exported factory a stable return type. */
-type AppearanceRowActions = {
-  sync: (draft: AppearanceRowState, preference: ThemePreference, revision: number) => void
-}
-
-/**
- * Declares the Appearance row state and write surface.
- * @returns the store handle.
- */
-export function createAppearanceRowStore(): EngineStoreHandle<AppearanceRowState, AppearanceRowActions> {
-  return defineStore({
-    init: (): AppearanceRowState => ({ preference: 'system', revision: -1 }),
-    actions: {
-      sync: (d, preference: ThemePreference, revision: number) => {
-        if (revision <= d.revision) return
-        d.preference = preference
-        d.revision = revision
-      },
-    },
-  })
-}
-
-/** Store state mirrored from the theme snapshot's font size. */
-export interface FontSizeRowState {
-  /** Persisted content font size in px. */
+  /** Product accent palette. */
+  accent: AccentPreset
+  /** Complete color palette. */
+  themeSet: ThemeSet
+  /** Whether the old accent override remains active. */
+  legacyAccent: boolean
+  /** Sidebar menu glide duration. */
+  glideDuration: GlideDuration
+  /** Application text family. */
+  fontFamily: FontFamily
+  /** Shared corner scale. */
+  corners: CornerPreset
+  /** Conversation content size in pixels. */
   fontSize: number
-  /** Service revision; -1 until first sync so revision 0 lands as a change. */
+  /** Service revision used to reject delayed updates. */
   revision: number
 }
 
-/** Declared action shape giving the exported factory a stable return type. */
-type FontSizeRowActions = {
-  sync: (draft: FontSizeRowState, fontSize: number, revision: number) => void
+type ThemePageActions = {
+  sync: (draft: ThemePageState, value: ThemePageState) => void
 }
 
 /**
- * Declares the font-size row state and write surface.
- * @returns the store handle.
+ * Create the settings page store, whose revision guard rejects stale snapshots.
+ * @returns The settings page store handle.
  */
-export function createFontSizeRowStore(): EngineStoreHandle<FontSizeRowState, FontSizeRowActions> {
+export function createThemePageStore(): EngineStoreHandle<ThemePageState, ThemePageActions> {
   return defineStore({
-    init: (): FontSizeRowState => ({ fontSize: DEFAULT_FONT_SIZE, revision: -1 }),
+    init: (): ThemePageState => ({
+      preference: 'system', accent: DEFAULT_ACCENT, themeSet: DEFAULT_THEME_SET,
+      legacyAccent: false, glideDuration: DEFAULT_GLIDE_DURATION, fontFamily: DEFAULT_FONT_FAMILY,
+      corners: DEFAULT_CORNER_PRESET, fontSize: DEFAULT_FONT_SIZE, revision: -1,
+    }),
     actions: {
-      sync: (d, fontSize: number, revision: number) => {
-        if (revision <= d.revision) return
-        d.fontSize = fontSize
-        d.revision = revision
+      sync: (draft, value) => {
+        if (value.revision <= draft.revision) return
+        Object.assign(draft, value)
       },
     },
   })

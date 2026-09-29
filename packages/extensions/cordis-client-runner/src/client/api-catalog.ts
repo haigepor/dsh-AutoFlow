@@ -476,6 +476,10 @@ export const EVENT_API: readonly EventApiEntry[] = [
 /** Shapes of every exported type the Service and Event signatures reference (transitively), sorted by name. */
 export const TYPE_API: readonly TypeApiEntry[] = [
   {
+    name: 'AccentPreset',
+    declaration: 'export type AccentPreset = typeof ACCENT_PRESETS[number];',
+  },
+  {
     name: 'ActionsDecl',
     declaration: 'export type ActionsDecl<T> = Record<string, (draft: T, ...params: any[]) => void>;',
   },
@@ -580,6 +584,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ConnectionStateSource {\n    getSnapshot(): ConnectionState | undefined;\n    subscribe(listener: () => void): () => void;\n}',
   },
   {
+    name: 'CornerPreset',
+    declaration: 'export type CornerPreset = typeof CORNER_PRESETS[number];',
+  },
+  {
     name: 'EntryKeyOf',
     declaration: 'export type EntryKeyOf<K extends keyof SlotMap & string> = SlotMap[K] extends {\n    kind: \'keyed\';\n    keyProps: infer P extends object;\n} ? keyof P & string : string;',
   },
@@ -602,6 +610,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'FactoryRegistrationPropsOf',
     declaration: 'export type FactoryRegistrationPropsOf<F extends keyof SlotFactoryMap & string> = FactoryRenderPropsOf<F> & PropsStore<FactoryStoreOf<F>> & InjectFace<FactoryInjectOf<F>> & PropsLocale<FactoryLocaleOf<F>> & PropsRenderFactories;',
+  },
+  {
+    name: 'FontFamily',
+    declaration: 'export type FontFamily = typeof FONT_FAMILIES[number];',
+  },
+  {
+    name: 'GlideDuration',
+    declaration: 'export type GlideDuration = typeof GLIDE_DURATIONS[number];',
   },
   {
     name: 'GlobalStandardProps',
@@ -1008,8 +1024,12 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ThemePreference = typeof THEME_PREFERENCES[number];',
   },
   {
+    name: 'ThemeSet',
+    declaration: 'export type ThemeSet = typeof THEME_SETS[number];',
+  },
+  {
     name: 'ThemeSnapshot',
-    declaration: 'export interface ThemeSnapshot {\n    preference: ThemePreference;\n    fontSize: number;\n    active: ThemeDefinition;\n    themes: readonly ThemeDefinition[];\n    revision: number;\n}',
+    declaration: 'export interface ThemeSnapshot {\n    preference: ThemePreference;\n    fontSize: number;\n    accent: AccentPreset;\n    themeSet: ThemeSet;\n    legacyAccent: boolean;\n    glideDuration: GlideDuration;\n    fontFamily: FontFamily;\n    corners: CornerPreset;\n    active: ThemeDefinition;\n    themes: readonly ThemeDefinition[];\n    revision: number;\n}',
   },
   {
     name: 'ThemeTokenModes',

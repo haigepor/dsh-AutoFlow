@@ -931,7 +931,7 @@
 
 /* The elapsed-interval row keeps the quantity and its unit on one right-aligned
    line, and the quantity sits in the settings font-size stepper pill
-   (ui-theme FontSizeRow.module.css `.stepper`): a 36px 18px-radius module-fill
+   in a 36px 18px-radius module-fill
    pill whose right-edge arrow column shows on hover or focus, with the unit
    word outside the pill. */
 .ruleInterval {

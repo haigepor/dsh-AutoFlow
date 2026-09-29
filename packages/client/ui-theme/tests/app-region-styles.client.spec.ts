@@ -83,7 +83,7 @@ const CHROME_ROWS: readonly ChromeRow[] = [
     file: SIDEBAR,
     selector: '.logoRow',
     markup: 'client/ui-sidebar/src/client/SidebarRoot.tsx',
-    height: ['height', '48px'],
+    height: ['height', '60px'],
   },
   {
     file: CONVERSATION,

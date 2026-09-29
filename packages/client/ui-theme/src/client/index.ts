@@ -16,24 +16,26 @@ import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the SlotRegistry service merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type { AppearanceRowInjected } from './AppearanceRow.tsx'
-import { AppearanceRow } from './AppearanceRow.tsx'
-import type { FontSizeRowInjected } from './FontSizeRow.tsx'
-import { FontSizeRow } from './FontSizeRow.tsx'
-import { createAppearanceRowStore, createFontSizeRowStore } from './settings-store.ts'
+import type { ThemeSettingsPageInjected } from './ThemeSettingsPage.tsx'
+import { ThemeSettingsPage } from './ThemeSettingsPage.tsx'
+import { createThemePageStore } from './settings-store.ts'
 import { installThemeStyles } from './styles.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
 import {
-  DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE, FONT_SIZE_FIELD, FONT_SIZE_MAX, FONT_SIZE_MIN,
+  ACCENT_PRESETS, CORNER_PRESETS, DEFAULT_ACCENT, DEFAULT_CORNER_PRESET,
+  DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GLIDE_DURATION, DEFAULT_PREFERENCE,
+  DEFAULT_THEME_SET, FONT_FAMILIES, GLIDE_DURATIONS, THEME_SETS, resolveThemeSet,
+  FONT_SIZE_FIELD, FONT_SIZE_MAX, FONT_SIZE_MIN,
   isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
-  type ThemePreference, type ThemeSettings,
+  type AccentPreset, type CornerPreset, type FontFamily, type GlideDuration, type ThemePreference,
+  type ThemeSet, type ThemeSettings,
 } from '../theme-settings.ts'
 
-export type { AppearanceRowComponentProps, AppearanceRowInjected } from './AppearanceRow.tsx'
-export type { FontSizeRowComponentProps, FontSizeRowInjected } from './FontSizeRow.tsx'
-export type { AppearanceRowState, FontSizeRowState } from './settings-store.ts'
+export type { ThemeSettingsPageInjected, ThemeSettingsPageProps } from './ThemeSettingsPage.tsx'
+export type { ThemePageState } from './settings-store.ts'
 export type { ThemeKey } from './locales.ts'
 export type { ThemePreference, ThemeSettings } from '../theme-settings.ts'
+export type { AccentPreset, CornerPreset, FontFamily, GlideDuration, ThemeSet } from '../theme-settings.ts'
 
 /** Namespace owning this feature's settings-row copy. */
 export const SETTINGS_NS = 'settings.theme'
@@ -82,6 +84,18 @@ export interface ThemeSnapshot {
   preference: ThemePreference
   /** Conversation content font size in px (integer within FONT_SIZE_MIN..FONT_SIZE_MAX). */
   fontSize: number
+  /** Product accent palette. */
+  accent: AccentPreset
+  /** Complete color palette. */
+  themeSet: ThemeSet
+  /** Whether an older accent override remains active. */
+  legacyAccent: boolean
+  /** Sidebar menu glide duration in milliseconds. */
+  glideDuration: GlideDuration
+  /** Application text family. */
+  fontFamily: FontFamily
+  /** Shared corner scale. */
+  corners: CornerPreset
   /**
    * The resolved active theme (`system` resolved via prefers-color-scheme)
    * with override layers folded into its tokens (seq order, later layers win
@@ -162,6 +176,16 @@ export class ThemeRuntime {
   private themes: ThemeDefinition[] = [...BUILTIN_THEMES]
   private preference: ThemePreference
   private fontSize: number = bootstrapFontSize()
+  private accent: AccentPreset = bootstrapChoice('dsAccent', ACCENT_PRESETS, DEFAULT_ACCENT)
+  private themeSet: ThemeSet = bootstrapChoice('dsPalette', THEME_SETS, DEFAULT_THEME_SET)
+  /** A local selection must not be overwritten by an in-flight legacy snapshot. */
+  private themeSetExplicit = false
+  private legacyAccent = typeof document !== 'undefined' && document.body.dataset.dsLegacyAccent === 'true'
+  private glideDuration: GlideDuration = bootstrapNumberChoice('dsGlideDuration', GLIDE_DURATIONS, DEFAULT_GLIDE_DURATION)
+  private fontFamily: FontFamily = bootstrapChoice('dsFontFamily', FONT_FAMILIES, DEFAULT_FONT_FAMILY)
+  private corners: CornerPreset = bootstrapChoice('dsCorners', CORNER_PRESETS, DEFAULT_CORNER_PRESET)
+  /** Optimistic writes stay authoritative until their Host mutation settles. */
+  private readonly pendingValues = new Map<string, unknown>()
   private revision = 0
   private snapshot: ThemeSnapshot
   private readonly media: MediaQueryList | undefined
@@ -235,7 +259,7 @@ export class ThemeRuntime {
     }
     if (this.preference === id) return
     this.preference = id as ThemePreference
-    if (isThemePreference(id)) void this.host.set(THEME_PREFERENCE_FIELD, id)
+    if (isThemePreference(id)) this.persist(THEME_PREFERENCE_FIELD, id)
     this.publish()
   }
 
@@ -251,18 +275,152 @@ export class ThemeRuntime {
     }
     if (this.fontSize === px) return
     this.fontSize = px
-    void this.host.set(FONT_SIZE_FIELD, px)
+    this.persist(FONT_SIZE_FIELD, px)
+    this.publish()
+  }
+
+  /**
+   * Set a built-in accent palette and persist it in the theme namespace.
+   * @param value - The selected palette.
+   */
+  setAccent(value: AccentPreset): void {
+    if (this.accent === value) return
+    this.accent = value
+    this.persist('accent', value)
+    this.publish()
+  }
+
+  /**
+   * Select and persist a complete palette; this ends legacy accent overrides.
+   * @param value - The selected complete palette.
+   */
+  setThemeSet(value: ThemeSet): void {
+    if (this.themeSet === value && !this.legacyAccent) return
+    this.themeSet = value
+    this.themeSetExplicit = true
+    this.legacyAccent = false
+    this.persist('themeSet', value)
+    this.publish()
+  }
+
+  /**
+   * Persist the sidebar menu glide duration.
+   * @param value - The selected duration in milliseconds.
+   */
+  setGlideDuration(value: GlideDuration): void {
+    if (!GLIDE_DURATIONS.includes(value)) throw new Error(`unsupported glide duration ${value}`)
+    if (this.glideDuration === value) return
+    this.glideDuration = value
+    this.persist('glideDuration', value)
+    this.publish()
+  }
+
+  /** Restore appearance defaults with one durable settings revision. */
+  resetAppearance(): void {
+    this.preference = DEFAULT_PREFERENCE
+    this.themeSet = DEFAULT_THEME_SET
+    this.themeSetExplicit = true
+    this.legacyAccent = false
+    this.accent = DEFAULT_ACCENT
+    this.fontFamily = DEFAULT_FONT_FAMILY
+    this.corners = DEFAULT_CORNER_PRESET
+    this.fontSize = DEFAULT_FONT_SIZE
+    this.glideDuration = DEFAULT_GLIDE_DURATION
+    const values = {
+      preference: this.preference, themeSet: this.themeSet, accent: this.accent,
+      fontFamily: this.fontFamily, corners: this.corners, fontSize: this.fontSize,
+      glideDuration: this.glideDuration,
+    }
+    for (const [field, value] of Object.entries(values)) this.pendingValues.set(field, value)
+    void this.host.mutate([
+      { path: ['preference'], op: 'set', value: this.preference },
+      { path: ['themeSet'], op: 'set', value: this.themeSet },
+      { path: ['accent'], op: 'set', value: this.accent },
+      { path: ['fontFamily'], op: 'set', value: this.fontFamily },
+      { path: ['corners'], op: 'set', value: this.corners },
+      { path: ['fontSize'], op: 'set', value: this.fontSize },
+      { path: ['glideDuration'], op: 'set', value: this.glideDuration },
+    ]).then(
+      () => { this.settleWrites(values) },
+      () => { this.settleWrites(values) },
+    )
+    this.publish()
+  }
+
+  /**
+   * Set the application text family without changing code or brand text.
+   * @param value - The selected family.
+   */
+  setFontFamily(value: FontFamily): void {
+    if (this.fontFamily === value) return
+    this.fontFamily = value
+    this.persist('fontFamily', value)
+    this.publish()
+  }
+
+  /**
+   * Set the shared corner scale.
+   * @param value - The selected scale.
+   */
+  setCorners(value: CornerPreset): void {
+    if (this.corners === value) return
+    this.corners = value
+    this.persist('corners', value)
     this.publish()
   }
 
   /** Adopt the scope's accepted durable preference without writing it back. */
   private adopt(): void {
-    const section = this.host.getSnapshot().value
+    const form = this.host.getSnapshot()
+    const section = form.value
     if (section === undefined) return
-    if (this.preference === section.preference && this.fontSize === section.fontSize) return
-    this.preference = section.preference
-    this.fontSize = section.fontSize
+    const preference = this.pendingOr(THEME_PREFERENCE_FIELD, section.preference)
+    const fontSize = this.pendingOr(FONT_SIZE_FIELD, section.fontSize)
+    const accent = this.pendingOr('accent', section.accent)
+    const fontFamily = this.pendingOr('fontFamily', section.fontFamily)
+    const corners = this.pendingOr('corners', section.corners)
+    const glideDuration = this.pendingOr('glideDuration', section.glideDuration)
+    const userHasThemeSet = isOwnThemeSet(form.user)
+    if (userHasThemeSet) this.themeSetExplicit = true
+    const palette = this.themeSetExplicit
+      ? { themeSet: this.pendingOr('themeSet', section.themeSet), legacyAccent: false }
+      : resolveThemeSet(section.themeSet, form.user)
+    if (this.preference === preference && this.fontSize === fontSize
+      && this.accent === accent && this.fontFamily === fontFamily
+      && this.corners === corners && this.themeSet === palette.themeSet
+      && this.legacyAccent === palette.legacyAccent
+      && this.glideDuration === glideDuration) return
+    this.preference = preference
+    this.fontSize = fontSize
+    this.accent = accent
+    this.themeSet = palette.themeSet
+    this.legacyAccent = palette.legacyAccent
+    this.glideDuration = glideDuration
+    this.fontFamily = fontFamily
+    this.corners = corners
     this.publish()
+  }
+
+  /** Queue one durable value and keep it visible while an older snapshot is in flight. */
+  private persist(field: string, value: unknown): void {
+    this.pendingValues.set(field, value)
+    void this.host.set(field, value).then(
+      () => { this.settleWrites({ [field]: value }) },
+      () => { this.settleWrites({ [field]: value }) },
+    )
+  }
+
+  /** Drop only the writes this completion still owns, then reconcile Host state. */
+  private settleWrites(values: Record<string, unknown>): void {
+    for (const [field, value] of Object.entries(values)) {
+      if (this.pendingValues.get(field) === value) this.pendingValues.delete(field)
+    }
+    this.adopt()
+  }
+
+  /** Read an optimistic value for one field, or the latest Host value. */
+  private pendingOr<T>(field: string, value: T): T {
+    return this.pendingValues.has(field) ? this.pendingValues.get(field) as T : value
   }
 
   /**
@@ -329,6 +487,12 @@ export class ThemeRuntime {
     return Object.freeze({
       preference: this.preference,
       fontSize: this.fontSize,
+      accent: this.accent,
+      themeSet: this.themeSet,
+      legacyAccent: this.legacyAccent,
+      glideDuration: this.glideDuration,
+      fontFamily: this.fontFamily,
+      corners: this.corners,
       active: this.composeActive(active),
       themes: Object.freeze([...this.themes]),
       revision: this.revision,
@@ -374,6 +538,26 @@ function bootstrapFontSize(): number {
   return Number.isInteger(parsed) && parsed >= FONT_SIZE_MIN && parsed <= FONT_SIZE_MAX
     ? parsed
     : DEFAULT_FONT_SIZE
+}
+
+/** Read a validated choice installed by the Host before the client activates. */
+function bootstrapChoice<T extends string>(key: string, choices: readonly T[], fallback: T): T {
+  if (typeof document === 'undefined') return fallback
+  const raw = document.body.dataset[key]
+  return choices.find(choice => choice === raw) ?? fallback
+}
+
+/** Read the bootstrapped menu animation speed before the Host section arrives. */
+function bootstrapNumberChoice<T extends number>(key: string, choices: readonly T[], fallback: T): T {
+  if (typeof document === 'undefined') return fallback
+  const value = Number(document.body.dataset[key])
+  return choices.find(choice => choice === value) ?? fallback
+}
+
+/** Check raw settings field presence without confusing schema defaults for a user choice. */
+function isOwnThemeSet(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    && Object.hasOwn(value, 'themeSet')
 }
 
 /**
@@ -434,46 +618,41 @@ export function apply(ctx: ClientContext): void {
 
   ctx.effect(() => ctx.locale.register(SETTINGS_NS, { zh, en }), 'ui-theme: settings row dictionaries')
 
-  const store = createAppearanceRowStore()
+  const store = createThemePageStore()
   let bound: BoundActions<typeof store> | undefined
-  const fontSizeStore = createFontSizeRowStore()
-  let fontSizeBound: BoundActions<typeof fontSizeStore> | undefined
   const sync = (snapshot: ThemeSnapshot): void => {
-    bound?.sync(snapshot.preference, snapshot.revision)
-    fontSizeBound?.sync(snapshot.fontSize, snapshot.revision)
+    bound?.sync({
+      preference: snapshot.preference, accent: snapshot.accent,
+      themeSet: snapshot.themeSet, legacyAccent: snapshot.legacyAccent,
+      glideDuration: snapshot.glideDuration,
+      fontFamily: snapshot.fontFamily, corners: snapshot.corners,
+      fontSize: snapshot.fontSize, revision: snapshot.revision,
+    })
   }
   ctx.on('theme/change', sync)
-  const injected = (actions: BoundActions<typeof store>): AppearanceRowInjected => {
+  const injected = (actions: BoundActions<typeof store>): ThemeSettingsPageInjected => {
     bound = actions
     // Re-sync from the getter so no event is lost between registration and
     // first render (the store's revision guard drops stale duplicates).
     sync(theme.getTheme())
     return {
       setTheme: (id) => { theme.setTheme(id) },
+      setAccent: (value) => { theme.setAccent(value) },
+      setThemeSet: (value) => { theme.setThemeSet(value) },
+      setGlideDuration: (value) => { theme.setGlideDuration(value) },
+      resetAppearance: () => { theme.resetAppearance() },
+      setFontFamily: (value) => { theme.setFontFamily(value) },
+      setCorners: (value) => { theme.setCorners(value) },
+      setFontSize: (value) => { theme.setFontSize(value) },
     }
   }
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'appearance',
-    order: 10,
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'appearance-theme',
+    order: 5,
+    label: () => ctx.locale.bind(SETTINGS_NS)('page.title'),
     store,
     locale: SETTINGS_NS,
     inject: injected,
-  }, AppearanceRow))
-
-  const fontSizeInjected = (actions: BoundActions<typeof fontSizeStore>): FontSizeRowInjected => {
-    fontSizeBound = actions
-    sync(theme.getTheme())
-    return {
-      setFontSize: (px) => { theme.setFontSize(px) },
-    }
-  }
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'font-size',
-    order: 11,
-    store: fontSizeStore,
-    locale: SETTINGS_NS,
-    inject: fontSizeInjected,
-  }, FontSizeRow))
+  }, ThemeSettingsPage))
 }

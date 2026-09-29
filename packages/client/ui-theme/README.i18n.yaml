@@ -3,41 +3,41 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-theme/README.md
 /:
-  en: 1f98ae39f4e5a3a1
-  zh: d83f563eb12a023d
+  en: d408cd49e89a913e
+  zh: 0a6e11900df98c5f
 /deepseek-ai-dsh-client-ui-theme:
   en: 06c7d7624947a72a
   zh: ac4ca82984564825
 /deepseek-ai-dsh-client-ui-theme/summary:
-  en: c2a579fd56c0c4e2
-  zh: f1842fbb209f876c
+  en: 2253bc679ea172cd
+  zh: b1bed7fec3439bb5
 /deepseek-ai-dsh-client-ui-theme/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
 /deepseek-ai-dsh-client-ui-theme/use-this-package:
-  en: 5d64b3d918d5edfa
-  zh: fc929354a0faf33a
-/deepseek-ai-dsh-client-ui-theme/use-this-package/appearance-and-font-size:
-  en: 0b0177e1afefe4a7
-  zh: 52d88f12a8369ee8
+  en: 4f5444970290e24c
+  zh: 32007608c71ecd01
+/deepseek-ai-dsh-client-ui-theme/use-this-package/appearance-choices:
+  en: 211f0f538f4085ba
+  zh: ecfafbfaeb82a706
 /deepseek-ai-dsh-client-ui-theme/use-this-package/registering-a-theme:
   en: 2cd32ccaba33b3e9
   zh: 53ea78d19929ea02
 /deepseek-ai-dsh-client-ui-theme/use-this-package/pre-plugin-palette:
-  en: 54296471349d9f77
-  zh: 8ca162b7b57b822e
+  en: 11010140f2194a94
+  zh: 5a98e84df91edfbb
 /deepseek-ai-dsh-client-ui-theme/understand-the-implementation:
-  en: 3c6f9014ac56b643
-  zh: c9a0d6a750e4a70f
+  en: 09d6154fb8f5841f
+  zh: 62152862aa6d0465
 /deepseek-ai-dsh-client-ui-theme/understand-the-implementation/stylesheets:
-  en: 562e4e9fb1280fc5
-  zh: ab25ef2fc677f259
+  en: 8d49f47db897d33d
+  zh: c8fe090b5b9d0d1b
 /deepseek-ai-dsh-client-ui-theme/understand-the-implementation/scrollbar-rebinding:
   en: bf76e7c34a331595
   zh: 5accd0260ef7c61e
 /deepseek-ai-dsh-client-ui-theme/understand-the-implementation/preference-persistence:
-  en: 2d3e5c0ef3f40ffa
-  zh: d1bc9a86f68ec84b
+  en: 1778d7f8a6d4a7a8
+  zh: 65d005c63e207864
 /deepseek-ai-dsh-client-ui-theme/further-exploration:
   en: fb1b98ad71d7d9c2
   zh: c7fa18ab56739e0c

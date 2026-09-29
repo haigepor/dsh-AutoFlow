@@ -1,0 +1,122 @@
+/* User-selected values override the base palette and shared geometry only. */
+body[data-ds-font-family='inter'] {
+  --dsw-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+body[data-ds-font-family='noto-sans-sc'] {
+  --dsw-font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+}
+
+body[data-ds-font-family='source-sans-3'] {
+  --dsw-font-family: 'Source Sans 3', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+body[data-ds-font-family='ibm-plex-serif'] {
+  --dsw-font-family: 'IBM Plex Serif', 'Songti SC', 'SimSun', serif;
+}
+
+body[data-ds-font-family='jetbrains-mono'] {
+  --dsw-font-family: 'JetBrains Mono', 'PingFang SC', 'Microsoft YaHei', monospace;
+}
+
+body[data-ds-font-family='ibm-plex-sans-condensed'] {
+  --dsw-font-family: 'IBM Plex Sans Condensed', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+body[data-ds-corners='0'] {
+  --dsw-radius-xs: 0px;
+  --dsw-radius-sm: 0px;
+  --dsw-radius-md: 0px;
+  --dsw-radius-lg: 0px;
+  --dsw-radius-xl: 0px;
+  --dsw-radius-panel: 0px;
+}
+
+body:is([data-ds-corners='0.25'], [data-ds-corners='compact']) {
+  --dsw-radius-xs: 2px;
+  --dsw-radius-sm: 4px;
+  --dsw-radius-md: 7px;
+  --dsw-radius-lg: 10px;
+  --dsw-radius-xl: 14px;
+  --dsw-radius-panel: 20px;
+}
+
+body[data-ds-corners='0.5'] {
+  --dsw-radius-xs: 3px;
+  --dsw-radius-sm: 6px;
+  --dsw-radius-md: 9px;
+  --dsw-radius-lg: 13px;
+  --dsw-radius-xl: 17px;
+  --dsw-radius-panel: 24px;
+}
+
+body:is([data-ds-corners='1'], [data-ds-corners='soft']) {
+  --dsw-radius-xs: 6px;
+  --dsw-radius-sm: 12px;
+  --dsw-radius-md: 16px;
+  --dsw-radius-lg: 22px;
+  --dsw-radius-xl: 28px;
+  --dsw-radius-panel: 36px;
+}
+
+body[data-ds-legacy-accent='true'][data-ds-accent='ocean'] {
+  --dsw-alias-state-business-primary: #2767A8;
+  --dsw-alias-state-business-tertiary: #E8F2FA;
+  --dsw-alias-button-info-fill: #2767A8;
+  --dsw-alias-button-info-hover: #1E568F;
+  --dsw-alias-link: #2767A8;
+  --dsw-alias-label-deep-diving: #2767A8;
+  --dsw-alias-interactive-bg-hover-accent: rgb(39 103 168 / 13%);
+}
+
+body[data-ds-dark-theme][data-ds-legacy-accent='true'][data-ds-accent='ocean'] {
+  --dsw-alias-state-business-primary: #8FC4F8;
+  --dsw-alias-state-business-tertiary: #23364A;
+  --dsw-alias-button-info-fill: #437DB4;
+  --dsw-alias-button-info-hover: #5294D0;
+  --dsw-alias-link: #8FC4F8;
+  --dsw-alias-label-deep-diving: #8FC4F8;
+  --dsw-alias-interactive-bg-hover-accent: rgb(143 196 248 / 14%);
+}
+
+body[data-ds-legacy-accent='true'][data-ds-accent='forest'] {
+  --dsw-alias-state-business-primary: #23775C;
+  --dsw-alias-state-business-tertiary: #E6F3EC;
+  --dsw-alias-button-info-fill: #23775C;
+  --dsw-alias-button-info-hover: #1A614A;
+  --dsw-alias-link: #23775C;
+  --dsw-alias-label-deep-diving: #23775C;
+  --dsw-alias-interactive-bg-hover-accent: rgb(35 119 92 / 13%);
+}
+
+body[data-ds-dark-theme][data-ds-legacy-accent='true'][data-ds-accent='forest'] {
+  --dsw-alias-state-business-primary: #8ED9B6;
+  --dsw-alias-state-business-tertiary: #223C32;
+  --dsw-alias-button-info-fill: #30785A;
+  --dsw-alias-button-info-hover: #3C906D;
+  --dsw-alias-link: #8ED9B6;
+  --dsw-alias-label-deep-diving: #8ED9B6;
+  --dsw-alias-interactive-bg-hover-accent: rgb(142 217 182 / 14%);
+}
+
+body[data-ds-legacy-accent='true'][data-ds-accent='coral'] {
+  --dsw-alias-state-business-primary: #AD5944;
+  --dsw-alias-state-business-tertiary: #F8EBE5;
+  --dsw-alias-button-info-fill: #AD5944;
+  --dsw-alias-button-info-hover: #914633;
+  --dsw-alias-link: #AD5944;
+  --dsw-alias-label-deep-diving: #AD5944;
+  --dsw-alias-interactive-bg-hover-accent: rgb(173 89 68 / 13%);
+}
+
+body[data-ds-dark-theme][data-ds-legacy-accent='true'][data-ds-accent='coral'] {
+  --dsw-alias-state-business-primary: #F0AE99;
+  --dsw-alias-state-business-tertiary: #49312D;
+  --dsw-alias-button-info-fill: #A95743;
+  --dsw-alias-button-info-hover: #C96A52;
+  --dsw-alias-link: #F0AE99;
+  --dsw-alias-label-deep-diving: #F0AE99;
+  --dsw-alias-interactive-bg-hover-accent: rgb(240 174 153 / 14%);
+}

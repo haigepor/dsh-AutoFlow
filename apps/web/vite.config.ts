@@ -39,6 +39,12 @@ function brandFontLicense(): Plugin {
         fileName: 'assets/fonts/Montserrat-OFL.txt',
         source: await readFile(src('../../packages/client/ui-theme/src/styles/Montserrat-OFL.txt')),
       })
+      for (const name of ['Inter-OFL.txt', 'NotoSansSC-OFL.txt']) {
+        this.emitFile({
+          type: 'asset', fileName: `assets/fonts/${name}`,
+          source: await readFile(src(`../../packages/client/ui-theme/src/styles/${name}`)),
+        })
+      }
     },
   }
 }

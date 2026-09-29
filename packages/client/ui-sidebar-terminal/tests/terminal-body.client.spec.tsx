@@ -72,7 +72,9 @@ const titleSurfaces = [
 function mount(initial: TerminalViewState | undefined = idle, dictionary = en) {
   let state: TerminalViewState | undefined = initial
   let visible = true
-  let theme: ThemeSnapshot = { preference: 'light', fontSize: 14, active: { id: 'light', colorScheme: 'light', tokens: {} }, themes: [], revision: 0 }
+  let theme: ThemeSnapshot = { preference: 'light', fontSize: 14, accent: 'iris', themeSet: 'official', legacyAccent: false,
+    glideDuration: 220, fontFamily: 'system', corners: 'standard',
+    active: { id: 'light', colorScheme: 'light', tokens: {} }, themes: [], revision: 0 }
   const detach = vi.fn()
   const model = {
     mount: vi.fn(() => detach), refresh: vi.fn(async () => {}),

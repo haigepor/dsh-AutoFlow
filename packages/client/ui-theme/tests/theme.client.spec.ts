@@ -9,6 +9,8 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
 
+const VISUAL = { accent: 'iris', themeSet: 'official', glideDuration: 220, fontFamily: 'system', corners: 'standard' } as const
+
 const make = (host = stubConfigForm<ThemeSettings>()): {
   ctx: Context
   theme: ThemeRuntime
@@ -68,7 +70,7 @@ describe('ThemeRuntime', () => {
 
   it('adopts a published Host font size without writing it back', () => {
     const { theme, events, host } = make()
-    host.publish({ status: 'ready', value: { preference: 'system', fontSize: 12 }, revision: 1, writable: true })
+    host.publish({ status: 'ready', value: { ...VISUAL, preference: 'system', fontSize: 12 }, revision: 1, writable: true })
     expect(theme.getTheme().fontSize).toBe(12)
     expect(events).toHaveLength(1)
     expect(host.set).not.toHaveBeenCalled()
@@ -90,19 +92,79 @@ describe('ThemeRuntime', () => {
     expect(host.set).toHaveBeenCalledOnce()
   })
 
+  it('persists accent, font, and corners and republishes one snapshot per change', () => {
+    const { theme, events, host } = make()
+    theme.setAccent('ocean')
+    theme.setFontFamily('inter')
+    theme.setCorners('soft')
+    expect(theme.getTheme()).toMatchObject({ accent: 'ocean', fontFamily: 'inter', corners: 'soft' })
+    expect(host.set).toHaveBeenCalledWith('accent', 'ocean')
+    expect(host.set).toHaveBeenCalledWith('fontFamily', 'inter')
+    expect(host.set).toHaveBeenCalledWith('corners', 'soft')
+    expect(events).toHaveLength(3)
+    theme.setAccent('ocean')
+    expect(events).toHaveLength(3)
+  })
+
+  it('uses the current palette only for a legacy user layer, then persists an explicit palette', () => {
+    const { theme, host } = make()
+    host.publish({ status: 'ready', value: { ...VISUAL, preference: 'system', fontSize: 14 }, user: { accent: 'ocean' }, revision: 1, writable: true })
+    expect(theme.getTheme()).toMatchObject({ themeSet: 'current', legacyAccent: true })
+    theme.setThemeSet('official')
+    expect(host.set).toHaveBeenCalledWith('themeSet', 'official')
+    expect(theme.getTheme()).toMatchObject({ themeSet: 'official', legacyAccent: false })
+  })
+
+  it('keeps an explicit palette while a stale legacy settings response arrives', () => {
+    const { theme, host } = make()
+    host.publish({ status: 'ready', value: { ...VISUAL, preference: 'system', fontSize: 14 }, user: { accent: 'ocean' }, revision: 1, writable: true })
+    theme.setThemeSet('official')
+    host.publish({ value: { ...VISUAL, preference: 'system', fontSize: 14 }, user: { accent: 'ocean' }, revision: 2 })
+    expect(theme.getTheme()).toMatchObject({ themeSet: 'official', legacyAccent: false })
+  })
+
+  it('keeps font and corners through a stale Host snapshot while their writes are pending', () => {
+    const { theme, host } = make()
+    theme.setFontFamily('jetbrains-mono')
+    theme.setCorners('1')
+    host.publish({ status: 'ready', value: { ...VISUAL, preference: 'system', fontSize: 14 }, revision: 1, writable: true })
+    expect(theme.getTheme()).toMatchObject({ fontFamily: 'jetbrains-mono', corners: '1' })
+  })
+
+  it('persists the selected menu glide duration', () => {
+    const { theme, host } = make()
+    theme.setGlideDuration(400)
+    expect(theme.getTheme().glideDuration).toBe(400)
+    expect(host.set).toHaveBeenCalledWith('glideDuration', 400)
+  })
+
+  it('resets every appearance value in one settings mutation', () => {
+    const { theme, host } = make()
+    theme.setTheme('dark')
+    theme.setThemeSet('current')
+    theme.setFontFamily('jetbrains-mono')
+    theme.setCorners('1')
+    theme.setGlideDuration(400)
+    theme.resetAppearance()
+    expect(theme.getTheme()).toMatchObject({
+      preference: 'system', themeSet: 'official', fontFamily: 'system', corners: 'standard', glideDuration: 220,
+    })
+    expect(host.mutate).toHaveBeenCalledOnce()
+  })
+
   it('adopts a published Host section without writing it back', () => {
     const { theme, events, host } = make()
-    host.publish({ status: 'ready', value: { preference: 'dark', fontSize: 14 }, revision: 1, writable: true })
+    host.publish({ status: 'ready', value: { ...VISUAL, preference: 'dark', fontSize: 14 }, revision: 1, writable: true })
     expect(theme.getTheme().preference).toBe('dark')
     expect(events).toHaveLength(1)
     expect(host.set).not.toHaveBeenCalled()
-    host.publish({ value: { preference: 'dark', fontSize: 14 }, revision: 2 })
+    host.publish({ value: { ...VISUAL, preference: 'dark', fontSize: 14 }, revision: 2 })
     expect(events).toHaveLength(1)
   })
 
   it('adopts a section already standing at construction', () => {
     const host = stubConfigForm<ThemeSettings>()
-    host.publish({ status: 'ready', value: { preference: 'dark', fontSize: 14 }, revision: 1, writable: true })
+    host.publish({ status: 'ready', value: { ...VISUAL, preference: 'dark', fontSize: 14 }, revision: 1, writable: true })
     const { theme } = make(host)
     expect(theme.getTheme().preference).toBe('dark')
   })

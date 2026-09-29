@@ -15,7 +15,11 @@ function snapshot(
 ): ThemeSnapshot {
   // The presenter must key off colorScheme, not the id — keep them distinct.
   const active = { id: `${colorScheme}-test`, colorScheme, tokens }
-  return { preference, fontSize, active, themes: [active], revision: 1 }
+  return {
+    preference, fontSize, accent: 'iris', themeSet: 'official', legacyAccent: false,
+    glideDuration: 220, fontFamily: 'system', corners: 'standard',
+    active, themes: [active], revision: 1,
+  }
 }
 
 function clearThemePresentation(): void {
@@ -32,6 +36,9 @@ beforeEach(() => {
   document.documentElement.removeAttribute(THEME_SOURCE_ATTRIBUTE)
   document.body.removeAttribute(DARK_ATTRIBUTE)
   document.body.removeAttribute('style')
+  delete document.body.dataset.dsAccent
+  delete document.body.dataset.dsFontFamily
+  delete document.body.dataset.dsCorners
   const style = document.createElement('style')
   style.dataset.themePresenterTest = ''
   style.textContent = `
@@ -76,6 +83,18 @@ describe('ThemePresenter', () => {
     expect(document.body.style.getPropertyValue('--dsw-alias-bg')).toBe('#fff')
     // The old theme's extra variable is gone, not merged.
     expect(document.body.style.getPropertyValue('--dsw-alias-fg')).toBe('')
+  })
+
+  it('projects personalization choices and removes them on disposal', () => {
+    const presenter = new ThemePresenter()
+    presenter.apply({ ...snapshot('light'), accent: 'forest', fontFamily: 'inter', corners: 'soft' })
+    expect(document.body.dataset).toMatchObject({
+      dsAccent: 'forest', dsPalette: 'official', dsLegacyAccent: 'false', dsGlideDuration: '220', dsFontFamily: 'inter', dsCorners: 'soft',
+    })
+    presenter.dispose()
+    expect(document.body.dataset.dsAccent).toBeUndefined()
+    expect(document.body.dataset.dsFontFamily).toBeUndefined()
+    expect(document.body.dataset.dsCorners).toBeUndefined()
   })
 
   it('publishes the content font size and follows changes', () => {

@@ -389,6 +389,9 @@ body[data-ds-dark-theme] {
   --dsw-menu-surface-fill: rgba(39, 39, 37, 0.82);
   --dsw-menu-standalone-fill: rgba(39, 39, 37, 0.86);
   --dsw-specific-menu: rgba(39, 39, 37, 0.88);
+  --dsw-plugin-card-fill: var(--dsw-alias-bg-layer-1);
+  --dsw-plugin-card-backdrop-filter: none;
+  --dsw-plugin-card-shadow: 0 0 0 0.5px var(--dsw-alias-border-l3);
   --dsw-specific-dialog: rgba(39, 39, 37, 0.92);
   --dsw-specific-selector: #343431;
   --dsw-specific-sidebar-fill: #161615;
