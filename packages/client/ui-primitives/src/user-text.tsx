@@ -22,6 +22,8 @@ import markdownCss from './markdown/MarkdownText.module.css'
 
 /** The wire form a session chip serializes to; label is the display text. */
 const SESSION_WIRE_RE = /@\[([^\]\n]+)\]\(dsh-session:[^)\s]+\)/gu
+/** A selected plugin's stable package identity stays visible to the model and folds to its label in chat. */
+const PLUGIN_WIRE_RE = /@\[([^\]\n]+)\]\(dsh-plugin:[^)\s]+\)/gu
 
 /** Sentence punctuation a bare `@name` token may carry without being part of the reference. */
 const TRAILING_PUNCTUATION_RE = /[.,;:!?，。；：！？]+$/u
@@ -31,7 +33,7 @@ interface DecorationRange {
   readonly end: number
   /** Matched source text (hover title). */
   readonly label: string
-  readonly kind: 'session' | 'plain'
+  readonly kind: 'session' | 'plugin' | 'plain'
   /** Pre-resolved display text (wire folds); derived from label when absent. */
   readonly display?: string
 }
@@ -74,6 +76,11 @@ export function projectUserText(
       display: wire[1] as string, // non-optional capture in SESSION_WIRE_RE
     })
   }
+  PLUGIN_WIRE_RE.lastIndex = 0
+  while ((wire = PLUGIN_WIRE_RE.exec(text)) !== null) {
+    ranges.push({ start: wire.index, end: wire.index + wire[0].length,
+      label: wire[0], kind: 'plugin', display: wire[1] as string })
+  }
   for (const rawLabel of [...new Set(sessionLabels)].sort((a, b) => b.length - a.length)) {
     const label = `@${rawLabel}`
     let start = text.indexOf(label)
@@ -96,7 +103,7 @@ export function projectUserText(
     if (label.startsWith('/') && !slashNames.includes(label.slice(1))) continue
     ranges.push({ start: tokenStart, end: tokenStart + label.length, label, kind: 'plain' })
   }
-  const rankOf = (range: DecorationRange): number => range.kind === 'session' ? 0 : 1
+  const rankOf = (range: DecorationRange): number => range.kind === 'plain' ? 1 : 0
   ranges.sort((a, b) => a.start - b.start || rankOf(a) - rankOf(b) || b.end - a.end)
   const parts: ReactNode[] = []
   let cursor = 0
@@ -109,9 +116,11 @@ export function projectUserText(
     if (tokenStart > cursor) pushPlain(cursor, tokenStart)
     const referenceKind = kind === 'session'
       ? 'session'
-      : label.startsWith('@')
-        ? label.replace(/^@"|"$/gu, '').endsWith('/') ? 'folder' : 'file'
-        : undefined
+      : kind === 'plugin'
+        ? 'plugin'
+        : label.startsWith('@')
+          ? label.replace(/^@"|"$/gu, '').endsWith('/') ? 'folder' : 'file'
+          : undefined
     const displayLabel = range.display
       ?? (referenceKind === undefined
         ? label

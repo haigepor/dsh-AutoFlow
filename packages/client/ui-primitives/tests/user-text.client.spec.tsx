@@ -36,6 +36,14 @@ describe('projectUserText', () => {
     expect(host.textContent).toBe('看看 查看并分析图片 的结论')
   })
 
+  it('folds a plugin mention to a highlighted plugin label', () => {
+    const host = project('请用 @[Notes](dsh-plugin:@example/notes) 整理内容')
+    const chip = host.querySelector('[data-ref-chip="plugin"]')!
+    expect(chip.textContent).toBe('Notes')
+    expect(chip.querySelector('svg')).not.toBeNull()
+    expect(host.textContent).toBe('请用 Notes 整理内容')
+  })
+
   it('prefers the wire fold over the bare-token scan on the same range', () => {
     const host = project('@[a](dsh-session:x)', [])
     expect(host.querySelectorAll('[data-ref-chip]').length).toBe(1)

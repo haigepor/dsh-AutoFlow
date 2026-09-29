@@ -15,7 +15,9 @@ export interface ReferenceInsert {
   readonly source: string
   readonly ref: string
   readonly label: string
-  readonly appearance?: 'session' | 'file' | 'folder'
+  readonly appearance?: 'session' | 'file' | 'folder' | 'plugin'
+  /** Display-only artwork from the selected source; never sent to the model. */
+  readonly artwork?: string
   readonly clipboardText: string
 }
 
@@ -98,6 +100,8 @@ export interface Occurrence {
   readonly label: string
   /** Optional domain glyph (insert-time cache). */
   readonly appearance?: ReferenceInsert['appearance']
+  /** Display-only artwork cached with the chip. */
+  readonly artwork?: string
   /** Clipboard / persistence projection, e.g. `/name` (insert-time cache, never the model form). */
   readonly clipboardText: string
   /** Owner-resolution failure flag: the chip renders the failure treatment. */

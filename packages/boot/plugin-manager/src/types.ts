@@ -1,6 +1,6 @@
 /** Public plugin management records shared with clients. */
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { PluginLocalizedMeta } from '@deepseek-ai/dsh-package-manifest'
+import type { DshBundleExample, DshBundleFeature, PluginLocalizedMeta } from '@deepseek-ai/dsh-package-manifest'
 import type { PluginInventoryEntry } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type { PluginEntryId } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 import type { PluginEntryId } from '@deepseek-ai/dsh-host-plugin-inventory/types'
@@ -43,6 +43,12 @@ export interface BundleRowInfo {
   entryId?: PluginEntryId
 }
 
+/** One declared feature and its saved state in the current profile. */
+export interface BundleFeatureInfo extends DshBundleFeature {
+  /** Profile patch selection, independent of whether the bundle currently runs. */
+  enabled: boolean
+}
+
 /** One installed or installation-provided bundle. */
 export interface BundleInfo {
   name: string
@@ -65,6 +71,10 @@ export interface BundleInfo {
   error?: ManagementError
   /** The rows the bundle's patch inserts, in declaration order; empty when the patch cannot be read. */
   rows: BundleRowInfo[]
+  /** Optional feature choices available before the bundle is enabled. */
+  features?: BundleFeatureInfo[]
+  /** Optional prompts copied into a new Session's composer on request. */
+  examples?: DshBundleExample[]
   /** Ids of rows the bundle's patch changes without declaring them: the built-in rows it configures or disables. */
   overrides: string[]
 }

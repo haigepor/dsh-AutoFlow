@@ -177,10 +177,11 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
                         onMouseMove={active ? undefined : () => { onHover(group.source, index) }}
                       >
                         {item.icon !== undefined && (
-                          <span className={css.itemIcon} aria-hidden>
+                          <span className={css.itemIcon} aria-hidden
+                            style={item.iconSize === undefined ? undefined : { width: item.iconSize, height: item.iconSize }}>
                             {typeof item.icon === 'string'
-                              ? <ReferenceIconRegular kind={item.icon} size={14} />
-                              : <item.icon size={14} />}
+                              ? <ReferenceIconRegular kind={item.icon} size={item.iconSize ?? 14} />
+                              : <item.icon size={item.iconSize ?? 14} />}
                           </span>
                         )}
                         <span className={css.itemName}>{item.label ?? item.name}</span>

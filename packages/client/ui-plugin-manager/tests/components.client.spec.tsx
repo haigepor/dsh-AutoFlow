@@ -123,6 +123,8 @@ function renderTab(
     confirm: vi.fn(),
     cancelConfirm: vi.fn(),
     setRowEnabled: vi.fn(),
+    setFeature: vi.fn(),
+    openExample: vi.fn(),
     dismissNotice: vi.fn(),
   }
   const unusedStandardHook = (): never => { throw new Error('Plugin manager fixture does not provide global state') }
@@ -534,6 +536,45 @@ describe('PluginManagerPage', () => {
     const detailImage = document.querySelector<HTMLImageElement>('[data-plugin-row-detail] img')!
     expect(detailImage.getAttribute('src')).toBe(icon)
     expect(detailImage.width).toBe(36)
+  })
+
+  it('shows bundle feature switches while disabled and preserves the selected set', () => {
+    const bundle = pkg({ name: 'dsh-demo', enabled: false, meta: { description: 'An optional plugin bundle.' }, features: [
+      { id: 'prompt', rowId: 'prompt-row', kind: 'prompt', title: { en: 'Prompt', zh: '提示词' },
+        description: { en: 'Global instructions', zh: '全局提示词' }, defaultEnabled: false, enabled: true },
+      { id: 'skill', rowId: 'skill-row', kind: 'skill', title: { en: 'Skill', zh: '技能' },
+        description: { en: 'Example Skill', zh: '示例技能' }, defaultEnabled: false, enabled: false },
+      { id: 'execute', rowId: 'execute-row', kind: 'script', title: { en: 'Script', zh: '脚本' },
+        description: { en: 'Demo script', zh: '示例脚本' }, defaultEnabled: false, enabled: false },
+    ] })
+    const { actions, set } = renderTab({ packages: [bundle] })
+    fireEvent.click(screen.getByRole('button', { name: 'View dsh-demo' }))
+    expect(screen.getByText('An optional plugin bundle.')).toBeTruthy()
+    expect(document.querySelector('[class*="bundleHero"]')).toBeNull()
+    expect(screen.getByText(en.featureGroupPrompt)).toBeTruthy()
+    expect(screen.getByText(en.featureGroupSkill)).toBeTruthy()
+    expect(screen.getByText(en.featureGroupScript)).toBeTruthy()
+    expect(document.querySelector('[data-feature-group="skill"] [data-feature-kind="skill"] svg')).not.toBeNull()
+    expect(document.querySelector('[data-feature-group="script"] [data-feature-kind="script"] svg')).not.toBeNull()
+    expect(screen.getByRole('switch', { name: 'Enable feature Prompt' }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable feature Skill' }))
+    expect(actions.setFeature).toHaveBeenCalledExactlyOnceWith('dsh-demo', 'skill', true)
+    set({ packages: [bundle], busy: ['feature:dsh-demo:skill'] })
+    expect(screen.getByRole('switch', { name: 'Enable feature Skill' }).getAttribute('aria-busy')).toBe('true')
+    expect(screen.getByRole('switch', { name: 'Enable feature Prompt' }).getAttribute('aria-busy')).toBe('false')
+  })
+
+  it('shows localized example prompts in the image hero and requests an unsent new Session draft', () => {
+    const prompt = { en: 'Call the demo tool', zh: '调用示例工具' }
+    const { actions, setLanguage } = renderTab({ packages: [pkg({ examples: [{ id: 'tool', prompt }] })] })
+    fireEvent.click(screen.getByRole('button', { name: 'View dsh-better-sidebar' }))
+    const hero = document.querySelector<HTMLElement>('[class*="bundleHero"]')!
+    expect(hero.getAttribute('style')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: en.exampleOpen.replace('{prompt}', prompt.en) }))
+    expect(actions.openExample).toHaveBeenCalledExactlyOnceWith(prompt.en)
+    setLanguage(zh)
+    fireEvent.click(screen.getByRole('button', { name: zh.exampleOpen.replace('{prompt}', prompt.zh) }))
+    expect(actions.openExample).toHaveBeenLastCalledWith(prompt.zh)
   })
 
   it('shows metadata diagnostics without blocking management or displaying legacy descriptions', () => {
@@ -1041,7 +1082,6 @@ describe('PluginManagerPage', () => {
       registry: { kind: 'custom', url: 'https://npm.corp.example/' },
     }
     const enter = (field: HTMLElement) => {
-      // oxlint-disable-next-line typescript/no-deprecated -- Exercise native Enter's legacy keyCode in the IME regression.
       const event = new KeyboardEvent('keydown', { key: 'Enter', isComposing: false, keyCode: 13, bubbles: true, cancelable: true })
       fireEvent(field, event)
       expect(event.defaultPrevented).toBe(false)
@@ -1114,7 +1154,6 @@ describe('PluginManagerPage', () => {
       const field = screen.getByRole('textbox', { name: input === 'package' ? en.installSpecLabel : en.registryCustom })
       fireEvent.compositionStart(field)
       if (!isComposing) fireEvent.compositionEnd(field)
-      // oxlint-disable-next-line typescript/no-deprecated -- Exercise the legacy IME signal when isComposing is false.
       const confirm = new KeyboardEvent('keydown', { key: 'Enter', isComposing, keyCode, bubbles: true, cancelable: true })
       fireEvent(field, confirm)
       expect(actions.runInstall).not.toHaveBeenCalled()
@@ -1251,6 +1290,7 @@ describe('PluginManagerPage', () => {
   it('offers to enable what a finished install added, and says when it waits for a restart', () => {
     const subject = { spec: '/plugins/dsh-x', status: 'accepted', kind: 'path', name: 'dsh-x', bundle: true, registry: null } as const
     const { actions, set } = renderTab({
+      packages: [pkg({ name: 'dsh-x' })],
       install: {
         ...IDLE_INSTALL,
         open: true,
@@ -1261,10 +1301,11 @@ describe('PluginManagerPage', () => {
         installed: 'dsh-x',
       },
     })
-    expect(screen.getByText(en.installedTitle)).toBeTruthy()
-    expect(screen.getByText(en.installedTitle).parentElement?.querySelector('[data-state="done"]')).not.toBeNull()
+    const finishedTitle = screen.getAllByText(en.installedTitle).find(element => element.tagName === 'H2')!
+    expect(finishedTitle).toBeTruthy()
+    expect(finishedTitle.parentElement?.querySelector('[data-state="done"]')).not.toBeNull()
     // A path without a description reads by its kind.
-    expect(screen.getByText('dsh-x')).toBeTruthy()
+    expect(screen.getAllByText('dsh-x').length).toBeGreaterThan(0)
     expect(screen.getByText(en.installSubjectPath)).toBeTruthy()
     expect(screen.queryByText(en.installDoneRestart)).toBeNull()
     // No way back to the spec from here; enabling is the one action.

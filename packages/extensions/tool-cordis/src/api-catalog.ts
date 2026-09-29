@@ -1683,6 +1683,24 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Persisted and runtime outcomes.',
       },
       {
+        signature: '@Remote setBundleFeatures(name: string, enabledFeatureIds: string[], activate: boolean): Promise<ChangeResult>',
+        description: 'Persist all declared feature choices together, optionally selecting the bundle.',
+        parameters: [{ name: 'name', description: 'Bundle package name.' }, { name: 'enabledFeatureIds', description: 'Complete set of selected feature IDs.' }, { name: 'activate', description: 'Whether to select the bundle in the same update.' }],
+        returns: 'Persisted and runtime outcomes.',
+      },
+      {
+        signature: 'registerAction(packageName: string, id: string, run: (input: Record<string, string>, signal: AbortSignal) => Promise<string>): () => void',
+        description: 'Register a live Host operation shared by a bundle\'s Client UI and Agent tool.',
+        parameters: [{ name: 'packageName', description: 'Owning bundle package name.' }, { name: 'id', description: 'Operation ID within the bundle.' }, { name: 'run', description: 'Handler for validated text input and cancellation.' }],
+        returns: 'Disposer that removes this registration.',
+      },
+      {
+        signature: '@Remote async invokeAction(packageName: string, id: string, input: Record<string, string>, signal: AbortSignal): Promise<{ output: string }>',
+        description: 'Invoke a registered operation through the generated plugin-manager Remote.',
+        parameters: [{ name: 'packageName', description: 'Owning bundle package name.' }, { name: 'id', description: 'Operation ID within the bundle.' }, { name: 'input', description: 'Text fields supplied by the caller.' }, { name: 'signal', description: 'Cancellation signal.' }],
+        returns: 'Bounded text output.',
+      },
+      {
         signature: '@Remote installBundle(spec: string, options?: InstallBundleOptions): Promise<ChangeResult>',
         description: 'Install a package using the same pnpm implementation as dsh plugin. GitHub repositories get a connection check bounded by githubConnectionTimeoutMs before pnpm starts; only network failures or timeouts stop installation, while pnpm owns authentication and transport fallback. A run that fails, is cancelled, or adds a package without a bundle patch restores `package.json` and `pnpm-lock.yaml` as they were; downloaded files can stay.',
         parameters: [{ name: 'spec', description: 'One package spec, including local paths relative to the invocation directory.' }, { name: 'options', description: 'Whether to activate the installed bundle (defaults to true), the request id a cancellation names, the pending build scripts to allow for this profile before pnpm runs, and the registry asked first.' }],
@@ -4680,8 +4698,12 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type BrowserUseProviderName = Branded<\'BrowserUseProviderName\'>;',
   },
   {
+    name: 'BundleFeatureInfo',
+    declaration: 'export interface BundleFeatureInfo extends DshBundleFeature {\n    enabled: boolean;\n}',
+  },
+  {
     name: 'BundleInfo',
-    declaration: 'export interface BundleInfo {\n    name: string;\n    version?: string;\n    meta?: PluginLocalizedMeta;\n    description?: string;\n    enabled: boolean;\n    installed: boolean;\n    optional: boolean;\n    removable: boolean;\n    readOnlyReason?: ReadOnlyReason;\n    error?: ManagementError;\n    rows: BundleRowInfo[];\n    overrides: string[];\n}',
+    declaration: 'export interface BundleInfo {\n    name: string;\n    version?: string;\n    meta?: PluginLocalizedMeta;\n    description?: string;\n    enabled: boolean;\n    installed: boolean;\n    optional: boolean;\n    removable: boolean;\n    readOnlyReason?: ReadOnlyReason;\n    error?: ManagementError;\n    rows: BundleRowInfo[];\n    features?: BundleFeatureInfo[];\n    examples?: DshBundleExample[];\n    overrides: string[];\n}',
   },
   {
     name: 'BundleRowInfo',
@@ -5086,6 +5108,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'DomainTableSpec',
     declaration: 'export interface DomainTableSpec<K extends string = string, V = unknown> {\n    readonly valueSchema: ZodType<V>;\n    readonly __key?: K;\n}',
+  },
+  {
+    name: 'DshBundleExample',
+    declaration: 'export interface DshBundleExample {\n    id: string;\n    prompt: LocalizedText;\n}',
+  },
+  {
+    name: 'DshBundleFeature',
+    declaration: 'export interface DshBundleFeature {\n    id: string;\n    rowId: string;\n    title: LocalizedText;\n    description: LocalizedText;\n    kind?: DshBundleFeatureKind;\n    defaultEnabled: boolean;\n}',
+  },
+  {
+    name: 'DshBundleFeatureKind',
+    declaration: 'export type DshBundleFeatureKind = \'prompt\' | \'skill\' | \'script\' | \'ui\' | \'other\';',
   },
   {
     name: 'DshEnvironment',

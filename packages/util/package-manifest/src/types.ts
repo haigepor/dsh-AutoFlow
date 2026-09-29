@@ -69,6 +69,37 @@ export interface DshEnginesManifest {
 export interface DshBundleManifest {
   /** One patch file path, or an ordered list applied in sequence, each relative to the declaring package root. */
   patch: string | string[]
+  /** Optional independently switchable rows shown during installation and on the bundle page. */
+  features?: DshBundleFeature[]
+  /** Optional example prompts displayed in the bundle detail hero. */
+  examples?: DshBundleExample[]
+}
+
+/** One unsent prompt offered to help try a bundle in a new Session. */
+export interface DshBundleExample {
+  /** Stable identifier within the package. */
+  id: string
+  /** Prompt copied into the new Session's composer without submitting it. */
+  prompt: LocalizedText
+}
+
+/** The user-facing capability a bundle feature contributes. */
+export type DshBundleFeatureKind = 'prompt' | 'skill' | 'script' | 'ui' | 'other'
+
+/** One bundle-owned row with a profile-specific desired state. */
+export interface DshBundleFeature {
+  /** Stable feature identifier within the package. */
+  id: string
+  /** Id of a row inserted by this bundle's patch. */
+  rowId: string
+  /** Text displayed before the bundle's Client half has loaded. */
+  title: LocalizedText
+  /** Explanation displayed beside the feature switch. */
+  description: LocalizedText
+  /** Optional display category; omitted legacy features retain the flat list. */
+  kind?: DshBundleFeatureKind
+  /** Initial state for a profile without an override. */
+  defaultEnabled: boolean
 }
 
 /** The bundle composition declared by a profile directory. */

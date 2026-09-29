@@ -184,21 +184,22 @@
   .cards {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    /* Each card extends 8px beyond its track; 26px leaves a visible 10px gap. */
-    column-gap: 26px;
+    /* Each row extends 8px beyond its track; 48px leaves 32px of visible space. */
+    column-gap: 48px;
   }
 }
 
 .card {
   min-width: 0;
   /* The hover surface reaches 8px past the content on both sides while the
-     row's content stays aligned with the page header. */
+     row's content stays aligned with the page header. It remains unpainted
+     at rest, so the plugin list reads as rows instead of a field of cards. */
   margin: 0 -8px;
   border: 0;
   border-radius: 12px;
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
-  box-shadow: var(--dsw-elevation-panel);
+  background: transparent;
+  box-shadow: none;
+  transition: background-color 150ms var(--ds-ease-in-out);
   /* The page itself scrolls on the base surface. Anything that scrolls inside
      a card draws the l2 thumb (ui-theme styles/scrollbar.css rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
@@ -1142,6 +1143,127 @@ label.registryOption {
   container: plugin-detail / inline-size;
 }
 
+.bundleDetail {
+  max-width: 780px;
+}
+
+.bundleDetail .detailHead {
+  margin-top: 20px;
+}
+
+.bundleDetail .detailMain {
+  margin-top: 16px;
+}
+
+.bundleHero {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 292px;
+  margin-top: 26px;
+  padding: 28px;
+  overflow: hidden;
+  border-radius: var(--dsw-radius-lg);
+  background-color: #101d3c;
+  background-image: url('/assets/plugin-bundle-hero.jpg');
+  background-position: center;
+  background-size: cover;
+}
+
+.bundleExamples {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+}
+
+.bundleExample {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: min(100%, 610px);
+  padding: 9px 10px 9px 13px;
+  border: 1px solid rgb(255 255 255 / 23%);
+  border-radius: 16px;
+  background: rgb(17 17 23 / 43%);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%), inset 0 1px rgb(255 255 255 / 13%);
+  color: #fff;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bundleExample:hover {
+  border-color: rgb(255 255 255 / 34%);
+  background: rgb(17 17 23 / 54%);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .bundleExample,
+  .bundleExample:hover { background: #111117; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .bundleExample,
+  .bundleExample:hover {
+    background: #111117;
+    backdrop-filter: none;
+  }
+}
+
+.bundleExample:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, #fff);
+  outline-offset: 2px;
+}
+
+.bundleExampleIdentity {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  color: #d9b9ff;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.bundleExampleIdentity img {
+  object-fit: contain;
+}
+
+.bundleExamplePrompt {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.bundleExampleArrow {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 12%);
+}
+
+.bundleDescription {
+  margin: 0;
+  padding-top: 24px;
+  font-size: 14px;
+  line-height: 23px;
+  color: var(--dsw-alias-label-primary);
+}
+
 /* The head row every detail view shares: the crumb over the artwork.
    It carries the same top clearance as .pageHead — the crumb is the detail
    views' leading content and otherwise lands under the traffic lights — and the
@@ -1285,6 +1407,130 @@ label.registryOption {
   color: var(--dsw-alias-label-secondary);
 }
 
+.featureHint {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.featureList {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.featureGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.featureGroup + .featureGroup {
+  margin-top: 10px;
+}
+
+.featureGroupHead {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 4px 2px 0;
+}
+
+.featureGroupTitle {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.featureGroupCount {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.featureGroupItems {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 10px 2px;
+}
+
+.featureIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.featureItem[data-feature-kind='prompt'] .featureIcon {
+  color: var(--dsw-alias-brand-primary);
+}
+
+.featureItem[data-feature-kind='skill'] .featureIcon {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.featureItem[data-feature-kind='script'] .featureIcon {
+  color: var(--dsw-alias-state-success-secondary);
+}
+
+.featureItem[data-feature-kind='ui'] .featureIcon {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.featureText {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.featureText strong {
+  font-weight: 500;
+}
+
+.featureText span,
+.featureText small {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.installFeatures input {
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.installFeatures {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-sm);
+}
+
+.installFeatures p { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.installFeatures label { display: flex; align-items: center; gap: 8px; }
+
 .detailInformation {
   margin-top: 40px;
 }
@@ -1319,6 +1565,18 @@ label.registryOption {
 }
 
 @container plugin-detail (max-width: 520px) {
+  .bundleHero {
+    min-height: 252px;
+    padding: 18px;
+  }
+
+  .bundleExample {
+    width: 100%;
+  }
+
+  .bundleExampleIdentity {
+    display: none;
+  }
   .detailTitleLine {
     align-items: flex-start;
     flex-direction: column;

@@ -4,9 +4,10 @@ import type { IconProps } from './icons/props.ts'
 import {
   BrowseOutlineArtwork, ChatLinesOutlineArtwork, FolderCloseArtwork,
 } from './icons/shared-artwork.tsx'
+import { PluginArtworkDefault } from './plugin-artwork.tsx'
 
 /** Reference domains with distinct composer and transcript glyphs. */
-export type ReferenceIconKind = 'session' | 'file' | 'folder'
+export type ReferenceIconKind = 'session' | 'file' | 'folder' | 'plugin'
 
 /** Props shared by inline reference glyphs. */
 export interface ReferenceIconProps extends IconProps {
@@ -27,6 +28,7 @@ function ReferenceIconArtwork({ kind, size = 16, className, strokeWidth }: Weigh
     case 'session': return <ChatLinesOutlineArtwork size={size} className={className} strokeWidth={strokeWidth} />
     case 'file': return <BrowseOutlineArtwork size={size} className={className} strokeWidth={strokeWidth} />
     case 'folder': return <FolderCloseArtwork size={size} className={className} strokeWidth={strokeWidth} />
+    case 'plugin': return <PluginArtworkDefault size={size} className={className} />
   }
 }
 

@@ -8,7 +8,7 @@ import type { BundleInfo, ChangeResult, ManagementError, PluginEntryId, PluginIn
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ConfigLedger } from '../src/client/config-ledger.ts'
-import { offeredRegistries, packageView, PluginManagerController, rowKey, sortPackages } from '../src/client/manager-store.ts'
+import { featureKey, offeredRegistries, packageView, PluginManagerController, rowKey, sortPackages } from '../src/client/manager-store.ts'
 
 const INCOMPATIBLE = { name: 'dsh-late', version: '2.0.0', runtimeVersion: '0.1.0', peers: { '@deepseek-ai/dsh': '^0.2.0' } }
 const ROW_ENTRY = 'include:sidebar' as PluginEntryId
@@ -23,6 +23,13 @@ const BUNDLE: BundleInfo = {
   removable: true,
   rows: [{ rowId: 'sidebar', moduleName: 'dsh-better-sidebar', entryId: ROW_ENTRY }, { rowId: 'theme', moduleName: 'dsh-better-sidebar/theme' }],
   overrides: [],
+}
+
+const FEATURE_BUNDLE: BundleInfo = {
+  ...BUNDLE, name: 'dsh-demo', features: [{
+    id: 'prompt', rowId: 'prompt-row', title: { en: 'Prompt', zh: '提示词' },
+    description: { en: 'Enable instructions', zh: '启用提示词' }, defaultEnabled: false, enabled: false,
+  }],
 }
 
 const PLUGINS: PluginInfo[] = [
@@ -85,15 +92,21 @@ function bench(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}
     cancelInstall: vi.fn(() => Promise.resolve(ok({ status: 'cancelled' }))),
     removeBundle: vi.fn(() => Promise.resolve(ok(APPLIED))),
     setBundleEnabled: vi.fn(() => Promise.resolve(ok(APPLIED))),
+    setBundleFeatures: vi.fn(() => Promise.resolve(ok(APPLIED))),
     setPluginEnabled: vi.fn(() => Promise.resolve(ok(APPLIED))),
     ...overrides,
   }
   const probe = { fastest: overrides.fastest ?? vi.fn(() => Promise.resolve(ok(null))) }
   const track = vi.fn()
+  const setDraft = vi.fn()
+  const openNewSession = vi.fn(async (prepare: (sessionId: string) => void) => { prepare('example-session') })
   const ctx = {
     get: () => ({ enabled, track }),
     configForms: { describe: () => ({ getSnapshot: () => ({ view: { namespaces: [] } }), subscribe: () => () => {} }), get: vi.fn((id: string) => `form:${id}`) },
     remote: { pluginManager: plugins, pluginInventory: inventory, pluginRegistryProbe: probe },
+    uiWorkspace: { openNewSession },
+    sessions: { binding: () => ({ ctx: {} }) },
+    conversation: { input: { for: () => ({ setDraft }) } },
   } as never
   const controller = new PluginManagerController(ctx)
   onTestFinished(() => { controller.dispose() })
@@ -104,7 +117,7 @@ function bench(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}
     await vi.waitFor(() => { expect(state().install.phase).toBe('starting') })
     return state().install.requestId as PluginInstallRequestId
   }
-  return { plugins, inventory, probe, controller, face, state, started, track }
+  return { plugins, inventory, probe, controller, face, state, started, track, openNewSession, setDraft }
 }
 
 it('hands a custom page the shared configuration form of its entry', () => {
@@ -155,6 +168,21 @@ describe('sortPackages', () => {
 })
 
 describe('PluginManagerController', () => {
+  it('opens a new Session with an unsent example draft', async () => {
+    const { face, openNewSession, setDraft } = bench()
+    face.openExample('Try this operation')
+    await vi.waitFor(() => { expect(setDraft).toHaveBeenCalledExactlyOnceWith('Try this operation') })
+    expect(openNewSession).toHaveBeenCalledOnce()
+  })
+
+  it('reports an example Session creation failure once', async () => {
+    const { face, openNewSession, state, setDraft } = bench()
+    openNewSession.mockRejectedValueOnce(new Error('Failed to fetch'))
+    face.openExample('Try this operation')
+    await vi.waitFor(() => { expect(state().notice).toMatchObject({ kind: 'example-failed', reason: 'Failed to fetch' }) })
+    expect(setDraft).not.toHaveBeenCalled()
+  })
+
   it.each(['before', 'after'] as const)('closes immediately and retries an early cancellation when acceptance arrives %s its reply', async (order) => {
     const install = deferred<ReturnType<typeof ok<ChangeResult>>>()
     const firstCancel = deferred<ReturnType<typeof ok<{ status: 'not-running' }>>>()
@@ -1084,6 +1112,52 @@ describe('PluginManagerController', () => {
     await vi.waitFor(() => { expect(state().install.open).toBe(false) })
     expect(plugins.setBundleEnabled).toHaveBeenCalledTimes(2)
     expect(state().highlight).toBeNull()
+  })
+
+  it('saves feature choices in the detail page and applies install selections before activation', async () => {
+    const { plugins, face, controller } = bench({
+      listBundles: vi.fn(() => Promise.resolve(ok([FEATURE_BUNDLE]))),
+    })
+    await controller.load()
+    face.setFeature(FEATURE_BUNDLE.name, 'prompt', true)
+    await vi.waitFor(() => { expect(plugins.setBundleFeatures).toHaveBeenCalledWith(FEATURE_BUNDLE.name, ['prompt'], false) })
+    const installed = bench({
+      listBundles: vi.fn().mockResolvedValueOnce(ok([])).mockResolvedValue(ok([FEATURE_BUNDLE])),
+      installBundle: vi.fn(() => Promise.resolve(ok({ ...APPLIED, bundle: FEATURE_BUNDLE.name }))),
+    })
+    await installed.controller.load()
+    installed.face.openInstall()
+    installed.face.editInstallSpec(FEATURE_BUNDLE.name)
+    installed.face.runInstall()
+    await vi.waitFor(() => { expect(installed.state().install.phase).toBe('done') })
+    await vi.waitFor(() => { expect(installed.state().packages.some(pkg => pkg.name === FEATURE_BUNDLE.name)).toBe(true) })
+    installed.face.enableInstalled(['prompt'])
+    await vi.waitFor(() => { expect(installed.state().install.open).toBe(false) })
+    expect(installed.plugins.setBundleFeatures).toHaveBeenCalledWith(FEATURE_BUNDLE.name, ['prompt'], true)
+  })
+
+  it('serializes feature writes while marking only the switches that were clicked busy', async () => {
+    const skill = {
+      id: 'skill', rowId: 'skill-row', title: { en: 'Skill', zh: '技能' },
+      description: { en: 'Example skill', zh: '示例技能' }, defaultEnabled: false, enabled: false,
+    }
+    let bundle: BundleInfo = { ...FEATURE_BUNDLE, features: [...FEATURE_BUNDLE.features ?? [], skill] }
+    const first = deferred<ReturnType<typeof ok<ChangeResult>>>()
+    const { plugins, face, state, controller } = bench({
+      listBundles: vi.fn(() => Promise.resolve(ok([bundle]))),
+      setBundleFeatures: vi.fn((_name: string, ids: string[]) => {
+        bundle = { ...bundle, features: bundle.features!.map(feature => ({ ...feature, enabled: ids.includes(feature.id) })) }
+        return plugins.setBundleFeatures.mock.calls.length === 1 ? first.promise : Promise.resolve(ok(APPLIED))
+      }),
+    })
+    await controller.load()
+    face.setFeature(bundle.name, 'prompt', true)
+    face.setFeature(bundle.name, 'skill', true)
+    expect(state().busy).toEqual(expect.arrayContaining([featureKey(bundle.name, 'prompt'), featureKey(bundle.name, 'skill')]))
+    expect(plugins.setBundleFeatures).toHaveBeenCalledExactlyOnceWith(bundle.name, ['prompt'], false)
+    first.resolve(ok(APPLIED))
+    await vi.waitFor(() => { expect(plugins.setBundleFeatures).toHaveBeenLastCalledWith(bundle.name, ['prompt', 'skill'], false) })
+    await vi.waitFor(() => { expect(state().busy).toEqual([]) })
   })
 
   it.each([true, false])('offers the scripts a blocked run left pending, and retries with analytics enabled=%s', async (enabled) => {

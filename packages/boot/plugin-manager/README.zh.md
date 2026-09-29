@@ -43,6 +43,8 @@ kind: "package-reference"
 
 `listBundles` 为各组合包及其声明的插件行提供可选的展示 `meta`，包括已禁用的组合包。Client 从这些值中选择语言。单独的 `description` 字段是该组合包原始的 `package.json.description`；元信息诊断不会阻止管理操作。`plugin_manager` 工具的列表结果不包含 UI 展示元信息。
 
+组合包可声明 `dsh.bundle.features`，包含唯一功能与行 ID、本地化名称及描述、可选 `kind`（`prompt`、`skill`、`script`、`ui` 或 `other`），以及与插入行一致的默认状态。组合包关闭时，`listBundles` 仍报告各功能在当前 profile 中保存的选择。`setBundleFeatures` 一次更新所有选择，也可在同一操作中选中组合包；更新失败会恢复 manifest 和 patch。组合包还可声明最多六个 `dsh.bundle.examples`，每项有唯一 ID 和长度受限的本地化提示词；`listBundles` 把它们提供给 Client 的新会话操作。`registerAction` 持有 Host 操作直到 disposer 执行，`invokeAction` 为 Client UI 与 Agent 工具提供共用 Remote 入口并限制文本输出。可运行示例和共享 Home 的内容生命周期见[自定义组合包架构](../../../custom-plugins/architecture.md)。
+
 `inspect(spec, options)` 在任何东西安装之前读出 spec 指向什么：注册表包名通过 `pnpm view` 询问注册表，在 profile 目录中运行，因而与安装使用同样的代理与认证设置；绝对路径读取其 `package.json`；git 地址或 tarball 只答复自己的形式和它被拉取的 `host`。答复携带名称、版本、描述、该包是否声明组合包，以及作答的 `registry`，否则给出 `problem`：`invalid-spec`、`already-installed`、`not-found`、`not-a-package`、`not-a-bundle`、`network` 或 `unknown`，并附上问过的 `registries`。调用方的 `signal` 或 `inspectTimeoutMs` 会结束查询。
 
 `installBundle` 在启动 pnpm 前通过 `git ls-remote` 检查 GitHub 仓库，使用 profile 目录及安装器的 Git 与代理配置。`githubConnectionTimeoutMs` 默认为 5000 毫秒，只限制这次检查，不限制包下载或构建。检查禁用凭据助手和认证提示；只有网络失败与超时会停止安装，通过现有失败类型与诊断日志返回，并标记 `failedAt: 'spec-host'`。认证、仓库查找及其他失败继续交给 pnpm，包括其 HTTPS 到 SSH 的回退。取消安装或销毁管理器会停止检查及其子进程。注册表包、本地路径、压缩包和其他 Git 主机跳过此检查。仓库可达后，下载或组合包验证仍可能失败。

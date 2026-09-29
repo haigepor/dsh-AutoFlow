@@ -457,13 +457,14 @@
   background: var(--dsw-alias-button-floating-hover);
 }
 
-/* AutoFlow's dark elevated and hover aliases share one fill; keep this button's official contrast. */
+/* Keep the action discoverable in dark mode without pulling blue into the resting state. */
 :global([data-ds-dark-theme]) .newSession {
-  background: var(--dsw-static-neutral-bluish-750);
+  border-color: color-mix(in srgb, var(--dsw-alias-border-l3) 86%, var(--dsw-alias-label-tertiary));
+  background: color-mix(in srgb, var(--dsw-alias-button-elevated-fill) 82%, var(--dsw-specific-sidebar-fill));
 }
 
 :global([data-ds-dark-theme]) .newSession:hover {
-  background: var(--dsw-static-neutral-bluish-800);
+  background: color-mix(in srgb, var(--dsw-alias-button-elevated-fill) 92%, var(--dsw-specific-sidebar-fill));
 }
 
 /* The macOS sidebar stays translucent beneath its window-drag surface. */

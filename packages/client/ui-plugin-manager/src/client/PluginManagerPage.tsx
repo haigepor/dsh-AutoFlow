@@ -12,10 +12,12 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { PluginInstallFailureKind, Registry } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DshBundleFeatureKind } from '@deepseek-ai/dsh-package-manifest'
 import {
   Button, IconCheckCircleFillRegular, IconChevronDownOutlineRegular, IconChevronLeftOutlineMedium,
-  IconChevronRightOutlineRegular, IconCloseOutlineMedium,
+  IconChevronRightOutlineRegular, IconCloseOutlineMedium, IconCodeOutlineRegular,
   IconInfoOutlineRegular, IconPlusOutlineRegular, IconRefreshOutlineRegular, IconTrashOutlineRegular,
+  IconPanelLeftOutlineRegular, IconSkillOutlineRegular, IconSparkleRegular,
   IconWarningOutlineRegular, Input, Modal, pointerModality,
   PluginArtworkDefault, PluginArtworkLoop, PluginArtworkSearch, PluginArtworkSubagent, PluginArtworkTerminal,
   StateDot, Switch, Tag, TerminalBlock, Toast, Tooltip, useAnchoredPosition, useDismissOnOutsidePointer,
@@ -26,11 +28,11 @@ import type { createNavigationStore } from './navigation-store.ts'
 import { rowConfigKey, type OfficialItem } from './config-ledger.ts'
 import { INSTALL_GIT_EXAMPLE, INSTALL_PATH_EXAMPLE, type PluginManagerLocaleKey } from './locales.ts'
 import {
-  asksMirror, githubRecoveryRegistry, isInstallPending, offeredRegistries, rowKey,
+  asksMirror, featureKey, githubRecoveryRegistry, isInstallPending, offeredRegistries, rowKey,
   type InstallInputError, type InstallState, type InstallSubject, type PackageRow, type PackageView,
   type PluginManagerFace, type RegistryChoice,
 } from './manager-store.ts'
-import { managementText, noticeText, packageText, registryText, rowText, type Translate } from './presentation.ts'
+import { BUILTIN_PROFILE_BUNDLES, managementText, noticeText, packageText, registryText, rowText, type Translate } from './presentation.ts'
 import type { PluginPackageRef, PluginRowRef, PluginsSubject } from './slot-contract.ts'
 import type { ConfigPageForm } from './slot-contract.ts'
 import css from './PluginManagerPage.module.css'
@@ -51,19 +53,42 @@ type RenderConfig = PluginManagerPageProps['renderSlot']
 type ResolveText = PluginManagerFace['resolveText']
 
 type RowPhase = NonNullable<PackageRow['phase']>
+type BundleFeature = NonNullable<PackageView['features']>[number]
+
+const FEATURE_KIND_KEYS = {
+  prompt: 'featureGroupPrompt',
+  skill: 'featureGroupSkill',
+  script: 'featureGroupScript',
+  ui: 'featureGroupUi',
+  other: 'featureGroupOther',
+} satisfies Record<DshBundleFeatureKind, PluginManagerLocaleKey>
+
+const FEATURE_KIND_ORDER = ['prompt', 'skill', 'script', 'ui', 'other'] as const satisfies readonly DshBundleFeatureKind[]
+
+/** Group typed manifest features, while leaving legacy declarations in their original flat list. */
+function featureGroups(features: readonly BundleFeature[]): readonly {
+  readonly kind?: DshBundleFeatureKind
+  readonly features: readonly BundleFeature[]
+}[] {
+  if (!features.some(feature => feature.kind !== undefined)) return [{ features }]
+  return FEATURE_KIND_ORDER.map(kind => ({ kind, features: features.filter(feature => (feature.kind ?? 'other') === kind) }))
+    .filter(group => group.features.length > 0)
+}
+
+/** Category icons make prompts, Skills, executable logic, and page UI distinguishable at a glance. */
+function FeatureKindIcon({ kind }: { readonly kind: DshBundleFeatureKind | undefined }): ReactNode {
+  switch (kind) {
+    case 'prompt': return <IconSparkleRegular size={16} />
+    case 'skill': return <IconSkillOutlineRegular size={16} />
+    case 'script': return <IconCodeOutlineRegular size={16} />
+    case 'ui': return <IconPanelLeftOutlineRegular size={16} />
+    case 'other': return <IconInfoOutlineRegular size={16} />
+    default: return <PluginArtworkDefault size={16} />
+  }
+}
 
 /** How long the list marks a package an install just enabled. */
 const HIGHLIGHT_MS = 2_400
-
-/** Built-in profile bundles stay out of this page even when the profile declares them as dependencies. */
-const BUILTIN_PROFILE_BUNDLES = new Set([
-  '@deepseek-ai/dsh-base',
-  '@deepseek-ai/dsh-web-app',
-  '@deepseek-ai/dsh-headless',
-  '@deepseek-ai/dsh-sdk-app',
-  '@deepseek-ai/dsh-acp-app',
-  '@deepseek-ai/dsh-sdk-minimal',
-])
 
 /** How long a toast holds: long enough to read a failure that names what broke. */
 function toastHoldMs(text: string): number {
@@ -160,6 +185,7 @@ function RowSwitch({ row, title, t, busy, onChange }: {
   return (
     <Switch
       checked={row.enabled}
+      loading={busy}
       label={t('partToggle', { name: title })}
       disabled={busy || locked}
       {...row.readOnlyReason === undefined ? {} : { title: managementText({ code: row.readOnlyReason }, t) }}
@@ -289,6 +315,7 @@ function EnableSwitch({ pkg, title, t, busy, onSetEnabled }: {
   return (
     <Switch
       checked={pkg.enabled}
+      loading={busy}
       label={t('enableToggle', { name: title })}
       disabled={busy || pkg.readOnlyReason !== undefined || (!pkg.enabled && pkg.error !== undefined)}
       {...pkg.readOnlyReason === undefined ? {} : { title: managementText({ code: pkg.readOnlyReason }, t) }}
@@ -569,13 +596,15 @@ function RowDetail({ pkg, row, t, resolveText, onBack, renderSlot, form }: {
  * package name and version in its information section.
  */
 function PackageDetail({
-  pkg, t, resolveText, busy, rowBusy, configured, configure, renderSlot,
-  onBack, onSetEnabled, onUninstall, onSetRowEnabled,
+  pkg, t, resolveText, busy, featureBusy, rowBusy, configured, configure, renderSlot,
+  onBack, onSetEnabled, onUninstall, onSetRowEnabled, onSetFeature, onOpenExample,
 }: {
   readonly pkg: PackageView
   readonly t: Translate
   readonly resolveText: ResolveText
   readonly busy: boolean
+  /** Whether this exact declared feature is being persisted. */
+  readonly featureBusy: (featureId: string) => boolean
   /** Whether a row has a write in flight. */
   readonly rowBusy: (row: PackageRow) => boolean
   /** Whether the bundle registered a configuration of its own. */
@@ -586,12 +615,14 @@ function PackageDetail({
   readonly onSetEnabled: (enabled: boolean) => void
   readonly onUninstall: () => void
   readonly onSetRowEnabled: (row: PackageRow, enabled: boolean) => void
+  readonly onSetFeature: (featureId: string, enabled: boolean) => void
+  readonly onOpenExample: (prompt: string) => void
 }): ReactNode {
   const { title, description, beta } = packageText(pkg, resolveText)
   const status = packageStatus(pkg)
   const subject: PluginsSubject = { kind: 'bundle', pkg: packageRef(pkg) }
   return (
-    <div className={css.detail} data-plugin-detail={pkg.name}>
+    <div className={`${css.detail} ${css.bundleDetail}`} data-plugin-detail={pkg.name}>
       <DetailTop
         crumbLabel={t('backToList')}
         crumbText={t('crumbRoot')}
@@ -626,12 +657,59 @@ function PackageDetail({
             <EnableSwitch pkg={pkg} title={title} t={t} busy={busy} onSetEnabled={onSetEnabled} />
           </div>
         </div>
-        {description === undefined ? null : <p className={css.detailDesc}>{description}</p>}
       </div>
+      {pkg.examples === undefined ? null : <div className={css.bundleHero}>
+        <div className={css.bundleExamples}>
+          {pkg.examples.map((example) => {
+            const prompt = resolveText(example.prompt)
+            return <button key={example.id} type="button" className={css.bundleExample}
+              aria-label={t('exampleOpen', { prompt })} onClick={() => { onOpenExample(prompt) }}>
+              <span className={css.bundleExampleIdentity}><PackageArtwork src={pkg.meta?.icon} size={16} />{title}</span>
+              <span className={css.bundleExamplePrompt}>{prompt}</span>
+              <span className={css.bundleExampleArrow} aria-hidden="true"><IconChevronRightOutlineRegular size={14} /></span>
+            </button>
+          })}
+        </div>
+      </div>}
+      {description === undefined ? null : <p className={css.bundleDescription}>{description}</p>}
       <MetadataError error={pkg.meta?.error} t={t} />
       {pkg.error === undefined ? null : <p className={css.reason} role="status">{t('reasonLabel')}: {managementText(pkg.error, t)}</p>}
       {pkg.readOnlyReason === undefined ? null : <p className={css.reason} role="status">{managementText({ code: pkg.readOnlyReason }, t)}</p>}
       <div className={css.detailSections}>
+        {pkg.features === undefined ? null : (
+          <section className={css.detailSection} data-plugin-features>
+            <div className={css.sectionHead}>
+              <h4 className={css.sectionTitle}>{t('featuresLabel')}</h4>
+              <span className={css.sectionCount}>{pkg.features.length}</span>
+            </div>
+            <p className={css.featureHint}>{t('featuresHint')}</p>
+            <ul className={css.featureList}>
+              {featureGroups(pkg.features).map(group => <li key={group.kind ?? 'legacy'} className={css.featureGroup} {...group.kind === undefined ? {} : { 'data-feature-group': group.kind }}>
+                {group.kind === undefined ? null : <div className={css.featureGroupHead}>
+                  <span className={css.featureGroupTitle}>{t(FEATURE_KIND_KEYS[group.kind])}</span>
+                  <span className={css.featureGroupCount}>{group.features.length}</span>
+                </div>}
+                <ul className={css.featureGroupItems}>
+                  {group.features.map((feature) => {
+                    const row = pkg.rows.find(candidate => candidate.rowId === feature.rowId)
+                    return <li key={feature.id} className={css.featureItem} {...feature.kind === undefined ? {} : { 'data-feature-kind': feature.kind }}>
+                      <span className={css.featureIcon} aria-hidden="true"><FeatureKindIcon kind={feature.kind} /></span>
+                      <span className={css.featureText}>
+                        <strong>{resolveText(feature.title)}</strong>
+                        <span>{resolveText(feature.description)}</span>
+                        <small>{t(feature.enabled ? row?.enabled ? 'featureRunning' : 'featureSelected' : 'featureOff')}</small>
+                      </span>
+                      <Switch checked={feature.enabled} loading={featureBusy(feature.id)}
+                        disabled={featureBusy(feature.id) || pkg.readOnlyReason !== undefined}
+                        label={t('featureToggle', { name: resolveText(feature.title) })}
+                        onChange={(enabled) => { onSetFeature(feature.id, enabled) }} />
+                    </li>
+                  })}
+                </ul>
+              </li>)}
+            </ul>
+          </section>
+        )}
         {configured
           ? (
             <section className={css.detailSection} data-plugin-config>
@@ -808,18 +886,21 @@ function useInstallComposition(active: boolean) {
  * install scripts undecided shows them for approval in place of plain retry.
  */
 function InstallDialog({
-  install, t, onClose, onEditSpec, onRun, onCancel, onReconcile, onToggleDetails, onEnableNow, onApproveBuilds,
+  install, installedPackage, t, resolveText, onClose, onEditSpec, onRun, onCancel, onReconcile, onToggleDetails,
+  onEnableNow, onApproveBuilds,
   onToggleRegistry, onChooseRegistry, onChangeRegistry, onUseGithubMirror,
 }: {
   readonly install: InstallState
+  readonly installedPackage: PackageView | undefined
   readonly t: Translate
+  readonly resolveText: ResolveText
   readonly onClose: () => void
   readonly onEditSpec: (text: string) => void
   readonly onRun: () => void
   readonly onCancel: () => void
   readonly onReconcile: () => void
   readonly onToggleDetails: () => void
-  readonly onEnableNow: () => void
+  readonly onEnableNow: (enabledFeatureIds: string[]) => void
   readonly onApproveBuilds: () => void
   readonly onToggleRegistry: () => void
   readonly onChooseRegistry: (choice: RegistryChoice) => void
@@ -834,8 +915,12 @@ function InstallDialog({
   const registryId = useId()
   const registryErrorId = useId()
   const [guideOpen, setGuideOpen] = useState(false)
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([])
   const [customRegistryDraft, setCustomRegistryDraft] = useState('')
   const { phase } = install
+  useEffect(() => {
+    setSelectedFeatures(installedPackage?.features?.filter(feature => feature.enabled).map(feature => feature.id) ?? [])
+  }, [install.installed, installedPackage?.name])
   // The registry options float over the dialog from their toggle, so unfolding them never adds to its height;
   // the store folds them when a run starts, so they show at the spec only.
   const registryToggleRef = useRef<HTMLButtonElement | null>(null)
@@ -1189,6 +1274,20 @@ function InstallDialog({
           {phase === 'done' && install.approvedBuilds.length > 0
             ? <p className={css.result} role="status">{t('installDoneApproved', { names: install.approvedBuilds.join(', ') })}</p>
             : null}
+          {phase === 'done' && installedPackage?.features !== undefined ? (
+            <fieldset className={css.installFeatures}>
+              <legend>{t('installFeaturesTitle')}</legend>
+              <p>{t('installFeaturesDescription')}</p>
+              {installedPackage.features.map(feature => <label key={feature.id}>
+                <input type="checkbox" checked={selectedFeatures.includes(feature.id)}
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked
+                    setSelectedFeatures(current => checked ? [...current, feature.id] : current.filter(id => id !== feature.id))
+                  }} />
+                <span>{resolveText(feature.title)}</span>
+              </label>)}
+            </fieldset>
+          ) : null}
           <div className={css.wizardFoot}>
             <button type="button" className={css.detailsToggle} aria-expanded={install.detailsOpen} onClick={onToggleDetails}>
               <span>{t(install.detailsOpen ? 'installDetailsHide' : 'installDetailsShow')}</span>
@@ -1242,7 +1341,8 @@ function InstallDialog({
           {phase !== 'done'
             ? null
             : install.installed !== null
-              ? <Button variant="primary" className={css.wide} disabled={install.enabling} aria-busy={install.enabling} onClick={onEnableNow}>{t('installEnableNow')}</Button>
+              ? <Button variant="primary" className={css.wide} disabled={install.enabling || installedPackage === undefined}
+                aria-busy={install.enabling} onClick={() => onEnableNow(selectedFeatures)}>{t('installEnableNow')}</Button>
               : <Button variant="primary" className={css.wide} onClick={onClose}>{t('installClose')}</Button>}
         </div>
       </div>
@@ -1434,6 +1534,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
             t={t}
             resolveText={resolveText}
             busy={state.busy.includes(openPkg.name)}
+            featureBusy={featureId => state.busy.includes(featureKey(openPkg.name, featureId))}
             rowBusy={row => row.entryId !== undefined && state.busy.includes(rowKey(row.entryId))}
             configured={ledger.bundles.has(openPkg.name)}
             configure={configure(openPkg)}
@@ -1442,6 +1543,8 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
             onSetEnabled={(enabled) => { props.setEnabled(openPkg.name, enabled) }}
             onUninstall={() => { props.uninstall(openPkg.name) }}
             onSetRowEnabled={setRowEnabled}
+            onSetFeature={(featureId, enabled) => { props.setFeature(openPkg.name, featureId, enabled) }}
+            onOpenExample={props.openExample}
           />
         )
         : null}
@@ -1478,14 +1581,16 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
         }, { entryKey: activated.name }) : null}
       <InstallDialog
         install={state.install}
+        installedPackage={state.packages.find(pkg => pkg.name === state.install.installed)}
         t={t}
+        resolveText={resolveText}
         onClose={props.closeInstall}
         onEditSpec={props.editInstallSpec}
         onRun={props.runInstall}
         onCancel={props.cancelInstall}
         onReconcile={props.reconcileInstall}
         onToggleDetails={props.toggleInstallDetails}
-        onEnableNow={() => { setActivation(state.install.installed); props.enableInstalled() }}
+        onEnableNow={(ids) => { setActivation(state.install.installed); props.enableInstalled(ids) }}
         onApproveBuilds={props.approveBuildsAndRetry}
         onToggleRegistry={props.toggleRegistryOptions}
         onChooseRegistry={props.chooseRegistry}

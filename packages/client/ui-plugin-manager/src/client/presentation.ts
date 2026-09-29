@@ -5,6 +5,16 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PluginManagerLocaleKey } from './locales.ts'
 import type { FailedAction, ManagerNotice, PackageRow, PackageView, PluginManagerFace } from './manager-store.ts'
 
+/** Profile infrastructure bundles are not offered as user-facing plugins. */
+export const BUILTIN_PROFILE_BUNDLES = new Set([
+  '@deepseek-ai/dsh-base',
+  '@deepseek-ai/dsh-web-app',
+  '@deepseek-ai/dsh-headless',
+  '@deepseek-ai/dsh-sdk-app',
+  '@deepseek-ai/dsh-acp-app',
+  '@deepseek-ai/dsh-sdk-minimal',
+])
+
 /** The translate seat of the manager's dictionary. */
 export type Translate = PropsLocale<'pluginManager'>['t']
 
@@ -144,6 +154,7 @@ export function noticeText(notice: ManagerNotice, t: Translate): string {
     case 'overridden': return t('overriddenNotice', { name: notice.packageName })
     case 'cancelled': return t('installCancelled')
     case 'refresh-failed': return t('refreshError')
+    case 'example-failed': return t('exampleOpenFailed', { reason: notice.reason })
     case 'install': return t(({
       done: 'installBackgroundDone', failed: 'installBackgroundFailed',
       unconfirmed: 'installBackgroundUnconfirmed', applying: 'installBackgroundApplying', unknown: 'installBackgroundUnknown',

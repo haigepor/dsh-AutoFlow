@@ -83,6 +83,44 @@ async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, pre
   return { ctx, dir, manager: ctx.pluginManager, bundle, profile, stopHmr, overlays, connection }
 }
 
+it('persists declared feature choices and rejects unknown selections', async () => {
+  const { manager, dir } = await fixture('live', false, undefined, {}, undefined, (profileDir) => {
+    const packageDir = join(profileDir, 'node_modules', 'extra')
+    const manifestPath = join(packageDir, 'package.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown> & { dsh: { bundle: Record<string, unknown> } }
+    manifest.dsh.bundle.features = [{ id: 'example', rowId: 'example-row', kind: 'script', title: { en: 'Example', zh: '示例' },
+      description: { en: 'Optional operation', zh: '可选操作' }, defaultEnabled: false }]
+    manifest.dsh.bundle.examples = [{ id: 'try-example', prompt: { en: 'Try the example', zh: '试用示例' } }]
+    writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`)
+    writeFileSync(join(packageDir, 'cordis.patch.yml'), JSON.stringify([{ insert: [
+      { id: 'managed', name: './plugin.mjs' },
+      { id: 'example-row', name: './feature.mjs', disabled: true },
+    ] }]))
+    writeFileSync(join(packageDir, 'feature.mjs'), 'export function apply(ctx) { ctx.provide("exampleProbe", true) }\n')
+  })
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.features).toMatchObject([
+    { id: 'example', rowId: 'example-row', kind: 'script', enabled: false },
+  ])
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.examples).toEqual([
+    { id: 'try-example', prompt: { en: 'Try the example', zh: '试用示例' } },
+  ])
+  const before = readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')
+  expect(await manager.setBundleFeatures('extra', ['unknown'], false)).toMatchObject({ application: 'failed' })
+  expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).toBe(before)
+  expect(await manager.setBundleFeatures('extra', ['example'], false)).toMatchObject({ application: 'applied' })
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.features?.[0]?.enabled).toBe(true)
+  expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).toContain('example-row')
+  expect(await manager.setBundleFeatures('extra', [], false)).toMatchObject({ application: 'applied' })
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.features?.[0]?.enabled).toBe(false)
+  const manifestPath = join(dir, 'node_modules', 'extra', 'package.json')
+  const invalid = JSON.parse(readFileSync(manifestPath, 'utf8')) as { dsh: { bundle: { features: Array<Record<string, unknown>> } } }
+  invalid.dsh.bundle.features[0]!.kind = 'unknown-category'
+  writeFileSync(manifestPath, `${JSON.stringify(invalid)}\n`)
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.error).toMatchObject({
+    code: 'operation-error', diagnostic: 'Invalid or duplicate bundle feature declaration',
+  })
+})
+
 it.each(['network', 'timeout'] as const)('stops a GitHub %s before pnpm and attributes it to the repository', async (kind) => {
   const { manager, dir, connection } = await fixture()
   const before = readFileSync(join(dir, 'package.json'), 'utf8')

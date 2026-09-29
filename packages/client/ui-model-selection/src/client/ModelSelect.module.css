@@ -104,6 +104,14 @@
   /* MenuSurface supplies the shared material and elevation. */
   border: 0;
   color: var(--dsw-alias-label-primary);
+  /* The model picker floats over the composer, so it uses a lighter variant
+     of the shared menu material.  Keeping this override local preserves the
+     denser surface used by command and context menus. */
+  --dsh-model-menu-surface: color-mix(in srgb, var(--dsw-alias-bg-layer-3) 62%, transparent);
+  --dsw-menu-surface-fill: var(--dsh-model-menu-surface);
+  --dsw-specific-menu: var(--dsh-model-menu-surface);
+  --dsh-model-option-selected: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, var(--dsh-model-menu-surface));
+  --dsh-model-option-selected-hover: color-mix(in srgb, var(--dsw-alias-state-business-primary) 20%, var(--dsh-model-menu-surface));
   /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens.
      Declared here rather than on the scrolling `.groups` child so the
      elevation choice sits with the surface; the custom properties inherit
@@ -157,8 +165,14 @@
   overflow-y: auto;
 }
 
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .group + .group {
-  margin-top: 3px;
+  margin-top: 8px;
 }
 
 .groupTitle {
@@ -198,12 +212,17 @@
 
 /* Keep the selected value visible while the pointer or keyboard focus moves. */
 .option.selected {
-  background: var(--dsw-alias-interactive-bg-hover-accent);
+  background: var(--dsh-model-option-selected);
 }
 
 .option.selected:hover:not(:disabled),
 .option.selected:focus-visible {
-  background: var(--dsw-alias-button-ghost-active-hover);
+  background: var(--dsh-model-option-selected-hover);
+}
+
+/* Effort choices are direct children of the menu rather than a provider group. */
+.menu > .option + .option {
+  margin-top: 4px;
 }
 
 .selected .modelName,
@@ -289,4 +308,16 @@
   width: 12px;
   height: 12px;
   color: var(--dsw-alias-menu-icon);
+}
+
+:global(body[data-ds-dark-theme]) .menu {
+  --dsh-model-option-selected: color-mix(in srgb, var(--dsw-alias-state-business-primary) 21%, var(--dsh-model-menu-surface));
+  --dsh-model-option-selected-hover: color-mix(in srgb, var(--dsw-alias-state-business-primary) 28%, var(--dsh-model-menu-surface));
+}
+
+/* Reduced-transparency browsers keep the same hierarchy with an opaque fill. */
+@supports not (backdrop-filter: blur(1px)) {
+  .menu {
+    --dsh-model-menu-surface: var(--dsw-alias-bg-layer-3);
+  }
 }

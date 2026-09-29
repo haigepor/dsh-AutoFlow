@@ -21,6 +21,7 @@ export type SerializedReferenceChipNode = Spread<{
   ref: string
   label: string
   appearance?: ReferenceInsert['appearance']
+  artwork?: string
   clipboardText: string
   invalid: boolean
 }, SerializedLexicalNode>
@@ -35,6 +36,8 @@ export class ReferenceChipNode extends DecoratorNode<JSX.Element> {
   __label: string
   /** Optional domain glyph (insert-time cache). */
   __appearance: ReferenceInsert['appearance']
+  /** Display-only artwork selected by the source. */
+  __artwork: string | undefined
   /** Clipboard / persistence projection, e.g. `/name` (never the model form). */
   __clipboardText: string
   /** Owner-resolution failure flag: chip renders invalid; serialization must fail. */
@@ -57,6 +60,7 @@ export class ReferenceChipNode extends DecoratorNode<JSX.Element> {
         ref: node.__ref,
         label: node.__label,
         appearance: node.__appearance,
+        artwork: node.__artwork,
         clipboardText: node.__clipboardText,
       },
       node.__invalid,
@@ -76,6 +80,7 @@ export class ReferenceChipNode extends DecoratorNode<JSX.Element> {
         ref: json.ref,
         label: json.label,
         appearance: json.appearance,
+        artwork: json.artwork,
         clipboardText: json.clipboardText,
       },
       json.invalid,
@@ -87,12 +92,13 @@ export class ReferenceChipNode extends DecoratorNode<JSX.Element> {
    * @param invalid - owner-resolution failure bit (defaults valid).
    * @param key - Lexical clone-path key; absent for fresh nodes.
    */
-  constructor(insert: Omit<ReferenceInsert, 'appearance'> & { appearance?: ReferenceInsert['appearance'] }, invalid = false, key?: NodeKey) {
+  constructor(insert: Omit<ReferenceInsert, 'appearance' | 'artwork'> & { appearance?: ReferenceInsert['appearance']; artwork?: string | undefined }, invalid = false, key?: NodeKey) {
     super(key)
     this.__source = insert.source
     this.__ref = insert.ref
     this.__label = insert.label
     this.__appearance = insert.appearance
+    this.__artwork = insert.artwork
     this.__clipboardText = insert.clipboardText
     this.__invalid = invalid
   }
@@ -107,6 +113,7 @@ export class ReferenceChipNode extends DecoratorNode<JSX.Element> {
       ref: this.__ref,
       label: this.__label,
       ...(this.__appearance === undefined ? {} : { appearance: this.__appearance }),
+      ...(this.__artwork === undefined ? {} : { artwork: this.__artwork }),
       clipboardText: this.__clipboardText,
       invalid: this.__invalid,
     }
@@ -183,12 +190,18 @@ export class ReferenceChipNode extends DecoratorNode<JSX.Element> {
     return this.getLatest().__appearance
   }
 
+  /** Display-only artwork URL. */
+  getArtwork(): string | undefined {
+    return this.getLatest().__artwork
+  }
+
   /** React face rendered into the host element by the decorator portal. */
   override decorate(): JSX.Element {
     return (
       <ReferenceChip
         label={this.__label}
         appearance={this.__appearance}
+        artwork={this.__artwork}
         invalid={this.__invalid}
       />
     )

@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 外观选项
 
-外观页直接使用项目拥有的 [Gitee 源码](https://gitee.com/sea-pigeon/deepseek-harness/tree/master/packages/client/ui-theme/src/client/previews)中的三张模式预览 SVG，并将其裁切在一套 token 圆角框内。主题卡使用可拖动轮播，每页最多容纳四张紧凑卡；只有注册到第五套可选配色后才显示翻页箭头与圆点。官方默认配色取自 `dsh-v0.2.0-rc.1` 发布标签；当前项目配色保留暖灰与鸢尾紫。五张字体卡依次为系统默认、Source Sans 3、IBM Plex Serif、JetBrains Mono 与 IBM Plex Sans Condensed。中等窄屏中的外观模式卡维持两列，到 460px 以下才切为单列；同一手机宽度下的其他选项网格和主题轮播也改为单列，使预览图保持可读比例。菜单动效速度选择器复用客户端共享菜单，采用 token 化表面、选中勾选和键盘导航。页面还会持久化五档圆角与 80、140、220、300、400 ms 五档菜单动效。代码和品牌文字保留独立字体栈。服务接受的写入经 Host settings API 按操作顺序携带命名空间 revision 串行处理，最新写入被拒时重新加载持久值。非 loopback 页面把选择保留在进程内。
+外观页直接使用项目拥有的 [Gitee 源码](https://gitee.com/sea-pigeon/deepseek-harness/tree/master/packages/client/ui-theme/src/client/previews)中的三张模式预览 SVG，并将其裁切在一套 token 圆角框内。主题卡使用可拖动轮播，每页最多容纳四张紧凑卡；只有注册到第五套可选配色后才显示翻页箭头与圆点。官方默认配色取自 `dsh-v0.2.0-rc.1` 发布标签；其会话与全窗口设置页的内容区使用官方主背景色，并与官方侧栏背景色配对。当前项目配色保留暖灰与鸢尾紫。五张字体卡依次为系统默认、Source Sans 3、IBM Plex Serif、JetBrains Mono 与 IBM Plex Sans Condensed。中等窄屏中的外观模式卡维持两列，到 460px 以下才切为单列；同一手机宽度下的其他选项网格和主题轮播也改为单列，使预览图保持可读比例。菜单动效速度选择器复用客户端共享菜单，采用 token 化表面、选中勾选和键盘导航。页面还会持久化五档圆角与 80、140、220、300、400 ms 五档菜单动效。代码和品牌文字保留独立字体栈。服务接受的写入经 Host settings API 按操作顺序携带命名空间 revision 串行处理，最新写入被拒时重新加载持久值。非 loopback 页面把选择保留在进程内。
 
 旧用户设置没有 `themeSet` 字段时，会继续使用当前项目配色和原来的强调色。新安装与「重置外观」会恢复官方默认、跟随系统、系统字体、标准圆角和 220 ms 动效。已保存的 Inter 与思源黑体仍可读取，并在用户主动选择新字体前保留显示。
 
@@ -71,7 +71,7 @@ kind: "package-reference"
 
 `base.css` 仅抑制[基础控件焦点工具](../ui-primitives/README.zh.md)通过 `data-dsh-automatic-focus` 标记的聚焦元素外轮廓线；正常键盘焦点样式、边框、阴影及错误状态保持不变。
 
-系统提示使用 `--dsw-alias-toast-bg` 和 `--dsw-alias-toast-label`，在各调用方之间统一背景与文字颜色。文档预览配对使用 `--dsw-alias-bg-document-preview` 与 `--dsw-alias-label-document-preview`，使底色与状态文字遵循相同主题。Tooltip 键帽使用 `--dsw-alias-tooltip-key-bg`，由各主题的 tooltip 背景派生稍浅的填充。开关滑块读取 `--dsw-alias-switch-thumb`：浅色模式为纯白，深色模式为暖灰色，使关闭态滑块比轨道更亮，同时避免纯白在暗色下过亮。
+系统提示使用 `--dsw-alias-toast-bg` 和 `--dsw-alias-toast-label`，在各调用方之间统一背景与文字颜色。文档预览配对使用 `--dsw-alias-bg-document-preview` 与 `--dsw-alias-label-document-preview`，使底色与状态文字遵循相同主题。Tooltip 键帽使用 `--dsw-alias-tooltip-key-bg`，由各主题的 tooltip 背景派生稍浅的填充。开关使用 `--dsw-alias-switch-thumb`、`--dsw-alias-switch-active-track`、`--dsw-alias-switch-active-thumb`、`--dsw-alias-switch-loading-track`、`--dsw-alias-switch-loading-thumb` 与 `--dsw-alias-switch-loading-indicator`：暗色关闭态滑块为暖灰色，开启轨道跟随强调色并降低暗色亮度，写入期间使用中性轨道，以及与各主题对比度匹配的滑块和圆环。
 
 `--dsw-alias-label-shimmer` 为共享文字扫光提供叠加色：浅色配色使用 30% alpha 的黑色，深色配色使用 45% alpha 的白色。`--dsw-alias-label-deep-diving` 和 `--dsw-alias-label-deep-diving-shimmer` 提供本地紫色活动文本和扫光颜色；深色主题使用更亮、饱和度更低的文字，并以更亮的紫色扫光。
 

@@ -41,6 +41,11 @@ const SKILL_REF: ReferenceInsert = {
   clipboardText: '/commit-helper',
 }
 
+const PLUGIN_REF: ReferenceInsert = {
+  source: 'plugin', ref: '@example/notes', label: 'Notes', appearance: 'plugin',
+  artwork: 'data:image/svg+xml;base64,PHN2Zy8+', clipboardText: '@example/notes',
+}
+
 function makeEditor(): LexicalEditor {
   return createHeadlessEditor({
     namespace: 'core-spec',
@@ -108,6 +113,21 @@ describe('ReferenceChipNode', () => {
       expect(backBare.getAppearance()).toBeUndefined()
       expect(backBare.getLabel()).toBe('commit-helper')
     }, { discrete: true })
+  })
+
+  it('preserves selected plugin artwork in JSON and draft projection', () => {
+    const editor = makeEditor()
+    editor.update(() => {
+      const chip = $createReferenceChipNode(PLUGIN_REF)
+      const restored = ReferenceChipNode.importJSON(chip.exportJSON())
+      expect(restored.getArtwork()).toBe(PLUGIN_REF.artwork)
+      const paragraph = $createParagraphNode()
+      paragraph.append(chip)
+      $getRoot().append(paragraph)
+    }, { discrete: true })
+    editor.read(() => {
+      expect($projectComposer(idAssigner()).occurrences[0]?.artwork).toBe(PLUGIN_REF.artwork)
+    })
   })
 
   it('imports the invalid bit from JSON', () => {

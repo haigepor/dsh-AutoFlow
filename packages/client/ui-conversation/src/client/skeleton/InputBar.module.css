@@ -87,6 +87,18 @@
   pointer-events: none;
 }
 
+/* The centered light-theme composer sits on the same near-white page as its
+   previous translucent fill. Give it one quiet layer step and the standard
+   panel rim so the writing area remains legible without changing dark mode. */
+:global(body:not([data-ds-dark-theme])) .card {
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+}
+
+:global(body:not([data-ds-dark-theme])) .card::before {
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 42%, var(--dsw-alias-bg-layer-2));
+  box-shadow: var(--dsw-elevation-panel);
+}
+
 /* No-workspace trigger state: an inset 1px dashed outline marks the card as a
    workspace picker rather than a live composer. Keeping the complete stroke
    inside the rounded box prevents clipped corner pixels from reading heavier. */

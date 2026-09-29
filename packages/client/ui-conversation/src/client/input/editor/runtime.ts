@@ -331,6 +331,7 @@ export class DraftEditorRuntime {
           ref: occurrence.ref,
           label: occurrence.label,
           ...(occurrence.appearance === undefined ? {} : { appearance: occurrence.appearance }),
+          ...(occurrence.artwork === undefined ? {} : { artwork: occurrence.artwork }),
           clipboardText: occurrence.clipboardText,
         }, occurrence.invalid === true))
         cursor = occurrence.offset + occurrence.length

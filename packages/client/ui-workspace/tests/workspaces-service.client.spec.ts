@@ -730,6 +730,23 @@ describe('UiWorkspaceService', () => {
     })
   })
 
+  it('prepares an example draft before selecting a blank Session and refuses when no Workspace exists', async () => {
+    const b = bench({
+      workspaces: workspaceState([workspace('a', [sid('existing')])]),
+      sessions: sessionState([summary('existing', { blank: true, cwd: '/w/a' })]),
+    })
+    const prepare = vi.fn()
+    await b.uiWorkspace.openNewSession(prepare)
+    expect(b.sessions.create).toHaveBeenLastCalledWith({ workspaceId: wid('a') })
+    expect(prepare).toHaveBeenCalledExactlyOnceWith(sid('created-a'))
+    expect(b.sessions.retain).toHaveBeenLastCalledWith(sid('created-a'), { source: 'mainView' })
+    b.sessions.create.mockRejectedValueOnce(new Error('Failed to fetch'))
+    await expect(b.uiWorkspace.openNewSession(prepare)).rejects.toThrow('Failed to fetch')
+    expect(b.notify).not.toHaveBeenCalled()
+    expect(prepare).toHaveBeenCalledOnce()
+    await expect(bench().uiWorkspace.openNewSession(prepare)).rejects.toThrow('Select a Workspace')
+  })
+
   it('opens nothing when a New Session request has no Workspace to open', () => {
     const b = bench()
 

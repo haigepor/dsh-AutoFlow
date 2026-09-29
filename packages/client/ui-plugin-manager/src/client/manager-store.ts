@@ -7,10 +7,14 @@ import { sanitizeInstallInput } from './sanitize-install-input.ts'
  * change made on another surface shows here without a manual refresh.
  */
 import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {
   BundleInfo,
+  BundleFeatureInfo,
   ChangeResult,
   IncompatiblePlugin,
   ManagementError,
@@ -26,6 +30,7 @@ import type {
   ReadOnlyReason,
   Registry,
 } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DshBundleExample } from '@deepseek-ai/dsh-package-manifest'
 import { normalizeRegistry, NPMMIRROR_REGISTRY, OFFICIAL_NPM_REGISTRY, REGISTRY_URL } from '@deepseek-ai/dsh-plugin-manager/registry'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
@@ -43,6 +48,7 @@ export type ManagerNotice =
   | { readonly kind: 'overridden'; readonly packageName: string; readonly seq: number }
   | { readonly kind: 'cancelled'; readonly seq: number }
   | { readonly kind: 'refresh-failed'; readonly seq: number }
+  | { readonly kind: 'example-failed'; readonly reason: string; readonly seq: number }
   | { readonly kind: 'install'; readonly outcome: 'done' | 'failed' | 'unconfirmed' | 'applying' | 'unknown'; readonly seq: number }
   | {
     readonly kind: 'failed'
@@ -94,6 +100,8 @@ export interface PackageView {
   /** Why the Host cannot read the bundle, when it cannot. */
   readonly error?: ManagementError
   readonly rows: readonly PackageRow[]
+  readonly features?: readonly BundleFeatureInfo[]
+  readonly examples?: readonly DshBundleExample[]
 }
 
 /** The typed spec as the Host read it, on the installing, installed, and failed screens. */
@@ -330,7 +338,7 @@ export interface PluginManagerFace {
   reconcileInstall: () => void
   toggleInstallDetails: () => void
   /** Enable the bundle the finished install added, then close the dialog and mark it in the list. */
-  enableInstalled: () => void
+  enableInstalled: (enabledFeatureIds?: string[]) => void
   /** Drop the list mark once it has been shown. */
   clearHighlight: () => void
   /** Put a bundle into, or take it out of, the profile's layer list. */
@@ -341,6 +349,10 @@ export interface PluginManagerFace {
   cancelConfirm: () => void
   /** Switch one of a bundle's rows on or off in the profile's user layer. */
   setRowEnabled: (entryId: PluginEntryId, enabled: boolean) => void
+  /** Persist one declared feature choice, including when the bundle is off. */
+  setFeature: (packageName: string, featureId: string, enabled: boolean) => void
+  /** Open a blank Session and place the selected example in its unsent composer. */
+  openExample: (prompt: string) => void
   dismissNotice: () => void
 }
 
@@ -398,6 +410,15 @@ export function rowKey(entryId: string): string {
   return `row:${entryId}`
 }
 
+/** One optional bundle feature's own pending-write key.
+ * @param packageName Bundle package name.
+ * @param featureId Declared feature ID.
+ * @returns Key for the feature's pending write.
+ */
+export function featureKey(packageName: string, featureId: string): string {
+  return `feature:${packageName}:${featureId}`
+}
+
 /**
  * One bundle as the page shows it: its rows joined with the Host's entries.
  * @param bundle - the Host's bundle.
@@ -423,6 +444,8 @@ export function packageView(bundle: BundleInfo, plugins: readonly PluginInfo[]):
     optional: bundle.optional,
     enabled: bundle.enabled,
     rows,
+    ...bundle.features === undefined ? {} : { features: bundle.features },
+    ...bundle.examples === undefined ? {} : { examples: bundle.examples },
     ...bundle.version === undefined ? {} : { version: bundle.version },
     ...bundle.description === undefined ? {} : { description: bundle.description },
     ...bundle.meta === undefined ? {} : { meta: bundle.meta },
@@ -512,6 +535,10 @@ export class PluginManagerController {
   private noticeSeq = 0
   private analyticsAttempt: { input: string; started: number } | undefined
   private registryRead: RegistryRead | undefined
+  /** Latest feature choices waiting for the next serialized write for each bundle. */
+  private readonly featureIntents = new Map<string, Map<string, boolean>>()
+  /** Bundles with a feature-write loop in progress. */
+  private readonly featureWrites = new Set<string>()
   /** The registry last used from this browser, kept across dialogs and page loads; null until one was used. */
   private readonly registryMemory: SnapshotStore<RegistryChoice | null> = createSnapshotStore<RegistryChoice | null>(null, {
     persist: { name: 'dsh.plugin-manager.install-registry' },
@@ -542,6 +569,8 @@ export class PluginManagerController {
     this.disposed = true
     this.registryRead = undefined
     this.request = undefined
+    this.featureIntents.clear()
+    this.featureWrites.clear()
     this.generation += 1
   }
 
@@ -616,7 +645,7 @@ export class PluginManagerController {
       cancelInstall: () => { void this.cancelInstall() },
       reconcileInstall: () => { void this.reconcileInstall() },
       toggleInstallDetails: () => { this.patchInstall({ detailsOpen: !this.getSnapshot().install.detailsOpen }) },
-      enableInstalled: () => { void this.enableInstalled() },
+      enableInstalled: (enabledFeatureIds) => { void this.enableInstalled(enabledFeatureIds ?? []) },
       clearHighlight: () => { if (this.getSnapshot().highlight !== null) this.patch({ highlight: null }) },
       setEnabled: (packageName, enabled) => {
         void this.run(packageName, { packageName, action: enabled ? 'enable' : 'disable' }, async () => {
@@ -639,6 +668,16 @@ export class PluginManagerController {
           const result = await this.ctx.remote.pluginManager.setPluginEnabled(entryId, enabled)
           this.applied(result, entryId)
           if (result.ok && (result.value.application === 'applied' || result.value.application === 'restart-required')) this.trackToggle(entryId, enabled, true)
+        })
+      },
+      setFeature: (packageName, featureId, enabled) => { this.setFeature(packageName, featureId, enabled) },
+      openExample: (prompt) => {
+        void this.ctx.uiWorkspace.openNewSession((sessionId) => {
+          const binding = this.ctx.sessions.binding(sessionId)
+          if (binding === undefined) throw new Error(`Example Session ${sessionId} has no input binding`)
+          this.ctx.conversation.input.for(binding.ctx).setDraft(prompt)
+        }).catch((error: unknown) => {
+          this.patch({ notice: { kind: 'example-failed', reason: error instanceof Error ? error.message : String(error), seq: ++this.noticeSeq } })
         })
       },
       dismissNotice: () => { this.patch({ notice: null }) },
@@ -1063,13 +1102,16 @@ export class PluginManagerController {
    * mark it in the list. A refusal toasts and still closes: the list shows
    * what did not switch on.
    */
-  private async enableInstalled(): Promise<void> {
+  private async enableInstalled(enabledFeatureIds: string[]): Promise<void> {
     const install = this.getSnapshot().install
     if (install.phase !== 'done' || install.enabling) return
     const name = install.installed
     this.patchInstall({ enabling: true })
     if (name !== null) {
-      const result = await this.ctx.remote.pluginManager.setBundleEnabled(name, true)
+      const bundle = this.getSnapshot().packages.find(pkg => pkg.name === name)
+      const result = bundle?.features === undefined
+        ? await this.ctx.remote.pluginManager.setBundleEnabled(name, true)
+        : await this.ctx.remote.pluginManager.setBundleFeatures(name, enabledFeatureIds, true)
       if (this.disposed) return
       try {
         this.applied(result, name)
@@ -1102,6 +1144,54 @@ export class PluginManagerController {
       this.patch({ busy: this.getSnapshot().busy.filter(entry => entry !== key) })
     }
     await this.load()
+  }
+
+  /**
+   * Queue one feature change behind any active write for the same bundle.
+   * The Host accepts the full selected set, so later clicks are folded into a
+   * fresh request after the previous response has refreshed the bundle facts.
+   * @param packageName - bundle owning the declared feature.
+   * @param featureId - feature whose switch was clicked.
+   * @param enabled - next desired state for that feature.
+   */
+  private setFeature(packageName: string, featureId: string, enabled: boolean): void {
+    if (this.disposed) return
+    const intents = this.featureIntents.get(packageName) ?? new Map<string, boolean>()
+    intents.set(featureId, enabled)
+    this.featureIntents.set(packageName, intents)
+    const key = featureKey(packageName, featureId)
+    if (!this.getSnapshot().busy.includes(key)) this.patch({ busy: [...this.getSnapshot().busy, key], notice: null })
+    if (this.featureWrites.has(packageName)) return
+    this.featureWrites.add(packageName)
+    void this.flushFeatureWrites(packageName)
+  }
+
+  /**
+   * Persist queued feature choices in request order and retain a busy marker
+   * only for the switches included in the request being saved.
+   * @param packageName - bundle whose choices are being persisted.
+   */
+  private async flushFeatureWrites(packageName: string): Promise<void> {
+    while (!this.disposed) {
+      const queued = this.featureIntents.get(packageName)
+      if (queued === undefined || queued.size === 0) break
+      const intents = new Map(queued)
+      this.featureIntents.set(packageName, new Map())
+      const keys = [...intents.keys()].map(featureId => featureKey(packageName, featureId))
+      try {
+        const features = this.getSnapshot().packages.find(pkg => pkg.name === packageName)?.features
+        if (features === undefined) throw new Error(`Bundle ${packageName} no longer declares configurable features`)
+        const enabledFeatureIds = features.filter(feature => intents.get(feature.id) ?? feature.enabled).map(feature => feature.id)
+        this.applied(await this.ctx.remote.pluginManager.setBundleFeatures(packageName, enabledFeatureIds, false), packageName)
+      } catch (error) {
+        this.patch({ notice: failedNotice(error, { packageName, action: 'rowEnable' }, ++this.noticeSeq) })
+      } finally {
+        this.patch({ busy: this.getSnapshot().busy.filter(key => !keys.includes(key)) })
+      }
+      await this.load()
+    }
+    this.featureIntents.delete(packageName)
+    this.featureWrites.delete(packageName)
   }
 
   /**

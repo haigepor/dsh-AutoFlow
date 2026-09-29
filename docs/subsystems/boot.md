@@ -143,6 +143,31 @@ Manage profile files and apply their declared reload lifecycle.
  */
 @Remote setBundleEnabled(name: string, enabled: boolean): Promise<ChangeResult>
 
+/** Persist all declared feature choices together, optionally selecting the bundle.
+ * @param name Bundle package name.
+ * @param enabledFeatureIds Complete set of selected feature IDs.
+ * @param activate Whether to select the bundle in the same update.
+ * @returns Persisted and runtime outcomes.
+ */
+@Remote setBundleFeatures(name: string, enabledFeatureIds: string[], activate: boolean): Promise<ChangeResult>
+
+/** Register a live Host operation shared by a bundle's Client UI and Agent tool.
+ * @param packageName Owning bundle package name.
+ * @param id Operation ID within the bundle.
+ * @param run Handler for validated text input and cancellation.
+ * @returns Disposer that removes this registration.
+ */
+registerAction(packageName: string, id: string, run: (input: Record<string, string>, signal: AbortSignal) => Promise<string>): () => void
+
+/** Invoke a registered operation through the generated plugin-manager Remote.
+ * @param packageName Owning bundle package name.
+ * @param id Operation ID within the bundle.
+ * @param input Text fields supplied by the caller.
+ * @param signal Cancellation signal.
+ * @returns Bounded text output.
+ */
+@Remote async invokeAction(packageName: string, id: string, input: Record<string, string>, signal: AbortSignal): Promise<{ output: string }>
+
 /**
  * Install a package using the same pnpm implementation as dsh plugin. GitHub
  * repositories get a connection check bounded by githubConnectionTimeoutMs before pnpm starts;

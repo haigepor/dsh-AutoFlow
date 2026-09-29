@@ -62,6 +62,12 @@ export interface UiWorkspace {
    */
   startSession(workspaceId?: WorkspaceId): void
   /**
+   * Open a new blank Session and prepare its composer before the navigation commits.
+   * @param beforeOpen - synchronous preparation for the retained Session; skipped if superseded.
+   * @returns completion after opening, or rejection when no Workspace is available or creation fails.
+   */
+  openNewSession(beforeOpen: (sessionId: SessionId) => void): Promise<void>
+  /**
    * Archive a Session and clear it when it is the current selection.
    * @param sessionId - Session to archive.
    * @param options - `stopActivity` asks the Host to stop the Session's running work instead of refusing.
@@ -221,6 +227,28 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   startSession(workspaceId?: WorkspaceId): void {
+    const target = this.newSessionTarget(workspaceId)
+    if (target === undefined) {
+      this.clearMain()
+      return
+    }
+    void this.openWorkspace(target).catch(
+      (reason: unknown) => { console.warn('new session failed:', reason) },
+    )
+  }
+
+  async openNewSession(beforeOpen: (sessionId: SessionId) => void): Promise<void> {
+    const target = this.newSessionTarget()
+    if (target === undefined) throw new Error('Select a Workspace before trying an example prompt')
+    const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
+    // Example prompts need a fresh composer so an unsent draft in a reusable
+    // blank Session remains untouched. The caller owns failure feedback.
+    const sessionId = await this.sessions.create({ workspaceId: target })
+    if (navigation.aborted) return
+    this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
+  }
+
+  private newSessionTarget(workspaceId?: WorkspaceId): WorkspaceId | undefined {
     const workspace = this.workspaces.list.getSnapshot()
     const sessions = this.sessions.list.getSnapshot()
     const current = this.mainReference?.sessionId
@@ -230,14 +258,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const recent = workspace.phase === 'ready' && sessions.phase === 'ready'
       ? recentWorkspace(workspace.items, sessions.byId)
       : undefined
-    const target = workspaceId ?? currentWorkspaceId ?? recent
-    if (target === undefined) {
-      this.clearMain()
-      return
-    }
-    void this.openWorkspace(target).catch(
-      (reason: unknown) => { console.warn('new session failed:', reason) },
-    )
+    return workspaceId ?? currentWorkspaceId ?? recent
   }
 
   async archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {

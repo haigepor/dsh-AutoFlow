@@ -19,16 +19,18 @@ import {
 } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-hmr'
 import type { ProfileContext, ProfileManifest } from '@deepseek-ai/dsh-app-boot'
+import type { DshBundleExample, DshBundleFeature, DshBundleFeatureKind, LocalizedText } from '@deepseek-ai/dsh-package-manifest'
 import { bundleManifest, readProfileRegistry, registryArguments, runProfilePnpm, saveManifest, viewProfilePackage } from './operations.ts'
 import { classifyInstallFailure } from './install-failure.ts'
 import { InvalidInstallSpecError, parseInstallSpec, type ParsedInstallSpec } from './install-spec.ts'
 import { attributeFailure, normalizeRegistry, NPMMIRROR_REGISTRY, registryPlan } from './registry.ts'
-import { writePluginEnabled } from './patch.ts'
+import { readPluginFeatureEnabled, writePluginEnabled, writePluginEnabledBatch } from './patch.ts'
 import { incompatiblePlugin, ManagementFailure } from './failure.ts'
 import { approveBuilds, readPendingBuilds } from './build-approval.ts'
 import { checkGithubConnection } from './github-connection.ts'
 import type {
-  BundleInfo, BundleRowInfo, ChangeResult, InspectOptions, InstallBundleOptions, ManagementError, PackageResult, PluginChange,
+  BundleFeatureInfo, BundleInfo, BundleRowInfo, ChangeResult, InspectOptions, InstallBundleOptions, ManagementError,
+  PackageResult, PluginChange,
   PluginEntryId, PluginInfo, PluginInspectProblem, PluginInstallCancellation, PluginInstallProgress, PluginInstallRequestId,
   PluginRegistries, PluginSpecInspection, Registry,
 } from './types.ts'
@@ -84,6 +86,64 @@ const ANSI_SEQUENCE = /\x1b\[[0-9;]*m/g
 /** Flatten only the groups addressable by the profile's patch composer. */
 function flatten(rows: EntryOptions[]): EntryOptions[] {
   return rows.flatMap(row => [row, ...(row.group && Array.isArray(row.config) ? flatten(row.config as EntryOptions[]) : [])])
+}
+
+function featureText(value: unknown): value is LocalizedText {
+  return typeof value === 'string' && value.trim() !== ''
+    || typeof value === 'object' && value !== null && !Array.isArray(value)
+      && typeof (value as { en?: unknown }).en === 'string'
+      && Object.values(value).every(text => typeof text === 'string')
+}
+
+/** Reject categories outside the stable Client display vocabulary. */
+function featureKind(value: unknown): value is DshBundleFeatureKind {
+  return value === 'prompt' || value === 'skill' || value === 'script' || value === 'ui' || value === 'other'
+}
+
+/** Validate feature choices against the package's own inserted rows. */
+function declaredFeatures(manifest: ProfileManifest, rows: EntryOptions[]): DshBundleFeature[] {
+  const value: unknown = manifest.dsh?.bundle?.features
+  if (value === undefined) return []
+  if (!Array.isArray(value)) throw new Error('dsh.bundle.features must be an array')
+  const ids = new Set<string>(), rowIds = new Set<string>()
+  return value.map((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) throw new Error('Invalid bundle feature')
+    const feature = entry as Partial<DshBundleFeature>
+    if (typeof feature.id !== 'string' || !/^[a-z][a-z0-9-]*$/.test(feature.id)
+      || typeof feature.rowId !== 'string' || !/^[a-z][a-z0-9-]*$/.test(feature.rowId)
+      || !featureText(feature.title) || !featureText(feature.description)
+      || feature.kind !== undefined && !featureKind(feature.kind)
+      || typeof feature.defaultEnabled !== 'boolean' || ids.has(feature.id) || rowIds.has(feature.rowId)) {
+      throw new Error('Invalid or duplicate bundle feature declaration')
+    }
+    const matches = rows.filter(candidate => candidate.id === feature.rowId)
+    if (matches.length !== 1 || (matches[0]?.disabled === true) === feature.defaultEnabled) {
+      throw new Error(`Bundle feature ${feature.id} must name one row with its declared default state`)
+    }
+    ids.add(feature.id)
+    rowIds.add(feature.rowId)
+    return feature as DshBundleFeature
+  })
+}
+
+/** Validate the finite, localized prompts before they cross the Remote. */
+function declaredExamples(manifest: ProfileManifest): DshBundleExample[] {
+  const value: unknown = manifest.dsh?.bundle?.examples
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > 6) throw new Error('dsh.bundle.examples must contain at most six prompts')
+  const ids = new Set<string>()
+  return value.map((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) throw new Error('Invalid bundle example')
+    const example = entry as Partial<DshBundleExample>
+    if (typeof example.id !== 'string' || !/^[a-z][a-z0-9-]*$/.test(example.id) || ids.has(example.id)
+      || !featureText(example.prompt)
+      || (typeof example.prompt === 'string' ? [example.prompt] : Object.values(example.prompt))
+        .some(prompt => prompt.trim() === '' || prompt.length > 1_000)) {
+      throw new Error('Invalid or duplicate bundle example declaration')
+    }
+    ids.add(example.id)
+    return example as DshBundleExample
+  })
 }
 
 /** Preserve the exact observed diagnostic, including non-Error failures. */
@@ -201,6 +261,7 @@ export class PluginManager extends TypertRemoteService {
   private readonly abort = new AbortController()
   /** Installations by request id, from their call until it settles. */
   private readonly installs = new Map<PluginInstallRequestId, InstallControl>()
+  private readonly actions = new Map<string, (input: Record<string, string>, signal: AbortSignal) => Promise<string>>()
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'pluginManager')
@@ -302,12 +363,18 @@ export class PluginManager extends TypertRemoteService {
         if (compatibility !== undefined && !compatibility.exempted) throw new ManagementFailure('incompatible-version', [incompatiblePlugin(compatibility)])
         const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
         const meta = readPluginMeta(info.name ?? name, pathToFileURL(join(dir, 'package.json')).href)
+        const features: BundleFeatureInfo[] = declaredFeatures(info, this.bundleRows(name)).map(feature => ({
+          ...feature, enabled: readPluginFeatureEnabled(this.profile.patchPath, feature.rowId, feature.defaultEnabled),
+        }))
+        const examples = declaredExamples(info)
         bundles.push({ name, ...(info.version === undefined ? {} : { version: info.version }),
           ...(info.description === undefined || info.description === '' ? {} : { description: info.description }),
           ...meta === undefined ? {} : { meta },
           enabled, installed, optional, removable: removable && readOnlyReason === undefined,
           ...(readOnlyReason === undefined ? {} : { readOnlyReason }),
-          ...this.declaredRows(name, info) })
+          ...this.declaredRows(name, info),
+          ...(features.length === 0 ? {} : { features }),
+          ...(examples.length === 0 ? {} : { examples }) })
       } catch (error) {
         if (enabled || installed) {
           bundles.push({ name, enabled, installed, optional, removable: removable && readOnlyReason === undefined,
@@ -445,6 +512,80 @@ export class PluginManager extends TypertRemoteService {
       await this.selectBundle(name, enabled)
       result.warnings = await this.reload(enabled ? this.bundleRows(name).map(row => row.id) : [])
     }), { stage: 'enable', target: name, enabled }, 'bundle')
+  }
+
+  /** Persist all declared feature choices together, optionally selecting the bundle.
+   * @param name Bundle package name.
+   * @param enabledFeatureIds Complete set of selected feature IDs.
+   * @param activate Whether to select the bundle in the same update.
+   * @returns Persisted and runtime outcomes.
+   */
+  @Remote
+  setBundleFeatures(name: string, enabledFeatureIds: string[], activate: boolean): Promise<ChangeResult> {
+    return this.change(result => this.configure(async () => {
+      const info = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
+      if (info === undefined) throw new ManagementFailure('not-bundle')
+      const rows = this.bundleRows(name)
+      const features = declaredFeatures(info, rows)
+      const known = new Set(features.map(feature => feature.id))
+      if (new Set(enabledFeatureIds).size !== enabledFeatureIds.length || enabledFeatureIds.some(id => !known.has(id))) {
+        throw new Error('Unknown or duplicate bundle feature selection')
+      }
+      const before = new Map<string, string | undefined>()
+      for (const filename of ['package.json', 'cordis.patch.yml']) {
+        const path = join(this.profile.dir, filename)
+        try { before.set(path, await readFile(path, 'utf8')) }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          before.set(path, undefined)
+        }
+      }
+      try {
+        await writePluginEnabledBatch(this.profile.patchPath, features.map((feature) => {
+          const row = rows.find(candidate => candidate.id === feature.rowId)
+          if (row === undefined) throw new Error(`Missing bundle feature row: ${feature.rowId}`)
+          return { id: feature.rowId, name: row.name, enabled: enabledFeatureIds.includes(feature.id) }
+        }))
+        if (activate) await this.selectBundle(name, true)
+        result.warnings = await this.reload(activate ? rows.map(row => row.id) : [])
+      } catch (error) {
+        await this.restoreFiles(before)
+        await this.reload()
+        throw error
+      }
+    }), { stage: 'enable', target: name, enabled: activate }, 'bundle')
+  }
+
+  /** Register a live Host operation shared by a bundle's Client UI and Agent tool.
+   * @param packageName Owning bundle package name.
+   * @param id Operation ID within the bundle.
+   * @param run Handler for validated text input and cancellation.
+   * @returns Disposer that removes this registration.
+   */
+  registerAction(
+    packageName: string, id: string, run: (input: Record<string, string>, signal: AbortSignal) => Promise<string>,
+  ): () => void {
+    if (packageName.trim() === '' || !/^[a-z][a-z0-9-]*$/.test(id)) throw new Error('Invalid bundle action identity')
+    const key = `${packageName}#${id}`
+    if (this.actions.has(key)) throw new Error(`Bundle action already registered: ${key}`)
+    this.actions.set(key, run)
+    return () => { if (this.actions.get(key) === run) this.actions.delete(key) }
+  }
+
+  /** Invoke a registered operation through the generated plugin-manager Remote.
+   * @param packageName Owning bundle package name.
+   * @param id Operation ID within the bundle.
+   * @param input Text fields supplied by the caller.
+   * @param signal Cancellation signal.
+   * @returns Bounded text output.
+   */
+  @Remote
+  async invokeAction(packageName: string, id: string, input: Record<string, string>, signal: AbortSignal): Promise<{ output: string }> {
+    const run = this.actions.get(`${packageName}#${id}`)
+    if (run === undefined) throw new Error(`Bundle action is unavailable: ${packageName}#${id}`)
+    const output = await run(input, signal)
+    if (Buffer.byteLength(output, 'utf8') > this.outputBytes) throw new Error('Bundle action output is too large')
+    return { output }
   }
 
   /**

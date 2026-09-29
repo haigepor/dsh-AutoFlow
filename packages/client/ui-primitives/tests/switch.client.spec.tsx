@@ -33,6 +33,17 @@ describe('Switch', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('shows a busy thumb and refuses another click while loading', () => {
+    const onChange = vi.fn()
+    render(<Switch checked={false} loading label="Toggle" onChange={onChange} />)
+    const control = screen.getByRole('switch')
+    expect(control.getAttribute('aria-busy')).toBe('true')
+    expect(control.querySelector('[aria-hidden="true"]')).not.toBeNull()
+    expect((control as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(control)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('carries a lock reason as the hover title when the owner names one', () => {
     render(<Switch checked={false} disabled label="Toggle" title="Managed by policy" onChange={() => {}} />)
     expect(screen.getByRole('switch').getAttribute('title')).toBe('Managed by policy')

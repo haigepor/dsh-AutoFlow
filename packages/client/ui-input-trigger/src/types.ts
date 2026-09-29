@@ -59,6 +59,8 @@ export interface InputTriggerCandidate {
   readonly description?: string
   /** Reference glyph token, or an icon component from the shared icon set. */
   readonly icon?: InputTriggerCandidateIcon | ComponentType<IconProps>
+  /** Optional icon size for artwork that must remain legible in the menu. */
+  readonly iconSize?: number
   readonly hint?: string
   /** Optional visual heading shared by adjacent candidates; sectioned groups omit their source-title row. */
   readonly section?: string
