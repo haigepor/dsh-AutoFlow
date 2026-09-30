@@ -1,8 +1,8 @@
-# DeepSeek Harness
+# AutoFlow
 
 English | [中文](README.zh.md)
 
-DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
+AutoFlow extends DeepSeek Harness with custom model configuration, plugin workflows, and interface styling. DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
 
 It is built on an **everything-is-a-plugin** architecture and powered by [Cordis](https://github.com/cordiverse/cordis), whose design is described in [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512).
 
@@ -18,7 +18,7 @@ Review the [safety notice](SAFETY.md) before running the project.
 
 ### Run from `npm`
 
-Install `Node.js`, then run:
+This runs the official DeepSeek Harness package. To test AutoFlow, use the source instructions below. Install `Node.js`, then run:
 
 ```sh
 npx @deepseek-ai/dsh web
@@ -28,17 +28,32 @@ The command starts the Web UI at `http://127.0.0.1:3080` by default and opens it
 
 ### Run from source
 
-To run from a repository checkout:
+Use Node.js `^22.19.0 || >=24.0.0` and pnpm `11.7.0`. Clone this repository's `main` branch:
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
-pnpm install
-pnpm run build
-pnpm dsh web
+git clone --branch main https://github.com/haigepor/dsh-AutoFlow.git
+cd dsh-AutoFlow
+pnpm install --frozen-lockfile
+pnpm run web:rebuild
 ```
 
-`pnpm run build` prepares the repository artifacts. `pnpm dsh web` uses those built artifacts without rebuilding.
+`pnpm run web:rebuild` completes the repository build before starting `dsh web`; a failed build prevents startup. `pnpm dsh web` and `pnpm run start:web` reuse the existing artifacts. Git does not carry `lib/` or `apps/web/dist/`, so rebuilding is required after pulling updates. Stop the previous server before restarting; `pnpm run web:rebuild --no-open --port 3081` selects another port.
+
+### Update another device
+
+In an existing AutoFlow checkout, confirm that `origin` is `https://github.com/haigepor/dsh-AutoFlow.git`, then update and rebuild:
+
+```sh
+git remote get-url origin
+git switch main
+git pull --ff-only origin main
+pnpm install --frozen-lockfile
+pnpm run web:rebuild
+```
+
+The `deepseek-harness` branch mirrors upstream; `main` contains AutoFlow changes. Compare `git log -1 --oneline` with `environment.DSH_CLIENT_COMMIT_HASH` in `.dsh-build/client-build-environment.json` to confirm the built source commit. The package version identifies the upstream baseline; `autoflow-v*` tags identify AutoFlow milestones.
+
+Appearance choices and installed plugins belong to each device's DSH Home. A new device starts with the official palette; select “Current project” under Settings → Appearance to use the custom palette. Install the [AFP bundle](custom-plugins/workspace/dsh-plugin-afp/README.md) into the active profile on each device; cloning its source does not activate it.
 
 ## Community and support
 

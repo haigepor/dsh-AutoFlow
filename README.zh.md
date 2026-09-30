@@ -1,8 +1,8 @@
-# DeepSeek Harness
+# AutoFlow
 
 [English](README.md) | 中文
 
-DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
+AutoFlow 基于 DeepSeek Harness，提供自定义模型配置、插件流程和界面样式。DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
 
 它构建于**一切皆插件**的架构之上，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
 
@@ -20,7 +20,7 @@ DeepSeek Harness 处于 _开发者预览_ 阶段，正在快速迭代。**未来
 
 ### 通过 `npm` 运行
 
-安装 `Node.js`，然后运行：
+此入口运行官方 DeepSeek Harness 软件包。测试 AutoFlow 请使用下方的源码入口。安装 `Node.js`，然后运行：
 
 ```sh
 npx @deepseek-ai/dsh web
@@ -32,17 +32,32 @@ npx @deepseek-ai/dsh web
 
 ### 从源码运行
 
-如需从仓库源码运行：
+使用 Node.js `^22.19.0 || >=24.0.0` 和 pnpm `11.7.0`，克隆本仓库的 `main` 分支：
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
-pnpm install
-pnpm run build
-pnpm dsh web
+git clone --branch main https://github.com/haigepor/dsh-AutoFlow.git
+cd dsh-AutoFlow
+pnpm install --frozen-lockfile
+pnpm run web:rebuild
 ```
 
-`pnpm run build` 会准备仓库产物。`pnpm dsh web` 会直接使用这些已构建产物，不会重新构建。
+`pnpm run web:rebuild` 完整构建仓库后启动 `dsh web`；构建失败时不会启动。`pnpm dsh web` 与 `pnpm run start:web` 复用已有产物。Git 不包含 `lib/` 和 `apps/web/dist/`，拉取更新后需要重新构建。重启前先停止原服务；`pnpm run web:rebuild --no-open --port 3081` 可使用另一个端口。
+
+### 更新其他设备
+
+在已有 AutoFlow 检出目录中，确认 `origin` 是 `https://github.com/haigepor/dsh-AutoFlow.git`，再更新并重建：
+
+```sh
+git remote get-url origin
+git switch main
+git pull --ff-only origin main
+pnpm install --frozen-lockfile
+pnpm run web:rebuild
+```
+
+`deepseek-harness` 分支保存官方镜像；`main` 包含 AutoFlow 改动。对照 `git log -1 --oneline` 与 `.dsh-build/client-build-environment.json` 中的 `environment.DSH_CLIENT_COMMIT_HASH`，确认构建对应的源码提交。软件包版本表示官方基线，`autoflow-v*` 标签表示 AutoFlow 版本里程碑。
+
+外观选择与已安装插件属于每台设备的 DSH Home。新设备默认使用官方配色；在“设置 → 外观”中选择“当前项目”即可使用自定义配色。每台设备都需要将 [AFP 组合包](custom-plugins/workspace/dsh-plugin-afp/README.zh.md)安装到当前 profile；克隆插件源码不会自动启用插件。
 
 ## 社区与支持
 
