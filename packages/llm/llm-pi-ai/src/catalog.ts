@@ -605,6 +605,8 @@ export interface PiAiModelProfile {
    * declares the offered levels and their wire spellings.
    */
   reasoningEfforts?: false | PiAiReasoningEfforts
+  /** Default for requests without a session effort; must be supported by this model. */
+  defaultReasoningEffort?: ModelThinkingLevel
   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
   compat?: PiAiCompatProfile
 }
@@ -814,6 +816,8 @@ export interface RouteCatalog {
    * picked, so only an explicit configuration lands here.
    */
   configuredMaxTokens: ReadonlyMap<string, number>
+  /** Explicit per-model defaults, overriding the provider's reasoning setting. */
+  configuredReasoningEfforts: ReadonlyMap<string, ModelThinkingLevel>
 }
 
 /**
@@ -879,6 +883,7 @@ export function resolveRouteModels(
   assertOfferedCompatFields(provider, 'route', request.compat)
   const seen = new Set<string>()
   const configuredMaxTokens = new Map<string, number>()
+  const configuredReasoningEfforts = new Map<string, ModelThinkingLevel>()
   const resolveEntry = (entry: PiAiModelProfile): Model<Api> => {
     assertOfferedCompatFields(provider, `model "${entry.id}"`, entry.compat)
     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
@@ -909,7 +914,7 @@ export function resolveRouteModels(
     // Only a value the profile named is a deployment choice; the catalog's is
     // the model's capability and stays out of request defaults.
     if (entry.maxTokens !== undefined) configuredMaxTokens.set(entry.id, entry.maxTokens)
-    return {
+    const resolved: Model<Api> = {
       // The installed entry lays the floor, and the fields below override it.
       // Enumerating instead would silently drop every `Model` field this
       // package does not model — reasoning-level spellings, compatibility
@@ -928,6 +933,16 @@ export function resolveRouteModels(
       ...resolveModelReasoning(provider, entry, base),
       ...resolveModelCompat(provider, entry, request.compat, base, api),
     }
+    if (entry.defaultReasoningEffort !== undefined) {
+      const level = entry.defaultReasoningEffort
+      const wire = resolved.thinkingLevelMap?.[level]
+      if (!resolved.reasoning || !THINKING_LEVELS.includes(level) || wire === null
+        || ((level === 'xhigh' || level === 'max') && wire === undefined)) {
+        invalid(provider, `model "${entry.id}" defaultReasoningEffort "${level}" is not supported`)
+      }
+      configuredReasoningEfforts.set(entry.id, level)
+    }
+    return resolved
   }
   const models: Model<Api>[] = []
   for (const entry of entries) {
@@ -953,5 +968,5 @@ export function resolveRouteModels(
     invalid(provider, `sets compat "${field}", but no model on the route speaks a protocol that takes it;`
       + ` it exists on ${takers.join(', ')}`)
   }
-  return { models: serviceableModels, configuredMaxTokens, modelErrors }
+  return { models: serviceableModels, configuredMaxTokens, configuredReasoningEfforts, modelErrors }
 }

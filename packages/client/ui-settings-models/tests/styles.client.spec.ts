@@ -59,6 +59,11 @@ describe('ModelsSection theme styles', () => {
     expect(block('.rowCard')).toContain('backdrop-filter: var(--dsw-menu-backdrop-filter)')
   })
 
+  it('distinguishes the selected provider from hover with the active sidebar color', () => {
+    expect(block('.railProviderActive')).toContain('background: var(--dsw-specific-sidebar-nav-item-active)')
+    expect(css).toMatch(/\.railProviderActive:hover:not\(:disabled\) \{\s*background: var\(--dsw-specific-sidebar-nav-item-active\);/s)
+  })
+
   it('gives every dropdown the shared chevron instead of the OS arrow', () => {
     // `select.input` caps the control at 240px, and the OS arrow is painted
     // flush inside that shrunk right edge — visibly tighter than every other

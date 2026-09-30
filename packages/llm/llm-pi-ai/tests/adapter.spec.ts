@@ -183,6 +183,30 @@ describe('PiAiAdapter provider routing', () => {
     expect(server.requests).toHaveLength(2)
   })
 
+  it('uses model defaults before provider defaults and preserves explicit session efforts', async () => {
+    const server = await mockServer([{ events: textEvents }, { events: textEvents }, { events: textEvents }])
+    const ctx = await harness(server.url, { reasoning: 'max', models: [
+      { id: 'deepseek-v4-pro', defaultReasoningEffort: 'high' },
+      { id: 'deepseek-v4-flash' },
+    ] })
+    expect((await ctx.llm.resolveModelInfo('deepseek', 'deepseek-v4-pro')).reasoning?.defaultEffort).toBe('high')
+    await assemble(ctx, { model: 'deepseek-v4-pro', messages: [] })
+    await assemble(ctx, { model: 'deepseek-v4-pro', reasoningEffort: ReasoningEffortId('off'), messages: [] })
+    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    expect(server.requests[0]).toMatchObject({ reasoning_effort: 'high', thinking: { type: 'enabled' } })
+    expect(server.requests[1]).toMatchObject({ thinking: { type: 'disabled' } })
+    expect(server.requests[1]).not.toHaveProperty('reasoning_effort')
+    expect(server.requests[2]).toMatchObject({ reasoning_effort: 'max' })
+  })
+
+  it('rejects a model default outside its declared subset before network I/O', async () => {
+    const server = await mockServer([])
+    expect(() => resolveProfiles({ gateway: { api: 'openai-completions', baseURL: server.url, models: [{
+      id: 'generic', reasoningEfforts: { low: 'low' }, defaultReasoningEffort: 'high',
+    }] } })).toThrow(/defaultReasoningEffort.*not supported/)
+    expect(server.requests).toEqual([])
+  })
+
   it('preserves omitted profile options when constructing the adapter directly', async () => {
     const server = await mockServer([{ events: textEvents }])
     const ctx = new Context()

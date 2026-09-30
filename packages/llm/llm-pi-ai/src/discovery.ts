@@ -22,10 +22,11 @@
  * @module dsh-llm-pi-ai/discovery
  */
 
-import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@deepseek-ai/dsh-llm'
+import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { LlmDiscoveredModel, LlmModelDiscoveryOperation } from '@deepseek-ai/dsh-llm'
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import { catalogModels } from './catalog.ts'
+import { getSupportedThinkingLevels } from './models.ts'
 
 /**
  * Protocols whose model listing this module can read. OpenAI protocols use
@@ -281,6 +282,11 @@ export async function discoverModels(
         contextWindow: model.contextWindow,
         maxTokens: model.maxTokens,
         inputModalities: [...model.input],
+        ...model.reasoning ? { reasoningWireValues: Object.fromEntries(getSupportedThinkingLevels(model).map(level =>
+          [level, model.thinkingLevelMap?.[level] ?? (level === 'off' ? null : level)])),
+        reasoning: { efforts: getSupportedThinkingLevels(model).map(level => ({
+          id: ReasoningEffortId(level), name: level,
+        })) } } : {},
       }))
     }
   }

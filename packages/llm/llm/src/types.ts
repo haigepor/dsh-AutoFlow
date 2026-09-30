@@ -324,6 +324,10 @@ export interface LlmDiscoveredModel {
   maxTokens?: number
   /** Accepted input types when disclosed by the catalog or endpoint; absent means unknown. */
   inputModalities?: readonly ModelModality[]
+  /** Selectable efforts from installed catalog metadata; endpoint id listings leave this absent. */
+  reasoning?: LlmModelReasoningInfo
+  /** Installed effort wire spellings, used when materializing a manual capability override. */
+  reasoningWireValues?: Readonly<Record<string, string | null>>
 }
 
 /** One adapter-discovered model; catalog membership is advisory, not request validation. */

@@ -121,6 +121,18 @@
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
+/* 分组背景铺满菜单；仅模型按钮保留两侧留白，避免标题扩宽滚动区域。 */
+.modelMenu {
+  padding-inline: 0;
+}
+
+.modelMenu > .status,
+.modelMenu > .empty,
+.modelMenu > .error,
+.modelMenu > .warning {
+  margin-inline: 4px;
+}
+
 .status,
 .empty {
   padding: 8px;
@@ -161,7 +173,9 @@
 }
 
 .groups {
+  min-width: 0;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -176,15 +190,19 @@
 }
 
 .groupTitle {
+  box-sizing: border-box;
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 4px 7px 2px;
+  padding: 4px 11px 2px;
+  overflow: hidden;
   background: var(--dsw-specific-menu);
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
   line-height: 16px;
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .option {
@@ -203,6 +221,11 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.group > .option {
+  min-width: 0;
+  margin-inline: 4px;
 }
 
 .option:hover:not(:disabled),

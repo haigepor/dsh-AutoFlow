@@ -9,6 +9,7 @@ import type { LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environm
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type { DeepSeekCatalogModel, DeepSeekConnectionOptions } from './types.ts'
 import { DEFAULT_MODELS } from './models.ts'
+import { DEEPSEEK_REASONING_EFFORTS, resolveModelReasoning } from './model-info.ts'
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_TOKENS, DEFAULT_MAX_INLINE_REQUEST_IMAGE_BYTES, DEFAULT_IMAGE_OFFLOAD_BYTE_QUANTUM, DEFAULT_INLINE_IMAGE_OFFLOAD_BYTE_QUANTUM, DEFAULT_IMAGE_OFFLOAD_COUNT_QUANTUM, DEFAULT_FILE_EXPIRY_SECONDS, DEFAULT_FILE_REFRESH_MARGIN_SECONDS, DEFAULT_FILE_QUOTA_CLEANUP_BATCH, DEFAULT_FILES_API_TIMEOUT_MS } from './defaults.ts'
 import { DEFAULT_MAX_IMAGES_PER_REQUEST, DEFAULT_MAX_REQUEST_FILES_BYTES, DEFAULT_REQUEST_IMAGE_MAX_BYTES } from './request-pricing.ts'
 
@@ -71,6 +72,8 @@ const catalogModel: z<DeepSeekCatalogModel> = z.object({
   description: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
+  reasoningEfforts: z.union([z.const(undefined), z.array(z.union(DEEPSEEK_REASONING_EFFORTS)).min(1)]),
+  defaultReasoningEffort: z.union(DEEPSEEK_REASONING_EFFORTS),
   inputModalities: z.array(z.union(MODEL_MODALITIES)).min(1).default(['text']),
   imagePixelBudget: z.union([z.number().step(1).min(1), 'low']),
   imageMaxBytes: z.number().step(1).min(1),
@@ -82,7 +85,7 @@ const catalogModel: z<DeepSeekCatalogModel> = z.object({
 export const deepSeekConfigFields = {
   baseURL: z.string().volatile(),
   thinking: z.union(['enabled', 'disabled']).volatile(),
-  reasoningEffort: z.union(['off', 'low', 'high', 'max']).volatile(),
+  reasoningEffort: z.union(DEEPSEEK_REASONING_EFFORTS).volatile(),
   maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_TOKENS).volatile(),
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW).volatile(),
   models: z.array(catalogModel).default(DEFAULT_MODELS).volatile(),
@@ -134,6 +137,11 @@ function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): Dee
         `llm-deepseek: catalog model "${model.id}" maxTokens must be a positive integer`,
       )
     }
+    if (model.reasoningEfforts !== undefined && (model.reasoningEfforts.length === 0
+      || new Set(model.reasoningEfforts).size !== model.reasoningEfforts.length
+      || model.reasoningEfforts.some(effort => !DEEPSEEK_REASONING_EFFORTS.includes(effort)))) {
+      throw new Error(`llm-deepseek: catalog model "${model.id}" reasoningEfforts must be a nonempty subset of protocol efforts`)
+    }
     const inputModalities = model.inputModalities ?? ['text']
     if (inputModalities.length === 0) {
       throw new Error(`llm-deepseek: catalog model "${model.id}" inputModalities must not be empty`)
@@ -176,6 +184,8 @@ function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): Dee
       ...model.description === undefined ? {} : { description: model.description },
       ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
       ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+      ...model.reasoningEfforts === undefined ? {} : { reasoningEfforts: [...model.reasoningEfforts] },
+      ...model.defaultReasoningEffort === undefined ? {} : { defaultReasoningEffort: model.defaultReasoningEffort },
       ...model.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: model.systemPromptUpdate },
       ...model.toolUpdate === undefined ? {} : { toolUpdate: model.toolUpdate },
       inputModalities: [...inputModalities],
@@ -292,7 +302,7 @@ export function resolveAdapterOptions(config: Options, environment?: LaunchEnvir
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error('llm-deepseek: Messages baseURL must be an HTTP(S) root without credentials, query, or fragment')
   }
-  return {
+  const resolved: ResolvedDeepSeekOptions = {
     baseURL,
     defaults: {
       thinking: config.thinking,
@@ -316,4 +326,6 @@ export function resolveAdapterOptions(config: Options, environment?: LaunchEnvir
     },
     retryPolicy: resolveRetryPolicy(config.retryPolicy, 'llm-deepseek: retryPolicy'),
   }
+  for (const model of resolved.models) resolveModelReasoning(resolved, model.id)
+  return resolved
 }

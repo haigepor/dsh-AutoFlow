@@ -17,11 +17,8 @@
  * and at least one model — are required here rather than at load, so the
  * failure names the field while the user is still looking at it.
  *
- * There is deliberately no reasoning-effort control, here or on the editor
- * card: effort is a per-MODEL capability, and the models under one provider
- * disagree about it, so a provider-scoped control can only be set to a value
- * some of them reject. The composer's model picker offers each model its own
- * levels instead.
+ * Reasoning defaults and supported levels belong to individual model rows.
+ * Their edits preserve the route's existing protocol compatibility fields.
  */
 
 import { useEffect, useState } from 'react'
@@ -31,6 +28,7 @@ import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
 import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
+import type { ModelReasoningOptions } from './model-reasoning.ts'
 import type { ModelDraft } from './ModelListEditor.tsx'
 import { deriveKeyRef } from './store.ts'
 import { ProtocolPicker } from './ProtocolPicker.tsx'
@@ -63,6 +61,8 @@ function isHttpUrl(value: string): boolean {
 
 /** Props of {@link CustomProviderCard}. */
 export interface CustomProviderCardProps {
+  /** Schema-owned reasoning configuration offered by the adapter. */
+  reasoningOptions?: ModelReasoningOptions | undefined
   /** Route ids already declared, so the card refuses to shadow one. */
   taken: readonly string[]
   /** Wire protocols the adapter can serve, in the order it reports them. */
@@ -287,6 +287,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           : <p className={styles['error']}>{t(keyFailure === 'keyBlank' ? 'keyBlankNew' : keyFailure)}</p>}
       </div>
       <ModelListEditor
+        reasoningOptions={props.reasoningOptions}
         models={models}
         onChange={setModels}
         probe={{

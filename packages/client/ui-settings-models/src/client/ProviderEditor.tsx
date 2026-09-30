@@ -36,6 +36,7 @@ import { ModelListEditor } from './ModelListEditor.tsx'
 import { FieldHelp } from './FieldHelp.tsx'
 import { deriveKeyRef, protocolChoices } from './store.ts'
 import { ProtocolPicker } from './ProtocolPicker.tsx'
+import { modelReasoningOptions } from './model-reasoning.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type { en } from './locales.ts'
@@ -366,6 +367,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     /** What both family editors take: the rows, whose layer owns them, and the two writes. */
     const catalogProps = {
       models,
+      reasoningOptions: modelReasoningOptions(namespace, schema, settingsPath, {
+        ...typeof fallback === 'object' && fallback !== null ? fallback : {},
+        ...typeof draft === 'object' && draft !== null ? draft : {},
+      }),
       overridden: modelsOverridden,
       t,
       disabled,

@@ -8,6 +8,83 @@ import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 
+it('adds a custom model with all four shared efforts and High as its default', () => {
+  const onChange = vi.fn()
+  render(<ModelListEditor
+    models={[]} onChange={onChange} disabled={false} t={key => en[key]}
+    probe={{ settingsNs: 'llm-pi-ai', provider: 'openai' }} onBusyChange={() => {}}
+    operations={operations(() => Promise.resolve({ kind: 'found', models: [] }))}
+  />)
+  fireEvent.click(screen.getByRole('button', { name: en.addModel }))
+  expect(onChange).toHaveBeenCalledExactlyOnceWith([{
+    id: '',
+    reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
+    defaultReasoningEffort: 'high',
+  }])
+})
+
+it('adopts discovered custom models with all four shared efforts', async () => {
+  const onChange = vi.fn()
+  render(<ModelListEditor
+    models={[]} onChange={onChange} disabled={false} t={key => en[key]}
+    probe={{ settingsNs: 'llm-pi-ai', baseURL: 'https://gateway.example/v1' }} onBusyChange={() => {}}
+    operations={operations(() => Promise.resolve({ kind: 'found', models: [{ id: 'discovered-model' }] }))}
+  />)
+  fireEvent.click(screen.getByRole('button', { name: en.fetchModels }))
+  const dialog = await screen.findByRole('dialog', { name: en.fetchTitle })
+  fireEvent.click(within(dialog).getByRole('button', { name: en.fetchAdopt }))
+  expect(onChange).toHaveBeenCalledExactlyOnceWith([{
+    id: 'discovered-model',
+    reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
+    defaultReasoningEffort: 'high',
+  }])
+})
+
+it('edits a custom model default and preserves its protocol map while changing supported efforts', () => {
+  const onChange = vi.fn()
+  const model = { id: 'custom-thinking', input: ['text'], maxTokens: 4096,
+    reasoningEfforts: { off: 'none', high: 'strong' }, compat: { thinkingFormat: 'qwen', supportsStore: false } }
+  render(<ModelListEditor
+    models={[model]} onChange={onChange} reasoningOptions={{
+      levels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], formats: ['openai', 'qwen'],
+    }}
+    probe={{ settingsNs: 'llm-pi-ai', baseURL: 'https://gateway.example/v1', api: 'openai-completions' }}
+    disabled={false} t={key => en[key]} onBusyChange={() => {}}
+    operations={operations(() => Promise.resolve({ kind: 'found', models: [] }))}
+  />)
+  fireEvent.click(screen.getByRole('button', { name: `${en.modelReasoning} 1` }))
+  expect(screen.getAllByRole('menuitem').map(row => row.textContent)).toMatchInlineSnapshot(`
+    [
+      "Low · low",
+      "Medium · medium",
+      "High · high",
+      "Max · max",
+      "Configure supported efforts",
+    ]
+  `)
+  fireEvent.click(screen.getByRole('menuitem', { name: 'High · high' }))
+  expect(onChange).toHaveBeenCalledExactlyOnceWith([{ ...model, defaultReasoningEffort: 'high' }])
+  onChange.mockClear()
+  fireEvent.click(screen.getByRole('button', { name: `${en.modelAdvanced} 1` }))
+  const region = screen.getByRole('region', { name: `${en.reasoningSupported} 1` })
+  fireEvent.click(within(region).getByRole('button', { name: 'Low · low' }))
+  expect(onChange).toHaveBeenCalledExactlyOnceWith([{ ...model, reasoningEfforts: { off: 'none', high: 'strong', low: 'low' } }])
+})
+
+it('offers common context capacities while keeping the field editable', () => {
+  const onChange = vi.fn()
+  render(<ModelListEditor
+    models={[{ id: 'capacity-model' }]} onChange={onChange} disabled={false} t={key => en[key]}
+    probe={{ settingsNs: 'llm-pi-ai', provider: 'openai' }} onBusyChange={() => {}}
+    operations={operations(() => Promise.resolve({ kind: 'found', models: [] }))}
+  />)
+  fireEvent.click(screen.getByRole('button', { name: `${en.modelAdvanced} 1` }))
+  fireEvent.click(screen.getByRole('button', { name: `${en.contextWindowMenu} 1` }))
+  expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['128K', '256K', '512K', '1M', '2M', '4M'])
+  fireEvent.click(screen.getByRole('menuitem', { name: '1M' }))
+  expect(onChange).toHaveBeenCalledWith([{ id: 'capacity-model', contextWindow: 1_000_000 }])
+})
+
 function operations(discoverModels: ModelsOperations['discoverModels']): ModelsOperations {
   return {
     discoverModels,

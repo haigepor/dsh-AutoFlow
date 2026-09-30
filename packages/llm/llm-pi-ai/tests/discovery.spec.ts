@@ -101,6 +101,22 @@ describe('catalog-route model discovery', () => {
     await expect(ctx.llm.discoverModels('llm-pi-ai', { provider: 'deepseek' })).resolves.not.toHaveLength(0)
   })
 
+  it('returns installed reasoning subsets and wire values without inferring them from a model name', async () => {
+    const ctx = await harness()
+    const models = await ctx.llm.discoverModels('llm-pi-ai', { provider: 'deepseek' })
+    expect(models.find(model => model.id === 'deepseek-v4-pro')).toMatchObject({
+      reasoning: { efforts: [{ id: 'off' }, { id: 'high' }, { id: 'max' }] },
+      reasoningWireValues: { off: null, high: 'high', max: 'max' },
+    })
+    expect(models.find(model => model.id === 'deepseek-v4-flash')).toMatchObject({
+      reasoning: { efforts: [{ id: 'off' }, { id: 'low' }, { id: 'high' }, { id: 'max' }] },
+    })
+    const server = await listingServer({ body: JSON.stringify({ data: [{ id: 'deepseek-v4-pro' }] }) })
+    const unknown = await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url, api: 'openai-completions' })
+    expect(unknown[0]?.reasoning).toBeUndefined()
+    expect(unknown[0]?.reasoningWireValues).toBeUndefined()
+  })
+
   it('says where a route the catalog does not describe must get its models', async () => {
     const ctx = await harness()
     await expect(ctx.llm.discoverModels('llm-pi-ai', { provider: 'acme-gateway' }))

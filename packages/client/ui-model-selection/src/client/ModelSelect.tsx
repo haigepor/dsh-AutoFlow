@@ -38,10 +38,10 @@ import css from './ModelSelect.module.css'
 /** Which pane the dropdown shows: the two-row root or one drilled-in list. */
 type Pane = 'root' | 'model' | 'effort'
 
-/** One dynamic effort row; undefined means preserve the provider default. */
+/** One concrete effort row advertised for the selected model. */
 interface EffortChoice {
   key: string
-  effort: string | undefined
+  effort: string
   label: string
 }
 
@@ -99,23 +99,32 @@ export function ModelSelect(
   const currentChoice = choices[selectedIndex]
   const reasoning = currentChoice?.model.reasoning
   const effectiveEffort = state.current?.reasoningEffort ?? reasoning?.defaultEffort
+  const levelName = (effort: ModelReasoningEffort): string => {
+    // These are display aliases only; selectable identifiers remain Host-owned.
+    switch (effort.id) {
+      case 'off': return t('effort.off')
+      case 'minimal': return t('effort.minimal')
+      case 'low': return t('effort.low')
+      case 'medium': return t('effort.medium')
+      case 'high': return t('effort.high')
+      case 'xhigh': return t('effort.xhigh')
+      case 'max': return t('effort.max')
+      default: return effort.name
+    }
+  }
+  const currentLevel = reasoning?.efforts.find(level => level.id === effectiveEffort)
   const effortLabel = reasoning === undefined
     ? state.retainedEffort
     : effectiveEffort === undefined
-      ? t('effort.providerDefault')
-      : reasoning.efforts.find(level => level.id === effectiveEffort)?.name ?? effectiveEffort
-  const effortChoices = useMemo<readonly EffortChoice[]>(() => reasoning === undefined
+      ? undefined
+      : currentLevel === undefined ? effectiveEffort : levelName(currentLevel)
+  const effortChoices: readonly EffortChoice[] = reasoning === undefined
     ? []
-    : [
-      ...reasoning.defaultEffort === undefined
-        ? [{ key: 'provider-default', effort: undefined, label: t('effort.providerDefault') }]
-        : [],
-      ...reasoning.efforts.map((effort: ModelReasoningEffort) => ({
-        key: `effort:${effort.id}`,
-        effort: effort.id,
-        label: effort.name,
-      })),
-    ], [reasoning, t])
+    : reasoning.efforts.map((effort: ModelReasoningEffort) => ({
+      key: `effort:${effort.id}`,
+      effort: effort.id,
+      label: levelName(effort),
+    }))
   const { pending } = state
   const busy = pending !== null
 
@@ -315,7 +324,7 @@ export function ModelSelect(
     submit(selection)
   }
 
-  const chooseEffort = (effort: string | undefined): void => {
+  const chooseEffort = (effort: string): void => {
     if (state.current === null) return
     if (effectiveEffort === effort) {
       close(true)
@@ -394,7 +403,7 @@ export function ModelSelect(
         <MenuSurface
           ref={menuRef}
           id={`${id}-menu`}
-          className={css.menu}
+          className={clsx(css.menu, pane === 'model' && css.modelMenu)}
           style={menuPos ?? MEASURE_STYLE}
           role="menu"
           aria-label={t('menu.aria')}

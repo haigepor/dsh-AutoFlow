@@ -10,6 +10,8 @@ import type { ReactNode } from 'react'
 import { IconPlusOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { en } from './locales.ts'
 import { ModelRow } from './ModelRow.tsx'
+import { validateModelReasoning } from './model-reasoning.ts'
+import type { ModelReasoningOptions } from './model-reasoning.ts'
 import { ModelCatalogHeading } from './ModelCatalogHeading.tsx'
 import { useModelReorder } from './useModelReorder.ts'
 import styles from './ModelsSection.module.css'
@@ -75,7 +77,7 @@ export interface DeepSeekModelsValidationFailure {
   index: number
   /** Message key owned by the Models settings section. */
   key: 'modelIdRequired' | 'modelIdDuplicate' | 'modelNameInvalid' | 'modelContextInvalid'
-  | 'modelMaxTokensInvalid'
+  | 'modelMaxTokensInvalid' | 'reasoningNeedsLevel' | 'reasoningDefaultInvalid' | 'reasoningWireInvalid'
 }
 
 /** Convert a schema-validated catalog value into records without dropping hidden fields. */
@@ -119,12 +121,16 @@ export function validateDeepSeekModels(value: unknown): DeepSeekModelsValidation
       && (typeof maxTokens !== 'number' || !Number.isInteger(maxTokens) || maxTokens <= 0)) {
       return { index, key: 'modelMaxTokensInvalid' }
     }
+    const reasoningFailure = validateModelReasoning(model, Array.isArray(model['reasoningEfforts']))
+    if (reasoningFailure !== undefined) return { index, key: reasoningFailure }
   }
   return undefined
 }
 
 /** Props of {@link DeepSeekModelsEditor}. */
 export interface DeepSeekModelsEditorProps {
+  /** Accepted reasoning choices read from the owning schema. */
+  reasoningOptions?: ModelReasoningOptions | undefined
   /** Effective rows: inherited until the parent materializes an override. */
   models: readonly DeepSeekModelDraft[]
   /** Whether the user layer currently owns the whole array. */
@@ -244,6 +250,14 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
       setEditing(current => new Map(current).set(`${String(index)}:${field}`, text))
       update(index, field, parseCapacity(text))
     },
+    onPreset: (text: string) => {
+      setEditing((current) => {
+        const next = new Map(current)
+        next.delete(`${String(index)}:${field}`)
+        return next
+      })
+      update(index, field, parseCapacity(text))
+    },
     onBlur: () => { settleCapacity(index, field) },
   })
 
@@ -272,6 +286,7 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
               <span>{props.t('modelOrder')}</span>
               <span>{props.t('modelId')}</span>
               <span>{props.t('modelName')}</span>
+              <span>{props.t('modelReasoning')}</span>
               <span>{props.t('modelActions')}</span>
             </div>
             {props.models.map((model, index) => (
@@ -288,6 +303,7 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
                 onDragEnd={order.dragEnd}
                 onMove={(to) => { order.move(index, to) }}
                 inputField="inputModalities"
+                reasoningOptions={props.reasoningOptions}
                 expanded={expanded.has(index)}
                 disabled={props.disabled}
                 t={props.t}

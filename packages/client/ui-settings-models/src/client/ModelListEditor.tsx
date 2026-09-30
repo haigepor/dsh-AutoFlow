@@ -23,6 +23,7 @@ import type { ModelsOperations } from './operations.ts'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import type { en } from './locales.ts'
 import { ModelRow } from './ModelRow.tsx'
+import type { ModelReasoningOptions } from './model-reasoning.ts'
 import { ModelCatalogHeading } from './ModelCatalogHeading.tsx'
 import { useModelReorder } from './useModelReorder.ts'
 import styles from './ModelsSection.module.css'
@@ -65,6 +66,8 @@ export interface ProbeTarget {
 
 /** Props of {@link ModelListEditor}. */
 export interface ModelListEditorProps {
+  /** Schema-owned effort vocabulary and protocol options. */
+  reasoningOptions?: ModelReasoningOptions | undefined
   /** The rows as currently drafted. */
   models: readonly ModelDraft[]
   /** Installed provider whose catalog supplies defaults without endpoint I/O. */
@@ -131,10 +134,19 @@ function capacitySpelling(value: number | undefined): string {
   return value === undefined ? '' : formatCapacity(value)
 }
 
+/** New custom pi-ai models start with the four shared efforts and High default. */
+function newModel(id: string): ModelDraft {
+  return {
+    id,
+    reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
+    defaultReasoningEffort: 'high',
+  }
+}
+
 /** Adopt a candidate, preserving disclosed capacities and input types. */
 function adopt(candidate: LlmDiscoveredModel): ModelDraft {
   return {
-    id: candidate.id,
+    ...newModel(candidate.id),
     ...candidate.name === undefined ? {} : { name: candidate.name },
     ...candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow },
     ...candidate.maxTokens === undefined ? {} : { maxTokens: candidate.maxTokens },
@@ -187,6 +199,15 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
 
   const editCapacity = (index: number, field: CapacityField, text: string): void => {
     setEditing(current => new Map(current).set(bufferKey(index, field), text))
+    patch(index, { [field]: parseCapacity(text) })
+  }
+
+  const chooseCapacity = (index: number, field: CapacityField, text: string): void => {
+    setEditing((current) => {
+      const next = new Map(current)
+      next.delete(bufferKey(index, field))
+      return next
+    })
     patch(index, { [field]: parseCapacity(text) })
   }
 
@@ -353,6 +374,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
             <span>{t('modelOrder')}</span>
             <span>{t('modelId')}</span>
             <span>{t('modelName')}</span>
+            <span>{t('modelReasoning')}</span>
             <span>{t('modelActions')}</span>
           </div>
         ) : null}
@@ -372,6 +394,11 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
             inputField="input"
             inputFallback={inputDefaults.get(textOf(model, 'id')) ?? props.defaultInput}
             inputLoading={catalogProvider !== undefined && catalog === undefined}
+            reasoningOptions={props.reasoningOptions === undefined ? undefined : {
+              ...props.reasoningOptions, formats: probe.api === 'openai-completions' ? props.reasoningOptions.formats : [],
+              inheritedMapping: catalog?.find(entry => entry.id === textOf(model, 'id'))?.reasoningWireValues,
+            }}
+            reasoningInherited={catalog?.find(entry => entry.id === textOf(model, 'id'))?.reasoning}
             expanded={expanded.has(index)}
             disabled={disabled}
             t={t}
@@ -379,11 +406,13 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
               value: capacityText(model, index, 'contextWindow'),
               placeholder: CAPACITY_HINT.contextWindow,
               onChange: (text) => { editCapacity(index, 'contextWindow', text) },
+              onPreset: (text) => { chooseCapacity(index, 'contextWindow', text) },
             }}
             maxTokens={{
               value: capacityText(model, index, 'maxTokens'),
               placeholder: CAPACITY_HINT.maxTokens,
               onChange: (text) => { editCapacity(index, 'maxTokens', text) },
+              onPreset: (text) => { chooseCapacity(index, 'maxTokens', text) },
             }}
             onFieldChange={(field, value) => { patch(index, { [field]: value }) }}
             onChange={(next) => { onChange(models.map((row, at) => at === index ? next : row)) }}
@@ -407,7 +436,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
         type="button"
         className={styles['addModelButton']}
         disabled={disabled}
-        onClick={() => { onChange([...models, { id: '' }]) }}
+        onClick={() => { onChange([...models, newModel('')]) }}
       >
         <IconPlusOutlineRegular size={14} />
         {t('addModel')}

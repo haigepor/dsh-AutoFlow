@@ -6,6 +6,7 @@ import type { ImageAttachmentRef, RequestImageAttachment } from '@deepseek-ai/ds
 import type { DeepSeekConnectionOptions as Connection } from './types.ts'
 import type { DeepSeekFileId } from './file-id.ts'
 import { readReplay } from './replay.ts'
+import { resolveModelReasoning } from './model-info.ts'
 import type { WireBlock, WireInput, WireMessage, WireRequest } from './wire-types.ts'
 
 function unsupported(type: string): never {
@@ -143,8 +144,9 @@ export function serialize(
     }
   }
   if (pending.size > 0) throw new LlmError('DeepSeek Messages history ends with unresolved tools', 'INVALID_REQUEST')
-  const effort = options.purpose === 'session-title' ? 'off' : options.reasoningEffort ?? (connection.defaults.reasoningEffort ?? (connection.defaults.thinking === 'disabled' ? 'off' : 'high'))
-  if (!['off', 'low', 'high', 'max'].includes(effort) || (connection.defaults.thinking === 'disabled' && effort !== 'off')) {
+  const reasoning = resolveModelReasoning(connection, options.model)
+  const effort = options.purpose === 'session-title' ? 'off' : options.reasoningEffort ?? reasoning.defaultEffort
+  if (effort === undefined || (options.purpose !== 'session-title' && !reasoning.efforts.some(level => level.id === effort))) {
     throw new LlmError(`DeepSeek Messages does not support reasoning effort ${effort}`, 'UNSUPPORTED_REASONING_EFFORT')
   }
   const system = [options.system, historySystem].filter(Boolean).join('\n\n')

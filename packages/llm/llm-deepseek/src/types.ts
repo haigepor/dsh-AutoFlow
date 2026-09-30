@@ -5,6 +5,9 @@ import type { AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import type { DeepSeekLlmApiExtensionRequest, PreparedDeepSeekLlmApiExtensions } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import type { DeepSeekFileStore, DeepSeekFilePolicy } from './file-store.ts'
 
+/** Efforts accepted by the DeepSeek Messages protocol. */
+export type DeepSeekReasoningEffort = 'off' | 'low' | 'high' | 'max'
+
 /** One optional model entry advertised by the direct-fetch adapter. */
 export interface DeepSeekCatalogModel {
   /** Wire model id accepted by the configured endpoint. */
@@ -17,6 +20,10 @@ export interface DeepSeekCatalogModel {
   contextWindow?: number
   /** Per-request output cap for this model; omission falls back to the profile's {@link DeepSeekConnectionOptions.maxTokens}. */
   maxTokens?: number
+  /** Optional subset of protocol efforts offered for this model. */
+  reasoningEfforts?: DeepSeekReasoningEffort[] | undefined
+  /** Model default, overriding the connection default when no session effort is specified. */
+  defaultReasoningEffort?: DeepSeekReasoningEffort
   /** Accepted request modalities; omission is text-only. */
   inputModalities?: ModelModality[]
   /**

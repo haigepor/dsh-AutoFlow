@@ -31,6 +31,7 @@ import type {} from './slot-contract.ts'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
 import { FieldHelp } from './FieldHelp.tsx'
 import { deriveKeyRef, protocolChoices, providerUsable } from './store.ts'
+import { modelReasoningOptions } from './model-reasoning.ts'
 import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
@@ -591,6 +592,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                     className={styles['addPanel']}
                   >
                     <CustomProviderCard
+                      reasoningOptions={modelReasoningOptions(piAi, schema, ['providers', '_draft'], {})}
                       taken={state.rows.map(row => row.entry.provider)}
                       protocols={protocols}
                       revision={piAi.revision}

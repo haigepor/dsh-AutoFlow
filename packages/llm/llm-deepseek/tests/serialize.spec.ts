@@ -285,6 +285,20 @@ describe('Messages request conversion', () => {
     expect(request.output_config).toEqual(effort === 'off' ? undefined : { effort })
   })
 
+  it('shares model subsets and defaults between metadata and request serialization', () => {
+    const configured = resolveAdapterOptions({ reasoningEffort: 'max', models: [{
+      id: MODEL, reasoningEfforts: ['off', 'low'], defaultReasoningEffort: 'low',
+    }] })
+    expect(modelInfo(configured, 'deepseek-official', MODEL).reasoning).toMatchObject({
+      efforts: [{ id: 'off' }, { id: 'low' }], defaultEffort: 'low',
+    })
+    expect(serialize(options(), configured, [user()], new Map(), () => undefined).output_config).toEqual({ effort: 'low' })
+    expect(serialize(options({ reasoningEffort: ReasoningEffortId('off') }), configured, [user()], new Map(), () => undefined).thinking.type).toBe('disabled')
+    expect(() => serialize(options({ reasoningEffort: ReasoningEffortId('max') }), configured, [user()], new Map(), () => undefined)).toThrow(/effort/)
+    expect(() => resolveAdapterOptions({ models: [{ id: MODEL, reasoningEfforts: ['low'], defaultReasoningEffort: 'high' }] })).toThrow(/not supported/)
+    expect(() => resolveAdapterOptions({ thinking: 'disabled', models: [{ id: MODEL, defaultReasoningEffort: 'high' }] })).toThrow(/not supported/)
+  })
+
   it('disables thinking for titles, passes temperature with thinking and refuses unsupported effort', () => {
     expect(body([user()], { purpose: 'session-title', temperature: 0 })).toMatchObject({ thinking: { type: 'disabled' }, temperature: 0 })
     expect(body([user()], { temperature: 0 })).toMatchObject({ thinking: { type: 'enabled' }, temperature: 0 })
