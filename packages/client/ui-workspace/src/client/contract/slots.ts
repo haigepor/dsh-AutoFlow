@@ -26,7 +26,7 @@
  * row of a Session's "..." menu is an entry of
  * `sidebar.workspaces.session.menu.item`, and every hover button at the row's
  * end is an entry of `sidebar.workspaces.session.row.action`. The shipped
- * actions — pin, rename, fork, archive — are ordinary entries this package
+ * actions — pin, rename, fork, archive, dismiss — are ordinary entries this package
  * registers from `apply`, each carrying its own behavior in its own inject
  * face and reading its own Host state through hooks that face injects, so a
  * client plugin's action lands beside them by `order` and needs nothing from
@@ -78,6 +78,8 @@ export interface SessionRowOwnerProps {
   sessionId: SessionId
   /** Row display title: persisted title, or empty when the Session has none. */
   displayTitle: string
+  /** Whether this row has no active work and can be hidden from the current sidebar. */
+  canDismiss?: boolean
 }
 
 /** The row menu's open state as its owner holds it: the `useState` pair. */
@@ -135,7 +137,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /**
      * The rows of one Session's "..." menu, in ascending `order`. ui-workspace
      * registers the shipped rows here — `pin` (100), `rename` (200), `fork`
-     * (300), `archive` (400) — so a plugin row is placed by its own `order`
+     * (300), `archive` (400), `dismiss` (500) — so a plugin row is placed by its own `order`
      * among them. Use a package-namespaced `id`; reusing a shipped id at
      * another `priority` shadows that row. Each entry renders one
      * `role="menuitem"` `<button>` (the shipped rows use ui-primitives'
@@ -292,6 +294,7 @@ export type SessionRowActionProps<Injected extends object = object> =
 export type RowToast =
   | { kind: 'archived'; sessionId: SessionId }
   | { kind: 'stoppedAndArchived'; sessionId: SessionId }
+  | { kind: 'dismissed'; sessionId: SessionId }
   | { kind: 'pinFailed' }
   | { kind: 'unpinFailed' }
   | { kind: 'archivedNotOpenable' }
@@ -386,6 +389,12 @@ export interface ForkSessionInjected {
   forkSession: (sessionId: SessionId) => void
 }
 
+/** Hide one idle Session from this browser's sidebar and restore it from the notice. */
+export interface DismissSessionInjected {
+  /** Remove the Session from this browser's workspace view. */
+  dismissSession: (sessionId: SessionId) => void
+}
+
 /** Rename action share: the row only raises the request; the dialog entry answers it. */
 export interface RenameSessionInjected {
   /** Ask for the rename dialog, seeded with the row's current title. */
@@ -422,6 +431,8 @@ export interface RowToastInjected {
   dismissToast: () => void
   /** Undo an archive from its notice. */
   undoArchive: (sessionId: SessionId) => void
+  /** Undo a local sidebar dismissal from its notice. */
+  undoDismiss: (sessionId: SessionId) => void
   /** Switch the archived filter to "show" so the archived row is back in view. */
   showArchived: () => void
 }

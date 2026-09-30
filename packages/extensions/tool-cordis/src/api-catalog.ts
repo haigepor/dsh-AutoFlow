@@ -1689,7 +1689,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Persisted and runtime outcomes.',
       },
       {
-        signature: 'registerAction(packageName: string, id: string, run: (input: Record<string, string>, signal: AbortSignal) => Promise<string>): () => void',
+        signature: 'registerAction( packageName: string, id: string, run: (input: Record<string, string>, signal: AbortSignal) => Promise<string>, ): () => void',
         description: 'Register a live Host operation shared by a bundle\'s Client UI and Agent tool.',
         parameters: [{ name: 'packageName', description: 'Owning bundle package name.' }, { name: 'id', description: 'Operation ID within the bundle.' }, { name: 'run', description: 'Handler for validated text input and cancellation.' }],
         returns: 'Disposer that removes this registration.',
@@ -5603,7 +5603,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LlmDiscoveredModel',
-    declaration: 'export interface LlmDiscoveredModel {\n    id: string;\n    name?: string;\n    contextWindow?: number;\n    maxTokens?: number;\n    inputModalities?: readonly ModelModality[];\n}',
+    declaration: 'export interface LlmDiscoveredModel {\n    id: string;\n    name?: string;\n    contextWindow?: number;\n    maxTokens?: number;\n    inputModalities?: readonly ModelModality[];\n    reasoning?: LlmModelReasoningInfo;\n    reasoningWireValues?: Readonly<Record<string, string | null>>;\n}',
   },
   {
     name: 'LlmFailure',

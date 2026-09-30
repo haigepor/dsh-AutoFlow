@@ -69,6 +69,8 @@ export interface DshEnginesManifest {
 export interface DshBundleManifest {
   /** One patch file path, or an ordered list applied in sequence, each relative to the declaring package root. */
   patch: string | string[]
+  /** Optional package-relative JSON template for profile-owned feature selections. */
+  featureConfig?: string
   /** Optional independently switchable rows shown during installation and on the bundle page. */
   features?: DshBundleFeature[]
   /** Optional example prompts displayed in the bundle detail hero. */

@@ -70,6 +70,10 @@ type WorkspaceViewActions = {
   setArchivedFilter: (draft: WorkspaceViewState, filter: ArchivedFilter) => void
   /** Hide stale Session rows locally and discard their saved display positions. */
   dismissSessions: (draft: WorkspaceViewState, sessionIds: readonly string[]) => void
+  /** Hide one idle Session locally while preserving its saved position for Undo. */
+  dismissSessionFromSidebar: (draft: WorkspaceViewState, sessionId: string) => void
+  /** Restore a Session previously hidden from this browser's sidebar. */
+  restoreDismissedSession: (draft: WorkspaceViewState, sessionId: string) => void
 }
 
 /** Copy read-only projections into the persisted mutable store representation. */
@@ -139,6 +143,14 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
             order.filter(sessionId => !dismissed.has(sessionId)),
           ]),
         )
+      },
+      dismissSessionFromSidebar: (d, sessionId) => {
+        const dismissed = new Set(d.dismissedSessionIds ?? [])
+        dismissed.add(sessionId)
+        d.dismissedSessionIds = [...dismissed]
+      },
+      restoreDismissedSession: (d, sessionId) => {
+        d.dismissedSessionIds = (d.dismissedSessionIds ?? []).filter(id => id !== sessionId)
       },
     },
   })

@@ -8,13 +8,13 @@ import type { RowToastProps, RowToastState } from '../contract/slots.ts'
 
 /**
  * Hold for the notices that take longer to read than a one-line warning: the
- * actionable archived notice (two buttons to react to) and a refused Session
+ * actionable archive or sidebar-dismissal notices and a refused Session
  * creation, which quotes the Host's reason.
  */
 const LONG_TOAST_HOLD_MS = 6000
 
 /**
- * Render the current notice: the archived and stopped-and-archived notices
+ * Render the current notice: the archive and sidebar-dismissal notices
  * with their undo action — plus the show-archived action while archived rows
  * are hidden — on a 6 s hold, a refused Session creation with the Host's
  * reason on the same hold, or a plain warning for a failed pin, an archived
@@ -22,7 +22,7 @@ const LONG_TOAST_HOLD_MS = 6000
  * @param props - the notice hook, the shared viewing store, the notice dismissal, the two archived-notice actions, and the locale seat.
  * @returns the notice on display, or null.
  */
-export function RowActionToast({ useToast, useStore, dismissToast, undoArchive, showArchived, t }: RowToastProps) {
+export function RowActionToast({ useToast, useStore, dismissToast, undoArchive, undoDismiss, showArchived, t }: RowToastProps) {
   const toast = useToast(current => current)
   const archivedRowsVisible = useStore(state => (state.archivedFilter ?? 'default') !== 'default')
   if (toast === null) return null
@@ -40,6 +40,19 @@ export function RowActionToast({ useToast, useStore, dismissToast, undoArchive, 
             { prefix: t('toast.archivedOr'), label: t('toast.archivedFilter'), onClick: () => { dismissToast(); showArchived() } },
           ],
         ]}
+        onDone={dismissToast}
+      />
+    )
+  }
+  if (toast.kind === 'dismissed') {
+    const { sessionId } = toast
+    return (
+      <Toast
+        key={`toast-${String(toast.seq)}`}
+        text={t('toast.dismissed')}
+        tone="success"
+        holdMs={LONG_TOAST_HOLD_MS}
+        actions={[{ label: t('toast.dismissUndo'), onClick: () => { dismissToast(); undoDismiss(sessionId) } }]}
         onDone={dismissToast}
       />
     )
@@ -67,7 +80,7 @@ export function RowActionToast({ useToast, useStore, dismissToast, undoArchive, 
 
 /** The copy of one plain warning, keyed by the notice kind the union closes over. */
 function plainNoticeText(
-  toast: Exclude<RowToastState, { kind: 'archived' | 'stoppedAndArchived' | 'createFailed' }>,
+  toast: Exclude<RowToastState, { kind: 'archived' | 'stoppedAndArchived' | 'dismissed' | 'createFailed' }>,
   t: RowToastProps['t'],
 ): string {
   switch (toast.kind) {

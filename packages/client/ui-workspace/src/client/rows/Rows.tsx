@@ -694,7 +694,7 @@ export function SessionNodeItem({
           >
             {renderSlot(
               'sidebar.workspaces.session.menu.item',
-              { sessionId: node.id, displayTitle: row.title },
+              { sessionId: node.id, displayTitle: row.title, canDismiss: primaryStatus.state === 'idle' },
               { hookContext: menuOpenState },
             )}
           </Menu>

@@ -157,7 +157,7 @@ Manage profile files and apply their declared reload lifecycle.
  * @param run Handler for validated text input and cancellation.
  * @returns Disposer that removes this registration.
  */
-registerAction(packageName: string, id: string, run: (input: Record<string, string>, signal: AbortSignal) => Promise<string>): () => void
+registerAction( packageName: string, id: string, run: (input: Record<string, string>, signal: AbortSignal) => Promise<string>, ): () => void
 
 /** Invoke a registered operation through the generated plugin-manager Remote.
  * @param packageName Owning bundle package name.

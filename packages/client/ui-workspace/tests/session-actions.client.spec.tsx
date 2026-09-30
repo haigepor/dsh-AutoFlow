@@ -21,12 +21,13 @@ import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type {
   MenuOpenState, RowToast, RowToastState, SessionArchiveConfirmInjected, SessionArchiveConfirmRequest,
-  SessionRenameDialogInjected, SessionRenameTarget,
+  DismissSessionInjected, SessionRenameDialogInjected, SessionRenameTarget,
 } from '../src/client/contract/slots.ts'
 import {
   ArchiveSessionMenuItem, ArchiveSessionRowButton, SessionArchiveConfirmDialog,
 } from '../src/client/session-actions/ArchiveSession.tsx'
 import { ForkSessionMenuItem } from '../src/client/session-actions/ForkSession.tsx'
+import { DismissSessionMenuItem } from '../src/client/session-actions/DismissSession.tsx'
 import { PinSessionMenuItem, PinSessionRowButton } from '../src/client/session-actions/PinSession.tsx'
 import { RenameSessionMenuItem, SessionRenameDialog } from '../src/client/session-actions/RenameSession.tsx'
 import { RowActionToast } from '../src/client/session-actions/RowActionToast.tsx'
@@ -51,7 +52,7 @@ function hook<T>(snapshot: T) {
 const idSet = (...ids: string[]): ReadonlySet<SessionId> => new Set(ids.map(sid))
 
 /** The row every action is rendered for: its owner share as the browser passes it. */
-const ROW = { sessionId: sid('one'), displayTitle: 'Session title' }
+const ROW = { sessionId: sid('one'), displayTitle: 'Session title', canDismiss: true }
 const one: SessionSummary = {
   id: ROW.sessionId, displayTitle: ROW.displayTitle, running: false, blank: false, updatedAt: 1, retainedBy: {},
 }
@@ -161,6 +162,35 @@ describe('pin action', () => {
     const button = render(<PinSessionRowButton {...actionRow} {...pin} />)
     expect(button.container.childElementCount).toBe(0)
     expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+describe('dismiss action', () => {
+  it('removes an idle Session from this sidebar and closes the menu', () => {
+    const { state, setMenuOpen } = openMenu()
+    const injected: DismissSessionInjected = { dismissSession: vi.fn() }
+    render(<DismissSessionMenuItem {...menuRow(state)} {...injected} />)
+    fireEvent.click(screen.getByRole('menuitem', { name: '从侧栏移除' }))
+    expect(setMenuOpen).toHaveBeenCalledWith(false)
+    expect(injected.dismissSession).toHaveBeenCalledWith(sid('one'))
+  })
+
+  it('keeps a running Session visible and disables the action', () => {
+    const injected: DismissSessionInjected = { dismissSession: vi.fn() }
+    render(<DismissSessionMenuItem {...menuRow(openMenu().state)} canDismiss={false} {...injected} />)
+    expect(screen.getByRole('menuitem', { name: '运行中的会话无法移除' }).getAttribute('disabled')).not.toBeNull()
+    expect(injected.dismissSession).not.toHaveBeenCalled()
+  })
+
+  it('preserves the saved manual position so Undo restores the row in place', () => {
+    const instance = createWorkspaceViewStore().create()
+    instance.actions.setSessionOrder('alpha', ['two', 'one'], { alpha: ['one', 'two'] })
+    instance.actions.dismissSessionFromSidebar(sid('one'))
+    expect(instance.store.getSnapshot().dismissedSessionIds).toEqual([sid('one')])
+    expect(instance.store.getSnapshot().sessionOrderByAccount.alpha).toEqual(['two', 'one'])
+    instance.actions.restoreDismissedSession(sid('one'))
+    expect(instance.store.getSnapshot().dismissedSessionIds).toEqual([])
+    expect(instance.store.getSnapshot().sessionOrderByAccount.alpha).toEqual(['two', 'one'])
   })
 })
 
@@ -501,6 +531,7 @@ describe('RowActionToast', () => {
     const view = createSnapshotStore(state)
     const dismissToast = vi.fn(() => { toast.set(null) })
     const undoArchive = vi.fn()
+    const undoDismiss = vi.fn()
     const showArchived = vi.fn()
     render(
       <RowActionToast
@@ -510,6 +541,7 @@ describe('RowActionToast', () => {
         actions={instance.actions}
         dismissToast={dismissToast}
         undoArchive={undoArchive}
+        undoDismiss={undoDismiss}
         showArchived={showArchived}
       />,
     )
@@ -517,7 +549,7 @@ describe('RowActionToast', () => {
     const notify = (notice: RowToast): void => {
       act(() => { toast.set({ ...notice, seq: ++seq }) })
     }
-    return { dismissToast, undoArchive, showArchived, notify }
+    return { dismissToast, undoArchive, undoDismiss, showArchived, notify }
   }
 
   it('renders nothing without a notice', () => {
@@ -532,6 +564,16 @@ describe('RowActionToast', () => {
     expect(screen.getByRole('alert').textContent).toBe('已停止并归档，可撤销或筛选已归档会话')
     fireEvent.click(screen.getByRole('button', { name: '撤销' }))
     expect(undoArchive).toHaveBeenCalledWith(sid('one'))
+  })
+
+  it('offers Undo after hiding a Session from this browser sidebar', () => {
+    const { dismissToast, undoDismiss, notify } = toastSurface()
+    notify({ kind: 'dismissed', sessionId: sid('one') })
+    expect(screen.getByRole('alert').textContent).toContain('会话已从此侧栏移除')
+    fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    expect(dismissToast).toHaveBeenCalledOnce()
+    expect(undoDismiss).toHaveBeenCalledWith(sid('one'))
+    expect(callOrder(dismissToast)).toBeLessThan(callOrder(undoDismiss))
   })
 
   it('the archived notice takes itself down, then undoes the archive or shows the archived rows', () => {

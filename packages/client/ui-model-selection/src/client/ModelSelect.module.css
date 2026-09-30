@@ -123,6 +123,8 @@
 
 /* 分组背景铺满菜单；仅模型按钮保留两侧留白，避免标题扩宽滚动区域。 */
 .modelMenu {
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 32px));
   padding-inline: 0;
 }
 
@@ -173,15 +175,22 @@
 }
 
 .groups {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
   min-height: 0;
-  overflow-x: hidden;
+  overflow-x: clip;
   overflow-y: auto;
 }
 
 .group {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   gap: 4px;
 }
 
@@ -192,6 +201,7 @@
 .groupTitle {
   box-sizing: border-box;
   position: sticky;
+  width: 100%;
   top: 0;
   z-index: 1;
   padding: 4px 11px 2px;

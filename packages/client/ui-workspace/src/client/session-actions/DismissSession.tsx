@@ -2,9 +2,14 @@
 import { IconTrashOutlineRegular, MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DismissSessionInjected, SessionMenuItemProps } from '../contract/slots.ts'
 
-/** Menu row (order 500): hide an idle Session from the local sidebar and offer Undo in the shared notice. */
+/** Menu row (order 500): hide an idle Session from this browser sidebar and offer Undo in the shared notice. */
+/**
+ * Render the local dismissal action.
+ * @param props - row identity, idle eligibility, menu state, dismissal callback, and locale.
+ * @returns the menu action, disabled while the Session has active work.
+ */
 export function DismissSessionMenuItem({
-  canDismiss, sessionId, useMenuOpenState, dismissSession, t,
+  canDismiss = false, sessionId, useMenuOpenState, dismissSession, t,
 }: SessionMenuItemProps<DismissSessionInjected>) {
   const [, setMenuOpen] = useMenuOpenState()
   return (

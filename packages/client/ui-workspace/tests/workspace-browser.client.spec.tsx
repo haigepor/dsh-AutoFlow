@@ -754,11 +754,12 @@ describe('WorkspaceBrowser', () => {
     expect(rendered).not.toHaveBeenCalledWith('sidebar.workspaces.session.menu.item', expect.anything())
     fireEvent.click(screen.getByText('alpha'))
     const owner = { sessionId: sid('alpha-s'), displayTitle: 'alpha-s' }
-    expect(rendered).toHaveBeenCalledWith('sidebar.workspaces.session.menu.item', owner)
+    const menuOwner = { ...owner, canDismiss: true }
+    expect(rendered).toHaveBeenCalledWith('sidebar.workspaces.session.menu.item', menuOwner)
     expect(rendered).toHaveBeenCalledWith('sidebar.workspaces.session.row.action', owner)
     rendered.mockClear()
     act(() => { b.store.actions.setGroupBy('flat') })
-    expect(rendered).toHaveBeenCalledWith('sidebar.workspaces.session.menu.item', owner)
+    expect(rendered).toHaveBeenCalledWith('sidebar.workspaces.session.menu.item', menuOwner)
     expect(rendered).toHaveBeenCalledWith('sidebar.workspaces.session.row.action', owner)
   })
 

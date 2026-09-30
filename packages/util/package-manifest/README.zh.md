@@ -45,7 +45,7 @@ const manifest: DshPackageManifest = {
 
 `DshPackageManifest` 描述 DSH 使用的 package.json 字段，其中 `name` 和 `version` 必填；它不是完整的 npm schema（模式）。本地 profile 读取方使用 `Partial<DshPackageManifest>`，因为 profile 无需发布版本。`DshManifest` 仅描述 `dsh` 下的公共作者字段。`DshBundleManifest.patch` 是一个 patch 文件路径，或一个有序的路径列表，均相对于包根目录；launcher 按列表顺序把它们作为同一个组合包层应用。TypeScript 检查示例并删除 `import type`；这些接口不解析 JSON，也不写入文件。
 
-`DshBundleManifest.features` 可选声明按 profile 选择的 Cordis 行。每个 `DshBundleFeature` 包含唯一 `id` 与 `rowId`、本地化 `title` 与 `description`，以及 `defaultEnabled`；可选 `kind` 为 `prompt`、`skill`、`script`、`ui` 或 `other`，已分类的功能会在组合包页分组显示。插件管理器保存选择前，会按组合包 patch 校验这些字段。`DshBundleManifest.examples` 可选声明本地化示例提示词，在组合包详情页显示，并可填入新会话的未发送草稿。安装与运行语义见[自定义组合包架构](../../../custom-plugins/architecture.md)。
+`DshBundleManifest.features` 可选声明按 profile 选择的 Cordis 行。每个 `DshBundleFeature` 包含唯一 `id` 与 `rowId`、本地化 `title` 与 `description`，以及 `defaultEnabled`；可选 `kind` 为 `prompt`、`skill`、`script`、`ui` 或 `other`，已分类的功能会在组合包页分组显示。插件管理器保存选择前，会按组合包 patch 校验这些字段。`DshBundleManifest.examples` 可选声明本地化示例提示词，在组合包详情页显示，并可填入新会话的未发送草稿。`DshBundleManifest.featureConfig` 可选指定包内 JSON 模板，以初始化 profile 自有的功能选择；未声明时继续使用 patch 配置。安装与运行语义见[自定义组合包架构](../../../custom-plugins/architecture.md)。
 
 以下元数据字段均可选。省略时，格式版本或兼容的宿主版本保持未声明状态；读取方不推断默认值。
 
