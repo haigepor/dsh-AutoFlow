@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "features": {
+    "prompt": false,
+    "skill": false,
+    "execute": false
+  }
+}

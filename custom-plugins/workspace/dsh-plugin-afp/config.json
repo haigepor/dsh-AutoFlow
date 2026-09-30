@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "features": {
+    "read": true,
+    "refresh": true,
+    "write": true,
+    "ui-settings": false,
+    "ui-panel": true,
+    "ui-conversation": false,
+    "afp-core-news-search": true,
+    "afp-core-search-collections": true,
+    "afp-core-visual-triage": true,
+    "afp-curation-animals": true,
+    "afp-curation-landscape": true,
+    "afp-curation-celestial-wallpaper": true
+  }
+}

@@ -1,0 +1,38 @@
+.afp-workbench { max-width: 1000px; margin: 0 auto; padding: 28px; overflow: auto; height: 100%; box-sizing: border-box; color: var(--dsw-alias-label-primary); font-size: 13px; }
+.afp-workbench h2 { font-size: 22px; margin: 0 0 8px; }
+.afp-workbench h3 { font-size: 15px; margin: 0 0 16px; }
+.afp-workbench h4 { font-size: 12px; color: var(--dsw-alias-label-secondary); margin: 16px 0 8px; }
+.afp-header, .afp-line { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.afp-section { margin-top: 26px; padding: 18px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 14px; background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) 45%, transparent); backdrop-filter: blur(8px); }
+.afp-line { padding: 9px 0; }
+.afp-muted { color: var(--dsw-alias-label-secondary); margin: 6px 0; font-size: 12px; }
+.afp-toolbar, .afp-categories { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; align-items: center; }
+.afp-categories label { display: inline-flex; gap: 6px; align-items: center; }
+.afp-button, .afp-input { color: inherit; font: inherit; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: var(--dsw-alias-bg-layer-2); padding: 8px 12px; }
+.afp-button { cursor: pointer; }
+.afp-button:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-3); }
+.afp-button:disabled { cursor: default; opacity: .45; }
+.afp-input { min-width: 160px; flex: 1; }
+.afp-workbench :focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 3px; }
+.afp-configuration textarea:focus-visible, .afp-configuration summary:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+.afp-report { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; font-size: 12px; }
+.afp-error { color: var(--dsw-alias-state-error-primary); }
+.afp-confirm { border-color: var(--dsw-alias-state-business-primary); }
+.afp-deployment { display: grid; gap: 8px; margin-top: 20px; }
+.afp-deployment textarea { width: 100%; box-sizing: border-box; font-family: var(--ds-font-family-code); font-size: 12px; }
+.afp-configuration .afp-toolbar { align-items: flex-end; }
+.afp-configuration label { display: grid; gap: 6px; flex: 1; min-width: 0; }
+.afp-configuration { font-size: 13px; line-height: 1.5; }
+.afp-credential-grid { display: grid; gap: 14px; margin: 18px 0 24px; }
+.afp-credential-field { display: flex; align-items: flex-end; gap: 10px; }
+.afp-credential-actions { display: flex; gap: 8px; align-items: center; flex: none; }
+.afp-credential-field small { margin-left: 8px; color: var(--dsw-alias-label-tertiary); font-size: 11px; overflow-wrap: anywhere; }
+.afp-config-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.afp-config-fields > label:first-child, .afp-config-fields > label:nth-child(2) { grid-column: 1 / -1; }
+.afp-advanced { margin: 20px 0 12px; }
+.afp-advanced summary { cursor: pointer; color: var(--dsw-alias-label-secondary); }
+.afp-config-footer { display: flex; justify-content: flex-end; margin-top: 16px; }
+.afp-workbench table { border-collapse: collapse; width: 100%; text-align: left; }
+.afp-workbench th, .afp-workbench td { padding: 8px; }
+.afp-workbench summary { cursor: pointer; padding: 10px 0; overflow-wrap: anywhere; }
+@media (max-width: 620px) { .afp-workbench { padding: 16px; } .afp-section { padding: 12px; } .afp-line { gap: 12px; } .afp-config-fields { grid-template-columns: minmax(0, 1fr); } }

@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-plugin-afp/README.md
+/:
+  en: 3811e3f43ef8a832
+  zh: 6863a19e041d696a
+/dsh-plugin-afp:
+  en: 5eae738b132f6749
+  zh: b6805675c66f7919
+/dsh-plugin-afp/summary:
+  en: 4f21106b2de68f56
+  zh: 79b444d8eba00d1c
+/dsh-plugin-afp/install-and-develop:
+  en: c80bc7a93fc499c6
+  zh: 52910e6d4ffdefc2
+/dsh-plugin-afp/directory-reference:
+  en: 0a303b8a6db70464
+  zh: ae1d0d4d9b6148a5
+/dsh-plugin-afp/configuration:
+  en: 803e6f4bbf61758e
+  zh: e2f1cf4a7601c610
+/dsh-plugin-afp/workbench-and-tools:
+  en: f09a56fdefb6eec5
+  zh: 1930de3ee9d9e0df
+/dsh-plugin-afp/content-and-recovery:
+  en: 0f825a626a9d2158
+  zh: e8001abaa080c10f
+/dsh-plugin-afp/verification:
+  en: 7b37eaf5927fb576
+  zh: c679c3b496de3ab4
+/dsh-plugin-afp/dev-note:
+  en: 21b9024049b6ec1f
+  zh: da72b52921957ae3
+/dsh-plugin-afp/feature-information-and-configuration-dialogs:
+  en: 7990e3038b2468d8
+  zh: 0a90a0988e8fd2d4

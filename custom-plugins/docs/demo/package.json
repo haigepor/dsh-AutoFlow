@@ -1,0 +1,136 @@
+{
+  "name": "dsh-custom-plugin-demo",
+  "version": "0.1.0",
+  "description": "A reusable DSH bundle demo with optional instructions, Skills, an executable action, and UI",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./prompt": "./prompt.js",
+    "./skill": "./skill.js",
+    "./execute": "./execute.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "prompt.js",
+    "skill.js",
+    "execute.js",
+    "client.js",
+    "cordis.patch.yml",
+    "assets/**",
+    "skills/**",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "README.zh.md",
+    "src/**",
+    "cli/**",
+    "config.json",
+    "scripts/build-client.mjs"
+  ],
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml",
+      "examples": [
+        {
+          "id": "instructions",
+          "prompt": {
+            "en": "Show how the currently enabled DSH global instructions affect your reply. If they are unavailable, say so.",
+            "zh": "请展示当前启用的 DSH 全局提示词如何影响你的回复；如果未启用，请直接说明。"
+          }
+        },
+        {
+          "id": "skill",
+          "prompt": {
+            "en": "Use the dsh-demo-example Skill to explain its example workflow. If the Skill is unavailable, say so.",
+            "zh": "请使用 dsh-demo-example Skill 说明它的示例流程；如果 Skill 未启用，请直接说明。"
+          }
+        },
+        {
+          "id": "tool",
+          "prompt": {
+            "en": "Call the custom_plugin_demo tool and show its result. If the tool is unavailable, say so.",
+            "zh": "请调用 custom_plugin_demo 工具并展示结果；如果工具未启用，请直接说明。"
+          }
+        }
+      ],
+      "features": [
+        {
+          "id": "prompt",
+          "rowId": "custom-demo-prompt",
+          "defaultEnabled": false,
+          "kind": "prompt",
+          "title": {
+            "en": "Global instructions",
+            "zh": "全局提示词"
+          },
+          "description": {
+            "en": "Add the packaged fragment to DSH global memory.",
+            "zh": "将包内片段写入 DSH 全局记忆。"
+          }
+        },
+        {
+          "id": "skill",
+          "rowId": "custom-demo-skill",
+          "defaultEnabled": false,
+          "kind": "skill",
+          "title": {
+            "en": "Example Skill",
+            "zh": "示例 Skill"
+          },
+          "description": {
+            "en": "Expose the packaged Skill in the user Skill directory.",
+            "zh": "在用户 Skill 目录中启用包内示例。"
+          }
+        },
+        {
+          "id": "execute",
+          "rowId": "custom-demo-execute",
+          "defaultEnabled": false,
+          "kind": "script",
+          "title": {
+            "en": "Demo operation",
+            "zh": "示例执行功能"
+          },
+          "description": {
+            "en": "Enable the shared Agent tool and page action.",
+            "zh": "启用 Agent 工具和页面共用的操作。"
+          }
+        }
+      ],
+      "featureConfig": "./config.json"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "0.2.0-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "build:client": "node scripts/build-client.mjs",
+    "prepack": "npm run build:client && npm test"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}

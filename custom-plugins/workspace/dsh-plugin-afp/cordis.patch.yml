@@ -1,0 +1,106 @@
+[
+  {
+    "insert": [
+      {
+        "id": "afp",
+        "name": "dsh-plugin-afp"
+      },
+      {
+        "id": "afp-read",
+        "name": "dsh-plugin-afp/execute",
+        "disabled": false,
+        "config": {
+          "feature": "read"
+        }
+      },
+      {
+        "id": "afp-refresh",
+        "name": "dsh-plugin-afp/execute",
+        "disabled": false,
+        "config": {
+          "feature": "refresh"
+        }
+      },
+      {
+        "id": "afp-write",
+        "name": "dsh-plugin-afp/execute",
+        "disabled": false,
+        "config": {
+          "feature": "write"
+        }
+      },
+      {
+        "id": "afp-ui-settings",
+        "name": "dsh-plugin-afp/execute",
+        "disabled": true,
+        "config": {
+          "feature": "ui-settings"
+        }
+      },
+      {
+        "id": "afp-ui-panel",
+        "name": "dsh-plugin-afp/execute",
+        "disabled": false,
+        "config": {
+          "feature": "ui-panel"
+        }
+      },
+      {
+        "id": "afp-ui-conversation",
+        "name": "dsh-plugin-afp/execute",
+        "disabled": true,
+        "config": {
+          "feature": "ui-conversation"
+        }
+      },
+      {
+        "id": "afp-core-news-search",
+        "name": "dsh-plugin-afp/skill",
+        "disabled": false,
+        "config": {
+          "skill": "afp-core-news-search"
+        }
+      },
+      {
+        "id": "afp-core-search-collections",
+        "name": "dsh-plugin-afp/skill",
+        "disabled": false,
+        "config": {
+          "skill": "afp-core-search-collections"
+        }
+      },
+      {
+        "id": "afp-core-visual-triage",
+        "name": "dsh-plugin-afp/skill",
+        "disabled": false,
+        "config": {
+          "skill": "afp-core-visual-triage"
+        }
+      },
+      {
+        "id": "afp-curation-animals",
+        "name": "dsh-plugin-afp/skill",
+        "disabled": false,
+        "config": {
+          "skill": "afp-curation-animals"
+        }
+      },
+      {
+        "id": "afp-curation-landscape",
+        "name": "dsh-plugin-afp/skill",
+        "disabled": false,
+        "config": {
+          "skill": "afp-curation-landscape"
+        }
+      },
+      {
+        "id": "afp-curation-celestial-wallpaper",
+        "name": "dsh-plugin-afp/skill",
+        "disabled": false,
+        "config": {
+          "skill": "afp-curation-celestial-wallpaper"
+        }
+      }
+    ]
+  }
+]

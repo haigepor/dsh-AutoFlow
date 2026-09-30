@@ -1,0 +1,37 @@
+{
+  "tools": [
+    "afp_collections",
+    "afp_plan_change",
+    "afp_report",
+    "afp_search_plan",
+    "afp_status"
+  ],
+  "calls": [
+    {
+      "name": "afp_search_plan",
+      "arguments": "{\"query\":\"food photography\"}"
+    }
+  ],
+  "results": [
+    {
+      "turn": 1,
+      "step": 1,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call"
+        },
+        "toolCallId": "afp-fixture-call",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"nature\":\"photos\",\"language\":\"en\",\"dateRange\":null,\"criteria\":\"food AND photography\",\"parsed\":{\"raw\":\"food photography\",\"broadRaw\":\"food photography\",\"phrases\":[],\"terms\":[\"food\",\"photography\"],\"excluded\":[],\"fields\":[],\"operators\":[]},\"filters\":{},\"steps\":[\"先调用 Hub getNature/getNaturesEvents 取得召回规模\",\"召回过大时调用 FCT 获取稳定 Facet value\",\"调用当前 nature 对应 FAR operation\",\"对可见字段做解释性评分，不静默删除原始结果\"],\"fallbacks\":[\"food AND photography\",\"food AND photography\",\"food AND photography\"]}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ],
+  "disabledTools": []
+}

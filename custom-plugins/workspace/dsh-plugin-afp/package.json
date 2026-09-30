@@ -1,0 +1,306 @@
+{
+  "name": "dsh-plugin-afp",
+  "version": "0.1.0",
+  "description": "AFP photo curation for DSH Agents: resumable visual dry-runs and approved private-collection writes",
+  "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./skill": "./skill.js",
+    "./execute": "./execute.js",
+    "./config-schema": "./config-schema.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "skill.js",
+    "execute.js",
+    "config-schema.js",
+    "config.json",
+    "src/**",
+    "skills/**",
+    "scripts/**",
+    "assets/**",
+    "cordis.patch.yml",
+    "config.example.patch.yml",
+    "icon.svg",
+    "locale/*.json",
+    "README.md",
+    "README.zh.md",
+    "UPSTREAM.md",
+    "cli/**"
+  ],
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml",
+      "examples": [
+        {
+          "id": "status",
+          "prompt": {
+            "en": "Check AFP setup and private collection counts with afp_status and afp_collections. Do not modify AFP.",
+            "zh": "请用 afp_status 和 afp_collections 检查 AFP 配置和私有收藏夹数量，不修改远端。"
+          }
+        },
+        {
+          "id": "refresh",
+          "prompt": {
+            "en": "Run an AFP food visual dry-run, collect the job result, and show the report. Do not write AFP.",
+            "zh": "请对 AFP 食物分类执行视觉筛选 dry-run，收集后台任务结果并展示报告，不写入 AFP。"
+          }
+        }
+      ],
+      "featureConfig": "./config.json",
+      "features": [
+        {
+          "id": "read",
+          "rowId": "afp-read",
+          "title": {
+            "en": "Read tools",
+            "zh": "只读工具"
+          },
+          "description": {
+            "en": "Plan searches and inspect private collections.",
+            "zh": "规划图片检索，读取私有收藏夹数量。"
+          },
+          "defaultEnabled": true,
+          "kind": "script",
+          "details": {
+            "en": "Provides afp_status, afp_search_plan and afp_collections. Search planning is offline; collection reads require an AFP token or account credentials. No remote modifications.",
+            "zh": "提供 afp_status、afp_search_plan 和 afp_collections。搜索规划离线运行；读取收藏夹需要 AFP token 或账号凭据。不会修改远端。"
+          }
+        },
+        {
+          "id": "refresh",
+          "rowId": "afp-refresh",
+          "title": {
+            "en": "Visual refresh",
+            "zh": "视觉刷新"
+          },
+          "description": {
+            "en": "Run resumable visual screening with saved reports.",
+            "zh": "执行可续跑的视觉筛选，保存检查点与报告。"
+          },
+          "defaultEnabled": true,
+          "kind": "script",
+          "details": {
+            "en": "Starts afp_refresh_run background jobs for chosen photo categories. Requires AFP credentials and a configured vision endpoint, model and key. Enforces execution budgets, retains checkpoints on cancellation, and never writes collections.",
+            "zh": "通过 afp_refresh_run 为选定图片分类启动后台任务。需要 AFP 凭据及视觉接口、模型和密钥。按预算执行，取消后保留检查点；筛选过程不会写入收藏夹。"
+          }
+        },
+        {
+          "id": "write",
+          "rowId": "afp-write",
+          "title": {
+            "en": "Remote writes",
+            "zh": "远端写入"
+          },
+          "description": {
+            "en": "Preview and confirm append, replace or clear operations.",
+            "zh": "预览并确认追加、替换或清空收藏夹。"
+          },
+          "defaultEnabled": true,
+          "kind": "script",
+          "details": {
+            "en": "Enables afp_apply (plans use afp_plan_change). Checks the account, exact private target, run and collection membership before writing. Agent writes require DSH approval; page writes require a one-use expiring preview confirmation. Failures may leave partial changes without automatic rollback or retry.",
+            "zh": "启用 afp_apply（计划由 afp_plan_change 生成）。写入前核对账户、精确私有目标、刷新记录和收藏夹成员。Agent 写入通过 DSH 确认；页面写入须确认具有有效期且仅可使用一次的预览。失败可能留下部分修改，不自动回滚或重试。"
+          }
+        },
+        {
+          "id": "ui-settings",
+          "rowId": "afp-ui-settings",
+          "title": {
+            "en": "Settings sidebar",
+            "zh": "设置侧栏"
+          },
+          "description": {
+            "en": "Open the shared AFP workbench from Settings.",
+            "zh": "在设置侧栏显示 AFP 操作台。"
+          },
+          "defaultEnabled": false,
+          "kind": "ui",
+          "details": {
+            "en": "Registers settings.section. Uses the same profile tasks and unsent forms as the other entries; hiding this entry does not cancel tasks.",
+            "zh": "注册 settings.section。与其他入口共用当前 profile 的任务和未提交表单；隐藏入口不会取消任务。"
+          }
+        },
+        {
+          "id": "ui-panel",
+          "rowId": "afp-ui-panel",
+          "title": {
+            "en": "Global panel",
+            "zh": "全局面板"
+          },
+          "description": {
+            "en": "Open AFP from the home global panel sidebar.",
+            "zh": "在首页全局面板侧栏显示 AFP 入口。"
+          },
+          "defaultEnabled": true,
+          "kind": "ui",
+          "details": {
+            "en": "Registers sidebar.panellist and main. Removing the active entry returns to an available page. Task execution continues when navigating away.",
+            "zh": "注册 sidebar.panellist 和 main。关闭当前入口后回到可用页面；离开页面不停止任务。"
+          }
+        },
+        {
+          "id": "ui-conversation",
+          "rowId": "afp-ui-conversation",
+          "title": {
+            "en": "Conversation tab",
+            "zh": "会话 Tab"
+          },
+          "description": {
+            "en": "Display a profile workbench tab in conversations.",
+            "zh": "在会话页显示 AFP 操作台标签。"
+          },
+          "defaultEnabled": false,
+          "kind": "ui",
+          "details": {
+            "en": "Registers conversation.view for existing conversations. Shows the current profile workbench, not a separate Session task queue. Agent jobs keep their Session owner and use Session cancellation.",
+            "zh": "通过 conversation.view 在已有会话中显示标签。展示当前 profile 的操作台，不单独创建会话任务队列；Agent 任务仍属于原会话，通过会话取消。"
+          }
+        },
+        {
+          "id": "afp-core-news-search",
+          "rowId": "afp-core-news-search",
+          "title": {
+            "en": "News photo search",
+            "zh": "新闻图片搜索"
+          },
+          "description": {
+            "en": "Guide timely news-photo searches.",
+            "zh": "指导按新闻主题与时间规划图片检索。"
+          },
+          "defaultEnabled": true,
+          "kind": "skill",
+          "details": {
+            "en": "Guide timely news-photo searches. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
+            "zh": "指导按新闻主题与时间规划图片检索。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
+          }
+        },
+        {
+          "id": "afp-core-search-collections",
+          "rowId": "afp-core-search-collections",
+          "title": {
+            "en": "Search and collections",
+            "zh": "搜索与收藏夹"
+          },
+          "description": {
+            "en": "Guide search filters and private collection inspection.",
+            "zh": "指导筛选图片与检查私有收藏夹。"
+          },
+          "defaultEnabled": true,
+          "kind": "skill",
+          "details": {
+            "en": "Guide search filters and private collection inspection. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
+            "zh": "指导筛选图片与检查私有收藏夹。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
+          }
+        },
+        {
+          "id": "afp-core-visual-triage",
+          "rowId": "afp-core-visual-triage",
+          "title": {
+            "en": "Visual triage",
+            "zh": "视觉筛选"
+          },
+          "description": {
+            "en": "Guide visual scoring and rejection decisions.",
+            "zh": "指导视觉评分、保留与淘汰决策。"
+          },
+          "defaultEnabled": true,
+          "kind": "skill",
+          "details": {
+            "en": "Guide visual scoring and rejection decisions. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
+            "zh": "指导视觉评分、保留与淘汰决策。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
+          }
+        },
+        {
+          "id": "afp-curation-animals",
+          "rowId": "afp-curation-animals",
+          "title": {
+            "en": "Animal curation",
+            "zh": "动物策展"
+          },
+          "description": {
+            "en": "Guide animal-photo curation and diversity checks.",
+            "zh": "指导动物图片策展与多样性检查。"
+          },
+          "defaultEnabled": true,
+          "kind": "skill",
+          "details": {
+            "en": "Guide animal-photo curation and diversity checks. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
+            "zh": "指导动物图片策展与多样性检查。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
+          }
+        },
+        {
+          "id": "afp-curation-landscape",
+          "rowId": "afp-curation-landscape",
+          "title": {
+            "en": "Landscape curation",
+            "zh": "风景策展"
+          },
+          "description": {
+            "en": "Guide landscape curation and duplicate filtering.",
+            "zh": "指导风景图片策展与重复过滤。"
+          },
+          "defaultEnabled": true,
+          "kind": "skill",
+          "details": {
+            "en": "Guide landscape curation and duplicate filtering. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
+            "zh": "指导风景图片策展与重复过滤。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
+          }
+        },
+        {
+          "id": "afp-curation-celestial-wallpaper",
+          "rowId": "afp-curation-celestial-wallpaper",
+          "title": {
+            "en": "Celestial wallpaper curation",
+            "zh": "天体壁纸策展"
+          },
+          "description": {
+            "en": "Guide celestial wallpaper quality screening.",
+            "zh": "指导天体壁纸构图与质量筛选。"
+          },
+          "defaultEnabled": true,
+          "kind": "skill",
+          "details": {
+            "en": "Guide celestial wallpaper quality screening. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
+            "zh": "指导天体壁纸构图与质量筛选。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
+          }
+        }
+      ]
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "0.2.0-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "build:client": "node scripts/build-client.mjs",
+    "test": "node --test tests/*.test.js",
+    "check": "node scripts/check.mjs",
+    "prepack": "npm run build:client && npm run check"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}
