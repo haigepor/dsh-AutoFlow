@@ -50,7 +50,7 @@ Shared menus use `--dsw-menu-surface-fill`, blur, and menu-specific elevation th
 
 The Conversation surface uses `--dsw-specific-conversation-fill`: white beside the warm light sidebar (`#F1F0ED`), or `#20201E` beside the dark sidebar (`#161615`). The token stays opaque so text and the composer remain readable.
 
-System toast colors are paired per theme: `--dsw-alias-toast-bg` and `--dsw-alias-toast-label` set the surface and message, while `--dsw-alias-toast-warn`, `--dsw-alias-toast-success`, and `--dsw-alias-toast-action` color its icon and inline action.
+System toast colors are paired per theme: `--dsw-alias-toast-bg` and `--dsw-alias-toast-label` set the surface and message, while `--dsw-alias-toast-warn`, `--dsw-alias-toast-success`, and `--dsw-alias-toast-action` color its icon and inline action. The official palette uses a white surface with dark text in light mode and a charcoal surface with light text in dark mode; each mode defines its own action, success, and warning colors.
 
 <details>
 <summary>Implementation internals — click to expand</summary>

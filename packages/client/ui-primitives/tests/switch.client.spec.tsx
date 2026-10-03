@@ -33,12 +33,12 @@ describe('Switch', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('shows a busy thumb and refuses another click while loading', () => {
+  it('keeps a plain thumb and refuses another click while saving', () => {
     const onChange = vi.fn()
     render(<Switch checked={false} loading label="Toggle" onChange={onChange} />)
     const control = screen.getByRole('switch')
     expect(control.getAttribute('aria-busy')).toBe('true')
-    expect(control.querySelector('[aria-hidden="true"]')).not.toBeNull()
+    expect(control.querySelector('svg')).toBeNull()
     expect((control as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(control)
     expect(onChange).not.toHaveBeenCalled()

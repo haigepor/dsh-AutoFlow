@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
 
 ## Summary
 
+Modal masks are transparent with the shared background blur; dialogs use the theme's `--dsw-shadow-lv3` shadow to separate them from the page.
+
 Use `dsh-client-ui-primitives` to build web-client controls and render agent output with shared React UI. It includes standard controls, icons, anchored overlays, and renderers for Markdown with TeX, terminal output, file reads, diffs, search, web retrieval, and JSON. The renderers handle untrusted model output by dropping raw HTML, restricting links, and parsing ANSI escape sequences. The components import no Cordis runtime; callers supply localized labels, and theme-facing colors use `--dsw-*` design tokens.
 
 ## Table of Contents
@@ -25,7 +27,7 @@ Use `dsh-client-ui-primitives` to build web-client controls and render agent out
 <a id="use-this-package"></a>
 ## Use this package
 
-`Toast` pairs its surface, message, status icon, and inline action colors with the active theme and uses the soft elevation.
+`Toast` pairs its surface, message, status icon, and inline action colors with the active theme and uses the soft elevation. Inline actions use weight 500 and an underline on hover or keyboard focus; interaction does not reduce their contrast.
 
 `Toast` uses the theme’s toast background and label colors in both light and dark modes. `Menu` data rows and `MenuItemButton` component rows accept owner-provided effective shortcuts and align their keys at the trailing edge as muted text without a background, including submenus. `ShortcutKeys` defaults to unboxed keys for menu and inline hints. Its `tooltip` variant uses lighter keycaps over the dark bubble and groups plus-separated combinations into one filled block. `Tooltip.shortcutKeys` vertically centers keycaps beside optional localized action text, or shows only keys when the label is empty. The optional `className` supplies owner interaction styles. `Modal` uses the frame’s shared overlay inset, with a minimum 24px viewport margin. Its mask leaves the Windows caption unpainted while the full-viewport layer blocks background clicks. `Modal` and onboarding dialogs share top-layer Escape and Tab handling through `useModalLayer`, restoring the previous focus on close. `closeTopModal(document)` requests the foreground modal’s current close action; newer menus or unregistered dialogs block dismissal of the modal behind them. Components use `isBehindModal` to avoid moving focus behind a nested dialog. Menus consume their local Escape before modal dismissal. `observeComposition` supplies the same composition-end and legacy IME guard to local modal and recording handlers; callers dispose its document listeners with their interaction lifetime.
 
@@ -43,7 +45,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | Export | What it is |
 |---|---|
 | `Button` | Clickable action; `variant` selects `primary`, `ghost`, `outline`, or `toolbar`. Its ref targets the native button for focus and overlay anchoring. |
-| `Switch` | Two-state toggle, 36×20. The active track follows the theme accent; in dark mode it is softened against the surface while the active thumb stays light. `label` is required; `loading` turns the track neutral, shows one rotating ring inside a theme-matched thumb, and locks input while a write is pending. Reduced-motion preference keeps the ring still. |
+| `Switch` | Two-state toggle, 36×20. The active track follows the theme accent; in dark mode it is softened against the surface while the active thumb stays light. `label` is required; `loading` locks input and marks the control busy while retaining its selected appearance. Track and thumb transitions take 180 ms; reduced-motion preference disables them. Owners can display a pending target without changing confirmed runtime status. |
 | `SegmentedControl` | Tablist of two or more equal-width segments with one sliding indicator, for switching a card or panel between a few modes; the owner holds the selection and `label` names the list. `id` seeds each tab's id (`<id>-<value>`) and the panel it controls (`<id>-<value>-panel`), which the owner renders and points back at the tab with `aria-labelledby`; a segment may be `disabled` with a `title`, and `disabled` on the control locks every segment while the shown panel has work in flight. |
 | `Checkbox` | Labeled native checkbox with controlled state, keyboard interaction, and disabled styling; the caller supplies localized `label` text. |
 | `Input` | Single-line text entry for search boxes and inline forms. |
@@ -56,7 +58,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | `StateDot` | Solid green `done`, amber `warning`, red `error`, and neutral-grey `idle` marks in a 10px slot, plus a tertiary-grey 14px rotating `ongoing` loader whose animations pin to document time zero so every visible loader rotates in phase. `aria-hidden`, so the render site owns the name. `appearance="step"` shows a filled check for completion and a hollow pending circle. |
 | `ConnectionIndicator` | Inline connection-recovery control across outage, retry, and recovered states. |
 | `DisclosureRow` | 24px compact disclosure that lays title and content side by side. Memoized with shallow prop comparison; keep callbacks and React-node props stable when their content is unchanged. |
-| `Modal` | Centered dialog over a page mask. A nested dialog can intercept keys with `onKeyDownCapture` before document Escape handlers. The tint and dialog fade in while backdrop blur stays fully applied, honoring reduced motion. Set `backdropBlur={false}` when the caller already blurs the source page. |
+| `Modal` | Centered dialog over a page mask. A nested dialog can intercept keys with `onKeyDownCapture` before document Escape handlers. The dialog fades in while backdrop blur stays fully applied, honoring reduced motion. Set `backdropBlur={false}` when the caller already blurs the source page. |
 | `RiskConfirmation` | Sensitive action gated behind an explicit checkbox. |
 | `Tooltip` | Hover and keyboard-focus text anchored to a cloned child; optional `delayMs` controls hover delay and `focusDelayMs` controls keyboard-focus delay, both defaulting to 0 ms. Optional `portal` rendering escapes clipping containers and ancestor stacking contexts that cap the bubble's z-index. |
 | `HoverCard` | Hover preview the pointer can rest on and select from; optional copy button. |
@@ -118,7 +120,7 @@ The atoms cannot read the application locale, so every piece of user-facing copy
 
 `Menu.listClassName` styles the menu card independently of the anchor wrapper, including in portal mode. Leading icons use the `--dsw-alias-menu-icon` color; destructive icons retain their error color.
 
-`Menu` delegates its card material to `MenuSurface`; custom menus use the same component. `MenuSurface` forwards div props and refs, uses translucent fill, blur, a theme-aware hairline, and soft menu elevation, and accepts `compact` for the smaller radius. Its default relative positioning contains the material layer; caller classes can supply fixed or absolute placement. On macOS, its non-interactive backing follows the card through CSS anchors and unmounts with it; the backing requires the Web shell’s isolated body. Feature classes control layout, while the component owns material, elevation, and outer radius ([menu rules](../../../docs/web-styling.md#component-rules)). Modal masks retain their dark translucent fill with the subtle theme-owned background blur.
+`Menu` delegates its card material to `MenuSurface`; custom menus use the same component. `MenuSurface` forwards div props and refs, uses translucent fill, blur, a theme-aware hairline, and soft menu elevation, and accepts `compact` for the smaller radius. Its default relative positioning contains the material layer; caller classes can supply fixed or absolute placement. On macOS, its non-interactive backing follows the card through CSS anchors and unmounts with it; the backing requires the Web shell’s isolated body. Feature classes control layout, while the component owns material, elevation, and outer radius ([menu rules](../../../docs/web-styling.md#component-rules)). Modal masks use a transparent fill with the subtle theme-owned background blur.
 
 <details>
 <summary>Implementation internals — click to expand</summary>

@@ -50,7 +50,7 @@ kind: "package-reference"
 
 会话表面使用 `--dsw-specific-conversation-fill`：亮色为白色，搭配暖灰侧栏（`#F1F0ED`）；暗色为 `#20201E`，搭配 `#161615` 侧栏。此 token 保持不透明，确保文字和输入区易读。
 
-系统提示的颜色按主题配对：`--dsw-alias-toast-bg` 和 `--dsw-alias-toast-label` 控制底色与文案，`--dsw-alias-toast-warn`、`--dsw-alias-toast-success` 和 `--dsw-alias-toast-action` 控制图标与行内操作。
+系统提示的颜色按主题配对：`--dsw-alias-toast-bg` 和 `--dsw-alias-toast-label` 控制底色与文案，`--dsw-alias-toast-warn`、`--dsw-alias-toast-success` 和 `--dsw-alias-toast-action` 控制图标与行内操作。官方配色在亮色模式使用白底深色文字，在暗黑模式使用炭灰底浅色文字；两种模式分别定义操作、成功和警告颜色。
 
 <details>
 <summary>实现细节——点击展开</summary>

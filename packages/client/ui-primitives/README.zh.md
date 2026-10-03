@@ -9,6 +9,8 @@ kind: "package-library"
 
 ## 概述
 
+Modal 遮罩透明并保留共享背景模糊；弹窗使用主题的 `--dsw-shadow-lv3` 阴影区分页面层级。
+
 使用 `dsh-client-ui-primitives`，通过共享 React UI 构建 Web 客户端控件并渲染 agent 输出。它提供标准控件、图标、锚定浮层，以及用于带 TeX 公式的 Markdown、终端输出、文件读取、差异、搜索、网页检索和 JSON 的渲染器。这些渲染器会丢弃原始 HTML、限制链接并解析 ANSI 转义序列，以处理不受信任的模型输出。组件不 import Cordis 运行时；调用方提供本地化 label，主题相关颜色使用 `--dsw-*` 设计 token。
 
 ## 目录
@@ -25,7 +27,7 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
-`Toast` 的底色、文案、状态图标和行内操作配色跟随当前主题，并采用轻量阴影。
+`Toast` 的底色、文案、状态图标和行内操作配色跟随当前主题，并采用轻量阴影。行内操作字重为 500，悬停或键盘聚焦时显示下划线，交互状态不降低文字对比度。
 
 `Toast` 在浅色和深色模式下均使用主题的系统提示背景与文字颜色。`Menu` 数据条目与 `MenuItemButton` 组件条目接收功能 owner 提供的有效快捷键，并在末端以无背景的浅灰色文字对齐显示，子菜单也采用同一呈现。`ShortcutKeys` 默认以无方块的按键文字显示菜单和行内提示。`tooltip` 变体在深色气泡上使用稍浅的键帽，以加号连接的组合则共用一个填充色块。`Tooltip.shortcutKeys` 将键帽与可选的本地化操作文本垂直居中排列，标签为空时只显示按键。可选的 `className` 供调用方设置交互状态样式。`Modal` 使用框架共享的浮层顶部间距，并保留至少 24px 的视口边距。遮罩不绘制在 Windows 标题栏上，但覆盖整个视口的层仍阻挡背景点击。`Modal` 与引导弹窗通过 `useModalLayer` 共用顶层 Esc 和 Tab 处理，关闭时恢复先前焦点。`closeTopModal(document)` 请求前台弹窗当前的关闭操作；上层菜单或未注册的对话框会阻止关闭其后方弹窗。组件通过 `isBehindModal` 避免将焦点移到嵌套弹窗后方。菜单先消费自己的 Esc，再由模态层处理关闭。 `observeComposition` 为局部弹层和录键处理提供相同的 composition-end 与旧版 IME 保护；调用方随交互生命周期释放其 document 监听。
 
@@ -43,7 +45,7 @@ kind: "package-library"
 | 导出 | 是什么 |
 |---|---|
 | `Button` | 可点击操作；`variant` 选择 `primary`、`ghost`、`outline` 或 `toolbar`。ref 指向原生按钮，供焦点控制与浮层锚定使用。 |
-| `Switch` | 36×20 的双态开关。开启轨道使用主题强调色，暗色模式会压低亮度以贴合表面，开启滑块保持明亮。`label` 必填；`loading` 会把轨道变为中性灰色，在适配主题的滑块内显示一个旋转圆环，并在写入期间锁定输入。偏好减少动态效果时，圆环保持静止。 |
+| `Switch` | 36×20 的双态开关。开启轨道使用主题强调色，暗色模式会压低亮度以贴合表面，开启滑块保持明亮。`label` 必填；`loading` 在写入期间锁定输入并标记忙碌，保留所选外观。轨道与滑块使用 180ms 过渡，减少动态效果时取消过渡。调用方可显示待保存的目标值，同时保留已确认的运行状态。 |
 | `SegmentedControl` | 两段或更多等宽分段加一个滑动指示块的 tablist，用于在几种模式间切换一张卡片或面板；选中项由调用方持有，`label` 为列表命名。`id` 派生每个 tab 的 id（`<id>-<value>`）及其控制的面板 id（`<id>-<value>-panel`），面板由调用方渲染并用 `aria-labelledby` 指回 tab；分段可 `disabled` 并带 `title`，控件级 `disabled` 在当前面板有进行中的操作时锁住全部分段。 |
 | `Checkbox` | 带标签的原生复选框，支持受控状态、键盘交互和禁用样式；调用方提供本地化的 `label` 文本。 |
 | `Input` | 单行文本输入，用于搜索框与行内表单。 |
@@ -56,7 +58,7 @@ kind: "package-library"
 | `StateDot` | 10px 槽内的绿色 `done`、琥珀色 `warning`、红色 `error`、中性灰色 `idle` 圆点，以及 tertiary 灰色 14px 旋转 `ongoing` loading，其动画固定到文档时间零点，所以所有可见 loading 同相旋转。它是 `aria-hidden` 的，名称由渲染点提供。 `appearance="step"` 以实心勾表示完成、空心圆表示等待。 |
 | `ConnectionIndicator` | 行内连接恢复控件，覆盖断线、重试与已恢复三种状态。 |
 | `DisclosureRow` | 24px 紧凑折叠行，标题与内容左右排列。使用浅层 prop 比较进行 memo；内容未变时，保持回调与 React 节点 prop 的引用稳定。 |
-| `Modal` | 页面遮罩之上的居中对话框。嵌套对话框可通过 `onKeyDownCapture` 在文档级 Escape 处理器之前拦截按键。 色层与弹窗淡入，背景模糊始终完整生效，并遵循减少动态效果偏好。调用方已模糊源页面时设置 `backdropBlur={false}`。 |
+| `Modal` | 页面遮罩之上的居中对话框。嵌套对话框可通过 `onKeyDownCapture` 在文档级 Escape 处理器之前拦截按键。 弹窗淡入，背景模糊始终完整生效，并遵循减少动态效果偏好。调用方已模糊源页面时设置 `backdropBlur={false}`。 |
 | `RiskConfirmation` | 以显式复选框把关的敏感操作确认。 |
 | `Tooltip` | 锚定在克隆子元素上的悬停与键盘聚焦提示；可选的 `delayMs` 控制悬停延迟，`focusDelayMs` 控制键盘聚焦延迟，均默认为 0 毫秒。可通过 `portal` 渲染到外层，避免被容器裁剪，或受祖先层叠上下文限制其 z-index。 |
 | `HoverCard` | 指针可停留、可选中的悬停预览；可选带复制按钮。 |
@@ -118,7 +120,7 @@ kind: "package-library"
 
 `Menu.listClassName` 独立控制菜单卡片样式，不影响入口容器，也适用于 portal 模式。前置图标使用 `--dsw-alias-menu-icon` 文本色；破坏性操作图标保留错误色。
 
-`Menu` 将卡片材质交给 `MenuSurface`，自定义菜单也使用该组件。`MenuSurface` 转发 div 属性和 ref，采用透明填充、模糊、适配主题的发丝线和柔和菜单投影，`compact` 使用较小圆角。默认相对定位使材质层限制在容器内；调用方的类可以设置 fixed 或 absolute 定位。macOS 上，不接收交互的底层通过 CSS 锚点跟随卡片，并随卡片卸载；该底层要求 Web 外壳隔离 body 的层叠上下文。功能类控制布局，组件负责材质、投影和外圆角（[菜单规则](../../../docs/web-styling.zh.md#component-rules)）。模态遮罩保留深色半透明填充，并使用主题定义的轻微背景模糊。
+`Menu` 将卡片材质交给 `MenuSurface`，自定义菜单也使用该组件。`MenuSurface` 转发 div 属性和 ref，采用透明填充、模糊、适配主题的发丝线和柔和菜单投影，`compact` 使用较小圆角。默认相对定位使材质层限制在容器内；调用方的类可以设置 fixed 或 absolute 定位。macOS 上，不接收交互的底层通过 CSS 锚点跟随卡片，并随卡片卸载；该底层要求 Web 外壳隔离 body 的层叠上下文。功能类控制布局，组件负责材质、投影和外圆角（[菜单规则](../../../docs/web-styling.zh.md#component-rules)）。模态遮罩使用透明填充，并保留主题定义的轻微背景模糊。
 
 <details>
 <summary>实现细节——点击展开</summary>

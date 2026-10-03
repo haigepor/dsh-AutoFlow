@@ -4,15 +4,6 @@
 import clsx from 'clsx'
 import css from './Switch.module.css'
 
-/** Compact ring spinner used while one switch persists its next value. */
-function SwitchSpinner() {
-  return (
-    <svg className={css.spinner} viewBox="0 0 16 16" aria-hidden="true">
-      <circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="28 33" transform="rotate(-90 8 8)" />
-    </svg>
-  )
-}
-
 /**
  * Render a toggle switch.
  * @param props.checked - the current state; the control is fully controlled.
@@ -20,7 +11,7 @@ function SwitchSpinner() {
  * @param props.label - localized accessible name, owned by the render site.
  * @param props.disabled - whether the control refuses input; owners also set it
  * while a write is in flight, not only when a deployment locks the toggle.
- * @param props.loading - shows an in-thumb progress indicator during a pending write.
+ * @param props.loading - marks a pending write and locks input without changing the selected appearance.
  * @param props.title - localized hover text, typically why the toggle is locked.
  * @param props.className - extra class for layout placement.
  * @returns the switch element.
@@ -49,7 +40,7 @@ export function Switch({ checked, onChange, label, disabled = false, loading = f
       className={clsx(css.switch, className)}
       onClick={() => { onChange(!checked) }}
     >
-      <span className={css.thumb}>{loading ? <SwitchSpinner /> : null}</span>
+      <span className={css.thumb} />
     </button>
   )
 }

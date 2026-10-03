@@ -56,6 +56,7 @@
   background: none;
   color: var(--dsw-alias-toast-action);
   font: inherit;
+  font-weight: 500;
   cursor: pointer;
   /* Breathing room where the action text meets the surrounding copy. */
   margin-inline: 3px;
@@ -64,8 +65,9 @@
   pointer-events: auto;
 }
 
-.action:hover {
-  opacity: 0.8;
+.action:hover, .action:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 @keyframes dsh-toast-in {
