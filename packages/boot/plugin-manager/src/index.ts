@@ -1,5 +1,5 @@
 /** Current-profile plugin and bundle management over shared dsh plugin operations. */
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -12,13 +12,14 @@ import z from '@deepseek-ai/schemastery'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import { pluginEntryId, readPluginInventory } from '@deepseek-ai/dsh-host-plugin-inventory'
 import {
-  readPluginMeta, readProfileManifest, resolveBundleDir, loadOverlayPatches, composeEntries,
+  readPluginMeta, readPluginIcon, readProfileManifest, resolveBundleDir, loadOverlayPatches, composeEntries,
   reconcileProfilePatches, readProfilePatches, OPTIONAL_BUNDLES, bundlePatchPaths,
   evaluatePluginCompatibility, readProfileCompatibility, readProfileVersionExemptions,
   setProfileVersionExemption, PROFILE_COMPATIBILITY_FILENAME,
 } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-hmr'
-import type { ProfileContext, ProfileManifest } from '@deepseek-ai/dsh-app-boot'
+import type { PluginIcon, ProfileContext, ProfileManifest } from '@deepseek-ai/dsh-app-boot'
+import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DshBundleExample, DshBundleFeature, DshBundleFeatureKind, LocalizedText } from '@deepseek-ai/dsh-package-manifest'
 import { bundleManifest, readProfileRegistry, registryArguments, runProfilePnpm, saveManifest, viewProfilePackage } from './operations.ts'
 import { classifyInstallFailure } from './install-failure.ts'
@@ -112,6 +113,8 @@ function declaredFeatures(manifest: ProfileManifest, rows: EntryOptions[]): DshB
     if (typeof feature.id !== 'string' || !/^[a-z][a-z0-9-]*$/.test(feature.id)
       || typeof feature.rowId !== 'string' || !/^[a-z][a-z0-9-]*$/.test(feature.rowId)
       || !featureText(feature.title) || !featureText(feature.description)
+      || feature.details !== undefined && !featureText(feature.details)
+      || feature.icon !== undefined && (typeof feature.icon !== 'string' || feature.icon.trim() === '')
       || feature.kind !== undefined && !featureKind(feature.kind)
       || typeof feature.defaultEnabled !== 'boolean' || ids.has(feature.id) || rowIds.has(feature.rowId)) {
       throw new Error('Invalid or duplicate bundle feature declaration')
@@ -262,12 +265,30 @@ export class PluginManager extends TypertRemoteService {
   /** Installations by request id, from their call until it settles. */
   private readonly installs = new Map<PluginInstallRequestId, InstallControl>()
   private readonly actions = new Map<string, (input: Record<string, string>, signal: AbortSignal) => Promise<string>>()
+  private iconAssets = new Map<string, PluginIcon>()
+  private webIcons = false
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'pluginManager')
     this.ownerEntryId = ctx.fiber.entry?.id
     this.ownerContext = ctx
     this.profile = ctx.profileContext
+    ctx.inject(['webServer'], (webCtx) => {
+      webCtx.effect(() => {
+        this.webIcons = true
+        const remove = webCtx.webServer.register({ kind: 'prefix', path: '/plugin-icons', handler: (req, res) => {
+          if (req.method !== 'GET' && req.method !== 'HEAD') {
+            res.writeHead(405, { allow: 'GET, HEAD' }); res.end(); return
+          }
+          const image = this.iconAssets.get(new URL(req.url ?? '/', 'http://localhost').pathname.slice(1))
+          if (image === undefined) { res.writeHead(404); res.end(); return }
+          res.writeHead(200, { 'content-type': image.contentType, 'cache-control': 'public, max-age=31536000, immutable',
+            'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" })
+          res.end(req.method === 'HEAD' ? undefined : image.bytes)
+        } })
+        return () => { this.webIcons = false; this.iconAssets.clear(); remove() }
+      }, 'plugin-manager: declared icon files')
+    })
     for (const name of this.profile.startedBundles) this.protectsManager(name)
     this.outputBytes = (config as Required<Config>).outputBytes
     this.lockWaitMs = (config as Required<Config>).lockWaitMs
@@ -339,6 +360,14 @@ export class PluginManager extends TypertRemoteService {
    */
   @Remote
   listBundles(): Promise<BundleInfo[]> {
+    const icons = new Map<string, PluginIcon>()
+    const iconURL = (image: PluginIcon): string => {
+      if (!this.webIcons) return `data:${image.contentType};base64,${image.bytes.toString('base64')}`
+      const extension = image.contentType === 'image/svg+xml' ? 'svg' : image.contentType.slice('image/'.length)
+      const url = `plugin-icons/${createHash('sha256').update(image.bytes).digest('hex')}.${extension}`
+      icons.set(url, image)
+      return url
+    }
     const manifest = readProfileManifest('dsh', this.profile.dir)
     const exemptions = readProfileVersionExemptions(this.profile.dir)
     const selected = manifest.dsh?.profile?.bundles ?? []
@@ -362,17 +391,20 @@ export class PluginManager extends TypertRemoteService {
         const compatibility = evaluatePluginCompatibility(info, exemptions)
         if (compatibility !== undefined && !compatibility.exempted) throw new ManagementFailure('incompatible-version', [incompatiblePlugin(compatibility)])
         const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
-        const meta = readPluginMeta(info.name ?? name, pathToFileURL(join(dir, 'package.json')).href)
-        const features: BundleFeatureInfo[] = declaredFeatures(info, this.bundleRows(name)).map(feature => ({
-          ...feature, enabled: readPluginFeatureEnabled(this.profile.patchPath, feature.rowId, feature.defaultEnabled),
-        }))
+        const manifestPath = join(dir, 'package.json')
+        const meta = readPluginMeta(info.name ?? name, pathToFileURL(manifestPath).href, iconURL)
+        const features: BundleFeatureInfo[] = declaredFeatures(info, this.bundleRows(name)).map((feature) => {
+          const image = readPluginIcon(feature.icon, manifestPath)
+          return { ...feature, ...(image === undefined ? {} : { icon: iconURL(image) }),
+            enabled: readPluginFeatureEnabled(this.profile.patchPath, feature.rowId, feature.defaultEnabled) }
+        })
         const examples = declaredExamples(info)
         bundles.push({ name, ...(info.version === undefined ? {} : { version: info.version }),
           ...(info.description === undefined || info.description === '' ? {} : { description: info.description }),
           ...meta === undefined ? {} : { meta },
           enabled, installed, optional, removable: removable && readOnlyReason === undefined,
           ...(readOnlyReason === undefined ? {} : { readOnlyReason }),
-          ...this.declaredRows(name, info),
+          ...this.declaredRows(name, info, iconURL),
           ...(features.length === 0 ? {} : { features }),
           ...(examples.length === 0 ? {} : { examples }) })
       } catch (error) {
@@ -382,6 +414,8 @@ export class PluginManager extends TypertRemoteService {
         }
       }
     }
+    // 一次完整列表替换资源表，避免反复刷新累积旧图标；未启用的组合包也拥有图标。
+    this.iconAssets = icons
     return Promise.resolve(bundles)
   }
 
@@ -767,7 +801,7 @@ export class PluginManager extends TypertRemoteService {
   }
 
   /** The rows a bundle's patch inserts and the existing rows it changes; an unreadable patch throws. */
-  private declaredRows(name: string, info: ProfileManifest): Pick<BundleInfo, 'rows' | 'overrides'> {
+  private declaredRows(name: string, info: ProfileManifest, iconURL: (image: PluginIcon) => string): Pick<BundleInfo, 'rows' | 'overrides'> {
     const bundle = info.dsh?.bundle
     /* v8 ignore next -- bundleManifest answers only manifests that declare a patch */
     if (bundle === undefined) return { rows: [], overrides: [] }
@@ -782,13 +816,12 @@ export class PluginManager extends TypertRemoteService {
       })
     }
     const rows: BundleRowInfo[] = []
-    const packages = this.ctx.get('pluginPackages')
     for (const row of flatten(composeEntries([patches.filter(item => item.insert !== undefined)]))) {
       if (typeof row.id !== 'string' || typeof row.name !== 'string') continue
       const active = live.get(row.id)
       const entryId = active?.entryId
       const base = active?.baseUrl ?? pathToFileURL(join(dir, 'package.json')).href
-      const meta = packages?.metaOf(row.name, base)
+      const meta = this.ctx.get('pluginPackages') === undefined ? undefined : readPluginMeta(row.name, base, iconURL)
       rows.push({ rowId: row.id, moduleName: row.name,
         ...entryId === undefined ? {} : { entryId }, ...meta === undefined ? {} : { meta } })
     }

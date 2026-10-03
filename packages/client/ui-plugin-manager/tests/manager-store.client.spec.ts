@@ -99,6 +99,7 @@ function bench(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}
   const probe = { fastest: overrides.fastest ?? vi.fn(() => Promise.resolve(ok(null))) }
   const track = vi.fn()
   const setDraft = vi.fn()
+  const insertReference = vi.fn(() => true)
   const openNewSession = vi.fn(async (prepare: (sessionId: string) => void) => { prepare('example-session') })
   const ctx = {
     get: () => ({ enabled, track }),
@@ -106,7 +107,7 @@ function bench(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}
     remote: { pluginManager: plugins, pluginInventory: inventory, pluginRegistryProbe: probe },
     uiWorkspace: { openNewSession },
     sessions: { binding: () => ({ ctx: {} }) },
-    conversation: { input: { for: () => ({ setDraft }) } },
+    conversation: { input: { for: () => ({ setDraft, insertReference, state: { getSnapshot: () => ({ draftRev: 7 }) } }) } },
   } as never
   const controller = new PluginManagerController(ctx)
   onTestFinished(() => { controller.dispose() })
@@ -117,7 +118,7 @@ function bench(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}
     await vi.waitFor(() => { expect(state().install.phase).toBe('starting') })
     return state().install.requestId as PluginInstallRequestId
   }
-  return { plugins, inventory, probe, controller, face, state, started, track, openNewSession, setDraft }
+  return { plugins, inventory, probe, controller, face, state, started, track, openNewSession, setDraft, insertReference }
 }
 
 it('hands a custom page the shared configuration form of its entry', () => {
@@ -168,19 +169,30 @@ describe('sortPackages', () => {
 })
 
 describe('PluginManagerController', () => {
-  it('opens a new Session with an unsent example draft', async () => {
-    const { face, openNewSession, setDraft } = bench()
-    face.openExample('Try this operation')
-    await vi.waitFor(() => { expect(setDraft).toHaveBeenCalledExactlyOnceWith('Try this operation') })
+  it('opens a new Session with an unsent example and its atomic plugin reference', async () => {
+    const { face, openNewSession, setDraft, insertReference, controller } = bench()
+    await controller.load()
+    face.openExample(BUNDLE.name, 'Try this operation')
+    await vi.waitFor(() => { expect(setDraft).toHaveBeenCalledExactlyOnceWith('Try this operation ') })
+    expect(insertReference).toHaveBeenCalledExactlyOnceWith({
+      source: 'plugin', ref: BUNDLE.name, label: BUNDLE.name, appearance: 'plugin', clipboardText: '@dsh-better-sidebar',
+    }, { start: 19, end: 19, draftRev: 7 })
     expect(openNewSession).toHaveBeenCalledOnce()
   })
 
   it('reports an example Session creation failure once', async () => {
     const { face, openNewSession, state, setDraft } = bench()
     openNewSession.mockRejectedValueOnce(new Error('Failed to fetch'))
-    face.openExample('Try this operation')
+    face.openExample(BUNDLE.name, 'Try this operation')
     await vi.waitFor(() => { expect(state().notice).toMatchObject({ kind: 'example-failed', reason: 'Failed to fetch' }) })
     expect(setDraft).not.toHaveBeenCalled()
+  })
+
+  it('reports a refused example reference insertion without sending the draft', async () => {
+    const { face, insertReference, state } = bench()
+    insertReference.mockReturnValueOnce(false)
+    face.openExample(BUNDLE.name, 'Try this operation')
+    await vi.waitFor(() => { expect(state().notice).toMatchObject({ kind: 'example-failed' }) })
   })
 
   it.each(['before', 'after'] as const)('closes immediately and retries an early cancellation when acceptance arrives %s its reply', async (order) => {
@@ -1154,10 +1166,84 @@ describe('PluginManagerController', () => {
     face.setFeature(bundle.name, 'prompt', true)
     face.setFeature(bundle.name, 'skill', true)
     expect(state().busy).toEqual(expect.arrayContaining([featureKey(bundle.name, 'prompt'), featureKey(bundle.name, 'skill')]))
+    expect(state().pendingTargets).toMatchObject({ [featureKey(bundle.name, 'prompt')]: true, [featureKey(bundle.name, 'skill')]: true })
     expect(plugins.setBundleFeatures).toHaveBeenCalledExactlyOnceWith(bundle.name, ['prompt'], false)
     first.resolve(ok(APPLIED))
     await vi.waitFor(() => { expect(plugins.setBundleFeatures).toHaveBeenLastCalledWith(bundle.name, ['prompt', 'skill'], false) })
     await vi.waitFor(() => { expect(state().busy).toEqual([]) })
+    expect(state().pendingTargets).toEqual({})
+  })
+
+  it.each(['refused', 'rejected'] as const)('releases bundle switches after a successful save and %s refresh failure', async (failure) => {
+    const { face, state, controller, plugins } = bench()
+    await controller.load()
+    if (failure === 'rejected') plugins.listBundles.mockRejectedValueOnce(new Error('offline'))
+    else plugins.listBundles.mockResolvedValueOnce(refused('gateway/internal', 'offline'))
+    face.setEnabled(BUNDLE.name, false)
+    await vi.waitFor(() => { expect(state().busy).toEqual([]) })
+    expect(state().pendingTargets).toEqual({})
+    expect(state().notice?.kind).toBe('refresh-failed')
+    face.setEnabled(BUNDLE.name, false)
+    await vi.waitFor(() => { expect(plugins.setBundleEnabled).toHaveBeenCalledTimes(2) })
+  })
+
+  it('drops queued features after refresh failure and reads fresh choices before the next full-set write', async () => {
+    const bundle: BundleInfo = { ...FEATURE_BUNDLE, features: [
+      ...FEATURE_BUNDLE.features!, { id: 'skill', rowId: 'skill', title: 'Skill', description: 'Skill', defaultEnabled: false, enabled: false },
+    ] }
+    const gate = deferred<ReturnType<typeof ok<ChangeResult>>>()
+    const { face, state, controller, plugins } = bench({
+      listBundles: vi.fn(() => Promise.resolve(ok([bundle]))),
+      setBundleFeatures: vi.fn().mockReturnValueOnce(gate.promise).mockResolvedValue(ok(APPLIED)),
+    })
+    await controller.load()
+    plugins.listBundles.mockRejectedValueOnce(new Error('offline'))
+    face.setFeature(bundle.name, 'prompt', true)
+    face.setFeature(bundle.name, 'skill', true)
+    gate.resolve(ok(APPLIED))
+    await vi.waitFor(() => { expect(state().busy).toEqual([]) })
+    expect(state().pendingTargets).toEqual({})
+    expect(plugins.setBundleFeatures).toHaveBeenCalledTimes(1)
+    const fresh = { ...bundle, features: bundle.features!.map(feature => ({ ...feature, enabled: feature.id === 'prompt' })) }
+    plugins.listBundles.mockResolvedValue(ok([fresh]))
+    face.setFeature(bundle.name, 'skill', true)
+    await vi.waitFor(() => { expect(plugins.setBundleFeatures).toHaveBeenCalledTimes(2) })
+    expect(plugins.setBundleFeatures).toHaveBeenLastCalledWith(bundle.name, ['prompt', 'skill'], false)
+  })
+
+  it('releases newer queued switches when a recovery read fails without reading twice', async () => {
+    const bundle: BundleInfo = { ...FEATURE_BUNDLE, features: [
+      ...FEATURE_BUNDLE.features!, { id: 'skill', rowId: 'skill', title: 'Skill', description: 'Skill', defaultEnabled: false, enabled: false },
+    ] }
+    const { face, state, controller, plugins } = bench({ listBundles: vi.fn(() => Promise.resolve(ok([bundle]))) })
+    await controller.load()
+    plugins.listBundles.mockRejectedValueOnce(new Error('offline'))
+    face.setFeature(bundle.name, 'prompt', true)
+    await vi.waitFor(() => { expect(state().busy).toEqual([]) })
+    const recovery = deferred<ReturnType<typeof ok<BundleInfo[]>> | ReturnType<typeof refused>>()
+    plugins.listBundles.mockReturnValueOnce(recovery.promise)
+    face.setFeature(bundle.name, 'prompt', false)
+    await vi.waitFor(() => { expect(plugins.listBundles).toHaveBeenCalledTimes(3) })
+    face.setFeature(bundle.name, 'skill', true)
+    recovery.resolve(refused('gateway/internal', 'still offline'))
+    await vi.waitFor(() => { expect(state().busy).toEqual([]) })
+    expect(state().pendingTargets).toEqual({})
+    expect(plugins.setBundleFeatures).toHaveBeenCalledTimes(1)
+    expect(plugins.listBundles).toHaveBeenCalledTimes(3)
+  })
+
+  it('keeps the requested bundle switch value until a refused save refreshes the Host state', async () => {
+    const saving = deferred<ReturnType<typeof refused>>()
+    const { face, state, controller } = bench({ setBundleEnabled: vi.fn(() => saving.promise) })
+    await controller.load()
+    face.setEnabled(BUNDLE.name, true)
+    expect(state().pendingTargets[BUNDLE.name]).toBe(true)
+    expect(state().packages.find(pkg => pkg.name === BUNDLE.name)?.enabled).toBe(false)
+    saving.resolve(refused('operation-error', 'Save refused'))
+    await vi.waitFor(() => { expect(state().busy).toEqual([]) })
+    expect(state().pendingTargets).toEqual({})
+    expect(state().packages.find(pkg => pkg.name === BUNDLE.name)?.enabled).toBe(false)
+    expect(state().notice?.kind).toBe('failed')
   })
 
   it.each([true, false])('offers the scripts a blocked run left pending, and retries with analytics enabled=%s', async (enabled) => {

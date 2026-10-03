@@ -23,6 +23,8 @@ import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-
 export interface PluginConfigViewProps {
   /** `summary` renders the one-liner alone, as text or inline nodes; `page` renders the form with its save control. */
   readonly view: 'summary' | 'page'
+  /** Feature opening this row's configuration in the bundle detail dialog, when present. */
+  readonly featureId?: string
   /** Host-owned configuration values and write actions for this page's entry. */
   readonly form?: ConfigPageForm | undefined
 }

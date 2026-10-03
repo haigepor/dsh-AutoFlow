@@ -61,7 +61,8 @@ export function apply(ctx: Context): void {
           const rows = args.action === 'list_plugins' ? await manager.listPlugins() : await manager.listBundles()
           const entries = rows.slice(offset, offset + limit).map(({ meta: _meta, ...row }) =>
             'rows' in row
-              ? { ...row, rows: row.rows.map(({ meta: _rowMeta, ...declared }) => declared) }
+              ? { ...row, rows: row.rows.map(({ meta: _rowMeta, ...declared }) => declared),
+                ...(row.features === undefined ? {} : { features: row.features.map(({ icon: _icon, ...feature }) => feature) }) }
               : row)
           return JSON.stringify({ entries, total: rows.length,
             nextOffset: offset + entries.length < rows.length ? offset + entries.length : null })

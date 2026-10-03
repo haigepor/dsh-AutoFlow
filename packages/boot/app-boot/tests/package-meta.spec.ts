@@ -173,6 +173,14 @@ describe('plugin locale display metadata', () => {
     })
   })
 
+  it('delivers validated icon bytes through a file URL callback', () => {
+    manifest({ './package.json': './package.json' }, { icon: './icon.svg' })
+    file(join(dir, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>')
+    const deliver = vi.fn(() => 'plugin-icons/photo.svg')
+    expect(readPluginMeta('localized', parentURL, deliver)?.icon).toBe('plugin-icons/photo.svg')
+    expect(deliver).toHaveBeenCalledWith({ contentType: 'image/svg+xml', bytes: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>') })
+  })
+
   it.each([
     ['svg', 'image/svg+xml'], ['png', 'image/png'], ['jpg', 'image/jpeg'],
     ['jpeg', 'image/jpeg'], ['webp', 'image/webp'], ['SVG', 'image/svg+xml'],

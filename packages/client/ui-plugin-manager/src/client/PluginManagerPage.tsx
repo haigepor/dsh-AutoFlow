@@ -18,7 +18,7 @@ import {
   IconChevronRightOutlineRegular, IconCloseOutlineMedium, IconCodeOutlineRegular,
   IconInfoOutlineRegular, IconPlusOutlineRegular, IconRefreshOutlineRegular, IconTrashOutlineRegular,
   IconPanelLeftOutlineRegular, IconSkillOutlineRegular, IconSparkleRegular,
-  IconWarningOutlineRegular, Input, Modal, pointerModality,
+  IconWarningOutlineRegular, IconEditOutlineRegular, Input, Modal, pointerModality,
   PluginArtworkDefault, PluginArtworkLoop, PluginArtworkSearch, PluginArtworkSubagent, PluginArtworkTerminal,
   StateDot, Switch, Tag, TerminalBlock, Toast, Tooltip, useAnchoredPosition, useDismissOnOutsidePointer,
   type IconProps, type StateDotState, type TerminalBlockLabels,
@@ -131,7 +131,7 @@ interface RowToggles {
   readonly onSetEnabled: (row: PackageRow, enabled: boolean) => void
 }
 
-/** Configuration for a pack's rows: which rows registered a page of their own, and opening it. */
+/** Configuration availability for a pack's rows. */
 interface RowConfigure {
   readonly has: (row: PackageRow) => boolean
   readonly open: (row: PackageRow) => void
@@ -174,17 +174,18 @@ function PackageArtwork({ src, row = false, size = row ? ROW_ARTWORK_SIZE : CARD
 }
 
 /** A row's switch: locked, saying why, when the Host refuses to address the row through the profile patch. */
-function RowSwitch({ row, title, t, busy, onChange }: {
+function RowSwitch({ row, title, t, busy, target, onChange }: {
   readonly row: PackageRow
   readonly title: string
   readonly t: Translate
   readonly busy: boolean
+  readonly target?: boolean | undefined
   readonly onChange: (enabled: boolean) => void
 }): ReactNode {
   const locked = row.readOnlyReason !== undefined || row.entryId === undefined
   return (
     <Switch
-      checked={row.enabled}
+      checked={target ?? row.enabled}
       loading={busy}
       label={t('partToggle', { name: title })}
       disabled={busy || locked}
@@ -213,16 +214,16 @@ function MetadataError({ error, t }: { readonly error: string | undefined; reado
 
 /**
  * A pack's rows as a list in the order the pack declares them: a state dot,
- * the row id, one line saying its state, a configure control for a row that
- * registered a page, and, when the pack is on, a switch. A pack like base
+ * the row id, one line saying its state, and, when the pack is on, a switch. A pack like base
  * carries close to a hundred rows, so a long list gets a filter.
  */
-function RowsSection({ rows, t, resolveText, toggle, configure }: {
+function RowsSection({ rows, t, resolveText, toggle, configure, targets = {} }: {
   readonly rows: readonly PackageRow[]
   readonly t: Translate
   readonly resolveText: ResolveText
   readonly toggle?: RowToggles | undefined
   readonly configure?: RowConfigure | undefined
+  readonly targets?: Readonly<Record<string, boolean>>
 }): ReactNode {
   const [filter, setFilter] = useState('')
   const query = filter.trim().toLowerCase()
@@ -230,11 +231,12 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
   const shown = query === '' ? localized : localized.filter(({ row, title, description }) =>
     [title, description, row.rowId, row.moduleName].some(value => value?.toLowerCase().includes(query)))
   return (
-    <section className={css.detailSection} data-plugin-rows>
-      <div className={css.sectionHead}>
-        <h4 className={css.sectionTitle}>{t('partsLabel')}</h4>
+    <details className={`${css.detailSection} ${css.partsDisclosure}`} data-plugin-rows>
+      <summary className={css.sectionHead}>
+        <IconChevronRightOutlineRegular className={css.partsChevron} size={14} aria-hidden="true" />
+        <span className={css.sectionTitle}>{t('partsLabel')}</span>
         {rows.length === 0 ? null : <span className={css.sectionCount}>{partsSummary(rows, t)}</span>}
-      </div>
+      </summary>
       {rows.length === 0 ? <p className={css.status}>{t('partsEmpty')}</p> : null}
       {rows.length > ROW_FILTER_THRESHOLD
         ? (
@@ -263,14 +265,7 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
                 <div className={css.rowLine}>
                   <span className={css.rowIcon} aria-hidden="true"><PackageArtwork key={row.meta?.icon} src={row.meta?.icon} row /></span>
                   <div className={css.rowMain}>
-                    {configure?.has(row) === true
-                      ? (
-                        <button type="button" className={css.rowOpen} aria-label={t('configureRow', { name: title })} onClick={() => { configure.open(row) }}>
-                          <span className={css.rowId}>{title}</span>
-                          <IconChevronRightOutlineRegular className={css.rowOpenIcon} aria-hidden="true" />
-                        </button>
-                      )
-                      : <span className={css.rowId}>{title}</span>}
+                    <span className={css.rowId}>{title}</span>
                     {description === undefined ? null : <span className={css.rowDescription}>{description}</span>}
                     {title === row.rowId && title === row.moduleName
                       ? null
@@ -285,10 +280,15 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
                     <StateDot state={rowDotState(row)} />
                     {rowStateText(row, t)}
                   </span>
+                  {configure?.has(row) === true ? <Tooltip label={t('configureRow', { name: title })} portal>
+                    <Button variant="ghost" size="sm" aria-label={t('configureRow', { name: title })}
+                      icon={<IconEditOutlineRegular size={14} />} onClick={() => { configure.open(row) }} />
+                  </Tooltip> : null}
                   {toggle === undefined
                     ? null
                     : <RowSwitch
                       row={row} title={title} t={t} busy={toggle.busy(row)}
+                      target={row.entryId === undefined ? undefined : targets[rowKey(row.entryId)]}
                       onChange={(enabled) => { toggle.onSetEnabled(row, enabled) }}
                     />}
                 </div>
@@ -297,7 +297,7 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
             ))}
           </ul>
         )}
-    </section>
+    </details>
   )
 }
 
@@ -305,16 +305,17 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
  * A bundle's enable switch on its card and its page: locked, saying why, for
  * one the Host protects; off and locked for one it cannot read.
  */
-function EnableSwitch({ pkg, title, t, busy, onSetEnabled }: {
+function EnableSwitch({ pkg, title, t, busy, target, onSetEnabled }: {
   readonly pkg: PackageView
   readonly title: string
   readonly t: Translate
   readonly busy: boolean
+  readonly target?: boolean | undefined
   readonly onSetEnabled: (enabled: boolean) => void
 }): ReactNode {
   return (
     <Switch
-      checked={pkg.enabled}
+      checked={target ?? pkg.enabled}
       loading={busy}
       label={t('enableToggle', { name: title })}
       disabled={busy || pkg.readOnlyReason !== undefined || (!pkg.enabled && pkg.error !== undefined)}
@@ -430,11 +431,12 @@ function DetailInformation({ title, entries }: {
 }
 
 /** One package as a card that opens its page: its name, its one-liner, its tags, and its bundle switch. */
-function PackageCard({ pkg, t, resolveText, busy, highlighted, onOpen, onSetEnabled }: {
+function PackageCard({ pkg, t, resolveText, busy, target, highlighted, onOpen, onSetEnabled }: {
   readonly pkg: PackageView
   readonly t: Translate
   readonly resolveText: ResolveText
   readonly busy: boolean
+  readonly target?: boolean | undefined
   readonly highlighted: boolean
   readonly onOpen: () => void
   readonly onSetEnabled: (enabled: boolean) => void
@@ -460,7 +462,7 @@ function PackageCard({ pkg, t, resolveText, busy, highlighted, onOpen, onSetEnab
           </>
         )}
         description={description}
-        end={<EnableSwitch pkg={pkg} title={title} t={t} busy={busy} onSetEnabled={onSetEnabled} />}
+        end={<EnableSwitch pkg={pkg} title={title} t={t} busy={busy} target={target} onSetEnabled={onSetEnabled} />}
       />
       <MetadataError error={pkg.meta?.error} t={t} />
     </li>
@@ -542,61 +544,65 @@ function ItemDetail({ item, t, onBack, renderSlot, form }: {
   )
 }
 
-/**
- * A row's configuration page keeps its technical identity below the form
- * supplied by its configuration entry.
- */
-function RowDetail({ pkg, row, t, resolveText, onBack, renderSlot, form }: {
-  readonly pkg: PackageView
-  readonly row: PackageRow
+/** A feature keeps its confirmed runtime badge beside its pending switch value and configuration action. */
+function FeatureRow({ feature, row, t, resolveText, busy, checked, locked, configure, onChange }: {
+  readonly feature: BundleFeature
+  readonly row: PackageRow | undefined
   readonly t: Translate
   readonly resolveText: ResolveText
-  readonly onBack: () => void
-  readonly renderSlot: RenderConfig
-  readonly form: ConfigPageForm | undefined
+  readonly busy: boolean
+  readonly checked: boolean
+  readonly locked: boolean
+  readonly configure: (() => void) | undefined
+  readonly onChange: (enabled: boolean) => void
 }): ReactNode {
-  const { title } = packageText(pkg, resolveText)
-  const { title: rowTitle, description } = rowText(row, resolveText)
-  const key = rowConfigKey(pkg.name, row.rowId)
-  const subject: PluginsSubject = { kind: 'row', pkg: packageRef(pkg), row: rowRef(row) }
-  return (
-    <div className={css.detail} data-plugin-row-detail={key}>
-      <DetailTop
-        crumbLabel={t('backToPackage', { name: title })}
-        crumbText={title}
-        onBack={onBack}
-        icon={<PackageArtwork key={row.meta?.icon} src={row.meta?.icon} row size={CARD_ARTWORK_SIZE} />}
-      />
-      <div className={css.detailMain}>
-        <div className={css.detailTitleLine}>
-          <div className={css.titleRow}>
-            <h3 className={css.detailTitle}>{rowTitle}</h3>
-            {renderSlot('plugins.detail.badge', { subject })}
-          </div>
-          <div className={css.detailActions}>{renderSlot('plugins.detail.actions', { subject })}</div>
-        </div>
-        <p className={css.detailDesc}>{description ?? renderSlot('plugins.row.config', { view: 'summary' }, { entryKey: key })}</p>
+  const [expanded, setExpanded] = useState(false)
+  const [failedIcon, setFailedIcon] = useState<string>()
+  const title = resolveText(feature.title)
+  const detailsId = useId()
+  const phase = row?.phase
+  const statusKey = !feature.enabled ? 'featureOff' : phase === 'failed' ? 'rowPhaseFailed'
+    : phase === 'loading' ? 'rowPhaseLoading' : phase === 'unloading' ? 'rowPhaseUnloading'
+      : row?.enabled && phase === 'active' ? 'featureRunning' : 'featureSelected'
+  const tone = statusKey === 'featureRunning' ? 'success' : statusKey === 'rowPhaseFailed' ? 'danger'
+    : statusKey === 'rowPhaseLoading' || statusKey === 'rowPhaseUnloading' ? 'info' : 'neutral'
+  return <li className={css.featureItem} {...feature.kind === undefined ? {} : { 'data-feature-kind': feature.kind }}>
+    <div className={css.featureLine}>
+      <span className={css.featureIcon} aria-hidden="true">{feature.icon === undefined || feature.icon === failedIcon
+        ? <FeatureKindIcon kind={feature.kind} />
+        : <span className={css.featureArtwork} style={{ maskImage: `url("${feature.icon}")`, WebkitMaskImage: `url("${feature.icon}")` }}>
+          {/* Detect failed artwork loads; the category token colors the mask. */}
+          <img src={feature.icon} alt="" onError={() => { setFailedIcon(feature.icon) }} />
+        </span>}</span>
+      <div className={css.featureText}>
+        <button type="button" className={css.featureTitle} aria-expanded={expanded} aria-controls={detailsId}
+          onClick={() => { setExpanded(!expanded) }}>
+          <strong>{title}</strong><IconChevronRightOutlineRegular size={13} aria-hidden="true" />
+        </button>
       </div>
-      <MetadataError error={row.meta?.error} t={t} />
-      <div className={css.detailSections} data-plugin-config>
-        {renderSlot('plugins.row.config', { view: 'page', form }, { entryKey: key })}
-        {renderSlot('plugins.detail.section', { subject })}
+      <div className={css.featureActions}>
+        <Tag tone={tone}>{t(statusKey)}</Tag>
+        {configure === undefined ? null : <Tooltip label={t('configureRow', { name: title })} portal>
+          <Button variant="ghost" size="sm" aria-label={t('configureRow', { name: title })}
+            icon={<IconEditOutlineRegular size={14} />} onClick={configure} />
+        </Tooltip>}
+        <Switch checked={checked} loading={busy} disabled={busy || locked}
+          label={t('featureToggle', { name: title })} onChange={onChange} />
       </div>
-      <DetailInformation title={t('detailInformation')} entries={[
-        { label: t('detailId'), value: <code>{row.rowId}</code> },
-        { label: t('detailModule'), value: <code>{row.moduleName}</code> },
-      ]} />
     </div>
-  )
+    <div id={detailsId} className={css.featureDisclosure} data-expanded={expanded} aria-hidden={!expanded}>
+      <div className={css.featureClip}>
+        <div className={css.featureDetails}>
+          {resolveText(feature.details ?? feature.description).split(/\n\s*\n/u).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+        </div>
+      </div>
+    </div>
+  </li>
 }
 
-/**
- * One package's page: the crumb and icon, title with status tags and actions,
- * description, Host problems, bundle configuration, component rows, and the
- * package name and version in its information section.
- */
+/** A bundle's selectable capabilities, shared configuration, and folded component inventory. */
 function PackageDetail({
-  pkg, t, resolveText, busy, featureBusy, rowBusy, configured, configure, renderSlot,
+  pkg, t, resolveText, busy, featureBusy, rowBusy, targets, rowForm, configured, configure, renderSlot,
   onBack, onSetEnabled, onUninstall, onSetRowEnabled, onSetFeature, onOpenExample,
 }: {
   readonly pkg: PackageView
@@ -607,9 +613,11 @@ function PackageDetail({
   readonly featureBusy: (featureId: string) => boolean
   /** Whether a row has a write in flight. */
   readonly rowBusy: (row: PackageRow) => boolean
+  readonly targets: Readonly<Record<string, boolean>>
+  readonly rowForm: (row: PackageRow) => ConfigPageForm | undefined
   /** Whether the bundle registered a configuration of its own. */
   readonly configured: boolean
-  readonly configure: RowConfigure
+  readonly configure: Pick<RowConfigure, 'has'>
   readonly renderSlot: RenderConfig
   readonly onBack: () => void
   readonly onSetEnabled: (enabled: boolean) => void
@@ -618,6 +626,9 @@ function PackageDetail({
   readonly onSetFeature: (featureId: string, enabled: boolean) => void
   readonly onOpenExample: (prompt: string) => void
 }): ReactNode {
+  const [editing, setEditing] = useState<{ rowId: string; featureId?: string } | null>(null)
+  const editingRow = pkg.rows.find(row => row.rowId === editing?.rowId)
+  const editingFeature = pkg.features?.find(feature => feature.id === editing?.featureId)
   const { title, description, beta } = packageText(pkg, resolveText)
   const status = packageStatus(pkg)
   const subject: PluginsSubject = { kind: 'bundle', pkg: packageRef(pkg) }
@@ -654,7 +665,7 @@ function PackageDetail({
                 </Button>
               )
               : null}
-            <EnableSwitch pkg={pkg} title={title} t={t} busy={busy} onSetEnabled={onSetEnabled} />
+            <EnableSwitch pkg={pkg} title={title} t={t} busy={busy} target={targets[pkg.name]} onSetEnabled={onSetEnabled} />
           </div>
         </div>
       </div>
@@ -682,7 +693,6 @@ function PackageDetail({
               <h4 className={css.sectionTitle}>{t('featuresLabel')}</h4>
               <span className={css.sectionCount}>{pkg.features.length}</span>
             </div>
-            <p className={css.featureHint}>{t('featuresHint')}</p>
             <ul className={css.featureList}>
               {featureGroups(pkg.features).map(group => <li key={group.kind ?? 'legacy'} className={css.featureGroup} {...group.kind === undefined ? {} : { 'data-feature-group': group.kind }}>
                 {group.kind === undefined ? null : <div className={css.featureGroupHead}>
@@ -692,18 +702,12 @@ function PackageDetail({
                 <ul className={css.featureGroupItems}>
                   {group.features.map((feature) => {
                     const row = pkg.rows.find(candidate => candidate.rowId === feature.rowId)
-                    return <li key={feature.id} className={css.featureItem} {...feature.kind === undefined ? {} : { 'data-feature-kind': feature.kind }}>
-                      <span className={css.featureIcon} aria-hidden="true"><FeatureKindIcon kind={feature.kind} /></span>
-                      <span className={css.featureText}>
-                        <strong>{resolveText(feature.title)}</strong>
-                        <span>{resolveText(feature.description)}</span>
-                        <small>{t(feature.enabled ? row?.enabled ? 'featureRunning' : 'featureSelected' : 'featureOff')}</small>
-                      </span>
-                      <Switch checked={feature.enabled} loading={featureBusy(feature.id)}
-                        disabled={featureBusy(feature.id) || pkg.readOnlyReason !== undefined}
-                        label={t('featureToggle', { name: resolveText(feature.title) })}
-                        onChange={(enabled) => { onSetFeature(feature.id, enabled) }} />
-                    </li>
+                    return <FeatureRow key={feature.id} feature={feature} row={row} t={t} resolveText={resolveText}
+                      busy={featureBusy(feature.id)} checked={targets[featureKey(pkg.name, feature.id)] ?? feature.enabled}
+                      locked={pkg.readOnlyReason !== undefined}
+                      configure={row !== undefined && configure.has(row)
+                        ? () => { setEditing({ rowId: row.rowId, featureId: feature.id }) } : undefined}
+                      onChange={(enabled) => { onSetFeature(feature.id, enabled) }} />
                   })}
                 </ul>
               </li>)}
@@ -722,10 +726,19 @@ function PackageDetail({
           t={t}
           resolveText={resolveText}
           toggle={pkg.enabled ? { busy: row => busy || rowBusy(row), onSetEnabled: onSetRowEnabled } : undefined}
-          configure={configure}
+          targets={targets}
+          configure={{ has: row => configure.has(row) && !pkg.features?.some(feature => feature.rowId === row.rowId),
+            open: (row) => { setEditing({ rowId: row.rowId }) } }}
         />
         {renderSlot('plugins.detail.section', { subject })}
       </div>
+      {editing === null || editingRow === undefined || !configure.has(editingRow) ? null : <Modal open
+        title={t('configureRow', { name: editingFeature === undefined ? rowText(editingRow, resolveText).title : resolveText(editingFeature.title) })} closeLabel={t('close')}
+        onClose={() => { setEditing(null) }} className={css.featureConfigDialog as string}
+        contentClassName={css.featureConfigContent as string}>
+        {renderSlot('plugins.row.config', { view: 'page', ...editing.featureId === undefined ? {} : { featureId: editing.featureId }, form: rowForm(editingRow) },
+          { entryKey: rowConfigKey(pkg.name, editingRow.rowId) })}
+      </Modal>}
       <DetailInformation title={t('detailInformation')} entries={[
         { label: t('detailPackage'), value: <code data-plugin-name>{pkg.name}</code> },
         ...(pkg.version === undefined ? [] : [{ label: t('detailVersion'), value: pkg.version }]),
@@ -1342,7 +1355,7 @@ function InstallDialog({
             ? null
             : install.installed !== null
               ? <Button variant="primary" className={css.wide} disabled={install.enabling || installedPackage === undefined}
-                aria-busy={install.enabling} onClick={() => onEnableNow(selectedFeatures)}>{t('installEnableNow')}</Button>
+                aria-busy={install.enabling} onClick={() =>{  onEnableNow(selectedFeatures) }}>{t('installEnableNow')}</Button>
               : <Button variant="primary" className={css.wide} onClick={onClose}>{t('installClose')}</Button>}
         </div>
       </div>
@@ -1411,18 +1424,16 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   const official = listed.filter(pkg => pkg.optional && !pkg.installed)
   const loaded = state.status === 'ready' || state.status === 'error'
   const refreshing = state.refreshStatus === 'refreshing'
-  const openPkg = view.kind === 'package' || view.kind === 'row' ? listed.find(pkg => pkg.name === view.name) : undefined
+  const openPkg = view.kind === 'package' ? listed.find(pkg => pkg.name === view.name) : undefined
   const openItem = view.kind === 'item' ? ledger.items.find(item => item.id === view.id) : undefined
-  const openRow = view.kind === 'row' && openPkg !== undefined ? openPkg.rows.find(row => row.rowId === view.rowId) : undefined
   const showsCards = openPkg === undefined && openItem === undefined
   const activated = listed.find(pkg => pkg.name === activation && pkg.enabled && !state.busy.includes(pkg.name))
   const setRowEnabled = (row: PackageRow, enabled: boolean): void => {
     /* v8 ignore next -- a row without a live entry has its switch disabled */
     if (row.entryId !== undefined) props.setRowEnabled(row.entryId, enabled)
   }
-  const configure = (pkg: PackageView): RowConfigure => ({
+  const configure = (pkg: PackageView): Pick<RowConfigure, 'has'> => ({
     has: row => ledger.rows.has(rowConfigKey(pkg.name, row.rowId)),
-    open: (row) => { setView({ kind: 'row', name: pkg.name, rowId: row.rowId }) },
   })
   const packageCard = (pkg: PackageView): ReactNode => (
     <PackageCard
@@ -1431,6 +1442,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
       t={t}
       resolveText={resolveText}
       busy={state.busy.includes(pkg.name)}
+      target={state.pendingTargets[pkg.name]}
       highlighted={state.highlight === pkg.name}
       onOpen={() => { setActivation(null); setView({ kind: 'package', name: pkg.name }) }}
       onSetEnabled={(enabled) => { setActivation(enabled ? pkg.name : null); props.setEnabled(pkg.name, enabled) }}
@@ -1514,28 +1526,18 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
           </div>
         )
         : null}
-      {loaded && openPkg !== undefined && openRow !== undefined
-        ? (
-          <RowDetail
-            pkg={openPkg}
-            row={openRow}
-            form={formFor(openRow.rowId)}
-            t={t}
-            resolveText={resolveText}
-            renderSlot={renderSlot}
-            onBack={() => { setView({ kind: 'package', name: openPkg.name }) }}
-          />
-        )
-        : null}
-      {loaded && openPkg !== undefined && openRow === undefined
+      {loaded && openPkg !== undefined
         ? (
           <PackageDetail
+            key={openPkg.name}
             pkg={openPkg}
             t={t}
             resolveText={resolveText}
             busy={state.busy.includes(openPkg.name)}
             featureBusy={featureId => state.busy.includes(featureKey(openPkg.name, featureId))}
             rowBusy={row => row.entryId !== undefined && state.busy.includes(rowKey(row.entryId))}
+            targets={state.pendingTargets}
+            rowForm={row => formFor(row.rowId)}
             configured={ledger.bundles.has(openPkg.name)}
             configure={configure(openPkg)}
             renderSlot={renderSlot}
@@ -1544,7 +1546,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
             onUninstall={() => { props.uninstall(openPkg.name) }}
             onSetRowEnabled={setRowEnabled}
             onSetFeature={(featureId, enabled) => { props.setFeature(openPkg.name, featureId, enabled) }}
-            onOpenExample={props.openExample}
+            onOpenExample={(prompt) => { props.openExample(openPkg.name, prompt) }}
           />
         )
         : null}

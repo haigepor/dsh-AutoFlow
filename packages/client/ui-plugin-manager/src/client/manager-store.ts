@@ -38,6 +38,7 @@ import type { LocalizedText, PluginLocalizedMeta } from '@deepseek-ai/dsh-packag
 import type { SettingsDescribeFace, ConfigForms } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ConfigLedger } from './config-ledger.ts'
 import { shortName } from './presentation.ts'
+import { pluginReference } from './plugin-mention.ts'
 
 /** The action a failed notice names. */
 export type FailedAction = 'enable' | 'disable' | 'uninstall' | 'rowEnable' | 'rowDisable'
@@ -291,6 +292,8 @@ export interface PluginManagerState {
   readonly packages: readonly PackageView[]
   /** Package names and row keys with an action crossing the wire. */
   readonly busy: readonly string[]
+  /** Requested switch values while a write and its authoritative refresh are pending. */
+  readonly pendingTargets: Readonly<Record<string, boolean>>
   readonly notice: ManagerNotice | null
   readonly install: InstallState
   readonly confirm: ConfirmState | null
@@ -351,8 +354,8 @@ export interface PluginManagerFace {
   setRowEnabled: (entryId: PluginEntryId, enabled: boolean) => void
   /** Persist one declared feature choice, including when the bundle is off. */
   setFeature: (packageName: string, featureId: string, enabled: boolean) => void
-  /** Open a blank Session and place the selected example in its unsent composer. */
-  openExample: (prompt: string) => void
+  /** Open a blank Session with the example text and its bundle's atomic plugin reference. */
+  openExample: (packageName: string, prompt: string) => void
   dismissNotice: () => void
 }
 
@@ -551,7 +554,7 @@ export class PluginManagerController {
     private readonly ctx: ClientContext,
   ) {
     this.store = createSnapshotStore<PluginManagerState>({
-      status: 'idle', refreshStatus: 'idle', packages: [], busy: [], notice: null,
+      status: 'idle', refreshStatus: 'idle', packages: [], busy: [], pendingTargets: {}, notice: null,
       install: IDLE_INSTALL, confirm: null, highlight: null,
     })
   }
@@ -652,7 +655,7 @@ export class PluginManagerController {
           const result = await this.ctx.remote.pluginManager.setBundleEnabled(packageName, enabled)
           this.applied(result, packageName)
           if (result.ok && (result.value.application === 'applied' || result.value.application === 'restart-required')) this.trackToggle(packageName, enabled)
-        })
+        }, enabled)
       },
       uninstall: (packageName) => {
         this.pendingConfirm = () => this.run(packageName, { packageName, action: 'uninstall' }, async () => {
@@ -668,14 +671,24 @@ export class PluginManagerController {
           const result = await this.ctx.remote.pluginManager.setPluginEnabled(entryId, enabled)
           this.applied(result, entryId)
           if (result.ok && (result.value.application === 'applied' || result.value.application === 'restart-required')) this.trackToggle(entryId, enabled, true)
-        })
+        }, enabled)
       },
       setFeature: (packageName, featureId, enabled) => { this.setFeature(packageName, featureId, enabled) },
-      openExample: (prompt) => {
+      openExample: (packageName, prompt) => {
+        const pkg = this.getSnapshot().packages.find(item => item.name === packageName)
+        const label = pkg?.meta?.title === undefined ? packageName : resolveText(pkg.meta.title)
+        const reference = pluginReference(packageName, label, pkg?.meta?.icon)
         void this.ctx.uiWorkspace.openNewSession((sessionId) => {
           const binding = this.ctx.sessions.binding(sessionId)
           if (binding === undefined) throw new Error(`Example Session ${sessionId} has no input binding`)
-          this.ctx.conversation.input.for(binding.ctx).setDraft(prompt)
+          const input = this.ctx.conversation.input.for(binding.ctx)
+          const text = `${prompt} `
+          input.setDraft(text)
+          // The new plain-text draft has no references, so its end offset matches the editor.
+          const draftRev = input.state.getSnapshot().draftRev
+          if (!input.insertReference(reference, { start: text.length, end: text.length, draftRev })) {
+            throw new Error('Example plugin reference could not be inserted')
+          }
         }).catch((error: unknown) => {
           this.patch({ notice: { kind: 'example-failed', reason: error instanceof Error ? error.message : String(error), seq: ++this.noticeSeq } })
         })
@@ -1132,18 +1145,43 @@ export class PluginManagerController {
     key: string,
     subject: { action: FailedAction; packageName?: string },
     action: () => Promise<void>,
+    target?: boolean,
   ): Promise<void> {
     if (this.disposed || this.getSnapshot().busy.includes(key)) return
-    this.patch({ busy: [...this.getSnapshot().busy, key], notice: null })
+    this.patch({ busy: [...this.getSnapshot().busy, key], notice: null,
+      pendingTargets: { ...this.getSnapshot().pendingTargets, ...target === undefined ? {} : { [key]: target } } })
     try {
       await action()
     } catch (error) {
       // `patch` drops the notice after disposal.
       this.patch({ notice: failedNotice(error, subject, ++this.noticeSeq) })
     } finally {
-      this.patch({ busy: this.getSnapshot().busy.filter(entry => entry !== key) })
+      // Keep the target until the Host refresh settles, including a failed read.
+      await this.refreshAfterWrite()
+      this.finishSwitches([key])
     }
-    await this.load()
+  }
+
+  /** Release only the settled controls after their Host values have been refreshed. */
+  private finishSwitches(keys: readonly string[]): void {
+    const pendingTargets = Object.fromEntries(Object.entries(this.getSnapshot().pendingTargets).filter(([key]) => !keys.includes(key)))
+    this.patch({ busy: this.getSnapshot().busy.filter(key => !keys.includes(key)), pendingTargets })
+  }
+
+  /** Report an unreadable saved state without leaving its controls locked. */
+  private async refreshAfterWrite(): Promise<boolean> {
+    try {
+      await this.load()
+    } catch (_error) {
+      // Keep the cached inventory so the user can retry the read.
+      this.patch({ status: 'error' })
+    }
+    if (this.disposed) return false
+    if (this.getSnapshot().status !== 'error') return true
+    if (this.getSnapshot().notice?.kind !== 'failed') {
+      this.patch({ notice: { kind: 'refresh-failed', seq: ++this.noticeSeq } })
+    }
+    return false
   }
 
   /**
@@ -1160,7 +1198,8 @@ export class PluginManagerController {
     intents.set(featureId, enabled)
     this.featureIntents.set(packageName, intents)
     const key = featureKey(packageName, featureId)
-    if (!this.getSnapshot().busy.includes(key)) this.patch({ busy: [...this.getSnapshot().busy, key], notice: null })
+    this.patch({ busy: this.getSnapshot().busy.includes(key) ? this.getSnapshot().busy : [...this.getSnapshot().busy, key],
+      pendingTargets: { ...this.getSnapshot().pendingTargets, [key]: enabled }, notice: null })
     if (this.featureWrites.has(packageName)) return
     this.featureWrites.add(packageName)
     void this.flushFeatureWrites(packageName)
@@ -1178,17 +1217,33 @@ export class PluginManagerController {
       const intents = new Map(queued)
       this.featureIntents.set(packageName, new Map())
       const keys = [...intents.keys()].map(featureId => featureKey(packageName, featureId))
+      let refreshed = false
+      let preflightFailed = false
       try {
-        const features = this.getSnapshot().packages.find(pkg => pkg.name === packageName)?.features
-        if (features === undefined) throw new Error(`Bundle ${packageName} no longer declares configurable features`)
-        const enabledFeatureIds = features.filter(feature => intents.get(feature.id) ?? feature.enabled).map(feature => feature.id)
-        this.applied(await this.ctx.remote.pluginManager.setBundleFeatures(packageName, enabledFeatureIds, false), packageName)
+        // A full-set write must read fresh choices after an earlier refresh failed.
+        preflightFailed = this.getSnapshot().status === 'error' && !await this.refreshAfterWrite()
+        if (!preflightFailed) {
+          const features = this.getSnapshot().packages.find(pkg => pkg.name === packageName)?.features
+          if (features === undefined) throw new Error(`Bundle ${packageName} no longer declares configurable features`)
+          const enabledFeatureIds = features.filter(feature => intents.get(feature.id) ?? feature.enabled).map(feature => feature.id)
+          this.applied(await this.ctx.remote.pluginManager.setBundleFeatures(packageName, enabledFeatureIds, false), packageName)
+        }
       } catch (error) {
         this.patch({ notice: failedNotice(error, { packageName, action: 'rowEnable' }, ++this.noticeSeq) })
       } finally {
-        this.patch({ busy: this.getSnapshot().busy.filter(key => !keys.includes(key)) })
+        refreshed = !preflightFailed && await this.refreshAfterWrite()
+        if (!refreshed) {
+          // Discard queued choices rather than overwrite other features from stale facts.
+          const pending = [...this.featureIntents.get(packageName)?.keys() ?? []].map(id => featureKey(packageName, id))
+          this.featureIntents.delete(packageName)
+          this.finishSwitches([...keys, ...pending])
+        } else {
+          const settled = keys.filter(key => ![...this.featureIntents.get(packageName)?.keys() ?? []]
+            .some(featureId => featureKey(packageName, featureId) === key))
+          this.finishSwitches(settled)
+        }
       }
-      await this.load()
+      if (!refreshed) break
     }
     this.featureIntents.delete(packageName)
     this.featureWrites.delete(packageName)

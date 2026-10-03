@@ -1461,11 +1461,99 @@ label.registryOption {
 }
 
 .featureItem {
+  padding: 8px 2px;
+}
+
+.featureLine {
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 64px;
-  padding: 10px 2px;
+  min-height: 44px;
+}
+
+.featureActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.featureTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.featureTitle svg {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  transition: transform 200ms cubic-bezier(.2, .8, .2, 1);
+}
+.featureTitle[aria-expanded='true'] svg { transform: rotate(90deg); }
+.featureTitle:hover { color: var(--dsw-alias-state-business-primary); }
+.featureTitle:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 4px;
+  border-radius: var(--dsw-radius-sm);
+}
+.featureDisclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-left: 48px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: grid-template-rows 200ms cubic-bezier(.2, .8, .2, 1),
+    opacity 160ms ease, transform 200ms ease, visibility 0s 200ms;
+}
+.featureDisclosure[data-expanded='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+.featureClip { min-height: 0; overflow: hidden; }
+.featureDetails {
+  max-width: 70ch;
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent);
+  border-radius: var(--dsw-radius-md);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 6%, var(--dsw-alias-bg-layer-2));
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.featureDetails p { margin: 0; white-space: pre-line; }
+.featureDetails p + p { margin-top: 6px; }
+.featureConfigDialog { width: min(560px, 100%); max-height: 100%; }
+.featureConfigContent { min-height: 0; overflow: hidden; }
+.featureConfigContent > :first-child { flex: none; }
+.featureConfigContent > :last-child { flex: 1; min-height: 0; margin-top: 12px; overflow: auto; }
+.partsDisclosure > summary { align-items: center; list-style: none; cursor: pointer; }
+.partsDisclosure > summary::-webkit-details-marker { display: none; }
+.partsChevron { flex: none; transition: transform 180ms ease; }
+.partsDisclosure[open] .partsChevron { transform: rotate(90deg); }
+
+@media (max-width: 520px) {
+  .featureLine { flex-wrap: wrap; }
+  .featureText { flex-basis: calc(100% - 48px); }
+  .featureActions { margin-left: 48px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .featureTitle svg, .partsChevron, .featureDisclosure { transition: none; }
+  .featureDisclosure { transform: none; }
 }
 
 .featureIcon {
@@ -1484,6 +1572,17 @@ label.registryOption {
 .featureItem[data-feature-kind='prompt'] .featureIcon {
   color: var(--dsw-alias-brand-primary);
 }
+
+.featureArtwork {
+  width: 22px;
+  height: 22px;
+  background: currentColor;
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
+}
+
+.featureArtwork img { display: none; }
 
 .featureItem[data-feature-kind='skill'] .featureIcon {
   color: var(--dsw-alias-state-business-primary);
@@ -1524,7 +1623,7 @@ label.registryOption {
   gap: 10px;
   margin: 12px 0 0;
   padding: 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-sm);
 }
 
@@ -1670,34 +1769,6 @@ label.registryOption {
   display: flex;
   flex-wrap: wrap;
   gap: 2px 12px;
-}
-
-/* A row with a configuration page: its name opens the page, the arrow says so. */
-.rowOpen {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.rowOpen:hover .rowId {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.rowOpenIcon {
-  flex: none;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.rowOpen:hover .rowOpenIcon {
-  color: var(--dsw-alias-label-primary);
 }
 
 .rowState {

@@ -45,6 +45,8 @@ export interface BundleRowInfo {
 
 /** One declared feature and its saved state in the current profile. */
 export interface BundleFeatureInfo extends DshBundleFeature {
+  /** Resolved image URL for this feature, replacing the author's relative file path. */
+  icon?: string
   /** Profile patch selection, independent of whether the bundle currently runs. */
   enabled: boolean
 }

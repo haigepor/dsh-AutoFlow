@@ -11,7 +11,11 @@ kind: "package-reference"
 
 ## 概述
 
-使用 Web 侧栏的**插件**入口管理 profile 已安装的组合包，以及安装随附、默认关闭的官方组合包。可以启停组合包及其行、在 Host 读出 spec 指向什么之后安装组合包、查看 pnpm 输出、停止一次运行，并启用它新增的包。卸载会要求确认。注册了配置页的插件在这里、在它自己的页面上编辑；设置里只保留只读的插件列表。
+功能配置弹窗限制在 Modal 的可见区域内，标题保持可见，正文可收缩并内部滚动。
+
+声明的功能图片以 22px mask 使用分类颜色 token 显示；加载失败时回退到分类图标。
+
+使用 Web 侧栏的**插件**入口管理 profile 已安装的组合包，以及安装随附、默认关闭的官方组合包。可以启停组合包及其行、在 Host 读出 spec 指向什么之后安装组合包、查看 pnpm 输出、停止一次运行，并启用它新增的包。卸载会要求确认。组合包或官方插件的配置从对应配置入口编辑；设置里只保留只读的插件列表。
 
 ## 目录
 
@@ -35,7 +39,7 @@ kind: "package-reference"
 
 卡片分组可用宽度达到 800px 时，「官方」和「已安装」卡片改为两列，两列之间保留 32px 的可见间距；较窄时使用单列。首次读取的骨架卡片遵循同一布局。
 
-详情页将图标放在标题、简介和现有操作上方。返回控件沿用侧边栏导航行的 32px 行高、主要文字色、圆角悬浮底色和内描边焦点。左箭头与设置页共用 16px SVG 图标，按钮宽度随内容收紧，较长包名在最大宽度处截断。组合包组件以分区细线和开放式列表排列，说明使用正文文字，技术标识降为辅助信息。配置内容下方的「信息」分区展示已有的官方插件标识、组合包包名与版本，或组件标识与模块名。较窄的详情页将操作移到标题下方。亮暗模式均使用主题语义色，插件贡献的控件保留原有 slot。
+详情页将图标放在标题、简介和现有操作上方。返回控件沿用侧边栏导航行的 32px 行高、主要文字色、圆角悬浮底色和内描边焦点。左箭头与设置页共用 16px SVG 图标，按钮宽度随内容收紧，较长包名在最大宽度处截断。组合包组件使用默认折叠的列表，标题为不带跳转的静态文字，说明使用正文文字，技术标识降为辅助信息。配置内容下方的「信息」分区展示已有的官方插件标识、组合包包名与版本，或组件标识与模块名。较窄的详情页将操作移到标题下方。亮暗模式均使用主题语义色，插件贡献的控件保留原有 slot。
 
 **刷新**按钮在悬停或键盘聚焦 500 毫秒后显示提示。手动刷新期间，按钮显示旋转加载指示并保持禁用，直到所有待处理读取结束且至少经过 400 毫秒，避免加载指示一闪而过；重复刷新请求会被忽略，已有列表保持可见。成功不显示 toast。已有列表时，手动刷新失败保留缓存内容并显示失败 toast，即使已离开插件页也能看到；再次选择**刷新**即可重试。在首次成功读取列表之前，失败仍原位显示提示与**重试**。后台读取不显示刷新按钮的加载指示。
 
@@ -51,11 +55,11 @@ Host 通过普通 fetch 代理向 `https://registry.npmjs.org/-/ping` 和 `https
 
 Host 将网络失败或超时归因于 GitHub 地址，且提供 npmmirror 时，对话框显示**无法访问 GitHub**，超时时显示**连接 GitHub 超时**，提供**改用国内镜像**和**取消**。选择镜像后回到空的包名输入框，记住所选安装源，不自动开始下一次安装。安装已在使用 npmmirror 时（无论是选中、手动输入，还是 pnpm 自身配置指向它），按钮改为**试试其他方式**，同样回到空的包名输入框并展开**插件安装引导和示例**，安装源保持不变。其他失败保留原有诊断和操作。镜像提供注册表中的包及依赖，不代替 GitHub 仓库下载。
 
-声明 `dsh.bundle.features` 的组合包在**立即启用**前显示所有可选功能。页面一次保存选中的行并选中组合包。已安装组合包页面显示各功能在当前 profile 中的期望状态和运行状态，包括组合包关闭时；声明 `kind` 后，提示词注入、Skill、脚本与工具、页面 UI 及其他功能会以对应图标分组显示，未声明 `kind` 的既有功能保持原有平铺列表。功能行没有分割线，只有正在保存的那一项开关显示中性轨道与滑块内加载动画。后续功能点击会在当前 Host 响应后依次保存。原有行列表仍位于下方。组合包可声明本地化的 `dsh.bundle.examples`；页面把它们显示在素材图上的毛玻璃按钮内，点击后打开新会话并填入未发送的输入草稿。创建失败由插件页面提示一次。组合包说明位于素材图下方。没有功能声明的组合包保持原安装与详情行为。见[自定义组合包 demo](../../../custom-plugins/demo/README.zh.md)。
+声明 `dsh.bundle.features` 的组合包在**立即启用**前显示所有可选功能。页面一次保存选中的行并选中组合包。已安装组合包页面显示各功能在当前 profile 中的期望状态和运行状态，包括组合包关闭时；声明 `kind` 后，提示词注入、Skill、脚本与工具、页面 UI 及其他功能会以对应图标分组显示，未声明 `kind` 的既有功能保持原有平铺列表。点击功能名称在浅色圆角说明块中展开本地化用途与使用条件，使用细边框和紧凑段落间距，展开和收起均过渡 200 ms；减少动态效果时立即切换。折叠内容对辅助技术隐藏。开关旁的简短标签显示实际运行阶段。有配置注册的功能显示编辑按钮，打开共享 Modal；配置入口收到对应的 `featureId`。开关立即显示待保存目标，保留至 Host 刷新结束，滑块内不显示加载动画。后续功能点击会在当前 Host 响应后依次保存。保存后的读取失败会解除开关锁定并提示刷新错误；队列中的功能选择会丢弃，下次全量保存前重新读取 Host 状态。下方的组件列表默认折叠。组合包可声明本地化的 `dsh.bundle.examples`；页面把它们显示在素材图上的毛玻璃按钮内，点击后打开新会话，填入未发送示例草稿并插入当前组合包的原子引用。创建失败由插件页面提示一次。组合包说明位于素材图下方。没有功能声明的组合包保持原安装与详情行为。见[自定义组合包 demo](../../../custom-plugins/demo/README.zh.md)。
 
 ### 切换一个组合包
 
-示例区从 Web 应用静态资源 `/assets/plugin-bundle-hero.jpg` 读取图片，图片字节不嵌入 JavaScript 或 CSS；较高的图片区域容纳更小字号的毛玻璃提示词按钮。会话输入框输入 `@` 也会列出当前 profile 已启用的组合包；选中后插入显示插件名称的高亮引用，并沿用候选项显示的清单图标。图标缺失或加载失败时使用统一的回退图标。图标只保存在草稿显示状态中，不发送给模型。发送时重新确认组合包仍已启用，并将 `@[显示名](dsh-plugin:包名)` 写入会话记录和模型提示词。引用用于向 Agent 指明目标插件，不会打开已停用的插件，也不保证调用工具。关闭组合包后，它从新候选中消失；旧引用需移除后才能提交。
+示例区从 Web 应用静态资源 `/assets/plugin-bundle-hero.jpg` 读取图片，图片字节不嵌入 JavaScript 或 CSS；较高的图片区域容纳更小字号的毛玻璃提示词按钮。会话输入框输入 `@` 时，当前 profile 的组合包显示在文件候选之前，可按包名或本地化标题筛选；已停用的组合包仍可选择，候选项提示使用前启用；带引号的路径与目录浏览不显示插件候选；选中后插入显示插件名称和共享插件图标的原子引用，候选项继续使用 manifest 图片并提供加载失败回退。图标只保存在草稿显示状态中，不发送给模型。发送时重新确认组合包仍已启用，并将 `@[显示名](dsh-plugin:包名)` 写入会话记录和模型提示词。引用用于向 Agent 指明目标插件，不会打开已停用的插件，也不保证调用工具。组合包已停用时，需启用插件或移除标签后才能提交。
 
 组合包页面在标题下方显示完整包名，也就是在别处安装它所需的 spec。组合包开关改变其层选择。启用了 HMR 的 profile 在操作完成前重组；没有 HMR 的 profile，以及被更高层覆盖的组合包，会以 toast 说明。Host 读不了的组合包带异常标签，其页面给出原因，且不能打开；提供管理组件的组合包保持锁定。Host 以错误码作答，由页面字典措辞；pnpm 与 Loader 自己的诊断原样显示。页面从卡片与数量中排除内置 profile 组合包，即使 profile 将它们列为依赖或 Host 报告了异常。Host 清单仍保留完整数据；设置中「插件」分区的「插件列表」标签页负责查看它们的插件。
 
@@ -65,7 +69,7 @@ Host 将网络失败或超时归因于 GitHub 地址，且提供 npmmirror 时�
 
 ### 配置页
 
-自带配置的插件把配置渲染在本页而不是设置里，通过本页声明的三个 slot：`plugins.item`（list）用于官方插件，按其 `label` 列在官方分组里；`plugins.bundle.config`（以组合包的包名为键）用于组合包自己的配置，显示在组合包页面的描述与行之间；`plugins.row.config`（以 `<包名>#<行 id>` 为键）用于某一行的配置，这一行由此多出一个**配置**控件，打开该行自己的页面。页面用 `view: 'page'` 渲染带自己保存控件的表单。官方插件卡片还在标题下渲染 `view: 'summary'`；行详情页只在缺少包描述时使用该视图。只有保存才写入：页面负责画标题、图标与面包屑，条目的表单在离开页面时丢弃暂存的修改。安装随附的四个宿主平面配置页——shell 执行器、agent loop、子智能体、DeepSeek 搜索提供方——各来自一个伴生包：[ui-settings-shell](../ui-settings-shell/README.zh.md)、[ui-settings-agent-loop](../ui-settings-agent-loop/README.zh.md)、[ui-settings-subagent](../ui-settings-subagent/README.zh.md) 与 [ui-settings-web-search](../ui-settings-web-search/README.zh.md)，在 Host 服务其命名空间期间注册。组合包的浏览器半侧用同样的方式注册：
+自带配置的插件把配置渲染在本页而不是设置里，通过本页声明的三个 slot：`plugins.item`（list）用于官方插件，按其 `label` 列在官方分组里；`plugins.bundle.config`（以组合包的包名为键）用于组合包自己的配置，显示在组合包页面的描述与行之间；`plugins.row.config`（以 `<包名>#<行 id>` 为键）用于组件的配置。组件名称保持静态；关联功能的编辑按钮会在弹窗中打开对应行的配置，未关联功能的可配置组件在清单中保留编辑图标。页面用 `view: 'page'` 渲染带自己保存控件的表单，官方插件卡片还在标题下渲染 `view: 'summary'`。只有保存才写入：页面负责画标题、图标与面包屑，条目的表单在离开页面时丢弃暂存的修改。安装随附的四个宿主平面配置页——shell 执行器、agent loop、子智能体、DeepSeek 搜索提供方——各来自一个伴生包：[ui-settings-shell](../ui-settings-shell/README.zh.md)、[ui-settings-agent-loop](../ui-settings-agent-loop/README.zh.md)、[ui-settings-subagent](../ui-settings-subagent/README.zh.md) 与 [ui-settings-web-search](../ui-settings-web-search/README.zh.md)，在 Host 服务其命名空间期间注册。组合包的浏览器半侧用同样的方式注册：
 
 ```tsx ignore-check
 ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
@@ -79,7 +83,7 @@ ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
 
 ### 详情页扩展点
 
-对某个不属于自己的组合包、行或官方插件有话要说的插件，通过本页声明的三个 list slot 向该对象的页面贡献内容：`plugins.detail.actions` 在页头放一个控件，位于页面自己的开关和卸载之前；`plugins.detail.badge` 在标题旁放一个标签，位于版本、实验性和异常标签之后；`plugins.detail.section` 在页面自身内容之下放一个区块——组合包页在组件列表之后，行页和官方插件页在配置之后。每个条目都以页面的 `subject` 渲染：`{ kind: 'bundle', pkg }`、`{ kind: 'row', pkg, row }` 或 `{ kind: 'item', id }`，其中 `pkg` 与 `row` 携带包名、版本、是否已安装、是否启用以及行列表这些供贡献者判断的事实。条目对无话可说的 subject 返回 null，自绘区块外观；页面按 `order` 排列条目。
+对某个不属于自己的组合包或官方插件有话要说的插件，通过本页声明的三个 list slot 向该对象的页面贡献内容：`plugins.detail.actions` 在页头放一个控件，位于页面自己的开关和卸载之前；`plugins.detail.badge` 在标题旁放一个标签，位于版本、实验性和异常标签之后；`plugins.detail.section` 在页面自身内容之下放一个区块——组合包页在组件列表之后，行页和官方插件页在配置之后。每个条目都以页面的 `subject` 渲染：`{ kind: 'bundle', pkg }` 或 `{ kind: 'item', id }`，其中 `pkg` 携带包名、版本、是否已安装、是否启用以及行列表这些供贡献者判断的事实。条目对无话可说的 subject 返回 null，自绘区块外观；页面按 `order` 排列条目。
 
 ```tsx ignore-check
 ctx.slots.inject('plugins.detail.section', () => ctx.slots.register({
@@ -89,7 +93,7 @@ ctx.slots.inject('plugins.detail.section', () => ctx.slots.register({
 }, ({ t, subject }) => subject.kind === 'bundle' ? <HealthSection pkg={subject.pkg} t={t} /> : null))
 ```
 
-行页只在某个 `plugins.row.config` 条目点名这一行时存在，因此给行的贡献渲染在该配置打开的页面上。
+组件配置在对应 `plugins.row.config` 注册存在时，通过功能或组件清单的编辑图标打开弹窗；未关联功能的组件保留编辑入口，名称不触发导航。
 
 -----
 
@@ -113,9 +117,9 @@ Host 入口通过生成的 Remote 接口暴露 `pluginRegistryProbe.fastest()`�
 
 ### 配置 slot
 
-自定义条目页以 Host 条目 id 作为注册 id；行页面使用 bundle 包名和行 id。当条目提供可编辑 Config 字段时，页面宿主传入 `form.state` 和 `form.mutate(operations, expectedRevision)`。自定义页面负责草稿和校验提示，并可复用 ui-primitives 的 `ConfigField`。整个 bundle 的页面可以包含多个条目，因此没有单一表单。
+自定义条目页以 Host 条目 id 作为注册 id；组件编辑器使用 bundle 包名和行 id。当条目提供可编辑 Config 字段时，页面宿主传入 `form.state` 和 `form.mutate(operations, expectedRevision)`。自定义页面负责草稿和校验提示，并可复用 ui-primitives 的 `ConfigField`。整个 bundle 的页面可以包含多个条目，因此没有单一表单。
 
-页面的 `main` 注册把 `plugins.item`、`plugins.bundle.config` 与 `plugins.row.config` 声明为子 slot，因此它们与页面同生，注册方的 `ctx.slots.inject` 会等到它们出现。`configLedgerSource` 把三份账本投影成一个可观察对象——按账本顺序排列、标签按当前语言解析的官方条目，以及组合包与行的键——在账本或语言变化前保持缓存；页面把它作为 `useConfigLedger` 绑在 store 旁边，自身从不点名任何可配置插件。注册拥有的导航 store 选择卡片、某个组合包、某个官方插件或组合包的某一行；切换离开插件面板时重置为列表，React 重新挂载则保留所选目标。其他 Client 插件注入 `pluginNavigation`，调用 `ctx.pluginNavigation.openBundle(packageName)` 即可打开组合包详情，不改变当前 Session。首次读取清单期间保留导航目标；组合包不存在时显示列表。注册与做出它的浏览器半侧同生共死。`dsh-client-modules` 只把一个包的浏览器半侧挂在说明符恰为包名的那一行 Loader 行上，所以组合包为自己或任一行注册的页面，都会在那一行被关闭时一起消失；需要在其他行关闭时仍保留页面的子插件，应作为独立的包发布。 名称以 `@deepseek-ai/dsh-experimental-` 开头的官方包显示实验性标记。
+页面的 `main` 注册把 `plugins.item`、`plugins.bundle.config` 与 `plugins.row.config` 声明为子 slot，因此它们与页面同生，注册方的 `ctx.slots.inject` 会等到它们出现。`configLedgerSource` 把三份账本投影成一个可观察对象——按账本顺序排列、标签按当前语言解析的官方条目，以及组合包与行的键——在账本或语言变化前保持缓存；页面把它作为 `useConfigLedger` 绑在 store 旁边，自身从不点名任何可配置插件。注册拥有的导航 store 选择卡片、某个组合包或某个官方插件；切换离开插件面板时重置为列表，React 重新挂载则保留所选目标。其他 Client 插件注入 `pluginNavigation`，调用 `ctx.pluginNavigation.openBundle(packageName)` 即可打开组合包详情，不改变当前 Session。首次读取清单期间保留导航目标；组合包不存在时显示列表。注册与做出它的浏览器半侧同生共死。`dsh-client-modules` 只把一个包的浏览器半侧挂在说明符恰为包名的那一行 Loader 行上，所以组合包为自己或任一行注册的页面，都会在那一行被关闭时一起消失；需要在其他行关闭时仍保留页面的子插件，应作为独立的包发布。 名称以 `@deepseek-ai/dsh-experimental-` 开头的官方包显示实验性标记。
 
 `plugins.bundle.config` 以 npm 包名为 key，提供 Bundle 详情配置。`plugins.bundle.activation` 在用户从列表显式启用后提供 Bundle 自有引导，并传入关闭引导和打开详情的回调。仅列出已启用的 Bundle 不会触发引导。
 

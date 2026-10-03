@@ -9,6 +9,8 @@ kind: "package-reference"
 
 应用拥有的 profile 通过启动器信息提供内置包管理器调用方式。它在包操作和 registry 检查中优先于 `pnpmCommand`；其环境仅应用于这些子进程。
 
+Web 中的组合包与功能图标使用文档相对路径 `plugin-icons/<content-hash>.<extension>`，关闭组合包后仍可显示。可选功能 `icon` 字段声明清单相对图片路径；GET/HEAD 仅提供最近一次列表中的校验图片，包含不可变缓存、MIME 和 sandbox CSP，未知 URL 返回 404，其他方法返回 405。没有 Web 服务时保留 data URL。
+
 ## 概述
 
 管理当前 profile 的插件，无需手动编辑配置。启停单个插件条目、选择已安装的组合包，以及安装或删除外部组合包。在 YAML 中启用 HMR 时，配置变化立即生效；未启用 HMR 时，运行中的组合保留到重启。改动影响使用该 profile 的全部会话。

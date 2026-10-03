@@ -8,8 +8,9 @@ export const INSTALL_PATH_EXAMPLE = '/Users/name/my-plugin'
 /** Simplified Chinese dictionary and key source of truth. */
 export const zh = {
   panel: '插件',
-  mentionGroup: '已启用插件',
-  mentionUnavailable: '这个插件已停用或不可用，请移除引用后重试。',
+  mentionGroup: '插件',
+  mentionDisabled: '已停用 · 使用前请启用',
+  mentionUnavailable: '这个插件已停用或不可用，请先启用插件，或移除标签后重试',
   title: '插件',
   intro: '安装、启用和配置插件',
   infoLabel: '插件说明',
@@ -45,7 +46,7 @@ export const zh = {
   featureGroupUi: '页面 UI',
   featureGroupOther: '其他功能',
   featureRunning: '运行中',
-  featureSelected: '已选择，等待组合包运行',
+  featureSelected: '未运行',
   featureOff: '已关闭',
   featureToggle: '启用功能 {name}',
   exampleOpen: '在新会话中试用：{prompt}',
@@ -227,8 +228,9 @@ export type PluginManagerLocaleKey = keyof typeof zh
 /** English dictionary checked against the Chinese key set. */
 export const en = {
   panel: 'Plugins',
-  mentionGroup: 'Enabled plugins',
-  mentionUnavailable: 'This plugin is disabled or unavailable. Remove its mention and try again.',
+  mentionGroup: 'Plugins',
+  mentionDisabled: 'Disabled · enable before use',
+  mentionUnavailable: 'This plugin is disabled or unavailable. Enable it or remove its tag and try again.',
   title: 'Plugins',
   intro: 'Install, enable, and configure plugins',
   infoLabel: 'About plugins',
@@ -264,7 +266,7 @@ export const en = {
   featureGroupUi: 'Page UI',
   featureGroupOther: 'Other features',
   featureRunning: 'Running',
-  featureSelected: 'Selected, waiting for bundle',
+  featureSelected: 'Not running',
   featureOff: 'Off',
   featureToggle: 'Enable feature {name}',
   exampleOpen: 'Try in a new session: {prompt}',

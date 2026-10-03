@@ -7,6 +7,8 @@ kind: "package-library"
 
 English | [中文](README.zh.md)
 
+Package and feature `icon` declarations use manifest-relative image files. Resolved feature records carry delivery URLs; Web serves validated icon files, while non-Web metadata readers may retain data URLs.
+
 ## Summary
 
 Use `DshPackageManifest` for package metadata, `DshManifest` for the public fields under `dsh`, and member types such as `DshClientManifest` for one domain. Each reader owns JSON parsing, validation, and default resolution.
@@ -45,7 +47,7 @@ const manifest: DshPackageManifest = {
 
 `DshPackageManifest` describes the package.json fields used by DSH, with required `name` and `version`; it is not an exhaustive npm schema. Local profile readers use `Partial<DshPackageManifest>` because profiles need no published version. `DshManifest` describes only public author fields under `dsh`. `DshBundleManifest.patch` is one patch file path or an ordered list of them, each relative to the package root; the launcher applies a list in order as one bundle layer. TypeScript checks the example and erases `import type`; these interfaces do not parse JSON or write a file.
 
-`DshBundleManifest.features` optionally declares profile-selectable Cordis rows. Each `DshBundleFeature` names a unique `id` and `rowId`, localized `title` and `description`, and `defaultEnabled`; an optional `kind` is `prompt`, `skill`, `script`, `ui`, or `other` and groups typed features on the bundle page. The plugin manager validates these values against the bundle patch before saving choices. `DshBundleManifest.examples` optionally declares localized example prompts displayed in the bundle detail hero and copied into a new unsent Session draft. `DshBundleManifest.featureConfig` optionally names a package-relative JSON template used to initialize profile-owned feature selections; bundles without it retain patch-based selection. See the [custom bundle architecture](../../../custom-plugins/architecture.md) for installation and runtime semantics.
+`DshBundleManifest.features` optionally declares profile-selectable Cordis rows. Each `DshBundleFeature` names a unique `id` and `rowId`, localized `title` and `description`, and `defaultEnabled`; optional localized `details` supplies the expanded explanation. An optional `kind` is `prompt`, `skill`, `script`, `ui`, or `other` and groups typed features on the bundle page. The plugin manager validates these values against the bundle patch before saving choices. `DshBundleManifest.examples` optionally declares localized example prompts displayed in the bundle detail hero and copied into a new unsent Session draft. `DshBundleManifest.featureConfig` optionally names a package-relative JSON template used to initialize profile-owned feature selections; bundles without it retain patch-based selection. See the [custom bundle architecture](../../../custom-plugins/architecture.md) for installation and runtime semantics.
 
 The following metadata fields are optional. Omitting them leaves the format version or compatible host versions undeclared; readers do not infer defaults.
 

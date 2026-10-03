@@ -17,6 +17,7 @@ import {
 } from '@deepseek-ai/dsh-app-boot'
 import PluginManager, { type Config, type PluginChange, type PluginInstallLogChunk, type PluginInstallProgress, type PluginInstallRequestId } from '../src/index.ts'
 import Hmr from '@deepseek-ai/dsh-hmr'
+import WebServer from '@deepseek-ai/dsh-host-webserver'
 import Timer from '@deepseek-ai/cordis-plugin-timer'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import { Group } from '@deepseek-ai/cordis-plugin-loader'
@@ -119,6 +120,60 @@ it('persists declared feature choices and rejects unknown selections', async () 
   expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.error).toMatchObject({
     code: 'operation-error', diagnostic: 'Invalid or duplicate bundle feature declaration',
   })
+  invalid.dsh.bundle.features[0]!.kind = 'script'
+  invalid.dsh.bundle.features[0]!.details = 42
+  writeFileSync(manifestPath, `${JSON.stringify(invalid)}\n`)
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.error?.code).toBe('operation-error')
+  invalid.dsh.bundle.features[0]!.details = { en: 'Execution requirements', zh: '执行要求' }
+  writeFileSync(manifestPath, `${JSON.stringify(invalid)}\n`)
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.features?.[0]?.details)
+    .toEqual({ en: 'Execution requirements', zh: '执行要求' })
+})
+
+it('serves only declared icon images as content-addressed files even when the bundle is disabled', async () => {
+  const image = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M1 1h2"/></svg>'
+  const { manager, ctx, dir } = await fixture('startup', false, (context) => {
+    context.loader.builtins.webserver = WebServer
+  }, {}, undefined, (profileDir) => {
+    const core = join(profileDir, 'node_modules', 'core', 'cordis.patch.yml')
+    writeFileSync(core, JSON.stringify([{ insert: [
+      { id: 'webserver', name: 'cordis:webserver', config: { host: '127.0.0.1', port: 0 } },
+      { id: 'manager', name: 'cordis:manager' },
+    ] }]))
+    const packageDir = join(profileDir, 'node_modules', 'extra')
+    const manifestPath = join(packageDir, 'package.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { icon?: string; dsh: { bundle: { features?: Array<Record<string, unknown>> } } }
+    manifest.icon = './photo.svg'
+    manifest.dsh.bundle.features = [{ id: 'managed', rowId: 'managed', kind: 'script', title: 'Photo',
+      description: 'Read photos', defaultEnabled: true, icon: './photo.svg' }]
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+    writeFileSync(join(packageDir, 'photo.svg'), image)
+  })
+  await manager.setBundleEnabled('extra', false)
+  const bundle = (await manager.listBundles()).find(item => item.name === 'extra')!
+  expect(bundle.enabled).toBe(false)
+  const icon = bundle.meta?.icon
+  if (icon === undefined) throw new Error('Expected declared bundle artwork')
+  expect(icon).toMatch(/^plugin-icons\/[a-f0-9]{64}\.svg$/)
+  expect(bundle.features?.[0]?.icon).toBe(icon)
+  const base = `http://127.0.0.1:${ctx.webServer.port}/`
+  const response = await fetch(new URL(icon, base))
+  expect(response.status).toBe(200)
+  expect(response.headers.get('content-type')).toBe('image/svg+xml')
+  expect(response.headers.get('content-security-policy')).toContain('sandbox')
+  expect(await response.text()).toBe(image)
+  const head = await fetch(new URL(icon, base), { method: 'HEAD' })
+  expect(head.status).toBe(200)
+  expect(await head.text()).toBe('')
+  expect((await fetch(new URL(icon, base), { method: 'POST' })).status).toBe(405)
+  expect((await fetch(new URL('plugin-icons/package.json', base))).status).toBe(404)
+  const manifestPath = join(dir, 'node_modules', 'extra', 'package.json')
+  const invalid = JSON.parse(readFileSync(manifestPath, 'utf8')) as { dsh: { bundle: { features: Array<Record<string, unknown>> } } }
+  invalid.dsh.bundle.features[0]!.icon = '../core/photo.svg'
+  writeFileSync(join(dir, 'node_modules', 'core', 'photo.svg'), image)
+  writeFileSync(manifestPath, JSON.stringify(invalid))
+  expect((await manager.listBundles()).find(item => item.name === 'extra')?.error?.diagnostic)
+    .toContain('icon must remain inside its manifest directory')
 })
 
 it.each(['network', 'timeout'] as const)('stops a GitHub %s before pnpm and attributes it to the repository', async (kind) => {

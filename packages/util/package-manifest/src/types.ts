@@ -47,7 +47,9 @@ export interface PluginLocalizedMeta {
   readonly title?: LocalizedText
   /** Display introduction after locale and package-field fallback. */
   readonly description?: LocalizedText
-  /** Base64 image data URL read from the manifest's icon file; render as an image, not inline markup. */
+  /** Image URL read from the manifest's icon file; Web may serve a resource URL instead of a data URL.
+   * Render as an image, not inline markup.
+   */
   readonly icon?: string
   /** Unmodified local metadata diagnostic; the plugin remains manageable. */
   readonly error?: string
@@ -98,6 +100,10 @@ export interface DshBundleFeature {
   title: LocalizedText
   /** Explanation displayed beside the feature switch. */
   description: LocalizedText
+  /** Optional explanation disclosed when the user expands this feature. */
+  details?: LocalizedText
+  /** Optional manifest-relative image file, with the same containment and size limits as the package icon. */
+  icon?: string
   /** Optional display category; omitted legacy features retain the flat list. */
   kind?: DshBundleFeatureKind
   /** Initial state for a profile without an override. */

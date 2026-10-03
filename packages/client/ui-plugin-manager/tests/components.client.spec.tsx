@@ -70,6 +70,7 @@ const READY: PluginManagerState = {
   refreshStatus: 'idle',
   packages: [],
   busy: [],
+  pendingTargets: {},
   notice: null,
   install: IDLE_INSTALL,
   confirm: null,
@@ -532,10 +533,23 @@ describe('PluginManagerPage', () => {
     fireEvent.error(rowImage)
     expect(document.querySelector('[data-plugin-row] img')).toBeNull()
     expect(document.querySelector('[data-plugin-row] svg')).not.toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Configure dsh-better-sidebar' }))
-    const detailImage = document.querySelector<HTMLImageElement>('[data-plugin-row-detail] img')!
-    expect(detailImage.getAttribute('src')).toBe(icon)
-    expect(detailImage.width).toBe(36)
+    expect(screen.getByRole('button', { name: 'Configure dsh-better-sidebar' })).toBeTruthy()
+    expect(document.querySelector('[data-plugin-row-detail]')).toBeNull()
+  })
+
+  it('falls back to category artwork when a feature image cannot load', () => {
+    renderTab({ packages: [pkg({ features: [{ id: 'read', rowId: 'read', title: 'Read', description: 'Read photos',
+      kind: 'script', enabled: true, defaultEnabled: true, icon: 'plugin-icons/read.svg' }] })] })
+    fireEvent.click(screen.getByRole('button', { name: en.openDetail.replace('{name}', 'dsh-better-sidebar') }))
+    const feature = document.querySelector('[data-feature-kind="script"]')!
+    const image = feature.querySelector('img')!
+    const artwork = image.parentElement!.parentElement!
+    expect(image.getAttribute('src')).toBe('plugin-icons/read.svg')
+    expect(artwork.querySelector('svg')).toBeNull()
+    fireEvent.error(image)
+    expect(feature.querySelector('img')).toBeNull()
+    expect(artwork.querySelector('svg')).not.toBeNull()
+    expect(screen.getByRole('switch', { name: en.featureToggle.replace('{name}', 'Read') })).toBeTruthy()
   })
 
   it('shows bundle feature switches while disabled and preserves the selected set', () => {
@@ -545,7 +559,7 @@ describe('PluginManagerPage', () => {
       { id: 'skill', rowId: 'skill-row', kind: 'skill', title: { en: 'Skill', zh: '技能' },
         description: { en: 'Example Skill', zh: '示例技能' }, defaultEnabled: false, enabled: false },
       { id: 'execute', rowId: 'execute-row', kind: 'script', title: { en: 'Script', zh: '脚本' },
-        description: { en: 'Demo script', zh: '示例脚本' }, defaultEnabled: false, enabled: false },
+        description: { en: 'Demo script', zh: '示例脚本' }, details: 'Execution details', defaultEnabled: false, enabled: false },
     ] })
     const { actions, set } = renderTab({ packages: [bundle] })
     fireEvent.click(screen.getByRole('button', { name: 'View dsh-demo' }))
@@ -554,12 +568,23 @@ describe('PluginManagerPage', () => {
     expect(screen.getByText(en.featureGroupPrompt)).toBeTruthy()
     expect(screen.getByText(en.featureGroupSkill)).toBeTruthy()
     expect(screen.getByText(en.featureGroupScript)).toBeTruthy()
+    expect(screen.queryByText(en.featuresHint)).toBeNull()
+    const disclosureButton = screen.getByRole('button', { name: 'Script' })
+    const disclosure = document.getElementById(disclosureButton.getAttribute('aria-controls')!)!
+    expect(disclosure.getAttribute('aria-hidden')).toBe('true')
+    fireEvent.click(disclosureButton)
+    expect(disclosure.getAttribute('aria-hidden')).toBe('false')
+    expect(within(disclosure).getByText('Execution details')).toBeTruthy()
+    fireEvent.click(disclosureButton)
+    expect(disclosure.getAttribute('aria-hidden')).toBe('true')
+    expect(disclosureButton.getAttribute('aria-expanded')).toBe('false')
     expect(document.querySelector('[data-feature-group="skill"] [data-feature-kind="skill"] svg')).not.toBeNull()
     expect(document.querySelector('[data-feature-group="script"] [data-feature-kind="script"] svg')).not.toBeNull()
     expect(screen.getByRole('switch', { name: 'Enable feature Prompt' }).getAttribute('aria-checked')).toBe('true')
     fireEvent.click(screen.getByRole('switch', { name: 'Enable feature Skill' }))
     expect(actions.setFeature).toHaveBeenCalledExactlyOnceWith('dsh-demo', 'skill', true)
-    set({ packages: [bundle], busy: ['feature:dsh-demo:skill'] })
+    set({ packages: [bundle], busy: ['feature:dsh-demo:skill'], pendingTargets: { 'feature:dsh-demo:skill': true } })
+    expect(screen.getByRole('switch', { name: 'Enable feature Skill' }).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByRole('switch', { name: 'Enable feature Skill' }).getAttribute('aria-busy')).toBe('true')
     expect(screen.getByRole('switch', { name: 'Enable feature Prompt' }).getAttribute('aria-busy')).toBe('false')
   })
@@ -571,10 +596,28 @@ describe('PluginManagerPage', () => {
     const hero = document.querySelector<HTMLElement>('[class*="bundleHero"]')!
     expect(hero.getAttribute('style')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.exampleOpen.replace('{prompt}', prompt.en) }))
-    expect(actions.openExample).toHaveBeenCalledExactlyOnceWith(prompt.en)
+    expect(actions.openExample).toHaveBeenCalledExactlyOnceWith('dsh-better-sidebar', prompt.en)
     setLanguage(zh)
     fireEvent.click(screen.getByRole('button', { name: zh.exampleOpen.replace('{prompt}', prompt.zh) }))
-    expect(actions.openExample).toHaveBeenLastCalledWith(prompt.zh)
+    expect(actions.openExample).toHaveBeenLastCalledWith('dsh-better-sidebar', prompt.zh)
+  })
+
+  it('folds components and opens feature configuration without leaving the bundle page', () => {
+    const bundle = pkg({ rows: [row({ rowId: 'read', enabled: true, phase: 'pending' })], features: [
+      { id: 'read', rowId: 'read', kind: 'script', title: 'Read tools', description: 'Search', defaultEnabled: true, enabled: true },
+    ] })
+    renderTab({ packages: [bundle] }, { rows: new Set(['dsh-better-sidebar#read']) }, {
+      'plugins.row.config:dsh-better-sidebar#read': view => view === 'page' ? <form aria-label="AFP account" /> : null,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'View dsh-better-sidebar' }))
+    const components = document.querySelector('[data-plugin-rows]')!
+    expect(components.hasAttribute('open')).toBe(false)
+    expect(within(document.querySelector('[data-plugin-features]')!).getByText(en.featureSelected)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.configureRow.replace('{name}', 'Read tools') }))
+    expect(within(screen.getByRole('dialog')).getByRole('form', { name: 'AFP account' })).toBeTruthy()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: en.close }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('switch', { name: 'Enable feature Read tools' })).toBeTruthy()
   })
 
   it('shows metadata diagnostics without blocking management or displaying legacy descriptions', () => {
@@ -679,19 +722,19 @@ describe('PluginManagerPage', () => {
     fireEvent.click(within(navigation).getByRole('switch', { name: zh.partToggle.replace('{name}', '@acme/dsh-sidebar/navigation') }))
     expect(actions.setRowEnabled).toHaveBeenCalledExactlyOnceWith('include:sidebar', false)
     expect(screen.getByText('中文主题说明。')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: zh.configureRow.replace('{name}', '主题插件') }))
-    expect(document.querySelector('[data-plugin-row-detail]')?.getAttribute('data-plugin-row-detail')).toBe('dsh-better-sidebar#theme')
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('主题插件')
-    expect(screen.getByText('中文主题说明。')).toBeTruthy()
+    expect(screen.getByRole('button', { name: zh.configureRow.replace('{name}', '主题插件') })).toBeTruthy()
+    fireEvent.click(screen.getByText('主题插件'))
+    expect(document.querySelector('[data-plugin-row-detail]')).toBeNull()
+    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Bundle title')
     setLanguage(en)
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('@acme/dsh-theme')
+    expect(screen.getByText('@acme/dsh-theme')).toBeTruthy()
     expect(screen.getByText('@acme/dsh-theme/client')).toBeTruthy()
     expect(screen.getByText('theme')).toBeTruthy()
     expect(screen.queryByText('中文主题说明。')).toBeNull()
-    expect(screen.getByRole('form', { name: 'theme settings' })).toBeTruthy()
+    expect(screen.queryByRole('form', { name: 'theme settings' })).toBeNull()
   })
 
-  it('keeps a row technical id in information when its localized title is the same', () => {
+  it('keeps a row technical id in the inventory when its localized title is the same', () => {
     const moduleName = '@acme/dsh-sidebar/navigation'
     const { setLanguage } = renderTab(
       { packages: [pkg({ rows: [row({ moduleName, meta: { title: { en: 'Sidebar component', zh: 'sidebar' } } })] })] },
@@ -707,16 +750,12 @@ describe('PluginManagerPage', () => {
     expect(within(listed).queryByText('sidebar', { selector: 'code' })).toBeNull()
     expect(within(listed).getByText(moduleName, { selector: 'code' })).toBeTruthy()
 
-    fireEvent.click(within(listed).getByRole('button', { name: zh.configureRow.replace('{name}', 'sidebar') }))
-    const detail = document.querySelector('[data-plugin-row-detail="dsh-better-sidebar#sidebar"]') as HTMLElement
-    expect(within(detail).getByRole('heading', { level: 3 }).textContent).toBe('sidebar')
-    expect(within(detail).getAllByText('sidebar')).toHaveLength(2)
-    expect(within(detail).getByText('sidebar', { selector: 'code' })).toBeTruthy()
-    expect(within(detail).getByText(moduleName, { selector: 'code' })).toBeTruthy()
-    expect(within(detail).getByRole('form', { name: 'sidebar settings' })).toBeTruthy()
+    expect(within(listed).getAllByRole('button')).toHaveLength(1)
+    fireEvent.click(within(listed).getByText('sidebar'))
+    expect(document.querySelector('[data-plugin-row-detail]')).toBeNull()
     setLanguage(en)
-    expect(within(detail).getByRole('heading', { level: 3 }).textContent).toBe('Sidebar component')
-    expect(within(detail).getByText('sidebar', { selector: 'code' })).toBeTruthy()
+    expect(within(listed).getByText('Sidebar component')).toBeTruthy()
+    expect(within(listed).getByText('sidebar', { selector: 'code' })).toBeTruthy()
   })
 
   it('translates row text, searches current copy and technical identities, and keeps configuration keys unchanged', () => {
@@ -743,6 +782,7 @@ describe('PluginManagerPage', () => {
     for (const query of ['导航组件', '侧边导航', 'sidebar', '@acme/dsh-sidebar-widget']) {
       fireEvent.change(search, { target: { value: query } })
       expect(document.querySelectorAll('[data-plugin-row]')).toHaveLength(1)
+      expect(screen.getByText('导航组件')).toBeTruthy()
       expect(screen.getByRole('button', { name: zh.configureRow.replace('{name}', '导航组件') })).toBeTruthy()
     }
     expect(screen.getByText('sidebar')).toBeTruthy()
@@ -757,20 +797,12 @@ describe('PluginManagerPage', () => {
     fireEvent.change(search, { target: { value: 'Sidebar component' } })
     expect(screen.getByText(zh.partsFilterEmpty)).toBeTruthy()
     setLanguage(en)
-    expect(screen.getByRole('button', { name: en.configureRow.replace('{name}', 'Sidebar component') })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: en.configureRow.replace('{name}', 'Sidebar component') }))
-    expect(document.querySelector('[data-plugin-row-detail]')?.getAttribute('data-plugin-row-detail')).toBe('dsh-better-sidebar#sidebar')
-    expect(screen.getByRole('form', { name: 'row settings' })).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Sidebar component')
-    expect(screen.getByText('Sidebar navigation')).toBeTruthy()
-    expect(screen.queryByText('Config summary')).toBeNull()
+    expect(screen.getByText('Sidebar component')).toBeTruthy()
+    fireEvent.click(screen.getByText('Sidebar component'))
+    expect(document.querySelector('[data-plugin-row-detail]')).toBeNull()
+    expect(screen.queryByRole('form', { name: 'row settings' })).toBeNull()
+    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Personal tools')
     setLanguage(zh)
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('导航组件')
-    expect(screen.getByText('侧边导航')).toBeTruthy()
-    expect(screen.getByText('sidebar')).toBeTruthy()
-    expect(screen.getByText('@acme/dsh-sidebar-widget')).toBeTruthy()
-    expect(screen.getByText(zh.metadataError.replace('{error}', error))).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: zh.backToPackage.replace('{name}', '个人工具') }))
     expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('个人工具')
   })
 
@@ -825,21 +857,19 @@ describe('PluginManagerPage', () => {
       expect(within(detail).queryByRole('button', { name: en.configureRow.replace('{name}', 'dsh-better-sidebar') })).toBeNull()
     })
 
-    it('opens a row\'s configuration page from its configure control and leads back to the bundle', () => {
+    it('keeps component titles static even when a row has registered configuration', () => {
       const theme = row({ rowId: 'theme', moduleName: 'dsh-better-sidebar/theme', entryId: 'include:theme' as PluginEntryId })
       renderTab({ packages: [pkg({ rows: [row(), theme] })] }, { rows: new Set(['dsh-better-sidebar#sidebar']) }, bodies)
       fireEvent.click(screen.getByRole('button', { name: en.openDetail.replace('{name}', 'dsh-better-sidebar') }))
-      expect(screen.queryByRole('button', { name: en.configureRow.replace('{name}', 'dsh-better-sidebar/theme') })).toBeNull()
-      fireEvent.click(screen.getByRole('button', { name: en.configureRow.replace('{name}', 'dsh-better-sidebar') }))
-      const page = document.querySelector('[data-plugin-row-detail="dsh-better-sidebar#sidebar"]') as HTMLElement
-      expect(within(page).getByRole('heading', { level: 3 }).textContent).toBe('dsh-better-sidebar')
-      expect(within(page).getByText('dsh-better-sidebar', { selector: 'code' })).toBeTruthy()
-      expect(within(page).getByText('sidebar', { selector: 'code' })).toBeTruthy()
-      expect(within(page).getByText('The sidebar row.')).toBeTruthy()
-      expect(within(page).getByRole('form', { name: 'row form' })).toBeTruthy()
-      fireEvent.click(within(page).getByRole('button', { name: en.backToPackage.replace('{name}', 'dsh-better-sidebar') }))
+      const inventory = document.querySelector('[data-plugin-rows]') as HTMLElement
+      expect(within(inventory).getAllByRole('button')).toHaveLength(1)
+      expect(within(inventory).queryByRole('link')).toBeNull()
+      fireEvent.click(within(inventory).getByText('dsh-better-sidebar', { selector: 'span' }))
       expect(document.querySelector('[data-plugin-row-detail]')).toBeNull()
+      expect(screen.queryByRole('form', { name: 'row form' })).toBeNull()
       expect(document.querySelector('[data-plugin-detail="dsh-better-sidebar"]')).toBeTruthy()
+      fireEvent.click(within(inventory).getByRole('button', { name: en.configureRow.replace('{name}', 'dsh-better-sidebar') }))
+      expect(within(screen.getByRole('dialog')).getByRole('form', { name: 'row form' })).toBeTruthy()
     })
   })
 
@@ -886,13 +916,7 @@ describe('PluginManagerPage', () => {
         pkg: { name: 'dsh-better-sidebar', version: '0.16.0', installed: true, enabled: true, rows: [{ rowId: 'sidebar', moduleName: 'dsh-better-sidebar', enabled: true }] },
       })
 
-      fireEvent.click(screen.getByRole('button', { name: en.configureRow.replace('{name}', 'dsh-better-sidebar') }))
-      const page = document.querySelector('[data-plugin-row-detail]') as HTMLElement
-      expect(within(page).getByRole('button', { name: 'act row dsh-better-sidebar#sidebar' })).toBeTruthy()
-      expect(within(page).getByText('badge row dsh-better-sidebar#sidebar')).toBeTruthy()
-      expect(within(page).getByRole('region', { name: 'section row dsh-better-sidebar#sidebar' })).toBeTruthy()
-      expect(subjects.at(-1)).toMatchObject({ kind: 'row', row: { rowId: 'sidebar', moduleName: 'dsh-better-sidebar', enabled: true } })
-      fireEvent.click(within(page).getByRole('button', { name: en.backToPackage.replace('{name}', 'dsh-better-sidebar') }))
+      expect(within(rows).getAllByRole('button')).toHaveLength(1)
       fireEvent.click(screen.getByRole('button', { name: en.backToList }))
 
       fireEvent.click(screen.getByRole('button', { name: en.openDetail.replace('{name}', 'Shell') }))
@@ -1082,6 +1106,7 @@ describe('PluginManagerPage', () => {
       registry: { kind: 'custom', url: 'https://npm.corp.example/' },
     }
     const enter = (field: HTMLElement) => {
+      // oxlint-disable-next-line typescript/no-deprecated -- Exercise the legacy IME key code without suppressing Enter.
       const event = new KeyboardEvent('keydown', { key: 'Enter', isComposing: false, keyCode: 13, bubbles: true, cancelable: true })
       fireEvent(field, event)
       expect(event.defaultPrevented).toBe(false)
@@ -1154,6 +1179,7 @@ describe('PluginManagerPage', () => {
       const field = screen.getByRole('textbox', { name: input === 'package' ? en.installSpecLabel : en.registryCustom })
       fireEvent.compositionStart(field)
       if (!isComposing) fireEvent.compositionEnd(field)
+      // oxlint-disable-next-line typescript/no-deprecated -- IME compatibility includes browsers that report only keyCode 229.
       const confirm = new KeyboardEvent('keydown', { key: 'Enter', isComposing, keyCode, bubbles: true, cancelable: true })
       fireEvent(field, confirm)
       expect(actions.runInstall).not.toHaveBeenCalled()

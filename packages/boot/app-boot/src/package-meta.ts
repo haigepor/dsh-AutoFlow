@@ -18,7 +18,20 @@ const ICON_MEDIA_TYPES = new Map([
   ['.jpeg', 'image/jpeg'], ['.webp', 'image/webp'],
 ])
 
-function iconOf(value: unknown, manifestPath: string): string | undefined {
+/** Validated package-local image bytes; consumers choose their delivery URL. */
+export interface PluginIcon {
+  /** Image media type selected from the declared file extension. */
+  readonly contentType: string
+  /** Image bytes limited to 256 KiB. */
+  readonly bytes: Buffer
+}
+
+/** Read a manifest-relative icon without executing plugin code.
+ * @param value Declared relative image path.
+ * @param manifestPath Absolute path of the owning manifest.
+ * @returns Validated image bytes, or undefined when no icon is declared.
+ */
+export function readPluginIcon(value: unknown, manifestPath: string): PluginIcon | undefined {
   const icon = textOf(value, `${manifestPath}: icon`)
   if (icon === undefined) return undefined
   if (isAbsolute(icon) || win32.isAbsolute(icon) || /^[A-Za-z][A-Za-z\d+.-]*:/u.test(icon)) {
@@ -37,7 +50,7 @@ function iconOf(value: unknown, manifestPath: string): string | undefined {
   if (stat.size > MAX_ICON_BYTES) throw new Error(`${manifestPath}: icon exceeds 256 KiB`)
   const bytes = readFileSync(file)
   if (bytes.length > MAX_ICON_BYTES) throw new Error(`${manifestPath}: icon exceeds 256 KiB`)
-  return `data:${mediaType};base64,${bytes.toString('base64')}`
+  return { contentType: mediaType, bytes }
 }
 
 /**
@@ -143,9 +156,12 @@ function localizedText(
  * maps retain an English fallback, ultimately the full module specifier for titles and empty for descriptions.
  * @param specifier - configured plugin module name, including any package subpath.
  * @param parentURL - owning Loader tree's module-resolution base.
+ * @param iconURL - optional delivery callback; omission retains image data URLs.
  * @returns display fields and any icon diagnostic, or undefined for non-package specifiers or absent metadata.
  */
-export function readPluginMeta(specifier: string, parentURL: string): PluginLocalizedMeta | undefined {
+export function readPluginMeta(
+  specifier: string, parentURL: string, iconURL?: (icon: PluginIcon) => string,
+): PluginLocalizedMeta | undefined {
   if (barePackageName(specifier) === undefined) return undefined
   try {
     const englishPath = optionalResourcePath(`${specifier}/locale/en.json`, parentURL)
@@ -160,7 +176,9 @@ export function readPluginMeta(specifier: string, parentURL: string): PluginLoca
     }
     let icon: string | undefined
     try {
-      icon = manifestPath === undefined ? undefined : iconOf(manifest?.icon, manifestPath)
+      const image = manifestPath === undefined ? undefined : readPluginIcon(manifest?.icon, manifestPath)
+      icon = image === undefined ? undefined : iconURL === undefined
+        ? `data:${image.contentType};base64,${image.bytes.toString('base64')}` : iconURL(image)
     } catch (error) {
       return { ...text, error: `Plugin metadata for ${specifier}: ${String(error)}` }
     }
