@@ -15,7 +15,7 @@
 
 ## 3. Workbench interaction and collection navigation
 
-- [x] 3.1 Add cross-collection selection provenance to the client store and preserve selections across collection changes
+- [x] 3.1 Track source collections in the client store and preserve selections across collection changes
 - [x] 3.2 Change photo card interactions to click-select and right-click-details, with a keyboard-accessible details control and SVG selection marker
 - [x] 3.3 Redesign the searchable, collapsible favorite sidebar and fixed collection selection toolbar using project tokens and components
 - [x] 3.4 Add modal flows for unlink, copy, and move, including destination choice, progress and partial failure feedback
@@ -31,7 +31,7 @@
 
 ## 5. Regression coverage
 
-- [x] 5.1 Test selection toggling, right-click details, cross-collection provenance, and read-only action restrictions
+- [x] 5.1 Test selection toggling, right-click details, source collections, and read-only action restrictions
 - [x] 5.2 Test copy/move/unlink ordering, target verification, and partial failures without deleting photos or collections
 - [x] 5.3 Test quote totals, balance/availability changes, one-use confirmation, ambiguous purchase handling, and no purchase before confirmation
 - [x] 5.4 Test filename sanitization, fallback extensions, collisions, streaming limits, cancellation, partial results, and secret/path redaction

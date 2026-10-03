@@ -15,7 +15,7 @@ Feature configuration dialogs stay within the Modal viewport inset. The header s
 
 Declared feature image files render as 22px masks using category color tokens; failed loads fall back to category artwork.
 
-Use the **Plugins** entry in the Web sidebar to manage the profile's installed bundles and the official bundles the installation ships switched off. Switch bundles and their rows on and off, install a bundle after the Host has read what the spec names, watch pnpm's output, stop a run, and enable what it added. Uninstalling asks for confirmation. A bundle or official plugin that registers configuration is edited from its configuration entry; Settings keeps the read-only inventory.
+Use **Plugins** in the Web sidebar to manage installed and shipped official bundles. Enable or disable bundles and rows, install bundles after Host inspection, monitor pnpm output, cancel installation, and enable installed entries. Uninstall requires confirmation. Configuration entries edit registered settings; **Settings** retains the read-only inventory.
 
 ## Table of Contents
 

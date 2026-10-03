@@ -4699,7 +4699,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'BundleFeatureInfo',
-    declaration: 'export interface BundleFeatureInfo extends DshBundleFeature {\n    enabled: boolean;\n}',
+    declaration: 'export interface BundleFeatureInfo extends DshBundleFeature {\n    icon?: string;\n    enabled: boolean;\n}',
   },
   {
     name: 'BundleInfo',
@@ -5115,7 +5115,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'DshBundleFeature',
-    declaration: 'export interface DshBundleFeature {\n    id: string;\n    rowId: string;\n    title: LocalizedText;\n    description: LocalizedText;\n    kind?: DshBundleFeatureKind;\n    defaultEnabled: boolean;\n}',
+    declaration: 'export interface DshBundleFeature {\n    id: string;\n    rowId: string;\n    title: LocalizedText;\n    description: LocalizedText;\n    details?: LocalizedText;\n    icon?: string;\n    kind?: DshBundleFeatureKind;\n    defaultEnabled: boolean;\n}',
   },
   {
     name: 'DshBundleFeatureKind',

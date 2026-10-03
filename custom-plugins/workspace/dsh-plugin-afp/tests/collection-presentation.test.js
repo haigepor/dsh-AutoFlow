@@ -101,7 +101,7 @@ test('first collection load skips unnamed entries and does not open an empty dir
   }
 })
 
-test('photo clicks toggle selection with collection provenance; context click opens details', async () => {
+test('photo clicks toggle selection with source collections; context click opens details', async () => {
   const store = createAfpClientStore({}), photo = { id: 'p1', title: 'Sample' }
   function CheckIcon() { return element('svg', { viewBox: '0 0 24 24' }) }
   const Gallery = createAfpGallery({ createElement: element }, UI, { IconCheckOutlineRegular: CheckIcon }, key => key, store)

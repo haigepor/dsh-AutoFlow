@@ -26,7 +26,7 @@ Gallery cards SHALL use equal preview heights across loading, decoded and error 
 - **WHEN** the user activates the selection summary
 - **THEN** the drawer opens without changing selections and the summary shows three thumbnails, the overflow amount and the total count
 
-#### Scenario: Preserve collection provenance
+#### Scenario: Preserve source collections
 - **WHEN** the user selects an image in a favorite collection and then switches collections
 - **THEN** the selected image and its source collection remain available to batch actions
 
