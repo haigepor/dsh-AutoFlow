@@ -1,0 +1,4 @@
+[
+  { "pressed": false, "label": "selectPhoto Sample", "variant": "ghost", "iconSize": 12 },
+  { "pressed": true, "label": "removeFromSelection Sample", "variant": "ghost", "iconSize": 12 }
+]

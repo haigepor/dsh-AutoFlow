@@ -1,0 +1,5 @@
+[
+  { "grid": "afp-wb-gallery", "photoKeys": [], "placeholders": 6 },
+  { "grid": "afp-wb-gallery", "photoKeys": ["first"], "placeholders": 6 },
+  { "grid": "afp-wb-gallery", "photoKeys": ["first", "second"], "placeholders": 0 }
+]

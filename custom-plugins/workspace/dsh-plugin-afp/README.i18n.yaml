@@ -12,20 +12,26 @@
   en: 4f21106b2de68f56
   zh: 79b444d8eba00d1c
 /dsh-plugin-afp/install-and-develop:
-  en: c80bc7a93fc499c6
-  zh: 52910e6d4ffdefc2
+  en: d69366d67f7c75e3
+  zh: b62bcf8ff3c72eff
 /dsh-plugin-afp/directory-reference:
   en: 0a303b8a6db70464
   zh: ae1d0d4d9b6148a5
+/dsh-plugin-afp/icon-assets:
+  en: bea37e6209ea3aa3
+  zh: 0faae87b1bda12b0
 /dsh-plugin-afp/configuration:
-  en: 803e6f4bbf61758e
-  zh: e2f1cf4a7601c610
+  en: 74783c523b90a042
+  zh: aa0882e1b65a01a6
 /dsh-plugin-afp/workbench-and-tools:
-  en: f09a56fdefb6eec5
-  zh: 1930de3ee9d9e0df
+  en: 89e2d2a9d781eb14
+  zh: 5758c324ecc54e1c
 /dsh-plugin-afp/content-and-recovery:
-  en: 0f825a626a9d2158
-  zh: e8001abaa080c10f
+  en: 5bb4b1eb1ec478a5
+  zh: 1712e0757f6638ee
+/dsh-plugin-afp/preview-cache:
+  en: 0d0f381242542558
+  zh: 178327ab11a7606f
 /dsh-plugin-afp/verification:
   en: 7b37eaf5927fb576
   zh: c679c3b496de3ab4
@@ -33,5 +39,5 @@
   en: 21b9024049b6ec1f
   zh: da72b52921957ae3
 /dsh-plugin-afp/feature-information-and-configuration-dialogs:
-  en: 7990e3038b2468d8
-  zh: 0a90a0988e8fd2d4
+  en: c4debe073148379a
+  zh: 9c3e5a8193cb6607

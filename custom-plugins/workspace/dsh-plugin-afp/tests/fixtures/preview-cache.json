@@ -1,0 +1,7 @@
+[
+  { "loading": true, "image": false, "error": false },
+  { "loading": true, "image": true, "error": false },
+  { "loading": false, "image": true, "error": false },
+  { "loading": false, "image": false, "error": true },
+  { "loading": false, "image": true, "error": false }
+]

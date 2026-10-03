@@ -19,4 +19,6 @@ Six `skills/<name>/references/` directories derive from matching source Skill re
 
 ## Upgrade verification
 
+The preview adaptation negotiates only supported raster types, cancels redirect bodies before following, refuses embedded URL credentials and attaches a fixed blocked-host code with the hostname only. The owned Host accepts matching raster signatures with generic binary MIME and keeps signed media URLs private. The owned account reader uses the `user` query fields documented in AFP-Image's authentication and account references and present in its cached Hub query; it projects identity and credit fields without administrator or purchase operations. Collection photo filtering is an owned read-only projection and does not alter the vendor membership helper used by write validation.
+
 Compare source revisions before replacement. Reapply the adaptations above, inspect category gates, protocol request fields, authentication and non-idempotent writes, then run package tests and the tarball/profile smoke. Keep installed Skill ownership paths, tool names and existing run/plan IDs stable. Current verification uses simulated interfaces; no production AFP collection is modified.

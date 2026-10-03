@@ -28,14 +28,13 @@
     "assets/**",
     "cordis.patch.yml",
     "config.example.patch.yml",
-    "icon.svg",
     "locale/*.json",
     "README.md",
     "README.zh.md",
     "UPSTREAM.md",
     "cli/**"
   ],
-  "icon": "./icon.svg",
+  "icon": "./assets/icons/afp.svg",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml",
@@ -65,15 +64,16 @@
             "zh": "只读工具"
           },
           "description": {
-            "en": "Plan searches and inspect private collections.",
-            "zh": "规划图片检索，读取私有收藏夹数量。"
+            "en": "Plan searches and inspect account setup and collection counts.",
+            "zh": "规划图片检索，查看账号配置与收藏夹数量。"
           },
           "defaultEnabled": true,
           "kind": "script",
           "details": {
-            "en": "Provides afp_status, afp_search_plan and afp_collections. Search planning is offline; collection reads require an AFP token or account credentials. No remote modifications.",
-            "zh": "提供 afp_status、afp_search_plan 和 afp_collections。搜索规划离线运行；读取收藏夹需要 AFP token 或账号凭据。不会修改远端。"
-          }
+            "en": "Check account setup, prepare photo search plans, and read private collection counts.\n\nSearch planning works offline. Collection reads require AFP account credentials or a token. This feature does not modify collections.",
+            "zh": "查看账号配置、生成图片检索方案，并读取私有收藏夹的图片数量。\n\n检索规划可离线完成；读取收藏夹需要 AFP 账号或令牌。此功能不会修改收藏夹。"
+          },
+          "icon": "./assets/icons/read-tools.svg"
         },
         {
           "id": "refresh",
@@ -83,15 +83,16 @@
             "zh": "视觉刷新"
           },
           "description": {
-            "en": "Run resumable visual screening with saved reports.",
-            "zh": "执行可续跑的视觉筛选，保存检查点与报告。"
+            "en": "Screen photos and save results, with support for resuming interrupted runs.",
+            "zh": "筛选图片并保存结果，支持中断后继续。"
           },
           "defaultEnabled": true,
           "kind": "script",
           "details": {
-            "en": "Starts afp_refresh_run background jobs for chosen photo categories. Requires AFP credentials and a configured vision endpoint, model and key. Enforces execution budgets, retains checkpoints on cancellation, and never writes collections.",
-            "zh": "通过 afp_refresh_run 为选定图片分类启动后台任务。需要 AFP 凭据及视觉接口、模型和密钥。按预算执行，取消后保留检查点；筛选过程不会写入收藏夹。"
-          }
+            "en": "Find candidates for selected categories, screen them with a vision model, and generate a report. Interrupted runs can resume from saved progress.\n\nRequires AFP credentials and a vision model with an API key. Results stay local and are not automatically written to collections.",
+            "zh": "按选定分类检索候选图片，通过视觉模型筛选并生成报告。任务中断后可从已保存的进度继续。\n\n需配置 AFP 账号、视觉模型及密钥；筛选结果仅保存在本地，不会自动写入收藏夹。"
+          },
+          "icon": "./assets/icons/visual-refresh.svg"
         },
         {
           "id": "write",
@@ -101,15 +102,16 @@
             "zh": "远端写入"
           },
           "description": {
-            "en": "Preview and confirm append, replace or clear operations.",
-            "zh": "预览并确认追加、替换或清空收藏夹。"
+            "en": "Append, replace, or clear collections after confirming a preview.",
+            "zh": "确认预览后，追加、替换或清空收藏夹。"
           },
           "defaultEnabled": true,
           "kind": "script",
           "details": {
-            "en": "Enables afp_apply (plans use afp_plan_change). Checks the account, exact private target, run and collection membership before writing. Agent writes require DSH approval; page writes require a one-use expiring preview confirmation. Failures may leave partial changes without automatic rollback or retry.",
-            "zh": "启用 afp_apply（计划由 afp_plan_change 生成）。写入前核对账户、精确私有目标、刷新记录和收藏夹成员。Agent 写入通过 DSH 确认；页面写入须确认具有有效期且仅可使用一次的预览。失败可能留下部分修改，不自动回滚或重试。"
-          }
+            "en": "Append screening results, replace existing contents, or clear a selected collection. Each operation shows the target and proposed changes and asks for confirmation.\n\nA failed write may leave partial changes. Review the result before creating another operation; writes are not automatically retried or undone.",
+            "zh": "将筛选结果追加到收藏夹、替换现有内容，或清空指定收藏夹。操作前会展示目标收藏夹和具体变更，请求确认。\n\n写入失败时可能已有部分内容变更；请核对结果后重新创建操作，不会自动重试或撤销。"
+          },
+          "icon": "./assets/icons/remote-write.svg"
         },
         {
           "id": "ui-settings",
@@ -119,15 +121,16 @@
             "zh": "设置侧栏"
           },
           "description": {
-            "en": "Open the shared AFP workbench from Settings.",
-            "zh": "在设置侧栏显示 AFP 操作台。"
+            "en": "Open the AFP workbench from Settings.",
+            "zh": "从设置页面进入 AFP 操作台。"
           },
           "defaultEnabled": false,
           "kind": "ui",
           "details": {
-            "en": "Registers settings.section. Uses the same profile tasks and unsent forms as the other entries; hiding this entry does not cancel tasks.",
-            "zh": "注册 settings.section。与其他入口共用当前 profile 的任务和未提交表单；隐藏入口不会取消任务。"
-          }
+            "en": "Adds an AFP entry to Settings for task progress, screening reports, and collection operations.\n\nAll entries share one workbench. Hiding this entry does not stop running tasks.",
+            "zh": "在设置侧栏增加 AFP 入口，可查看任务进度、筛选报告和收藏夹操作。\n\n各入口共用同一操作台；关闭此入口不会停止正在执行的任务。"
+          },
+          "icon": "./assets/icons/settings-sidebar.svg"
         },
         {
           "id": "ui-panel",
@@ -137,15 +140,16 @@
             "zh": "全局面板"
           },
           "description": {
-            "en": "Open AFP from the home global panel sidebar.",
-            "zh": "在首页全局面板侧栏显示 AFP 入口。"
+            "en": "Open the AFP workbench from the home sidebar.",
+            "zh": "从首页侧栏进入 AFP 操作台。"
           },
           "defaultEnabled": true,
           "kind": "ui",
           "details": {
-            "en": "Registers sidebar.panellist and main. Removing the active entry returns to an available page. Task execution continues when navigating away.",
-            "zh": "注册 sidebar.panellist 和 main。关闭当前入口后回到可用页面；离开页面不停止任务。"
-          }
+            "en": "Adds an AFP entry to the home sidebar for tasks, reports, and collection operations.\n\nTasks continue when you navigate away. Hiding the active entry returns you to an available page.",
+            "zh": "在首页侧栏增加 AFP 入口，便于集中查看任务、报告与收藏夹操作。\n\n切换到其他页面时任务继续执行；关闭当前入口后会返回可用页面。"
+          },
+          "icon": "./assets/icons/global-panel.svg"
         },
         {
           "id": "ui-conversation",
@@ -155,15 +159,16 @@
             "zh": "会话 Tab"
           },
           "description": {
-            "en": "Display a profile workbench tab in conversations.",
-            "zh": "在会话页显示 AFP 操作台标签。"
+            "en": "View AFP tasks and reports within conversations.",
+            "zh": "在会话页面查看 AFP 任务与报告。"
           },
           "defaultEnabled": false,
           "kind": "ui",
           "details": {
-            "en": "Registers conversation.view for existing conversations. Shows the current profile workbench, not a separate Session task queue. Agent jobs keep their Session owner and use Session cancellation.",
-            "zh": "通过 conversation.view 在已有会话中显示标签。展示当前 profile 的操作台，不单独创建会话任务队列；Agent 任务仍属于原会话，通过会话取消。"
-          }
+            "en": "Adds an AFP tab to conversations so you can view the shared workbench without leaving the conversation.\n\nThe tab does not create a separate task queue. Agent jobs remain managed by their original conversation.",
+            "zh": "在会话页增加 AFP 标签，无需离开会话即可查看共享操作台。\n\n此标签不会创建独立任务队列；由 Agent 发起的任务仍归原会话管理。"
+          },
+          "icon": "./assets/icons/conversation-tab.svg"
         },
         {
           "id": "afp-core-news-search",
@@ -173,15 +178,16 @@
             "zh": "新闻图片搜索"
           },
           "description": {
-            "en": "Guide timely news-photo searches.",
-            "zh": "指导按新闻主题与时间规划图片检索。"
+            "en": "Plan photo searches by news topic and time range.",
+            "zh": "按新闻主题与时间范围规划图片检索。"
           },
           "defaultEnabled": true,
           "kind": "skill",
           "details": {
-            "en": "Guide timely news-photo searches. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
-            "zh": "指导按新闻主题与时间规划图片检索。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
-          }
+            "en": "Plan searches around news topics and time ranges, helping the Agent find relevant photos and inspect collections.\n\nSearching and screening require the corresponding tools to be enabled. Collection changes ask for confirmation.",
+            "zh": "围绕新闻主题和时间范围规划检索，帮助 Agent 找到相关图片并核对收藏夹。\n\n实际检索与筛选需开启对应工具；修改收藏夹前会请求确认。"
+          },
+          "icon": "./assets/icons/news-search.svg"
         },
         {
           "id": "afp-core-search-collections",
@@ -191,15 +197,16 @@
             "zh": "搜索与收藏夹"
           },
           "description": {
-            "en": "Guide search filters and private collection inspection.",
-            "zh": "指导筛选图片与检查私有收藏夹。"
+            "en": "Plan search filters and check target collections.",
+            "zh": "规划检索条件，核对目标收藏夹。"
           },
           "defaultEnabled": true,
           "kind": "skill",
           "details": {
-            "en": "Guide search filters and private collection inspection. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
-            "zh": "指导筛选图片与检查私有收藏夹。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
-          }
+            "en": "Help the Agent plan search filters, inspect private collections, and check the intended write target.\n\nReading collections requires AFP credentials. Append, replace, and clear operations show a preview and ask for confirmation.",
+            "zh": "帮助 Agent 规划检索条件、检查私有收藏夹，并核对准备写入的目标。\n\n读取收藏夹需配置 AFP 账号；追加、替换或清空内容前会展示预览并请求确认。"
+          },
+          "icon": "./assets/icons/search-collections.svg"
         },
         {
           "id": "afp-core-visual-triage",
@@ -209,15 +216,16 @@
             "zh": "视觉筛选"
           },
           "description": {
-            "en": "Guide visual scoring and rejection decisions.",
-            "zh": "指导视觉评分、保留与淘汰决策。"
+            "en": "Decide which photos to keep by inspecting their visible content.",
+            "zh": "根据实际画面判断图片是否保留。"
           },
           "defaultEnabled": true,
           "kind": "skill",
           "details": {
-            "en": "Guide visual scoring and rejection decisions. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
-            "zh": "指导视觉评分、保留与淘汰决策。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
-          }
+            "en": "Guide the Agent in scoring, categorizing, and deduplicating photos from their visible content, with reasons for keeping or rejecting each image.\n\nRequires visual screening tools and a configured model. Titles and captions alone do not establish acceptance.",
+            "zh": "指导 Agent 根据实际画面进行评分、分类和去重，说明每张图片保留或淘汰的理由。\n\n需开启视觉筛选工具并配置模型；仅凭标题或说明文字不会判定图片合格。"
+          },
+          "icon": "./assets/icons/visual-triage.svg"
         },
         {
           "id": "afp-curation-animals",
@@ -227,15 +235,16 @@
             "zh": "动物策展"
           },
           "description": {
-            "en": "Guide animal-photo curation and diversity checks.",
-            "zh": "指导动物图片策展与多样性检查。"
+            "en": "Select animal photos with clear subjects and natural composition.",
+            "zh": "筛选主体清晰、构图自然的动物图片。"
           },
           "defaultEnabled": true,
           "kind": "skill",
           "details": {
-            "en": "Guide animal-photo curation and diversity checks. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
-            "zh": "指导动物图片策展与多样性检查。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
-          }
+            "en": "Screen mammal and bird photos for subject completeness, clarity, surroundings, and composition. Reject graphic scenes, distressed animals, and obstructed subjects.\n\nRequires visual screening tools. Review the screening report before confirming collection changes.",
+            "zh": "围绕哺乳动物与鸟类筛选图片，检查主体完整度、清晰度、环境与构图，并排除血腥、受困或主体被遮挡的画面。\n\n需开启视觉筛选工具；先生成筛选报告，再确认是否加入收藏夹。"
+          },
+          "icon": "./assets/icons/animals.svg"
         },
         {
           "id": "afp-curation-landscape",
@@ -245,15 +254,16 @@
             "zh": "风景策展"
           },
           "description": {
-            "en": "Guide landscape curation and duplicate filtering.",
-            "zh": "指导风景图片策展与重复过滤。"
+            "en": "Screen landscape photos for quality and duplicate content.",
+            "zh": "筛选风景图片，检查质量与重复内容。"
           },
           "defaultEnabled": true,
           "kind": "skill",
           "details": {
-            "en": "Guide landscape curation and duplicate filtering. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
-            "zh": "指导风景图片策展与重复过滤。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
-          }
+            "en": "Help the Agent plan landscape searches, inspect image quality and composition, remove duplicates, and organize candidates.\n\nRequires visual screening tools. Screening produces a report; collection changes ask for confirmation.",
+            "zh": "帮助 Agent 规划风景图片检索，检查画面质量、构图与重复内容，整理候选图片。\n\n需开启视觉筛选工具；筛选后生成报告，加入收藏夹前会请求确认。"
+          },
+          "icon": "./assets/icons/landscape.svg"
         },
         {
           "id": "afp-curation-celestial-wallpaper",
@@ -263,15 +273,16 @@
             "zh": "天体壁纸策展"
           },
           "description": {
-            "en": "Guide celestial wallpaper quality screening.",
-            "zh": "指导天体壁纸构图与质量筛选。"
+            "en": "Select celestial and cosmic images suitable for wallpapers.",
+            "zh": "筛选适合作为壁纸的天体与宇宙图片。"
           },
           "defaultEnabled": true,
           "kind": "skill",
           "details": {
-            "en": "Guide celestial wallpaper quality screening. Installs a packaged Skill that guides the AFP tools. The Skill alone does not enable execution or remote writes. Shared DSH Home holders retain edited content when disabled; no user-owned Skill is overwritten.",
-            "zh": "指导天体壁纸构图与质量筛选。 注入包内 Skill，用于指导调用 AFP 工具。Skill 本身不会启用执行或远端写入。多个 profile 共用 DSH Home；最后一个持有者停用后保留含用户修改的副本，不覆盖用户已有 Skill。"
-          }
+            "en": "Screen planets, nebulae, galaxies, and other cosmic images for subject coverage, visual density, and wallpaper composition. Reject excessive empty black backgrounds and terrestrial night scenes.\n\nRequires visual screening tools and a configured model. Review the report before confirming collection operations.",
+            "zh": "筛选行星、星云、星系等宇宙题材图片，检查主体占比、画面密度和壁纸构图，排除大面积空黑背景或地面夜景。\n\n需开启视觉筛选工具并配置模型；先查看筛选报告，再确认收藏夹操作。"
+          },
+          "icon": "./assets/icons/celestial.svg"
         }
       ]
     },

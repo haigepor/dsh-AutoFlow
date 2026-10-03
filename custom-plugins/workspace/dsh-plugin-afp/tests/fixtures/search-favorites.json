@@ -1,0 +1,7 @@
+[
+  { "count": 0, "features": ["read", "write"], "busy": false, "disabled": true },
+  { "count": 1, "features": ["read"], "busy": false, "disabled": true },
+  { "count": 1, "features": ["read", "write"], "busy": false, "disabled": false },
+  { "count": 121, "features": ["read", "write"], "busy": false, "disabled": true },
+  { "count": 1, "features": ["read", "write"], "busy": true, "disabled": true }
+]

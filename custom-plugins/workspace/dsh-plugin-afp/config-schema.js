@@ -11,6 +11,8 @@ const defaults = Object.freeze({
   concurrency: 3, threshold: 0.8, requestTimeoutMs: 180000, readRetries: 2,
   tokenRefreshMarginSeconds: 300, planTtlMs: 600000, outputLimitBytes: 16000,
   maxStateBytes: 67108864, maxPreviewBytes: 12582912, maxResponseBytes: 4194304, maxRedirects: 3,
+  maxDownloadBytes: 134217728, downloadConcurrency: 2,
+  previewCacheMaxEntries: 300, previewCacheMaxBytes: 67108864, previewCacheTtlMs: 600000,
   pollIntervalMs: 2000,
 })
 const ranges = {
@@ -18,8 +20,9 @@ const ranges = {
   maxBatches: [1, 100], concurrency: [1, 16], requestTimeoutMs: [1000, 600000], readRetries: [0, 5],
   tokenRefreshMarginSeconds: [0, 3600], planTtlMs: [1000, 3600000], outputLimitBytes: [1024, 1000000],
   maxStateBytes: [1048576, 268435456], maxPreviewBytes: [1024, 52428800],
-  maxResponseBytes: [1024, 16777216], maxRedirects: [0, 5],
+  maxResponseBytes: [1024, 16777216], maxRedirects: [0, 5], maxDownloadBytes: [1048576, 1073741824], downloadConcurrency: [1, 8],
   pollIntervalMs: [500, 60000],
+  previewCacheMaxEntries: [0, 5000], previewCacheMaxBytes: [1024, 268435456], previewCacheTtlMs: [1000, 3600000],
 }
 
 /** @param {object} input Deployment config. @returns {object} Validated explicit settings. */

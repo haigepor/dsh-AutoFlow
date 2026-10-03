@@ -1,0 +1,12 @@
+{
+  "login": "alice",
+  "id": "1",
+  "firstName": "Alice",
+  "lastName": "Test",
+  "email": "alice@example.test",
+  "clientId": "client",
+  "expires": null,
+  "credit": 0,
+  "subjectToCredit": true,
+  "onlyIncludedDocumentDownload": null
+}

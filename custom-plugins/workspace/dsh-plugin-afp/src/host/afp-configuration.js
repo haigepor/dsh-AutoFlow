@@ -6,7 +6,10 @@ export async function configurationAction(ctx, input, service, signal) {
   const entry = ctx.configEditor.entries().find(entry => entry.options.id === 'afp')
   if (!entry) throw new Error('AFP configuration entry unavailable')
   const config = resolveConfig(entry.fiber.config)
-  if (input.operation === 'read' && Object.keys(input).length === 1) return JSON.stringify({ config, revision: digest(JSON.stringify(config)) })
+  if (input.operation === 'read' && Object.keys(input).length === 1) {
+    if (!service) throw new Error('AFP configuration service unavailable')
+    return JSON.stringify({ config, revision: digest(JSON.stringify(config)), ...(await service.connection.configurationInfo()) })
+  }
   if (input.operation === 'acquire-token' && Object.keys(input).length === 1) {
     if (!service) throw new Error('AFP token service unavailable')
     await service.acquireToken(signal)

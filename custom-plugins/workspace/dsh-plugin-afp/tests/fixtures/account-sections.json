@@ -1,0 +1,23 @@
+{
+  "credentials": {
+    "formHidden": false,
+    "panel": "settings-credentials",
+    "fields": ["usernameRef", "passwordRef", "accessTokenRef"],
+    "collapsedGroups": [],
+    "advanced": null
+  },
+  "vision": {
+    "formHidden": false,
+    "panel": "settings-vision",
+    "fields": ["visionBaseUrl", "visionKeyRef", "visionModel"],
+    "collapsedGroups": ["screeningBudget"],
+    "advanced": { "expanded": true }
+  },
+  "features": {
+    "formHidden": true,
+    "panel": null,
+    "fields": [],
+    "collapsedGroups": [],
+    "advanced": null
+  }
+}

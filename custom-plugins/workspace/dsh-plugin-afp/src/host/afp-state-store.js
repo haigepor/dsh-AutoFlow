@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { lstat, mkdir, open, readFile, rename, unlink, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve, parse } from 'node:path'
+import { lstat, mkdir, open, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises'
+import { basename, dirname, join, resolve, parse } from 'node:path'
 import { resolveConfig } from '../../config-schema.js'
 
 /** Stable filesystem segment; never exposes account names. @param {string} value Identity. @returns {string} Hash. */
@@ -88,6 +88,39 @@ export class Store {
     return plan
   }
   savePlan(plan) { return this.write(join(this.profile, 'plans', `${id(plan.id)}.json`), plan) }
+  /** Read the newest compact download outcomes; no destination paths or media URLs are persisted. */
+  async readDownloads(limit = 20) {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid AFP download history limit')
+    let files
+    try { files = await readdir(join(this.profile, 'downloads')) }
+    catch (error) { if (error.code === 'ENOENT') return []; throw error }
+    const names = files.filter(file => /^[a-f0-9-]{36}\.json$/.test(file))
+    const records = []
+    for (const file of names) records.push(await this.readDownload(file.slice(0, -5)))
+    return records.sort((left, right) => right.createdAt - left.createdAt).slice(0, limit)
+  }
+  /** Read and validate one persisted download outcome before projecting it to the page. */
+  async readDownload(downloadId) {
+    const record = await this.read(join(this.profile, 'downloads', `${id(downloadId)}.json`))
+    if (record.id !== downloadId || !Number.isSafeInteger(record.createdAt) || !Number.isSafeInteger(record.updatedAt)
+      || !['queued', 'running', 'completed', 'partial', 'failed', 'cancelled', 'interrupted'].includes(record.status)
+      || !Array.isArray(record.items) || record.items.length > 120
+      || record.items.some(item => !item || typeof item.photoId !== 'string' || item.photoId.length > 256
+        || !['queued', 'running', 'completed', 'failed', 'pending', 'cancelled'].includes(item.status)
+        || typeof item.title !== 'string' || typeof item.rendition !== 'string'
+        || item.fileName !== null && (typeof item.fileName !== 'string' || item.fileName !== basename(item.fileName))
+        || item.errorCode !== null && typeof item.errorCode !== 'string')) throw new Error('Invalid AFP download record')
+    return record
+  }
+  async saveDownload(record) {
+    await this.write(join(this.profile, 'downloads', `${id(record.id)}.json`), record)
+    const files = await readdir(join(this.profile, 'downloads'))
+    const records = []
+    for (const file of files.filter(name => /^[a-f0-9-]{36}\.json$/.test(name))) records.push(await this.readDownload(file.slice(0, -5)))
+    for (const stale of records.sort((left, right) => right.createdAt - left.createdAt).slice(30)) {
+      await unlink(join(this.profile, 'downloads', `${stale.id}.json`))
+    }
+  }
   /** Refuse live competitors; recover only a complete lock whose process is gone. */
   async lock(key, operation) {
     const file = join(this.root, 'locks', `${digest(key)}.json`)

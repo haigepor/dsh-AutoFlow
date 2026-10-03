@@ -62,8 +62,14 @@ function isAllowedPreviewUrl(value, allowedHosts) {
     throw new Error('preview URL is invalid');
   }
   if (url.protocol !== 'https:') throw new Error('preview URL must use HTTPS');
+  if (url.username || url.password) throw new Error('preview URL must not contain credentials');
   if (isPrivateOrLocalHost(url.hostname)) throw new Error('preview URL points to a local or internal host');
-  if (!allowedHosts.has(url.hostname.toLowerCase())) throw new Error('preview URL host is not allowlisted');
+  if (!allowedHosts.has(url.hostname.toLowerCase())) {
+    const error = new Error('preview URL host is not allowlisted');
+    error.code = 'preview-host-blocked';
+    error.hostname = url.hostname.toLowerCase();
+    throw error;
+  }
   return url;
 }
 
@@ -157,6 +163,8 @@ export function createAfpPreviewClient({
       const response = await httpClient.request(currentUrl, { ...currentOptions, headers });
       const nextUrl = followRedirects ? redirectLocation(response, currentUrl) : null;
       if (!nextUrl) return response;
+      // 跳转响应不再使用；先释放其流，再检查目标域名，避免失败时留下未消费连接。
+      await response.body?.cancel();
       if (redirectCount >= maxRedirects) throw new Error('preview redirect limit exceeded');
       currentUrl = isAllowedPreviewUrl(nextUrl, allowedHosts).toString();
       currentOptions = { ...currentOptions, headers };
@@ -177,16 +185,18 @@ export function createAfpPreviewClient({
         });
         const payload = await httpClient.readResponseJson(response);
         if (!response.ok || payload?.errors?.length) throw new Error('getPhotosByIds preview lookup failed');
-        const reference = findMockupReference(payload?.data?.docs?.[0]);
+        const photo = payload?.data?.docs?.find((item) => item?.id === String(photoId));
+        if (!photo) throw new Error('requested photo mockup is unavailable');
+        const reference = findMockupReference(photo);
         const mediaReference = previewUrl(reference, apicoreEndpoint, allowedCdnHosts);
         const mediaResponse = await request(mediaReference, {
           method: 'GET',
-          headers: previewHeaders(accessToken, { accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8', contentType: null }),
+          headers: previewHeaders(accessToken, { accept: 'image/jpeg,image/png,image/webp,image/gif', contentType: null }),
         }, { followRedirects: true });
         if (!mediaResponse.ok) throw new Error(`mockup download failed with HTTP ${mediaResponse.status}`);
         return {
           bytes: await httpClient.readResponseBytes(mediaResponse),
-          contentType: mediaResponse.headers.get('content-type')?.split(';')[0] || 'image/jpeg',
+          contentType: mediaResponse.headers.get('content-type')?.split(';')[0] || 'application/octet-stream',
         };
       });
     },

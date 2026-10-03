@@ -3,21 +3,28 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { resolve, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { CATEGORY_PROFILES, LANDSCAPE_LOCATION_EXCLUSIONS } from '../src/vendor/auto-afp-img/afp-photo-search.mjs'
+import { buildSearchCatalog } from '../src/shared/afp-search-catalog.js'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const defaults = JSON.parse(readFileSync(join(root, 'config.json'), 'utf8'))
 const rows = JSON.parse(readFileSync(join(root, 'cordis.patch.yml'), 'utf8'))[0].insert
+assert.deepEqual(JSON.parse(readFileSync(join(root, 'src/client/afp-search-catalog.json'), 'utf8')),
+  buildSearchCatalog(CATEGORY_PROFILES, LANDSCAPE_LOCATION_EXCLUSIONS), 'Rebuild the client after changing positive keyword profiles')
 assert.equal(manifest.bin, undefined)
 assert.equal(defaults.version, 1)
 assert.equal(manifest.dsh.bundle.featureConfig, './config.json')
 for (const filename of readdirSync(join(root, 'locale'))) assert.match(filename, /^[a-z]{2,3}(?:-[a-z0-9]+)*\.json$/, 'Metadata locale filenames must be language IDs')
 assert.equal(new Set(manifest.dsh.bundle.features.map(feature => feature.id)).size, manifest.dsh.bundle.features.length)
 for (const feature of manifest.dsh.bundle.features) {
+  assert.match(feature.icon, /^\.\/assets\/icons\/[a-z-]+\.svg$/)
+  assert.ok(existsSync(resolve(root, feature.icon)), `Missing feature icon: ${feature.icon}`)
   const matched = rows.filter(row => row.id === feature.rowId)
   assert.equal(matched.length, 1)
   assert.equal(matched[0].disabled, !feature.defaultEnabled)
   assert.equal(defaults.features[feature.id], feature.defaultEnabled)
 }
+assert.ok(existsSync(resolve(root, manifest.icon)), `Missing package icon: ${manifest.icon}`)
 for (const target of Object.values(manifest.exports)) assert.ok(existsSync(resolve(root, target.replace('*.json', 'zh.json'))), `Missing export: ${target}`)
 for (const file of ['README.md', 'README.zh.md', 'UPSTREAM.md', 'cli/afp-task.js']) assert.ok(existsSync(join(root, file)), `Missing ${file}`)
 function check(dir) {

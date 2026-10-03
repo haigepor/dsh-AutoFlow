@@ -1,18 +1,30 @@
 import { createWorkbench } from './afp-workbench.js'
 import { createAfpClientStore } from './afp-client-store.js'
 import { createConfigurationForm } from './afp-configuration-form.js'
+import { createAfpDownloadOverlay } from './afp-download-overlay.js'
 import zh from './locales/zh.json'
 import en from './locales/en.json'
 import css from '../../assets/workbench.css'
 
 window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
-  const React = require('react'), { Switch, Input, Button, StateDot } = require('@deepseek-ai/dsh-client-ui-primitives')
+  const React = require('react'), primitives = require('@deepseek-ai/dsh-client-ui-primitives')
+  const { Switch, Input, Button, StateDot, Tag, Checkbox, Toast, Menu, MenuSurface, SegmentedControl, Tooltip, Modal, GlideHighlight, useDismissOnOutsidePointer } = primitives
+  const { createPortal } = require('react-dom')
+  const icons = Object.fromEntries(['IconSearchOutlineRegular', 'IconFolderCloseRegular', 'IconFlatListOutlineRegular',
+    'IconRefreshOutlineRegular', 'IconSettingsOutlineRegular', 'IconCloseOutlineRegular', 'IconChevronDownOutlineRegular',
+    'IconSkillOutlineRegular', 'IconCodeOutlineRegular', 'IconPanelLeftOutlineRegular', 'IconCheckOutlineRegular',
+    'IconDownloadOutlineRegular', 'IconTrashOutlineRegular', 'IconFolderOpenOutlineRegular', 'IconSlidersTwoOutlineRegular'].map(name => [name, primitives[name]]))
   return { inject: ['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.credentials', 'layout', 'uiConversation'], apply(ctx) {
     const namespace = 'afpWorkbench', panel = 'afp-workbench'
     ctx.effect(() => ctx.locale.register(namespace, { en, zh }), 'AFP locale')
     const t = ctx.locale.bind(namespace), store = createAfpClientStore(ctx)
-    const Workbench = createWorkbench(React, Switch, ctx, t, store)
-    const ConfigurationForm = createConfigurationForm(React, { Input, Button, StateDot }, ctx, t)
+    const ConfigurationForm = createConfigurationForm(React, { Input, Button, StateDot, Tag, Toast, Tooltip, Chevron: icons.IconChevronDownOutlineRegular }, ctx, t)
+    const Workbench = createWorkbench(React, { Switch, Input, Button, StateDot, Tag, Checkbox, Toast, Menu, MenuSurface, createPortal, useDismissOnOutsidePointer, SegmentedControl, Tooltip, Modal, GlideHighlight }, ctx, t, store, ConfigurationForm, icons)
+    const DownloadOverlay = createAfpDownloadOverlay(React, { Button, Tag, Toast, StateDot, Tooltip, Menu, useDismissOnOutsidePointer }, icons, t, store, () => {
+      store.selectTab('tasks')
+      ctx.layout.selectPanel(panel)
+    })
+    ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'afp.download-overlay', locale: namespace }, DownloadOverlay))
     for (const row of ['afp-read', 'afp-refresh', 'afp-write']) ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
       name: 'plugins.row.config', key: `dsh-plugin-afp#${row}`, locale: namespace,
     }, ConfigurationForm))
@@ -26,7 +38,9 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
         React.createElement('path', { d: 'm5 17 5-5 3 3 3-4 3 6', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }))
     }
     function sync() {
-      const flags = store.getSnapshot().status?.features ?? []
+      const status = store.getSnapshot().status
+      if (!status) return
+      const flags = status.features ?? []
       for (const feature of ['ui-settings', 'ui-panel', 'ui-conversation']) {
         if (flags.includes(feature) === registrations.has(feature)) continue
         if (!flags.includes(feature)) { registrations.get(feature)(); registrations.delete(feature); continue }
@@ -51,14 +65,19 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
     ctx.effect(() => {
       const unsubscribe = store.subscribe(sync)
       const changed = ctx.remote.$on('plugin-manager/changed', () => { void store.reload() })
-      const reset = ctx.on('connection/reset', () => { void store.reload() })
+      const credentialChanges = ctx.remote.$on('credentials/reference-updated', ref => { void store.credentialReferenceUpdated(typeof ref === 'string' ? ref : ref?.ref) })
+      const reset = ctx.on('connection/reset', () => { void store.resetAndReload() })
       let timer, stopped = false
       const poll = async () => {
+        const priorTasks = new Set((store.getSnapshot().status?.tasks ?? []).map(task => task.taskId))
         await store.reload()
+        const currentTasks = store.getSnapshot().status?.tasks ?? []
+        if ([...priorTasks].some(id => !currentTasks.some(task => task.taskId === id))) store.refreshCompletedTaskData()
         if (!stopped) timer = setTimeout(poll, store.getSnapshot().status?.pollIntervalMs ?? 2000)
       }
+      void store.loadAccount()
       void poll()
-      return () => { stopped = true; clearTimeout(timer); unsubscribe(); changed(); reset(); for (const remove of registrations.values()) remove(); registrations.clear() }
+      return () => { stopped = true; clearTimeout(timer); unsubscribe(); changed(); credentialChanges(); reset(); for (const remove of registrations.values()) remove(); registrations.clear() }
     }, 'AFP entry lifecycle')
   } }
 } })

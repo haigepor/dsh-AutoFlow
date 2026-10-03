@@ -1,9 +1,10 @@
 import { Config, resolveConfig } from './config-schema.js'
 import { AfpService } from './src/host/afp-service.js'
 import { configurationAction } from './src/host/afp-configuration.js'
+import { downloadErrorCode } from './src/host/afp-downloads.js'
 export { Config }
 export const name = 'dsh-plugin-afp'
-export const inject = ['credentials', 'jobs', 'profileContext', 'pluginManager', 'configEditor']
+export const inject = ['credentials', 'jobs', 'profileContext', 'pluginManager', 'configEditor', 'directoryPicker']
 
 /** Root owns shared profile state; optional rows own tools, skills and UI availability. */
 export function apply(ctx, input = {}) {
@@ -20,7 +21,17 @@ export function apply(ctx, input = {}) {
     catch (error) {
       // 凭据与网络异常可能带 token 或 URL 参数，页面只接收脱敏错误。
       signal.throwIfAborted()
+      const code = downloadErrorCode(error)
+      if (code) throw new Error(code)
       throw new Error('AFP operation failed. Check setup and the saved report; remote writes may be partial.')
     }
   }), 'AFP workbench operation')
+  ctx.inject(['connection'], routeCtx => routeCtx.effect(() => routeCtx.connection.fetch.register({
+    path: '/api/afp/preview', methods: ['GET'], requestBody: 'buffered',
+    fetch: request => service.previewResponse(request),
+  }), 'AFP workbench photo preview route'))
+  ctx.inject(['connection'], routeCtx => routeCtx.effect(() => routeCtx.connection.fetch.register({
+    path: '/api/afp/workbench-data', methods: ['POST'], requestBody: 'buffered',
+    fetch: request => service.workbenchDataResponse(request),
+  }), 'AFP workbench metadata route'))
 }

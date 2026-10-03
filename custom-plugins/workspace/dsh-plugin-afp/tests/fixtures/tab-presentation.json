@@ -1,0 +1,5 @@
+[
+  { "empty": ["searchPrompt"], "busy": false, "spinners": 0 },
+  { "empty": ["noPhotos"], "busy": false, "spinners": 0 },
+  { "empty": [], "busy": true, "spinners": 1 }
+]

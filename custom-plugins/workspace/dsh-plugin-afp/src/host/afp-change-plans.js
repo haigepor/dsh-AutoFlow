@@ -62,7 +62,7 @@ export class Changes {
       }
       const plan = { schema: 1, id: randomUUID(), owner, operation: args.operation, account,
         runId: args.operation === 'clear' ? null : args.runId, runHash, remoteHash: remote.hash,
-        expiresAt: Date.now() + this.config.planTtlMs, state: 'planned', targets: remote.targets.map(target => ({
+        createdAt: Date.now(), expiresAt: Date.now() + this.config.planTtlMs, state: 'planned', targets: remote.targets.map(target => ({
           ...target, existing: remote.records.find(item => item.id === target.id)?.docs.length ?? 0,
           docs: docsByCategory.get(target.category) ?? [],
         })) }

@@ -1,0 +1,12 @@
+{
+  "selected": [
+    { "id": "last", "sources": ["travel"] },
+    { "id": "new", "sources": ["travel"] },
+    { "id": "outside", "sources": ["other"] },
+    { "id": "shared", "sources": ["other", "travel"] }
+  ],
+  "cleared": [
+    { "id": "outside", "sources": ["other"] },
+    { "id": "shared", "sources": ["other"] }
+  ]
+}
