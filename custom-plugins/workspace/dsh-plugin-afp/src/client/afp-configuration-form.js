@@ -1,4 +1,4 @@
-/** Saved usernames are displayed; secret drafts stay local and clear after successful writes. */
+/** Saved secrets are masked and revealed on demand; viewing never makes a credential draft dirty. */
 export function createConfigurationForm(React, { Input, Button, StateDot, Tag, Toast, Tooltip, Chevron }, ctx, t) {
   const h = React.createElement
   return function ConfigurationForm({ view, featureId, onSaved, className = '', section, sectionId }) {
@@ -8,12 +8,19 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
     const [savedToast, setSavedToast] = React.useState('')
     const [visibleCredentials, setVisibleCredentials] = React.useState({})
     const [advancedOpen, setAdvancedOpen] = React.useState(true)
+    const [revealedCredentials, setRevealedCredentials] = React.useState({}), [readingCredentials, setReadingCredentials] = React.useState({})
+    const credentialReads = React.useRef({ active: true, requests: {} })
     const formId = React.useId()
+    function clearCredentialViews() {
+      credentialReads.current.requests = {}
+      setRevealedCredentials({}); setReadingCredentials({}); setVisibleCredentials({})
+    }
     async function read(preserveDraft = false, alive = () => true) {
       const result = await ctx.remote.pluginManager.invokeAction('dsh-plugin-afp', 'configuration', { operation: 'read' })
       if (!result.ok) throw new Error()
       const value = JSON.parse(result.value.output)
       if (!alive()) return
+      clearCredentialViews()
       setLoaded(value)
       if (!preserveDraft) {
         setDraft(value.config); setText(JSON.stringify(value.config, null, 2))
@@ -22,10 +29,12 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
     }
     React.useEffect(() => {
       if (view !== 'page') return
+      credentialReads.current.active = true
       let mounted = true
       void read(false, () => mounted).catch(() => { if (mounted) setMessage(t('configUnavailable')) })
-      return () => { mounted = false }
+      return () => { mounted = false; credentialReads.current.active = false; credentialReads.current.requests = {} }
     }, [view])
+    React.useEffect(() => { clearCredentialViews() }, [section])
     if (view !== 'page') return t('configHelp')
     const info = key => loaded?.credentials?.[key]
     const hasCredential = key => Boolean((key === 'usernameRef' ? String(secrets[key] ?? '').trim() : secrets[key]) || info(key)?.configured)
@@ -46,7 +55,7 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
     }
     async function acquireToken() {
       if (!hasCredential('usernameRef') || !hasCredential('passwordRef')) { setMessage(t('tokenCredentialsRequired')); return }
-      setBusy(true); setAcquiringToken(true); setMessage('')
+      clearCredentialViews(); setBusy(true); setAcquiringToken(true); setMessage('')
       try {
         await saveSecrets(['usernameRef', 'passwordRef'])
         const result = await ctx.remote.pluginManager.invokeAction('dsh-plugin-afp', 'configuration', { operation: 'acquire-token' })
@@ -58,7 +67,7 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
       finally { setBusy(false); setAcquiringToken(false) }
     }
     async function save() {
-      setBusy(true); setMessage('')
+      clearCredentialViews(); setBusy(true); setMessage('')
       try {
         const next = JSON.parse(text)
         if (JSON.stringify(next) !== JSON.stringify(loaded.config)
@@ -77,6 +86,27 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
       finally { setBusy(false) }
     }
     const showVision = featureId === undefined || featureId === 'refresh'
+    async function revealCredential(key) {
+      const request = {}
+      credentialReads.current.requests[key] = request
+      const current = () => credentialReads.current.active && credentialReads.current.requests[key] === request
+      setReadingCredentials(value => ({ ...value, [key]: true })); setMessage('')
+      try {
+        const result = await ctx.remote.pluginManager.invokeAction('dsh-plugin-afp', 'configuration', { operation: 'reveal-credential', key, revision: loaded.revision })
+        if (!current()) return
+        if (!result.ok) throw new Error()
+        const payload = JSON.parse(result.value.output)
+        if (typeof payload.value !== 'string' || !payload.value) throw new Error()
+        setRevealedCredentials(value => ({ ...value, [key]: payload.value }))
+        setVisibleCredentials(value => ({ ...value, [key]: true }))
+      } catch (error) { if (current()) setMessage(t('credentialRevealFailed')) }
+      finally {
+        if (current()) {
+          delete credentialReads.current.requests[key]
+          setReadingCredentials(value => ({ ...value, [key]: false }))
+        }
+      }
+    }
     const credentialField = key => {
       const username = key === 'usernameRef', visible = Boolean(visibleCredentials[key]), inputId = `${formId}-${key}`
       const visibilityLabel = `${t(visible ? 'hideCredential' : 'showCredential')} ${t(key)}`
@@ -85,30 +115,36 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
         h('path', { d: 'M1.5 8s2.25-4 6.5-4 6.5 4 6.5 4-2.25 4-6.5 4S1.5 8 1.5 8Z' }),
         h('circle', { cx: 8, cy: 8, r: 1.75 }), !visible ? h('path', { d: 'm2 2 12 12' }) : null)
       const toggle = username ? null : h(Button, { variant: 'ghost', size: 'sm', type: 'button', className: 'afp-credential-visibility',
-        icon: eye, 'aria-label': visibilityLabel, 'aria-controls': inputId, 'aria-pressed': visible,
-        disabled: busy || info(key)?.writable === false || !secrets[key],
+        icon: readingCredentials[key] && StateDot ? h(StateDot, { state: 'ongoing', size: 14 }) : eye,
+        'aria-label': visibilityLabel, 'aria-controls': inputId, 'aria-pressed': visible, 'aria-busy': Boolean(readingCredentials[key]),
+        disabled: busy || Boolean(readingCredentials[key]) || (!secrets[key] && !info(key)?.configured),
         onMouseDown: event => event.preventDefault(), onClick: event => {
+          if (!visible && !secrets[key]) { void revealCredential(key); return }
           const input = event.currentTarget.closest('.afp-secret-control')?.querySelector('input')
           const focused = input && input.ownerDocument.activeElement === input
           const start = input?.selectionStart, end = input?.selectionEnd, direction = input?.selectionDirection
           setVisibleCredentials(current => ({ ...current, [key]: !current[key] }))
+          if (visible) setRevealedCredentials(current => { const next = { ...current }; delete next[key]; return next })
           // 切换密码类型可能重置选区；鼠标点击保留编辑位置，键盘操作保留按钮焦点。
           if (focused) queueMicrotask(() => { if (input.isConnected) input.setSelectionRange(start, end, direction) })
         } })
       return h('div', { key, className: 'afp-form-field' },
         h('div', { className: 'afp-form-label' }, h('label', { htmlFor: inputId }, t(key)),
-          h(Tag, { tone: info(key)?.configured ? 'neutral' : 'quiet' }, t(info(key)?.configured ? 'configured' : 'missing'))),
+          h(Tag, { tone: info(key)?.configured ? 'success' : 'quiet' }, t(info(key)?.configured ? 'configured' : 'missing'))),
         h('div', { className: username ? undefined : 'afp-secret-control' },
-          h(Input, { className: 'afp-wb-input', id: inputId, type: username || visible ? 'text' : 'password',
+          h(Input, { className: `afp-wb-input${!username && info(key)?.configured && !secrets[key] && !visible ? ' afp-stored-mask' : ''}`, id: inputId, type: username || visible ? 'text' : 'password',
             autoComplete: username ? 'username' : 'new-password', spellCheck: false,
-            value: secrets[key] ?? (username ? loaded.username ?? '' : ''),
-            disabled: busy || info(key)?.writable === false, 'aria-label': t(key), placeholder: t('keepCredential'),
+            value: username ? secrets[key] ?? loaded.username ?? '' : secrets[key] || revealedCredentials[key] || '',
+            disabled: busy || info(key)?.writable === false, 'aria-label': t(key), placeholder: t(!username && info(key)?.configured ? 'maskedCredential' : 'enterCredential'),
             onChange: event => {
               const value = event.target.value
+              delete credentialReads.current.requests[key]
+              setReadingCredentials(current => ({ ...current, [key]: false }))
+              setRevealedCredentials(current => { const next = { ...current }; delete next[key]; return next })
               setSecrets(current => ({ ...current, [key]: value }))
               if (!value) setVisibleCredentials(current => ({ ...current, [key]: false }))
             } }),
-          toggle && Tooltip ? h(Tooltip, { label: secrets[key] ? visibilityLabel : t('storedCredentialHidden'), side: 'top', portal: true }, toggle) : toggle))
+          toggle && Tooltip ? h(Tooltip, { label: visibilityLabel, side: 'top', portal: true }, toggle) : toggle))
     }
     const field = key => h('label', { key, className: 'afp-form-field' }, t(key),
       h(Input, { className: 'afp-wb-input', value: ['string', 'number'].includes(typeof draft[key]) ? draft[key] : '',

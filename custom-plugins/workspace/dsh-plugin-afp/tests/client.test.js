@@ -26,7 +26,7 @@ test('account sections keep unsaved credential and model values while exposing o
   const config = { usernameRef: 'AFP_USERNAME', passwordRef: 'AFP_PASSWORD', visionModel: 'original', targetPerCategory: 70 }
   const states = [{ config }, JSON.stringify(config), {}, '', false, false, config]
   let cursor = 0
-  const React = { createElement: element, useEffect() {}, useId: () => 'form-test', useState(initial) {
+  const React = { createElement: element, useEffect() {}, useId: () => 'form-test', useRef: initial => ({ current: initial }), useState(initial) {
     const index = cursor++
     if (states[index] === undefined) states[index] = initial
     return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value }]
@@ -61,7 +61,7 @@ test('workbench advanced editing shares the model draft and survives collapsing 
   const states = [{ config, revision: 'current' }, JSON.stringify(config), {}]
   let cursor = 0, releaseSave, saved = 0
   const calls = []
-  const React = { createElement: element, useEffect() {}, useId: () => 'advanced-test', useState(initial) {
+  const React = { createElement: element, useEffect() {}, useId: () => 'advanced-test', useRef: initial => ({ current: initial }), useState(initial) {
     const index = cursor++
     if (states[index] === undefined) states[index] = initial
     return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value }]
@@ -151,7 +151,7 @@ test('queued feature switches preserve unrelated selections and distinguish actu
 
 test('Agent search tool and CLI/page adapter call the same shared operation and disposal removes the tool', async () => {
   const tools = new Map(), effects = []
-  const service = { require: () => {}, search: query => ({ query, operation: 'offline-plan' }), pageAction: async input => service.search(JSON.parse(input.args).query) }
+  const service = { config: { pageSize: 60 }, require: () => {}, search: query => ({ query, operation: 'offline-plan' }), pageAction: async input => service.search(JSON.parse(input.args).query) }
   const ctx = { effect(register) { effects.push(register()) }, tools: { register(value) { tools.set(value.name, value); return () => tools.delete(value.name) } } }
   registerAgentTools(ctx, service, 'read')
   const signal = new AbortController().signal
@@ -168,7 +168,7 @@ test('token acquisition locks the form and refreshes credential metadata after s
   let cursor = 0
   const React = {
     createElement: element,
-    useId: () => 'form-test',
+    useId: () => 'form-test', useRef: initial => ({ current: initial }),
     useState(initial) {
       const index = cursor++
       if (states[index] === undefined) states[index] = initial
@@ -185,7 +185,7 @@ test('token acquisition locks the form and refreshes credential metadata after s
   } }
   const Form = createConfigurationForm(React, { Input, Button, StateDot }, ctx, key => ({ accessTokenRef: 'AFP access token', usernameRef: 'AFP username', passwordRef: 'AFP password', visionKeyRef: 'Vision API key', acquireToken: 'Get token', acquiringToken: 'Getting token', tokenAcquiring: 'Getting access token', tokenCredentialsRequired: 'Account required', tokenAcquired: 'Saved', tokenAcquireFailed: 'Failed', saveCredential: 'Save' }[key] ?? key))
   const render = () => { cursor = 0; return Form({ view: 'page' }) }
-  const tokenButton = tree => findElement(tree, item => item.type === Button && Object.hasOwn(item.props, 'aria-busy'))
+  const tokenButton = tree => findElement(tree, item => item.type === Button && Object.hasOwn(item.props, 'aria-busy') && !item.props['aria-controls'])
   const input = (tree, label) => findElement(tree, item => item.type === Input && item.props['aria-label'] === label)
 
   let tree = render()
@@ -224,7 +224,7 @@ test('configuration starts with form-sized skeleton columns and replaces them wi
   let cursor = 0, effect, resolveRead
   const React = {
     createElement: element,
-    useId: () => 'form-test',
+    useId: () => 'form-test', useRef: initial => ({ current: initial }),
     useState(initial) {
       const index = cursor++
       if (states[index] === undefined) states[index] = initial
@@ -262,7 +262,7 @@ test('credential fields show saved usernames, toggle independent drafts and hide
   const metadata = { config, username: 'saved-account', credentials: { passwordRef: { configured: true } } }
   const states = [metadata, JSON.stringify(config), {}]
   let cursor = 0
-  const React = { createElement: element, useEffect() {}, useId: () => 'credential-test', useState(initial) {
+  const React = { createElement: element, useEffect() {}, useId: () => 'credential-test', useRef: initial => ({ current: initial }), useState(initial) {
     const index = cursor++
     if (states[index] === undefined) states[index] = initial
     return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value }]
@@ -279,12 +279,12 @@ test('credential fields show saved usernames, toggle independent drafts and hide
   const initial = render()
   const snapshot = Object.fromEntries(['usernameRef', 'passwordRef', 'accessTokenRef', 'visionKeyRef'].map(key => {
     const field = input(initial, key)
-    return [key, { type: field.props.type, value: field.props.value, visible: key === 'usernameRef' || toggle(initial, key).props['aria-pressed'] }]
+    return [key, { type: field.props.type, value: field.props.value, placeholder: field.props.placeholder, visible: key === 'usernameRef' || toggle(initial, key).props['aria-pressed'] }]
   }))
   assert.deepEqual(snapshot, JSON.parse(readFileSync(new URL('./fixtures/credential-fields.json', import.meta.url), 'utf8')))
   for (const key of ['passwordRef', 'accessTokenRef', 'visionKeyRef']) {
     const tree = render()
-    assert.equal(toggle(tree, key).props.disabled, true)
+    assert.equal(toggle(tree, key).props.disabled, key !== 'passwordRef')
     input(tree, key).props.onChange({ target: { value: `draft-${key}` } })
     toggle(render(), key).props.onClick({ currentTarget: { closest: () => null } })
     assert.equal(input(render(), key).props.type, 'text')

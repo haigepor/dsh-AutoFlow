@@ -229,6 +229,8 @@ export class WorkbenchData {
       const matches = selections.filter(item => item?.id === id)
       if (matches.length !== 1) throw new Error('AFP collection is not available to this account')
       const selection = matches[0]
+      // 空名称目录项不在工作台可浏览清单中，不将其作为共享收藏夹调用成员接口。
+      if (!String(selection.name ?? '').trim()) throw new Error('AFP collection has no display name')
       const ids = collectionPhotoIds(await client.getSelection(id))
       const page = ids.slice(offset, offset + limit)
       const fetched = page.length ? await client.photosByIds(page) : []

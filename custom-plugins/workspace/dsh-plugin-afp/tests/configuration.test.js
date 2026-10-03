@@ -58,6 +58,31 @@ test('HTTP transport fuses abort signals and refuses credential forwarding redir
   await assert.rejects(request('https://example.test'), { name: 'AbortError' })
 })
 
+test('explicit credential reveal accepts only AFP secret fields and the current deployment revision', async () => {
+  const config = resolveConfig({})
+  const entry = { options: { id: 'afp' }, fiber: { config } }
+  const refs = { AFP_PASSWORD: 'fixture-password', VISION_API_KEY: 'fixture-vision-key', OTHER_SECRET: 'unrelated' }
+  const connection = new Connection({
+    describe: async ref => ({ configured: Boolean(refs[ref]), writable: true }),
+    resolve: async ref => refs[ref] ? { value: refs[ref] } : undefined,
+    readRecord: async () => undefined,
+  }, config)
+  const ctx = { configEditor: { entries: () => [entry] } }, service = { connection }
+  const revision = digest(JSON.stringify(config))
+  for (const [key, value] of [['passwordRef', refs.AFP_PASSWORD], ['visionKeyRef', refs.VISION_API_KEY]]) {
+    assert.deepEqual(JSON.parse(await configurationAction(ctx, { operation: 'reveal-credential', key, revision }, service)), { value })
+  }
+  for (const input of [
+    { operation: 'reveal-credential', key: 'OTHER_SECRET', revision },
+    { operation: 'reveal-credential', key: 'usernameRef', revision },
+    { operation: 'reveal-credential', key: 'passwordRef', revision: 'stale' },
+    { operation: 'reveal-credential', key: 'passwordRef', revision, ref: 'OTHER_SECRET' },
+  ]) await assert.rejects(configurationAction(ctx, input, service))
+  const metadata = await connection.configurationInfo()
+  assert.equal(JSON.stringify(metadata).includes(refs.AFP_PASSWORD), false)
+  assert.equal(JSON.stringify(metadata).includes(refs.VISION_API_KEY), false)
+})
+
 test('configuration metadata displays the username without exposing secrets or stale account grants', async () => {
   const config = resolveConfig({})
   const refs = { AFP_USERNAME: 'private-account', AFP_PASSWORD: 'private-password' }
@@ -75,6 +100,8 @@ test('configuration metadata displays the username without exposing secrets or s
   assert.equal(details.token.configured, true)
   assert.equal(details.token.expiresAt, expiry * 1000)
   assert.equal(details.token.verifiedAt, 1234)
+  assert.equal(details.credentials.accessTokenRef.configured, true, 'A verified cached token is configured for display')
+  assert.equal((await connection.configurationInfo('accessTokenRef')).value, token)
   assert.equal(details.credentials.usernameRef.configured, true)
   for (const secret of [refs.AFP_PASSWORD, token]) assert.equal(JSON.stringify(details).includes(secret), false)
   refs.AFP_PASSWORD = 'replacement-password'

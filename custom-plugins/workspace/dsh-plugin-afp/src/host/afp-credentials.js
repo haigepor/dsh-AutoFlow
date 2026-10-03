@@ -31,8 +31,9 @@ export class Connection {
     const entries = await Promise.all(['accessTokenRef', 'usernameRef', 'passwordRef', 'visionKeyRef'].map(async key => [key, (await this.credentials.describe(config[key])).configured]))
     return { credentials: Object.fromEntries(entries), visionConfigured: Boolean(config.visionModel && config.visionBaseUrl), writesEnabled: config.allowWrites }
   }
-  /** Return the display username, editable credential facts and token metadata; never passwords or keys. */
-  async configurationInfo() {
+  /** Return credential metadata; an explicit allowed reveal key adds only that secret for the authenticated editor. */
+  async configurationInfo(revealKey) {
+    if (revealKey !== undefined && !['passwordRef', 'accessTokenRef', 'visionKeyRef'].includes(revealKey)) throw new Error('Invalid AFP credential field')
     const config = this.config
     const keys = ['accessTokenRef', 'usernameRef', 'passwordRef', 'visionKeyRef']
     const entries = await Promise.all(keys.map(async key => [key, await this.credentials.describe(config[key])]))
@@ -44,7 +45,12 @@ export class Connection {
     const record = identity ? await this.credentials.readRecord(`dsh-plugin-afp/account-${account}`) : undefined
     const fingerprint = digest(JSON.stringify([accessToken, username, password, config.loginEndpoint]))
     const payload = record?.kind === 'grant' && record.payload?.fingerprint === fingerprint && typeof record.payload?.token === 'string' ? record.payload : null
-    return { username, credentials: Object.fromEntries(entries), token: {
+    const token = payload?.token || accessToken
+    const credentials = Object.fromEntries(entries)
+    credentials.accessTokenRef = { ...credentials.accessTokenRef, configured: Boolean(token) }
+    const revealed = revealKey === 'passwordRef' ? password : revealKey === 'accessTokenRef' ? token
+      : revealKey === 'visionKeyRef' ? (await this.credentials.resolve(config.visionKeyRef))?.value ?? '' : undefined
+    return { username, credentials, ...(revealKey === undefined ? {} : { value: revealed }), token: {
       configured: Boolean(payload?.token || accessToken),
       expiresAt: payload?.token ? decodeJwtExpiry(payload.token) : accessToken ? decodeJwtExpiry(accessToken) : null,
       verifiedAt: payload?.verifiedAt ?? null,

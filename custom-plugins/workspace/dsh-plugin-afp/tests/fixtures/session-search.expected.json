@@ -1,15 +1,86 @@
 {
   "tools": [
+    "afp_collection_items",
+    "afp_collection_list",
     "afp_collections",
+    "afp_photo_details",
+    "afp_photo_search",
+    "afp_photo_search_start",
     "afp_plan_change",
     "afp_report",
     "afp_search_plan",
     "afp_status"
   ],
+  "firstPageSchema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "language": {
+        "type": "string",
+        "enum": [
+          "en",
+          "fr",
+          "es",
+          "ar",
+          "de",
+          "pt"
+        ]
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 2
+      }
+    },
+    "required": [
+      "query",
+      "language",
+      "limit"
+    ],
+    "additionalProperties": false
+  },
+  "cursorSchema": {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 8192,
+    "description": "For the first page use afp_photo_search_start; legacy callers omit this field. For subsequent pages copy only a returned AFP cursor; never use 0, ?, null or an invented placeholder."
+  },
   "calls": [
     {
       "name": "afp_search_plan",
       "arguments": "{\"query\":\"food photography\"}"
+    },
+    {
+      "name": "afp_photo_search_start",
+      "arguments": "{\"query\":\"cat\",\"limit\":2,\"language\":\"en\"}"
+    },
+    {
+      "name": "afp_photo_search",
+      "arguments": "{\"query\":\"cat\",\"limit\":2,\"language\":\"en\",\"cursor\":\"next\"}"
+    },
+    {
+      "name": "afp_photo_search",
+      "arguments": "{\"query\":\"cat\",\"cursor\":\"?\"}"
+    },
+    {
+      "name": "afp_photo_details",
+      "arguments": "{\"photoId\":\"p1\"}"
+    },
+    {
+      "name": "afp_collection_list",
+      "arguments": "{}"
+    },
+    {
+      "name": "afp_collection_items",
+      "arguments": "{\"collectionId\":\"shared\",\"limit\":2}"
+    },
+    {
+      "name": "afp_search_plan",
+      "arguments": "{\"query\":\" \"}"
     }
   ],
   "results": [
@@ -20,9 +91,9 @@
         "role": "tool",
         "source": {
           "kind": "tool",
-          "callId": "afp-fixture-call"
+          "callId": "afp-fixture-call-1"
         },
-        "toolCallId": "afp-fixture-call",
+        "toolCallId": "afp-fixture-call-1",
         "content": [
           {
             "type": "text",
@@ -30,6 +101,139 @@
           }
         ],
         "isError": false
+      }
+    },
+    {
+      "turn": 1,
+      "step": 2,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-2"
+        },
+        "toolCallId": "afp-fixture-call-2",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"items\":[{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"}],\"cursor\":\"next\",\"hasMore\":true,\"meta\":{\"language\":\"en\",\"limit\":2}}"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "turn": 1,
+      "step": 3,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-3"
+        },
+        "toolCallId": "afp-fixture-call-3",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"items\":[{\"id\":\"p2\",\"guid\":\"p2\",\"title\":\"Photo p2\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"}],\"cursor\":null,\"hasMore\":false,\"meta\":{\"language\":\"en\",\"limit\":2}}"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "turn": 1,
+      "step": 4,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-4"
+        },
+        "toolCallId": "afp-fixture-call-4",
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: {\"code\":\"invalid-cursor\",\"stage\":\"validation\",\"message\":\"AFP paging cursor is invalid.\",\"action\":\"For a new search call afp_photo_search_start without any cursor field; legacy first-page callers omit cursor. For later pages use only the cursor returned by the previous successful search with the same query and language. Do not repeat unchanged input automatically.\",\"retryable\":false}"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "turn": 1,
+      "step": 5,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-5"
+        },
+        "toolCallId": "afp-fixture-call-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"found\":true,\"photo\":{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"},\"meta\":{}}"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "turn": 1,
+      "step": 6,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-6"
+        },
+        "toolCallId": "afp-fixture-call-6",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"items\":[{\"id\":\"shared\",\"name\":\"Shared\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":null,\"category\":null}],\"meta\":{}}"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "turn": 1,
+      "step": 7,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-7"
+        },
+        "toolCallId": "afp-fixture-call-7",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"items\":[{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"},{\"id\":\"p2\",\"guid\":\"p2\",\"title\":\"Photo p2\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"}],\"collection\":{\"id\":\"shared\",\"name\":\"Shared\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":null,\"category\":null},\"offset\":0,\"total\":3,\"hasMore\":true,\"nextOffset\":2,\"meta\":{}}"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "turn": 1,
+      "step": 8,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-8"
+        },
+        "toolCallId": "afp-fixture-call-8",
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: {\"code\":\"invalid-arguments\",\"stage\":\"validation\",\"message\":\"AFP arguments are invalid.\",\"action\":\"Check required fields, nonblank query, language, paging bounds and mutually exclusive report IDs.\",\"retryable\":false}"
+          }
+        ],
+        "isError": true
       }
     }
   ],

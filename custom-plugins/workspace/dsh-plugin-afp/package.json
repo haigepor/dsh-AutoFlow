@@ -64,14 +64,14 @@
             "zh": "只读工具"
           },
           "description": {
-            "en": "Plan searches and inspect account setup and collection counts.",
-            "zh": "规划图片检索，查看账号配置与收藏夹数量。"
+            "en": "Search photos, browse collection metadata and inspect account setup.",
+            "zh": "实际搜索图片、浏览收藏夹元数据并检查账号配置。"
           },
           "defaultEnabled": true,
           "kind": "script",
           "details": {
-            "en": "Check account setup, prepare photo search plans, and read private collection counts.\n\nSearch planning works offline. Collection reads require AFP account credentials or a token. This feature does not modify collections.",
-            "zh": "查看账号配置、生成图片检索方案，并读取私有收藏夹的图片数量。\n\n检索规划可离线完成；读取收藏夹需要 AFP 账号或令牌。此功能不会修改收藏夹。"
+            "en": "Check account setup, plan queries offline, search actual photos with paging, and read photo details, collection lists and members.\n\nActual reads require AFP credentials or a token. Search uses caption text and the selected language; it does not translate input or execute offline plan filters. This feature does not purchase images or change collections.",
+            "zh": "检查账号配置、离线规划关键词、实际搜索并翻页，读取图片详情、收藏夹列表和成员。\n\n实际读取需要 AFP 凭据或令牌。搜索使用说明文字和所选语言，不自动翻译或执行离线计划中的筛选条件。本功能不购买图片或修改收藏夹。"
           },
           "icon": "./assets/icons/read-tools.svg"
         },

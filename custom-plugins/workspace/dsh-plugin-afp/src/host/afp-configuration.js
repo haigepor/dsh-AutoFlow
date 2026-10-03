@@ -10,6 +10,16 @@ export async function configurationAction(ctx, input, service, signal) {
     if (!service) throw new Error('AFP configuration service unavailable')
     return JSON.stringify({ config, revision: digest(JSON.stringify(config)), ...(await service.connection.configurationInfo()) })
   }
+  if (input.operation === 'reveal-credential') {
+    if (Object.keys(input).some(key => !['operation', 'key', 'revision'].includes(key))
+      || !['passwordRef', 'accessTokenRef', 'visionKeyRef'].includes(input.key)) throw new Error('Invalid AFP credential field')
+    if (input.revision !== digest(JSON.stringify(config))) throw new Error('AFP configuration changed; reopen the editor')
+    if (!service) throw new Error('AFP configuration service unavailable')
+    const details = await service.connection.configurationInfo(input.key)
+    signal?.throwIfAborted()
+    // 仅显式查看返回一个字段；常规配置、Agent 工具和任务记录不包含凭据值。
+    return JSON.stringify({ value: details.value })
+  }
   if (input.operation === 'acquire-token' && Object.keys(input).length === 1) {
     if (!service) throw new Error('AFP token service unavailable')
     await service.acquireToken(signal)
