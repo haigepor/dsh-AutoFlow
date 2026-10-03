@@ -155,6 +155,64 @@
   border: 0;
 }
 
+.railProviderRow {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+/* Reserve the action seat so names and credential dots stay still on reveal. */
+.railProviderRemovable {
+  padding-right: 44px;
+}
+
+.railAction {
+  display: flex;
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(6px, -50%);
+  transition: opacity 180ms var(--ds-ease-in-out), transform 180ms var(--ds-ease-in-out);
+}
+
+.railProviderRow:hover .railAction,
+.railProviderRow:focus-within .railAction {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, -50%);
+}
+
+.railRemove {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.railRemove:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.railRemove:focus-visible {
+  outline: 2px solid var(--dsw-focus-ring-color);
+  outline-offset: 2px;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .railAction {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(0, -50%);
+  }
+}
+
 .railProviderActive:hover:not(:disabled) {
   background: var(--dsw-specific-sidebar-nav-item-active);
 }
@@ -200,7 +258,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .railHighlight,
-  .railHighlight[data-glide-placed='true'] {
+  .railHighlight[data-glide-placed='true'],
+  .railAction {
     transition: none;
   }
 }
@@ -373,13 +432,6 @@
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-state-warn-label);
-}
-
-.savedNotice {
-  margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-success-primary);
 }
 
 .rows {

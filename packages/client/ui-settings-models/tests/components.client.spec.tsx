@@ -585,11 +585,11 @@ describe('ModelsSection', () => {
     // The saved key re-loads the join; the settings answer rides the shared
     // mirror, so the reload shows as a directory read rather than a describe.
     await waitFor(() => { expect(face.llm.listProviders.mock.calls.length).toBeGreaterThan(1) })
-    expect((await screen.findByRole('status')).textContent).toBe(
+    expect((await screen.findByRole('alert')).textContent).toBe(
       providerCopy(en.savedProvider, { provider: 'deepseek-official', displayName: 'DeepSeek' }),
     )
     fireEvent.click(screen.getByText(en.add))
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('reuses the provider editor as a required credential-only onboarding form', async () => {
@@ -1377,6 +1377,78 @@ describe('ModelsSection', () => {
     fireEvent.change(editorKey, { target: { value: 'sk-live' } })
     fireEvent.click(screen.getByText(en.apply))
     await waitFor(() => { expect(set).toHaveBeenCalledTimes(1) })
+  })
+
+  it('opens deletion from the rail without selecting the provider and restores focus on cancel', async () => {
+    const { mutate, unset } = await mountSection()
+    const rail = screen.getByRole('complementary', { name: en.providers })
+    const selected = within(rail).getByRole('button', { name: deepSeekCopy(en.editProvider) })
+    expect(selected.getAttribute('aria-current')).toBe('true')
+    expect(within(rail).queryByRole('button', { name: deepSeekCopy(en.removeProvider) })).toBeNull()
+    const remove = within(rail).getByRole('button', { name: openaiCopy(en.removeProvider) })
+    expect(rail.querySelector('button button')).toBeNull()
+    act(() => { remove.focus() })
+    fireEvent.click(remove)
+    expect(selected.getAttribute('aria-current')).toBe('true')
+    const dialog = screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })
+    expect(mutate).not.toHaveBeenCalled()
+    expect(unset).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: en.cancel }))
+    expect(document.activeElement).toBe(remove)
+    expect(selected.getAttribute('aria-current')).toBe('true')
+    expect(mutate).not.toHaveBeenCalled()
+    expect(unset).not.toHaveBeenCalled()
+    expect([...rail.querySelectorAll('button')].map(button => ({
+      label: button.getAttribute('aria-label') ?? button.textContent,
+      selected: button.getAttribute('aria-current') === 'true',
+    }))).toMatchInlineSnapshot(`
+      [
+        {
+          "label": "Edit DeepSeek (deepseek-official)",
+          "selected": true,
+        },
+        {
+          "label": "Edit openai",
+          "selected": false,
+        },
+        {
+          "label": "Delete openai",
+          "selected": false,
+        },
+        {
+          "label": "Edit zombie",
+          "selected": false,
+        },
+        {
+          "label": "Delete zombie",
+          "selected": false,
+        },
+        {
+          "label": "Add model provider",
+          "selected": false,
+        },
+      ]
+    `)
+  })
+
+  it('keeps another provider selected and its draft intact after confirmed rail deletion', async () => {
+    const { mutate } = await mountSection()
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
+    fireEvent.change(screen.getByLabelText(en.keyInput), { target: { value: 'sk-unsaved-draft' } })
+    const target = { provider: 'zombie', displayName: 'zombie' }
+    const rail = screen.getByRole('complementary', { name: en.providers })
+    fireEvent.click(within(rail).getByRole('button', { name: providerCopy(en.removeProvider, target) }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: providerCopy(en.deleteTitle, target) }))
+      .getByRole('button', { name: providerCopy(en.deleteConfirm, target) }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: providerCopy(en.deleteTitle, target) })).toBeNull()
+    })
+    expect(mutate).toHaveBeenCalledExactlyOnceWith(
+      'llm-pi-ai', [{ op: 'unset', path: ['providers', 'zombie'] }], undefined,
+    )
+    expect(within(rail).getByRole('button', { name: openaiCopy(en.editProvider) })
+      .getAttribute('aria-current')).toBe('true')
+    expect(screen.getByLabelText<HTMLInputElement>(en.keyInput).value).toBe('sk-unsaved-draft')
   })
 
   it('requires confirmation before removing a user-added provider', async () => {

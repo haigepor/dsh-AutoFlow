@@ -5,7 +5,9 @@
  *
  * This is a create, not an edit, which is why it is its own form rather than
  * the provider editor with extra fields: the route id is being *chosen* here,
- * and the settings address does not exist until it is. It renders as the
+ * and the settings address does not exist until it is. Each new draft starts
+ * with an unused random id that remains editable and survives rerenders.
+ * It renders as the
  * custom-API panel of the section's add card; the card's mode switch names it
  * when both modes are offered, and with the custom mode alone the card shows
  * this form directly. One `settings.mutate` sets the whole profile at
@@ -49,6 +51,16 @@ const NS = 'llm-pi-ai'
  * credential seam with a raw regular expression the user cannot act on.
  */
 const ROUTE_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
+
+/** Generate an editable default id unused in the current provider directory. */
+function createRouteId(taken: readonly string[]): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8))
+  const base = `custom-${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}`
+  let candidate = base
+  // A finite directory collision must not depend on another random draw.
+  for (let suffix = 2; taken.includes(candidate); suffix++) candidate = `${base}-${String(suffix)}`
+  return candidate
+}
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -97,7 +109,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   const { taken, protocols, operations, t, onBusyChange } = props
   // The write is checked against the revision on which this draft was opened.
   const [openedAt] = useState(() => props.revision)
-  const [route, setRoute] = useState('')
+  const [route, setRoute] = useState(() => createRouteId(taken))
   const [displayName, setDisplayName] = useState('')
   const [baseURL, setBaseURL] = useState('')
   const [protocol, setProtocol] = useState(protocols[0] ?? '')

@@ -870,6 +870,38 @@ describe('hand-declared providers', () => {
     return { ...scripted, onClose }
   }
 
+  it('generates an unused provider id and submits it without requiring manual entry', async () => {
+    const random = vi.spyOn(crypto, 'getRandomValues').mockImplementation(value => value)
+    try {
+      const { mutate, onClose } = mountCard({ taken: ['custom-0000000000000000', 'custom-0000000000000000-2'] })
+      const id = screen.getByLabelText<HTMLInputElement>(en.customRoute)
+      expect(id.value).toMatchInlineSnapshot('"custom-0000000000000000-3"')
+      expect(screen.queryByText(en.customRouteTaken)).toBeNull()
+      fireEvent.change(screen.getByLabelText(en.baseUrl), { target: { value: 'https://gateway.example/v1' } })
+      fireEvent.click(screen.getByRole('button', { name: en.addModel }))
+      fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'model' } })
+      expect(id.value).toBe('custom-0000000000000000-3')
+      fireEvent.click(screen.getByText(en.create))
+      await waitFor(() => { expect(onClose).toHaveBeenCalledWith(true) })
+      expect(firstMutate(mutate).ops[0]?.path).toEqual(['providers', id.value])
+      expect(firstMutate(mutate).ops[0]?.value).toMatchObject({
+        api: PROTOCOLS[0], baseURL: 'https://gateway.example/v1',
+      })
+    } finally {
+      random.mockRestore()
+    }
+  })
+
+  it('keeps an automatically generated id editable and preserves a manual replacement', () => {
+    mountCard()
+    const id = screen.getByLabelText<HTMLInputElement>(en.customRoute)
+    expect(id.value).toMatch(/^custom-[a-f0-9]{16}$/)
+    fireEvent.change(id, { target: { value: 'my-gateway' } })
+    fireEvent.change(screen.getByLabelText(en.baseUrl), { target: { value: 'https://gateway.example/v1' } })
+    expect(id.value).toBe('my-gateway')
+    expect(screen.queryByText(en.customRouteInvalid)).toBeNull()
+  })
+
   it('creates a custom provider without changing the default model', async () => {
     const { face, mutate, set, onClose } = mountCard()
     const initialize = vi.spyOn(ctxWith(face).remote.session, 'initializeDefaultModel')

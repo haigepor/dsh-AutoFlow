@@ -17,13 +17,14 @@
  * orphan the answer. Each card kind owns its own open state, so closing one
  * never discards a draft in another. Every
  * mutation writes through the wire, while a provider removal first requires
- * confirmation; the page re-renders from pushed invalidations or the
+ * confirmation through its rail icon, revealed on hover or focus and always
+ * visible on touch devices; the page re-renders from pushed invalidations or the
  * post-apply reload.
  */
 
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Button, GlideHighlight, IconChevronDownOutlineRegular, IconPlusOutlineRegular, Menu, Modal, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, GlideHighlight, IconChevronDownOutlineRegular, IconPlusOutlineRegular, IconTrashOutlineRegular, Menu, Modal, SegmentedControl, Toast, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
@@ -254,13 +255,17 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const [deleting, setDeleting] = useState(false)
   const [deleteFailure, setDeleteFailure] = useState<string | undefined>(undefined)
   const [savedTarget, setSavedTarget] = useState<ProviderIdentity | undefined>(undefined)
+  const [saveNoticeSeq, setSaveNoticeSeq] = useState(0)
   const [dismissedSetup, setDismissedSetup] = useState<ReadonlySet<string>>(() => new Set())
 
   const announceSaved = (target: ProviderIdentity): void => {
     // Announced only once the refreshed directory is in the snapshot the
     // notice reads its name from: an apply can rename the route, and the
     // target captured when the card opened still carries the old name.
-    void controller.load().then(() => { setSavedTarget(target) })
+    void controller.load().then(() => {
+      setSavedTarget(target)
+      setSaveNoticeSeq(previous => previous + 1)
+    })
   }
 
   /**
@@ -307,6 +312,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const confirmDelete = (): void => {
     /* v8 ignore next -- the action only renders with a target and is disabled while a deletion is pending */
     if (deleteTarget === undefined || deleting) return
+    const removedProvider = deleteTarget.provider
     setDeleting(true)
     setDeleteFailure(undefined)
     void removeProviderProfile(operations, controller, deleteTarget)
@@ -316,8 +322,9 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
           return
         }
         setDeleteTarget(undefined)
-        setEditing(undefined)
-        setSelectedProviderId(undefined)
+        // Rail deletion may target another provider; retain that editor's draft.
+        setEditing(current => current?.provider === removedProvider ? undefined : current)
+        setSelectedProviderId(current => current === removedProvider ? undefined : current)
       })
       .finally(() => { setDeleting(false) })
   }
@@ -407,47 +414,74 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
       {savedIdentity === undefined
         ? null
         : (
-          <p className={styles['savedNotice']} role="status" aria-live="polite">
-            {providerCopy(t('savedProvider'), savedIdentity)}
-          </p>
+          <Toast
+            key={saveNoticeSeq}
+            text={providerCopy(t('savedProvider'), savedIdentity)}
+            tone="success"
+            onDone={() => { setSavedTarget(undefined) }}
+          />
         )}
       <div className={styles['workspace']}>
         <aside className={styles['providerRail']} aria-label={t('providers')}>
           <div className={styles['railHeading']}>{t('providers')}</div>
           <div className={styles['railList']}>
-            <GlideHighlight className={styles['railHighlight']} rowSelector="[data-provider-row]" />
+            <GlideHighlight className={styles['railHighlight']} rowSelector="[data-provider-item]" />
             {configured.map((row) => {
               const target = targetOf(row)
               const selected = !addOpen && row.entry.provider === selectedProvider?.entry.provider
               const credentialConfigured = row.credential?.configured === true
               const credentialMissing = !credentialConfigured && row.apiKeyEnv !== undefined && row.credential?.configured === false
               return (
-                <button
+                <div
                   key={row.entry.provider}
-                  type="button"
-                  data-provider-row
-                  className={`${styles['railProvider']} ${selected ? styles['railProviderActive'] : ''}`}
-                  aria-label={providerCopy(t('editProvider'), target)}
-                  aria-current={selected ? 'true' : undefined}
-                  disabled={addOpen && switchLocked}
-                  onClick={() => {
-                    setSavedTarget(undefined)
-                    setAddOpen(false)
-                    setSelectedProviderId(row.entry.provider)
-                    setEditing(target)
-                  }}
+                  data-provider-item
+                  className={styles['railProviderRow']}
                 >
-                  <span className={styles['railProviderName']}>{row.entry.displayName}</span>
-                  {row.entry.declared === true ? <span className={styles['rowTag']}>{t('customTag')}</span> : null}
-                  {credentialConfigured || credentialMissing ? (
-                    <span
-                      className={`${styles['credentialDot']} ${credentialConfigured ? styles['credentialDotConfigured'] : styles['credentialDotMissing']}`}
-                      role="img"
-                      aria-label={t(credentialConfigured ? 'credentialConfigured' : 'credentialMissing')}
-                      title={t(credentialConfigured ? 'credentialConfigured' : 'credentialMissing')}
-                    />
+                  <button
+                    type="button"
+                    data-provider-row
+                    className={`${styles['railProvider']} ${selected ? styles['railProviderActive'] : ''} ${row.removable ? styles['railProviderRemovable'] : ''}`}
+                    aria-label={providerCopy(t('editProvider'), target)}
+                    aria-current={selected ? 'true' : undefined}
+                    disabled={addOpen && switchLocked}
+                    onClick={() => {
+                      setSavedTarget(undefined)
+                      setAddOpen(false)
+                      setSelectedProviderId(row.entry.provider)
+                      setEditing(target)
+                    }}
+                  >
+                    <span className={styles['railProviderName']}>{row.entry.displayName}</span>
+                    {row.entry.declared === true ? <span className={styles['rowTag']}>{t('customTag')}</span> : null}
+                    {credentialConfigured || credentialMissing ? (
+                      <span
+                        className={`${styles['credentialDot']} ${credentialConfigured ? styles['credentialDotConfigured'] : styles['credentialDotMissing']}`}
+                        role="img"
+                        aria-label={t(credentialConfigured ? 'credentialConfigured' : 'credentialMissing')}
+                        title={t(credentialConfigured ? 'credentialConfigured' : 'credentialMissing')}
+                      />
+                    ) : null}
+                  </button>
+                  {row.removable ? (
+                    <span className={styles['railAction']}>
+                      <Tooltip label={providerCopy(t('removeProvider'), target)} portal delayMs={300}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={styles['railRemove']}
+                          aria-label={providerCopy(t('removeProvider'), target)}
+                          disabled={!state.writable || switchLocked || deleting}
+                          icon={<IconTrashOutlineRegular size={14} />}
+                          onClick={() => {
+                            setSavedTarget(undefined)
+                            setDeleteFailure(undefined)
+                            setDeleteTarget(target)
+                          }}
+                        />
+                      </Tooltip>
+                    </span>
                   ) : null}
-                </button>
+                </div>
               )
             })}
           </div>
@@ -625,19 +659,6 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                     {target.provider !== target.displayName
                       ? <FieldHelp title={t('customRoute')} text={target.provider} t={t} /> : null}
                   </div>
-                  {selected.removable ? (
-                    <button
-                      type="button"
-                      className={styles['dangerButton']}
-                      aria-label={providerCopy(t('removeProvider'), target)}
-                      disabled={!state.writable}
-                      onClick={() => {
-                        setSavedTarget(undefined)
-                        setDeleteFailure(undefined)
-                        setDeleteTarget(target)
-                      }}
-                    >{t('remove')}</button>
-                  ) : null}
                 </div>
                 {selected.entry.error === undefined ? null : <p role="alert" className={styles['error']}>{selected.entry.error}</p>}
                 {showEditor ? renderProviderEditor({
