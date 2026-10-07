@@ -21,7 +21,7 @@
  * see instead of rebuilding the whole subtree from a partial descriptor.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
   CredentialInfo, SettingsNamespaceView, SettingsPathOpView,
@@ -36,6 +36,7 @@ import { ModelListEditor } from './ModelListEditor.tsx'
 import { FieldHelp } from './FieldHelp.tsx'
 import { deriveKeyRef, protocolChoices } from './store.ts'
 import { ProtocolPicker } from './ProtocolPicker.tsx'
+import { AnimatedDisclosure } from './AnimatedDisclosure.tsx'
 import { modelReasoningOptions } from './model-reasoning.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
@@ -55,6 +56,8 @@ export interface ProviderEditorProps {
   displayName: string
   /** Hide the title row (the add card renders its own provider select). */
   hideTitle?: boolean
+  /** Pin actions below the scrolling form on the Models page only. */
+  pinnedActions?: boolean
   /**
    * Whether the adapter reports this route as hand-declared — absent from its
    * installed catalog. Such a route carries its own wire protocol, chosen when
@@ -166,6 +169,8 @@ function refFor(
  * @returns the editor card.
  */
 export function ProviderEditor(props: ProviderEditorProps): ReactNode {
+  const [customizedOpen, setCustomizedOpen] = useState(false)
+  const customizedId = useId()
   const { namespace, schema, settingsPath, operations, t } = props
   const [draft, setDraft] = useState<Record<string, unknown>>(() => draftAt(schema, namespace, settingsPath))
   const [keyDraft, setKeyDraft] = useState('')
@@ -369,7 +374,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       models,
       reasoningOptions: modelReasoningOptions(namespace, schema, settingsPath, {
         ...typeof fallback === 'object' && fallback !== null ? fallback : {},
-        ...typeof draft === 'object' && draft !== null ? draft : {},
+        ...draft,
       }),
       overridden: modelsOverridden,
       t,
@@ -401,114 +406,120 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
           />
           {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
         </div>
-        {props.credentialOnly === true ? null : <details className={styles['customized']}>
-          <summary className={styles['customizedSummary']}>{t('customized')}</summary>
-          <div className={styles['customizedBody']}>
-            {/* The name and the protocol are the create card's two remaining
+        {props.credentialOnly === true ? null : <section className={styles['customized']}>
+          <button type="button" data-provider-disclosure className={styles['customizedSummary']}
+            aria-expanded={customizedOpen} aria-controls={customizedId}
+            onClick={() => { setCustomizedOpen(value => !value) }}>{t('customized')}</button>
+          <AnimatedDisclosure open={customizedOpen} id={customizedId}>
+            <div className={styles['customizedBody']}>
+              {/* The name and the protocol are the create card's two remaining
                 profile fields; a route the adapter ships defaults both from
                 its catalog entry and neither belongs on its card. */}
-            {ownsIdentity
-              ? (
-                <div className={styles['fieldGrid']}>
-                  <div className={styles['field']}>
-                    <span className={styles['fieldLabel']}>{t('customDisplayName')}</span>
-                    <input
-                      className={styles['input']}
-                      type="text"
-                      value={stringAt(draft, 'displayName') ?? ''}
-                      // What this route is called the moment the field is
-                      // cleared, which is the layer beneath the one this field
-                      // edits: a `cordis.yml` may pin a name for a route the
-                      // catalog does not ship, and only when nothing does is
-                      // the answer the route id. Reading the effective value
-                      // instead would echo the stored override back as the
-                      // thing clearing restores.
-                      placeholder={stringAt(schema.getPath(namespace.base, settingsPath), 'displayName')
+              {ownsIdentity
+                ? (
+                  <div className={styles['fieldGrid']}>
+                    <div className={styles['field']}>
+                      <span className={styles['fieldLabel']}>{t('customDisplayName')}</span>
+                      <input
+                        className={styles['input']}
+                        type="text"
+                        value={stringAt(draft, 'displayName') ?? ''}
+                        // What this route is called the moment the field is
+                        // cleared, which is the layer beneath the one this field
+                        // edits: a `cordis.yml` may pin a name for a route the
+                        // catalog does not ship, and only when nothing does is
+                        // the answer the route id. Reading the effective value
+                        // instead would echo the stored override back as the
+                        // thing clearing restores.
+                        placeholder={stringAt(schema.getPath(namespace.base, settingsPath), 'displayName')
                       ?? props.provider}
-                      aria-label={t('customDisplayName')}
-                      disabled={disabled}
-                      onChange={(event) => { setField('displayName', event.target.value) }}
-                    />
+                        aria-label={t('customDisplayName')}
+                        disabled={disabled}
+                        onChange={(event) => { setField('displayName', event.target.value) }}
+                      />
+                    </div>
+                    <div className={styles['field']}>
+                      <span className={styles['fieldLabel']}>{t('customApi')}</span>
+                      <ProtocolPicker value={probeApi} choices={protocols} disabled={disabled} t={t}
+                        onChange={(value) => { setField('api', value) }} />
+                    </div>
                   </div>
-                  <div className={styles['field']}>
-                    <span className={styles['fieldLabel']}>{t('customApi')}</span>
-                    <ProtocolPicker value={probeApi} choices={protocols} disabled={disabled} t={t}
-                      onChange={(value) => { setField('api', value) }} />
-                  </div>
-                </div>
-              )
-              : null}
-            <div className={styles['field']}>
-              <span className={styles['fieldLabel']}>{t('baseUrl')}
-                {family === 'deepseek' ? <FieldHelp title={t('baseUrl')} text={t('deepSeekEndpointHint')} t={t} /> : null}
-              </span>
-              <input
-                className={styles['input']}
-                type="text"
-                value={stringAt(draft, 'baseURL') ?? ''}
-                placeholder={family === 'deepseek'
-                  ? t('deepSeekBaseUrl')
-                  : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
-                aria-label={t('baseUrl')}
-                disabled={disabled}
-                onChange={(event) => {
-                  setField('baseURL', event.target.value === '' ? undefined : event.target.value)
-                }}
-              />
-            </div>
-            {/* Both families edit the same rows through the same contract; only
+                )
+                : null}
+              <div className={styles['field']}>
+                <span className={styles['fieldLabel']}>{t('baseUrl')}
+                  {family === 'deepseek' ? <FieldHelp title={t('baseUrl')} text={t('deepSeekEndpointHint')} t={t} /> : null}
+                </span>
+                <input
+                  className={styles['input']}
+                  type="text"
+                  value={stringAt(draft, 'baseURL') ?? ''}
+                  placeholder={family === 'deepseek'
+                    ? t('deepSeekBaseUrl')
+                    : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
+                  aria-label={t('baseUrl')}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setField('baseURL', event.target.value === '' ? undefined : event.target.value)
+                  }}
+                />
+              </div>
+              {/* Both families edit the same rows through the same contract; only
                 the extras differ — DeepSeek's inherited capacities, pi-ai's
                 endpoint interrogation. */}
-            {family === 'deepseek'
-              ? (
-                <DeepSeekModelsEditor
-                  {...catalogProps}
-                  defaultContextWindow={typeof defaultContextWindow === 'number'
-                    ? defaultContextWindow
-                    : undefined}
-                  defaultMaxTokens={typeof defaultMaxTokens === 'number' ? defaultMaxTokens : undefined}
-                />
-              )
-              : (
-                <ModelListEditor
-                  {...catalogProps}
-                  catalogProvider={props.declared === true ? undefined : props.provider}
-                  defaultInput={Array.isArray(defaultInput) ? defaultInput : undefined}
-                  probe={probe}
-                  probeBlocked={keyFailure}
-                  operations={operations}
-                  onBusyChange={setListBusy}
-                />
-              )}
-          </div>
-        </details>}
+              {family === 'deepseek'
+                ? (
+                  <DeepSeekModelsEditor
+                    {...catalogProps}
+                    defaultContextWindow={typeof defaultContextWindow === 'number'
+                      ? defaultContextWindow
+                      : undefined}
+                    defaultMaxTokens={typeof defaultMaxTokens === 'number' ? defaultMaxTokens : undefined}
+                  />
+                )
+                : (
+                  <ModelListEditor
+                    {...catalogProps}
+                    catalogProvider={props.declared === true ? undefined : props.provider}
+                    defaultInput={Array.isArray(defaultInput) ? defaultInput : undefined}
+                    probe={probe}
+                    probeBlocked={keyFailure}
+                    operations={operations}
+                    onBusyChange={setListBusy}
+                  />
+                )}
+            </div>
+          </AnimatedDisclosure>
+        </section>}
       </>
     )
   }
 
   return (
-    <div className={props.credentialOnly === true ? styles['addBlock'] : styles['editor']}>
-      {props.hideTitle === true
-        ? null
-        : (
-          <div className={styles['editorHeader']}>
-            <span className={styles['editorTitle']}>{props.displayName}</span>
-            {props.provider !== props.displayName
-              ? <span className={styles['editorRoute']}>{props.provider}</span>
-              : null}
-          </div>
-        )}
-      {layout === 'unknown'
-        ? <p className={styles['advancedHint']}>{`${t('advancedHint')} (${namespace.ns})`}</p>
-        : curatedFields(layout)}
-      {failure !== undefined ? <p className={styles['error']}>{failure}</p> : null}
-      {props.credentialOnly === true || modelFailure === undefined
-        ? null
-        : (
-          <p className={styles['advancedHint']}>
-            {`${t('model')} ${String(modelFailure.index + 1)}: ${t(modelFailure.key)}`}
-          </p>
-        )}
+    <div className={props.credentialOnly === true ? styles['addBlock'] : styles['editor']} data-pinned={props.pinnedActions === true}>
+      <div className={styles['editorScroll']}>
+        {props.hideTitle === true
+          ? null
+          : (
+            <div className={styles['editorHeader']}>
+              <span className={styles['editorTitle']}>{props.displayName}</span>
+              {props.provider !== props.displayName
+                ? <span className={styles['editorRoute']}>{props.provider}</span>
+                : null}
+            </div>
+          )}
+        {layout === 'unknown'
+          ? <p className={styles['advancedHint']}>{`${t('advancedHint')} (${namespace.ns})`}</p>
+          : curatedFields(layout)}
+        {failure !== undefined ? <p className={styles['error']}>{failure}</p> : null}
+        {props.credentialOnly === true || modelFailure === undefined
+          ? null
+          : (
+            <p className={styles['advancedHint']}>
+              {`${t('model')} ${String(modelFailure.index + 1)}: ${t(modelFailure.key)}`}
+            </p>
+          )}
+      </div>
       <EditorFooter
         t={t}
         busy={busy}

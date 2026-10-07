@@ -1,1 +1,1 @@
-DeepSeek 账号deepseek-account模型目录序号模型 ID显示名称思考强度操作01模型 ID显示名称思考强度跟随供应商02模型 ID显示名称思考强度跟随供应商添加模型取消保存
+DeepSeek 账号deepseek-account模型目录01模型 ID显示名称思考强度选择档位02模型 ID显示名称思考强度选择档位添加模型取消保存

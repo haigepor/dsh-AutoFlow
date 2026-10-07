@@ -93,6 +93,7 @@ export function ModelReasoningCapabilities(props: ModelReasoningProps): ReactNod
   const issue = validateModelReasoning(model, direct)
   return <section className={styles['modelReasoningCapabilities']} tabIndex={-1} data-reasoning-editor={position}
     aria-label={`${t('reasoningSupported')} ${String(position)}`}>
+    <div className={styles['modelFieldLabel']}>{t('reasoningSupported')}</div>
     <div className={styles['reasoningChips']}>
       {visibleLevels.map(id =>
         <button key={id} type="button" className={styles['reasoningChip']}
@@ -135,7 +136,11 @@ export function ModelReasoningCapabilities(props: ModelReasoningProps): ReactNod
           <span className={styles['modelFieldLabel']}>{reasoningLabel(id, t, inherited)}</span>
           <input className={styles['input']} disabled={disabled} value={typeof mapping[id] === 'string' ? mapping[id] : ''}
             aria-label={`${t('reasoningWire')} ${id} ${String(position)}`} placeholder={id === 'off' ? t('reasoningOffWireHint') : id}
-            onChange={event => onChange({ ...model, reasoningEfforts: { ...mapping, [id]: event.target.value === '' && id === 'off' ? null : event.target.value } })} />
+            onChange={(event) => {
+              onChange({ ...model, reasoningEfforts: {
+                ...mapping, [id]: event.target.value === '' && id === 'off' ? null : event.target.value,
+              } })
+            }} />
         </label>)}
       </div> : null}
     </> : null}

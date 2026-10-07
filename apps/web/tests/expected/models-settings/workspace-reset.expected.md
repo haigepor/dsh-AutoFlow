@@ -1,0 +1,6 @@
+- dialog "清除 DeepSeek (deepseek-official) 配置？":
+  - heading "清除 DeepSeek (deepseek-official) 配置？" [level=2]
+  - button "关闭"
+  - paragraph: 恢复 DeepSeek (deepseek-official) 的基础配置，并清除本页管理的 API 密钥；提供商入口会保留。共享密钥、环境变量和只读凭证会保留。
+  - button "取消"
+  - button "清除配置"

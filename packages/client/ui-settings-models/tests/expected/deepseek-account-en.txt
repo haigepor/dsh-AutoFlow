@@ -1,1 +1,1 @@
-DeepSeek Accountdeepseek-accountModelsOrderModel IDDisplay nameReasoning effortActions01Model IDDisplay nameReasoning effortFollow provider02Model IDDisplay nameReasoning effortFollow providerAdd modelCancelApply
+DeepSeek Accountdeepseek-accountModels01Model IDDisplay nameReasoning effortChoose an effort02Model IDDisplay nameReasoning effortChoose an effortAdd modelCancelApply

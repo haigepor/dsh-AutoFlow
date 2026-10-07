@@ -231,7 +231,7 @@ function openEditor(provider: string): void {
     .find(button => button.getAttribute('aria-label')?.includes(provider) === true)
   if (row === undefined) throw new Error(`no row for ${provider}`)
   fireEvent.click(row)
-  const summary = document.querySelector('summary')
+  const summary = document.querySelector('[data-provider-disclosure]')
   if (summary === null) throw new Error('no customized fold')
   fireEvent.click(summary)
 }
@@ -347,7 +347,8 @@ describe('model list editing', () => {
     await waitFor(() => { expect(mutate).toHaveBeenCalled() })
     // What lands in settings is always a plain token count.
     expect(firstMutate(mutate).ops[0]?.value)
-      .toEqual([{ id: 'm', contextWindow: 1_000_000, maxTokens: 1000 }])
+      .toEqual([{ id: 'm', contextWindow: 1_000_000, maxTokens: 1000,
+        reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' }, defaultReasoningEffort: 'high' }])
   })
 
   it('refuses to apply while a capacity is unreadable', async () => {
@@ -438,7 +439,7 @@ describe('model list editing', () => {
     // moved to position 2 and stays folded.
     expect(screen.getByLabelText<HTMLInputElement>(`${en.modelId} 1`).value).toBe('second')
     expect(screen.queryByLabelText(`${en.contextWindow} 1`)).not.toBeNull()
-    expect(screen.queryByLabelText(`${en.contextWindow} 2`)).toBeNull()
+    expect(screen.queryByRole('textbox', { name: `${en.contextWindow} 2` })).toBeNull()
   })
 
   it('leaves an earlier row expanded and forgets the removed row\u2019s own state', async () => {
@@ -462,7 +463,7 @@ describe('model list editing', () => {
     // to whichever row slides into the position.
     fireEvent.click(screen.getByLabelText(`${en.removeModel} 1`))
     expect(screen.getByLabelText<HTMLInputElement>(`${en.modelId} 1`).value).toBe('third')
-    expect(screen.queryByLabelText(`${en.contextWindow} 1`)).toBeNull()
+    expect(screen.queryByRole('textbox', { name: `${en.contextWindow} 1` })).toBeNull()
   })
 
   it('separates emptying the list from restoring the adapter defaults', async () => {
@@ -623,7 +624,7 @@ describe('endpoint interrogation', () => {
     expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'fresh' }).checked).toBe(true)
     expect(screen.queryByRole('checkbox', { name: 'Fresh' })).toBeNull()
     // The already-configured row starts unchecked; the new one starts checked.
-    const boxes = [...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
+    const boxes = screen.getAllByRole<HTMLInputElement>('checkbox')
     expect(boxes.map(box => box.checked)).toEqual([false, true])
     fireEvent.click(screen.getByText(en.fetchAdopt))
 
@@ -638,7 +639,8 @@ describe('endpoint interrogation', () => {
     await waitFor(() => { expect(mutate).toHaveBeenCalled() })
     expect(firstMutate(mutate).ops[0]?.value).toEqual([
       { id: 'kept', contextWindow: 111 },
-      { id: 'fresh', contextWindow: 4096, maxTokens: 2048, name: 'Fresh', input: ['text', 'image'] },
+      { id: 'fresh', contextWindow: 4096, maxTokens: 2048, name: 'Fresh', input: ['text', 'image'],
+        reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' }, defaultReasoningEffort: 'high' },
     ])
   })
 
@@ -709,11 +711,11 @@ describe('endpoint interrogation', () => {
     openEditor('openai')
 
     // The row shows what identifies a model; capacities are the exception.
-    expect(screen.queryByLabelText(`${en.contextWindow} 1`)).toBeNull()
+    expect(screen.queryByRole('textbox', { name: `${en.contextWindow} 1` })).toBeNull()
     expandModel(1)
     expect(screen.getByLabelText(`${en.contextWindow} 1`)).toBeTruthy()
     expandModel(1)
-    expect(screen.queryByLabelText(`${en.contextWindow} 1`)).toBeNull()
+    expect(screen.queryByRole('textbox', { name: `${en.contextWindow} 1` })).toBeNull()
   })
 
   it('closes the picker without adopting anything on cancel', async () => {
@@ -739,7 +741,7 @@ describe('endpoint interrogation', () => {
 
     fireEvent.click(screen.getByText(en.fetchModels))
     await screen.findByText(en.fetchTitle)
-    const boxes = [...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
+    const boxes = screen.getAllByRole<HTMLInputElement>('checkbox')
     const first = boxes[0] as HTMLInputElement
     fireEvent.click(first)
     fireEvent.click(first)
@@ -748,7 +750,10 @@ describe('endpoint interrogation', () => {
 
     await waitFor(() => { expect(mutate).toHaveBeenCalled() })
     // A disclosed output cap rides along with the candidate that has one.
-    expect(firstMutate(mutate).ops[0]?.value).toEqual([{ id: 'a' }, { id: 'b', maxTokens: 2048 }])
+    expect(firstMutate(mutate).ops[0]?.value).toEqual([
+      { id: 'a', reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' }, defaultReasoningEffort: 'high' },
+      { id: 'b', maxTokens: 2048, reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' }, defaultReasoningEffort: 'high' },
+    ])
   })
 
   it('filters by model id or name, selects visible candidates, and clears every selection', async () => {
@@ -941,7 +946,8 @@ describe('hand-declared providers', () => {
           apiKeyEnv: 'ACME_GATEWAY_API_KEY',
           api: 'openai-completions',
           baseURL: 'https://gateway.acme.example/v1',
-          models: [{ id: 'acme-large', contextWindow: 65_536 }],
+          models: [{ id: 'acme-large', contextWindow: 65_536,
+            reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' }, defaultReasoningEffort: 'high' }],
         },
       }],
       // The section this card was drafted over: a route another tab declared
@@ -1044,7 +1050,7 @@ describe('hand-declared providers', () => {
     fireEvent.change(screen.getByLabelText(en.customDisplayName), { target: { value: 'Acme 网关' } })
     fireEvent.click(screen.getByText(en.apply))
 
-    const notice = await screen.findByRole('status')
+    const notice = await screen.findByRole('alert')
     expect(notice.textContent).toBe(providerCopy(en.savedProvider, {
       provider: 'acme-gateway',
       displayName: 'Acme 网关',
@@ -1471,7 +1477,7 @@ describe('hand-declared providers', () => {
     expect(firstMutate(mutate).ops[0]?.value).toEqual({
       api: 'anthropic-messages',
       baseURL: 'https://acme.test/anthropic',
-      models: [{ id: 'm' }],
+      models: [{ id: 'm', reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' }, defaultReasoningEffort: 'high' }],
     })
   })
 

@@ -1,0 +1,20 @@
+- heading "模型" [level=1]
+- complementary "提供商":
+  - text: 提供商
+  - button "收起提供商列表" [expanded]
+  - button "编辑 DeepSeek (deepseek-official)":
+    - text: DeepSeek
+    - img "API 密钥缺失"
+  - button "清除 DeepSeek (deepseek-official) 配置"
+  - button "编辑 Fixture Gateway (fixture-gateway)": Fixture Gateway 自定义
+  - button "删除 Fixture Gateway (fixture-gateway)"
+  - button "添加模型提供商"
+- region "提供商配置":
+  - heading "DeepSeek" [level=2]
+  - button "Provider ID说明"
+  - text: API 密钥
+  - textbox "API 密钥":
+    - /placeholder: 输入 API 密钥
+  - button "自定义设置"
+  - button "取消"
+  - button "保存"

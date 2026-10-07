@@ -146,6 +146,13 @@ export function apply(ctx: ClientContext): void {
       'settings.models.footer': { kind: 'list', scope: 'root' },
     },
   }, ModelsSection))
+  ctx.inject(['settingsSearch'], (scope) => {
+    for (const key of ['providers', 'add', 'keyInput', 'customized'] as const) {
+      scope.effect(() => scope.settingsSearch.register({
+        id: `models.${key}`, sectionId: 'models', label: () => t(key),
+      }))
+    }
+  })
   if (!('dshDesktop' in globalThis)) ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
     name: 'settings.onboarding',
     id: 'welcome-notice',

@@ -20,6 +20,7 @@ const tokens = readdirSync(fileURLToPath(new URL('../../ui-theme/src/styles/', i
   .filter(name => name.endsWith('.css'))
   .map(name => readFileSync(fileURLToPath(new URL(`../../ui-theme/src/styles/${name}`, import.meta.url)), 'utf8'))
   .join('\n')
+const layoutTokens = readFileSync(fileURLToPath(new URL('../../ui-layout/src/client/AppFrame.module.css', import.meta.url)), 'utf8')
 
 /** The declarations of one top-level rule, by selector. */
 function block(selector: string): string {
@@ -38,7 +39,7 @@ describe('ModelsSection theme styles', () => {
     // a `--dsh-` name reads as a plausible sibling and would otherwise slip
     // past this gate into a fallback literal.
     const named = [...css.matchAll(/var\((--(?:dsw|dsh|ds)-[a-z0-9-]+)/g)].map(match => match[1])
-    const undeclared = [...new Set(named)].filter(name => !tokens.includes(`  ${String(name)}:`))
+    const undeclared = [...new Set(named)].filter(name => !`${tokens}\n${layoutTokens}\n${css}`.includes(`  ${String(name)}:`))
     expect(undeclared).toEqual([])
     expect(css).not.toMatch(/var\(--(?:surface|text-|border|accent-strong)/)
   })

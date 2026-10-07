@@ -1,13 +1,14 @@
 /** Shared model fields and actions for both adapter catalog editors. */
 
 import type { DragEvent, ReactNode } from 'react'
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import {
   IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconTrashOutlineRegular, Menu,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import type { ModelsKey } from './locales.ts'
 import { ModelInputTypes } from './ModelInputTypes.tsx'
+import { AnimatedDisclosure } from './AnimatedDisclosure.tsx'
 import { ModelReasoningCapabilities, ModelReasoningDefault } from './ModelReasoningCapabilities.tsx'
 import type { ModelReasoningOptions } from './model-reasoning.ts'
 import type { LlmModelReasoningInfo } from '@deepseek-ai/dsh-api-remotes/client'
@@ -62,6 +63,7 @@ interface ModelRowProps {
 export function ModelRow(props: ModelRowProps): ReactNode {
   const { model, position, t, disabled } = props
   const entryRef = useRef<HTMLDivElement>(null)
+  const panelId = useId()
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const reasoningProps = {
     model, position, t, disabled, onChange: props.onChange, direct: props.inputField === 'inputModalities',
@@ -112,7 +114,7 @@ export function ModelRow(props: ModelRowProps): ReactNode {
           if (!props.expanded) props.onToggle()
           requestAnimationFrame(() => {
             const editor = entryRef.current?.querySelector<HTMLElement>('[data-reasoning-editor]')
-            editor?.scrollIntoView?.({ block: 'nearest', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+            editor?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
             editor?.focus()
           })
         }} />
@@ -121,10 +123,11 @@ export function ModelRow(props: ModelRowProps): ReactNode {
           className={styles['iconButton']}
           aria-label={`${t('modelAdvanced')} ${String(position)}`}
           aria-expanded={props.expanded}
+          aria-controls={panelId}
           title={t('modelAdvanced')}
           onClick={props.onToggle}
         >
-          {props.expanded ? <IconChevronDownOutlineRegular /> : <IconChevronRightOutlineRegular />}
+          <span className={styles['modelChevron']} data-open={props.expanded}><IconChevronRightOutlineRegular /></span>
         </button>
         <button
           type="button"
@@ -137,40 +140,13 @@ export function ModelRow(props: ModelRowProps): ReactNode {
           <IconTrashOutlineRegular size={14} />
         </button>
       </div>
-      {props.expanded
-        ? (
-          <div className={styles['modelAdvanced']}>
-            {(['contextWindow', 'maxTokens'] as const).map(field => (
-              <label className={styles['modelField']} key={field}>
-                <span className={styles['modelFieldLabel']}>{t(field)}</span>
-                {field === 'contextWindow' ? <div className={styles['capacityControl']}>
-                  <input
-                    className={styles['input']}
-                    type="text"
-                    inputMode="numeric"
-                    value={props[field].value}
-                    placeholder={props[field].placeholder}
-                    aria-label={`${t(field)} ${String(position)}`}
-                    disabled={disabled}
-                    onChange={(event) => { props[field].onChange(event.target.value) }}
-                    onBlur={props[field].onBlur}
-                  />
-                  <Menu open={contextMenuOpen} portal autoFocus selectedId={props[field].value}
-                    listClassName={styles['reasoningMenu']}
-                    items={CONTEXT_WINDOW_PRESETS.map(value => ({ id: value, label: value }))}
-                    onClose={() => { setContextMenuOpen(false) }}
-                    onSelect={(value) => {
-                      setContextMenuOpen(false)
-                      const updateCapacity = props[field].onPreset ?? props[field].onChange
-                      updateCapacity(value)
-                    }}
-                    anchor={<button type="button" className={styles['capacityMenuButton']}
-                      aria-label={`${t('contextWindowMenu')} ${String(position)}`} aria-haspopup="menu"
-                      aria-expanded={contextMenuOpen} disabled={disabled}
-                      onClick={() => { setContextMenuOpen(current => !current) }}>
-                      <IconChevronDownOutlineRegular size={14} />
-                    </button>} />
-                </div> : <input
+      <AnimatedDisclosure open={props.expanded} id={panelId}>
+        <div className={styles['modelAdvanced']}>
+          {(['contextWindow', 'maxTokens'] as const).map(field => (
+            <label className={styles['modelField']} key={field}>
+              <span className={styles['modelFieldLabel']}>{t(field)}</span>
+              {field === 'contextWindow' ? <div className={styles['capacityControl']}>
+                <input
                   className={styles['input']}
                   type="text"
                   inputMode="numeric"
@@ -180,15 +156,40 @@ export function ModelRow(props: ModelRowProps): ReactNode {
                   disabled={disabled}
                   onChange={(event) => { props[field].onChange(event.target.value) }}
                   onBlur={props[field].onBlur}
-                />}
-              </label>
-            ))}
-            <ModelInputTypes model={model} field={props.inputField} position={position}
-              fallback={props.inputFallback} disabled={disabled || props.inputLoading === true} t={t} onChange={props.onChange} />
-            <ModelReasoningCapabilities {...reasoningProps} />
-          </div>
-        )
-        : null}
+                />
+                <Menu open={contextMenuOpen} portal autoFocus selectedId={props[field].value}
+                  listClassName={styles['reasoningMenu']}
+                  items={CONTEXT_WINDOW_PRESETS.map(value => ({ id: value, label: value }))}
+                  onClose={() => { setContextMenuOpen(false) }}
+                  onSelect={(value) => {
+                    setContextMenuOpen(false)
+                    const updateCapacity = props[field].onPreset ?? props[field].onChange
+                    updateCapacity(value)
+                  }}
+                  anchor={<button type="button" className={styles['capacityMenuButton']}
+                    aria-label={`${t('contextWindowMenu')} ${String(position)}`} aria-haspopup="menu"
+                    aria-expanded={contextMenuOpen} disabled={disabled}
+                    onClick={() => { setContextMenuOpen(current => !current) }}>
+                    <IconChevronDownOutlineRegular size={14} />
+                  </button>} />
+              </div> : <input
+                className={styles['input']}
+                type="text"
+                inputMode="numeric"
+                value={props[field].value}
+                placeholder={props[field].placeholder}
+                aria-label={`${t(field)} ${String(position)}`}
+                disabled={disabled}
+                onChange={(event) => { props[field].onChange(event.target.value) }}
+                onBlur={props[field].onBlur}
+              />}
+            </label>
+          ))}
+          <ModelInputTypes model={model} field={props.inputField} position={position}
+            fallback={props.inputFallback} disabled={disabled || props.inputLoading === true} t={t} onChange={props.onChange} />
+          <ModelReasoningCapabilities {...reasoningProps} />
+        </div>
+      </AnimatedDisclosure>
     </div>
   )
 }

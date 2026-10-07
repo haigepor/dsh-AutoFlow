@@ -184,74 +184,78 @@ export class ModelsSettingsStore {
   async load(): Promise<void> {
     const generation = ++this.generation
     this.store.update((s) => { s.status = 'loading'; s.error = null })
-    const [registered, declared] = await Promise.all([
-      this.ctx.remote.llm.listProviders(),
-      this.ctx.remote.llm.listConfigurableProviders(),
-      this.describeFace.ensure(),
-    ])
-    if (!registered.ok) { this.failLoad(generation, registered.error.message); return }
-    if (!declared.ok) { this.failLoad(generation, declared.error.message); return }
-    const mirrored = this.describeFace.getSnapshot()
-    if (mirrored.view === undefined) {
-      this.failLoad(generation, mirrored.error ?? 'settings are unavailable in this browser')
-      return
-    }
-    const providers = joinProviderDirectory(registered.value, declared.value)
-    const writable = mirrored.view.writable
-    const views: readonly SettingsNamespaceView[] = mirrored.view.namespaces
-    const namespaces = new Map(views.map(view => [view.ns, view]))
-    const rows: ProviderRow[] = providers.map((entry) => {
-      const namespace = namespaces.get(entry.settingsNs)
-      const configured = namespace !== undefined
+    try {
+      const [registered, declared] = await Promise.all([
+        this.ctx.remote.llm.listProviders(),
+        this.ctx.remote.llm.listConfigurableProviders(),
+        this.describeFace.ensure(),
+      ])
+      if (!registered.ok) { this.failLoad(generation, registered.error.message); return }
+      if (!declared.ok) { this.failLoad(generation, declared.error.message); return }
+      const mirrored = this.describeFace.getSnapshot()
+      if (mirrored.view === undefined) {
+        this.failLoad(generation, mirrored.error ?? 'settings are unavailable in this browser')
+        return
+      }
+      const providers = joinProviderDirectory(registered.value, declared.value)
+      const writable = mirrored.view.writable
+      const views: readonly SettingsNamespaceView[] = mirrored.view.namespaces
+      const namespaces = new Map(views.map(view => [view.ns, view]))
+      const rows: ProviderRow[] = providers.map((entry) => {
+        const namespace = namespaces.get(entry.settingsNs)
+        const configured = namespace !== undefined
         && (entry.settingsPath.length === 0 || this.schema.getPath(namespace.value, entry.settingsPath) !== undefined)
-      const removable = namespace !== undefined
+        const removable = namespace !== undefined
         && entry.settingsPath.length > 0
         && this.schema.hasPath(namespace.user, entry.settingsPath)
         && !this.schema.hasPath(namespace.base, entry.settingsPath)
-      return {
-        entry,
-        configured,
-        removable,
-        apiKeyEnv: entry.provider === 'deepseek-account' ? undefined : apiKeyEnvOf(namespace, entry.settingsPath, this.schema),
-        credential: undefined,
-      }
-    })
-    if (rows.some(row => row.entry.provider === 'deepseek-account')) {
-      const catalog = await this.ctx.remote.session.modelCatalog()
-      for (const row of rows) {
-        if (row.entry.provider === 'deepseek-account') row.accountAvailable = catalog.ok
-          && catalog.value.groups.some(group => group.id === 'deepseek-account' && group.models.length > 0)
-      }
-    }
-    const refs = [...new Set(rows.filter(row => row.entry.provider !== 'deepseek-account').map(row => row.apiKeyEnv ?? deriveKeyRef(row.entry.provider)))]
-    let credentials: Record<string, CredentialInfo> = {}
-    let credentialError: string | null = null
-    if (refs.length > 0) {
-      const response = await this.ctx.remote.credentials.describe(refs)
-      // Credential state is an enrichment for the Models page: a failure
-      // degrades the badge instead of failing the load. The onboarding
-      // projection below retains the failure distinction.
-      if (response.ok) credentials = response.value
-      else credentialError = response.error.message
-    }
-    if (generation !== this.generation) return
-    this.store.update((s) => {
-      s.status = 'ready'
-      s.error = null
-      s.credentialError = credentialError
-      s.writable = writable
-      s.rows = rows.filter(row => row.entry.provider !== 'deepseek-account' || row.accountAvailable === true).map((row) => {
-        if (row.entry.provider === 'deepseek-account') return row
-        const named = row.apiKeyEnv === undefined ? undefined : credentials[row.apiKeyEnv]
-        const derived = row.apiKeyEnv !== undefined ? undefined : credentials[deriveKeyRef(row.entry.provider)]
         return {
-          ...row,
-          ...named === undefined ? {} : { credential: named },
-          ...derived === undefined ? {} : { derivedCredential: derived },
+          entry,
+          configured,
+          removable,
+          apiKeyEnv: entry.provider === 'deepseek-account' ? undefined : apiKeyEnvOf(namespace, entry.settingsPath, this.schema),
+          credential: undefined,
         }
       })
-      s.namespaces = namespaces
-    })
+      if (rows.some(row => row.entry.provider === 'deepseek-account')) {
+        const catalog = await this.ctx.remote.session.modelCatalog()
+        for (const row of rows) {
+          if (row.entry.provider === 'deepseek-account') row.accountAvailable = catalog.ok
+          && catalog.value.groups.some(group => group.id === 'deepseek-account' && group.models.length > 0)
+        }
+      }
+      const refs = [...new Set(rows.filter(row => row.entry.provider !== 'deepseek-account').map(row => row.apiKeyEnv ?? deriveKeyRef(row.entry.provider)))]
+      let credentials: Record<string, CredentialInfo> = {}
+      let credentialError: string | null = null
+      if (refs.length > 0) {
+        const response = await this.ctx.remote.credentials.describe(refs)
+        // Credential state is an enrichment for the Models page: a failure
+        // degrades the badge instead of failing the load. The onboarding
+        // projection below retains the failure distinction.
+        if (response.ok) credentials = response.value
+        else credentialError = response.error.message
+      }
+      if (generation !== this.generation) return
+      this.store.update((s) => {
+        s.status = 'ready'
+        s.error = null
+        s.credentialError = credentialError
+        s.writable = writable
+        s.rows = rows.filter(row => row.entry.provider !== 'deepseek-account' || row.accountAvailable === true).map((row) => {
+          if (row.entry.provider === 'deepseek-account') return row
+          const named = row.apiKeyEnv === undefined ? undefined : credentials[row.apiKeyEnv]
+          const derived = row.apiKeyEnv !== undefined ? undefined : credentials[deriveKeyRef(row.entry.provider)]
+          return {
+            ...row,
+            ...named === undefined ? {} : { credential: named },
+            ...derived === undefined ? {} : { derivedCredential: derived },
+          }
+        })
+        s.namespaces = namespaces
+      })
+    } catch (error: unknown) {
+      this.failLoad(generation, error instanceof Error ? error.message : String(error))
+    }
   }
 
   /** Publish one load's failure text, unless a newer load already took over. */

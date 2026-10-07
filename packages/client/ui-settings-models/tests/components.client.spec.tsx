@@ -18,6 +18,7 @@ import {
   DeepSeekModelsEditor, formatCapacity, modelDrafts, parseCapacity, validateDeepSeekModels,
 } from '../src/client/DeepSeekModelsEditor.tsx'
 import { apiKeyFailure } from '../src/client/apiKey.ts'
+import { providerResetTarget, resetProviderConfiguration } from '../src/client/provider-reset.ts'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { deriveKeyRef, ModelsSettingsStore } from '../src/client/store.ts'
 import { createModelsOperations } from '../src/client/operations.ts'
@@ -344,6 +345,157 @@ async function mountDeepSeekCard(overrides: Parameters<typeof scriptedFace>[0] =
 }
 
 describe('ModelsSection', () => {
+  it('collapses the provider rail without unmounting the editor or losing its draft', async () => {
+    await mountDeepSeekCard()
+    const input = screen.getByLabelText<HTMLInputElement>(en.keyInput)
+    fireEvent.change(input, { target: { value: 'sk-rail-draft' } })
+    const toggle = screen.getByRole('button', { name: en.collapseProviders })
+    const body = document.getElementById(toggle.getAttribute('aria-controls')!)!
+    fireEvent.click(toggle)
+    expect(body.querySelector<HTMLElement>('[data-rail-secondary]')!.inert).toBe(true)
+    expect(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) }).title).toBe('DeepSeek')
+    expect(screen.queryByRole('button', { name: deepSeekCopy(en.resetProvider) })).toBeNull()
+    expect(screen.getByLabelText(en.keyInput)).toBe(input)
+    fireEvent.click(screen.getByRole('button', { name: en.expandProviders }))
+    expect(body.querySelector<HTMLElement>('[data-rail-secondary]')!.inert).toBe(false)
+    expect(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) })).toBeTruthy()
+    expect(input.value).toBe('sk-rail-draft')
+  })
+
+  it('shows a skeleton during initial loading and keeps drafts through refresh failure and retry', async () => {
+    const scripted = scriptedFace()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    scripted.face.llm.listProviders.mockImplementationOnce(async () => {
+      await gate
+      return remoteOk([{ id: 'deepseek-official', name: 'DeepSeek' }, { id: 'openai', name: 'openai' }])
+    })
+    const ctx = ctxWith(scripted.face)
+    const controller = new ModelsSettingsStore(ctx, settingsSchema, new SettingsDescribeMirror(ctx))
+    const view = render(<ModelsSection controller={controller} useSnapshot={bindSnapshotSelector(controller.store)}
+      operations={operationsWith(scripted.face)} schema={settingsSchema} t={t} renderSlot={() => null} />)
+    expect(screen.getByRole('heading', { name: en.title })).toBeTruthy()
+    expect(view.container.querySelector('[data-models-skeleton]')).toBeTruthy()
+    expect(view.container.querySelector('[aria-busy="true"]')).toBeTruthy()
+    await act(async () => { release(); await gate })
+    await screen.findByRole('button', { name: openaiCopy(en.editProvider) })
+    expect(view.container.querySelector('[data-models-skeleton]')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
+    const input = screen.getByLabelText<HTMLInputElement>(en.keyInput)
+    fireEvent.change(input, { target: { value: 'sk-draft' } })
+    scripted.face.llm.listProviders.mockRejectedValueOnce(new Error('directory unavailable'))
+    await act(async () => { await controller.load() })
+    expect(screen.getByRole('alert').textContent).toContain('directory unavailable')
+    expect(screen.getByLabelText(en.keyInput)).toBe(input)
+    expect(input.value).toBe('sk-draft')
+    fireEvent.click(screen.getByRole('button', { name: en.retry }))
+    await waitFor(() => { expect(controller.store.getSnapshot().status).toBe('ready') })
+    expect(input.value).toBe('sk-draft')
+  })
+
+  it('cancels a DeepSeek reset without losing the current draft', async () => {
+    const { mutate, unset } = await mountDeepSeekCard()
+    fireEvent.change(screen.getByLabelText(en.keyInput), { target: { value: 'sk-unsaved' } })
+    fireEvent.click(screen.getByRole('button', { name: deepSeekCopy(en.resetProvider) }))
+    const dialog = screen.getByRole('dialog', { name: deepSeekCopy(en.resetTitle) })
+    fireEvent.click(within(dialog).getByRole('button', { name: en.cancel }))
+    expect(screen.getByLabelText<HTMLInputElement>(en.keyInput).value).toBe('sk-unsaved')
+    expect(mutate).not.toHaveBeenCalled()
+    expect(unset).not.toHaveBeenCalled()
+  })
+
+  it('clears only the user settings layer and resumes a failed credential stage', async () => {
+    const { controller, face, mutate, unset } = await mountSection()
+    const state = controller.store.getSnapshot()
+    const row = state.rows.find(item => item.entry.provider === 'deepseek-official')!
+    const namespace = state.namespaces.get('llm-deepseek')!
+    const target = providerResetTarget({ ...row, credential: { configured: true, writable: true, source: 'file' } }, namespace, state.rows)
+    face.credentials.describe.mockImplementation(async refs => remoteOk(Object.fromEntries(refs.map(ref =>
+      [ref, { configured: true, writable: true, source: 'file' as const }]))))
+    unset.mockResolvedValueOnce(remoteFail('credential disk busy')).mockResolvedValueOnce(remoteOk(undefined))
+    const ops = operationsWith(face)
+    let failure: string | undefined
+    await act(async () => { failure = await resetProviderConfiguration(ops, controller, target, en.resetUnavailable) })
+    expect(failure).toBe('credential disk busy')
+    expect(target.settingsCleared).toBe(true)
+    expect(target.credentialCleared).toBe(false)
+    expect(mutate).toHaveBeenCalledExactlyOnceWith('llm-deepseek', [{ op: 'unset', path: ['baseURL'] }], namespace.revision)
+    await act(async () => { failure = await resetProviderConfiguration(ops, controller, target, en.resetUnavailable) })
+    expect(failure).toBeUndefined()
+    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(unset).toHaveBeenCalledTimes(2)
+    expect(namespace.base).toHaveProperty('models')
+    expect(controller.store.getSnapshot().rows.some(item => item.entry.provider === 'deepseek-official')).toBe(true)
+  })
+
+  it('does not clear a credential when the settings revision conflicts', async () => {
+    const { controller, face, mutate, unset } = await mountSection()
+    const state = controller.store.getSnapshot()
+    const row = state.rows.find(item => item.entry.provider === 'deepseek-official')!
+    const namespace = state.namespaces.get('llm-deepseek')!
+    const target = providerResetTarget({ ...row, credential: { configured: true, writable: true } }, namespace, state.rows)
+    mutate.mockResolvedValueOnce(remoteFail('stale settings', 'settings/conflict'))
+    let failure: string | undefined
+    await act(async () => { failure = await resetProviderConfiguration(operationsWith(face), controller, target, en.resetUnavailable) })
+    expect(failure).toBe('stale settings')
+    expect(target.settingsCleared).toBe(false)
+    expect(unset).not.toHaveBeenCalled()
+  })
+
+  it('protects shared, read-only, environment and unmanaged credentials', async () => {
+    const { controller } = await mountSection()
+    const state = controller.store.getSnapshot()
+    const row = state.rows.find(item => item.entry.provider === 'deepseek-official')!
+    const namespace = state.namespaces.get('llm-deepseek')!
+    const writable = { ...row, credential: { configured: true, writable: true, source: 'file' as const } }
+    expect(providerResetTarget(writable, namespace, [writable, { ...row, entry: { ...row.entry, provider: 'shared' } }]).credentialRef).toBeUndefined()
+    expect(providerResetTarget({ ...writable, credential: { configured: true, writable: false, source: 'env' } }, namespace, []).credentialRef).toBeUndefined()
+    expect(providerResetTarget({ ...writable, apiKeyEnv: 'ADMIN_MANAGED_KEY' }, namespace, []).credentialRef).toBeUndefined()
+  })
+
+  it('keeps the credential stage pending when another refresh has not settled', async () => {
+    const { controller, face, unset } = await mountSection()
+    const state = controller.store.getSnapshot()
+    const row = state.rows.find(item => item.entry.provider === 'deepseek-official')!
+    const target = providerResetTarget({ ...row, credential: { configured: true, writable: true } },
+      state.namespaces.get('llm-deepseek')!, state.rows)
+    vi.spyOn(controller, 'load').mockResolvedValue(undefined)
+    vi.spyOn(controller.store, 'getSnapshot').mockReturnValue({ ...state, status: 'loading' })
+    expect(await resetProviderConfiguration(operationsWith(face), controller, target, en.resetUnavailable)).toBe(en.resetUnavailable)
+    expect(target.settingsCleared).toBe(true)
+    expect(target.credentialCleared).toBe(false)
+    expect(unset).not.toHaveBeenCalled()
+  })
+
+  it('disables an empty DeepSeek reset while keeping its entry visible', async () => {
+    const scripted = scriptedFace()
+    scripted.face.settings.describe.mockResolvedValue(remoteOk({ writable: true, hasDocument: false,
+      namespaces: wireNamespaces().map(view => view.ns === 'llm-deepseek' ? { ...view, user: {} } : view) }))
+    await mountFace(scripted)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: deepSeekCopy(en.resetProvider) }).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) })).toBeTruthy()
+  })
+
+  it('rechecks credential writability and sharing after the settings reset', async () => {
+    const { controller, face, unset } = await mountSection()
+    const state = controller.store.getSnapshot()
+    const row = state.rows.find(item => item.entry.provider === 'deepseek-official')!
+    const target = providerResetTarget({ ...row, credential: { configured: true, writable: true } }, state.namespaces.get('llm-deepseek')!, state.rows)
+    face.credentials.describe.mockImplementation(async refs => remoteOk(Object.fromEntries(refs.map(ref =>
+      [ref, { configured: true, writable: false, source: 'env' as const }]))))
+    await act(async () => {
+      expect(await resetProviderConfiguration(operationsWith(face), controller, target, en.resetUnavailable)).toBeUndefined()
+    })
+    expect(unset).not.toHaveBeenCalled()
+    target.credentialCleared = false
+    const other = state.rows.find(item => item.entry.provider === 'openai')!
+    vi.spyOn(controller.store, 'getSnapshot').mockReturnValue({ ...state, rows: [row, { ...other, apiKeyEnv: row.apiKeyEnv }] })
+    await act(async () => {
+      expect(await resetProviderConfiguration(operationsWith(face), controller, target, en.resetUnavailable)).toBeUndefined()
+    })
+    expect(unset).not.toHaveBeenCalled()
+  })
+
   it('hides the add action when no settings namespace can open an editor', async () => {
     const scripted = scriptedFace()
     scripted.face.settings.describe.mockResolvedValue(remoteOk({ writable: true, hasDocument: false, namespaces: [] }))
@@ -1017,7 +1169,9 @@ describe('ModelsSection', () => {
     expect(screen.getByLabelText<HTMLInputElement>(`${en.maxTokens} 1`).value).toBe('64K')
     // The disclosure closes on a second press.
     expandRow(1)
-    expect(screen.queryByLabelText(`${en.maxTokens} 1`)).toBeNull()
+    const folded = screen.getByLabelText(`${en.maxTokens} 1`).closest('[aria-hidden="true"]')
+    expect(folded).toBeTruthy()
+    expect((folded as HTMLElement).inert).toBe(true)
 
     fireEvent.click(screen.getByText(en.apply))
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
@@ -1404,8 +1558,16 @@ describe('ModelsSection', () => {
     }))).toMatchInlineSnapshot(`
       [
         {
+          "label": "Collapse provider list",
+          "selected": false,
+        },
+        {
           "label": "Edit DeepSeek (deepseek-official)",
           "selected": true,
+        },
+        {
+          "label": "Clear DeepSeek (deepseek-official) configuration",
+          "selected": false,
         },
         {
           "label": "Edit openai",
@@ -1549,7 +1711,7 @@ describe('ModelsSection', () => {
     expect(screen.getByText(en.readOnly)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
     expect(screen.getByRole<HTMLButtonElement>('button', { name: openaiCopy(en.removeProvider) }).disabled).toBe(true)
-    expect(screen.getByText<HTMLButtonElement>(en.add).disabled).toBe(true)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: en.add }).disabled).toBe(true)
   })
 
   it('keeps the selected editor open on a second click and closes it on cancel', async () => {
@@ -2004,7 +2166,9 @@ it.each([en, zh])('edits the account model catalog without credential or endpoin
   expect(describe).not.toHaveBeenCalled()
   expect(screen.getByDisplayValue('deepseek-v4-flash')).toBeTruthy()
   expect(screen.queryByText(content => content.includes(copy.advancedHint))).toBeNull()
-  await expect(`${document.body.textContent}\n`)
+  const visible = document.body.cloneNode(true) as HTMLElement
+  visible.querySelectorAll('[aria-hidden="true"]').forEach((node) => { node.remove() })
+  await expect(`${visible.textContent}\n`)
     .toMatchFileSnapshot(`./expected/deepseek-account-${copy === en ? 'en' : 'zh'}.txt`)
   const set = vi.spyOn(ops, 'storeCredential')
   fireEvent.change(screen.getAllByLabelText(new RegExp(copy.modelId))[0]!, { target: { value: 'deepseek-v4-mini' } })
