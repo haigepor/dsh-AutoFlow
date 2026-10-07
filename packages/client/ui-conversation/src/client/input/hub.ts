@@ -27,6 +27,7 @@ import type { ComposerKeyboard } from '../contract/draft-editor.ts'
 import type { InputSubmitMode } from '../contract/composer-submission.ts'
 import type { PopupDismissFace } from './facade.ts'
 import { SessionInputShell } from './facade.ts'
+import { historyScopeOf, remember } from './history.ts'
 import { reportMessageSubmission } from './submission-analytics.ts'
 
 /** Structural command face for per-session popup resolution. */
@@ -117,6 +118,7 @@ export class InputHub implements SessionInputResolver {
       inbox: session.projections.faceOf('inbox') as ObservableSnapshot<InboxState | undefined>,
       defaultSink: (text, attachmentIds, mode, signal) => this.sink(session, text, attachmentIds, mode, signal),
       steerQueue: () => { void this.steerQueue(session, shell) },
+      historyScope: () => historyScopeOf(this.sessionCwd(session.sessionId), session.sessionId),
       commandAttachments: {
         serialize: async (ids) => {
           const result = await this.conversation().serializeDraftAttachments(ids)
@@ -227,7 +229,18 @@ export class InputHub implements SessionInputResolver {
     signal: AbortSignal,
   ): Promise<SubmitOutcome> {
     if (text === '' && attachmentIds.length === 0) return Promise.resolve({ kind: 'success' })
+    if (text !== '') remember(text, historyScopeOf(this.sessionCwd(session.sessionId), session.sessionId))
     return this.conversation().sendSession(session, text, attachmentIds, mode, signal)
+  }
+
+  /**
+   * The session's workspace cwd from the list snapshot (absent for rows the
+   * list has not materialized).
+   * @param id - session id.
+   * @returns the workspace cwd when known.
+   */
+  private sessionCwd(id: SessionId): string | undefined {
+    return this.sessions().list.getSnapshot().byId[id]?.cwd
   }
 
   /**

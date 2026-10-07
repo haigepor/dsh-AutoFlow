@@ -19,6 +19,7 @@ interface DraftViewGate {
   showToast: (text: string) => void
   t: ComposerBarProps['t']
   canAcceptDrop: boolean
+  history: (key: 'up' | 'down', composing: boolean) => boolean
 }
 
 /**
@@ -141,6 +142,7 @@ export function installDraftKeymap(
       if (gate.current.machineBusy || gate.current.locked) return
       keyboard.paste(text)
     },
+    history: (key, composing) => gate.current.history(key, composing),
   })
 }
 

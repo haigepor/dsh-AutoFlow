@@ -38,17 +38,21 @@ import { ConversationContent } from './skeleton/ConversationContent.tsx'
 import { ConversationPanel } from './skeleton/ConversationPanel.tsx'
 import { ConversationHeader } from './skeleton/ConversationHeader.tsx'
 import { ConversationSession, ConversationSessionHeader } from './skeleton/ConversationSession.tsx'
+import { HeroSuggestions } from './skeleton/HeroSuggestions.tsx'
 import { InputBar } from './skeleton/InputBar.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
 import { installStopShortcut } from './stop-shortcut.ts'
 import { TRAJECTORY_VIEW_ID, resolveActiveView } from './view-selection.ts'
 import { en, NS, zh, type ConversationKey } from './locales.ts'
+import { en as suggestionEn, SUGGESTIONS_NS, zh as suggestionZh, type HeroSuggestionsKey } from './suggestion-locales.ts'
 import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** Conversation shell, composer, queue, and dock copy. */
     conversation: ConversationKey
+    /** Hero task-suggestion card copy. */
+    [SUGGESTIONS_NS]: HeroSuggestionsKey
   }
 }
 
@@ -157,7 +161,14 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   const workspaceNavigation = ctx.get('uiWorkspace') as unknown as WorkspaceNavigation
   const uiConversation = new UiConversation(ctx, sessions)
 
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-conversation: dictionaries')
+  ctx.effect(() => {
+    const disposeConversation = ctx.locale.register(NS, { zh, en })
+    const disposeSuggestions = ctx.locale.register(SUGGESTIONS_NS, { zh: suggestionZh, en: suggestionEn })
+    return () => {
+      disposeConversation()
+      disposeSuggestions()
+    }
+  }, 'ui-conversation: dictionaries')
   const t = ctx.locale.bind(NS)
   const conversationStore = createConversationStore()
   const submissionPolicy = new ComposerSubmissionPolicy(
@@ -169,6 +180,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
     id: 'composer-enter',
+    label: () => t('settings.enter.title'),
     order: 20,
     locale: NS,
     inject: (): EnterBehaviorRowInjected => ({
@@ -318,6 +330,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       'conversation.hero.brand.mark': { kind: 'single', scope: 'root' },
       'conversation.hero.workspace': { kind: 'single', scope: 'root' },
       'conversation.hero.agentPreset': { kind: 'single', scope: 'session-maybe' },
+      'conversation.hero.suggestions': { kind: 'single', scope: 'root' },
     },
     slots: {
       views: { scope: 'session' },
@@ -541,6 +554,10 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     yield registerHeader()
     yield registerSessionHeader()
     yield registerComposerBar()
+    yield slots.register({
+      name: 'conversation.hero.suggestions',
+      locale: SUGGESTIONS_NS,
+    }, HeroSuggestions)
   })
 
   ctx.plugin(ConversationController, {

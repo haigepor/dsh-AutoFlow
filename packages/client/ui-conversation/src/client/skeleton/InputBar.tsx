@@ -242,15 +242,19 @@ export const InputBar = memo(function InputBar({
     if (picked.length > 0) intakeFiles(picked)
   }
 
+  const historyAvailable = live && !locked && !machineBusy
+
   // The keymap handlers read live bar state through this ref so the editor
   // registration survives re-renders without re-arming per keystroke.
   const gate = useRef({
     locked, machineBusy, canSteerQueue, running, steeringAvailable, busyEnter,
     intakeFiles, uploadsPending, showToast, t, canAcceptDrop,
+    history: (key: 'up' | 'down', composing: boolean) => keyboard?.recallHistory(key, composing, historyAvailable) ?? false,
   })
   gate.current = {
     locked, machineBusy, canSteerQueue, running, steeringAvailable, busyEnter,
     intakeFiles, uploadsPending, showToast, t, canAcceptDrop,
+    history: (key: 'up' | 'down', composing: boolean) => keyboard?.recallHistory(key, composing, historyAvailable) ?? false,
   }
 
   useEffect(() => {
@@ -351,6 +355,13 @@ export const InputBar = memo(function InputBar({
         ? t('placeholder.steerQueue')
         : planActive ? t('placeholder.plan') : t('placeholder.default'))
 
+  // The ↑↓ history hint rides the empty-draft placeholder row and shows only
+  // while the current bucket holds entries; CSS hides it on narrow containers.
+  const historyHint = live && draft === '' && attachments.length === 0 && !claimActive
+    && keyboard.hasHistory()
+    ? t('input.historyHint')
+    : null
+
   return (
     <div className={clsx(css.root, variant === 'hero' && css.hero)}>
       {toast !== null && (
@@ -413,6 +424,7 @@ export const InputBar = memo(function InputBar({
           workspacePickerOpen={workspacePickerOpen}
           onWorkspaceKeyDown={onWorkspaceKeyDown}
           hint={hint}
+          historyHint={historyHint}
           showPlaceholder={draft === '' && attachments.length === 0 && !claimActive}
         />
         <div ref={rowRef} className={css.row}>

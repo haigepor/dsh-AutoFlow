@@ -1,0 +1,116 @@
+/* Hero task-suggestion row. Every color, radius, and font rides this repo's
+   design tokens; the wider grid leaves room for single-line category labels. */
+
+.suggestions {
+  container-type: inline-size;
+  /* 参考页的空内容座位额外占用 32px，保留相同的标题到卡片距离。 */
+  margin-top: 32px;
+  width: 100%;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.suggestions[data-has-draft='true'] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 22px;
+  min-width: 0;
+  min-height: 106px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent);
+  border-radius: var(--dsw-radius-xl);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.card:hover,
+.card[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
+  border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 20%, transparent);
+}
+
+.cardIcon {
+  flex: none;
+  color: var(--dsh-hero-suggestion-icon);
+}
+
+.card:focus-visible,
+.task:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+/* Every category's chips and every status hint stack in one shared grid cell
+   (grid-area 1/1), so the tallest partition reserves the height and
+   expanding or switching never re-heights the centered hero. */
+.details,
+.status {
+  display: grid;
+}
+
+.tasks {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: start;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.details > [data-active='false'],
+.status > [data-active='false'] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.task {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent);
+  border-radius: var(--dsw-radius-md);
+  padding: 8px 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
+}
+
+.hint {
+  grid-area: 1 / 1;
+  margin: 12px 0 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}
+
+@container (width < 800px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

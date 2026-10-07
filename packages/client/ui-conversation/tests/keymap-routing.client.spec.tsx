@@ -11,6 +11,30 @@ import { registerPlainText } from '@lexical/plain-text'
 import { registerComposerKeymap } from '../src/client/input/editor/keymap.ts'
 
 describe('keymap keydown routing', () => {
+  it('recalls only on plain arrows after menu arbitration passes', () => {
+    const editor = createEditor({ namespace: 'history-routing', onError: (error) => { throw error } })
+    const root = document.createElement('div')
+    root.contentEditable = 'true'
+    document.body.appendChild(root)
+    editor.setRootElement(root)
+    onTestFinished(() => { editor.setRootElement(null); root.remove() })
+    const history = vi.fn(() => true)
+    const arbitrate = vi.fn((): 'pass' | 'consumed' => 'pass')
+    onTestFinished(registerComposerKeymap(editor, {
+      arbitrate, history, space: () => false, dismissPopup: () => {}, canSubmit: () => false,
+      submit: () => {}, intakeFiles: () => {}, pasteText: () => {},
+    }))
+    expect(fireEvent.keyDown(root, { key: 'ArrowUp' })).toBe(false)
+    expect(history).toHaveBeenLastCalledWith('up', false)
+    history.mockClear()
+    for (const modifiers of [{ shiftKey: true }, { ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
+      expect(fireEvent.keyDown(root, { key: 'ArrowDown', ...modifiers })).toBe(true)
+    }
+    expect(history).not.toHaveBeenCalled()
+    arbitrate.mockReturnValue('consumed')
+    expect(fireEvent.keyDown(root, { key: 'ArrowUp' })).toBe(false)
+    expect(history).not.toHaveBeenCalled()
+  })
   it('clears composition presentation on root swaps and unregisters pending callbacks', async () => {
     const editor = createEditor({ namespace: 'composition-root', onError: (e) => { throw e } })
     const first = document.createElement('div')
@@ -25,6 +49,7 @@ describe('keymap keydown routing', () => {
     const unregister = registerComposerKeymap(editor, {
       arbitrate: () => 'pass', space: () => false, dismissPopup: () => {},
       canSubmit: () => false, submit: () => {}, intakeFiles: () => {}, pasteText: () => {},
+      history: () => false,
     })
     onTestFinished(unregister)
     fireEvent.compositionStart(first)
@@ -60,6 +85,7 @@ describe('keymap keydown routing', () => {
       submit,
       intakeFiles: () => {},
       pasteText: () => {},
+      history: () => false,
     })
     fireEvent.keyDown(root, { key: 'Enter' })
     expect(submit).toHaveBeenCalledWith(false)
@@ -87,7 +113,7 @@ describe('keymap keydown routing', () => {
     const arbitrate = vi.fn(() => 'pass' as const)
     onTestFinished(registerComposerKeymap(editor, {
       arbitrate, space: () => false, dismissPopup: () => {}, canSubmit: () => true,
-      submit, intakeFiles: () => {}, pasteText: () => {},
+      submit, intakeFiles: () => {}, pasteText: () => {}, history: () => false,
     }))
     editor.update(() => {
       const paragraph = $createParagraphNode().append($createTextNode('unsent draft'))
@@ -128,6 +154,7 @@ describe('keymap keydown routing', () => {
       submit: () => {},
       intakeFiles: () => {},
       pasteText: () => {},
+      history: () => false,
     })
     const consumed = fireEvent.keyDown(root, { key: 'Tab', keyCode: 9 })
     expect(arbitrate).toHaveBeenCalledWith('tab', false)

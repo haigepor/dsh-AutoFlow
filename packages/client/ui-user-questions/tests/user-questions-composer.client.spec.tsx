@@ -445,13 +445,19 @@ describe('PendingQuestion domain face', () => {
     render(<QuestionComposer matched={carrier} {...kit} />)
     // Expanded: the option list is visible.
     expect(screen.getByRole('radiogroup')).toBeTruthy()
+    const field = screen.getByRole('textbox')
     // Collapse: options leave the tree; the title and minimize toggle stay.
     fireEvent.click(screen.getByLabelText(zh['nav.minimize']))
     expect(screen.queryByRole('radiogroup')).toBeNull()
+    // 动画期间保留输入节点，但折叠内容不能进入辅助技术和键盘导航。
+    expect(field.isConnected).toBe(true)
+    expect(field.closest('[inert]')?.getAttribute('aria-hidden')).toBe('true')
     expect(screen.getByText('选择候选人类型')).toBeTruthy()
     // Expand: the options return (the toggle label flips while collapsed).
     fireEvent.click(screen.getByLabelText(zh['nav.maximize']))
     expect(screen.getByRole('radiogroup')).toBeTruthy()
+    expect(screen.getByRole('textbox')).toBe(field)
+    expect(field.closest('[inert]')).toBeNull()
     // Expanded again: the toggle reports expanded and the option list is back.
     expect(screen.getByLabelText(zh['nav.minimize']).getAttribute('aria-expanded')).toBe('true')
   })

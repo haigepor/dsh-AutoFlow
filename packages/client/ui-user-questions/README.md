@@ -29,6 +29,10 @@ When the agent asks a question, the composer becomes the question surface: answe
 
 ### Answering
 
+The question card aligns its heading, answer field, and footer on one inset. Compact actions and a quiet pager keep the question prominent; the free-text field shows a theme-aware focus ring, and narrow screens wrap feedback without pushing actions outside the card.
+
+Collapse and close use matching 28px controls with 16px icons. Expanding and collapsing animate the content height, fade, and chevron rotation; collapsed content remains mounted but inert, preserving drafts without exposing hidden controls to keyboard navigation. Reduced-motion mode changes the state immediately.
+
 A multi-select draft keeps its selected labels while the user opens or edits the custom answer, so its submitted item may carry both `selected` and `custom`; a single-select custom answer remains exclusive. Question detail reuses the assistant-output `MarkdownText` primitive, including its GFM rendering and untrusted-content policy. The capped card keeps its title, navigation, and submission actions fixed while long detail and choices share an internal scroll region. "Skip" retains other drafts and emits the existing blank `{ selected: [] }` result for that item, while close rejects the whole wait as `ASK_CANCELLED`.
 
 ### The plan-review card

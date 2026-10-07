@@ -42,6 +42,14 @@ export interface ComposerKeymapHandlers {
   intakeFiles(files: readonly File[], directories?: ReadonlySet<File>): void
   /** Pasted plain text (sanitized insertion through the shell). */
   pasteText(text: string): void
+  /**
+   * Input-history recall on a plain arrow, consulted only after menu
+   * arbitration passes (a closed menu).
+   * @param key - the arrow direction.
+   * @param composing - whether an IME composition is active (recall must pass).
+   * @returns true = the gesture was consumed (caller preventDefaults).
+   */
+  history(key: 'up' | 'down', composing: boolean): boolean
 }
 
 /** Composition state a keydown can trust (see the module doc's Safari note). */
@@ -83,6 +91,11 @@ export function registerComposerKeymap(editor: LexicalEditor, handlers: Composer
   const arrow = (key: ArbitrateKey) => (event: KeyboardEvent | null): boolean => {
     const inComposition = event !== null && isComposingEvent(event, recentlyComposing)
     if (handlers.arbitrate(key, inComposition) !== 'pass') {
+      event?.preventDefault()
+      return true
+    }
+    const plain = event === null || !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)
+    if (plain && (key === 'up' || key === 'down') && handlers.history(key, inComposition)) {
       event?.preventDefault()
       return true
     }

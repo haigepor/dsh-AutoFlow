@@ -6,20 +6,27 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  /* Absorb the hero column's spare height (the composer seat stretches it):
+     the headline group centers over the input card, which sits at the
+     column floor. Grow without shrinking so a tall headline never squashes. */
+  flex: 1 0 auto;
   min-width: 0;
-  padding: 0 24px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 960px;
+  min-height: 340px;
+  align-self: center;
+  padding: 32px 28px;
 }
 
-/* Cap matches the InputBar card. Glow may paint past the sides. */
+/* 标题和建议网格共用居中轴，宽度独立于输入卡片。 */
 .stack {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  /* figma 75:8208: 12 between title block / workspace / card. */
-  gap: 12px;
+  gap: 32px;
   width: 100%;
-  max-width: var(--dsh-composer-card-max-width);
+  max-width: none;
   overflow: visible;
 }
 
@@ -38,8 +45,8 @@
   row-gap: 12px;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
-  line-height: 32px;
+  font-size: 34px;
+  line-height: 44px;
   font-weight: 500;
   color: var(--dsw-alias-label-primary);
 }
@@ -82,6 +89,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
+  width: 46px;
+  height: 46px;
 }
 
 /* The swim morph's curves poke slightly past the viewBox edges, so clipping
@@ -92,6 +101,15 @@
   overflow: visible;
   transform-origin: 50% 60%;
   color: var(--dsw-alias-label-primary);
+  width: 34px;
+  height: auto;
+}
+
+@container (width < 640px) {
+  .root {
+    min-height: 420px;
+    padding: 32px 24px;
+  }
 }
 
 /* Hover swim: a slow continuous sway about the body center — the head

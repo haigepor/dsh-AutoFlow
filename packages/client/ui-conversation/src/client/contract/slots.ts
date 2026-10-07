@@ -191,6 +191,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.hero.brand.mark': { kind: 'single'; scope: 'root'; owner: HeroBrandMarkOwnerProps }
     /** Agent-preset control staged for a New Session. */
     'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe'; owner: HeroAgentPresetOwnerProps }
+    /** Task-suggestion cards under the blank-session headline. */
+    'conversation.hero.suggestions': { kind: 'single'; scope: 'root'; owner: HeroSuggestionsOwnerProps }
     /** Full-width entries above the composer card. */
     'conversation.input.dock': { kind: 'list'; scope: 'session'; owner: InputZone }
     /** Floating entries rendered inside the resident composer card. */
@@ -236,6 +238,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         'conversation.hero.brand.mark': { kind: 'single'; scope: 'root' }
         'conversation.hero.workspace': { kind: 'single'; scope: 'root' }
         'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe' }
+        'conversation.hero.suggestions': { kind: 'single'; scope: 'root' }
       }
       inject: ConversationInjected
       locale: 'conversation'
@@ -274,6 +277,22 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export interface HeroAgentPresetOwnerProps {
   /** Marker field: the occupant owns its roster and staged selection. */
   children?: never
+}
+
+/** Outcome of a suggestion card's fill attempt, driving the status hint. */
+export type HeroSuggestionPrefillOutcome = 'ready' | 'workspace' | 'busy'
+
+/** Owner share of the Hero task-suggestion cards. */
+export interface HeroSuggestionsOwnerProps {
+  /** Whether the current draft already holds text — the row hides while it does. */
+  draftPresent: boolean
+  /**
+   * Fill the composer draft with a task prompt, or route to the missing
+   * prerequisite (workspace picking) when no Session accepts a draft yet.
+   * @param text - the task prompt to fill.
+   * @returns the outcome the status hint announces.
+   */
+  prefill: (text: string) => HeroSuggestionPrefillOutcome
 }
 
 /** Header actions derive their state from standard Session props. */
@@ -430,6 +449,11 @@ export type ComposerBarProps =
   >
   & InjectFace<ComposerBarInjected>
   & PropsLocale<'conversation'>
+
+/** Full props of the Hero task-suggestion cards. */
+export type HeroSuggestionsProps =
+  PropsRuntime<'conversation.hero.suggestions'>
+  & PropsLocale<'heroSuggestions'>
 
 /** Owner values used to elect a composer takeover. */
 export interface ComposerChainProps {

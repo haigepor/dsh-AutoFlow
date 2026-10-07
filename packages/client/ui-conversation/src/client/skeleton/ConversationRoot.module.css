@@ -502,33 +502,50 @@ button.crumb:hover {
   left: 0;
 }
 
-/* Hero phase: the composer stack (hero chrome + workspace row + card) is
-   flex-centered in the column; composer phase docks it at the bottom. Flex,
+/* Hero phase: the composer stack stretches over the column — the hero chrome
+   flexes against the input card pinned at the column floor (the workspace row
+   rides just above it); composer phase docks the stack at the bottom. Flex,
    NOT absolute+transform: a transform would make this box the containing
    block for position:fixed descendants (pickers/modals), shrinking them. */
 .composerHero {
   align-self: center;
-  /* figma 75:8208 drew 12 between all three rows; the workspace row now sits
-     8 above the card (its margin-top restores 12 under the hero chrome). */
-  gap: 8px;
-  /* Foot inside the centered box floats the stack a bit above true center. */
+  /* Fill the hero seat so the hero chrome absorbs the spare column height. */
+  flex: 1;
+  gap: 0;
+  /* Foot inside the stretched seat floats the card 32px above the column
+     floor (the reference hero keeps the same foot). */
   padding-bottom: 32px;
-  /* Card cap + both clearances: the hero input card lands at exactly the same
-     width as the docked composer at every viewport. */
-  width: min(calc(var(--dsh-composer-card-max-width) + 2 * var(--dsh-composer-side-clearance)), 100%);
+  /* 建议网格使用整列空间；InputBar 自身仍限制输入卡片宽度。 */
+  width: 100%;
   z-index: 1;
 }
 
+/* Hero seat stretches over the scroll body (the composer phase keeps it at
+   its content height, sticky to the floor): the hero chrome centers in the
+   spare space instead of the whole stack centering as one block. */
+.root[data-phase='hero'] .composerSeat,
+.embeddedBody[data-content-phase='hero'] .composerSeat {
+  flex: 1 0 auto;
+  min-height: 100%;
+}
+
 .heroWorkspaceRow {
+  box-sizing: border-box;
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 2px;
+  align-self: center;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
-  margin-top: 4px;
-  /* figma drew px 8; left nudged +12 so the chip's folder glyph lines up
-     closer to the card's inner controls below; right keeps the trailing
-     preset seat off the card edge. */
-  padding: 0 16px 0 20px;
+  width: calc(100% - 56px);
+  max-width: calc(var(--dsh-composer-card-max-width) - 24px);
+  min-height: 48px;
+  /* 选项底板叠入输入卡片 10px，保持原有控件和菜单定位。 */
+  margin: 0 28px -10px;
+  padding: 6px 12px 16px;
+  border-radius: calc(var(--dsw-radius-lg) + 2px) calc(var(--dsw-radius-lg) + 2px) 0 0;
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, var(--dsw-alias-bg-base));
 }
 
 /* Hero: the composer sits inside the session scroll body; center there so

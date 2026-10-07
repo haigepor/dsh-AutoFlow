@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 
 import clsx from 'clsx'
 import {
   Button, IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconChevronLeftOutlineRegular,
-  IconChevronRightOutlineRegular, IconChevronUpOutlineRegular, IconCloseOutlineRegular,
+  IconChevronRightOutlineRegular, IconCloseOutlineRegular,
   IconEditOutlineRegular, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
@@ -293,23 +293,29 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
               aria-label={t(minimized ? 'nav.maximize' : 'nav.minimize')}
               title={t(minimized ? 'nav.maximize' : 'nav.minimize')}
               aria-expanded={!minimized}
+              aria-controls={`question-body-${pending.key}`}
               disabled={busy !== null}
-              onClick={() => { setMinimized(current => !current) }}
+              onClick={(event) => {
+                // 在内容变为 inert 前移交焦点，展开后继续留在切换按钮上。
+                event.currentTarget.focus()
+                setMinimized(current => !current)
+              }}
             >
-              {minimized ? <IconChevronUpOutlineRegular /> : <IconChevronDownOutlineRegular />}
+              <IconChevronDownOutlineRegular size={16} className={css.collapseIcon} />
             </button>
             <button
               type="button" className={css.iconButton} aria-label={t('nav.cancel')}
               title={t('nav.cancel')}
               disabled={busy !== null} onClick={cancelFlow}
             >
-              <IconCloseOutlineRegular />
+              <IconCloseOutlineRegular size={16} />
             </button>
           </div>
         </header>
 
-        {!minimized && (
-          <>
+        {/* 折叠时保留内容参与高度动画；inert 同时阻止隐藏控件接收焦点。 */}
+        <div id={`question-body-${pending.key}`} className={css.reveal} aria-hidden={minimized} {...(minimized ? { inert: '' } : {})}>
+          <div className={css.revealInner}>
             <div className={css.body} data-question-scroll>
               {question.detail !== undefined && (
                 <div className={css.detail}><MarkdownText text={question.detail} labels={markdownLabels} /></div>
@@ -432,8 +438,8 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
                 </Button>
               </div>
             </footer>
-          </>
-        )}
+          </div>
+        </div>
       </section>
     </div>
   )

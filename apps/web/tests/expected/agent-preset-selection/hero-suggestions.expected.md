@@ -1,0 +1,7 @@
+- region "Start a task":
+  - button "Explore and understand code" [pressed]
+  - button "Build features, apps, or tools"
+  - button "Review code and suggest changes"
+  - button "Fix bugs and failures"
+  - button "Explain the project structure"
+  - button "Understand a feature"

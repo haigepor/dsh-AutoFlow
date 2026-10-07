@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller/default-workspace'
-import type { ConversationContentProps, ConversationViewsProps, InputZone } from '../contract/slots.ts'
+import type { ConversationContentProps, ConversationViewsProps, HeroSuggestionPrefillOutcome, InputZone } from '../contract/slots.ts'
 import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
 import css from './ConversationRoot.module.css'
 
@@ -23,7 +23,7 @@ export function ConversationContent(props: ConversationContentProps) {
   const {
     sessionId, phase, hero, useSession, useSessions, useSessionStatus,
     useWorkspaces, useInput, useComposerBlock, renderSlot, renderSlotChain,
-    selectWorkspace, t, useFactorySlot,
+    selectWorkspace, t, useFactorySlot, inputActions,
   } = props
   const session = useSession(snapshot => snapshot)
   const Views = useFactorySlot('views', ConversationSessionView)
@@ -160,9 +160,29 @@ export function ConversationContent(props: ConversationContentProps) {
         : hero ? { placeholder: t('placeholder.hero') } : {}),
   })
 
+  // Suggestion cards prefill through the resident input actions and refocus
+  // the composer within this body; without a Session the prerequisite is
+  // workspace picking, so the fill routes to the picker instead.
+  const prefillSuggestion = (text: string): HeroSuggestionPrefillOutcome => {
+    if (inputActions === undefined) return 'workspace'
+    if (inputState?.phase !== 'plain') return 'busy'
+    inputActions.setDraft(text)
+    body?.querySelector<HTMLElement>('[data-lexical-editor="true"]')?.focus()
+    return 'ready'
+  }
+
   const composerBar = (
     <div className={clsx(css.composerStack, hero && css.composerHero)}>
-      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
+      {hero && (
+        <HeroShell
+          t={t}
+          renderSlot={renderSlot}
+          belowHeadline={renderSlot('conversation.hero.suggestions', {
+            draftPresent: (inputState?.draft ?? '') !== '',
+            prefill: prefillSuggestion,
+          })}
+        />
+      )}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}

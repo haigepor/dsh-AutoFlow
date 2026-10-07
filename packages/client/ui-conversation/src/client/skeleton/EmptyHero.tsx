@@ -67,6 +67,8 @@ export interface HeroShellProps {
   t: HeroTranslate
   /** Authorized renderer for the hero brand-mark slot. */
   renderSlot: ConversationContentProps['renderSlot']
+  /** Content rendered between the headline and the composer seat (the suggestion row). */
+  belowHeadline?: ReactNode
   /** Overlay content after the stack (modals). */
   children?: ReactNode
 }
@@ -125,11 +127,14 @@ function HeroFish({ hovering }: { hovering: boolean }) {
 }
 
 /**
- * Render the hero chrome (headline only; no composer, no workspace row).
+ * Render the hero chrome (headline + the between-headline content; no
+ * composer, no workspace row). The root flexes to absorb the hero column's
+ * spare height, so the headline group stays centered over the composer
+ * seat at the column floor.
  * @param props - see {@link HeroShellProps}.
  * @returns the centered hero element tree.
  */
-export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
+export function HeroShell({ t, renderSlot, belowHeadline, children }: HeroShellProps) {
   const [hovering, setHovering] = useState(false)
   return (
     <div className={css.root}>
@@ -155,9 +160,7 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
             <span className={css.previewBadge}>{t('hero.preview')}</span>
           </span>
         </div>
-        <div className={css.body}>
-          {/* The composer remains mounted outside this component. */}
-        </div>
+        {belowHeadline}
       </div>
       {children}
     </div>

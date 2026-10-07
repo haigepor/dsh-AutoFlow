@@ -20,6 +20,8 @@ export interface DraftEditorProps {
   readonly workspacePickerOpen: boolean
   readonly onWorkspaceKeyDown: KeyboardEventHandler<HTMLDivElement>
   readonly hint: string | null
+  /** The ↑↓ history hint beside the placeholder; null hides it. */
+  readonly historyHint: string | null
   readonly showPlaceholder: boolean
 }
 
@@ -30,7 +32,7 @@ export interface DraftEditorProps {
  */
 export function DraftEditor({
   classNames: css, editor, scrollRef, editable, editorDisabled, phase, placeholderText, ariaLabel,
-  workspaceTrigger, workspacePickerOpen, onWorkspaceKeyDown, hint, showPlaceholder,
+  workspaceTrigger, workspacePickerOpen, onWorkspaceKeyDown, hint, historyHint, showPlaceholder,
 }: DraftEditorProps): ReactNode {
   return (
     <div ref={scrollRef} className={css.scroll} data-input-scroll>
@@ -52,8 +54,13 @@ export function DraftEditor({
           style={hint === null ? undefined : { '--dsh-composer-hint': JSON.stringify(hint) } as CSSProperties}
         />
         {showPlaceholder && (
-          <div aria-hidden className={css.placeholder} data-composer-placeholder>
+          <div
+            aria-hidden
+            className={clsx(css.placeholder, historyHint !== null && css.placeholderWithHint)}
+            data-composer-placeholder
+          >
             {placeholderText}
+            {historyHint !== null && <span className={css.historyHint}>{historyHint}</span>}
           </div>
         )}
         <DecoratorPortals editor={workspaceTrigger ? null : editor} />

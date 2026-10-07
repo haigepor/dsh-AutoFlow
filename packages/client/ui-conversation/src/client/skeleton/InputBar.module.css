@@ -244,6 +244,30 @@
   user-select: none;
 }
 
+/* The ↑↓ history hint sits at the placeholder's right edge; the reserved
+   padding keeps long placeholder text ellipsizing before it. */
+.placeholderWithHint {
+  padding-right: 84px;
+}
+
+.historyHint {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 12px;
+  line-height: inherit;
+}
+
+@media (max-width: 640px) {
+  .placeholderWithHint {
+    padding-right: 0;
+  }
+
+  .historyHint {
+    display: none;
+  }
+}
+
 .inputDisabled {
   color: var(--dsw-alias-label-tertiary);
   cursor: not-allowed;

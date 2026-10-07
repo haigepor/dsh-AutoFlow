@@ -69,6 +69,16 @@ export interface ComposerKeyboard {
    * @returns the unbind disposer.
    */
   bindFilePicker(picker: { available(): boolean; open(): void }): () => void
+  /** Whether the current workspace has submitted input history. */
+  hasHistory(): boolean
+  /**
+   * Recall submitted input after trigger-menu arbitration passes.
+   * @param key - arrow direction.
+   * @param composing - whether the IME owns this gesture.
+   * @param available - whether the mounted composer accepts draft edits.
+   * @returns whether the arrow was consumed.
+   */
+  recallHistory(key: 'up' | 'down', composing: boolean, available: boolean): boolean
 }
 
 /** Half-open [start, end) range/selection in detect-projection coordinates. */

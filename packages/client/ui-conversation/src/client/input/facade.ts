@@ -26,6 +26,8 @@ import type { InputSubmitMode, MessageSubmission, MessageSubmissionState } from 
 import { SubmitMachine } from './machine.ts'
 import { DraftEditorRuntime } from './editor/runtime.ts'
 import type { EditorProjection } from './editor/projection.ts'
+import { HistoryRecall } from './history-recall.ts'
+import { list } from './history.ts'
 
 /** Popup face the shell needs (dismissal only; typed structurally to avoid a value import). */
 export interface PopupDismissFace {
@@ -56,6 +58,12 @@ export interface SessionInputDeps {
    * order (the empty-draft accelerated-Enter gesture); absent = unsupported.
    */
   steerQueue?: (() => void) | undefined
+  /**
+   * The input-history bucket scope (the hub derives it from the workspace
+   * snapshot); absent answers the shared fallback bucket, which hand-built
+   * test shells intentionally land in.
+   */
+  historyScope?: (() => string) | undefined
   /** The plain-message sink (send choreography / materialize fork — the hub owns it). */
   defaultSink(
     text: string,
@@ -136,6 +144,7 @@ export class SessionInputShell implements SessionInput {
 
   private readonly core = new SubmitMachine()
   private readonly draftEditor: DraftEditorRuntime
+  private readonly historyRecall: HistoryRecall
   private get projection(): EditorProjection {
     return this.draftEditor.projection
   }
@@ -176,6 +185,13 @@ export class SessionInputShell implements SessionInput {
     })
     this.unregister = this.draftEditor.register()
     this.state = createSnapshotStore<InputState>(this.compose())
+    this.historyRecall = new HistoryRecall({
+      available: () => !this.disposed && this.snapshot.phase === 'plain' && this.attachmentIds.length === 0,
+      draft: () => this.snapshot.draft,
+      setDraft: (text) => { this.setDraft(text) },
+      editor: () => this.editor,
+      scope: () => this.historyScope(),
+    })
     this.unsubscribeInbox = deps.inbox?.subscribe(() => { this.publish() })
   }
 
@@ -553,6 +569,33 @@ export class SessionInputShell implements SessionInput {
     return () => {
       if (this.filePicker === picker) this.filePicker = undefined
     }
+  }
+
+  /**
+   * The input-history bucket scope for this session (workspace cwd, else the
+   * session id) — the same key `remember` writes under.
+   * @returns the bucket scope, or the shared fallback when no scope source is wired.
+   */
+  private historyScope(): string {
+    return this.deps.historyScope?.() ?? ''
+  }
+
+  /** Read input-history availability for the current workspace.
+   * @returns Whether the workspace has submitted input history.
+   */
+  hasHistory(): boolean {
+    return list(this.historyScope()).length > 0
+  }
+
+  /**
+   * Recall submitted input after trigger-menu arbitration passes.
+   * @param key - arrow direction.
+   * @param composing - whether the IME owns this gesture.
+   * @param available - whether the mounted composer accepts draft edits.
+   * @returns whether the arrow was consumed.
+   */
+  recallHistory(key: 'up' | 'down', composing: boolean, available: boolean): boolean {
+    return available && this.historyRecall.onArrow(key, composing)
   }
 
   /**
