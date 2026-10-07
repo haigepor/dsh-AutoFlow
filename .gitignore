@@ -39,6 +39,8 @@ packages/**/__pycache__/
 apps/web/dist/
 .artifacts/
 .dsh-build/
+/output/
+/.tmp-codex-ui-analysis/
 .playwright-mcp/
 .orig
 .worktrees/

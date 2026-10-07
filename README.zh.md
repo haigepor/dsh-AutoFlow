@@ -55,7 +55,7 @@ pnpm install --frozen-lockfile
 pnpm run web:rebuild
 ```
 
-`deepseek-harness` 分支保存官方镜像；`main` 包含 AutoFlow 改动。对照 `git log -1 --oneline` 与 `.dsh-build/client-build-environment.json` 中的 `environment.DSH_CLIENT_COMMIT_HASH`，确认构建对应的源码提交。软件包版本表示官方基线，`autoflow-v*` 标签表示 AutoFlow 版本里程碑。
+`deepseek-harness` 分支保存官方镜像；`main` 包含 AutoFlow 改动。对照 `git log -1 --oneline` 与 `.dsh-build/client-build-environment.json` 中的 `environment.DSH_CLIENT_COMMIT_HASH`，确认构建对应的源码提交。软件包版本表示官方基线，`autoflow-v*` 标签表示 AutoFlow 版本里程碑。协调官方更新与 AutoFlow 定制时，使用[官方更新审查指南](docs/cookbook/maintaining-autoflow-fork.zh.md)。
 
 外观选择与已安装插件属于每台设备的 DSH Home。新设备默认使用官方配色；在“设置 → 外观”中选择“当前项目”即可使用自定义配色。每台设备都需要将 [AFP 组合包](custom-plugins/workspace/dsh-plugin-afp/README.zh.md)安装到当前 profile；克隆插件源码不会自动启用插件。
 

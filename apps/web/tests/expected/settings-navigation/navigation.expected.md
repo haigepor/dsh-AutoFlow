@@ -1,0 +1,13 @@
+- navigation "设置":
+  - text: 设置
+  - button "返回"
+  - button "折叠设置侧栏" [expanded]
+  - searchbox "搜索设置项"
+  - heading "偏好设置" [level=2]
+  - button "通用设置"
+  - button "外观主题"
+  - heading "模型与智能体" [level=2]
+  - button "模型"
+  - button "Agent 预设"
+  - heading "插件与应用" [level=2]
+  - button "内置插件"

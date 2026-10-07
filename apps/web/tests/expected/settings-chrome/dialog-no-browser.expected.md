@@ -1,24 +1,23 @@
-- dialog "Settings":
-  - navigation:
-    - text: Settings
-    - button "General"
-    - button "Models"
-    - button "Built-in plugins"
-    - button "Agent presets"
-  - button "Open configuration file"
-  - button "Close"
+- navigation "Settings":
+  - text: Settings
+  - button "Back"
+  - button "Collapse settings sidebar" [expanded]
+  - searchbox "Search settings"
+  - heading "Preferences" [level=2]
+  - button "General"
+  - button "Appearance theme"
+  - heading "Models and agents" [level=2]
+  - button "Models"
+  - button "Agent presets"
+  - heading "Plugins and apps" [level=2]
+  - button "Built-in plugins"
+- region "General":
+  - heading "General" [level=1]
   - text: Permission Choose the default permission mode for new sessions
   - button "Workspace Write"
   - text: Language
   - button "English"
-  - text: Appearance
-  - button "Light"
-  - button "Dark"
-  - button "System" [pressed]
-  - text: Font size Only affects conversation content 14
-  - button "Increase font size"
-  - button "Decrease font size"
-  - text: px Work details Choose how much detail to show for tool calls
+  - text: Work details Choose how much detail to show for tool calls
   - button "Detailed"
   - text: Performance & usage Choose how much performance and usage information to show
   - button "Detailed"

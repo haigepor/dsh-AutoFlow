@@ -51,7 +51,7 @@ pnpm install --frozen-lockfile
 pnpm run web:rebuild
 ```
 
-The `deepseek-harness` branch mirrors upstream; `main` contains AutoFlow changes. Compare `git log -1 --oneline` with `environment.DSH_CLIENT_COMMIT_HASH` in `.dsh-build/client-build-environment.json` to confirm the built source commit. The package version identifies the upstream baseline; `autoflow-v*` tags identify AutoFlow milestones.
+The `deepseek-harness` branch mirrors upstream; `main` contains AutoFlow changes. Compare `git log -1 --oneline` with `environment.DSH_CLIENT_COMMIT_HASH` in `.dsh-build/client-build-environment.json` to confirm the built source commit. The package version identifies the upstream baseline; `autoflow-v*` tags identify AutoFlow milestones. Use the [upstream-update review guide](docs/cookbook/maintaining-autoflow-fork.md) when reconciling official changes with AutoFlow customizations.
 
 Appearance choices and installed plugins belong to each device's DSH Home. A new device starts with the official palette; select “Current project” under Settings → Appearance to use the custom palette. Install the [AFP bundle](custom-plugins/workspace/dsh-plugin-afp/README.md) into the active profile on each device; cloning its source does not activate it.
 

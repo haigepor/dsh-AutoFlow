@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for maintaining-autoflow-fork.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/cookbook/maintaining-autoflow-fork.md
+/maintaining-autoflow-when-updating-upstream:
+  en: fdc22f040c35f472
+  zh: 57d66201e24b965a
+/maintaining-autoflow-when-updating-upstream/summary:
+  en: e2751affe10fc4bf
+  zh: 90f304d32ee37dc5
+/maintaining-autoflow-when-updating-upstream/table-of-contents:
+  en: 6d753867728d6f71
+  zh: 6d6f51e81ad3b094
+/maintaining-autoflow-when-updating-upstream/1-record-the-comparison-revisions:
+  en: e3547703aa2e5ad0
+  zh: ff88b2fd966ed779
+/maintaining-autoflow-when-updating-upstream/2-review-the-customization-map:
+  en: 38f69a0b49862587
+  zh: b4d56882d24ef8c1
+/maintaining-autoflow-when-updating-upstream/3-resolve-changes-by-behavior:
+  en: 95889484e043f112
+  zh: a58c8535e4dc7da8
+/maintaining-autoflow-when-updating-upstream/4-validate-the-merged-application:
+  en: 40862529bf15f17e
+  zh: 9a7ef8fefc6bdae1
+/maintaining-autoflow-when-updating-upstream/5-update-the-maintenance-record:
+  en: 36269066c70cf67b
+  zh: 18635c7850054107
+/maintaining-autoflow-when-updating-upstream/further-exploration:
+  en: 1486fe1420328a95
+  zh: 0a5c4c131afca094
+/maintaining-autoflow-when-updating-upstream/dev-note:
+  en: d6343a0b3c4ba1f0
+  zh: 727bbd2247e9adc2

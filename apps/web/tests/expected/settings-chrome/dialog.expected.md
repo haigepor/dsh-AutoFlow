@@ -1,24 +1,23 @@
-- dialog "设置":
-  - navigation:
-    - text: 设置
-    - button "通用设置"
-    - button "模型"
-    - button "内置插件"
-    - button "Agent 预设"
-  - button "打开配置文件"
-  - button "关闭"
+- navigation "设置":
+  - text: 设置
+  - button "返回"
+  - button "折叠设置侧栏" [expanded]
+  - searchbox "搜索设置项"
+  - heading "偏好设置" [level=2]
+  - button "通用设置"
+  - button "外观主题"
+  - heading "模型与智能体" [level=2]
+  - button "模型"
+  - button "Agent 预设"
+  - heading "插件与应用" [level=2]
+  - button "内置插件"
+- region "通用设置":
+  - heading "通用设置" [level=1]
   - text: 权限 选择新会话的默认权限模式
   - button "工作区内修改"
   - text: 语言
   - button "中文"
-  - text: 外观
-  - button "浅色"
-  - button "深色"
-  - button "跟随系统" [pressed]
-  - text: 字号大小 仅影响会话内容的字号 14
-  - button "增大字号"
-  - button "减小字号"
-  - text: px 工作步骤展示 选择希望看到多少工具调用细节
+  - text: 工作步骤展示 选择希望看到多少工具调用细节
   - button "详细"
   - text: 性能与用量 选择性能与用量信息展示的详细程度
   - button "详细"
