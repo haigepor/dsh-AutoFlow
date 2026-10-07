@@ -15,7 +15,7 @@ function unusedHook(): never {
 function view(partial: Partial<AgentPresetSectionState> = {}, startCreatorDraft?: () => void, developerTools = true,
   outerClose?: () => void) {
   const store = createSnapshotStore<AgentPresetSectionState>({ status: 'ready', error: null,
-    saving: false, rows: [{ id: 'standard', isDefault: true }, { id: 'mine', name: 'Mine', isDefault: false }],
+    saving: false, pendingId: null, rows: [{ id: 'standard', isDefault: true }, { id: 'mine', name: 'Mine', isDefault: false }],
     view: null, ...partial })
   const actions = { load: vi.fn(async () => {}), view: vi.fn(async () => {}), closeView: vi.fn(), makeDefault: vi.fn(async () => {}),
     close: vi.fn() }
@@ -35,11 +35,67 @@ function rowFor(id: string): HTMLElement {
   if (row === null) throw new Error(`no card for ${id}`)
   return row
 }
+it('keeps the heading and four decorative cards until the initial roster arrives', () => {
+  const { store } = view({ status: 'idle', rows: [] })
+  expect(screen.getByRole('heading', { name: en.nav }).closest('section')?.getAttribute('aria-busy')).toBe('true')
+  expect(screen.getByRole('status').textContent).toBe(en.loading)
+  expect(document.querySelectorAll('[data-preset-skeleton-card]')).toHaveLength(4)
+  expect(screen.queryByRole('button', { name: /new task default/i })).toBeNull()
+  act(() => { store.set({ ...store.getSnapshot(), status: 'ready', rows: [{ id: 'standard', isDefault: true }] }) })
+  expect(document.querySelector('[data-agent-presets-skeleton]')).toBeNull()
+  expect(screen.queryByRole('status')).toBeNull()
+  expect(screen.getByRole('heading', { name: en.nav }).closest('section')?.getAttribute('aria-busy')).toBe('false')
+  expect(rowFor('standard')).toBeTruthy()
+})
+it('retains the same cards during a refresh and offers retry after a roster failure', () => {
+  const { store, load } = view()
+  const card = rowFor('standard')
+  act(() => { store.set({ ...store.getSnapshot(), status: 'loading' }) })
+  expect(rowFor('standard')).toBe(card)
+  expect(document.querySelector('[data-agent-presets-skeleton]')).toBeNull()
+  act(() => { store.set({ ...store.getSnapshot(), status: 'error', error: 'Disconnected' }) })
+  expect(screen.getByRole('alert').textContent).toBe('Disconnected')
+  fireEvent.click(screen.getByRole('button', { name: en.retryLoad }))
+  expect(load).toHaveBeenCalledTimes(2)
+  expect(rowFor('standard')).toBe(card)
+})
+it('clears the failed initial load while retrying and leaves a ready empty roster empty', () => {
+  const { store, load } = view({ status: 'error', error: 'Disconnected', rows: [] })
+  expect(document.querySelector('[data-agent-presets-skeleton]')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: en.retryLoad }))
+  expect(load).toHaveBeenCalledTimes(2)
+  act(() => { store.set({ ...store.getSnapshot(), status: 'loading', error: null }) })
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(document.querySelectorAll('[data-preset-skeleton-card]')).toHaveLength(4)
+  act(() => { store.set({ ...store.getSnapshot(), status: 'ready' }) })
+  expect(document.querySelector('[data-agent-presets-skeleton]')).toBeNull()
+  expect(screen.queryByRole('list')).toBeNull()
+})
+it('distinguishes preset illustrations without adding decoration to accessible names', () => {
+  view({ rows: ['standard', 'ptc', 'minimal', 'cordis', 'mine'].map(id => ({ id, isDefault: id === 'standard' })) })
+  for (const id of ['standard', 'ptc', 'minimal', 'cordis', 'mine']) {
+    const art = rowFor(id).querySelector('img[data-preset-art]')!
+    expect(art.getAttribute('data-preset-art')).toBe(id === 'mine' ? 'cordis' : id)
+    expect(art.getAttribute('aria-hidden')).toBe('true')
+    expect(art.getAttribute('alt')).toBe('')
+    expect(art.getAttribute('draggable')).toBe('false')
+  }
+  expect(screen.queryByRole('img')).toBeNull()
+  expect(screen.getByRole('button', { name: `${en.inUse}: ${en.presetStandardName}` }).getAttribute('aria-pressed')).toBe('true')
+})
 it('offers no selection switch and disables the card actions while Developer tools are off', () => {
   view({}, undefined, false)
 
   expect(screen.queryByRole('switch')).toBeNull()
   expect(screen.getByRole<HTMLButtonElement>('button', { name: `${en.enableDevToolsToSetDefault}: Mine` }).disabled).toBe(true)
+})
+it('announces the pending card without claiming the default has already been saved', () => {
+  view({ saving: true, pendingId: 'mine' })
+  const button = screen.getByRole<HTMLButtonElement>('button', { name: `${en.switching}: Mine` })
+  expect(button.disabled).toBe(true)
+  expect(button.getAttribute('aria-pressed')).toBe('false')
+  expect(within(rowFor('mine')).getByRole('status').textContent).toBe(en.switching)
+  expect(within(rowFor('standard')).getByText(en.inUse)).toBeTruthy()
 })
 it('reads the roster once and sets a default from the card body', async () => {
   const actions = view()
@@ -178,6 +234,20 @@ it.each([
   fireEvent.click(within(rowFor(id)).getByRole('button', { name: `${en.howToUse}: ${name}` }))
   expect(within(screen.getByRole('dialog')).getByRole('tab', { name: en.howToUse }).getAttribute('aria-selected')).toBe('true')
   expect(actions.makeDefault).not.toHaveBeenCalled()
+})
+it('defers unused guide content and preserves a visited panel while switching tabs', () => {
+  view()
+  fireEvent.click(within(rowFor('standard')).getByRole('button', { name: `${en.modeExplanation}: ${en.presetStandardName}` }))
+  const dialog = screen.getByRole('dialog', { name: en.presetStandardName })
+  expect(within(dialog).queryByText('Fix a bug')).toBeNull()
+  fireEvent.click(within(dialog).getByRole('tab', { name: en.howToUse }))
+  const usage = within(dialog).getByRole('tabpanel', { name: en.howToUse })
+  usage.scrollTop = 80
+  fireEvent.click(within(dialog).getByRole('tab', { name: en.modeExplanation }))
+  expect(usage.isConnected).toBe(true)
+  fireEvent.click(within(dialog).getByRole('tab', { name: en.howToUse }))
+  expect(within(dialog).getByRole('tabpanel', { name: en.howToUse })).toBe(usage)
+  expect(usage.scrollTop).toBe(80)
 })
 it('keeps keyboard focus in help and dismisses only the reader on Escape', () => {
   const closeSettings = vi.fn()

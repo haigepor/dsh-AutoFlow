@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
-  Button, IconAgentPresetOutlineMedium, IconBrowseOutlineRegular, IconPlusOutlineRegular, Modal, Tag, Tooltip,
+  Button, IconBrowseOutlineRegular, IconPlusOutlineRegular, Modal, Tag, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -10,6 +10,7 @@ import type { AgentPresetSectionState } from './section-store.ts'
 import { isBuiltInPreset, presetDisplayText } from './locales.ts'
 import { PresetGuideDialog, presetGuide, trapPresetReaderTab, type PresetGuidePage } from './PresetGuideDialog.tsx'
 import css from './AgentPresetSection.module.css'
+import { PresetIllustration } from './PresetIllustration.tsx'
 
 /** Settings actions and their shared controller state. */
 export interface AgentPresetSectionInjected {
@@ -65,6 +66,8 @@ export function AgentPresetSection({
   close: closeSettings, useDeveloperTools, t,
 }: AgentPresetSectionProps) {
   const state = useAgentPresetSection(value => value)
+  const loading = state.status === 'idle' || state.status === 'loading'
+  const initialLoading = loading && state.rows.length === 0
   const developerTools = useDeveloperTools(enabled => enabled)
   const [guide, setGuide] = useState<{
     content: NonNullable<ReturnType<typeof presetGuide>>
@@ -98,15 +101,37 @@ export function AgentPresetSection({
         {t('creatorDraft')}
       </button>
     )
-  return <section className={css.section}>
-    <header className={css.pageHeader}>
-      <span className={css.pageIcon} aria-hidden="true"><IconAgentPresetOutlineMedium size={24} /></span>
-      <div>
-        <h1 className={css.title}>{t('nav')}</h1>
-        <p className={css.intro}>{t('sectionIntro')}</p>
-      </div>
+  return <section className={css.section} aria-busy={loading || state.saving}>
+    <header className={css.pageHeader} data-settings-page-header>
+      <h1 className={css.title}>{t('nav')}</h1>
     </header>
-    {state.error === null ? null : <p className={css.error} role="alert">{state.error}</p>}
+    {state.error === null ? null : <div className={css.loadError}>
+      <p className={css.error} role="alert">{state.error}</p>
+      {state.status !== 'error' ? null : <Button variant="outline" onClick={() => { void load() }}>{t('retryLoad')}</Button>}
+    </div>}
+    {initialLoading ? <>
+      <span className={css.srOnly} role="status">{t('loading')}</span>
+      <section className={css.group} data-agent-presets-skeleton aria-hidden="true">
+        <h3 className={css.groupHead}>{t('builtInGroup')}</h3>
+        <div className={css.cards}>
+          {[0, 1, 2, 3].map(index => <div key={index} className={`${css.card} ${css.skeletonCard}`} data-preset-skeleton-card>
+            <div className={css.cardMain}>
+              <div className={`${css.cardArt} ${css.skeletonArt}`}>
+                <span className={`${css.skeleton} ${css.skeletonBadge} ${css.cardBadge}`} />
+                <span className={`${css.skeleton} ${css.skeletonIllustration}`} />
+              </div>
+              <div className={css.cardCopy}>
+                <span className={`${css.skeleton} ${css.skeletonName}`} />
+                <span className={`${css.skeleton} ${css.skeletonLine}`} />
+                <span className={`${css.skeleton} ${css.skeletonLine}`} />
+                <span className={`${css.skeleton} ${css.skeletonShort}`} />
+              </div>
+            </div>
+            <div className={`${css.cardFoot} ${css.skeletonFoot}`}><span className={`${css.skeleton} ${css.skeletonActions}`} /></div>
+          </div>)}
+        </div>
+      </section>
+    </> : null}
     {([true, false] as const).map((builtIn) => {
       const rows = state.rows.filter(row => isBuiltInPreset(row) === builtIn)
       const entry = builtIn ? null : creatorButton
@@ -117,32 +142,41 @@ export function AgentPresetSection({
           {rows.map((row) => {
             const display = presetDisplayText(row, t)
             const help = presetGuide(row.id, builtIn ? 'system' : 'user')
-            const selectionAction = row.broken !== undefined ? t('brokenBadge')
+            const pending = state.pendingId === row.id
+            const selectionAction = pending ? t('switching') : row.broken !== undefined ? t('brokenBadge')
               : row.isDefault ? t('inUse')
                 : t(developerTools ? 'setDefault' : 'enableDevToolsToSetDefault')
             return <li key={row.id} data-agent-preset-id={row.id} className={[
               css.card, row.broken === undefined ? undefined : css.cardBroken,
               row.isDefault ? css.cardActive : undefined,
+              pending ? css.cardPending : undefined,
               !developerTools && row.broken === undefined && !row.isDefault ? css.cardSelectionDisabled : undefined,
             ].filter(Boolean).join(' ')}>
               <button type="button" className={css.cardMain} aria-pressed={row.isDefault}
                 disabled={row.isDefault || (row.broken === undefined && (!developerTools || state.saving))}
                 aria-disabled={row.broken !== undefined} aria-label={`${selectionAction}: ${display.name}`} title={selectionAction}
                 onClick={() => { if (row.broken === undefined) void makeDefault(row.id) }}>
-                <span className={css.cardHead}>
-                  <span className={css.cardIdentity}>
-                    <span className={css.cardName} title={display.name}>{display.name}</span>
-                    {row.broken === undefined ? null : <span className={css.brokenBadge}>
-                      {t('brokenBadge')}<span className={css.brokenTip} aria-hidden="true">{row.broken}</span>
-                    </span>}
-                    <Tag tone={row.isDefault ? 'solid' : 'outline'}>
-                      {row.isDefault ? t('inUse') : t(builtIn ? 'builtInGroup' : 'customGroup')}
+                <span className={css.cardArt}>
+                  <span className={css.cardBadge}>
+                    <Tag tone={row.isDefault || pending ? 'info' : 'quiet'}>
+                      <span role={pending ? 'status' : undefined}>{pending ? t('switching') : row.isDefault ? t('inUse') : t(builtIn ? 'builtInGroup' : 'customGroup')}</span>
                     </Tag>
                   </span>
+                  <PresetIllustration id={row.id} />
                   <code className={css.cardId} title={row.id}>{row.id}</code>
                 </span>
-                <CardDescription text={display.description ?? t('noDescription')} />
-                {row.broken === undefined ? null : <span className={css.cardBrokenReason} role="alert">{row.broken}</span>}
+                <span className={css.cardCopy}>
+                  <span className={css.cardHead}>
+                    <span className={css.cardIdentity}>
+                      <span className={css.cardName} title={display.name}>{display.name}</span>
+                      {row.broken === undefined ? null : <span className={css.brokenBadge}>
+                        {t('brokenBadge')}<span className={css.brokenTip} aria-hidden="true">{row.broken}</span>
+                      </span>}
+                    </span>
+                  </span>
+                  <CardDescription text={display.description ?? t('noDescription')} />
+                  {row.broken === undefined ? null : <span className={css.cardBrokenReason} role="alert">{row.broken}</span>}
+                </span>
               </button>
               <div className={css.cardFoot}>
                 {help === undefined ? null : <div className={css.cardHelp}>

@@ -1,11 +1,28 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  --dsh-settings-section-gap: 12px;
+  gap: var(--dsh-settings-section-gap);
   width: 100%;
   min-width: 0;
+  container: preset-settings / inline-size;
   color: var(--dsw-alias-label-primary);
 }
+
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.loadError { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.skeletonCard { pointer-events: none; }
+.skeletonArt { background: var(--dsw-alias-bg-layer-2); }
+.skeleton { display: block; flex: none; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-module-platform); animation: preset-skeleton-pulse 1600ms ease-in-out infinite; }
+.skeletonBadge { width: 64px; height: 20px; }
+.skeletonIllustration { width: 88px; height: 88px; border-radius: var(--dsw-radius-lg); }
+.skeletonName { width: 45%; height: 22px; }
+.skeletonLine { width: 100%; height: 16px; }
+.skeletonShort { width: 70%; height: 16px; }
+.skeletonFoot { min-height: 28px; }
+.skeletonActions { margin-right: auto; width: 110px; height: 16px; }
+@keyframes preset-skeleton-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
 
 .title {
   margin: 0;
@@ -75,7 +92,9 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  max-width: 1280px;
   /* Match neighboring cards within a row, without stretching shorter rows. */
   gap: 16px;
 }
@@ -85,11 +104,11 @@
   isolation: isolate;
   z-index: 0;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 20px;
+  border-radius: var(--dsw-radius-lg);
   display: flex;
   flex-direction: column;
   background: transparent;
-  transition: border-color .16s;
+  transition: border-color 160ms ease;
 }
 
 .card::before {
@@ -97,11 +116,7 @@
   z-index: -1;
   inset: 0;
   border-radius: inherit;
-  /* A quiet frosted layer separates selectable presets without becoming an
-     opaque panel over the settings page. */
-  background: color-mix(in srgb, var(--dsw-specific-menu) 86%, transparent);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
-  box-shadow: var(--dsw-elevation-panel);
+  background: var(--dsw-alias-bg-layer-1);
   content: '';
   pointer-events: none;
   transition: background .16s;
@@ -113,12 +128,25 @@
 }
 
 .card:hover:not(.cardActive):not(.cardSelectionDisabled)::before {
-  background: color-mix(in srgb, var(--dsw-specific-menu) 88%, var(--dsw-alias-interactive-bg-hover));
+  background: var(--dsw-alias-bg-layer-1);
 }
+
+.card:hover:not(.cardSelectionDisabled), .card:focus-within { border-color: var(--dsw-alias-border-l3); }
 
 /* 默认预设只强调轮廓，保留与主题一致的卡片材质。 */
 .cardActive {
-  border-color: var(--dsw-alias-label-tertiary);
+  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, var(--dsw-alias-border-l2));
+}
+
+.cardActive::before { background: var(--dsw-alias-bg-layer-1); }
+.cardActive:hover, .cardActive:focus-within { border-color: var(--dsw-alias-state-business-primary); }
+.card:not(.cardActive):not(.cardBroken) {
+  border-color: transparent;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+  box-shadow: var(--dsw-elevation-soft);
+}
+.card.cardPending {
+  border-color: var(--dsw-alias-state-business-primary);
 }
 
 /* Mode selection is off, not the preset itself: mute only the selectable
@@ -223,12 +251,40 @@
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  min-height: 148px;
+  gap: 0;
+  padding: 0;
+  min-height: 0;
   box-sizing: border-box;
-  border-radius: var(--dsw-radius-xl) var(--dsw-radius-xl) 0 0;
+  border-radius: var(--dsw-radius-lg) var(--dsw-radius-lg) 0 0;
 }
+
+.cardArt {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 144px;
+  flex: none;
+  border-radius: var(--dsw-radius-lg) var(--dsw-radius-lg) 0 0;
+  --dsh-preset-stage-color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsh-preset-stage-color) 6%, var(--dsw-alias-bg-layer-2));
+}
+.cardArt:has([data-preset-art='ptc']) { --dsh-preset-stage-color: var(--dsw-alias-state-success-primary); }
+.cardArt:has([data-preset-art='minimal']) { --dsh-preset-stage-color: var(--dsw-alias-label-secondary); }
+.cardArt:has([data-preset-art='cordis']) { --dsh-preset-stage-color: var(--dsw-alias-state-warn-primary); }
+.cardBadge { position: absolute; top: 10px; left: 10px; }
+.cardCopy { display: flex; flex-direction: column; flex: 1; gap: 10px; min-width: 0; width: 100%; box-sizing: border-box; padding: 18px 18px 10px; min-height: 148px; }
+.illustration { display: block; width: 112px; height: 112px; object-fit: contain; pointer-events: none; }
+.card:is(:hover, :focus-within) .illustration { animation: preset-illustration-float 1600ms ease-in-out infinite; }
+.card:is(:hover, :focus-within) .illustration[data-preset-art='ptc'] { animation-name: preset-illustration-float-tools; }
+.card:is(:hover, :focus-within) .illustration[data-preset-art='minimal'] { animation-name: preset-illustration-float-think; }
+.card:is(:hover, :focus-within) .illustration[data-preset-art='cordis'] { animation-name: preset-illustration-float-build; }
+@keyframes preset-illustration-float { 35% { transform: translateY(-4px) rotate(-3deg) scale(1.04); } 65% { transform: translateY(-4px) rotate(2deg) scale(1.04); } }
+@keyframes preset-illustration-float-tools { 30%, 70% { transform: translateY(-5px) scale(1.04); } 50% { transform: translateY(-2px) scale(1.02); } }
+@keyframes preset-illustration-float-think { 50% { transform: translateY(-3px) rotate(3deg) scale(1.03); } }
+@keyframes preset-illustration-float-build { 35% { transform: translateY(-4px) rotate(-3deg) scale(1.04); } 70% { transform: translateY(-2px) rotate(3deg) scale(1.02); } }
+/* 说明层打开时暂停背后卡片，避免与弹窗合成同时执行。 */
+:global(body:has([data-preset-guide])) .card:is(:hover, :focus-within) .illustration { animation: none; }
 
 .cardMain:disabled {
   cursor: default;
@@ -255,13 +311,14 @@
   flex: 1;
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
 
 .cardName {
   min-width: 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.4;
   overflow: hidden;
@@ -269,15 +326,10 @@
   white-space: nowrap;
 }
 
-/* Bounded to four lines. A preset publishes its own description, so one long
-   one would otherwise stretch every card in its grid row. Clamping is CSS
-   alone: the whole text stays in the DOM for assistive
-   tech, and the card offers it on hover when it is actually cut off. The
-   description does not grow to fill the card — `-webkit-line-clamp` on a
-   flex-stretched box leaves the clamp height and the box height disagreeing,
-   so auto margins center the text between the header and footer instead. */
+/* Long custom descriptions keep their full accessible text and truncation
+   tooltip without stretching the compact illustration row. */
 .cardDesc {
-  margin-block: auto;
+  margin: 0;
   font-size: 13px;
   line-height: 1.55;
   color: var(--dsw-alias-label-secondary);
@@ -290,6 +342,9 @@
 }
 
 .cardId {
+  position: absolute;
+  bottom: 10px;
+  right: 14px;
   flex-shrink: 0;
   max-width: 35%;
   font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
@@ -307,8 +362,7 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 2px;
-  padding: 10px 16px;
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  padding: 4px 12px 12px;
 }
 
 .cardHelp {
@@ -438,8 +492,16 @@
   cursor: default;
 }
 
-@media (max-width: 960px) {
-  .cards {
-    grid-template-columns: minmax(0, 1fr);
-  }
+@container preset-settings (max-width: 1040px) {
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
+}
+
+@container preset-settings (max-width: 560px) {
+  .cards { grid-template-columns: minmax(0, 1fr); max-width: 400px; }
+  .cardCopy { min-height: 124px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .card::before { transition: none; }
+  .card:is(:hover, :focus-within) .illustration[data-preset-art] { animation: none; }
 }

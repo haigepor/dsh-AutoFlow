@@ -5,11 +5,13 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { Button, IconCloseOutlineRegular, IconListPenOutlineRegular, MarkdownText, Modal, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { AgentPresetSettingsKey } from './locales.ts'
 import css from './PresetGuideDialog.module.css'
+import { PresetIllustration } from './PresetIllustration.tsx'
 
 export type PresetGuidePage = 'explanation' | 'usage'
 
 /** Locale references for one known, shipped preset. */
 interface PresetGuide {
+  id: string
   name: AgentPresetSettingsKey
   intro: AgentPresetSettingsKey
   explanation: AgentPresetSettingsKey
@@ -17,10 +19,10 @@ interface PresetGuide {
 }
 
 const guides = new Map<string, PresetGuide>([
-  ['standard', { name: 'presetStandardName', intro: 'guideStandardIntro', explanation: 'guideStandardExplanation', usage: 'guideStandardUsage' }],
-  ['ptc', { name: 'presetPtcName', intro: 'guidePtcIntro', explanation: 'guidePtcExplanation', usage: 'guidePtcUsage' }],
-  ['minimal', { name: 'presetMinimalName', intro: 'guideMinimalIntro', explanation: 'guideMinimalExplanation', usage: 'guideMinimalUsage' }],
-  ['cordis', { name: 'presetCordisName', intro: 'guideCordisIntro', explanation: 'guideCordisExplanation', usage: 'guideCordisUsage' }],
+  ['standard', { id: 'standard', name: 'presetStandardName', intro: 'guideStandardIntro', explanation: 'guideStandardExplanation', usage: 'guideStandardUsage' }],
+  ['ptc', { id: 'ptc', name: 'presetPtcName', intro: 'guidePtcIntro', explanation: 'guidePtcExplanation', usage: 'guidePtcUsage' }],
+  ['minimal', { id: 'minimal', name: 'presetMinimalName', intro: 'guideMinimalIntro', explanation: 'guideMinimalExplanation', usage: 'guideMinimalUsage' }],
+  ['cordis', { id: 'cordis', name: 'presetCordisName', intro: 'guideCordisIntro', explanation: 'guideCordisExplanation', usage: 'guideCordisUsage' }],
 ])
 
 /**
@@ -91,6 +93,7 @@ export function PresetGuideDialog({ guide, initialPage, t, onClose }: {
   onClose: () => void
 }): ReactNode {
   const [page, setPage] = useState(initialPage)
+  const [visited, setVisited] = useState<readonly PresetGuidePage[]>([initialPage])
   const guideId = useId()
   const content = useRef<HTMLDivElement>(null)
 
@@ -109,10 +112,11 @@ export function PresetGuideDialog({ guide, initialPage, t, onClose }: {
   }
 
   return (
-    <Modal open headless onClose={onClose} title={t(guide.name)} className={css.guideDialog as string}>
-      <div ref={content} className={css.guideLayout} role="presentation" onKeyDownCapture={onKeyDown}>
+    <Modal open headless backdropBlur={false} onClose={onClose} title={t(guide.name)} className={css.guideDialog as string}>
+      <div ref={content} className={css.guideLayout} data-preset-guide role="presentation" onKeyDownCapture={onKeyDown}>
         <div className={css.guideHeader}>
           <div className={css.guideTitleRow}>
+            <span className={css.guideArtwork}><PresetIllustration id={guide.id} /></span>
             <h2 className={css.guideTitle}>{t(guide.name)}</h2>
             <Button variant="ghost" className={css.guideClose} aria-label={t('close')} onClick={onClose}>
               <IconCloseOutlineRegular size={18} />
@@ -124,7 +128,11 @@ export function PresetGuideDialog({ guide, initialPage, t, onClose }: {
           className={css.guideTabs}
           label={t('guideSections')}
           value={page}
-          onChange={setPage}
+          onChange={(next) => {
+            setPage(next)
+            // 未访问的 Markdown 延迟渲染；访问后保留节点及各页滚动位置。
+            setVisited(current => current.includes(next) ? current : [...current, next])
+          }}
           items={[
             { value: 'explanation', label: t('modeExplanation'), id: `${guideId}-explanation-tab`, panelId: `${guideId}-explanation-panel` },
             { value: 'usage', label: t('howToUse'), id: `${guideId}-usage-tab`, panelId: `${guideId}-usage-panel` },
@@ -141,7 +149,7 @@ export function PresetGuideDialog({ guide, initialPage, t, onClose }: {
             hidden={page !== section}
             tabIndex={0}
           >
-            {section === 'usage'
+            {!visited.includes(section) ? null : section === 'usage'
               ? <GuideUsage text={t(guide.usage)} t={t} />
               : (
                 <MarkdownText

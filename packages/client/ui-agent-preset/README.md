@@ -9,7 +9,11 @@ English | [中文](README.zh.md)
 
 ## Summary
 
+In Settings, this section uses the shared 26px page title, 36px line height, weight 600, and 24px title spacing. Page titles omit decorative icons and introductions; setting-level help and actions remain available. The shell supplies equal horizontal insets and a 24px top inset.
+
 Choose Agent presets and the new-task default in Web, read what each mode does and what it declares. Authoring is guided to Creator mode.
+
+Mode help uses 13px body text and 12px supporting copy, with 15px example headings.
 
 ## Table of Contents
 
@@ -29,9 +33,13 @@ Settings shows the built-in and custom card groups with default highlighting and
 
 Coding Tools in General Settings decide whether a mode can be chosen at all: with them off the new-session picker disappears and the cards refuse selection, while the saved default keeps composing new tasks. Choosing a healthy default also synchronizes the blank session on the current new-task surface. Creator starts a new task using the `cordis` preset.
 
-Known shipped presets offer mode details and usage examples in a read-only dialog. Its tabs preserve each page's scroll position; closing returns focus to the opening action. Help does not change the new-task default. The default badge replaces the card's group badge, and the preset id appears beside the title. Guide copy and examples belong to this package.
+Selecting a card immediately shows “Switching…”. Once the settings write succeeds, its default highlight updates without waiting for the roster refresh. The roster is then verified before synchronizing the captured blank session; earlier reads cannot overwrite the confirmed write. Selection stays busy until these steps settle, and failures remain visible without labeling an unconfirmed write as saved.
 
-Preset cards use two columns in wide windows and one column below 960px, with separate title, description, and action areas. Card colors and selected outlines follow the active theme.
+The initial roster read shows four decorative skeleton cards in the same responsive grid, while retaining the real page title and announcing loading with `aria-busy` and a status message. Refreshes retain existing cards and selection; failed reads expose the diagnostic and a retry action. Placeholders disappear as soon as the read settles, and reduced-motion preferences disable their pulse.
+
+Known shipped presets offer mode details and usage examples in a read-only dialog with a matching character thumbnail, opaque surface, compact typography, and framed examples. Only the initial tab's Markdown renders on open; other tabs render on first visit and retain their nodes and scroll positions. The dialog uses a dim mask without background blur and pauses the card illustrations behind it; closing returns focus to the opening action. Help does not change the new-task default. The default badge replaces the card's group badge, and the preset id appears in the illustration stage. Guide copy and examples belong to this package.
+
+Preset cards use a vertical layout with a tinted illustration stage above the name, description, and actions. Wide panes show four cards in one row, medium panes use two columns, and narrow panes use one; the grid stays left-aligned within 1280px. Transparent chibi illustrations share a blue-haired whale maid, with a code notebook, connected tool tiles, a terminal, and plugin blocks distinguishing the modes; custom presets use the builder. The 256px WebP assets preserve transparency, are embedded in the client bundle, and decode asynchronously at 112px display size. Hovering or focusing a card gently floats its illustration, while reduced-motion preferences keep it still. Unselected cards have fine borders and a soft theme-aware shadow; the selected card keeps its accent outline. Card surfaces follow the active theme.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation

@@ -12,6 +12,9 @@ export type AgentPresetSettingsKey =
   | 'nav'
   | 'sectionIntro'
   | 'setDefault'
+  | 'switching'
+  | 'loading'
+  | 'retryLoad'
   | 'view'
   | 'presetStandardName'
   | 'presetStandardDescription'
@@ -41,6 +44,9 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   nav: 'Agent presets',
 
   setDefault: 'Set as new task default',
+  switching: 'Switching…',
+  loading: 'Loading agent presets…',
+  retryLoad: 'Retry',
   view: 'View configuration',
 
   presetStandardName: 'Standard mode',
@@ -82,6 +88,9 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   nav: 'Agent 预设',
 
   setDefault: '设为新任务默认',
+  switching: '切换中…',
+  loading: '正在加载 Agent 预设…',
+  retryLoad: '重试',
   view: '查看配置',
 
   presetStandardName: '标准模式',
