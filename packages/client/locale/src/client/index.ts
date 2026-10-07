@@ -615,6 +615,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
     id: 'language',
+    label: () => locale.bind(SETTINGS_NS)('language.title'),
     order: 0,
     store,
     locale: SETTINGS_NS,

@@ -8,6 +8,7 @@
 
 .root {
   --dsh-sidebar-inline-padding: 12px;
+  --dsh-sidebar-content-inset: 22px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -134,20 +135,21 @@
    150ms; at settle the children unmount/snap to the rail layout. */
 .fading > * {
   opacity: 0;
-  transition: opacity 150ms var(--ds-ease-in-out);
+  transform: translateX(-6px);
+  transition: opacity 150ms var(--dsh-sidebar-transition-easing), transform 150ms var(--dsh-sidebar-transition-easing);
 }
 
 /* Wide-only content fades back in on expand remount. */
 .wide {
-  animation: wide-in 200ms var(--ds-ease-in-out);
+  animation: wide-in var(--dsh-sidebar-transition-duration, 500ms) var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 @keyframes wide-in {
-  from { opacity: 0; }
+  from { opacity: 0; transform: translateX(-6px); }
 }
 
-/* At the 150ms rail settle, the upper controls enter from the former
-   rail right edge over the remaining 150ms of the AppFrame track transition.
+/* At the 150ms rail settle, the upper controls enter from a 4px left offset
+   over the remaining 350ms of the AppFrame track transition.
    The bottom-pinned settings seat shares their opacity timeline but stays
    horizontally fixed. Only a live collapse gets .railIn; a cold collapsed
    render stays static. */
@@ -155,17 +157,17 @@
 .railIn .newSession,
 .railIn .panelList,
 .railIn .regionArea {
-  animation: rail-in 150ms var(--ds-ease-in-out) backwards;
+  animation: rail-in 350ms var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1)) backwards;
 }
 
 .railIn .footArea {
-  animation: rail-fade-in 150ms var(--ds-ease-in-out) backwards;
+  animation: rail-fade-in 350ms var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1)) backwards;
 }
 
 @keyframes rail-in {
   from {
     opacity: 0;
-    transform: translateX(49px);
+    transform: translateX(-4px);
   }
 }
 
@@ -222,17 +224,23 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  height: 60px;
-  padding: 8px 0 8px 4px;
-  margin-bottom: 4px;
+  height: 34px;
+  padding: 3px 8px 3px var(--dsh-sidebar-content-inset);
+  margin: -6px calc(-1 * var(--dsh-sidebar-inline-padding)) 0;
   box-sizing: border-box;
   overflow: hidden;
+}
+
+/* 普通浏览器与设置页返回区共用 6px 顶部留白和 48px 行高。 */
+:global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .root:not(.collapsed) .logoRow {
+  height: 48px;
+  margin-top: 0;
 }
 
 .collapsed .logoRow {
   height: 36px;
   padding: 0;
-  margin-bottom: 12px;
+  margin: 0 0 12px;
   justify-content: flex-start;
   /* The settled rail's 36px toggle is wider than this 35px row; the base row's clip would cut
      the control's right edge, so the rail stops clipping once the slide has settled. */
@@ -244,7 +252,10 @@
    emphasis only). A button only in behavior (New Session shortcut): the
    pointer cursor is the sole affordance — no hover chrome on the mark. */
 .brand {
-  flex: 1;
+  flex: 0 1 148px;
+  max-width: 148px;
+  height: 24px;
+  margin-right: auto;
   min-width: 0;
   display: inline-flex;
   align-items: center;
@@ -267,9 +278,17 @@
 .brandIdentity {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   height: 24px;
   min-width: 0;
+}
+
+/* 完整 SVG 保留 182×24 的 viewBox，在头部使用参考页面的 148×24 显示区域。 */
+.brandIdentity :global([data-slot='sidebar.brand.identity']) > svg {
+  display: block;
+  width: 148px;
+  max-width: 100%;
+  height: 24px;
 }
 
 .brandMark {
@@ -427,7 +446,7 @@
   visibility: hidden;
 }
 
-/* New Session uses the official elevated bar; the rail keeps its 36px icon seat. */
+/* New Session uses a compact text row; the rail keeps its 36px icon seat. */
 .newSession {
   container-type: inline-size;
   position: relative;
@@ -438,33 +457,33 @@
   align-items: center;
   justify-content: center;
   gap: 0;
-  height: 38px;
-  padding: 8px 12px;
-  margin: 0 2px 12px;
+  height: 32px;
+  padding: 6px 8px;
+  padding-inline-start: calc(var(--dsh-sidebar-content-inset) - var(--dsh-sidebar-inline-padding) - 2px);
+  margin: 0 2px 2px;
   box-sizing: border-box;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-button-elevated-fill);
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
   color: var(--dsw-alias-label-primary);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 22px;
+  line-height: 20px;
   cursor: pointer;
   overflow: hidden;
 }
 
 .newSession:hover {
-  background: var(--dsw-alias-button-floating-hover);
+  background: var(--dsw-specific-sidebar-nav-item-hover);
 }
 
 /* Keep the action discoverable in dark mode without pulling blue into the resting state. */
 :global([data-ds-dark-theme]) .newSession {
-  border-color: color-mix(in srgb, var(--dsw-alias-border-l3) 86%, var(--dsw-alias-label-tertiary));
-  background: color-mix(in srgb, var(--dsw-alias-button-elevated-fill) 82%, var(--dsw-specific-sidebar-fill));
+  background: transparent;
 }
 
 :global([data-ds-dark-theme]) .newSession:hover {
-  background: color-mix(in srgb, var(--dsw-alias-button-elevated-fill) 92%, var(--dsw-specific-sidebar-fill));
+  background: var(--dsw-specific-sidebar-nav-item-hover);
 }
 
 /* The macOS sidebar stays translucent beneath its window-drag surface. */
@@ -516,10 +535,10 @@
 
 .newSessionLabelMask { flex: 1; min-width: 0; }
 .newSession:is(:hover, :focus-visible) .newSessionLabelMask:has(+ .newSessionShortcut) { overflow: hidden; mask-image: linear-gradient(to right, black calc(100% - 16px), transparent); }
-.newSessionContent { display: flex; width: 100cqw; align-items: center; justify-content: center; gap: 6px; }
+.newSessionContent { display: flex; width: 100cqw; align-items: center; justify-content: flex-start; gap: 8px; }
 .collapsed .newSessionContent { justify-content: center; }
 .newSessionContent > svg { flex: none; }
-.root:not(.collapsed) .newSessionContent > svg { width: 14px; height: 14px; }
+.root:not(.collapsed) .newSessionContent > svg { width: 18px; height: 18px; }
 
 .newSessionShortcut {
   opacity: 0;
@@ -549,12 +568,14 @@
   margin: 0 2px;
   min-height: 32px;
   padding: 6px 8px;
+  padding-inline-start: calc(var(--dsh-sidebar-content-inset) - var(--dsh-sidebar-inline-padding) - 2px);
   box-sizing: border-box;
   border: none;
   border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
+  font-size: 13px;
   font-weight: 500;
   line-height: 20px;
   text-align: left;

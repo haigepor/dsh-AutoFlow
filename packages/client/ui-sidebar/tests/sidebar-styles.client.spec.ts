@@ -41,7 +41,7 @@ describe('SidebarRoot.module.css', () => {
   })
 
   it('moves the four upper controls while the settings seat only fades', () => {
-    const animation = 'rail-in 150ms var(--ds-ease-in-out) backwards'
+    const animation = 'rail-in 350ms var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1)) backwards'
     for (const selector of [
       '.railIn .iconButton',
       '.railIn .newSession',
@@ -50,10 +50,10 @@ describe('SidebarRoot.module.css', () => {
       expect(declarations(selector)?.get('animation')).toBe(animation)
     }
     expect(declarations('.railIn .footArea')?.get('animation')).toBe(
-      'rail-fade-in 150ms var(--ds-ease-in-out) backwards',
+      'rail-fade-in 350ms var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1)) backwards',
     )
     expect(css).toMatch(
-      /@keyframes rail-in\s*\{\s*from\s*\{\s*opacity: 0;\s*transform: translateX\(49px\);\s*}\s*}/,
+      /@keyframes rail-in\s*\{\s*from\s*\{\s*opacity: 0;\s*transform: translateX\(-4px\);\s*}\s*}/,
     )
     expect(css).toMatch(/@keyframes rail-fade-in\s*\{\s*from\s*\{\s*opacity: 0;\s*}\s*}/)
   })

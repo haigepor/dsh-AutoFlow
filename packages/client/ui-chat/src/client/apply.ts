@@ -133,6 +133,7 @@ export function apply(ctx: Context): void {
     scope.slots.inject('settings.general.item', () => scope.slots.register({
       name: 'settings.general.item',
       id: 'link-opening',
+      label: () => scope.locale.bind(NS)('settings.links.title'),
       order: 14,
       locale: NS,
       inject: (): LinkOpeningRowInjected => ({
@@ -156,6 +157,7 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
     id: 'performance-usage',
+    label: () => ctx.locale.bind(NS)('settings.performance.title'),
     order: 13,
     locale: NS,
     inject: (): PerformanceUsageRowInjected => ({
@@ -167,6 +169,7 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
     id: 'transcript-view',
+    label: () => ctx.locale.bind(NS)('settings.transcript.title'),
     order: 12,
     locale: NS,
     inject: (): TranscriptViewRowInjected => ({

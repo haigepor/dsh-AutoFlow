@@ -198,6 +198,8 @@ export function AppFrame({
   const trackToggle = `${sidebarCollapsed}:${layoutInfo.rightbarTrack}`
   const previousToggle = useRef(trackToggle)
   const previousViewport = useRef(viewport)
+  // 子组件可能在 layout effect 中测量栏宽；首个提交就必须带过渡标记。
+  const toggling = previousToggle.current !== trackToggle && previousViewport.current === viewport
   useLayoutEffect(() => {
     const viewportChanged = previousViewport.current !== viewport
     previousViewport.current = viewport
@@ -273,7 +275,7 @@ export function AppFrame({
       data-rightbar-fullscreen={layoutInfo.rightbarFullscreen || undefined}
       data-rightbar-instant={layoutInfo.rightbarInstant || undefined}
       data-dragging={dragging || undefined}
-      data-animating={animating > 0 || undefined}
+      data-animating={animating > 0 || toggling || undefined}
     >
       <DocumentTitle
         productTitle={productTitle}

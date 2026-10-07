@@ -34,7 +34,8 @@ export function apply(ctx: Context): void {
     dismiss: () => { preference.dismiss() },
   })
   ctx.effect(() => ctx.configForms.whileServed([namespace], () => ctx.slots.inject('settings.general.item', () =>
-    ctx.slots.register({ name: 'settings.general.item', id: namespace, order: 90, locale, inject: face }, UploadRow))))
+    ctx.slots.register({ name: 'settings.general.item', id: namespace, order: 90, locale,
+      label: () => ctx.locale.bind(locale)('title'), inject: face }, UploadRow))))
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay', id: 'session-log-upload-toast', locale, inject: face,
   }, UploadToast))

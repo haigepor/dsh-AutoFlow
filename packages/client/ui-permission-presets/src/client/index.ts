@@ -159,6 +159,7 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
     id: 'permission',
+    label: () => ctx.locale.bind('settings.permission')('title'),
     order: -20,
     locale: 'settings.permission',
     inject: injected,

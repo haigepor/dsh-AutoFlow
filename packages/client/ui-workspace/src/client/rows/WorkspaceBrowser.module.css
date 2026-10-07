@@ -57,7 +57,7 @@
   justify-content: flex-end;
   gap: 4px;
   height: 32px;
-  padding-left: 4px;
+  padding-left: calc(var(--dsh-sidebar-content-inset, 22px) - var(--dsh-sidebar-inline-padding, 12px));
   margin-bottom: 4px;
   box-sizing: border-box;
   border-radius: var(--dsw-radius-sm);

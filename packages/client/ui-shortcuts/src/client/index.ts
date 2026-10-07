@@ -41,6 +41,7 @@ export function apply(ctx: Context): void {
     hooks: { catalog: ctx.shortcuts.catalog, config: ctx.shortcuts.config, fixedCatalog: ctx.shortcuts.fixedCatalog } })
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item', id: 'shortcuts', order: 20, locale: 'shortcuts', store,
+    label: () => t('settings'),
     inject: injected,
   }, ShortcutsRow))
   ctx.slots.inject('shell.overlay', () => {

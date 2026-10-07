@@ -6,11 +6,13 @@ import { useEffect, useRef } from 'react'
  * The parent must be positioned; row geometry may change through scrolling or nesting.
  * @param props.className - owner styling for the absolutely positioned layer.
  * @param props.rowSelector - selector for interactive rows inside the parent.
+ * @param props.bridgeGaps - follow the nearest vertical row across noninteractive gaps after row entry; off by default.
  * @returns a pointer-inert layer that follows hovered or focused rows.
  */
-export function GlideHighlight({ className, rowSelector }: {
+export function GlideHighlight({ className, rowSelector, bridgeGaps = false }: {
   className: string | undefined
   rowSelector: string
+  bridgeGaps?: boolean
 }) {
   const layerRef = useRef<HTMLSpanElement>(null)
 
@@ -55,6 +57,21 @@ export function GlideHighlight({ className, rowSelector }: {
       pointerRow = row
       show(row)
     }
+    const onPointerMove = (event: PointerEvent): void => {
+      if (!bridgeGaps || pointerRow === null || rowFor(event.target) !== null) return
+      let nearest = pointerRow
+      let distance = Infinity
+      // 分类标题不接收高亮；经过间隙时提前向最近的选项滑动，避免入行后才追赶。
+      for (const row of container.querySelectorAll<HTMLElement>(rowSelector)) {
+        const rect = row.getBoundingClientRect()
+        if (rect.height === 0) continue
+        const nextDistance = Math.abs(event.clientY - rect.top - rect.height / 2)
+        if (nextDistance < distance) { nearest = row; distance = nextDistance }
+      }
+      if (nearest === pointerRow) return
+      pointerRow = nearest
+      show(nearest)
+    }
     const onPointerLeave = (): void => {
       pointerRow = null
       show(focusRow)
@@ -78,6 +95,7 @@ export function GlideHighlight({ className, rowSelector }: {
     }
 
     container.addEventListener('pointerover', onPointerOver)
+    container.addEventListener('pointermove', onPointerMove)
     container.addEventListener('pointerleave', onPointerLeave)
     container.addEventListener('focusin', onFocusIn)
     container.addEventListener('focusout', onFocusOut)
@@ -86,6 +104,7 @@ export function GlideHighlight({ className, rowSelector }: {
     return () => {
       window.cancelAnimationFrame(placementFrame)
       container.removeEventListener('pointerover', onPointerOver)
+      container.removeEventListener('pointermove', onPointerMove)
       container.removeEventListener('pointerleave', onPointerLeave)
       container.removeEventListener('focusin', onFocusIn)
       container.removeEventListener('focusout', onFocusOut)
@@ -95,7 +114,7 @@ export function GlideHighlight({ className, rowSelector }: {
       delete layer.dataset.glidePlaced
       delete container.dataset.glideActive
     }
-  }, [className, rowSelector])
+  }, [className, rowSelector, bridgeGaps])
 
   return className === undefined ? null : <span ref={layerRef} className={className} aria-hidden="true" />
 }

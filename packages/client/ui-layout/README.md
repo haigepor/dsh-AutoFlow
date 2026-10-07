@@ -92,7 +92,7 @@ These limits define the current layout behavior. They are current package constr
 
 - **Panel geometry is transient** — reload restores the sidebar default and the right panel hidden; each dragged width is one frame-wide preference, not a per-Session fact.
 - **Extremely narrow windows** — after the right panel closes, the center may still fall below 400px; the left 56px rail remains.
-- **Track and panel travel on one shared curve only while animating** — during a discrete open/close the frame sets `data-animating` and its track transition and the occupant's slide read the same duration and easing variables; an occupant that used its own would detach the panel's edge from the conversation's while squeezing. Drags and instant presentation switches run transition-free, so the curve does not cover them.
+- **Track and panel travel on one shared curve only while animating** — during a discrete open/close the frame sets `data-animating` in the same commit as the new tracks, before descendant layout measurements; its track transition and the occupant's slide share `--dsh-sidebar-transition-duration` (500ms) and `--dsh-sidebar-transition-easing` (`cubic-bezier(0.16, 1, 0.3, 1)`). An occupant that used its own would detach the panel's edge from the conversation's while squeezing. Drags and instant presentation switches run transition-free, so the curve does not cover them.
 - **No scroll anchoring during squeeze reflow** — layout changes may move the reader's viewport.
 
 <a id="dev-note"></a>

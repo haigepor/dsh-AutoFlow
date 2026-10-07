@@ -28,6 +28,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * package's `sidebar` entry; the shell supplies a generic text fallback.
      */
     'sidebar.brand.name': { kind: 'single'; scope: 'root'; owner: SidebarBrandNameOwnerProps }
+    /** Complete expanded brand artwork; absent occupants use the mark/name seats. */
+    'sidebar.brand.identity': { kind: 'single'; scope: 'root'; owner: SidebarBrandIdentityOwnerProps }
     /**
      * Global panel icons. Each list id addresses the matching main panel;
      * the sidebar owns the button and resolves its label from list metadata.
@@ -64,6 +66,12 @@ export interface SidebarBrandMarkOwnerProps {
 export interface SidebarBrandNameOwnerProps {
   /** Marker field: the occupant owns its own content and width. */
   children?: never
+}
+
+/** Presentation supplied to the complete expanded brand artwork. */
+export interface SidebarBrandIdentityOwnerProps {
+  /** Requested SVG viewport height in pixels. */
+  height: number
 }
 
 /** Icon presentation supplied by the global panel row. */
@@ -139,6 +147,7 @@ export type SidebarRootComponentProps =
   & PropsRenderSlots<
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'
+    | 'sidebar.brand.identity'
     | 'sidebar.toggle.badge'
     | 'sidebar.panellist'
     | 'sidebar.workspaces'

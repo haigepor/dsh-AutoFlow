@@ -1,5 +1,7 @@
 .frame {
   --dsh-frame-content-top-gap: 8px;
+  --dsh-sidebar-transition-duration: 500ms;
+  --dsh-sidebar-transition-easing: cubic-bezier(0.16, 1, 0.3, 1);
   position: relative; /* anchors the drag handles, which straddle column edges */
   display: grid;
   grid-template-rows: 100%;
@@ -14,7 +16,7 @@
    an eased track chases the live window edge and the centre column visibly
    rubber-bands while the user resizes the window. */
 .frame[data-animating] {
-  transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  transition: grid-template-columns var(--dsh-sidebar-transition-duration) var(--dsh-sidebar-transition-easing);
 }
 
 /* Dragging writes widths at pointer cadence; easing them would detach the
@@ -253,7 +255,7 @@
    during collapse/expand; instant at steady state (viewport-driven moves)
    and while dragging. */
 .frame[data-animating] .handle {
-  transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  transition: left var(--dsh-sidebar-transition-duration) var(--dsh-sidebar-transition-easing);
 }
 
 .frame[data-dragging] .handle {

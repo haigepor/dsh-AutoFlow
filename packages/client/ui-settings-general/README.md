@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use this package to give the dsh web client a full-window Settings page, connection-recovery control, feature-contributed navigation, and sequential first-run onboarding. Users can open it from the sidebar, retry a failed connection immediately, and access a local configuration file when the Host makes one available on a loopback browser. Feature packages supply their own settings rows, sections, and onboarding steps; this package supplies their shared presentation and the Coding Tools switch without adding onboarding copy.
+Use this package to give the dsh web client a full-window Settings page, connection-recovery control, feature-contributed navigation, and sequential first-run onboarding. Users can open it from the sidebar and retry a failed connection immediately. Feature packages supply their own settings rows, sections, and onboarding steps; this package supplies their shared presentation and the Coding Tools switch without adding onboarding copy.
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@ Use this package to give the dsh web client a full-window Settings page, connect
 
 -----
 
-The Settings page occupies the application window without changing the browser URL. Its 280px navigation column can collapse to a 56px icon rail without changing the main sidebar preference. The Back button and collapse control use the same quiet navigation chrome as the home sidebar; the collapse glyph matches the home sidebar at 16px when expanded or in the Windows titlebar and 18px on the ordinary collapsed rail. Each section owns its visible title. The right column uses the main-content palette, centers content within 1100px, and scrolls longer sections; configuration-file actions follow the section content. At 840px or below, navigation moves above the content as a horizontal, touch-scrollable list with snap-aligned 36px targets, and the same toggle can hide it.
+The Settings page occupies the application window without changing the browser URL. Its 280px navigation collapses to a 56px icon rail using the home sidebar’s 500ms slide, 150ms frozen-content fade, and 350ms rail entrance. Expanded labels remount using the home sidebar timing: a 500ms fade and 6px entrance; navigation uses local hover and selected backgrounds without a moving hover layer. Preferences, Models and agents, and Plugins and apps group the registered pages with subtle count badges. Search below Back finds feature-owned settings across pages, names their owning page, and scrolls to and focuses a selected result; Enter opens the first match and Escape clears the query. General rows contribute searchable labels through their existing slot metadata; other features contribute entries through ui-settings. Unindexed third-party pages remain searchable by their navigation labels. All sections share equal responsive horizontal insets (32px on desktop), a 24px top inset, and full available content width. Page titles use 26px text, weight 600, 36px line height, and an actual 24px gap to the first content block without decorative icons or introductions. The first block adds no top margin; the theme reset action stays beside the title on narrow screens. Both scrollbar gutters are reserved symmetrically; AFP inner padding is removed within Settings. Page changes slide and fade left over 250ms after a 175ms exit; reduced motion disables both effects. At 840px or below, navigation becomes a horizontal touch-scrollable list above content. Settings sections have no shared bottom action bar.
 
 <a id="use-this-package"></a>
 ## Use this package
@@ -44,10 +44,6 @@ The current release version appears at the bottom of General Settings in Web and
 The Coding Tools switch controls the shared `ui-settings.enabled` preference described by [ui-settings](../ui-settings/README.md#use-this-package). It is available in both Web and desktop, follows accepted changes immediately, and disables duplicate input while a write settles. A failed write displays localized retry guidance.
 
 The General section holds the built-in Coding Tools and Current version rows alongside rows registered into `settings.general.item` by feature packages. Each registrant owns its row copy and behavior. The Appearance row, for example, lives in ui-theme.
-
-### Opening the configuration file
-
-On a loopback browser, the shell renders **Open configuration file** only when the Host confirms that a provider-owned local document can be prepared. The action opens that document in the native text editor (bypassing the browser file association on macOS). Remote browsers never register the action and never issue the privileged settings read.
 
 ### Onboarding steps
 
@@ -72,10 +68,6 @@ The navigation is a projection of the `settings.section` ledger; nav labels may 
 ### Connection recovery
 
 The shell is an explicit recovery consumer, so it injects Connection directly rather than adding lifecycle controls to `ctx.remote`. Its private hooks compartment binds `ctx.connection.state`, while the component receives only the selected state and an injected callback for `ctx.connection.reconnect()`. `ConnectionIndicator` owns the inline presentation and receives all visible and accessible copy from the `settings` locale namespace; the shell owns the 800ms minimum-visible hold for the connecting state and the two-second recovered-state timer, which starts when the recovered pill becomes visible after the hold.
-
-### Document availability
-
-On a loopback page, the Client loads the provider's `hasDocument` capability through `settings/describe` and renders **Open configuration file** only when the Host confirms that a provider-owned local document can be prepared. The action calls the pathless, browser-authenticated `settings/openSettingsDocument` Remote; the Host resolves the provider path again, materializes an absent document, and hands it to a native text editor (`open -t` on macOS, bypassing a browser file association; the desktop file association on Linux and Windows; Windows association after `wslpath -w` translation on WSL). Open failures keep the action available and render a localized error. Reopening the page or reconnecting refreshes availability after a transient read failure or Host topology change. Non-loopback pages retain the Client policy that withholds this native action and its settings read.
 
 ### Host half
 

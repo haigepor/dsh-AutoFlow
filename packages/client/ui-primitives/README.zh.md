@@ -52,7 +52,7 @@ Modal 遮罩透明并保留共享背景模糊；弹窗使用主题的 `--dsw-sha
 | `Menu`, `MenuItemButton` | 由 `items` 数据行、分隔线与分组标题构成的下拉菜单，支持嵌套子菜单；`children` 在同一列表中加入组件行，每行一个 `MenuItemButton`（`separatorBefore` 开启新分组）。所有行共享样式、键盘走位与焦点归还；两类行的关闭都是 owner 状态的改变。打开期间 `↑`／`↓`（以及 Home、End）在列表中走位，Tab 选定聚焦行，Escape 或 Shift+Tab 关闭并把焦点还给锚点；选定一行同样把键盘还给锚点——除非拥有者自己移动了焦点。只拦截位于锚点或列表内的键盘，`autoFocus` 仅决定打开时是否聚焦首行。 |
 | `Pill` | 可选中的胶囊按钮，用于视图切换与筛选器；接受 `active` 与 `onClick`。 |
 | `SegmentedTabs` | 受控的等宽分段标签，支持滑动指示条及左／右方向键、Home、End 导航。调用方提供文案、标签与面板 id，以及面板内容。 |
-| `GlideHighlight` | 在已定位父容器内，为匹配 `rowSelector` 的条目共用一个不拦截指针的高亮层。它跟随指针和键盘焦点，滚动或拖拽时清除仅由指针触发的高亮，并由调用方通过 `className` 设置样式。 |
+| `GlideHighlight` | 在已定位父容器内，为匹配 `rowSelector` 的条目共用一个不拦截指针的高亮层。它跟随指针和键盘焦点，滚动或拖拽时清除仅由指针触发的高亮，并由调用方通过 `className` 设置样式。可选的 `bridgeGaps` 在进入条目后，经过非交互间隙时跟随竖向最近的条目；保留同一高亮层，不选择条目或高亮标题。 |
 | `Tag` | 只读胶囊徽章；`tone` 选择八种配色之一。 |
 | `PathLabel` | 单行文件路径：目录使用弱化颜色，文件名使用主色，悬停可查看完整路径。空间足够时靠左显示；溢出时保留尾部并在左侧渐隐，路径或尺寸变化时更新。 |
 | `StateDot` | 10px 槽内的绿色 `done`、琥珀色 `warning`、红色 `error`、中性灰色 `idle` 圆点，以及 tertiary 灰色 14px 旋转 `ongoing` loading，其动画固定到文档时间零点，所以所有可见 loading 同相旋转。它是 `aria-hidden` 的，名称由渲染点提供。 `appearance="step"` 以实心勾表示完成、空心圆表示等待。 |

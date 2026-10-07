@@ -1,5 +1,14 @@
 import { BrandWordmark, FishLogo } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type { SidebarBrandIdentityOwnerProps, SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
+
+/**
+ * Render the complete official sidebar artwork in one SVG.
+ * @param props - Host-supplied artwork presentation.
+ * @returns the combined whale, wordmark, and Harness badge.
+ */
+export function OfficialBrandIdentity({ height }: SidebarBrandIdentityOwnerProps) {
+  return <BrandWordmark size={height} />
+}
 
 /**
  * Render the official mark with the presentation requested by its host surface.

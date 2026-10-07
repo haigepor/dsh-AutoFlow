@@ -655,4 +655,15 @@ export function apply(ctx: ClientContext): void {
     locale: SETTINGS_NS,
     inject: injected,
   }, ThemeSettingsPage))
+  ctx.inject(['settingsSearch'], (scope) => {
+    const searchTargets = [
+      ['mode', 'preset.modeHeading'], ['palette', 'preset.colorHeading'],
+      ['font', 'preset.fontHeading'], ['radius', 'preset.radiusHeading'],
+      ['motion', 'preset.motionHeading'],
+    ] as const
+    for (const [id, key] of searchTargets) scope.effect(() => scope.settingsSearch.register({
+      id: `appearance.${id}`, sectionId: 'appearance-theme',
+      label: () => ctx.locale.bind(SETTINGS_NS)(key), target: `#appearance-${id}-heading`,
+    }))
+  })
 }

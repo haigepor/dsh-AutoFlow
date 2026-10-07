@@ -11,6 +11,9 @@ import type {} from '@deepseek-ai/dsh-settings/types'
 import { SettingsSchemaService } from './schema.ts'
 import { ConfigForms } from './config-form.ts'
 import { SettingsDescribeMirror } from './settings-mirror.ts'
+import { SettingsSearch } from './search.ts'
+
+export type { SettingsSearch, SettingsSearchEntry } from './search.ts'
 
 export type {
   SettingsLauncherOwnerProps, SettingsGeneralItemOwnerProps, SettingsHeaderOwnerProps, SettingsOnboardingOwnerProps,
@@ -34,6 +37,7 @@ export const inject = ['remote', 'remote.settings']
  * @param ctx Client provider context.
  */
 export function apply(ctx: Context): void {
+  new SettingsSearch(ctx)
   const schema = new SettingsSchemaService(ctx)
   // Every form uses the persistence mode resolved from the connected Host.
   const persistence = ctx.remote.$host.isLoopback ? 'host' : 'memory'

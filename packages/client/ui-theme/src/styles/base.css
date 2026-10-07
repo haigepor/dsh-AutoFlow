@@ -22,6 +22,15 @@
 }
 
 body {
+  /* 预览同时展示两套配色，不能随当前激活的调色板一起重绑定。 */
+  --dsw-alias-theme-preview-blue-canvas: #FFFFFF;
+  --dsw-alias-theme-preview-blue-sidebar: #F5F6F7;
+  --dsw-alias-theme-preview-blue-panel: #F5F6F7;
+  --dsw-alias-theme-preview-blue-accent: #4176E6;
+  --dsw-alias-theme-preview-iris-canvas: #FFFFFF;
+  --dsw-alias-theme-preview-iris-sidebar: #F1F0ED;
+  --dsw-alias-theme-preview-iris-panel: #F1F0ED;
+  --dsw-alias-theme-preview-iris-accent: #62619E;
   --dsw-alias-settings-card-fill: var(--dsw-alias-bg-layer-2);
   --dsw-alias-settings-card-stroke: var(--dsw-alias-border-l4);
   --dsh-radius-sm: var(--dsw-radius-sm);
@@ -37,4 +46,15 @@ body {
 [data-dsh-automatic-focus]:focus,
 [data-dsh-automatic-focus]:focus:focus-visible {
   outline: none;
+}
+
+body[data-ds-dark-theme] {
+  --dsw-alias-theme-preview-blue-canvas: #151517;
+  --dsw-alias-theme-preview-blue-sidebar: #1B1B1C;
+  --dsw-alias-theme-preview-blue-panel: #353638;
+  --dsw-alias-theme-preview-blue-accent: #7AAAFF;
+  --dsw-alias-theme-preview-iris-canvas: #20201E;
+  --dsw-alias-theme-preview-iris-sidebar: #161615;
+  --dsw-alias-theme-preview-iris-panel: #272725;
+  --dsw-alias-theme-preview-iris-accent: #BCBCE8;
 }

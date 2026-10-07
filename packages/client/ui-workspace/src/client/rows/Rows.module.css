@@ -115,8 +115,19 @@
 /* Compact one-line Workspace row after removing the session-count subtitle. */
 .projectRow {
   height: 32px;
+  gap: 8px;
+  padding-inline-start: calc(var(--dsh-sidebar-content-inset, 22px) - var(--dsh-sidebar-inline-padding, 12px) + var(--dsh-workspace-indent, 0px));
   align-items: center;
   box-sizing: border-box;
+}
+
+.projectRow .slot {
+  width: 18px;
+}
+
+.projectRow .folder > svg {
+  width: 18px;
+  height: 18px;
 }
 
 .projectRow .rowActions {

@@ -3,7 +3,7 @@ import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ShortcutCatalogEntry, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { BrandWordmark, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ReactNode } from 'react'
 import type {
@@ -35,10 +35,11 @@ type AttentionSnapshot = Parameters<Parameters<SidebarRootComponentProps['useSes
 const noAttention: AttentionSnapshot = new Map()
 const useSessionStatus: SidebarRootComponentProps['useSessionStatus'] = selector => selector(noAttention)
 
-function mountShell({ collapsed = false, width = 300, shortcuts = [] }: {
+function mountShell({ collapsed = false, width = 300, shortcuts = [], identity }: {
   collapsed?: boolean
   width?: number
   shortcuts?: readonly ShortcutCatalogEntry[]
+  identity?: ReactNode
 } = {}) {
   const startSession = vi.fn()
   const toggleSidebar = vi.fn()
@@ -58,7 +59,9 @@ function mountShell({ collapsed = false, width = 300, shortcuts = [] }: {
       renderSlot={((
         key: string,
         owner: SidebarFooterActionOwnerProps | SidebarSectionOwnerProps | SidebarSettingsOwnerProps,
+        options?: { fallback?: ReactNode },
       ) => {
+        if (key === 'sidebar.brand.identity') return identity ?? options?.fallback
         if (key === 'sidebar.brand.mark') return brandMark
         if (key === 'sidebar.brand.name') return brandName
         if (key === 'sidebar.toggle.badge') return null
@@ -99,6 +102,22 @@ function mountShell({ collapsed = false, width = 300, shortcuts = [] }: {
 }
 
 describe('SidebarRoot shell', () => {
+  it('uses complete brand artwork while preserving the header action and collapsed mark', () => {
+    vi.useFakeTimers()
+    const b = mountShell({ identity: <BrandWordmark /> })
+    const brand = screen.getAllByRole('button', { name: 'New session' }).find(button => button.querySelector('svg[viewBox="0 0 182 24"]') !== null)
+    expect(brand).toBeDefined()
+    expect(brand?.querySelectorAll('svg')).toHaveLength(1)
+    expect(screen.queryByTestId('custom-brand-mark')).toBeNull()
+    expect(screen.queryByTestId('custom-brand-name')).toBeNull()
+    if (brand === undefined) throw new Error('complete brand button missing')
+    fireEvent.click(brand)
+    expect(b.startSession).toHaveBeenCalledOnce()
+    b.rerender({ collapsed: true })
+    act(() => { vi.advanceTimersByTime(150) })
+    expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
+    expect(brand?.isConnected).toBe(false)
+  })
   it('advertises the effective new-session binding', () => {
     const shortcut: ShortcutCatalogEntry = { id: 'session.new' as ShortcutCommandId, label: 'New', aliases: [],
       binding: null, modified: true, conflicts: [], issue: null, keys: ['Ctrl', 'N'], aria: 'Control+N' }

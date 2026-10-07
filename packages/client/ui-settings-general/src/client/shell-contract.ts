@@ -28,6 +28,14 @@ export interface SettingsSectionRow {
   label: string
 }
 
+/** One resolved, locale-following setting in the cross-page search index. */
+export interface SettingsSearchRow {
+  id: string
+  sectionId: string
+  label: string
+  target?: string
+}
+
 /** One ordered onboarding step projected from a slot registration. */
 export interface SettingsOnboardingStep {
   id: string
@@ -57,6 +65,8 @@ export type SettingsRootInjected = {
     connectionState: HostObservable<ConnectionState | undefined>
     /** settings.section ledger projected into ordered nav rows. */
     sections: HostObservable<readonly SettingsSectionRow[]>
+    /** Feature-owned searchable settings, without mounting their forms. */
+    searchEntries: HostObservable<readonly SettingsSearchRow[]>
     /** settings.onboarding ledger projected into coordinator order. */
     onboardingSteps: HostObservable<readonly SettingsOnboardingStep[]>
   }

@@ -27,6 +27,8 @@ This package lets users browse grouped or flat Session lists, choose a Workspace
 <a id="use-this-package"></a>
 ## Use this package
 
+The expanded section heading and top-level Workspace icons share the shell's `--dsh-sidebar-content-inset` (22px), aligning with its brand and navigation icons. Workspace folder icons use 18px seats with an 8px label gap; nested Workspace contents retain their depth indentation, and Session rows retain their existing spacing.
+
 The sidebar browser presents Workspace and Session rows as compact 32px navigation items. Adjacent Session rows keep a 4px vertical gap in grouped, flat, and search lists, while retaining their 32px hit targets. Grouped and flat lists share one gliding hover/focus layer per scrolling list; search results use the same treatment, while selected rows retain a neutral fill when idle. Its section heading remains muted, and the expanded search field sits on an elevated theme surface. Row actions, hierarchy, and search behavior remain available.
 
 Use the sidebar to browse Workspaces and their Sessions, reorder them, and start new ones; use the picker in the Session Intent hero to choose a Workspace for a new session. An open Workspace shows five idle, non-blank Sessions by default. Running Sessions, including parents with running children, remain visible in their ordered positions without using that quota; the selected blank **New Session** is also an extra row until its first prompt. Each **Show more** click reveals up to five more idle Sessions; after the final batch, **Show less** restores the initial rows while keeping running Sessions visible. Closing and reopening the Workspace also restores this folded projection.

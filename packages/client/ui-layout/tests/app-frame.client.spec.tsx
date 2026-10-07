@@ -4,6 +4,7 @@ import type { GlobalStandardProps, RenderOpts } from '@deepseek-ai/dsh-client-ui
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
+import { useLayoutEffect } from 'react'
 import { AppFrame } from '../src/client/AppFrame.tsx'
 import type { AppFrameProps } from '../src/client/AppFrame.tsx'
 import type { MainPanelId, RightbarOwnerProps, SidebarOwnerProps } from '../src/client/index.ts'
@@ -60,13 +61,20 @@ function resize(width: number): void {
   })
 }
 
-function mountFrame(windowWidth = frameWidth) {
+function mountFrame(windowWidth = frameWidth, measureCommit?: (frame: HTMLElement) => void) {
   vi.stubGlobal('innerWidth', windowWidth)
   const instance = createLayoutStore().create()
   const slotCalls: { key: string; props: object; options: RenderOpts | undefined }[] = []
+  function MeasurementProbe() {
+    useLayoutEffect(() => {
+      const frame = document.querySelector<HTMLElement>('[data-testid="sidebar-content"]')?.parentElement?.parentElement
+      if (frame != null) measureCommit?.(frame)
+    })
+    return null
+  }
   const renderSlot: AppFrameProps['renderSlot'] = (key, owner, options) => {
     slotCalls.push({ key, props: owner, options })
-    return <div data-testid={`${key}-content`} data-entry-key={options?.entryKey} />
+    return <div data-testid={`${key}-content`} data-entry-key={options?.entryKey}>{key === 'sidebar' && measureCommit !== undefined ? <MeasurementProbe /> : null}</div>
   }
   const useSessions: AppFrameProps['useSessions'] = sel => sel({
     ids: selectedSession === undefined ? [] : [selectedSession],
@@ -426,6 +434,16 @@ describe('AppFrame right panel presentation', () => {
     })
     expect(frame.dataset.rightbarInstant).toBeUndefined()
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
+  })
+
+  it('enables the track transition before a child measures the toggled layout', () => {
+    const commits: { columns: number[]; animating: string | undefined }[] = []
+    const { instance } = mountFrame(frameWidth, (frame) => {
+      commits.push({ columns: tracks(frame), animating: frame.dataset.animating })
+    })
+    commits.length = 0
+    act(() => { instance.actions.toggleSidebar() })
+    expect(commits[0]).toEqual({ columns: [56, 0], animating: 'true' })
   })
 
   it('eases tracks only across a discrete toggle, never for viewport updates', () => {

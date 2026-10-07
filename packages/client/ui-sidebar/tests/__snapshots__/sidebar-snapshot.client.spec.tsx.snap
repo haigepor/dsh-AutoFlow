@@ -118,46 +118,51 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           aria-hidden="true"
           class="brandIdentity"
         >
-          <span
-            class="brandMark"
+          <div
+            data-slot="sidebar.brand.identity"
+            style="display: contents;"
           >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
+            <span
+              class="brandMark"
             >
-              <svg
-                aria-hidden="true"
-                data-content="965fe321"
-                fill="none"
-                height="17.6580310880829"
-                viewBox="0 0 23.16 17.04"
-                width="24"
-              />
-            </div>
-          </span>
-          <span
-            class="brandName"
-          >
-            <div
-              data-slot="sidebar.brand.name"
-              style="display: contents;"
+              <div
+                data-slot="sidebar.brand.mark"
+                style="display: contents;"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="965fe321"
+                  fill="none"
+                  height="17.6580310880829"
+                  viewBox="0 0 23.16 17.04"
+                  width="24"
+                />
+              </div>
+            </span>
+            <span
+              class="brandName"
             >
-              <span
-                class="localBuildBrand"
+              <div
+                data-slot="sidebar.brand.name"
+                style="display: contents;"
               >
                 <span
-                  class="localBuildTitle"
+                  class="localBuildBrand"
                 >
-                  DSH Local Build
+                  <span
+                    class="localBuildTitle"
+                  >
+                    DSH Local Build
+                  </span>
+                  <span
+                    class="buildVersion"
+                  >
+                    1.2.3-rc.4-abc1234-dirty
+                  </span>
                 </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
-              </span>
-            </div>
-          </span>
+              </div>
+            </span>
+          </div>
         </span>
       </button>
       <button
@@ -388,46 +393,51 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
           aria-hidden="true"
           class="brandIdentity"
         >
-          <span
-            class="brandMark"
+          <div
+            data-slot="sidebar.brand.identity"
+            style="display: contents;"
           >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
+            <span
+              class="brandMark"
             >
-              <svg
-                aria-hidden="true"
-                data-content="965fe321"
-                fill="none"
-                height="17.6580310880829"
-                viewBox="0 0 23.16 17.04"
-                width="24"
-              />
-            </div>
-          </span>
-          <span
-            class="brandName"
-          >
-            <div
-              data-slot="sidebar.brand.name"
-              style="display: contents;"
+              <div
+                data-slot="sidebar.brand.mark"
+                style="display: contents;"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="965fe321"
+                  fill="none"
+                  height="17.6580310880829"
+                  viewBox="0 0 23.16 17.04"
+                  width="24"
+                />
+              </div>
+            </span>
+            <span
+              class="brandName"
             >
-              <span
-                class="localBuildBrand"
+              <div
+                data-slot="sidebar.brand.name"
+                style="display: contents;"
               >
                 <span
-                  class="localBuildTitle"
+                  class="localBuildBrand"
                 >
-                  DSH Local Build
+                  <span
+                    class="localBuildTitle"
+                  >
+                    DSH Local Build
+                  </span>
+                  <span
+                    class="buildVersion"
+                  >
+                    1.2.3-rc.4-abc1234-dirty
+                  </span>
                 </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
-              </span>
-            </div>
-          </span>
+              </div>
+            </span>
+          </div>
         </span>
       </button>
       <button
@@ -540,46 +550,51 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
           aria-hidden="true"
           class="brandIdentity"
         >
-          <span
-            class="brandMark"
+          <div
+            data-slot="sidebar.brand.identity"
+            style="display: contents;"
           >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
+            <span
+              class="brandMark"
             >
-              <svg
-                aria-hidden="true"
-                data-content="965fe321"
-                fill="none"
-                height="17.6580310880829"
-                viewBox="0 0 23.16 17.04"
-                width="24"
-              />
-            </div>
-          </span>
-          <span
-            class="brandName"
-          >
-            <div
-              data-slot="sidebar.brand.name"
-              style="display: contents;"
+              <div
+                data-slot="sidebar.brand.mark"
+                style="display: contents;"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="965fe321"
+                  fill="none"
+                  height="17.6580310880829"
+                  viewBox="0 0 23.16 17.04"
+                  width="24"
+                />
+              </div>
+            </span>
+            <span
+              class="brandName"
             >
-              <span
-                class="localBuildBrand"
+              <div
+                data-slot="sidebar.brand.name"
+                style="display: contents;"
               >
                 <span
-                  class="localBuildTitle"
+                  class="localBuildBrand"
                 >
-                  DSH 本地构建
+                  <span
+                    class="localBuildTitle"
+                  >
+                    DSH 本地构建
+                  </span>
+                  <span
+                    class="buildVersion"
+                  >
+                    1.2.3-rc.4-abc1234-dirty
+                  </span>
                 </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
-              </span>
-            </div>
-          </span>
+              </div>
+            </span>
+          </div>
         </span>
       </button>
       <button

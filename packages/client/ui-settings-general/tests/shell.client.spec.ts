@@ -79,7 +79,7 @@ describe('ui-settings-general shell', () => {
   }, COLD_BOOT_TIMEOUT_MS)
 
   it('declares its services', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts', 'layout'])
+    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts', 'layout', 'settingsSearch'])
   })
 
   it('occupies sidebar.settings, declared by ui-sidebar, and declares every child slot', async ({ start }) => {
@@ -179,6 +179,19 @@ describe('ui-settings-general shell', () => {
     expect(listener).toHaveBeenCalledOnce()
     off()
   })
+
+  it('indexes feature-owned labels and removes a catalog entry when its contributor unloads', async ({ start }) => {
+    const c = await start()
+    const { searchEntries } = injectedOf(c).hooks
+    const initial = searchEntries.getSnapshot()
+    expect(searchEntries.getSnapshot()).toBe(initial)
+    expect(initial.find(row => row.id === 'general.language')?.sectionId).toBe('general')
+    expect(initial.find(row => row.id === 'catalog.appearance.font')?.target).toBe('#appearance-font-heading')
+    const catalog = c.ctx.settingsSearch
+    await c.unload('@deepseek-ai/dsh-client-ui-theme')
+    await c.flush()
+    expect(catalog.getSnapshot().some(row => row.sectionId === 'appearance-theme')).toBe(false)
+  }, COLD_BOOT_TIMEOUT_MS)
 
   it('re-registers after the declarer reloads: the cascade removes the shell, the rebuilt declaration takes it back', async ({ start }) => {
     const c = await start()

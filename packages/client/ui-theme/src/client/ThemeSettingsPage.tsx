@@ -1,8 +1,7 @@
-/** Appearance settings controls backed by the browser theme runtime. */
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+/** Appearance settings rows backed by the browser theme runtime. */
+import { useState, type ReactNode } from 'react'
 import {
-  IconCheckOutlineRegular, IconDarkOutlineRegular, IconFollowsystemOutlineRegular,
-  IconChevronDownOutlineRegular, IconChevronLeftOutlineRegular, IconChevronRightOutlineRegular,
+  IconChevronDownOutlineRegular, IconDarkOutlineRegular, IconFollowsystemOutlineRegular,
   IconLightOutlineRegular, IconRefreshOutlineRegular, Menu,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
@@ -12,9 +11,7 @@ import {
   type ThemePreference, type ThemeSet,
 } from '../theme-settings.ts'
 import type { createThemePageStore } from './settings-store.ts'
-import { IconThemeDark } from './previews/IconThemeDark.tsx'
-import { IconThemeLight } from './previews/IconThemeLight.tsx'
-import { IconThemeSystem } from './previews/IconThemeSystem.tsx'
+import { PalettePreview } from './previews/PalettePreview.tsx'
 import css from './ThemeSettingsPage.module.css'
 
 /** Theme writes supplied by the plugin. */
@@ -36,230 +33,103 @@ export type ThemeSettingsPageProps = PropsRuntime<'settings.section'>
 
 const MODES: readonly ThemePreference[] = ['system', 'light', 'dark']
 const THEME_SETS: readonly ThemeSet[] = ['official', 'current']
-const PALETTE_PAGE_SIZE = 4
-const PALETTE_PAGES = Array.from(
-  { length: Math.ceil(THEME_SETS.length / PALETTE_PAGE_SIZE) },
-  (_, page) => THEME_SETS.slice(page * PALETTE_PAGE_SIZE, (page + 1) * PALETTE_PAGE_SIZE),
-)
 const FONTS: readonly FontFamily[] = ['system', 'source-sans-3', 'ibm-plex-serif', 'jetbrains-mono', 'ibm-plex-sans-condensed']
 const LEGACY_FONTS: readonly FontFamily[] = ['inter', 'noto-sans-sc']
 const RADII = ['0', '0.25', '0.5', '0.75', '1'] as const satisfies readonly CornerPreset[]
-const RADIUS_VALUES: Record<(typeof RADII)[number], string> = {
-  '0': '0px', '0.25': '4px', '0.5': '8px', '0.75': '12px', '1': '16px',
-}
 
-function ChoiceCard({ label, description, selected, onSelect, children }: {
-  label: string
+function AppearanceRow<Value extends string | number>({ id, title, description, label, selected, options, onSelect }: {
+  id: string
+  title: string
   description: string
-  selected: boolean
-  onSelect: () => void
-  children: ReactNode
+  label: ReactNode
+  selected: Value | undefined
+  options: readonly { value: Value; label: ReactNode }[]
+  onSelect: (value: Value) => void
 }) {
-  return <button type="button" className={css.choiceCard} data-selected={selected || undefined}
-    aria-pressed={selected} onClick={onSelect}>
-    <span className={css.choicePreview}>{children}</span>
-    <span className={css.choiceMeta}><span className={css.choiceLabel}>{label}</span>
-      {selected && <span className={css.selectedMark}><IconCheckOutlineRegular size={13} /></span>}
-    </span>
-    <span className={css.choiceDescription}>{description}</span>
-  </button>
+  const [open, setOpen] = useState(false)
+  return <section className={css.row} aria-labelledby={id}>
+    <div className={css.rowText}>
+      <h2 id={id} className={css.rowTitle}>{title}</h2>
+      <p className={css.description}>{description}</p>
+    </div>
+    <Menu open={open} portal autoFocus align="end" className={css.menu} listClassName={css.menuList}
+      selectedId={selected === undefined ? undefined : String(selected)}
+      items={options.map(option => ({ id: String(option.value), label: option.label }))}
+      onClose={() => { setOpen(false) }}
+      onSelect={(value) => {
+        const option = options.find(candidate => String(candidate.value) === value)
+        if (option) onSelect(option.value)
+        setOpen(false)
+      }}
+      anchor={<button type="button" className={css.selector} aria-labelledby={id}
+        aria-haspopup="menu" aria-expanded={open} onClick={() => { setOpen(value => !value) }}>
+        <span>{label}</span><IconChevronDownOutlineRegular className={css.chevron} size={14} />
+      </button>}
+    />
+  </section>
 }
 
-/** Upstream SVG previews for the three appearance modes. */
-function ShellPreview({ mode, palette }: { mode: ThemePreference; palette?: ThemeSet }) {
-  if (palette !== undefined) return <PalettePreview mode={mode} palette={palette} />
-  const Preview = mode === 'system' ? IconThemeSystem : mode === 'light' ? IconThemeLight : IconThemeDark
-  const Icon = mode === 'system' ? IconFollowsystemOutlineRegular
-    : mode === 'light' ? IconLightOutlineRegular : IconDarkOutlineRegular
-  return <span className={`${css.appearancePreview} ${css.modePreview}`} data-preview-mode={mode}>
-    <Preview className={css.assetPreview} aria-hidden="true" />
-    <span className={css.appearanceIcon}><Icon size={14} /></span>
-  </span>
-}
-
-/** Palette-specific shell preview for the project's two selectable colour sets. */
-function PalettePreview({ mode, palette }: { mode: ThemePreference; palette: ThemeSet }) {
-  return <span className={`${css.appearancePreview} ${css.palettePreview}`} data-preview-palette={palette} data-preview-mode={mode}>
-    <span className={css.windowPreview} aria-hidden="true">
-      <span className={css.previewSidebar}>
-        <span className={css.previewDot} />
-        <span className={css.previewLine} />
-        <span className={css.previewLineShort} />
-        <span className={css.previewLineAccent} />
-      </span>
-      <span className={css.previewCanvas}>
-        <span className={css.previewAccent} />
-        <span className={css.previewBlock} />
-        <span className={css.previewText} />
-      </span>
-    </span>
-  </span>
-}
-
-/** Render the complete Appearance page. */
+/**
+ * Render Appearance as General-style settings rows, retaining saved legacy choices.
+ * @param props - composed settings props and appearance writes.
+ * @returns the Appearance section and its shared selection menus.
+ */
 export function ThemeSettingsPage({
   t, useStore, setTheme, setThemeSet, setFontFamily, setCorners, setGlideDuration, resetAppearance,
 }: ThemeSettingsPageProps) {
   const state = useStore(snapshot => snapshot)
+  // 旧字体只在仍被使用时展示；浏览页面不会改写已有偏好。
   const fonts = FONTS.includes(state.fontFamily) ? FONTS : [...FONTS, ...LEGACY_FONTS.filter(font => font === state.fontFamily)]
-  const [palettePage, setPalettePage] = useState(() => Math.max(0, Math.floor(THEME_SETS.indexOf(state.themeSet) / PALETTE_PAGE_SIZE)))
-  const [motionMenuOpen, setMotionMenuOpen] = useState(false)
-  const [draggingPalette, setDraggingPalette] = useState(false)
-  const [paletteDragOffset, setPaletteDragOffset] = useState(0)
-  const paletteDragStart = useRef<{ x: number; page: number } | null>(null)
-  const suppressPaletteClick = useRef(false)
-  const clampPalettePage = (page: number): number => Math.min(PALETTE_PAGES.length - 1, Math.max(0, page))
-
-  useEffect(() => {
-    setPalettePage(Math.max(0, Math.floor(THEME_SETS.indexOf(state.themeSet) / PALETTE_PAGE_SIZE)))
-  }, [state.themeSet])
-
-  useEffect(() => {
-    if (!draggingPalette) return
-    const onMove = (event: PointerEvent): void => {
-      if (!paletteDragStart.current) return
-      setPaletteDragOffset(event.clientX - paletteDragStart.current.x)
-    }
-    const onEnd = (event: PointerEvent): void => {
-      const start = paletteDragStart.current
-      paletteDragStart.current = null
-      setDraggingPalette(false)
-      setPaletteDragOffset(0)
-      if (!start) return
-      const offset = event.clientX - start.x
-      if (Math.abs(offset) >= 8) suppressPaletteClick.current = true
-      if (offset <= -48) setPalettePage(clampPalettePage(start.page + 1))
-      else if (offset >= 48) setPalettePage(clampPalettePage(start.page - 1))
-    }
-    const onCancel = (): void => {
-      paletteDragStart.current = null
-      setDraggingPalette(false)
-      setPaletteDragOffset(0)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onEnd)
-    window.addEventListener('pointercancel', onCancel)
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onEnd)
-      window.removeEventListener('pointercancel', onCancel)
-    }
-  }, [draggingPalette])
-
-  const selectThemeSet = (themeSet: ThemeSet): void => {
-    if (suppressPaletteClick.current) {
-      suppressPaletteClick.current = false
-      return
-    }
-    setThemeSet(themeSet)
-  }
-
-  const onPaletteCarouselKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault()
-      setPalettePage(clampPalettePage(palettePage - 1))
-    } else if (event.key === 'ArrowRight') {
-      event.preventDefault()
-      setPalettePage(clampPalettePage(palettePage + 1))
-    }
-  }
+  const radius = state.corners === 'compact' ? '0.25' : state.corners === 'standard' ? '0.75'
+    : state.corners === 'soft' ? '1' : state.corners
 
   return <div className={css.section} data-appearance-settings>
-    <header className={css.header}>
-      <div className={css.headerCopy}><h1 className={css.heading}>{t('preset.pageTitle')}</h1></div>
+    <header className={css.header} data-settings-page-header>
+      <h1 className={css.heading}>{t('preset.pageTitle')}</h1>
       <button type="button" className={css.resetButton} onClick={resetAppearance}>
         <IconRefreshOutlineRegular size={14} />{t('preset.reset')}
       </button>
     </header>
-
-    <section className={css.group} aria-labelledby="appearance-mode-heading">
-      <div className={css.groupHeading}><h2 id="appearance-mode-heading">{t('preset.modeHeading')}</h2></div>
-      <div className={css.gridThree}>{MODES.map(mode => <ChoiceCard key={mode}
-        label={t(`preset.mode.${mode}.label`)} description={t(`preset.mode.${mode}.description`)}
-        selected={state.preference === mode} onSelect={() => { setTheme(mode) }}><ShellPreview mode={mode} /></ChoiceCard>)}</div>
-    </section>
-
-    <section className={css.group} aria-labelledby="appearance-palette-heading">
-      <div className={css.groupHeading}><h2 id="appearance-palette-heading">{t('preset.colorHeading')}</h2></div>
-      <div className={css.carousel} role="group" aria-roledescription={t('preset.carousel.label')}
-        aria-label={t('preset.colorHeading')} onKeyDown={onPaletteCarouselKeyDown}>
-        <div className={css.carouselViewport}>
-          <div className={css.carouselTrack} data-dragging={draggingPalette || undefined}
-            style={draggingPalette
-              ? { transform: `translateX(calc(-${palettePage * 100}% + ${paletteDragOffset}px))`, transition: 'none' }
-              : { transform: `translateX(-${palettePage * 100}%)` }}
-            onPointerDown={(event) => {
-              paletteDragStart.current = { x: event.clientX, page: palettePage }
-              suppressPaletteClick.current = false
-              setDraggingPalette(true)
-            }}>
-            {PALETTE_PAGES.map((page, index) => <div key={index} className={css.carouselPage}
-              data-carousel-page={index} aria-hidden={index !== palettePage}
-              ref={(node) => { if (node) node.inert = index !== palettePage }}>
-              <div className={css.carouselPageGrid}>{page.map(themeSet => <ChoiceCard key={themeSet}
-                label={t(`preset.theme.${themeSet}.label`)} description={t(`preset.theme.${themeSet}.description`)}
-                selected={state.themeSet === themeSet && !state.legacyAccent} onSelect={() => { selectThemeSet(themeSet) }}>
-                <ShellPreview mode={state.preference} palette={themeSet} />
-              </ChoiceCard>)}</div>
-            </div>)}
-          </div>
-        </div>
-        {PALETTE_PAGES.length > 1 && <div className={css.carouselControls}>
-          <button type="button" className={css.carouselArrow} disabled={palettePage === 0}
-            aria-label={t('preset.carousel.previous')} onClick={() => { setPalettePage(clampPalettePage(palettePage - 1)) }}>
-            <IconChevronLeftOutlineRegular size={14} />
+    <section className={css.row} aria-labelledby="appearance-mode-heading">
+      <div className={css.rowText}>
+        <h2 id="appearance-mode-heading" className={css.rowTitle}>{t('preset.modeHeading')}</h2>
+        <p className={css.description}>{t('mode.description')}</p>
+      </div>
+      <div className={css.modeCards} role="group" aria-labelledby="appearance-mode-heading">
+        {MODES.map((mode) => {
+          const Icon = mode === 'system' ? IconFollowsystemOutlineRegular
+            : mode === 'light' ? IconLightOutlineRegular : IconDarkOutlineRegular
+          return <button key={mode} type="button" className={css.modeCard}
+            aria-pressed={state.preference === mode} onClick={() => { setTheme(mode) }}>
+            <Icon size={18} aria-hidden="true" /><span>{t(`preset.mode.${mode}.label`)}</span>
           </button>
-          <div className={css.carouselDots} role="group" aria-label={t('preset.colorHeading')}>
-            {PALETTE_PAGES.map((page, index) => <button key={index} type="button" className={css.carouselDot}
-              data-active={index === palettePage || undefined} aria-current={index === palettePage ? 'true' : undefined}
-              aria-label={page.map(themeSet => t(`preset.theme.${themeSet}.label`)).join(', ')} onClick={() => { setPalettePage(index) }} />)}
-          </div>
-          <button type="button" className={css.carouselArrow} disabled={palettePage === PALETTE_PAGES.length - 1}
-            aria-label={t('preset.carousel.next')} onClick={() => { setPalettePage(clampPalettePage(palettePage + 1)) }}>
-            <IconChevronRightOutlineRegular size={14} />
-          </button>
-        </div>}
+        })}
       </div>
     </section>
-
-    <section className={css.group} aria-labelledby="appearance-font-heading">
-      <div className={css.groupHeading}><h2 id="appearance-font-heading">{t('preset.fontHeading')}</h2></div>
-      <div className={css.gridFive}>{fonts.map(option => <ChoiceCard key={option}
-        label={t(`preset.font.${option}.label`)} description={t(`preset.font.${option}.description`)}
-        selected={state.fontFamily === option} onSelect={() => { setFontFamily(option) }}>
-        <span className={css.fontPreview} data-font={option}>Aa</span>
-      </ChoiceCard>)}</div>
+    <section className={css.row} aria-labelledby="appearance-palette-heading">
+      <div className={css.rowText}>
+        <h2 id="appearance-palette-heading" className={css.rowTitle}>{t('preset.colorHeading')}</h2>
+        <p className={css.description}>{state.legacyAccent ? t('preset.theme.custom.label') : t('preset.paletteDescription')}</p>
+      </div>
+      <div className={`${css.modeCards} ${css.paletteCards}`} role="group" aria-labelledby="appearance-palette-heading">
+        {THEME_SETS.map(themeSet => <button key={themeSet} type="button" className={css.modeCard}
+          aria-pressed={state.themeSet === themeSet && !state.legacyAccent} onClick={() => { setThemeSet(themeSet) }}>
+          <PalettePreview palette={themeSet} />
+          <span>{t(`preset.theme.${themeSet}.label`)}</span>
+        </button>)}
+      </div>
     </section>
-
-    <section className={css.group} aria-labelledby="appearance-radius-heading">
-      <div className={css.groupHeading}><h2 id="appearance-radius-heading">{t('preset.radiusHeading')}</h2></div>
-      <div className={css.gridFive}>{RADII.map(option => <ChoiceCard key={option}
-        label={t(`preset.radius.${option}.label`)} description={t(`preset.radius.${option}.description`)}
-        selected={state.corners === option
-          || (state.corners === 'compact' && option === '0.25')
-          || (state.corners === 'standard' && option === '0.75')
-          || (state.corners === 'soft' && option === '1')}
-        onSelect={() => { setCorners(option) }}>
-        <span className={css.radiusPreview} style={{ '--preview-radius': RADIUS_VALUES[option] } as CSSProperties}><span /></span>
-      </ChoiceCard>)}</div>
-    </section>
-
-    <section className={`${css.group} ${css.motionGroup}`} aria-labelledby="appearance-motion-heading">
-      <div className={css.groupHeading}><h2 id="appearance-motion-heading">{t('preset.motionHeading')}</h2></div>
-      <Menu open={motionMenuOpen} portal autoFocus align="end" className={css.motionMenu}
-        listClassName={css.motionMenuList} selectedId={String(state.glideDuration)}
-        items={GLIDE_DURATIONS.map(value => ({ id: String(value), label: t(`preset.motion.${value}`) }))}
-        onClose={() => { setMotionMenuOpen(false) }}
-        onSelect={(value) => {
-          setGlideDuration(Number(value) as GlideDuration)
-          setMotionMenuOpen(false)
-        }}
-        anchor={<button type="button" className={css.motionSelector} aria-label={t('preset.motionPreview')}
-          aria-haspopup="menu" aria-expanded={motionMenuOpen} onClick={() => { setMotionMenuOpen(open => !open) }}>
-          <span>{t(`preset.motion.${state.glideDuration}`)}</span>
-          <IconChevronDownOutlineRegular className={css.motionSelectorChevron} size={14} />
-        </button>}
-      />
-    </section>
+    <AppearanceRow id="appearance-font-heading" title={t('preset.fontHeading')} description={t('font.description')}
+      label={<span className={css.fontSample} data-font={state.fontFamily}>{t(`preset.font.${state.fontFamily}.label`)}</span>}
+      selected={state.fontFamily}
+      options={fonts.map(value => ({ value,
+        label: <span className={css.fontSample} data-font={value}>{t(`preset.font.${value}.label`)}</span>,
+      }))} onSelect={setFontFamily} />
+    <AppearanceRow id="appearance-radius-heading" title={t('preset.radiusHeading')} description={t('corners.description')}
+      label={t(`preset.radius.${radius}.label`)} selected={radius}
+      options={RADII.map(value => ({ value, label: t(`preset.radius.${value}.label`) }))} onSelect={setCorners} />
+    <AppearanceRow id="appearance-motion-heading" title={t('preset.motionHeading')} description={t('preset.motionDescription')}
+      label={t(`preset.motion.${state.glideDuration}`)} selected={state.glideDuration}
+      options={GLIDE_DURATIONS.map(value => ({ value, label: t(`preset.motion.${value}`) }))} onSelect={setGlideDuration} />
   </div>
 }

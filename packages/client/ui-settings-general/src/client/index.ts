@@ -22,7 +22,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {
-  SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow,
+  SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow, SettingsSearchRow,
 } from './shell-contract.ts'
 import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import { createSettingsShellStore } from './shell-store.ts'
@@ -67,7 +67,7 @@ const PANEL_ID = 'settings' as MainPanelId
  * ui-settings' apply, whose activation order relative to this one is NOT
  * constrained; registrations depend on their slots through `slots.inject()`.
  */
-export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts', 'layout']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts', 'layout', 'settingsSearch']
 
 /**
  * Register the `settings` dictionaries, the chrome content, and the General
@@ -77,6 +77,7 @@ export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settin
 export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item', id: 'developer-tools', order: 15, locale: NS,
+    label: () => ctx.locale.bind(NS)('developerTools.title'),
     inject: (): DeveloperToolsRowInjected => ({
       hooks: { developerTools: ctx.configForms.developerTools.enabled },
       setEnabled: enabled => ctx.configForms.developerTools.setEnabled(enabled),
@@ -155,6 +156,10 @@ export function apply(ctx: ClientContext): void {
   let rows: readonly SettingsSectionRow[] = []
   let onboardingVersion = -1
   let onboardingSteps: readonly SettingsOnboardingStep[] = []
+  let searchVersion = -1
+  let searchRevision = -1
+  let searchContributions = ctx.settingsSearch.getSnapshot()
+  let searchRows: readonly SettingsSearchRow[] = []
   const shellInjected = (): SettingsRootInjected => ({
     openSettings,
     closeSettings,
@@ -164,6 +169,30 @@ export function apply(ctx: ClientContext): void {
       shortcuts: ctx.shortcuts.catalog,
       desktopUpdate: desktopUpdate.store,
       connectionState: connection.state,
+      searchEntries: {
+        getSnapshot: () => {
+          const version = ctx.slots.getVersion('settings.general.item')
+          const revision = ctx.locale.getSnapshot().revision
+          const contributions = ctx.settingsSearch.getSnapshot()
+          if (version !== searchVersion || revision !== searchRevision || contributions !== searchContributions) {
+            searchVersion = version
+            searchRevision = revision
+            searchContributions = contributions
+            searchRows = [
+              ...ctx.slots.entries('settings.general.item').flatMap((entry) => {
+                const label = resolveSlotLabel(entry.options.label)
+                return label === undefined ? [] : [{ id: `general.${entry.options.id}`, sectionId: 'general', label }]
+              }),
+              ...contributions.map(entry => ({ ...entry, id: `catalog.${entry.id}`, label: entry.label() })),
+            ]
+          }
+          return searchRows
+        },
+        subscribe: (listener) => {
+          const disposers = [ctx.settingsSearch.subscribe(listener), ctx.slots.subscribe('settings.general.item', listener), ctx.locale.subscribe(listener)]
+          return () => { for (const dispose of disposers) dispose() }
+        },
+      },
       sections: {
         getSnapshot: () => {
           const version = ctx.slots.getVersion('settings.section')

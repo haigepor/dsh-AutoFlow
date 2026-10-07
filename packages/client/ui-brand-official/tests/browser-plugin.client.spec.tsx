@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { apply, inject } from '../src/client/index.ts'
-import { OfficialBrandMark, OfficialBrandName } from '../src/client/Brand.tsx'
+import { OfficialBrandIdentity, OfficialBrandMark, OfficialBrandName } from '../src/client/Brand.tsx'
 import { apply as hostApply } from '../src/index.ts'
 
 afterEach(() => {
@@ -15,6 +15,7 @@ afterEach(() => {
 const HOLES = [
   'sidebar.brand.mark',
   'sidebar.brand.name',
+  'sidebar.brand.identity',
 ] as const
 
 const HERO_HOLE = 'conversation.hero.brand.mark'
@@ -32,6 +33,14 @@ async function bench(declare = true) {
 }
 
 describe('official browser-brand plugin', () => {
+  it('renders the complete sidebar artwork in one SVG', () => {
+    const view = render(<OfficialBrandIdentity height={24} />)
+    const svg = view.container.querySelector('svg')
+    expect(view.container.querySelectorAll('svg')).toHaveLength(1)
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 182 24')
+    expect(svg?.getAttribute('width')).toBe('182')
+    expect(svg?.getAttribute('height')).toBe('24')
+  })
   it('keeps the host Loader entry inert', () => {
     expect(hostApply).not.toThrow()
   })

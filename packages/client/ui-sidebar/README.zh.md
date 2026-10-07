@@ -27,13 +27,13 @@ dsh Web 客户端的侧边栏让用户识别当前构建、启动新会话、将
 <a id="use-this-package"></a>
 ## 使用本包
 
-常规展开的侧边栏保留官方 60px 品牌行，以及内容居中、高 38px、带抬升填充、细边框和默认 12px 圆角的新建会话按钮。暗色模式将静止填充向侧栏底色混合，仅在悬停时提高亮度。面板入口沿用紧凑的 32px 行、8px 圆角和滑动悬停／焦点高亮层；新建会话按钮使用独立的悬停填充。高亮层移动时，选中面板仍保留中性色底。56px 收起轨道保留 36px 点击区域、8px 圆角和紧凑的面板行间距；各平台标题栏控件保留自身尺寸。底部设置入口由分隔线划开。
+常规展开的侧边栏采用带 148px 品牌点击区域的 34px 品牌行（普通浏览器为 48px 行高与 6px 顶部留白，与设置导航头部对齐），以及内容靠左、高 32px、静止背景透明、使用共享 8px 圆角的新建会话行。新建会话与面板入口使用 13px 导航文字，图标中心与品牌鲸鱼竖直对齐。品牌、导航图标与工作区分区共用 22px 左边距。面板入口沿用紧凑的 32px 行、8px 圆角和滑动悬停／焦点高亮层；新建会话按钮使用独立的悬停填充。高亮层移动时，选中面板仍保留中性色底。56px 收起轨道保留 36px 点击区域、8px 圆角和紧凑的面板行间距；各平台标题栏控件保留自身尺寸。底部设置入口由分隔线划开。
 
 侧边栏是导航外壳：用户看到品牌、启动新会话、折叠轨道并到达 Settings。功能插件填充它的席位——ui-workspace 填充 `sidebar.workspaces`，ui-settings 在 `sidebar.settings` 注册触发行与设置面板。
 
 ### 品牌与 New Session
 
-展开的品牌行把 `sidebar.brand.mark` 与 `sidebar.brand.name` 渲染为两个独立的 single slot；收起轨道则渲染同一个 mark slot。没有占位者时，外壳使用鱼形标记和本地化的本地构建标签。完整构建会在标签下方显示代码徽标；该徽标使用 `DSH_CLIENT_VERSION`、可选的 7 位 `DSH_CLIENT_COMMIT_HASH` 与 `DSH_CLIENT_GIT_DIRTY=true` 组装成 `version[-commit][-dirty]`；缺少版本元数据时不显示徽标。New Session 优先使用作用域操作明确指定的 Workspace，否则使用当前 Session 所属 Workspace，再否则使用最近活跃 Workspace；一个 Workspace 都没有时则清空选择，进入空白 New Session 页面。 展开态的新建会话按钮在悬停或键盘聚焦时于右侧以灰色文字显示当前有效绑定。快捷键可见且空间较窄时，居中的图标与文字在快捷键之前渐隐；CSS 为快捷键保留宽度，无需测量按钮。纯图标控件保留使用平台键位样式的 tooltip，侧栏隐藏时常驻的 macOS 头部控件也保持一致。所有控件均提供 `aria-keyshortcuts`。
+展开的品牌行优先在 148×24px SVG 显示区域渲染 `sidebar.brand.identity` 完整图案；没有该填充时，分别渲染 `sidebar.brand.mark` 与 `sidebar.brand.name`。收起轨道渲染 mark slot。没有占位者时，外壳使用鱼形标记和本地化的本地构建标签。完整构建会在标签下方显示代码徽标；该徽标使用 `DSH_CLIENT_VERSION`、可选的 7 位 `DSH_CLIENT_COMMIT_HASH` 与 `DSH_CLIENT_GIT_DIRTY=true` 组装成 `version[-commit][-dirty]`；缺少版本元数据时不显示徽标。New Session 优先使用作用域操作明确指定的 Workspace，否则使用当前 Session 所属 Workspace，再否则使用最近活跃 Workspace；一个 Workspace 都没有时则清空选择，进入空白 New Session 页面。 展开态的新建会话按钮在悬停或键盘聚焦时于右侧以灰色文字显示当前有效绑定。快捷键可见且空间较窄时，靠左的图标与文字在快捷键之前渐隐；CSS 为快捷键保留宽度，无需测量按钮。纯图标控件保留使用平台键位样式的 tooltip，侧栏隐藏时常驻的 macOS 头部控件也保持一致。所有控件均提供 `aria-keyshortcuts`。
 
 ### 全局面板入口
 
