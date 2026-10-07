@@ -11,6 +11,8 @@ English | [中文](README.zh.md)
 
 Use the **Built-in plugins** settings section to inspect the plugins this deployment ships. The section is a shell: it owns the navigation entry and the tab row, and every tab in it is registered by another plugin — the read-only inventory ships one. Configuring a built-in plugin happens on the sidebar's Plugins page, where each official plugin's own companion package registers its page.
 
+The tab bar uses compact 36px text tabs with an active underline; keyboard navigation and visited panels remain unchanged.
+
 ## Table of Contents
 
 - [Use this package](#use-this-package)
@@ -24,6 +26,8 @@ Use the **Built-in plugins** settings section to inspect the plugins this deploy
 
 <a id="use-this-package"></a>
 ## Use this package
+
+In Settings, this section uses the shared 26px page title, 36px line height, weight 600, and 24px title spacing. Page titles omit decorative icons and introductions; setting-level help and actions remain available. The shell supplies equal horizontal insets and a 24px top inset.
 
 Open **Built-in plugins** in Settings. [ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.md) contributes the inventory as the section's one tab, shown as the page itself; a second registered tab turns the row into tabs. A deployment whose composition contributes no tab shows the section's empty line.
 

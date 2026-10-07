@@ -1,7 +1,6 @@
 /** Plugins settings section: localized tabs around feature-owned pages. */
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { IconPersonalizationOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
@@ -53,12 +52,8 @@ export function PluginsSettingsSection({ t, renderSlot, useTabs }: PluginsSettin
 
   return (
     <div className={css.section}>
-      <header className={css.pageHeader}>
-        <span className={css.pageIcon} aria-hidden="true"><IconPersonalizationOutlineMedium size={24} /></span>
-        <div>
-          <h1 className={css.heading}>{t('title')}</h1>
-          <p className={css.intro}>{t('intro')}</p>
-        </div>
+      <header className={css.pageHeader} data-settings-page-header>
+        <h1 className={css.heading}>{t('title')}</h1>
       </header>
       {rows.length === 0 ? <p className={css.empty}>{t('empty')}</p> : single !== undefined ? (
         <div className={css.panel}>{renderSlot('settings.plugins.tab', {}, { only: single.id })}</div>

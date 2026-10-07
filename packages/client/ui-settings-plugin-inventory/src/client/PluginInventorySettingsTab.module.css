@@ -3,7 +3,7 @@
   container: plugin-inventory / inline-size;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   width: 100%;
   min-width: 0;
   color: var(--dsw-alias-label-primary);
@@ -50,6 +50,15 @@
   gap: 12px;
 }
 
+.toolbar { display: flex; align-items: center; gap: 12px; }
+.toolbar > .search { flex: 1; min-width: 0; }
+.toolbar > :last-child { flex: none; }
+.categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.category { border: 0.5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); padding: 4px 10px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 20px; cursor: pointer; }
+.category[aria-pressed='true'] { color: var(--dsw-alias-state-business-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, var(--dsw-alias-border-l2)); background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 7%, var(--dsw-alias-bg-layer-1)); }
+.category:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color); outline-offset: 2px; }
+.category:hover { background: var(--dsw-alias-interactive-bg-hover); }
+
 .search {
   position: relative;
   display: flex;
@@ -66,7 +75,7 @@
 
 .search input {
   width: 100%;
-  height: 44px;
+  height: 36px;
   box-sizing: border-box;
   border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: var(--dsw-radius-md);
@@ -89,58 +98,51 @@
 
 .cards {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* Cards stretch to their grid row's height. The button fills a stretched card:
-   the title row and description stay at the top, in line with the other card's,
-   and the spare height sits above the entry id chip or at the bottom. */
+/* Each card keeps its own height when its grid neighbor expands. */
 .card {
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  border: 0;
-  box-shadow: var(--dsw-elevation-stroke);
-  border-radius: 16px;
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  box-shadow: var(--dsw-shadow-soft);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-layer-1);
 }
 
 .card[data-open='true'] {
   border-color: var(--dsw-alias-border-l3);
 }
 
-/* The other card in an expanded card's row keeps its own height instead of
-   stretching alongside the details. The selectors assume the two columns
-   `.cards` declares, where each row starts at an odd position, and must change
-   with that count; in one column the matched card sits alone in its row. */
-.card:nth-child(odd)[data-open='true'] + .card,
-.card:nth-child(odd):has(+ .card[data-open='true']) {
-  align-self: start;
-}
-
 .cardContent {
   box-sizing: border-box;
-  display: flex;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   flex: 1 1 auto;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  min-height: 52px;
+  height: 64px;
   border: 0;
-  padding: 18px 20px;
+  padding: 10px 14px;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
+
+.cardArtwork { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); }
+.cardArtwork > svg { width: 32px; height: 32px; }
+.cardCopy { display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 3px; }
 
 .cardContent:hover,
 .card[data-open='true'] > .cardContent {
@@ -152,71 +154,36 @@
   outline-offset: -2px;
 }
 
-.cardMainRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
-
-.cardTitle,
-.cardIdentity {
+.cardTitle {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .cardTitle {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 20px;
   font-weight: 500;
 }
 
-/* Two lines at most while collapsed; the expanded card shows the full text. */
+/* A compact summary stays one line; details show the complete description. */
 .cardDescription {
   display: -webkit-box;
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 18px;
   text-wrap: pretty;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
 }
 
-.card[data-open='true'] .cardDescription {
-  display: block;
-}
-
-/* The entry id is metadata, not prose: a code chip in the card's bottom-left
-   corner whose left edge lines up with the title. */
-.cardMeta {
-  display: flex;
-  margin-top: auto;
-  padding-top: 6px;
-}
-
-/* The Loader entry id keeps one size in the card chip and the row it expands into;
-   the collapsed chip stays on the quieter label tier, while the expanded row carries
-   the card's primary value. */
-.cardIdentity,
 .entryValue {
   font-family: var(--ds-font-family-code);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 18px;
-}
-
-.cardIdentity {
-  display: block;
-  box-sizing: border-box;
-  max-width: 100%;
-  border-radius: var(--dsw-radius-xs);
-  padding: 1px 6px;
-  background: var(--dsw-alias-bg-module-platform);
-  color: var(--dsw-alias-label-secondary);
 }
 
 .cardTrailing {
@@ -251,7 +218,7 @@
 
 .group + .group {
   border-top: 0.5px solid var(--dsw-alias-border-l2);
-  padding-top: 24px;
+  padding-top: 14px;
 }
 
 .headerEnd {
@@ -441,8 +408,13 @@
 .cardDetails {
   border-top: 0.5px solid var(--dsw-alias-border-l2);
   padding: 10px 14px 12px;
-  background: color-mix(in srgb, var(--dsw-alias-bg-module-platform) 68%, transparent);
+  background: var(--dsw-alias-bg-module-platform);
 }
+.detailDescription { margin: 0 0 10px; font-size: 12px; line-height: 19px; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+
+.disclosure { display: grid; grid-template-rows: 0fr; opacity: 0; }
+.disclosure[data-open='true'] { grid-template-rows: 1fr; opacity: 1; }
+.disclosureClip { min-height: 0; overflow: hidden; }
 
 .entryValue {
   display: block;
@@ -488,8 +460,10 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .chevron {
-    transition: transform 140ms var(--ds-ease-in-out);
+    transition: transform 250ms var(--ds-ease-in-out);
   }
+
+  .disclosure { transition: grid-template-rows 250ms var(--ds-ease-in-out), opacity 200ms ease; }
 
   .skeletonBar {
     animation: plugin-inventory-skeleton 2s cubic-bezier(0.36, 0, 0.64, 1) infinite;
@@ -503,6 +477,8 @@
 }
 
 @container plugin-inventory (max-width: 520px) {
+  .toolbar { align-items: stretch; flex-direction: column; }
+  .toolbar > :last-child { align-self: flex-start; }
   .cards {
     grid-template-columns: minmax(0, 1fr);
   }

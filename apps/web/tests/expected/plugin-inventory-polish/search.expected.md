@@ -1,0 +1,53 @@
+- navigation "设置":
+  - text: 设置
+  - button "返回"
+  - button "折叠设置侧栏" [expanded]
+  - searchbox "搜索设置项"
+  - heading "偏好设置" [level=2]
+  - button "通用设置"
+  - button "外观主题"
+  - heading "模型与智能体" [level=2]
+  - button "模型"
+  - button "Agent 预设"
+  - heading "插件与应用" [level=2]
+  - button "内置插件"
+- region "内置插件":
+  - heading "内置插件" [level=1]
+  - text: 搜索插件
+  - searchbox "搜索插件": 读取文件和图片
+  - text: 只读清单
+  - group "按功能筛选插件":
+    - button "全部" [pressed]
+    - button "开发工具"
+    - button "检索与上下文"
+    - button "智能体与协作"
+    - button "其他与基础"
+  - button "会话插件" [expanded]
+  - button "选择要查看的 Agent 预设": 标准模式（默认）
+  - paragraph: 随 Agent 预设按会话加载工具、上下文与协作能力 ·1 个
+  - list:
+    - listitem:
+      - button "tool-fs, 已启用" [expanded]:
+        - strong: tool-fs
+        - text: 读取文件和图片，写入或编辑文件。
+      - paragraph: 读取文件和图片，写入或编辑文件。
+      - code: tool-fs
+      - term: 完整名称
+      - definition: "@deepseek-ai/dsh-tool-fs"
+      - term: 来自
+      - definition: 标准模式
+      - term: 配置状态
+      - definition: 已启用
+      - term: 运行状态
+      - definition: 运行中
+  - paragraph:
+    - text: 其他预设中还有 2 个匹配：
+    - button "PTC 模式"
+    - button "创造模式"
+  - button "全局插件" [expanded]
+  - paragraph: 为应用与所有会话提供模型、存储、连接及界面等共享能力 ·1 个
+  - list:
+    - listitem:
+      - button "tool-fs, 预设中启用":
+        - strong: tool-fs
+        - text: 读取文件和图片，写入或编辑文件。 预设中启用

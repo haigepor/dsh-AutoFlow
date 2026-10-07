@@ -7,13 +7,20 @@ import {
   IconChevronDownOutlineRegular,
   IconSearchOutlineRegular,
   Menu,
+  PluginArtworkDefault,
+  PluginArtworkLoop,
+  PluginArtworkSearch,
+  PluginArtworkTerminal,
   StateDot,
   Tag,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { StateDotState, TagTone } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { PluginInventoryLocaleKey } from './locales.ts'
+import { categoryLocaleKeys, type PluginInventoryLocaleKey } from './locales.ts'
 import css from './PluginInventorySettingsTab.module.css'
+import { InventoryDisclosure } from './InventoryDisclosure.tsx'
+import { inventoryDescription } from './plugin-descriptions.ts'
+import { InventoryFileArtwork } from './InventoryFileArtwork.tsx'
 
 type PluginInventoryEntry = PluginInventorySnapshot['entries'][number]
 type AgentPresetGroup = NonNullable<PluginInventorySnapshot['agentPresets']>[number]
@@ -44,6 +51,21 @@ export type PluginInventorySettingsTabProps =
   & InjectFace<PluginInventorySettingsTabInjected>
 
 type Translate = PluginInventorySettingsTabProps['t']
+
+const CATEGORIES = ['all', 'development', 'context', 'agent', 'other'] as const
+type Category = typeof CATEGORIES[number]
+const CATEGORY_ART = {
+  development: PluginArtworkTerminal, context: PluginArtworkSearch, agent: PluginArtworkLoop, other: PluginArtworkDefault,
+}
+
+/** Known module families classify the inventory; third-party modules retain a generic artwork. */
+function moduleCategory(moduleName: string): Exclude<Category, 'all'> {
+  const name = moduleShortName(moduleName)
+  if (/^(?:tool-)?(?:web|search|browser|skill|context|persona|agent-instructions|fs-search)(?:-|$)/.test(name)) return 'context'
+  if (/^(?:tool-|command-)?(?:agent|subagent|goal|plan|ptc|workflow|loop)(?:-|$)/.test(name)) return 'agent'
+  if (/^(?:tool-)?(?:bash|pwsh|shell|fs|jobs|terminal|git|lsp|code)(?:-|$)/.test(name)) return 'development'
+  return 'other'
+}
 
 type ViewState =
   | { readonly status: 'loading' }
@@ -80,12 +102,12 @@ function entrySubtitle(entryId: string): string {
   return entryId.replace(/^include:/, '')
 }
 
-/** Whether a card shows its entry id: the id exists and, without its `include:` marker, differs from the title. */
+/** Whether the entry id adds a distinct identity to the accessible card name. */
 function idAddsToTitle(entryId: string | null, title: string): entryId is string {
   return entryId !== null && entrySubtitle(entryId) !== title
 }
 
-/** Accessible card name: the title, the complete entry id when the card shows one, then the enablement state. */
+/** Accessible card name retains distinct entry identities even when the compact header omits them. */
 function cardLabel(title: string, entryId: string | null, state: string): string {
   return idAddsToTitle(entryId, title) ? `${title}, ${entryId}, ${state}` : `${title}, ${state}`
 }
@@ -95,7 +117,10 @@ function pluginText(row: PluginInventoryEntry | AgentPresetRow, resolveText: Plu
   const title = row.meta?.title
   return {
     title: typeof title === 'object' ? resolveText(title) : moduleShortName(title ?? row.moduleName),
-    description: row.meta?.description === undefined ? undefined : resolveText(row.meta.description) || undefined,
+    description: (() => {
+      const description = inventoryDescription(row.moduleName, row.entryId) ?? row.meta?.description
+      return description === undefined ? undefined : resolveText(description) || undefined
+    })(),
   }
 }
 
@@ -140,6 +165,8 @@ function PluginCard({
   const open = expanded === rowKey
   const detailId = `plugin-details-${encodeURIComponent(rowKey)}`
   const descriptionId = useId()
+  const Artwork = CATEGORY_ART[moduleCategory(moduleName)]
+  const fileTools = /^(?:tool-)?fs(?:-|$)/.test(moduleShortName(moduleName))
   return (
     <li
       className={css.card}
@@ -157,22 +184,27 @@ function PluginCard({
         aria-describedby={description === undefined ? undefined : descriptionId}
         onClick={() => { onToggle(rowKey) }}
       >
-        <span className={css.cardMainRow}>
-          <strong className={css.cardTitle} title={moduleName}>{title}</strong>
-          <span className={css.cardTrailing}>
-            {trailing}
-            <IconChevronDownOutlineRegular className={css.chevron} size={12} aria-hidden="true" />
-          </span>
+        <span className={css.cardArtwork} aria-hidden="true">
+          {fileTools ? <InventoryFileArtwork /> : <Artwork size={32} />}
         </span>
-        {description === undefined ? null : <span className={css.cardDescription} id={descriptionId}>{description}</span>}
-        {idAddsToTitle(entryId, title) ? (
-          <span className={css.cardMeta}>
-            <code className={css.cardIdentity} title={entryId}>{entrySubtitle(entryId)}</code>
-          </span>
-        ) : null}
+        <span className={css.cardCopy}>
+          <strong className={css.cardTitle} title={moduleName}>{title}</strong>
+          {description === undefined ? null : (
+            <span className={css.cardDescription} id={descriptionId} title={description}>{description}</span>
+          )}
+        </span>
+        <span className={css.cardTrailing}>
+          {trailing}
+          <IconChevronDownOutlineRegular className={css.chevron} size={12} aria-hidden="true" />
+        </span>
       </button>
       {metadataError === undefined ? null : <p className={css.brokenNote} role="status" data-package-meta-error>{metadataError}</p>}
-      {open ? <div className={css.cardDetails} id={detailId}>{children}</div> : null}
+      <InventoryDisclosure open={open} id={detailId}>
+        <div className={css.cardDetails}>
+          {description === undefined ? null : <p className={css.detailDescription}>{description}</p>}
+          {children}
+        </div>
+      </InventoryDisclosure>
     </li>
   )
 }
@@ -256,6 +288,7 @@ export function PluginInventorySettingsTab(
   const sectionId = useId()
   const [request, setRequest] = useState(0)
   const [query, setQuery] = useState('')
+  const [category, setCategory] = useState<Category>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [chosenPreset, setChosenPreset] = useState<string | null>(null)
   const [switcherOpen, setSwitcherOpen] = useState(false)
@@ -274,6 +307,7 @@ export function PluginInventorySettingsTab(
 
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const searching = normalizedQuery.length > 0
+  const filtering = searching || category !== 'all'
   const snapshot = state.status === 'ready' ? state.snapshot : undefined
   const presets = snapshot?.agentPresets ?? []
   const selected = presets.find(preset => preset.id === chosenPreset) ?? fallbackPreset(presets)
@@ -301,21 +335,23 @@ export function PluginInventorySettingsTab(
   }
 
   const entryMatch = (entry: PluginInventoryEntry): boolean => matches(entry, normalizedQuery, resolveText)
+    && (category === 'all' || moduleCategory(entry.moduleName) === category)
   const rowMatch = (row: AgentPresetRow): boolean => matches(row, normalizedQuery, resolveText)
+    && (category === 'all' || moduleCategory(row.moduleName) === category)
   const filteredFailed = failedEntries.filter(entryMatch)
   const filteredRegular = regularEntries.filter(entryMatch)
   const globalCount = filteredFailed.length + filteredRegular.length
   const selectedRows = selected === undefined ? [] : selected.rows.filter(rowMatch)
-  const otherPresetMatches = searching
+  const otherPresetMatches = filtering
     ? presets.filter(preset => preset !== selected && preset.rows.some(rowMatch))
     : []
   const otherMatchCount = otherPresetMatches
     .reduce((total, preset) => total + preset.rows.filter(rowMatch).length, 0)
 
-  // The preset group starts open and the larger global plane folded; a search opens both for as long as it lasts.
-  const presetEffectiveOpen = searching || (presetOpen ?? true)
-  const globalEffectiveOpen = searching || (globalOpen ?? false)
-  const nothingMatches = searching && globalCount === 0 && selectedRows.length === 0
+  // 两个分组默认折叠；筛选时自动显示匹配项，清空筛选后恢复手动状态。
+  const presetEffectiveOpen = filtering || (presetOpen ?? false)
+  const globalEffectiveOpen = filtering || (globalOpen ?? false)
+  const nothingMatches = filtering && globalCount === 0 && selectedRows.length === 0
     && otherPresetMatches.length === 0
 
   const retry = (): void => {
@@ -327,8 +363,9 @@ export function PluginInventorySettingsTab(
   }
 
   /** Trailing status and detail facts for one row of the selected preset. */
-  const presetRowCard = (preset: AgentPresetGroup, row: AgentPresetRow, index: number): ReactNode => {
-    const key = `preset:${preset.id}:${String(index)}`
+  const presetRowCard = (preset: AgentPresetGroup, row: AgentPresetRow): ReactNode => {
+    // 筛选后的序号会变化，展开状态必须绑定预设内原始条目位置。
+    const key = `preset:${preset.id}:${String(preset.rows.indexOf(row))}`
     const { title, description } = pluginText(row, resolveText)
     const failed = row.fiberPhase === 'failed'
     const stateText = failed
@@ -419,7 +456,7 @@ export function PluginInventorySettingsTab(
                   <button
                     type="button"
                     className={css.jumpLink}
-                    onClick={() => { setChosenPreset(providers[0].id) }}
+                    onClick={() => { setChosenPreset(providers[0].id); setPresetOpen(true) }}
                   >
                     {t('viewInPreset')}
                   </button>
@@ -472,17 +509,28 @@ export function PluginInventorySettingsTab(
       ) : null}
       {snapshot !== undefined ? (
         <div className={css.catalog}>
-          <label className={css.search}>
-            <IconSearchOutlineRegular aria-hidden="true" />
-            <span className={css.visuallyHidden}>{t('search')}</span>
-            <input
-              type="search"
-              value={query}
-              placeholder={t('search')}
-              aria-label={t('search')}
-              onChange={(event) => { setQuery(event.currentTarget.value) }}
-            />
-          </label>
+          <div className={css.toolbar}>
+            <label className={css.search}>
+              <IconSearchOutlineRegular aria-hidden="true" />
+              <span className={css.visuallyHidden}>{t('search')}</span>
+              <input
+                type="search"
+                value={query}
+                placeholder={t('search')}
+                aria-label={t('search')}
+                onChange={(event) => { setQuery(event.currentTarget.value) }}
+              />
+            </label>
+            <Tag tone="neutral">{t('readOnly')}</Tag>
+          </div>
+          <div className={css.categories} role="group" aria-label={t('categoryFilter')}>
+            {CATEGORIES.map(value => (
+              <button key={value} type="button" className={css.category} aria-pressed={category === value}
+                onClick={() => { setCategory(value) }}>
+                {t(categoryLocaleKeys[value])}
+              </button>
+            ))}
+          </div>
           {entries.length === 0 && presets.length === 0 ? <p className={css.status}>{t('empty')}</p> : null}
           {nothingMatches ? <p className={css.status}>{t('emptySearch')}</p> : null}
 
@@ -533,14 +581,14 @@ export function PluginInventorySettingsTab(
                   {`${String(selectedRows.length)} ${t('countUnit')}`}
                 </span>
               </p>
-              {presetEffectiveOpen ? (
-                <div id={`${sectionId}-preset`} className={css.groupBody}>
+              <InventoryDisclosure open={presetEffectiveOpen} id={`${sectionId}-preset`}>
+                <div className={css.groupBody}>
                   {selected.broken !== undefined ? (
                     <p className={css.brokenNote} role="alert">{selected.broken}</p>
                   ) : null}
                   {selectedRows.length > 0 ? (
                     <ul className={css.cards}>
-                      {selectedRows.map((row, index) => presetRowCard(selected, row, index))}
+                      {selectedRows.map(row => presetRowCard(selected, row))}
                     </ul>
                   ) : null}
                   {otherMatchCount > 0 ? (
@@ -559,7 +607,7 @@ export function PluginInventorySettingsTab(
                     </p>
                   ) : null}
                 </div>
-              ) : null}
+              </InventoryDisclosure>
             </section>
           ) : null}
 
@@ -584,15 +632,15 @@ export function PluginInventorySettingsTab(
                   <span className={css.failedCount}>{filteredFailed.length} {t('failedCountLabel')}</span>
                 ) : null}
               </p>
-              {globalEffectiveOpen && globalCount > 0 ? (
-                <ul className={css.cards} id={`${sectionId}-global`}>
+              <InventoryDisclosure open={globalEffectiveOpen} id={`${sectionId}-global`}>
+                <ul className={css.cards}>
                   {filteredFailed.map(entry => globalRowCard(entry))}
                   {filteredRegular.map(entry => globalRowCard(
                     entry,
                     entry.enabled ? undefined : enabledIn.get(entry.moduleName),
                   ))}
                 </ul>
-              ) : null}
+              </InventoryDisclosure>
             </section>
           ) : null}
         </div>

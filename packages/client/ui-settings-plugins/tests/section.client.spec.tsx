@@ -52,11 +52,12 @@ describe('PluginsSettingsSection', () => {
     expect(screen.getByText('all').closest('[role="tabpanel"]')).toHaveProperty('hidden', true)
   })
 
-  it('leads with its own heading and intro', () => {
+  it('leads with its heading without a decorative icon or introduction', () => {
     renderSection([{ id: 'configurable', order: 0, label: 'Configurable' }])
 
     expect(screen.getByRole('heading', { name: en.title })).toBeTruthy()
-    expect(screen.getByText(en.intro)).toBeTruthy()
+    expect(screen.queryByText(en.intro)).toBeNull()
+    expect(document.querySelector('header svg')).toBeNull()
   })
 
   it('moves focus and selection with standard horizontal tab keys', () => {
