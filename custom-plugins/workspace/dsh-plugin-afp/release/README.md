@@ -20,7 +20,7 @@ The command runs AFP tests, builds and checks the package through `prepack`, val
 
 ## Publish and verify
 
-Push the reviewed source and a new `afp-v<version>` tag to the configured repository. The [AFP workflow](../../../../.github/workflows/release-afp.yml) builds from that tag, checks the package version and source commit, prepares assets without write credentials, then uploads a draft with a separate publication job. It publishes only after asset checks pass and sets `latest=false`. Manual workflow dispatch also requires an AFP tag. An existing Release stops publication instead of replacing its assets.
+Push the reviewed source and a new `afp-v<version>` tag to the configured repository. The [AFP workflow](../../../../.github/workflows/release-afp.yml) builds from that tag, checks the package version and source commit, prepares assets without write credentials, then uploads a draft with a separate publication job. It locates drafts by Release ID and publishes only after asset checks pass, with `latest=false`. Manual dispatch from the current workflow takes an existing AFP tag as input and builds that tag's source. Matching existing assets are verified without replacement; missing or different assets stop publication.
 
 After the workflow succeeds, inspect the Release, its three uploaded assets and tag commit. Download the `.tgz`, `SHA256SUMS` and `afp-update.json` into a new directory; recompute SHA-256 and check the metadata's version, source commit and size. Test the downloaded package in a disposable DSH profile using the supported `dsh` launcher; check Host entries, bundle features, Client resources and retained configuration. Do not install over an existing builtin AFP solely to test the tarball.
 

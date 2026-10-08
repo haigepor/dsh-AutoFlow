@@ -20,7 +20,7 @@ pnpm --filter dsh-plugin-afp run release:prepare --out .artifacts/afp-release
 
 ## 发布与验证
 
-将审核后的源码和新 `afp-v<version>` 标签推送到配置的仓库。[AFP 工作流](../../../../.github/workflows/release-afp.yml) 从标签构建，校验包版本和源码提交，在无写入凭据的阶段准备产物，再由独立发布任务上传草稿。资产校验通过后才公开发布，并设置 `latest=false`。手动触发工作流同样要求 AFP 标签。已有 Release 会阻止发布，不会替换其资产。
+将审核后的源码和新 `afp-v<version>` 标签推送到配置的仓库。[AFP 工作流](../../../../.github/workflows/release-afp.yml) 从标签构建，校验包版本和源码提交，在无写入凭据的阶段准备产物，再由独立发布任务上传草稿。它按 Release ID 查找草稿，资产校验通过后才公开发布，并设置 `latest=false`。从当前工作流手动触发时，输入已有 AFP 标签，并构建该标签的源码。已有资产完全匹配时只复验，不替换；资产缺失或不同则停止发布。
 
 工作流成功后，检查 Release、上传的三个资产和标签提交。将 `.tgz`、`SHA256SUMS` 与 `afp-update.json` 下载到新目录，重新计算 SHA-256，并核对元数据中的版本、源码提交与大小。通过支持的 `dsh` 启动器，在临时 DSH profile 中测试下载的包，检查 Host 入口、bundle 功能、Client 资源和配置保留。不要仅为验证 tarball 而覆盖现有内置 AFP。
 

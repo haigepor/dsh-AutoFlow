@@ -4,6 +4,11 @@ on:
   push:
     tags: ['afp-v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing AFP tag to build or verify'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,9 +21,13 @@ jobs:
   prepare:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      source_commit: ${{ steps.source.outputs.commit }}
+      release_tag: ${{ steps.source.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
@@ -28,14 +37,18 @@ jobs:
           node-version: '24'
           package-manager-cache: false
       - name: Verify AFP tag
+        id: source
         env:
-          RELEASE_REF: ${{ github.ref }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          case "$RELEASE_REF" in refs/tags/afp-v*) ;; *) echo 'Run from an AFP tag'; exit 1 ;; esac
+          case "$RELEASE_TAG" in afp-v*) ;; *) echo 'Supply an AFP tag'; exit 1 ;; esac
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
       - run: pnpm install --frozen-lockfile
       - name: Prepare exact-version assets
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ steps.source.outputs.tag }}
         run: pnpm --filter dsh-plugin-afp run release:prepare --tag "$RELEASE_TAG" --out .artifacts/afp-release
       - uses: actions/upload-artifact@v4
         with:
@@ -61,8 +74,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
-          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.source_commit }}
         working-directory: assets
         run: |
           sha256sum --check SHA256SUMS
@@ -81,11 +94,37 @@ jobs:
           assert.equal(metadata.asset.size, bytes.length)
           assert.equal(metadata.asset.sha256, createHash('sha256').update(bytes).digest('hex'))
           NODE
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo 'Release already exists; published assets are immutable and will not be overwritten.'
-            exit 1
+          find_release_id() {
+            gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" |
+              node --input-type=module -e 'import fs from "node:fs"; import assert from "node:assert/strict"; const matches=JSON.parse(fs.readFileSync(0,"utf8")).flat().filter(item=>item.tag_name===process.env.RELEASE_TAG); assert(matches.length<=1,"Ambiguous release tag"); console.log(matches[0]?.id ?? 0);'
+          }
+          release_id=$(find_release_id)
+          if test "$release_id" = 0; then
+            gh release create "$RELEASE_TAG" ./*.tgz SHA256SUMS afp-update.json --verify-tag --draft --latest=false --title "AFP ${RELEASE_TAG#afp-v}" --notes 'Independent AFP plugin bundle. Includes package tarball, SHA-256 and version metadata. Runtime automatic updates are not enabled by this release.'
+            release_id=$(find_release_id)
           fi
-          gh release create "$RELEASE_TAG" ./*.tgz SHA256SUMS afp-update.json --verify-tag --draft --latest=false --title "AFP ${RELEASE_TAG#afp-v}" --notes 'Independent AFP plugin bundle. Includes package tarball, SHA-256 and version metadata. Runtime automatic updates are not enabled by this release.'
-          asset_count=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq '.assets | length')
-          test "$asset_count" -eq 3
-          gh release edit "$RELEASE_TAG" --draft=false --latest=false
+          test "$release_id" -gt 0
+          gh api "repos/$GH_REPO/releases/$release_id" > release.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import assert from 'node:assert/strict'
+          import { createHash } from 'node:crypto'
+          const release = JSON.parse(fs.readFileSync('release.json', 'utf8'))
+          const metadata = JSON.parse(fs.readFileSync('afp-update.json', 'utf8'))
+          const names = [metadata.asset.name, 'SHA256SUMS', 'afp-update.json']
+          assert.equal(release.tag_name, process.env.RELEASE_TAG)
+          assert.equal(release.assets.length, names.length)
+          for (const name of names) {
+            const asset = release.assets.find(item => item.name === name)
+            assert(asset, `Missing release asset: ${name}`)
+            assert.equal(asset.state, 'uploaded')
+            const bytes = fs.readFileSync(name)
+            assert.equal(asset.size, bytes.length)
+            assert.equal(asset.digest, `sha256:${createHash('sha256').update(bytes).digest('hex')}`)
+          }
+          NODE
+          if test "$(gh api "repos/$GH_REPO/releases/$release_id" --jq '.draft')" = true; then
+            gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -F draft=false -f make_latest=false
+          else
+            echo 'Existing public release matches every asset; nothing was overwritten.'
+          fi
