@@ -1,6 +1,7 @@
 # Load through dsh --patch; credential values belong in the DSH credentials provider.
 - id: afp
   config:
+    agentResultMaxBytes: 16384
     # Write enablement is stored in the profile feature config.json, never in deployment settings.
     visionBaseUrl: https://api.openai.com/v1
     visionModel: YOUR_VISION_MODEL

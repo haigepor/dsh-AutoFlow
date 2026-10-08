@@ -40,6 +40,8 @@ A rejected mutation surfaces the Remote error inline on the strip; loading, abse
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
+Objective editing uses a wrapped, auto-growing textarea capped at six lines. Enter saves, Shift+Enter inserts a line break, and IME composition never submits; Escape cancels. Pending writes disable the field and actions.
+
 <details>
 <summary>Implementation internals — click to expand</summary>
 

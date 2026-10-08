@@ -295,6 +295,8 @@ export type RowToast =
   | { kind: 'archived'; sessionId: SessionId }
   | { kind: 'stoppedAndArchived'; sessionId: SessionId }
   | { kind: 'dismissed'; sessionId: SessionId }
+  | { kind: 'titleRegenerated' }
+  | { kind: 'titleGenerationFailed'; message: string }
   | { kind: 'pinFailed' }
   | { kind: 'unpinFailed' }
   | { kind: 'archivedNotOpenable' }
@@ -393,6 +395,16 @@ export interface ForkSessionInjected {
 export interface DismissSessionInjected {
   /** Remove the Session from this browser's workspace view. */
   dismissSession: (sessionId: SessionId) => void
+}
+
+/** Explicit title refresh shared by Session menu entries. */
+export interface RegenerateTitleInjected {
+  hooks: {
+    /** Sessions with one pending title refresh. */
+    titleGenerating: HostObservable<ReadonlySet<SessionId>>
+  }
+  /** Refresh the title without clearing the current accepted title. */
+  regenerateTitle: (sessionId: SessionId) => void
 }
 
 /** Rename action share: the row only raises the request; the dialog entry answers it. */

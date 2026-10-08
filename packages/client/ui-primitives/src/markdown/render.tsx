@@ -16,7 +16,7 @@
  * may add node types this renderer has no mapping for.
  */
 
-import { Fragment, createElement, useCallback, useState } from 'react'
+import { Fragment, createElement, useCallback, useEffect, useState } from 'react'
 import type { Key, ReactNode } from 'react'
 import clsx from 'clsx'
 import type * as Md from 'mdast'
@@ -29,6 +29,8 @@ import { renderTexToReact } from './katex.tsx'
 import { LinkIconMedium, classifyLinkPath } from '../LinkIcon.tsx'
 import { useMarkdownDelegate } from './MarkdownDelegate.tsx'
 import { HoverCard } from '../HoverCard.tsx'
+import { Tooltip } from '../Tooltip.tsx'
+import { IconSkillOutlineRegular } from '../icons/index.tsx'
 import { ImageLightbox } from '../ImageLightbox.tsx'
 import { ImagePreview } from '../ImagePreview.tsx'
 import type { PositionedBlock } from './incremental.ts'
@@ -328,6 +330,7 @@ function renderNode(node: Md.RootContent, key: Key, context: MarkdownRenderConte
           </code>
         )
       }
+      if (context.inBlockquote === true && context.inLink !== true) return <QuotedSkill key={key} value={value} />
       return <code key={key}>{value}</code>
     }
     case 'html':
@@ -476,17 +479,11 @@ function renderTable(node: Md.Table, key: Key, context: MarkdownRenderContext): 
   const align = node.align ?? null
   const [headRow, ...bodyRows] = node.children
   const columns = align === null ? headRow?.children.length ?? 0 : align.length
-  // Four or more columns read as a comparison matrix: the block keeps the
-  // table at natural width and exposes the stable `md-table-wide` hook so a
-  // hosting layout (the chat transcript) can widen it past the message
-  // column. Narrower tables — and any table inside a blockquote — fill the
-  // column and wrap instead (deepsuite chat TableWrapper parity).
+  // Four-column comparisons retain the keyboard-focusable scrolling hook;
+  // hosts keep the viewport within their text column.
   const wide = columns >= 4 && context.inBlockquote !== true
   return (
-    // Wide tables rest with overflow-x hidden (the hover-revealed bar in
-    // MarkdownText.module.css), which drops Chromium's implicit scroller
-    // focusability — the explicit tabindex keeps them keyboard-reachable,
-    // and :focus-visible restores scrolling.
+    // Explicit focus keeps comparison-table scrolling keyboard-reachable.
     <div
       key={key}
       className={clsx(css.tableScroll, wide ? 'md-table-wide' : css.tableFill)}
@@ -757,4 +754,30 @@ export function renderFootnoteSection(context: MarkdownRenderContext): ReactNode
       <ol>{items}</ol>
     </section>
   )
+}
+
+/** Quote skill tokens resolve against the owner's live catalog, never guessed from their spelling. */
+function QuotedSkill({ value }: { value: string }) {
+  const { skillMentions } = useMarkdownDelegate()
+  const name = value.startsWith('$') ? value.slice(1) : value
+  const [resolved, setResolved] = useState<{ name: string; description: string }>()
+  useEffect(() => {
+    const controller = new AbortController()
+    setResolved(undefined)
+    if (skillMentions !== undefined && name.length > 0 && !/\s/u.test(name)) {
+      void skillMentions.resolve(name, controller.signal).then((description) => {
+        if (!controller.signal.aborted && description !== undefined) setResolved({ name, description })
+      }).catch((error: unknown) => {
+        // Catalog failures leave the authored code intact; no fabricated skill metadata.
+        if (!controller.signal.aborted) console.error('[markdown] skill description unavailable:', error)
+      })
+    }
+    return () => { controller.abort() }
+  }, [name, skillMentions])
+  if (resolved?.name !== name || skillMentions === undefined) return <code>{value}</code>
+  return <Tooltip label={resolved.description} side="top" portal maxWidth={360}>
+    <button type="button" className={css.skillMention} onClick={() => { skillMentions.open(name) }}>
+      <IconSkillOutlineRegular size={14} aria-hidden="true" />{name}
+    </button>
+  </Tooltip>
 }

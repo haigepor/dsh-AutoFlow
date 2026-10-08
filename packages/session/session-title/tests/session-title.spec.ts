@@ -9,6 +9,7 @@ import SessionTitleService, {
   fallbackSessionTitle,
   foldSessionTitle,
   normalizeSessionTitle,
+  sessionTitleInputText,
   truncateTitleUtf8,
 } from '@deepseek-ai/dsh-session-title'
 
@@ -29,6 +30,13 @@ async function settleTitles(): Promise<void> {
 }
 
 describe('session title normalization', () => {
+  it('uses the demand after plugin references and keeps ordinary links', () => {
+    const original = '@[AFP 图片策展](dsh-plugin:dsh-plugin-afp) 帮我寻找十张香港风景照'
+    expect(sessionTitleInputText(original)).toBe('帮我寻找十张香港风景照')
+    expect(fallbackSessionTitle(original, 5, 80)).toBe('帮我寻找十张香港风景照')
+    expect(sessionTitleInputText('@[AFP](dsh-plugin:afp) @[日程](app:calendar)')).toBe('AFP 日程')
+    expect(sessionTitleInputText('查看 [文档](https://example.com)')).toBe('查看 [文档](https://example.com)')
+  })
   it('removes terminal controls, collapses whitespace, and applies word and UTF-8 byte caps', () => {
     expect(normalizeSessionTitle('\u001B]0;stolen\u0007  Hello\t brave\nnew world  ', 80))
       .toBe('Hello brave new world')
@@ -44,6 +52,23 @@ describe('session title normalization', () => {
 })
 
 describe('SessionTitleService', () => {
+  it('cleans the fallback title while preserving the original user message', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
+    await ctx.plugin(SessionTitleService, CONFIG)
+    const session = ctx.sessions.create(SessionId('plugin-title-input'))
+    session.append('turn/start', { turn: 1 })
+    const original = '@[AFP 图片策展](dsh-plugin:dsh-plugin-afp) 寻找香港风景'
+    const message = session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: original }], source: { kind: 'user' },
+    }), { surfaceOp: 'append' })
+    await settleTitles()
+    expect(ctx.sessionTitle.get(session)?.title).toBe('寻找香港风景')
+    expect(session.snapshotEvents().find(event => event.seq === message.seq)?.data).toMatchObject({
+      content: [{ type: 'text', text: original }],
+    })
+  })
   it('logs and folds an immediate fallback after the first eligible human text message', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)

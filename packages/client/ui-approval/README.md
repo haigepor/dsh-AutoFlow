@@ -18,6 +18,8 @@ Browser approval presentation over the Agent-scoped Remote Event waterfall. The 
 
 -----
 
+The card separates a compact waiting badge from the full approval reason, optional detail block, and decision footer. Reasons and commands retain their text and line breaks; long paths wrap inside the card, and narrow viewports give both decision buttons equal width. An empty Tool detail renders no block.
+
 Focus the approval detail region to approve with Enter or reject with Escape. The mounted plugin reserves both keys against editable shortcuts. Enter on the focused Reject button retains its native reject action. Input controls and IME candidates keep their own keys. Keyboard and pointer actions share one pending-request lock; a withdrawn or replaced request cannot accept another answer, and an earlier failed answer cannot unlock its replacement.
 
 <a id="model-experience"></a>

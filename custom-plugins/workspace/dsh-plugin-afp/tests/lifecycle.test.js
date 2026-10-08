@@ -88,3 +88,18 @@ test('Agent-owned jobs and unrelated UI toggles remain independent', async t => 
   await assert.rejects(service.cancel([...service.live.keys()][0]), /Session cancellation/)
   complete(); await jobs[0].handle.done; await service.dispose()
 })
+
+test('refresh failures log a local stage without provider messages or credentials', async t => {
+  const { ctx, config, connection, jobs } = await fixture(t), warnings = []
+  ctx.logger = { warn: (...args) => warnings.push(args) }
+  connection.open = async () => { throw new Error('secret-provider-response') }
+  const service = new AfpService(ctx, config, { connection })
+  await service.enable('refresh')
+  const result = await service.startRefresh({ categories: ['animals'] }, undefined, new AbortController().signal)
+  assert.equal((await jobs[0].handle.done).status, 'failed')
+  assert.equal((await service.store.readRun(result.runId)).status, 'failed')
+  assert.equal(warnings.length, 1)
+  assert.match(JSON.stringify(warnings), /connection/)
+  assert.doesNotMatch(JSON.stringify(warnings), /secret-provider-response/)
+  await service.dispose()
+})

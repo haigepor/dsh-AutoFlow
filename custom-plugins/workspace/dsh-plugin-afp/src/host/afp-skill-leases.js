@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto'
-import { cp, lstat, mkdir, readFile, rename } from 'node:fs/promises'
+import { createHash, randomUUID } from 'node:crypto'
+import { cp, lstat, mkdir, readFile, rename, writeFile, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Store } from './afp-state-store.js'
@@ -24,6 +24,21 @@ export async function acquireSkill({ home, profile, skill, maxStateBytes }) {
   const root = join(store.root, 'skills', skill), statePath = join(root, 'state.json')
   const active = join(home, 'skills', skill), inactive = join(root, 'inactive'), marker = '.dsh-afp-owner.json'
   const holder = { id: randomUUID(), pid: process.pid, profile }
+  async function upgradeManagedInstructions(path) {
+    const file = join(path, 'SKILL.md'), info = await stat(file)
+    if (!info?.isFile() || info.size > maxStateBytes) throw new Error('Unsafe AFP Skill instructions')
+    const current = await readFile(file, 'utf8'), next = await readFile(join(source, skill, 'SKILL.md'), 'utf8')
+    const digest = text => createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex')
+    if (digest(current) === digest(next)) return
+    const owned = await store.read(join(path, marker))
+    const revisions = JSON.parse(await readFile(join(source, 'managed-revisions.json'), 'utf8'))
+    // 只升级已知包版本或与上次安装摘要一致的副本；用户改写的说明保持原样。
+    if (owned.instructionsDigest !== digest(current) && !revisions[skill]?.includes(digest(current))) return
+    const temporary = file + '.' + randomUUID() + '.tmp'
+    try { await writeFile(temporary, next, { flag: 'wx', mode: 0o600 }); await rename(temporary, file) }
+    finally { try { await unlink(temporary) } catch (error) { if (error.code !== 'ENOENT') throw error } }
+    await store.write(join(path, marker), { ...owned, instructionsDigest: digest(next) })
+  }
   async function state() {
     if (!await stat(statePath)) return { schema: 1, owned: false, leases: [], phase: 'inactive' }
     const value = await store.read(statePath)
@@ -75,6 +90,7 @@ export async function acquireSkill({ home, profile, skill, maxStateBytes }) {
       }
       value.owned = true
     }
+    await upgradeManagedInstructions(active)
     value.leases.push(holder); value.phase = 'active'
     await store.write(statePath, value)
   })

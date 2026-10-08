@@ -1,0 +1,5 @@
+[
+  { "role": "list", "busy": true, "rows": [ { "key": "p1", "pending": true, "title": "Photo", "previewContainers": 1, "choiceDisabled": true } ] },
+  { "role": "list", "busy": false, "rows": [ { "key": "p1", "pending": false, "title": "Photo", "previewContainers": 1, "choiceDisabled": false } ] },
+  { "role": "list", "busy": true, "rows": [ { "key": "p1", "pending": false, "title": "Photo", "previewContainers": 1, "choiceDisabled": true } ] }
+]

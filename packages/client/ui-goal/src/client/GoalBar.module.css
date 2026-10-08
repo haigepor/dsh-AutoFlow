@@ -17,6 +17,8 @@
 }
 
 .bar {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   position: relative;
   isolation: isolate;
   box-sizing: border-box;
@@ -85,14 +87,54 @@
 
 /* ---- Inline edit form ---- */
 
-.objectiveInput {
-  flex: 1;
+.editBar {
+  height: auto;
+  min-height: 64px;
+  align-items: flex-start;
+  padding: 8px;
+  gap: 8px;
+}
+
+.editBody { flex: 1; min-width: 0; }
+.editBar .actions { padding-top: 4px; gap: 4px; }
+.editBar .error { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.objectiveField {
+  display: grid;
   min-width: 0;
-  height: 26px;
-  padding: 0 8px;
+  min-height: 48px;
   border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-bg-base);
+}
+
+.objectiveField:focus-within { border-color: var(--dsw-alias-state-business-primary); }
+
+.objectiveInput,
+.objectiveMirror {
+  grid-area: 1 / 1;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.objectiveMirror { max-height: 136px; overflow: hidden; visibility: hidden; }
+
+.objectiveInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  resize: none;
+  overflow-y: auto;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
   font-size: 13px;
   line-height: 20px;
   color: var(--dsw-alias-label-primary);

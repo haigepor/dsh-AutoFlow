@@ -1261,6 +1261,69 @@ describe('WorkspaceBrowser', () => {
     expect(startSession).toHaveBeenCalledWith(wid('alpha'))
   })
 
+  it('archives all idle workspace sessions from a folded header without touching other workspaces', async () => {
+    const archiveSessions = vi.fn(async (sessionIds: readonly SessionId[]) => ({ archived: sessionIds.length, failed: 0 }))
+    const idleIds = Array.from({ length: 8 }, (_, index) => `idle-${index}`)
+    const b = mount({
+      useSessions: hook(sessionState([
+        ...idleIds.map((id, index) => summary(id, 10 - index)),
+        summary('busy', 2, { running: true }),
+        summary('archived', 1),
+        summary('blank', 0, { blank: true }),
+        summary('other', 20),
+      ], { main: sid('blank') })),
+      useWorkspaces: hook(workspaceState([
+        workspace('alpha', [...idleIds, 'busy', 'archived', 'blank']),
+        workspace('beta', ['other']),
+      ], [sid('archived')])),
+      archiveSessions,
+    })
+    act(() => { b.store.actions.setGroupExpanded('alpha', false) })
+    expect(screen.queryByText('idle-7')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '工作区“alpha”的操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档工作区所有会话' }))
+    const dialog = screen.getByRole('dialog', { name: '归档工作区所有会话' })
+    expect(dialog.textContent).toContain('将归档“alpha”中的 8 个会话')
+    expect(dialog.textContent).toContain('正在运行的 1 个会话不会归档')
+    fireEvent.click(within(dialog).getByRole('button', { name: '归档会话' }))
+    await waitFor(() => { expect(archiveSessions).toHaveBeenCalledWith(idleIds.map(sid)) })
+    await waitFor(() => { expect(screen.queryByRole('dialog', { name: '归档工作区所有会话' })).toBeNull() })
+  })
+
+  it('does not archive a workspace blank or an already archived session from the all-sessions view', () => {
+    const b = mount({
+      useSessions: hook(sessionState([
+        summary('blank', 2, { blank: true }), summary('archived', 1),
+      ], { main: sid('blank') })),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['blank', 'archived'])], [sid('archived')])),
+    })
+    act(() => { b.store.actions.setArchivedFilter('show') })
+    fireEvent.click(screen.getByRole('button', { name: '工作区“alpha”的操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档工作区所有会话' }))
+    const dialog = screen.getByRole('dialog', { name: '归档工作区所有会话' })
+    expect(dialog.textContent).toContain('该工作区没有可归档的会话')
+    expect(within(dialog).getByRole('button', { name: '归档会话' }).getAttribute('disabled')).not.toBeNull()
+  })
+
+  it('includes workspace members hidden by archive filtering or local dismissal', async () => {
+    const archiveSessions = vi.fn(async (sessionIds: readonly SessionId[]) => ({ archived: sessionIds.length, failed: 0 }))
+    const b = mount({
+      useSessions: hook(sessionState([summary('idle', 3), summary('hidden', 2), summary('archived', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['idle', 'hidden', 'archived'])], [sid('archived')])),
+      archiveSessions,
+    })
+    act(() => {
+      b.store.actions.dismissSessions([sid('hidden')])
+      b.store.actions.setArchivedFilter('only')
+    })
+    fireEvent.click(screen.getByRole('button', { name: '工作区“alpha”的操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档工作区所有会话' }))
+    const dialog = screen.getByRole('dialog', { name: '归档工作区所有会话' })
+    expect(dialog.textContent).toContain('将归档“alpha”中的 2 个会话')
+    fireEvent.click(within(dialog).getByRole('button', { name: '归档会话' }))
+    await waitFor(() => { expect(archiveSessions).toHaveBeenCalledWith([sid('idle'), sid('hidden')]) })
+  })
+
   it('auto-expands the Ungrouped bucket, batches idle archives, and leaves running work alone', async () => {
     const startSession = vi.fn()
     const archiveSessions = vi.fn(async (sessionIds: readonly SessionId[]) => ({ archived: sessionIds.length, failed: 0 }))

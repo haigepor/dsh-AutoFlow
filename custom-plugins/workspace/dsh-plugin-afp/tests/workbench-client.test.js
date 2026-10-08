@@ -49,6 +49,59 @@ function harness(options = {}) {
   return { store, calls, remoteCalls, reply, replyRemote }
 }
 
+test('status polling refreshes an open report when a resumed run changes and retains its filter', async () => {
+  const h = harness(), initial = { runId: 'run-one', status: 'paused', categories: [{ reviewed: 1 }] }
+  const updated = { ...initial, status: 'failed', categories: [{ reviewed: 2 }] }
+  h.store.set({ status: { features: ['read'] }, runId: initial.runId, reportCategory: 'animals', reportFilter: 'rejected',
+    regions: { ...h.store.getSnapshot().regions, run: { data: { run: initial, items: [{ id: 'old' }] }, loading: false, error: '' } } })
+  const poll = h.store.reload()
+  h.replyRemote(0, { features: ['read'], reports: [updated] })
+  await poll
+  assert.equal(h.calls.length, 1)
+  assert.deepEqual(h.calls[0].args, { runId: initial.runId, category: 'animals', decision: 'rejected' })
+  assert.equal(h.store.getSnapshot().regions.run.loading, true)
+  h.reply(0, { run: updated, items: [{ id: 'new' }] })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.store.getSnapshot().regions.run.data.run.status, 'failed')
+  const same = h.store.reload()
+  h.replyRemote(1, { features: ['read'], reports: [updated] })
+  await same
+  assert.equal(h.calls.length, 1)
+  h.store.dispose()
+})
+
+test('browse download selection keeps the prior destination until the Host adopts a directory', async () => {
+  const fixture = harness()
+  fixture.store.set({ downloadDirectory: { directoryId: 'prior', label: 'Prior' } })
+  const opening = fixture.store.pickDownloadDirectory()
+  fixture.replyRemote(0, { browse: true })
+  await opening
+  assert.equal(fixture.store.getSnapshot().downloadBrowsing, true)
+  assert.equal(fixture.remoteCalls[1].operation, 'browse-download-directory')
+  fixture.replyRemote(1, { path: '/selected', entries: [], crumbs: [] })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(fixture.store.getSnapshot().downloadDirectory.directoryId, 'prior')
+  const picking = fixture.store.pickDownloadDirectory('/selected')
+  assert.deepEqual(fixture.remoteCalls[2].args, { path: '/selected' })
+  fixture.replyRemote(2, { directoryId: 'verified', label: 'Selected' })
+  assert.equal(await picking, true)
+  assert.equal(fixture.store.getSnapshot().downloadDirectory.directoryId, 'verified')
+  assert.equal(fixture.store.getSnapshot().downloadBrowsing, false)
+  fixture.store.dispose()
+})
+
+test('closing download setup discards a late browse listing', async () => {
+  const fixture = harness()
+  fixture.store.set({ collectionAction: 'download', downloadBrowsing: true })
+  const loading = fixture.store.browseDownloadDirectory('/selected')
+  fixture.store.set({ collectionAction: null })
+  fixture.replyRemote(0, { path: '/selected', entries: [], crumbs: [] })
+  assert.equal(await loading, false)
+  assert.equal(fixture.store.getSnapshot().downloadDirectoryListing, null)
+  assert.equal(fixture.store.getSnapshot().downloadBrowsing, false)
+  fixture.store.dispose()
+})
+
 test('collection operations discard stale account results without unlocking a newer request', async () => {
   const h = harness(), store = h.store
   store.selectPhoto({ id: 'old-photo' }, 'old-source')
@@ -287,7 +340,7 @@ test('changed download confirmation refreshes quotes instead of publishing a pla
 
 test('accepted downloads notify outside the closed dialog and keep the dock collapsed', async () => {
   const { store, replyRemote, remoteCalls } = harness()
-  store.set({ collectionAction: 'download', downloadPlan: { planId: 'plan', confirmation: 'receipt', items: [{ photoId: 'p1' }] } })
+  store.set({ collectionAction: 'download', downloadDockHidden: true, downloadPlan: { planId: 'plan', confirmation: 'receipt', items: [{ photoId: 'p1' }] } })
   const confirmation = store.confirmDownload()
   replyRemote(0, { queued: true, downloadId: 'batch', taskId: 'task', jobId: 'afp-1' })
   await new Promise(resolve => setImmediate(resolve))
@@ -295,6 +348,7 @@ test('accepted downloads notify outside the closed dialog and keep the dock coll
   assert.equal(store.getSnapshot().downloadNotice.kind, 'started')
   assert.equal(store.getSnapshot().downloadResult.total, 1)
   assert.equal(store.getSnapshot().downloadDockOpen, false)
+  assert.equal(store.getSnapshot().downloadDockHidden, false)
   replyRemote(1, { features: ['read'], tasks: [], downloads: [] })
   assert.equal(await confirmation, true)
   store.set({ downloadDockOpen: true, tab: 'account' })

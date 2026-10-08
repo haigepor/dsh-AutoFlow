@@ -23,14 +23,26 @@ export function previewSource(path, baseURI) {
  * @returns {Promise<Blob>} Raster bytes for a temporary object URL.
  */
 export async function readPreviewMedia(src, signal, fetchImpl = globalThis.fetch) {
-  const response = await fetchImpl(src, { signal, credentials: 'same-origin' })
+  let response
+  try { response = await fetchImpl(src, { signal, credentials: 'same-origin' }) }
+  catch (error) {
+    signal.throwIfAborted()
+    throw Object.assign(new Error('Preview unavailable'), { code: 'preview-unavailable', host: null, retryable: error instanceof TypeError })
+  }
   if (!response.ok) {
     let diagnostic
     try { diagnostic = await response.json() } catch (error) { /* 网关文本错误使用统一提示，不显示原始响应。 */ }
     const blocked = diagnostic?.code === 'preview-host-blocked' && typeof diagnostic.host === 'string' && /^[a-z0-9.-]+$/.test(diagnostic.host)
-    throw Object.assign(new Error('Preview unavailable'), { code: blocked ? 'preview-host-blocked' : 'preview-unavailable', host: blocked ? diagnostic.host : null })
+    const retryable = !blocked && diagnostic?.code !== 'preview-host-blocked' && diagnostic?.code !== 'unsupported-image'
+      && (typeof diagnostic?.retryable === 'boolean' ? diagnostic.retryable
+        : diagnostic?.code !== 'preview-unavailable' && [408, 429, 500, 502, 503, 504].includes(response.status))
+    throw Object.assign(new Error('Preview unavailable'), { code: blocked ? 'preview-host-blocked' : 'preview-unavailable', host: blocked ? diagnostic.host : null, retryable })
   }
   const type = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase()
-  if (!rasterTypes.has(type)) throw new Error('Preview unavailable')
-  return response.blob()
+  if (!rasterTypes.has(type)) throw Object.assign(new Error('Preview unavailable'), { retryable: false })
+  try { return await response.blob() }
+  catch (error) {
+    signal.throwIfAborted()
+    throw Object.assign(new Error('Preview unavailable'), { retryable: error instanceof TypeError })
+  }
 }

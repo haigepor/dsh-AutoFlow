@@ -27,6 +27,7 @@ export type {
   SessionTitleUserMessage,
   TitleProjection,
 } from './types.ts'
+export { sessionTitleInputText } from './normalize.ts'
 import { fallbackSessionTitle, normalizeSessionTitle } from './normalize.ts'
 import type {
   SessionTitleEventData,
@@ -421,13 +422,23 @@ export class SessionTitleService extends Service {
   }
 
   /**
+   * Supersede pending and active title work while preserving the accepted title.
+   * @param session - live Session whose request was cancelled.
+   */
+  cancel(session: Session): void {
+    const state = this.work.get(session)
+    if (state !== undefined) this.supersede(state, 'title generation cancelled')
+  }
+
+  /**
    * Explicitly retry the registered provider, or materialize the built-in
    * fallback when no provider is registered.
    * @param session - exact live session to refresh.
    * @param signal - optional caller cancellation.
+   * @param requireProvider - reject absent providers or input without changing the title.
    * @returns latest accepted title, or `undefined` when no eligible text exists.
    */
-  async refresh(session: Session, signal?: AbortSignal): Promise<SessionTitleSnapshot | undefined> {
+  async refresh(session: Session, signal?: AbortSignal, requireProvider: boolean = false): Promise<SessionTitleSnapshot | undefined> {
     signal?.throwIfAborted()
     this.assertServiceActive()
     if (this.ctx.sessions.get(session.id) !== session) {
@@ -435,6 +446,10 @@ export class SessionTitleService extends Service {
     }
     const registration = this.registration
     const input = this.titleInputOf(session)
+    if (requireProvider && (registration === undefined || registration.closing)) {
+      throw Object.assign(new Error('Title provider unavailable'), { code: 'TITLE_CONFIG' })
+    }
+    if (requireProvider && input.lastSeq === null) throw Object.assign(new Error('No title input'), { code: 'TITLE_EMPTY' })
     if (registration === undefined || registration.closing || input.lastSeq === null) {
       // Explicit refresh is the unpin even without a provider: a standing
       // user title must not short-circuit ensureFallback into a no-op, so

@@ -223,6 +223,11 @@ export function apply(ctx: Context): void {
             else ctx.sidebarRight.openResource(url, { params: { line: options.line } })
             await Promise.resolve()
           },
+          describeSkill: async (name, signal) => {
+            const scope = ctx.sessions.scope(sessionId)
+            if (scope === undefined) return undefined
+            return ctx.get('inputTriggers')?.sessionOf(scope).describeReference('skill', '/' + name, signal)
+          },
           openSkill: (name) => {
             const scope = ctx.sessions.scope(sessionId)
             if (scope === undefined) return

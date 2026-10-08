@@ -171,7 +171,15 @@ export class FixtureSession implements SessionFace {
   }
 
   /**
-   * Fail-loud stub; supply `rename` on the fixture's session face to exercise it.
+   * Fail-loud stub; supply regenerateTitle on the fixture face to exercise it.
+   * @returns never — always throws.
+   */
+  regenerateTitle(): never {
+    throw new Error(`test session "${this.sessionId}": regenerateTitle is not stubbed — supply it on the fixture's session face`)
+  }
+
+  /**
+   * Fail-loud rename stub; supply rename on the fixture face to exercise it.
    * @returns never — always throws.
    */
   rename(): never {

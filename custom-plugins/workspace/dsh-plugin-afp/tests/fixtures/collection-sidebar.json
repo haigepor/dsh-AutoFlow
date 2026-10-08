@@ -1,0 +1,17 @@
+[
+  { "expanded": true, "filterInert": false, "sidebarInteractive": true, "rows": [
+    { "id": "travel", "pressed": true, "label": "旅游 · sharedReadOnly · documentCount 0", "mark": "旅" },
+    { "id": "private", "pressed": false, "label": "私人 · private · documentCount 5", "mark": "私" }
+  ] },
+  { "expanded": false, "filterInert": true, "sidebarInteractive": true, "rows": [
+    { "id": "travel", "pressed": true, "label": "旅游 · sharedReadOnly · documentCount 0", "mark": "旅" },
+    { "id": "private", "pressed": false, "label": "私人 · private · documentCount 5", "mark": "私" }
+  ] },
+  { "expanded": false, "filterInert": true, "sidebarInteractive": true, "rows": [
+    { "id": "travel", "pressed": false, "label": "旅游 · sharedReadOnly · documentCount 0", "mark": "旅" },
+    { "id": "private", "pressed": true, "label": "私人 · private · documentCount 5", "mark": "私" }
+  ] },
+  { "expanded": false, "filterInert": true, "sidebarInteractive": true, "rows": [
+    { "id": "travel", "pressed": false, "label": "旅游 · sharedReadOnly · documentCount 0", "mark": "旅" }
+  ] }
+]

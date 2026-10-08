@@ -1,0 +1,11 @@
+- menu:
+  - menuitem "Rename"
+  - menuitem "Archive all workspace sessions"
+  - menuitem "Delete workspace"
+
+- dialog "Archive all workspace sessions":
+  - heading "Archive all workspace sessions" [level=2]
+  - button "Close"
+  - paragraph: Archive 2 sessions in “Bulk archive workspace”. Logs and workspace files are kept. Restore sessions from “All conversations (show archived)”.
+  - button "Cancel"
+  - button "Archive sessions"

@@ -226,7 +226,7 @@ describe('web e2e: resident question composer round trip', () => {
     const custom = composer.getByRole('textbox')
     if (MODE !== 'record') {
       const oneLineHeight = await custom.evaluate(el => el.getBoundingClientRect().height)
-      await custom.fill('a'.repeat(120))
+      await custom.fill('a'.repeat(240))
       const wrapped = await custom.evaluate(el => ({
         height: el.getBoundingClientRect().height,
         scrolls: el.scrollHeight > el.clientHeight,

@@ -23,7 +23,8 @@ export function createAfpClientStore(ctx, options = {}) {
     favoritesRequest: null, favoritesBusy: false, favoritesError: '', favoritesResult: null,
     downloadOptions: null, downloadSelected: {}, downloadOptionsLoading: false, downloadDirectory: null, downloadBulkResult: null,
     downloadPlan: null, downloadBusy: false, downloadBusyStage: '', downloadError: '', downloadErrorStage: '', downloadQuoteChanged: false, downloadResult: null,
-    downloadDockOpen: false, downloadNotice: null, downloadCancellingId: '',
+    downloadBrowsing: false, downloadDirectoryListing: null,
+    downloadDockOpen: false, downloadDockHidden: false, downloadNotice: null, downloadCancellingId: '',
     runId: '', selected: ['food'], operation: 'append', reportCategory: '', reportFilter: 'all',
     targetPerCategory: null, threshold: null, plan: null, planFingerprint: '', confirmChecked: false,
     result: null, busy: false, error: '', toast: '', previewGeneration: 0,
@@ -46,7 +47,7 @@ export function createAfpClientStore(ctx, options = {}) {
       downloadSequence++
       downloadController?.abort()
       downloadController = null
-      update = { downloadOptionsLoading: false, downloadBusy: false, downloadBusyStage: '', downloadError: '', downloadErrorStage: '', downloadBulkResult: null, ...update }
+      update = { downloadOptionsLoading: false, downloadBusy: false, downloadBusyStage: '', downloadError: '', downloadErrorStage: '', downloadBulkResult: null, downloadBrowsing: false, downloadDirectoryListing: null, ...update }
     }
     const invalidate = ['runId', 'selected', 'operation'].some(key => Object.hasOwn(update, key)
       && JSON.stringify(update[key]) !== JSON.stringify(state[key]))
@@ -98,6 +99,12 @@ export function createAfpClientStore(ctx, options = {}) {
         features: (bundle?.features ?? []).map(feature => ({ ...feature,
         running: plugins.value.some(row => row.patchId === feature.rowId && row.enabled && row.fiberPhase === 'active') })),
         ...status.features.includes('write') ? {} : { plan: null, planFingerprint: '', confirmChecked: false }, error: '' })
+      const report = state.regions.run.data?.run
+      const latest = status.reports?.find(row => row.runId === state.runId)
+      // 续跑、取消或失败后，打开的报告必须同步保存状态，不能继续沿用旧的可写预览。
+      if (report?.runId === state.runId && latest && !state.regions.run.loading && JSON.stringify(report) !== JSON.stringify(latest)) {
+        void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter })
+      }
     }).catch(error => { if (!disposed && sequence === reloadSequence) publish({ error: error.message }) }).finally(() => { if (poll === request) poll = null })
     poll = request
     return request
@@ -285,17 +292,35 @@ export function createAfpClientStore(ctx, options = {}) {
         downloadBulkResult: { matched, total: Object.keys(state.selectedPhotos).length } })
       return true
     },
-    async pickDownloadDirectory() {
+    async browseDownloadDirectory(path) {
+      if (state.downloadBusy) return false
+      const sequence = downloadSequence
+      publish({ downloadBusy: true, downloadBusyStage: 'directory', downloadError: '', downloadErrorStage: '' })
+      try {
+        const listing = await call('browse-download-directory', path ? { path } : {})
+        if (!currentDownload(sequence)) return false
+        publish({ downloadDirectoryListing: listing })
+        return true
+      } catch (error) { if (currentDownload(sequence)) publish({ downloadError: error.message, downloadErrorStage: 'directory' }); return false }
+      finally { if (currentDownload(sequence)) publish({ downloadBusy: false, downloadBusyStage: '' }) }
+    },
+    async pickDownloadDirectory(path) {
       if (state.downloadBusy) return false
       const sequence = downloadSequence
       publish({ downloadBusy: true, downloadBusyStage: 'directory', ...(state.downloadErrorStage !== 'options' ? { downloadError: '', downloadErrorStage: '' } : {}) })
       try {
-        const directory = await call('pick-download-directory')
+        const directory = await call('pick-download-directory', path ? { path } : {})
         if (!currentDownload(sequence)) return false
-        if (directory) publish({ downloadDirectory: directory, downloadPlan: null })
+        if (directory?.browse) publish({ downloadBrowsing: true, downloadDirectoryListing: null })
+        else if (directory) publish({ downloadDirectory: directory, downloadPlan: null, downloadBrowsing: false, downloadDirectoryListing: null })
         return Boolean(directory)
       } catch (error) { if (currentDownload(sequence)) publish({ downloadError: error.message, downloadErrorStage: 'directory' }); return false }
-      finally { if (currentDownload(sequence)) publish({ downloadBusy: false, downloadBusyStage: '' }) }
+      finally {
+        if (currentDownload(sequence)) {
+          publish({ downloadBusy: false, downloadBusyStage: '' })
+          if (state.downloadBrowsing && !state.downloadDirectoryListing && !path) void store.browseDownloadDirectory()
+        }
+      }
     },
     async prepareDownload({ prefix = '', suffix = '' } = {}) {
       if (!state.downloadDirectory || state.downloadBusy || state.downloadOptionsLoading || state.downloadErrorStage === 'options') return false
@@ -331,6 +356,7 @@ export function createAfpClientStore(ctx, options = {}) {
         }
         // 全局下载反馈不属于弹窗，关闭或切换页面后仍可查看已接收的任务。
         set({ downloadResult: { ...result, total: plan.items.length }, collectionAction: null, downloadPlan: null, downloadQuoteChanged: false,
+          downloadDockHidden: false,
           downloadNotice: { id: result.downloadId, kind: 'started', total: plan.items.length } })
         await reload()
         return true
@@ -616,11 +642,13 @@ export function createAfpClientStore(ctx, options = {}) {
         favoritesRequest: null, favoritesBusy: false, favoritesError: '', favoritesResult: null,
         collectionAction: null, collectionActionResult: null, downloadOptions: null, downloadSelected: {}, downloadOptionsLoading: false, downloadBulkResult: null,
         downloadDirectory: null, downloadPlan: null, downloadBusy: false, downloadBusyStage: '', downloadError: '', downloadErrorStage: '', downloadQuoteChanged: false, downloadResult: null,
-        downloadDockOpen: false, downloadNotice: null, downloadCancellingId: '',
+        downloadBrowsing: false, downloadDirectoryListing: null,
+        downloadDockOpen: false, downloadDockHidden: false, downloadNotice: null, downloadCancellingId: '',
         reportFilter: 'all', targetPerCategory: null, threshold: null, plan: null, planFingerprint: '',
         confirmChecked: false, result: null, busy: false, toast: '', error: '' })
     },
     dispose() { disposed = true; listeners.clear(); actionSequence++; downloadSequence++; downloadController?.abort(); for (const name of regionNames) sequences[name]++; for (const controller of controllers.values()) controller.abort(); controllers.clear(); return previews.dispose() },
   }
+  store.conversationData = callData
   return store
 }

@@ -25,6 +25,8 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
+Assistant blockquotes highlight catalog-recognized inline skill names with the theme accent and skill icon. Hover or keyboard focus shows the provider description; clicking opens its current source file. Metadata reads reuse the Session catalog cache and honor cancellation, preset invalidation and connection reset. Unknown names remain ordinary inline code; descriptions do not alter recorded messages or tool instructions.
+
 Type `/` in the composer and pick a skill from the suggestions, or type `/name` directly; the sent message carries the literal text, and the host loads the skill the same way for a menu pick or a hand-typed token. A name shared with a host command still resolves to the command — adjudication claims the line client-side before it ever becomes a prompt.
 
 ### What the source offers

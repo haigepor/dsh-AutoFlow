@@ -100,7 +100,8 @@ const ChatNodeList = memo(function ChatNodeList({ entries, useChatGroup, pending
  */
 export function ChatView({
   useSession, useChat, useChatNode, useChatNodeProcess, useChatGroup, useConversation, useSessions, useStore, actions, renderSlot,
-  sessionId, openFile, openSkill, openExternalLink, loadOlder, loadThrough, loadImage, inspectCall, chatScroll, forkAt, fileMentions,
+  sessionId, openFile, openSkill, describeSkill, openExternalLink, loadOlder, loadThrough, loadImage,
+  inspectCall, chatScroll, forkAt, fileMentions,
   usePresentation, useProjection, t,
 }: ChatViewSlotProps) {
   const order = useChat(s => s.order)
@@ -136,6 +137,7 @@ export function ChatView({
       dialog: t('image.dialog'), close: t('image.close'),
     },
   }), [cwd, t])
+  const skillMentions = useMemo(() => ({ resolve: describeSkill, open: openSkill }), [describeSkill, openSkill])
   const running = useSession(s => s.running)
   const openState = useSession(s => s.openState)
   const openError = useSession(s => s.openError)
@@ -253,7 +255,9 @@ export function ChatView({
                 </button>
               </div>
             )}
-            <MarkdownDelegateProvider openExternalLink={openExternalLink} openFile={requestOpenFile} fileImages={fileImages}>
+            <MarkdownDelegateProvider
+              openExternalLink={openExternalLink} openFile={requestOpenFile} fileImages={fileImages} skillMentions={skillMentions}
+            >
               <ChatNodeList
                 entries={entries}
                 pendingInputs={pendingInputs}

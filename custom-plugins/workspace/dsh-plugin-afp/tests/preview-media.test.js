@@ -2,6 +2,20 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { previewSource, readPreviewMedia } from '../src/client/afp-preview-media.js'
 
+test('preview recovery distinguishes transient transport errors from permanent failures', async () => {
+  const signal = new AbortController().signal
+  for (const [status, body, retryable] of [[503, {}, true], [429, {}, true], [401, {}, false], [403, {}, false],
+    [502, { code: 'preview-unavailable', retryable: true }, true], [502, { code: 'preview-unavailable', retryable: false }, false],
+    [502, { code: 'preview-unavailable' }, false], [502, { code: 'unsupported-image' }, false],
+    [502, { code: 'preview-host-blocked', host: 'cdn.test', retryable: true }, false]]) {
+    const error = await readPreviewMedia('/preview', signal, async () => Response.json(body, { status })).catch(error => error)
+    assert.equal(error.retryable, retryable)
+  }
+  const network = await readPreviewMedia('/preview', signal, async () => { throw new TypeError('fetch failed') }).catch(error => error)
+  assert.equal(network.retryable, true)
+  assert.equal(network.message, 'Preview unavailable')
+})
+
 test('preview paths only address the same-origin proxy with a single photo ID', () => {
   const base = 'https://profile.test/app/'
   assert.equal(previewSource('api/afp/preview?photoId=photo%2F1', base), 'https://profile.test/app/api/afp/preview?photoId=photo%2F1')

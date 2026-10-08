@@ -60,6 +60,15 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
         await saveSecrets(['usernameRef', 'passwordRef'])
         const result = await ctx.remote.pluginManager.invokeAction('dsh-plugin-afp', 'configuration', { operation: 'acquire-token' })
         if (!result.ok) throw new Error()
+        const payload = JSON.parse(result.value.output)
+        if (payload.acquired === false) {
+          const code = payload.error?.code
+          const authentication = ['authentication-failed', 'login-failed', 'credentials-missing'].includes(code)
+          if (authentication) setLoaded(current => ({ ...current, token: { ...current.token, verifiedAt: null } }))
+          setMessage(t(authentication ? 'tokenAuthenticationFailed' : code === 'access-denied' ? 'tokenAccessDenied'
+            : ['read-timeout', 'upstream-unavailable', 'rate-limited'].includes(code) ? 'tokenServiceUnavailable' : 'tokenAcquireFailed'))
+          return
+        }
         await read(true)
         setSavedToast(t('tokenAcquired'))
         onSaved?.()
@@ -132,8 +141,9 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
         h('div', { className: 'afp-form-label' }, h('label', { htmlFor: inputId }, t(key)),
           h(Tag, { tone: info(key)?.configured ? 'success' : 'quiet' }, t(info(key)?.configured ? 'configured' : 'missing'))),
         h('div', { className: username ? undefined : 'afp-secret-control' },
-          h(Input, { className: `afp-wb-input${!username && info(key)?.configured && !secrets[key] && !visible ? ' afp-stored-mask' : ''}`, id: inputId, type: username || visible ? 'text' : 'password',
-            autoComplete: username ? 'username' : 'new-password', spellCheck: false,
+          // 凭据由 DSH 管理；使用视觉遮罩避免浏览器将此配置字段当成网页登录密码并弹出同步气泡。
+          h(Input, { className: `afp-wb-input${!username && !visible ? ' afp-secret-masked' : ''}${!username && info(key)?.configured && !secrets[key] && !visible ? ' afp-stored-mask' : ''}`, id: inputId, type: 'text',
+            autoComplete: 'off', spellCheck: false, autoCapitalize: 'none',
             value: username ? secrets[key] ?? loaded.username ?? '' : secrets[key] || revealedCredentials[key] || '',
             disabled: busy || info(key)?.writable === false, 'aria-label': t(key), placeholder: t(!username && info(key)?.configured ? 'maskedCredential' : 'enterCredential'),
             onChange: event => {

@@ -12,6 +12,8 @@ Desktop analytics follows the [product collection policy](../../client/product-a
 
 `@deepseek-ai/dsh-api-session-controller` owns the Host `ctx.sessionController` service and the generated Client `session`, `skills`, and `fileReferences` Remote namespaces. It serves Session lifecycle and history, the Host-generation model catalog, human background-job kill, workspace-path opening, user-invocable skill discovery, and Agent-scoped file references. Use it through API Gateway when a Client needs operations addressed by a Session.
 
+The Session Remote regenerateTitle command coalesces concurrent requests for the same Session, refreshes through sessionTitle, and returns the accepted title/event seq. Failures preserve the current title and return a sanitized title-generation-failed reason. rename and cancel supersede older title work.
+
 ## Table of Contents
 
 - [Use this package](#use-this-package)

@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { summary } from './afp-refresh-workflow.js'
+import { agentError } from './afp-agent-errors.js'
 import { isPrivateSelection } from '../vendor/auto-afp-img/afp-collection-run.mjs'
 import { buildPhotoSearchRequest, CATEGORY_PROFILES } from '../vendor/auto-afp-img/afp-photo-search.mjs'
 
@@ -41,7 +42,9 @@ function photoDto(photo) {
     id,
     guid: typeof photo.guid === 'string' ? photo.guid : null,
     title: typeof photo.title === 'string' ? photo.title : id,
-    caption: typeof photo.caption === 'string' ? photo.caption : '',
+    // FAR 官网当前返回字符串数组；保留旧字符串兼容，避免真实说明文字被丢弃。
+    caption: Array.isArray(photo.caption) ? photo.caption.filter(value => typeof value === 'string').join(' ')
+      : typeof photo.caption === 'string' ? photo.caption : '',
     keywords,
     provider: typeof provider === 'string' && provider ? provider : null,
     previewPath: `api/afp/preview?photoId=${encodeURIComponent(id)}`,
@@ -167,7 +170,7 @@ export class WorkbenchData {
     })
   }
 
-  async photoSearch(args, callerSignal) {
+  async photoSearch(args, callerSignal, progress = () => {}) {
     object(args, 'photo search arguments')
     if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 2000) throw new Error('Invalid AFP query')
     if (args.cursor !== undefined && (typeof args.cursor !== 'string' || args.cursor.length > 8192)) throw new Error('Invalid AFP cursor')
@@ -175,7 +178,8 @@ export class WorkbenchData {
     const language = args.language ?? this.config.language
     if (!languages.has(language)) throw new Error('Invalid AFP language')
     return this.track(callerSignal, true, async signal => {
-      const { client } = await this.connection.open(signal)
+      const { client } = await this.connection.open(signal, false, false, false, event => progress({ retryCount: event.retryCount }))
+      progress({ stage: 'search' })
       const query = `caption=${JSON.stringify(args.query.trim())}`
       const request = buildPhotoSearchRequest({ criteria: query }, limit, query, args.cursor ?? null)
       request.variables.input.lang = language
@@ -358,7 +362,11 @@ export class WorkbenchData {
     } catch (error) {
       if (request.signal.aborted || readSignal.aborted || this.disposed) throw error
       const blocked = error?.code === 'preview-host-blocked' && typeof error.hostname === 'string' && /^[a-z0-9.-]+$/.test(error.hostname)
-      return Response.json(blocked ? { code: 'preview-host-blocked', host: error.hostname } : { code: 'preview-unavailable' }, { status: 502, headers: safeHeaders })
+      // 502仅是本地预览代理状态；认证和配置拒绝不能被浏览器误当作临时网络故障。
+      const retryable = !blocked && (agentError(error, 'read', 0).retryable || (error instanceof TypeError && error.message === 'fetch failed')
+        || /^mockup download failed with HTTP (408|429|500|502|503|504)$/.test(error.message))
+      return Response.json(blocked ? { code: 'preview-host-blocked', host: error.hostname, retryable: false }
+        : { code: 'preview-unavailable', retryable }, { status: 502, headers: safeHeaders })
     }
   }
 }

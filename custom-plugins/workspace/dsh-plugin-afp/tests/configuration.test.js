@@ -5,6 +5,16 @@ import { resolveConfig } from '../config-schema.js'
 import { transport, Connection } from '../src/host/afp-credentials.js'
 import { digest } from '../src/host/afp-state-store.js'
 
+test('preview retry settings have bounded deployment defaults and an off switch', () => {
+  const config = resolveConfig({})
+  assert.equal(config.previewRetryCount, 2)
+  assert.equal(config.previewRetryDelayMs, 1000)
+  assert.equal(resolveConfig({ previewRetryCount: 0 }).previewRetryCount, 0)
+  for (const input of [{ previewRetryCount: -1 }, { previewRetryCount: 4 }, { previewRetryDelayMs: 99 }, { previewRetryDelayMs: 30001 }]) {
+    assert.throws(() => resolveConfig(input), /previewRetry/)
+  }
+})
+
 test('preview retention settings are configurable, defaulted for existing deployments and bounded', () => {
   const config = resolveConfig({})
   assert.equal(config.previewCacheMaxEntries, 300)
@@ -13,6 +23,15 @@ test('preview retention settings are configurable, defaulted for existing deploy
   assert.equal(resolveConfig({ previewCacheMaxEntries: 0 }).previewCacheMaxEntries, 0)
   for (const input of [{ previewCacheMaxEntries: -1 }, { previewCacheMaxEntries: 5001 }, { previewCacheMaxBytes: 0 },
     { previewCacheMaxBytes: 268435457 }, { previewCacheTtlMs: 999 }, { previewCacheTtlMs: 3600001 }]) assert.throws(() => resolveConfig(input), /previewCache/)
+})
+
+test('preview shimmer has an explicit deployment off switch', () => {
+  const config = resolveConfig({})
+  assert.equal(config.previewAnimationEnabled, true)
+  assert.equal(resolveConfig({ previewAnimationEnabled: false }).previewAnimationEnabled, false)
+  for (const input of [{ previewAnimationEnabled: 1 }, { previewAnimationEnabled: 'true' }]) {
+    assert.throws(() => resolveConfig(input), /previewAnimation/)
+  }
 })
 
 test('deployment editor validates fields, refuses stale saves and retains unrelated settings', async () => {
@@ -43,6 +62,20 @@ test('token acquisition reuses the Host credential flow without returning a secr
   assert.deepEqual(result, { acquired: true })
   assert.equal(receivedSignal, signal)
   await assert.rejects(configurationAction(ctx, { operation: 'acquire-token', token: 'never-send-secrets' }, service, signal), /Invalid/)
+})
+
+test('token acquisition returns a safe authentication category without upstream credential text', async () => {
+  const config = resolveConfig({})
+  const ctx = { configEditor: { entries: () => [{ options: { id: 'afp' }, fiber: { config } }] } }
+  const service = { acquireToken: async () => {
+    const error = new Error('secret-password https://private.example/?token=secret')
+    error.afpFailure = { protocol: 'graphql', httpStatus: 200, category: 'authentication' }
+    throw error
+  } }
+  const result = JSON.parse(await configurationAction(ctx, { operation: 'acquire-token' }, service, new AbortController().signal))
+  assert.equal(result.acquired, false)
+  assert.equal(result.error.code, 'authentication-failed')
+  assert.doesNotMatch(JSON.stringify(result), /secret|private\.example/)
 })
 
 test('HTTP transport fuses abort signals and refuses credential forwarding redirects', async () => {

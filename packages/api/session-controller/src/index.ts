@@ -50,6 +50,7 @@ import type {
   SessionPageRequest,
   SessionPromptRequest,
   SessionPromptValue,
+  SessionRegenerateTitleRequest,
   SessionRenameRequest,
   SessionRenameValue,
   SessionSearchRequest,
@@ -392,6 +393,16 @@ export class SessionController extends TypertRemoteService {
     }
     signal.throwIfAborted()
     return hostPath
+  }
+
+  /**
+   * Regenerate one title through the registered title provider.
+   * @param request - Session whose current title remains until success.
+   * @returns the accepted title and durable event sequence.
+   */
+  @Remote('regenerateTitle')
+  regenerateTitle(request: SessionRegenerateTitleRequest): Promise<SessionRenameValue> {
+    return this.commands.regenerateTitle(request)
   }
 
   /**

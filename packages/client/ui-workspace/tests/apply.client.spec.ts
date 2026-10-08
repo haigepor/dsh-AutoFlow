@@ -23,6 +23,7 @@ import { DismissSessionMenuItem } from '../src/client/session-actions/DismissSes
 import { ForkSessionMenuItem } from '../src/client/session-actions/ForkSession.tsx'
 import { PinSessionMenuItem, PinSessionRowButton } from '../src/client/session-actions/PinSession.tsx'
 import { RenameSessionMenuItem, SessionRenameDialog } from '../src/client/session-actions/RenameSession.tsx'
+import { RegenerateTitleMenuItem } from '../src/client/session-actions/RegenerateTitle.tsx'
 import { RowActionToast } from '../src/client/session-actions/RowActionToast.tsx'
 import { WorkspacePicker } from '../src/client/WorkspacePicker.tsx'
 import { FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
@@ -219,7 +220,7 @@ describe('ui-workspace apply', () => {
     await Promise.resolve()
     expect(after.slots.entries('conversation.hero.workspace')[0]!.component).toBe(WorkspacePicker)
     // The row actions follow the browser's own declaration, whenever it lands.
-    expect(after.slots.entries(MENU_ITEM)).toHaveLength(5)
+    expect(after.slots.entries(MENU_ITEM)).toHaveLength(6)
     expect(after.slots.entries(ROW_ACTION)).toHaveLength(2)
     expect(after.slots.entries('shell.overlay')).toHaveLength(3)
   })
@@ -240,6 +241,7 @@ describe('ui-workspace apply', () => {
     expect(rows(MENU_ITEM)).toEqual([
       ['pin', 100, PinSessionMenuItem, 'workspace'],
       ['rename', 200, RenameSessionMenuItem, 'workspace'],
+      ['regenerate-title', 210, RegenerateTitleMenuItem, 'workspace'],
       ['fork', 300, ForkSessionMenuItem, 'workspace'],
       ['archive', 400, ArchiveSessionMenuItem, 'workspace'],
       ['dismiss', 500, DismissSessionMenuItem, 'workspace'],
@@ -405,8 +407,11 @@ describe('ui-workspace apply', () => {
     unarchiveSession.mockRejectedValueOnce(unarchiveRejection)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
+      const view = viewInstance(b.slots)
+      view.actions.setArchivedFilter('show')
       archive.archiveSession(sid('two'))
       await vi.waitFor(() => { expect(warn).toHaveBeenCalledWith('session archive rejected:', archiveRejection) })
+      expect(view.getSnapshot().archivedFilter).toBe('show')
       archive.unarchiveSession(sid('two'))
       await vi.waitFor(() => { expect(warn).toHaveBeenCalledWith('session unarchive rejected:', unarchiveRejection) })
     } finally {
@@ -414,6 +419,18 @@ describe('ui-workspace apply', () => {
     }
     // A rejected archive raises no notice.
     expect(toast.hooks.toast.getSnapshot()).toEqual({ kind: 'archived', sessionId: 'one', seq: 1 })
+  })
+
+  it('returns to the ordinary sidebar after an archive succeeds from the all-sessions view', async () => {
+    const b = await bench()
+    declare(b.slots, 'sidebar.workspaces', 'shell.overlay')
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const view = viewInstance(b.slots)
+    view.actions.setArchivedFilter('show')
+    vi.spyOn(b.ctx.uiWorkspace, 'archiveSession').mockResolvedValue(undefined)
+    const archive = faceOf(entry(b.slots, ROW_ACTION, 'archive')) as ArchiveSessionInjected
+    archive.archiveSession(sid('one'))
+    await vi.waitFor(() => { expect(view.getSnapshot().archivedFilter).toBe('default') })
   })
 
   it('turns the Host\'s running-work refusal into the stop-and-archive confirmation, which archives with stopActivity', async () => {
@@ -446,7 +463,10 @@ describe('ui-workspace apply', () => {
       // Cancelling settles the request; confirming asks the Host to stop the work.
       confirm.settleSessionArchive()
       expect(confirm.hooks.archiveRequest.getSnapshot()).toBeNull()
+      const view = viewInstance(b.slots)
+      view.actions.setArchivedFilter('show')
       await confirm.stopAndArchiveSession(sid('busy'))
+      expect(view.getSnapshot().archivedFilter).toBe('default')
       expect(archiveSession).toHaveBeenLastCalledWith('busy', { stopActivity: true })
       expect(toast.hooks.toast.getSnapshot()).toEqual({ kind: 'stoppedAndArchived', sessionId: 'busy', seq: 1 })
     } finally {
@@ -564,11 +584,20 @@ describe('ui-workspace apply', () => {
     await browser.renameWorkspace('ws' as never, 'renamed')
     expect(b.rename).toHaveBeenCalledWith('ws', 'renamed')
     const archiveSession = vi.spyOn(b.ctx.uiWorkspace, 'archiveSession').mockResolvedValue(undefined)
+    const view = viewInstance(b.slots)
+    view.actions.setArchivedFilter('show')
     await expect(browser.archiveSessions([sid('one'), sid('two')])).resolves.toEqual({ archived: 2, failed: 0 })
+    expect(view.getSnapshot().archivedFilter).toBe('default')
     expect(archiveSession).toHaveBeenNthCalledWith(1, sid('one'))
     expect(archiveSession).toHaveBeenNthCalledWith(2, sid('two'))
+    view.actions.setArchivedFilter('show')
     archiveSession.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('archive unavailable'))
     await expect(browser.archiveSessions([sid('three'), sid('four')])).resolves.toEqual({ archived: 1, failed: 1 })
+    expect(view.getSnapshot().archivedFilter).toBe('default')
+    view.actions.setArchivedFilter('show')
+    archiveSession.mockRejectedValueOnce(new Error('archive unavailable'))
+    await expect(browser.archiveSessions([sid('five')])).resolves.toEqual({ archived: 0, failed: 1 })
+    expect(view.getSnapshot().archivedFilter).toBe('show')
     await browser.createWorkspace({ path: '/tmp/browser-project' })
     expect(b.create).toHaveBeenCalledWith({ path: '/tmp/browser-project' })
 
@@ -621,7 +650,7 @@ describe('ui-workspace apply', () => {
     declare(b.slots, 'sidebar.workspaces', 'conversation.hero.workspace', 'conversation.empty.workspace', 'shell.overlay')
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(b.slots.entries(MENU_ITEM)).toHaveLength(5)
+    expect(b.slots.entries(MENU_ITEM)).toHaveLength(6)
     expect(b.slots.entries(ROW_ACTION)).toHaveLength(2)
     expect(b.slots.entries('shell.overlay')).toHaveLength(3)
     await fiber.dispose()

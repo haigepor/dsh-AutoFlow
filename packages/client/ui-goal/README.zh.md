@@ -40,6 +40,8 @@ Web GUI 的 goal 界面同时显示持久 goal 状态及当前的进程本地激
 <a id="understand-the-implementation"></a>
 ## 理解实现
 
+目标编辑使用自动增长、支持换行的文本框，最多显示六行。Enter 保存，Shift+Enter 换行，输入法组合输入不会提交，Escape 取消。提交期间禁用输入与操作。
+
 <details>
 <summary>实现细节——点击展开</summary>
 

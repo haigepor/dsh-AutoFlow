@@ -1,6 +1,8 @@
+import { PREVIEW_ANIMATION_DEFAULTS } from './src/shared/afp-preview-animation-options.js'
+
 /** Validated deployment settings; tool arguments cannot override credentials or URLs. */
 const defaults = Object.freeze({
-  allowWrites: false,
+  allowWrites: false, autoRefreshToken: true,
   accessTokenRef: 'AFP_ACCESS_TOKEN', usernameRef: 'AFP_USERNAME', passwordRef: 'AFP_PASSWORD',
   visionKeyRef: 'VISION_API_KEY', visionModel: '', visionBaseUrl: '', reasoningModel: '', reasoningEffort: '',
   language: 'en', farEndpoint: 'https://far-api-news.app.afp.com/',
@@ -13,7 +15,9 @@ const defaults = Object.freeze({
   maxStateBytes: 67108864, maxPreviewBytes: 12582912, maxResponseBytes: 4194304, maxRedirects: 3,
   maxDownloadBytes: 134217728, downloadConcurrency: 2,
   previewCacheMaxEntries: 300, previewCacheMaxBytes: 67108864, previewCacheTtlMs: 600000,
-  pollIntervalMs: 2000,
+  previewRetryCount: 2, previewRetryDelayMs: 1000,
+  previewAnimationEnabled: PREVIEW_ANIMATION_DEFAULTS.enabled,
+  pollIntervalMs: 2000, agentResultMaxBytes: 16384,
 })
 const ranges = {
   targetPerCategory: [1, 1000], batchSize: [1, 500], pageSize: [1, 120], maxPages: [1, 10],
@@ -21,8 +25,9 @@ const ranges = {
   tokenRefreshMarginSeconds: [0, 3600], planTtlMs: [1000, 3600000], outputLimitBytes: [1024, 1000000],
   maxStateBytes: [1048576, 268435456], maxPreviewBytes: [1024, 52428800],
   maxResponseBytes: [1024, 16777216], maxRedirects: [0, 5], maxDownloadBytes: [1048576, 1073741824], downloadConcurrency: [1, 8],
-  pollIntervalMs: [500, 60000],
+  pollIntervalMs: [500, 60000], agentResultMaxBytes: [4096, 65536],
   previewCacheMaxEntries: [0, 5000], previewCacheMaxBytes: [1024, 268435456], previewCacheTtlMs: [1000, 3600000],
+  previewRetryCount: [0, 3], previewRetryDelayMs: [100, 30000],
 }
 
 /** @param {object} input Deployment config. @returns {object} Validated explicit settings. */
@@ -31,6 +36,8 @@ export function resolveConfig(input = {}) {
   for (const key of Object.keys(input)) if (!Object.hasOwn(defaults, key)) throw new Error(`Unknown AFP config field: ${key}`)
   const config = { ...defaults, ...input }
   if (typeof config.allowWrites !== 'boolean') throw new Error('allowWrites must be boolean')
+  if (typeof config.autoRefreshToken !== 'boolean') throw new Error('autoRefreshToken must be boolean')
+  if (typeof config.previewAnimationEnabled !== 'boolean') throw new Error('previewAnimationEnabled must be boolean')
   for (const [key, [min, max]] of Object.entries(ranges)) {
     if (!Number.isSafeInteger(config[key]) || config[key] < min || config[key] > max) throw new Error(`Invalid ${key}: expected integer ${min}..${max}`)
   }

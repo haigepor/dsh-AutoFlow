@@ -873,6 +873,13 @@ workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 
 @Remote('workspacePathApplications') async workspacePathApplications( request: { readonly path: string }, signal: AbortSignal, ): Promise<readonly SessionWorkspacePathApplication[]>
 
 /**
+ * Regenerate one title through the registered title provider.
+ * @param request - Session whose current title remains until success.
+ * @returns the accepted title and durable event sequence.
+ */
+@Remote('regenerateTitle') regenerateTitle(request: SessionRegenerateTitleRequest): Promise<SessionRenameValue>
+
+/**
  * Rename one Session after explicitly resuming it.
  * @param request - Session identity and proposed title.
  * @returns the accepted title and durable event sequence.

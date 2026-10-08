@@ -37,13 +37,36 @@ export function createAfpDownloadDialog(React, UI, icons, t, store, ImagePreview
   return function DownloadDialog({ state, onAccount, onTasks }) {
     const [prefix, setPrefix] = React.useState(''), [suffix, setSuffix] = React.useState(''), [confirmed, setConfirmed] = React.useState(false)
     const [bulkOpen, setBulkOpen] = React.useState(false)
+    const [directoryPath, setDirectoryPath] = React.useState('')
     const open = state.collectionAction === 'download'
     React.useEffect(() => {
       if (open) { setPrefix(''); setSuffix(''); setConfirmed(false); setBulkOpen(false); void store.loadDownloadOptions({ reset: true }) }
     }, [open])
     React.useEffect(() => setConfirmed(false), [state.downloadPlan?.confirmation])
     React.useEffect(() => { if (!open || state.downloadOptionsLoading || state.downloadBusy) setBulkOpen(false) }, [open, state.downloadOptionsLoading, state.downloadBusy])
+    React.useEffect(() => { setDirectoryPath(state.downloadDirectoryListing?.path ?? '') }, [state.downloadDirectoryListing?.path])
     if (!Modal || !open) return null
+    if (state.downloadBrowsing) {
+      const listing = state.downloadDirectoryListing
+      const cancel = () => { if (!state.downloadBusy) store.set({ downloadBrowsing: false, downloadDirectoryListing: null, downloadError: '', downloadErrorStage: '' }) }
+      return h(Modal, { open: true, title: t('downloadBrowseTitle'), closeLabel: t('close'), onClose: cancel,
+        className: 'afp-wb-action-modal', footer: h('div', { className: 'afp-wb-download-footer-actions' },
+          h(Button, { variant: 'ghost', disabled: state.downloadBusy, onClick: cancel }, t('cancelDownloadSetup')),
+          h(Button, { variant: 'primary', disabled: state.downloadBusy || !listing, onClick: () => { void store.pickDownloadDirectory(listing.path) } }, t('downloadUseDirectory'))) },
+        h('p', { className: 'afp-wb-download-hint' }, t('downloadHostDirectory')),
+        h('div', { className: 'afp-wb-directory-path' },
+          h(Input, { value: directoryPath, 'aria-label': t('downloadDirectoryPath'), 'data-modal-autofocus': true, disabled: state.downloadBusy,
+            onChange: event => setDirectoryPath(event.target.value), onKeyDown: event => { if (event.key === 'Enter' && directoryPath.trim()) void store.browseDownloadDirectory(directoryPath.trim()) } }),
+          h(Button, { variant: 'outline', disabled: state.downloadBusy || !directoryPath.trim(), onClick: () => { void store.browseDownloadDirectory(directoryPath.trim()) } }, t('downloadBrowseOpen'))),
+        state.downloadError ? h('p', { role: 'alert', className: 'afp-wb-download-hint' }, t('downloadDirectoryFailed')) : null,
+        state.downloadBusy ? h('div', { role: 'status' }, spinner(), t('loading')) : null,
+        listing ? h(React.Fragment, null,
+          h('nav', { className: 'afp-wb-directory-crumbs', 'aria-label': t('downloadDirectoryPath') }, ...listing.crumbs.map(crumb => h(Button, {
+            key: crumb.path, variant: 'ghost', size: 'sm', disabled: state.downloadBusy, onClick: () => { void store.browseDownloadDirectory(crumb.path) } }, crumb.name))),
+          h('div', { className: 'afp-wb-directory-list' }, ...listing.entries.map(entry => h(Button, { key: entry.path, variant: 'ghost',
+            disabled: state.downloadBusy, onClick: () => { void store.browseDownloadDirectory(entry.path) } }, icon('IconFolderCloseRegular'), entry.name))),
+          listing.truncated ? h('p', { role: 'status' }, t('downloadDirectoryTruncated')) : null) : null)
+    }
     const close = () => { if (!state.downloadBusy) store.set({ collectionAction: null, downloadPlan: null, downloadQuoteChanged: false }) }
     const navigate = callback => { close(); callback?.() }
     const photos = Object.values(state.selectedPhotos), options = state.downloadOptions?.photos ?? []
@@ -84,23 +107,28 @@ export function createAfpDownloadDialog(React, UI, icons, t, store, ImagePreview
       const photo = options.find(row => row.id === source.id)
       const selected = photo?.renditions?.find(row => row.id === state.downloadSelected[source.id])
       const failed = photo?.errorCode
+      const pending = !photo && (state.downloadOptionsLoading || !options.length && !state.downloadError)
       const choices = [{ value: '', label: t('chooseRendition'), disabled: true }, ...(photo?.renditions ?? []).map(row => ({
         value: row.id, disabled: !row.available || row.purchaseCost > 0 && !writeEnabled,
         label: [row.quality, row.width && row.height ? `${row.width}×${row.height}` : '', bytes(row.sizeInBytes),
           row.purchaseCost ? `${row.purchaseCost} ${t('credits')}` : t(row.alreadyAvailable ? 'alreadyAvailable' : 'free')].filter(Boolean).join(' · '),
       }))]
       const title = source.title || photo?.title || source.id
-      return h('div', { key: source.id, className: 'afp-wb-download-item', role: 'listitem' },
+      return h('div', { key: source.id, className: 'afp-wb-download-item', role: 'listitem', 'data-loading': pending },
         h('div', { className: 'afp-wb-download-thumbnail', 'aria-hidden': true }, h(ImagePreview, { photo: source, retry: false })),
         h('div', { className: 'afp-wb-download-item-name' }, tooltip(title, h('span', { className: 'afp-wb-download-item-title' }, title)),
           h('div', { className: 'afp-wb-download-item-meta' },
+            h('span', { className: 'afp-wb-download-meta-content', 'aria-hidden': pending },
             selected ? h('span', null, [selected.width && selected.height ? `${selected.width} × ${selected.height}` : '', bytes(selected.sizeInBytes)].filter(Boolean).join(' · ')) : null,
-            selected ? h(Tag, { tone: selected.purchaseCost ? 'warning' : 'success' }, selected.purchaseCost ? `${selected.purchaseCost} ${t('credits')}` : t('free')) : null)),
-        h('div', { className: 'afp-wb-download-item-quality' }, failed
+            selected ? h(Tag, { tone: selected.purchaseCost ? 'warning' : 'success' }, selected.purchaseCost ? `${selected.purchaseCost} ${t('credits')}` : t('free')) : null),
+            h('span', { className: 'afp-wb-download-placeholder afp-wb-download-meta-placeholder', 'aria-hidden': true }))),
+        h('div', { className: 'afp-wb-download-item-quality' },
+          h('div', { className: 'afp-wb-download-quality-content', 'aria-hidden': pending, inert: pending ? '' : undefined }, failed
           ? h('span', { className: 'afp-wb-download-item-error' }, t(errorKeys[failed] ?? 'downloadPhotoFailed'))
           : h(Selector, { value: state.downloadSelected[source.id] ?? '', displayValue: selected?.quality ?? t('chooseRendition'),
             label: `${t('downloadQuality')} · ${title}`, options: choices,
-            disabled: state.downloadBusy || !ready || !photo, onChange: value => store.setDownloadRendition(source.id, value) })))
+            disabled: state.downloadBusy || !ready || !photo, onChange: value => store.setDownloadRendition(source.id, value) })),
+          h('span', { className: 'afp-wb-download-placeholder afp-wb-download-quality-placeholder', 'aria-hidden': true })))
     })
     const notice = (message, tone, children, role = 'status') => h('div', { className: `afp-wb-download-notice is-${tone}`, role },
       h('span', null, message), children)
@@ -128,12 +156,8 @@ export function createAfpDownloadDialog(React, UI, icons, t, store, ImagePreview
               'aria-busy': state.downloadOptionsLoading, icon: state.downloadOptionsLoading ? spinner() : null, onClick: retry }, t('retry')) : null,
             state.downloadError === 'download-auth-unavailable' ? h(Button, { variant: 'ghost', size: 'sm', onClick: () => navigate(onAccount) }, t('openAccountSettings')) : null,
             state.downloadErrorStage === 'confirm' ? h(Button, { variant: 'ghost', size: 'sm', onClick: () => navigate(onTasks) }, t('viewDownloadTasks')) : null), 'alert') : null,
-          state.downloadOptionsLoading && !options.length ? h('div', { className: 'afp-wb-download-skeleton', role: 'status', 'aria-busy': true, 'aria-label': t('loading') },
-            ...photos.slice(0, 6).map(photo => h('div', { className: 'afp-wb-download-skeleton-row', key: photo.id, 'aria-hidden': true },
-              h('span', { className: 'afp-skeleton afp-wb-download-skeleton-thumb' }),
-              h('div', null, h('span', { className: 'afp-skeleton' }), h('span', { className: 'afp-skeleton' }),
-                h('span', { className: 'afp-skeleton afp-wb-download-skeleton-select' })))))
-            : options.length ? h('div', { className: 'afp-wb-download-items', role: 'list', 'aria-label': t('downloadQuality'), 'aria-busy': state.downloadOptionsLoading }, ...rows) : null,
+          // 加载与成功共用行、缩略图和滚动容器，只过渡尚未返回的报价字段。
+          h('div', { className: 'afp-wb-download-items', role: 'list', 'aria-label': t('downloadQuality'), 'aria-busy': Boolean(state.downloadOptionsLoading) }, ...rows),
           ready && chosen.length < photos.length ? notice(t('downloadAvailableCount').replace('{count}', String(chosen.length)).replace('{total}', String(photos.length)), 'warning',
             h(Button, { variant: 'ghost', size: 'sm', disabled: state.downloadBusy, onClick: retry }, t('retry'))) : null,
           ready && !writeEnabled && options.some(photo => photo.renditions?.some(row => row.purchaseCost > 0)) ? h('p', { className: 'afp-wb-download-hint' }, t('downloadPaidDisabled')) : null),

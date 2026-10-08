@@ -361,13 +361,21 @@ export class Session implements SessionFace {
   }
 
   /**
-   * Rename: contract session.rename 1:1. On success settle the 'title'
-   * projection cell from the response's `{title, seq}` under the store's
-   * higher-seq-wins rule (the push frame arriving later is a no-op replay),
-   * so the list row and any useProjection('title') reader update without
-   * waiting for the control-stream projection update.
-   * @param title - raw title text (the host normalizes acceptance).
-   * @returns the rename result (normalized accepted title + title event seq).
+   * Refresh the title and update its projection under higher-seq-wins ordering.
+   * @returns accepted title and event position, or the business error.
+   */
+  async regenerateTitle(): Promise<RemoteResult<{ title: string; seq: SessionSeq }>> {
+    const result = await this.remote.session.regenerateTitle({ sessionId: this.sessionId })
+    if (!result.ok) return result
+    const seq = SessionSeq(result.value.seq)
+    this.projections.apply('title', result.value.title, seq)
+    return { ok: true, value: { title: result.value.title, seq } }
+  }
+
+  /**
+   * Rename the Session and settle its title projection.
+   * @param title - proposed user title.
+   * @returns accepted title and event position, or the business error.
    */
   async rename(title: string): Promise<RemoteResult<{ title: string; seq: SessionSeq }>> {
     const result = await this.remote.session.rename({ sessionId: this.sessionId, title })

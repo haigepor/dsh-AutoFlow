@@ -56,6 +56,8 @@ This package owns the generic fallback and the built-in shell/pwsh, read, read_i
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
+Task changes retain their recorded labels while showing compact change markers and status pills; long titles and previous/current statuses wrap independently on narrow screens. Tool details use the shared animated disclosure.
+
 <details>
 <summary>Implementation internals — click to expand</summary>
 

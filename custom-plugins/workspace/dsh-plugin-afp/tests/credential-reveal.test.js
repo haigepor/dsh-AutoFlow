@@ -8,9 +8,9 @@ function find(node, predicate) {
   return predicate(node) ? node : find(node.props?.children, predicate)
 }
 
-function fixture() {
+function fixture(acquireError) {
   const Input = Symbol('Input'), Button = Symbol('Button'), states = [], effects = [], refs = []
-  const config = { passwordRef: 'AFP_PASSWORD', accessTokenRef: 'AFP_ACCESS_TOKEN', visionKeyRef: 'VISION_API_KEY' }
+  const config = { usernameRef: 'AFP_USERNAME', passwordRef: 'AFP_PASSWORD', accessTokenRef: 'AFP_ACCESS_TOKEN', visionKeyRef: 'VISION_API_KEY' }
   const metadata = { config, revision: 'current', credentials: Object.fromEntries(Object.keys(config).map(key => [key, { configured: true, writable: true }])) }
   const calls = [], writes = []
   let cursor = 0, refCursor = 0, release, failing = false
@@ -29,6 +29,7 @@ function fixture() {
     credentials: { async set(ref, value) { writes.push({ ref, value }); return { ok: true } } },
     pluginManager: { async invokeAction(_plugin, _action, input) {
       calls.push(input)
+      if (input.operation === 'acquire-token' && acquireError) return { ok: true, value: { output: JSON.stringify({ acquired: false, error: { code: acquireError } }) } }
       if (input.operation === 'reveal-credential') return new Promise(resolve => { release = () => resolve(failing ? { ok: false } : { ok: true, value: { output: JSON.stringify({ value: `fixture-${input.key}` }) } }) })
       return { ok: true, value: { output: JSON.stringify(metadata) } }
     } },
@@ -47,18 +48,18 @@ test('stored password, token and key reveal on demand without becoming credentia
   f.render(); f.effects[0]()
   await f.tick()
   for (const key of ['passwordRef', 'accessTokenRef', 'visionKeyRef']) {
-    assert.equal(f.input(key).props.type, 'password')
+    assert.ok(f.input(key).props.className.includes('afp-secret-masked'))
     assert.equal(f.input(key).props.value, '')
     assert.equal(f.input(key).props.placeholder, 'maskedCredential')
     assert.equal(f.toggle(key).props.disabled, false)
     f.click(key)
     assert.equal(f.toggle(key).props['aria-busy'], true)
     f.release(); await f.tick()
-    assert.equal(f.input(key).props.type, 'text')
+    assert.equal(f.input(key).props.className.includes('afp-secret-masked'), false)
     assert.equal(f.input(key).props.value, `fixture-${key}`)
     f.click(key)
     assert.equal(f.input(key).props.value, '')
-    assert.equal(f.input(key).props.type, 'password')
+    assert.ok(f.input(key).props.className.includes('afp-secret-masked'))
   }
   f.render().props.onSubmit({ preventDefault() {} }); await f.tick()
   assert.deepEqual(f.writes, [])
@@ -75,11 +76,11 @@ test('credential edits and closing the form suppress late reveal results', async
   f.input('passwordRef').props.onChange({ target: { value: 'replacement' } })
   f.release(); await f.tick()
   assert.equal(f.input('passwordRef').props.value, 'replacement')
-  assert.equal(f.input('passwordRef').props.type, 'password')
+  assert.ok(f.input('passwordRef').props.className.includes('afp-secret-masked'))
   f.click('accessTokenRef')
   close(); f.release(); await f.tick()
   assert.equal(f.input('accessTokenRef').props.value, '')
-  assert.equal(f.input('accessTokenRef').props.type, 'password')
+  assert.ok(f.input('accessTokenRef').props.className.includes('afp-secret-masked'))
 })
 
 test('failed credential reveals keep the mask, report a safe error and allow retry', async () => {
@@ -89,4 +90,15 @@ test('failed credential reveals keep the mask, report a safe error and allow ret
   assert.equal(f.input('passwordRef').props.value, '')
   assert.equal(f.toggle('passwordRef').props.disabled, false)
   assert.equal(find(f.render(), node => node.props?.role === 'alert').props.children[0], 'credentialRevealFailed')
+})
+
+test('a structured token authentication failure stays a failure and leaves credential drafts unchanged', async () => {
+  const f = fixture('authentication-failed')
+  f.render(); f.effects[0](); await f.tick()
+  find(f.render(), node => node.props?.children?.[0] === 'acquireToken').props.onClick()
+  await f.tick()
+  assert.equal(find(f.render(), node => node.props?.role === 'alert').props.children[0], 'tokenAuthenticationFailed')
+  assert.equal(f.calls.filter(call => call.operation === 'read').length, 1, 'Failure does not display a successful refresh')
+  assert.deepEqual(f.writes, [])
+  assert.equal(f.input('passwordRef').props.value, '')
 })

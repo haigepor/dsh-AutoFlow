@@ -1,7 +1,7 @@
 /** An independent, expandable notice explaining a non-human Turn trigger. */
 import { useId, useState, type ComponentType } from 'react'
 import {
-  IconAgentPresetOutlineRegular, IconClockOutlineRegular, IconBranchOutlineRegular,
+  AnimatedCollapse, IconAgentPresetOutlineRegular, IconClockOutlineRegular, IconBranchOutlineRegular,
   IconChevronDownOutlineRegular, IconContextInjectionOutlineRegular, IconCordisPluginOutlineRegular,
   IconGoalOutlineRegular, IconGlobeOutlineRegular, IconPaperPlaneOutlineRegular, IconQueueOutlineRegular,
   type IconProps,
@@ -41,10 +41,12 @@ export function TurnTriggerNodeView({ node, t }: Pick<ChatNodeViewProps<'turn-tr
         <time className={css.time} dateTime={date.toISOString()}>{time}</time>
         <IconChevronDownOutlineRegular size={12} className={open ? css.openChevron : css.chevron} />
       </button>
-      {open && <div id={bodyId} className={css.body}>
-        <p className={css.explanation}>{t('message.trigger.explanation')}</p>
-        <div className={css.content}><NoticeBody content={node.data.content} source={node.data.source} t={t} /></div>
-      </div>}
+      <AnimatedCollapse open={open} id={bodyId}>
+        <div className={css.body}>
+          <p className={css.explanation}>{t('message.trigger.explanation')}</p>
+          <div className={css.content}><NoticeBody content={node.data.content} source={node.data.source} t={t} /></div>
+        </div>
+      </AnimatedCollapse>
     </section>
   )
 }

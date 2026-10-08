@@ -56,6 +56,8 @@ owner 载荷为 `ToolCallOwnerProps`：`callId`、`toolName`、`phase` 判别字
 <a id="understand-the-implementation"></a>
 ## 理解实现
 
+任务变更保留已记录标签，使用紧凑变更标记和状态标签；窄屏上长标题与前后状态分别换行。工具详情使用共享折叠动画。
+
 <details>
 <summary>实现细节——点击展开</summary>
 

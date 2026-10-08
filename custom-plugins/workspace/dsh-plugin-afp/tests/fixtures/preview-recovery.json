@@ -1,0 +1,6 @@
+[
+  { "busy": true, "retrying": true, "error": false },
+  { "busy": true, "retrying": true, "error": false },
+  { "busy": false, "retrying": false, "error": true },
+  { "busy": true, "retrying": true, "error": false }
+]

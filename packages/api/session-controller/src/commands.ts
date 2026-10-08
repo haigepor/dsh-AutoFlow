@@ -45,6 +45,7 @@ import type {
   SessionForkValue,
   SessionPromptRequest,
   SessionPromptValue,
+  SessionRegenerateTitleRequest,
   SessionRenameRequest,
   SessionRenameValue,
   SessionSelectModelRequest,
@@ -86,6 +87,7 @@ function latestCompletedPrefixBoundary(events: readonly SessionEvent[]): Session
 
 /** Implements Session business commands delegated by the Session Controller Remote service. */
 export class SessionCommandController {
+  private readonly titleRefreshes = new Map<SessionId, Promise<SessionRenameValue>>()
   /**
    * @param ctx - Host context carrying Agent, model, attachment, title, and Workspace services.
    * @param agents - sole owner of create, resume, and Session-local model selection.
@@ -208,6 +210,40 @@ export class SessionCommandController {
         `failed to rename session "${request.sessionId}": ${String(error)}`,
         {},
       )
+    }
+  }
+
+  /**
+   * Refresh one title, coalescing repeated requests for the same Session.
+   * @param request - Session whose accepted title is preserved on failure.
+   * @returns newly accepted title and durable event position.
+   */
+  regenerateTitle(request: SessionRegenerateTitleRequest): Promise<SessionRenameValue> {
+    const existing = this.titleRefreshes.get(request.sessionId)
+    if (existing !== undefined) return existing
+    const pending = this.refreshTitle(request)
+    this.titleRefreshes.set(request.sessionId, pending)
+    void pending.finally(() => {
+      if (this.titleRefreshes.get(request.sessionId) === pending) this.titleRefreshes.delete(request.sessionId)
+    }).catch(() => {
+      // 返回的 pending 承载业务失败；清理链不能产生未处理拒绝。
+    })
+    return pending
+  }
+
+  private async refreshTitle(request: SessionRegenerateTitleRequest): Promise<SessionRenameValue> {
+    const agent = await this.resolveAgent(request.sessionId)
+    const titles = this.ctx.get('sessionTitle')
+    try {
+      if (titles === undefined) throw Object.assign(new Error('Title service unavailable'), { code: 'TITLE_CONFIG' })
+      const accepted = await titles.refresh(agent.session, undefined, true)
+      if (accepted === undefined) throw Object.assign(new Error('No title input'), { code: 'TITLE_EMPTY' })
+      return { title: accepted.title, seq: accepted.eventSeq }
+    } catch (error: unknown) {
+      const code = error instanceof Error && 'code' in error ? String(error.code)
+        : error instanceof Error && /cancel|abort|supersed|disposed|not live|state changed/i.test(error.message) ? 'TITLE_CANCELLED' : 'TITLE_INVALID_OUTPUT'
+      const reason = ['TITLE_AUTH', 'TITLE_CONFIG', 'TITLE_TIMEOUT', 'TITLE_NETWORK', 'TITLE_RATE_LIMIT', 'TITLE_EMPTY', 'TITLE_INVALID_OUTPUT'].includes(code) ? code : 'TITLE_CANCELLED'
+      throw new RemoteError('session/title-generation-failed', reason, { sessionId: request.sessionId, reason })
     }
   }
 
@@ -520,6 +556,7 @@ export class SessionCommandController {
     if (hasApiSessionSubagentOwner(this.ctx, agent.session, agent)) {
       throw apiSessionSubagentOwnershipError(request.sessionId)
     }
+    this.ctx.get('sessionTitle')?.cancel(agent.session)
     agent.cancel({ kind: 'user' }, { keepInbox: true })
     return { accepted: true }
   }

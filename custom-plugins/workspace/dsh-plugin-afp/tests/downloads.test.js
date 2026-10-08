@@ -10,6 +10,29 @@ import { Store } from '../src/host/afp-state-store.js'
 const signal = () => new AbortController().signal
 const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0x00])
 
+test('browse picker lists Host directories and adopts only a verified selection', async t => {
+  const fixture = await harness(t)
+  const listed = []
+  fixture.manager.ctx.directoryPicker.capability = () => ({ kind: 'browse', async list(path) {
+    listed.push(path)
+    if (path && path !== fixture.directory) throw new Error('directory-unreadable')
+    return { path: fixture.directory, home: fixture.home, crumbs: [], entries: [], truncated: false }
+  } })
+  assert.deepEqual(await fixture.manager.pickDirectory(signal()), { browse: true })
+  assert.equal((await fixture.manager.browseDirectory({}, signal())).path, fixture.directory)
+  const selected = await fixture.manager.pickDirectory(signal(), { path: fixture.directory })
+  assert.equal(fixture.manager.directories.get(selected.directoryId).path, fixture.directory)
+  assert.equal(selected.label, 'chosen output')
+  await assert.rejects(fixture.manager.pickDirectory(signal(), { path: 'relative' }))
+  assert.deepEqual(listed, [undefined, fixture.directory, 'relative'])
+})
+
+test('native picker refuses a browser-supplied path instead of bypassing its chooser', async t => {
+  const fixture = await harness(t)
+  await assert.rejects(fixture.manager.pickDirectory(signal(), { path: fixture.directory }))
+  assert.equal(fixture.manager.directories.size, 0)
+})
+
 async function harness(t, { credit = 20, cost = 4, deliverAfterPurchase = true,
   maxDownloadBytes = 128 * 1024 * 1024 } = {}) {
   const home = await mkdtemp(join(tmpdir(), 'afp-downloads-'))

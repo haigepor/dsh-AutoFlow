@@ -7,6 +7,8 @@ import { join } from 'node:path'
 import { AfpService } from '../src/host/afp-service.js'
 import { registerAgentTools } from '../src/host/afp-agent-tools.js'
 import { resolveConfig } from '../config-schema.js'
+import { conversationPhotoModel, conversationCandidateModel, conversationSummaryPhotoModel } from '../src/client/afp-conversation-photos.js'
+import { createAfpApiClient } from '../src/vendor/auto-afp-img/afp-api-client.mjs'
 
 // 此测试消费仓库构建产物；独立 npm 副本没有仓库时明确跳过，不冒充已执行会话验证。
 const repo = new URL('../../../../', import.meta.url)
@@ -33,7 +35,10 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
       ['afp_photo_details', { photoId: 'p1' }],
       ['afp_collection_list', {}],
       ['afp_collection_items', { collectionId: 'shared', limit: 2 }],
+      ['afp_photo_selection', { photoIds: ['p2', 'p1'], criteria: 'Cat captions; metadata only', basis: 'metadata', runId: null }],
+      ['afp_photo_selection', { photoIds: ['not-searched'], criteria: 'Reject absent evidence', basis: 'metadata', runId: null }],
       ['afp_search_plan', { query: ' ' }],
+      ...['schema', 'authentication', 'unknown'].map(category => ['afp_photo_search_start', { query: `fixture-${category}`, language: 'en', limit: 2 }]),
     ]
     class ScriptedAdapter extends LlmAdapter {
       calls = 0
@@ -56,7 +61,12 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
     ctx.llm.registerAdapter(['fixture'], new ScriptedAdapter())
     const photo = id => ({ id, guid: id, title: `Photo ${id}`, caption: 'Cat', provider: 'AFP', mockup: [{ href: 'https://signed.example/?token=secret' }] })
     const client = {
-      async searchPhotos(request) { return request.variables.input.cursor ? { docs: [photo('p2')], hasMore: false }
+      async searchPhotos(request) {
+        const errors = new Map([['schema', 'GRAPHQL_VALIDATION_FAILED'], ['authentication', 'UNAUTHENTICATED'], ['unknown', 'UNRECOGNIZED']])
+        const category = [...errors.keys()].find(value => request.variables.input.query === `caption="fixture-${value}"`)
+        if (category) return createAfpApiClient({ accessToken: 'fixture-only', retries: 0, fetchImpl: async () =>
+          new Response(JSON.stringify({ errors: [{ message: 'secret https://signed.example/?token=secret', extensions: { code: errors.get(category) } }] }), { status: 200 }) }).searchPhotos(request)
+        return request.variables.input.cursor ? { docs: [photo('p2')], hasMore: false }
         : { docs: [photo('p1')], hasMore: true, cursor: 'next' } },
       async photosByIds(ids) { return ids.map(photo) },
       async listSelections() { return [{ id: 'shared', name: 'Shared', isPrivate: false }] },
@@ -89,18 +99,40 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
     assert.equal(projection.results[3].message.isError, true)
     assert.equal(projection.results.at(-1).message.isError, true)
     assert.equal(Object.hasOwn(projection.cursorSchema, 'pattern'), false)
-    assert.doesNotMatch(JSON.stringify(projection.results), /signed\.example|secret|previewPath/)
+    assert.doesNotMatch(JSON.stringify(projection.results), /signed\.example|secret/)
+    // 卡片从已记录输出重建；不再查询 AFP，也不依赖当前工作台搜索。
+    projection.photoCards = projection.results.flatMap((result, index) => {
+      const name = scriptedCalls[index][0]
+      if (!['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items'].includes(name)) return []
+      return [{ tool: name, ...conversationPhotoModel({ phase: 'result', block: { content: result.message.content, isError: result.message.isError } }) }]
+    })
+    const rows = projection.results.map((result, index) => ({ root: { kind: 'tool-result', call: { name: scriptedCalls[index][0] }, ...result.message } }))
+    projection.processCandidates = conversationCandidateModel(rows)
+    projection.finalSelection = conversationSummaryPhotoModel(rows)
+    assert.deepEqual(projection.finalSelection.photos.map(photo => photo.id), ['p2', 'p1'])
+    assert.equal(JSON.parse(projection.results[8].message.content[0].text.slice('Error: '.length)).code, 'selection-missing-photos')
     assert.deepEqual(projection.disabledTools, [])
-    // 快照保留工具数据和错误字段，仅移除协议 ID 与真实测量耗时。
+    // UUID 映射保留引用之间的对应关系；耗时是测量值，不进入可重放快照。
+    const references = new Map()
+    function normalize(value) {
+      if (Array.isArray(value)) return value.map(normalize)
+      if (!value || typeof value !== 'object') return value
+      const entries = Object.entries(value).filter(([key]) => key !== 'durationMs').map(([key, item]) => {
+        if (key === 'resultRef') {
+          if (!references.has(item)) references.set(item, `00000000-0000-4000-8000-${String(references.size + 1).padStart(12, '0')}`)
+          return [key, references.get(item)]
+        }
+        return [key, normalize(item)]
+      })
+      return Object.fromEntries(entries)
+    }
     for (const result of projection.results) {
       delete result.message.id; delete result.durationMs
       for (const block of result.message.content) if (block.type === 'text' && (block.text.startsWith('{') || (result.message.isError && block.text.startsWith('Error: {')))) {
         const prefix = result.message.isError ? 'Error: ' : ''
-        const payload = JSON.parse(block.text.slice(prefix.length))
-        if (payload.meta) delete payload.meta.durationMs
-        if (payload.code) delete payload.durationMs
-        block.text = prefix + JSON.stringify(payload)
+        block.text = prefix + JSON.stringify(normalize(JSON.parse(block.text.slice(prefix.length))))
       }
+      if (result.meta) result.meta = normalize(result.meta)
     }
     const file = new URL('./fixtures/session-search.expected.json', import.meta.url)
     if (process.env.DSH_AFP_REFRESH_SNAPSHOT === '1') await writeFile(file, JSON.stringify(projection, null, 2) + '\n', 'utf8')

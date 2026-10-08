@@ -35,7 +35,6 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 6px 12px;
 }
 
@@ -83,14 +82,17 @@
   flex: none;
   place-items: center;
   color: var(--dsw-alias-label-tertiary);
+  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
+
+.chevron[data-open] { transform: rotate(180deg); }
 
 .list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin: 0;
-  padding: 0;
+  padding: 8px 0 2px;
   list-style: none;
   max-height: 180px;
   overflow-y: auto;
@@ -120,4 +122,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron { transition: none; }
 }

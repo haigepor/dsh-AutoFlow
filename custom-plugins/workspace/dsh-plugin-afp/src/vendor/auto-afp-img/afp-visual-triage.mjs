@@ -500,6 +500,7 @@ export async function triageCandidates({
   visionClient,
   threshold = 0.8,
   concurrency = 2,
+  onProgress = () => {},
   excludedIds = new Set(),
   excludedTitleKeys = new Set(),
 } = {}) {
@@ -510,6 +511,7 @@ export async function triageCandidates({
     candidate,
     category: group.category,
   })));
+  let completed = 0;
   return mapWithConcurrency(tasks, concurrency, async ({ candidate, category }) => {
     try {
       const preview = await previewClient.getPreviewBytes(candidate.id);
@@ -640,6 +642,9 @@ export async function triageCandidates({
         originalIndex: candidate.originalIndex,
         appliedThreshold: effectiveThreshold(category, threshold),
       };
+    } finally {
+      // 每个图片任务只计一次；风景二次视觉确认不能重复增加进度。
+      onProgress({ completed: ++completed, total: tasks.length });
     }
   });
 }

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { resolveConfig } from '../config-schema.js'
 import { Store } from '../src/host/afp-state-store.js'
-import { refreshRun, summary } from '../src/host/afp-refresh-workflow.js'
+import { refreshRun, summary, reservedIds } from '../src/host/afp-refresh-workflow.js'
 import { Changes } from '../src/host/afp-change-plans.js'
 
 async function fixture(t) {
@@ -15,6 +15,16 @@ async function fixture(t) {
   const store = new Store(home, 'test-profile', config.maxStateBytes)
   return { config, store }
 }
+
+test('account deduplication excludes unnamed directory rows and still reads shared named collections', async () => {
+  const calls = []
+  const client = { listSelections: async () => [{ id: 'directory', name: '' }, { id: 'private', name: 'Private' }, { id: 'shared', name: 'Shared', isPrivate: false }],
+    getSelection: async id => { calls.push(id); if (id === 'directory') throw new Error('HTTP 400'); return { docs: [{ id: `${id}-photo` }] } } }
+  assert.deepEqual([...await reservedIds(client, new AbortController().signal)], ['private-photo', 'shared-photo'])
+  assert.deepEqual(calls, ['private', 'shared'])
+  client.getSelection = async () => { throw new Error('HTTP 403') }
+  await assert.rejects(reservedIds(client, new AbortController().signal), /HTTP 403/)
+})
 
 test('configuration validates limits, credential names and network addresses', () => {
   assert.equal(resolveConfig({}).allowWrites, false)

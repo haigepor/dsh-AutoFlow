@@ -1,5 +1,6 @@
 import { resolveConfig } from '../../config-schema.js'
 import { digest } from './afp-state-store.js'
+import { agentError } from './afp-agent-errors.js'
 
 /** Non-secret deployment edits use the profile editor's validation, lock and rollback. */
 export async function configurationAction(ctx, input, service, signal) {
@@ -22,8 +23,15 @@ export async function configurationAction(ctx, input, service, signal) {
   }
   if (input.operation === 'acquire-token' && Object.keys(input).length === 1) {
     if (!service) throw new Error('AFP token service unavailable')
-    await service.acquireToken(signal)
-    return JSON.stringify({ acquired: true })
+    const started = performance.now()
+    try {
+      await service.acquireToken(signal)
+      return JSON.stringify({ acquired: true })
+    } catch (error) {
+      signal?.throwIfAborted()
+      // 页面按固定类别提示认证故障，不将上游消息或凭据返回给浏览器。
+      return JSON.stringify({ acquired: false, error: agentError(error, 'read', Math.round(performance.now() - started)) })
+    }
   }
   if (input.operation !== 'save' || Object.keys(input).some(key => !['operation', 'config', 'revision'].includes(key))) throw new Error('Invalid AFP configuration operation')
   const next = resolveConfig(JSON.parse(input.config))

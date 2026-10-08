@@ -194,6 +194,13 @@ export function apply(ctx: ClientContext): void {
         if (listeners.size === 0) lexiconListeners.delete(key)
       }
     },
+    async describeReference(session, ref, signal) {
+      if (sessions.subagentAddress(session.sessionId) !== undefined) return undefined
+      const entry = fetchCatalog(session.sessionId)
+      const catalog = await entry.promise
+      if (signal.aborted || entry.abort.signal.aborted) return undefined
+      return catalog.find(skill => '/' + skill.name === ref)?.description
+    },
     openReference(session, { ref }) {
       if (sessions.subagentAddress(session.sessionId) !== undefined) return false
       const cwd = sessions.list.getSnapshot().byId[session.sessionId]?.cwd

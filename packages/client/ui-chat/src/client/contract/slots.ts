@@ -244,6 +244,8 @@ export interface ChatViewInjected {
   }
   /** Open the current source file of a skill referenced by a sent message. */
   openSkill: (name: string) => void
+  /** Read a known skill's current catalog description without modifying the message. */
+  describeSkill: (name: string, signal: AbortSignal) => Promise<string | undefined>
   /** Open one HTTP(S) message link at the selected destination, using an external tab if Sidebar Browser is unavailable. */
   openExternalLink: (url: string) => void
   openFile: (path: string, options?: OpenFileOptions) => Promise<void>

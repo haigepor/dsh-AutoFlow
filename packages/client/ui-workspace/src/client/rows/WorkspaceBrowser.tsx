@@ -253,8 +253,8 @@ type SessionTreeProps = Pick<
   onRenameRequest: (workspaceId: WorkspaceId, currentTitle: string) => void
   /** Open the browser-owned delete-confirmation dialog for a real Workspace group. */
   onDeleteRequest: (workspaceId: WorkspaceId, currentTitle: string) => void
-  /** Open the browser-owned confirmation dialog for the current ungrouped Sessions. */
-  onArchiveRequest: (sessions: readonly SessionNode[]) => void
+  /** Open the browser-owned bulk confirmation for one Workspace or the ungrouped Sessions. */
+  onArchiveRequest: (sessions: readonly SessionNode[], workspaceName?: string) => void
   /** Open the browser-owned cleanup confirmation for current ungrouped Sessions. */
   onDismissRequest: (sessions: readonly SessionNode[]) => void
   /** Open the rename dialog from a row title double-click. */
@@ -522,6 +522,14 @@ function SessionTree({
               dismiss: () => { onDismissRequest(group.bulkSessions ?? group.sessions) },
             }
             : {
+              archive: () => {
+                // 工作区批量归档覆盖实际成员，不受归档筛选或本地侧栏移除影响。
+                const members = deriveGroups(list, workspaces,
+                  { ...rowState, archivedFilter: 'show', dismissedSessionIds: [] }, statuses,
+                  { expandedGroups: [], ungroupedOrder: ungroupedSessionIds })
+                  .find(candidate => candidate.workspaceId === group.workspaceId)?.bulkSessions ?? []
+                onArchiveRequest(members, group.label)
+              },
               rename: () => {
               /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
                 if (group.workspaceId !== undefined) onRenameRequest(group.workspaceId, group.label)
@@ -1186,16 +1194,22 @@ export function WorkspaceBrowser({
     })
   }
 
-  // The virtual Ungrouped bucket owns no Workspace record. Its action operates
-  // only on idle Session ids, so ongoing work remains visible and uninterrupted.
-  const [archiveTarget, setArchiveTarget] = useState<{ sessionIds: readonly SessionId[]; skipped: number } | null>(null)
+  // Bulk archive uses every projected group member, not just the visible page.
+  // Blank placeholders and existing archives are excluded; active work remains uninterrupted.
+  const [archiveTarget, setArchiveTarget] = useState<{
+    sessionIds: readonly SessionId[]
+    skipped: number
+    workspaceName?: string
+  } | null>(null)
   const [archiving, setArchiving] = useState(false)
   const [archiveError, setArchiveError] = useState<string | null>(null)
-  const requestArchive = (sessions: readonly SessionNode[]) => {
-    const sessionIds = sessions
+  const requestArchive = (sessions: readonly SessionNode[], workspaceName?: string) => {
+    const candidates = sessions.filter(session => !session.blank && !session.archived)
+    const sessionIds = candidates
       .filter(session => !session.running && session.runningSubagentCount === 0)
       .map(session => session.id)
-    setArchiveTarget({ sessionIds, skipped: sessions.length - sessionIds.length })
+    setArchiveTarget({ sessionIds, skipped: candidates.length - sessionIds.length,
+      ...workspaceName === undefined ? {} : { workspaceName } })
     setArchiveError(null)
   }
   const closeArchive = () => {
@@ -1579,10 +1593,12 @@ export function WorkspaceBrowser({
         open={archiveTarget !== null}
         onClose={closeArchive}
         closeLabel={t('close')}
-        title={t('archive.ungrouped.title')}
+        title={t(archiveTarget?.workspaceName === undefined ? 'archive.ungrouped.title' : 'archive.workspace.title')}
         {...archiveTarget === null
           ? {}
-          : { description: t('archive.ungrouped.desc', { count: archiveTarget.sessionIds.length }) }}
+          : { description: archiveTarget.workspaceName === undefined
+            ? t('archive.ungrouped.desc', { count: archiveTarget.sessionIds.length })
+            : t('archive.workspace.desc', { name: archiveTarget.workspaceName, count: archiveTarget.sessionIds.length }) }}
         footer={(
           <>
             <Button variant="outline" disabled={archiving} onClick={closeArchive}>{t('cancel')}</Button>
@@ -1599,8 +1615,8 @@ export function WorkspaceBrowser({
         {archiveTarget?.skipped !== undefined && archiveTarget.skipped > 0 && (
           <div className={css.archiveNotice}>{t('archive.ungrouped.skip', { count: archiveTarget.skipped })}</div>
         )}
-        {archiveTarget?.sessionIds.length === 0 && <div className={css.archiveNotice}>{t('archive.ungrouped.empty')}</div>}
-        {archiving && <div className={css.deleteStatus} role="status">{t('archive.ungrouped.pending')}</div>}
+        {archiveTarget?.sessionIds.length === 0 && <div className={css.archiveNotice}>{t(archiveTarget.workspaceName === undefined ? 'archive.ungrouped.empty' : 'archive.workspace.empty')}</div>}
+        {archiving && <div className={css.deleteStatus} role="status">{t(archiveTarget?.workspaceName === undefined ? 'archive.ungrouped.pending' : 'archive.workspace.pending')}</div>}
         {archiveError !== null && <div className={css.renameError} role="alert">{archiveError}</div>}
       </Modal>
       {shortcutState.forkError !== null && <Toast key={shortcutState.forkError.seq}

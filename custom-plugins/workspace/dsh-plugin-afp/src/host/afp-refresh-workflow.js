@@ -18,6 +18,8 @@ export async function reservedIds(client, signal) {
   const ids = new Set()
   for (const selection of selections) {
     signal.throwIfAborted()
+    // 目录里的无名称 SANDBOX 系统项不是普通收藏夹，byid 接口拒绝该标识。
+    if (!String(selection.name ?? '').trim()) continue
     if (typeof selection.id !== 'string' || !selection.id) throw new Error('AFP collection has no id')
     for (const value of selectionDocIds(await client.getSelection(selection.id))) ids.add(value)
   }
@@ -82,8 +84,10 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
           break
         }
         const candidateManifest = createCandidateManifest([{ profile, candidates: pending.candidates }])
+        onProgress({ category: profile.key, reviewed: run.decisions.length, total: run.decisions.length + pending.candidates.length })
         const decisions = await (primitives.triage ?? triageCandidates)({ candidateManifest, previewClient, visionClient,
-          threshold: config.threshold, concurrency: config.concurrency })
+          threshold: config.threshold, concurrency: config.concurrency,
+          onProgress: event => onProgress({ category: profile.key, reviewed: run.decisions.length + event.completed, total: run.decisions.length + event.total }) })
         signal.throwIfAborted()
         let kept = run.decisions.filter(item => item.category === profile.key && item.keep).length
         for (const decision of decisions) {
@@ -102,7 +106,7 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
         group.exhausted = pending.exhausted
         run.pending = null
         await store.saveRun(run)
-        onProgress({ category: profile.key, kept, target: config.targetPerCategory, batch: group.batches })
+        onProgress({ category: profile.key, kept, target: config.targetPerCategory, batch: group.batches, reviewed: run.decisions.length, total: run.decisions.length })
       }
     }
     run.status = run.categories.every(category => run.decisions.filter(item => item.category === category && item.keep).length >= config.targetPerCategory) ? 'ready' : 'paused'

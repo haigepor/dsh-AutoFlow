@@ -1,6 +1,6 @@
 /** Composer takeover for one pending approval waterfall. */
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { Button, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ApprovalComposerProps, PendingApproval } from './contract/slots.ts'
 import css from './ApprovalPanel.module.css'
 
@@ -63,7 +63,11 @@ function ApprovalFlow({ pending, reason, detail, t }: {
       onCompositionStartCapture={() => { composing.current = true }}
       onCompositionEndCapture={() => { composing.current = false; compositionEnded.current = true }}>
       <div className={css.card}>
-        <div className={css.strip}><StateDot state={answered ? 'ongoing' : 'warning'} />{t('waiting')}</div>
+        <div className={css.strip}>
+          <Tag tone="warning" className={css.status}>
+            <StateDot state={answered ? 'ongoing' : 'warning'} />{t('waiting')}
+          </Tag>
+        </div>
         <div
           className={css.body}
           data-approval-scroll=""

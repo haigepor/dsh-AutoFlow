@@ -231,6 +231,14 @@ export interface InputTriggerSource {
    * @returns whether this source accepted the preview, possibly awaiting its catalog; false leaves the editor gesture unchanged.
    */
   openReference?(session: ClientSessionContext, reference: Pick<ReferenceInsert, 'ref' | 'appearance'>): boolean
+  /**
+   * Read current reference metadata without opening a menu or preview.
+   * @param session - session owning the reference.
+   * @param reference - source-owned reference, including its trigger.
+   * @param signal - reader cancellation; shared catalog fetches may outlive it.
+   * @returns the known reference's description, or undefined for an unknown reference.
+   */
+  describeReference?(session: ClientSessionContext, reference: string, signal: AbortSignal): Promise<string | undefined>
   /** Reference codec; required for sources producing insert outcomes. */
   readonly codec?: ReferenceCodec
 }

@@ -101,6 +101,8 @@ Send 和 Stop 按钮禁用时不显示提示气泡，轮次结束后由 Stop 切
 <a id="temporary-composer-entries"></a>
 ## 临时 composer entry
 
+任务清单使用共享折叠原语平滑展开和收起，箭头遵循相同的动态效果偏好，收起后仍显示任务状态统计。
+
 `conversation.composer` 是通用 chain，其完整 owner currency 为：
 
 ```ts type-equiv

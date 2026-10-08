@@ -81,6 +81,8 @@ interface SessionTitleLlmRequestEventData {
   readonly messages: Message[]
   /** Exact auxiliary output-token cap. */
   readonly maxTokens: number
+  /** Exact effort when the model declares selectable reasoning. Older records omit it. */
+  readonly reasoningEffort?: string
 }
 ```
 
@@ -181,13 +183,20 @@ get(session: Session): SessionTitleSnapshot | undefined
 rename(session: Session, title: string): SessionTitleSnapshot
 
 /**
+ * Supersede pending and active title work while preserving the accepted title.
+ * @param session - live Session whose request was cancelled.
+ */
+cancel(session: Session): void
+
+/**
  * Explicitly retry the registered provider, or materialize the built-in
  * fallback when no provider is registered.
  * @param session - exact live session to refresh.
  * @param signal - optional caller cancellation.
+ * @param requireProvider - reject absent providers or input without changing the title.
  * @returns latest accepted title, or `undefined` when no eligible text exists.
  */
-async refresh(session: Session, signal?: AbortSignal): Promise<SessionTitleSnapshot | undefined>
+async refresh(session: Session, signal?: AbortSignal, requireProvider: boolean = false): Promise<SessionTitleSnapshot | undefined>
 
 /**
  * Register the sole optional title provider. Disposal aborts its pending and

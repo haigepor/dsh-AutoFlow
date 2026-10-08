@@ -45,14 +45,45 @@ export function readAccessToken(environment = process.env) {
   return token;
 }
 
-async function readJson(response, operation, httpClient) {
+// 仅保留固定协议类别；远端 message/path/扩展内容不能进入日志或工具错误。
+const GRAPHQL_ERROR_CATEGORIES = new Map([
+  ['UNAUTHENTICATED', 'authentication'], ['AUTHENTICATION_FAILED', 'authentication'],
+  ['INVALID_TOKEN', 'authentication'], ['TOKEN_EXPIRED', 'authentication'],
+  ['FORBIDDEN', 'authorization'], ['PERMISSION_DENIED', 'authorization'],
+  ['GRAPHQL_VALIDATION_FAILED', 'schema'], ['BAD_USER_INPUT', 'query'],
+  ['RATE_LIMITED', 'rate-limit'], ['TOO_MANY_REQUESTS', 'rate-limit'],
+  ['INTERNAL_SERVER_ERROR', 'service'],
+]);
+
+/** Only explicit authentication failures permit bounded credential renewal and read replay. */
+export function isAfpAuthenticationError(error) {
+  return error?.afpFailure?.category === 'authentication';
+}
+
+/** Parse bounded AFP JSON and project fixed error categories without returning remote messages. */
+export async function readAfpJson(response, operation, httpClient) {
+  if (!response.ok) {
+    await response.body?.cancel();
+    const error = new Error(`${operation} failed with HTTP ${response.status}`);
+    error.afpFailure = { protocol: 'http', httpStatus: response.status,
+      category: response.status === 401 ? 'authentication' : response.status === 403 ? 'authorization' : 'unknown' };
+    throw error;
+  }
   const payload = await httpClient.readResponseJson(response);
-  if (!response.ok) throw new Error(`${operation} failed with HTTP ${response.status}`);
   if (payload?.errors?.length) {
-    const message = String(payload.errors[0]?.message ?? 'unknown GraphQL error')
-      .replace(/[\r\n]+/g, ' ')
-      .slice(0, 240);
-    throw new Error(`${operation} returned GraphQL errors: ${message}`);
+    // AFP FAR 实测使用非 Apollo code；只匹配固定认证消息，不回显其原始文本。
+    const category = Array.isArray(payload.errors)
+      ? payload.errors.map(item => {
+        const message = typeof item?.message === 'string' ? item.message.trim().toLowerCase() : '';
+        if (['invalid token', 'token expired', 'expired token'].includes(message)) return 'authentication';
+        // HUB 刷新接口将上游 401 包装为 GraphQL HTTP 200；仅此明确拒绝允许回退一次登录。
+        if (operation === 'refreshToken' && message === 'request failed with status code 401') return 'authentication';
+        return GRAPHQL_ERROR_CATEGORIES.get(item?.extensions?.code);
+      }).find(Boolean) ?? 'unknown'
+      : 'unknown';
+    const error = new Error(`${operation} returned GraphQL errors: ${category}`);
+    error.afpFailure = { protocol: 'graphql', httpStatus: response.status, category };
+    throw error;
   }
   return payload;
 }
@@ -97,7 +128,7 @@ export function createAfpApiClient({
         headers: createHeaders({ accessToken }),
         body: JSON.stringify(request),
       });
-      return readJson(response, request.operationName, httpClient);
+      return readAfpJson(response, request.operationName, httpClient);
     });
   }
 
@@ -108,7 +139,7 @@ export function createAfpApiClient({
         headers: createHeaders({ accessToken }),
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
-      return readJson(response, `selection ${method} ${path}`, httpClient);
+      return readAfpJson(response, 'selection', httpClient);
     });
   }
 
@@ -120,7 +151,7 @@ export function createAfpApiClient({
     return httpClient.retryOperation(async () => {
       const response = await httpClient.request(hubEndpoint, { method: 'POST', headers: createHeaders({ accessToken }),
         body: JSON.stringify({ operationName: 'getPhoto', variables: { id, getSelections: true }, query }) });
-      const payload = await readJson(response, 'getPhoto', httpClient);
+      const payload = await readAfpJson(response, 'getPhoto', httpClient);
       return payload?.data?.photo ?? null;
     });
   }

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-session-title-llm` generates concise session titles from selected human messages with a consistent model request policy. Callers choose which messages contribute to each revision and may either supply a provider and model route together or use the route recorded for the current session. Required limits cap the framed input, generated output, and end-to-end duration, while caller cancellation remains effective throughout streaming. Invalid, empty, late, tool-call, or otherwise non-text results are rejected before they can replace a title.
+`dsh-session-title-llm` generates concise session titles from selected human messages with a consistent model request policy. Callers choose which messages contribute to each revision and may either supply a provider and model route together or use the route recorded for the current session. Required limits cap the framed input, generated output, and per-attempt duration, while caller cancellation remains effective throughout streaming. Invalid, empty, late, tool-call, or otherwise non-text results are rejected before they can replace a title.
 
 ## Table of Contents
 
@@ -39,7 +39,7 @@ A provider plugin calls `registerSessionTitleLlmProvider(ctx, config, id, automa
 
 <a id="configuration"></a>
 
-Every field is required except the paired route override; there are no library defaults.
+Sizing fields are required; retry fields have configurable defaults and the paired route override is optional. The base bundle allocates 256 output tokens.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -47,7 +47,9 @@ Every field is required except the paired route override; there are no library d
 | `targetCjkCharacters` | required | Target character count for Chinese, Japanese, or Korean titles |
 | `maxInputBytes` | required | UTF-8 byte ceiling for the final JSON-framed user prompt |
 | `maxOutputTokens` | required | Auxiliary generation token cap |
-| `timeoutMs` | required | End-to-end deadline within the runtime timer limit |
+| `timeoutMs` | required | Per-attempt deadline within the runtime timer limit |
+| `maxAttempts` | 3 | Total attempts, from 1 to 3 |
+| `retryDelaysMs` | [1000, 3000] | Delays after failed attempts; must cover configured retries |
 | `provider`, `model` | optional | Explicit route; both or neither |
 
 -----
@@ -69,6 +71,12 @@ One shared policy so provider plugins cannot drift: config validation, route res
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Config schema and validation, provider registration helper, request framing, dispatch, and output validation |
+
+### Retry and title input
+
+Auxiliary input removes plugin/app/Session reference syntax, prioritizes the remaining human request, and uses readable reference names when no request remains. The original user/message is unchanged. This same transformation feeds deterministic fallback titles. Each attempt resolves actual model reasoning metadata, chooses off or the lowest declared supported effort, and otherwise keeps the provider default. The exact effort is optional in session/title-llm-request for compatibility with older records. session/title-llm-attempt records attempt number, route, reasoning policy, elapsed time, terminal status and sanitized failure code; it contains no provider response, credential or signed URL. New readers retain old title records without requiring attempt data.
+
+Only timeout, temporary network/service errors, rate limiting and empty output retry. Authentication, invalid configuration, cancellation, replacement and invalid output end immediately. Retries remain bound to the service revision, so a rename or Session disposal prevents stale acceptance. Session cancellation supersedes title work. Explicit regeneration may replace a manually named title and keeps the current accepted title until success; automatic generation respects manual names.
 
 ### Request flow
 

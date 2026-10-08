@@ -429,6 +429,7 @@ describe('workspace browser rows', () => {
 
   it('workspace row menu opens on the ellipsis, renames, and shows the danger delete row', () => {
     const onRename = vi.fn()
+    const onArchive = vi.fn()
     const onDelete = vi.fn()
     const onToggle = vi.fn()
     const group: GroupNode = {
@@ -437,7 +438,7 @@ describe('workspace browser rows', () => {
     }
     render(<ProjectRowItem
       group={group} onToggle={onToggle} onCreate={vi.fn()}
-      actions={{ rename: onRename, delete: onDelete }} t={t}
+      actions={{ rename: onRename, archive: onArchive, delete: onDelete }} t={t}
     />)
     fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
     // Opening the menu neither toggles the group nor renames yet.
@@ -445,6 +446,10 @@ describe('workspace browser rows', () => {
     expect(screen.getByRole('menuitem', { name: '删除工作区' }).className).toMatch(/danger/)
     fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
     expect(onRename).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档工作区所有会话' }))
+    expect(onArchive).toHaveBeenCalledOnce()
     expect(screen.queryByRole('menu')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '删除工作区' }))
@@ -684,7 +689,7 @@ describe('workspace browser rows', () => {
 
     // Both lists receive the row identity; only the menu list carries the open state.
     expect(rendered).toHaveBeenCalledWith(
-      'sidebar.workspaces.session.menu.item', { sessionId: node.id, displayTitle: 'One' }, [false, expect.any(Function)],
+      'sidebar.workspaces.session.menu.item', { sessionId: node.id, displayTitle: 'One', canDismiss: true }, [false, expect.any(Function)],
     )
     expect(rendered).toHaveBeenCalledWith(
       'sidebar.workspaces.session.row.action', { sessionId: node.id, displayTitle: 'One' }, undefined,
@@ -695,7 +700,7 @@ describe('workspace browser rows', () => {
     fireEvent.click(trigger)
     expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Export'])
     expect(rendered).toHaveBeenCalledWith(
-      'sidebar.workspaces.session.menu.item', { sessionId: node.id, displayTitle: 'One' }, [true, expect.any(Function)],
+      'sidebar.workspaces.session.menu.item', { sessionId: node.id, displayTitle: 'One', canDismiss: true }, [true, expect.any(Function)],
     )
     fireEvent.click(screen.getByRole('menuitem', { name: 'Export' }))
     expect(onEntry).toHaveBeenCalledWith(node.id, 'One', true)

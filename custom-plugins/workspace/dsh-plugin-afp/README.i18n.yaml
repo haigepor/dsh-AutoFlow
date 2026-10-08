@@ -21,20 +21,26 @@
   en: bea37e6209ea3aa3
   zh: 0faae87b1bda12b0
 /dsh-plugin-afp/configuration:
-  en: 6e5105f0c03d77a2
-  zh: fdf9058013411b2e
+  en: cf319e0bb75cae25
+  zh: 2f638cf7a615e96e
+/dsh-plugin-afp/conversation-search-and-final-results:
+  en: 7dc17e1283b32f80
+  zh: e4903c62172d5a52
 /dsh-plugin-afp/workbench-and-tools:
-  en: 5f3e61721d00309b
-  zh: f7d0867f562554f3
+  en: 12749066d8dd0c2e
+  zh: ad3036a8ee237fda
 /dsh-plugin-afp/content-and-recovery:
-  en: 5bb4b1eb1ec478a5
-  zh: 1712e0757f6638ee
+  en: 1a075be4997790f0
+  zh: 1cf2f9d49d85d946
+/dsh-plugin-afp/content-and-recovery/automatic-afp-authentication-recovery:
+  en: e32335ef4c13b6e3
+  zh: 578e7f7455b6cc96
 /dsh-plugin-afp/preview-cache:
-  en: 0d0f381242542558
-  zh: 178327ab11a7606f
+  en: 69d55e837de4cb09
+  zh: 66de3864a6dd621f
 /dsh-plugin-afp/verification:
-  en: 7b37eaf5927fb576
-  zh: c679c3b496de3ab4
+  en: c07cf19857444a86
+  zh: 7ca85f0256f755d9
 /dsh-plugin-afp/dev-note:
   en: 21b9024049b6ec1f
   zh: da72b52921957ae3

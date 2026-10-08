@@ -38,7 +38,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import {
   type ArchiveSessionInjected, type DismissSessionInjected, type ForkSessionInjected, menuOpenStateFactory, type PinSessionInjected,
   type SessionArchiveConfirmInjected, type SessionArchiveConfirmRequest,
-  type RenameSessionInjected, type RowToast, type RowToastInjected, type RowToastState, type SessionRenameDialogInjected,
+  type RegenerateTitleInjected, type RenameSessionInjected, type RowToast, type RowToastInjected, type RowToastState,
+  type SessionRenameDialogInjected,
   type WorkspaceBrowserInjected, type WorkspacePickerInjected,
 } from './contract/slots.ts'
 import { createWorkspaceShortcutControls, installWorkspaceShortcuts } from './shortcuts.ts'
@@ -50,6 +51,7 @@ import { DismissSessionMenuItem } from './session-actions/DismissSession.tsx'
 import { derive } from './session-actions/derived.ts'
 import { ForkSessionMenuItem } from './session-actions/ForkSession.tsx'
 import { PinSessionMenuItem, PinSessionRowButton } from './session-actions/PinSession.tsx'
+import { RegenerateTitleMenuItem } from './session-actions/RegenerateTitle.tsx'
 import { RenameSessionMenuItem, SessionRenameDialog } from './session-actions/RenameSession.tsx'
 import { RowActionToast } from './session-actions/RowActionToast.tsx'
 import { WorkspacePicker } from './WorkspacePicker.tsx'
@@ -151,6 +153,7 @@ export function apply(ctx: Context): void {
   // the pending rename request and the notice on display. Each business
   // writes through its own injected callback and the surface reads through
   // its bound hook.
+  const titleGenerating = createSnapshotStore<ReadonlySet<SessionId>>(new Set())
   const renameRequest = derive(shortcutControls.state, state => state.renameTarget)
   const archiveRequest = createSnapshotStore<SessionArchiveConfirmRequest | null>(null)
   const requestSessionRename = shortcutControls.rename
@@ -186,6 +189,8 @@ export function apply(ctx: Context): void {
     // the confirmation names that work and offers to stop it.
     archiveSession: (sessionId) => {
       uiWorkspace.archiveSession(sessionId).then(() => {
+        // A successful archive returns to the ordinary list; explicit archive browsing remains available.
+        viewInstance.actions.setArchivedFilter('default')
         notify({ kind: 'archived', sessionId })
       }).catch((reason: unknown) => {
         const activity = activeSessionRefusal(reason)
@@ -205,6 +210,7 @@ export function apply(ctx: Context): void {
     settleSessionArchive: () => { archiveRequest.set(null) },
     stopAndArchiveSession: async (sessionId) => {
       await uiWorkspace.archiveSession(sessionId, { stopActivity: true })
+      viewInstance.actions.setArchivedFilter('default')
       notify({ kind: 'stoppedAndArchived', sessionId })
     },
   })
@@ -214,6 +220,21 @@ export function apply(ctx: Context): void {
         ctx.get('productAnalytics')?.track('branch_session_click', { session_id: childId, parent_session_id: sessionId, click_position: 'sidebar' })
       }).catch(() => {
         // Fork or child-title failure leaves the list as it was.
+      })
+    },
+  })
+  const regenerateInjected = (): RegenerateTitleInjected => ({
+    hooks: { titleGenerating },
+    regenerateTitle: (sessionId) => {
+      if (titleGenerating.getSnapshot().has(sessionId)) return
+      titleGenerating.set(new Set([...titleGenerating.getSnapshot(), sessionId]))
+      sessions.using(sessionId, { source: 'workspaceOperation' }, reference => reference.binding.session.regenerateTitle()).then((result) => {
+        if (result.ok) notify({ kind: 'titleRegenerated' })
+        else notify({ kind: 'titleGenerationFailed', message: result.error.message })
+      }).catch(() => { notify({ kind: 'titleGenerationFailed', message: 'TITLE_NETWORK' }) }).finally(() => {
+        const pending = new Set(titleGenerating.getSnapshot())
+        pending.delete(sessionId)
+        titleGenerating.set(pending)
       })
     },
   })
@@ -254,6 +275,7 @@ export function apply(ctx: Context): void {
     archiveSessions: async (sessionIds) => {
       const outcomes = await Promise.allSettled(sessionIds.map(sessionId => uiWorkspace.archiveSession(sessionId)))
       const archived = outcomes.filter(outcome => outcome.status === 'fulfilled').length
+      if (archived > 0) viewInstance.actions.setArchivedFilter('default')
       return { archived, failed: outcomes.length - archived }
     },
     createWorkspace: input => workspaces.create(input),
@@ -298,6 +320,7 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('sidebar.workspaces.session.menu.item', function* () {
     yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'pin', order: 100, locale: NS, inject: pinInjected }, PinSessionMenuItem)
     yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'rename', order: 200, locale: NS, inject: renameInjected }, RenameSessionMenuItem)
+    yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'regenerate-title', order: 210, locale: NS, inject: regenerateInjected }, RegenerateTitleMenuItem)
     yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'fork', order: 300, locale: NS, inject: forkInjected }, ForkSessionMenuItem)
     yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'archive', order: 400, locale: NS, inject: archiveInjected }, ArchiveSessionMenuItem)
     yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'dismiss', order: 500, locale: NS, inject: dismissSessionInjected }, DismissSessionMenuItem)

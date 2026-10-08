@@ -25,6 +25,8 @@ Use `dsh-session-title` to give each session a client-visible title from the fir
 <a id="use-this-package"></a>
 ## Use this package
 
+Fallback title input removes plugin/app/Session reference transport syntax and prefers the remaining user request; original human messages remain unchanged. cancel(session) supersedes pending and active title work without changing the accepted title.
+
 Mount the service to give sessions titles that clients can display and that never reach the model. The common path is explicit: load the session store, mount the service with its required limits, and optionally mount one provider plugin.
 
 ### Choosing a title source

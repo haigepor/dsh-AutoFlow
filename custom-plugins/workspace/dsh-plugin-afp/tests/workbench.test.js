@@ -15,6 +15,19 @@ const image = {
   mockup: [{ href: 'https://private.example/media?token=do-not-project' }],
 }
 
+test('preview proxy projects retry eligibility without leaking provider diagnostics', async t => {
+  for (const [error, retryable] of [[new TypeError('fetch failed'), true], [new Error('mockup download failed with HTTP 503'), true],
+    [Object.assign(new Error('secret'), { afpFailure: { category: 'authentication', protocol: 'graphql', httpStatus: 200 } }), false],
+    [Object.assign(new Error('secret'), { code: 'preview-host-blocked', hostname: 'cdn.test' }), false], [new Error('secret'), false]]) {
+    const { service } = await fixture(t, { previewClient: { async getPreviewBytes() { throw error } } })
+    await service.enable('read')
+    const response = await service.previewResponse(new Request('https://local/api/afp/preview?photoId=photo'))
+    const body = await response.json()
+    assert.equal(body.retryable, retryable)
+    assert.doesNotMatch(JSON.stringify(body), /secret|fetch failed|HTTP 503/)
+  }
+})
+
 async function fixture(t, overrides = {}) {
   const home = await mkdtemp(join(tmpdir(), 'afp-workbench-'))
   t.after(() => rm(home, { recursive: true, force: true }))
@@ -66,20 +79,23 @@ async function fixture(t, overrides = {}) {
 
 const page = (service, operation, args = {}, signal = new AbortController().signal) => service.pageAction({ operation, args: JSON.stringify(args) }, signal)
 
-test('private page status supplies cache policy and a Host scope without changing Agent status', async t => {
+test('private page status supplies cache and animation settings without changing Agent status', async t => {
   const { service, connection } = await fixture(t)
   connection.status = async () => ({ ready: true })
   const agent = await service.status(), first = await page(service, 'status'), second = await page(service, 'status')
   assert.equal(agent.previewCache, undefined)
+  assert.equal(agent.previewAnimation, undefined)
+  assert.deepEqual(first.previewAnimation, { enabled: true })
   assert.match(first.previewCache.scope, /^[0-9a-f-]{36}$/)
   assert.deepEqual(first.previewCache, second.previewCache)
-  assert.deepEqual({ ...first.previewCache, scope: '' }, { scope: '', maxEntries: 300, maxBytes: 67108864, ttlMs: 600000 })
+  assert.deepEqual({ ...first.previewCache, scope: '' }, { scope: '', maxEntries: 300, maxBytes: 67108864, ttlMs: 600000, retryCount: 2, retryDelayMs: 1000 })
   const stop = await service.enable('read')
   const enabled = await page(service, 'status'); assert.notEqual(enabled.previewCache.scope, first.previewCache.scope)
   await stop(); assert.notEqual((await page(service, 'status')).previewCache.scope, enabled.previewCache.scope)
-  const next = await fixture(t)
+  const next = await fixture(t, { config: { previewAnimationEnabled: false } })
   next.connection.status = async () => ({ ready: true })
   assert.notEqual((await page(next.service, 'status')).previewCache.scope, first.previewCache.scope)
+  assert.deepEqual((await page(next.service, 'status')).previewAnimation, { enabled: false })
 })
 
 test('account summary masks resolved usernames and omits credential values', async t => {
@@ -123,6 +139,15 @@ test('photo search rejects missing read access, extra fields and invalid bounds 
     { query: 'bird', limit: 0 }, { query: 'bird', limit: 3 }, { query: 'bird', language: 'zh' }, { query: 'bird', surprise: true },
   ]) await assert.rejects(page(service, 'photo-search', args))
   assert.equal(calls.search.length, 0)
+})
+
+test('real FAR caption string arrays survive photo search and details metadata projection', async t => {
+  const { service, client } = await fixture(t)
+  await service.enable('read')
+  client.searchPhotos = async () => ({ docs: [{ ...image, caption: ['A cat', 'in a shelter', null] }], hasMore: false })
+  client.photosByIds = async () => [{ ...image, caption: ['A cat', 'in a shelter'] }]
+  assert.equal((await page(service, 'photo-search', { query: 'cat' })).items[0].caption, 'A cat in a shelter')
+  assert.equal((await page(service, 'photo-details', { photoId: image.id })).caption, 'A cat in a shelter')
 })
 
 test('photo search stops pagination when upstream returns an empty or repeated cursor', async t => {
@@ -317,7 +342,7 @@ test('preview proxy recognizes raster octet streams and emits only a safe blocke
   previewClient.getPreviewBytes = async () => { throw Object.assign(new Error('URL with secret'), { code: 'preview-host-blocked', hostname: 'cdn.example.test' }) }
   const denied = await service.previewResponse(request())
   assert.equal(denied.status, 502)
-  assert.deepEqual(await denied.json(), { code: 'preview-host-blocked', host: 'cdn.example.test' })
+  assert.deepEqual(await denied.json(), { code: 'preview-host-blocked', host: 'cdn.example.test', retryable: false })
 })
 
 test('run item report distinguishes rejected, request-failed and pending candidates', async t => {
@@ -411,7 +436,7 @@ test('Connection builds the preview client without requiring vision settings or 
     async modifyRecord(_key, update) { await update(undefined) },
     async readRecord() { return undefined },
   }
-  const connection = new Connection(credentials, config, async () => new Response('[]', { status: 200 }))
+  const connection = new Connection(credentials, config, async () => Response.json({ data: { photos: { docs: [] } } }))
   const result = await connection.open(new AbortController().signal, false, false, true)
   assert.equal(typeof result.client.photosByIds, 'function')
   assert.equal(typeof result.previewClient.getPreviewBytes, 'function')

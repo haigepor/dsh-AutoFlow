@@ -7,7 +7,8 @@
 // flat "In one list" and opt-in Workspace tree views with persisted grouping, the session
 // hover card and row action menu, and the session archive round trip (row
 // menu → workspace.archiveSession RPC → durable global set → row hidden
-// across reload). Zero model calls: workspace.create/rename/archiveSession
+// across reload), and folded Workspace bulk archive with retained files and logs.
+// Zero model calls: workspace.create/rename/archiveSession
 // are host RPCs with no model involvement, and the one session row the
 // flat/hover/menu/archive scenarios need comes from a seeded fixture (the
 // seeded-history seed reused verbatim — no new recording).
@@ -608,6 +609,9 @@ describe('web e2e: workspace management (create / rename / grouping / hover affo
     await expect.poll(() => sessionRow.getAttribute('aria-selected'), { timeout: 10_000 }).toBe('true')
     const ungroupedSection = page.getByText('Ungrouped', { exact: true }).locator('..').locator('..').locator('..')
     await expect.poll(() => ungroupedSection.locator('[role="treeitem"]').count(), { timeout: 10_000 }).toBe(2)
+    // Archiving from the all-sessions view must return to the ordinary list.
+    await page.getByRole('button', { name: 'View options' }).click()
+    await page.getByRole('menuitem', { name: 'All conversations (show archived)', exact: true }).click()
     // Row menu: hover reveals the actions button; Archive session commits
     // without a confirmation dialog (non-destructive: log + accounting stay).
     await clickHoverAction(sessionRow, `Session actions for ${title}`)
@@ -638,6 +642,59 @@ describe('web e2e: workspace management (create / rename / grouping / hover affo
     // reappear if selection restore lands on another stray — not this test's
     // concern).
     expect(await sessionRow.count()).toBe(0)
+    expect(tripwire.pageErrors).toEqual([])
+  }, 90_000)
+
+  it('archives every session in a folded workspace and keeps its files and logs', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-workspace-bulk-archive'))
+    const path = join(scaffold.workspaceCwd, 'bulk-archive-target')
+    const title = 'Bulk archive workspace'
+    await mkdir(path, { recursive: true })
+    await writeFile(join(path, 'keep.txt'), 'retained\n', 'utf8')
+    const seedText = await readFile(SEED, 'utf8')
+    const ids = await Promise.all([
+      seedSession({ ...scaffold, workspaceCwd: path }, seedText, 'workspace-bulk-first'),
+      seedSession({ ...scaffold, workspaceCwd: path }, seedText, 'workspace-bulk-second'),
+    ])
+    const target = await scaffold.ctx.workspaceRegistry.create(path, title)
+    for (const id of ids) await target.attachSession(id)
+    const logs = await Promise.all(ids.map(id => readPersistedEvents(scaffold, id)))
+    const warningStart = tripwire.warnings.length
+    await page.reload({ waitUntil: 'load' })
+    const header = page.getByRole('treeitem').filter({ has: page.getByText(title, { exact: true }) })
+    await header.waitFor({ timeout: 15_000 })
+    acknowledgeReloadConnectionLoss(tripwire, warningStart)
+    if (await header.getAttribute('aria-expanded') !== 'true') await header.click()
+    const sessionRows = header.locator('xpath=ancestor::*[contains(@class, "groupSection")][1]')
+      .locator(ids.map(id => `[data-row-key="session:${id}"]`).join(', '))
+    await expect.poll(() => sessionRows.count(), { timeout: 10_000 }).toBe(2)
+    await header.click()
+    await clickHoverAction(header, `Workspace actions for ${title}`)
+    const menu = await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd)
+    await page.getByRole('menuitem', { name: 'Archive all workspace sessions', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Archive all workspace sessions', exact: true })
+    await dialog.waitFor()
+    expect(await dialog.innerText()).toContain('Archive 2 sessions')
+    const confirmation = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(
+      fileURLToPath(new URL('./expected/workspace-management/workspace-archive.expected.md', import.meta.url)),
+      `${menu.trimEnd()}\n\n${confirmation.trimEnd()}`, MODE,
+    )
+    await dialog.getByRole('button', { name: 'Archive sessions', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    await expect.poll(() => ids.every(id => scaffold.ctx.workspaceRegistry.archivedSessionIds.includes(id)), { timeout: 10_000 }).toBe(true)
+    expect(target.sessionIds).toEqual(expect.arrayContaining(ids))
+    expect(await readFile(join(path, 'keep.txt'), 'utf8')).toBe('retained\n')
+    expect(await Promise.all(ids.map(id => readPersistedEvents(scaffold, id)))).toEqual(logs)
+    await header.click()
+    await expect.poll(() => sessionRows.count(), { timeout: 10_000 }).toBe(0)
+    await page.getByRole('button', { name: 'View options' }).click()
+    await page.getByRole('menuitem', { name: 'All conversations (show archived)', exact: true }).click()
+    await expect.poll(() => sessionRows.count(), { timeout: 10_000 }).toBe(2)
+    await page.getByRole('button', { name: 'View options' }).click()
+    await page.getByRole('menuitem', { name: 'Hide archived', exact: true }).click()
+    await expect.poll(() => sessionRows.count(), { timeout: 10_000 }).toBe(0)
+    await scaffold.ctx.workspaceRegistry.delete(target.id)
     expect(tripwire.pageErrors).toEqual([])
   }, 90_000)
 

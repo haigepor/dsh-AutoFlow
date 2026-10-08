@@ -11790,11 +11790,172 @@
       }
     },
     {
+      "key": "event:session/title-llm-attempt",
+      "kind": "event",
+      "event": "session/title-llm-attempt",
+      "surface": false,
+      "digest": "e5ae9f18f9da222773c06af817e9d4694cf85f213a03f4e462af4e4071686ed7",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 14,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 15,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attempt",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "durationMs",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "failureCode",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "reasoning",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "route",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "status",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "titleProvider",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "disabled"
+          },
+          {
+            "kind": "literal",
+            "value": "provider-default"
+          },
+          {
+            "kind": "literal",
+            "value": "lowest-declared"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "model",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              10,
+              11,
+              12,
+              13
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "cancelled"
+          },
+          {
+            "kind": "literal",
+            "value": "started"
+          },
+          {
+            "kind": "literal",
+            "value": "succeeded"
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "session/title-llm-attempt"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:session/title-llm-request",
       "kind": "event",
       "event": "session/title-llm-request",
       "surface": false,
-      "digest": "fa8f7d3ebf08a76c7f7a8b0781873c4d819b964da5dbb52cd3cdfa5da34f452d",
+      "digest": "36a261553f1759eb7a0c21b588c918b0e622e859ad7bd8de3b145d29c6c3e086",
       "schema": {
         "root": 0,
         "nodes": [
@@ -11846,6 +12007,11 @@
                 "name": "messages",
                 "type": 4,
                 "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 10,
+                "optional": true
               },
               {
                 "name": "route",
@@ -21709,6 +21875,15 @@
       "sources": []
     },
     {
+      "digest": "05b21814fdf516d46964fbde6a9f9486ca8ee7342de7628aa286f8460af176f1",
+      "names": [
+        "packages/session/session-title-llm/src/index.ts#SessionTitleLlmRequestEventData"
+      ],
+      "sources": [
+        "packages/session/session-title-llm/src/index.ts:36"
+      ]
+    },
+    {
       "digest": "05d2ae1e0c7f8770f83f9a09047afb39a335d8ac986df3193659aa1e581472cf",
       "names": [
         "packages/interaction/user-approval/src/index.ts#ApprovalPolicy"
@@ -21795,6 +21970,11 @@
       "sources": [
         "packages/goal/goal/src/types.ts:20"
       ]
+    },
+    {
+      "digest": "0b9b8facbe2c19773b3fb0ecc824ccbcc603d41b8f18069faa3807d449572fce",
+      "names": [],
+      "sources": []
     },
     {
       "digest": "0bcfaf5566d271028429ac7b562cb59053c9d78b8ae14708c35fac835108d1b1",
@@ -22177,6 +22357,11 @@
       "sources": []
     },
     {
+      "digest": "2064a7f619467af2fa83c675cfd6417bbb2b996f62ed24ff039ddc16c544eb90",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "20a57544bbf204dacd1ae6beb2ab29444365c3c869f2afdf489dcdcbc3d9c8c5",
       "names": [],
       "sources": [
@@ -22204,6 +22389,11 @@
     },
     {
       "digest": "224aa11d4d5f88c450822d01b99e6ca5e3a9c7f26a5ede10bae33384a09ef4dc",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "22a27edfec73fa4991db969c166b13dcda84f8ebb03052f6471fbabd3eb38953",
       "names": [],
       "sources": []
     },
@@ -22445,6 +22635,11 @@
     },
     {
       "digest": "35203ba7ad5ef6f97d556b85df20ae98f04f09c65748cecdf8eefdb8b6405ffc",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "36a261553f1759eb7a0c21b588c918b0e622e859ad7bd8de3b145d29c6c3e086",
       "names": [],
       "sources": []
     },
@@ -22796,7 +22991,7 @@
         "packages/workflow/workflow/src/types.ts#WorkflowRunId"
       ],
       "sources": [
-        "packages/api/session-controller/src/types.ts:398",
+        "packages/api/session-controller/src/types.ts:404",
         "packages/attachment/attachment/src/brand.ts:6",
         "packages/compaction/compaction/src/brand.ts:4",
         "packages/core/session/src/types.ts:20",
@@ -22813,7 +23008,7 @@
         "packages/llm/llm/src/brand.ts:43",
         "packages/llm/llm/src/brand.ts:67",
         "packages/schedule/schedule/src/types.ts:14",
-        "packages/session/session-title/src/index.ts:42",
+        "packages/session/session-title/src/index.ts:43",
         "packages/session/session-title/src/types.ts:17",
         "packages/webhook/webhook/src/brand.ts:12",
         "packages/webhook/webhook/src/brand.ts:6",
@@ -23254,7 +23449,7 @@
       "digest": "6a4f72e2e179e17b922f2a9392c0e1c8f8c707f32494372454850a3eb184a6e7",
       "names": [],
       "sources": [
-        "packages/api/session-controller/src/types.ts:403"
+        "packages/api/session-controller/src/types.ts:409"
       ]
     },
     {
@@ -23943,15 +24138,6 @@
       "sources": []
     },
     {
-      "digest": "9bc85364d1f37d9c837db6a3bdd3d1d007d923cdc7401a3322be9f12fdc225fd",
-      "names": [
-        "packages/session/session-title-llm/src/index.ts#SessionTitleLlmRequestEventData"
-      ],
-      "sources": [
-        "packages/session/session-title-llm/src/index.ts:34"
-      ]
-    },
-    {
       "digest": "9d80129e13edfb6feb03ed327e6085c6ef60b97ad074244b2f5fd4667424a6a4",
       "names": [],
       "sources": []
@@ -24538,6 +24724,11 @@
       ]
     },
     {
+      "digest": "c1e1622166f57c10c79f9f47b5f300a3b2f42e4fd198ebb4a2290f223c0cf4ac",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "c1f0f17b6493b85db6453bb30e01b208d703731b25bc1e68e5d4fc72eea9cdea",
       "names": [
         "packages/llm/llm/src/types.ts#ToolCallBlock"
@@ -24633,6 +24824,11 @@
     },
     {
       "digest": "cd186c309e2bef305705e1d324139240f5e681f4f6a957d6a25b0225f65560df",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "cd8b8fe344f6f4ead3afac9f89cd4a69abd0e10817f4755cb4514798822c7ee2",
       "names": [],
       "sources": []
     },
@@ -24803,6 +24999,15 @@
       "sources": []
     },
     {
+      "digest": "df4c7c890157191b20cb86ef2424432b00f0c09cb9c23827d5c1541c8605c141",
+      "names": [
+        "packages/session/session-title-llm/src/index.ts#SessionTitleLlmAttemptEventData"
+      ],
+      "sources": [
+        "packages/session/session-title-llm/src/index.ts:63"
+      ]
+    },
+    {
       "digest": "df5d9709b7db2a72510dc52052a23f0c38f39730af1504bab8bccabc14fae528",
       "names": [],
       "sources": []
@@ -24823,6 +25028,11 @@
     },
     {
       "digest": "e0a787e6ec76c7c94fecbc501b489164ab0293db05bc947914077ad01e674f05",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "e144a82dc8eaf3b67f34c830dfacfba8c8cb67fa7a2601638507e8ae07557116",
       "names": [],
       "sources": []
     },
@@ -24887,6 +25097,11 @@
     },
     {
       "digest": "e4cac694f8b6e1d52e48c699464f1c4c26111ef87e558f7931040d00fdc8d486",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "e5ae9f18f9da222773c06af817e9d4694cf85f213a03f4e462af4e4071686ed7",
       "names": [],
       "sources": []
     },
@@ -25187,11 +25402,6 @@
       ]
     },
     {
-      "digest": "fa8f7d3ebf08a76c7f7a8b0781873c4d819b964da5dbb52cd3cdfa5da34f452d",
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "fab2bb09bc5e3b9db0685e8f5500b029af1a2b33e70bc703c1d5d0f596fbc1fd",
       "names": [
         "packages/sandbox/sandbox/src/index.ts#SandboxMode"
@@ -25250,6 +25460,11 @@
       "sources": []
     },
     {
+      "digest": "fd76feed4d7a307fc89fe24260cefa8f0918a558e58d2b589f0041d4d64954e2",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "fe1a7acdeed4d0f5ab483396eaa5b3dc97263b7c10eb4da2f0028cb01728bfc9",
       "names": [],
       "sources": []
@@ -25270,6 +25485,11 @@
     },
     {
       "digest": "fee1caf8ab6a65c1bc981f5a1730164490f22a2a89ffa3d0b76f1f432c44c8b5",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "ff7ddb4af18039cb1e33f72a7b2cd0a580b7275437192ef8be0a52e72824fd43",
       "names": [],
       "sources": []
     }

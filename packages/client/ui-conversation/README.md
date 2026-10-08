@@ -101,6 +101,8 @@ Plain ↑ and ↓ recall submitted text from the current workspace bucket (`cwd`
 <a id="temporary-composer-entries"></a>
 ## Temporary composer entries
 
+The todo dock animates expansion and collapse using the shared disclosure primitive; its chevron follows the same motion preference and its status counts remain visible while collapsed.
+
 `conversation.composer` is a generic chain. Its complete owner currency is:
 
 ```ts type-equiv

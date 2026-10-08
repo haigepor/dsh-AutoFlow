@@ -119,6 +119,11 @@ export interface ISession {
    */
   rename(title: string): Promise<RemoteResult<{ title: string; seq: SessionSeq }>>
   /**
+   * Explicitly regenerate the title; retains it on provider failure.
+   * @returns accepted title and sequence, or a sanitized failure code.
+   */
+  regenerateTitle(): Promise<RemoteResult<{ title: string; seq: SessionSeq }>>
+  /**
    * Extend history by at least 50 messages and two Turn starts, including a
    * partial Turn at the window's beginning. Stop at 500 messages or history
    * exhaustion even when those minima cannot be met. Publish one prepend.

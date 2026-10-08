@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { createScope, scopeOf } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
@@ -332,6 +334,58 @@ function panelProps(
 }
 
 describe('ApprovalPanel', () => {
+  it('renders the waiting card from the recorded approval Session without executing its command', () => {
+    const rows = readFileSync(resolve('snapshots/web/approval-composer/session.v3.jsonl'), 'utf8')
+      .trim().split('\n').map(line => JSON.parse(line) as { type: string; data: Record<string, unknown> })
+    const request = rows.find(row => row.type === 'approval/asked')?.data
+    const call = rows.find(row => row.type === 'tool/call' && row.data['callId'] === request?.['callId'])?.data
+    if (typeof request?.['toolName'] !== 'string' || typeof request['reason'] !== 'string'
+      || typeof request['callId'] !== 'string' || typeof call?.['arguments'] !== 'string') {
+      throw new Error('recorded approval request or correlated call is missing')
+    }
+    const { command } = JSON.parse(call['arguments']) as { command: string }
+    const pending = new PendingApproval(id('recorded'), {
+      toolName: request['toolName'],
+      callId: request['callId'] as ToolCallId,
+      reason: request['reason'],
+    })
+    render(<ApprovalPanel {...panelProps(pending, () => command)} />)
+
+    expect(screen.getByRole('group', { name: 'Approval details' }).textContent).toBe(request['reason'] + command)
+    expect({
+      status: screen.getByText('Waiting').textContent,
+      actions: screen.getAllByRole('button').map(button => button.textContent),
+      answerable: pending.answerable,
+    }).toMatchInlineSnapshot(`
+      {
+        "actions": [
+          "Reject",
+          "Allow once",
+        ],
+        "answerable": true,
+        "status": "Waiting",
+      }
+    `)
+  })
+
+  it('preserves multiline reason and command text before a decision', () => {
+    const reason = '需要更宽的权限重试\n安装说明保留原始换行'
+    const command = 'pnpm dsh plugin --profile web add "D:\\project\\deepseek-harness\\.artifacts\\afp-cards-carousel-20261004\\dsh-plugin-afp-0.1.0.tgz"\n--verbose'
+    const pending = new PendingApproval(id('s1'), {
+      toolName: 'shell',
+      callId: 'call-1' as ToolCallId,
+      reason,
+    })
+    render(<ApprovalPanel {...panelProps(pending, () => command)} />)
+
+    expect(screen.getByText('Waiting')).toBeTruthy()
+    const detail = screen.getByRole('group', { name: 'Approval details' })
+    expect(detail.textContent).toBe(reason + command)
+    expect(pending.answerable).toBe(true)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Allow once' }).disabled).toBe(false)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Reject' }).disabled).toBe(false)
+  })
+
   it('renders fallback copy without detail and returns rejection', async () => {
     const pending = new PendingApproval(id('s1'), { toolName: 'bash' })
     const props = panelProps(pending)

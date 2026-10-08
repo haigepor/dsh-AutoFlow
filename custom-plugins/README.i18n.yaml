@@ -4,16 +4,16 @@
 #   pnpm run verify-translation-pairing --write custom-plugins/README.md
 /:
   en: 7ad77dbe623fe715
-  zh: 2f10869bddd43e8b
+  zh: 52387edfd2ad10b0
 /custom-plugin-bundles:
   en: 2cf364491f60a17d
   zh: 7f67839b2744c12c
 /custom-plugin-bundles/summary:
-  en: dbc809dc26c795ea
-  zh: 8f073a5d910bd2f0
+  en: 260fb177b808ed11
+  zh: e6144473c2698766
 /custom-plugin-bundles/packages:
-  en: 972bcac321111887
-  zh: 2b764ea67b621b61
+  en: 71e5750d3a8f7ffb
+  zh: 6eb3abc36373054e
 /custom-plugin-bundles/dev-note:
   en: b75c8458928b72b9
   zh: 02cbcc6baa338b07

@@ -9,8 +9,6 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Modal masks are transparent with the shared background blur; dialogs use the theme's `--dsw-shadow-lv3` shadow to separate them from the page.
-
 Use `dsh-client-ui-primitives` to build web-client controls and render agent output with shared React UI. It includes standard controls, icons, anchored overlays, and renderers for Markdown with TeX, terminal output, file reads, diffs, search, web retrieval, and JSON. The renderers handle untrusted model output by dropping raw HTML, restricting links, and parsing ANSI escape sequences. The components import no Cordis runtime; callers supply localized labels, and theme-facing colors use `--dsw-*` design tokens.
 
 ## Table of Contents
@@ -26,6 +24,10 @@ Use `dsh-client-ui-primitives` to build web-client controls and render agent out
 
 <a id="use-this-package"></a>
 ## Use this package
+
+`MarkdownDelegateProvider.skillMentions` optionally supplies an asynchronous exact-name metadata resolver and source opener. Quoted inline code becomes a theme-accent skill button only after the owner recognizes it; its name inherits the prose size, weight, line height and baseline while its SVG aligns independently; the shared Tooltip displays the supplied description on hover or keyboard focus. Cancellation and failures preserve authored code, and no catalog or file access is owned by this library.
+
+Modal masks are transparent with the shared background blur; dialogs use the theme's `--dsw-shadow-lv3` shadow to separate them from the page.
 
 `Toast` pairs its surface, message, status icon, and inline action colors with the active theme and uses the soft elevation. Inline actions use weight 500 and an underline on hover or keyboard focus; interaction does not reduce their contrast.
 
@@ -115,6 +117,8 @@ The atoms cannot read the application locale, so every piece of user-facing copy
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
+
+`AnimatedCollapse` animates intrinsic height and opacity, retains the last open body during exit, hides closing controls from focus and accessibility navigation, and unmounts them after the theme transition. Reduced motion releases them immediately. Optional `keepMounted` retains the current body while closed for form controls owning transient DOM state; closing controls remain inert and hidden from accessibility navigation. `DisclosureRow` uses this primitive. Markdown tables wrap long identifiers and scroll inside their text-column viewport.
 
 `Button` uses H36/R12 for `md` and H28/R8 for `sm`, including outlined controls. Menus and cards follow the [shared radius rules](../../../docs/web-styling.md#corner-radii-and-settings-cards); feature classes preserve control geometry.
 

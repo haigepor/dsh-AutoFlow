@@ -68,6 +68,24 @@ test('empty history leaves no edge control and cancellation failure uses safe co
   assert.equal(toast.props.tone, undefined)
 })
 
+test('hiding the download entry preserves active records and notifications can reopen it', () => {
+  const records = [{ id: 'batch', taskId: 'task', status: 'running', total: 2, updatedAt: 1 }]
+  const h = harness({ status: { downloads: records }, downloadDockOpen: true })
+  nodes(h.render(), node => node.type === UI.Menu)[0].props.onSelect('hide')
+  assert.equal(h.state.downloadDockHidden, true)
+  assert.equal(h.state.downloadDockOpen, false)
+  assert.equal(nodes(h.render(), node => node.type === UI.Menu).length, 0)
+  assert.equal(h.state.status.downloads, records)
+  assert.deepEqual(h.calls, [])
+  h.state.tab = 'account'
+  assert.equal(nodes(h.render(), node => node.type === UI.Button && node.props.className === 'afp-download-edge').length, 0)
+  h.state.downloadNotice = { id: 'notice', kind: 'started', total: 2 }
+  nodes(h.render(), node => node.type === UI.Toast)[0].props.actions[0].onClick()
+  assert.equal(h.state.downloadDockHidden, false)
+  assert.equal(h.state.downloadDockOpen, true)
+  assert.equal(nodes(h.render(), node => node.type === UI.Menu).length, 1)
+})
+
 test('download edge uses an SVG and its context menu opens progress or the task page', () => {
   const h = harness({ status: { features: ['ui-panel'], downloads: [{ id: 'batch', status: 'running', total: 2, updatedAt: 1 }] } })
   const menu = nodes(h.render(), node => node.type === UI.Menu)[0]

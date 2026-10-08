@@ -27,12 +27,12 @@
 .icon { display: inline-flex; flex: none; color: var(--dsw-alias-label-tertiary); }
 .title { flex: none; font: var(--dsw-font-xs-13); }
 .time { flex: none; margin-left: auto; color: var(--dsw-alias-label-caption); font: var(--dsw-font-xxs-12); }
-.chevron, .openChevron { flex: none; color: var(--dsw-alias-label-tertiary); }
+.chevron, .openChevron { flex: none; color: var(--dsw-alias-label-tertiary); transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
 .openChevron { transform: rotate(180deg); }
 .body { padding: 0 16px 12px 40px; }
 .explanation { margin: 8px 0; color: var(--dsw-alias-label-secondary); font: var(--dsw-font-xxs-12); }
 .content { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--dsw-font-xxs-12); }
 
 @media (prefers-reduced-motion: reduce) {
-  .root { transition: none; }
+  .root, .chevron, .openChevron { transition: none; }
 }

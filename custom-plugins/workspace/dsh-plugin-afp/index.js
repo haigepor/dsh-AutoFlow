@@ -4,7 +4,8 @@ import { configurationAction } from './src/host/afp-configuration.js'
 import { downloadErrorCode } from './src/host/afp-downloads.js'
 export { Config }
 export const name = 'dsh-plugin-afp'
-export const inject = ['credentials', 'jobs', 'profileContext', 'pluginManager', 'configEditor', 'directoryPicker']
+// Cordis 将 inject 对象的键作为服务名；此处使用服务名数组声明真实依赖。
+export const inject = ['credentials', 'jobs', 'profileContext', 'pluginManager', 'configEditor', 'directoryPicker', 'sessions', 'sessionQuery']
 
 /** Root owns shared profile state; optional rows own tools, skills and UI availability. */
 export function apply(ctx, input = {}) {

@@ -9,8 +9,6 @@ kind: "package-library"
 
 ## 概述
 
-Modal 遮罩透明并保留共享背景模糊；弹窗使用主题的 `--dsw-shadow-lv3` 阴影区分页面层级。
-
 使用 `dsh-client-ui-primitives`，通过共享 React UI 构建 Web 客户端控件并渲染 agent 输出。它提供标准控件、图标、锚定浮层，以及用于带 TeX 公式的 Markdown、终端输出、文件读取、差异、搜索、网页检索和 JSON 的渲染器。这些渲染器会丢弃原始 HTML、限制链接并解析 ANSI 转义序列，以处理不受信任的模型输出。组件不 import Cordis 运行时；调用方提供本地化 label，主题相关颜色使用 `--dsw-*` 设计 token。
 
 ## 目录
@@ -26,6 +24,10 @@ Modal 遮罩透明并保留共享背景模糊；弹窗使用主题的 `--dsw-sha
 
 <a id="use-this-package"></a>
 ## 使用本包
+
+`MarkdownDelegateProvider.skillMentions` 可提供异步精确名称解析与文件打开回调。引用块中的行内代码只有在所有者识别后才显示为主题色技能按钮，名称继承正文的字号、字重、行高和基线，SVG 独立垂直对齐；共享 Tooltip 在悬停或键盘聚焦时展示介绍。取消与失败保留原始代码，本库不直接访问技能目录或文件。
+
+Modal 遮罩透明并保留共享背景模糊；弹窗使用主题的 `--dsw-shadow-lv3` 阴影区分页面层级。
 
 `Toast` 的底色、文案、状态图标和行内操作配色跟随当前主题，并采用轻量阴影。行内操作字重为 500，悬停或键盘聚焦时显示下划线，交互状态不降低文字对比度。
 
@@ -115,6 +117,8 @@ Modal 遮罩透明并保留共享背景模糊；弹窗使用主题的 `--dsw-sha
 
 <a id="understand-the-implementation"></a>
 ## 理解实现
+
+`AnimatedCollapse` 对自然高度和透明度做过渡，收起期间保留最后一次展开内容，立即禁止聚焦并从无障碍导航中隐藏，主题动画结束后卸载。减少动态效果时立即释放内容。可选 `keepMounted` 在折叠后保留当前内容，供需要保留临时 DOM 状态的表单控件使用；隐藏控件仍为 inert 并从无障碍导航中排除。`DisclosureRow` 使用此原语。Markdown 表格中的长标识符可换行，超宽内容只在正文列内的表格视口滚动。
 
 `Button` 的 `md` 使用 H36/R12，`sm` 使用 H28/R8，包含描边控件。菜单与卡片遵循[共享圆角规则](../../../docs/web-styling.zh.md#corner-radii-and-settings-cards)；功能样式保留控件几何。
 

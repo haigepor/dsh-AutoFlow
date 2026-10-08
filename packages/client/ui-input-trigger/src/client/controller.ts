@@ -373,6 +373,22 @@ export class InputTriggerController {
   }
 
   /**
+   * Read metadata from a named source without changing the draft or menu.
+   * @param source - registered reference source name.
+   * @param reference - source-owned reference, including its trigger.
+   * @param signal - reader cancellation.
+   * @returns the current description, or undefined after cancellation or source disposal.
+   */
+  async describeReference(source: string, reference: string, signal: AbortSignal): Promise<string | undefined> {
+    if (this.disposed || signal.aborted) return undefined
+    const owner = this.deps.roster.all().find(candidate => candidate.name === source)
+    const description = await owner?.describeReference?.(this.project(), reference, signal)
+    // 异步目录返回时，dispose 和取消可能已经改变这两个值。
+    // oxlint-disable-next-line typescript/no-unnecessary-condition
+    return this.disposed || signal.aborted || owner === undefined || !this.deps.roster.all().includes(owner) ? undefined : description
+  }
+
+  /**
    * Enter last adjudication: polls sources' matchEnter in registration
    * order, first non-undefined wins. The outcome returns to the caller (the
    * input machine applies it inside the same submit attempt — no event).

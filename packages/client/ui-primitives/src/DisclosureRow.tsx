@@ -2,6 +2,7 @@ import { memo, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react
 import clsx from 'clsx'
 import { IconChevronDownOutlineRegular, IconChevronUpOutlineRegular } from './icons/index.tsx'
 import { TextShimmer } from './TextShimmer.tsx'
+import { AnimatedCollapse } from './AnimatedCollapse.tsx'
 import css from './DisclosureRow.module.css'
 
 /** Shared 24px disclosure chrome for compact flow rows. */
@@ -111,7 +112,7 @@ export const DisclosureRow = memo(function DisclosureRow({
           {(keepContentWhenOpen || !open) && collapsedContent}
         </TextShimmer>
       </div>
-      {open && children}
+      <AnimatedCollapse open={open}>{children}</AnimatedCollapse>
     </div>
   )
 })

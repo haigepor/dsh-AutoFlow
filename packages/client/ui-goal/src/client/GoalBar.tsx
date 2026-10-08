@@ -88,20 +88,27 @@ export function GoalBar({ goal, activation, onEdit, onPause, onResume, onClear, 
   if (editing) {
     return (
       <div className={css.dock} data-goal-bar>
-        <div className={css.bar}>
-          <input
-            className={css.objectiveInput}
-            type="text"
-            aria-label={t('objective.aria')}
-            value={draft}
-            onChange={(e) => { setDraft(e.target.value) }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void handleEdit()
-              if (e.key === 'Escape') setEditing(false)
-            }}
-            autoFocus
-          />
-          {actionError !== null && <span className={css.error} role="alert">{actionError}</span>}
+        <div className={`${css.bar} ${css.editBar}`}>
+          <div className={css.editBody}>
+            <div className={css.objectiveField}>
+              <div className={css.objectiveMirror} aria-hidden>{`${draft}\n`}</div>
+              <textarea
+                className={css.objectiveInput}
+                rows={1}
+                disabled={pending}
+                aria-label={t('objective.aria')}
+                value={draft}
+                onChange={(e) => { setDraft(e.target.value) }}
+                onKeyDown={(e) => {
+                  if (pending || e.nativeEvent.isComposing || Reflect.get(e.nativeEvent, 'keyCode') === 229) return
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleEdit() }
+                  if (e.key === 'Escape') { e.preventDefault(); setEditing(false) }
+                }}
+                autoFocus
+              />
+            </div>
+            {actionError !== null && <span className={css.error} role="alert">{actionError}</span>}
+          </div>
           <div className={css.actions}>
             <Tooltip portal label={t('action.save')} side="bottom" delayMs={500}>
               <button

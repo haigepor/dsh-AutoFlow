@@ -34,6 +34,21 @@ function makeActions() {
 }
 
 describe('GoalBar', () => {
+  it('wraps the edit draft and preserves Shift+Enter and IME composition without submitting', () => {
+    const actions = makeActions()
+    render(<GoalBar goal={makeGoal()} {...actions} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: '编辑目标' }))
+    const box = screen.getByRole('textbox', { name: '目标内容' })
+    expect(box.tagName).toBe('TEXTAREA')
+    fireEvent.change(box, { target: { value: 'First line\nSecond line' } })
+    fireEvent.keyDown(box, { key: 'Enter', shiftKey: true })
+    fireEvent.keyDown(box, { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(box, { key: 'Enter', keyCode: 229 })
+    expect(actions.onEdit).not.toHaveBeenCalled()
+    expect(box).toHaveProperty('value', 'First line\nSecond line')
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(actions.onEdit).not.toHaveBeenCalled()
+  })
   it('renders nothing while loading, absent, or when the goal is complete', () => {
     const actions = makeActions()
     const loading = render(<GoalBar goal={undefined} {...actions} t={t} />)

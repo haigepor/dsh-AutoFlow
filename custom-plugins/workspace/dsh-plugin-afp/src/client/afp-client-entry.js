@@ -1,25 +1,32 @@
+import { createAfpProgressDock, createAfpToolRow, registerAfpProgress } from './afp-conversation-progress.js'
 import { createWorkbench } from './afp-workbench.js'
 import { createAfpClientStore } from './afp-client-store.js'
 import { createConfigurationForm } from './afp-configuration-form.js'
 import { createAfpDownloadOverlay } from './afp-download-overlay.js'
+import { createAfpConversationPhotos, registerAfpConversationPhotos, createAfpConversationSummary, registerAfpConversationSummary } from './afp-conversation-photos.js'
 import zh from './locales/zh.json'
 import en from './locales/en.json'
 import css from '../../assets/workbench.css'
 
 window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
   const React = require('react'), primitives = require('@deepseek-ai/dsh-client-ui-primitives')
-  const { Switch, Input, Button, StateDot, Tag, Checkbox, Toast, Menu, MenuSurface, SegmentedControl, Tooltip, Modal, GlideHighlight, useDismissOnOutsidePointer } = primitives
+  const { Switch, Input, Button, StateDot, Tag, Checkbox, Toast, Pill, Menu, MenuSurface, SegmentedControl, Tooltip, Modal, GlideHighlight, DisclosureRow, AnimatedCollapse, useDismissOnOutsidePointer } = primitives
   const { createPortal } = require('react-dom')
   const icons = Object.fromEntries(['IconSearchOutlineRegular', 'IconFolderCloseRegular', 'IconFlatListOutlineRegular',
     'IconRefreshOutlineRegular', 'IconSettingsOutlineRegular', 'IconCloseOutlineRegular', 'IconChevronDownOutlineRegular',
     'IconSkillOutlineRegular', 'IconCodeOutlineRegular', 'IconPanelLeftOutlineRegular', 'IconCheckOutlineRegular',
-    'IconDownloadOutlineRegular', 'IconTrashOutlineRegular', 'IconFolderOpenOutlineRegular', 'IconSlidersTwoOutlineRegular'].map(name => [name, primitives[name]]))
+    'IconDownloadOutlineRegular', 'IconTrashOutlineRegular', 'IconFolderOpenOutlineRegular', 'IconSlidersTwoOutlineRegular',
+    'IconChevronLeftOutlineRegular', 'IconChevronRightOutlineRegular'].map(name => [name, primitives[name]]))
   return { inject: ['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.credentials', 'layout', 'uiConversation'], apply(ctx) {
     const namespace = 'afpWorkbench', panel = 'afp-workbench'
     ctx.effect(() => ctx.locale.register(namespace, { en, zh }), 'AFP locale')
     const t = ctx.locale.bind(namespace), store = createAfpClientStore(ctx)
     const ConfigurationForm = createConfigurationForm(React, { Input, Button, StateDot, Tag, Toast, Tooltip, Chevron: icons.IconChevronDownOutlineRegular }, ctx, t)
     const Workbench = createWorkbench(React, { Switch, Input, Button, StateDot, Tag, Checkbox, Toast, Menu, MenuSurface, createPortal, useDismissOnOutsidePointer, SegmentedControl, Tooltip, Modal, GlideHighlight }, ctx, t, store, ConfigurationForm, icons)
+    const ConversationPhotos = createAfpConversationPhotos(React, { Button, Tag, Modal, Tooltip, DisclosureRow, AnimatedCollapse }, icons, t, store)
+    registerAfpProgress(ctx, createAfpProgressDock(React, { Pill, Tag, Button, AnimatedCollapse, useDismissOnOutsidePointer, CheckIcon: icons.IconCheckOutlineRegular, CloseIcon: icons.IconCloseOutlineRegular, ChevronIcon: icons.IconChevronDownOutlineRegular }, t, store), createAfpToolRow(React, { DisclosureRow, Button, Tag, ToolIcon: icons.IconCodeOutlineRegular }, t), namespace)
+    registerAfpConversationPhotos(ctx, ConversationPhotos, namespace)
+    registerAfpConversationSummary(ctx, createAfpConversationSummary(React, ConversationPhotos, store, t), namespace)
     const DownloadOverlay = createAfpDownloadOverlay(React, { Button, Tag, Toast, StateDot, Tooltip, Menu, useDismissOnOutsidePointer }, icons, t, store, () => {
       store.selectTab('tasks')
       ctx.layout.selectPanel(panel)

@@ -222,8 +222,8 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
   containsCurrentDescendant?: boolean
   onToggle: () => void
   onCreate: () => void
-  /** Workspace rename/delete actions, or the ungrouped bucket's bulk actions. */
-  actions?: { rename: () => void; delete: () => void } | { archive: () => void; dismiss: () => void } | undefined
+  /** Workspace rename/archive/delete actions, or the ungrouped bucket's bulk actions. */
+  actions?: { rename: () => void; archive: () => void; delete: () => void } | { archive: () => void; dismiss: () => void } | undefined
   /** Present only for real Workspace rows in the grouped view. */
   drag?: WorkspaceRowDragProps | undefined
   /** Host account home; POSIX home-rooted hover paths display as `~`. */
@@ -235,7 +235,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
   const label = row.workspaceId === undefined ? t('group.ungrouped') : row.label
   const active = containsCurrentDescendant || (group.expanded && group.containsCurrent)
   const [menuOpen, setMenuOpen] = useState(false)
-  const ungroupedActions = actions !== undefined && 'archive' in actions
+  const ungroupedActions = actions !== undefined && 'dismiss' in actions
   const workspaceMenuItems = ungroupedActions
     ? [
       { id: 'archive', label: t('archive.ungrouped.menu'), icon: <IconArchiveOutlineRegular /> },
@@ -243,6 +243,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
     ]
     : [
       { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
+      { id: 'archive', label: t('archive.workspace.menu'), icon: <IconArchiveOutlineRegular /> },
       { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutlineRegular />, danger: true },
     ]
   const ownRow = (
@@ -287,9 +288,10 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
               }
               // Unknown ids leave before the dispatch: a future menu row must
               // not inherit the destructive branch as an else fallback.
-              /* v8 ignore next -- Menu can emit only the rename and delete rows supplied above. */
-              if (actions === undefined || id !== 'rename' && id !== 'delete') return
+              /* v8 ignore next -- Menu can emit only the rename, archive and delete rows supplied above. */
+              if (id !== 'rename' && id !== 'archive' && id !== 'delete') return
               if (id === 'rename') actions.rename()
+              else if (id === 'archive') actions.archive()
               else actions.delete()
             }}
             portal

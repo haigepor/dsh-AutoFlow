@@ -225,11 +225,31 @@ export class AfpDownloads {
     return { photos, creditBalance, creditError: creditBalance === null ? 'download-balance-unavailable' : null }
   }
 
-  async pickDirectory(signal) {
+  /** List the configured browse backend without exposing a write destination token.
+   * @param {object} input Optional absolute Host directory.
+   * @param {AbortSignal} signal Request cancellation.
+   * @returns {Promise<object>} Backend-owned directory listing.
+   */
+  async browseDirectory({ path } = {}, signal) {
     const capability = this.ctx.directoryPicker?.capability?.()
-    if (!capability || capability.kind !== 'native') throw failure('download-picker-unavailable')
-    const selected = await capability.pick(signal)
+    if (capability?.kind !== 'browse') throw failure('download-picker-unavailable')
+    if (path !== undefined && (typeof path !== 'string' || !path.trim() || path.length > 4096)) throw new Error('Invalid Host directory')
+    return capability.list(path, signal)
+  }
+
+  async pickDirectory(signal, { path: requested } = {}) {
+    const capability = this.ctx.directoryPicker?.capability?.()
+    let selected
+    if (capability?.kind === 'browse') {
+      if (requested === undefined) return { browse: true }
+      // 路径由浏览后端核验并规范化；下载计划仍只接受 Host 缓存的目录 ID。
+      selected = (await this.browseDirectory({ path: requested }, signal)).path
+    } else if (capability?.kind === 'native') {
+      if (requested !== undefined) throw new Error('Native picker requires its own selection')
+      selected = await capability.pick(signal)
+    } else throw failure('download-picker-unavailable')
     if (!selected) return null
+    signal.throwIfAborted()
     const path = resolve(selected)
     const info = await lstat(path)
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Choose a real directory on the AFP Host')

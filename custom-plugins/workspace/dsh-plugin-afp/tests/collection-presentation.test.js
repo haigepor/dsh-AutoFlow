@@ -46,9 +46,11 @@ test('collection pagination retry keeps its scroll content and calls load-more',
   store.dispose()
 })
 
-test('collection directory hides unnamed entries and keeps its control outside the inert sidebar', () => {
+test('collection directory keeps named entries actionable while folded and preserves filter and selection', async () => {
   const store = createAfpClientStore({})
-  store.set({ tab: 'collections', regions: { ...store.getSnapshot().regions,
+  const opened = []
+  store.openCollection = id => { opened.push(id); store.set({ collectionId: id }) }
+  store.set({ tab: 'collections', collectionId: 'travel', regions: { ...store.getSnapshot().regions,
     collections: region({ items: [{ id: 'unfiled', name: '' }, { id: 'whitespace', name: '  ' },
       { id: 'travel', name: '旅游', readOnly: true, count: 0 }, { id: 'private', name: '私人', isPrivate: true, count: 5 }] }),
   } })
@@ -58,7 +60,15 @@ test('collection directory hides unnamed entries and keeps its control outside t
   const Workbench = createWorkbench(React, UI, {}, key => key, store, () => null)
   const panel = nodes(Workbench(), node => node.type?.name === 'CollectionsPanel')[0]
   const render = () => panel.type({ state: store.getSnapshot() })
+  const projection = tree => ({ expanded: nodes(tree, node => node.props?.['aria-controls'] === 'sidebar')[0].props['aria-expanded'],
+    filterInert: nodes(tree, node => node.props?.className === 'afp-wb-collection-filter-slot')[0].props.inert === '',
+    sidebarInteractive: nodes(tree, node => node.type === 'aside')[0].props.inert === undefined,
+    rows: nodes(tree, node => node.type === UI.Button && node.props.className?.startsWith('afp-wb-collection-item')).map(row => ({
+      id: row.props.key, pressed: row.props['aria-pressed'], label: row.props['aria-label'],
+      mark: nodes(row, node => node.props?.className === 'afp-wb-collection-mark')[0].props.children[0],
+    })) })
   const initial = render()
+  const snapshots = [projection(initial)]
   const rows = nodes(initial, node => node.type === UI.Button && node.props.className?.startsWith('afp-wb-collection-item'))
   assert.deepEqual(rows.map(node => node.props.key), ['travel', 'private'])
   assert.equal(nodes(rows[0], node => node.type === UI.Tag).at(-1).props.children[0], '0')
@@ -71,14 +81,26 @@ test('collection directory hides unnamed entries and keeps its control outside t
   const toggle = nodes(controls, node => node.type === UI.Button)[0]
   toggle.props.onClick()
   const folded = render(), aside = nodes(folded, node => node.type === 'aside')[0]
-  assert.equal(aside.props.inert, '')
+  snapshots.push(projection(folded))
+  assert.equal(aside.props.inert, undefined)
+  assert.equal(aside.props['aria-hidden'], undefined)
   assert.equal(nodes(aside, node => node.type === UI.Button && node.props['aria-controls'] === 'sidebar').length, 0)
+  const privateRow = nodes(aside, node => node.type === UI.Button && node.props.key === 'private')[0]
+  privateRow.props.onClick()
+  assert.deepEqual(opened, ['private'])
+  assert.equal(store.getSnapshot().collectionId, 'private')
+  snapshots.push(projection(render()))
   const reopen = nodes(folded, node => node.props?.['aria-controls'] === 'sidebar')[0]
   assert.equal(reopen.props['aria-expanded'], false)
   reopen.props.onClick()
   assert.equal(nodes(render(), node => node.type === 'aside')[0].props.inert, undefined)
   store.set({ collectionFilter: '旅游' })
   assert.equal(nodes(render(), node => node.type === UI.Button && node.props.key === 'private').length, 0)
+  reopen.props.onClick()
+  assert.equal(store.getSnapshot().collectionFilter, '旅游')
+  assert.equal(store.getSnapshot().collectionId, 'private')
+  snapshots.push(projection(render()))
+  assert.deepEqual(snapshots, JSON.parse(await readFile(new URL('./fixtures/collection-sidebar.json', import.meta.url), 'utf8')))
   store.dispose()
 })
 

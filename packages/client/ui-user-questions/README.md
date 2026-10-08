@@ -29,9 +29,9 @@ When the agent asks a question, the composer becomes the question surface: answe
 
 ### Answering
 
-The question card aligns its heading, answer field, and footer on one inset. Compact actions and a quiet pager keep the question prominent; the free-text field shows a theme-aware focus ring, and narrow screens wrap feedback without pushing actions outside the card.
+The question card uses compact headings, options and actions with a quiet pager. Option descriptions occupy a separate line below the label. The free-text field shows a theme-aware focus ring, and narrow screens wrap feedback without pushing actions outside the card.
 
-Collapse and close use matching 28px controls with 16px icons. Expanding and collapsing animate the content height, fade, and chevron rotation; collapsed content remains mounted but inert, preserving drafts without exposing hidden controls to keyboard navigation. Reduced-motion mode changes the state immediately.
+Collapse and close use matching 24px controls with 16px icons. The collapse toggle names its body through aria-controls and receives focus before that body becomes inert. Shared AnimatedCollapse animates content height and fade with keepMounted, preserving the answer controls and their transient DOM state while closed; drafts remain in the parent state. The chevron rotates on state changes. Reduced-motion mode changes the state immediately.
 
 A multi-select draft keeps its selected labels while the user opens or edits the custom answer, so its submitted item may carry both `selected` and `custom`; a single-select custom answer remains exclusive. Question detail reuses the assistant-output `MarkdownText` primitive, including its GFM rendering and untrusted-content policy. The capped card keeps its title, navigation, and submission actions fixed while long detail and choices share an internal scroll region. "Skip" retains other drafts and emits the existing blank `{ selected: [] }` result for that item, while close rejects the whole wait as `ASK_CANCELLED`.
 
@@ -47,6 +47,8 @@ The generic question flow keeps its current page, selected labels, custom text, 
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
+
+Question headings and descriptions use compact type; descriptions occupy a separate line below each option. Minimize and restore animate without discarding answer drafts. Long choices scroll inside the capped card while its footer remains reachable.
 
 <details>
 <summary>Implementation internals — click to expand</summary>

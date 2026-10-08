@@ -57,6 +57,9 @@ export function RowActionToast({ useToast, useStore, dismissToast, undoArchive, 
       />
     )
   }
+  if (toast.kind === 'titleRegenerated') {
+    return <Toast key={`toast-${String(toast.seq)}`} text={t('toast.titleRegenerated')} tone="success" onDone={dismissToast} />
+  }
   if (toast.kind === 'createFailed') {
     return (
       <Toast
@@ -80,10 +83,11 @@ export function RowActionToast({ useToast, useStore, dismissToast, undoArchive, 
 
 /** The copy of one plain warning, keyed by the notice kind the union closes over. */
 function plainNoticeText(
-  toast: Exclude<RowToastState, { kind: 'archived' | 'stoppedAndArchived' | 'dismissed' | 'createFailed' }>,
+  toast: Exclude<RowToastState, { kind: 'archived' | 'stoppedAndArchived' | 'dismissed' | 'createFailed' | 'titleRegenerated' }>,
   t: RowToastProps['t'],
 ): string {
   switch (toast.kind) {
+    case 'titleGenerationFailed': return t('toast.titleGenerationFailed', { reason: t(titleFailureKey(toast.message)) })
     case 'pinFailed': return t('toast.pinFailed')
     case 'unpinFailed': return t('toast.unpinFailed')
     case 'defaultWorkspaceFailed': return t('defaultWorkspace.failed')
@@ -91,5 +95,19 @@ function plainNoticeText(
     /* v8 ignore next 2 -- closed-union backstop; only reached if a notice kind is forged */
     default:
       return assertNever(toast)
+  }
+}
+
+/** Map sanitized Host codes to locale-owned failure copy. */
+function titleFailureKey(code: string): 'title.error.auth' | 'title.error.config' | 'title.error.timeout' | 'title.error.network' | 'title.error.rateLimit' | 'title.error.empty' | 'title.error.cancelled' | 'title.error.output' {
+  switch (code) {
+    case 'TITLE_AUTH': return 'title.error.auth'
+    case 'TITLE_CONFIG': return 'title.error.config'
+    case 'TITLE_TIMEOUT': return 'title.error.timeout'
+    case 'TITLE_NETWORK': return 'title.error.network'
+    case 'TITLE_RATE_LIMIT': return 'title.error.rateLimit'
+    case 'TITLE_EMPTY': return 'title.error.empty'
+    case 'TITLE_INVALID_OUTPUT': return 'title.error.output'
+    default: return 'title.error.cancelled'
   }
 }

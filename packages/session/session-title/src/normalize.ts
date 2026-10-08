@@ -31,6 +31,20 @@ function cleanTitleText(input: string): string {
 }
 
 /**
+ * Remove reference transport syntax only from auxiliary title input.
+ * @param input - original human message, which remains unchanged in the log.
+ * @returns business request text, or readable reference names when no request follows.
+ */
+export function sessionTitleInputText(input: string): string {
+  const labels: string[] = []
+  const request = input.replace(/@?\[([^\]]+)\]\((?:dsh-plugin|dsh-session|app):[^)]*\)/gu, (_match, label: string) => {
+    labels.push(label)
+    return ''
+  })
+  return cleanTitleText(request) || cleanTitleText(labels.join(' '))
+}
+
+/**
  * Truncate a string to a UTF-8 byte budget without splitting a Unicode code point.
  * @param input - normalized title text.
  * @param maxBytes - positive UTF-8 byte budget.
@@ -69,6 +83,6 @@ export function normalizeSessionTitle(input: string, maxBytes: number): string {
  */
 export function fallbackSessionTitle(input: string, maxWords: number, maxBytes: number): string {
   assertPositiveInteger('maxWords', maxWords)
-  const words = cleanTitleText(input).split(' ').filter(Boolean).slice(0, maxWords)
+  const words = sessionTitleInputText(input).split(' ').filter(Boolean).slice(0, maxWords)
   return truncateTitleUtf8(words.join(' '), maxBytes).trimEnd()
 }

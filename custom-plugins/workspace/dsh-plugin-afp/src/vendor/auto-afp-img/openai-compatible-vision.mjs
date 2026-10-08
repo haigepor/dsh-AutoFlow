@@ -312,7 +312,7 @@ export function createOpenAiCompatibleVisionClient({
           headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
           body: JSON.stringify({
             model: selectedModel,
-            temperature: 0,
+            // 推理视觉模型可能只接受供应商默认采样值，不固定传入 temperature。
             ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
             messages: [{ role: 'user', content: [
               { type: 'text', text: prompt },

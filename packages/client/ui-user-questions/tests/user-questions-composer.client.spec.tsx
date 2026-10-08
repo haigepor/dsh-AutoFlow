@@ -447,7 +447,12 @@ describe('PendingQuestion domain face', () => {
     expect(screen.getByRole('radiogroup')).toBeTruthy()
     const field = screen.getByRole('textbox')
     // Collapse: options leave the tree; the title and minimize toggle stay.
-    fireEvent.click(screen.getByLabelText(zh['nav.minimize']))
+    const toggle = screen.getByLabelText(zh['nav.minimize'])
+    const controlledId = toggle.getAttribute('aria-controls')
+    expect(controlledId).toBeTruthy()
+    expect(document.getElementById(controlledId!)?.contains(field)).toBe(true)
+    fireEvent.click(toggle)
+    expect(document.activeElement).toBe(toggle)
     expect(screen.queryByRole('radiogroup')).toBeNull()
     // 动画期间保留输入节点，但折叠内容不能进入辅助技术和键盘导航。
     expect(field.isConnected).toBe(true)

@@ -223,6 +223,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'session/queue-item-not-found': { readonly itemId: MessageId }
     'session/steer-unavailable': { readonly itemId: MessageId }
     'session/title-invalid': { readonly sessionId: SessionId }
+    'session/title-generation-failed': { readonly sessionId: SessionId; readonly reason: string }
     'session/fork-unavailable': { readonly sessionId: SessionId }
     'subagent/not-found': {
       readonly parentSessionId: SessionId
@@ -303,6 +304,11 @@ export interface SessionSelectModelRequest extends ModelSelection {
 /** Accepted model selection after Host resolution. */
 export interface SessionSelectModelValue {
   readonly selected: ModelSelection
+}
+
+/** Explicit model title refresh; may replace a manually named title. */
+export interface SessionRegenerateTitleRequest {
+  readonly sessionId: SessionId
 }
 
 /** Session rename request. */

@@ -17,7 +17,7 @@ export function createAfpDownloadOverlay(React, UI, icons, t, store, openTasks =
     const root = React.useRef(null), trigger = React.useRef(null), card = React.useRef(null), id = React.useId()
     const open = state.downloadDockOpen
     const [menuOpen, setMenuOpen] = React.useState(false)
-    const setOpen = value => store.set({ downloadDockOpen: value })
+    const setOpen = value => store.set({ downloadDockOpen: value, ...(value ? { downloadDockHidden: false } : {}) })
     useDismissOnOutsidePointer(root, open, setOpen)
     React.useEffect(() => { if (open) card.current?.focus({ preventScroll: true }) }, [open])
     const records = [...(state.status?.downloads ?? [])]
@@ -52,14 +52,17 @@ export function createAfpDownloadOverlay(React, UI, icons, t, store, openTasks =
       onClose: () => setMenuOpen(false), items: [
         { id: 'progress', label: t('viewDownloadProgress'), icon: icon('IconDownloadOutlineRegular') },
         { id: 'tasks', label: t('openDownloadTasks'), icon: icon('IconFlatListOutlineRegular'), disabled: !state.status?.features?.includes('ui-panel') },
+        { id: 'separator-hide', type: 'separator' },
+        { id: 'hide', label: t('hideDownloadEntry'), icon: icon('IconCloseOutlineRegular') },
       ], onSelect: value => {
         setMenuOpen(false)
         if (value === 'progress') setOpen(true)
         if (value === 'tasks' && state.status?.features?.includes('ui-panel')) { setOpen(false); openTasks() }
+        if (value === 'hide') store.set({ downloadDockOpen: false, downloadDockHidden: true })
       } })
     return h('div', { ref: root, className: 'afp-download-overlay' + (open ? ' is-open' : ''),
       onKeyDown: event => { if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus() } } },
-    toast, records.length ? h(React.Fragment, null,
+    toast, records.length && !state.downloadDockHidden ? h(React.Fragment, null,
       h('div', { className: 'afp-download-edge-shell' },
         Tooltip ? h(Tooltip, { label: t('viewDownloadProgress'), side: 'top', align: 'end', maxWidth: 180, disabled: menuOpen || open, portal: true }, edgeControl) : edgeControl),
       h('aside', { id, ref: card, tabIndex: -1, className: 'afp-download-card', inert: open ? undefined : '', 'aria-hidden': !open, 'aria-label': t('downloadProgressTitle') },

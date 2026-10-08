@@ -31,7 +31,8 @@ test('account reader distinguishes missing balance from zero and rejects GraphQL
   assert.equal((await read()).credit, null)
   for (const value of [-1, '100', null]) { payload.data.user.credit = { amount: value }; assert.equal((await read()).credit, null) }
   payload = { errors: [{ message: 'private-token' }], data: { user: { credit: { amount: 100 } } } }
-  await assert.rejects(read(), error => error.message === 'AFP account profile unavailable')
+  await assert.rejects(read(), error => error.message === 'user returned GraphQL errors: unknown'
+    && error.afpFailure.category === 'unknown' && !error.message.includes('private-token'))
 })
 
 test('preview strips authorization at CDN redirects, cancels the redirect body and requests supported raster formats', async () => {

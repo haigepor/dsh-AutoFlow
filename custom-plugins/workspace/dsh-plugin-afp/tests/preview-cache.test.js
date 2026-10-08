@@ -122,10 +122,86 @@ function component(store, UI, photo) {
   }
   const Gallery = createAfpGallery(React, UI, {}, key => key, store)
   return {
-    render() { cursor = 0; const tree = Gallery.ImagePreview({ photo, large: true, retry: true }); for (const effect of effects) if (effect?.pending) { effect.pending = false; effect.cleanup = effect.fn() } return tree },
+    render(nextPhoto = photo) { cursor = 0; const tree = Gallery.ImagePreview({ photo: nextPhoto, large: true, retry: true }); for (const effect of effects) if (effect?.pending) { effect.pending = false; effect.cleanup = effect.fn() } return tree },
     unmount() { for (const effect of effects) effect?.cleanup?.() },
   }
 }
+
+test('transient previews recover automatically within one budget and unmount cancels pending recovery', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const originalDocument = globalThis.document
+  globalThis.document = { baseURI: 'https://profile.test/', addEventListener() {}, removeEventListener() {} }
+  const { cache, calls, blob } = fixture()
+  const snapshot = { status: { features: ['read'], previewCache: { retryCount: 2, retryDelayMs: 1000 } }, previewGeneration: 0 }
+  const store = { subscribe() {}, getSnapshot: () => snapshot, acquirePreview: (...args) => cache.acquire(...args), invalidatePreview: (...args) => cache.invalidate(...args) }
+  const UI = { Button: Symbol('Button') }, photo = { id: 'photo', previewPath: 'api/afp/preview?photoId=photo' }
+  const view = component(store, UI, photo), output = []
+  const present = tree => ({ busy: nodes(tree, node => node.props?.['aria-busy'] === true).length > 0,
+    retrying: nodes(tree, node => node.props?.className === 'afp-wb-preview-retrying').length > 0,
+    error: nodes(tree, node => node.props?.className?.includes('afp-wb-image-fallback')).length > 0 })
+  try {
+    view.render(); await tick()
+    calls[0].reject(Object.assign(new Error('temporary'), { retryable: true })); await tick()
+    output.push(present(view.render()))
+    t.mock.timers.tick(1000); view.render(); await tick(); assert.equal(calls.length, 2)
+    calls[1].reject(Object.assign(new Error('temporary'), { retryable: true })); await tick()
+    output.push(present(view.render()))
+    t.mock.timers.tick(1999); view.render(); await tick(); assert.equal(calls.length, 2)
+    t.mock.timers.tick(1); view.render(); await tick(); assert.equal(calls.length, 3)
+    calls[2].reject(Object.assign(new Error('temporary'), { retryable: true })); await tick()
+    const failed = view.render(); output.push(present(failed)); t.mock.timers.tick(10000); view.render(); await tick(); assert.equal(calls.length, 3)
+    nodes(failed, node => node.type === UI.Button)[0].props.onClick({ stopPropagation() {} }); view.render(); await tick()
+    calls[3].resolve(blob()); await tick(); const image = nodes(view.render(), node => node.type === 'img')[0]
+    image.props.onError(); output.push(present(view.render()))
+    view.unmount(); t.mock.timers.tick(10000); await tick(); assert.equal(calls.length, 4)
+    assert.deepEqual(output, JSON.parse(await readFile(new URL('./fixtures/preview-recovery.json', import.meta.url), 'utf8')))
+  } finally { view.unmount(); await cache.dispose(); globalThis.document = originalDocument }
+})
+
+test('preview recovery pauses on page hide, coalesces consumers and ignores permanent errors', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const originalDocument = globalThis.document, listeners = new Set()
+  globalThis.document = { baseURI: 'https://profile.test/', hidden: false,
+    addEventListener(_name, fn) { listeners.add(fn) }, removeEventListener(_name, fn) { listeners.delete(fn) } }
+  const { cache, calls, blob } = fixture()
+  const snapshot = { status: { features: ['read'], previewCache: { retryCount: 2, retryDelayMs: 1000 } }, previewGeneration: 0 }
+  const store = { subscribe() {}, getSnapshot: () => snapshot, acquirePreview: (...args) => cache.acquire(...args), invalidatePreview: (...args) => cache.invalidate(...args) }
+  const photo = { id: 'photo', previewPath: 'api/afp/preview?photoId=photo' }, UI = { Button: Symbol('Button') }
+  const a = component(store, UI, photo), b = component(store, UI, photo)
+  try {
+    a.render(); b.render(); await tick(); assert.equal(calls.length, 1)
+    calls[0].reject(Object.assign(new Error('temporary'), { retryable: true })); await tick(); a.render(); b.render()
+    globalThis.document.hidden = true; for (const fn of listeners) fn()
+    t.mock.timers.tick(10000); a.render(); b.render(); await tick(); assert.equal(calls.length, 1)
+    globalThis.document.hidden = false; for (const fn of listeners) fn()
+    t.mock.timers.tick(1000); a.render(); b.render(); await tick(); assert.equal(calls.length, 2)
+    calls[1].resolve(blob()); await tick()
+    const imageA = nodes(a.render(), n => n.type === 'img')[0], imageB = nodes(b.render(), n => n.type === 'img')[0]
+    assert.equal(imageA.props.src, imageB.props.src); imageA.props.onLoad(); imageB.props.onLoad(); a.render(); b.render()
+    a.unmount(); b.unmount(); assert.equal(listeners.size, 0)
+    const c = component(store, UI, { id: 'blocked', previewPath: 'api/afp/preview?photoId=blocked' })
+    c.render(); await tick(); calls[2].reject(Object.assign(new Error('denied'), { retryable: false })); await tick()
+    assert.equal(nodes(c.render(), n => n.props?.className?.includes('afp-wb-image-fallback')).length, 1)
+    t.mock.timers.tick(10000); c.render(); await tick(); assert.equal(calls.length, 3); c.unmount()
+  } finally { a.unmount(); b.unmount(); await cache.dispose(); globalThis.document = originalDocument }
+})
+
+test('a changed photo cancels its delayed recovery without allowing the stale request to replace it', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const originalDocument = globalThis.document
+  globalThis.document = { baseURI: 'https://profile.test/', addEventListener() {}, removeEventListener() {} }
+  const { cache, calls, blob } = fixture()
+  const snapshot = { status: { features: ['read'], previewCache: { retryCount: 2, retryDelayMs: 1000 } }, previewGeneration: 0 }
+  const store = { subscribe() {}, getSnapshot: () => snapshot, acquirePreview: (...args) => cache.acquire(...args), invalidatePreview: (...args) => cache.invalidate(...args) }
+  const old = { id: 'old', previewPath: 'api/afp/preview?photoId=old' }, next = { id: 'next', previewPath: 'api/afp/preview?photoId=next' }
+  const view = component(store, { Button: Symbol('Button') }, old)
+  try {
+    view.render(); await tick(); calls[0].reject(Object.assign(new Error('temporary'), { retryable: true })); await tick(); view.render()
+    view.render(next); await tick(); calls[1].resolve(blob()); await tick(); view.render(next)
+    t.mock.timers.tick(10000); view.render(next); await tick(); assert.equal(calls.length, 2)
+    assert.ok(calls[1].src.endsWith('photoId=next'))
+  } finally { view.unmount(); await cache.dispose(); globalThis.document = originalDocument }
+})
 
 test('gallery previews share cache leases, preserve loading states and fetch again after decode retry', async () => {
   const originalDocument = globalThis.document
@@ -136,17 +212,23 @@ test('gallery previews share cache leases, preserve loading states and fetch aga
   const photo = { id: 'photo', previewPath: 'api/afp/preview?photoId=photo', title: 'Sample' }
   const a = component(store, UI, photo), b = component(store, UI, photo)
   const present = tree => ({ loading: nodes(tree, node => node.props?.['aria-busy'] === true).length > 0,
+    visibleLoader: nodes(tree, node => node.type?.name === 'PreviewLoading').length > 0,
     image: nodes(tree, node => node.type === 'img').length > 0, error: nodes(tree, node => node.props?.className?.includes('afp-wb-image-fallback')).length > 0 })
   try {
-    const output = [present(a.render())]; b.render(); await tick(); assert.equal(calls.length, 1)
+    const initial = a.render()
+    assert.equal(nodes(initial, node => node.type?.name === 'PreviewLoading').length, 1)
+    assert.equal(nodes(initial, node => node.type?.name === 'PreviewLoading')[0].props.label, 'loading')
+    const output = [present(initial)]; b.render(); await tick(); assert.equal(calls.length, 1)
     calls[0].resolve(blob()); await tick(); const first = a.render(), second = b.render()
     const oldImage = nodes(first, node => node.type === 'img')[0]
+    assert.equal(nodes(first, node => node.type?.name === 'PreviewLoading').length, 1, 'Loading indicator remains while browser decodes the fetched raster')
     assert.equal(oldImage.props.src, nodes(second, node => node.type === 'img')[0].props.src)
     output.push(present(first)); oldImage.props.onLoad(); output.push(present(a.render()))
+    assert.equal(nodes(a.render(), node => node.type?.name === 'PreviewLoading').length, 0)
     oldImage.props.onError(); output.push(present(a.render())); assert.equal(cache.stats().entries, 0)
     b.unmount(); assert.equal(revoked.length, 1)
     nodes(a.render(), node => node.type === UI.Button)[0].props.onClick({ stopPropagation() {} })
-    a.render(); await tick(); assert.equal(calls.length, 2); assert.equal(revoked.length, 1)
+    a.render(); output.push(present(a.render())); await tick(); assert.equal(calls.length, 2); assert.equal(revoked.length, 1)
     calls[1].resolve(blob()); await tick(); const current = a.render()
     oldImage.props.onLoad(); oldImage.props.onError(); assert.deepEqual(present(a.render()), present(current))
     assert.equal(cache.stats().entries, 1)

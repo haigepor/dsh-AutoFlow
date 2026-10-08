@@ -1,7 +1,8 @@
 [
-  { "loading": true, "image": false, "error": false },
-  { "loading": true, "image": true, "error": false },
-  { "loading": false, "image": true, "error": false },
-  { "loading": false, "image": false, "error": true },
-  { "loading": false, "image": true, "error": false }
+  { "loading": true, "visibleLoader": true, "image": false, "error": false },
+  { "loading": true, "visibleLoader": true, "image": true, "error": false },
+  { "loading": false, "visibleLoader": false, "image": true, "error": false },
+  { "loading": false, "visibleLoader": false, "image": false, "error": true },
+  { "loading": true, "visibleLoader": true, "image": false, "error": false },
+  { "loading": false, "visibleLoader": false, "image": true, "error": false }
 ]

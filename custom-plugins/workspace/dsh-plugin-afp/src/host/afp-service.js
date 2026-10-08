@@ -1,3 +1,4 @@
+import { ConversationRecords, photoResultEnvelope } from './afp-conversation-records.js'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -24,6 +25,7 @@ export class AfpService {
   constructor(ctx, config, dependencies = {}) {
     this.ctx = ctx; this.config = config
     this.store = dependencies.store ?? new Store(ctx.profileContext.home, ctx.profileContext.dir, config.maxStateBytes)
+    this.conversationRecords = new ConversationRecords(this.store, config)
     this.connection = dependencies.connection ?? new Connection(ctx.credentials, config)
     this.workbench = dependencies.workbench ?? new WorkbenchData({ ctx, config, store: this.store, connection: this.connection })
     this.connect = (...args) => this.connection.open(...args)
@@ -57,6 +59,7 @@ export class AfpService {
     await this.workbench.dispose()
     this.downloads.dispose()
     await Promise.allSettled(tasks.map(task => task.done))
+    this.conversationRecords.dispose()
   }
   /** Admit a Session-owned Agent job or an unowned profile job; outcomes wait for resource release. */
   job(feature, owner, label, operation) {
@@ -76,7 +79,7 @@ export class AfpService {
     })
     return { jobId, taskId }
   }
-  async startRefresh(args, owner, signal) {
+  async startRefresh(args, owner, signal, progress = () => {}) {
     this.require('refresh'); signal.throwIfAborted()
     const targetOverride = Object.hasOwn(args, 'targetPerCategory')
     const thresholdOverride = Object.hasOwn(args, 'threshold')
@@ -89,17 +92,34 @@ export class AfpService {
     }) : this.config
     const run = args.runId ? await this.store.readRun(args.runId) : await this.store.createRun(chooseCategories(args.categories), runConfig)
     const scheduled = this.job('refresh', owner, 'AFP visual dry-run', (taskSignal, handle) => this.store.lock(`run:${run.id}`, async () => {
+      let stage = 'connection'
+      progress({ stage, state: 'running', runId: run.id })
       try {
       const current = await this.store.readRun(run.id), services = await this.connect(taskSignal, false, true)
       return await this.store.lock(`account:${services.account}`, async () => {
         if (current.account && current.account !== services.account) throw new Error('AFP account changed since refresh')
         current.account = services.account
+        stage = 'collection-deduplication'
+        progress({ stage: 'collections' })
         const reserved = await reservedIds(services.client, taskSignal)
+        stage = 'screening'
         const result = await refreshRun({ run: current, store: this.store, config: current.settings, ...services, reserved, signal: taskSignal,
-          onProgress: event => { const text = JSON.stringify(event); handle.updateProgress(text); handle.append(text + '\n') } })
+          onProgress: event => {
+            progress({ stage: 'visual', state: 'running', completed: event.reviewed, total: event.total, category: event.category })
+            const text = JSON.stringify(event)
+            stage = 'progress-update'; handle.updateProgress(text)
+            stage = 'progress-output'; handle.append(text + '\n')
+            stage = 'screening'
+          } })
+        progress({ state: 'completed', stage: 'completed', completed: result.decisions.length, total: result.decisions.length })
         return summary(result)
       })
       } catch (error) {
+        progress({ state: taskSignal.aborted ? 'stopped' : 'failed', stage: taskSignal.aborted ? 'stopped' : 'failed' })
+        // 仅记录本地阶段与代码位置，不记录远端异常正文、令牌或媒体引用。
+        const frames = String(error.stack ?? '').split('\n').filter(line => /^\s+at /.test(line))
+          .map(line => line.match(/([a-z0-9-]+\.(?:js|mjs|ts):\d+:\d+)/i)?.[1]).filter(Boolean).slice(0, 5)
+        this.ctx.logger?.warn('AFP refresh failed', { runId: run.id, stage, cancelled: taskSignal.aborted, frames })
         // 仅持有运行锁的任务可更新失败状态，避免并发续跑覆写正在工作的任务。
         const saved = await this.store.readRun(run.id)
         if (!['cancelled', 'failed'].includes(saved.status)) {
@@ -111,10 +131,11 @@ export class AfpService {
     }))
     return { ...scheduled, runId: run.id }
   }
-  async collections(signal) {
+  async collections(signal, progress = () => {}) {
     this.require('read')
-    const { client } = await this.connect(signal), selections = await client.listSelections(), result = []
+    const { client } = await this.connection.open(signal, false, false, false, event => progress({ retryCount: event.retryCount })), selections = await client.listSelections(), result = []
     for (const profile of CATEGORY_PROFILES) {
+      progress({ stage: 'collections', completed: result.length, total: CATEGORY_PROFILES.length, category: profile.key })
       const matches = selections.filter(item => item.name === profile.selectionName)
       const privateTarget = matches.length === 1 && isPrivateSelection(matches[0])
       result.push({ category: profile.key, selectionName: profile.selectionName, status: matches.length === 0 ? 'missing' : privateTarget ? 'private' : 'conflict',
@@ -313,13 +334,16 @@ export class AfpService {
       if (!payload || typeof payload !== 'object' || Array.isArray(payload)
         || Object.keys(payload).some(key => !['operation', 'args'].includes(key))
         || typeof payload.operation !== 'string' || !Object.hasOwn(payload, 'operation')) return invalid()
-      const allowed = new Set(['account-summary', 'account-profile', 'photo-search', 'photo-details', 'collection-list', 'collection-items', 'run-items', 'history-list', 'download-options'])
+      const allowed = new Set(['conversation-progress', 'conversation-result', 'account-summary', 'account-profile', 'photo-search', 'photo-details', 'collection-list', 'collection-items', 'run-items', 'history-list', 'download-options'])
       if (!allowed.has(payload.operation)) return invalid()
       const args = payload.args ?? {}
       if (!args || typeof args !== 'object' || Array.isArray(args)) return invalid()
       signal.throwIfAborted()
       let result
-      try { result = await this.pageAction({ operation: payload.operation, args: JSON.stringify(args) }, signal) }
+      try {
+        if (payload.operation.startsWith('conversation-')) result = await this.conversationData(payload.operation, args)
+        else result = await this.pageAction({ operation: payload.operation, args: JSON.stringify(args) }, signal)
+      }
       catch (error) { signal.throwIfAborted(); return response(503, downloadErrorCode(error) ?? 'unavailable') }
       const body = JSON.stringify({ ok: true, value: result })
       if (new TextEncoder().encode(body).byteLength > this.config.maxResponseBytes) return tooLarge()
@@ -333,7 +357,33 @@ export class AfpService {
       reader?.releaseLock()
     }
   }
-  async pageAction(input, signal) {
+  async conversationData(operation, args) {
+    this.require('read')
+    if (typeof args.sessionId !== 'string' || !Number.isSafeInteger(args.turn) || args.turn < 1
+      || Object.keys(args).some(key => !['sessionId', 'turn', 'callId', 'resultRef'].includes(key))) throw new Error('Invalid AFP arguments')
+    const session = this.ctx.get('sessions')?.get(args.sessionId)
+    if (operation === 'conversation-progress') {
+      if (!session || session.snapshotEvents().findLast(event => event.type === 'turn/start')?.data.turn !== args.turn) return []
+      return this.conversationRecords.snapshot(args.sessionId, args.turn, args.callId)
+    }
+    const events = session ? session.snapshotEvents() : (await this.ctx.sessionQuery.readSession(args.sessionId)).events
+    const calls = new Map()
+    let matched = false
+    for (const event of events) {
+      const data = event.data
+      if (event.type === 'tool/call' && data.turn === args.turn) calls.set(data.callId, data.name)
+      if (event.type === 'tool/result' && data.turn === args.turn && calls.has(data.message.toolCallId)
+        && photoResultEnvelope(data.message, data.meta)?.resultRef === args.resultRef) {
+        matched = true; args = { ...args, callId: data.message.toolCallId }
+      }
+      if (event.type === 'tool/ptc-dispatch' && calls.has(data.rootCallId) && photoResultEnvelope(data)?.resultRef === args.resultRef) {
+        matched = true; args = { ...args, callId: data.subCallId }
+      }
+    }
+    if (!matched) throw new Error('AFP selection lacks current turn evidence')
+    return this.conversationRecords.read(args, args.resultRef)
+  }
+  async pageAction(input, signal, progress) {
     if (Object.keys(input).some(key => !['operation', 'args'].includes(key)) || typeof input.operation !== 'string') throw new Error('Invalid AFP page operation')
     const args = JSON.parse(input.args ?? '{}')
     if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid AFP operation arguments')
@@ -341,27 +391,29 @@ export class AfpService {
       'account-summary': [], 'account-profile': [], 'photo-search': ['query', 'cursor', 'limit', 'language'], 'photo-details': ['photoId'],
       'collection-list': [], 'collection-items': ['collectionId', 'offset', 'limit'],
       'run-items': ['runId', 'category', 'decision', 'offset', 'limit'], 'history-list': ['kind', 'offset', 'limit'],
-      'download-options': ['photoIds'], 'pick-download-directory': [],
+      'download-options': ['photoIds'], 'pick-download-directory': ['path'], 'browse-download-directory': ['path'],
       'download-prepare': ['items', 'directoryId', 'prefix', 'suffix'], 'download-confirm': ['planId', 'confirmation', 'confirmed'],
       'collection-operation': ['action', 'photoIds', 'photoSources', 'targetCollectionId'],
       report: ['runId', 'planId'], cancel: ['taskId'], plan: ['operation', 'categories', 'runId'], confirm: ['planId', 'confirmation', 'confirmed'] }
     if (!Object.hasOwn(allowed, input.operation) || Object.keys(args).some(key => !allowed[input.operation].includes(key))) throw new Error('Unknown AFP operation or argument')
     switch (input.operation) {
-      // 缓存策略只提供给插件页面；Agent 状态输出保持原有字段。
-      case 'status': return { ...(await this.status()), previewCache: { scope: this.previewCacheScope,
-        maxEntries: this.config.previewCacheMaxEntries, maxBytes: this.config.previewCacheMaxBytes, ttlMs: this.config.previewCacheTtlMs } }
+      // 缓存和动画设置只提供给插件页面；Agent 状态输出保持原有字段。
+      case 'status': return { ...(await this.status()), previewAnimation: { enabled: this.config.previewAnimationEnabled }, previewCache: { scope: this.previewCacheScope,
+        maxEntries: this.config.previewCacheMaxEntries, maxBytes: this.config.previewCacheMaxBytes, ttlMs: this.config.previewCacheTtlMs,
+        retryCount: this.config.previewRetryCount, retryDelayMs: this.config.previewRetryDelayMs } }
       case 'collections': return this.collections(signal)
       case 'search': return this.search(args.query)
       case 'account-summary': return this.workbench.accountSummary(signal)
       case 'account-profile': this.require('read'); return this.workbench.accountProfile(signal)
-      case 'photo-search': this.require('read'); return this.workbench.photoSearch(args, signal)
+      case 'photo-search': this.require('read'); return this.workbench.photoSearch(args, signal, progress)
       case 'photo-details': this.require('read'); return this.workbench.photoDetails(args, signal)
       case 'collection-list': this.require('read'); return this.workbench.collectionList(signal)
       case 'collection-items': this.require('read'); return this.workbench.collectionItems(args, signal)
       case 'run-items': return this.workbench.runItems(args, signal)
       case 'history-list': return this.workbench.historyList(args, signal)
       case 'download-options': this.require('read'); return this.downloads.options(args, signal)
-      case 'pick-download-directory': this.require('read'); return this.downloads.pickDirectory(signal)
+      case 'pick-download-directory': this.require('read'); return this.downloads.pickDirectory(signal, args)
+      case 'browse-download-directory': this.require('read'); return this.downloads.browseDirectory(args, signal)
       case 'download-prepare': this.require('read'); return this.downloads.prepare(args, signal)
       case 'download-confirm': this.require('read'); return this.downloads.confirm(args, signal)
       case 'collection-operation': return this.collectionOperation(args, signal)

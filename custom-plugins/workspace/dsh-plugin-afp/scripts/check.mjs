@@ -31,7 +31,7 @@ function check(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const file = join(dir, entry.name)
     if (entry.isDirectory() && entry.name !== 'node_modules') check(file)
-    if (!entry.isFile() || !/\.(js|mjs|md|json|css|svg|yml)$/.test(file)) continue
+    if (!entry.isFile() || !/\.(js|mjs|md|json|css|svg|yml|txt)$/.test(file)) continue
     const text = new TextDecoder('utf8', { fatal: true }).decode(readFileSync(file))
     assert.ok(!text.includes('\uFFFD') && !text.startsWith('\uFEFF'), `Invalid encoding: ${file}`)
     if (/\.(js|mjs)$/.test(file)) assert.equal(spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' }).status, 0, file)

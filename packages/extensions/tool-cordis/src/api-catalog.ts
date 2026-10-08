@@ -2000,6 +2000,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['RemoteError when the path is invalid, the query is cancelled, or native discovery fails.'],
       },
       {
+        signature: '@Remote(\'regenerateTitle\') regenerateTitle(request: SessionRegenerateTitleRequest): Promise<SessionRenameValue>',
+        description: 'Regenerate one title through the registered title provider.',
+        parameters: [{ name: 'request', description: 'Session whose current title remains until success.' }],
+        returns: 'the accepted title and durable event sequence.',
+      },
+      {
         signature: '@Remote(\'rename\') rename(request: SessionRenameRequest): Promise<SessionRenameValue>',
         description: 'Rename one Session after explicitly resuming it.',
         parameters: [{ name: 'request', description: 'Session identity and proposed title.' }],
@@ -2495,9 +2501,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['{SessionTitleInvalidError} when the title normalizes to empty.', '{Error} when the session is not live or the service is disposed.'],
       },
       {
-        signature: 'async refresh(session: Session, signal?: AbortSignal): Promise<SessionTitleSnapshot | undefined>',
+        signature: 'cancel(session: Session): void',
+        description: 'Supersede pending and active title work while preserving the accepted title.',
+        parameters: [{ name: 'session', description: 'live Session whose request was cancelled.' }],
+      },
+      {
+        signature: 'async refresh(session: Session, signal?: AbortSignal, requireProvider: boolean = false): Promise<SessionTitleSnapshot | undefined>',
         description: 'Explicitly retry the registered provider, or materialize the built-in fallback when no provider is registered.',
-        parameters: [{ name: 'session', description: 'exact live session to refresh.' }, { name: 'signal', description: 'optional caller cancellation.' }],
+        parameters: [{ name: 'session', description: 'exact live session to refresh.' }, { name: 'signal', description: 'optional caller cancellation.' }, { name: 'requireProvider', description: 'reject absent providers or input without changing the title.' }],
         returns: 'latest accepted title, or `undefined` when no eligible text exists.',
       },
       {
@@ -6800,6 +6811,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionReferenceMentionCandidate',
     declaration: 'export interface SessionReferenceMentionCandidate extends SessionReferenceCandidate {\n    mention: string;\n}',
+  },
+  {
+    name: 'SessionRegenerateTitleRequest',
+    declaration: 'export interface SessionRegenerateTitleRequest {\n    readonly sessionId: SessionId;\n}',
   },
   {
     name: 'SessionRenameRequest',

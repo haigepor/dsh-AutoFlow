@@ -1,0 +1,35 @@
+[
+  {
+    "tool": "afp_photo_search_start",
+    "title": "agentSearchResults",
+    "contentClass": "afp-chat-flow-content",
+    "layout": "afp-chat-photo-strip",
+    "collapsedCards": 0,
+    "cards": 1,
+    "browsing": [],
+    "modal": { "identifiersCollapsed": true, "footerLink": "agentOpenPreview", "navigation": [] }
+  },
+  {
+    "tool": "afp_photo_details",
+    "title": "photoDetails",
+    "contentClass": "afp-chat-flow-content",
+    "layout": "afp-chat-photo-strip",
+    "collapsedCards": 0,
+    "cards": 1,
+    "browsing": [],
+    "modal": { "identifiersCollapsed": true, "footerLink": "agentOpenPreview", "navigation": [] }
+  },
+  {
+    "tool": "afp_collection_items",
+    "title": "collectionPhotos",
+    "contentClass": "afp-chat-flow-content",
+    "layout": "afp-chat-photo-strip",
+    "collapsedCards": 0,
+    "cards": 2,
+    "browsing": [],
+    "modal": { "identifiersCollapsed": true, "footerLink": "agentOpenPreview", "navigation": ["agentPreviousPhoto", "agentNextPhoto"] }
+  },
+  { "tool": "afp_photo_search_start", "title": "agentSearchResults", "state": "error", "message": "agentPhotosSchemaRejected", "contentClass": "afp-chat-flow-content", "layoutClass": "afp-chat-flow-line" },
+  { "tool": "afp_photo_search_start", "title": "agentSearchResults", "state": "error", "message": "agentPhotosAuthenticationFailed", "contentClass": "afp-chat-flow-content", "layoutClass": "afp-chat-flow-line" },
+  { "tool": "afp_photo_search_start", "title": "agentSearchResults", "state": "error", "message": "agentPhotosFailed", "contentClass": "afp-chat-flow-content", "layoutClass": "afp-chat-flow-line" }
+]

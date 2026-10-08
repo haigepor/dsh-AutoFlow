@@ -45,6 +45,29 @@
   flex-wrap: wrap;
 }
 
+.item[data-change] { padding: 12px 14px; }
+.item[data-change] .heading { align-items: flex-start; gap: 10px; }
+.item[data-change] .status {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-interactive-bg-hover);
+  font-size: 14px;
+}
+.item[data-change] .text { line-height: 22px; }
+.item[data-change] .statusText {
+  padding: 2px 8px;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-interactive-bg-hover);
+  line-height: 18px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .item[data-change] .statusText { margin-inline-start: 32px; }
+}
+
 .text {
   flex: 1;
   min-width: 0;

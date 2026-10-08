@@ -7,9 +7,9 @@
   padding: 6px calc(var(--dsh-composer-side-clearance) + 16px) 10px;
 }
 
-/* 各区共用内边距，保持标题、输入区和底部操作对齐。 */
+/* Figma Input 973:36348 body over the 1019:36938 header: no banner strip —
+   the card keeps zero padding and sections carry their own insets. */
 .card {
-  --dsh-question-inset: 20px;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -18,10 +18,10 @@
      hidden): cap the card against the viewport and scroll the option list
      so header and footer actions stay reachable on long batches. */
   max-height: min(60vh, 520px);
-  padding: 0 0 16px;
+  padding: 0 0 10px;
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l2-darkmode-thin);
-  border-radius: var(--dsw-radius-xl);
+  border-radius: 20px;
   background: var(--dsw-specific-menu);
   backdrop-filter: var(--dsw-menu-backdrop-filter);
   box-shadow: var(--dsw-elevation-panel);
@@ -41,36 +41,27 @@
   box-sizing: border-box;
 }
 
-.reveal {
-  display: grid;
-  grid-template-rows: 1fr;
-  flex: 1 1 auto;
-  min-height: 0;
-  opacity: 1;
-  transition: grid-template-rows 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease;
+/* Collapsed to the header strip: drop the height cap and the inner scroll
+   seat so the card hugs the title row, freeing the viewport for the
+   conversation above while the question stays pending. */
+.cardMinimized {
+  max-height: none;
 }
 
-.revealInner {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+/* The header strip is the whole card when collapsed: the title row needs
+   bottom padding once the body that normally carries it is hidden. */
+.cardMinimized .header {
+  padding-bottom: 8px;
 }
 
-.cardMinimized .reveal {
-  grid-template-rows: 0fr;
-  opacity: 0;
-}
+.disclosure { flex: 1 1 auto; }
+.disclosureBody { display: flex; flex-direction: column; }
 
-.collapseIcon {
-  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
-}
+.collapseIcon { transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
+.cardMinimized .collapseIcon { transform: rotate(180deg); }
 
-.cardMinimized .collapseIcon {
-  transform: rotate(180deg);
-}
-
-/* 标题操作共用 28px 点击区域和 16px 图标，翻页按钮保留原尺寸。 */
+/* Header button group: minimize sits next to the close action, both on the
+   same 24px icon-button grid. */
 .headerActions {
   display: flex;
   align-items: center;
@@ -78,19 +69,16 @@
   flex-shrink: 0;
 }
 
-.headerActions .iconButton {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--dsw-radius-sm);
-}
-
+/* Figma 1019:36938 header, user-tuned: heading block left, close right; the
+   pager sits in the footer to balance the card. */
 .header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   flex-shrink: 0;
-  padding: 18px var(--dsh-question-inset) 0;
+  padding: 16px 16px 8px 20px;
+  transition: padding var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
 .headingBlock {
@@ -98,22 +86,22 @@
 }
 
 .eyebrow {
-  margin-bottom: 4px;
+  /* Eyebrow-to-title gap widened from the figma 2px (user-tuned). */
+  margin-bottom: 5px;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 16px;
 }
 
 .title {
   margin: 0;
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 14px;
+  line-height: 22px;
   font-weight: 500;
-  overflow-wrap: anywhere;
 }
 
 .detail {
-  margin: 12px var(--dsh-question-inset) 0;
+  margin: 0 2px 8px;
 }
 
 .footerActions {
@@ -123,27 +111,19 @@
   flex-shrink: 0;
 }
 
-.footerActions > button {
-  min-width: 60px;
-  height: 32px;
-  font-size: 13px;
-  line-height: 20px;
-  border-radius: var(--dsw-radius-sm);
-}
-
 .pager {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .progress {
   padding: 0 4px;
   color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 24px;
-  font-weight: 400;
+  font-weight: 500;
   white-space: nowrap;
   /* Narrow the plain spaces around the slash without touching glyph tracking. */
   word-spacing: -2px;
@@ -185,9 +165,9 @@
 .options {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  margin: 12px 0 0;
-  padding: 0 var(--dsh-question-inset);
+  gap: 6px;
+  margin: 0;
+  padding: 4px 12px;
 }
 
 .option {
@@ -205,8 +185,8 @@
      intrinsic height, and centered content then paints outside the row box —
      over the title and the next row. Overflow belongs to .options. */
   flex-shrink: 0;
-  padding: 8px 12px 8px 8px;
-  border: 1px solid transparent;
+  padding: 10px 12px 10px 8px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-md);
   background: transparent;
   color: inherit;
@@ -239,7 +219,7 @@
   height: 20px;
   /* (24px first-line box − 20px indicator) / 2: centers the indicator against
      the first text line under the row's flex-start alignment. */
-  margin-top: 2px;
+  margin-top: 0;
   border-radius: var(--dsw-radius-xs);
   background: var(--dsw-alias-bg-overlay);
   color: var(--dsw-alias-label-secondary);
@@ -258,7 +238,7 @@
   width: 20px;
   height: 20px;
   /* Same first-line centering as .number under flex-start alignment. */
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .checkbox::before {
@@ -299,8 +279,8 @@
 }
 
 .optionLabel {
-  font-size: 14px;
-  line-height: 24px;
+  font-size: 13px;
+  line-height: 20px;
   font-weight: 500;
 }
 
@@ -311,13 +291,15 @@
   color: var(--dsw-alias-button-info-fill);
   font-size: 11px;
   line-height: 18px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .description {
+  display: block;
+  margin-top: 4px;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 14px;
-  line-height: 24px;
+  font-size: 13px;
+  line-height: 20px;
   font-weight: 400;
 }
 
@@ -335,7 +317,7 @@
      it pushes the inline input past the footer. */
   flex-shrink: 0;
   padding: 8px 12px 8px 8px;
-  border: 1px solid transparent;
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-md);
   transition: background-color 120ms ease, border-color 120ms ease;
 }
@@ -366,8 +348,8 @@
   min-width: 0;
   padding: var(--dsh-answer-field-padding);
   font: inherit;
-  font-size: 14px;
-  line-height: 24px;
+  font-size: 13px;
+  line-height: 20px;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -384,7 +366,7 @@
    track, not from this box-sizing. */
 .fieldMirror {
   box-sizing: content-box;
-  max-height: 144px;
+  max-height: 120px;
   overflow: hidden;
   visibility: hidden;
 }
@@ -410,21 +392,22 @@
   flex: 1;
 }
 
-/* 无选项题保留两行输入空间；高度仍由共享镜像控制。 */
+/* Optionless question: the free-form answer is the whole body, so it carries
+   its own frame. The 12px side margins add to the .options 12px padding so both
+   edges align with the title's 24px inset; two lines are reserved before the
+   answer starts growing. */
 .customBlock {
   min-height: 64px;
   flex-shrink: 0;
-  margin: 0;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-base);
+  margin: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-module-platform);
   --dsh-answer-field-padding: 8px 12px;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .customBlock:focus-within {
   border-color: var(--dsw-alias-state-business-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent);
 }
 
 .footer {
@@ -434,7 +417,8 @@
   gap: 12px;
   flex-shrink: 0;
   margin-top: 12px;
-  padding: 0 var(--dsh-question-inset);
+  padding: 10px 16px 0;
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .feedback {
@@ -448,37 +432,20 @@
 
 @media (max-width: 720px) {
   .card {
-    --dsh-question-inset: 14px;
+    border-radius: var(--dsw-radius-xl);
   }
 
   .header {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 4px 8px;
-    padding-top: 14px;
+    padding: 12px 12px 8px 16px;
   }
 
-  .headingBlock {
-    display: contents;
-  }
-
-  .eyebrow {
-    grid-column: 1;
-    grid-row: 1;
-    align-self: center;
-    margin-bottom: 0;
-  }
-
-  .headerActions {
-    grid-column: 2;
-    grid-row: 1;
+  .options {
+    padding: 4px 8px;
   }
 
   .title {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    font-size: 15px;
-    line-height: 21px;
+    font-size: 14px;
+    line-height: 22px;
   }
 
   .option,
@@ -488,31 +455,26 @@
 
   .footer {
     flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .feedback:not(:empty) {
-    order: 1;
-    flex-basis: 100%;
-    text-align: left;
-  }
-
-  .feedback:empty {
-    display: none;
+    align-items: flex-end;
+    padding: 0 10px;
   }
 
   .footerActions {
     flex-shrink: 0;
-    margin-left: auto;
+    margin-inline-start: auto;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .option,
-  .customRow,
-  .customBlock,
-  .reveal,
-  .collapseIcon {
+  .customRow {
     transition: none;
   }
+  .header, .collapseIcon { transition: none; }
+}
+
+.iconButton:focus-visible,
+.option:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
 }

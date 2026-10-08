@@ -1,4 +1,5 @@
 import { createHttpClient } from './http-client.mjs';
+import { readAfpJson } from './afp-api-client.mjs';
 
 const FAR_ENDPOINT = 'https://far-api-news.app.afp.com/';
 const APICORE_MEDIA_ENDPOINT = 'https://afp-apicore-prod.afp.com/objects/api/medias';
@@ -183,8 +184,7 @@ export function createAfpPreviewClient({
             query: PHOTO_PREVIEW_QUERY,
           }),
         });
-        const payload = await httpClient.readResponseJson(response);
-        if (!response.ok || payload?.errors?.length) throw new Error('getPhotosByIds preview lookup failed');
+        const payload = await readAfpJson(response, 'getPhotosByIds', httpClient);
         const photo = payload?.data?.docs?.find((item) => item?.id === String(photoId));
         if (!photo) throw new Error('requested photo mockup is unavailable');
         const reference = findMockupReference(photo);

@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { createAfpDownloadDialog } from '../src/client/afp-download-dialog.js'
 import { downloadFilenameBase } from '../src/shared/afp-download-filenames.js'
 import zh from '../src/client/locales/zh.json' with { type: 'json' }
@@ -23,7 +24,7 @@ function harness(overrides = {}) {
     downloadSelected: { p1: free.id }, downloadDirectory: { id: 'directory', label: 'Pictures' }, status: { features: ['write'] }, ...overrides }
   const calls = [], slots = []
   let cursor = 0
-  const React = { createElement: element, useEffect() {}, useState(initial) {
+  const React = { createElement: element, useEffect() {}, useRef: initial => ({ current: initial }), useState(initial) {
     const index = cursor++
     if (!(index in slots)) slots[index] = initial
     return [slots[index], value => { slots[index] = value }]
@@ -101,15 +102,29 @@ test('directory selection and confirmation mark only their own button as loading
   }
 })
 
-test('first quote read announces loading and refresh retains the available choices', () => {
-  const first = harness({ downloadOptions: null, downloadOptionsLoading: true }).render()
-  const skeleton = nodes(first, node => node.props?.className === 'afp-wb-download-skeleton')[0]
-  assert.equal(skeleton.props.role, 'status')
-  assert.equal(skeleton.props['aria-busy'], true)
-  assert.equal(nodes(first, node => node.type?.name === 'AfpSelector').length, 0)
-  const refresh = harness({ downloadOptionsLoading: true }).render()
-  assert.equal(nodes(refresh, node => node.type?.name === 'AfpSelector').length, 1)
+test('quote loading retains the same keyed rows and preview consumers across success and refresh', async () => {
+  const h = harness({ downloadOptions: null, downloadOptionsLoading: true })
+  const project = tree => {
+    const list = nodes(tree, node => node.props?.className === 'afp-wb-download-items')[0]
+    return { role: list.props.role, busy: list.props['aria-busy'], rows: nodes(list, node => node.props?.role === 'listitem').map(row => ({
+      key: row.props.key, pending: row.props['data-loading'],
+      title: copy(nodes(row, node => node.props?.className === 'afp-wb-download-item-title')[0]),
+      previewContainers: nodes(row, node => node.props?.className === 'afp-wb-download-thumbnail').length,
+      choiceDisabled: nodes(row, node => node.type?.name === 'AfpSelector')[0].props.disabled,
+    })) }
+  }
+  const initial = h.render(), snapshots = [project(initial)]
+  assert.equal(nodes(initial, node => node.props?.className === 'afp-wb-download-quality-content')[0].props.inert, '')
+  h.state.downloadOptionsLoading = false
+  h.state.downloadOptions = { photos: [{ id: 'p1', renditions: [free] }] }
+  const loaded = h.render()
+  snapshots.push(project(loaded))
+  assert.equal(nodes(loaded, node => node.props?.className === 'afp-wb-download-quality-content')[0].props.inert, undefined)
+  h.state.downloadOptionsLoading = true
+  const refresh = h.render()
+  snapshots.push(project(refresh))
   assert.equal(nodes(refresh, node => node.type === UI.Button && node.props['aria-busy']).length, 1)
+  assert.deepEqual(snapshots, JSON.parse(await readFile(new URL('./fixtures/download-loading.json', import.meta.url), 'utf8')))
 })
 
 test('the batch icon opens a dismissible project menu and choosing quality never submits a download', () => {

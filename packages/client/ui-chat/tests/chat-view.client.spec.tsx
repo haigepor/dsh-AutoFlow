@@ -447,6 +447,7 @@ function makeHarness(
     completeViewRequest: () => {},
     openFile,
     openSkill,
+    describeSkill: async () => undefined,
     openExternalLink: vi.fn(),
     loadOlder,
     loadThrough,

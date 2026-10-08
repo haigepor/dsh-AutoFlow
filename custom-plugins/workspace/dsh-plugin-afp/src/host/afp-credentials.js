@@ -1,10 +1,13 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import { digest } from './afp-state-store.js'
 import { ensureAfpToken, decodeJwtExpiry } from '../vendor/auto-afp-img/ensure-afp-token.mjs'
-import { createAfpApiClient } from '../vendor/auto-afp-img/afp-api-client.mjs'
+import { createAfpApiClient, isAfpAuthenticationError } from '../vendor/auto-afp-img/afp-api-client.mjs'
 import { createAfpPreviewClient } from '../vendor/auto-afp-img/afp-preview-client.mjs'
 import { createOpenAiCompatibleVisionClient } from '../vendor/auto-afp-img/openai-compatible-vision.mjs'
 import { createAccountProfileReader } from './afp-account-profile.js'
+
+// 认证恢复只重放明确的读取；写入、购买及交付字节请求不在此列表内。
+const renewableReads = new Set(['searchPhotos', 'photosByIds', 'listSelections', 'getSelection', 'downloadPhotoDetails'])
 
 /** Fuse job cancellation with each bounded HTTP request; redirects cannot forward credentials. */
 export function transport(signal, fetchImpl = globalThis.fetch) {
@@ -56,7 +59,7 @@ export class Connection {
       verifiedAt: payload?.verifiedAt ?? null,
     } }
   }
-  async open(signal, write = false, vision = false, preview = false) {
+  async open(signal, write = false, vision = false, preview = false, onProgress) {
     const config = this.config
     const value = async name => (await this.credentials.resolve(name))?.value ?? ''
     const [accessToken, username, password] = await Promise.all([value(config.accessTokenRef), value(config.usernameRef), value(config.passwordRef)])
@@ -67,35 +70,61 @@ export class Connection {
     const key = `dsh-plugin-afp/account-${account}`
     const fetchImpl = transport(signal, this.fetchImpl)
     const sleep = milliseconds => delay(milliseconds, undefined, { signal })
-    let token
+    let token, generation
     // Serialize refresh within the credential provider so parallel tools do not race token storage.
-    await this.credentials.modifyRecord(key, async current => {
-      const cached = current?.kind === 'grant' && current.payload?.fingerprint === fingerprint && typeof current.payload?.token === 'string' ? current.payload.token : ''
+    const acquire = async failed => this.credentials.modifyRecord(key, async current => {
+      signal.throwIfAborted()
+      const cached = current?.kind === 'grant' && current.payload?.fingerprint === fingerprint && typeof current.payload?.token === 'string' ? current.payload : null
+      // 即便远端刷新返回同一 access token，generation 也能避免并发请求重复刷新。
+      if (failed && cached && (cached.token !== failed.token || (cached.generation ?? 0) !== failed.generation)) {
+        token = cached.token; generation = cached.generation ?? 0
+        return current
+      }
       const authenticated = await ensureAfpToken({
-        environment: { AFP_ACCESS_TOKEN: cached || accessToken, AFP_USERNAME: username, AFP_PASSWORD: password, AFP_LANG: config.language },
+        environment: { AFP_ACCESS_TOKEN: cached?.token || accessToken, AFP_REFRESH_TOKEN: cached?.refreshToken,
+          AFP_USERNAME: username, AFP_PASSWORD: password, AFP_LANG: config.language },
         fetchImpl, sleep, refreshMarginSeconds: config.tokenRefreshMarginSeconds,
-        selectionsEndpoint: `${config.selectionsEndpoint.replace(/\/$/, '')}/get-selections/byuser?includeClientSelections=true`,
+        farEndpoint: config.farEndpoint, forceRefresh: Boolean(failed), autoRefresh: config.autoRefreshToken,
         hubLoginEndpoint: config.loginEndpoint, requestTimeoutMs: config.requestTimeoutMs,
         retries: config.readRetries, maxResponseBytes: config.maxResponseBytes,
       })
       signal.throwIfAborted()
       token = authenticated.accessToken
-      return { kind: 'grant', payload: { fingerprint, token, verifiedAt: Date.now() } }
+      generation = (cached?.generation ?? 0) + (authenticated.source === 'existing' ? 0 : 1)
+      return { kind: 'grant', payload: { fingerprint, token, refreshToken: authenticated.refreshToken, generation, verifiedAt: Date.now() } }
     })
-    const common = { accessToken: token, fetchImpl, sleep, requestTimeoutMs: config.requestTimeoutMs,
+    await acquire()
+    const common = () => ({ logger: onProgress, accessToken: token, fetchImpl, sleep, requestTimeoutMs: config.requestTimeoutMs,
       retries: write ? 0 : config.readRetries, maxResponseBytes: config.maxResponseBytes,
       farEndpoint: config.farEndpoint, hubEndpoint: config.loginEndpoint,
-      selectionsEndpoint: config.selectionsEndpoint.replace(/\/$/, '') }
-    const api = createAfpApiClient(common)
-    const client = Object.fromEntries(Object.entries(api).map(([name, method]) => [name, async (...args) => {
+      selectionsEndpoint: config.selectionsEndpoint.replace(/\/$/, '') })
+    const read = async operation => {
       signal.throwIfAborted()
-      const result = await method(...args)
+      const failed = { token, generation }
+      let result
+      try { result = await operation() }
+      catch (error) {
+        signal.throwIfAborted()
+        if (write || !config.autoRefreshToken || !isAfpAuthenticationError(error)) throw error
+        await acquire(failed)
+        // 第二次拒绝直接返回，不能递归刷新或再次重放。
+        result = await operation()
+      }
+      signal.throwIfAborted()
+      return result
+    }
+    const api = createAfpApiClient(common())
+    const client = Object.fromEntries(Object.keys(api).map(name => [name, async (...args) => {
+      signal.throwIfAborted()
+      const operation = () => createAfpApiClient(common())[name](...args)
+      if (renewableReads.has(name)) return read(operation)
+      const result = await operation()
       signal.throwIfAborted()
       return result
     }]))
-    const services = { client, account, readAccountProfile: createAccountProfileReader({ accessToken: token, fetchImpl, sleep, config }) }
-    if (vision || preview) services.previewClient = createAfpPreviewClient({ ...common, apicoreEndpoint: config.mediaEndpoint,
-      allowedCdnHosts: config.previewCdnHosts, maxRedirects: config.maxRedirects, maxResponseBytes: config.maxPreviewBytes })
+    const services = { client, account, readAccountProfile: () => read(() => createAccountProfileReader({ accessToken: token, fetchImpl, sleep, config })()) }
+    if (vision || preview) services.previewClient = { getPreviewBytes: id => read(() => createAfpPreviewClient({ ...common(), apicoreEndpoint: config.mediaEndpoint,
+      allowedCdnHosts: config.previewCdnHosts, maxRedirects: config.maxRedirects, maxResponseBytes: config.maxPreviewBytes }).getPreviewBytes(id)) }
     if (!vision) return services
     if (!config.visionModel || !config.visionBaseUrl) throw new Error('Configure visionModel and visionBaseUrl in the AFP plugin config')
     const apiKey = await value(config.visionKeyRef)

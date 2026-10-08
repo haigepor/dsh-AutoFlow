@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs'
 import { createAfpClientStore } from '../src/client/afp-client-store.js'
 import { createConfigurationForm } from '../src/client/afp-configuration-form.js'
 import { registerAgentTools } from '../src/host/afp-agent-tools.js'
+import { ConversationRecords } from '../src/host/afp-conversation-records.js'
+import { resolveConfig } from '../config-schema.js'
 import { runAfpTask } from '../cli/afp-task.js'
 
 function element(type, props, ...children) { return { type, props: { ...props, children } } }
@@ -151,11 +153,13 @@ test('queued feature switches preserve unrelated selections and distinguish actu
 
 test('Agent search tool and CLI/page adapter call the same shared operation and disposal removes the tool', async () => {
   const tools = new Map(), effects = []
-  const service = { config: { pageSize: 60 }, require: () => {}, search: query => ({ query, operation: 'offline-plan' }), pageAction: async input => service.search(JSON.parse(input.args).query) }
+  const config = resolveConfig({ pageSize: 60 })
+  const service = { config, conversationRecords: new ConversationRecords({}, config), require: () => {}, search: query => ({ query, operation: 'offline-plan' }), pageAction: async input => service.search(JSON.parse(input.args).query) }
   const ctx = { effect(register) { effects.push(register()) }, tools: { register(value) { tools.set(value.name, value); return () => tools.delete(value.name) } } }
   registerAgentTools(ctx, service, 'read')
   const signal = new AbortController().signal
-  const agent = JSON.parse(await tools.get('afp_search_plan').execute({ query: 'food' }, { signal, agent: { id: 'session-1' } }))
+  const events = [{ seq: 0, type: 'turn/start', data: { turn: 1 } }, { seq: 1, type: 'tool/call', data: { turn: 1, callId: 'search-plan', name: 'afp_search_plan' } }]
+  const agent = JSON.parse(await tools.get('afp_search_plan').execute({ query: 'food' }, { signal, callId: 'search-plan', name: 'afp_search_plan', arguments: { query: 'food' }, agent: { id: 'session-1', session: { id: 'session-1', snapshotEvents: () => events } } }))
   const page = await runAfpTask(service, { operation: 'search', args: JSON.stringify({ query: 'food' }) }, signal)
   assert.deepEqual(agent, page)
   for (const dispose of effects.reverse()) dispose()
@@ -279,7 +283,7 @@ test('credential fields show saved usernames, toggle independent drafts and hide
   const initial = render()
   const snapshot = Object.fromEntries(['usernameRef', 'passwordRef', 'accessTokenRef', 'visionKeyRef'].map(key => {
     const field = input(initial, key)
-    return [key, { type: field.props.type, value: field.props.value, placeholder: field.props.placeholder, visible: key === 'usernameRef' || toggle(initial, key).props['aria-pressed'] }]
+    return [key, { type: field.props.type, masked: field.props.className.includes('afp-secret-masked'), autoComplete: field.props.autoComplete, value: field.props.value, placeholder: field.props.placeholder, visible: key === 'usernameRef' || toggle(initial, key).props['aria-pressed'] }]
   }))
   assert.deepEqual(snapshot, JSON.parse(readFileSync(new URL('./fixtures/credential-fields.json', import.meta.url), 'utf8')))
   for (const key of ['passwordRef', 'accessTokenRef', 'visionKeyRef']) {
@@ -287,11 +291,11 @@ test('credential fields show saved usernames, toggle independent drafts and hide
     assert.equal(toggle(tree, key).props.disabled, key !== 'passwordRef')
     input(tree, key).props.onChange({ target: { value: `draft-${key}` } })
     toggle(render(), key).props.onClick({ currentTarget: { closest: () => null } })
-    assert.equal(input(render(), key).props.type, 'text')
+    assert.equal(input(render(), key).props.className.includes('afp-secret-masked'), false)
     assert.equal(toggle(render(), key).props['aria-pressed'], true)
   }
   toggle(render(), 'passwordRef').props.onClick({ currentTarget: { closest: () => null } })
-  assert.equal(input(render(), 'passwordRef').props.type, 'password')
+  assert.ok(input(render(), 'passwordRef').props.className.includes('afp-secret-masked'))
   assert.equal(input(render(), 'accessTokenRef').props.type, 'text')
   toggle(render(), 'passwordRef').props.onClick({ currentTarget: { closest: () => null } })
   render().props.onSubmit({ preventDefault() {} })
@@ -300,6 +304,6 @@ test('credential fields show saved usernames, toggle independent drafts and hide
   assert.equal(input(render(), 'usernameRef').props.value, 'saved-account')
   for (const key of ['passwordRef', 'accessTokenRef', 'visionKeyRef']) {
     assert.equal(input(render(), key).props.value, '')
-    assert.equal(input(render(), key).props.type, 'password')
+    assert.ok(input(render(), key).props.className.includes('afp-secret-masked'))
   }
 })

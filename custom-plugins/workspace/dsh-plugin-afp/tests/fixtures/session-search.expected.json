@@ -6,8 +6,10 @@
     "afp_photo_details",
     "afp_photo_search",
     "afp_photo_search_start",
+    "afp_photo_selection",
     "afp_plan_change",
     "afp_report",
+    "afp_result_page",
     "afp_search_plan",
     "afp_status"
   ],
@@ -79,8 +81,28 @@
       "arguments": "{\"collectionId\":\"shared\",\"limit\":2}"
     },
     {
+      "name": "afp_photo_selection",
+      "arguments": "{\"photoIds\":[\"p2\",\"p1\"],\"criteria\":\"Cat captions; metadata only\",\"basis\":\"metadata\",\"runId\":null}"
+    },
+    {
+      "name": "afp_photo_selection",
+      "arguments": "{\"photoIds\":[\"not-searched\"],\"criteria\":\"Reject absent evidence\",\"basis\":\"metadata\",\"runId\":null}"
+    },
+    {
       "name": "afp_search_plan",
       "arguments": "{\"query\":\" \"}"
+    },
+    {
+      "name": "afp_photo_search_start",
+      "arguments": "{\"query\":\"fixture-schema\",\"language\":\"en\",\"limit\":2}"
+    },
+    {
+      "name": "afp_photo_search_start",
+      "arguments": "{\"query\":\"fixture-authentication\",\"language\":\"en\",\"limit\":2}"
+    },
+    {
+      "name": "afp_photo_search_start",
+      "arguments": "{\"query\":\"fixture-unknown\",\"language\":\"en\",\"limit\":2}"
     }
   ],
   "results": [
@@ -101,6 +123,42 @@
           }
         ],
         "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "nature": "photos",
+            "language": "en",
+            "dateRange": null,
+            "criteria": "food AND photography",
+            "parsed": {
+              "raw": "food photography",
+              "broadRaw": "food photography",
+              "phrases": [],
+              "terms": [
+                "food",
+                "photography"
+              ],
+              "excluded": [],
+              "fields": [],
+              "operators": []
+            },
+            "filters": {},
+            "steps": [
+              "先调用 Hub getNature/getNaturesEvents 取得召回规模",
+              "召回过大时调用 FCT 获取稳定 Facet value",
+              "调用当前 nature 对应 FAR operation",
+              "对可见字段做解释性评分，不静默删除原始结果"
+            ],
+            "fallbacks": [
+              "food AND photography",
+              "food AND photography",
+              "food AND photography"
+            ]
+          }
+        }
       }
     },
     {
@@ -116,10 +174,39 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"items\":[{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"}],\"cursor\":\"next\",\"hasMore\":true,\"meta\":{\"language\":\"en\",\"limit\":2}}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000001\",\"items\":[{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p1\"}],\"cursor\":\"next\",\"hasMore\":true,\"meta\":{\"language\":\"en\",\"limit\":2},\"offset\":0,\"totalItems\":1,\"nextOffset\":null}"
           }
         ],
         "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "resultRef": "00000000-0000-4000-8000-000000000001",
+            "items": [
+              {
+                "id": "p1",
+                "guid": "p1",
+                "title": "Photo p1",
+                "caption": "Cat",
+                "keywords": [],
+                "provider": "AFP",
+                "previewPath": "api/afp/preview?photoId=p1"
+              }
+            ],
+            "cursor": "next",
+            "hasMore": true,
+            "meta": {
+              "language": "en",
+              "limit": 2
+            },
+            "offset": 0,
+            "totalItems": 1,
+            "nextOffset": null
+          }
+        }
       }
     },
     {
@@ -135,10 +222,39 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"items\":[{\"id\":\"p2\",\"guid\":\"p2\",\"title\":\"Photo p2\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"}],\"cursor\":null,\"hasMore\":false,\"meta\":{\"language\":\"en\",\"limit\":2}}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000002\",\"items\":[{\"id\":\"p2\",\"guid\":\"p2\",\"title\":\"Photo p2\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p2\"}],\"cursor\":null,\"hasMore\":false,\"meta\":{\"language\":\"en\",\"limit\":2},\"offset\":0,\"totalItems\":1,\"nextOffset\":null}"
           }
         ],
         "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "resultRef": "00000000-0000-4000-8000-000000000002",
+            "items": [
+              {
+                "id": "p2",
+                "guid": "p2",
+                "title": "Photo p2",
+                "caption": "Cat",
+                "keywords": [],
+                "provider": "AFP",
+                "previewPath": "api/afp/preview?photoId=p2"
+              }
+            ],
+            "cursor": null,
+            "hasMore": false,
+            "meta": {
+              "language": "en",
+              "limit": 2
+            },
+            "offset": 0,
+            "totalItems": 1,
+            "nextOffset": null
+          }
+        }
       }
     },
     {
@@ -173,10 +289,30 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"found\":true,\"photo\":{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"},\"meta\":{}}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000003\",\"found\":true,\"photo\":{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p1\"},\"meta\":{}}"
           }
         ],
         "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "resultRef": "00000000-0000-4000-8000-000000000003",
+            "found": true,
+            "photo": {
+              "id": "p1",
+              "guid": "p1",
+              "title": "Photo p1",
+              "caption": "Cat",
+              "keywords": [],
+              "provider": "AFP",
+              "previewPath": "api/afp/preview?photoId=p1"
+            },
+            "meta": {}
+          }
+        }
       }
     },
     {
@@ -196,6 +332,26 @@
           }
         ],
         "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "items": [
+              {
+                "id": "shared",
+                "name": "Shared",
+                "isPrivate": false,
+                "readOnly": true,
+                "writable": false,
+                "count": null,
+                "category": null
+              }
+            ],
+            "meta": {}
+          }
+        }
       }
     },
     {
@@ -211,10 +367,56 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"items\":[{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"},{\"id\":\"p2\",\"guid\":\"p2\",\"title\":\"Photo p2\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\"}],\"collection\":{\"id\":\"shared\",\"name\":\"Shared\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":null,\"category\":null},\"offset\":0,\"total\":3,\"hasMore\":true,\"nextOffset\":2,\"meta\":{}}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000004\",\"items\":[{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p1\"},{\"id\":\"p2\",\"guid\":\"p2\",\"title\":\"Photo p2\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p2\"}],\"collection\":{\"id\":\"shared\",\"name\":\"Shared\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":null,\"category\":null},\"collectionOffset\":0,\"total\":3,\"hasMore\":true,\"collectionNextOffset\":2,\"meta\":{},\"offset\":0,\"totalItems\":2,\"nextOffset\":null}"
           }
         ],
         "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "resultRef": "00000000-0000-4000-8000-000000000004",
+            "items": [
+              {
+                "id": "p1",
+                "guid": "p1",
+                "title": "Photo p1",
+                "caption": "Cat",
+                "keywords": [],
+                "provider": "AFP",
+                "previewPath": "api/afp/preview?photoId=p1"
+              },
+              {
+                "id": "p2",
+                "guid": "p2",
+                "title": "Photo p2",
+                "caption": "Cat",
+                "keywords": [],
+                "provider": "AFP",
+                "previewPath": "api/afp/preview?photoId=p2"
+              }
+            ],
+            "collection": {
+              "id": "shared",
+              "name": "Shared",
+              "isPrivate": false,
+              "readOnly": true,
+              "writable": false,
+              "count": null,
+              "category": null
+            },
+            "collectionOffset": 0,
+            "total": 3,
+            "hasMore": true,
+            "collectionNextOffset": 2,
+            "meta": {},
+            "offset": 0,
+            "totalItems": 2,
+            "nextOffset": null
+          }
+        }
       }
     },
     {
@@ -230,12 +432,275 @@
         "content": [
           {
             "type": "text",
-            "text": "Error: {\"code\":\"invalid-arguments\",\"stage\":\"validation\",\"message\":\"AFP arguments are invalid.\",\"action\":\"Check required fields, nonblank query, language, paging bounds and mutually exclusive report IDs.\",\"retryable\":false}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000005\",\"items\":[{\"id\":\"p2\",\"guid\":\"p2\",\"title\":\"Photo p2\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p2\"},{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p1\"}],\"selection\":{\"basis\":\"metadata\",\"criteria\":\"Cat captions; metadata only\"},\"meta\":{},\"offset\":0,\"totalItems\":2,\"nextOffset\":null}"
+          }
+        ],
+        "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "resultRef": "00000000-0000-4000-8000-000000000005",
+            "items": [
+              {
+                "id": "p2",
+                "guid": "p2",
+                "title": "Photo p2",
+                "caption": "Cat",
+                "keywords": [],
+                "provider": "AFP",
+                "previewPath": "api/afp/preview?photoId=p2"
+              },
+              {
+                "id": "p1",
+                "guid": "p1",
+                "title": "Photo p1",
+                "caption": "Cat",
+                "keywords": [],
+                "provider": "AFP",
+                "previewPath": "api/afp/preview?photoId=p1"
+              }
+            ],
+            "selection": {
+              "basis": "metadata",
+              "criteria": "Cat captions; metadata only"
+            },
+            "meta": {},
+            "offset": 0,
+            "totalItems": 2,
+            "nextOffset": null
+          }
+        }
+      }
+    },
+    {
+      "turn": 1,
+      "step": 9,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-9"
+        },
+        "toolCallId": "afp-fixture-call-9",
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: {\"code\":\"selection-missing-photos\",\"stage\":\"validation\",\"message\":\"Selected IDs lack successful reads in this Turn.\",\"action\":\"Read these photos with afp_photo_details or choose IDs from successful local result pages before selecting again.\",\"retryable\":false}"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "turn": 1,
+      "step": 10,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-10"
+        },
+        "toolCallId": "afp-fixture-call-10",
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: {\"code\":\"invalid-arguments\",\"stage\":\"validation\",\"message\":\"AFP arguments are invalid.\",\"action\":\"Check required fields, nonblank query, language, paging bounds and explicit report kind/id.\",\"retryable\":false}"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "turn": 1,
+      "step": 11,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-11"
+        },
+        "toolCallId": "afp-fixture-call-11",
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: {\"code\":\"api-schema-rejected\",\"stage\":\"read\",\"message\":\"AFP rejected the requested API fields.\",\"action\":\"Check AFP API compatibility and request fields. Changing keywords alone does not resolve an API field error. Do not repeat unchanged input automatically.\",\"retryable\":false,\"upstream\":{\"protocol\":\"graphql\",\"httpStatus\":200,\"category\":\"schema\"}}"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "turn": 1,
+      "step": 12,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-12"
+        },
+        "toolCallId": "afp-fixture-call-12",
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: {\"code\":\"authentication-failed\",\"stage\":\"authentication\",\"message\":\"AFP rejected authentication.\",\"action\":\"Verify or refresh credentials in plugin settings.\",\"retryable\":false,\"upstream\":{\"protocol\":\"graphql\",\"httpStatus\":200,\"category\":\"authentication\"}}"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "turn": 1,
+      "step": 13,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-13"
+        },
+        "toolCallId": "afp-fixture-call-13",
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: {\"code\":\"upstream-error\",\"stage\":\"read\",\"message\":\"AFP returned an unclassified API error.\",\"action\":\"The cause is unconfirmed. Inspect the safe upstream category and API compatibility; do not automatically change keywords or repeat unchanged input.\",\"retryable\":false,\"upstream\":{\"protocol\":\"graphql\",\"httpStatus\":200,\"category\":\"unknown\"}}"
           }
         ],
         "isError": true
       }
     }
   ],
-  "disabledTools": []
+  "disabledTools": [],
+  "photoCards": [
+    {
+      "tool": "afp_photo_search_start",
+      "state": "ok",
+      "message": "agentPhotosCount",
+      "photos": [
+        {
+          "id": "p1",
+          "title": "Photo p1",
+          "provider": "AFP",
+          "caption": "Cat",
+          "previewPath": "api/afp/preview?photoId=p1"
+        }
+      ]
+    },
+    {
+      "tool": "afp_photo_search",
+      "state": "ok",
+      "message": "agentPhotosCount",
+      "photos": [
+        {
+          "id": "p2",
+          "title": "Photo p2",
+          "provider": "AFP",
+          "caption": "Cat",
+          "previewPath": "api/afp/preview?photoId=p2"
+        }
+      ]
+    },
+    {
+      "tool": "afp_photo_search",
+      "state": "error",
+      "message": "agentPhotosFailed",
+      "photos": []
+    },
+    {
+      "tool": "afp_photo_details",
+      "state": "ok",
+      "message": "agentPhotosCount",
+      "photos": [
+        {
+          "id": "p1",
+          "title": "Photo p1",
+          "provider": "AFP",
+          "caption": "Cat",
+          "previewPath": "api/afp/preview?photoId=p1"
+        }
+      ]
+    },
+    {
+      "tool": "afp_collection_items",
+      "state": "ok",
+      "message": "agentPhotosCount",
+      "photos": [
+        {
+          "id": "p1",
+          "title": "Photo p1",
+          "provider": "AFP",
+          "caption": "Cat",
+          "previewPath": "api/afp/preview?photoId=p1"
+        },
+        {
+          "id": "p2",
+          "title": "Photo p2",
+          "provider": "AFP",
+          "caption": "Cat",
+          "previewPath": "api/afp/preview?photoId=p2"
+        }
+      ]
+    },
+    {
+      "tool": "afp_photo_search_start",
+      "state": "error",
+      "message": "agentPhotosSchemaRejected",
+      "photos": []
+    },
+    {
+      "tool": "afp_photo_search_start",
+      "state": "error",
+      "message": "agentPhotosAuthenticationFailed",
+      "photos": []
+    },
+    {
+      "tool": "afp_photo_search_start",
+      "state": "error",
+      "message": "agentPhotosFailed",
+      "photos": []
+    }
+  ],
+  "processCandidates": {
+    "state": "ok",
+    "message": "agentPhotosCount",
+    "photos": [
+      {
+        "id": "p1",
+        "title": "Photo p1",
+        "provider": "AFP",
+        "caption": "Cat",
+        "previewPath": "api/afp/preview?photoId=p1"
+      },
+      {
+        "id": "p2",
+        "title": "Photo p2",
+        "provider": "AFP",
+        "caption": "Cat",
+        "previewPath": "api/afp/preview?photoId=p2"
+      }
+    ]
+  },
+  "finalSelection": {
+    "state": "ok",
+    "message": "agentPhotosCount",
+    "photos": [
+      {
+        "id": "p2",
+        "title": "Photo p2",
+        "provider": "AFP",
+        "caption": "Cat",
+        "previewPath": "api/afp/preview?photoId=p2"
+      },
+      {
+        "id": "p1",
+        "title": "Photo p1",
+        "provider": "AFP",
+        "caption": "Cat",
+        "previewPath": "api/afp/preview?photoId=p1"
+      }
+    ],
+    "basis": "metadata",
+    "criteria": "Cat captions; metadata only"
+  }
 }
