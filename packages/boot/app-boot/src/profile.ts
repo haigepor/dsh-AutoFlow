@@ -27,11 +27,12 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { applyEntryPatches, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
-import type { DshBundleManifest, DshPackageManifest } from '@deepseek-ai/dsh-package-manifest'
+import type { DshBundleManifest, DshBundleUpdateSource, DshPackageManifest } from '@deepseek-ai/dsh-package-manifest'
 import { evaluatePluginCompatibility, pluginCompatibilityWarning } from './plugin-compatibility.ts'
 import { readProfileVersionExemptions } from './profile-compatibility.ts'
 import { loadOverlayPatches } from './index.ts'
 import { realModuleDirectory } from './profile-resolution/legacy-links.ts'
+import { parseBundleUpdateSource } from './bundle-update-source.ts'
 
 /** Directory under the Harness home holding every profile. */
 export const PROFILES_DIR = 'profiles'
@@ -437,12 +438,28 @@ export async function createRuntimeResolution(
   const { packageNames, packageDirs, declarers, versions } = collectInstallationScopePackages(
     installAnchor, new Set(profile?.skippedBundles.map(skipped => skipped.packageName)),
   )
+  // 独立更新的内置业务包只向当前 profile 提供新版，基础依赖仍由安装目录提供。
+  const updatedBundles = profile?.layers.filter(layer => packageNames.has(layer.packageName)
+    && resolveBundleDir('dsh', layer.packageName, installAnchor, profile.dir) !== packageDirs.get(layer.packageName)) ?? []
+  const installationNames = new Set(packageNames)
+  const installationPackages = new Map(packageDirs)
+  for (const layer of updatedBundles) {
+    installationNames.delete(layer.packageName)
+    installationPackages.delete(layer.packageName)
+  }
   const profileDeclarers = new Map<string, string>()
   const profileVersions = new Map<string, string | undefined>()
   const localPackageNames = profile === undefined ? [] : installedProfilePackageNames(profile, manifest)
   const profilePackages: ReadonlyMap<string, string> = profile === undefined
     ? new Map<string, string>()
-    : collectProfileScopePackages(profile, packageNames, profileDeclarers, profileVersions)
+    : collectProfileScopePackages(profile, installationNames, profileDeclarers, profileVersions)
+  const selectedProfilePackages = new Map(profilePackages)
+  for (const layer of updatedBundles) {
+    if (profile === undefined) throw new Error('An updated bundle requires a profile')
+    selectedProfilePackages.set(layer.packageName, layer.packageDir)
+    profileDeclarers.set(layer.packageName, join(profile.dir, 'package.json'))
+    profileVersions.set(layer.packageName, readProfileManifest('dsh', layer.packageDir).version)
+  }
   const linkedRoots = profile === undefined ? [] : linkedProfileRoots(profile, profilesDir)
   // The Promise return type is the pre-stable API; construction has no asynchronous step.
   return await Promise.resolve(Object.freeze({
@@ -451,11 +468,11 @@ export async function createRuntimeResolution(
     localPackageNames: Object.freeze(localPackageNames),
     linkedRoots: Object.freeze(linkedRoots.map(root => Object.freeze(root))),
     entries: Object.freeze([
-      ...[...packageDirs].map(([name, packageDir]) => Object.freeze({
+      ...[...installationPackages].map(([name, packageDir]) => Object.freeze({
         name, packageDir, version: versions.get(name),
         declarer: declarers.get(name) as string, scope: 'installation' as const,
       })),
-      ...[...profilePackages].map(([name, packageDir]) => Object.freeze({
+      ...[...selectedProfilePackages].map(([name, packageDir]) => Object.freeze({
         name, packageDir, version: profileVersions.get(name),
         declarer: profileDeclarers.get(name) as string, scope: 'profile' as const,
       })),
@@ -615,9 +632,23 @@ function packageDirFromAnchor(anchor: string, packageName: string): string | und
   return undefined
 }
 
+/** Read the installation's authoritative update source, or an external bundle's own source.
+ * @param name Managed bundle name.
+ * @param installAnchor Running installation manifest.
+ * @param profileDir Profile containing external dependencies.
+ * @returns Validated source, or undefined for packages without independent updates.
+ */
+export function resolveBundleUpdateSource(name: string, installAnchor: string, profileDir: string): DshBundleUpdateSource | undefined {
+  if (!/^(?:@[a-z0-9-]+\/)?[a-z0-9][a-z0-9._-]*$/.test(name)) throw new Error('Invalid bundle package name')
+  const dir = packageDirFromAnchor(installAnchor, name) ?? join(profileDir, 'node_modules', name)
+  const manifest = readProfileManifest('dsh', dir)
+  return parseBundleUpdateSource(name, manifest.dsh?.bundle?.update)
+}
+
 /**
  * Resolve one bundle package's directory: installation anchor first, then the
- * profile directory. The installation-first order is the contract that
+ * profile directory, except explicitly updateable custom bundles whose profile owns a direct dependency.
+ * The installation-first order is the contract that
  * `@deepseek-ai/dsh-base` (and every other in-box bundle) always comes from
  * the same installation as the running dsh, never from a profile-local copy.
  * Resolution does not require the package to export `./package.json`.
@@ -630,6 +661,19 @@ function packageDirFromAnchor(anchor: string, packageName: string): string | und
 export function resolveBundleDir(
   binName: string, packageName: string, installAnchor: string, profileDir: string,
 ): string {
+  const installation = packageDirFromAnchor(installAnchor, packageName)
+  if (installation !== undefined) {
+    const source = parseBundleUpdateSource(packageName, readProfileManifest(binName, installation).dsh?.bundle?.update)
+    if (source !== undefined) {
+      const profile = readProfileManifest(binName, profileDir)
+      if (Object.hasOwn(profile.dependencies ?? {}, packageName)) {
+        const local = join(profileDir, 'node_modules', packageName)
+        if (!existsSync(join(local, 'package.json'))) throw new Error(`${binName}: updated bundle ${packageName} is not installed in ${profileDir}`)
+        return local
+      }
+    }
+    return installation
+  }
   for (const anchor of [installAnchor, join(profileDir, 'package.json')]) {
     const dir = packageDirFromAnchor(anchor, packageName)
     if (dir !== undefined) return dir

@@ -12,6 +12,7 @@ import { StrictMode, type ReactNode } from 'react'
 import { createNavigationStore } from '../src/client/navigation-store.ts'
 import { PluginManagerPage } from '../src/client/PluginManagerPage.tsx'
 import { PluginRefreshToast } from '../src/client/PluginRefreshToast.tsx'
+import { PluginUpdateRestartModal } from '../src/client/PluginUpdateRestartModal.tsx'
 import type { PluginManagerPageProps } from '../src/client/index.ts'
 import type { ConfigLedger } from '../src/client/config-ledger.ts'
 import { rowKey, type InstallState, type PackageRow, type PackageView, type PluginManagerState } from '../src/client/manager-store.ts'
@@ -19,6 +20,19 @@ import { INSTALL_GIT_EXAMPLE, INSTALL_PATH_EXAMPLE, en, zh, type PluginManagerLo
 import type { PluginActivationOwnerProps, PluginDetailProps, PluginsSubject } from '../src/client/slot-contract.ts'
 
 afterEach(cleanup)
+
+it('keeps update completion outside the panel and leaves a failed restart retryable', async () => {
+  const b = renderTab({ packages: [pkg()] })
+  b.hidePage()
+  b.set({ updateRestarts: ['dsh-better-sidebar'] })
+  const modal = screen.getByRole('dialog', { name: en.updatesRestartTitle })
+  b.actions.restart.mockRejectedValueOnce(new Error('Host unavailable'))
+  await act(async () => { fireEvent.click(within(modal).getByRole('button', { name: en.updatesRestartNow })) })
+  expect(within(modal).getByRole('alert').textContent).toBe(en.updatesRestartFailed)
+  expect(within(modal).getByRole('button', { name: en.updatesRestartNow })).not.toHaveProperty('disabled', true)
+  fireEvent.click(within(modal).getByRole('button', { name: en.updatesRestartLater }))
+  expect(b.actions.dismissUpdateRestart).toHaveBeenCalledOnce()
+})
 
 const translate = (dict: typeof en): PluginManagerPageProps['t'] => ((key: PluginManagerLocaleKey, params?: Record<string, string>): string =>
   Object.entries(params ?? {}).reduce(
@@ -77,6 +91,23 @@ const READY: PluginManagerState = {
   highlight: null,
 }
 
+it('shows update availability, explicit automatic permission and restart state in bundle details', async () => {
+  const name = 'dsh-better-sidebar'
+  const update = { name, repository: 'example/plugins', automatic: false, status: 'available' as const, version: '1.0.0', restartRequired: false }
+  const b = renderTab({ packages: [pkg({ update, removable: false })] })
+  fireEvent.click(screen.getByRole('button', { name: 'View dsh-better-sidebar' }))
+  expect(screen.getByText('New version v1.0.0 is available')).toBeDefined()
+  fireEvent.click(screen.getByText(en.updatesTitle))
+  fireEvent.click(screen.getByRole('button', { name: en.updatesInstall }))
+  expect(b.props.updateBundle).toHaveBeenCalledWith(name)
+  fireEvent.click(screen.getByRole('switch', { name: en.updatesAutomatic }))
+  expect(b.props.setAutoUpdate).toHaveBeenCalledWith(name, true)
+  expect(screen.queryByRole('button', { name: 'Uninstall dsh-better-sidebar' })).toBeNull()
+  await act(async () => { b.store.set({ ...b.store.getSnapshot(), packages: [pkg({ update: { ...update, restartRequired: true } })] }) })
+  expect(screen.getByText(en.updatesRestart)).toBeDefined()
+  expect(screen.queryByRole('button', { name: en.updatesInstall })).toBeNull()
+})
+
 /**
  * Slot entries a test supplies: what each slot cell renders, by `<slot>:<cell>`
  * (a list slot's cell is empty), the view asked for — `detail` for a detail
@@ -103,6 +134,12 @@ function renderTab(
   const store = createSnapshotStore<PluginManagerState>({ ...READY, ...state })
   const ledger = createSnapshotStore<ConfigLedger>({ ...NO_CONFIG, ...config })
   const actions = {
+    checkUpdates: vi.fn(),
+    updateBundle: vi.fn(),
+    setAutoUpdate: vi.fn(),
+    showUpdateRestart: vi.fn(),
+    dismissUpdateRestart: vi.fn(),
+    restart: vi.fn(async () => false),
     ensure: vi.fn(),
     refresh: vi.fn(),
     openInstall: vi.fn(),
@@ -174,6 +211,8 @@ function renderTab(
     <>
       {showPage ? <PluginManagerPage {...props} t={currentT} /> : null}
       <PluginRefreshToast usePluginManager={props.usePluginManager} dismissNotice={actions.dismissNotice} t={currentT} />
+      <PluginUpdateRestartModal usePluginManager={props.usePluginManager} ensure={actions.ensure}
+        dismissUpdateRestart={actions.dismissUpdateRestart} resolveText={resolveText} restart={actions.restart} t={currentT} />
     </>
   )
   const { rerender, unmount } = render(contents())
@@ -217,7 +256,7 @@ describe('PluginManagerPage', () => {
 
   it('asks the store once mounted and renders the loading, unavailable, error, and empty states', () => {
     const { actions, set } = renderTab({ status: 'loading' })
-    expect(actions.ensure).toHaveBeenCalledTimes(1)
+    expect(actions.ensure).toHaveBeenCalledTimes(2)
     const loading = screen.getByRole('status', { name: en.loading })
     expect(loading.querySelectorAll('li')).toHaveLength(4)
     expect(loading.querySelector('ul')?.getAttribute('aria-hidden')).toBe('true')

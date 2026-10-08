@@ -30,6 +30,7 @@ import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
+import { createPluginRestart } from './plugin-restart.ts'
 import { readDeviceInfo } from './device-info.ts'
 import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
@@ -1003,6 +1004,17 @@ async function main(): Promise<void> {
     // The task dialog draws its main icon at the system icon size; the multi-size ICO yields that
     // size directly, where the 1024 px PNG would be scaled down by GDI.
     ...(process.platform === 'win32' ? { icon: nativeImage.createFromPath(trayIconPath) } : {}),
+  })
+
+  const pluginRestart = createPluginRestart({
+    allowed: () => !quitting && !shellInstallerOwnsQuit && !isMandatory() && promptOperation === undefined,
+    confirm: () => quitConfirmation.confirm(),
+    // 确认退出后才安排重启；取消确认不会在下次普通退出时意外拉起新实例。
+    relaunch: () => { app.relaunch() }, quit: quitWithoutConfirmation,
+  })
+  ipcMain.handle(DESKTOP_IPC.restartAfterPluginUpdate, (event) => {
+    assertProductSender(event)
+    return pluginRestart()
   })
 
   if (process.platform === 'win32') {

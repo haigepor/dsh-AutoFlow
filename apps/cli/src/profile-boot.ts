@@ -232,6 +232,8 @@ export interface RunProfileOptions {
   args: readonly string[]
   /** Application-owned package runtime, scoped to plugin package operations. */
   packageManager?: ProfileContext['packageManager']
+  /** Supervisor-owned request; never refreshes the current module graph in place. */
+  restart?: ProfileContext['restart']
 }
 
 /**
@@ -287,6 +289,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     const profileContext: ProfileContext = {
       name: options.profile,
       ...(options.packageManager === undefined ? {} : { packageManager: options.packageManager }),
+      ...(options.restart === undefined ? {} : { restart: options.restart }),
       dir: composed.profile.dir, patchPath: composed.profile.patchPath,
       installAnchor: options.resolvedProfile?.installAnchor ?? INSTALL_ANCHOR,
       startedBundles: composed.profile.layers.map(layer => layer.packageName),

@@ -4,6 +4,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import { InputTriggerService } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ILayout, PanelInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -39,6 +40,7 @@ async function bench() {
     pluginManager: {
       listBundles: vi.fn(() => Promise.resolve({ ok: true as const, value: [] })),
       listPlugins: vi.fn(() => Promise.resolve({ ok: true as const, value: [] })),
+      checkBundleUpdates: vi.fn(async () => ({ ok: true as const, value: [] })),
       registries: vi.fn(() => Promise.resolve({ ok: true as const, value: { registry: null, fallbackRegistries: [], resolved: null } })),
     },
   })
@@ -46,6 +48,10 @@ async function bench() {
   const selectPanel = vi.fn<ILayout['selectPanel']>((activePanelId) => { panelInfo.set({ activePanelId }) })
   ctx.provide('layout', { panelInfo, selectPanel, beginNavigation: () => new AbortController().signal,
     toggleSidebar: vi.fn(), openRightbar: vi.fn(), closeRightbar: vi.fn() })
+  // These registration tests never invoke the new-session action; its services only satisfy injection.
+  class NavigationHolder extends Service {}
+  for (const name of ['uiWorkspace', 'sessions', 'conversation'] as const) new NavigationHolder(ctx, name)
+  await ctx.plugin(InputTriggerService).await()
   await ctx.plugin(settings).await()
   return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, list, remote, selectPanel, panelInfo }
 }
@@ -118,7 +124,7 @@ describe('ui-plugin-manager browser plugin', () => {
   })
 
   it('declares only the services the page and its Remote methods use', () => {
-    expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.pluginInventory', 'remote.pluginRegistryProbe', 'configForms', 'layout'])
+    expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.pluginInventory', 'remote.pluginRegistryProbe', 'configForms', 'layout', 'uiWorkspace', 'sessions', 'conversation', 'inputTriggers'])
   })
 
   it('registers the sidebar entry and its page, which reads the Host only once rendered and follows Host changes', async () => {

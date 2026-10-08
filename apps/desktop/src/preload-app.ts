@@ -13,6 +13,7 @@ import { createDesktopBrowserBridge } from './preload-browser.ts'
 function createProductApi(): DshDesktopProductApi {
   return {
     protocolVersion: 1,
+    lifecycle: { restartAfterPluginUpdate: () => ipcRenderer.invoke(DESKTOP_IPC.restartAfterPluginUpdate) as Promise<boolean> },
     browser: createDesktopBrowserBridge(),
     deviceInfo: () => ipcRenderer.invoke(DESKTOP_IPC.deviceInfo) as Promise<string>,
     keyboard: {

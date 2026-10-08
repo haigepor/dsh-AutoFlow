@@ -7,7 +7,7 @@ compatibility: Requires Git, the repository Node.js/pnpm runtime and an authenti
 
 # DSH 自定义插件发布
 
-发布独立插件的 GitHub 版本，交付精确来源提交、tarball、SHA-256、版本元数据、Release 链接和验证记录。AFP 的配置与产物规则由[发布文档](../../../custom-plugins/workspace/dsh-plugin-afp/release/README.zh.md)和 [release.config.json](../../../custom-plugins/workspace/dsh-plugin-afp/release.config.json) 维护；先读这两个来源，不复制硬编码的当前版本。
+发布独立插件的 GitHub 版本，交付精确来源提交、tarball、SHA-256、版本元数据、Release 链接和验证记录。AFP 的配置与产物规则由[发布文档](../../../custom-plugins/workspace/dsh-plugin-afp/release/README.zh.md)和 [release.config.json](../../../custom-plugins/workspace/dsh-plugin-afp/release.config.json) 维护；先读这两个来源和[产品发布规范](../../../custom-plugins/release-governance/README.zh.md)，不复制硬编码的当前版本。
 
 ## 触发与授权
 
@@ -35,9 +35,11 @@ pnpm --filter dsh-plugin-afp run release:prepare --out .artifacts/afp-release
 
 正式准备前提交审核后的完整源码。该命令负责测试、prepack 构建、包检查和资产元数据；不要重复运行已通过且未被后续编辑影响的检查。脏树演练可加 `--allow-dirty`，其产物不能上传发布。核对 `.tgz` 的声明入口、patch、featureConfig、图标、Skill 和 Client 文件，并检查没有 node_modules、测试、环境文件或本机凭据。
 
-在独立临时 profile 中使用支持的 `dsh` 启动器安装/加载 tarball，检查 Host 代码、bundle 选择与配置，以及 Client 资源。不要在现有 Web/Desktop profile 覆盖同名内置包：当前安装优先级不能保证所有消费者共用 profile 新版。
+在独立临时 profile 中使用支持的 `dsh` 启动器安装/加载 tarball，检查 Host 代码、bundle 选择与配置，以及 Client 资源。发布复验只使用隔离 profile，不修改用户正在使用的 Web/Desktop。运行时更新由声明的 `dsh.bundle.update` 来源控制；核对已发布元数据、对应标签族、明确开启的自动安装许可和重启生效，不因 Release 存在就推定旧应用已提供更新器。
 
 更新文档配对记录，运行相关文档、语法与 Skill 元数据检查。遵循 `dsh-pre-push-checks` 选择必要的 build、lint、hygiene 和行为证据；平台基线失败要保留原始错误，不静默绕过钩子。
+
+临时远程更新验收按[更新验收流程](../../../custom-plugins/release-governance/README.zh.md#update-acceptance)使用独立标签族和隔离检出；测试声明与发布配置必须同族，生产来源不改。分别验收列表手动更新与明确开启后的自动安装，切离插件页检查全局完成弹窗，确认稍后重启及重新打开。Web 一键重启必须观察到旧 Host 退出、新进程标识就绪和相同来源恢复，并核对配置保留；桌面检查取消原生确认不安排 relaunch。自动安装不能自动重启，不停用用户原有服务。用户要求删除测试版本时，验证成功后删除临时 Release、Tag、profile、缓存、下载产物及工作树，最后复查正式资产和远程清单。历史标签治理遵循同文档的命名、完整附注及可恢复备份规则，不能用测试授权删除正式资产。
 
 ## 3. 发布精确源码
 

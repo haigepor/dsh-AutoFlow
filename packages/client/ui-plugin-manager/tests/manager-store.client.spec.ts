@@ -81,6 +81,9 @@ const NO_CONFIG: HostObservable<ConfigLedger> = {
 function bench(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}, enabled = true) {
   const inventory = { list: overrides.inventory ?? vi.fn(() => Promise.resolve(ok({ entries: [], managementAvailable: true }))) }
   const plugins = {
+    checkBundleUpdates: vi.fn(() => Promise.resolve(ok([]))),
+    updateBundle: vi.fn(() => Promise.resolve(ok({ ...APPLIED, application: 'restart-required' as const }))),
+    setBundleAutoUpdate: vi.fn(() => Promise.resolve(ok(undefined))),
     listBundles: vi.fn<() => Promise<ReturnType<typeof ok<BundleInfo[]>> | ReturnType<typeof refused>>>(
       () => Promise.resolve(ok([BUNDLE])),
     ),
@@ -126,11 +129,27 @@ it('hands a custom page the shared configuration form of its entry', () => {
   expect(face.configForm('bundle#row')).toBe('form:bundle#row' as never)
 })
 
+it('checks declared updates on page entry, saves opt-in permission and reports restart after manual installation', async () => {
+  const update = { name: BUNDLE.name, repository: 'example/plugins', automatic: false, status: 'unchecked' as const, restartRequired: false }
+  const available = { ...update, status: 'available' as const, version: '1.0.0' }
+  const checks = vi.fn(() => Promise.resolve(ok([available])))
+  const b = bench({ listBundles: vi.fn(() => Promise.resolve(ok([{ ...BUNDLE, update }]))), checkBundleUpdates: checks })
+  b.face.ensure()
+  await vi.waitFor(() => { expect(b.state().packages[0]?.update?.status).toBe('available') })
+  expect(b.plugins.updateBundle).not.toHaveBeenCalled()
+  b.face.setAutoUpdate(BUNDLE.name, true)
+  await vi.waitFor(() => { expect(b.plugins.setBundleAutoUpdate).toHaveBeenCalledWith(BUNDLE.name, true) })
+  await vi.waitFor(() => { expect(b.state().busy).toEqual([]) })
+  b.face.updateBundle(BUNDLE.name)
+  await vi.waitFor(() => { expect(b.state().updateRestarts).toEqual([BUNDLE.name]) })
+  expect(b.plugins.updateBundle).toHaveBeenCalledWith(BUNDLE.name)
+})
+
 describe('packageView', () => {
   it('joins a bundle with the entries its rows run as', () => {
     expect(packageView(BUNDLE, PLUGINS)).toEqual({
       name: 'dsh-better-sidebar', version: '0.16.0', description: 'A sidebar.',
-      installed: true, optional: false, enabled: false,
+      installed: true, removable: true, optional: false, enabled: false,
       rows: [
         { rowId: 'sidebar', moduleName: 'dsh-better-sidebar', entryId: ROW_ENTRY, enabled: true, phase: 'active' },
         { rowId: 'theme', moduleName: 'dsh-better-sidebar/theme', enabled: false, phase: null },
@@ -144,7 +163,7 @@ describe('packageView', () => {
       overrides: [],
     }
     expect(packageView(protectedBundle, PLUGINS)).toEqual({
-      name: '@deepseek-ai/dsh-base', installed: false, optional: false, enabled: true, readOnlyReason: 'management-required',
+      name: '@deepseek-ai/dsh-base', installed: false, removable: false, optional: false, enabled: true, readOnlyReason: 'management-required',
       error: { code: 'operation-error', diagnostic: 'broken' },
       rows: [
         { rowId: 'core', moduleName: '@deepseek-ai/dsh-base', entryId: 'include:core', enabled: true, phase: 'active', readOnlyReason: 'management-required' },

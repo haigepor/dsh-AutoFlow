@@ -77,6 +77,7 @@ const FAILED_KEYS = {
   uninstall: 'failedUninstall',
   rowEnable: 'failedRowEnable',
   rowDisable: 'failedRowDisable',
+  update: 'failedUpdate',
 } satisfies Record<FailedAction, PluginManagerLocaleKey>
 
 /**

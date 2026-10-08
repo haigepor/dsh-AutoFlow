@@ -43,25 +43,25 @@ A detached pre-upgrade main worktree reproduced five theme static assertion fail
 
 Three new upstream session snapshots fail on Windows because of the Windows ACL skill catalog and process-exit instructions. Their supported lane is macOS/Linux; Windows output does not replace the portable recordings. Windows Electron signal tests fail during compiler preparation because the Visual C++ toolchain was not found. Real model APIs, signed installers, and macOS runtime behavior were not verified locally.
 
-Use the repository skill [autoflow-upstream-sync](../.agents/skills/autoflow-upstream-sync/SKILL.md) for the next update, specifying the old upstream tag, new target, and current main. Its read-only helper rejects a mirror containing custom code. Existing tags remain; `autoflow-before-rc2-20261008` is the rollback reference; the two temporary backup branches are removed after organizing, subject to reviewing any later changes.
+Use the repository skill [autoflow-upstream-sync](../.agents/skills/autoflow-upstream-sync/SKILL.md) for the next update, specifying the old upstream tag, new target, and current main. Its read-only helper rejects a mirror containing custom code. Existing tags remain; `milestone/pre-upstream-v0.2.0-rc.2` is the rollback reference; the two temporary backup branches are removed after organizing, subject to reviewing any later changes.
 
 ## Snapshot and branches
 
 | Item | Pinned value | Purpose |
 | --- | --- | --- |
 | Snapshot date | 2026-09-28 | The inventory applies to this checkout at this date. |
-| Custom branch `main` | Tag `autoflow-v0.2.0` | AutoFlow changes and the previous official integration. |
-| Previous custom version | Tag `autoflow-v0.3.0` | Pins the Settings, Models, sidebar, and menu visual baseline. |
-| Current integration version | Tag `autoflow-v0.4.0` | Pins the official `dsh-v0.2.0-rc.1` integration. |
-| Official branch `deepseek-harness` | Second parent of `autoflow-v0.2.0` | The exact official source integrated by that tag. |
+| Custom branch `main` | Tag `milestone/upstream-v0.1.7-rc.2` | AutoFlow changes and the previous official integration. |
+| Previous custom version | Tag `milestone/settings-ui-20260928` | Pins the Settings, Models, sidebar, and menu visual baseline. |
+| Current integration version | Tag `milestone/upstream-v0.2.0-rc.1` | Pins the official `dsh-v0.2.0-rc.1` integration. |
+| Official branch `deepseek-harness` | Second parent of `milestone/upstream-v0.1.7-rc.2` | The exact official source integrated by that tag. |
 | Official remote | `upstream` → `deepseek-ai/deepseek-harness` | Read official changes before integrating them. |
 | Custom remote | `origin` → `haigepor/dsh-AutoFlow` | Holds `main` and the official mirror branch. |
 
-The two branches are the comparison anchors. The second parent of the `autoflow-v0.2.0` merge commit pins the previous official baseline; `autoflow-v0.3.0` pins the custom visual baseline; `autoflow-v0.4.0` pins this official integration. Advance `deepseek-harness` to the official commit first; select and integrate changes into `main` only after reviewing the resulting diff. Retain these tags so the next reviewer can distinguish official updates from local styling.
+The two branches are the comparison anchors. The second parent of the `milestone/upstream-v0.1.7-rc.2` merge commit pins the previous official baseline; `milestone/settings-ui-20260928` pins the custom visual baseline; `milestone/upstream-v0.2.0-rc.1` pins this official integration. Advance `deepseek-harness` to the official commit first; select and integrate changes into `main` only after reviewing the resulting diff. Retain these tags so the next reviewer can distinguish official updates from local styling.
 
 ## Official update check
 
-On 2026-09-28, a direct read of `refs/heads/master` on the official `upstream` remote matched local `upstream/master`, `deepseek-harness`, and the second parent of `autoflow-v0.2.0`. There were no new commits on official `master` relative to the mirror branch. The matching commit was dated 2026-09-27 22:30:17 (+08:00) and merged [PR #5282](https://github.com/deepseek-ai/deepseek-harness/pull/5282). This check did not advance either branch or integrate code into `main`. Read the remote again before the next integration.
+On 2026-09-28, a direct read of `refs/heads/master` on the official `upstream` remote matched local `upstream/master`, `deepseek-harness`, and the second parent of `milestone/upstream-v0.1.7-rc.2`. There were no new commits on official `master` relative to the mirror branch. The matching commit was dated 2026-09-27 22:30:17 (+08:00) and merged [PR #5282](https://github.com/deepseek-ai/deepseek-harness/pull/5282). This check did not advance either branch or integrate code into `main`. Read the remote again before the next integration.
 
 ## `dsh-v0.2.0-rc.1` integration decisions
 
@@ -103,7 +103,7 @@ The manifest records paths and Git status rather than trying to infer intent fro
 
 This table identifies the local visual intent; the [path manifest](autoflow-local-change-manifest.json) lists exact files. Earlier graphical Appearance proposal material is superseded by the delivered Appearance settings page.
 
-## Local UI work after `autoflow-v0.4.0` (2026-09-29)
+## Local UI work after `milestone/upstream-v0.2.0-rc.1` (2026-09-29)
 
 The following post-tag changes are local AutoFlow work and are not part of the historical [path manifest](autoflow-local-change-manifest.json). Preserve them in reviewable commits or a tag before the next official integration; use that Git state, rather than this description, to recover exact file contents.
 
@@ -130,7 +130,7 @@ For each area, record the old and new official commit, affected paths, chosen be
 
 ## Next official update
 
-1. Start from this record's latest upstream integration target and current `main`; `autoflow-v0.4.0` only locates history. Save later custom work before integrating; the path manifest locates changes but does not recover file contents.
+1. Start from this record's latest upstream integration target and current `main`; `milestone/upstream-v0.2.0-rc.1` only locates history. Save later custom work before integrating; the path manifest locates changes but does not recover file contents.
 2. Advance `deepseek-harness` to the new official commit and write down the previous and new official IDs. Keep the official branch free of AutoFlow edits.
 3. Compare that official range by subsystem, then compare the same files against `main`, the [path manifest](autoflow-local-change-manifest.json), the local style baseline, and the post-tag UI work above. Start with stateful features and public interfaces, then present any proposed visual replacement for user approval.
 4. Integrate functional additions into `main` with their consumers and docs. Add styles required by those features; keep existing local styling unless the user has approved its specific replacement.
@@ -143,4 +143,4 @@ The dedicated Appearance section owns the light/dark/system control, palette set
 
 ## Limitations
 
-The manifest keeps the paths and Git statuses before `autoflow-v0.3.0` for locating those changes; `autoflow-v0.3.0` and `autoflow-v0.4.0` store the complete code at each release. The official update finding applies only to the check date and the `master` branch, not to later states or other branches and tags.
+The manifest keeps the paths and Git statuses before `milestone/settings-ui-20260928` for locating those changes; `milestone/settings-ui-20260928` and `milestone/upstream-v0.2.0-rc.1` store the complete code at each release. The official update finding applies only to the check date and the `master` branch, not to later states or other branches and tags.

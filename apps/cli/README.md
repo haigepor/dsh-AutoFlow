@@ -43,7 +43,7 @@ The tree composes over an empty root:
 - then the profile's `cordis.patch.yml`, then the home-level `$DSH_HOME/cordis.patch.yml`
 - then `--patch` overlays
 
-Bundles named in `dsh.profile.bundles` resolve from the dsh installation first (`@deepseek-ai/dsh-base`, `@deepseek-ai/dsh-web-app`, `@deepseek-ai/dsh-headless`, `@deepseek-ai/dsh-sdk-app`, `@deepseek-ai/dsh-sdk-minimal`, `@deepseek-ai/dsh-acp-app`, `dsh-plugin-afp`), then from the profile's own `node_modules`, where pnpm installs out-of-tree plugins.
+Official bundles named in `dsh.profile.bundles` resolve from the dsh installation first, then from the profile's own `node_modules`. A custom built-in bundle with an installation-declared update source, such as `dsh-plugin-afp`, accepts a verified profile-installed successor consistently for Host, Client and resources; the [boot package](../../packages/boot/app-boot/README.md) owns selection rules. pnpm installs out-of-tree plugins into the profile.
 
 Use `--dump-default-config` and `--dump-config` to inspect the composed tree without booting it. `--dump-config-schema` imports the composed tree's declared plugin schemas and prints JSON Schema for entries and patches instead of configuration values; read the [schema-dump safety and scope](reference/README.md#config-schema-dump) before inspecting untrusted plugins.
 
@@ -62,3 +62,5 @@ The `@deepseek-ai/dsh/profile-boot` export provides the shared profile lifecycle
 Packaged installations call the same `runCli()` entry with their package-manager executable. The Desktop carrier also enables plugin operations for its initialized profile; npm launches omit these options. Installation-owned package environments apply only to plugin package operations; the invoking directory, ordinary profile selection, and agent-shell PATH retain their CLI meanings.
 
 The [Web failure matrix](tests/profiles/web/tests/web-failure-matrix.expected.e2e.ts) runs the built CLI through startup failures and native configuration HMR with `awaitWriteFinish` enabled in `test:expected`. It verifies authenticated HTTP responses, diagnostics, recovery, process exits, and disposal without model API calls; the [startup acceptance](tests/profiles/web/tests/web-best-effort-startup.expected.e2e.ts) also covers the shipped required Web dependencies and port conflicts.
+
+The public `dsh web` launcher supervises one Node Host over private IPC. An explicit plugin-update restart waits for that Host to exit before starting the same invocation with the original environment and overlays. An OS-assigned port is retained, and replacement launches suppress browser opening so the current authenticated browser can recover at the same origin. Crashes, failed cleanup and user interrupts never trigger automatic restart. Other launch modes retain their existing lifetime.

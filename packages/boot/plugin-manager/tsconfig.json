@@ -8,6 +8,8 @@
     "src"
   ],
   "references": [
+    { "path": "../../client/connection/tsconfig.host.json" },
+    { "path": "../cmdline" },
     { "path": "../../host/webserver" },
     {
       "path": "../../util/package-manifest"

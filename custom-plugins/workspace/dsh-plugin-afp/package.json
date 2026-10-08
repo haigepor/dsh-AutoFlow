@@ -45,6 +45,12 @@
   "icon": "./assets/icons/afp.svg",
   "dsh": {
     "bundle": {
+      "update": {
+        "provider": "github",
+        "repository": "haigepor/dsh-AutoFlow",
+        "tagPrefix": "afp-v",
+        "metadataAsset": "afp-update.json"
+      },
       "patch": "./cordis.patch.yml",
       "examples": [
         {

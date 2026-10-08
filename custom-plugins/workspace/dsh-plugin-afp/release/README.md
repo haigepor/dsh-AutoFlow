@@ -26,7 +26,7 @@ After the workflow succeeds, inspect the Release, its three uploaded assets and 
 
 ## Updates and recovery
 
-These assets provide a versioned GitHub distribution channel. The current plugin page does not query this channel or install updates automatically. The root `pnpm install` uses the workspace and lockfile; repository updates plus a build update the builtin AFP. Future runtime updates need a shared version choice for bundle metadata, patch, Host, Client and resources, with user-owned installation storage and configuration migration.
+These assets provide a versioned GitHub distribution channel. AFP declares its repository, `afp-v` tag family and `afp-update.json` asset under `dsh.bundle.update`. The [plugin manager](../../../../packages/boot/plugin-manager/README.md) checks automatically and installs automatically only after explicit opt-in; restart applies the update while retaining configuration. Root `pnpm install` still uses the workspace and lockfile. Plugins and Desktop publish independently; historical tags and Releases follow the [release governance guide](../../../release-governance/README.md).
 
 A failed draft can be inspected and recovered before publication after checking its tag and uploaded bytes; do not silently overwrite assets or delete an unrelated Release. Correct a published defect with a new package version and tag. Preserve the previous tarball and users' feature choices, credentials and reports; a package downgrade cannot undo an irreversible data migration.
 

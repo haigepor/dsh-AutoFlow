@@ -12,6 +12,8 @@ The [boot package group](../../packages/boot/README.md) owns launcher-provided p
 
 `BundleInfo` carries the package name, optional installed version, selected enablement, removal availability and optional resolution error. Its optional `meta` and each `BundleRowInfo.meta` contain display text or a metadata diagnostic; Clients select a language at render time.
 
+`BundleInfo.update` optionally carries `BundleUpdateInfo`: declared GitHub repository, saved automatic-install permission, `unchecked`/`current`/`available`/`installing`/`error` status, observed newer version and Release URL, diagnostic, and whether this process requires restart. Missing update state means no supported independent source. `PluginRestartGeneration` is an opaque process identity that rejects stale Web restart confirmations. The [plugin manager](../../packages/boot/plugin-manager/README.md) owns update validation, storage and application timing.
+
 `InstallBundleOptions.enabled` defaults to true. False installs without selecting the bundle layer. `approvedBuilds` grants persistent script permission to the supplied pending package names before installation. `registry` names the registry asked first; absent, the configured one.
 
 `PluginRegistries` carries the configured first registry, `null` for the one pnpm's own configuration names, the fallbacks asked after it, and `resolved`, the URL pnpm's own configuration names or `null` while unread. `InspectOptions.registry` names the registry a lookup asks first.
@@ -89,6 +91,34 @@ Source: [`packages/boot/hmr/src/index.ts`](../../packages/boot/hmr/src/index.ts)
 Manage profile files and apply their declared reload lifecycle.
 
 ```ts cordis-catalog
+/** Read launcher support and process identity before an explicitly confirmed restart.
+ * @returns Process-local identity, readiness and the configured recovery deadline; no launch credentials.
+ */
+@Remote restartStatus(): { generation: PluginRestartGeneration; supported: boolean; ready: boolean; timeoutMs: number }
+
+/** Ask the owning Web launcher to replace the Host; an active installation refuses the request.
+ * @param generation Process identity read before the user's confirmation.
+ * @returns False for unavailable, stale or busy launches; true once the owning launcher is notified.
+ */
+@Remote restartAfterUpdate(generation: PluginRestartGeneration): boolean
+
+/** Check stable GitHub releases for declared bundle sources; a failed source keeps its own diagnostic.
+ * @returns Last observed state for each independently updateable bundle.
+ */
+@Remote async checkBundleUpdates(): Promise<BundleUpdateInfo[]>
+
+/** Persist explicit automatic-installation permission and immediately check when enabled.
+ * @param name Bundle with a declared source.
+ * @param enabled Whether checked newer versions may install without another action.
+ */
+@Remote async setBundleAutoUpdate(name: string, enabled: boolean): Promise<void>
+
+/** Recheck a declared release, verify its bytes and install into this profile without changing activation.
+ * @param name Independently updateable bundle name; callers cannot supply an asset URL.
+ * @returns Existing installation diagnostics and restart-required after success.
+ */
+@Remote updateBundle(name: string): Promise<ChangeResult>
+
 /** Read exact plugin-version exemptions saved in this profile.
  * @returns Accepted package-name@version keys with the runtime versions they may run on, and any
  * record or file problem the reader rejected, which the caller reports instead of failing.
@@ -143,7 +173,8 @@ Manage profile files and apply their declared reload lifecycle.
  */
 @Remote setBundleEnabled(name: string, enabled: boolean): Promise<ChangeResult>
 
-/** Persist all declared feature choices together, optionally selecting the bundle.
+/** Persist declared feature choices in opted-in JSON and legacy patches, optionally selecting the bundle.
+ * Updated bundles require restart before changing features.
  * @param name Bundle package name.
  * @param enabledFeatureIds Complete set of selected feature IDs.
  * @param activate Whether to select the bundle in the same update.
@@ -295,12 +326,12 @@ Source: [`packages/boot/hmr/src/index.ts`](../../packages/boot/hmr/src/index.ts)
 
 #### `plugin-manager/changed` — emit
 
-The profile's plugins, bundles, or composition changed: a manager operation completed. A patch generation applied outside the manager, by HMR's watcher after a CLI or hand edit, announces nothing here.
+The profile's plugins, bundles, or composition changed: a manager operation completed or an independent update changed state. A patch generation applied outside the manager, by HMR's watcher after a CLI or hand edit, announces nothing here.
 
 ```ts cordis-catalog
 /**
  * The profile's plugins, bundles, or composition changed: a manager
- * operation completed. A patch generation applied outside the manager,
+ * operation completed or an independent update changed state. A patch generation applied outside the manager,
  * by HMR's watcher after a CLI or hand edit, announces nothing here.
  * @mode emit
  * @param change - what changed.

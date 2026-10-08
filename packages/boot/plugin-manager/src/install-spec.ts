@@ -68,6 +68,14 @@ function gitHost(spec: string): string {
 export function parseInstallSpec(raw: string): ParsedInstallSpec {
   const spec = raw.trim()
   if (spec === '') throw invalid(spec, 'the package spec must not be empty')
+  const namedFile = /^((?:@[^/]+\/)?[^@]+)@file:(.+)$/.exec(spec)
+  if (namedFile !== null) {
+    const name = namedFile[1], path = namedFile[2]
+    if (name === undefined || path === undefined || !PACKAGE_NAME.test(name) || !isAbsolute(path) || !TARBALL_SPEC.test(path)) {
+      throw invalid(spec, 'a named archive must use a package name and absolute tarball path')
+    }
+    return { kind: 'tarball', spec, path }
+  }
   const path = spec.replace(/^(?:file|link):/, '')
   if (path !== spec || isAbsolute(path)) {
     if (!isAbsolute(path)) throw invalid(spec, 'a local path must be absolute')

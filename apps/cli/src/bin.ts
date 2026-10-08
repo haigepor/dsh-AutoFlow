@@ -8,6 +8,7 @@
 
 import { getDshRuntimeVersion, loadLayeredEnv, StartupError } from '@deepseek-ai/dsh-app-boot'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import type {} from '@deepseek-ai/dsh-host-webserver'
 import { parseDshArgs } from './args.ts'
 import { reportStartupFailure } from './startup-diagnostics.ts'
 import type { RunProfileOptions } from './profile-boot.ts'
@@ -30,17 +31,47 @@ export async function runCli(options: RunCliOptions = {}): Promise<void> {
 
   switch (invocation.mode) {
     case 'profile': {
-      const { runProfile } = await import('./profile-boot.ts')
+      const { WEB_CHILD_ENV, superviseWeb } = await import('./web-supervisor.ts')
+      const supervised = process.env[WEB_CHILD_ENV] === '1' && process.connected
+      if (invocation.profile === 'web' && !supervised) {
+        process.exitCode = await superviseWeb()
+        break
+      }
+      const childState = { pendingShutdown: false }
+      let interrupt: (() => void) | undefined
+      const shutdownChild = (): void => { childState.pendingShutdown = true; interrupt?.() }
+      const parentMessage = (message: unknown): void => {
+        if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'dsh-web-shutdown') {
+          shutdownChild()
+        }
+      }
+      if (supervised) {
+        process.on('message', parentMessage)
+        process.once('disconnect', shutdownChild)
+        process.send?.({ type: 'dsh-web-listening' })
+      }
       try {
-        await runProfile({
+        const { runProfile } = await import('./profile-boot.ts')
+        const application = await runProfile({
           environment: loadLayeredEnv('dsh'),
           profile: invocation.profile,
           fromDefaultProfile: invocation.fromDefaultProfile,
           patchFiles: invocation.patches,
           args: invocation.args,
           ...profileOptions,
+          ...(supervised ? { restart: () => { process.send?.({ type: 'dsh-web-restart' }) } } : {}),
         })
+        if (supervised) {
+          interrupt = () => { application.shutdown.interrupt(0) }
+          if (childState.pendingShutdown) { interrupt(); break }
+          const port = application.ctx.get('webServer')?.port
+          if (port !== undefined) process.send?.({ type: 'dsh-web-ready', port })
+        }
       } catch (error) {
+        if (supervised) {
+          process.off('message', parentMessage)
+          process.off('disconnect', shutdownChild)
+        }
         if (!(error instanceof StartupError)) throw error
         await reportStartupFailure(error, { home: resolveDshHome(), version, profile: invocation.profile })
         process.exit(1)

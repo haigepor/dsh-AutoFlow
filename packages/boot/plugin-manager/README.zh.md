@@ -11,6 +11,8 @@ kind: "package-reference"
 
 Web 中的组合包与功能图标使用文档相对路径 `plugin-icons/<content-hash>.<extension>`，关闭组合包后仍可显示。可选功能 `icon` 字段声明清单相对图片路径；GET/HEAD 仅提供最近一次列表中的校验图片，包含不可变缓存、MIME 和 sandbox CSP，未知 URL 返回 404，其他方法返回 405。没有 Web 服务时保留 data URL。
 
+声明 `dsh.bundle.update` 的组合包支持按来源检查 GitHub 稳定版本。管理器在应用就绪后及每个 `updateIntervalMs` 周期检查，默认周期 3600000 ms；各 profile 的自动安装默认关闭，须明确开启。插件页面使用 `checkBundleUpdates`、`setBundleAutoUpdate` 和 `updateBundle`。`updateTimeoutMs`、`updateJsonBytes`、`updateArchiveBytes`、`updateExpandedBytes` 和 `updateReleasePages` 配置 HTTP 超时、JSON、压缩与展开字节上限和分页上限。仅支持公开 GitHub HTTPS 来源，不支持需要认证的私有仓库。检查按声明的标签族选择版本，不使用仓库级 latest。安装验证资产身份、API 摘要、源码标签、SHA-256、压缩包路径和包身份，再复用 profile 包事务；失败恢复包入口、清单、lockfile 和待应用的功能迁移，依赖构建脚本副作用无法撤销。新版模块重启生效，保留组合包启用状态和功能选择。偏好及保留的 tarball 存在 profile 的 `.plugin-updates/` 下；删除已引用缓存会破坏 pnpm file 依赖。自动安装失败在页面显示，可手动重试；许可仍开启时，后续周期检查也可重试，不会自动批准依赖脚本。
+
 ## 概述
 
 管理当前 profile 的插件，无需手动编辑配置。启停单个插件条目、选择已安装的组合包，以及安装或删除外部组合包。在 YAML 中启用 HMR 时，配置变化立即生效；未启用 HMR 时，运行中的组合保留到重启。改动影响使用该 profile 的全部会话。
@@ -152,6 +154,8 @@ CLI 提供 `dsh plugin --profile <profile> version-exemptions`、`allow-version 
 pnpm 执行和组合包校验成功即完成安装，后续启用失败不撤销安装。卸载依次执行：从 `dsh.profile.bundles` 移除组合包、卸载运行时贡献、执行 `pnpm remove`。任一步失败都不继续执行后续步骤。
 
 恢复只重写这两份快照文件；用户编写的 patch 配置、应用数据、诊断日志以及 pnpm 已下载的文件保持原样，没有 manifest 引用的包由下一次包操作清理。
+
+Web 更新后的重启由 profile 启动器负责，必须通过已认证的接口显式确认。`restartStatus` 返回进程标识与就绪状态；`restartAfterUpdate` 拒绝过期标识、未托管启动、没有待重启更新及尚未结束的包操作。客户端通过已认证的 `/api/plugins/restart-status` 确认另一代 Host 就绪后才刷新页面。`restartTimeoutMs` 限制恢复等待时间，默认 180000 毫秒。刷新页面或会话不会替换 Host 已加载的模块。重启会中断正在运行的工作，已持久化的会话与 profile 配置保留在磁盘。
 
 <a id="dev-note"></a>
 ### 开发备注

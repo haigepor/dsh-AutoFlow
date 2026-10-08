@@ -1635,6 +1635,35 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Manage profile files and apply their declared reload lifecycle.',
     methods: [
       {
+        signature: '@Remote restartStatus(): { generation: PluginRestartGeneration; supported: boolean; ready: boolean; timeoutMs: number }',
+        description: 'Read launcher support and process identity before an explicitly confirmed restart.',
+        parameters: [],
+        returns: 'Process-local identity, readiness and the configured recovery deadline; no launch credentials.',
+      },
+      {
+        signature: '@Remote restartAfterUpdate(generation: PluginRestartGeneration): boolean',
+        description: 'Ask the owning Web launcher to replace the Host; an active installation refuses the request.',
+        parameters: [{ name: 'generation', description: 'Process identity read before the user\'s confirmation.' }],
+        returns: 'False for unavailable, stale or busy launches; true once the owning launcher is notified.',
+      },
+      {
+        signature: '@Remote async checkBundleUpdates(): Promise<BundleUpdateInfo[]>',
+        description: 'Check stable GitHub releases for declared bundle sources; a failed source keeps its own diagnostic.',
+        parameters: [],
+        returns: 'Last observed state for each independently updateable bundle.',
+      },
+      {
+        signature: '@Remote async setBundleAutoUpdate(name: string, enabled: boolean): Promise<void>',
+        description: 'Persist explicit automatic-installation permission and immediately check when enabled.',
+        parameters: [{ name: 'name', description: 'Bundle with a declared source.' }, { name: 'enabled', description: 'Whether checked newer versions may install without another action.' }],
+      },
+      {
+        signature: '@Remote updateBundle(name: string): Promise<ChangeResult>',
+        description: 'Recheck a declared release, verify its bytes and install into this profile without changing activation.',
+        parameters: [{ name: 'name', description: 'Independently updateable bundle name; callers cannot supply an asset URL.' }],
+        returns: 'Existing installation diagnostics and restart-required after success.',
+      },
+      {
         signature: '@Remote listVersionExemptions(): { exemptions: Record<string, string[]>; warnings: string[] }',
         description: 'Read exact plugin-version exemptions saved in this profile.',
         parameters: [],
@@ -1684,7 +1713,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote setBundleFeatures(name: string, enabledFeatureIds: string[], activate: boolean): Promise<ChangeResult>',
-        description: 'Persist all declared feature choices together, optionally selecting the bundle.',
+        description: 'Persist declared feature choices in opted-in JSON and legacy patches, optionally selecting the bundle. Updated bundles require restart before changing features.',
         parameters: [{ name: 'name', description: 'Bundle package name.' }, { name: 'enabledFeatureIds', description: 'Complete set of selected feature IDs.' }, { name: 'activate', description: 'Whether to select the bundle in the same update.' }],
         returns: 'Persisted and runtime outcomes.',
       },
@@ -1785,6 +1814,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'readonly packageManager?: ProfilePnpmInvocation',
         description: 'Packaged applications supply their bundled runtime instead of a PATH executable.',
+        parameters: [],
+      },
+      {
+        signature: 'readonly restart?: () => void',
+        description: 'Owning launcher replaces this process after its orderly shutdown; absent for unmanaged launches.',
         parameters: [],
       },
       {
@@ -4174,8 +4208,8 @@ export const EVENT_API: readonly EventApiEntry[] = [
     name: 'plugin-manager/changed',
     mode: 'emit',
     signature: '\'plugin-manager/changed\'(change: PluginChange): void',
-    summary: 'The profile\'s plugins, bundles, or composition changed: a manager operation completed.',
-    description: 'The profile\'s plugins, bundles, or composition changed: a manager operation completed. A patch generation applied outside the manager, by HMR\'s watcher after a CLI or hand edit, announces nothing here.',
+    summary: 'The profile\'s plugins, bundles, or composition changed: a manager operation completed or an independent update changed state.',
+    description: 'The profile\'s plugins, bundles, or composition changed: a manager operation completed or an independent update changed state. A patch generation applied outside the manager, by HMR\'s watcher after a CLI or hand edit, announces nothing here.',
     parameters: [{ name: 'change', description: 'what changed.' }],
   },
   {
@@ -4740,11 +4774,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'BundleInfo',
-    declaration: 'export interface BundleInfo {\n    name: string;\n    version?: string;\n    meta?: PluginLocalizedMeta;\n    description?: string;\n    enabled: boolean;\n    installed: boolean;\n    optional: boolean;\n    removable: boolean;\n    readOnlyReason?: ReadOnlyReason;\n    error?: ManagementError;\n    rows: BundleRowInfo[];\n    features?: BundleFeatureInfo[];\n    examples?: DshBundleExample[];\n    overrides: string[];\n}',
+    declaration: 'export interface BundleInfo {\n    update?: BundleUpdateInfo;\n    name: string;\n    version?: string;\n    meta?: PluginLocalizedMeta;\n    description?: string;\n    enabled: boolean;\n    installed: boolean;\n    optional: boolean;\n    removable: boolean;\n    readOnlyReason?: ReadOnlyReason;\n    error?: ManagementError;\n    rows: BundleRowInfo[];\n    features?: BundleFeatureInfo[];\n    examples?: DshBundleExample[];\n    overrides: string[];\n}',
   },
   {
     name: 'BundleRowInfo',
     declaration: 'export interface BundleRowInfo {\n    rowId: string;\n    moduleName: string;\n    meta?: PluginLocalizedMeta;\n    entryId?: PluginEntryId;\n}',
+  },
+  {
+    name: 'BundleUpdateInfo',
+    declaration: 'export interface BundleUpdateInfo {\n    name: string;\n    repository: string;\n    automatic: boolean;\n    status: \'unchecked\' | \'current\' | \'available\' | \'installing\' | \'error\';\n    version?: string;\n    releaseUrl?: string;\n    diagnostic?: string;\n    restartRequired: boolean;\n}',
   },
   {
     name: 'ChangeResult',
@@ -5968,7 +6006,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PluginChange',
-    declaration: 'export interface PluginChange {\n    readonly reason: \'plugin\' | \'bundle\' | \'install\' | \'remove\';\n}',
+    declaration: 'export interface PluginChange {\n    readonly reason: \'plugin\' | \'bundle\' | \'install\' | \'remove\' | \'update\';\n}',
   },
   {
     name: 'PluginEntryId',
@@ -6017,6 +6055,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PluginRegistries',
     declaration: 'export interface PluginRegistries {\n    readonly registry: Registry;\n    readonly fallbackRegistries: readonly string[];\n    readonly resolved: string | null;\n}',
+  },
+  {
+    name: 'PluginRestartGeneration',
+    declaration: 'export type PluginRestartGeneration = Branded<\'PluginRestartGeneration\'>;',
   },
   {
     name: 'PluginSpecInspection',

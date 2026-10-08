@@ -17,7 +17,7 @@ kind: "package-bundle"
 
 在根目录运行 `pnpm --filter dsh-plugin-afp test` 与 `pnpm --filter dsh-plugin-afp check`。需要经审核的独立产物时使用 `pnpm --filter dsh-plugin-afp pack`。更新仓库后执行 `pnpm install` 与 `pnpm run build`，即可更新内置包；未启用模块监听时重启 Host。包不声明独立应用 bin。代码来源及发布限制见 [UPSTREAM.md](UPSTREAM.md)。
 
-GitHub 分发使用包自己的 `afp-v<version>` 标签，以及独立 tarball、校验值和版本元数据；见 [AFP 版本发布](release/README.zh.md)。当前插件页面不会自动安装远程更新。
+GitHub 分发使用包自己的 `afp-v<version>` 标签，以及独立 tarball、校验值和版本元数据；见 [AFP 版本发布](release/README.zh.md)。插件详情默认自动检查稳定版本；开启「自动下载安装」后自动安装，或使用「立即更新」。新版重启生效，保留功能选择和配置；运行时更新要求当前应用已包含更新器。
 
 ## 目录约定
 

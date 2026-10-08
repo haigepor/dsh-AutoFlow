@@ -14,7 +14,7 @@ const repositoryRoot = fileURLToPath(new URL('../../../../', import.meta.url))
  * @param {object} manifest Package manifest read from the tarball.
  * @param {object} config Release configuration from the source checkout.
  * @param {object} asset Exact tag, source commit, digest, size and source cleanliness.
- * @returns {object} Release metadata for a future updater; current DSH does not consume it.
+ * @returns {object} Exact-version metadata consumed by the bundle GitHub updater.
  */
 export function releaseMetadata(manifest, config, asset) {
   assert.equal(config.schemaVersion, 1, 'Unsupported release configuration')

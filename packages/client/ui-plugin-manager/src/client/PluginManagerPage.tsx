@@ -431,7 +431,7 @@ function DetailInformation({ title, entries }: {
 }
 
 /** One package as a card that opens its page: its name, its one-liner, its tags, and its bundle switch. */
-function PackageCard({ pkg, t, resolveText, busy, target, highlighted, onOpen, onSetEnabled }: {
+function PackageCard({ pkg, t, resolveText, busy, target, highlighted, onOpen, onSetEnabled, onUpdate, onRestart }: {
   readonly pkg: PackageView
   readonly t: Translate
   readonly resolveText: ResolveText
@@ -440,6 +440,8 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, onOpen, o
   readonly highlighted: boolean
   readonly onOpen: () => void
   readonly onSetEnabled: (enabled: boolean) => void
+  readonly onUpdate: () => void
+  readonly onRestart: () => void
 }): ReactNode {
   const { title, description, beta } = packageText(pkg, resolveText)
   const status = packageStatus(pkg)
@@ -459,10 +461,24 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, onOpen, o
           <>
             {beta ? <Tag className={css.statusTag} tone="info">{t('statusBeta')}</Tag> : null}
             {status === 'problem' ? <Tag className={css.statusTag} tone="danger">{t('statusProblem')}</Tag> : null}
+            {pkg.update?.restartRequired === true
+              ? <Button variant="ghost" size="sm" className={css.updateBadge} onClick={onRestart}>
+                <Tag tone="info">{t('updatesPending')}</Tag>
+              </Button>
+              : pkg.update?.status === 'installing' || busy && pkg.update?.status === 'available'
+                ? <span className={css.updateBadge} role="status"><Tag tone="info">{t('updatesInstalling')}</Tag></span>
+                : pkg.update?.status === 'available'
+                  ? <Button variant="ghost" size="sm" className={css.updateBadge} disabled={busy} onClick={onUpdate}>
+                    <Tag tone="info">{t('updatesBadge', { version: pkg.update.version ?? '' })}</Tag>
+                  </Button>
+                  : pkg.update?.status === 'error'
+                    ? <Tag tone="danger">{t('updatesFailed')}</Tag> : null}
           </>
         )}
         description={description}
-        end={<EnableSwitch pkg={pkg} title={title} t={t} busy={busy} target={target} onSetEnabled={onSetEnabled} />}
+        end={<EnableSwitch pkg={pkg} title={title} t={t}
+          busy={busy || pkg.update?.status === 'installing' || pkg.update?.restartRequired === true}
+          target={target} onSetEnabled={onSetEnabled} />}
       />
       <MetadataError error={pkg.meta?.error} t={t} />
     </li>
@@ -600,10 +616,55 @@ function FeatureRow({ feature, row, t, resolveText, busy, checked, locked, confi
   </li>
 }
 
+/** Declared release status, explicit update actions and persisted automatic-install permission. */
+function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdate, onRestart }: {
+  readonly pkg: PackageView
+  readonly t: Translate
+  readonly busy: boolean
+  readonly checking: boolean
+  readonly onCheck: () => void
+  readonly onUpdate: () => void
+  readonly onAutoUpdate: (enabled: boolean) => void
+  readonly onRestart: () => void
+}): ReactNode {
+  const update = pkg.update
+  const [open, setOpen] = useState(update?.status === 'error')
+  useEffect(() => { if (update?.status === 'error') setOpen(true) }, [update?.status])
+  if (update === undefined) return null
+  const installing = update.status === 'installing' || busy && update.status === 'available'
+  const status = update.restartRequired ? t('updatesRestart') : installing ? t('updatesInstalling') : checking ? t('updatesChecking')
+    : update.status === 'available' ? t('updatesAvailable', { version: update.version ?? '' })
+      : t(update.status === 'current' ? 'updatesCurrent' : update.status === 'error' ? 'updatesError' : 'updatesUnchecked')
+  return <details className={`${css.detailSection} ${css.updatesDisclosure}`} open={open}
+    onToggle={(event) => { setOpen(event.currentTarget.open) }} data-plugin-updates>
+    <summary className={css.updatesHead}>
+      <IconChevronRightOutlineRegular size={14} className={css.partsChevron} aria-hidden="true" />
+      <span className={css.sectionTitle}>{t('updatesTitle')}</span>
+      {pkg.version === undefined ? null : <span className={css.updateVersion}>{t('updatesVersion', { version: pkg.version })}</span>}
+      <span className={css.updateSummary} role="status" aria-live="polite" data-error={update.status === 'error'}>{status}</span>
+    </summary>
+    <div className={css.updatesBody}>
+      <div className={css.updateActions}>
+        <Button variant="outline" size="sm" disabled={busy || checking || installing || update.restartRequired} onClick={onCheck}>
+          {t(checking ? 'updatesChecking' : 'updatesCheck')}
+        </Button>
+        {update.restartRequired ? <Button size="sm" onClick={onRestart}>{t('updatesRestartGuide')}</Button>
+          : update.status !== 'available' ? null : <Button size="sm" disabled={busy} onClick={onUpdate}>{t('updatesInstall')}</Button>}
+      </div>
+      {update.status !== 'error' || update.diagnostic === undefined ? null : <p className={css.reason}>{update.diagnostic}</p>}
+      <div className={css.updatePreference}>
+        <div><span>{t('updatesAutomatic')}</span><p className={css.updateHint}>{t('updatesHint')}</p></div>
+        <Switch checked={update.automatic} disabled={busy || installing} label={t('updatesAutomatic')} onChange={onAutoUpdate} />
+      </div>
+    </div>
+  </details>
+}
+
 /** A bundle's selectable capabilities, shared configuration, and folded component inventory. */
 function PackageDetail({
   pkg, t, resolveText, busy, featureBusy, rowBusy, targets, rowForm, configured, configure, renderSlot,
   onBack, onSetEnabled, onUninstall, onSetRowEnabled, onSetFeature, onOpenExample,
+  updateChecking, onCheckUpdates, onUpdate, onAutoUpdate, onRestart,
 }: {
   readonly pkg: PackageView
   readonly t: Translate
@@ -625,6 +686,11 @@ function PackageDetail({
   readonly onSetRowEnabled: (row: PackageRow, enabled: boolean) => void
   readonly onSetFeature: (featureId: string, enabled: boolean) => void
   readonly onOpenExample: (prompt: string) => void
+  readonly updateChecking: boolean
+  readonly onCheckUpdates: () => void
+  readonly onUpdate: () => void
+  readonly onAutoUpdate: (enabled: boolean) => void
+  readonly onRestart: () => void
 }): ReactNode {
   const [editing, setEditing] = useState<{ rowId: string; featureId?: string } | null>(null)
   const editingRow = pkg.rows.find(row => row.rowId === editing?.rowId)
@@ -650,7 +716,7 @@ function PackageDetail({
           </div>
           <div className={css.detailActions}>
             {renderSlot('plugins.detail.actions', { subject })}
-            {pkg.installed
+            {pkg.installed && pkg.removable !== false
               ? (
                 <Button
                   variant="outline"
@@ -665,7 +731,8 @@ function PackageDetail({
                 </Button>
               )
               : null}
-            <EnableSwitch pkg={pkg} title={title} t={t} busy={busy} target={targets[pkg.name]} onSetEnabled={onSetEnabled} />
+            <EnableSwitch pkg={pkg} title={title} t={t} busy={busy || pkg.update?.restartRequired === true}
+              target={targets[pkg.name]} onSetEnabled={onSetEnabled} />
           </div>
         </div>
       </div>
@@ -687,6 +754,8 @@ function PackageDetail({
       {pkg.error === undefined ? null : <p className={css.reason} role="status">{t('reasonLabel')}: {managementText(pkg.error, t)}</p>}
       {pkg.readOnlyReason === undefined ? null : <p className={css.reason} role="status">{managementText({ code: pkg.readOnlyReason }, t)}</p>}
       <div className={css.detailSections}>
+        <UpdatesSection key={pkg.name} pkg={pkg} t={t} busy={busy} checking={updateChecking}
+          onCheck={onCheckUpdates} onUpdate={onUpdate} onAutoUpdate={onAutoUpdate} onRestart={onRestart} />
         {pkg.features === undefined ? null : (
           <section className={css.detailSection} data-plugin-features>
             <div className={css.sectionHead}>
@@ -704,7 +773,7 @@ function PackageDetail({
                     const row = pkg.rows.find(candidate => candidate.rowId === feature.rowId)
                     return <FeatureRow key={feature.id} feature={feature} row={row} t={t} resolveText={resolveText}
                       busy={featureBusy(feature.id)} checked={targets[featureKey(pkg.name, feature.id)] ?? feature.enabled}
-                      locked={pkg.readOnlyReason !== undefined}
+                      locked={pkg.readOnlyReason !== undefined || pkg.update?.restartRequired === true}
                       configure={row !== undefined && configure.has(row)
                         ? () => { setEditing({ rowId: row.rowId, featureId: feature.id }) } : undefined}
                       onChange={(enabled) => { onSetFeature(feature.id, enabled) }} />
@@ -725,7 +794,8 @@ function PackageDetail({
           rows={pkg.rows}
           t={t}
           resolveText={resolveText}
-          toggle={pkg.enabled ? { busy: row => busy || rowBusy(row), onSetEnabled: onSetRowEnabled } : undefined}
+          toggle={pkg.enabled ? { busy: row => busy || pkg.update?.restartRequired === true || rowBusy(row),
+            onSetEnabled: onSetRowEnabled } : undefined}
           targets={targets}
           configure={{ has: row => configure.has(row) && !pkg.features?.some(feature => feature.rowId === row.rowId),
             open: (row) => { setEditing({ rowId: row.rowId }) } }}
@@ -1446,6 +1516,8 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
       highlighted={state.highlight === pkg.name}
       onOpen={() => { setActivation(null); setView({ kind: 'package', name: pkg.name }) }}
       onSetEnabled={(enabled) => { setActivation(enabled ? pkg.name : null); props.setEnabled(pkg.name, enabled) }}
+      onUpdate={() => { props.updateBundle(pkg.name) }}
+      onRestart={() => { props.showUpdateRestart(pkg.name) }}
     />
   )
   // The Official group: the bundles the installation ships, then the plugins that registered their configuration.
@@ -1547,6 +1619,11 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
             onSetRowEnabled={setRowEnabled}
             onSetFeature={(featureId, enabled) => { props.setFeature(openPkg.name, featureId, enabled) }}
             onOpenExample={(prompt) => { props.openExample(openPkg.name, prompt) }}
+            updateChecking={state.busy.includes('updates:check')}
+            onCheckUpdates={props.checkUpdates}
+            onUpdate={() => { props.updateBundle(openPkg.name) }}
+            onAutoUpdate={(enabled) => { props.setAutoUpdate(openPkg.name, enabled) }}
+            onRestart={() => { props.showUpdateRestart(openPkg.name) }}
           />
         )
         : null}

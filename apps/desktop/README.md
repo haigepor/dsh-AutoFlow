@@ -485,3 +485,5 @@ The account provider’s `embeddedPageDist` configuration adds a `dist` query pa
 ## Dev Note
 
 Pre-launch CDN and capacity decisions are tracked in the [Desktop update proposal](../../.agents/notes/proposed/feature/2026-09-08-desktop-update-policy-and-installation.md#cdn-and-capacity-qualification).
+
+Plugin-update restart uses a main-frame, application-origin IPC action without renderer-supplied paths, URLs, versions or arguments. Concurrent requests share the native quit decision; cancellation does not arm relaunch. After approval, main calls `app.relaunch()` and the existing orderly quit path, which closes the Host and application resources before exit. A shell installation or mandatory application update prevents this competing restart.

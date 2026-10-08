@@ -487,3 +487,5 @@ node apps/desktop/node_modules/pnpm/bin/pnpm.mjs --dir apps/desktop run test:upd
 ## 开发备注
 
 上线前 CDN 与容量决策见[桌面更新提案](../../.agents/notes/proposed/feature/2026-09-08-desktop-update-policy-and-installation.zh.md#cdn-and-capacity-qualification)。
+
+插件更新重启使用仅允许应用来源和主 frame 的 IPC 操作，不接受渲染进程提供的路径、URL、版本或启动参数。并发请求共享原生退出确认，取消确认不会安排重新启动。确认后主进程调用 `app.relaunch()` 并进入现有的有序退出流程，在退出前关闭 Host 与应用资源。桌面安装器接管退出或强制应用更新时，不允许发起相冲突的插件重启。

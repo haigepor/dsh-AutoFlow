@@ -3,7 +3,7 @@
   "officialRef": "dsh-v0.2.0-rc.2",
   "oldOfficialRef": "dsh-v0.2.0-rc.1",
   "mainRef": "main",
-  "rollbackRef": "autoflow-before-rc2-20261008",
+  "rollbackRef": "milestone/pre-upstream-v0.2.0-rc.2",
   "comparison": {
     "officialCommits": 187,
     "officialPaths": 1025,
@@ -3195,8 +3195,8 @@
   ],
   "historicalSnapshot": {
     "snapshotDate": "2026-09-28",
-    "officialRef": "autoflow-v0.2.0^2",
-    "mainRef": "autoflow-v0.2.0",
+    "officialRef": "milestone/upstream-v0.1.7-rc.2^2",
+    "mainRef": "milestone/upstream-v0.1.7-rc.2",
     "committedChanges": [
       {
         "status": "M",
@@ -4087,5 +4087,47 @@
       "packages/client/ui-settings-models/src/client/ProtocolPicker.tsx",
       "packages/client/ui-settings-models/src/client/useModelReorder.ts"
     ]
+  },
+  "maintenanceGuide": "docs/cookbook/maintaining-autoflow-fork.zh.md",
+  "currentProtection": {
+    "recordedDate": "2026-10-09",
+    "sourceBaseline": "main",
+    "behaviorOwners": [
+      "custom-plugins/workspace/dsh-plugin-afp",
+      "custom-plugins/release-governance",
+      "packages/util/package-manifest",
+      "packages/boot/app-boot",
+      "packages/boot/plugin-manager",
+      "packages/client/ui-plugin-manager"
+    ],
+    "integrationPoints": [
+      "package.json",
+      "pnpm-workspace.yaml",
+      "pnpm-lock.yaml",
+      "apps/cli/package.json",
+      "apps/web/package.json",
+      "apps/desktop-host/package.json",
+      "apps/web/tsconfig.json",
+      "tsconfig.host.json",
+      "packages/api/remotes/src/client/index.ts",
+      "scripts/gen-cordis-catalog.ts",
+      ".github/workflows/release-afp.yml",
+      "apps/cli/src/web-supervisor.ts",
+      "apps/cli/src/bin.ts",
+      "apps/cli/src/profile-boot.ts",
+      "apps/desktop/src/plugin-restart.ts",
+      "apps/desktop/src/ipc.ts",
+      "apps/desktop/src/preload-app.ts",
+      "apps/desktop/src/main.ts"
+    ],
+    "regressionOwners": [
+      "apps/web/tests/afp-builtin.e2e.ts",
+      "apps/web/tests/plugin-updates.e2e.ts",
+      "apps/cli/tests/web-child-shutdown.spec.ts",
+      "apps/cli/tests/web-supervisor.spec.ts",
+      "apps/desktop/tests/plugin-restart.spec.ts",
+      "packages/client/ui-plugin-manager/tests/update-restart.client.spec.ts"
+    ],
+    "requirement": "Use the live diff and owning README/tests; the committedChanges inventory remains a dated historical snapshot."
   }
 }

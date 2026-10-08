@@ -1,6 +1,7 @@
 /** Launcher-owned profile locations and composition inputs. */
 import { join } from 'node:path'
-import { composeEntries, loadProfileDirectory, PROFILE_PATCH_FILENAME, type Profile } from './profile.ts'
+import { composeEntries, loadProfileDirectory, readProfileManifest, PROFILE_PATCH_FILENAME, type Profile } from './profile.ts'
+import { bundleFeaturePatches, readBundleFeatureConfig } from './bundle-feature-config.ts'
 import { loadOptionalPatches } from './index.ts'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 
@@ -16,6 +17,8 @@ export interface ProfileContext {
   readonly name: string
   /** Packaged applications supply their bundled runtime instead of a PATH executable. */
   readonly packageManager?: ProfilePnpmInvocation
+  /** Owning launcher replaces this process after its orderly shutdown; absent for unmanaged launches. */
+  readonly restart?: () => void
   readonly dir: string
   readonly patchPath: string
   readonly installAnchor: string
@@ -54,7 +57,7 @@ export function resolveTelemetryPatch(disabledEnv: string | undefined, hasRow: b
   return { id: TELEMETRY_ROW_ID, disabled: true }
 }
 
-/** Read current bundle and user layers with the launch-time overlays.
+/** Read current bundle and user layers with the launch-time overlays, initializing or migrating opted-in JSON feature files.
  * @param binName Diagnostic prefix for malformed or missing configuration.
  * @param context Data supplied by the profile launcher.
  * @param initialProfile Already loaded startup profile; omitted reads the current files.
@@ -62,9 +65,16 @@ export function resolveTelemetryPatch(disabledEnv: string | undefined, hasRow: b
  */
 export function readProfilePatches(binName: string, context: ProfileContext, initialProfile?: Profile): PatchOptions[] {
   const profile = initialProfile ?? loadProfileDirectory(binName, context.dir, context.installAnchor, { userLayer: false })
+  const features = profile.layers.flatMap((layer) => {
+    const bundle = readProfileManifest(binName, layer.packageDir).dsh?.bundle
+    if (bundle?.featureConfig === undefined) return []
+    return bundleFeaturePatches(bundle, readBundleFeatureConfig(context.dir, layer.packageDir, layer.packageName, bundle))
+  })
   const patches = structuredClone([
     ...profile.layers.flatMap(layer => layer.patches),
     ...(initialProfile?.patches ?? loadOptionalPatches(binName, context.patchPath) ?? []),
+    // 用户功能选择覆盖旧 profile 开关；home 与显式启动覆盖仍保持更高优先级。
+    ...features,
     ...(loadOptionalPatches(binName, join(context.home, PROFILE_PATCH_FILENAME)) ?? []),
     ...context.overlays,
   ])

@@ -69,6 +69,8 @@ export interface DshEnginesManifest {
 
 /** The configuration layer exported by a bundle package. */
 export interface DshBundleManifest {
+  /** Independent custom bundle updates; official runtime bundles cannot opt in. */
+  update?: DshBundleUpdateSource
   /** One patch file path, or an ordered list applied in sequence, each relative to the declaring package root. */
   patch: string | string[]
   /** Optional package-relative JSON template for profile-owned feature selections. */
@@ -77,6 +79,18 @@ export interface DshBundleManifest {
   features?: DshBundleFeature[]
   /** Optional example prompts displayed in the bundle detail hero. */
   examples?: DshBundleExample[]
+}
+
+/** Public GitHub stable release family for one independently updated custom bundle. */
+export interface DshBundleUpdateSource {
+  /** Supported release provider. */
+  provider: 'github'
+  /** GitHub owner/repository, without credentials or a URL. */
+  repository: string
+  /** Tag prefix preceding the exact stable package SemVer. */
+  tagPrefix: string
+  /** Release JSON asset holding package identity, source, archive size and SHA-256. */
+  metadataAsset: string
 }
 
 /** One unsent prompt offered to help try a bundle in a new Session. */

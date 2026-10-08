@@ -27,6 +27,7 @@ import {
   removeLinkProjections,
   reportSkippedBundles,
   resolveBundleDir,
+  resolveBundleUpdateSource,
   resolveProfileDir,
   writeProfileManifest,
   type Profile,
@@ -96,7 +97,7 @@ function stageProfile(home: string, name: string, bundleAnchor: string): Profile
 }
 
 async function importFromResolution(
-  resolution: RuntimeResolution, specifier: string,
+  resolution: RuntimeResolution, specifier: string, parentPath?: string,
 ): Promise<Record<string, unknown>> {
   const addon = createRequire(import.meta.url)('node-addon-require-builtin') as {
     requireBuiltin(id: string): unknown
@@ -108,7 +109,7 @@ async function importFromResolution(
   }
   const registration = installRuntimeInterception(resolution)
   try {
-    const parent = pathToFileURL(join(resolution.profilesDir, 'entry.mjs')).href
+    const parent = pathToFileURL(parentPath ?? join(resolution.profilesDir, 'entry.mjs')).href
     return await loader.getOrInitializeCascadedLoader().import(specifier, parent, {})
   } finally {
     registration.dispose()
@@ -236,6 +237,31 @@ describe('manifest round-trip', () => {
 })
 
 describe('resolveBundleDir', () => {
+  it('uses one profile successor for patches and ESM resolution only when the installation declares independent updates', async () => {
+    const anchor = stageInstallation({ custom: { patch: '[]\n' }, '@deepseek-ai/dsh-base': { patch: '[]\n' } })
+    const installedDir = join(dirname(anchor), 'node_modules/custom')
+    const source = { provider: 'github', repository: 'example/plugins', tagPrefix: 'custom-v', metadataAsset: 'update.json' }
+    const installed = JSON.parse(readFileSync(join(installedDir, 'package.json'), 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
+    installed.dsh.bundle.update = source
+    writeFileSync(join(installedDir, 'package.json'), JSON.stringify(installed))
+    const home = tmp(), dir = join(home, 'profiles/test'), successor = join(dir, 'node_modules/custom')
+    initProfile(dir, ['custom', '@deepseek-ai/dsh-base'])
+    mkdirSync(successor, { recursive: true })
+    writeFileSync(join(successor, 'package.json'), JSON.stringify({ name: 'custom', version: '1.1.0', type: 'module', main: './index.js', dsh: { bundle: { patch: './patch.yml' } } }))
+    writeFileSync(join(successor, 'patch.yml'), '[]\n')
+    writeFileSync(join(successor, 'index.js'), 'export const version = "profile-successor"\n')
+    const manifest = readProfileManifest('test', dir)
+    manifest.dependencies = { custom: 'file:successor.tgz', '@deepseek-ai/dsh-base': 'file:rogue.tgz' }
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+    const profile = loadProfileDirectory('test', dir, anchor)
+    expect(profile.layers[0]?.packageDir).toBe(successor)
+    expect(resolveBundleDir('test', '@deepseek-ai/dsh-base', anchor, dir)).toBe(join(dirname(anchor), 'node_modules/@deepseek-ai/dsh-base'))
+    expect(resolveBundleUpdateSource('custom', anchor, dir)).toEqual(source)
+    expect(() => resolveBundleUpdateSource('../escape', anchor, dir)).toThrow('package name')
+    const resolution = await createRuntimeResolution({ installAnchor: anchor, profile, home })
+    expect((await importFromResolution(resolution, 'custom', join(dir, 'entry.mjs'))).version).toBe('profile-successor')
+  })
+
   it('prefers the installation anchor, falls back to the profile, and fails loud', () => {
     const anchor = stageInstallation({ 'in-box': { patch: '[]\n' } })
     const profileDir = tmp()

@@ -52,6 +52,20 @@ afterEach(() => {
 })
 
 describe('default product isolation', () => {
+  it('checks custom workspace bundles selected by the default Web profile', () => {
+    const root = fixture()
+    const name = 'custom-plugin'
+    manifest(root, 'apps/cli/package.json', { dependencies: { [core]: 'workspace:^', [name]: 'workspace:*' } })
+    write(root, 'custom-plugins/workspace/custom-plugin/package.json', { name, dsh: { bundle: { patch: './cordis.patch.yml' } } })
+    const customPatch = 'custom-plugins/workspace/custom-plugin/cordis.patch.yml'
+    write(root, customPatch, [{ insert: [{ name: core }] }])
+    write(root, profile, `export const PROFILE_TEMPLATES = { web: { bundles: ['${base}', '${name}'] } }\n`
+      + `export const DEFAULT_PROFILE_BUNDLES = ['${base}']\n`)
+    expect(verifyDefaultProductIsolation(root).failures).toEqual([])
+    write(root, customPatch, [{ insert: [{ name: experimental }] }])
+    expect(verifyDefaultProductIsolation(root).failures.join('\n')).toContain('default product must not include experimental packages')
+  })
+
   it.each(['@deepseek-ai/libreoffice-kit'])(
     'accepts independently published %s but rejects unknown workspace packages', (name) => {
       const root = fixture()

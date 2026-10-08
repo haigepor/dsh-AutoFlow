@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write custom-plugins/release-governance/README.md
+/plugin-and-desktop-release-governance:
+  en: ca566e9560a22328
+  zh: 13104b0527de220a
+/plugin-and-desktop-release-governance/summary:
+  en: a3450ca6b8bce0ae
+  zh: a4f5c614087f45b8
+/plugin-and-desktop-release-governance/product-families:
+  en: b23af046fbecad3a
+  zh: 2294f75526734beb
+/plugin-and-desktop-release-governance/release-procedure:
+  en: 3e2e50c91f14be2a
+  zh: aa824aa31951d16f
+/plugin-and-desktop-release-governance/milestones-and-tag-names:
+  en: 2bbc5c75c0f8860f
+  zh: cfb3881ab6cdf019
+/plugin-and-desktop-release-governance/update-acceptance:
+  en: 572dcdab125660a5
+  zh: c4d39b9589d063a5
+/plugin-and-desktop-release-governance/recovery:
+  en: 85856453b1dbad86
+  zh: f808763702072110
+/plugin-and-desktop-release-governance/dev-note:
+  en: b75c8458928b72b9
+  zh: 02cbcc6baa338b07

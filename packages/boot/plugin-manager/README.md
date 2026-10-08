@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
 
 Application-owned profiles supply their bundled package-manager invocation through launcher facts. It takes precedence over `pnpmCommand` for package operations and registry inspection; its environment applies only to those subprocesses.
 
+Bundles declaring `dsh.bundle.update` support source-specific GitHub stable-release checks. The manager checks after application readiness and every `updateIntervalMs` (3600000 ms by default); automatic installation is off until explicitly enabled per profile. `checkBundleUpdates`, `setBundleAutoUpdate` and `updateBundle` serve the plugin page. HTTP timeout, JSON/compressed/expanded byte bounds and release pagination are configurable through `updateTimeoutMs`, `updateJsonBytes`, `updateArchiveBytes`, `updateExpandedBytes` and `updateReleasePages`. Public GitHub HTTPS endpoints are required; private authenticated repositories are unsupported. Checks select the declared tag family rather than repository-wide latest. Installation validates asset identity, API digest, source tag, SHA-256, archive paths and package identity, then reuses the profile package transaction. Failure restores the target entry, manifest, lockfile and staged feature migration; dependency script effects are not reversible. Updated modules take effect after restart, preserving bundle activation and feature choices. Preferences and retained tarballs live under profile `.plugin-updates/`; deleting referenced cache files breaks pnpm file dependencies. Failed automatic installation is visible on the page and may be retried manually or at a later scheduled check while permission remains enabled; it never grants build-script permission.
+
 ## Summary
 
 Manage the current profile's plugins without editing configuration by hand. Enable or disable individual plugin entries, select installed bundles, and install or remove external bundles. With HMR enabled in YAML, configuration changes apply immediately; without HMR, the running composition remains until restart. Changes affect every session using the profile.
@@ -150,6 +152,8 @@ Failures preserve completed steps and report the actual remaining state. Profile
 Installation finishes after pnpm and bundle validation succeed; subsequent enablement failure does not undo installation. Removal proceeds in order: remove the bundle from `dsh.profile.bundles`, unload its runtime contributions, then run `pnpm remove`. A failed step prevents subsequent steps.
 
 Restoration rewrites only the two snapshotted files; user-authored patch configuration, application data, diagnostic logs and files pnpm downloaded remain untouched, and the next package operation prunes packages no manifest references.
+
+Web update restart is an authenticated, explicit action owned by the profile launcher. `restartStatus` returns a process identity and readiness; `restartAfterUpdate` refuses stale identities, unmanaged launches, missing pending updates, and active package operations. The authenticated `/api/plugins/restart-status` route confirms a different, ready Host before the Client reloads. `restartTimeoutMs` bounds recovery (default 180000 ms). A page or Session refresh does not replace loaded Host modules. Restart interrupts running work; persisted Sessions and profile configuration remain on disk.
 
 <a id="dev-note"></a>
 ### Dev Note

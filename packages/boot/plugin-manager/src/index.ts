@@ -1,6 +1,6 @@
 /** Current-profile plugin and bundle management over shared dsh plugin operations. */
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -16,8 +16,11 @@ import {
   reconcileProfilePatches, readProfilePatches, OPTIONAL_BUNDLES, bundlePatchPaths,
   evaluatePluginCompatibility, readProfileCompatibility, readProfileVersionExemptions,
   setProfileVersionExemption, PROFILE_COMPATIBILITY_FILENAME,
+  resolveBundleUpdateSource, bundleFeatureConfigPath, readBundleFeatureConfig, stageBundleFeatureConfigUpdate,
 } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-hmr'
+import type {} from '@deepseek-ai/dsh-cmdline'
+import type {} from '@deepseek-ai/dsh-client-connection'
 import type { PluginIcon, ProfileContext, ProfileManifest } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { DshBundleExample, DshBundleFeature, DshBundleFeatureKind, LocalizedText } from '@deepseek-ai/dsh-package-manifest'
@@ -29,9 +32,11 @@ import { readPluginFeatureEnabled, writePluginEnabled, writePluginEnabledBatch }
 import { incompatiblePlugin, ManagementFailure } from './failure.ts'
 import { approveBuilds, readPendingBuilds } from './build-approval.ts'
 import { checkGithubConnection } from './github-connection.ts'
+import { cacheBundleUpdate, discoverBundleUpdate, type UpdateLimits } from './github-updates.ts'
+import { backupUpdateEntry, readAutomaticUpdates, writeAutomaticUpdate, type UpdateEntryBackup } from './update-state.ts'
 import type {
-  BundleFeatureInfo, BundleInfo, BundleRowInfo, ChangeResult, InspectOptions, InstallBundleOptions, ManagementError,
-  PackageResult, PluginChange,
+  BundleFeatureInfo, BundleInfo, BundleRowInfo, BundleUpdateInfo, ChangeResult, InspectOptions, InstallBundleOptions, ManagementError,
+  PackageResult, PluginChange, PluginRestartGeneration,
   PluginEntryId, PluginInfo, PluginInspectProblem, PluginInstallCancellation, PluginInstallProgress, PluginInstallRequestId,
   PluginRegistries, PluginSpecInspection, Registry,
 } from './types.ts'
@@ -41,6 +46,20 @@ export { InvalidInstallSpecError, parseInstallSpec, type ParsedInstallSpec } fro
 
 /** The pnpm executable, registries, and limits for diagnostics, lookups and connection checks. */
 export interface Config {
+  /** Client deadline for waiting for a replacement Web Host to become ready. */
+  restartTimeoutMs?: number
+  /** Interval between automatic stable-release checks, in milliseconds. */
+  updateIntervalMs?: number
+  /** Timeout for a complete update HTTP response. */
+  updateTimeoutMs?: number
+  /** Maximum JSON response bytes. */
+  updateJsonBytes?: number
+  /** Maximum compressed plugin archive bytes. */
+  updateArchiveBytes?: number
+  /** Maximum total expanded archive content bytes. */
+  updateExpandedBytes?: number
+  /** Maximum release-list pages before refusing an incomplete check. */
+  updateReleasePages?: number
   /** The pnpm executable name or path; resolved through `PATH` like the `dsh plugin` command. */
   pnpmCommand?: string
   /** Maximum retained package-operation diagnostic bytes. */
@@ -239,6 +258,13 @@ declare module '@deepseek-ai/cordis' {
 export class PluginManager extends TypertRemoteService {
   static inject = ['loader', 'profileContext']
   static Config: z<Config> = z.object({
+    restartTimeoutMs: z.number().step(1).min(1000).default(180000),
+    updateIntervalMs: z.number().step(1).min(60000).default(3600000),
+    updateTimeoutMs: z.number().step(1).min(1000).default(20000),
+    updateJsonBytes: z.number().step(1).min(1024).default(1048576),
+    updateArchiveBytes: z.number().step(1).min(1024).default(67108864),
+    updateExpandedBytes: z.number().step(1).min(1024).default(268435456),
+    updateReleasePages: z.number().step(1).min(1).max(100).default(10),
     pnpmCommand: z.string().default('pnpm'),
     outputBytes: z.number().step(1).min(1).default(16384),
     lockWaitMs: z.number().step(1).min(0).default(120000),
@@ -267,12 +293,30 @@ export class PluginManager extends TypertRemoteService {
   private readonly actions = new Map<string, (input: Record<string, string>, signal: AbortSignal) => Promise<string>>()
   private iconAssets = new Map<string, PluginIcon>()
   private webIcons = false
+  private readonly updateLimits: UpdateLimits
+  private readonly updateStates = new Map<string, BundleUpdateInfo>()
+  private readonly updateChecks = new Map<string, Promise<BundleUpdateInfo>>()
+  private readonly updateInstalls = new Map<string, Promise<ChangeResult>>()
+  private readonly restartBundles = new Set<string>()
+  private updateSweep: Promise<void> | undefined
+  // 同一 Node 进程内重新加载服务不能伪装成后台重启。
+  private readonly restartGeneration = createHash('sha256').update(`${process.pid}:${performance.timeOrigin}`).digest('hex') as PluginRestartGeneration
+  private restarting = false
+  private applicationReady = false
+  private readonly restartTimeoutMs: number
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'pluginManager')
     this.ownerEntryId = ctx.fiber.entry?.id
     this.ownerContext = ctx
     this.profile = ctx.profileContext
+    this.restartTimeoutMs = (config as Required<Config>).restartTimeoutMs
+    ctx.inject(['connection'], (connectionCtx) => {
+      connectionCtx.effect(() => connectionCtx.connection.fetch.register({
+        path: '/api/plugins/restart-status', methods: ['GET'], requestBody: 'buffered',
+        fetch: () => Promise.resolve(Response.json(this.restartStatus(), { headers: { 'cache-control': 'no-store' } })),
+      }), 'plugin-manager: authenticated restart readiness')
+    })
     ctx.inject(['webServer'], (webCtx) => {
       webCtx.effect(() => {
         this.webIcons = true
@@ -296,6 +340,10 @@ export class PluginManager extends TypertRemoteService {
     this.githubConnectionTimeoutMs = (config as Required<Config>).githubConnectionTimeoutMs
     this.idleTimeoutMs = (config as Required<Config>).idleTimeoutMs
     this.pnpmCommand = (config as Required<Config>).pnpmCommand
+    const updateConfig = config as Required<Config>
+    this.updateLimits = { timeoutMs: updateConfig.updateTimeoutMs, jsonBytes: updateConfig.updateJsonBytes,
+      archiveBytes: updateConfig.updateArchiveBytes, expandedBytes: updateConfig.updateExpandedBytes,
+      releasePages: updateConfig.updateReleasePages }
     this.configuredRegistries = {
       registry: config.registry === undefined ? null : normalizeRegistry(config.registry),
       fallbackRegistries: (config as Required<Config>).fallbackRegistries.map(normalizeRegistry),
@@ -304,6 +352,180 @@ export class PluginManager extends TypertRemoteService {
       this.abort.abort()
       await Promise.allSettled([...this.packageOperations])
     }, 'plugin-manager: package cancellation')
+    ctx.inject(['appReady'], (ready) => {
+      ready.effect(() => {
+        let timer: ReturnType<typeof setInterval> | undefined
+        const appReady = ready.get('appReady')
+        if (appReady === undefined) throw new Error('Missing application readiness service')
+        const remove = appReady.onReady(() => {
+          this.applicationReady = true
+          this.sweepUpdates()
+          timer = setInterval(() => { this.sweepUpdates() }, updateConfig.updateIntervalMs)
+          timer.unref()
+        })
+        return () => { remove(); if (timer !== undefined) clearInterval(timer) }
+      }, 'plugin-manager: periodic update checks')
+    })
+  }
+
+  /** Read launcher support and process identity before an explicitly confirmed restart.
+   * @returns Process-local identity, readiness and the configured recovery deadline; no launch credentials.
+   */
+  @Remote
+  restartStatus(): { generation: PluginRestartGeneration; supported: boolean; ready: boolean; timeoutMs: number } {
+    return { generation: this.restartGeneration, supported: this.profile.restart !== undefined,
+      ready: this.applicationReady && !this.restarting, timeoutMs: this.restartTimeoutMs }
+  }
+
+  /** Ask the owning Web launcher to replace the Host; an active installation refuses the request.
+   * @param generation Process identity read before the user's confirmation.
+   * @returns False for unavailable, stale or busy launches; true once the owning launcher is notified.
+   */
+  @Remote
+  restartAfterUpdate(generation: PluginRestartGeneration): boolean {
+    if (generation !== this.restartGeneration || this.profile.restart === undefined) return false
+    if (this.restarting) return true
+    if (this.restartBundles.size === 0 || this.packageOperations.size !== 0) return false
+    this.restarting = true
+    try { this.profile.restart() } catch (error) { this.restarting = false; throw error }
+    return true
+  }
+
+  /** Check stable GitHub releases for declared bundle sources; a failed source keeps its own diagnostic.
+   * @returns Last observed state for each independently updateable bundle.
+   */
+  @Remote
+  async checkBundleUpdates(): Promise<BundleUpdateInfo[]> {
+    const bundles = await this.listBundles()
+    return Promise.all(bundles.filter(bundle => bundle.update !== undefined).map(bundle => this.checkUpdate(bundle.name)))
+  }
+
+  /** Persist explicit automatic-installation permission and immediately check when enabled.
+   * @param name Bundle with a declared source.
+   * @param enabled Whether checked newer versions may install without another action.
+   */
+  @Remote
+  async setBundleAutoUpdate(name: string, enabled: boolean): Promise<void> {
+    if (resolveBundleUpdateSource(name, this.profile.installAnchor, this.profile.dir) === undefined || this.protectsManager(name)) {
+      throw new ManagementFailure('unknown-plugin')
+    }
+    await writeAutomaticUpdate(this.profile.dir, name, enabled)
+    this.ownerContext.emit('plugin-manager/changed', { reason: 'bundle' })
+    if (enabled) this.sweepUpdates()
+  }
+
+  /** Recheck a declared release, verify its bytes and install into this profile without changing activation.
+   * @param name Independently updateable bundle name; callers cannot supply an asset URL.
+   * @returns Existing installation diagnostics and restart-required after success.
+   */
+  @Remote
+  updateBundle(name: string): Promise<ChangeResult> {
+    const pending = this.updateInstalls.get(name)
+    if (pending !== undefined) return pending
+    const task = this.performUpdate(name).finally(() => {
+      this.updateInstalls.delete(name)
+      this.packageOperations.delete(task)
+    })
+    this.updateInstalls.set(name, task)
+    this.packageOperations.add(task)
+    return task
+  }
+
+  private updateInfo(name: string): BundleUpdateInfo | undefined {
+    const source = resolveBundleUpdateSource(name, this.profile.installAnchor, this.profile.dir)
+    if (source === undefined) return undefined
+    return { name, repository: source.repository, status: 'unchecked', ...this.updateStates.get(name),
+      automatic: readAutomaticUpdates(this.profile.dir)[name] === true, restartRequired: this.restartBundles.has(name) }
+  }
+
+  private checkUpdate(name: string): Promise<BundleUpdateInfo> {
+    const pending = this.updateChecks.get(name)
+    if (pending !== undefined) return pending
+    const task = (async () => {
+      const info = this.updateInfo(name)
+      if (info === undefined) throw new ManagementFailure('unknown-plugin')
+      if (info.restartRequired || info.status === 'installing') return info
+      try {
+        const source = resolveBundleUpdateSource(name, this.profile.installAnchor, this.profile.dir)
+        if (source === undefined) throw new ManagementFailure('unknown-plugin')
+        const manifest = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
+        const release = await discoverBundleUpdate(name, manifest?.version ?? '', source, this.updateLimits, this.abort.signal)
+        const latest = this.updateInfo(name)
+        if (latest?.restartRequired || latest?.status === 'installing') return latest
+        const state: BundleUpdateInfo = { ...info, status: release === undefined ? 'current' : 'available',
+          ...(release === undefined ? {} : { version: release.metadata.version, releaseUrl: release.releaseUrl }) }
+        delete state.diagnostic
+        if (release === undefined) { delete state.version; delete state.releaseUrl }
+        this.updateStates.set(name, state)
+        return state
+      } catch (error) {
+        // 旧检查的迟到失败不能覆盖正在安装或等待重启的状态。
+        const latest = this.updateInfo(name)
+        if (latest?.restartRequired || latest?.status === 'installing') return latest
+        const state: BundleUpdateInfo = { ...info, status: 'error', diagnostic: messageOf(error) }
+        this.updateStates.set(name, state)
+        return state
+      }
+    })().finally(() => { this.updateChecks.delete(name); this.packageOperations.delete(task) })
+    this.updateChecks.set(name, task)
+    this.packageOperations.add(task)
+    return task
+  }
+
+  private async performUpdate(name: string): Promise<ChangeResult> {
+    try {
+      const source = resolveBundleUpdateSource(name, this.profile.installAnchor, this.profile.dir)
+      if (source === undefined || this.protectsManager(name)) throw new ManagementFailure('unknown-plugin')
+      const info = this.updateInfo(name)
+      if (info === undefined) throw new ManagementFailure('unknown-plugin')
+      this.updateStates.set(name, info)
+      const before = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
+      if (before?.dsh?.bundle === undefined) throw new ManagementFailure('not-bundle')
+      if (this.restartBundles.has(name)) return { target: name, stage: 'install', changed: false, application: 'restart-required' }
+      const release = await discoverBundleUpdate(name, before.version ?? '', source, this.updateLimits, this.abort.signal)
+      if (release === undefined) {
+        this.updateStates.set(name, { ...info, status: 'current' })
+        return { target: name, stage: 'install', changed: false, application: 'applied' }
+      }
+      this.updateStates.set(name, { ...info, status: 'installing', version: release.metadata.version, releaseUrl: release.releaseUrl })
+      this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
+      const cached = await cacheBundleUpdate(this.profile.dir, release, this.updateLimits, this.abort.signal)
+      const enabled = readProfileManifest('dsh', this.profile.dir).dsh?.profile?.bundles?.includes(name) === true
+      const result = await this.install(cached.file, { enabled }, { name, version: release.metadata.version, before })
+      if (result.application === 'restart-required' && result.error === undefined) {
+        this.restartBundles.add(name)
+        this.updateStates.set(name, { name, repository: source.repository, automatic: readAutomaticUpdates(this.profile.dir)[name] === true,
+          status: 'current', version: release.metadata.version, releaseUrl: release.releaseUrl, restartRequired: true })
+        this.ownerContext.emit('plugin-manager/changed', { reason: 'install' })
+      } else if (result.application === 'failed') {
+        this.updateStates.set(name, { name, repository: source.repository, automatic: readAutomaticUpdates(this.profile.dir)[name] === true,
+          status: 'error', diagnostic: result.error?.diagnostic ?? result.packageResult?.output ?? 'Plugin installation failed', restartRequired: false })
+        this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
+      }
+      return result
+    } catch (error) {
+      const state = this.updateStates.get(name)
+      if (!this.abort.signal.aborted && state !== undefined) {
+        this.updateStates.set(name, { ...state, status: 'error', diagnostic: messageOf(error) })
+        this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
+      }
+      return { target: name, stage: 'install', changed: false, application: this.abort.signal.aborted ? 'cancelled' : 'failed', error: managementError(error) }
+    }
+  }
+
+  private sweepUpdates(): void {
+    if (this.abort.signal.aborted || this.updateSweep !== undefined) return
+    const task = (async () => {
+      for (const state of await this.checkBundleUpdates()) {
+        if (this.abort.signal.aborted) break
+        if (readAutomaticUpdates(this.profile.dir)[state.name] === true && state.status === 'available' && !state.restartRequired) await this.updateBundle(state.name)
+      }
+      if (!this.abort.signal.aborted) this.ownerContext.emit('plugin-manager/changed', { reason: 'bundle' })
+    })().catch((error: unknown) => {
+      if (!this.abort.signal.aborted) this.ownerContext.logger.warn('Plugin update check failed', error)
+    }).finally(() => { this.updateSweep = undefined; this.packageOperations.delete(task) })
+    this.updateSweep = task
+    this.packageOperations.add(task)
   }
 
   /** Read exact plugin-version exemptions saved in this profile.
@@ -393,13 +615,18 @@ export class PluginManager extends TypertRemoteService {
         const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
         const manifestPath = join(dir, 'package.json')
         const meta = readPluginMeta(info.name ?? name, pathToFileURL(manifestPath).href, iconURL)
+        // 待重启时继续展示旧选择，只有下一次启动才迁移新版功能文件。
+        const selections = info.dsh?.bundle?.featureConfig !== undefined && !this.restartBundles.has(name)
+          ? readBundleFeatureConfig(this.profile.dir, dir, name, info.dsh.bundle).features : undefined
         const features: BundleFeatureInfo[] = declaredFeatures(info, this.bundleRows(name)).map((feature) => {
           const image = readPluginIcon(feature.icon, manifestPath)
           return { ...feature, ...(image === undefined ? {} : { icon: iconURL(image) }),
-            enabled: readPluginFeatureEnabled(this.profile.patchPath, feature.rowId, feature.defaultEnabled) }
+            enabled: selections?.[feature.id] ?? readPluginFeatureEnabled(this.profile.patchPath, feature.rowId, feature.defaultEnabled) }
         })
         const examples = declaredExamples(info)
+        const update = this.updateInfo(name)
         bundles.push({ name, ...(info.version === undefined ? {} : { version: info.version }),
+          ...update === undefined ? {} : { update },
           ...(info.description === undefined || info.description === '' ? {} : { description: info.description }),
           ...meta === undefined ? {} : { meta },
           enabled, installed, optional, removable: removable && readOnlyReason === undefined,
@@ -548,7 +775,8 @@ export class PluginManager extends TypertRemoteService {
     }), { stage: 'enable', target: name, enabled }, 'bundle')
   }
 
-  /** Persist all declared feature choices together, optionally selecting the bundle.
+  /** Persist declared feature choices in opted-in JSON and legacy patches, optionally selecting the bundle.
+   * Updated bundles require restart before changing features.
    * @param name Bundle package name.
    * @param enabledFeatureIds Complete set of selected feature IDs.
    * @param activate Whether to select the bundle in the same update.
@@ -559,6 +787,7 @@ export class PluginManager extends TypertRemoteService {
     return this.change(result => this.configure(async () => {
       const info = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
       if (info === undefined) throw new ManagementFailure('not-bundle')
+      if (this.restartBundles.has(name)) throw new Error('Restart before changing updated bundle features')
       const rows = this.bundleRows(name)
       const features = declaredFeatures(info, rows)
       const known = new Set(features.map(feature => feature.id))
@@ -566,6 +795,10 @@ export class PluginManager extends TypertRemoteService {
         throw new Error('Unknown or duplicate bundle feature selection')
       }
       const before = new Map<string, string | undefined>()
+      const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
+      const bundle = info.dsh?.bundle
+      const featurePath = bundle?.featureConfig === undefined ? undefined : bundleFeatureConfigPath(this.profile.dir, name)
+      if (bundle?.featureConfig !== undefined) readBundleFeatureConfig(this.profile.dir, dir, name, bundle)
       for (const filename of ['package.json', 'cordis.patch.yml']) {
         const path = join(this.profile.dir, filename)
         try { before.set(path, await readFile(path, 'utf8')) }
@@ -574,7 +807,12 @@ export class PluginManager extends TypertRemoteService {
           before.set(path, undefined)
         }
       }
+      if (featurePath !== undefined) before.set(featurePath, await readFile(featurePath, 'utf8'))
       try {
+        if (featurePath !== undefined) {
+          await writeFileAtomic(featurePath, JSON.stringify({ version: 1,
+            features: Object.fromEntries(features.map(feature => [feature.id, enabledFeatureIds.includes(feature.id)])) }, null, 2) + '\n', { mode: 0o600 })
+        }
         await writePluginEnabledBatch(this.profile.patchPath, features.map((feature) => {
           const row = rows.find(candidate => candidate.id === feature.rowId)
           if (row === undefined) throw new Error(`Missing bundle feature row: ${feature.rowId}`)
@@ -582,6 +820,7 @@ export class PluginManager extends TypertRemoteService {
         }))
         if (activate) await this.selectBundle(name, true)
         result.warnings = await this.reload(activate ? rows.map(row => row.id) : [])
+        if (featurePath !== undefined) result.changed = before.get(featurePath) !== await readFile(featurePath, 'utf8')
       } catch (error) {
         await this.restoreFiles(before)
         await this.reload()
@@ -635,6 +874,12 @@ export class PluginManager extends TypertRemoteService {
    */
   @Remote
   installBundle(spec: string, options?: InstallBundleOptions): Promise<ChangeResult> {
+    return this.install(spec, options)
+  }
+
+  private install(
+    spec: string, options?: InstallBundleOptions, update?: { name: string; version: string; before: ProfileManifest },
+  ): Promise<ChangeResult> {
     const requestId = options?.requestId
     const control: InstallControl = { abort: new AbortController(), phase: 'installing', result: Promise.resolve(null) }
     const stopped = (): boolean => control.abort.signal.aborted || this.abort.signal.aborted
@@ -650,9 +895,16 @@ export class PluginManager extends TypertRemoteService {
         result.approvedBuilds = options.approvedBuilds
       }
       const files = await this.readRestoredFiles()
+      let entryBackup: UpdateEntryBackup | undefined
+      if (update !== undefined) {
+        const pending = `${bundleFeatureConfigPath(this.profile.dir, update.name)}.update.json`
+        if (existsSync(pending) && lstatSync(pending).isSymbolicLink()) throw new Error('Refusing linked feature update configuration')
+        files.set(pending, existsSync(pending) ? await readFile(pending, 'utf8') : undefined)
+      }
       const before = readProfileManifest('dsh', this.profile.dir).dependencies ?? {}
       let name: string
       try {
+        if (update !== undefined) entryBackup = await backupUpdateEntry(this.profile.dir, update.name)
         result.registries = []
         const connection = checkGithubConnection(parsedForRegistry(spec), this.profile.dir, {
           timeoutMs: this.githubConnectionTimeoutMs, outputBytes: this.outputBytes,
@@ -678,7 +930,9 @@ export class PluginManager extends TypertRemoteService {
           if (stopped()) throw new InstallCancelledError()
           result.registries.push(registry)
           announce('installing', { registry, index: index + 1, total: plan.length })
-          run = await this.runPnpm(['add', spec, ...registryArguments(registry)], control.abort.signal, requestId)
+          // 更新已有依赖时显式指定包名，避免 pnpm 先解析旧的 registry 范围。
+          const installSpec = update === undefined ? spec : `${update.name}@file:${spec.replaceAll('\\', '/')}`
+          run = await this.runPnpm(['add', installSpec, ...registryArguments(registry)], control.abort.signal, requestId)
           result.packageResult = run
           if (stopped()) throw new InstallCancelledError()
           // A compatibility refusal is the package's own answer, so no other registry is asked.
@@ -717,14 +971,24 @@ export class PluginManager extends TypertRemoteService {
         name = target
         const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
         const manifest = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
+        if (update !== undefined && (name !== update.name || manifest?.name !== update.name || manifest.version !== update.version)) {
+          throw new Error('Installed update identity differs from the verified archive')
+        }
         if (manifest?.dsh?.bundle === undefined) throw new ManagementFailure('not-bundle')
         const compatibility = evaluatePluginCompatibility(manifest, readProfileVersionExemptions(this.profile.dir))
         if (compatibility !== undefined && !compatibility.exempted) throw new ManagementFailure('incompatible-version', [incompatiblePlugin(compatibility)])
         for (const file of bundlePatchPaths(dir, manifest.dsh.bundle)) loadOverlayPatches('dsh', file)
+        if (update?.before.dsh?.bundle?.featureConfig !== undefined) {
+          await stageBundleFeatureConfigUpdate(this.profile.dir, name, dir, update.version, update.before.dsh.bundle, manifest.dsh.bundle)
+        }
+        if (stopped()) throw new InstallCancelledError()
       } catch (error) {
         // pnpm has exited by now, so the files it rewrote go back as they were.
         await this.restoreFiles(files)
+        await entryBackup?.restore()
         throw error
+      } finally {
+        await entryBackup?.discard()
       }
       control.phase = 'applying'
       announce('applying')
@@ -732,6 +996,7 @@ export class PluginManager extends TypertRemoteService {
       result.target = name
       result.stage = 'enable'
       return this.configure(async () => {
+        if (update !== undefined) return 'restart-required'
         if (options?.enabled !== false) await this.selectBundle(name, true)
         if (Object.hasOwn(before, name)) return 'restart-required'
         if (options?.enabled !== false) result.warnings = await this.reload()
@@ -934,7 +1199,7 @@ export class PluginManager extends TypertRemoteService {
   }
 
   private async reload(requiredIds: readonly string[] = []): Promise<string[]> {
-    if (this.ownerContext.get('hmr') === undefined) return []
+    if (this.ownerContext.get('hmr') === undefined || this.restartBundles.size > 0) return []
     return reconcileProfilePatches(this.ownerContext.root, readProfilePatches('dsh', this.profile), 'dsh', requiredIds)
   }
 
@@ -947,7 +1212,7 @@ export class PluginManager extends TypertRemoteService {
       this.abort.signal.throwIfAborted()
       const before = this.diskState()
       const result: ChangeResult = { ...request, changed: false,
-        application: this.ownerContext.get('hmr') !== undefined ? 'applied' : 'restart-required' }
+        application: this.ownerContext.get('hmr') !== undefined && this.restartBundles.size === 0 ? 'applied' : 'restart-required' }
       try {
         result.application = await operation(result) ?? result.application
       } catch (error) {
@@ -958,7 +1223,7 @@ export class PluginManager extends TypertRemoteService {
           result.error = managementError(error)
         }
       }
-      result.changed = before !== this.diskState()
+      result.changed ||= before !== this.diskState()
       this.ownerContext.emit('plugin-manager/changed', { reason })
       return result
     }, { waitMs: this.lockWaitMs })

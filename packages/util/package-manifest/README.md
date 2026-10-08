@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
 
 Package and feature `icon` declarations use manifest-relative image files. Resolved feature records carry delivery URLs; Web serves validated icon files, while non-Web metadata readers may retain data URLs.
 
+`DshBundleManifest.update` references `DshBundleUpdateSource`: provider `github`, repository `owner/name`, stable `tagPrefix` and JSON `metadataAsset`. [App boot](../../boot/app-boot/README.md) validates this optional declaration and owns package selection; [plugin manager](../../boot/plugin-manager/README.md) owns checking and installation.
+
 ## Summary
 
 Use `DshPackageManifest` for package metadata, `DshManifest` for the public fields under `dsh`, and member types such as `DshClientManifest` for one domain. Each reader owns JSON parsing, validation, and default resolution.

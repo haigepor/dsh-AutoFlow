@@ -25,6 +25,7 @@ import * as operations from '../src/operations.ts'
 import * as githubConnection from '../src/github-connection.ts'
 import { parse, parseDocument } from 'yaml'
 import { isolateGitCommandLineConfig } from './git-environment.ts'
+import { githubFixture, source as updateSource } from './update-fixture.ts'
 
 // These cases install through real Git and pnpm, so the host's command-line configuration group must not reach their children.
 let restoreGitCommandLineConfig: () => void
@@ -84,6 +85,161 @@ async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, pre
   return { ctx, dir, manager: ctx.pluginManager, bundle, profile, stopHmr, overlays, connection }
 }
 
+it('checks by default without installing, then installs verified release bytes through real pnpm and retains activation', async () => {
+  githubFixture()
+  const { manager, dir, ctx, profile } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const path = join(profileDir, 'node_modules/extra/package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
+    manifest.dsh.bundle.update = updateSource
+    writeFileSync(path, JSON.stringify(manifest))
+  })
+  expect(await manager.checkBundleUpdates()).toMatchObject([{ name: 'extra', automatic: false, status: 'available', version: '1.1.0' }])
+  expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.0.0')
+  const policy = parseDocument(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8'))
+  policy.set('offline', true); policy.set('storeDir', join(profile.cwd, 'store'))
+  writeFileSync(join(dir, 'pnpm-workspace.yaml'), String(policy))
+  const activation = readProfileManifest('test', dir).dsh?.profile?.bundles
+  const first = manager.updateBundle('extra')
+  expect(manager.updateBundle('extra')).toBe(first)
+  const result = await first
+  expect(result, JSON.stringify(result)).toMatchObject({ application: 'restart-required', packageResult: { exitCode: 0 } })
+  expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.1.0')
+  expect(readProfileManifest('test', dir).dsh?.profile?.bundles).toEqual(activation)
+  expect(Reflect.get(ctx, 'managedProbe')).toBe(true)
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.update?.restartRequired).toBe(true)
+  expect(await manager.updateBundle('extra')).toMatchObject({ changed: false, application: 'restart-required' })
+  const restart = vi.fn()
+  const previous = manager.restartStatus()
+  expect(previous.supported).toBe(false)
+  expect(manager.restartAfterUpdate(previous.generation)).toBe(false)
+  Object.assign(profile, { restart })
+  expect(manager.restartStatus()).toMatchObject({ supported: true, ready: true })
+  expect(manager.restartAfterUpdate(previous.generation)).toBe(true)
+  expect(manager.restartAfterUpdate(previous.generation)).toBe(true)
+  expect(restart).toHaveBeenCalledOnce()
+  expect(manager.restartStatus().ready).toBe(false)
+})
+
+it('installs a newer release only after automatic installation is explicitly enabled', async () => {
+  githubFixture()
+  const { manager, dir, bundle } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const path = join(profileDir, 'node_modules/extra/package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
+    manifest.dsh.bundle.update = updateSource
+    writeFileSync(path, JSON.stringify(manifest))
+  })
+  const run = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
+    const manifest = readProfileManifest('test', dir)
+    manifest.dependencies = { extra: 'file:extra-1.1.0.tgz' }
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+    bundle('extra', [{ id: 'managed', name: './plugin.mjs' }])
+    const path = join(dir, 'node_modules/extra/package.json')
+    const successor = JSON.parse(readFileSync(path, 'utf8')) as { version: string; dsh: { bundle: Record<string, unknown> } }
+    successor.version = '1.1.0'; successor.dsh.bundle.update = updateSource
+    writeFileSync(path, JSON.stringify(successor))
+    return { exitCode: 0, output: '', truncated: false, logPath: join(dir, 'operation.log') }
+  })
+  onTestFinished(() => { run.mockRestore() })
+  await manager.checkBundleUpdates()
+  expect(run).not.toHaveBeenCalled()
+  await manager.setBundleAutoUpdate('extra', true)
+  await vi.waitFor(async () => { expect((await manager.listBundles()).find(item => item.name === 'extra')?.update?.restartRequired).toBe(true) })
+  expect(run).toHaveBeenCalledTimes(1)
+  await manager.setBundleAutoUpdate('extra', false)
+  expect((await manager.listBundles()).find(item => item.name === 'extra')?.update?.automatic).toBe(false)
+})
+
+it('keeps the restart identity for different manager lifetimes in the same Host process', async () => {
+  const first = await fixture('startup')
+  const second = await fixture('startup')
+  expect(second.manager.restartStatus().generation).toBe(first.manager.restartStatus().generation)
+})
+
+it('restores the package entry and profile files when an updater installation fails after replacing them', async () => {
+  githubFixture()
+  const { manager, dir } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const path = join(profileDir, 'node_modules/extra/package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
+    manifest.dsh.bundle.update = updateSource
+    writeFileSync(path, JSON.stringify(manifest))
+  })
+  const original = readFileSync(join(dir, 'package.json'), 'utf8')
+  const run = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
+    writeFileSync(join(dir, 'node_modules/extra/package.json'), '{"name":"extra","version":"broken"}')
+    writeFileSync(join(dir, 'package.json'), '{"dependencies":{"extra":"broken"}}')
+    return { exitCode: 1, output: 'update failed', truncated: false, logPath: join(dir, 'operation.log') }
+  })
+  onTestFinished(() => { run.mockRestore() })
+  expect(await manager.updateBundle('extra')).toMatchObject({ application: 'failed' })
+  expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(original)
+  expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.0.0')
+})
+
+it('reports archive download failures without changing the installed version', async () => {
+  const { fetchMock, release } = githubFixture()
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = input instanceof Request ? input.url : input.toString()
+    return url === release.metadata.asset.url ? new Response('failed', { status: 503 }) : original(input, init)
+  })
+  const { manager, dir } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const path = join(profileDir, 'node_modules/extra/package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
+    manifest.dsh.bundle.update = updateSource
+    writeFileSync(path, JSON.stringify(manifest))
+  })
+  expect(await manager.checkBundleUpdates()).toMatchObject([{ status: 'available' }])
+  expect(await manager.updateBundle('extra')).toMatchObject({ application: 'failed' })
+  const update = (await manager.listBundles()).find(item => item.name === 'extra')?.update
+  expect(update).toMatchObject({ status: 'error', restartRequired: false })
+  expect(update?.diagnostic).toContain('503')
+  expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.0.0')
+})
+
+it('keeps installation progress when an earlier version check fails late', async () => {
+  const { fetchMock } = githubFixture()
+  const { manager, dir } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const path = join(profileDir, 'node_modules/extra/package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
+    manifest.dsh.bundle.update = updateSource
+    writeFileSync(path, JSON.stringify(manifest))
+  })
+  await manager.checkBundleUpdates()
+  const original = fetchMock.getMockImplementation()!
+  const checkStarted = Promise.withResolvers<undefined>()
+  const failedCheck = Promise.withResolvers<Response>()
+  let holdCheck = true
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = input instanceof Request ? input.url : input.toString()
+    if (holdCheck && url.includes('/releases?')) {
+      holdCheck = false
+      checkStarted.resolve(undefined)
+      return failedCheck.promise
+    }
+    return original(input, init)
+  })
+  const installing = Promise.withResolvers<undefined>()
+  const installation = Promise.withResolvers<Awaited<ReturnType<typeof operations.runProfilePnpm>>>()
+  const run = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
+    installing.resolve(undefined)
+    return installation.promise
+  })
+  onTestFinished(() => { run.mockRestore() })
+  const check = manager.checkBundleUpdates()
+  await checkStarted.promise
+  const update = manager.updateBundle('extra')
+  try {
+    await installing.promise
+    failedCheck.reject(new Error('Older check lost connection'))
+    await check
+    expect((await manager.listBundles()).find(item => item.name === 'extra')?.update).toMatchObject({ status: 'installing', version: '1.1.0' })
+  } finally {
+    failedCheck.resolve(Response.json([]))
+    installation.resolve({ exitCode: 1, output: 'Stopped fixture installation', truncated: false, logPath: join(dir, 'operation.log') })
+    await Promise.allSettled([check, update])
+  }
+})
+
 it('persists declared feature choices and rejects unknown selections', async () => {
   const { manager, dir } = await fixture('live', false, undefined, {}, undefined, (profileDir) => {
     const packageDir = join(profileDir, 'node_modules', 'extra')
@@ -128,6 +284,53 @@ it('persists declared feature choices and rejects unknown selections', async () 
   writeFileSync(manifestPath, `${JSON.stringify(invalid)}\n`)
   expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.features?.[0]?.details)
     .toEqual({ en: 'Execution requirements', zh: '执行要求' })
+})
+
+it('loads JSON feature choices above legacy patches and persists page selections for the next launch', async () => {
+  const { manager, dir, ctx } = await fixture('live', false, undefined, {}, undefined, (profileDir) => {
+    const packageDir = join(profileDir, 'node_modules', 'extra')
+    const path = join(packageDir, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
+    manifest.dsh.bundle.featureConfig = './config.json'
+    manifest.dsh.bundle.features = [{ id: 'example', rowId: 'managed', title: { en: 'Example', zh: '示例' },
+      description: { en: 'Optional operation', zh: '可选操作' }, defaultEnabled: true }]
+    writeFileSync(path, JSON.stringify(manifest))
+    writeFileSync(join(packageDir, 'config.json'), JSON.stringify({ version: 1, features: { example: true } }))
+    const owner = join(profileDir, '.plugins', 'extra')
+    mkdirSync(owner, { recursive: true })
+    writeFileSync(join(owner, 'config.json'), JSON.stringify({ version: 1, features: { example: false } }))
+    writeFileSync(join(profileDir, 'cordis.patch.yml'), '[{"id":"managed","disabled":false}]')
+  })
+  expect(ctx.get('managedProbe')).toBeUndefined()
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.features?.[0]?.enabled).toBe(false)
+  expect(await manager.setBundleFeatures('extra', ['example'], false)).toMatchObject({ application: 'applied', changed: true })
+  expect(JSON.parse(readFileSync(join(dir, '.plugins', 'extra', 'config.json'), 'utf8'))).toEqual({ version: 1, features: { example: true } })
+  expect(ctx.get('managedProbe')).toBe(true)
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')?.features?.[0]?.enabled).toBe(true)
+})
+
+it('restores JSON and legacy selections when activating the selected features fails to persist', async () => {
+  const { manager, dir } = await fixture('live', false, undefined, {}, undefined, (profileDir) => {
+    const packageDir = join(profileDir, 'node_modules', 'extra')
+    const path = join(packageDir, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
+    manifest.dsh.bundle.featureConfig = './config.json'
+    manifest.dsh.bundle.features = [{ id: 'example', rowId: 'managed', title: { en: 'Example', zh: '示例' },
+      description: { en: 'Optional operation', zh: '可选操作' }, defaultEnabled: true }]
+    writeFileSync(path, JSON.stringify(manifest))
+    writeFileSync(join(packageDir, 'config.json'), JSON.stringify({ version: 1, features: { example: false } }))
+    writeFileSync(join(profileDir, 'package.json'), JSON.stringify({ name: 'test', dependencies: { extra: '1.0.0' },
+      dsh: { profile: { bundles: ['core'] } } }))
+  })
+  await manager.listBundles()
+  const path = join(dir, '.plugins', 'extra', 'config.json')
+  const jsonBefore = readFileSync(path, 'utf8'), patchesBefore = readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')
+  const failure = vi.spyOn(operations, 'saveManifest').mockRejectedValueOnce(new Error('profile write failed'))
+  onTestFinished(() => { failure.mockRestore() })
+  expect(await manager.setBundleFeatures('extra', ['example'], true)).toMatchObject({ application: 'failed', changed: false })
+  expect(readFileSync(path, 'utf8')).toBe(jsonBefore)
+  expect(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')).toBe(patchesBefore)
+  expect(readProfileManifest('test', dir).dsh?.profile?.bundles).toEqual(['core'])
 })
 
 it('serves only declared icon images as content-addressed files even when the bundle is disabled', async () => {

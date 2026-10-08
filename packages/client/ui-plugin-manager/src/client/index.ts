@@ -29,6 +29,8 @@ import { PluginRefreshToast, type PluginRefreshToastFace } from './PluginRefresh
 import { PluginsPanelIcon } from './PluginsPanelIcon.tsx'
 import { configLedgerSource } from './config-ledger.ts'
 import { PluginManagerController } from './manager-store.ts'
+import { PluginUpdateRestartModal, type PluginUpdateRestartFace } from './PluginUpdateRestartModal.tsx'
+import { waitForUpdatedWebHost } from './update-restart.ts'
 import { en, zh, type PluginManagerLocaleKey } from './locales.ts'
 import { createNavigationStore } from './navigation-store.ts'
 import type {} from './slot-contract.ts'
@@ -117,6 +119,27 @@ export function apply(ctx: ClientContext): void {
       dismissNotice: face.dismissNotice,
     }),
   }, PluginRefreshToast))
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay', id: 'plugin-manager.update-restart', locale: NS,
+    inject: (): PluginUpdateRestartFace => ({
+      hooks: { pluginManager: face.hooks.pluginManager }, ensure: face.ensure,
+      dismissUpdateRestart: face.dismissUpdateRestart,
+      resolveText: face.resolveText,
+      restart: async (signal) => {
+        const desktop = (globalThis as { dshDesktop?: { lifecycle?: { restartAfterPluginUpdate(): Promise<boolean> } } }).dshDesktop
+        if (desktop?.lifecycle !== undefined) return desktop.lifecycle.restartAfterPluginUpdate()
+        const status = await ctx.remote.pluginManager.restartStatus()
+        if (!status.ok) throw new Error(status.error.message)
+        await waitForUpdatedWebHost(status.value, async () => {
+          const result = await ctx.remote.pluginManager.restartAfterUpdate(status.value.generation)
+          return result.ok ? result.value : undefined
+        }, signal)
+        signal.throwIfAborted()
+        window.location.reload()
+        return true
+      },
+    }),
+  }, PluginUpdateRestartModal))
   ctx.slots.inject('main', function* () {
     const handle = createNavigationStore(), instance = handle.create()
     const store: typeof handle = { ...handle, create: () => instance }

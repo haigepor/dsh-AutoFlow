@@ -1,5 +1,8 @@
 /** Public plugin management records shared with clients. */
 import type { Branded } from '@deepseek-ai/dsh-brand'
+
+/** Opaque identity of the Host that accepted an update restart confirmation. */
+export type PluginRestartGeneration = Branded<'PluginRestartGeneration'>
 import type { DshBundleExample, DshBundleFeature, PluginLocalizedMeta } from '@deepseek-ai/dsh-package-manifest'
 import type { PluginInventoryEntry } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type { PluginEntryId } from '@deepseek-ai/dsh-host-plugin-inventory/types'
@@ -53,6 +56,8 @@ export interface BundleFeatureInfo extends DshBundleFeature {
 
 /** One installed or installation-provided bundle. */
 export interface BundleInfo {
+  /** Independent update state; absent when this package declares no supported source. */
+  update?: BundleUpdateInfo
   name: string
   version?: string
   /** Local display text with available translations or literal fallbacks, or a metadata diagnostic. */
@@ -79,6 +84,19 @@ export interface BundleInfo {
   examples?: DshBundleExample[]
   /** Ids of rows the bundle's patch changes without declaring them: the built-in rows it configures or disables. */
   overrides: string[]
+}
+
+/** One declared GitHub source and its last observed stable version. */
+export interface BundleUpdateInfo {
+  name: string
+  repository: string
+  automatic: boolean
+  status: 'unchecked' | 'current' | 'available' | 'installing' | 'error'
+  version?: string
+  releaseUrl?: string
+  diagnostic?: string
+  /** This process retains the old module generation until restart. */
+  restartRequired: boolean
 }
 
 /** A registry to install from: an http(s) URL, or null for the one pnpm's own configuration names. */
@@ -240,14 +258,14 @@ export interface PluginInstallLogChunk {
 /** What changed in the profile, for consumers that show it. */
 export interface PluginChange {
   /** The operation that changed it. */
-  readonly reason: 'plugin' | 'bundle' | 'install' | 'remove'
+  readonly reason: 'plugin' | 'bundle' | 'install' | 'remove' | 'update'
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
      * The profile's plugins, bundles, or composition changed: a manager
-     * operation completed. A patch generation applied outside the manager,
+     * operation completed or an independent update changed state. A patch generation applied outside the manager,
      * by HMR's watcher after a CLI or hand edit, announces nothing here.
      * @mode emit
      * @param change - what changed.

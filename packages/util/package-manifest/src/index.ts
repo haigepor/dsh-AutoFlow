@@ -5,6 +5,7 @@
 
 export type {
   DshBundleManifest,
+  DshBundleUpdateSource,
   DshBundleExample,
   DshBundleFeature,
   DshBundleFeatureKind,

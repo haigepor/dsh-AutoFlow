@@ -7,6 +7,10 @@ kind: "package-library"
 
 [English](README.md) | 中文
 
+安装提供的自定义组合包可通过经过校验的 `dsh.bundle.update` GitHub 声明启用独立更新。profile 直接安装同名依赖后，其包统一提供 patch、运行时入口和 Client 资源；官方 `@deepseek-ai/` 组合包仍优先使用安装版本。更新来源以安装中的声明为准。JSON 功能迁移暂存而不重写运行中版本的配置，在新版首次读取时合并保留的选择。安装和重启行为见[插件管理器](../plugin-manager/README.zh.md)。
+
+组合包声明 `featureConfig` 时，`readProfilePatches` 从包默认值及旧 patch 的明确选择初始化 profile 所属 JSON，并将其布尔选择应用在 profile patch 之上、home 和启动覆盖之下。现有 JSON 无效时直接报错，不覆盖原文件。插件页面修改功能时同时保存 JSON 与匹配的旧 patch，失败则恢复两者；包更新安装后锁定功能修改，重启才应用暂存迁移。
+
 ## 概述
 
 `dsh-app-boot` 是 `dsh` profile（包括 Python 运行时 wheel 包所含的 CLI（命令行界面））背后的共享 Loader 启动库。它加载环境层、组合 profile 组合包与 patch、启动每个插件，再返回运行中的应用，或指出失败插件与原因。产品应用使用 `dsh` launcher 而不发布单独 bin；直接配置 helper 只保留给低层嵌入方与测试。你还可以在启动前预览生效配置，按 profile 选择实时或仅启动时应用 patch，并让持有终端的应用在致命退出前恢复终端。
@@ -205,6 +209,8 @@ Loader 结算后，app-boot 在仅 optional 条目未激活时输出警告。如
 - **快照回放替换仅识别特定 basename**——只有以 `cordis.yml` 或 `cordis.yaml` 结尾的配置会映射到同级 `cordis.snapshot.yml`；自定义配置名称需要调用方自行选择。
 - **环境发现以启动为界**——`loadLayeredEnv` 只读取一次调用目录与 harness home 中的 `.env`；它不搜索父目录，也不跟随之后选择的 workspace。`loadEnv` 仍是非产品 bin 使用的单目录 helper。
 - **用户 patch 会替换匹配到的整个配置**——按 id 定位的 patch 不做深度合并，因此 profile 覆盖必须重述需要保留的组合包字段。
+
+`ProfileContext.restart` 是可选的启动器能力，用于请求有序退出并替换进程；它不清除模块缓存，也不重新加载单个会话。无法替换进程的启动方式不提供该能力。
 
 <a id="dev-note"></a>
 ### 开发备注

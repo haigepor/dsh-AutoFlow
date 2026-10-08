@@ -26,6 +26,7 @@ export const DESKTOP_IPC = {
   localeChanged: 'dsh-desktop:locale-changed',
   updatesStatus: 'dsh-desktop:updates-status',
   updatesOpen: 'dsh-desktop:updates-open',
+  restartAfterPluginUpdate: 'dsh-desktop:restart-after-plugin-update',
   updatesPresentation: 'dsh-desktop:updates-presentation',
   nativeThemeSet: 'dsh-desktop:native-theme-set',
   windowFullscreen: 'dsh-desktop:window-fullscreen',
@@ -71,6 +72,8 @@ export interface DesktopUpdatePresentation {
 /** Product documents cannot supply update versions, package URLs, or installation authorization. */
 export interface DshDesktopProductApi {
   readonly protocolVersion: 1
+  /** Native confirmation, orderly Host shutdown, and relaunch; false when the user cancels. */
+  readonly lifecycle: { restartAfterPluginUpdate(): Promise<boolean> }
   readonly browser: DesktopBrowserBridge
   readonly keyboard: DesktopKeyboardApi
   readonly shortcuts: DesktopShortcutsApi

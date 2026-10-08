@@ -9,6 +9,8 @@ kind: "package-library"
 
 组合包和功能的 `icon` 字段声明清单目录内的图片文件。解析后的功能记录携带加载 URL；Web 提供校验后的图标文件，其他读取方式可继续使用 data URL。
 
+`DshBundleManifest.update` 使用 `DshBundleUpdateSource` 描述来源：`github` provider、`owner/name` 仓库、稳定版本 `tagPrefix` 和 JSON `metadataAsset`。[App boot](../../boot/app-boot/README.zh.md)校验可选声明并选择包版本；[插件管理器](../../boot/plugin-manager/README.zh.md)负责检查与安装。
+
 ## 概述
 
 使用 `DshPackageManifest` 描述包元数据、`DshManifest` 描述 `dsh` 下的公共字段，以及 `DshClientManifest` 等成员类型描述单个领域。各读取方负责 JSON 解析、校验和默认值解析。

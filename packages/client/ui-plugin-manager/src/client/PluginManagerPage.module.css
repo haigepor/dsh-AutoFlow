@@ -1801,3 +1801,49 @@ label.registryOption {
   flex-direction: column;
   gap: 4px;
 }
+
+.updateBadge {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  height: auto;
+  padding: 0;
+}
+
+.updatesDisclosure {
+  display: block;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-xl);
+}
+
+.updatesHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.updatesHead::-webkit-details-marker { display: none; }
+.updatesDisclosure[open] .partsChevron { transform: rotate(90deg); }
+.updatesHead:focus-visible { outline: 2px solid var(--dsw-alias-label-primary); outline-offset: 2px; }
+
+.updateVersion, .updateSummary, .updateHint {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.updateSummary { margin-inline-start: auto; }
+.updateSummary[data-error='true'] { color: var(--dsw-alias-state-error-primary); }
+.updatesBody { display: flex; flex-direction: column; gap: 16px; padding: 0 16px 16px; }
+.updateActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.updatePreference { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.updateHint { margin: 4px 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .updatesDisclosure .partsChevron { transition: none; }
+}

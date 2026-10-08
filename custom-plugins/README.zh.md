@@ -7,6 +7,8 @@ kind: "package-group"
 
 [English](README.md) | 中文
 
+产品独立版本、正式 Release 资产与历史标签保留规则见[发布规范](release-governance/README.zh.md)。
+
 ## Summary
 
 在 `workspace/` 下开发长期维护的插件组合包，每个直接子目录对应一个独立版本的 npm 包。AFP 显式纳入仓库 pnpm 工作区，并随 Web/Desktop 内置分发；其他子包仍独立安装。本目录组织插件源码，本身不是待发布的包。修改组件行或文件归属前，先阅读[架构文档](architecture.md)。

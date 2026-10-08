@@ -57,7 +57,7 @@ async function invalidInputStyles(page: Page, input: Locator) {
   }
 }
 
-it('cancels installation, retries and highlights the enabled plugin at 40% alpha, and recovers unknown results', async () => {
+it('cancels installation, retries and highlights the enabled plugin with the theme accent, and recovers unknown results', async () => {
   const scratch = await mkdtemp(join(tmpdir(), 'dsh-install-cancel-'))
   const overlay = join(scratch, 'cordis.patch.yml')
   await writeFile(overlay, `- id: plugin-manager\n  config: ${JSON.stringify({ pnpmCommand: process.execPath })}\n`)
@@ -238,9 +238,15 @@ it('cancels installation, retries and highlights the enabled plugin at 40% alpha
             await page.emulateMedia({ reducedMotion })
             const style = await card.evaluate((element) => {
               const computed = getComputedStyle(element)
-              return { boxShadow: computed.boxShadow, animationName: computed.animationName, animationDuration: computed.animationDuration }
+              const probe = document.createElement('span')
+              probe.style.color = 'var(--dsw-alias-state-business-primary)'
+              element.append(probe)
+              try {
+                return { boxShadow: computed.boxShadow, animationName: computed.animationName,
+                  animationDuration: computed.animationDuration, accent: getComputedStyle(probe).color }
+              } finally { probe.remove() }
             })
-            expect(style.boxShadow).toMatch(/(?:\/|,)\s*0\.4\)/)
+            expect(style.boxShadow).toContain(style.accent)
             expect(style.boxShadow).toContain('0px 0px 0px 2px')
             if (reducedMotion === 'reduce') {
               expect(style.animationName).toBe('none')

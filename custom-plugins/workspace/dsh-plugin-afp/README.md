@@ -17,7 +17,7 @@ Run `pnpm install` at the repository root: AFP is a workspace dependency of the 
 
 Run `pnpm --filter dsh-plugin-afp test` and `pnpm --filter dsh-plugin-afp check` from the root. Use `pnpm --filter dsh-plugin-afp pack` for a reviewed standalone artifact. Repository updates followed by `pnpm install` and `pnpm run build` update the builtin package; restart the Host when module watching is disabled. The package defines no application bin. Source attribution and publication limitations are in [UPSTREAM.md](UPSTREAM.md).
 
-GitHub distribution uses the package's `afp-v<version>` tag and an independent tarball, checksum and version metadata; see [publishing AFP releases](release/README.md). The current Plugins page does not install remote updates automatically.
+GitHub distribution uses the package's `afp-v<version>` tag and an independent tarball, checksum and version metadata; see [publishing AFP releases](release/README.md). Plugin details check stable versions automatically. Enable automatic download/installation or choose Update now; restart applies the new version while retaining feature choices and configuration. The running carrier must already include the updater.
 
 ## Directory reference
 

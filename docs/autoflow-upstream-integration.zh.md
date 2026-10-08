@@ -43,25 +43,25 @@
 
 三个新增官方会话快照在 Windows 上失败，差异为 Windows ACL 技能目录和进程退出说明；快照所属平台为 macOS/Linux，未用 Windows 输出覆盖跨平台录制。Windows Electron 信号测试在编译准备阶段失败，所需 Visual C++ 工具链未找到。真实模型 API、签名安装包和 macOS 运行结果未在此次本机验证。
 
-下一次同步使用仓库技能 [autoflow-upstream-sync](../.agents/skills/autoflow-upstream-sync/SKILL.md)，指定旧官方标签、新目标和当前 main；其只读脚本会拒绝带定制代码的官方镜像。历史标签保留，回退基点为 `autoflow-before-rc2-20261008`；本节两个临时备份分支整理后删除；回退前先检查之后的新修改。
+下一次同步使用仓库技能 [autoflow-upstream-sync](../.agents/skills/autoflow-upstream-sync/SKILL.md)，指定旧官方标签、新目标和当前 main；其只读脚本会拒绝带定制代码的官方镜像。历史标签保留，回退基点为 `milestone/pre-upstream-v0.2.0-rc.2`；本节两个临时备份分支整理后删除；回退前先检查之后的新修改。
 
 ## 快照与分支
 
 | 项目 | 固定值 | 用途 |
 | --- | --- | --- |
 | 快照日期 | 2026-09-28 | 清单对应此时的检出目录。 |
-| 自定义分支 `main` | 标签 `autoflow-v0.2.0` | 保存 AutoFlow 修改及上一次官方集成结果。 |
-| 上次自定义版本 | 标签 `autoflow-v0.3.0` | 固定设置页、模型页、侧边栏及菜单视觉基线。 |
-| 当前集成版本 | 标签 `autoflow-v0.4.0` | 固定本次官方 `dsh-v0.2.0-rc.1` 集成结果。 |
-| 官方分支 `deepseek-harness` | `autoflow-v0.2.0` 的第二个父提交 | 精确定位该标签集成的官方源码。 |
+| 自定义分支 `main` | 标签 `milestone/upstream-v0.1.7-rc.2` | 保存 AutoFlow 修改及上一次官方集成结果。 |
+| 上次自定义版本 | 标签 `milestone/settings-ui-20260928` | 固定设置页、模型页、侧边栏及菜单视觉基线。 |
+| 当前集成版本 | 标签 `milestone/upstream-v0.2.0-rc.1` | 固定本次官方 `dsh-v0.2.0-rc.1` 集成结果。 |
+| 官方分支 `deepseek-harness` | `milestone/upstream-v0.1.7-rc.2` 的第二个父提交 | 精确定位该标签集成的官方源码。 |
 | 官方远端 | `upstream` → `deepseek-ai/deepseek-harness` | 集成前读取官方更新。 |
 | 自有远端 | `origin` → `haigepor/dsh-AutoFlow` | 保存 `main` 与官方镜像分支。 |
 
-这两个分支是对比基点。附注标签 `autoflow-v0.2.0` 的合并提交第二个父提交固定上次官方基线；`autoflow-v0.3.0` 固定自定义视觉基线；`autoflow-v0.4.0` 固定本次官方集成。先将 `deepseek-harness` 推进到新的官方提交，再审阅差异并有选择地集成进 `main`。保留这些标签，便于下次区分官方更新和本地样式。
+这两个分支是对比基点。附注标签 `milestone/upstream-v0.1.7-rc.2` 的合并提交第二个父提交固定上次官方基线；`milestone/settings-ui-20260928` 固定自定义视觉基线；`milestone/upstream-v0.2.0-rc.1` 固定本次官方集成。先将 `deepseek-harness` 推进到新的官方提交，再审阅差异并有选择地集成进 `main`。保留这些标签，便于下次区分官方更新和本地样式。
 
 ## 官方更新核对
 
-2026-09-28 直接读取官方远端 `upstream` 的 `refs/heads/master`，结果与本地 `upstream/master`、`deepseek-harness` 和标签 `autoflow-v0.2.0` 的第二个父提交一致：官方 `master` 相对当前镜像分支没有新增提交。该提交的时间为 2026-09-27 22:30:17（+08:00），主题为合并 [PR #5282](https://github.com/deepseek-ai/deepseek-harness/pull/5282)。此次仅核对默认开发分支，没有推进分支或向 `main` 集成代码；下次集成前需重新读取远端。
+2026-09-28 直接读取官方远端 `upstream` 的 `refs/heads/master`，结果与本地 `upstream/master`、`deepseek-harness` 和标签 `milestone/upstream-v0.1.7-rc.2` 的第二个父提交一致：官方 `master` 相对当前镜像分支没有新增提交。该提交的时间为 2026-09-27 22:30:17（+08:00），主题为合并 [PR #5282](https://github.com/deepseek-ai/deepseek-harness/pull/5282)。此次仅核对默认开发分支，没有推进分支或向 `main` 集成代码；下次集成前需重新读取远端。
 
 ## `dsh-v0.2.0-rc.1` 集成决定
 
@@ -103,7 +103,7 @@
 
 此表说明本地要保留的视觉意图；具体路径以[文件清单](autoflow-local-change-manifest.json)为准。此前的外观设置图形化方案已由已交付的外观设置页取代。
 
-## `autoflow-v0.4.0` 之后的本地界面改动（2026-09-29）
+## `milestone/upstream-v0.2.0-rc.1` 之后的本地界面改动（2026-09-29）
 
 下列标签后改动属于本地 AutoFlow 工作，不属于历史[文件清单](autoflow-local-change-manifest.json)。下次集成官方代码前，先将这些改动保存为可审查的提交或标签；恢复准确文件内容时以该 Git 状态为准，不依赖本段描述。
 
@@ -130,7 +130,7 @@
 
 ## 下次官方更新流程
 
-1. 以本节最新官方集成目标及当前 `main` 为起点；早期 `autoflow-v0.4.0` 仅作历史定位。集成前保存后续自定义工作；文件清单用于定位改动，不能恢复文件内容。
+1. 以本节最新官方集成目标及当前 `main` 为起点；早期 `milestone/upstream-v0.2.0-rc.1` 仅作历史定位。集成前保存后续自定义工作；文件清单用于定位改动，不能恢复文件内容。
 2. 将 `deepseek-harness` 推进到新的官方提交，并记录前后两个官方提交 ID。官方分支不加入 AutoFlow 修改。
 3. 按子系统比较这段官方更新，再对照 `main` 的同名文件、[文件清单](autoflow-local-change-manifest.json)、本次样式基线和上面的标签后界面改动。先处理有状态功能与公开接口，再列出拟覆盖的视觉差异并询问用户。
 4. 将功能新增连同消费者和文档集成到 `main`。功能依赖的新增样式一并合入；本地样式保持原样，除非用户已确认具体替换。
@@ -143,4 +143,4 @@
 
 ## 限制
 
-文件清单保留 `autoflow-v0.3.0` 提交前的路径和 Git 状态，用于定位当时的改动；完整代码分别由 `autoflow-v0.3.0` 与 `autoflow-v0.4.0` 标签保存。官方更新结论仅对应上面的核对时间和 `master` 分支，不代表后续状态或其他分支与标签。
+文件清单保留 `milestone/settings-ui-20260928` 提交前的路径和 Git 状态，用于定位当时的改动；完整代码分别由 `milestone/settings-ui-20260928` 与 `milestone/upstream-v0.2.0-rc.1` 标签保存。官方更新结论仅对应上面的核对时间和 `master` 分支，不代表后续状态或其他分支与标签。

@@ -31,7 +31,8 @@ import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 
 export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 export type {
-  BundleFeatureInfo, BundleInfo, BundleRowInfo, ChangeResult, IncompatiblePlugin, InspectOptions, InstallBundleOptions, InstallSpecKind,
+  BundleFeatureInfo, BundleInfo, BundleRowInfo, BundleUpdateInfo, ChangeResult, IncompatiblePlugin,
+  InspectOptions, InstallBundleOptions, InstallSpecKind,
   ManagementError,
   PackageResult,
   PluginChange, PluginEntryId, PluginInfo, PluginInspectProblem, PluginInstallCancellation, PluginInstallFailureKind,

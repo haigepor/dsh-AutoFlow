@@ -84,7 +84,8 @@ function linkPackage(pkg: WorkspacePackage, nodeModules: string): void {
   const parts = pkg.name.split('/')
   const link = resolve(nodeModules, ...parts)
   mkdirSync(dirname(link), { recursive: true })
-  symlinkSync(pkg.dir, link, 'dir')
+  // Windows 目录 junction 无需 symlink 权限，仍供外部消费者解析真实包声明。
+  symlinkSync(pkg.dir, link, 'junction')
 }
 
 const packages = workspacePackages()
@@ -117,7 +118,7 @@ try {
   if (existsSync(rootTypes)) {
     const typesDir = resolve(nodeModules, '@types')
     mkdirSync(typesDir, { recursive: true })
-    symlinkSync(rootTypes, resolve(typesDir, 'node'), 'dir')
+    symlinkSync(rootTypes, resolve(typesDir, 'node'), 'junction')
   }
 
   writeFileSync(resolve(tmp, 'package.json'), `${JSON.stringify({ type: 'module', private: true }, null, 2)}\n`)
@@ -154,6 +155,7 @@ try {
   console.log(`verify-node-next-types: ${packages.length} workspace package declaration API(s) compile under NodeNext.`)
 } catch (error: unknown) {
   failed = true
+  console.error(error instanceof Error ? error.message : String(error))
   const output = error as { stdout?: Buffer; stderr?: Buffer }
   console.error('verify-node-next-types: NodeNext consumer typecheck failed.\n')
   console.error(`${output.stdout?.toString() ?? ''}${output.stderr?.toString() ?? ''}`)

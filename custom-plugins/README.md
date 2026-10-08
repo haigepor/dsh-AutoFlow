@@ -7,6 +7,8 @@ kind: "package-group"
 
 English | [中文](README.zh.md)
 
+Independent product versions, formal Release assets and historical tag retention follow the [release governance guide](release-governance/README.md).
+
 ## Summary
 
 Develop maintained plugin bundles under `workspace/`, with one independently versioned npm package per direct child directory. AFP is explicitly included in the repository pnpm workspace and shipped with Web/Desktop; other children remain separately installed packages. This directory organizes plugin sources and is not a package to publish. Read the [architecture guide](architecture.md) before changing rows or file ownership.

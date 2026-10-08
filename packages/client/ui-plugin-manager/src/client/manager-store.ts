@@ -14,6 +14,7 @@ import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {
   BundleInfo,
+  BundleUpdateInfo,
   BundleFeatureInfo,
   ChangeResult,
   IncompatiblePlugin,
@@ -41,7 +42,7 @@ import { shortName } from './presentation.ts'
 import { pluginReference } from './plugin-mention.ts'
 
 /** The action a failed notice names. */
-export type FailedAction = 'enable' | 'disable' | 'uninstall' | 'rowEnable' | 'rowDisable'
+export type FailedAction = 'enable' | 'disable' | 'uninstall' | 'rowEnable' | 'rowDisable' | 'update'
 
 /** What the last action left to say, shown as a toast; `seq` tells one showing from the next. */
 export type ManagerNotice =
@@ -86,6 +87,10 @@ export interface PackageRow {
 /** One bundle as the page shows it: the Host's bundle joined with the entries its rows run as. */
 export interface PackageView {
   readonly name: string
+  /** Source-specific update status and saved installation permission. */
+  readonly update?: BundleUpdateInfo
+  /** Whether profile removal is available for this package. */
+  readonly removable?: boolean
   readonly version?: string
   readonly description?: string
   /** Local package display text and metadata diagnostics supplied by the Host. */
@@ -296,6 +301,8 @@ export interface PluginManagerState {
   /** Requested switch values while a write and its authoritative refresh are pending. */
   readonly pendingTargets: Readonly<Record<string, boolean>>
   readonly notice: ManagerNotice | null
+  /** Completed independent updates awaiting one global restart prompt. */
+  readonly updateRestarts?: readonly string[]
   readonly install: InstallState
   readonly confirm: ConfirmState | null
   /** The package the list scrolls to and marks, once an install enabled it. */
@@ -320,6 +327,16 @@ export interface PluginManagerFace {
   ensure: () => void
   /** Read the Host again. */
   refresh: () => void
+  /** Check newer stable versions without installing them. */
+  checkUpdates: () => void
+  /** Install a checked release and require restart. */
+  updateBundle: (name: string) => void
+  /** Reopen the restart instructions for a completed update. */
+  showUpdateRestart: (name: string) => void
+  /** Dismiss the current prompt without clearing Host restart requirements. */
+  dismissUpdateRestart: () => void
+  /** Persist permission to download and install future releases automatically. */
+  setAutoUpdate: (name: string, enabled: boolean) => void
   openInstall: () => void
   /** Hide immediately, abort a check, or request cancellation while retaining the Host-owned installation. */
   closeInstall: () => void
@@ -445,6 +462,8 @@ export function packageView(bundle: BundleInfo, plugins: readonly PluginInfo[]):
   return {
     name: bundle.name,
     installed: bundle.installed,
+    removable: bundle.removable,
+    ...bundle.update === undefined ? {} : { update: bundle.update },
     optional: bundle.optional,
     enabled: bundle.enabled,
     rows,
@@ -537,6 +556,7 @@ export class PluginManagerController {
   private inspectAbort: AbortController | undefined
   private request: InstallRequest | undefined
   private noticeSeq = 0
+  private readonly announcedUpdateRestarts = new Set<string>()
   private analyticsAttempt: { input: string; started: number } | undefined
   private registryRead: RegistryRead | undefined
   /** Latest feature choices waiting for the next serialized write for each bundle. */
@@ -589,8 +609,20 @@ export class PluginManagerController {
       resolveText,
       hooks: { pluginManager: this.store, configLedger, configurations: this.ctx.configForms.describe() },
       configForm: id => this.ctx.configForms.get(id),
-      ensure: () => { if (this.getSnapshot().status === 'idle') void this.load() },
+      ensure: () => { if (this.getSnapshot().status === 'idle') void this.load().then(() => this.checkUpdates()) },
       refresh: () => { void this.refresh() },
+      checkUpdates: () => { void this.checkUpdates() },
+      updateBundle: (name) => { void this.run(name, { action: 'update', packageName: name }, async () => {
+        const answer = await this.ctx.remote.pluginManager.updateBundle(name)
+        if (answer.ok && answer.value.application === 'restart-required') this.announceUpdateRestart(name)
+        else this.applied(answer, name)
+      }) },
+      showUpdateRestart: (name) => { this.patch({ updateRestarts: [...new Set([...this.getSnapshot().updateRestarts ?? [], name])] }) },
+      dismissUpdateRestart: () => { this.patch({ updateRestarts: [] }) },
+      setAutoUpdate: (name, enabled) => { void this.run(name, { action: 'update', packageName: name }, async () => {
+        const answer = await this.ctx.remote.pluginManager.setBundleAutoUpdate(name, enabled)
+        if (!answer.ok) throw new RemoteAnswerError(answer.error.message)
+      }) },
       openInstall: () => {
         this.ctx.get('productAnalytics')?.track('plugin_add_button_click', {})
         const install = this.getSnapshot().install
@@ -794,6 +826,7 @@ export class PluginManagerController {
     })
     try {
       await this.load()
+      await this.checkUpdates()
     } catch (_error) {
       // A rejected transport request leaves the cached cards available for retry.
       this.patch({ status: 'error' })
@@ -803,6 +836,25 @@ export class PluginManagerController {
       if (remaining > 0) await new Promise<void>((resolve) => { setTimeout(resolve, remaining) })
       this.settleRefresh()
     }
+  }
+
+  /** Retain cached cards while a source-specific check is running. */
+  private async checkUpdates(): Promise<void> {
+    const key = 'updates:check'
+    if (this.disposed || this.getSnapshot().busy.includes(key) || !this.getSnapshot().packages.some(pkg => pkg.update !== undefined)) return
+    this.patch({ busy: [...this.getSnapshot().busy, key] })
+    try {
+      const answer = await this.ctx.remote.pluginManager.checkBundleUpdates()
+      if (!answer.ok) throw new RemoteAnswerError(answer.error.message)
+      this.patch({ packages: this.getSnapshot().packages.map((pkg) => {
+        const update = answer.value.find(item => item.name === pkg.name)
+        return update === undefined ? pkg : { ...pkg, update }
+      }) })
+    } catch (error) {
+      this.patch({ packages: this.getSnapshot().packages.map(pkg => pkg.update === undefined ? pkg : {
+        ...pkg, update: { ...pkg.update, status: 'error', diagnostic: reasonOf(error) },
+      }) })
+    } finally { this.finishSwitches([key]) }
   }
 
   /** Publish refresh feedback only before disposal. */
@@ -842,11 +894,18 @@ export class PluginManagerController {
           this.patch({ status: 'error' })
           continue
         }
+        const packages = sortPackages(bundles.value.map(bundle => packageView(bundle, plugins.value)))
+        for (const pkg of packages) {
+          if (pkg.update?.restartRequired === true
+            && this.getSnapshot().packages.find(previous => previous.name === pkg.name)?.update?.restartRequired !== true) {
+            this.announceUpdateRestart(pkg.name)
+          }
+        }
         this.hasCachedInventory = true
         this.patch({
           status: 'ready',
           refreshStatus: this.getSnapshot().refreshStatus === 'refreshing' ? 'refreshing' : 'idle',
-          packages: sortPackages(bundles.value.map(bundle => packageView(bundle, plugins.value))),
+          packages,
         })
       } while (this.shouldRerun())
     } finally {
@@ -856,6 +915,13 @@ export class PluginManagerController {
 
   private shouldRerun(): boolean {
     return this.rerun
+  }
+
+  /** Coalesce manual replies and Host invalidations into one prompt per process generation. */
+  private announceUpdateRestart(name: string): void {
+    if (this.disposed || this.announcedUpdateRestarts.has(name)) return
+    this.announcedUpdateRestarts.add(name)
+    this.patch({ updateRestarts: [...this.getSnapshot().updateRestarts ?? [], name] })
   }
 
   private async confirm(): Promise<void> {

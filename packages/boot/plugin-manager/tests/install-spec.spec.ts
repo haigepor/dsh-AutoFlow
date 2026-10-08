@@ -15,6 +15,10 @@ describe('parseInstallSpec', () => {
     expect(parseInstallSpec('file:/plugins/dsh-x')).toEqual({ kind: 'path', spec: 'file:/plugins/dsh-x', path: '/plugins/dsh-x' })
     expect(parseInstallSpec('link:/plugins/dsh-x')).toEqual({ kind: 'path', spec: 'link:/plugins/dsh-x', path: '/plugins/dsh-x' })
     expect(parseInstallSpec('/packs/dsh-x-1.0.0.tgz')).toEqual({ kind: 'tarball', spec: '/packs/dsh-x-1.0.0.tgz', path: '/packs/dsh-x-1.0.0.tgz' })
+    expect(parseInstallSpec('dsh-x@file:/packs/dsh-x-1.0.0.tgz')).toEqual({
+      kind: 'tarball', spec: 'dsh-x@file:/packs/dsh-x-1.0.0.tgz', path: '/packs/dsh-x-1.0.0.tgz',
+    })
+    expect(() => parseInstallSpec('dsh-x@file:relative.tgz')).toThrow('absolute tarball path')
   })
 
   it('reads git hosts and tarball URLs, naming the host the spec itself is fetched from', () => {

@@ -26,7 +26,7 @@ pnpm --filter dsh-plugin-afp run release:prepare --out .artifacts/afp-release
 
 ## 更新与恢复
 
-这些资产提供有版本的 GitHub 分发渠道。当前插件页面不会查询该渠道或自动安装更新。根目录的 `pnpm install` 使用工作区与 lockfile；更新仓库并构建后才会更新内置 AFP。后续运行时更新需要让 bundle 元数据、patch、Host、Client 和资源共用同一版本选择，并使用用户所属的安装目录和配置迁移。
+这些资产提供有版本的 GitHub 分发渠道。AFP 的 `dsh.bundle.update` 声明仓库、`afp-v` 标签族和 `afp-update.json` 资产；[插件管理器](../../../../packages/boot/plugin-manager/README.zh.md)默认自动检查，明确开启后自动下载安装，重启生效并保留配置。根目录 `pnpm install` 仍使用工作区与 lockfile。插件与桌面端分别发版，历史标签及 Releases 整理遵循[发布规范](../../../release-governance/README.zh.md)。
 
 发布失败的草稿可在核对标签与已上传字节后检查和恢复；不得静默覆盖资产或删除无关 Release。已公开版本的问题通过新包版本和标签修正。保留旧 tarball，以及用户的功能选择、凭据和报告；包降级无法撤销不可逆的数据迁移。
 

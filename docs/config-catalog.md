@@ -2275,11 +2275,25 @@ export interface PlanModeConfig {
 ## `@deepseek-ai/dsh-plugin-manager`
 
 - `inject`: `loader` · `profileContext`
-- `source`: [`packages/boot/plugin-manager/src/index.ts:43`](../packages/boot/plugin-manager/src/index.ts)
+- `source`: [`packages/boot/plugin-manager/src/index.ts:48`](../packages/boot/plugin-manager/src/index.ts)
 
 ```ts config-catalog
 /** The pnpm executable, registries, and limits for diagnostics, lookups and connection checks. */
 export interface Config {
+  /** Client deadline for waiting for a replacement Web Host to become ready. */
+  restartTimeoutMs?: number
+  /** Interval between automatic stable-release checks, in milliseconds. */
+  updateIntervalMs?: number
+  /** Timeout for a complete update HTTP response. */
+  updateTimeoutMs?: number
+  /** Maximum JSON response bytes. */
+  updateJsonBytes?: number
+  /** Maximum compressed plugin archive bytes. */
+  updateArchiveBytes?: number
+  /** Maximum total expanded archive content bytes. */
+  updateExpandedBytes?: number
+  /** Maximum release-list pages before refusing an incomplete check. */
+  updateReleasePages?: number
   /** The pnpm executable name or path; resolved through `PATH` like the `dsh plugin` command. */
   pnpmCommand?: string
   /** Maximum retained package-operation diagnostic bytes. */

@@ -54,6 +54,8 @@ git log --oneline origin/deepseek-harness..HEAD
 | [模型清除](../../packages/client/ui-settings-models/README.zh.md) | DeepSeek 只清除符合条件的用户覆盖并保留入口；保护共享、只读和环境凭证。 | `provider-reset.ts`、修订号冲突、已完成阶段的重试，以及删除凭证前重新核对归属。 |
 | [Agent 预设](../../packages/client/ui-agent-preset/README.zh.md) | 四张匹配的加载卡片、刷新保留内容、重试、响应式鲸鱼插画、确认写入后的默认切换和紧凑说明弹窗。 | `AgentPresetSection`、`section-store`、`PresetIllustration`、弹窗焦点、减少动画和四张实际引用的 WebP 素材。 |
 | [插件清单](../../packages/client/ui-settings-plugin-inventory/README.zh.md)、[插件设置](../../packages/client/ui-settings-plugins/README.zh.md) | 两种作用域默认折叠；紧凑且居中的卡片标题、详情动画、一致图标、本地化描述和隐藏冗余实例标签。 | `InventoryDisclosure`、模块描述精确匹配、未知插件回退、单标签栏隐藏，以及详情中保留实例身份。 |
+| [AFP](../../custom-plugins/workspace/dsh-plugin-afp/README.zh.md)、[发布规范](../../custom-plugins/release-governance/README.zh.md) | `pnpm install` 后内置 AFP；插件版本独立于应用；正式发布仅携带已验证资产。 | root workspace、CLI/Web/Desktop 依赖、AFP 发布配置及 `.github/workflows/release-afp.yml`；保留第三方来源记录。 |
+| [组合包加载](../../packages/boot/app-boot/README.zh.md)、[更新管理器](../../packages/boot/plugin-manager/README.zh.md)、[插件页](../../packages/client/ui-plugin-manager/README.zh.md) | 默认检查、明确开启自动安装、重启生效；保留启用状态及功能配置。 | `bundle-update-source`、profile/runtime/resource 同源选择、featureConfig 迁移、GitHub 校验与事务恢复、RPC 类型及 Client 字典/状态/控件。 |
 | [会话](../../packages/client/ui-conversation/README.zh.md) | 建议只填充草稿，不自动发送；输入历史有容量与作用域限制，并遵守输入法、光标和菜单按键优先级。 | 欢迎页插槽、输入历史解析、草稿恢复、工作区不可用状态和键盘路由。 |
 | [提问](../../packages/client/ui-user-questions/README.zh.md)、[基础组件](../../packages/client/ui-primitives/README.zh.md) | 紧凑提问区域和可复用的鼠标、焦点高亮，不改变其他调用者的默认行为。 | 折叠焦点、答案保留、`GlideHighlight.bridgeGaps`、监听器与动画帧释放。 |
 
@@ -89,6 +91,8 @@ pnpm run doc-sync
 pnpm run lint
 git diff --check
 ```
+
+AFP 更新相关合并还运行 app-boot、plugin-manager、package-manifest 和 ui-plugin-manager 的所属测试，以及 `apps/web/tests/plugin-updates.e2e.ts`。重新生成 Cordis/config 目录，保持 Host/Client 编译分面及依赖完整。使用[更新验收流程](../../custom-plugins/release-governance/README.zh.md#update-acceptance)测试真实远程字节与重启后的资源，不把 mock 控件测试当作远程安装证据；官方基础 bundle 仍保持安装优先。同时保留 CLI Web 托管进程、启动器重启能力、桌面主 frame IPC 与原生确认，以及全局重启弹窗，并运行各模块的重启测试。以新的 Host 进程标识和相同 Web 来源验证恢复，服务或页面刷新本身不能作为重启证据。
 
 浏览器测试脚手架提供无密钥 profile 和页内目录选择器。手动启动 Web 时，通过 `dsh web` 使用 `apps/web/tests/pin-browse-picker.overlay.yml`，保留独立基准服务及其端口。判断视觉结果前先构建，并对照 `.dsh-build/client-build-environment.json` 与源码提交。
 

@@ -43,7 +43,7 @@ profile 目录包含一个 `package.json`，其中记录树外插件依赖，以
 - profile 自身的 `cordis.patch.yml`，然后是 home 级的 `$DSH_HOME/cordis.patch.yml`
 - `--patch` 指定的覆盖层
 
-`dsh.profile.bundles` 中列出的组合包先从 dsh 安装目录解析（`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app`、`@deepseek-ai/dsh-headless`、`@deepseek-ai/dsh-sdk-app`、`@deepseek-ai/dsh-sdk-minimal`、`@deepseek-ai/dsh-acp-app`、`dsh-plugin-afp`），再从 profile 自身的 `node_modules` 解析；pnpm 会将树外插件安装到该目录。
+`dsh.profile.bundles` 中列出的官方组合包先从 dsh 安装目录解析，再从 profile 自身的 `node_modules` 解析。安装目录声明了更新源的自定义内置组合包（如 `dsh-plugin-afp`）可以统一使用经过验证的 profile 新版 Host、Client 与资源；选择规则由[启动包](../../packages/boot/app-boot/README.zh.md)负责。pnpm 将树外插件安装到 profile 中。
 
 使用 `--dump-default-config` 和 `--dump-config` 可在不启动的情况下检查组合后的配置树。`--dump-config-schema` 会导入组合树中插件声明的 schema，并打印描述 entry 与 patch 的 JSON Schema，而不是配置值；检查不受信任的插件前，请阅读 [schema dump 的安全性与范围](reference/README.zh.md#config-schema-dump)。
 
@@ -62,3 +62,5 @@ profile 目录包含一个 `package.json`，其中记录树外插件依赖，以
 打包安装通过同一个 `runCli()` 入口传入包管理器可执行文件。Desktop 载体还会启用其已初始化 profile 的插件操作；npm 启动不传入这些选项。安装包提供的包管理环境仅用于插件包操作；调用目录、普通 profile 选择与 agent shell 的 PATH 保留 CLI 语义。
 
 [Web 失败矩阵](tests/profiles/web/tests/web-failure-matrix.expected.e2e.ts)在 `test:expected` 中通过构建后的 CLI 验证启动失败与启用 `awaitWriteFinish` 的原生配置 HMR。它不调用模型 API，而是检查经过认证的 HTTP 响应、诊断、恢复、进程退出与 dispose；[启动验收测试](tests/profiles/web/tests/web-best-effort-startup.expected.e2e.ts)还覆盖随附 Web 的必需依赖与端口冲突。
+
+公开入口 `dsh web` 通过私有 IPC 托管一个 Node Host。用户确认插件更新重启后，启动器等待旧 Host 退出，再使用原环境与覆盖配置启动同一命令。首次由操作系统分配的端口会保留，替代进程不再次打开浏览器，当前已认证的页面可在相同来源恢复。崩溃、清理失败及用户中断不会触发自动重启；其他启动方式保持原有生命周期。

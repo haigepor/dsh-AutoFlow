@@ -7,6 +7,10 @@ kind: "package-library"
 
 English | [中文](README.zh.md)
 
+An installation-owned custom bundle may opt into independent updates with a validated `dsh.bundle.update` GitHub declaration. When the profile directly installs that name, its package supplies the patch, runtime entries and Client resources; official `@deepseek-ai/` bundles retain installation precedence. The installation declaration remains authoritative for the update source. JSON feature migrations are staged without rewriting the running generation and merge retained choices on the successor’s first read. See [plugin manager](../plugin-manager/README.md) for installation and restart behavior.
+
+For bundles declaring `featureConfig`, `readProfilePatches` initializes profile-owned JSON from package defaults and explicit legacy selections, then applies those booleans above the profile patch and below home/launch overlays. Invalid existing JSON fails without being rewritten. Plugin-page feature changes persist JSON and matching legacy patches together, restoring both on failure; after package installation they are locked until restart applies the staged migration.
+
 ## Summary
 
 `dsh-app-boot` is the shared Loader boot library behind `dsh` profiles, including the CLI packaged by the Python runtime wheel. It loads environment layers, composes profile bundles and patches, boots every plugin, and returns the running app or identifies the failed plugin and cause. Product applications use the `dsh` launcher instead of publishing separate bins; direct-config helpers remain only for lower-level embedders and tests. You can preview the effective configuration before booting, configure HMR through profile YAML, and let a terminal-owning app restore its terminal before a fatal exit.
@@ -203,6 +207,8 @@ These limits describe when this boot library is a poor fit or needs special care
 - **Snapshot replay swapping is basename-specific** — only a config ending in `cordis.yml` or `cordis.yaml` maps to the sibling `cordis.snapshot.yml`; custom config names require caller-managed selection.
 - **Environment discovery is launch-scoped** — `loadLayeredEnv` reads only the invocation directory and Harness home once; it does not search parents or follow a workspace selected later. `loadEnv` remains the one-directory helper for non-product bins.
 - **A user patch replaces the whole matched config** — an id-targeted patch does not deep-merge, so a profile override restates the bundle fields it keeps.
+
+`ProfileContext.restart` is an optional owning-launcher capability. It requests orderly process replacement; it does not clear module caches or reload an individual Session. A launcher that cannot replace its process omits this capability.
 
 <a id="dev-note"></a>
 ### Dev Note
