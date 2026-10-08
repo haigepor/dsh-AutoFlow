@@ -25,7 +25,7 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
-链接到工作区的 bundle 从实际包目录解析依赖；各 bundle 自身目录中的依赖优先于祖先目录中继承的包。
+链接到工作区的 bundle 从自身清单解析引用自己的运行行，从实际包目录解析依赖；各 bundle 自身目录中的依赖优先于祖先目录中继承的包。
 
 会话夹具同时提供 regenerateTitle；夹具未提供实现时明确报错。
 

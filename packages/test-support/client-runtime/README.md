@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Linked bundles resolve dependencies from their real package directories; dependencies next to any bundle take precedence over packages inherited from ancestor directories.
+Linked bundles resolve their own runtime rows from their manifests and dependencies from their real package directories; dependencies next to any bundle take precedence over packages inherited from ancestor directories.
 
 Session fixtures also expose regenerateTitle; it fails explicitly unless the fixture supplies an implementation.
 

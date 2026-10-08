@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-theme` owns the Appearance theme Settings section: system/light/dark modes, official and current-project palettes, five interface fonts, five corner scales, menu animation speed, and conversation content size from 12 to 17 px. A loopback client persists these choices in the `ui-theme` settings namespace, which the local provider stores in `$DSH_HOME/cordis.patch.yml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package ships the `--dsw-*` token stylesheets and injects synchronous bootstrap values before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.
+`dsh-client-ui-theme` owns the Appearance theme Settings section: system/light/dark modes, official and current-project palettes, five interface fonts, five corner scales, menu animation speed, and conversation content size from 10 to 22 px. A loopback client persists these choices in the `ui-theme` settings namespace, which the local provider stores in `$DSH_HOME/cordis.patch.yml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package ships the `--dsw-*` token stylesheets and injects synchronous bootstrap values before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.
 
 ## Table of Contents
 
@@ -78,6 +78,8 @@ Menu icons use `--dsw-alias-menu-icon`: neutral-bluish 800 in light mode and `la
 System toasts use `--dsw-alias-toast-bg` and `--dsw-alias-toast-label` for a shared background and text color across callers. Document previews pair `--dsw-alias-bg-document-preview` with `--dsw-alias-label-document-preview` so the backdrop and status text follow the same theme. Tooltip keycaps use `--dsw-alias-tooltip-key-bg`, a lighter fill derived from the tooltip background in each palette. Switches use `--dsw-alias-switch-thumb`, `--dsw-alias-switch-active-track`, `--dsw-alias-switch-active-thumb`, `--dsw-alias-switch-loading-track`, `--dsw-alias-switch-loading-thumb`, and `--dsw-alias-switch-loading-indicator`: an off thumb is warm gray in dark mode, an active track follows the accent at a lower dark-mode luminance, and a pending write uses a neutral track with a contrast-matched thumb and ring in each theme.
 
 `--dsw-alias-label-shimmer` supplies an overlay for the shared text shimmer: black at 30% alpha in the light palette and white at 45% alpha in the dark palette. `--dsw-alias-label-deep-diving` and `--dsw-alias-label-deep-diving-shimmer` supply the local violet activity label and sweep; the dark palette uses a lighter, less saturated label with a brighter violet sweep.
+
+Sticky model-menu headings use `--dsw-alias-menu-group-header-fill`, derived from the existing menu and layer tokens for each palette.
 
 `brand-font.css` exports the local Montserrat Light, Regular and Medium faces (normal style, weights 300, 400 and 500), with `montserrat-light.woff2`, `montserrat-regular.woff2`, `montserrat-medium.woff2` and its SIL Open Font License in `lib/styles/`. Desktop bundles the same stylesheet, font and license for offline welcome brand text; the interface font choice does not alter brand text.
 

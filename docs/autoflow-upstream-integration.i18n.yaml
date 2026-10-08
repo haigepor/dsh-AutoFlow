@@ -3,8 +3,20 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/autoflow-upstream-integration.md
 /autoflow-upstream-integration-record:
-  en: abe76f05d81f1e31
-  zh: 5e395e818afc92ca
+  en: 353ce0b24f2d85b1
+  zh: 1bf43818189ffcf3
+/autoflow-upstream-integration-record/dsh-v0-2-0-rc-2-comparison-and-integration-2026-10-08:
+  en: 748e78934dd15268
+  zh: 39717b14da237e5e
+/autoflow-upstream-integration-record/dsh-v0-2-0-rc-2-comparison-and-integration-2026-10-08/execution-and-data-flow:
+  en: e985911d65abac27
+  zh: d0dd700a8e0f39ac
+/autoflow-upstream-integration-record/dsh-v0-2-0-rc-2-comparison-and-integration-2026-10-08/functional-and-visual-decisions:
+  en: 4f2f5c18fabae777
+  zh: 2d63fff16d92521d
+/autoflow-upstream-integration-record/dsh-v0-2-0-rc-2-comparison-and-integration-2026-10-08/verification-and-known-limits:
+  en: 79b00bd0ad0771b2
+  zh: 98f93814b14914a5
 /autoflow-upstream-integration-record/snapshot-and-branches:
   en: 3aeabe9aa191eb08
   zh: a50a06eb56e85151
@@ -27,8 +39,8 @@
   en: 29c7216f19956d3a
   zh: f2113f35c25be21d
 /autoflow-upstream-integration-record/next-official-update:
-  en: 36d880c8ee8f0648
-  zh: 2e05a96cd026e46f
+  en: 9791eaa73948d4c8
+  zh: cf3fcc5a4e389663
 /autoflow-upstream-integration-record/appearance-follow-up:
   en: d10ba38489bb2852
   zh: c2744002ee44b5f6

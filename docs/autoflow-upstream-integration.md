@@ -2,7 +2,48 @@
 
 English | [中文](autoflow-upstream-integration.zh.md)
 
-This record identifies the custom work in this AutoFlow release and defines how to compare it with a later DeepSeek Harness release. The [path manifest](autoflow-local-change-manifest.json) lists the files changed between the previous pinned official commit and `autoflow-v0.2.0`, plus every path changed in the working tree before this release commit. The new version tag owns the released file contents.
+This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.0-rc.2`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) stores current comparison references and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+
+## `dsh-v0.2.0-rc.2` comparison and integration (2026-10-08)
+
+This update fetched the official release tag, using `dsh-v0.2.0-rc.1` as the previous upstream baseline; the range contains 187 commits. Counting paths without rename folding gives 1025 upstream files, 773 AutoFlow files changed from the old upstream, and 130 overlapping paths. These include versions, generated files, and documentation, rather than independent feature counts. Official `master` has advanced beyond the target; commits after the tag are outside this integration.
+
+Initially `main` and `deepseek-harness` pointed to the same custom commit, so the mirror was not a valid upstream baseline. Separate backups, `codex/backup-main-before-rc2-20261008` and `codex/backup-mirror-before-rc2-20261008`, precede resetting the local mirror to the verified release tag and checking commit and tree equality. Review uses `codex/integrate-dsh-rc2`; the organized main and mirror are pushed to the fork, with a pre-upgrade backup tag retained and no new release version, profile changes, or commit the existing untracked `dsh-better-sidebar` directory.
+
+### Execution and data flow
+
+`dsh` selects a profile, `app-boot` composes bundles and overlays, and Cordis mounts services. Web requests pass through `api-gateway` and controllers to session, model, and interaction services; clients render through remotes and slots. Integrating a feature requires reviewing services, interfaces, clients, and logs together; copying TSX alone cannot complete the upgrade.
+
+`llm-pi-ai` discovers models, shared selection and default-model services resolve routes, and persisted settings seed new sessions; existing sessions retain their logged routes. The interaction service registers questions, controllers publish them, QuestionComposer collects replies, and the service settles waiting separately from final answers; session logs and both SDKs retain replayable results. Terminal controllers stream output and client panel teardown releases subscriptions. Desktop command managers and CLI shims enter the same profile launch path, with platform-specific signals and login-shell environments.
+
+### Functional and visual decisions
+
+| Area | Upstream update | AutoFlow integration |
+| --- | --- | --- |
+| User questions | Recommended preselection, timed waiting, pause/resume, final answers after waiting, and read-only replies. | Integrate the state machine, controllers, persisted events, and both SDKs; retain compact cards, 16px controls, separate descriptions, and collapse animation. Focus moves to the toggle before hiding content. |
+| Model selection | Fuzzy search, clear action, keyboard highlighting, sticky provider headings, and shared ordering. | Retain compact popups, the 320px model list, typography, and local copy; reuse MenuGroup and derive its new sticky fill from existing theme tokens without changing their values. |
+| Model catalog | pi-ai 0.87.1 includes `deepseek-flash` and `deepseek-v4-pro`. | Integrate the catalog and repair two tests depending on the removed built-in `deepseek-v4-flash`. Saved routes are not rewritten; users can select a replacement when a catalog entry disappears. |
+| Presets and settings | Preset selection no longer needs the developer switch; shortcuts, font range, and setting content change. | Integrate behavior and the 10–22 font range; retain full-window settings, search groups, two-pane models, provider reset, preset skeletons, and delayed-save feedback. |
+| Terminal and plans | Terminal stream errors, subscription disposal, plan review, and navigation improvements. | Integrate lifecycle behavior and retain the right panel and current navigation layout. |
+| Desktop commands | Windows/macOS command installation and repair, CLI runtime, login-shell environments, and Windows console signals. | Integrate implementations and tests; retain welcome windows, menu materials, and settings layout. Record the C++ compiler requirement separately. |
+| Plugins and animation | Installation safety notices, upgrade guidance, and whale-tail animation performance. | Integrate notices and required new styles; retain plugin list/detail spacing and layout. Update the whale mask implementation with the same visual intent. |
+| Persistence and generated artifacts | `user-question/reply` acknowledgement and format catalog updates. | Regenerate catalogs and reanchor the unfinalized local title acknowledgement after the upstream question acknowledgement. Retain committed historical format and session generations. |
+
+Pure visual CSS retains the pre-upgrade main baseline. Exceptions are styles required for new question states, reply views, sticky groups, search interaction, safety notices, and the whale performance implementation. Upstream's old settings dialog, sidebar, and model-detail layout are not restored. Mixed files are adapted by hunk rather than assigned wholesale to either branch.
+
+### Verification and known limits
+
+The complete build and subsequent client typecheck passed. Focused pi-ai adapter, catalog, and streaming-argument checks passed 89 tests; local session-title checks passed 22. The interaction, terminal, right-sidebar, plan, and desktop-focused run passed 1077 tests, followed by separate verification after fixing catalog-rename assertions.
+
+The final UI unit run passed 395 assertions; a self-referencing upstream Web bundle row prevented two Settings suites from importing. The test scaffold now resolves a bundle's own manifest, with a linked-package regression and 34 related tests passing. Settings navigation, two-pane models, selection menus, questions, and plans passed 24 browser assertions; question and plan Session teardown comparisons still encounter the Windows skill-catalog difference below, so the complete run is not reported as passing. Light/dark screenshots from an isolated profile confirm full-window Settings and two-pane models without changing user profiles.
+
+Documentation synchronization passed 42 of 43 gates; the only failure is the pre-existing untracked `dsh-better-sidebar/README.md` missing its bilingual pair. Outgoing documentation pairs passed a separate check. Repository lint passed excluding that pre-existing untracked directory; its files were not deleted or rewritten to clear gates. Outgoing UTF-8, trailing-newline, and Git whitespace checks passed. Skill frontmatter, invocation metadata, and the helper's contaminated-mirror/invalid-ancestor rejection paths passed; discovery in a fresh Codex session remains unverified.
+
+A detached pre-upgrade main worktree reproduced five theme static assertion failures and four plugin browser unit failures: the former still expect upstream materials/radii, while the latter expect older dependency and slot lists. This update does not replace custom visuals or skip tests to remove those failures; they remain test-maintenance work.
+
+Three new upstream session snapshots fail on Windows because of the Windows ACL skill catalog and process-exit instructions. Their supported lane is macOS/Linux; Windows output does not replace the portable recordings. Windows Electron signal tests fail during compiler preparation because the Visual C++ toolchain was not found. Real model APIs, signed installers, and macOS runtime behavior were not verified locally.
+
+Use the repository skill [autoflow-upstream-sync](../.agents/skills/autoflow-upstream-sync/SKILL.md) for the next update, specifying the old upstream tag, new target, and current main. Its read-only helper rejects a mirror containing custom code. Existing tags remain; `autoflow-before-rc2-20261008` is the rollback reference; the two temporary backup branches are removed after organizing, subject to reviewing any later changes.
 
 ## Snapshot and branches
 
@@ -89,7 +130,7 @@ For each area, record the old and new official commit, affected paths, chosen be
 
 ## Next official update
 
-1. Start from the latest integration tag `autoflow-v0.4.0` and save any later custom work as a reviewable Git state before integrating. The path manifest locates older changes but does not recover their contents.
+1. Start from this record's latest upstream integration target and current `main`; `autoflow-v0.4.0` only locates history. Save later custom work before integrating; the path manifest locates changes but does not recover file contents.
 2. Advance `deepseek-harness` to the new official commit and write down the previous and new official IDs. Keep the official branch free of AutoFlow edits.
 3. Compare that official range by subsystem, then compare the same files against `main`, the [path manifest](autoflow-local-change-manifest.json), the local style baseline, and the post-tag UI work above. Start with stateful features and public interfaces, then present any proposed visual replacement for user approval.
 4. Integrate functional additions into `main` with their consumers and docs. Add styles required by those features; keep existing local styling unless the user has approved its specific replacement.

@@ -31,8 +31,8 @@ changes:
     after: "e5ae9f18f9da222773c06af817e9d4694cf85f213a03f4e462af4e4071686ed7"
     decision: same-version
   - root: "event:session/title-llm-request"
-    previous: "2026-09-16-session-format-v4"
-    after: "36a261553f1759eb7a0c21b588c918b0e622e859ad7bd8de3b145d29c6c3e086"
+    previous: "2026-09-21-user-question-reply"
+    after: "1cb6437add22641c189dc8391565e6bec6217f3530f632eef999f20767307689"
     decision: same-version
 ```
 

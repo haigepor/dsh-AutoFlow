@@ -677,7 +677,9 @@ describe('PluginManagerController', () => {
   })
 
   it('refuses a spec the list already shows without asking the Host, and words what the Host refused', async () => {
+    const shipped: BundleInfo = { ...BUNDLE, name: '@deepseek-ai/dsh-official', installed: false, optional: true, removable: false }
     const { plugins, face, state, controller } = bench({
+      listBundles: vi.fn(() => Promise.resolve(ok([BUNDLE, shipped]))),
       inspect: vi.fn()
         .mockResolvedValueOnce(ok({ status: 'refused', problem: 'not-found', reason: 'E404', registries: [null, MIRROR] }))
         .mockResolvedValueOnce(ok({ status: 'refused', problem: 'not-a-bundle', reason: 'plain declares no dsh.bundle' }))
@@ -689,6 +691,10 @@ describe('PluginManagerController', () => {
     face.runInstall()
     expect(plugins.inspect).not.toHaveBeenCalled()
     expect(state().install).toMatchObject({ phase: 'idle', inputError: { problem: 'already-installed', reason: BUNDLE.name } })
+    // A bundle the installation supplies upgrades with DSH instead.
+    face.editInstallSpec(shipped.name)
+    face.runInstall()
+    expect(state().install).toMatchObject({ phase: 'idle', inputError: { problem: 'shipped', reason: shipped.name } })
     // Typing clears the refusal.
     face.editInstallSpec('nope')
     expect(state().install.inputError).toBeNull()

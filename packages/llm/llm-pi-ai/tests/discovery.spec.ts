@@ -108,7 +108,7 @@ describe('catalog-route model discovery', () => {
       reasoning: { efforts: [{ id: 'off' }, { id: 'high' }, { id: 'max' }] },
       reasoningWireValues: { off: null, high: 'high', max: 'max' },
     })
-    expect(models.find(model => model.id === 'deepseek-v4-flash')).toMatchObject({
+    expect(models.find(model => model.id === 'deepseek-flash')).toMatchObject({
       reasoning: { efforts: [{ id: 'off' }, { id: 'low' }, { id: 'high' }, { id: 'max' }] },
     })
     const server = await listingServer({ body: JSON.stringify({ data: [{ id: 'deepseek-v4-pro' }] }) })

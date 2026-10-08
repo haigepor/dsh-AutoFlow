@@ -74,6 +74,20 @@ describe('bundleRoster on a scratch installation', () => {
   const scratch = new Scratch()
   afterAll(() => { rmSync(scratch.root, { recursive: true, force: true }) })
 
+  it('resolves a linked bundle runtime row from its own manifest', () => {
+    const linked = new Scratch()
+    onTestFinished(() => { rmSync(linked.root, { recursive: true, force: true }) })
+    const bundle = join(linked.root, 'workspace', 'self-bundle')
+    mkdirSync(bundle, { recursive: true })
+    writeFileSync(join(bundle, 'package.json'), JSON.stringify({ name: '@t/self', dsh: {
+      bundle: { patch: './cordis.patch.yml' }, client: { platform: 'web' },
+    } }))
+    writeFileSync(join(bundle, 'cordis.patch.yml'), "- insert:\n    - id: self\n      name: '@t/self'\n")
+    linked.web('@t/other')
+    symlinkSync(bundle, join(linked.root, 'app', 'node_modules', '@t', 'self'), 'junction')
+    expect(linked.roster(['@t/self'])).toEqual(['@t/self'])
+  })
+
   it('resolves a linked bundle dependency before an unrelated ancestor package', () => {
     const linked = new Scratch()
     onTestFinished(() => { rmSync(linked.root, { recursive: true, force: true }) })

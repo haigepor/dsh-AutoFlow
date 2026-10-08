@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-theme` 拥有设置中的「外观主题」分区：跟随系统／浅色／深色模式、官方默认与当前项目两套配色、五种界面字体、五档圆角、菜单动效速度，以及 12 至 17 px 的会话正文字号。回环客户端把这些选择存入 `ui-theme` 设置命名空间，本地提供方默认将其持久化到 `$DSH_HOME/cordis.patch.yml`。插件通过 `prefers-color-scheme` 解析 `system` 并发布不可变的 `ThemeSnapshot`；ui-layout 把每份快照应用到文档。本包还提供 `--dsw-*` token 样式表，并在外壳加载前同步注入所选值。第三方主题可通过 `ctx.theme` 注册别名 token 覆盖。
+`dsh-client-ui-theme` 拥有设置中的「外观主题」分区：跟随系统／浅色／深色模式、官方默认与当前项目两套配色、五种界面字体、五档圆角、菜单动效速度，以及 10 至 22 px 的会话正文字号。回环客户端把这些选择存入 `ui-theme` 设置命名空间，本地提供方默认将其持久化到 `$DSH_HOME/cordis.patch.yml`。插件通过 `prefers-color-scheme` 解析 `system` 并发布不可变的 `ThemeSnapshot`；ui-layout 把每份快照应用到文档。本包还提供 `--dsw-*` token 样式表，并在外壳加载前同步注入所选值。第三方主题可通过 `ctx.theme` 注册别名 token 覆盖。
 
 ## 目录
 
@@ -76,6 +76,8 @@ kind: "package-reference"
 系统提示使用 `--dsw-alias-toast-bg` 和 `--dsw-alias-toast-label`，在各调用方之间统一背景与文字颜色。文档预览配对使用 `--dsw-alias-bg-document-preview` 与 `--dsw-alias-label-document-preview`，使底色与状态文字遵循相同主题。Tooltip 键帽使用 `--dsw-alias-tooltip-key-bg`，由各主题的 tooltip 背景派生稍浅的填充。开关使用 `--dsw-alias-switch-thumb`、`--dsw-alias-switch-active-track`、`--dsw-alias-switch-active-thumb`、`--dsw-alias-switch-loading-track`、`--dsw-alias-switch-loading-thumb` 与 `--dsw-alias-switch-loading-indicator`：暗色关闭态滑块为暖灰色，开启轨道跟随强调色并降低暗色亮度，写入期间使用中性轨道，以及与各主题对比度匹配的滑块和圆环。
 
 `--dsw-alias-label-shimmer` 为共享文字扫光提供叠加色：浅色配色使用 30% alpha 的黑色，深色配色使用 45% alpha 的白色。`--dsw-alias-label-deep-diving` 和 `--dsw-alias-label-deep-diving-shimmer` 提供本地紫色活动文本和扫光颜色；深色主题使用更亮、饱和度更低的文字，并以更亮的紫色扫光。
+
+模型菜单吸顶标题使用 `--dsw-alias-menu-group-header-fill`，按亮暗配色由现有菜单和层级 token 派生。
 
 `brand-font.css` 导出本地 Montserrat Light、Regular 和 Medium 字体（正体、字重 300、400 和 500），`lib/styles/` 同时提供 `montserrat-light.woff2`、`montserrat-regular.woff2`、`montserrat-medium.woff2` 及其 SIL Open Font License。Desktop 将同一份样式表、字体和许可证打包，用于欢迎页品牌文字的离线显示；界面字体选项不改变品牌文字。
 

@@ -1795,3 +1795,9 @@ label.registryOption {
   color: var(--dsw-alias-state-error-primary);
   overflow-wrap: anywhere;
 }
+
+.installSafetyText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

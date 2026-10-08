@@ -56,6 +56,8 @@ export function bundleRoster(
     throw new Error(`client-test-runtime: bundle patch ${describe(message, args)}`)
   })
   const anchors = layers.map(layer => layer.manifestPath)
+  // Bundle 的运行行可引用自身；工作区链接包不必在自身依赖目录中再链接一次。
+  const ownManifests = new Map(layers.map(layer => [readManifest(layer.manifestPath).name, layer.manifestPath]))
   const rows: ClientRosterRow[] = []
   const seen = new Set<string>()
   for (const { entry, disabled } of flattenGroups(entries)) {
@@ -64,7 +66,7 @@ export function bundleRoster(
     if (disabledContext !== undefined
       && disabled.some(value => isJsExpr(value) && Boolean(evaluate(disabledContext, value.__jsExpr)))) continue
     seen.add(name)
-    const manifestPath = locateManifest(anchors, name)
+    const manifestPath = ownManifests.get(name) ?? locateManifest(anchors, name)
     if (manifestPath === undefined) {
       throw new Error(`client-test-runtime: cannot resolve plugin package ${name} from ${bundles.join(', ')}`)
     }

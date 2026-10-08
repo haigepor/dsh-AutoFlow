@@ -272,6 +272,7 @@ body {
   --dsw-specific-input-major: #FFFFFF;
   --dsw-specific-login-input: #F7F6F3;
   --dsw-menu-surface-fill: rgba(255, 254, 252, 0.68);
+  --dsw-alias-menu-group-header-fill: color-mix(in srgb, var(--dsw-specific-menu) 94%, var(--dsw-alias-bg-layer-1));
   --dsw-menu-standalone-fill: rgba(255, 254, 252, 0.74);
   --dsw-specific-menu: rgba(255, 254, 252, 0.76);
   --dsw-specific-dialog: rgba(255, 255, 255, 0.9);
@@ -397,6 +398,7 @@ body[data-ds-dark-theme] {
   --dsw-specific-input-major: #272725;
   --dsw-specific-login-input: #20201E;
   --dsw-menu-surface-fill: rgba(39, 39, 37, 0.82);
+  --dsw-alias-menu-group-header-fill: color-mix(in srgb, var(--dsw-specific-menu) 94%, var(--dsw-alias-bg-layer-1));
   --dsw-menu-standalone-fill: rgba(39, 39, 37, 0.86);
   --dsw-specific-menu: rgba(39, 39, 37, 0.88);
   --dsw-specific-dialog: rgba(39, 39, 37, 0.92);

@@ -30,13 +30,15 @@ describe('ui-theme host', () => {
     expect(plainConfig(configuration.fiber.config)).toEqual({
       preference: DEFAULT_PREFERENCE, fontSize: 14, accent: 'iris', themeSet: 'official', glideDuration: 220, fontFamily: 'system', corners: 'standard',
     })
-    await configuration.update({ preference: 'dark', fontSize: 16, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft' })
+    await configuration.update({ preference: 'dark', fontSize: 10, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft' })
     expect(plainConfig(configuration.fiber.config)).toEqual({
-      preference: 'dark', fontSize: 16, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft',
+      preference: 'dark', fontSize: 10, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft',
     })
+    await configuration.update({ fontSize: 22 })
+    expect(plainConfig(configuration.fiber.config)).toMatchObject({ fontSize: 22 })
     await expect(configuration.update({ preference: 'sepia' })).rejects.toThrow()
-    await expect(configuration.update({ fontSize: 11 })).rejects.toThrow()
-    await expect(configuration.update({ fontSize: 18 })).rejects.toThrow()
+    await expect(configuration.update({ fontSize: 9 })).rejects.toThrow()
+    await expect(configuration.update({ fontSize: 23 })).rejects.toThrow()
     await expect(configuration.update({ accent: 'unknown' })).rejects.toThrow()
     await expect(configuration.update({ fontFamily: 'unknown' })).rejects.toThrow()
     await expect(configuration.update({ corners: 'unknown' })).rejects.toThrow()
@@ -60,10 +62,10 @@ describe('ui-theme host', () => {
     expect(rowText(rows[0])).toContain('@media(prefers-color-scheme:dark)')
     expect(rowText(rows[1])).toContain('const preference = "system"')
     expect(rowText(rows[1])).toContain('"14px"')
-    await configuration.update({ preference: 'dark', fontSize: 17 })
+    await configuration.update({ preference: 'dark', fontSize: 22 })
     expect(rowText(collect(ctx)[0])).toContain('color-scheme:dark')
     expect(rowText(collect(ctx)[1])).toContain('const preference = "dark"')
-    expect(rowText(collect(ctx)[1])).toContain('"17px"')
+    expect(rowText(collect(ctx)[1])).toContain('"22px"')
     await fiber.dispose()
     expect(collect(ctx)).toEqual([{ kind: 'script', placement: 'head', text: 'window.afterTheme=true' }])
   })
