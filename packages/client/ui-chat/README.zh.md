@@ -44,7 +44,7 @@ Chat 在节点列表外通过一个 `MarkdownDelegateProvider` 提供文件及 H
 <a id="system-prompt-row"></a>
 ## Chat 隐藏的行
 
-Chat 在所有工作步骤展示模式下都不显示系统提示词行、普通上下文注入和 `permission` 命令行。包含工具添加或移除记录的上下文仍然可见。该过滤不改变已记录的 Session 事件或 Trajectory 查看能力。非人工轮次触发仍作为带边框和中性对比背景的独立通知显示，其他命令行仍保留在 Chat 中。
+Chat 在所有工作步骤展示模式下都不显示系统提示词行、普通上下文注入和 `permission` 命令行。包含工具添加或移除记录的上下文仍然可见。该过滤不改变已记录的 Session 事件或 Trajectory 查看能力。非人工轮次触发仍作为使用本地菜单材质的无边框独立通知显示，其他命令行仍保留在 Chat 中。
 
 Assistant 尝试结束且没有可见消息时，Chat 隐藏已发布的 Node，不移除其 key。同一 Step 的重试再次产生可见内容时，复用该 key。已加载窗口缺少 Step 起点时也遵循此规则。
 
