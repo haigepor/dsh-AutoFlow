@@ -13,9 +13,11 @@ An independent npm bundle for DSH profiles. Read tools, visual refresh, remote w
 
 ## Install and develop
 
-From this directory run `pnpm install --ignore-workspace --config.auto-install-peers=false`, `npm run build:client`, `npm test`, `npm run check`, and `npm pack`. Install the resulting tarball with `dsh plugin --profile web add <absolute-tarball-path>` or through Plugins → Add plugin. A local directory also works: `dsh plugin --profile web add file:D:/project/deepseek-harness/custom-plugins/workspace/dsh-plugin-afp`. Use this checkout's DSH: earlier published runtimes do not support the new featureConfig declaration.
+Run `pnpm install` at the repository root: AFP is a workspace dependency of the CLI. New Web/Desktop profiles select it automatically; Headless and SDK profiles do not. `pnpm run build` rebuilds its browser entry, and Desktop packaging includes its tarball. AFP keeps its own package version without declaring an exact DSH peer version. Existing profile bundle selections are preserved; see the [upgrade guide](../../../docs/upgrade-guide/v0.2.0-rc.2/afp-builtin/guide.md) for replacing a profile-local installation.
 
-After publishing a reviewed package with your npm account, users install `dsh-plugin-afp@<version>` through the same plugin page or `dsh plugin --profile web add dsh-plugin-afp@<version>`. Restart a running Host after updating an installed package when module watching is disabled; replacing package files alone does not reload its imported operations. Do not install it globally. The package defines no application bin. Source attribution and publication limitations are in [UPSTREAM.md](UPSTREAM.md).
+Run `pnpm --filter dsh-plugin-afp test` and `pnpm --filter dsh-plugin-afp check` from the root. Use `pnpm --filter dsh-plugin-afp pack` for a reviewed standalone artifact. Repository updates followed by `pnpm install` and `pnpm run build` update the builtin package; restart the Host when module watching is disabled. The package defines no application bin. Source attribution and publication limitations are in [UPSTREAM.md](UPSTREAM.md).
+
+GitHub distribution uses the package's `afp-v<version>` tag and an independent tarball, checksum and version metadata; see [publishing AFP releases](release/README.md). The current Plugins page does not install remote updates automatically.
 
 ## Directory reference
 

@@ -451,6 +451,13 @@ export async function packageTarget(
   await execute(['run', 'release:pack', '--family', 'dsh', '--out', buildPaths.packedDsh, ...packArguments], buildEnv, REPOSITORY_ROOT)
   await execute([
     '--dir',
+    'custom-plugins/workspace/dsh-plugin-afp',
+    'pack',
+    '--pack-destination',
+    buildPaths.packedDsh,
+  ], buildEnv, REPOSITORY_ROOT)
+  await execute([
+    '--dir',
     'apps/desktop-host',
     'pack',
     '--pack-destination',

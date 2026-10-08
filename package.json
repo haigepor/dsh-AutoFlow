@@ -14,6 +14,7 @@
     "native/system",
     "native/system/packages/*",
     "apps/*",
+    "custom-plugins/workspace/dsh-plugin-afp",
     "website"
   ],
   "scripts": {
@@ -25,6 +26,7 @@
     "build:lib:host": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc -b tsconfig.host.json && tsdown --env.DSH_BUILD_FACE host && pnpm --filter @deepseek-ai/dsh-desktop run bundle",
     "build:lib:client": "tsc -b tsconfig.client.json && tsdown --env.DSH_BUILD_FACE client",
     "build:web": "pnpm --filter @deepseek-ai/dsh-web-frontend run build",
+    "build:afp": "pnpm --filter dsh-plugin-afp run build:client",
     "build:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run build",
     "dev:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run dev",
     "start:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run start",

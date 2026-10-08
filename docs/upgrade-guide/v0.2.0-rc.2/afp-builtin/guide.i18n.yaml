@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.0-rc.2/afp-builtin/guide.md
+/:
+  en: 6c8f4ce7a1c721f2
+  zh: 483bf45c82fbe9be
+/afp-ships-with-web-desktop:
+  en: b523124aac6be8f8
+  zh: 46a204a07971f9dd
+/afp-ships-with-web-desktop/change:
+  en: 13fcc2148bba39f8
+  zh: da0ac3c84485d2e6
+/afp-ships-with-web-desktop/migration:
+  en: 0b7f04a4e66f3e38
+  zh: 5058d105b2cce71d

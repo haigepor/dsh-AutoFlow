@@ -1,19 +1,19 @@
 ---
-description: "基于维护中的示例开发和分发独立 DSH 插件组合包。"
+description: "查阅自定义插件架构和包文档。"
 kind: "package-group"
 ---
 
-# 自定义插件组合包
+# 自定义插件文档
 
 [English](README.md) | 中文
 
 ## Summary
 
-在随主项目发布的 `packages/` 工作区之外开发组合包，并将其安装到 DSH profile。长期维护的正式插件放在[工作区](../workspace/README.zh.md)；[AFP 图片策展](../workspace/dsh-plugin-afp/README.zh.md) 是维护中的组合包示例，包含 Skill、可执行操作、Agent 工具和 Client UI。修改组件行或文件归属前，先阅读[架构文档](architecture.md)。
+源码组织和维护中的包统一见[自定义插件索引](../README.zh.md)。本目录提供插件配置和托管文件的[架构参考](architecture.md)；各插件的 README 负责说明其专属行为。
 
 ## Packages
 
-- [workspace](../workspace/README.zh.md)：独立版本、正式开发插件包的源代码区域。
+- [自定义插件索引](../README.zh.md)：源码组织和共用开发入口。
 - [AFP 图片策展](../workspace/dsh-plugin-afp/README.zh.md)：图片搜索、视觉策展与本地安装步骤。
 - [架构文档](architecture.md)：包目录、功能声明、UI 位置、文件生命周期与分发规则。
 

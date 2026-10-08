@@ -1,5 +1,5 @@
 ---
-description: "Develop and distribute independent DSH plugin bundles from the reusable demo."
+description: "Develop and distribute independently versioned DSH plugin bundles."
 kind: "package-group"
 ---
 
@@ -9,13 +9,23 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Build a bundle outside the release-coupled `packages/` workspaces and install it into a DSH profile. Put maintained plugin packages in [workspace](workspace/README.md); [AFP curation](workspace/dsh-plugin-afp/README.md) is a maintained bundle example with Skills, executable operations, Agent tools, and Client UI. Read the [architecture guide](architecture.md) before changing rows or file ownership.
+Develop maintained plugin bundles under `workspace/`, with one independently versioned npm package per direct child directory. AFP is explicitly included in the repository pnpm workspace and shipped with Web/Desktop; other children remain separately installed packages. This directory organizes plugin sources and is not a package to publish. Read the [architecture guide](architecture.md) before changing rows or file ownership.
+
+## Table of Contents
+
+- [Packages](#packages)
+- [Structure](#structure)
+- [Dev Note](#dev-note)
 
 ## Packages
 
-- [workspace](workspace/README.md): source area for independently versioned, formally developed plugin packages.
 - [AFP curation](workspace/dsh-plugin-afp/README.md): photo search, visual curation, and local installation steps.
+- [AFP releases](workspace/dsh-plugin-afp/release/README.md): versioned GitHub artifacts and the reusable release procedure.
 - [Architecture](architecture.md): package layout, feature declarations, UI placement, file lifecycle, and distribution rules.
+
+## Structure
+
+Each `workspace/<plugin-name>/` contains its package manifest, patch, Host and optional Client entries, assets, tests, and README. Use lowercase kebab-case directory names that match the unscoped part of the npm package where practical. Keep package-specific documentation, tests, and release notes in that plugin's directory; the architecture guide owns shared rules.
 
 ## Dev Note
 

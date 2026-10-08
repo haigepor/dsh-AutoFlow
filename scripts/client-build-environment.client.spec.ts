@@ -279,6 +279,12 @@ describe('client build environment', () => {
     const chunked = buildFixture(officialEnvironment)
     write(join(chunked, 'packages/client/example/lib/client.pdf.js'), 'module.exports = {}\n')
     expect(() => { readClientBuildRecord(chunked) }).toThrow(/artifacts differ/)
+
+    const afp = buildFixture(officialEnvironment)
+    write(join(afp, 'custom-plugins/workspace/dsh-plugin-afp/client.js'), 'window.afp = true\n')
+    writeClientBuildRecord(afp, officialEnvironment)
+    write(join(afp, 'custom-plugins/workspace/dsh-plugin-afp/client.js'), 'window.afp = false\n')
+    expect(() => { readClientBuildRecord(afp) }).toThrow(/artifacts differ/)
   })
 
   it('keeps public client values out of workflow-wide environments', () => {

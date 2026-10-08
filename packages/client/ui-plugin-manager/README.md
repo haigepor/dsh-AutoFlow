@@ -15,7 +15,7 @@ Feature configuration dialogs stay within the Modal viewport inset. The header s
 
 Declared feature image files render as 22px masks using category color tokens; failed loads fall back to category artwork.
 
-Use **Plugins** in the Web sidebar to manage installed and shipped official bundles. Enable or disable bundles and rows, install bundles after Host inspection, monitor pnpm output, cancel installation, and enable installed entries. Uninstall requires confirmation. Configuration entries edit registered settings; **Settings** retains the read-only inventory.
+Use **Plugins** in the Web sidebar to manage installed and shipped official bundles, including installation-provided business bundles with declared features. Enable or disable bundles and rows, install bundles after Host inspection, monitor pnpm output, cancel installation, and enable installed entries. Uninstall requires confirmation. Configuration entries edit registered settings; **Settings** retains the read-only inventory.
 
 ## Table of Contents
 

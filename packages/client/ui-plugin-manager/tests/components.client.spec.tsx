@@ -416,6 +416,14 @@ describe('PluginManagerPage', () => {
     expect(locked.getAttribute('title')).toBe(en.reasonManagementRequired)
   })
 
+  it('offers installation-provided feature bundles without a profile-local dependency', () => {
+    renderTab({ packages: [pkg({
+      name: 'dsh-plugin-afp', installed: false,
+      features: [{ id: 'ui-panel', rowId: 'afp-ui-panel', title: 'Workbench', description: 'Open AFP', kind: 'script', enabled: true, defaultEnabled: true }],
+    })] })
+    expect(document.querySelector('[data-plugin-package="dsh-plugin-afp"]')).not.toBeNull()
+  })
+
   it('omits built-in profile dependencies from cards and counts while retaining optional and third-party bundles', () => {
     renderTab({
       packages: [

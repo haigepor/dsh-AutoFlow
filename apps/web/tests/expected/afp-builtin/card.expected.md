@@ -1,0 +1,4 @@
+- listitem:
+  - button "查看 AFP 图片策展": AFP 图片策展
+  - text: 通过 Agent 工具进行图片检索、可续跑的视觉筛选和经确认的 AFP 私有收藏夹写入。
+  - switch "启用 AFP 图片策展" [checked]

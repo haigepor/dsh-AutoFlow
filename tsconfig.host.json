@@ -10,6 +10,7 @@
   "include": [
     "apps/web/product-isolation.ts",
     "apps/web/tests/connection-recovery.e2e.ts",
+    "apps/web/tests/afp-builtin.e2e.ts",
     "apps/web/tests/server-restart.e2e.ts",
     "apps/web/tests/shortcuts.e2e.ts",
     "apps/web/tests/shortcuts-desktop.e2e.ts",

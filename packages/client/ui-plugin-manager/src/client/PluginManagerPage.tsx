@@ -1417,11 +1417,9 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   }, [highlight, clearHighlight])
   const noticeLine = state.notice === null || state.notice.kind === 'refresh-failed' ? null : noticeText(state.notice, t)
 
-  // The page manages what the person installed, what the installation ships for them to switch on, and a
-  // selected name the Host cannot read; the installation's other bundles are inspected in the Settings
-  // Plugins section's Plugin list tab.
+  // 随安装交付且声明功能开关的业务组合包也进入管理列表；基础 profile 组合包保留在只读清单。
   const listed = state.packages.filter(pkg => !BUILTIN_PROFILE_BUNDLES.has(pkg.name)
-    && (pkg.installed || pkg.optional || pkg.error !== undefined))
+    && (pkg.installed || pkg.optional || (pkg.features?.length ?? 0) > 0 || pkg.error !== undefined))
   const mine = listed.filter(pkg => pkg.installed || !pkg.optional)
   const official = listed.filter(pkg => pkg.optional && !pkg.installed)
   const loaded = state.status === 'ready' || state.status === 'error'

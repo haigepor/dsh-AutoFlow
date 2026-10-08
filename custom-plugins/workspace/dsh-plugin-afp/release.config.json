@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "repository": "haigepor/dsh-AutoFlow",
+  "tagPrefix": "afp-v",
+  "channel": "stable",
+  "makeLatest": false
+}

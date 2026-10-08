@@ -1,0 +1,15 @@
+- main:
+  - heading "AFP 工作台" [level=1]
+  - text: 尚未配置
+  - tablist "AFP 工作台分区":
+    - tab "图库搜索" [selected]
+    - tab "收藏夹"
+    - tab "筛选任务"
+    - tab "变更记录"
+    - tab "账户与设置"
+  - tabpanel "图库搜索":
+    - combobox "输入图片搜索主题"
+    - button "语言": 默认语言
+    - button "搜索图片" [disabled]
+    - paragraph: 配置 AFP 账户后即可搜索图片
+    - button "账户设置"

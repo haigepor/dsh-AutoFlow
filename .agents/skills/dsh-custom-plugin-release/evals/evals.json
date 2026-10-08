@@ -1,0 +1,11 @@
+{
+  "skill_name": "dsh-custom-plugin-release",
+  "evals": [
+    { "id": 1, "prompt": "帮我发布 AFP 的第一版，更新文档。", "expected_output": "核对未发布包版本和权限，生成干净来源资产，发布独立 AFP Release 并下载回验；不重做运行时更新器。", "should_trigger": true },
+    { "id": 2, "prompt": "分析 AFP 下次怎么发版，先不要发布。", "expected_output": "只读分析版本、资产和流程，不创建 tag、不推送、不发布。", "should_trigger": true },
+    { "id": 3, "prompt": "AFP 的发布草稿上传失败，帮我继续这次发布。", "expected_output": "核对草稿 tag、来源提交和已有字节，只恢复匹配资产，不覆盖公开版本。", "should_trigger": true },
+    { "id": 4, "prompt": "帮我实现插件页的 GitHub 自动更新服务。", "expected_output": "转交运行时工程流程，不调用插件发布工作流。", "should_trigger": false },
+    { "id": 5, "prompt": "集成官方 DeepSeek Harness 新版，保留 AutoFlow 布局。", "expected_output": "使用 autoflow-upstream-sync，不使用独立插件发布 Skill。", "should_trigger": false },
+    { "id": 6, "prompt": "帮我向 npm 注册表发布 AFP。", "expected_output": "不套用 GitHub 发布流程；先检查来源分发权限和 npm 发布要求。", "should_trigger": false }
+  ]
+}

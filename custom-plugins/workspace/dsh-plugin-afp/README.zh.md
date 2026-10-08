@@ -13,9 +13,11 @@ kind: "package-bundle"
 
 ## 安装与开发
 
-在本包目录依次运行 `pnpm install --ignore-workspace --config.auto-install-peers=false`、`npm run build:client`、`npm test`、`npm run check`、`npm pack`。通过 `dsh plugin --profile web add <绝对路径的tarball>` 或“插件 → 添加插件”安装打包产物。开发时也可执行 `dsh plugin --profile web add file:D:/project/deepseek-harness/custom-plugins/workspace/dsh-plugin-afp`。使用当前仓库构建的 DSH；此前发布的运行时尚不支持新的 featureConfig 声明。
+在仓库根目录运行 `pnpm install`：AFP 是 CLI 的 workspace 依赖。新建 Web/Desktop profile 会自动选中它，Headless 与 SDK 不启用。`pnpm run build` 会重建浏览器入口，Desktop 打包会包含 AFP tarball。AFP 保留独立包版本，不声明 DSH 精确 peer 版本。已有 profile 的 bundle 选择保持原样；替换 profile 本地安装的方法见[升级指南](../../../docs/upgrade-guide/v0.2.0-rc.2/afp-builtin/guide.zh.md)。
 
-用自己的 npm 账号发布经过审核的包后，用户可在同一插件页面输入 `dsh-plugin-afp@<版本>`，或运行 `dsh plugin --profile web add dsh-plugin-afp@<版本>`。未启用模块监听时，更新已安装的包后须重启运行中的 Host；仅替换文件不会重载已导入的操作。无需全局安装。包不声明独立应用 bin。代码来源及发布限制见 [UPSTREAM.md](UPSTREAM.md)。
+在根目录运行 `pnpm --filter dsh-plugin-afp test` 与 `pnpm --filter dsh-plugin-afp check`。需要经审核的独立产物时使用 `pnpm --filter dsh-plugin-afp pack`。更新仓库后执行 `pnpm install` 与 `pnpm run build`，即可更新内置包；未启用模块监听时重启 Host。包不声明独立应用 bin。代码来源及发布限制见 [UPSTREAM.md](UPSTREAM.md)。
+
+GitHub 分发使用包自己的 `afp-v<version>` 标签，以及独立 tarball、校验值和版本元数据；见 [AFP 版本发布](release/README.zh.md)。当前插件页面不会自动安装远程更新。
 
 ## 目录约定
 

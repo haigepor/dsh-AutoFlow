@@ -8,7 +8,7 @@
 
 ## 包结构与标识
 
-每个 `custom-plugins/workspace/<name>/` 放一个独立版本的 npm 包。`workspace/` 是源码区域，不是 pnpm workspace，也不是可发布的包。`demo/` 保持为参考包，不与正式插件共享发布状态。每个包会发布 `package.json`、`cordis.patch.yml`、Host ESM 入口、可选 `client.js`、本地化 JSON、图标、资源与文档。所有运行文件必须列入 `files`，patch 行引用的模块都必须有明确 `exports`。不要新增应用 `bin`；受支持的 Node 应用只能由 DSH profile 启动。
+每个 `custom-plugins/workspace/<name>/` 放一个独立版本的 npm 包。`workspace/` 组织源码，不是可发布的包。AFP 明确加入仓库 pnpm workspace 和 CLI 生产依赖；其他子目录仍独立安装。`demo/` 保持为参考包，不与正式插件共享发布状态。每个包会发布 `package.json`、`cordis.patch.yml`、Host ESM 入口、可选 `client.js`、本地化 JSON、图标、资源与文档。所有运行文件必须列入 `files`，patch 行引用的模块都必须有明确 `exports`。不要新增应用 `bin`；受支持的 Node 应用只能由 DSH profile 启动。
 
 复制 demo 时，应同步修改 npm `name`、patch 行的 `name`、Client 模块 `id`、UI 注册 `key`、Host 操作命名空间、提示词标记与私有归属目录、Skill 目录及 frontmatter `name`、图标、本地化内容和 peer 依赖。发布后尽量保持行 `id` 稳定，因为每个 profile 用行 ID 保存功能选择。必须修改行 ID 时，应提供迁移或在发布前说明选择会重置。
 
