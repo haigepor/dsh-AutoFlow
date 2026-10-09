@@ -24,6 +24,8 @@ pnpm --filter dsh-plugin-afp run release:prepare --out .artifacts/afp-release
 
 工作流成功后，检查 Release、上传的三个资产和标签提交。将 `.tgz`、`SHA256SUMS` 与 `afp-update.json` 下载到新目录，重新计算 SHA-256，并核对元数据中的版本、源码提交与大小。通过支持的 `dsh` 启动器，在临时 DSH profile 中测试下载的包，检查 Host 入口、bundle 功能、Client 资源和配置保留。不要仅为验证 tarball 而覆盖现有内置 AFP。
 
+创建草稿后，发布器在最多 20 秒内重试查询 Release ID。草稿仍不可见时停止发布，不重复创建草稿或替换资产。核对源码及已上传字节后，可使用已有标签手动触发恢复。
+
 ## 更新与恢复
 
 这些资产提供有版本的 GitHub 分发渠道。AFP 的 `dsh.bundle.update` 声明仓库、`afp-v` 标签族和 `afp-update.json` 资产；[插件管理器](../../../../packages/boot/plugin-manager/README.zh.md)默认自动检查，明确开启后自动下载安装，重启生效并保留配置。根目录 `pnpm install` 仍使用工作区与 lockfile。插件与桌面端分别发版，历史标签及 Releases 整理遵循[发布规范](../../../release-governance/README.zh.md)。

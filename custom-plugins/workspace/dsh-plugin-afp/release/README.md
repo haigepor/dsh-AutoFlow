@@ -24,6 +24,8 @@ Push the reviewed source and a new `afp-v<version>` tag to the configured reposi
 
 After the workflow succeeds, inspect the Release, its three uploaded assets and tag commit. Download the `.tgz`, `SHA256SUMS` and `afp-update.json` into a new directory; recompute SHA-256 and check the metadata's version, source commit and size. Test the downloaded package in a disposable DSH profile using the supported `dsh` launcher; check Host entries, bundle features, Client resources and retained configuration. Do not install over an existing builtin AFP solely to test the tarball.
 
+After creating a draft, the publisher retries its Release ID lookup for up to 20 seconds. If the draft remains unavailable, publication stops without creating another draft or replacing assets. Recover through manual dispatch using the existing tag after checking its source and uploaded bytes.
+
 ## Updates and recovery
 
 These assets provide a versioned GitHub distribution channel. AFP declares its repository, `afp-v` tag family and `afp-update.json` asset under `dsh.bundle.update`. The [plugin manager](../../../../packages/boot/plugin-manager/README.md) checks automatically and installs automatically only after explicit opt-in; restart applies the update while retaining configuration. Root `pnpm install` still uses the workspace and lockfile. Plugins and Desktop publish independently; historical tags and Releases follow the [release governance guide](../../../release-governance/README.md).

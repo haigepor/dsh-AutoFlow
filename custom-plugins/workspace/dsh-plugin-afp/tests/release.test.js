@@ -1,11 +1,55 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
+import { join, resolve, sep } from 'node:path'
 import { releaseMetadata, verifyPackedEntries } from '../scripts/prepare-release.mjs'
 
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 const config = JSON.parse(readFileSync(new URL('../release.config.json', import.meta.url), 'utf8'))
 const asset = { tag: `${config.tagPrefix}${manifest.version}`, sourceCommit: 'a'.repeat(40), sha256: 'b'.repeat(64), size: 1024, sourceDirty: false }
+
+test('AFP draft lookup handles delayed visibility, missing drafts and API errors', t => {
+  const bash = process.platform === 'win32'
+    ? resolve(execFileSync('git', ['--exec-path'], { encoding: 'utf8' }).trim(), '../../../bin/bash.exe') : 'bash'
+  if (process.platform === 'win32' && !existsSync(bash)) return t.skip('Git Bash is unavailable')
+  const workflow = readFileSync(new URL('../../../../.github/workflows/release-afp.yml', import.meta.url), 'utf8')
+  const lookup = workflow.match(/^          wait_for_created_release_id\(\) \{[\s\S]*?^          \}/m)?.[0]
+  assert.ok(lookup)
+  const root = mkdtempSync(join(tmpdir(), 'afp-release-lookup-'))
+  try {
+    for (const [mode, status, calls, waits] of [['delayed', 0, 3, 2], ['missing', 1, 10, 10], ['api-error', 1, 1, 0]]) {
+      const counter = join(root, 'calls'), waiting = join(root, 'waits')
+      writeFileSync(counter, '0', 'utf8')
+      writeFileSync(waiting, '', 'utf8')
+      const script = `set -e
+find_release_id() {
+  calls=$(cat "$COUNTER_FILE"); calls=$((calls + 1))
+  printf '%s\\n' "$calls" > "$COUNTER_FILE"
+  if test "$LOOKUP_MODE" = api-error; then return 7; fi
+  if test "$LOOKUP_MODE" = delayed && test "$calls" -ge 3; then echo 407632532; else echo 0; fi
+}
+sleep() { printf '%s\\n' "$1" >> "$WAIT_FILE"; }
+${lookup.split('\n').map(line => line.slice(10)).join('\n')}
+wait_for_created_release_id
+`
+      const result = spawnSync(bash, ['--noprofile', '--norc', '-c', script], {
+        encoding: 'utf8', windowsHide: true, timeout: 5000,
+        env: { ...process.env, LOOKUP_MODE: mode, COUNTER_FILE: counter.replaceAll('\\', '/'), WAIT_FILE: waiting.replaceAll('\\', '/') },
+      })
+      assert.equal(result.error, undefined)
+      assert.equal(result.status, status, result.stderr)
+      assert.equal(Number(readFileSync(counter, 'utf8')), calls)
+      assert.equal(readFileSync(waiting, 'utf8').trim().split('\n').filter(Boolean).length, waits)
+      if (mode === 'delayed') assert.equal(result.stdout.trim(), '407632532')
+      if (mode === 'missing') assert.match(result.stderr, /did not become visible/)
+    }
+  } finally {
+    assert.ok(resolve(root).startsWith(resolve(tmpdir()) + sep + 'afp-release-lookup-'))
+    rmSync(root, { recursive: true, force: true })
+  }
+})
 
 test('AFP release metadata points to the exact tag asset and records rehearsal sources', () => {
   const metadata = releaseMetadata(manifest, config, asset)

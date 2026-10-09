@@ -98,10 +98,24 @@ jobs:
             gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" |
               node --input-type=module -e 'import fs from "node:fs"; import assert from "node:assert/strict"; const matches=JSON.parse(fs.readFileSync(0,"utf8")).flat().filter(item=>item.tag_name===process.env.RELEASE_TAG); assert(matches.length<=1,"Ambiguous release tag"); console.log(matches[0]?.id ?? 0);'
           }
+          wait_for_created_release_id() {
+            local release_id
+            # 草稿列表可能延迟可见；只重查 ID，不重复创建或替换资产。
+            for attempt in 1 2 3 4 5 6 7 8 9 10; do
+              release_id=$(find_release_id) || return 1
+              if test "$release_id" -gt 0; then
+                printf '%s\n' "$release_id"
+                return 0
+              fi
+              sleep 2
+            done
+            echo 'Created AFP draft did not become visible in the release list' >&2
+            return 1
+          }
           release_id=$(find_release_id)
           if test "$release_id" = 0; then
             gh release create "$RELEASE_TAG" ./*.tgz SHA256SUMS afp-update.json --verify-tag --draft --latest=false --title "AFP ${RELEASE_TAG#afp-v}" --notes 'Independent AFP plugin bundle. Includes package tarball, SHA-256 and version metadata. Runtime automatic updates are not enabled by this release.'
-            release_id=$(find_release_id)
+            release_id=$(wait_for_created_release_id)
           fi
           test "$release_id" -gt 0
           gh api "repos/$GH_REPO/releases/$release_id" > release.json
