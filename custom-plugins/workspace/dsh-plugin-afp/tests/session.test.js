@@ -108,7 +108,10 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
     assert.ok(search)
     const start = offered.find(tool => tool.name === 'afp_photo_search_start')
     assert.ok(start); assert.equal(Object.hasOwn(start.parameters.properties, 'cursor'), false)
-    const projection = { tools: offered.map(tool => tool.name), firstPageSchema: structuredClone(start.parameters), cursorSchema: structuredClone(search.parameters.properties.cursor),
+    const refresh = offered.find(tool => tool.name === 'afp_refresh')
+    assert.equal(refresh.parameters.properties.targetPerCategory.maximum, 1000)
+    assert.equal(refresh.parameters.properties.minimumReviewedPerCategory.minimum, 0)
+    const projection = { tools: offered.map(tool => tool.name), firstPageSchema: structuredClone(start.parameters), refreshSchema: structuredClone(refresh.parameters), cursorSchema: structuredClone(search.parameters.properties.cursor),
       calls: enabled.filter(event => event.type === 'tool/call').map(event => ({ name: event.data.name, arguments: event.data.arguments })),
       results: enabled.filter(event => event.type === 'tool/result').map(event => structuredClone(event.data)),
       todoWrites: enabled.filter(event => event.type === 'todo/write').map(event => structuredClone(event.data.todos)),

@@ -543,7 +543,7 @@ test('single-photo favorite removal uses the relationship endpoint and never del
   assert.doesNotMatch(request.url, /delete-selection\//)
 })
 
-test('page refresh overrides apply only to new reports and enforce config bounds', async t => {
+test('page and Agent quantity overrides apply only to new reports and preserve quality settings', async t => {
   const jobs = []
   const { service, config, store } = await fixture(t, { jobs })
   await service.enable('refresh')
@@ -555,7 +555,12 @@ test('page refresh overrides apply only to new reports and enforce config bounds
   assert.equal(config.threshold, .8)
   assert.equal(jobs.length, 1)
   await assert.rejects(page(service, 'refresh', { runId: scheduled.runId, targetPerCategory: 12 }), /resume|override/i)
-  await assert.rejects(service.startRefresh({ categories: ['food'], targetPerCategory: 12 }, 'session', new AbortController().signal), /agent|override|page/i)
+  const agent = await service.startRefresh({ categories: ['food'], targetPerCategory: 10, minimumReviewedPerCategory: 12 }, 'session', new AbortController().signal)
+  const agentRun = await store.readRun(agent.runId)
+  assert.equal(agentRun.settings.targetPerCategory, 10)
+  assert.equal(agentRun.settings.minimumReviewedPerCategory, 12)
+  assert.equal(agentRun.settings.threshold, .8)
+  await assert.rejects(service.startRefresh({ categories: ['food'], threshold: .9 }, 'session', new AbortController().signal), /threshold|page/i)
   for (const args of [{ targetPerCategory: 0 }, { targetPerCategory: 1001 }, { threshold: .79 }, { threshold: 1.01 }]) {
     await assert.rejects(page(service, 'refresh', { categories: ['food'], ...args }))
   }

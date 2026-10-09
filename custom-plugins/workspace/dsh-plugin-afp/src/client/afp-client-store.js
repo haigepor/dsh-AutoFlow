@@ -101,8 +101,10 @@ export function createAfpClientStore(ctx, options = {}) {
         ...status.features.includes('write') ? {} : { plan: null, planFingerprint: '', confirmChecked: false }, error: '' })
       const report = state.regions.run.data?.run
       const latest = status.reports?.find(row => row.runId === state.runId)
+      // 状态列表附带诊断，图片报告只含审核摘要；诊断变化不能清空报告并关闭预览弹窗。
+      const latestRun = latest && Object.fromEntries(Object.entries(latest).filter(([key]) => key !== 'diagnostics'))
       // 续跑、取消或失败后，打开的报告必须同步保存状态，不能继续沿用旧的可写预览。
-      if (report?.runId === state.runId && latest && !state.regions.run.loading && JSON.stringify(report) !== JSON.stringify(latest)) {
+      if (report?.runId === state.runId && latestRun && !state.regions.run.loading && JSON.stringify(report) !== JSON.stringify(latestRun)) {
         void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter })
       }
     }).catch(error => { if (!disposed && sequence === reloadSequence) publish({ error: error.message }) }).finally(() => { if (poll === request) poll = null })
@@ -545,6 +547,9 @@ export function createAfpClientStore(ctx, options = {}) {
         return finishRegion('run', sequence, more ? { ...page, items: [...prior.items, ...page.items] } : page)
       } catch (error) { return failRegion('run', sequence, error) }
       finally { if (controllers.get('run') === controller) controllers.delete('run') }
+    },
+    async readDiagnostics(runId) {
+      return callData('diagnostics', { runId })
     },
     async openPhoto(photo) {
       if (!photo?.id) return false

@@ -367,7 +367,7 @@ export function createWorkbench(React, UI, ctx, t, store, ConfigurationForm, ico
         account?.profile ? h('span', { className: 'afp-wb-subtle afp-wb-account-profile' }, `${t('profile')} · ${account.profile}`) : null),
       state.regions.account.error ? h('div', { className: 'afp-wb-error-row', role: 'alert' }, t('regionReadFailed'), h(Button, { variant: 'ghost', size: 'sm', onClick: () => { void store.loadAccount() } }, t('retry'))) : null,
       // 表单保持挂载；切换分区不会丢失尚未保存的账号、密钥或模型草稿。
-      h('div', { className: 'afp-wb-account-body' + (section === 'credentials' ? ' is-credentials' : '') },
+      h('div', { hidden: section === 'features', className: 'afp-wb-account-body' + (section === 'credentials' ? ' is-credentials' : '') },
         h(ConfigurationForm, { view: 'page', className: 'afp-wb-config-form', section, sectionId, onSaved: saveDone }),
         h('div', { hidden: section !== 'credentials', className: 'afp-wb-profile-slot' }, h(AccountProfile, { state }))),
       h('section', { role: 'tabpanel', id: `${sectionId}-features-panel`, 'aria-labelledby': `${sectionId}-features`, hidden: section !== 'features', className: 'afp-wb-feature-section' },

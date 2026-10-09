@@ -146,9 +146,11 @@ export function createHttpClient({
   if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1) throw new Error('maxResponseBytes must be a positive integer');
   if (typeof sleep !== 'function') throw new Error('sleep must be a function');
 
-  async function request(url, options = {}) {
+  async function request(url, options = {}, singleAttempt = false) {
+    const retryLimit = singleAttempt ? 0 : retries;
     let lastError;
-    for (let attempt = 0; attempt <= retries; attempt += 1) {
+    for (let attempt = 0; attempt <= retryLimit; attempt += 1) {
+      options.signal?.throwIfAborted();
       const controller = new AbortController();
       let timer;
       const timeoutError = new Error(`HTTP request timed out after ${timeoutMs}ms`);
@@ -161,7 +163,7 @@ export function createHttpClient({
       let response;
       try {
         response = await Promise.race([
-          fetchImpl(url, { ...options, signal: controller.signal }),
+          fetchImpl(url, { ...options, signal: options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal }),
           timeoutPromise,
         ]);
         const contentLength = numericHeader(response, 'content-length');
@@ -169,7 +171,13 @@ export function createHttpClient({
           await response.body?.cancel?.();
           throw new Error(`HTTP response exceeded ${maxResponseBytes} bytes`);
         }
-        if (RETRYABLE_STATUS_CODES.has(response.status) && attempt < retries) {
+        if (RETRYABLE_STATUS_CODES.has(response.status) && singleAttempt) {
+          await response.body?.cancel?.();
+          throw Object.assign(new Error(`HTTP request failed with HTTP ${response.status}`), {
+            httpStatus: response.status, retryDelayMs: retryAfterMs(response, null),
+          });
+        }
+        if (RETRYABLE_STATUS_CODES.has(response.status) && attempt < retryLimit) {
           await response.body?.cancel?.();
           const delay = retryAfterMs(response, Math.min(30_000, 250 * (2 ** attempt)));
           logEvent(logger, { endpointCategory, status: response.status, retryCount: attempt + 1 });
@@ -179,9 +187,12 @@ export function createHttpClient({
         logEvent(logger, { endpointCategory, status: response.status, retryCount: attempt });
         return response;
       } catch (error) {
+        options.signal?.throwIfAborted();
         lastError = error;
         const retryable = errorCategory(error) === 'network' || errorCategory(error) === 'timeout';
-        if (!retryable || attempt >= retries) {
+        if (!retryable || attempt >= retryLimit) {
+          // 标记已耗尽的独立 transport，防止旧调用方再套一层预算。
+          if (!singleAttempt && error && typeof error === 'object') error.httpRetryBudgetSpent = true;
           logEvent(logger, { endpointCategory, retryCount: attempt, errorCategory: errorCategory(error) });
           throw error;
         }
@@ -194,22 +205,23 @@ export function createHttpClient({
     throw lastError ?? new Error('HTTP request failed');
   }
 
-  /** 对请求成功后读取响应体等后续阶段做有限重试。 */
+  /** 一个逻辑读取共享传输和响应体预算；回调使用传入的单次请求函数。 */
   async function retryOperation(operation) {
     if (typeof operation !== 'function') throw new Error('operation must be a function');
     let lastError;
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
-        return await operation();
+        return await operation((url, options) => request(url, options, true));
       } catch (error) {
         lastError = error;
-        const retryable = errorCategory(error) === 'network' || errorCategory(error) === 'timeout';
+        const retryable = !error?.httpRetryBudgetSpent && (errorCategory(error) === 'network' || errorCategory(error) === 'timeout'
+          || RETRYABLE_STATUS_CODES.has(error?.httpStatus));
         if (!retryable || attempt >= retries) {
           logEvent(logger, { endpointCategory, retryCount: attempt, errorCategory: errorCategory(error) });
           throw error;
         }
         logEvent(logger, { endpointCategory, retryCount: attempt + 1, errorCategory: errorCategory(error) });
-        await sleep(Math.min(30_000, 250 * (2 ** attempt)));
+        await sleep(error?.retryDelayMs ?? Math.min(30_000, 250 * (2 ** attempt)));
       }
     }
     throw lastError ?? new Error('HTTP operation failed');

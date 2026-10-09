@@ -50,5 +50,6 @@ export function useAfpFeedbackProgress(React, store, props, owner, enabled) {
 
 /** Fixed localized stage labels do not expose internal HTTP or credential details. */
 export const feedbackStages = { connection: 'feedbackConnection', collections: 'feedbackDeduplication',
+  search: 'feedbackSearch',
   visual: 'feedbackVision', preview: 'feedbackPreview', vision: 'feedbackVision', confirmation: 'feedbackConfirmation',
   completed: 'feedbackAwaitReport', failed: 'agentOperationFailed', stopped: 'agentStopped' }

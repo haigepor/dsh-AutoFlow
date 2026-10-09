@@ -1,5 +1,5 @@
 /** Saved secrets are masked and revealed on demand; viewing never makes a credential draft dirty. */
-export function createConfigurationForm(React, { Input, Button, StateDot, Tag, Toast, Tooltip, Chevron }, ctx, t) {
+export function createConfigurationForm(React, { Input, Button, Switch, StateDot, Tag, Toast, Tooltip, Chevron }, ctx, t) {
   const h = React.createElement
   return function ConfigurationForm({ view, featureId, onSaved, className = '', section, sectionId }) {
     const [loaded, setLoaded] = React.useState(null), [text, setText] = React.useState(''), [secrets, setSecrets] = React.useState({})
@@ -205,6 +205,13 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
         ? h('span', { className: 'afp-skeleton afp-skeleton-button', 'aria-hidden': true })
         : h(Button, { variant: 'primary', size: 'sm', type: 'submit', disabled: busy || !loaded, 'aria-busy': busy,
           icon: busy ? h(StateDot, { state: 'ongoing', size: 14 }) : null }, t('saveConfig')))
+    const debug = loaded ? h('div', { className: 'afp-debug-setting' },
+      h('div', { className: 'afp-debug-setting-heading' }, h('span', null, t('debugLabel')),
+        h(Switch, { checked: draft.debugEnabled === true, disabled: busy, label: t('debugEnabled'),
+        onChange: checked => {
+          const next = { ...draft, debugEnabled: checked }
+          setDraft(next); setText(JSON.stringify(next, null, 2))
+        } }))) : null
     const advanced = sectionId
       ? h('aside', { className: 'afp-config-advanced-card', hidden: section !== 'vision', 'aria-labelledby': `${formId}-advanced-heading` },
         h(Button, { type: 'button', variant: 'ghost', size: 'sm', className: 'afp-advanced-toggle', id: `${formId}-advanced-heading`,
@@ -212,9 +219,9 @@ export function createConfigurationForm(React, { Input, Button, StateDot, Tag, T
           h('span', null, t('advanced')), Chevron ? h(Chevron, { size: 14 }) : null),
         // 编辑区保持挂载；折叠和分区切换都保留尚未提交的 JSON。
         h('div', { className: 'afp-advanced-content', id: `${formId}-advanced-content`, hidden: !advancedOpen },
-          h('p', { className: 'afp-muted' }, t('deploymentHelp')), editor))
+          debug, editor))
       : loaded ? h('details', { className: 'afp-advanced' }, h('summary', null, t('advanced')),
-        h('p', { className: 'afp-muted' }, t('deploymentHelp')), editor) : null
+        debug, editor) : null
     return h('form', { className: `afp-configuration${className ? ` ${className}` : ''}`, 'data-vision': showVision,
       'data-sectioned': Boolean(sectionId), 'data-section': sectionId ? section : undefined, hidden: section === 'features', 'aria-busy': loading,
       onSubmit: event => { event.preventDefault(); if (!busy && loaded) void save() } },

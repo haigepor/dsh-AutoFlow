@@ -142,5 +142,48 @@ test('preparation timeout saves a failed connection stage rather than leaving a 
   assert.equal((await jobs[0].handle.done).status, 'failed')
   const report = await service.report({ runId: result.runId })
   assert.equal(report.status, 'failed'); assert.equal(report.stage, 'connection'); assert.equal(report.categories[0].pixelReviewed, 0)
+  assert.deepEqual(report.failure, { code: 'read-timeout', stage: 'connection', retryable: true })
   await service.dispose()
+})
+
+test('collection preparation checkpoints completed members and surfaces a safe authorization failure without a pixel request', async t => {
+  const { ctx, config, connection, jobs } = await fixture(t)
+  config.collectionConcurrency = 1
+  const reads = [], progress = []
+  let rejected = true, previews = 0
+  connection.open = async () => ({ account: 'synthetic', client: {
+    listSelections: async () => [{ id: 'one', name: 'First', docsCount: 1 }, { id: 'two', name: 'Second', docsCount: 1 }],
+    getSelection: async id => { reads.push(id); if (id === 'two' && rejected) throw new Error('selection failed with HTTP 403'); return { docs: [{ id: `reserved-${id}` }] } },
+    searchPhotos: async () => ({ docs: [], hasMore: false }),
+  }, previewClient: { getPreviewBytes: async () => { previews++; throw new Error('Unexpected preview') } }, visionClient: {} })
+  const service = new AfpService(ctx, config, { connection })
+  t.after(() => service.dispose())
+  await service.enable('refresh')
+  const first = await service.startRefresh({ categories: ['food'], targetPerCategory: 10 }, 'synthetic-session', new AbortController().signal, event => progress.push(event))
+  const failed = await jobs[0].handle.done
+  assert.equal(failed.status, 'failed')
+  const report = await service.report({ runId: first.runId })
+  assert.deepEqual(report.failure, { code: 'access-denied', stage: 'collections', retryable: false })
+  assert.equal(report.preparation.completed, 1)
+  assert.equal(progress.findLast(event => event.collectionTotal)?.collectionCompleted, 1)
+  assert.equal(report.categories[0].reviewed, 0)
+  rejected = false
+  await service.startRefresh({ runId: first.runId }, 'synthetic-session', new AbortController().signal)
+  await jobs[1].handle.done
+  assert.deepEqual(reads, ['one', 'two', 'two'])
+  assert.equal(previews, 0)
+  assert.equal((await service.report({ runId: first.runId })).failure, undefined)
+})
+
+test('collection target counts use directory metadata without fetching large member bodies', async t => {
+  const { ctx, config, connection } = await fixture(t)
+  let detailReads = 0
+  connection.open = async () => ({ client: { listSelections: async () => [{ id: 's', name: 'AutoFlow_食物', isPrivate: true, docsCount: 5000 }],
+    getSelection: async () => { detailReads++; throw new Error('Unexpected member body') } } })
+  const service = new AfpService(ctx, config, { connection })
+  t.after(() => service.dispose())
+  await service.enable('read')
+  const report = await service.collections(new AbortController().signal)
+  assert.equal(report.categories.find(item => item.category === 'food').count, 5000)
+  assert.equal(detailReads, 0)
 })

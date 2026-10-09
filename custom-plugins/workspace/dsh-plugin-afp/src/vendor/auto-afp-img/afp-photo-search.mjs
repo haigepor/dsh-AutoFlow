@@ -1038,10 +1038,13 @@ function snapshotSearchState(stateByCategory, preservedState = null) {
  * 视觉复核淘汰一批后可以从上次 cursor 继续取下一批，而不是重复首页。
  */
 export function createPhotoSearchSession({
-  client = createAfpApiClient(),
+  client = null,
   profiles = CATEGORY_PROFILES,
   pageSize = 60,
   maxPages = 10,
+  searchConcurrency = 3,
+  maxSearchRequests = 1000,
+  signal,
   maxPerTitle = 3,
   readRetries = 2,
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
@@ -1050,9 +1053,13 @@ export function createPhotoSearchSession({
 } = {}) {
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 120) throw new Error('pageSize must be between 1 and 120');
   if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 10) throw new Error('maxPages must be between 1 and 10');
+  if (!Number.isSafeInteger(searchConcurrency) || searchConcurrency < 1 || searchConcurrency > 16) throw new Error('Invalid searchConcurrency');
+  if (!Number.isSafeInteger(maxSearchRequests) || maxSearchRequests < 1) throw new Error('Invalid maxSearchRequests');
   if (!Number.isInteger(readRetries) || readRetries < 0) throw new Error('readRetries must be a non-negative integer');
   if (typeof sleep !== 'function') throw new Error('sleep must be a function');
   if (typeof onStateChange !== 'function') throw new Error('onStateChange must be a function');
+  // 调用方提供的 client 独占传输重试；搜索策略不再重复包装其预算。
+  client ??= createAfpApiClient({ retries: readRetries, sleep });
   const stateByCategory = new Map((profiles ?? []).map((profile) => [profile.key, {
     profile,
     variants: buildSearchQueryPlans(profile).map((plan, queryIndex) => restoreVariantState({
@@ -1082,6 +1089,7 @@ export function createPhotoSearchSession({
     rawCandidateCount: 0,
     metadataRejectedCount: 0,
     duplicateExclusionCount: 0,
+    requestsThisStart: 0,
   }]));
 
   for (const [category, state] of stateByCategory) {
@@ -1094,21 +1102,11 @@ export function createPhotoSearchSession({
   async function fetchVariantPage(state, variant) {
     if (variant.exhausted) return [];
     const pageIndex = variant.pagesFetched;
-    let response;
-    for (let attempt = 0; attempt <= readRetries; attempt += 1) {
-      try {
-        response = await client.searchPhotos(buildPhotoSearchRequest(
-          state.profile,
-          pageSize,
-          variant.criteria,
-          variant.cursor,
-        ));
-        break;
-      } catch (error) {
-        if (attempt >= readRetries) throw error;
-        await sleep((attempt + 1) * 250);
-      }
-    }
+    signal?.throwIfAborted();
+    state.requestsThisStart++;
+    const response = await client.searchPhotos(buildPhotoSearchRequest(
+      state.profile, pageSize, variant.criteria, variant.cursor,
+    ));
     variant.pagesFetched += 1;
     variant.pagesFetchedInRun += 1;
     const docs = Array.isArray(response?.docs) ? response.docs : [];
@@ -1216,7 +1214,6 @@ export function createPhotoSearchSession({
       if (!Number.isInteger(batchSize) || batchSize < 1) throw new Error('batchSize must be a positive integer');
       const state = stateByCategory.get(category);
       if (!state) throw new Error(`unknown photo category: ${category}`);
-      for (const variant of state.variants) variant.pagesFetchedInRun = 0;
       const excluded = excludedIds instanceof Set ? excludedIds : new Set(excludedIds);
       const excludedTitles = excludedTitleKeys instanceof Set ? excludedTitleKeys : new Set(excludedTitleKeys);
       const candidates = [];
@@ -1234,20 +1231,33 @@ export function createPhotoSearchSession({
 
       const isLandscape = state.profile.key === 'landscape';
       const bufferTarget = isLandscape ? Math.max(batchSize, Math.ceil(batchSize / 0.70)) : batchSize;
+      let stoppedForBudget = false;
+      const checkpoint = async (allocated) => {
+        const saved = snapshotSearchState(stateByCategory, searchState);
+        // 搜索页的 cursor、knownIds 与已消费但尚未交付的候选一起保存。
+        if (!allocated) saved.categories[category].deferred = [...candidates, ...state.deferred];
+        await onStateChange(saved, allocated);
+      };
       while (candidates.length < bufferTarget) {
+        signal?.throwIfAborted();
         consumePending(state, bufferTarget, excluded, historicTitles, candidates, rejectedMetadataCandidates, stats);
         if (candidates.length >= bufferTarget) break;
         const activeVariants = state.variants.filter((variant) => {
-          if (variant.exhausted || variant.fallbackSkipped) return false;
+          if (variant.exhausted || variant.fallbackSkipped || variant.pagesFetchedInRun >= maxPages) return false;
           if (!variant.sourceId) return true;
           const sameGroup = state.variants.filter((item) => item.fallbackGroup === variant.fallbackGroup);
           // 已成功的字段变体耗尽后，继续推进到同组的下一个未耗尽回退变体。
           const succeeded = sameGroup.find((item) => item.fallbackSucceeded && !item.exhausted && !item.fallbackSkipped);
           if (succeeded) return succeeded === variant;
           return variant === sameGroup.find((item) => !item.exhausted && !item.fallbackSkipped);
-        });
-        if (activeVariants.length === 0) break;
-        const pageResults = await Promise.all(activeVariants.map(async (variant) => {
+        }).sort((a, b) => a.pagesFetchedInRun - b.pagesFetchedInRun || a.queryIndex - b.queryIndex)
+          .slice(0, Math.min(searchConcurrency, maxSearchRequests - state.requestsThisStart));
+        if (activeVariants.length === 0) {
+          // 成功字段达到页数上限时，其未启用的回退字段不代表还能继续搜索。
+          stoppedForBudget = state.variants.some(variant => !variant.exhausted && !variant.fallbackSkipped);
+          break;
+        }
+        const outcomes = await Promise.allSettled(activeVariants.map(async (variant) => {
           try {
             const page = await fetchVariantPage(state, variant);
             if (variant.sourceId && page.length > 0) variant.fallbackSucceeded = true;
@@ -1256,7 +1266,8 @@ export function createPhotoSearchSession({
             }
             return page;
           } catch (error) {
-            if (variant.sourceId && variant.fieldMode !== 'caption-fallback') {
+            if (variant.sourceId && variant.fieldMode !== 'caption-fallback'
+              && ['schema', 'query'].includes(error?.afpFailure?.category)) {
               variant.fallbackSkipped = true;
               variant.fallbackError = 'query-failed';
               return [];
@@ -1264,7 +1275,8 @@ export function createPhotoSearchSession({
             throw error;
           }
         }));
-        stats.pagesFetched += activeVariants.length;
+        const pageResults = outcomes.map(item => item.status === 'fulfilled' ? item.value : []);
+        stats.pagesFetched += outcomes.filter(item => item.status === 'fulfilled').length;
         stats.rawRecallCount += pageResults.reduce((sum, items) => sum + items.length, 0);
         // 多个窄查询同时翻页时交错入队，避免第一个查询的整页结果抢占一整批视觉额度。
         const longestPage = Math.max(0, ...pageResults.map((items) => items.length));
@@ -1280,6 +1292,9 @@ export function createPhotoSearchSession({
             state.pending.push(candidate);
           }
         }
+        await checkpoint();
+        const failure = outcomes.find(item => item.status === 'rejected');
+        if (failure) throw failure.reason;
       }
 
       const allocation = isLandscape
@@ -1291,7 +1306,10 @@ export function createPhotoSearchSession({
         targets: allocation.targets,
         selected: allocation.selectedCounts,
       };
-      await onStateChange(snapshotSearchState(stateByCategory, searchState));
+      const exhausted = state.variants.every(variant => variant.exhausted || variant.fallbackSkipped) && !state.pending.length && !state.deferred.length;
+      const budgetReached = !exhausted && (stoppedForBudget || state.requestsThisStart >= maxSearchRequests
+        || state.variants.every(variant => variant.exhausted || variant.fallbackSkipped || variant.pagesFetchedInRun >= maxPages));
+      await checkpoint({ category, candidates: allocation.candidates, exhausted, budgetReached });
       return {
         category,
         candidates: allocation.candidates,
@@ -1302,7 +1320,7 @@ export function createPhotoSearchSession({
           ...stats,
           duplicateExclusionReasons: [...stats.duplicateExclusionReasons],
         },
-        exhausted: state.variants.every((variant) => variant.exhausted || variant.fallbackSkipped),
+        exhausted, budgetReached,
       };
     },
     getStatus(category) {

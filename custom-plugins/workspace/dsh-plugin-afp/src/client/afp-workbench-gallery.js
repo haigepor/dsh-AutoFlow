@@ -14,8 +14,9 @@ export function createAfpGallery(React, UI, icons, t, store) {
   const h = React.createElement
   const { Button, Tag, Modal, Tooltip } = UI
   const PreviewLoading = createPreviewLoading(React)
+  const decisionLabel = decision => t(decision === 'kept' || decision === 'rejected' ? `filter_${decision}` : decision)
 
-  function ImagePreview({ photo, large = false, retry = false, open }) {
+  function ImagePreview({ photo, large = false, retry = false, open, openLabel = t('openPhoto') }) {
     const [attempt, setAttempt] = React.useState(0)
     const [media, setMedia] = React.useState({ src: '', status: 'loading', host: null })
     const frame = React.useRef(null)
@@ -100,14 +101,15 @@ export function createAfpGallery(React, UI, icons, t, store) {
           currentLease.current.release(); currentLease.current = null
           fail({ retryable: true })
         } }) : null)
-    return h('div', { ref: frame, className: 'afp-wb-preview-container' }, open ? h('button', { type: 'button', className: 'afp-wb-image-button', onClick: open, 'aria-label': `${t('openPhoto')} ${photoDisplayTitle(photo, t('photoDetails'))}` }, image) : image)
+    return h('div', { ref: frame, className: 'afp-wb-preview-container' }, open ? h('button', { type: 'button', className: 'afp-wb-image-button',
+      onClick: event => { event.stopPropagation(); open() }, 'aria-label': `${openLabel} ${photoDisplayTitle(photo, t('photoDetails'))}` }, image) : image)
   }
 
   function PhotoSkeleton() {
     return h('div', { className: 'afp-wb-skeleton-tile', 'aria-hidden': true }, h('span'), h('span'), h('span'))
   }
 
-  function PhotoGrid({ items = [], selectedPhotos = {}, report = false, sourceCollectionId, loading = false }) {
+  function PhotoGrid({ items = [], selectedPhotos = {}, report = false, onReview, sourceCollectionId, loading = false }) {
     if (!items.length && !loading) return h('p', { className: 'afp-wb-empty' }, t(report ? 'noReportItems' : 'noPhotos'))
     return h('div', { className: 'afp-wb-gallery' }, ...items.map(item => {
       const photo = item
@@ -120,22 +122,71 @@ export function createAfpGallery(React, UI, icons, t, store) {
         onClick: event => { event.stopPropagation(); store.togglePhoto(photo, sourceCollectionId) } },
         h('span', { className: selected ? 'afp-wb-photo-selected-icon' : 'afp-wb-photo-select-icon', 'aria-hidden': true },
           icons.IconCheckOutlineRegular ? h(icons.IconCheckOutlineRegular, { size: 14 }) : null)) : null
-      return h('article', { className: `afp-wb-photo-tile${selected ? ' is-selected' : ''}`, key: photo.id },
-        h('div', { className: 'afp-wb-photo-frame', onClick: report ? undefined : () => store.togglePhoto(photo, sourceCollectionId),
+      return h('article', { className: `afp-wb-photo-tile${selected ? ' is-selected' : ''}`, key: report ? `${item.category}:${photo.id}` : photo.id },
+        h('div', { className: 'afp-wb-photo-frame', onClick: report ? () => onReview?.(photo) : () => store.togglePhoto(photo, sourceCollectionId),
           onContextMenu: event => { event.preventDefault(); void store.openPhoto(photo) } },
-          h(ImagePreview, { photo, retry: true, open: report ? () => { void store.openPhoto(photo) } : undefined }),
+          h(ImagePreview, { photo, retry: true, open: report ? () => onReview?.(photo) : undefined, openLabel: report ? t('reviewPhoto') : t('openPhoto') }),
           selectButton && Tooltip ? h(Tooltip, { label: t(selected ? 'removeFromSelection' : 'selectPhoto'), side: 'top', portal: true, maxWidth: 180 }, selectButton) : selectButton),
-        h('button', { type: 'button', className: 'afp-wb-photo-open', onClick: () => { void store.openPhoto(photo) }, 'aria-label': `${t('openPhoto')} ${title}` },
+        h('button', { type: 'button', className: 'afp-wb-photo-open', onClick: () => report ? onReview?.(photo) : void store.openPhoto(photo),
+          onContextMenu: event => { event.preventDefault(); void store.openPhoto(photo) }, 'aria-label': `${t(report ? 'reviewPhoto' : 'openPhoto')} ${title}` },
           h('span', { className: 'afp-wb-photo-title' }, title)),
         h('div', { className: 'afp-wb-photo-meta' },
           h('span', null, (photo.provider ?? 'AFP').replace(/^afpprovider:/i, '')), report ? h('span', null, t(item.category)) : null,
-          report && decision ? h(Tag, { tone: decision === 'kept' ? 'success' : decision === 'requestFailed' ? 'warning' : 'neutral' }, t(decision)) : null),
+          report && decision ? h(Tag, { tone: decision === 'kept' ? 'success' : decision === 'requestFailed' ? 'warning' : 'neutral' }, decisionLabel(decision)) : null,
+          report && selected ? h(Tag, { tone: 'info' }, t('selected')) : null),
+        report ? h(Button, { variant: 'ghost', size: 'sm', className: 'afp-wb-review-details', onClick: () => { void store.openPhoto(photo) } }, t('photoDetails')) : null,
         report && item.confidence != null ? h('p', { className: 'afp-wb-subtle' }, `${t('modelConfidence')}: ${item.confidence}`) : null,
         report && item.reason ? h('p', { className: 'afp-wb-subtle afp-wb-photo-reason' }, item.reason) : null)
     }), loading ? Array.from({ length: 6 }, (_, index) => h(PhotoSkeleton, { key: `loading-${index}` })) : null)
   }
 
-  function DetailPane({ photo, loading, error, onClose, sourceCollectionId }) {
+  function ReportGallery({ items, selectedPhotos }) {
+    const [reviewId, setReviewId] = React.useState(null)
+    const key = item => `${item.category}:${item.id}`
+    const photo = items.find(item => key(item) === reviewId) ?? null
+    // 过滤器或分页刷新移除当前图片时关闭审阅，避免切回过滤器后意外重新打开。
+    React.useEffect(() => { if (reviewId && !photo) setReviewId(null) }, [reviewId, photo])
+    return h(React.Fragment, null,
+      h(PhotoGrid, { items, selectedPhotos, report: true, onReview: item => setReviewId(key(item)) }),
+      h(ReviewModal, { photo, items, onChange: item => setReviewId(key(item)), onClose: () => setReviewId(null) }))
+  }
+
+  function ReviewModal({ photo, items, onChange, onClose }) {
+    const state = React.useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+    const index = items.findIndex(item => item.id === photo?.id && item.category === photo.category)
+    const move = delta => { const next = items[index + delta]; if (next) onChange(next) }
+    const details = () => { onClose(); void store.openPhoto(photo) }
+    const decision = photo?.requestFailed ? 'requestFailed' : photo?.keep === true ? 'kept' : photo?.keep === false ? 'rejected' : 'notReviewed'
+    const selected = Boolean(state.selectedPhotos[photo?.id])
+    const canSelect = selected || photo?.keep === true && !photo.requestFailed
+    return Modal ? h(Modal, { open: Boolean(photo), onClose, title: t('reviewPhoto'), closeLabel: t('close'),
+      className: 'afp-wb-preview-modal afp-wb-review-modal', contentClassName: 'afp-wb-preview-modal-content',
+        onKeyDownCapture: event => {
+          if (!photo) return
+          if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest?.('input, textarea, [contenteditable="true"]')) return
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); event.stopPropagation(); move(event.key === 'ArrowLeft' ? -1 : 1) }
+        } },
+      photo ? h('div', { className: 'afp-wb-review-body' },
+        h('div', { className: 'afp-wb-review-heading' }, h('strong', null, photoDisplayTitle(photo, t('photoDetails'))),
+          h(Tag, { tone: decision === 'kept' ? 'success' : decision === 'requestFailed' ? 'warning' : 'quiet' }, decisionLabel(decision))),
+        h('div', { className: 'afp-wb-review-image', onContextMenu: event => { event.preventDefault(); details() } },
+          h(ImagePreview, { key: photo.id, photo, large: true, retry: true })),
+        h('div', { className: 'afp-wb-review-result' },
+          h('span', null, t(photo.category)), photo.confidence != null ? h('span', null, `${t('modelConfidence')}: ${photo.confidence}`) : null,
+          photo.reason ? h('p', null, photo.reason) : null),
+        h('div', { className: 'afp-wb-review-controls' },
+          h('div', { className: 'afp-wb-actions' },
+            h(Button, { variant: 'outline', size: 'sm', disabled: index <= 0, onClick: () => move(-1) }, t('reviewPrevious')),
+            h('span', { className: 'afp-wb-review-position', role: 'status', 'aria-live': 'polite' }, `${index + 1} / ${items.length}`),
+            h(Button, { variant: 'outline', size: 'sm', disabled: index >= items.length - 1, onClick: () => move(1) }, t('reviewNext'))),
+          h('div', { className: 'afp-wb-actions' },
+            h(Button, { variant: 'ghost', size: 'sm', onClick: details }, t('photoDetails')),
+            h(Button, { variant: selected ? 'outline' : 'primary', size: 'sm', disabled: !canSelect, 'aria-pressed': selected,
+              onClick: () => selected ? store.removePhoto(photo.id) : store.selectPhoto(photo) }, t(selected ? 'removeFromSelection' : 'selectPhoto')),
+            h(Button, { variant: 'ghost', size: 'sm', onClick: () => { onClose(); store.set({ selectionOpen: true }) } }, t('selectionList'))))) : null) : null
+  }
+
+  function DetailPane({ photo, report = false, loading, error, onClose, sourceCollectionId }) {
     const [previewOpen, setPreviewOpen] = React.useState(false)
     React.useEffect(() => setPreviewOpen(false), [photo?.id])
     if (!photo) return null
@@ -153,8 +204,9 @@ export function createAfpGallery(React, UI, icons, t, store) {
       photo.keywords?.length ? h('div', { className: 'afp-wb-keywords' }, ...photo.keywords.map(keyword => h(Tag, { key: keyword, tone: 'neutral' }, keyword))) : null,
       photo.reason ? h('p', { className: 'afp-wb-subtle' }, photo.reason) : null,
       photo.confidence != null ? h('p', { className: 'afp-wb-subtle' }, `${t('modelConfidence')}: ${photo.confidence}`) : null,
-      photo.requestFailed ? h(Tag, { tone: 'warning' }, t('requestFailed')) : photo.keep === true ? h(Tag, { tone: 'success' }, t('kept')) : photo.keep === false ? h(Tag, { tone: 'neutral' }, t('rejected')) : null,
-      h(Button, { variant: selected(photo.id) ? 'outline' : 'primary', size: 'sm', onClick: () => selected(photo.id) ? store.removePhoto(photo.id) : store.selectPhoto(photo, sourceCollectionId) }, t(selected(photo.id) ? 'removeFromSelection' : 'selectPhoto')),
+      photo.requestFailed ? h(Tag, { tone: 'warning' }, t('requestFailed')) : photo.keep === true ? h(Tag, { tone: 'success' }, report ? decisionLabel('kept') : t('kept')) : photo.keep === false ? h(Tag, { tone: 'neutral' }, report ? decisionLabel('rejected') : t('rejected')) : null,
+      h(Button, { variant: selected(photo.id) ? 'outline' : 'primary', size: 'sm', disabled: report && !selected(photo.id) && (photo.keep !== true || photo.requestFailed),
+        onClick: () => selected(photo.id) ? store.removePhoto(photo.id) : store.selectPhoto(photo, sourceCollectionId) }, t(selected(photo.id) ? 'removeFromSelection' : 'selectPhoto')),
       h(PreviewModal, { photo: previewOpen ? photo : null, onClose: () => setPreviewOpen(false) }))
   }
 
@@ -181,5 +233,5 @@ export function createAfpGallery(React, UI, icons, t, store) {
       photos.length ? h(Button, { variant: 'ghost', size: 'sm', onClick: () => store.clearSelection() }, t('clearSelection')) : null)
   }
 
-  return { ImagePreview, PreviewModal, PhotoGrid, PhotoSkeleton, DetailPane, SelectionPane }
+  return { ImagePreview, PreviewModal, ReviewModal, ReportGallery, PhotoGrid, PhotoSkeleton, DetailPane, SelectionPane }
 }

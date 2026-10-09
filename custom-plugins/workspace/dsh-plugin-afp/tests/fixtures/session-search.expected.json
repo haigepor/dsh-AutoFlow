@@ -47,6 +47,56 @@
     ],
     "additionalProperties": false
   },
+  "refreshSchema": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": [
+          "start",
+          "resume"
+        ]
+      },
+      "categories": {
+        "type": "array",
+        "minItems": 0,
+        "maxItems": 5,
+        "items": {
+          "type": "string",
+          "enum": [
+            "animals",
+            "food",
+            "landscape",
+            "movie-poster",
+            "celestial-body-wallpaper"
+          ]
+        }
+      },
+      "runId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+      },
+      "targetPerCategory": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1000
+      },
+      "minimumReviewedPerCategory": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 1000
+      }
+    },
+    "required": [
+      "mode",
+      "categories",
+      "runId"
+    ],
+    "additionalProperties": false
+  },
   "cursorSchema": {
     "type": "string",
     "minLength": 1,
@@ -544,7 +594,7 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000006\",\"runId\":\"4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f\",\"status\":\"paused\",\"stage\":\"visual\",\"categories\":[{\"category\":\"animals\",\"selectionName\":\"AutoFlow_动物\",\"reviewed\":3,\"kept\":1,\"target\":100,\"batches\":1,\"exhausted\":false,\"requestFailures\":1,\"pixelReviewed\":2,\"rejected\":1,\"rejectionReasons\":[{\"code\":\"visual-rule\",\"count\":1}]}],\"pendingBatch\":false,\"items\":[{\"id\":\"one\",\"guid\":\"one\",\"title\":\"Photo one\",\"caption\":\"Cat\",\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=one\"}],\"meta\":{},\"offset\":0,\"totalItems\":1,\"nextOffset\":null}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000006\",\"runId\":\"4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f\",\"status\":\"paused\",\"stage\":\"visual\",\"categories\":[{\"category\":\"animals\",\"selectionName\":\"AutoFlow_动物\",\"reviewed\":2,\"kept\":1,\"target\":100,\"batches\":1,\"exhausted\":false,\"requestFailures\":1,\"pixelReviewed\":2,\"rejected\":1,\"rejectionReasons\":[{\"code\":\"visual-rule\",\"count\":1}]}],\"pendingBatch\":false,\"items\":[{\"id\":\"one\",\"guid\":\"one\",\"title\":\"Photo one\",\"caption\":\"Cat\",\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=one\"}],\"meta\":{},\"offset\":0,\"totalItems\":1,\"nextOffset\":null}"
           }
         ],
         "isError": false
@@ -562,7 +612,7 @@
               {
                 "category": "animals",
                 "selectionName": "AutoFlow_动物",
-                "reviewed": 3,
+                "reviewed": 2,
                 "kept": 1,
                 "target": 100,
                 "batches": 1,

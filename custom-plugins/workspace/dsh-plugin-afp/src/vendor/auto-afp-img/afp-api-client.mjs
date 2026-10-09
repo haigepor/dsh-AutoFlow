@@ -122,8 +122,8 @@ export function createAfpApiClient({
     maxResponseBytes, sleep, logger, endpointCategory: 'afp-purchase' });
 
   async function graphQl(request) {
-    return httpClient.retryOperation(async () => {
-      const response = await httpClient.request(farEndpoint, {
+    return httpClient.retryOperation(async requestOnce => {
+      const response = await requestOnce(farEndpoint, {
         method: 'POST',
         headers: createHeaders({ accessToken }),
         body: JSON.stringify(request),
@@ -133,8 +133,8 @@ export function createAfpApiClient({
   }
 
   async function selectionRequest(path, { method = 'GET', body } = {}) {
-    return httpClient.retryOperation(async () => {
-      const response = await httpClient.request(`${selectionsEndpoint}${path}`, {
+    return httpClient.retryOperation(async requestOnce => {
+      const response = await requestOnce(`${selectionsEndpoint}${path}`, {
         method,
         headers: createHeaders({ accessToken }),
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -148,8 +148,8 @@ export function createAfpApiClient({
     const query = `query getPhoto($id:String!,$getSelections:Boolean!){ photo(id:$id,getSelections:$getSelections){
       id guid title downloadableMedias { role name mediaKey cost width height sizeInBytes validateOrderId payable isViewOnly renditionType href }
     } }`;
-    return httpClient.retryOperation(async () => {
-      const response = await httpClient.request(hubEndpoint, { method: 'POST', headers: createHeaders({ accessToken }),
+    return httpClient.retryOperation(async requestOnce => {
+      const response = await requestOnce(hubEndpoint, { method: 'POST', headers: createHeaders({ accessToken }),
         body: JSON.stringify({ operationName: 'getPhoto', variables: { id, getSelections: true }, query }) });
       const payload = await readAfpJson(response, 'getPhoto', httpClient);
       return payload?.data?.photo ?? null;

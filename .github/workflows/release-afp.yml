@@ -18,6 +18,58 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  platform-checks:
+    name: AFP / ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+          - platform: windows-x64
+            runner: windows-2025
+          - platform: macos-arm64
+            runner: macos-latest
+          - platform: macos-x64
+            runner: macos-15-intel
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}-${{ matrix.platform }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Verify native platform and architecture
+        env:
+          AFP_TEST_PLATFORM: ${{ matrix.platform }}
+        run: >-
+          node --input-type=module -e "import assert from 'node:assert/strict';
+          const targets = { 'linux-x64': ['linux', 'x64'], 'windows-x64': ['win32', 'x64'],
+          'macos-arm64': ['darwin', 'arm64'], 'macos-x64': ['darwin', 'x64'] };
+          assert.deepEqual([process.platform, process.arch], targets[process.env.AFP_TEST_PLATFORM]);"
+      - run: pnpm install --frozen-lockfile
+      # 实际 Cordis 作业回归读取 lib，先构建宿主依赖，避免原生平台检查静默跳过。
+      - run: pnpm run build
+      - run: pnpm --filter dsh-plugin-afp run build:client
+      - name: Verify generated client matches the tag
+        run: git diff --exit-code -- custom-plugins/workspace/dsh-plugin-afp/client.js
+      - name: Validate AFP package
+        run: pnpm --filter dsh-plugin-afp run check
+      - name: Verify integration test dependencies
+        run: >-
+          node --input-type=module -e "import { accessSync } from 'node:fs';
+          accessSync('vendor/cordis/lib/index.js');
+          accessSync('packages/jobs/jobs-local/lib/index.js');"
+      - name: Test AFP on native platform
+        run: pnpm --filter dsh-plugin-afp run test
+
   prepare:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -60,7 +112,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: prepare
+    needs: [prepare, platform-checks]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

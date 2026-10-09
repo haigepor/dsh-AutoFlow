@@ -12,6 +12,9 @@ import { planAfpSearch } from '../vendor/auto-afp-img/afp-search-planner.mjs'
 import { CATEGORY_PROFILES } from '../vendor/auto-afp-img/afp-photo-search.mjs'
 import { isPrivateSelection, selectionDocIds } from '../vendor/auto-afp-img/afp-collection-run.mjs'
 import { resolveConfig } from '../../config-schema.js'
+import { readFailure } from '../vendor/auto-afp-img/read-failure.mjs'
+import { boundedWork } from '../vendor/auto-afp-img/bounded-work.mjs'
+import { AfpDiagnostics, diagnosticFailure } from './afp-diagnostics.js'
 
 function photoMembership(selection) {
   const rows = Array.isArray(selection) ? selection : selection?.docs ?? selection?.content ?? selection?.documents ?? []
@@ -24,7 +27,8 @@ function photoMembership(selection) {
 export class AfpService {
   constructor(ctx, config, dependencies = {}) {
     this.ctx = ctx; this.config = config
-    this.store = dependencies.store ?? new Store(ctx.profileContext.home, ctx.profileContext.dir, config.maxStateBytes)
+    this.store = dependencies.store ?? new Store(ctx.profileContext.home, ctx.profileContext.dir, config.maxStateBytes, config)
+    this.diagnostics = new AfpDiagnostics(this.store, config)
     this.conversationRecords = new ConversationRecords(this.store, config)
     this.connection = dependencies.connection ?? new Connection(ctx.credentials, config)
     this.workbench = dependencies.workbench ?? new WorkbenchData({ ctx, config, store: this.store, connection: this.connection })
@@ -72,7 +76,9 @@ export class AfpService {
         const tracked = { ...handle, updateProgress: progress => { task.progress = progress; handle.updateProgress(progress) } }
         task.done = Promise.resolve().then(() => operation(controller.signal, tracked)).then(
           result => ({ status: controller.signal.aborted ? 'killed' : ['failed', 'cancelled'].includes(result.status) ? 'failed' : 'completed', result: JSON.stringify(result) }),
-          () => ({ status: controller.signal.aborted ? 'killed' : 'failed', detail: 'AFP operation failed. Check setup and the saved report; remote writes may be partial.' }),
+          error => ({ status: controller.signal.aborted ? 'killed' : 'failed', detail: feature === 'write'
+            ? 'AFP operation failed. Check setup and the saved report; remote writes may be partial.'
+            : JSON.stringify(readFailure(error, feature)) }),
         ).finally(() => this.live.delete(taskId))
         return { cancel: () => controller.abort(), done: task.done }
       },
@@ -83,68 +89,92 @@ export class AfpService {
     this.require('refresh'); signal.throwIfAborted()
     const targetOverride = Object.hasOwn(args, 'targetPerCategory')
     const thresholdOverride = Object.hasOwn(args, 'threshold')
-    const hasOverrides = targetOverride || thresholdOverride
+    const minimumOverride = Object.hasOwn(args, 'minimumReviewedPerCategory')
+    const hasOverrides = targetOverride || thresholdOverride || minimumOverride
     if (args.runId && (args.categories || hasOverrides)) throw new Error('Resume uses saved categories and settings; overrides require a new page run')
-    if (owner && hasOverrides) throw new Error('Run setting overrides are available only for new page runs')
+    if (owner && thresholdOverride) throw new Error('Threshold overrides are available only for new page runs')
     const runConfig = hasOverrides ? resolveConfig({ ...this.config,
       ...(targetOverride ? { targetPerCategory: args.targetPerCategory } : {}),
       ...(thresholdOverride ? { threshold: args.threshold } : {}),
+      ...(minimumOverride ? { minimumReviewedPerCategory: args.minimumReviewedPerCategory } : {}),
     }) : this.config
     const run = args.runId ? await this.store.readRun(args.runId) : await this.store.createRun(chooseCategories(args.categories), runConfig)
     // 同 Host 重复续跑在准入前拒绝；跨进程竞争继续由文件锁负责。
     if ([...this.live.values()].some(task => task.runId === run.id)) throw new Error('AFP refresh run is busy')
     const scheduled = this.job('refresh', owner, 'AFP visual dry-run', (taskSignal, handle) => this.store.lock(`run:${run.id}`, async () => {
       let stage = 'connection'
+      const diagnostic = this.diagnostics.begin(run.id, scheduled.jobId)
+      const notify = event => diagnostic.sync('progress-update', () => progress(event))
+      const update = event => diagnostic.sync('progress-update', () => handle.updateProgress(JSON.stringify(event)))
+      const append = event => diagnostic.sync('progress-output', () => handle.append(JSON.stringify(event) + '\n'))
+      const save = current => diagnostic.measure('checkpoint-save', () => this.store.saveRun(current))
       const setupController = new AbortController()
       const operationSignal = AbortSignal.any([taskSignal, setupController.signal])
       let setupTimer
-      progress({ stage, state: 'running', runId: run.id })
       try {
+      notify({ stage, state: 'running', runId: run.id })
       const current = await this.store.readRun(run.id)
       // 准备阶段也进入 running；旧 created 状态不能表示连接或去重进度。
       const prepare = async nextStage => {
         clearTimeout(setupTimer)
-        if (nextStage !== 'visual') setupTimer = setTimeout(() => setupController.abort(new DOMException('AFP preparation timed out', 'TimeoutError')), current.settings.requestTimeoutMs)
+        if (nextStage !== 'visual') setupTimer = setTimeout(() => setupController.abort(new DOMException('AFP preparation timed out', 'TimeoutError')),
+          nextStage === 'collections' ? current.settings.preparationTimeoutMs : current.settings.requestTimeoutMs)
         stage = nextStage; current.status = 'running'; current.stage = nextStage
-        await this.store.saveRun(current)
+        await save(current)
         const event = { stage: nextStage, state: 'running', runId: run.id, completed: current.decisions.length }
-        progress(event); handle.updateProgress(JSON.stringify(event)); handle.append(JSON.stringify(event) + '\n')
+        notify(event); update(event); append(event)
       }
       await prepare('connection')
-      const services = await this.connect(operationSignal, false, true)
+      const services = await diagnostic.measure('connection', () => this.connect(operationSignal, false, true))
       return await this.store.lock(`account:${services.account}`, async () => {
         if (current.account && current.account !== services.account) throw new Error('AFP account changed since refresh')
         current.account = services.account
         await prepare('collections')
-        const reserved = await reservedIds(services.client, operationSignal)
+        current.dedup ??= { collections: {} }
+        const reserved = await diagnostic.measure('collections', () => reservedIds(services.client, operationSignal, {
+          concurrency: current.settings.collectionConcurrency, checkpoint: current.dedup, ttlMs: current.settings.dedupSnapshotTtlMs,
+          onCheckpoint: () => save(current),
+          measure: (step, operation) => diagnostic.measure(step, operation),
+          onProgress: ({ completed, total, ...event }) => {
+            const update = { ...event, collectionCompleted: completed, collectionTotal: total }
+            notify(update); diagnostic.sync('progress-update', () => handle.updateProgress(JSON.stringify(update)))
+            append(update)
+          },
+        }))
         await prepare('visual')
-        const result = await refreshRun({ run: current, store: this.store, config: current.settings, ...services, reserved, signal: taskSignal,
+        const result = await diagnostic.measure('workflow', () => refreshRun({ run: current, store: { saveRun: save }, config: current.settings,
+          ...services, reserved, signal: taskSignal, diagnostic,
           onProgress: event => {
-            progress({ ...event, stage: event.stage ?? 'visual', state: 'running', completed: event.reviewed })
+            notify({ ...event, stage: event.stage ?? 'visual', state: 'running', completed: event.reviewed })
             // 已读取预览的 ID 只供认证页面展示，后台文本输出保留计数，避免重复传入模型。
             const { previewPhotoIds, reviewedPhotos, ...counts } = event
-            const text = JSON.stringify(counts)
-            stage = 'progress-update'; handle.updateProgress(text)
-            stage = 'progress-output'; handle.append(text + '\n')
-            stage = 'screening'
-          } })
-        progress({ state: 'completed', stage: 'completed', completed: result.decisions.length, total: result.decisions.length })
+            stage = 'progress-update'; update(counts)
+            stage = 'progress-output'; append(counts)
+            stage = event.stage ?? 'visual'
+          } }))
+        notify({ state: 'completed', stage: 'completed', completed: result.decisions.length, total: result.decisions.length })
+        await diagnostic.finish(result.status)
         return summary(result)
       })
       } catch (error) {
-        progress({ state: taskSignal.aborted ? 'stopped' : 'failed', stage: taskSignal.aborted ? 'stopped' : 'failed' })
+        // 报告保留连接、收藏夹等业务阶段；写入失败单独标明，细分请求位置留在诊断中。
+        const failureStage = diagnostic.errorStage(error, stage) === 'checkpoint-save' ? 'checkpoint-save' : stage
+        const failure = taskSignal.aborted ? { code: 'cancelled', stage, retryable: true }
+          : readFailure(operationSignal.aborted ? operationSignal.reason : error, failureStage)
         // 仅记录本地阶段与代码位置，不记录远端异常正文、令牌或媒体引用。
-        const frames = String(error.stack ?? '').split('\n').filter(line => /^\s+at /.test(line))
-          .map(line => line.match(/([a-z0-9-]+\.(?:js|mjs|ts):\d+:\d+)/i)?.[1]).filter(Boolean).slice(0, 5)
-        this.ctx.logger?.warn('AFP refresh failed', { runId: run.id, stage, cancelled: taskSignal.aborted, frames })
+        // 先落盘原始失败，再通知 UI；回调或 logger 异常不能掩盖第一处错误。
+        await diagnostic.finish(taskSignal.aborted ? 'cancelled' : 'failed', operationSignal.aborted ? operationSignal.reason : error, stage)
+        try { this.ctx.logger?.warn('AFP refresh failed', { runId: run.id, stage, cancelled: taskSignal.aborted, frames: diagnosticFailure(error, stage).frames }) }
+        catch (loggerError) { /* 持久诊断已保存，日志订阅器故障不替换任务失败。 */ }
         // 仅持有运行锁的任务可更新失败状态，避免并发续跑覆写正在工作的任务。
         const saved = await this.store.readRun(run.id)
-        if (!['cancelled', 'failed'].includes(saved.status)) {
-          saved.status = taskSignal.aborted ? 'cancelled' : 'failed'
-          saved.stage = stage
-          await this.store.saveRun(saved)
-        }
-        throw error
+        saved.status = taskSignal.aborted ? 'cancelled' : 'failed'
+        saved.stage = failure.stage
+        saved.failure = failure
+        await this.store.saveRun(saved)
+        try { progress({ state: taskSignal.aborted ? 'stopped' : 'failed', stage: 'failed', errorCode: saved.failure.code }) }
+        catch (progressError) { /* 原始失败和诊断已保存，进度回调不能替换失败结果。 */ }
+        return summary(saved)
       } finally { clearTimeout(setupTimer) }
     }), run.id)
     return { ...scheduled, runId: run.id }
@@ -152,14 +182,17 @@ export class AfpService {
   async collections(signal, progress = () => {}) {
     this.require('read')
     const { client } = await this.connection.open(signal, false, false, false, event => progress({ retryCount: event.retryCount })), selections = await client.listSelections(), result = []
-    for (const profile of CATEGORY_PROFILES) {
+    const rows = await boundedWork(CATEGORY_PROFILES, this.config.collectionConcurrency, async profile => {
       progress({ stage: 'collections', completed: result.length, total: CATEGORY_PROFILES.length, category: profile.key })
       const matches = selections.filter(item => item.name === profile.selectionName)
       const privateTarget = matches.length === 1 && isPrivateSelection(matches[0])
-      result.push({ category: profile.key, selectionName: profile.selectionName, status: matches.length === 0 ? 'missing' : privateTarget ? 'private' : 'conflict',
-        count: privateTarget ? selectionDocIds(await client.getSelection(matches[0].id)).size : null })
-    }
-    return { categories: result }
+      const count = privateTarget ? Number.isSafeInteger(matches[0].docsCount) && matches[0].docsCount >= 0
+        ? matches[0].docsCount : selectionDocIds(await client.getSelection(matches[0].id)).size : null
+      const row = { category: profile.key, selectionName: profile.selectionName, status: matches.length === 0 ? 'missing' : privateTarget ? 'private' : 'conflict', count }
+      result.push(row)
+      return row
+    }, signal)
+    return { categories: rows }
   }
   search(query) {
     this.require('read')
@@ -168,7 +201,24 @@ export class AfpService {
   }
   async report(args) {
     if (Boolean(args.runId) === Boolean(args.planId)) throw new Error('Choose runId or planId')
-    if (args.runId) return summary(await this.store.readRun(args.runId))
+    if (args.runId) {
+      const result = summary(await this.store.readRun(args.runId))
+      let trace
+      try { trace = await this.diagnostics.read(args.runId) }
+      catch (error) { return { ...result, diagnostics: { unavailable: true } } }
+      if (trace) {
+        const seen = new Set()
+        const errors = trace.errors.filter(error => {
+          const key = JSON.stringify(error)
+          if (seen.has(key)) return false
+          seen.add(key); return true
+        }).slice(0, 5)
+        // 工具 meta.durationMs 仅计本次读取；运行耗时和原始失败独立投影，事件仍由用户按需导出。
+        result.diagnostics = { durationScope: 'refresh-attempt', durationMs: trace.durationMs,
+          outcome: trace.outcome, failure: trace.failure, errors, timings: trace.timings }
+      }
+      return result
+    }
     const plan = await this.store.readPlan(args.planId)
     return { planId: plan.id, operation: plan.operation, state: plan.state, result: plan.result ?? null }
   }
@@ -352,7 +402,7 @@ export class AfpService {
       if (!payload || typeof payload !== 'object' || Array.isArray(payload)
         || Object.keys(payload).some(key => !['operation', 'args'].includes(key))
         || typeof payload.operation !== 'string' || !Object.hasOwn(payload, 'operation')) return invalid()
-      const allowed = new Set(['conversation-progress', 'conversation-result', 'account-summary', 'account-profile', 'photo-search', 'photo-details', 'collection-list', 'collection-items', 'run-items', 'history-list', 'download-options'])
+      const allowed = new Set(['conversation-progress', 'conversation-result', 'account-summary', 'account-profile', 'photo-search', 'photo-details', 'collection-list', 'collection-items', 'run-items', 'history-list', 'download-options', 'diagnostics'])
       if (!allowed.has(payload.operation)) return invalid()
       const args = payload.args ?? {}
       if (!args || typeof args !== 'object' || Array.isArray(args)) return invalid()
@@ -405,14 +455,14 @@ export class AfpService {
     if (Object.keys(input).some(key => !['operation', 'args'].includes(key)) || typeof input.operation !== 'string') throw new Error('Invalid AFP page operation')
     const args = JSON.parse(input.args ?? '{}')
     if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid AFP operation arguments')
-    const allowed = { status: [], collections: [], search: ['query'], refresh: ['categories', 'runId', 'targetPerCategory', 'threshold'],
+    const allowed = { status: [], collections: [], search: ['query'], refresh: ['categories', 'runId', 'targetPerCategory', 'minimumReviewedPerCategory', 'threshold'],
       'account-summary': [], 'account-profile': [], 'photo-search': ['query', 'cursor', 'limit', 'language'], 'photo-details': ['photoId'],
       'collection-list': [], 'collection-items': ['collectionId', 'offset', 'limit'],
       'run-items': ['runId', 'category', 'decision', 'offset', 'limit'], 'history-list': ['kind', 'offset', 'limit'],
       'download-options': ['photoIds'], 'pick-download-directory': ['path'], 'browse-download-directory': ['path'],
       'download-prepare': ['items', 'directoryId', 'prefix', 'suffix'], 'download-confirm': ['planId', 'confirmation', 'confirmed'],
       'collection-operation': ['action', 'photoIds', 'photoSources', 'targetCollectionId'],
-      report: ['runId', 'planId'], cancel: ['taskId'], plan: ['operation', 'categories', 'runId'], confirm: ['planId', 'confirmation', 'confirmed'] }
+      diagnostics: ['runId'], report: ['runId', 'planId'], cancel: ['taskId'], plan: ['operation', 'categories', 'runId'], confirm: ['planId', 'confirmation', 'confirmed'] }
     if (!Object.hasOwn(allowed, input.operation) || Object.keys(args).some(key => !allowed[input.operation].includes(key))) throw new Error('Unknown AFP operation or argument')
     switch (input.operation) {
       // 缓存和动画设置只提供给插件页面；Agent 状态输出保持原有字段。
@@ -437,6 +487,7 @@ export class AfpService {
       case 'collection-operation': return this.collectionOperation(args, signal)
       case 'refresh': return this.startRefresh(args, undefined, signal)
       case 'report': return this.report(args)
+      case 'diagnostics': return this.diagnostics.read(args.runId)
       case 'cancel': return this.cancel(args.taskId)
       case 'plan': return this.pagePlan(args, signal)
       case 'confirm': return this.pageConfirm(args, signal)

@@ -95,7 +95,9 @@ export function createAfpToolRow(React, UI, t, store) {
     const livePhase = t(activity.disconnected ? 'agentProgressDisconnected' : live ? feedbackStages[live.stage] ?? 'feedbackVision'
       : repeat?.status === 'open' ? 'feedbackStarted' : 'feedbackLaunchRecord')
     const pendingPreviews = refresh ? reviewedImageRows(live?.reviewedPhotos, live?.previewPhotoIds).filter(photo => photo.status === 'unknown').length : 0
-    const liveStageLine = [livePhase, pendingPreviews ? format('feedbackPhotosPending', { count: pendingPreviews }) : ''].filter(Boolean).join(' · ')
+    const liveStageLine = [livePhase, live?.stage === 'collections' && live.collectionTotal !== undefined
+      ? format('feedbackCollectionCount', { count: live.collectionCompleted ?? 0, total: live.collectionTotal }) : '',
+      pendingPreviews ? format('feedbackPhotosPending', { count: pendingPreviews }) : ''].filter(Boolean).join(' · ')
     const liveCounts = live ? [
       live.previewed !== undefined ? format('feedbackPreviewCount', { count: live.previewed }) : '',
       live.pixelReviewed !== undefined ? format('feedbackJudgedCount', { count: live.pixelReviewed }) : '',

@@ -25,19 +25,37 @@ export async function acquireSkill({ home, profile, skill, maxStateBytes }) {
   const active = join(home, 'skills', skill), inactive = join(root, 'inactive'), marker = '.dsh-afp-owner.json'
   const holder = { id: randomUUID(), pid: process.pid, profile }
   async function upgradeManagedInstructions(path) {
-    const file = join(path, 'SKILL.md'), info = await stat(file)
-    if (!info?.isFile() || info.size > maxStateBytes) throw new Error('Unsafe AFP Skill instructions')
-    const current = await readFile(file, 'utf8'), next = await readFile(join(source, skill, 'SKILL.md'), 'utf8')
-    const digest = text => createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex')
-    if (digest(current) === digest(next)) return
     const owned = await store.read(join(path, marker))
     const revisions = JSON.parse(await readFile(join(source, 'managed-revisions.json'), 'utf8'))
-    // 只升级已知包版本或与上次安装摘要一致的副本；用户改写的说明保持原样。
-    if (owned.instructionsDigest !== digest(current) && !revisions[skill]?.includes(digest(current))) return
-    const temporary = file + '.' + randomUUID() + '.tmp'
-    try { await writeFile(temporary, next, { flag: 'wx', mode: 0o600 }); await rename(temporary, file) }
-    finally { try { await unlink(temporary) } catch (error) { if (error.code !== 'ENOENT') throw error } }
-    await store.write(join(path, marker), { ...owned, instructionsDigest: digest(next) })
+    const files = JSON.parse(await readFile(join(source, 'managed-file-revisions.json'), 'utf8'))[skill]
+    if (!files || typeof files !== 'object') throw new Error('Missing AFP managed file revisions')
+    const digest = text => createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex')
+    const fileDigests = { ...(owned.fileDigests ?? {}) }
+    for (const [relative, known] of Object.entries(files)) {
+      if (relative !== 'SKILL.md' && !/^references\/[a-z0-9-]+\.md$/.test(relative)
+        || !Array.isArray(known) || known.some(hash => !/^[a-f0-9]{64}$/.test(hash))) throw new Error('Invalid AFP managed file path or revisions')
+      const parts = relative.split('/')
+      for (let count = 1; count < parts.length; count++) {
+        const parent = join(path, ...parts.slice(0, count))
+        if (!await directory(parent)) await mkdir(parent, { mode: 0o700 })
+      }
+      const file = join(path, ...parts), info = await stat(file)
+      if (info && (!info.isFile() || info.size > maxStateBytes)) throw new Error('Unsafe AFP managed Skill file')
+      const next = await readFile(join(source, skill, ...parts), 'utf8'), nextDigest = digest(next)
+      const current = info ? await readFile(file, 'utf8') : null
+      const currentDigest = current === null ? null : digest(current)
+      const recorded = fileDigests[relative] ?? (relative === 'SKILL.md' ? owned.instructionsDigest : undefined)
+      const predecessors = relative === 'SKILL.md' ? [...known, ...(revisions[skill] ?? [])] : known
+      // 每个文件单独判定所有权；自定义主说明不阻止未改写参考文件升级。
+      if (current !== null && currentDigest !== nextDigest && recorded !== currentDigest && !predecessors.includes(currentDigest)) continue
+      if (currentDigest !== nextDigest) {
+        const temporary = file + '.' + randomUUID() + '.tmp'
+        try { await writeFile(temporary, next, { flag: 'wx', mode: 0o600 }); await rename(temporary, file) }
+        finally { try { await unlink(temporary) } catch (error) { if (error.code !== 'ENOENT') throw error } }
+      }
+      fileDigests[relative] = nextDigest
+    }
+    await store.write(join(path, marker), { ...owned, fileDigests, ...(fileDigests['SKILL.md'] ? { instructionsDigest: fileDigests['SKILL.md'] } : {}) })
   }
   async function state() {
     if (!await stat(statePath)) return { schema: 1, owned: false, leases: [], phase: 'inactive' }

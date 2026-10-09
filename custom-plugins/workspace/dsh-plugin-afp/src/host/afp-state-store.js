@@ -1,10 +1,29 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { lstat, mkdir, open, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, open, readFile, readdir, realpath, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve, parse } from 'node:path'
 import { resolveConfig } from '../../config-schema.js'
+import { setTimeout as delay } from 'node:timers/promises'
 
 /** Stable filesystem segment; never exposes account names. @param {string} value Identity. @returns {string} Hash. */
 export function digest(value) { return createHash('sha256').update(value).digest('hex') }
+
+/** Atomically replace a record without unlinking the previous version.
+ * @param {string} source Complete temporary file.
+ * @param {string} destination Existing or new record path.
+ * @param {object} options Resolved retry budget and filesystem provider.
+ * @returns {Promise<void>} Resolves after replacement; rejects the last rename error when the budget expires.
+ */
+export async function replaceRecordFile(source, destination, { retries, delayMs, platform = process.platform, renameFile = rename }) {
+  for (let attempt = 0; ; attempt++) {
+    try { await renameFile(source, destination); return }
+    catch (error) {
+      // POSIX 权限拒绝是持续错误；仅 Windows 的共享占用把 EPERM/EACCES 当作暂时失败。
+      const transient = ['EBUSY', 'EINTR'].includes(error.code) || platform === 'win32' && ['EPERM', 'EACCES'].includes(error.code)
+      if (!transient || attempt >= retries) throw error
+      await delay(delayMs)
+    }
+  }
+}
 
 async function stat(file) {
   try { return await lstat(file) }
@@ -14,7 +33,12 @@ async function directory(file) {
   const absolute = resolve(file)
   if (absolute !== parse(absolute).root) await directory(dirname(absolute))
   const info = await stat(absolute)
-  if (info && !info.isDirectory()) throw new Error('AFP storage refuses symlinks and non-directories')
+  if (info && !info.isDirectory()) {
+    // macOS 的系统临时目录经过这两个固定别名；其他链接仍拒绝，不能重定向 profile 存储。
+    const systemTarget = process.platform === 'darwin' && ({ '/var': '/private/var', '/tmp': '/private/tmp' })[absolute]
+    if (!systemTarget || !info.isSymbolicLink() || await realpath(absolute) !== systemTarget) throw new Error('AFP storage refuses symlinks and non-directories')
+    await directory(systemTarget)
+  }
   if (!info) {
     try { await mkdir(absolute, { mode: 0o700 }) }
     catch (error) { if (error.code !== 'EEXIST' || !(await stat(absolute))?.isDirectory()) throw error }
@@ -32,10 +56,12 @@ function alive(pid) {
 
 /** Profile-isolated JSON records and Home-wide process locks. No credential values are stored here. */
 export class Store {
-  constructor(home, profile, maxBytes) {
+  constructor(home, profile, maxBytes, config = resolveConfig()) {
     this.root = join(resolve(home), '.plugins', 'dsh-plugin-afp')
     this.profile = join(this.root, 'profiles', digest(profile))
     this.maxBytes = maxBytes
+    this.writeRetryCount = config.stateWriteRetryCount
+    this.writeRetryDelayMs = config.stateWriteRetryDelayMs
   }
   async read(file) {
     await directory(dirname(file))
@@ -53,7 +79,10 @@ export class Store {
     const info = await stat(file)
     if (info && !info.isFile()) throw new Error('Unsafe AFP record')
     const temp = `${file}.${randomUUID()}.tmp`
-    try { await writeFile(temp, text, { flag: 'wx', mode: 0o600 }); await rename(temp, file) }
+    try {
+      await writeFile(temp, text, { flag: 'wx', mode: 0o600 })
+      await replaceRecordFile(temp, file, { retries: this.writeRetryCount, delayMs: this.writeRetryDelayMs })
+    }
     finally { try { await unlink(temp) } catch (error) { if (error.code !== 'ENOENT') throw error } }
   }
   async createRun(categories, settings) {
@@ -68,7 +97,14 @@ export class Store {
       || !run.groups || typeof run.groups !== 'object' || !Array.isArray(run.decisions)
       || !['created', 'running', 'ready', 'paused', 'cancelled', 'failed'].includes(run.status)
       || (run.pending !== null && (!run.pending || !Array.isArray(run.pending.candidates) || !run.categories.includes(run.pending.category)))) throw new Error('Invalid AFP run record')
-    resolveConfig(run.settings)
+    // 已发布的 schema:1 运行记录保留原设置，并显式补齐新增部署默认值。
+    run.settings = resolveConfig(run.settings)
+    if (run.reviews !== undefined && (!Array.isArray(run.reviews) || run.reviews.some(item => typeof item?.id !== 'string'
+      || !run.categories.includes(item.category) || !Number.isSafeInteger(item.attempts) || item.attempts < 0
+      || !['preview', 'vision', 'confirmation', 'done', 'failed'].includes(item.phase)))) throw new Error('Invalid AFP review checkpoint')
+    if (run.dedup !== undefined && (!run.dedup || typeof run.dedup.collections !== 'object'
+      || !run.dedup.collections || Object.values(run.dedup.collections).some(item => typeof item?.fingerprint !== 'string'
+        || !Number.isSafeInteger(item.readAt) || !Array.isArray(item.ids) || item.ids.some(id => typeof id !== 'string')))) throw new Error('Invalid AFP dedup checkpoint')
     for (const group of Object.values(run.groups)) {
       if (!Array.isArray(group?.candidates) || !Number.isSafeInteger(group.batches) || group.batches < 0) throw new Error('Invalid AFP run group')
     }

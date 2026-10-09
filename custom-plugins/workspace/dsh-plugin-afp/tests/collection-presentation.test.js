@@ -167,6 +167,58 @@ test('photo clicks toggle selection with source collections; context click opens
   store.dispose()
 })
 
+test('report clicks review photos while context clicks open details without changing decisions', () => {
+  const store = createAfpClientStore({}), opened = [], reviewed = []
+  store.openPhoto = photo => opened.push(photo.id)
+  const photo = { id: 'photo', category: 'food', title: 'Sample', keep: true }
+  const Gallery = createAfpGallery({ createElement: element }, UI, {}, key => key, store)
+  const tree = Gallery.PhotoGrid({ items: [photo], report: true, onReview: item => reviewed.push(item.id) })
+  nodes(tree, node => node.type?.name === 'ImagePreview')[0].props.open()
+  nodes(tree, node => node.props.className === 'afp-wb-photo-open')[0].props.onClick()
+  assert.deepEqual(reviewed, ['photo', 'photo'])
+  assert.deepEqual(opened, [])
+  let prevented = false
+  nodes(tree, node => node.props.className === 'afp-wb-photo-frame')[0].props.onContextMenu({ preventDefault() { prevented = true } })
+  assert.equal(prevented, true)
+  assert.deepEqual(opened, ['photo'])
+  assert.equal(photo.keep, true)
+  store.dispose()
+})
+
+test('review navigation respects category identity and keeps failed or rejected results out of selection', () => {
+  const store = createAfpClientStore({}), moved = [], opened = []
+  store.openPhoto = photo => opened.push(photo.id)
+  const items = [
+    { id: 'same', category: 'food', keep: true }, { id: 'same', category: 'animals', keep: false },
+    { id: 'failed', category: 'food', keep: false, requestFailed: true }, { id: 'pending', category: 'food', keep: null },
+  ]
+  const original = JSON.stringify(items)
+  const React = { createElement: element, useSyncExternalStore: (_subscribe, snapshot) => snapshot() }
+  const Gallery = createAfpGallery(React, { ...UI, Modal: Symbol('Modal') }, {}, key => key, store)
+  const render = photo => Gallery.ReviewModal({ photo, items, onChange: next => moved.push(next.category), onClose() {} })
+  const button = (tree, label) => nodes(tree, node => node.type === UI.Button && node.props.children[0] === label)[0]
+  const first = render(items[0])
+  assert.equal(button(first, 'reviewPrevious').props.disabled, true)
+  assert.equal(button(first, 'selectPhoto').props.disabled, false)
+  button(first, 'selectPhoto').props.onClick()
+  assert.equal(store.getSnapshot().selectedPhotos.same.id, 'same')
+  button(render(items[0]), 'removeFromSelection').props.onClick()
+  button(first, 'reviewNext').props.onClick()
+  assert.deepEqual(moved, ['animals'])
+  assert.equal(nodes(render(items[1]), node => node.props.className === 'afp-wb-review-position')[0].props.children[0], '2 / 4')
+  for (const item of items.slice(1)) assert.equal(button(render(item), 'selectPhoto').props.disabled, true)
+  assert.equal(button(render(items.at(-1)), 'reviewNext').props.disabled, true)
+  const modal = render(items[1])
+  let prevented = false
+  modal.props.onKeyDownCapture({ key: 'ArrowLeft', target: {}, preventDefault() { prevented = true }, stopPropagation() {} })
+  assert.equal(prevented, true)
+  assert.deepEqual(moved, ['animals', 'food'])
+  nodes(modal, node => node.props.className === 'afp-wb-review-image')[0].props.onContextMenu({ preventDefault() {} })
+  assert.deepEqual(opened, ['same'])
+  assert.equal(JSON.stringify(items), original)
+  store.dispose()
+})
+
 test('selection summary combines thumbnails, overflow and count in one drawer toggle', () => {
   const store = createAfpClientStore({})
   for (let index = 0; index < 6; index++) store.selectPhoto({ id: `p${index}`, title: `Photo ${index}` }, 'travel')

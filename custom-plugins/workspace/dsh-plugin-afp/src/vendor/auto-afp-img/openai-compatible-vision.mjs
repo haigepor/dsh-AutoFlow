@@ -305,9 +305,9 @@ export function createOpenAiCompatibleVisionClient({
   const selectedModel = reasoningModel ?? model;
   return {
     async classify({ prompt, bytes, contentType }) {
-      return httpClient.retryOperation(async () => {
+      return httpClient.retryOperation(async requestOnce => {
         const dataUrl = `data:${contentType};base64,${Buffer.from(bytes).toString('base64')}`;
-        const response = await httpClient.request(chatCompletionsUrl(baseUrl), {
+        const response = await requestOnce(chatCompletionsUrl(baseUrl), {
           method: 'POST',
           headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
           body: JSON.stringify({

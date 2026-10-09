@@ -2,6 +2,8 @@ import { createAfpApiClient } from './afp-api-client.mjs';
 import { collectExistingSelectionDocIds } from './afp-collection-run.mjs';
 import { createAfpPreviewClient } from './afp-preview-client.mjs';
 import { createOpenAiCompatibleVisionClient, normalizeVisionDecision } from './openai-compatible-vision.mjs';
+import { readFailure } from './read-failure.mjs';
+import { boundedWork } from './bounded-work.mjs';
 
 
 export const CATEGORY_VISUAL_RULES = Object.freeze({
@@ -415,18 +417,8 @@ export function buildVisionPrompt(targetCategory, { confirmation = false } = {})
   ].join('\n');
 }
 
-async function mapWithConcurrency(items, concurrency, worker) {
-  const results = new Array(items.length);
-  let nextIndex = 0;
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (nextIndex < items.length) {
-      const current = nextIndex;
-      nextIndex += 1;
-      results[current] = await worker(items[current]);
-    }
-  });
-  await Promise.all(workers);
-  return results;
+async function mapWithConcurrency(items, concurrency, worker, signal) {
+  return boundedWork(items, concurrency, worker, signal);
 }
 
 /**
@@ -502,8 +494,13 @@ export async function triageCandidates({
   concurrency = 2,
   onProgress = () => {},
   onStage = () => {},
+  measure = (_stage, operation) => operation(),
   excludedIds = new Set(),
   excludedTitleKeys = new Set(),
+  signal,
+  reviewStates = [],
+  onReviewState = async () => {},
+  onResult = async () => {},
 } = {}) {
   if (!Array.isArray(candidateManifest?.categories)) throw new Error('candidate manifest categories are required');
   if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error('concurrency must be a positive integer');
@@ -517,17 +514,25 @@ export async function triageCandidates({
   const previewPhotoIds = [];
   const stage = value => onStage({ stage: value, completed, total: tasks.length, previewed, pixelReviewed, requestFailures, previewPhotoIds: [...previewPhotoIds] });
   return mapWithConcurrency(tasks, concurrency, async ({ candidate, category }) => {
+    let phase = 'preview';
+    const saved = reviewStates.find(item => item.id === candidate.id && item.category === category);
+    const attempts = (saved?.attempts ?? 0) + 1;
+    let firstPass = saved?.firstPass;
+    let result;
+    let blockedPreview;
     try {
+      signal?.throwIfAborted();
       stage('preview');
-      const preview = await previewClient.getPreviewBytes(candidate.id);
+      const preview = await measure('preview', () => previewClient.getPreviewBytes(candidate.id));
       previewed++;
       previewPhotoIds.push(candidate.id);
       stage('vision');
-      const raw = await visionClient.classify({
+      phase = firstPass ? 'confirmation' : 'vision';
+      const raw = firstPass ?? await measure('vision', () => visionClient.classify({
         prompt: buildVisionPrompt(category),
         bytes: preview.bytes,
         contentType: preview.contentType,
-      });
+      }));
       const appliedThreshold = effectiveThreshold(category, threshold);
       let normalized = normalizeVisionDecision(raw, category, appliedThreshold);
       let composition = category === 'celestial-body-wallpaper'
@@ -538,12 +543,17 @@ export async function triageCandidates({
           ? validateLandscapeWallpaperComposition(normalized)
           : { keep: true, reason: null };
       if (category === 'landscape' && normalized.keep && composition.keep) {
+        firstPass = { ...normalized, reason: 'first pass accepted' };
+        phase = 'confirmation';
+        // 取消不消耗失败尝试预算；完整结果或真实请求失败才提交本次 attempts。
+        await onReviewState({ id: candidate.id, category, attempts: saved?.attempts ?? 0, phase, firstPass });
+        signal?.throwIfAborted();
         stage('confirmation');
-        const confirmationRaw = await visionClient.classify({
+        const confirmationRaw = await measure('confirmation', () => visionClient.classify({
           prompt: buildVisionPrompt(category, { confirmation: true }),
           bytes: preview.bytes,
           contentType: preview.contentType,
-        });
+        }));
         normalized = normalizeVisionDecision(confirmationRaw, category, appliedThreshold);
         composition = validateLandscapeWallpaperComposition(normalized);
       }
@@ -558,7 +568,7 @@ export async function triageCandidates({
         creator: candidate.sourceMetadata.creator,
         queryHash: candidate.sourceMetadata.queryHash,
       } : {};
-      return {
+      result = {
         id: candidate.id,
         guid: candidate.guid,
         category,
@@ -632,9 +642,11 @@ export async function triageCandidates({
         appliedThreshold,
       };
     } catch (error) {
+      signal?.throwIfAborted();
+      if (error?.code === 'preview-host-blocked') blockedPreview = error;
       // 请求或响应解析失败不算完成视觉判断，不能与规则淘汰混为一谈。
       requestFailures++;
-      return {
+      result = {
         id: candidate.id,
         guid: candidate.guid,
         category,
@@ -653,12 +665,18 @@ export async function triageCandidates({
         } : {}),
         originalIndex: candidate.originalIndex,
         appliedThreshold: effectiveThreshold(category, threshold),
+        failure: readFailure(error, phase),
       };
-    } finally {
-      // 每个图片任务只计一次；风景二次视觉确认不能重复增加进度。
-      onProgress({ completed: ++completed, total: tasks.length, previewed, pixelReviewed, requestFailures });
     }
-  });
+    // 存储错误不属于 provider 失败；保存完成的判断后才报告该图片完成。
+    await onReviewState({ id: candidate.id, category, attempts, phase: result.failure ? 'failed' : 'done',
+      ...(result.failure ? { failure: result.failure, ...(firstPass ? { firstPass } : {}) } : {}) });
+    await onResult(result);
+    onProgress({ completed: ++completed, total: tasks.length, previewed, pixelReviewed, requestFailures });
+    // CDN 配置拒绝不能靠下一张图片恢复；保存已准入的失败后停止继续发请求。
+    if (blockedPreview) throw blockedPreview;
+    return result;
+  }, signal);
 }
 
 /**

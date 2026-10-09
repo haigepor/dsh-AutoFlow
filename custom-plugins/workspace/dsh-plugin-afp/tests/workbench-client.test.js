@@ -55,7 +55,7 @@ test('status polling refreshes an open report when a resumed run changes and ret
   h.store.set({ status: { features: ['read'] }, runId: initial.runId, reportCategory: 'animals', reportFilter: 'rejected',
     regions: { ...h.store.getSnapshot().regions, run: { data: { run: initial, items: [{ id: 'old' }] }, loading: false, error: '' } } })
   const poll = h.store.reload()
-  h.replyRemote(0, { features: ['read'], reports: [updated] })
+  h.replyRemote(0, { features: ['read'], reports: [{ ...updated, diagnostics: { durationMs: 100 } }] })
   await poll
   assert.equal(h.calls.length, 1)
   assert.deepEqual(h.calls[0].args, { runId: initial.runId, category: 'animals', decision: 'rejected' })
@@ -64,10 +64,26 @@ test('status polling refreshes an open report when a resumed run changes and ret
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(h.store.getSnapshot().regions.run.data.run.status, 'failed')
   const same = h.store.reload()
-  h.replyRemote(1, { features: ['read'], reports: [updated] })
+  h.replyRemote(1, { features: ['read'], reports: [{ ...updated, diagnostics: { durationMs: 120 } }] })
   await same
   assert.equal(h.calls.length, 1)
   h.store.dispose()
+})
+
+test('diagnostic metadata does not clear an unchanged open report during status polling', async t => {
+  const h = harness(), run = { runId: 'run-one', status: 'paused', categories: [{ reviewed: 2, kept: 0 }] }
+  t.after(() => h.store.dispose())
+  const data = { run, items: [{ id: 'reviewed' }] }
+  h.store.set({ status: { features: ['read'] }, runId: run.runId,
+    regions: { ...h.store.getSnapshot().regions, run: { data, loading: false, error: '' } } })
+  for (const diagnostics of [{ durationMs: 100, errors: [] }, { unavailable: true }]) {
+    const poll = h.store.reload()
+    h.replyRemote(h.remoteCalls.length - 1, { features: ['read'], reports: [{ ...run, diagnostics }] })
+    await poll
+    assert.equal(h.calls.length, 0)
+    assert.equal(h.store.getSnapshot().regions.run.data, data)
+    assert.equal(h.store.getSnapshot().regions.run.loading, false)
+  }
 })
 
 test('browse download selection keeps the prior destination until the Host adopts a directory', async () => {

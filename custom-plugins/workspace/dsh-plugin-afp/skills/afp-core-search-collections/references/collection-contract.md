@@ -32,7 +32,7 @@
 1. 视觉复核前必须排除远端 Selection 已存在的文档 ID、历史候选/视觉决策/元数据拒绝/重复排除清单中的文档 ID、当前进程重复 ID 和历史候选的规范化标题簇。任一层命中都不能再次提交给视觉 Provider。
 2. 同一进程内还要排除不同 query variant 重复召回的图片 ID；最终 `collections` dry-run 重新读取远端 Selection，再做一次 ID 去重，不能信任旧报告中的“未收藏”结论。
 3. FAR 分页必须读取 `hasMore` 和 `cursor(direction: next)`。每个 query variant 独立保存 `queryHash`、`cursor`、`pagesFetched`、`exhausted`、`stoppedBecause`、`seenCursors`、`fallbackSucceeded`，需要时保存 `fallbackSkipped`/`fallbackError`；类别同时保存已召回但尚未送审的 `pending`/`deferred` 队列，写入 profile 的 AFP 运行记录（或显式 `runId` 路径）。
-4. `max-pages` 是本次进程的分页预算，不是永久耗尽标记；`stoppedBecause=max-pages-reached` 且存在下一页 cursor 时，下一批必须从该 cursor 恢复。只有 `no-more-results`、`missing-next-cursor`、`repeated-cursor` 等真实终止状态才可永久标记 exhausted。
+4. `max-pages` 是本次进程的分页预算，不是永久耗尽标记；`stoppedBecause=max-pages-reached` 且存在下一页 cursor 时，预算不能在同一次启动的下一批重置；续跑从该 cursor 恢复。只有 `no-more-results`、`missing-next-cursor`、`repeated-cursor` 等真实终止状态才可永久标记 exhausted。
 5. 每批报告必须可区分 `rawRecallCount`、`metadataRejectedCount`、`duplicateExclusionCount`、`visualKeptCount`、`visualRejectedCount`、`pagesFetched` 和 source-level metrics；历史 ID、标题簇和重复 query variant 必须进入重复审计，不能伪装成 metadata reject。字段回退的来源统计使用实际成功变体的 `fieldMode`/`query`/`queryHash`，跨进程恢复时必须优先消费 `pending`/`deferred`，再请求保存 cursor 的下一页。
 
 加入图片的结构固定为：

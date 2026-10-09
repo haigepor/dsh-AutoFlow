@@ -191,12 +191,17 @@ export function findExactPrivateSelection(selections, name) {
   return { status: 'ambiguous', selection: null, matches: matches.length };
 }
 
-/** 兼容 Selection 详情的 docs/content/documents 容器，并返回可用于去重的图片 ID。 */
+/** 接受 Selection 的 docs/content/documents 容器及字符串/对象成员；缺失或无效成员拒绝去重和写入。 */
 export function selectionDocIds(selectionDetail) {
   const docs = Array.isArray(selectionDetail)
     ? selectionDetail
-    : (selectionDetail?.docs ?? selectionDetail?.content ?? selectionDetail?.documents ?? []);
-  return new Set((Array.isArray(docs) ? docs : []).map((doc) => asId(doc?.id ?? doc?.uno)).filter(Boolean));
+    : (selectionDetail?.docs ?? selectionDetail?.content ?? selectionDetail?.documents);
+  if (!Array.isArray(docs)) throw new Error('Invalid AFP collection contents');
+  return new Set(docs.map(doc => {
+    const value = typeof doc === 'string' ? doc : doc?.id ?? doc?.uno;
+    if (typeof value !== 'string' || !value.trim()) throw new Error('Invalid AFP collection member');
+    return value.trim();
+  }));
 }
 
 function keptDecisions(decisionManifest, category) {

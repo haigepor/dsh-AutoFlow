@@ -10,7 +10,7 @@ const querySchema = { type: 'string', minLength: 1, maxLength: 2000 }
 function owner(exec) { if (!exec.agent?.id) throw new Error('AFP tools require a Session'); return exec.agent.id }
 
 function valid(value, schema) {
-  if (Array.isArray(schema.type)) return value === null ? schema.type.includes('null') : valid(value, { ...schema, type: 'string' })
+  if (Array.isArray(schema.type)) return value === null ? schema.type.includes('null') : schema.type.filter(type => type !== 'null').some(type => valid(value, { ...schema, type }))
   if (schema.type === 'string' && (typeof value !== 'string' || !value.trim() || value.length < (schema.minLength ?? 0)
     || value.length > (schema.maxLength ?? Infinity) || (schema.pattern && !new RegExp(schema.pattern).test(value)))) return false
   if (schema.type === 'integer' && (!Number.isSafeInteger(value) || value < schema.minimum || value > schema.maximum)) return false
@@ -143,10 +143,15 @@ export function registerAgentTools(ctx, service, feature) {
     tool('afp_plan_change', 'Prepare an expiring Session-owned dry-run for append, replace or clear. Present exact targets and counts before afp_apply; never writes AFP.',
       { operation: { type: 'string', enum: ['append', 'replace', 'clear'] }, categories: categorySchema, runId: idSchema }, ['operation', 'categories'], 'read', (args, exec) => service.changes.plan(args, owner(exec), exec.signal))
   } else if (feature === 'refresh') {
-    tool('afp_refresh', 'Start or resume a background visual dry-run using configured category searches, not the previous free-text search photos. For start, pass mode=start, chosen categories and runId=null. For resume, pass mode=resume, categories=[] and the real runId returned earlier, only after its prior job ends. Never invent a runId or start concurrent resumes. Never writes AFP. A returned handle only acknowledges launch. Explain preparation and actual photo checks from job_output and afp_report(kind=run,id=runId); stop with job_kill. Do not restart merely because preparation has zero reviewed photos.',
-      { mode: { type: 'string', enum: ['start', 'resume'] }, categories: { ...categorySchema, minItems: 0 }, runId: nullableIdSchema }, ['mode', 'categories', 'runId'], 'execute', (args, exec, progress) => {
+    tool('afp_refresh', 'Start or resume a background visual dry-run using configured category searches, not the previous free-text search photos. For start, pass mode=start, chosen categories and runId=null; set targetPerCategory to the user-requested number to retain, and minimumReviewedPerCategory only when the user requests a minimum number of actual photo judgments. For resume, pass mode=resume, categories=[] and the real runId returned earlier, omit both quantity overrides, and wait until its prior job ends. Never invent a runId or start concurrent resumes. Never writes AFP. A returned handle only acknowledges launch. Explain preparation and actual photo checks from job_output and afp_report(kind=run,id=runId); stop with job_kill. Do not restart merely because preparation has zero reviewed photos.',
+      { mode: { type: 'string', enum: ['start', 'resume'] }, categories: { ...categorySchema, minItems: 0 }, runId: nullableIdSchema,
+        targetPerCategory: { type: 'integer', minimum: 1, maximum: 1000 }, minimumReviewedPerCategory: { type: 'integer', minimum: 0, maximum: 1000 } }, ['mode', 'categories', 'runId'], 'execute', (args, exec, progress) => {
         if (args.mode === 'start' ? args.runId !== null || !args.categories.length : !args.runId || args.categories.length) throw new Error('AFP refresh mode conflicts with arguments')
-        return service.startRefresh(args.mode === 'start' ? { categories: args.categories } : { runId: args.runId }, owner(exec), exec.signal, progress)
+        if (args.mode === 'resume' && (Object.hasOwn(args, 'targetPerCategory') || Object.hasOwn(args, 'minimumReviewedPerCategory'))) throw new Error('AFP refresh mode conflicts with arguments')
+        return service.startRefresh(args.mode === 'start' ? { categories: args.categories,
+          ...(Object.hasOwn(args, 'targetPerCategory') ? { targetPerCategory: args.targetPerCategory } : {}),
+          ...(Object.hasOwn(args, 'minimumReviewedPerCategory') ? { minimumReviewedPerCategory: args.minimumReviewedPerCategory } : {}),
+        } : { runId: args.runId }, owner(exec), exec.signal, progress)
       })
   } else if (feature === 'write') {
     ctx.on('tools/pre-execute', async (exec, next) => {

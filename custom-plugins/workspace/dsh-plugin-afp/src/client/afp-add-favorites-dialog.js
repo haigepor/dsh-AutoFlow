@@ -26,7 +26,7 @@ export function createAfpAddFavoritesDialog(React, UI, icons, t, store, ImagePre
     return h(Modal, { open: true, title: t('addFavorites'), closeLabel: t('close'), onClose: close,
       className: 'afp-wb-action-modal afp-wb-add-favorites-modal', contentClassName: 'afp-wb-action-modal-content',
       footer: h('div', { className: 'afp-wb-dialog-footer' },
-        h(Button, { variant: 'ghost', disabled: state.favoritesBusy, onClick: close }, t(result ? 'close' : 'cancel')),
+        h(Button, { variant: 'ghost', disabled: state.favoritesBusy, onClick: close }, t(result ? 'close' : 'cancelConfirmation')),
         !result ? h(Button, { variant: 'primary', disabled, 'aria-busy': state.favoritesBusy,
           icon: state.favoritesBusy ? h(StateDot, { state: 'ongoing', size: 14 }) : icons.IconFolderOpenOutlineRegular ? h(icons.IconFolderOpenOutlineRegular, { size: 16 }) : null,
           onClick: () => { void store.addFavorites(targetId) } }, t(state.favoritesBusy ? 'addingFavorites' : 'confirmAddFavorites')) : null) },

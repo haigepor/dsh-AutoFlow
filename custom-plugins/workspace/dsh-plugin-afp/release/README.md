@@ -40,6 +40,16 @@ Visual dry-runs persist preparation stages, report connection and collection pro
 
 The package retains existing configuration and stable update-source fields. Restart applies an installed update. Shared application changes to task icons, hover width, queue animation and the combined queue/goal header are source changes in AutoFlow; updating only this AFP tarball does not install those application components. Verification uses keyless recorded Sessions, simulated AFP/vision providers and isolated profiles; it does not establish production AFP or real-model visual accuracy.
 
+## AFP 0.1.2
+
+This version fixes Windows checkpoint replacement with bounded retries that preserve the previous record. macOS accepts only the system `/var` and `/tmp` aliases without relaxing user-directory link checks. Publication requires passing native AFP regressions on Windows x64, Linux x64, macOS arm64 and macOS x64.
+
+Screening checkpoints each photo result and landscape confirmation; resuming reuses completed judgments. Collection reads and candidate queries have bounded concurrency and budgets. Transport and body reads share a retry budget rather than multiplying retries. Agents can request retained-photo and minimum-completed-judgment counts; insufficient results remain incomplete and never save an empty selection as success.
+
+Run diagnostics retain the current attempt's total duration, individual stage timings and sanitized failure locations. Debug adds only bounded detailed events. Blocked CDN previews report an exact hostname for verification and deployment `previewCdnHosts` configuration; arbitrary redirects and forwarding AFP credentials to CDNs remain prohibited.
+
+The workbench updates task, report, collection-change history and configuration layouts, with diagnostic tags, timing tables, run identity cards and log export. Left-click opens large-image review; right-click opens details. Review supports keyboard navigation and selecting passed photos while preserving automatic judgments, without manual overrides. Adding photos uses a scoped frosted-glass modal and still requires explicit confirmation. The rotating task icon, fixed-width task panel and update loading animations require an AutoFlow application containing these changes; the plugin bundle does not replace application components.
+
 ## Dev Note
 
 None.

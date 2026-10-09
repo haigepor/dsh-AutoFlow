@@ -151,7 +151,7 @@ export function createAfpPreviewClient({
     endpointCategory: 'afp-preview',
   });
 
-  async function request(url, options, { followRedirects = false } = {}) {
+  async function request(requestOnce, url, options, { followRedirects = false } = {}) {
     let currentUrl = isAllowedPreviewUrl(url, allowedHosts).toString();
     let currentOptions = { ...options, redirect: 'manual' };
     for (let redirectCount = 0; ; redirectCount += 1) {
@@ -161,7 +161,7 @@ export function createAfpPreviewClient({
         delete headers.authorization;
         delete headers.Authorization;
       }
-      const response = await httpClient.request(currentUrl, { ...currentOptions, headers });
+      const response = await requestOnce(currentUrl, { ...currentOptions, headers });
       const nextUrl = followRedirects ? redirectLocation(response, currentUrl) : null;
       if (!nextUrl) return response;
       // 跳转响应不再使用；先释放其流，再检查目标域名，避免失败时留下未消费连接。
@@ -174,8 +174,8 @@ export function createAfpPreviewClient({
 
   return {
     async getPreviewBytes(photoId) {
-      return httpClient.retryOperation(async () => {
-        const response = await request(farEndpoint, {
+      const payload = await httpClient.retryOperation(async requestOnce => {
+        const response = await request(requestOnce, farEndpoint, {
           method: 'POST',
           headers: previewHeaders(accessToken),
           body: JSON.stringify({
@@ -184,12 +184,15 @@ export function createAfpPreviewClient({
             query: PHOTO_PREVIEW_QUERY,
           }),
         });
-        const payload = await readAfpJson(response, 'getPhotosByIds', httpClient);
-        const photo = payload?.data?.docs?.find((item) => item?.id === String(photoId));
-        if (!photo) throw new Error('requested photo mockup is unavailable');
-        const reference = findMockupReference(photo);
-        const mediaReference = previewUrl(reference, apicoreEndpoint, allowedCdnHosts);
-        const mediaResponse = await request(mediaReference, {
+        return readAfpJson(response, 'getPhotosByIds', httpClient);
+      });
+      const photo = payload?.data?.docs?.find((item) => item?.id === String(photoId));
+      if (!photo) throw new Error('requested photo mockup is unavailable');
+      const reference = findMockupReference(photo);
+      const mediaReference = previewUrl(reference, apicoreEndpoint, allowedCdnHosts);
+      // 图片下载重试复用已读 metadata，不再次查询同一张图片的详情。
+      return httpClient.retryOperation(async requestOnce => {
+        const mediaResponse = await request(requestOnce, mediaReference, {
           method: 'GET',
           headers: previewHeaders(accessToken, { accept: 'image/jpeg,image/png,image/webp,image/gif', contentType: null }),
         }, { followRedirects: true });

@@ -1,0 +1,75 @@
+{
+  "afp-core-news-search": {
+    "SKILL.md": [
+      "9c31249dfa43893f435df1f0228d4277ae7bb18b498a18965633b2b75b294d6b",
+      "cd7f3bc49ad973b67974820ce647e805a5263e129dba02d92d87741f27d9b8c0"
+    ],
+    "references/search-assistant-prompt.md": [
+      "8805ee13eacc438c50917613d3e16a8f6c38709ae6914898bf5834bcf37089ae"
+    ],
+    "references/search-contract.md": [
+      "f4356db052ae2d91d5cf0e6e4a495a48375a52aed74c3719c684f8875dbe7547"
+    ]
+  },
+  "afp-core-search-collections": {
+    "SKILL.md": [
+      "d101e830ded325ea08e5e511e21eb057792c1d774c9905e8804eaecc0f3aeda8",
+      "023786dabcbca8838e26b19014e0b830c7693a76fa6aa01a9aed5422c641ef96"
+    ],
+    "references/category-search-profiles.md": [
+      "86cc02db132111e6a8e6780cf2fff11286ef7c11ff6a8cc96fb31fcfd3ffd7ca"
+    ],
+    "references/collection-contract.md": [
+      "58443ae152a7e9f1d183a2d3e9890dbb9986443011f075b7dce39f2701e6b9de",
+      "fb762b8a7554e8a18e40c37b97b9c735b2c860d09965a456ca1a4ea43d7a2baf"
+    ],
+    "references/deduplication-pagination-contract.md": [
+      "b01c9d89315a19e197505df77389917a5f04908673bb0ad7699d5a4ba96f6c07"
+    ]
+  },
+  "afp-core-visual-triage": {
+    "SKILL.md": [
+      "d909012de17c1977993393eb58da1586291a9d1c5b2b2404afc811b31caa2b87",
+      "56d277c24072ec5c8aa551c463edbf0b8cc453f3e1891840cc6eadd786fbc470"
+    ],
+    "references/category-rubric.md": [
+      "81e147e5647815d8e39c1557e9a1b2a57edd487178e45b89cbfc885643c6d97a",
+      "d6bb1905ab1ef8b7a9c82267efac59b744ee86c9cd8f9dbd609fc5eed573273e"
+    ],
+    "references/vision-contract.md": [
+      "7b0550b34817d0ed429026852a7cc4fe4a200fffb5efca77003e2f3ebca2a277",
+      "043fdc050798cbc814cb5967e2c2a92e2abe1feb6a53857af5753f5ee6ce2c79"
+    ]
+  },
+  "afp-curation-animals": {
+    "SKILL.md": [
+      "60040a341f04d0e70049d757761a05626c4470c81918b8f16bb3b5baae1e086d",
+      "1aeffff55dbc30cd2fe3a30ec93a2101980dfcb6d72533c506ec3452ed0a9ec6"
+    ],
+    "references/animal-rubric.md": [
+      "e4693c1d7501df07dbdf4875b50c281b780b86c81cc774957fa35f4dd9a4f4fc"
+    ]
+  },
+  "afp-curation-celestial-wallpaper": {
+    "SKILL.md": [
+      "e451be0d8bf8552f9641a1a8919a4fa1eb735f320034aff88c7270824615ffa8",
+      "152d352f9a7b4aa1422730644ba43f73a67d3b27f7d740262e97b5041e853e81"
+    ],
+    "references/iteration-protocol.md": [
+      "a9a3f1601cd97b1bcd4f13187fb333bfa7ab95e4677bbdbc239be011f5f51ebe"
+    ]
+  },
+  "afp-curation-landscape": {
+    "SKILL.md": [
+      "d04040e7b8b785dd4576254e766a226a48e5f74039e2af005aabef1ced630b65",
+      "d3858f451f1ff9d41c7585d36aff3cbc590c8fee0eebf6e9a5c7485a7dcfb687"
+    ],
+    "references/aesthetic-and-geography-policy.md": [
+      "331e6635543feb187bc00feaefa899c94257ecb48bca153db5c6e00f5b6012a5"
+    ],
+    "references/iteration-protocol.md": [
+      "400aec2cc9f2f488a26cd8e343be866324fd28b1e6553e2a17ec56dc9da5a7bb",
+      "89ece19a0aa40bf03327e2ae475bcbd28359fed27ab435271e53cae1aba49ea2"
+    ]
+  }
+}

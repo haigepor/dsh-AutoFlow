@@ -1,4 +1,5 @@
 import { feedbackStages } from './afp-conversation-feedback.js'
+import { createDiagnosticsPanel } from './afp-diagnostics-panel.js'
 
 /** Local task controls and protected remote-write previews for the AFP profile.
  * @param {object} React React client runtime.
@@ -14,6 +15,7 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
   const h = React.createElement
   const { Button, Checkbox, Input, Tag, StateDot, Tooltip } = UI
   const categoryKeys = ['animals', 'food', 'landscape', 'movie-poster', 'celestial-body-wallpaper']
+  const DiagnosticsPanel = createDiagnosticsPanel(React, UI, t, store)
 
   function HistorySkeleton() {
     return h('div', { className: 'afp-wb-history-skeleton', role: 'status', 'aria-label': t('loading') },
@@ -34,16 +36,20 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
   }
   function RunHistory({ state }) {
     const region = state.regions.runs, rows = region.data?.items ?? []
-    return h('section', { className: 'afp-wb-section' }, h('div', { className: 'afp-wb-section-heading' }, h('h3', null, t('runHistory')),
+    return h('section', { className: 'afp-wb-section afp-wb-history-section' }, h('div', { className: 'afp-wb-section-heading' },
+      h('div', { className: 'afp-wb-heading-group' }, h('h3', null, t('runHistory')), h(Tag, { tone: 'quiet' }, String(region.data?.total ?? rows.length))),
       h(ReloadButton, { loading: region.loading, onClick: () => { void store.loadHistory('runs') } })),
       error({ ...region, retry: () => store.loadHistory('runs') }),
       !rows.length && !region.loading && !region.error ? h('p', { className: 'afp-wb-empty' }, t('noRunHistory')) : null,
       !rows.length && region.loading ? h(HistorySkeleton) : null,
       h('div', { className: 'afp-wb-history-list' }, ...rows.map(item => h('button', { type: 'button', className: 'afp-wb-history-row', key: item.id,
         onClick: () => { void store.openRun(item.id) } },
-        h('span', { className: 'afp-wb-history-title' }, item.createdAt ? new Date(item.createdAt).toLocaleString() : t('dateUnknown')),
+        h('span', { className: 'afp-wb-history-main' },
+          h('span', { className: 'afp-wb-history-title' }, (item.run?.categories ?? []).map(row => t(row.category)).join(' · ')),
+          h('time', { className: 'afp-wb-subtle' }, item.createdAt ? new Date(item.createdAt).toLocaleString() : t('dateUnknown'))),
+        h('span', { className: 'afp-wb-history-counts' }, (item.run?.categories ?? []).map(row => `${t('filter_kept')} ${row.kept}/${row.target}`).join(' · ')),
         h(Tag, { tone: item.status === 'ready' || item.status === 'paused' ? 'success' : item.status === 'failed' ? 'warning' : 'neutral' }, t(`runStatus_${item.status}`)),
-        h('span', { className: 'afp-wb-subtle' }, (item.run?.categories ?? []).map(row => `${t(row.category)} ${row.kept}/${row.target}`).join(' · '))))),
+        icons.IconChevronDownOutlineRegular ? h(icons.IconChevronDownOutlineRegular, { size: 14, className: 'afp-wb-history-chevron' }) : null))),
       region.data?.hasMore ? h(Button, { variant: 'outline', size: 'sm', disabled: region.loading, onClick: () => { void store.loadHistory('runs', { more: true }) } }, t('loadMore')) : null)
   }
 
@@ -64,12 +70,13 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
           : item.errorCode === 'host-stopped' ? h('span', { className: 'afp-wb-subtle' }, t('hostStopped')) : null))),
       record.taskId && activeTaskIds.has(record.taskId) ? h(Button, { variant: 'ghost', size: 'sm', disabled: state.busy,
         onClick: () => { void store.invoke('cancel', { taskId: record.taskId }) } }, t('cancel')) : null))
-    return h('section', { className: 'afp-wb-section' }, h('div', { className: 'afp-wb-section-heading' }, h('h3', null, t('liveTasks')),
+    return h('section', { className: 'afp-wb-section afp-wb-live-section', 'data-active': tasks.length > 0 || downloads.length > 0 }, h('div', { className: 'afp-wb-section-heading' }, h('h3', null, t('liveTasks')),
       h(Tag, { tone: 'neutral' }, String(tasks.length))),
       tasks.length ? h('div', { className: 'afp-wb-live-list' }, ...tasks.map(task => {
         let progress = null
         try { progress = task.progress ? JSON.parse(task.progress) : null } catch (error) { /* 隐藏不符合已知进度字段的内容，不显示原始输出。 */ }
         return h('article', { className: 'afp-wb-live-row', key: task.taskId },
+          h(StateDot, { state: 'ongoing', size: 16 }),
           h('div', null, h('p', { className: 'afp-wb-history-title' }, t(task.feature === 'write' ? 'writeTask' : 'refreshTask')),
             progress?.stage && feedbackStages[progress.stage] ? h('p', { className: 'afp-wb-subtle' }, t(feedbackStages[progress.stage])) : null,
             progress && typeof progress.category === 'string' ? h('p', { className: 'afp-wb-subtle' }, `${t(progress.category)} · ${t('keptCount')} ${progress.kept}/${progress.target}`) : null,
@@ -130,12 +137,26 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
   function ReportPanel({ state, onOpenChanges }) {
     const region = state.regions.run, report = region.data, items = report?.items ?? []
     const runSummary = report?.run
+    const noReviewed = runSummary?.categories.every(row => row.reviewed === 0)
+    const empty = !items.length || noReviewed && !items.some(item => item.requestFailed)
     const canPlan = ['ready', 'paused'].includes(runSummary?.status) && !runSummary?.pendingBatch
+    const selection = Object.values(state.selectedPhotos)
+    const canAdd = selection.length > 0 && selection.length <= 120 && !state.busy && !state.collectionSelecting
+      && state.status?.features?.includes('read') && state.status?.features?.includes('write')
     return h('section', { className: 'afp-wb-section afp-wb-report' },
-      h('div', { className: 'afp-wb-section-heading' }, h('h3', null, t('runReport')),
+      h('div', { className: 'afp-wb-section-heading' }, h('div', { className: 'afp-wb-heading-group' }, h('h3', null, t('runReport')),
+        runSummary ? h(Tag, { tone: runSummary.status === 'failed' ? 'warning' : runSummary.status === 'ready' ? 'success' : 'neutral' }, t(`runStatus_${runSummary.status}`)) : null),
         h(Button, { variant: 'ghost', size: 'sm', onClick: () => store.set({ runId: '', regions: { ...state.regions, run: { data: null, loading: false, error: '' } } }) }, t('closeReport'))),
-      runSummary ? h('div', { className: 'afp-wb-report-summary' }, ...runSummary.categories.map(row => h('p', { key: row.category },
-        `${t(row.category)} · ${t('reviewedCount')} ${row.pixelReviewed ?? Math.max(0, row.reviewed - (row.requestFailures ?? 0))} · ${t('keptCount')} ${row.kept}/${row.target} · ${t('requestFailures')}: ${row.requestFailures}`))) : null,
+      runSummary ? h('div', { className: 'afp-wb-report-summary' }, ...runSummary.categories.map(row => {
+        const reviewed = row.pixelReviewed ?? Math.max(0, row.reviewed - (row.requestFailures ?? 0))
+        return h('article', { key: row.category, className: 'afp-wb-report-category' },
+          h('div', { className: 'afp-wb-report-category-heading' }, h('strong', null, t(row.category)),
+            h('span', { className: 'afp-wb-subtle' }, t('reportTarget').replace('{count}', String(row.target)))),
+          h('dl', { className: 'afp-wb-report-metrics' }, ...[
+            ['reviewedCount', reviewed, 'neutral'], ['filter_kept', row.kept, 'success'],
+            ['filter_rejected', Math.max(0, reviewed - row.kept), 'neutral'], ['requestFailures', row.requestFailures ?? 0, 'warning'],
+          ].map(([key, count, tone]) => h('div', { key, 'data-tone': count > 0 ? tone : 'neutral' }, h('dt', null, t(key)), h('dd', null, count)))))
+      })) : null,
       h('div', { className: 'afp-wb-toolbar' },
         h('div', { className: 'afp-wb-field' }, h('span', null, t('categoryFilter')),
           h(Selector, { value: state.reportCategory, label: t('categoryFilter'),
@@ -143,14 +164,22 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
             onChange: category => { void store.openRun(state.runId, { category, decision: state.reportFilter }) } })),
         h('div', { className: 'afp-wb-field' }, h('span', null, t('decisionFilter')),
           h(Selector, { value: state.reportFilter, label: t('decisionFilter'), options: ['all', 'kept', 'rejected', 'failed'].map(value => ({ value, label: t(`filter_${value}`) })),
-            onChange: decision => { void store.openRun(state.runId, { category: state.reportCategory, decision }) } }))),
+            onChange: decision => { void store.openRun(state.runId, { category: state.reportCategory, decision }) } })),
+        h('div', { className: 'afp-wb-actions afp-wb-report-actions' },
+          h(Button, { variant: state.selectionOpen ? 'outline' : 'ghost', size: 'sm', 'aria-expanded': state.selectionOpen,
+            onClick: () => store.set({ selectionOpen: !state.selectionOpen }) }, t('selectionList'), h(Tag, { tone: 'quiet' }, String(selection.length))),
+          h(Button, { variant: 'outline', size: 'sm', disabled: !canAdd, onClick: () => store.openAddFavorites() }, t('addFavorites')))),
       region.error ? h('div', { role: 'alert', className: 'afp-wb-error-row' }, t('regionReadFailed'),
         h(Button, { variant: 'ghost', size: 'sm', onClick: () => { void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter }) } }, t('retry'))) : null,
-      runSummary?.categories.every(row => row.reviewed === 0) ? h('p', { className: 'afp-wb-empty' }, t('noReviewedItems'))
-        : h('div', { className: `afp-wb-gallery-layout${state.detail ? ' is-with-aside' : ''}` },
-          h('div', { className: 'afp-wb-gallery-wrap' }, h(gallery.PhotoGrid, { items, report: true }),
-            region.data?.hasMore ? h(Button, { variant: 'outline', disabled: region.loading, onClick: () => { void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter, more: true }) } }, t('loadMore')) : null),
-          state.detail && state.tab === 'tasks' ? h(gallery.DetailPane, { photo: state.detail, loading: state.regions.detail.loading, error: state.regions.detail.error, onClose: () => store.closePhoto() }) : null),
+      h('div', { className: `afp-wb-gallery-layout${state.detail || state.selectionOpen ? ' is-with-aside' : ''}` },
+          h('div', { className: 'afp-wb-gallery-wrap' }, empty ? h('div', { className: 'afp-wb-report-empty', role: 'status' },
+            h('p', null, t(noReviewed ? 'noReviewedItems' : 'reportNoMatches')),
+            noReviewed ? h('p', { className: 'afp-wb-subtle' }, t('reportEmptyHelp')) : null)
+            : h(gallery.ReportGallery, { items, selectedPhotos: state.selectedPhotos }),
+            !empty && region.data?.hasMore ? h(Button, { variant: 'outline', disabled: region.loading, onClick: () => { void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter, more: true }) } }, t('loadMore')) : null),
+          state.detail && state.tab === 'tasks' ? h(gallery.DetailPane, { photo: state.detail, report: true, loading: state.regions.detail.loading, error: state.regions.detail.error, onClose: () => store.closePhoto() })
+            : state.selectionOpen ? h(gallery.SelectionPane, { photos: selection, onOpen: photo => { void store.openPhoto(photo) } }) : null),
+      h(DiagnosticsPanel, { key: state.runId, runId: state.runId }),
       canPlan ? h(Button, { variant: 'primary', disabled: !state.status?.features?.includes('write'), onClick: () => onOpenChanges(runSummary.runId) }, t('previewWrite')) : null)
   }
 
@@ -186,6 +215,12 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
         h(Button, { variant: 'ghost', disabled: state.busy, onClick: () => store.set({ plan: null, planFingerprint: '', confirmChecked: false }) }, t('dismiss'))))
   }
 
+  function changeTotal(plan, key) {
+    const counts = plan.targets.map(target => plan.result
+      ? plan.result.categories.find(row => row.category === target.category)?.[key === 'add' ? 'added' : 'removed'] : target[key])
+    // 未返回的实际结果显示未知，不能把计划数量或缺失值当作已执行数量。
+    return counts.some(count => count === undefined) ? '—' : counts.reduce((sum, count) => sum + count, 0)
+  }
   function ChangesPanel({ state }) {
     const runs = state.regions.runs.data?.items?.filter(item => item.kind === 'run') ?? []
     const plans = state.regions.plans.data?.items ?? []
@@ -197,13 +232,19 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
     const planRows = plans.map(item => h('details', { className: 'afp-wb-plan-history', key: item.id },
       h('summary', null,
         icons.IconChevronDownOutlineRegular ? h(icons.IconChevronDownOutlineRegular, { size: 14, className: 'afp-wb-plan-chevron' }) : null,
-        h('span', { className: 'afp-wb-history-title' }, t(item.plan.operation)),
-        h('span', { className: 'afp-wb-subtle afp-wb-plan-date' }, item.createdAt ? new Date(item.createdAt).toLocaleString() : t('dateUnknown')),
+        h('span', { className: 'afp-wb-plan-history-main' },
+          h('span', { className: 'afp-wb-history-title' }, t(item.plan.operation), ' · ', item.plan.targets.map(target => target.name || t(target.category)).join('、')),
+          h('time', { className: 'afp-wb-subtle afp-wb-plan-date' }, item.createdAt ? new Date(item.createdAt).toLocaleString() : t('dateUnknown'))),
+        h('span', { className: 'afp-wb-plan-totals' },
+          `${t(item.plan.result ? 'addedCount' : 'plannedAddedCount')} ${changeTotal(item.plan, 'add')} · ${t(item.plan.result ? 'removedCount' : 'plannedRemovedCount')} ${changeTotal(item.plan, 'remove')}`),
         h(Tag, { tone: item.status === 'completed' ? 'success' : item.status === 'failed' ? 'warning' : 'neutral' }, t(`planStatus_${item.status}`))),
       h('p', { className: 'afp-wb-subtle' }, `${t('changeId')} · ${item.id}`),
       h('ul', { className: 'afp-wb-plan-results' }, ...item.plan.targets.map(target => {
         const actual = item.plan.result?.categories?.find(row => row.category === target.category)
-            return h('li', { key: target.category }, `${t(target.category)} · ${t('removedCount')} ${actual?.removed ?? '—'} · ${t('addedCount')} ${actual?.added ?? '—'} · ${t(`planStatus_${actual?.status ?? item.status}`)}`)
+        return h('li', { key: target.category }, h('div', null, h('strong', null, target.name || t(target.category)), h('span', { className: 'afp-wb-subtle' }, t(target.category))),
+          h('span', null, `${t(item.plan.result ? 'addedCount' : 'plannedAddedCount')} ${item.plan.result ? actual?.added ?? '—' : target.add}`),
+          h('span', null, `${t(item.plan.result ? 'removedCount' : 'plannedRemovedCount')} ${item.plan.result ? actual?.removed ?? '—' : target.remove}`),
+          h(Tag, { tone: actual?.status === 'completed' ? 'success' : ['failed', 'partial'].includes(actual?.status) ? 'warning' : 'neutral' }, t(`planStatus_${actual?.status ?? item.status}`)))
       }))))
     return h('div', { className: 'afp-wb-panel-content afp-wb-change-layout' },
       h('section', { className: 'afp-wb-section afp-wb-change-form' }, h('h3', null, t('changePreview')),
@@ -226,8 +267,9 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
               icon: state.busy ? h(StateDot, { state: 'ongoing', size: 14 }) : null,
               disabled: !writeEnabled || !eligible || !state.selected.length || state.operation !== 'clear' && !state.runId || state.busy, onClick: generate }, t('previewWrite'))))),
       h('div', { className: 'afp-wb-change-results' }, h(PlanCard, { state }),
-      h('section', { className: 'afp-wb-section' },
-        h('div', { className: 'afp-wb-section-heading' }, h('h3', null, t('planHistory')),
+      h('section', { className: 'afp-wb-section afp-wb-change-history' },
+        h('div', { className: 'afp-wb-section-heading' }, h('div', { className: 'afp-wb-heading-group' }, h('h3', null, t('planHistory')),
+          h(Tag, { tone: 'quiet' }, String(state.regions.plans.data?.total ?? plans.length))),
           h(ReloadButton, { loading: state.regions.plans.loading, onClick: () => { void store.loadHistory('plans') } })),
         state.regions.plans.error ? error({ ...state.regions.plans, retry: () => store.loadHistory('plans') }) : null,
         !plans.length && state.regions.plans.loading ? h(HistorySkeleton) : null,
