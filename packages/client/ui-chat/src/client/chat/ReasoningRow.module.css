@@ -4,8 +4,8 @@
 }
 
 .root:not([data-expanded]) {
-  contain: size layout;
-  height: calc(24px + var(--dsh-content-font-delta, 0px));
+  /* 正文退出期间保留自然高度，避免截断共享折叠组件的收起过渡。 */
+  contain: layout;
 }
 
 .row {

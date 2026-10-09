@@ -51,7 +51,6 @@
   width: 22px;
   height: 22px;
   border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-interactive-bg-hover);
   font-size: 14px;
 }
 .item[data-change] .text { line-height: 22px; }
@@ -87,14 +86,6 @@
   line-height: 18px;
 }
 
-.pending {
-  box-sizing: border-box;
-  width: 10px;
-  height: 10px;
-  border: 1px solid var(--dsw-alias-label-tertiary);
-  border-radius: 2px;
-}
-
 .heading:has(.statusText) .text {
   flex-basis: 12em;
 }
@@ -111,9 +102,12 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.item[data-change='added'] .status {
+.status[data-status='completed'] {
   color: var(--dsw-alias-state-success-primary);
 }
+
+.status[data-status='in_progress'] { color: var(--dsw-alias-state-business-primary); }
+.status[data-status='pending'] { color: var(--dsw-alias-label-tertiary); }
 
 .item[data-change='removed'] .status {
   color: var(--dsw-alias-state-error-primary);

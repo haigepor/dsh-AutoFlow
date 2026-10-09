@@ -4,7 +4,7 @@ import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-att
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
-  IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconChevronUpOutlineRegular, IconCloseOutlineRegular,
+  AnimatedCollapse, IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconCloseOutlineRegular,
   FileTypeIcon, fileSizeText, IconEditOutlineRegular, IconQueueOutlineRegular, IconSendOutlineRegular,
   IconTrashOutlineRegular, projectUserText, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -146,7 +146,7 @@ function QueueEditor({ text, label, onChange, onSave, onCancel }: {
 }
 
 /** Full props of a dock entry: InputZone owner share + session standard kit + global seat + the locale seat. */
-export type QueueDockProps = PropsRuntime<'conversation.input.dock'> & QueueDockInjected & PropsLocale<'conversation'>
+export type QueueDockProps = PropsRuntime<'conversation.input.context'> & QueueDockInjected & PropsLocale<'conversation'>
 
 /**
  * Queue strip: one item renders directly; multiple items default to a
@@ -233,200 +233,202 @@ export function QueueDock({ useSession, useProjection, updateQueue, notify, load
             {!listVisible && pendingQueue.length > 0 && (
               <span className={css.status} role="status">{t('queue.sending')}</span>
             )}
-            <span className={css.chevron} aria-hidden>
-              {expanded ? <IconChevronDownOutlineRegular /> : <IconChevronUpOutlineRegular />}
+            <span className={css.chevron} data-expanded={expanded || undefined} aria-hidden>
+              <IconChevronDownOutlineRegular />
             </span>
           </button>
         )}
-        <ul id={listId} className={css.list} hidden={!listVisible}>
-          {listVisible && queue.map((row) => {
-            const attachments = queueAttachments(row.content)
-            const text = textOf(row.content)
-            return (
-              <li key={row.id} className={css.row}>
-                {/* Single-item strip has no count header, so the row itself carries the queue glyph. */}
-                {rowCount === 1 && <span className={css.lead} aria-hidden><IconQueueOutlineRegular /></span>}
-                {editing?.id === row.id
-                  ? (
-                    <QueueEditor
-                      text={editing.text}
-                      label={t('queue.edit')}
-                      onChange={(text) => { setEditing({ id: row.id, text }) }}
-                      onSave={() => { void saveEdit() }}
-                      onCancel={() => { setEditing(null) }}
-                    />
-                  )
-                  : (
-                    <>
-                      {attachments.length > 0 && (
-                        <span className={css.attachments}>
-                          {attachments.map((item, index) => item.type === 'image'
-                            ? (
-                              <QueueThumb
-                                key={`${item.attachment.attachmentId}:${index}`}
-                                attachment={item.attachment}
-                                loadImage={loadImage}
-                                label={t('queue.image')}
-                              />
-                            )
-                            : (
-                              <QueueFile
-                                key={`${item.attachment.attachmentId}:${item.attachment.name}:${index}`}
-                                attachment={item.attachment}
-                                label={t('queue.file', { name: item.attachment.name })}
-                              />
-                            ))}
-                        </span>
-                      )}
-                      <span className={css.preview}>{projectUserText(previewOf(row.content), [])}</span>
-                    </>
-                  )}
-                {queueMutable && <div className={css.actions}>
+        <AnimatedCollapse id={listId} open={listVisible}>
+          <ul className={css.list}>
+            {queue.map((row) => {
+              const attachments = queueAttachments(row.content)
+              const text = textOf(row.content)
+              return (
+                <li key={row.id} className={css.row}>
+                  {/* Single-item strip has no count header, so the row itself carries the queue glyph. */}
+                  {rowCount === 1 && <span className={css.lead} aria-hidden><IconQueueOutlineRegular /></span>}
                   {editing?.id === row.id
                     ? (
-                      <>
-                        <Tooltip portal label={t('queue.save')} side="bottom" delayMs={500}>
-                          <button
-                            type="button"
-                            className={css.action}
-                            aria-label={t('queue.save')}
-                            disabled={busy !== null || editing.text.trim() === ''}
-                            onClick={() => { void saveEdit() }}
-                          >
-                            <IconCheckOutlineRegular size={14} />
-                          </button>
-                        </Tooltip>
-                        <Tooltip portal label={t('queue.cancelEdit')} side="bottom" delayMs={500}>
-                          <button
-                            type="button"
-                            className={css.action}
-                            aria-label={t('queue.cancelEdit')}
-                            disabled={busy !== null}
-                            onClick={() => { setEditing(null) }}
-                          >
-                            <IconCloseOutlineRegular size={14} />
-                          </button>
-                        </Tooltip>
-                      </>
+                      <QueueEditor
+                        text={editing.text}
+                        label={t('queue.edit')}
+                        onChange={(text) => { setEditing({ id: row.id, text }) }}
+                        onSave={() => { void saveEdit() }}
+                        onCancel={() => { setEditing(null) }}
+                      />
                     )
                     : (
                       <>
-                        <Tooltip portal label={t('queue.edit')} side="bottom" delayMs={500} disabled={text === null}>
-                          <button
-                            type="button"
-                            className={css.action}
-                            aria-label={t('queue.edit')}
-                            // Disabled buttons fire no hover events, so the
-                            // unsupported hint stays a native title.
-                            title={text === null ? t('queue.edit.unsupported') : undefined}
-                            disabled={busy !== null || text === null}
-                            onClick={() => {
-                              if (text !== null) setEditing({ id: row.id, text: text })
-                            }}
-                          >
-                            <IconEditOutlineRegular size={14} />
-                          </button>
-                        </Tooltip>
-                        <Tooltip portal label={t('queue.remove')} side="bottom" delayMs={500}>
-                          <button
-                            type="button"
-                            className={css.action}
-                            aria-label={t('queue.remove')}
-                            disabled={busy !== null}
-                            onClick={() => {
-                              void applyAction(
-                                row.id,
-                                { kind: 'remove' },
-                                t('queue.removeFailed'),
+                        {attachments.length > 0 && (
+                          <span className={css.attachments}>
+                            {attachments.map((item, index) => item.type === 'image'
+                              ? (
+                                <QueueThumb
+                                  key={`${item.attachment.attachmentId}:${index}`}
+                                  attachment={item.attachment}
+                                  loadImage={loadImage}
+                                  label={t('queue.image')}
+                                />
                               )
-                            }}
-                          >
-                            <IconTrashOutlineRegular size={14} />
-                          </button>
-                        </Tooltip>
-                        <Tooltip portal label={t('queue.steer')} side="bottom" delayMs={500} disabled={!running}>
-                          <button
-                            type="button"
-                            className={css.action}
-                            aria-label={t('queue.steer')}
-                            title={running ? undefined : t('queue.steer.unavailable')}
-                            disabled={busy !== null || !running}
-                            onClick={() => {
-                              void applyAction(
-                                row.id,
-                                { kind: 'steer' },
-                                t('queue.steerFailed'),
-                              )
-                            }}
-                          >
-                            <IconSendOutlineRegular />
-                          </button>
-                        </Tooltip>
+                              : (
+                                <QueueFile
+                                  key={`${item.attachment.attachmentId}:${item.attachment.name}:${index}`}
+                                  attachment={item.attachment}
+                                  label={t('queue.file', { name: item.attachment.name })}
+                                />
+                              ))}
+                          </span>
+                        )}
+                        <span className={css.preview}>{projectUserText(previewOf(row.content), [])}</span>
                       </>
                     )}
-                </div>}
-              </li>
-            )
-          })}
-          {listVisible && pendingQueue.map((submission) => {
-            return (
-              <li key={submission.requestId} className={`${css.row} ${css.pendingRow}`} data-submission-echo="">
-                {rowCount === 1 && <span className={css.lead} aria-hidden><IconQueueOutlineRegular /></span>}
-                {submission.attachments.length > 0 && (
-                  <span className={css.attachments}>
-                    {submission.attachments.map((attachment, index) => attachment.type === 'image'
+                  {queueMutable && <div className={css.actions}>
+                    {editing?.id === row.id
                       ? (
-                        <img
-                          key={`${attachment.value.previewUrl}:${index}`}
-                          className={css.thumb}
-                          src={attachment.value.previewUrl}
-                          alt={t('queue.image')}
-                        />
+                        <>
+                          <Tooltip portal label={t('queue.save')} side="bottom" delayMs={500}>
+                            <button
+                              type="button"
+                              className={css.action}
+                              aria-label={t('queue.save')}
+                              disabled={busy !== null || editing.text.trim() === ''}
+                              onClick={() => { void saveEdit() }}
+                            >
+                              <IconCheckOutlineRegular size={14} />
+                            </button>
+                          </Tooltip>
+                          <Tooltip portal label={t('queue.cancelEdit')} side="bottom" delayMs={500}>
+                            <button
+                              type="button"
+                              className={css.action}
+                              aria-label={t('queue.cancelEdit')}
+                              disabled={busy !== null}
+                              onClick={() => { setEditing(null) }}
+                            >
+                              <IconCloseOutlineRegular size={14} />
+                            </button>
+                          </Tooltip>
+                        </>
                       )
                       : (
-                        <QueueFile
-                          key={`${attachment.value.attachmentId}:${attachment.value.name}:${index}`}
-                          attachment={attachment.value}
-                          label={t('queue.file', { name: attachment.value.name })}
-                        />
-                      ))}
-                  </span>
-                )}
-                <span className={css.preview}>{projectUserText(submission.text, [])}</span>
-                <span className={css.status} role="status">{t('queue.sending')}</span>
-                {queueMutable && <div className={css.actions}>
-                  <button
-                    type="button"
-                    className={css.action}
-                    aria-label={t('queue.edit')}
-                    title={t('queue.sending')}
-                    disabled
-                  >
-                    <IconEditOutlineRegular size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className={css.action}
-                    aria-label={t('queue.remove')}
-                    title={t('queue.sending')}
-                    disabled
-                  >
-                    <IconTrashOutlineRegular size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className={css.action}
-                    aria-label={t('queue.steer')}
-                    title={t('queue.sending')}
-                    disabled
-                  >
-                    <IconSendOutlineRegular />
-                  </button>
-                </div>}
-              </li>
-            )
-          })}
-        </ul>
+                        <>
+                          <Tooltip portal label={t('queue.edit')} side="bottom" delayMs={500} disabled={text === null}>
+                            <button
+                              type="button"
+                              className={css.action}
+                              aria-label={t('queue.edit')}
+                              // Disabled buttons fire no hover events, so the
+                              // unsupported hint stays a native title.
+                              title={text === null ? t('queue.edit.unsupported') : undefined}
+                              disabled={busy !== null || text === null}
+                              onClick={() => {
+                                if (text !== null) setEditing({ id: row.id, text: text })
+                              }}
+                            >
+                              <IconEditOutlineRegular size={14} />
+                            </button>
+                          </Tooltip>
+                          <Tooltip portal label={t('queue.remove')} side="bottom" delayMs={500}>
+                            <button
+                              type="button"
+                              className={css.action}
+                              aria-label={t('queue.remove')}
+                              disabled={busy !== null}
+                              onClick={() => {
+                                void applyAction(
+                                  row.id,
+                                  { kind: 'remove' },
+                                  t('queue.removeFailed'),
+                                )
+                              }}
+                            >
+                              <IconTrashOutlineRegular size={14} />
+                            </button>
+                          </Tooltip>
+                          <Tooltip portal label={t('queue.steer')} side="bottom" delayMs={500} disabled={!running}>
+                            <button
+                              type="button"
+                              className={css.action}
+                              aria-label={t('queue.steer')}
+                              title={running ? undefined : t('queue.steer.unavailable')}
+                              disabled={busy !== null || !running}
+                              onClick={() => {
+                                void applyAction(
+                                  row.id,
+                                  { kind: 'steer' },
+                                  t('queue.steerFailed'),
+                                )
+                              }}
+                            >
+                              <IconSendOutlineRegular />
+                            </button>
+                          </Tooltip>
+                        </>
+                      )}
+                  </div>}
+                </li>
+              )
+            })}
+            {pendingQueue.map((submission) => {
+              return (
+                <li key={submission.requestId} className={`${css.row} ${css.pendingRow}`} data-submission-echo="">
+                  {rowCount === 1 && <span className={css.lead} aria-hidden><IconQueueOutlineRegular /></span>}
+                  {submission.attachments.length > 0 && (
+                    <span className={css.attachments}>
+                      {submission.attachments.map((attachment, index) => attachment.type === 'image'
+                        ? (
+                          <img
+                            key={`${attachment.value.previewUrl}:${index}`}
+                            className={css.thumb}
+                            src={attachment.value.previewUrl}
+                            alt={t('queue.image')}
+                          />
+                        )
+                        : (
+                          <QueueFile
+                            key={`${attachment.value.attachmentId}:${attachment.value.name}:${index}`}
+                            attachment={attachment.value}
+                            label={t('queue.file', { name: attachment.value.name })}
+                          />
+                        ))}
+                    </span>
+                  )}
+                  <span className={css.preview}>{projectUserText(submission.text, [])}</span>
+                  <span className={css.status} role="status">{t('queue.sending')}</span>
+                  {queueMutable && <div className={css.actions}>
+                    <button
+                      type="button"
+                      className={css.action}
+                      aria-label={t('queue.edit')}
+                      title={t('queue.sending')}
+                      disabled
+                    >
+                      <IconEditOutlineRegular size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className={css.action}
+                      aria-label={t('queue.remove')}
+                      title={t('queue.sending')}
+                      disabled
+                    >
+                      <IconTrashOutlineRegular size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className={css.action}
+                      aria-label={t('queue.steer')}
+                      title={t('queue.sending')}
+                      disabled
+                    >
+                      <IconSendOutlineRegular />
+                    </button>
+                  </div>}
+                </li>
+              )
+            })}
+          </ul>
+        </AnimatedCollapse>
       </div>
     </div>
   )
@@ -437,10 +439,10 @@ export const queueDockEntry = {
   name: 'conversation-queue-dock',
   inject: ['slots', 'conversation', 'sessions', 'uiConversation'],
   apply(ctx: Context): void {
-    ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
-      name: 'conversation.input.dock',
+    ctx.slots.inject('conversation.input.context', () => ctx.slots.register({
+      name: 'conversation.input.context',
       id: 'queue',
-      order: 20,
+      order: 0,
       locale: NS,
       inject: (sessionId: SessionId): QueueDockInjected => {
         const actx = ctx.sessions.scope(sessionId)

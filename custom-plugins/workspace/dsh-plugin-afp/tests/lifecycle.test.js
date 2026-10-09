@@ -7,6 +7,7 @@ import { acquireSkill, skillNames } from '../src/host/afp-skill-leases.js'
 import { AfpService } from '../src/host/afp-service.js'
 import { resolveConfig } from '../config-schema.js'
 import { runAfpTask } from '../cli/afp-task.js'
+import { agentError } from '../src/host/afp-agent-errors.js'
 
 async function fixture(t) {
   const home = await mkdtemp(join(tmpdir(), 'afp-life-'))
@@ -101,5 +102,45 @@ test('refresh failures log a local stage without provider messages or credential
   assert.equal(warnings.length, 1)
   assert.match(JSON.stringify(warnings), /connection/)
   assert.doesNotMatch(JSON.stringify(warnings), /secret-provider-response/)
+  await service.dispose()
+})
+
+test('a connecting refresh saves its stage and refuses a concurrent resume before admitting a job', async t => {
+  const { ctx, config, connection, jobs } = await fixture(t)
+  let entered, finish
+  const connecting = new Promise(resolve => { entered = resolve })
+  connection.open = async signal => { entered(); await new Promise(resolve => { finish = resolve; signal.addEventListener('abort', resolve, { once: true }) }); signal.throwIfAborted(); throw new Error('fixture connection failed') }
+  const service = new AfpService(ctx, config, { connection })
+  await service.enable('refresh')
+  const result = await service.startRefresh({ categories: ['landscape'] }, 'session', new AbortController().signal)
+  await connecting
+  const saved = await service.report({ runId: result.runId })
+  assert.equal(saved.status, 'running')
+  assert.equal(saved.stage, 'connection')
+  assert.equal(saved.categories[0].reviewed, 0)
+  await assert.rejects(service.startRefresh({ runId: result.runId }, 'session', new AbortController().signal), error => {
+    const projected = agentError(error, 'execute', 0)
+    assert.equal(projected.code, 'refresh-busy'); assert.equal(projected.retryable, true)
+    assert.match(projected.action, /Wait for the original job to end/)
+    const exec = { agent: { session: { id: 'session', snapshotEvents: () => [{ type: 'turn/start', data: { turn: 1 } }] } }, name: 'afp_refresh', arguments: { runId: result.runId } }
+    service.conversationRecords.fail(exec, projected)
+    assert.equal(service.conversationRecords.previousFailure(exec), null)
+    return true
+  })
+  assert.equal(jobs.length, 1)
+  finish(); await jobs[0].handle.done
+  await service.dispose()
+})
+
+test('preparation timeout saves a failed connection stage rather than leaving a created run', async t => {
+  const { ctx, config, connection, jobs } = await fixture(t)
+  config.requestTimeoutMs = 1000
+  connection.open = async signal => { await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true })); signal.throwIfAborted() }
+  const service = new AfpService(ctx, config, { connection })
+  await service.enable('refresh')
+  const result = await service.startRefresh({ categories: ['landscape'] }, undefined, new AbortController().signal)
+  assert.equal((await jobs[0].handle.done).status, 'failed')
+  const report = await service.report({ runId: result.runId })
+  assert.equal(report.status, 'failed'); assert.equal(report.stage, 'connection'); assert.equal(report.categories[0].pixelReviewed, 0)
   await service.dispose()
 })

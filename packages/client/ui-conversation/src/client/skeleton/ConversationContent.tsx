@@ -185,6 +185,11 @@ export function ConversationContent(props: ConversationContentProps) {
       )}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
+      {zone !== undefined && (
+        <div className={css.composerContext} data-composer-context="">
+          {renderSlot('conversation.input.context', zone)}
+        </div>
+      )}
       {inputBar}
     </div>
   )

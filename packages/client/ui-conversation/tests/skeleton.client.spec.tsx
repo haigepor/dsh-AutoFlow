@@ -530,6 +530,15 @@ describe('ConversationRoot resident composer', () => {
     expect(seat?.contains(fallback)).toBe(true)
   })
 
+  it('renders the shared queue and goal context immediately before the resident composer', () => {
+    const b = mount(sessionSnapshotOf())
+    const context = b.view.container.querySelector('[data-composer-context]')
+    expect(context).not.toBeNull()
+    expect(b.slotCalls).toContain('conversation.input.context')
+    expect(b.slotCalls.indexOf('conversation.input.dock')).toBeLessThan(b.slotCalls.indexOf('conversation.input.context'))
+    expect(context?.nextElementSibling?.querySelector('[data-composer-card]')).not.toBeNull()
+  })
+
   it('hero phase: keeps sidebar controls accessible while hiding conversation chrome', () => {
     const b = mount(
       sessionSnapshotOf({ blank: true }),

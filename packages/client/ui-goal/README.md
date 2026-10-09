@@ -25,7 +25,7 @@ The Web GUI goal surface shows both the durable goal state and its current proce
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin alongside `ui-conversation` and the goal domain package; the strip then appears as the second card in the composer-context stack (after Todo, before Queue) whenever the session has a goal. Todo and Goal use the same panel elevation above the composer. An armed active goal offers pause; an active-but-disarmed or paused goal offers resume; edit rewrites the objective; clear removes the goal and suppresses the strip until the projection catches up.
+Mount this plugin alongside `ui-conversation` and the goal domain package. A session goal registers in `conversation.input.context` below the queue (order 100), remaining at the bottom of the shared header. The [Conversation container](../ui-conversation/README.md) owns the background, top radii and composer join; the queue list scrolls independently of the goal. An armed active goal offers pause; an active-but-disarmed or paused goal offers resume; edit rewrites the objective; clear removes the goal and suppresses the strip until the projection catches up.
 
 ### The command-input bubble
 
@@ -59,7 +59,7 @@ Activation reads hold a temporary `goalActivation` Client reference and send `go
 Read these pages when the goal surface is not enough. They move from the browser strip to the goal domain and the slots it fills.
 
 - [dsh-goal](../../goal/goal/README.md) — the goal domain, projection, and `/goal` command this surface reads and mutates.
-- [ui-conversation](../ui-conversation/README.md) — declares the `conversation.input.dock` slot and owns the composer.
+- [ui-conversation](../ui-conversation/README.md) — declares the `conversation.input.context` slot and owns the composer.
 - [Client package map](../README.md) — adjacent browser UI packages.
 
 -----

@@ -62,12 +62,12 @@ export class AfpService {
     this.conversationRecords.dispose()
   }
   /** Admit a Session-owned Agent job or an unowned profile job; outcomes wait for resource release. */
-  job(feature, owner, label, operation) {
+  job(feature, owner, label, operation, runId) {
     this.require(feature)
     const taskId = randomUUID()
     const jobId = this.ctx.jobs.start({ kind: 'afp', ...(owner ? { owner } : {}), label, outputLimitBytes: this.config.outputLimitBytes,
       run: handle => {
-        const controller = new AbortController(), task = { taskId, feature, owner, controller, done: null }
+        const controller = new AbortController(), task = { taskId, feature, owner, controller, done: null, runId }
         this.live.set(taskId, task)
         const tracked = { ...handle, updateProgress: progress => { task.progress = progress; handle.updateProgress(progress) } }
         task.done = Promise.resolve().then(() => operation(controller.signal, tracked)).then(
@@ -91,22 +91,39 @@ export class AfpService {
       ...(thresholdOverride ? { threshold: args.threshold } : {}),
     }) : this.config
     const run = args.runId ? await this.store.readRun(args.runId) : await this.store.createRun(chooseCategories(args.categories), runConfig)
+    // 同 Host 重复续跑在准入前拒绝；跨进程竞争继续由文件锁负责。
+    if ([...this.live.values()].some(task => task.runId === run.id)) throw new Error('AFP refresh run is busy')
     const scheduled = this.job('refresh', owner, 'AFP visual dry-run', (taskSignal, handle) => this.store.lock(`run:${run.id}`, async () => {
       let stage = 'connection'
+      const setupController = new AbortController()
+      const operationSignal = AbortSignal.any([taskSignal, setupController.signal])
+      let setupTimer
       progress({ stage, state: 'running', runId: run.id })
       try {
-      const current = await this.store.readRun(run.id), services = await this.connect(taskSignal, false, true)
+      const current = await this.store.readRun(run.id)
+      // 准备阶段也进入 running；旧 created 状态不能表示连接或去重进度。
+      const prepare = async nextStage => {
+        clearTimeout(setupTimer)
+        if (nextStage !== 'visual') setupTimer = setTimeout(() => setupController.abort(new DOMException('AFP preparation timed out', 'TimeoutError')), current.settings.requestTimeoutMs)
+        stage = nextStage; current.status = 'running'; current.stage = nextStage
+        await this.store.saveRun(current)
+        const event = { stage: nextStage, state: 'running', runId: run.id, completed: current.decisions.length }
+        progress(event); handle.updateProgress(JSON.stringify(event)); handle.append(JSON.stringify(event) + '\n')
+      }
+      await prepare('connection')
+      const services = await this.connect(operationSignal, false, true)
       return await this.store.lock(`account:${services.account}`, async () => {
         if (current.account && current.account !== services.account) throw new Error('AFP account changed since refresh')
         current.account = services.account
-        stage = 'collection-deduplication'
-        progress({ stage: 'collections' })
-        const reserved = await reservedIds(services.client, taskSignal)
-        stage = 'screening'
+        await prepare('collections')
+        const reserved = await reservedIds(services.client, operationSignal)
+        await prepare('visual')
         const result = await refreshRun({ run: current, store: this.store, config: current.settings, ...services, reserved, signal: taskSignal,
           onProgress: event => {
-            progress({ stage: 'visual', state: 'running', completed: event.reviewed, total: event.total, category: event.category })
-            const text = JSON.stringify(event)
+            progress({ ...event, stage: event.stage ?? 'visual', state: 'running', completed: event.reviewed })
+            // 已读取预览的 ID 只供认证页面展示，后台文本输出保留计数，避免重复传入模型。
+            const { previewPhotoIds, reviewedPhotos, ...counts } = event
+            const text = JSON.stringify(counts)
             stage = 'progress-update'; handle.updateProgress(text)
             stage = 'progress-output'; handle.append(text + '\n')
             stage = 'screening'
@@ -124,11 +141,12 @@ export class AfpService {
         const saved = await this.store.readRun(run.id)
         if (!['cancelled', 'failed'].includes(saved.status)) {
           saved.status = taskSignal.aborted ? 'cancelled' : 'failed'
+          saved.stage = stage
           await this.store.saveRun(saved)
         }
         throw error
-      }
-    }))
+      } finally { clearTimeout(setupTimer) }
+    }), run.id)
     return { ...scheduled, runId: run.id }
   }
   async collections(signal, progress = () => {}) {

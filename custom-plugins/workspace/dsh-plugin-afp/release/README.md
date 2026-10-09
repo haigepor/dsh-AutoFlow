@@ -30,6 +30,14 @@ These assets provide a versioned GitHub distribution channel. AFP declares its r
 
 A failed draft can be inspected and recovered before publication after checking its tag and uploaded bytes; do not silently overwrite assets or delete an unrelated Release. Correct a published defect with a new package version and tag. Preserve the previous tarball and users' feature choices, credentials and reports; a package downgrade cannot undo an irreversible data migration.
 
+## AFP 0.1.1
+
+Conversation feedback presents visual review as inline disclosures. Accepted and rejected photos have independent image lists with at most five visible thumbnails and horizontal scrolling; previews reuse the workbench dialog. Preview reads, completed pixel judgments and request failures are counted separately. Repeated identical reports consolidate their summary while retaining the tool inspector records. The redundant AFP composer capsule is no longer registered.
+
+Visual dry-runs persist preparation stages, report connection and collection progress, bound each preparation stage with the configured request timeout, and reject a duplicate resume of a busy run within one Host. The six DSH Skills create and maintain a task checklist before AFP work, reserve goals for genuinely large resource objectives requiring continuation, and preserve user-customized installed instructions. Final selection still requires a successful save; neither preview reads nor a screening report imply that final photos have been saved.
+
+The package retains existing configuration and stable update-source fields. Restart applies an installed update. Shared application changes to task icons, hover width, queue animation and the combined queue/goal header are source changes in AutoFlow; updating only this AFP tarball does not install those application components. Verification uses keyless recorded Sessions, simulated AFP/vision providers and isolated profiles; it does not establish production AFP or real-model visual accuracy.
+
 ## Dev Note
 
 None.

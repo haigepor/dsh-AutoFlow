@@ -1,3 +1,6 @@
+import { afpReportFeedback, feedbackStages, useAfpFeedbackProgress } from './afp-conversation-feedback.js'
+import { createReviewedPreviews, reviewedImageRows } from './afp-conversation-reviewed-images.js'
+
 const names = {
   afp_status: 'agentCheckStatus', afp_search_plan: 'agentPlanSearch', afp_collections: 'agentReadTargets',
   afp_collection_list: 'agentReadCollections', afp_collection_items: 'collectionPhotos', afp_report: 'agentReadReport',
@@ -63,29 +66,75 @@ export function useAfpResolvedResults(React, store, sessionId, turn, rows) {
 }
 
 /** Localized AFP atomic rows keep raw call material in the trajectory inspector. */
-export function createAfpToolRow(React, UI, t) {
+export function createAfpToolRow(React, UI, t, store) {
+  const { ReviewedPreviews, PreviewModal } = createReviewedPreviews(React, UI, t, store)
   return function AfpToolRow(props) {
     const value = props.phase === 'result' ? decoded(props.block) : null
     const error = props.block.isError ? value : null
+    const [open, setOpen] = React.useState(false)
+    const [zoomPhoto, setZoomPhoto] = React.useState(null)
+    const report = !error && props.toolName === 'afp_report' ? afpReportFeedback(value) : null
     const repeat = props.useChat ? props.useChat(snapshot => {
       const owner = afpTurnRows(snapshot, props.callId)
       let first, count = 0
       function visit(block) {
-        if (block.isError && block.call?.name === props.toolName && argumentKey(block.call?.argsRaw) === argumentKey(props.block.call?.argsRaw) && decoded(block)?.code === error?.code) { first ??= block.callId; count++ }
+        const same = block.call?.name === props.toolName && argumentKey(block.call?.argsRaw) === argumentKey(props.block.call?.argsRaw)
+        if (same && (error && block.isError && decoded(block)?.code === error.code
+          || report && !block.isError && block.kind === 'tool-result' && JSON.stringify(afpReportFeedback(decoded(block))) === JSON.stringify(report))) { first ??= block.callId; count++ }
         for (const child of block.subCalls ?? []) visit(child)
       }
       for (const row of owner?.rows ?? []) visit(row.root)
-      return { hidden: Boolean(error && first && first !== props.callId), count }
+      return { hidden: Boolean((error || report) && first && first !== props.callId), count, turn: owner?.turn.turn, status: owner?.turn.status }
     }) : null
+    const refresh = !error && props.toolName === 'afp_refresh' && value?.runId
+    const activity = useAfpFeedbackProgress(React, store, props, repeat, refresh)
     if (repeat?.hidden) return null
+    const format = (key, counts) => Object.entries(counts).reduce((text, [name, count]) => text.replace('{' + name + '}', String(count)), t(key))
+    const live = activity.live
+    const feedbackRunning = Boolean(refresh && live?.state === 'running' && !activity.disconnected)
+    const livePhase = t(activity.disconnected ? 'agentProgressDisconnected' : live ? feedbackStages[live.stage] ?? 'feedbackVision'
+      : repeat?.status === 'open' ? 'feedbackStarted' : 'feedbackLaunchRecord')
+    const pendingPreviews = refresh ? reviewedImageRows(live?.reviewedPhotos, live?.previewPhotoIds).filter(photo => photo.status === 'unknown').length : 0
+    const liveStageLine = [livePhase, pendingPreviews ? format('feedbackPhotosPending', { count: pendingPreviews }) : ''].filter(Boolean).join(' · ')
+    const liveCounts = live ? [
+      live.previewed !== undefined ? format('feedbackPreviewCount', { count: live.previewed }) : '',
+      live.pixelReviewed !== undefined ? format('feedbackJudgedCount', { count: live.pixelReviewed }) : '',
+      live.requestFailures ? format('feedbackRequestFailures', { count: live.requestFailures }) : '',
+    ].filter(Boolean).join(' · ') : ''
+    const savedStage = { connection: 'agentStageConnection', collections: 'feedbackCollectionStage', visual: 'feedbackVisualStage' }
+    const reportPhase = report ? [t('feedbackSavedStatus_' + report.status), savedStage[report.stage] && t(savedStage[report.stage])].filter(Boolean).join(' · ') : ''
+    const compactCounts = live?.previewed !== undefined && live.pixelReviewed !== undefined ? [
+      format('feedbackLiveInline', live),
+      live.requestFailures ? format('feedbackFailureInline', { count: live.requestFailures }) : '',
+    ].filter(Boolean).join(' · ') : liveCounts
+    const inlineSummary = report ? [
+      ['failed', 'cancelled', 'created', 'running'].includes(report.status) ? reportPhase : '', format('feedbackReportInline', report),
+    ].filter(Boolean).join(' · ') : refresh ? [compactCounts, open ? '' : liveStageLine].filter(Boolean).join(' · ') : ''
+    const summaryHint = report ? [inlineSummary, reportPhase, ...report.categories.map(row => t(row.category) + ' · ' + format('feedbackCategorySummary', row)), t('feedbackReportHelp')].join('\n') : [compactCounts, liveStageLine].filter(Boolean).join(' · ')
+    const previews = React.createElement(ReviewedPreviews, { open, liveIds: refresh ? live?.previewPhotoIds ?? [] : undefined,
+      livePhotos: refresh ? live?.reviewedPhotos ?? [] : undefined,
+      resultRef: report ? value?.resultRef : undefined, sessionId: props.sessionId, turn: repeat?.turn, callId: props.callId, onOpen: setZoomPhoto })
+    const feedback = report ? React.createElement('div', { className: 'afp-chat-feedback', 'data-afp-feedback': 'report' },
+      previews) : refresh ?
+      React.createElement('div', { className: 'afp-chat-feedback', 'data-afp-feedback': 'task' },
+        React.createElement('p', { className: 'afp-chat-feedback-status', role: 'status', 'aria-live': 'polite', 'data-failed': activity.disconnected || ['failed', 'stopped'].includes(live?.state) || undefined },
+          React.createElement(UI.TextShimmer, { active: open && feedbackRunning }, liveStageLine)),
+        previews,
+        !live || activity.disconnected || ['failed', 'stopped'].includes(live.state) ? React.createElement('p', { className: 'afp-chat-help' }, t(live?.state === 'failed' || live?.state === 'stopped' ? 'feedbackResumeHelp' : 'feedbackTaskHelp')) : null) : null
     const status = props.phase !== 'result' ? 'agentWorking' : error ? 'agentOperationFailed' : 'agentOperationDone'
-    return React.createElement('div', { className: 'afp-agent-tool-row', 'data-state': error ? 'failed' : props.phase === 'result' ? 'completed' : 'running' },
-      React.createElement(UI.DisclosureRow, { title: t(names[props.toolName] ?? 'agentOperation'), open: false, expandable: false,
-        icon: React.createElement(UI.ToolIcon, { size: 14 }), titleClassName: 'afp-agent-tool-title', contentLayoutClassName: 'afp-agent-tool-line',
-        running: props.phase !== 'result', collapsedContent: props.phase === 'result' && !error ? null : React.createElement('span', { role: error ? 'alert' : 'status' },
-          React.createElement(UI.Tag, { tone: error ? 'danger' : props.phase === 'result' ? 'neutral' : 'info' }, t(status)), repeat?.count > 1 ? ' · ' + repeat.count : '') }),
+    return React.createElement('div', { className: 'afp-agent-tool-row', 'data-state': error ? 'failed' : props.phase === 'result' ? 'completed' : 'running', 'data-feedback': feedback ? true : undefined },
+      React.createElement(UI.DisclosureRow, { title: t(feedback ? 'feedbackRowTitle' : names[props.toolName] ?? 'agentOperation') + (report?.categories.length === 1 ? ' · ' + t(report.categories[0].category) : refresh && live?.category ? ' · ' + t(live.category) : ''), open: Boolean(feedback && open), expandable: Boolean(feedback), expandOnRowClick: true, keepContentWhenOpen: Boolean(feedback),
+        onToggle: () => { setZoomPhoto(null); setOpen(previous => !previous) },
+        icon: feedback ? React.createElement('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, 'aria-hidden': true },
+          React.createElement('rect', { x: 6, y: 6, width: 15, height: 15, rx: 3 }), React.createElement('path', { d: 'M3 15V5a2 2 0 0 1 2-2h10M6 17l4-4 4 4 3-3 4 4M11 10h.01', strokeLinecap: 'round', strokeLinejoin: 'round' })) : React.createElement(UI.ToolIcon, { size: 14 }), titleClassName: 'afp-agent-tool-title', contentLayoutClassName: 'afp-agent-tool-line',
+        // 展开后仅阶段行显示流光，避免标题与正文同时闪动。
+        running: props.phase !== 'result' || feedbackRunning && !open,
+        collapsedContent: feedback ? React.createElement('span', { className: 'afp-agent-tool-summary', title: summaryHint, role: refresh ? 'status' : undefined },
+          React.createElement('span', { 'aria-hidden': true }, '·'), ' ', inlineSummary) : props.phase === 'result' && !error ? null : React.createElement('span', { role: error ? 'alert' : 'status' },
+          React.createElement(UI.Tag, { tone: error ? 'danger' : props.phase === 'result' ? 'neutral' : 'info' }, t(status)), repeat?.count > 1 ? ' · ' + repeat.count : '') }, feedback),
       error ? React.createElement('p', { className: 'afp-chat-help' }, t('agentError_' + error.code) === 'agentError_' + error.code ? t('agentFailureAdvice') : t('agentError_' + error.code)) : null,
-      props.inspect ? React.createElement(UI.Button, { variant: 'ghost', size: 'sm', className: 'afp-agent-inspect', onClick: props.inspect }, t('agentInspectRecord')) : null)
+      props.inspect ? React.createElement(UI.Button, { variant: 'ghost', size: 'sm', className: 'afp-agent-inspect', onClick: props.inspect }, t('agentInspectRecord')) : null,
+      React.createElement(PreviewModal, { photo: open ? zoomPhoto : null, onClose: () => setZoomPhoto(null) }))
   }
 }
 
@@ -201,7 +250,7 @@ export function createAfpProgressDock(React, UI, t, store) {
     if (!activeCalls) return null
     const labels = ['agentStageConnection', 'agentStageSearch', 'agentStageMerge', 'agentStageSelection', 'agentStageDelivery']
     const seconds = Math.max(0, Math.floor((((model.closed ? turn.end?.time : now) ?? now) - (turn.start?.time ?? live[0]?.startedAt ?? now)) / 1000))
-    const operation = t(disconnected && !model.closed ? 'agentProgressDisconnected' : model.operation ?? model.status)
+    const operation = t(disconnected && !model.closed ? 'agentProgressDisconnected' : model.active?.name === 'afp_refresh' ? feedbackStages[model.active.stage] ?? model.operation : model.operation ?? model.status)
     const statusTone = model.failed ? 'danger' : model.stopped || model.closed && !model.complete ? 'warning' : model.complete ? 'neutral' : 'info'
     const reconnecting = disconnected && !model.closed && !model.failed && !model.stopped
     const activity = reconnecting || model.failed || model.stopped ? 'paused' : model.waiting ? 'waiting' : 'running'
@@ -270,15 +319,13 @@ export function createAfpProgressDock(React, UI, t, store) {
   }
 }
 
-/** Register AFP progress above the input, without depending on completed-turn tails.
+/** Register inline AFP feedback; task planning uses the native todo dock.
  * @param {object} ctx Slot context.
- * @param {Function} Dock Live Session task capsule.
  * @param {Function} ToolRow Atomic tool row component.
  * @param {string} locale Locale namespace.
  * @returns {void} Contributions follow plugin disposal.
  */
-export function registerAfpProgress(ctx, Dock, ToolRow, locale) {
-  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({ name: 'conversation.input.dock', id: 'afp.progress', order: 10, locale }, Dock))
+export function registerAfpProgress(ctx, ToolRow, locale) {
   ctx.slots.inject('tool.call.toolview', function* () {
     for (const key of Object.keys(names).filter(key => !['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_result_page'].includes(key))) yield ctx.slots.register({ name: 'tool.call.toolview', key, locale }, ToolRow)
   })

@@ -186,8 +186,6 @@ describe('translucent menu surfaces pair fill and filter', () => {
   it('keeps backdrop filtering on background layers when descendants use fixed positioning', () => {
     const surfaces = [
       ['packages/client/ui-primitives/src/MenuSurface.module.css', '.surface', '.material'],
-      ['packages/client/ui-goal/src/client/GoalBar.module.css', '.bar', '.bar::before'],
-      ['packages/client/ui-conversation/src/client/queue/QueueDock.module.css', '.panel', '.panel::before'],
       ['packages/extensions/ui-cordis/src/client/CordisPanel.module.css', '.panel', '.panel::before'],
     ] as const
     const files = packageStylesheets()
@@ -201,6 +199,30 @@ describe('translucent menu surfaces pair fill and filter', () => {
       expect(declarations(background).get('backdrop-filter'), background)
         .toBe('var(--dsw-menu-backdrop-filter)')
     }
+  })
+
+  it('uses the hero workspace header surface for the goal strip', () => {
+    const files = packageStylesheets()
+    const read = (suffix: string, selector: string) => {
+      const file = files.find(candidate => candidate.endsWith(suffix))
+      expect(file, suffix).toBeDefined()
+      return declarationsIn(parseRules(readFileSync(file!, 'utf8')))(selector)
+    }
+    const context = read('packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', '.composerContext')
+    const goal = read('packages/client/ui-goal/src/client/GoalBar.module.css', '.bar')
+    const queue = read('packages/client/ui-conversation/src/client/queue/QueueDock.module.css', '.panel')
+    const hero = read('packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', '.heroWorkspaceRow')
+    for (const property of ['background', 'border-radius', 'max-width']) {
+      expect(context.get(property), property).toBe(hero.get(property))
+    }
+    expect(goal.get('padding')).toBe(hero.get('padding'))
+    expect(goal.get('min-height')).toBe(hero.get('min-height'))
+    expect(queue.get('background')).toBe('transparent')
+    expect(goal.get('background')).toBe('transparent')
+    expect(context.get('margin')).toContain('-10px - var(--dsh-composer-stack-gap)')
+    expect(context.has('backdrop-filter')).toBe(false)
+    expect(goal.has('box-shadow')).toBe(false)
+    expect(goal.has('backdrop-filter')).toBe(false)
   })
 })
 

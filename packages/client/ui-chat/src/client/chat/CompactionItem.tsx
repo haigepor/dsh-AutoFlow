@@ -7,6 +7,7 @@ import {
   IconChevronDownOutlineRegular,
   IconChevronRightOutlineRegular,
   MarkdownText,
+  AnimatedCollapse,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { markdownLabels } from '../markdown-labels.ts'
@@ -69,8 +70,10 @@ export const CompactionItem = memo(function CompactionItem({
         <span className={css.compactionSep} aria-hidden />
         <span className={css.compactionSummary}>{summary}</span>
       </button>
-      {open && node.summary !== null
-        && <div className={css.compactionBody}><MarkdownText text={node.summary} labels={labels} /></div>}
+      <AnimatedCollapse open={open}>
+        {node.summary !== null
+          && <div className={css.compactionBody}><MarkdownText text={node.summary} labels={labels} /></div>}
+      </AnimatedCollapse>
     </div>
   )
 })

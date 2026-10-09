@@ -8,10 +8,12 @@
     "afp_photo_search_start",
     "afp_photo_selection",
     "afp_plan_change",
+    "afp_refresh",
     "afp_report",
     "afp_result_page",
     "afp_search_plan",
-    "afp_status"
+    "afp_status",
+    "todo_write"
   ],
   "firstPageSchema": {
     "type": "object",
@@ -53,6 +55,10 @@
   },
   "calls": [
     {
+      "name": "todo_write",
+      "arguments": "{\"todos\":[{\"content\":\"制定检索计划\",\"status\":\"in_progress\"},{\"content\":\"读取图片与收藏夹元数据\",\"status\":\"pending\"},{\"content\":\"保存最终选图\",\"status\":\"pending\"}]}"
+    },
+    {
       "name": "afp_search_plan",
       "arguments": "{\"query\":\"food photography\"}"
     },
@@ -89,6 +95,14 @@
       "arguments": "{\"photoIds\":[\"not-searched\"],\"criteria\":\"Reject absent evidence\",\"basis\":\"metadata\",\"runId\":null}"
     },
     {
+      "name": "afp_report",
+      "arguments": "{\"kind\":\"run\",\"id\":\"4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f\"}"
+    },
+    {
+      "name": "afp_refresh",
+      "arguments": "{\"mode\":\"resume\",\"categories\":[],\"runId\":\"4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f\"}"
+    },
+    {
       "name": "afp_search_plan",
       "arguments": "{\"query\":\" \"}"
     },
@@ -103,6 +117,10 @@
     {
       "name": "afp_photo_search_start",
       "arguments": "{\"query\":\"fixture-unknown\",\"language\":\"en\",\"limit\":2}"
+    },
+    {
+      "name": "todo_write",
+      "arguments": "{\"todos\":[{\"content\":\"制定检索计划\",\"status\":\"completed\"},{\"content\":\"读取图片与收藏夹元数据\",\"status\":\"completed\"},{\"content\":\"保存最终选图\",\"status\":\"completed\"}]}"
     }
   ],
   "results": [
@@ -116,6 +134,25 @@
           "callId": "afp-fixture-call-1"
         },
         "toolCallId": "afp-fixture-call-1",
+        "content": [
+          {
+            "type": "text",
+            "text": "Updated todo list: 2 pending, 1 in progress, 0 completed."
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "turn": 1,
+      "step": 2,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-2"
+        },
+        "toolCallId": "afp-fixture-call-2",
         "content": [
           {
             "type": "text",
@@ -163,14 +200,14 @@
     },
     {
       "turn": 1,
-      "step": 2,
+      "step": 3,
       "message": {
         "role": "tool",
         "source": {
           "kind": "tool",
-          "callId": "afp-fixture-call-2"
+          "callId": "afp-fixture-call-3"
         },
-        "toolCallId": "afp-fixture-call-2",
+        "toolCallId": "afp-fixture-call-3",
         "content": [
           {
             "type": "text",
@@ -211,14 +248,14 @@
     },
     {
       "turn": 1,
-      "step": 3,
+      "step": 4,
       "message": {
         "role": "tool",
         "source": {
           "kind": "tool",
-          "callId": "afp-fixture-call-3"
+          "callId": "afp-fixture-call-4"
         },
-        "toolCallId": "afp-fixture-call-3",
+        "toolCallId": "afp-fixture-call-4",
         "content": [
           {
             "type": "text",
@@ -259,14 +296,14 @@
     },
     {
       "turn": 1,
-      "step": 4,
+      "step": 5,
       "message": {
         "role": "tool",
         "source": {
           "kind": "tool",
-          "callId": "afp-fixture-call-4"
+          "callId": "afp-fixture-call-5"
         },
-        "toolCallId": "afp-fixture-call-4",
+        "toolCallId": "afp-fixture-call-5",
         "content": [
           {
             "type": "text",
@@ -278,14 +315,14 @@
     },
     {
       "turn": 1,
-      "step": 5,
+      "step": 6,
       "message": {
         "role": "tool",
         "source": {
           "kind": "tool",
-          "callId": "afp-fixture-call-5"
+          "callId": "afp-fixture-call-6"
         },
-        "toolCallId": "afp-fixture-call-5",
+        "toolCallId": "afp-fixture-call-6",
         "content": [
           {
             "type": "text",
@@ -317,14 +354,14 @@
     },
     {
       "turn": 1,
-      "step": 6,
+      "step": 7,
       "message": {
         "role": "tool",
         "source": {
           "kind": "tool",
-          "callId": "afp-fixture-call-6"
+          "callId": "afp-fixture-call-7"
         },
-        "toolCallId": "afp-fixture-call-6",
+        "toolCallId": "afp-fixture-call-7",
         "content": [
           {
             "type": "text",
@@ -356,14 +393,14 @@
     },
     {
       "turn": 1,
-      "step": 7,
+      "step": 8,
       "message": {
         "role": "tool",
         "source": {
           "kind": "tool",
-          "callId": "afp-fixture-call-7"
+          "callId": "afp-fixture-call-8"
         },
-        "toolCallId": "afp-fixture-call-7",
+        "toolCallId": "afp-fixture-call-8",
         "content": [
           {
             "type": "text",
@@ -421,14 +458,14 @@
     },
     {
       "turn": 1,
-      "step": 8,
+      "step": 9,
       "message": {
         "role": "tool",
         "source": {
           "kind": "tool",
-          "callId": "afp-fixture-call-8"
+          "callId": "afp-fixture-call-9"
         },
-        "toolCallId": "afp-fixture-call-8",
+        "toolCallId": "afp-fixture-call-9",
         "content": [
           {
             "type": "text",
@@ -477,25 +514,6 @@
     },
     {
       "turn": 1,
-      "step": 9,
-      "message": {
-        "role": "tool",
-        "source": {
-          "kind": "tool",
-          "callId": "afp-fixture-call-9"
-        },
-        "toolCallId": "afp-fixture-call-9",
-        "content": [
-          {
-            "type": "text",
-            "text": "Error: {\"code\":\"selection-missing-photos\",\"stage\":\"validation\",\"message\":\"Selected IDs lack successful reads in this Turn.\",\"action\":\"Read these photos with afp_photo_details or choose IDs from successful local result pages before selecting again.\",\"retryable\":false}"
-          }
-        ],
-        "isError": true
-      }
-    },
-    {
-      "turn": 1,
       "step": 10,
       "message": {
         "role": "tool",
@@ -507,7 +525,7 @@
         "content": [
           {
             "type": "text",
-            "text": "Error: {\"code\":\"invalid-arguments\",\"stage\":\"validation\",\"message\":\"AFP arguments are invalid.\",\"action\":\"Check required fields, nonblank query, language, paging bounds and explicit report kind/id.\",\"retryable\":false}"
+            "text": "Error: {\"code\":\"selection-missing-photos\",\"stage\":\"validation\",\"message\":\"Selected IDs lack successful reads in this Turn.\",\"action\":\"Read these photos with afp_photo_details or choose IDs from successful local result pages before selecting again.\",\"retryable\":false}"
           }
         ],
         "isError": true
@@ -526,10 +544,57 @@
         "content": [
           {
             "type": "text",
-            "text": "Error: {\"code\":\"api-schema-rejected\",\"stage\":\"read\",\"message\":\"AFP rejected the requested API fields.\",\"action\":\"Check AFP API compatibility and request fields. Changing keywords alone does not resolve an API field error. Do not repeat unchanged input automatically.\",\"retryable\":false,\"upstream\":{\"protocol\":\"graphql\",\"httpStatus\":200,\"category\":\"schema\"}}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000006\",\"runId\":\"4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f\",\"status\":\"paused\",\"stage\":\"visual\",\"categories\":[{\"category\":\"animals\",\"selectionName\":\"AutoFlow_动物\",\"reviewed\":3,\"kept\":1,\"target\":100,\"batches\":1,\"exhausted\":false,\"requestFailures\":1,\"pixelReviewed\":2,\"rejected\":1,\"rejectionReasons\":[{\"code\":\"visual-rule\",\"count\":1}]}],\"pendingBatch\":false,\"items\":[{\"id\":\"one\",\"guid\":\"one\",\"title\":\"Photo one\",\"caption\":\"Cat\",\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=one\"}],\"meta\":{},\"offset\":0,\"totalItems\":1,\"nextOffset\":null}"
           }
         ],
-        "isError": true
+        "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "resultRef": "00000000-0000-4000-8000-000000000006",
+            "runId": "4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f",
+            "status": "paused",
+            "stage": "visual",
+            "categories": [
+              {
+                "category": "animals",
+                "selectionName": "AutoFlow_动物",
+                "reviewed": 3,
+                "kept": 1,
+                "target": 100,
+                "batches": 1,
+                "exhausted": false,
+                "requestFailures": 1,
+                "pixelReviewed": 2,
+                "rejected": 1,
+                "rejectionReasons": [
+                  {
+                    "code": "visual-rule",
+                    "count": 1
+                  }
+                ]
+              }
+            ],
+            "pendingBatch": false,
+            "items": [
+              {
+                "id": "one",
+                "guid": "one",
+                "title": "Photo one",
+                "caption": "Cat",
+                "provider": "AFP",
+                "previewPath": "api/afp/preview?photoId=one"
+              }
+            ],
+            "meta": {},
+            "offset": 0,
+            "totalItems": 1,
+            "nextOffset": null
+          }
+        }
       }
     },
     {
@@ -545,7 +610,7 @@
         "content": [
           {
             "type": "text",
-            "text": "Error: {\"code\":\"authentication-failed\",\"stage\":\"authentication\",\"message\":\"AFP rejected authentication.\",\"action\":\"Verify or refresh credentials in plugin settings.\",\"retryable\":false,\"upstream\":{\"protocol\":\"graphql\",\"httpStatus\":200,\"category\":\"authentication\"}}"
+            "text": "Error: {\"code\":\"refresh-busy\",\"stage\":\"availability\",\"message\":\"This AFP run already has an active task.\",\"action\":\"Wait for the original job to end, or stop it with job_kill and wait for termination, then resume the same runId. Never automatically retry or start another run.\",\"retryable\":true}"
           }
         ],
         "isError": true
@@ -564,12 +629,118 @@
         "content": [
           {
             "type": "text",
+            "text": "Error: {\"code\":\"invalid-arguments\",\"stage\":\"validation\",\"message\":\"AFP arguments are invalid.\",\"action\":\"Check required fields, nonblank query, language, paging bounds and explicit report kind/id.\",\"retryable\":false}"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "turn": 1,
+      "step": 14,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-14"
+        },
+        "toolCallId": "afp-fixture-call-14",
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: {\"code\":\"api-schema-rejected\",\"stage\":\"read\",\"message\":\"AFP rejected the requested API fields.\",\"action\":\"Check AFP API compatibility and request fields. Changing keywords alone does not resolve an API field error. Do not repeat unchanged input automatically.\",\"retryable\":false,\"upstream\":{\"protocol\":\"graphql\",\"httpStatus\":200,\"category\":\"schema\"}}"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "turn": 1,
+      "step": 15,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-15"
+        },
+        "toolCallId": "afp-fixture-call-15",
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: {\"code\":\"authentication-failed\",\"stage\":\"authentication\",\"message\":\"AFP rejected authentication.\",\"action\":\"Verify or refresh credentials in plugin settings.\",\"retryable\":false,\"upstream\":{\"protocol\":\"graphql\",\"httpStatus\":200,\"category\":\"authentication\"}}"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "turn": 1,
+      "step": 16,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-16"
+        },
+        "toolCallId": "afp-fixture-call-16",
+        "content": [
+          {
+            "type": "text",
             "text": "Error: {\"code\":\"upstream-error\",\"stage\":\"read\",\"message\":\"AFP returned an unclassified API error.\",\"action\":\"The cause is unconfirmed. Inspect the safe upstream category and API compatibility; do not automatically change keywords or repeat unchanged input.\",\"retryable\":false,\"upstream\":{\"protocol\":\"graphql\",\"httpStatus\":200,\"category\":\"unknown\"}}"
           }
         ],
         "isError": true
       }
+    },
+    {
+      "turn": 1,
+      "step": 17,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-17"
+        },
+        "toolCallId": "afp-fixture-call-17",
+        "content": [
+          {
+            "type": "text",
+            "text": "Updated todo list: 0 pending, 0 in progress, 3 completed."
+          }
+        ],
+        "isError": false
+      }
     }
+  ],
+  "todoWrites": [
+    [
+      {
+        "content": "制定检索计划",
+        "status": "in_progress"
+      },
+      {
+        "content": "读取图片与收藏夹元数据",
+        "status": "pending"
+      },
+      {
+        "content": "保存最终选图",
+        "status": "pending"
+      }
+    ],
+    [
+      {
+        "content": "制定检索计划",
+        "status": "completed"
+      },
+      {
+        "content": "读取图片与收藏夹元数据",
+        "status": "completed"
+      },
+      {
+        "content": "保存最终选图",
+        "status": "completed"
+      }
+    ]
   ],
   "disabledTools": [],
   "photoCards": [

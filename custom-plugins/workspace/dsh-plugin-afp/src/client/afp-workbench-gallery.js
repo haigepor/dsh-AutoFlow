@@ -155,9 +155,13 @@ export function createAfpGallery(React, UI, icons, t, store) {
       photo.confidence != null ? h('p', { className: 'afp-wb-subtle' }, `${t('modelConfidence')}: ${photo.confidence}`) : null,
       photo.requestFailed ? h(Tag, { tone: 'warning' }, t('requestFailed')) : photo.keep === true ? h(Tag, { tone: 'success' }, t('kept')) : photo.keep === false ? h(Tag, { tone: 'neutral' }, t('rejected')) : null,
       h(Button, { variant: selected(photo.id) ? 'outline' : 'primary', size: 'sm', onClick: () => selected(photo.id) ? store.removePhoto(photo.id) : store.selectPhoto(photo, sourceCollectionId) }, t(selected(photo.id) ? 'removeFromSelection' : 'selectPhoto')),
-      Modal ? h(Modal, { open: previewOpen, onClose: () => setPreviewOpen(false), title: photoDisplayTitle(photo, t('photoDetails')), closeLabel: t('close'),
-        className: 'afp-wb-preview-modal', contentClassName: 'afp-wb-preview-modal-content' },
-        previewOpen ? h(ImagePreview, { key: photo.id, photo, large: true, retry: true }) : null) : null)
+      h(PreviewModal, { photo: previewOpen ? photo : null, onClose: () => setPreviewOpen(false) }))
+  }
+
+  function PreviewModal({ photo, onClose }) {
+    return Modal ? h(Modal, { open: Boolean(photo), onClose, title: photo ? photoDisplayTitle(photo, t('photoDetails')) : t('photoDetails'), closeLabel: t('close'),
+      className: 'afp-wb-preview-modal', contentClassName: 'afp-wb-preview-modal-content' },
+      photo ? h(ImagePreview, { key: photo.id, photo, large: true, retry: true }) : null) : null
   }
   function selected(id) { return Boolean(store.getSnapshot().selectedPhotos[id]) }
 
@@ -177,5 +181,5 @@ export function createAfpGallery(React, UI, icons, t, store) {
       photos.length ? h(Button, { variant: 'ghost', size: 'sm', onClick: () => store.clearSelection() }, t('clearSelection')) : null)
   }
 
-  return { ImagePreview, PhotoGrid, PhotoSkeleton, DetailPane, SelectionPane }
+  return { ImagePreview, PreviewModal, PhotoGrid, PhotoSkeleton, DetailPane, SelectionPane }
 }

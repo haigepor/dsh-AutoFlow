@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { EVENT_API, queryServiceApi, SERVICE_API } from '../src/client/api-catalog.ts'
+import { CLIENT_SLOT_API } from '../src/client/slot-catalog.ts'
 
 describe('Client Cordis inspect catalog', () => {
   it('publishes the split Workspace Controller and UI navigation services', () => {
     expect(SERVICE_API.find(service => service.key === 'layout')?.methods.map(method => method.signature))
       .toEqual([
-        'selectPanel(panelId: MainPanelId | null): void',
+        'selectPanel(panelId: MainPanelId | null, options?: { fullWindow?: boolean }): void',
         'beginNavigation(): AbortSignal',
         'toggleSidebar(): void',
         'openRightbar(track: boolean, fullscreen: boolean): void',
@@ -38,6 +39,17 @@ describe('Client Cordis inspect catalog', () => {
   it('contains one entry per visible Client event', () => {
     const names = EVENT_API.map(event => event.name)
     expect(new Set(names).size).toBe(names.length)
+  })
+
+  it('publishes the shared session header with both queue and goal consumers', () => {
+    const header = CLIENT_SLOT_API.find(slot => slot.key === 'conversation.input.context')
+    expect(header).toMatchObject({ kind: 'list', scope: 'session', replaceRisk: 'none' })
+    expect(header?.occupants).toEqual([
+      "client-ui-conversation QueueDock id 'queue'",
+      "client-ui-goal GoalDock id 'goal'",
+    ])
+    expect(header?.ownerPropsReferences).toEqual(['InputState', 'SessionSnapshot'])
+    expect(header?.declaredBy).toContain("factory 'conversation.content'")
   })
 
   it('includes the current referenced type closure for the Sessions service', () => {

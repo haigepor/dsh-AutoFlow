@@ -89,10 +89,10 @@ export function apply(ctx: ClientContext): void {
     error: { code: 'no-current-goal', message: 'no current goal to mutate' },
   }
 
-  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
-    name: 'conversation.input.dock',
+  ctx.slots.inject('conversation.input.context', () => ctx.slots.register({
+    name: 'conversation.input.context',
     id: 'goal',
-    order: 10,
+    order: 100,
     locale: NS,
     inject: (sessionId): GoalBarInjected => {
       const binding = sessions.binding(sessionId)

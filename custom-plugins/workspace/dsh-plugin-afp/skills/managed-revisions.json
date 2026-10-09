@@ -1,20 +1,26 @@
 {
   "afp-core-news-search": [
-    "7a0789a387c3de94b6c303cd98d81931466a0b7c18b58a91b67a2e0e2dff3b23"
+    "7a0789a387c3de94b6c303cd98d81931466a0b7c18b58a91b67a2e0e2dff3b23",
+    "db05cba772c5b0a0849e0eead1a34ac64ba7a9cd7d90fb5949fed6dfd2442a14"
   ],
   "afp-core-search-collections": [
-    "95d72b68add4651ddf07e2964a3f4bdfba0f41d781e8c0f3724c5bb1bdaf4b6d"
+    "95d72b68add4651ddf07e2964a3f4bdfba0f41d781e8c0f3724c5bb1bdaf4b6d",
+    "5a78b25106d1caccfb509b02dc3b5d8a6be913079c29b5f9b54cf5f236d5c54e"
   ],
   "afp-core-visual-triage": [
-    "efbeca74cfc87e37c1a016e024f8e9c5c4143c9b291be288df0d55f3e3c85d0c"
+    "efbeca74cfc87e37c1a016e024f8e9c5c4143c9b291be288df0d55f3e3c85d0c",
+    "f22e1e2e860b26b685347b8a6e87e59224ddcbee6c2c2b9261e31fc4ecbe7ecb"
   ],
   "afp-curation-animals": [
-    "ea360f6e4eb84a0022dcdd1a4c1f3851dc1b316c84cda0ce40904104f5dd756d"
+    "ea360f6e4eb84a0022dcdd1a4c1f3851dc1b316c84cda0ce40904104f5dd756d",
+    "803f480371a10b1183407e4a160577171f2982018a446dfe2c13d510c50f455b"
   ],
   "afp-curation-landscape": [
-    "7d0eda8ebba0edd945ea94779d3241f0d87cf4c339d72b3d8a0d7f21b915ebf3"
+    "7d0eda8ebba0edd945ea94779d3241f0d87cf4c339d72b3d8a0d7f21b915ebf3",
+    "e7ae0365d11d40ff0ed8a2dec62594f8fab62b3056ff7723cdae391a5cb3aaad"
   ],
   "afp-curation-celestial-wallpaper": [
-    "6879549ae8c1b0d68f4d5da443aa59f858d350f939b1b7b8e8f6ac070e57fb05"
+    "6879549ae8c1b0d68f4d5da443aa59f858d350f939b1b7b8e8f6ac070e57fb05",
+    "9556d7bc6338c3f6649dbb45cdd2c95079e6c6901869e76b236713f21629228e"
   ]
 }

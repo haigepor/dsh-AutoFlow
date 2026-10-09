@@ -1,5 +1,5 @@
 import { renderPhotoResult, photoReadTools } from './afp-conversation-records.js'
-import { categories } from './afp-refresh-workflow.js'
+import { categories, reviewedPhotoResults } from './afp-refresh-workflow.js'
 import { agentError } from './afp-agent-errors.js'
 import { selectFinalPhotos } from './afp-photo-selection.js'
 const categorySchema = { type: 'array', minItems: 1, maxItems: 5, items: { type: 'string', enum: categories } }
@@ -130,18 +130,20 @@ export function registerAgentTools(ctx, service, feature) {
         if (args.offset > items.length) throw new Error('Invalid AFP arguments')
         return { items, offset: args.offset, pageLimit: args.limit, totalItems: items.length, meta: {} }
       })
-    tool('afp_report', 'Read one saved report. kind=run reads a visual run; kind=plan reads a write plan. Copy its real id from a successful tool; never invent a placeholder.',
+    tool('afp_report', 'Read one saved report. kind=run reads a visual run; kind=plan reads a write plan. Copy its real id from a successful tool; never invent a placeholder. Explain saved status and stage, pixelReviewed/kept/target counts and requestFailures to the user. Request failures are not visual rejections. A running connection or collections stage with zero reviewed photos is preparation, not proof of a stalled job. Do not repeatedly read an unchanged report; use bounded job_output waits. Final visual photos still require afp_photo_selection.',
       { kind: { type: 'string', enum: ['run', 'plan'] }, id: idSchema }, ['kind', 'id'], 'read', async args => {
         const report = await service.report(args.kind === 'run' ? { runId: args.id } : { planId: args.id })
         if (args.kind === 'plan') return report
         const run = await service.store.readRun(args.id), photos = new Map()
         for (const group of Object.values(run.groups)) for (const photo of group.candidates) photos.set(photo.id, photo)
-        return { ...report, items: run.decisions.filter(item => item.keep && photos.has(item.id)).map(item => photoMetadata(photos.get(item.id))), meta: {} }
+        return { ...report, items: run.decisions.filter(item => item.keep && photos.has(item.id)).map(item => photoMetadata(photos.get(item.id))),
+          reviewedPhotoIds: [...new Set(run.decisions.filter(item => item.reason !== 'preview or vision request failed' && photos.has(item.id)).map(item => item.id))],
+          reviewedPhotos: reviewedPhotoResults(run), meta: {} }
       })
     tool('afp_plan_change', 'Prepare an expiring Session-owned dry-run for append, replace or clear. Present exact targets and counts before afp_apply; never writes AFP.',
       { operation: { type: 'string', enum: ['append', 'replace', 'clear'] }, categories: categorySchema, runId: idSchema }, ['operation', 'categories'], 'read', (args, exec) => service.changes.plan(args, owner(exec), exec.signal))
   } else if (feature === 'refresh') {
-    tool('afp_refresh', 'Start or resume a background visual dry-run. For start, pass mode=start, chosen categories and runId=null. For resume, pass mode=resume, categories=[] and the real runId returned earlier. Never invent a runId. Never writes AFP. Use job_output and afp_report(kind=run,id=runId); stop with job_kill.',
+    tool('afp_refresh', 'Start or resume a background visual dry-run using configured category searches, not the previous free-text search photos. For start, pass mode=start, chosen categories and runId=null. For resume, pass mode=resume, categories=[] and the real runId returned earlier, only after its prior job ends. Never invent a runId or start concurrent resumes. Never writes AFP. A returned handle only acknowledges launch. Explain preparation and actual photo checks from job_output and afp_report(kind=run,id=runId); stop with job_kill. Do not restart merely because preparation has zero reviewed photos.',
       { mode: { type: 'string', enum: ['start', 'resume'] }, categories: { ...categorySchema, minItems: 0 }, runId: nullableIdSchema }, ['mode', 'categories', 'runId'], 'execute', (args, exec, progress) => {
         if (args.mode === 'start' ? args.runId !== null || !args.categories.length : !args.runId || args.categories.length) throw new Error('AFP refresh mode conflicts with arguments')
         return service.startRefresh(args.mode === 'start' ? { categories: args.categories } : { runId: args.runId }, owner(exec), exec.signal, progress)

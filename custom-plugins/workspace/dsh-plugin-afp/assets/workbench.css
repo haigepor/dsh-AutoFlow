@@ -878,7 +878,33 @@
 .afp-progress-dock { position: relative; align-self: center; width: min(calc(100% - 48px), calc(var(--dsh-composer-card-max-width, 800px) - 24px)); max-width: 340px; transition: max-width var(--ds-transition-duration-slow, .3s) var(--ds-ease-in-out, ease); margin-bottom: 8px; display: flex; justify-content: center; color: var(--dsw-alias-label-primary); font-size: var(--dsh-content-font-size-secondary, 13px); --afp-task-detail-size: max(12px, calc(var(--dsh-content-font-size-secondary, 13px) - 1px)); line-height: 1.5; }
 .afp-progress-dock .afp-progress-pill { width: 100%; max-width: 100%; height: 38px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 9px; padding: 6px 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 999px; background: var(--dsw-alias-bg-layer-1); box-shadow: none; font-size: inherit; transition: background var(--ds-transition-duration, .2s); }
 .afp-progress-dock[data-open="true"] { max-width: 520px; }
-.afp-progress-dock .afp-progress-pill:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.afp-progress-dock .afp-progress-pill, .afp-progress-dock .afp-progress-pill:hover { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.afp-progress-dock .afp-progress-pill:hover { background: var(--dsw-alias-interactive-bg-hover-solid); }
+.afp-chat-feedback { margin: 4px 0 8px 22px; color: var(--dsw-alias-label-secondary); font-size: var(--dsh-content-font-size-secondary, 13px); line-height: 1.6; }
+.afp-chat-feedback p { margin: 0 0 4px; }
+.afp-chat-feedback p:last-child { margin-bottom: 0; }
+.afp-chat-feedback-details { min-width: 0; margin-bottom: 6px; }
+.afp-chat-feedback-counts { font-variant-numeric: tabular-nums; }
+.afp-chat-feedback-counts strong { color: var(--dsw-alias-label-primary); font-weight: 500; }
+.afp-chat-feedback-status { color: var(--dsw-alias-label-secondary); }
+.afp-chat-feedback-status[data-failed], .afp-chat-feedback-notice { color: var(--dsw-alias-state-warn-primary); }
+.afp-chat-feedback-notice strong { font-weight: 500; }
+.afp-chat-feedback .afp-chat-help, .afp-chat-feedback-reasons { font-size: var(--dsh-content-font-size-secondary, 13px); color: var(--dsw-alias-label-tertiary); }
+.afp-chat-feedback-category-line { display: flex; flex-direction: column; gap: 2px; }
+.afp-chat-feedback-metrics { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.afp-chat-feedback-metrics > span { white-space: nowrap; }
+.afp-reviewed-disclosure { margin: 6px 0; }
+.afp-chat-feedback-rejection-details { margin: 4px 0 4px 22px; }
+/* 五张缩略图加四个间距限制可见宽度，完整结果仍可横向滚动。 */
+.afp-reviewed-previews { --afp-preview-size: 88px; --afp-preview-gap: 8px; display: flex; gap: var(--afp-preview-gap); max-width: calc(5 * var(--afp-preview-size) + 4 * var(--afp-preview-gap)); margin: 4px 0 6px 22px; padding-bottom: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scroll-snap-type: x proximity; }
+.afp-reviewed-thumbnail { flex: none; width: var(--afp-preview-size); height: var(--afp-preview-size); scroll-snap-align: start; }
+.afp-reviewed-thumbnail .afp-wb-preview-container, .afp-reviewed-thumbnail .afp-wb-image-button, .afp-reviewed-thumbnail .afp-wb-image-stage, .afp-reviewed-thumbnail .afp-wb-image-fallback { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; }
+.afp-reviewed-thumbnail .afp-wb-photo { object-fit: contain; }
+.afp-chat-feedback-categories { margin: 4px 0 0; padding: 0; list-style: none; }
+.afp-chat-feedback-categories li { display: flex; flex-direction: column; gap: 2px; padding: 2px 0; }
+.afp-chat-feedback-categories p { margin: 0; }
+.afp-chat-feedback-category { font-weight: 500; }
+.afp-chat-feedback-categories small { color: var(--dsw-alias-label-secondary); }
 .afp-progress-pill-name { flex: none; font-weight: 600; }
 .afp-progress-pill-operation { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; color: var(--dsw-alias-label-secondary); }
 .afp-progress-pill-time { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-tertiary); }
@@ -948,6 +974,9 @@
 .afp-agent-tool-row > :first-child { flex: 1; min-width: 0; }
 .afp-agent-tool-title { font-size: var(--dsh-content-font-size-secondary, 13px); }
 .afp-agent-tool-line { display: inline-flex; align-items: center; gap: 8px; }
+.afp-agent-tool-row[data-feedback] { align-items: flex-start; color: var(--dsw-alias-label-tertiary); }
+.afp-agent-tool-row[data-feedback] .afp-agent-tool-line { min-width: 0; max-width: 100%; }
+.afp-agent-tool-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .afp-agent-tool-row .afp-agent-inspect { font-size: 12px; }
 .afp-agent-tool-row > p { flex-basis: 100%; margin: 2px 0 8px 24px; }
 .afp-agent-tool-row[data-state="failed"] { color: var(--dsw-alias-state-error-primary, var(--dsw-alias-label-primary)); }

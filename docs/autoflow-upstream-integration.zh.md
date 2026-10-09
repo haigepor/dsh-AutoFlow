@@ -143,4 +143,6 @@
 
 ## 限制
 
+AFP 聊天反馈与折叠动效的独立设计见 [OpenSpec](../openspec/changes/afp-visual-review-feedback-motion/design.md)，当前行为由 [AFP 验证范围](../custom-plugins/workspace/dsh-plugin-afp/README.zh.md)和 [Chat 滚动所有权](../packages/client/ui-chat/README.zh.md#scroll-ownership)维护。合入官方代码时保留准备阶段状态、预览与像素判断分开计数、同一运行的重复续跑拒绝和工具呈现槽位；检查思考行没有立即固定高度、压缩正文没有直接卸载，并验证两侧过渡、快速反转及减少动态效果。保留 AFP 胶囊不注册、六个 DSH Skill 的任务清单优先及普通任务不创建目标规则；任务图标与目标栏样式分别由 [Tool 展示](../packages/client/ui-tool/README.zh.md)和 [Goal 界面](../packages/client/ui-goal/README.zh.md)维护，合入时同步保留 `conversation.input.context` 的声明、渲染与队列/目标注册，检查队列在上、目标在下、共享顶栏叠入输入框 10px、空槽不占高度，以及队列双向折叠、快速反转和独立滚动。槽位的 `display: contents` 包装仍在 DOM 中，不能靠跨包装的相邻元素选择器判断贴合。
+
 文件清单保留 `milestone/settings-ui-20260928` 提交前的路径和 Git 状态，用于定位当时的改动；完整代码分别由 `milestone/settings-ui-20260928` 与 `milestone/upstream-v0.2.0-rc.1` 标签保存。官方更新结论仅对应上面的核对时间和 `master` 分支，不代表后续状态或其他分支与标签。

@@ -3,16 +3,16 @@ import assert from 'node:assert/strict'
 import { afpProgressModel, registerAfpProgress } from '../src/client/afp-conversation-progress.js'
 import { registerAfpConversationPhotos } from '../src/client/afp-conversation-photos.js'
 
-test('AFP tool presenters register once when progress and gallery contributions load together', () => {
+test('AFP inline presenters register once without adding a capsule dock', () => {
   const keys = new Set()
   const ctx = { slots: {
     register(options) {
       if (options.key) { assert.equal(keys.has(options.key), false, options.key); keys.add(options.key) }
       return () => {}
     },
-    inject(_name, factory) { const result = factory(); if (result?.[Symbol.iterator]) for (const item of result) void item },
+    inject(name, factory) { assert.notEqual(name, 'conversation.input.dock'); const result = factory(); if (result?.[Symbol.iterator]) for (const item of result) void item },
   } }
-  registerAfpProgress(ctx, () => null, () => null, 'afp')
+  registerAfpProgress(ctx, () => null, 'afp')
   registerAfpConversationPhotos(ctx, () => null, 'afp')
   assert.ok(keys.has('afp_result_page'))
 })

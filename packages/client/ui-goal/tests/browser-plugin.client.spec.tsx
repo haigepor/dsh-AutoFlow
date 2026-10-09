@@ -2,7 +2,7 @@
 /**
  * ui-goal browser half on a real cordis Context with fake slots/api/
  * sessions faces: the plugin registers the GoalBar dock entry at
- * conversation.input.dock, the inject face's four verbs read the CAS ref
+ * conversation.input.context, the inject face's four verbs read the CAS ref
  * from the session's CURRENT projected value at call time (no fence — the
  * Remote method's compare-and-set is the guard), a missing projection short-circuits
  * to the no-current-goal error without touching the wire, and a Remote failure
@@ -136,7 +136,7 @@ async function bench(options: {
   await ctx.plugin(SlotRegistry).await()
   ctx.slots.register({
     name: 'root', children: {
-      'conversation.input.dock': { kind: 'list', scope: 'session' },
+      'conversation.input.context': { kind: 'list', scope: 'session' },
       'conversation.chat.node': { kind: 'keyed', scope: 'session' },
     },
   } as never, (() => null) as never)
@@ -153,7 +153,7 @@ async function bench(options: {
     remountGoals: () => { activeGoals = goals('remounted-goals') },
     unmountGoals: () => { activeGoals = undefined },
     entry: () => {
-      const entry = ctx.slots.entries('conversation.input.dock')[0]
+      const entry = ctx.slots.entries('conversation.input.context')[0]
       if (entry === undefined) return undefined
       return {
         ...entry.options,
@@ -228,7 +228,7 @@ describe('ui-goal browser plugin', () => {
   it('registers the GoalBar dock, command input Definition, and keyed Chat renderer', async () => {
     const b = await bench()
     await b.fiber.await()
-    expect(b.entry()).toMatchObject({ id: 'goal', order: 10, locale: 'goal' })
+    expect(b.entry()).toMatchObject({ id: 'goal', order: 100, locale: 'goal' })
     expect(b.entry()?.inject).toBeTypeOf('function')
     expect(() => b.entry()!.inject!(sid('missing'))).toThrow(/unavailable/)
     expect(b.definitions().map(definition => definition.kind)).toEqual(['goal-command-input'])

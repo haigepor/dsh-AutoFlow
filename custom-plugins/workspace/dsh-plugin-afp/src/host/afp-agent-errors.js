@@ -6,6 +6,7 @@ const descriptions = {
   'selection-visual-rejected': ['validation', 'Some selected photos did not pass the visual report.', 'Select only IDs kept by that run; use metadata basis only when reporting unverified metadata results.'],
   'selection-basis-conflict': ['validation', 'Selection basis and runId conflict.', 'Use basis=metadata and runId=null, or basis=visual and a real runId. Never use a placeholder id.'],
   'refresh-mode-conflict': ['validation', 'Refresh mode and arguments conflict.', 'Start: mode=start, categories and runId=null. Resume: mode=resume, categories=[] and a real runId.'],
+  'refresh-busy': ['availability', 'This AFP run already has an active task.', 'Wait for the original job to end, or stop it with job_kill and wait for termination, then resume the same runId. Never automatically retry or start another run.'],
   'selection-unverified': ['validation', 'AFP final selection lacks the required evidence.', 'Use IDs returned by successful AFP reads in this Turn. For visual acceptance, read afp_report in this Turn and select only IDs kept in that saved run.'],
   'invalid-arguments': ['validation', 'AFP arguments are invalid.', 'Check required fields, nonblank query, language, paging bounds and explicit report kind/id.'],
   'invalid-cursor': ['validation', 'AFP paging cursor is invalid.', 'For a new search call afp_photo_search_start without any cursor field; legacy first-page callers omit cursor. For later pages use only the cursor returned by the previous successful search with the same query and language. Do not repeat unchanged input automatically.'],
@@ -49,6 +50,7 @@ export function agentError(error, kind, durationMs) {
   else if (message === 'AFP selection is not visually accepted') code = 'selection-visual-rejected'
   else if (['AFP metadata selection requires null runId', 'AFP visual selection requires a runId'].includes(message)) code = 'selection-basis-conflict'
   else if (message === 'AFP refresh mode conflicts with arguments') code = 'refresh-mode-conflict'
+  else if (message === 'AFP refresh run is busy') code = 'refresh-busy'
   else if (['AFP selection lacks current turn evidence', 'AFP selection is not visually accepted'].includes(message)) code = 'selection-unverified'
   else if (['AFP cursor must come from a previous photo search', 'Invalid AFP cursor'].includes(message)) code = 'invalid-cursor'
   else if (message === 'AFP collection has no display name') code = 'collection-unavailable'
@@ -73,6 +75,8 @@ export function agentError(error, kind, durationMs) {
     else if ([408, 500, 502, 503, 504].includes(status)) code = 'upstream-unavailable'
   }
   const [stage, text, advice] = descriptions[code]
+  // 活跃任务结束后可用相同参数续跑，不能把临时忙碌永久缓存为本轮无效输入。
+  if (code === 'refresh-busy') return { code, stage, message: text, action: advice, retryable: true, durationMs }
   if (read && code === 'operation-failed') return { code, stage: 'read', message: 'AFP read failed.',
     action: 'Check read parameters, credentials and AFP availability. Do not repeat unchanged input automatically.', retryable: false, durationMs }
   return { code, stage, message: text, action: read ? advice : 'Inspect afp_report and current AFP state before creating a new plan; never automatically retry the operation.',

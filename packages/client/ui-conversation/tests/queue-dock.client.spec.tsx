@@ -346,6 +346,42 @@ describe('QueueDock', () => {
     expect(view.queryByText('one')).toBeNull()
   })
 
+  it('retains closing rows for the exit while removing them from keyboard and accessibility navigation', () => {
+    vi.useFakeTimers()
+    const computedStyle = window.getComputedStyle.bind(window)
+    const styles = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+      const style = computedStyle(element, pseudo)
+      style.transitionDuration = '0.3s'
+      style.transitionDelay = '0s'
+      return style
+    })
+    const snapshot = snapshotWith([row('i-1', 'first'), row('i-2', 'second')])
+    const source = liveSession(snapshot)
+    const view = render(<QueueDock {...kitFor(snapshot)} useSession={source.useSession} useProjection={source.useProjection} />)
+    try {
+      const header = view.getByRole('button', { name: '2 条排队消息' })
+      fireEvent.click(header)
+      fireEvent.click(header)
+      const body = document.getElementById(header.getAttribute('aria-controls')!)!
+      expect(body.getAttribute('aria-hidden')).toBe('true')
+      expect(body.hasAttribute('inert')).toBe(true)
+      expect(view.getByText('first')).toBeTruthy()
+      expect(view.getAllByRole('button')).toEqual([header])
+      act(() => { vi.advanceTimersByTime(150) })
+      fireEvent.click(header)
+      expect(body.hasAttribute('inert')).toBe(false)
+      act(() => { vi.advanceTimersByTime(300) })
+      expect(view.getByText('first')).toBeTruthy()
+      fireEvent.click(header)
+      act(() => { vi.advanceTimersByTime(300) })
+      expect(view.queryByText('first')).toBeNull()
+    } finally {
+      view.unmount()
+      styles.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps an active single-row editor visible when another item arrives', () => {
     const single = snapshotWith([row('i-edit', 'before')])
     const source = liveSession(single)
@@ -754,15 +790,15 @@ describe('QueueDock', () => {
     expect(container.innerHTML).toBe('')
   })
 
-  it('registers as the terminal composer-context entry', () => {
+  it('registers above the goal in the shared composer context', () => {
     expect(queueDockEntry.name).toBe('conversation-queue-dock')
     expect(queueDockEntry.inject).toEqual(['slots', 'conversation', 'sessions', 'uiConversation'])
     const register = vi.fn(() => () => undefined)
     const inject = vi.fn((_name: string, callback: () => () => void) => callback())
     queueDockEntry.apply({ slots: { inject, register } } as never)
-    expect(inject).toHaveBeenCalledWith('conversation.input.dock', expect.any(Function))
+    expect(inject).toHaveBeenCalledWith('conversation.input.context', expect.any(Function))
     expect(register).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'conversation.input.dock', id: 'queue', order: 20 }),
+      expect.objectContaining({ name: 'conversation.input.context', id: 'queue', order: 0 }),
       QueueDock,
     )
   })

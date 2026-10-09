@@ -37,14 +37,46 @@ export function manifests(run, config) {
 
 /** Model-visible summary excludes raw media references, document ids and provider errors. */
 export function summary(run) {
-  return { runId: run.id, status: run.status, categories: run.categories.map(category => ({
+  return { runId: run.id, status: run.status, stage: run.stage ?? (run.status === 'running' ? 'visual' : run.status), categories: run.categories.map(category => ({
     category, selectionName: CATEGORY_PROFILES.find(profile => profile.key === category).selectionName,
     reviewed: run.decisions.filter(item => item.category === category).length,
     kept: run.decisions.filter(item => item.category === category && item.keep).length,
     target: run.settings.targetPerCategory, batches: run.groups[category]?.batches ?? 0,
     exhausted: run.groups[category]?.exhausted ?? false,
     requestFailures: run.decisions.filter(item => item.category === category && item.reason === 'preview or vision request failed').length,
+    ...screeningCounts(run.decisions.filter(item => item.category === category)),
   })), pendingBatch: run.pending !== null }
+}
+
+/** Fixed counts exclude request failures; arbitrary provider reasons never enter summaries. */
+function screeningCounts(decisions) {
+  const judged = decisions.filter(item => item.reason !== 'preview or vision request failed')
+  const reasons = new Map()
+  for (const item of judged.filter(item => !item.keep)) {
+    const code = rejectionCode(item)
+    reasons.set(code, (reasons.get(code) ?? 0) + 1)
+  }
+  return { pixelReviewed: judged.length, rejected: judged.filter(item => !item.keep).length,
+    rejectionReasons: [...reasons].map(([code, count]) => ({ code, count })) }
+}
+
+function rejectionCode(item) {
+  return /duplicate|limit|target reached/.test(item.reason ?? '') ? 'duplicate-or-limit'
+    : item.predictedCategory !== undefined && item.predictedCategory !== item.category ? 'category'
+      : item.confidence < item.appliedThreshold ? 'confidence' : 'visual-rule'
+}
+
+/** Project saved per-image outcomes for the authenticated UI, without provider reasons or media URLs.
+ * @param {object} run Persisted run and its candidate metadata.
+ * @returns {Array<object>} Known candidate identities with screening outcomes.
+ */
+export function reviewedPhotoResults(run) {
+  const photos = new Map(Object.values(run.groups).flatMap(group => group.candidates.map(photo => [photo.id, photo])))
+  return run.decisions.filter(item => photos.has(item.id)).map(item => {
+    const photo = photos.get(item.id), requestFailed = item.reason === 'preview or vision request failed'
+    return { id: item.id, title: typeof photo.title === 'string' ? photo.title : item.id, category: item.category,
+      keep: item.keep, requestFailed, reasonCode: !requestFailed && !item.keep ? rejectionCode(item) : null }
+  })
 }
 
 /**
@@ -84,10 +116,17 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
           break
         }
         const candidateManifest = createCandidateManifest([{ profile, candidates: pending.candidates }])
-        onProgress({ category: profile.key, reviewed: run.decisions.length, total: run.decisions.length + pending.candidates.length })
+        const settled = screeningCounts(run.decisions), failures = run.decisions.length - settled.pixelReviewed
+        const base = { category: profile.key, total: run.decisions.length + pending.candidates.length,
+          kept: run.decisions.filter(item => item.category === profile.key && item.keep).length, target: config.targetPerCategory }
+        onProgress({ ...base, stage: 'preview', reviewed: run.decisions.length, pixelReviewed: settled.pixelReviewed, requestFailures: failures })
+        let previewed
         const decisions = await (primitives.triage ?? triageCandidates)({ candidateManifest, previewClient, visionClient,
           threshold: config.threshold, concurrency: config.concurrency,
-          onProgress: event => onProgress({ category: profile.key, reviewed: run.decisions.length + event.completed, total: run.decisions.length + event.total }) })
+          onStage: event => { previewed = event.previewed; onProgress({ ...base, ...event, reviewed: run.decisions.length + event.completed,
+            pixelReviewed: settled.pixelReviewed + event.pixelReviewed, requestFailures: failures + event.requestFailures }) },
+          onProgress: event => { previewed = event.previewed; onProgress({ ...base, ...event, stage: 'visual', reviewed: run.decisions.length + event.completed,
+            pixelReviewed: settled.pixelReviewed + (event.pixelReviewed ?? event.completed), requestFailures: failures + (event.requestFailures ?? 0) }) } })
         signal.throwIfAborted()
         let kept = run.decisions.filter(item => item.category === profile.key && item.keep).length
         for (const decision of decisions) {
@@ -106,7 +145,9 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
         group.exhausted = pending.exhausted
         run.pending = null
         await store.saveRun(run)
-        onProgress({ category: profile.key, kept, target: config.targetPerCategory, batch: group.batches, reviewed: run.decisions.length, total: run.decisions.length })
+        const saved = screeningCounts(run.decisions)
+        onProgress({ category: profile.key, kept, target: config.targetPerCategory, batch: group.batches, reviewed: run.decisions.length, total: run.decisions.length,
+          pixelReviewed: saved.pixelReviewed, requestFailures: run.decisions.length - saved.pixelReviewed, reviewedPhotos: reviewedPhotoResults(run), ...(previewed !== undefined ? { previewed } : {}) })
       }
     }
     run.status = run.categories.every(category => run.decisions.filter(item => item.category === category && item.keep).length >= config.targetPerCategory) ? 'ready' : 'paused'

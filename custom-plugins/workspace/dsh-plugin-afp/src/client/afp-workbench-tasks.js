@@ -1,3 +1,5 @@
+import { feedbackStages } from './afp-conversation-feedback.js'
+
 /** Local task controls and protected remote-write previews for the AFP profile.
  * @param {object} React React client runtime.
  * @param {object} UI Existing DSH primitives.
@@ -69,7 +71,11 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
         try { progress = task.progress ? JSON.parse(task.progress) : null } catch (error) { /* 隐藏不符合已知进度字段的内容，不显示原始输出。 */ }
         return h('article', { className: 'afp-wb-live-row', key: task.taskId },
           h('div', null, h('p', { className: 'afp-wb-history-title' }, t(task.feature === 'write' ? 'writeTask' : 'refreshTask')),
-            progress && typeof progress.category === 'string' ? h('p', { className: 'afp-wb-subtle' }, `${t(progress.category)} · ${t('keptCount')} ${progress.kept}/${progress.target} · ${t('batch')} ${progress.batch}`) : null),
+            progress?.stage && feedbackStages[progress.stage] ? h('p', { className: 'afp-wb-subtle' }, t(feedbackStages[progress.stage])) : null,
+            progress && typeof progress.category === 'string' ? h('p', { className: 'afp-wb-subtle' }, `${t(progress.category)} · ${t('keptCount')} ${progress.kept}/${progress.target}`) : null,
+            progress?.previewed !== undefined ? h('p', { className: 'afp-wb-subtle' }, t('feedbackPreviewCount').replace('{count}', String(progress.previewed))) : null,
+            progress?.pixelReviewed !== undefined ? h('p', { className: 'afp-wb-subtle' }, t('feedbackJudgedCount').replace('{count}', String(progress.pixelReviewed))) : null,
+            progress?.requestFailures ? h('p', { className: 'afp-wb-subtle' }, t('feedbackRequestFailures').replace('{count}', String(progress.requestFailures))) : null),
           h(Button, { variant: 'ghost', size: 'sm', disabled: state.busy, onClick: () => { void store.invoke('cancel', { taskId: task.taskId }) } }, t('cancel')))
       })) : null,
       downloads.length ? h('div', { className: 'afp-wb-download-tasks' }, h('h4', null, t('downloadTasks')), ...downloadRows) : null,
@@ -129,7 +135,7 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
       h('div', { className: 'afp-wb-section-heading' }, h('h3', null, t('runReport')),
         h(Button, { variant: 'ghost', size: 'sm', onClick: () => store.set({ runId: '', regions: { ...state.regions, run: { data: null, loading: false, error: '' } } }) }, t('closeReport'))),
       runSummary ? h('div', { className: 'afp-wb-report-summary' }, ...runSummary.categories.map(row => h('p', { key: row.category },
-        `${t(row.category)} · ${t('reviewedCount')} ${row.reviewed} · ${t('keptCount')} ${row.kept}/${row.target} · ${t('requestFailures')}: ${row.requestFailures}`))) : null,
+        `${t(row.category)} · ${t('reviewedCount')} ${row.pixelReviewed ?? Math.max(0, row.reviewed - (row.requestFailures ?? 0))} · ${t('keptCount')} ${row.kept}/${row.target} · ${t('requestFailures')}: ${row.requestFailures}`))) : null,
       h('div', { className: 'afp-wb-toolbar' },
         h('div', { className: 'afp-wb-field' }, h('span', null, t('categoryFilter')),
           h(Selector, { value: state.reportCategory, label: t('categoryFilter'),

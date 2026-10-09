@@ -74,6 +74,10 @@ Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染
 
 宽度拖拽条的指示线只在已捕获指针的拖拽期间跟随指针，普通悬停不改变其位置。
 
+任务清单栏收起时居中，最大宽度为 380px。支持悬浮的指针移入或键盘聚焦时扩展到原有 dock 宽度，清单展开后保持该宽度。宽度变化使用主题的慢速过渡，始终受输入区可用宽度限制，减少动态效果时立即切换。
+
+`conversation.input.dock` 保留独立任务清单及插件条目。`conversation.input.context` 提供输入框上方的共享实色顶栏：QueueDock 的 order 为 0，GoalBar 为 100，目标始终在队列下方。容器复用首页工作区栏的内缩宽度、顶部圆角与背景，抵消 active composer 的堆栈间距并叠入卡片上沿 10px；空槽不占高度。队列正文限高 180px 并独立滚动，目标位于滚动区之外。展开和收起复用 `AnimatedCollapse` 的高度、透明度及箭头过渡，收起立即设置 `inert` 和 `aria-hidden`，退出完成后卸载正文；快速反转保留内容，减少动态效果时取消过渡。
+
 常驻 composer 在无 Session 与有 Session 之间保持挂载。输入空白字符会隐藏占位提示；没有附件的纯空白草稿无法发送。无 Session 时，同一个编辑器表面保持 inert，Workspace picker 连接 blank Session。该表面是 shell 所有的 Lexical 编辑器：引用 chip 是携带 owner 序列化身份的原子 decorator 节点（提交时经 owner codec 展开），已认领的 slash command 保持为带样式的行首文本，文件夹文本引用以图标前缀携带文件夹图形，草稿的剪贴板投影镜像到逐 Session Conversation store。QueueDock 从 Session 的 `inbox` 投影读取 `next-turn`，包含从冷状态恢复的消息，仅排除仍由本地 transcript 提交承接的 requestId。其他排队行保留正常展示和操作。Queue 操作通过 scoped `ctx.conversation` service 寻址准确的 queue occurrence；queue 预览经 `ui-primitives` 的共享行内引用投影渲染已发送文本（wire 会话形式折叠为其标签），并按原始附件顺序展示本地或持久化的图片和文件。图片使用缩略图，文件使用紧凑的名称与大小卡片。编辑态在可随内容增高的 textarea 中展示字面发送文本，因此重新编辑不会丢失换行；Enter 保存，Shift+Enter 换行，Escape 取消。持久化缩略图通过会话图片 URL 缓存解析。繁忙时 Enter 行为保存在 Host-backed `ui-conversation` settings namespace。 composer 键盘映射经斜杠流水线裁决触发菜单的按键——Tab 确认高亮补全项（可下钻项则下钻），Escape 与 Shift+Tab 离开菜单且不选定——其余按键交给编辑器自身。 接管键盘的浮层通过 `SessionInput.focus()` 把键盘还回来，该路径走 Lexical 自己的 focus，因此光标回到草稿原来的位置而不是开头。
 
 插件引用使用统一的线性插件符号和蓝色文字，无背景、无边框，字重为 500。字号、行高与基线跟随输入正文，图标缩放为一倍字号。清单图标仍用于候选菜单和插件详情。引用节点保留缓存图标和序列化数据；提交仍只使用来源 codec 生成的文字。

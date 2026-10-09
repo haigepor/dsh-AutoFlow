@@ -195,6 +195,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.hero.suggestions': { kind: 'single'; scope: 'root'; owner: HeroSuggestionsOwnerProps }
     /** Full-width entries above the composer card. */
     'conversation.input.dock': { kind: 'list'; scope: 'session'; owner: InputZone }
+    /** Shared header above the composer; queued messages precede the terminal goal entry. */
+    'conversation.input.context': { kind: 'list'; scope: 'session'; owner: InputZone }
     /** Floating entries rendered inside the resident composer card. */
     'conversation.input.overlay': { kind: 'list'; scope: 'session' }
     /** Ambient entries below the composer card. */
@@ -235,6 +237,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         'conversation.composer': { kind: 'chain'; scope: 'session' }
         'conversation.composer.bar': { kind: 'single'; scope: 'session-maybe' }
         'conversation.input.dock': { kind: 'list'; scope: 'session' }
+        'conversation.input.context': { kind: 'list'; scope: 'session' }
         'conversation.hero.brand.mark': { kind: 'single'; scope: 'root' }
         'conversation.hero.workspace': { kind: 'single'; scope: 'root' }
         'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe' }

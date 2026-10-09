@@ -140,6 +140,41 @@ describe('TodoRow', () => {
     expect(screen.queryByText('输入')).toBeNull()
   })
 
+  it('initial recorded tasks show their lifecycle icons instead of addition plus signs', () => {
+    const props = { ...rowProps(resultNode(ARGS)), useTodoHistory: () => ({ todos: undefined }), useSession: () => false } as TodoRowProps
+    const { container } = render(<TodoRow {...props} />)
+    fireEvent.click(screen.getByRole('button', { expanded: false }))
+    const rows = [...container.querySelectorAll('li[data-change="added"]')]
+    expect(rows).toHaveLength(3)
+    expect(rows.map((row) => {
+      const glyph = row.querySelector('[role="img"]')
+      expect(glyph?.querySelector('svg')).not.toBeNull()
+      expect(glyph?.textContent).toBe('')
+      return { task: row.textContent, status: glyph?.getAttribute('aria-label'), change: glyph?.getAttribute('title'), icon: glyph?.querySelector('svg')?.getAttribute('data-task-state') }
+    })).toMatchInlineSnapshot(`
+      [
+        {
+          "change": "新增",
+          "icon": "completed",
+          "status": "已完成",
+          "task": "搭骨架已完成",
+        },
+        {
+          "change": "新增",
+          "icon": "in_progress",
+          "status": "进行中",
+          "task": "写组件进行中",
+        },
+        {
+          "change": "新增",
+          "icon": "pending",
+          "status": "待处理",
+          "task": "补测试待处理",
+        },
+      ]
+    `)
+  })
+
   it.each([
     { label: 'null root', argsRaw: 'null' },
     { label: 'non-object root', argsRaw: '42' },

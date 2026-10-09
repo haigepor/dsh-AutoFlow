@@ -501,6 +501,7 @@ export async function triageCandidates({
   threshold = 0.8,
   concurrency = 2,
   onProgress = () => {},
+  onStage = () => {},
   excludedIds = new Set(),
   excludedTitleKeys = new Set(),
 } = {}) {
@@ -512,9 +513,16 @@ export async function triageCandidates({
     category: group.category,
   })));
   let completed = 0;
+  let previewed = 0, pixelReviewed = 0, requestFailures = 0;
+  const previewPhotoIds = [];
+  const stage = value => onStage({ stage: value, completed, total: tasks.length, previewed, pixelReviewed, requestFailures, previewPhotoIds: [...previewPhotoIds] });
   return mapWithConcurrency(tasks, concurrency, async ({ candidate, category }) => {
     try {
+      stage('preview');
       const preview = await previewClient.getPreviewBytes(candidate.id);
+      previewed++;
+      previewPhotoIds.push(candidate.id);
+      stage('vision');
       const raw = await visionClient.classify({
         prompt: buildVisionPrompt(category),
         bytes: preview.bytes,
@@ -530,6 +538,7 @@ export async function triageCandidates({
           ? validateLandscapeWallpaperComposition(normalized)
           : { keep: true, reason: null };
       if (category === 'landscape' && normalized.keep && composition.keep) {
+        stage('confirmation');
         const confirmationRaw = await visionClient.classify({
           prompt: buildVisionPrompt(category, { confirmation: true }),
           bytes: preview.bytes,
@@ -539,6 +548,7 @@ export async function triageCandidates({
         composition = validateLandscapeWallpaperComposition(normalized);
       }
       const keep = normalized.keep && composition.keep;
+      pixelReviewed++;
       const sourceFields = candidate.sourceMetadata ? {
         sourceId: candidate.sourceMetadata.sourceId,
         sourceType: candidate.sourceMetadata.sourceType,
@@ -621,7 +631,9 @@ export async function triageCandidates({
         originalIndex: candidate.originalIndex,
         appliedThreshold,
       };
-    } catch {
+    } catch (error) {
+      // 请求或响应解析失败不算完成视觉判断，不能与规则淘汰混为一谈。
+      requestFailures++;
       return {
         id: candidate.id,
         guid: candidate.guid,
@@ -644,7 +656,7 @@ export async function triageCandidates({
       };
     } finally {
       // 每个图片任务只计一次；风景二次视觉确认不能重复增加进度。
-      onProgress({ completed: ++completed, total: tasks.length });
+      onProgress({ completed: ++completed, total: tasks.length, previewed, pixelReviewed, requestFailures });
     }
   });
 }

@@ -5,6 +5,14 @@ description: Search actual AFP news photos and inspect metadata through DSH read
 
 # News photo search
 
+## DSH task tracking
+
+Before the first AFP operation, call the available native todo_write tool with a concise task list in the user's language. Adapt these steps to the request: check AFP setup; search and inspect news; summarize verified results. Start one actionable item as in_progress and the rest as pending; preserve unrelated unfinished items when writing the full list. On resumption, update the existing AFP items instead of creating duplicate tasks. Explanatory questions without AFP execution need no new list. If todo_write is unavailable, report that task tracking is unavailable and continue authorized AFP work without inventing another tool.
+
+Update the list when a real step finishes, needs retry, or the scope changes. A returned job handle does not complete visual screening: collect job_output and read afp_report first. Complete final selection only after afp_photo_selection succeeds. Failed, interrupted, or incomplete work remains unfinished; summarize the blocker instead of marking every item completed.
+
+Use the checklist without create_goal for ordinary one-turn work, including selecting 10 photos. Consider a persistent goal only when the user requests a genuinely large resource target that requires sustained work across multiple continuation rounds, and the runtime exposes goal tools. Collection capacity, candidate count, a slow call, or a retry alone never creates a goal. Follow the current goal tool's authority and limits; read get_goal before creating one, preserve an existing goal, and do not clear or replace it automatically.
+
 ## DSH workflow
 
 1. Call afp_status to check configured credential references. Never print credentials, signed URLs or image bytes.

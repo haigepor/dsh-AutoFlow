@@ -1,6 +1,6 @@
 /** Compact, read-only fields and lists for recorded Tool results. */
 import {
-  CodeBlock, MarkdownText, IconCheckOutlineRegular, IconChevronRightOutlineRegular, IconPlayOutlineRegular,
+  CodeBlock, MarkdownText, IconChevronRightOutlineRegular, TaskStatusIcon,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OpenFileOptions } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -47,12 +47,9 @@ function DetailItem({ item, t, onOpenFile }: { item: ToolDetailItem } & DetailCo
       {item.title !== undefined && (
         <div className={css.heading}>
           {status !== undefined && (
-            <span className={css.status} role="img" aria-label={item.change?.label ?? status.label}>
-              {item.change?.value === 'added' ? '+'
-                : item.change?.value === 'removed' ? '−'
-                  : status.value === 'completed' ? <IconCheckOutlineRegular size={14} />
-                    : status.value === 'in_progress' ? <IconPlayOutlineRegular size={14} />
-                      : <span className={css.pending} />}
+            <span className={css.status} data-status={status.value} role="img" aria-label={item.change?.value === 'removed' ? item.change.label : status.label} title={item.change?.label}>
+              {item.change?.value === 'removed' ? '−'
+                : <TaskStatusIcon state={status.value} />}
             </span>
           )}
           {item.location !== undefined && onOpenFile !== undefined ? (

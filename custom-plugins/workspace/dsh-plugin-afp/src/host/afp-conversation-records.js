@@ -83,9 +83,10 @@ export class ConversationRecords {
  * @returns {Array} Model-facing text blocks.
  */
 export function renderPhotoResult(value, maxBytes) {
-  const result = JSON.parse(value)
+  // 查看明细保存在原调用的完整记录中；模型摘要不携带仅供图片列表使用的身份和逐图结果。
+  const { reviewedPhotoIds, reviewedPhotos, ...result } = JSON.parse(value)
   const compact = photo => ({ id: photo.id, title: (photo.title ?? '').slice(0, 160), caption: (photo.caption ?? '').slice(0, 400), provider: photo.provider, previewPath: 'api/afp/preview?photoId=' + encodeURIComponent(photo.id) })
-  if (!result.resultRef) return [{ type: 'text', text: value }]
+  if (!result.resultRef) return [{ type: 'text', text: JSON.stringify(result) }]
   if (!Array.isArray(result.items)) {
     const output = Buffer.byteLength(value) > maxBytes && result.photo ? { ...result, photo: compact(result.photo) } : result
     const text = JSON.stringify(output)

@@ -548,6 +548,27 @@ button.crumb:hover {
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, var(--dsw-alias-bg-base));
 }
 
+/* One attached surface survives the renderer's display:contents slot anchor. */
+.composerContext {
+  box-sizing: border-box;
+  flex: none;
+  align-self: center;
+  min-width: 0;
+  width: calc(100% - 2 * var(--dsh-composer-side-clearance) - 3 * var(--dsh-composer-dock-inset));
+  max-width: calc(var(--dsh-composer-card-max-width) - 24px);
+  margin: 0 auto calc(-10px - var(--dsh-composer-stack-gap));
+  border-radius: calc(var(--dsw-radius-lg) + 2px) calc(var(--dsw-radius-lg) + 2px) 0 0;
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, var(--dsw-alias-bg-base));
+}
+
+.composerContext:empty,
+.composerContext:has(> [data-slot='conversation.input.context']:empty) { display: none; }
+.composerHero .composerContext { margin-bottom: -10px; }
+.composerContext [data-queue-dock] + [data-goal-bar] {
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+}
+.composerContext [data-queue-dock]:last-child { padding-bottom: 10px; }
+
 /* Hero: the composer sits inside the session scroll body; center there so
    the tree seat matches active (sticky footer) without a Root remount. */
 .root[data-phase='hero'] .scrollBody,

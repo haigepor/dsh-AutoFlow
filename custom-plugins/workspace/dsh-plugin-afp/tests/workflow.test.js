@@ -49,11 +49,18 @@ test('a cancelled visual batch remains pending and resumes without fetching agai
   await assert.rejects(refreshRun({ run, store, config, client: {}, signal: controller.signal, primitives }))
   const saved = await store.readRun(run.id)
   assert.equal(saved.pending.candidates.length, 1)
-  primitives.triage = async () => [{ id: 'doc-1', category: 'food', keep: true, confidence: 0.99, appliedThreshold: 0.85 }]
-  const complete = await refreshRun({ run: saved, store, config, client: {}, signal: new AbortController().signal, primitives })
+  primitives.triage = async ({ onProgress }) => {
+    onProgress({ completed: 1, total: 1, previewed: 1, pixelReviewed: 1, requestFailures: 0 })
+    return [{ id: 'doc-1', category: 'food', keep: true, confidence: 0.99, appliedThreshold: 0.85 }]
+  }
+  const progress = []
+  const complete = await refreshRun({ run: saved, store, config, client: {}, signal: new AbortController().signal, primitives, onProgress: event => progress.push(event) })
   assert.equal(fetches, 1)
   assert.equal(summary(complete).categories[0].kept, 1)
   assert.equal(complete.pending, null)
+  assert.equal(progress.at(-1).previewed, 1); assert.equal(progress.at(-1).pixelReviewed, 1)
+  assert.equal(progress.at(-1).requestFailures, 0)
+  assert.deepEqual(progress.at(-1).reviewedPhotos, [{ id: 'doc-1', title: 'Food', category: 'food', keep: true, requestFailed: false, reasonCode: null }])
 })
 
 test('plans refuse foreign sessions, remote drift and repeated writes', async t => {

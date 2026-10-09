@@ -188,7 +188,7 @@ export function GoalBar({ goal, activation, onEdit, onPause, onResume, onClear, 
 
 /** Full props of the dock entry: InputZone owner share + injected verbs/activation hook + the locale seat. */
 export type GoalDockProps =
-  import('@deepseek-ai/dsh-client-ui-slots').PropsRuntime<'conversation.input.dock'>
+  import('@deepseek-ai/dsh-client-ui-slots').PropsRuntime<'conversation.input.context'>
   & InjectFace<GoalBarInjected>
   & PropsLocale<'goal'>
 
