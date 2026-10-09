@@ -23,10 +23,11 @@ it('checks remote plugin updates, requires explicit automatic permission and rep
   const automatic = vi.spyOn(scaffold.ctx.pluginManager, 'setBundleAutoUpdate').mockImplementation(async (_name, enabled) => {
     update = { ...update, automatic: enabled }
   })
-  const install = vi.spyOn(scaffold.ctx.pluginManager, 'updateBundle').mockImplementation(async () => {
-    update = { ...update, restartRequired: true, status: 'current' }
-    return { target: name, stage: 'install', changed: true, application: 'restart-required' }
-  })
+  const installation = Promise.withResolvers<Awaited<ReturnType<typeof scaffold.ctx.pluginManager.updateBundle>>>()
+  const install = vi.spyOn(scaffold.ctx.pluginManager, 'updateBundle').mockImplementation(async () => installation.promise)
+  const restartStatus = scaffold.ctx.pluginManager.restartStatus()
+  const readiness = vi.spyOn(scaffold.ctx.pluginManager, 'restartStatus').mockReturnValue({ ...restartStatus, supported: true })
+  const restart = vi.spyOn(scaffold.ctx.pluginManager, 'restartAfterUpdate').mockReturnValue(true)
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, locale: 'zh-CN' })
     const console = watchConsole(page)
@@ -44,6 +45,11 @@ it('checks remote plugin updates, requires explicit automatic permission and rep
     await expect.poll(() => check.mock.calls.length).toBeGreaterThan(1)
     const before = await captureStableAria(page, '[data-plugin-updates]', scaffold.workspaceCwd)
     await section.getByRole('button', { name: '立即更新' }).click()
+    await section.getByRole('progressbar', { name: '正在下载并安装…' }).waitFor()
+    expect(await section.getByRole('progressbar').getAttribute('aria-valuenow')).toBeNull()
+    const installing = await captureStableAria(page, '[data-plugin-updates]', scaffold.workspaceCwd)
+    update = { ...update, restartRequired: true, status: 'current' }
+    installation.resolve({ target: name, stage: 'install', changed: true, application: 'restart-required' })
     await section.getByText('新版本已安装，重启后生效').waitFor()
     const restartDialog = page.getByRole('dialog', { name: '插件已更新，需要重启' })
     await restartDialog.waitFor()
@@ -51,8 +57,14 @@ it('checks remote plugin updates, requires explicit automatic permission and rep
     expect(install).toHaveBeenCalledTimes(1)
     expect(await section.getByRole('button', { name: '立即更新' }).count()).toBe(0)
     const after = await captureStableAria(page, '[data-plugin-updates]', scaffold.workspaceCwd)
+    await section.getByRole('button', { name: '重启应用' }).click()
+    await restartDialog.getByRole('button', { name: '立即重启' }).click()
+    await restartDialog.getByRole('progressbar', { name: '正在重启，等待应用恢复…' }).waitFor()
+    expect(await restartDialog.getByRole('button', { name: '正在重启', exact: true }).isDisabled()).toBe(true)
+    expect(await restartDialog.getByRole('progressbar').getAttribute('aria-valuenow')).toBeNull()
+    const restarting = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(join(fileURLToPath(new URL('./expected/plugin-updates/', import.meta.url)), 'updates.expected.md'),
-      `# Available\n\n${before}\n\n# Restart required\n\n${after}`.trimEnd(), webSnapshotMode())
+      `# Available\n\n${before}\n\n# Installing\n\n${installing}\n\n# Restart required\n\n${after}\n\n# Restarting\n\n${restarting}`.trimEnd(), webSnapshotMode())
     const artifacts = join(scaffold.harnessHome, 'screenshots')
     await mkdir(artifacts, { recursive: true })
     await page.screenshot({ path: join(artifacts, 'plugin-updates.png') })
@@ -61,6 +73,7 @@ it('checks remote plugin updates, requires explicit automatic permission and rep
     expect(console.warnings).toEqual([])
   } finally {
     listing.mockRestore(); check.mockRestore(); automatic.mockRestore(); install.mockRestore()
+    readiness.mockRestore(); restart.mockRestore()
     await browser.close()
     await scaffold.close()
   }

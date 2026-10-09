@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ConfigPageForm } from '../src/client/slot-contract.ts'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
@@ -32,6 +32,42 @@ it('keeps update completion outside the panel and leaves a failed restart retrya
   expect(within(modal).getByRole('button', { name: en.updatesRestartNow })).not.toHaveProperty('disabled', true)
   fireEvent.click(within(modal).getByRole('button', { name: en.updatesRestartLater }))
   expect(b.actions.dismissUpdateRestart).toHaveBeenCalledOnce()
+})
+
+it('shows indeterminate recovery while restarting and removes it after a retryable failure', async () => {
+  const b = renderTab({ packages: [pkg()] })
+  b.set({ updateRestarts: ['dsh-better-sidebar'] })
+  const result = Promise.withResolvers<boolean>()
+  b.actions.restart.mockReturnValueOnce(result.promise)
+  const modal = screen.getByRole('dialog', { name: en.updatesRestartTitle })
+  await act(async () => { fireEvent.click(within(modal).getByRole('button', { name: en.updatesRestartNow })) })
+  const progress = within(modal).getByRole('progressbar', { name: en.updatesRestarting })
+  expect(progress.hasAttribute('aria-valuenow')).toBe(false)
+  const button = within(modal).getByRole('button', { name: en.updatesRestartBusyButton })
+  expect(button).toHaveProperty('disabled', true)
+  fireEvent.click(button)
+  expect(b.actions.restart).toHaveBeenCalledOnce()
+  await act(async () => { result.reject(new Error('Host did not recover')) })
+  expect(within(modal).queryByRole('progressbar')).toBeNull()
+  expect(within(modal).getByRole('alert').textContent).toBe(en.updatesRestartFailed)
+  expect(within(modal).getByRole('button', { name: en.updatesRestartNow })).not.toHaveProperty('disabled', true)
+})
+
+it('shows download activity in the list and detail until restart is required', async () => {
+  const name = 'dsh-better-sidebar'
+  const update = { name, repository: 'example/plugins', automatic: false, status: 'installing' as const, version: '1.1.0', restartRequired: false }
+  const b = renderTab({ packages: [pkg({ update })] })
+  const badge = screen.getByText(en.updatesInstalling).closest('[role="status"]')!
+  expect(badge.getAttribute('aria-busy')).toBe('true')
+  expect(badge.querySelector('[data-state="ongoing"]')).not.toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: `View ${name}` }))
+  fireEvent.click(screen.getByText(en.updatesTitle))
+  await waitFor(() => { expect(screen.getByRole('progressbar', { name: en.updatesInstalling })).toBeDefined() })
+  expect(screen.getByRole('button', { name: en.updatesCheck })).toHaveProperty('disabled', true)
+  expect(screen.queryByRole('button', { name: en.updatesInstall })).toBeNull()
+  await act(async () => { b.set({ packages: [pkg({ update: { ...update, status: 'current', restartRequired: true } })] }) })
+  expect(screen.queryByRole('progressbar')).toBeNull()
+  expect(screen.getByText(en.updatesRestart)).toBeDefined()
 })
 
 const translate = (dict: typeof en): PluginManagerPageProps['t'] => ((key: PluginManagerLocaleKey, params?: Record<string, string>): string =>
@@ -106,6 +142,22 @@ it('shows update availability, explicit automatic permission and restart state i
   await act(async () => { b.store.set({ ...b.store.getSnapshot(), packages: [pkg({ update: { ...update, restartRequired: true } })] }) })
   expect(screen.getByText(en.updatesRestart)).toBeDefined()
   expect(screen.queryByRole('button', { name: en.updatesInstall })).toBeNull()
+})
+
+it('keeps one update status visible when expanding and collapsing version settings', async () => {
+  renderTab({ packages: [pkg({ update: { name: 'dsh-better-sidebar', repository: 'example/plugins', automatic: false, status: 'current', restartRequired: false } })] })
+  fireEvent.click(screen.getByRole('button', { name: 'View dsh-better-sidebar' }))
+  const disclosure = screen.getByText(en.updatesTitle).closest('details')!
+  expect(within(disclosure).getAllByRole('status')).toHaveLength(1)
+  fireEvent.click(screen.getByText(en.updatesTitle))
+  await waitFor(() => { expect(disclosure.querySelector('summary [role="status"]')).toBeNull() })
+  expect(within(disclosure).getAllByRole('status')).toHaveLength(1)
+  expect(within(disclosure).getByRole('status').textContent).toBe(en.updatesCurrent)
+  expect(within(disclosure).getByRole('button', { name: en.updatesCheck })).not.toHaveProperty('disabled', true)
+  fireEvent.click(screen.getByText(en.updatesTitle))
+  await waitFor(() => { expect(disclosure.querySelector('summary [role="status"]')).not.toBeNull() })
+  expect(within(disclosure).getAllByRole('status')).toHaveLength(1)
+  expect(disclosure.hasAttribute('open')).toBe(false)
 })
 
 /**

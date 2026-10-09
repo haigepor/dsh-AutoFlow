@@ -4,6 +4,7 @@ import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PluginManagerFace } from './manager-store.ts'
 import { packageText } from './presentation.ts'
+import { PluginUpdateActivity } from './PluginUpdateActivity.tsx'
 
 /** Shared completion state and carrier-owned restart action. */
 export type PluginUpdateRestartFace = Pick<PluginManagerFace, 'ensure' | 'dismissUpdateRestart' | 'resolveText'> & {
@@ -41,7 +42,7 @@ export function PluginUpdateRestartModal({ usePluginManager, ensure, dismissUpda
   return <Modal open={names.length > 0} onClose={close} title={t('updatesRestartTitle')}
     closeLabel={t('close')} description={t('updatesRestartDetail')}
     footer={<><Button variant="outline" disabled={busy} onClick={close}>{t('updatesRestartLater')}</Button>
-      <Button variant="primary" disabled={busy} onClick={() => { void apply() }}>{t(busy ? 'updatesRestarting' : 'updatesRestartNow')}</Button></>}>
+      <Button variant="primary" disabled={busy} aria-busy={busy} onClick={() => { void apply() }}>{t(busy ? 'updatesRestartBusyButton' : 'updatesRestartNow')}</Button></>}>
     <ul>{names.map((name) => {
       const pkg = packages.find(pkg => pkg.name === name)
       const title = pkg === undefined ? name : packageText(pkg, resolveText).title
@@ -49,6 +50,6 @@ export function PluginUpdateRestartModal({ usePluginManager, ensure, dismissUpda
         : t('updatesRestartPackage', { name: title, version: pkg.update.version })}</li>
     })}</ul>
     {failed ? <p role="alert">{t('updatesRestartFailed')}</p> : null}
-    {busy ? <p role="status" aria-live="polite">{t('updatesRestarting')}</p> : null}
+    {busy ? <div role="status" aria-live="polite"><PluginUpdateActivity label={t('updatesRestarting')} /></div> : null}
   </Modal>
 }

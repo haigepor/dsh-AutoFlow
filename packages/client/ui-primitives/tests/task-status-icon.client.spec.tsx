@@ -5,7 +5,7 @@ import { TaskStatusIcon } from '../src/TaskStatusIcon.tsx'
 
 afterEach(cleanup)
 
-it('renders distinct task states on the same scalable, theme-colored SVG grid without live animation', () => {
+it('renders distinct task states with a rotating ring only for the ongoing state', () => {
   const { container } = render(<><TaskStatusIcon state="pending" /><TaskStatusIcon state="in_progress" /><TaskStatusIcon state="completed" size={20} /></>)
   const icons = [...container.querySelectorAll('svg')]
   expect(icons.map(icon => ({ state: icon.dataset.taskState, size: icon.getAttribute('width'), grid: icon.getAttribute('viewBox'), details: [...icon.children].map(node => node.tagName) }))).toMatchInlineSnapshot(`
@@ -20,10 +20,8 @@ it('renders distinct task states on the same scalable, theme-colored SVG grid wi
       },
       {
         "details": [
-          "rect",
           "circle",
-          "path",
-          "circle",
+          "g",
         ],
         "grid": "0 0 16 16",
         "size": "16",
@@ -43,6 +41,6 @@ it('renders distinct task states on the same scalable, theme-colored SVG grid wi
   for (const icon of icons) {
     expect(icon.getAttribute('aria-hidden')).toBe('true')
     expect(icon.querySelector('animate, animateTransform')).toBeNull()
-    expect(icon.querySelector('rect')?.getAttribute('stroke')).toBe('currentColor')
+    expect(icon.querySelector('[stroke]')?.getAttribute('stroke')).toBe('currentColor')
   }
 })

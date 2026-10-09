@@ -67,7 +67,7 @@ export function TodoPanel({ todos, t }: TodoPanelProps) {
   if (todos.length === 0) return null
 
   return (
-    <section className={css.root} data-testid="todo-panel" data-expanded={!collapsed || undefined} aria-label={t('todo.title')}>
+    <section className={css.root} data-testid="todo-panel" aria-label={t('todo.title')}>
       <div className={css.body}>
         <button
           type="button"

@@ -74,9 +74,7 @@ describe('TodoPanel', () => {
     render(<TodoPanel todos={LIST} t={t} />)
     fireEvent.click(screen.getByRole('button', { expanded: false }))
     const header = screen.getByRole('button', { expanded: true })
-    expect(screen.getByTestId('todo-panel').hasAttribute('data-expanded')).toBe(true)
     fireEvent.click(header)
-    expect(screen.getByTestId('todo-panel').hasAttribute('data-expanded')).toBe(false)
     expect(screen.queryByRole('list')).toBeNull()
     // Collapsed header is title + progress only (no in-progress content hint).
     expect(screen.getByText('1 已完成 · 1 进行中 · 1 待处理')).toBeTruthy()

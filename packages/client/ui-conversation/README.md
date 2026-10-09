@@ -74,7 +74,7 @@ Active transcripts in the main occurrence expose content-width drag handles in t
 
 The width-handle indicator follows the pointer only during a captured drag; ordinary hover leaves its position unchanged.
 
-The checklist strip is centered and capped at 380px while collapsed. Hover on a hover-capable pointer or keyboard focus expands it to the existing dock width; an open list retains that width. Width changes follow the theme’s slow transition, remain bounded by the composer’s available width, and become immediate with reduced motion.
+The checklist strip uses the existing dock width in both collapsed and expanded states. Hover and keyboard focus keep its width unchanged; the composer’s available width and maximum card width bound the strip.
 
 `conversation.input.dock` retains independent checklist and plugin entries. `conversation.input.context` supplies the shared solid header above the composer: QueueDock uses order 0 and GoalBar order 100, keeping the goal below the queue. The container shares the hero workspace row’s inset width, top radii and background, cancels the active composer stack gap and overlaps the card edge by 10px; an empty slot occupies no height. The queue body scrolls independently at a 180px height cap, outside the goal. Opening and closing reuse `AnimatedCollapse` height and opacity transitions with a rotating chevron. Closing sets `inert` and `aria-hidden` immediately and unmounts the body after exit; quick reversal preserves content, and reduced motion disables transitions.
 

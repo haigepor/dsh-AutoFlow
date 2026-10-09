@@ -36,6 +36,7 @@ import { BUILTIN_PROFILE_BUNDLES, managementText, noticeText, packageText, regis
 import type { PluginPackageRef, PluginRowRef, PluginsSubject } from './slot-contract.ts'
 import type { ConfigPageForm } from './slot-contract.ts'
 import css from './PluginManagerPage.module.css'
+import { PluginUpdateActivity } from './PluginUpdateActivity.tsx'
 
 /** Full component props assembled by the main slot renderer. */
 export type PluginManagerPageProps =
@@ -466,7 +467,7 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, onOpen, o
                 <Tag tone="info">{t('updatesPending')}</Tag>
               </Button>
               : pkg.update?.status === 'installing' || busy && pkg.update?.status === 'available'
-                ? <span className={css.updateBadge} role="status"><Tag tone="info">{t('updatesInstalling')}</Tag></span>
+                ? <span className={css.updateBadge} role="status" aria-busy="true"><Tag tone="info"><PluginUpdateActivity compact label={t('updatesInstalling')} /></Tag></span>
                 : pkg.update?.status === 'available'
                   ? <Button variant="ghost" size="sm" className={css.updateBadge} disabled={busy} onClick={onUpdate}>
                     <Tag tone="info">{t('updatesBadge', { version: pkg.update.version ?? '' })}</Tag>
@@ -632,6 +633,7 @@ function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdat
   useEffect(() => { if (update?.status === 'error') setOpen(true) }, [update?.status])
   if (update === undefined) return null
   const installing = update.status === 'installing' || busy && update.status === 'available'
+  const active = !update.restartRequired && (installing || checking)
   const status = update.restartRequired ? t('updatesRestart') : installing ? t('updatesInstalling') : checking ? t('updatesChecking')
     : update.status === 'available' ? t('updatesAvailable', { version: update.version ?? '' })
       : t(update.status === 'current' ? 'updatesCurrent' : update.status === 'error' ? 'updatesError' : 'updatesUnchecked')
@@ -641,19 +643,26 @@ function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdat
       <IconChevronRightOutlineRegular size={14} className={css.partsChevron} aria-hidden="true" />
       <span className={css.sectionTitle}>{t('updatesTitle')}</span>
       {pkg.version === undefined ? null : <span className={css.updateVersion}>{t('updatesVersion', { version: pkg.version })}</span>}
-      <span className={css.updateSummary} role="status" aria-live="polite" data-error={update.status === 'error'}>{status}</span>
+      {open ? null : <span className={css.updateSummary} role="status" aria-live="polite" data-error={update.status === 'error'}>
+        {active ? <PluginUpdateActivity compact label={status} /> : status}
+      </span>}
     </summary>
     <div className={css.updatesBody}>
-      <div className={css.updateActions}>
-        <Button variant="outline" size="sm" disabled={busy || checking || installing || update.restartRequired} onClick={onCheck}>
-          {t(checking ? 'updatesChecking' : 'updatesCheck')}
-        </Button>
-        {update.restartRequired ? <Button size="sm" onClick={onRestart}>{t('updatesRestartGuide')}</Button>
-          : update.status !== 'available' ? null : <Button size="sm" disabled={busy} onClick={onUpdate}>{t('updatesInstall')}</Button>}
+      <div className={css.updateRelease}>
+        {open ? <div className={css.updateStatus} role="status" aria-live="polite" data-error={update.status === 'error'}>
+          {active ? <PluginUpdateActivity label={status} /> : status}
+        </div> : null}
+        <div className={css.updateActions}>
+          <Button variant="outline" size="sm" disabled={busy || checking || installing || update.restartRequired} onClick={onCheck}>
+            {t(checking ? 'updatesChecking' : 'updatesCheck')}
+          </Button>
+          {update.restartRequired ? <Button size="sm" onClick={onRestart}>{t('updatesRestartGuide')}</Button>
+            : update.status !== 'available' ? null : <Button size="sm" disabled={busy} onClick={onUpdate}>{t('updatesInstall')}</Button>}
+        </div>
       </div>
       {update.status !== 'error' || update.diagnostic === undefined ? null : <p className={css.reason}>{update.diagnostic}</p>}
       <div className={css.updatePreference}>
-        <div><span>{t('updatesAutomatic')}</span><p className={css.updateHint}>{t('updatesHint')}</p></div>
+        <div className={css.updatePreferenceText}><span className={css.updatePreferenceTitle}>{t('updatesAutomatic')}</span><p className={css.updateHint}>{t('updatesHint')}</p></div>
         <Switch checked={update.automatic} disabled={busy || installing} label={t('updatesAutomatic')} onChange={onAutoUpdate} />
       </div>
     </div>

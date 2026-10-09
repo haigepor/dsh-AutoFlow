@@ -85,9 +85,9 @@ AFP SHALL retain inline conversation feedback without registering a separate com
 - **THEN** height, opacity and the chevron transition smoothly in both directions
 - **AND** closing immediately removes hidden actions from focus and accessibility navigation, rapid reversal preserves the body, and reduced motion disables transitions
 
-#### Scenario: Compact checklist strip
-- **WHEN** a closed checklist is neither hovered nor focused
-- **THEN** its centered width is at most 380px and fits the available composer width
-- **WHEN** the reader hovers with a hover-capable pointer, focuses the header, or opens the list
-- **THEN** it expands smoothly to the existing dock width and retains that width while open
-- **AND** reduced motion disables the width transition
+#### Scenario: Stable checklist width and ongoing task feedback
+- **WHEN** a checklist is displayed, hovered, focused, or expanded
+- **THEN** it retains the existing dock width within the available composer width
+- **WHEN** a task row displays the in-progress state
+- **THEN** its icon uses a rotating arc on a circular track
+- **AND** reduced motion keeps the progress arc static

@@ -11,6 +11,8 @@ Desktop product events use the optional [product analytics service](../product-a
 
 A bundle with a declared update source shows **Version updates** in its detail page: check, install, automatic download/install permission and restart status. Page entry and manual refresh check versions without enabling automatic installation. Host-owned checks continue while the page is closed; installation requires a manual action or the saved automatic permission. Updated feature and activation controls wait for restart. Builtin bundles installed into a profile for updates retain their removal protection. See the [Host updater](../../boot/plugin-manager/README.md) for validation, persistence and failure behavior.
 
+The expanded version section aligns release status with update actions and separates the automatic-install setting. Installation badges show a loading ring; expanded checks, installation and restart recovery show an indeterminate progress track. These states expose no measured total percentage. Failure removes the activity feedback and leaves retry controls available; reduced-motion preferences disable the animations.
+
 ## Summary
 
 Feature configuration dialogs stay within the Modal viewport inset. The header stays visible while the body can shrink and scroll.

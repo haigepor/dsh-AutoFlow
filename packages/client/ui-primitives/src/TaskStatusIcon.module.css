@@ -1,0 +1,9 @@
+.motion { transform-origin: 8px 8px; animation: task-status-spin 1.6s linear infinite; }
+
+@keyframes task-status-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion { animation: none; }
+}

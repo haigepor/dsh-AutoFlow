@@ -3,7 +3,7 @@
   flex: none;
   overflow: hidden;
   margin: 0 auto;
-  --dsh-todo-expanded-width: calc(
+  width: calc(
     100% -
     var(--dsh-composer-side-clearance) -
     var(--dsh-composer-side-clearance) -
@@ -12,8 +12,6 @@
     var(--dsh-composer-dock-inset) -
     var(--dsh-composer-dock-inset)
   );
-  width: min(380px, var(--dsh-todo-expanded-width));
-  transition: width var(--ds-transition-duration-slow, 0.3s) var(--ds-ease-in-out, ease);
   max-width: calc(
     var(--dsh-composer-card-max-width) -
     var(--dsh-composer-dock-inset) -
@@ -32,15 +30,6 @@
      ui-theme styles/scrollbar.css for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-}
-
-.root[data-expanded],
-.root:focus-within {
-  width: var(--dsh-todo-expanded-width);
-}
-
-@media (hover: hover) {
-  .root:hover { width: var(--dsh-todo-expanded-width); }
 }
 
 .body {
@@ -136,6 +125,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .root { transition: none; }
   .chevron { transition: none; }
 }

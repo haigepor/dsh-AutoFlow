@@ -45,6 +45,6 @@ AFP Skill 要求读取真实预览、账户收藏夹去重、本地分类规则�
 
 范围补充：ui-primitives 的 TaskStatusIcon 与测试/README，ui-conversation 的共享槽位声明、渲染、队列注册/样式/测试/README，ui-goal 的共享槽位消费者与测试，以及 docs/subsystems/slots 双语目录。修改前备份在 .artifacts/afp-feedback-20261009/queue-context-before 与 queue-context-docs-before。
 
-任务栏收起时最大宽度 380px，悬浮、键盘聚焦或展开时使用原 dock 的可用宽度，保持居中及窄屏限制。宽度变化与折叠共用主题时长，减少动态效果时取消过渡。此次 UI 变更不承担产品发布；用户后续授权的 AFP 版本调整、源码提交、标签与 Release 由独立发布 Skill 执行，冻结旧发行资产。
+任务栏收起和展开时均使用原 dock 的可用宽度，悬浮和键盘聚焦不改变宽度，保持居中及窄屏限制。任务记录的进行中图标使用旋转圆弧，减少动态效果时保持静止。此次 UI 变更不承担产品发布；用户后续授权的 AFP 版本调整、源码提交、标签与 Release 由独立发布 Skill 执行，冻结旧发行资产。
 
 共享槽位同时更新自动生成的 packages/extensions/cordis-client-runner/src/client/slot-catalog.ts；目录由 gen-client-catalog 生成并经 verify-client-catalog 检查，不能仅修改声明和组件而遗漏动态客户端消费者。
