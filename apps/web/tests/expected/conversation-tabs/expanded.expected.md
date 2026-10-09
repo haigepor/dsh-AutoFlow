@@ -1,0 +1,4 @@
+- button "Collapse view tabs" [expanded]
+- tablist "Session views":
+  - tab "Chat"
+  - tab "Trajectory" [selected]

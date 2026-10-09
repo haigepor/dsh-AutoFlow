@@ -86,6 +86,30 @@ test('diagnostic metadata does not clear an unchanged open report during status 
   }
 })
 
+test('report filters retain the summary and cached pages while stale requests and new runs cannot replace them', async t => {
+  const h = harness(), run = { runId: 'run-one', status: 'ready', categories: [{ category: 'food', reviewed: 2, kept: 1 }] }
+  t.after(() => h.store.dispose())
+  const all = { run, items: [{ id: 'one', category: 'food', keep: true }, { id: 'two', category: 'food', keep: false }], hasMore: false }
+  const initial = h.store.openRun(run.runId)
+  h.reply(0, all); await initial
+  const kept = h.store.openRun(run.runId, { decision: 'kept' })
+  assert.equal(h.store.getSnapshot().regions.run.data.run, run)
+  assert.deepEqual(h.store.getSnapshot().regions.run.data.items, [all.items[0]])
+  assert.equal(h.store.getSnapshot().regions.run.loadMode, 'refresh')
+  const back = h.store.openRun(run.runId)
+  assert.deepEqual(h.store.getSnapshot().regions.run.data, all)
+  h.reply(1, { ...all, items: [all.items[0]] }); await kept
+  assert.equal(h.store.getSnapshot().reportFilter, 'all')
+  assert.deepEqual(h.store.getSnapshot().regions.run.data, all)
+  h.reply(2, all); await back
+  const other = h.store.openRun('run-two')
+  assert.equal(h.store.getSnapshot().regions.run.data, null)
+  h.reply(3, { run: { ...run, runId: 'run-two' }, items: [] }); await other
+  const previous = h.store.openRun(run.runId)
+  assert.equal(h.store.getSnapshot().regions.run.data, null)
+  h.reply(4, all); await previous
+})
+
 test('browse download selection keeps the prior destination until the Host adopts a directory', async () => {
   const fixture = harness()
   fixture.store.set({ downloadDirectory: { directoryId: 'prior', label: 'Prior' } })

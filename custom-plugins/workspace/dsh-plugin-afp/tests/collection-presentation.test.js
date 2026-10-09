@@ -9,7 +9,7 @@ function element(type, props, ...children) { return { type, props: { ...props, c
 function nodes(tree, match) {
   if (Array.isArray(tree)) return tree.flatMap(item => nodes(item, match))
   if (!tree || typeof tree !== 'object') return []
-  return [...(match(tree) ? [tree] : []), ...nodes(tree.props?.children, match)]
+  return [...(match(tree) ? [tree] : []), ...nodes(tree.props?.children, match), ...nodes(tree.props?.footer, match)]
 }
 const UI = Object.fromEntries(['Button', 'Input', 'Tag', 'Checkbox', 'GlideHighlight', 'Tooltip'].map(name => [name, Symbol(name)]))
 const region = data => ({ data, loading: false, error: '' })
@@ -131,9 +131,8 @@ test('photo clicks toggle selection with source collections; context click opens
   const tile = tree => nodes(tree, node => node.type === 'article')[0]
   const first = tile(render()), frame = nodes(first, node => node.props.className === 'afp-wb-photo-frame')[0]
   const presentation = tree => {
-    const button = nodes(tree, node => node.type === UI.Button && typeof node.props['aria-pressed'] === 'boolean')[0]
-    return { pressed: button.props['aria-pressed'], label: button.props['aria-label'], variant: button.props.variant,
-      iconSize: nodes(button, node => node.type === CheckIcon)[0].props.size }
+    const button = nodes(tree, node => node.props.role === 'button' && typeof node.props['aria-pressed'] === 'boolean')[0]
+    return { pressed: button.props['aria-pressed'], label: button.props['aria-label'], role: button.props.role, tabIndex: button.props.tabIndex }
   }
   const snapshots = [presentation(first)]
   frame.props.onClick()
@@ -141,19 +140,16 @@ test('photo clicks toggle selection with source collections; context click opens
   const selected = tile(render())
   snapshots.push(presentation(selected))
   assert.deepEqual(snapshots, JSON.parse(await readFile(new URL('./fixtures/photo-selection.json', import.meta.url), 'utf8')))
-  assert.equal(nodes(selected, node => node.props.className === 'afp-wb-photo-selected-icon').length, 1)
-  assert.equal(nodes(selected, node => node.type === CheckIcon).length, 1)
-  const tip = nodes(selected, node => node.type === UI.Tooltip)[0]
-  assert.equal(tip.props.label, 'removeFromSelection')
-  assert.equal(tip.props.maxWidth, 180)
-  const selectButton = nodes(selected, node => node.type === UI.Button && node.props['aria-pressed'] === true)[0]
+  assert.equal(nodes(selected, node => node.props.className === 'afp-wb-photo-selected-icon').length, 0)
+  assert.equal(nodes(selected, node => node.type === CheckIcon).length, 0)
+  const selectButton = nodes(selected, node => node.props.role === 'button' && node.props['aria-pressed'] === true)[0]
   assert.ok(selectButton.props['aria-label'].includes('Sample'))
-  let stopped = false
-  selectButton.props.onClick({ stopPropagation() { stopped = true } })
-  assert.equal(stopped, true)
+  let prevented = false
+  selectButton.props.onKeyDown({ key: ' ', target: selectButton, currentTarget: selectButton, preventDefault() { prevented = true } })
+  assert.equal(prevented, true)
   assert.deepEqual(store.getSnapshot().selectedPhotos, {})
-  const restoreButton = nodes(tile(render()), node => node.type === UI.Button && node.props['aria-pressed'] === false)[0]
-  restoreButton.props.onClick({ stopPropagation() {} })
+  const restoreButton = nodes(tile(render()), node => node.props.role === 'button' && node.props['aria-pressed'] === false)[0]
+  restoreButton.props.onClick()
   assert.deepEqual(store.getSnapshot().photoSources.p1, ['favorites-1'])
   const openButton = nodes(selected, node => node.type === 'button' && node.props.className === 'afp-wb-photo-open')[0]
   assert.ok(openButton.props['aria-label'])

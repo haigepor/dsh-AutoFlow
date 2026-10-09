@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { createWorkbench } from '../src/client/afp-workbench.js'
 import { createAfpTaskPanels } from '../src/client/afp-workbench-tasks.js'
 import { createAfpClientStore } from '../src/client/afp-client-store.js'
+import { createAfpGallery } from '../src/client/afp-workbench-gallery.js'
 
 function element(type, props, ...children) { return { type, props: { ...props, children } } }
 function nodes(tree, match) {
@@ -12,7 +13,7 @@ function nodes(tree, match) {
   return [...(match(tree) ? [tree] : []), ...nodes(tree.props?.children, match)]
 }
 const UI = Object.fromEntries(['Button', 'Input', 'Tag', 'Checkbox', 'StateDot', 'Tooltip'].map(name => [name, Symbol(name)]))
-const React = { createElement: element, useId: () => 'tabs', useSyncExternalStore: (_subscribe, snapshot) => snapshot() }
+const React = { createElement: element, useId: () => 'tabs', useRef: () => ({ current: null }), useState: value => [value, () => {}], useSyncExternalStore: (_subscribe, snapshot) => snapshot() }
 const t = key => key
 
 function search(state, store) {
@@ -123,4 +124,50 @@ test('change setup still previews first and requires explicit confirmation befor
   assert.equal(confirm(card({ confirmChecked: true, plan: { ...plan, expiresAt: 0 } })).props.disabled, true)
   assert.equal(nodes(card({}), node => node.props?.className === 'afp-wb-warning').length, 1)
   store.dispose()
+})
+
+test('task setup collapses without losing the draft, report, filters or selected photos', () => {
+  const store = createAfpClientStore({})
+  store.set({ ...readyState(store), runId: 'saved-run', reportFilter: 'kept', selectedPhotos: { one: { id: 'one' } } })
+  const Panels = createAfpTaskPanels(React, UI, t, store, {}, () => null)
+  const render = () => Panels.TasksPanel({ state: store.getSnapshot() })
+  const toggle = tree => nodes(tree, node => node.props?.['aria-controls'] === 'tabs')[0]
+  const before = store.getSnapshot()
+  assert.equal(toggle(render()).props['aria-expanded'], true)
+  toggle(render()).props.onClick()
+  const collapsed = render()
+  assert.equal(toggle(collapsed).props['aria-expanded'], false)
+  assert.equal(nodes(collapsed, node => node.props?.className === 'afp-wb-task-sidebar-content')[0].props.inert, '')
+  assert.equal(nodes(collapsed, node => node.props?.className === 'afp-wb-task-sidebar-content')[0].props['aria-hidden'], true)
+  assert.equal(nodes(collapsed, node => node.type?.name === 'RefreshForm').length, 1)
+  assert.equal(store.getSnapshot().selected, before.selected)
+  assert.equal(store.getSnapshot().selectedPhotos, before.selectedPhotos)
+  assert.equal(store.getSnapshot().runId, before.runId)
+  assert.equal(store.getSnapshot().reportFilter, 'kept')
+  toggle(collapsed).props.onClick()
+  assert.equal(nodes(render(), node => node.props?.className === 'afp-wb-task-sidebar-content')[0].props.inert, undefined)
+  store.dispose()
+})
+
+test('report card icon actions inspect any photo but only select completed passes', () => {
+  const calls = [], store = { openPhoto: photo => calls.push(['details', photo.id]),
+    selectPhoto: photo => calls.push(['select', photo.id]), removePhoto: id => calls.push(['remove', id]) }
+  const gallery = createAfpGallery(React, UI, { IconFlatListOutlineRegular: Symbol('details'), IconCheckOutlineRegular: Symbol('select') }, t, store)
+  const items = [{ id: 'passed', category: 'food', keep: true }, { id: 'rejected', keep: false },
+    { id: 'failed', keep: true, requestFailed: true }, { id: 'pending' }]
+  const render = selectedPhotos => gallery.PhotoGrid({ items, report: true, selectedPhotos })
+  const cards = nodes(render({}), node => node.type === 'article')
+  cards.forEach((card, index) => {
+    const actions = nodes(card, node => node.props?.className === 'afp-wb-photo-review-actions')[0]
+    const buttons = nodes(nodes(actions, node => node.type?.name === 'ReviewAction').map(node => node.type(node.props)), node => node.type === UI.Button)
+    assert.equal(buttons.length, 2)
+    assert.equal(buttons[0].props['aria-label'], 'photoDetails')
+    assert.equal(buttons[1].props['aria-label'], 'selectPhoto')
+    assert.equal(buttons[1].props.disabled, index !== 0)
+    buttons[0].props.onClick()
+  })
+  const selectedAction = nodes(render({ passed: items[0] }), node => node.type?.name === 'ReviewAction' && node.props.label === 'removeFromSelection')[0]
+  const selected = selectedAction.type(selectedAction.props)
+  nodes(selected, node => node.type === UI.Button)[0].props.onClick()
+  assert.deepEqual(calls, [['details', 'passed'], ['details', 'rejected'], ['details', 'failed'], ['details', 'pending'], ['remove', 'passed']])
 })

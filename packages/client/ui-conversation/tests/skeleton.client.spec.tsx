@@ -666,6 +666,46 @@ describe('ConversationRoot resident composer', () => {
     expect(b.view.getByRole('tablist').hasAttribute('data-conversation-tabs')).toBe(true)
   })
 
+  it('collapses view navigation without changing or remounting the selected view', () => {
+    const b = mount(sessionSnapshotOf())
+    fireEvent.click(b.view.getByRole('tab', { name: 'Trajectory' }))
+    const content = b.view.getByTestId('view-trajectory')
+    const tab = b.view.getByRole('tab', { name: 'Trajectory' })
+    const toggle = b.view.getByRole('button', { name: '收起视图标签栏' })
+    const disclosure = document.getElementById(toggle.getAttribute('aria-controls') ?? '')
+    expect(disclosure?.contains(tab)).toBe(true)
+    expect(toggle.nextElementSibling?.getAttribute('aria-label')).toBe('会话层级')
+
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(disclosure?.getAttribute('aria-hidden')).toBe('true')
+    expect(disclosure?.hasAttribute('inert')).toBe(true)
+    expect(b.view.queryByRole('tablist')).toBeNull()
+    expect(b.view.getByTestId('view-trajectory')).toBe(content)
+    expect(b.store.store.getSnapshot().view).toBe('trajectory')
+    b.rerender()
+    expect(b.view.getByRole('button', { name: '展开视图标签栏' })).toBe(toggle)
+
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(disclosure?.hasAttribute('inert')).toBe(false)
+    expect(b.view.getByRole('tab', { name: 'Trajectory' })).toBe(tab)
+    expect(tab.getAttribute('aria-selected')).toBe('true')
+    expect(b.view.getByTestId('view-trajectory')).toBe(content)
+  })
+
+  it('omits the view disclosure for blank Sessions and a single registered view', () => {
+    const blank = mount(sessionSnapshotOf({ blank: true }))
+    expect(blank.view.queryByRole('button', { name: '收起视图标签栏' })).toBeNull()
+    blank.view.unmount()
+    const single = mount(sessionSnapshotOf(), undefined, undefined, {
+      viewTabs: [{ id: 'chat', label: 'Chat' }],
+    })
+    expect(single.view.queryByRole('button', { name: '收起视图标签栏' })).toBeNull()
+    expect(single.view.queryByRole('tablist')).toBeNull()
+    expect(single.view.getByTestId('view-chat')).toBeTruthy()
+  })
+
   it('rolls the pending workspace label back when switching fails', async () => {
     const selectWorkspace = vi.fn(async () => { throw new Error('connect failed') })
     const b = mount(

@@ -78,6 +78,29 @@ test('chat and Workbench share the same large-image modal and image retry behavi
   assert.equal(PreviewModal({ photo: null }).props.open, false)
 })
 
+test('shared previews navigate the supplied review list without wrapping or consuming input arrows', () => {
+  const React = { createElement: (type, props, ...children) => ({ type, props, children }) }
+  const UI = { Modal() {}, Button() {} }, gallery = createAfpGallery(React, UI, {}, key => key, {})
+  const items = [{ id: 'one', category: 'landscape' }, { id: 'two', category: 'landscape' }]
+  let changed
+  const render = photo => gallery.PreviewModal({ photo, items, onChange: next => { changed = next }, onClose() {} })
+  const first = render(items[0]), navigation = first.props.footer
+  assert.equal(navigation.children[0].props.disabled, true)
+  assert.equal(navigation.children[2].props.disabled, false)
+  assert.equal(navigation.children[1].children[0], '1 / 2')
+  navigation.children[2].props.onClick(); assert.equal(changed, items[1])
+  const last = render(items[1])
+  assert.equal(last.props.footer.children[2].props.disabled, true)
+  const event = { key: 'ArrowRight', preventDefault() {}, stopPropagation() {}, target: { closest: () => null } }
+  changed = null; last.props.onKeyDownCapture(event); assert.equal(changed, null)
+  last.props.onKeyDownCapture({ ...event, key: 'ArrowLeft' }); assert.equal(changed, items[0])
+  changed = null
+  last.props.onKeyDownCapture({ ...event, key: 'ArrowLeft', ctrlKey: true })
+  last.props.onKeyDownCapture({ ...event, key: 'ArrowLeft', target: { closest: () => ({}) } })
+  assert.equal(changed, null)
+  assert.equal(gallery.PreviewModal({ photo: items[0], items: [items[0]], onChange() {} }).props.footer, undefined)
+})
+
 test('legacy image identities do not become zero-count verdicts when the original record lacks outcomes', () => {
   const owner = JSON.stringify(['session', 1, 'call', 'ref'])
   const React = { createElement: (type, props, ...children) => ({ type, props, children }), useEffect() {},
@@ -129,6 +152,62 @@ function progressHooks() {
   return { React, dispose: () => cleanup?.() }
 }
 
+function refreshFeedbackFixture(blocks, live = null) {
+  const React = { createElement: (type, props, ...children) => ({ type, props, children }), useEffect() {},
+    useState(initial) { return [initial === false ? true : initial?.key === '' ? {
+      key: JSON.stringify(['session', 1, 'launch']), live, disconnected: false,
+    } : initial, () => {}] } }
+  const UI = { DisclosureRow() {}, TextShimmer() {}, ToolIcon() {}, Tag() {}, Button() {} }
+  const Row = createAfpToolRow(React, UI, key => key, {})
+  const source = { nodes: { values: () => blocks.map(root => ({ kind: 'tool-call', data: { root },
+    location: { kind: 'turn', turn: { turn: 1, status: live ? 'open' : 'closed' } } })),
+    turnDataSource: () => ({ getSnapshot: () => blocks.map(root => ({ root })) }) } }
+  const tree = Row({ phase: 'result', block: blocks.find(block => block.callId === 'launch'), callId: 'launch',
+    toolName: 'afp_refresh', sessionId: 'session', useChat: select => select(source) })
+  return tree.children[0].children[0]
+}
+
+const feedbackBlock = (name, callId, value, isError = false) => ({ callId, kind: 'tool-result', isError,
+  call: { name, argsRaw: '{}' }, meta: { afp: { version: 1, result: value } } })
+
+test('closed launch cards recover the latest matching saved report and its original call identity', () => {
+  const saved = { ...report, status: 'ready', resultRef: 'saved-ref' }
+  const blocks = [feedbackBlock('afp_report', 'before', { ...saved, resultRef: 'before-ref' }),
+    feedbackBlock('afp_refresh', 'launch', { runId: 'run' }),
+    { callId: 'nested', subCalls: [feedbackBlock('afp_report', 'original-report', saved)] },
+    feedbackBlock('afp_report', 'foreign', { ...saved, runId: 'other', resultRef: 'foreign-ref' }),
+    feedbackBlock('afp_report', 'failed', { ...saved, resultRef: 'failed-ref' }, true)]
+  const feedback = refreshFeedbackFixture(blocks)
+  assert.equal(feedback.props['data-afp-feedback'], 'report')
+  const previews = feedback.children[0]
+  assert.equal(previews.props.resultRef, 'saved-ref')
+  assert.equal(previews.props.callId, 'original-report')
+  assert.equal(previews.props.turn, 1)
+  assert.equal(previews.props.liveIds, undefined)
+  assert.equal(previews.props.livePhotos, undefined)
+  assert.doesNotMatch(JSON.stringify(feedback), /feedbackLaunchRecord|feedbackTaskHelp/)
+  blocks.push(feedbackBlock('afp_report', 'latest', { ...saved, resultRef: 'latest-ref' }))
+  assert.equal(refreshFeedbackFixture(blocks).children[0].props.resultRef, 'latest-ref')
+  blocks.push(feedbackBlock('afp_refresh', 'resume', { runId: 'run' }),
+    feedbackBlock('afp_report', 'resumed-report', { ...saved, resultRef: 'resumed-ref' }))
+  assert.equal(refreshFeedbackFixture(blocks).children[0].props.resultRef, 'latest-ref')
+})
+
+test('launch cards without a saved report show unavailable details instead of zero verdicts', () => {
+  const feedback = refreshFeedbackFixture([feedbackBlock('afp_refresh', 'launch', { runId: 'run' })])
+  assert.match(JSON.stringify(feedback), /feedbackPreviewRecordUnavailable/)
+  assert.doesNotMatch(JSON.stringify(feedback), /ReviewedPreviews|feedbackPhotosPassed|feedbackPhotosRejected/)
+})
+
+test('running launch cards retain current pixels instead of replacing them with an earlier report', () => {
+  const feedback = refreshFeedbackFixture([feedbackBlock('afp_refresh', 'launch', { runId: 'run' }),
+    feedbackBlock('afp_report', 'report', { ...report, resultRef: 'ref' })],
+  { state: 'running', stage: 'vision', reviewedPhotos: [{ id: 'new', keep: true }], previewPhotoIds: ['new'] })
+  assert.equal(feedback.props['data-afp-feedback'], 'task')
+  assert.deepEqual(feedback.children[1].props.livePhotos, [{ id: 'new', keep: true }])
+  assert.equal(feedback.children[1].props.resultRef, undefined)
+})
+
 test('expanded visual phase shimmers only while its owning task is running and connected', async () => {
   const locale = JSON.parse(await readFile(new URL('../src/client/locales/zh.json', import.meta.url), 'utf8'))
   let open = true, disconnected = false, state = 'running', ownerStatus = 'open', hasPending = true
@@ -178,8 +257,8 @@ test('historical previews read the original result on expansion and ignore stale
   t.after(() => effects.forEach(effect => effect?.cleanup?.()))
   const requests = [], store = { conversationData(method, context, signal) { return new Promise((resolve, reject) => requests.push({ method, context, signal, resolve, reject })) } }
   const { ReviewedPreviews } = createReviewedPreviews(React, { Button() {}, DisclosureRow() {} }, key => key, store)
-  let zoom
-  const render = (open, sessionId = 'old') => { cursor = 0; return ReviewedPreviews({ open, sessionId, turn: 1, callId: 'call', resultRef: 'ref', onOpen(photo) { zoom = photo } }) }
+  let zoom, zoomItems
+  const render = (open, sessionId = 'old') => { cursor = 0; return ReviewedPreviews({ open, sessionId, turn: 1, callId: 'call', resultRef: 'ref', onOpen(photo, items) { zoom = photo; zoomItems = items } }) }
   assert.equal(render(false), null); assert.equal(requests.length, 0)
   render(true); assert.equal(requests.length, 1)
   assert.deepEqual(requests[0].context, { sessionId: 'old', turn: 1, callId: 'call', resultRef: 'ref' })
@@ -202,6 +281,7 @@ test('historical previews read the original result on expansion and ignore stale
   assert.equal(both.children[1].children[0].children[0].children.length, 1)
   both.children[1].children[0].children[0].children[0].children[0].props.open()
   assert.equal(zoom.id, 'second')
+  assert.deepEqual(zoomItems.map(photo => photo.id), ['second'])
   both.children[0].children[0].props.onToggle()
   assert.equal(render(true, 'new').children[1].children[0].props.open, true)
   render(false, 'new'); render(true, 'new'); assert.equal(requests.length, 2)

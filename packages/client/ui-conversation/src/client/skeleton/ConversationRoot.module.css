@@ -10,24 +10,15 @@
   corner-shape: round;
 }
 
-/* 76px with its rule: the height of the Sidebar's tab strip and header row
-   (ui-dockkit `.tabStrip` 38px + the pane header's 38px), so the two rules
-   meet at the column edge. The rows add up to it — 10px top inset, the 30px
-   title row, the tab strip's 10px margin, a 16px tab line, and its 9px bottom
-   inset — so no row below may grow past its figure. */
+/* 展开时保持约 76px 页头；由标题行和标签行撑高，收起时不保留空白。 */
 .header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   flex: none;
   box-sizing: border-box;
-  min-height: 76px;
+  min-height: 0;
   padding: 10px 28px 0 20px;
   border-bottom: 0.5px solid var(--dsw-alias-border-l3);
-}
-
-.header:where(:not(:has(.tabs))) {
-  min-height: 0;
-  padding-bottom: 10px;
 }
 
 /* Blank Sessions retain navigation controls without conversation title or tabs. */
@@ -39,6 +30,10 @@
 
 .headerBlank .headerCorner {
   margin-left: auto;
+}
+
+.headerBlank .titleRow {
+  padding-bottom: 0;
 }
 
 /* Only the macOS titlebar needs reserved drag space before a Session exists. */
@@ -76,6 +71,7 @@
   align-items: center;
   gap: 0;
   min-height: 30px;
+  padding-bottom: 10px;
   /* Clears the frame's window-chrome band (traffic lights + shell.leading
      controls, ui-layout AppFrame) when it is published; the header already
      pads 20px of it. Zero everywhere else (the fallback makes the max
@@ -191,21 +187,43 @@ button.crumb:hover {
   display: none;
 }
 
-/* figma Tab_Group 34:11441: 35px strip, gap 36, pad-left 8, tabs bottom-aligned.
-   Positioned above the header's own paint, so the active bar covers the rule. */
-.tabs {
+.tabsDisclosure {
   grid-column: 1 / -1;
   position: relative;
   z-index: 1;
+}
+
+.tabsToggle {
+  flex: none;
+  width: 28px;
+  padding: 0;
+  color: var(--dsw-alias-label-tertiary);
+  transition: background-color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.tabsChevron {
+  display: inline-flex;
+  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.tabsChevron[data-expanded] {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabsToggle,
+  .tabsChevron {
+    transition: none;
+  }
+}
+
+.tabs {
   display: flex;
   gap: 36px;
-  margin-top: 10px;
   padding-left: 8px;
 }
 
-/* figma .Tab 34:11442: 13/16 text (figma wt510, rendered 500). The 2px bar
-   reaches 1px past the tab's box to end flush with the header's bottom edge,
-   sitting over the rule. */
+/* 下划线留在标签盒内，避免高度动画的裁切容器截断选中标记。 */
 .tab {
   position: relative;
   padding: 0 0 9px;
@@ -222,7 +240,7 @@ button.crumb:hover {
   content: '';
   position: absolute;
   right: 0;
-  bottom: -1px;
+  bottom: 0;
   left: 0;
   height: 2px;
   border-radius: 2px;

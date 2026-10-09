@@ -63,15 +63,16 @@ export function createReviewedPreviews(React, UI, t, store) {
       h('rect', { x: 6, y: 6, width: 15, height: 15, rx: 3 }), h('path', { d: 'M3 15V5a2 2 0 0 1 2-2h10M6 17l4-4 4 4 3-3 4 4M11 10h.01', strokeLinecap: 'round', strokeLinejoin: 'round' }))
     return h('div', { className: 'afp-reviewed-lists' },
       ...['passed', 'rejected'].map(status => {
-        const items = photos.filter(photo => photo.status === status), title = t(status === 'passed' ? 'feedbackPhotosPassed' : 'feedbackPhotosRejected').replace('{count}', String(items.length))
+        const items = photos.filter(photo => photo.status === status).map((photo, index) => ({ ...photo,
+          title: photo.title || t('feedbackPreviewOrdinal').replace('{index}', String(index + 1)) }))
+        const title = t(status === 'passed' ? 'feedbackPhotosPassed' : 'feedbackPhotosRejected').replace('{count}', String(items.length))
         return h('div', { key: status, className: 'afp-reviewed-disclosure', 'data-review-status': status }, h(UI.DisclosureRow, {
           title, open: Boolean(expanded[status] && items.length), expandable: items.length > 0, expandOnRowClick: true,
           onToggle: () => { setExpanded(value => ({ ...value, [status]: !value[status] })); onOpen(null) }, titleClassName: 'afp-agent-tool-title', icon,
         }, expanded[status] && items.length ? h('div', { className: 'afp-reviewed-previews', tabIndex: 0, role: 'region', 'aria-label': t('feedbackRowTitle') + ' · ' + title },
-          ...items.map((photo, index) => {
-            const named = { ...photo, title: photo.title || t('feedbackPreviewOrdinal').replace('{index}', String(index + 1)) }
+          ...items.map(photo => {
             return h('div', { key: (photo.category ?? '') + '\n' + photo.id, className: 'afp-reviewed-thumbnail', title: photo.reasonCode ? t('feedbackReason_' + photo.reasonCode) : title },
-              h(ImagePreview, { photo: named, retry: true, open: () => onOpen(named) }))
+              h(ImagePreview, { photo, retry: true, open: () => onOpen(photo, items) }))
           })) : null))
       }),
       unknown && resultRef ? h('p', { className: 'afp-chat-help' }, t('feedbackPhotoStatusUnknown').replace('{count}', String(unknown))) : null)

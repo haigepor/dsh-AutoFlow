@@ -36,6 +36,7 @@ export function createAfpClientStore(ctx, options = {}) {
   let downloadSequence = 0, downloadController
   let collectionSelectionSequence = 0
   const searchCursors = new Set()
+  const reportPages = new Map()
 
   function publish(update) {
     if (disposed) return
@@ -93,6 +94,7 @@ export function createAfpClientStore(ctx, options = {}) {
         void store.loadAccount()
       }
       const previewsChanged = previews.configure(status.features.includes('read') ? status.previewCache ?? null : null)
+      if (previewsChanged || readChanged) reportPages.clear()
       if (readChanged && !previewsChanged) previews.clear()
       publish({ status, ...(status.downloads?.some(record => record.id === state.downloadResult?.downloadId) ? { downloadResult: null } : {}),
         ...(previewsChanged || readChanged ? { previewGeneration: state.previewGeneration + 1 } : {}),
@@ -157,6 +159,7 @@ export function createAfpClientStore(ctx, options = {}) {
       return previews.acquire(src, signal, options)
     },
     invalidatePreview(src, url) { previews.invalidate(src, url) },
+    acquireCachedPreview(src, signal) { return state.status?.features?.includes('read') ? previews.acquireCached(src, signal) : null },
     previewCacheStats() { return previews.stats() },
     getSnapshot: () => state,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
@@ -536,15 +539,33 @@ export function createAfpClientStore(ctx, options = {}) {
       const key = `${id}:${category}:${decision}`
       const prior = state.regions.run.data
       if (more && (!prior?.hasMore || state.regions.run.loading)) return false
-      const { sequence, controller } = startRegion('run', { clearData: !more })
+      const sameRun = state.runId === id && Boolean(prior)
+      const filtering = sameRun && (state.reportCategory !== category || state.reportFilter !== decision)
+      if (!sameRun) reportPages.clear()
+      const cached = filtering ? reportPages.get(key) : null
+      const all = filtering ? reportPages.get(`${id}::all`) : null
+      const known = all ?? prior
+      const complete = Boolean(cached || all && !all.hasMore
+        || state.reportFilter === 'all' && (!state.reportCategory || state.reportCategory === category) && !prior?.hasMore)
+      // 同一报告切换筛选保留摘要和工具栏，已读结果先显示，后台仍核验保存记录。
+      const visible = filtering ? cached ?? { ...known, hasMore: false, items: known.items.filter(item =>
+        (!category || item.category === category) && (decision === 'all' || decision === 'failed' && item.requestFailed
+          || decision === 'kept' && item.keep === true && !item.requestFailed
+          || decision === 'rejected' && item.keep === false && !item.requestFailed)) } : prior
+      const { sequence, controller } = startRegion('run', { clearData: !sameRun && !more,
+        loadMode: filtering && !complete ? 'filter' : more ? 'more' : 'refresh' })
       publish({ runId: id, reportCategory: category, reportFilter: decision,
+        ...(filtering ? { regions: { ...state.regions, run: { ...state.regions.run, data: visible } } } : {}),
         ...(more ? {} : { plan: null, planFingerprint: '', confirmChecked: false }) })
       if (more) publish({ regions: { ...state.regions, run: { ...state.regions.run, loading: true, error: '' } } })
       const args = { runId: id, decision, ...(category ? { category } : {}), ...(more ? { offset: prior?.items?.length ?? 0 } : {}) }
       try {
         const page = await callData('run-items', args, controller.signal)
         if (disposed || sequences.run !== sequence || state.runId !== id || state.reportCategory !== category || state.reportFilter !== decision) return false
-        return finishRegion('run', sequence, more ? { ...page, items: [...prior.items, ...page.items] } : page)
+        if (prior?.run && JSON.stringify(prior.run) !== JSON.stringify(page.run)) reportPages.clear()
+        const data = more ? { ...page, items: [...prior.items, ...page.items] } : page
+        reportPages.set(key, data)
+        return finishRegion('run', sequence, data)
       } catch (error) { return failRegion('run', sequence, error) }
       finally { if (controllers.get('run') === controller) controllers.delete('run') }
     },
@@ -631,6 +652,7 @@ export function createAfpClientStore(ctx, options = {}) {
     },
     resetData() {
       searchCursors.clear()
+      reportPages.clear()
       cancelCollectionSelection()
       previews.configure(null); previews.clear()
       downloadSequence++; downloadController?.abort(); downloadController = null
@@ -652,7 +674,7 @@ export function createAfpClientStore(ctx, options = {}) {
         reportFilter: 'all', targetPerCategory: null, threshold: null, plan: null, planFingerprint: '',
         confirmChecked: false, result: null, busy: false, toast: '', error: '' })
     },
-    dispose() { disposed = true; listeners.clear(); actionSequence++; downloadSequence++; downloadController?.abort(); for (const name of regionNames) sequences[name]++; for (const controller of controllers.values()) controller.abort(); controllers.clear(); return previews.dispose() },
+    dispose() { disposed = true; reportPages.clear(); listeners.clear(); actionSequence++; downloadSequence++; downloadController?.abort(); for (const name of regionNames) sequences[name]++; for (const controller of controllers.values()) controller.abort(); controllers.clear(); return previews.dispose() },
   }
   store.conversationData = callData
   return store

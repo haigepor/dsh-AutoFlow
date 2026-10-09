@@ -73,24 +73,34 @@ export function createAfpToolRow(React, UI, t, store) {
     const error = props.block.isError ? value : null
     const [open, setOpen] = React.useState(false)
     const [zoomPhoto, setZoomPhoto] = React.useState(null)
-    const report = !error && props.toolName === 'afp_report' ? afpReportFeedback(value) : null
+    const [zoomItems, setZoomItems] = React.useState([])
+    const ownReport = !error && props.toolName === 'afp_report' ? afpReportFeedback(value) : null
+    const refresh = !error && props.toolName === 'afp_refresh' && value?.runId
     const repeat = props.useChat ? props.useChat(snapshot => {
       const owner = afpTurnRows(snapshot, props.callId)
-      let first, count = 0
+      let first, count = 0, collecting = false, savedReport
       function visit(block) {
+        const result = decoded(block)
+        // 启动卡片只关联本轮该次启动之后、下次同 run 续跑之前的原始报告。
+        if (refresh && block.call?.name === 'afp_refresh' && result?.runId === refresh && !block.isError) collecting = block.callId === props.callId
+        if (collecting && block.kind === 'tool-result' && block.call?.name === 'afp_report' && !block.isError
+          && result?.runId === refresh && result.resultRef && afpReportFeedback(result)) savedReport = { value: result, callId: block.callId }
         const same = block.call?.name === props.toolName && argumentKey(block.call?.argsRaw) === argumentKey(props.block.call?.argsRaw)
         if (same && (error && block.isError && decoded(block)?.code === error.code
-          || report && !block.isError && block.kind === 'tool-result' && JSON.stringify(afpReportFeedback(decoded(block))) === JSON.stringify(report))) { first ??= block.callId; count++ }
+          || ownReport && !block.isError && block.kind === 'tool-result' && JSON.stringify(afpReportFeedback(result)) === JSON.stringify(ownReport))) { first ??= block.callId; count++ }
         for (const child of block.subCalls ?? []) visit(child)
       }
       for (const row of owner?.rows ?? []) visit(row.root)
-      return { hidden: Boolean((error || report) && first && first !== props.callId), count, turn: owner?.turn.turn, status: owner?.turn.status }
+      return { hidden: Boolean((error || ownReport) && first && first !== props.callId), count, turn: owner?.turn.turn, status: owner?.turn.status, savedReport }
     }) : null
-    const refresh = !error && props.toolName === 'afp_refresh' && value?.runId
     const activity = useAfpFeedbackProgress(React, store, props, repeat, refresh)
     if (repeat?.hidden) return null
     const format = (key, counts) => Object.entries(counts).reduce((text, [name, count]) => text.replace('{' + name + '}', String(count)), t(key))
     const live = activity.live
+    // 正在运行时保留实时事实；结束或重载后使用会话中已保存的报告，而非当前可变 run。
+    const savedReport = refresh && live?.state !== 'running' ? repeat?.savedReport : null
+    const reportValue = ownReport ? value : savedReport?.value
+    const report = ownReport ?? afpReportFeedback(reportValue)
     const feedbackRunning = Boolean(refresh && live?.state === 'running' && !activity.disconnected)
     const livePhase = t(activity.disconnected ? 'agentProgressDisconnected' : live ? feedbackStages[live.stage] ?? 'feedbackVision'
       : repeat?.status === 'open' ? 'feedbackStarted' : 'feedbackLaunchRecord')
@@ -113,9 +123,12 @@ export function createAfpToolRow(React, UI, t, store) {
       ['failed', 'cancelled', 'created', 'running'].includes(report.status) ? reportPhase : '', format('feedbackReportInline', report),
     ].filter(Boolean).join(' · ') : refresh ? [compactCounts, open ? '' : liveStageLine].filter(Boolean).join(' · ') : ''
     const summaryHint = report ? [inlineSummary, reportPhase, ...report.categories.map(row => t(row.category) + ' · ' + format('feedbackCategorySummary', row)), t('feedbackReportHelp')].join('\n') : [compactCounts, liveStageLine].filter(Boolean).join(' · ')
-    const previews = React.createElement(ReviewedPreviews, { open, liveIds: refresh ? live?.previewPhotoIds ?? [] : undefined,
-      livePhotos: refresh ? live?.reviewedPhotos ?? [] : undefined,
-      resultRef: report ? value?.resultRef : undefined, sessionId: props.sessionId, turn: repeat?.turn, callId: props.callId, onOpen: setZoomPhoto })
+    const previews = refresh && !live && !report ? open && React.createElement('p', { className: 'afp-chat-help' }, t('feedbackPreviewRecordUnavailable'))
+      : React.createElement(ReviewedPreviews, { open, liveIds: refresh && !report ? live?.previewPhotoIds ?? [] : undefined,
+        livePhotos: refresh && !report ? live?.reviewedPhotos ?? [] : undefined,
+        resultRef: report ? reportValue?.resultRef : undefined, sessionId: props.sessionId, turn: repeat?.turn,
+        callId: savedReport?.callId ?? props.callId,
+        onOpen: (photo, items = []) => { setZoomPhoto(photo); setZoomItems(items) } })
     const feedback = report ? React.createElement('div', { className: 'afp-chat-feedback', 'data-afp-feedback': 'report' },
       previews) : refresh ?
       React.createElement('div', { className: 'afp-chat-feedback', 'data-afp-feedback': 'task' },
@@ -136,7 +149,8 @@ export function createAfpToolRow(React, UI, t, store) {
           React.createElement(UI.Tag, { tone: error ? 'danger' : props.phase === 'result' ? 'neutral' : 'info' }, t(status)), repeat?.count > 1 ? ' · ' + repeat.count : '') }, feedback),
       error ? React.createElement('p', { className: 'afp-chat-help' }, t('agentError_' + error.code) === 'agentError_' + error.code ? t('agentFailureAdvice') : t('agentError_' + error.code)) : null,
       props.inspect ? React.createElement(UI.Button, { variant: 'ghost', size: 'sm', className: 'afp-agent-inspect', onClick: props.inspect }, t('agentInspectRecord')) : null,
-      React.createElement(PreviewModal, { photo: open ? zoomPhoto : null, onClose: () => setZoomPhoto(null) }))
+      React.createElement(PreviewModal, { photo: open ? zoomPhoto : null, items: zoomItems,
+        onChange: setZoomPhoto, onClose: () => setZoomPhoto(null) }))
   }
 }
 

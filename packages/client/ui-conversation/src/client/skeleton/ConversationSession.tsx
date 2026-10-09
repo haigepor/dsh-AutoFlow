@@ -1,6 +1,10 @@
 /** Strict per-session header/body content inserted into the resident conversation layout. */
 
 import clsx from 'clsx'
+import { useId, useState } from 'react'
+import {
+  AnimatedCollapse, Button, IconChevronDownOutlineRegular, Tooltip,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
@@ -53,7 +57,7 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
 /**
  * Renders Session header chrome above the resident conversation scrollport.
  * @param props - Strict Session store, view ledger, navigation, render, and locale shares.
- * @returns Session navigation controls, with title and tabs after conversation starts.
+ * @returns Session navigation with collapsible view tabs that preserve the selected view.
  */
 export function ConversationSessionHeader({
   sessionId, hideChrome, useSessions, useConversationViews, useStore,
@@ -64,12 +68,31 @@ export function ConversationSessionHeader({
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
   const showTabs = !hideChrome && tabs.length > 1
+  const [tabsExpanded, setTabsExpanded] = useState(true)
+  const tabsId = useId()
+  const toggleLabel = t(tabsExpanded ? 'session.collapseTabs' : 'session.expandTabs')
   return (
     <>
       <div className={css.titleRow}>
         {!hideChrome && (
           <>
             <div className={css.titleCluster}>
+              {showTabs && (
+                <Tooltip label={toggleLabel} side="bottom" portal>
+                  <Button
+                    size="sm"
+                    className={css.tabsToggle}
+                    aria-label={toggleLabel}
+                    aria-expanded={tabsExpanded}
+                    aria-controls={tabsId}
+                    onClick={() => { setTabsExpanded(expanded => !expanded) }}
+                  >
+                    <span className={css.tabsChevron} data-expanded={tabsExpanded || undefined} aria-hidden>
+                      <IconChevronDownOutlineRegular />
+                    </span>
+                  </Button>
+                </Tooltip>
+              )}
               <nav className={css.crumbs} aria-label={t('session.hierarchy')}>
                 {ancestry.map((summary, index) => {
                   const last = index === ancestry.length - 1
@@ -138,22 +161,22 @@ export function ConversationSessionHeader({
         </div>
       </div>
       {showTabs && (
-        // data-conversation-tabs: marks the tab strip, which the window-chrome
-        // geometry and the browser coverage lane anchor on.
-        <div className={css.tabs} role="tablist" data-conversation-tabs="">
-          {tabs.map(viewTab => (
-            <button
-              key={viewTab.id}
-              type="button"
-              role="tab"
-              aria-selected={viewTab.id === active?.id}
-              className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
-              onClick={() => { selectView(viewTab.id) }}
-            >
-              {viewTab.label}
-            </button>
-          ))}
-        </div>
+        <AnimatedCollapse open={tabsExpanded} keepMounted id={tabsId} className={css.tabsDisclosure}>
+          <div className={css.tabs} role="tablist" aria-label={t('session.views')} data-conversation-tabs="">
+            {tabs.map(viewTab => (
+              <button
+                key={viewTab.id}
+                type="button"
+                role="tab"
+                aria-selected={viewTab.id === active?.id}
+                className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
+                onClick={() => { selectView(viewTab.id) }}
+              >
+                {viewTab.label}
+              </button>
+            ))}
+          </div>
+        </AnimatedCollapse>
       )}
     </>
   )

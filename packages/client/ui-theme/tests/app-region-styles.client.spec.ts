@@ -89,7 +89,8 @@ const CHROME_ROWS: readonly ChromeRow[] = [
     file: CONVERSATION,
     selector: '.header',
     markup: 'client/ui-conversation/src/client/skeleton/ConversationHeader.tsx',
-    height: ['min-height', '76px'],
+    // 标签行可折叠，拖拽区域随页头的实际高度变化。
+    height: ['min-height', '0'],
   },
   {
     file: DOCKKIT,

@@ -1,4 +1,4 @@
 [
-  { "pressed": false, "label": "selectPhoto Sample", "variant": "ghost", "iconSize": 14 },
-  { "pressed": true, "label": "removeFromSelection Sample", "variant": "ghost", "iconSize": 14 }
+  { "pressed": false, "label": "selectPhoto Sample", "role": "button", "tabIndex": 0 },
+  { "pressed": true, "label": "removeFromSelection Sample", "role": "button", "tabIndex": 0 }
 ]

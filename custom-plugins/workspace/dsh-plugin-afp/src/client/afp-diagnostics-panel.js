@@ -3,18 +3,19 @@
  * @param {object} UI Existing DSH buttons and status indicators.
  * @param {Function} t Locale lookup.
  * @param {object} store AFP authenticated action client.
- * @returns {Function} Collapsible diagnostics panel.
+ * @returns {Function} Diagnostics panel supporting disclosure or initially open dialog content.
  */
 export function createDiagnosticsPanel(React, UI, t, store) {
   const h = React.createElement, { Button, StateDot, Tag } = UI
-  return function DiagnosticsPanel({ runId }) {
-    const [open, setOpen] = React.useState(false), [data, setData] = React.useState(null)
+  return function DiagnosticsPanel({ runId, initiallyOpen = false, standalone = false }) {
+    const [open, setOpen] = React.useState(initiallyOpen), [data, setData] = React.useState(null)
     const [busy, setBusy] = React.useState(false), [error, setError] = React.useState('')
     const request = React.useRef(0), mounted = React.useRef(false)
     React.useEffect(() => {
-      mounted.current = true; setOpen(false); setData(null); setBusy(false); setError('')
+      mounted.current = true; setOpen(initiallyOpen); setData(null); setBusy(false); setError('')
+      if (initiallyOpen) void load()
       return () => { mounted.current = false; request.current++ }
-    }, [runId])
+    }, [runId, initiallyOpen])
     async function load() {
       const sequence = ++request.current
       setBusy(true); setError('')
@@ -33,14 +34,15 @@ export function createDiagnosticsPanel(React, UI, t, store) {
       anchor.href = url; anchor.download = `afp-diagnostics-${data.runId}.jsonl`; anchor.click()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
     }
-    return h('details', { className: 'afp-wb-diagnostics', open, 'data-afp-diagnostics': runId,
-      onToggle: event => { const next = event.currentTarget.open; setOpen(next); if (next && !data && !busy) void load() } },
-      h('summary', null, h('span', { className: 'afp-wb-disclosure-chevron', 'aria-hidden': true }),
+    return h(standalone ? 'section' : 'details', { className: 'afp-wb-diagnostics', open: standalone ? undefined : open, 'data-afp-diagnostics': runId,
+      onToggle: standalone ? undefined : event => { const next = event.currentTarget.open; setOpen(next); if (next && !data && !busy) void load() } },
+      !standalone ? h('summary', null, h('span', { className: 'afp-wb-disclosure-chevron', 'aria-hidden': true }),
         h('span', { className: 'afp-wb-diagnostics-title' }, t('diagnosticsTitle')),
         data ? h(Tag, { tone: data.failure ? 'warning' : 'quiet' }, t(data.debug ? 'diagnosticsDetailed' : 'diagnosticsSummary')) : null,
-        data ? h('span', { className: 'afp-wb-subtle afp-wb-diagnostics-duration' }, `${(data.durationMs / 1000).toFixed(2)} s`) : null),
+        data ? h('span', { className: 'afp-wb-subtle afp-wb-diagnostics-duration' }, `${(data.durationMs / 1000).toFixed(2)} s`) : null) : null,
       h('div', { className: 'afp-wb-diagnostics-content', 'aria-busy': busy },
         h('div', { className: 'afp-wb-actions' },
+          standalone && data ? h(Tag, { tone: data.failure ? 'warning' : 'quiet' }, t(data.debug ? 'diagnosticsDetailed' : 'diagnosticsSummary')) : null,
           h(Button, { variant: 'ghost', size: 'sm', disabled: busy, onClick: () => { void load() },
             icon: busy ? h(StateDot, { state: 'ongoing', size: 14 }) : null }, t('reload')),
           h(Button, { variant: 'outline', size: 'sm', disabled: busy || !data, onClick: download }, t('diagnosticsExport'))),

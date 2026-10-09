@@ -120,12 +120,38 @@ function component(store, UI, photo) {
     useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
     useEffect(fn, deps) { const slot = cursor++; const old = effects[slot]; if (old && old.deps.every((item, index) => item === deps[index])) return; old?.cleanup?.(); effects[slot] = { fn, deps, pending: true } },
   }
+  React.useLayoutEffect = React.useEffect
   const Gallery = createAfpGallery(React, UI, {}, key => key, store)
   return {
     render(nextPhoto = photo) { cursor = 0; const tree = Gallery.ImagePreview({ photo: nextPhoto, large: true, retry: true }); for (const effect of effects) if (effect?.pending) { effect.pending = false; effect.cleanup = effect.fn() } return tree },
     unmount() { for (const effect of effects) effect?.cleanup?.() },
   }
 }
+
+test('a retained image restores before paint without a loader and expired bytes use the loading path', async () => {
+  const originalDocument = globalThis.document
+  globalThis.document = { baseURI: 'https://profile.test/' }
+  const { cache, calls, blob, advance } = fixture()
+  const photo = { id: 'photo', previewPath: 'api/afp/preview?photoId=photo' }, UI = { Button: Symbol('Button') }
+  const snapshot = { status: { features: ['read'] }, previewGeneration: 0 }
+  const store = { subscribe() {}, getSnapshot: () => snapshot, acquirePreview: (...args) => cache.acquire(...args),
+    acquireCachedPreview: (...args) => cache.acquireCached(...args), invalidatePreview: (...args) => cache.invalidate(...args) }
+  const first = component(store, UI, photo)
+  let cached, expired
+  try {
+    first.render(); await tick(); calls[0].resolve(blob()); await tick(); first.render(); first.unmount()
+    cached = component(store, UI, photo); cached.render()
+    const restored = cached.render()
+    assert.equal(nodes(restored, node => node.type?.name === 'PreviewLoading').length, 0)
+    assert.equal(nodes(restored, node => node.type === 'img').length, 1)
+    assert.equal(calls.length, 1)
+    cached.unmount(); advance(100)
+    expired = component(store, UI, photo); expired.render()
+    assert.equal(nodes(expired.render(), node => node.type?.name === 'PreviewLoading').length, 1)
+    await tick(); assert.equal(calls.length, 2)
+    calls[1].resolve(blob()); await tick()
+  } finally { first.unmount(); cached?.unmount(); expired?.unmount(); await cache.dispose(); globalThis.document = originalDocument }
+})
 
 test('transient previews recover automatically within one budget and unmount cancels pending recovery', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] })

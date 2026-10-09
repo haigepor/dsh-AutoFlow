@@ -13,9 +13,28 @@ import { createDiagnosticsPanel } from './afp-diagnostics-panel.js'
  */
 export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icons = {}) {
   const h = React.createElement
-  const { Button, Checkbox, Input, Tag, StateDot, Tooltip } = UI
+  const { Button, Checkbox, Input, Tag, StateDot, Tooltip, Modal } = UI
   const categoryKeys = ['animals', 'food', 'landscape', 'movie-poster', 'celestial-body-wallpaper']
   const DiagnosticsPanel = createDiagnosticsPanel(React, UI, t, store)
+
+  function ReportBack() {
+    return h(Button, { variant: 'ghost', size: 'sm', className: 'afp-wb-report-back',
+      onClick: () => store.set({ runId: '', regions: { ...store.getSnapshot().regions, run: { data: null, loading: false, error: '' } } }) },
+    icons.IconChevronLeftOutlineRegular ? h(icons.IconChevronLeftOutlineRegular, { size: 16, 'aria-hidden': true }) : null, t('back'))
+  }
+
+  function ReportMetricIcon({ kind }) {
+    const paths = {
+      category: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+      reviewedCount: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z',
+      filter_kept: 'm8 12 3 3 5-6', filter_rejected: 'M8 12h8', requestFailures: 'M12 8v5m0 3v.1',
+    }
+    return h('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6,
+      strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, focusable: false },
+    kind === 'filter_kept' || kind === 'filter_rejected' ? h('circle', { cx: 12, cy: 12, r: 9 }) : null,
+    kind === 'requestFailures' ? h('path', { d: 'm10.3 3.9-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0Z' }) : null,
+    h('path', { d: paths[kind] }), kind === 'reviewedCount' ? h('circle', { cx: 12, cy: 12, r: 3 }) : null)
+  }
 
   function HistorySkeleton() {
     return h('div', { className: 'afp-wb-history-skeleton', role: 'status', 'aria-label': t('loading') },
@@ -56,23 +75,47 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
   function LiveTasks({ state }) {
     const tasks = state.status?.tasks ?? []
     const downloads = state.status?.downloads ?? []
+    const [section, setSection] = React.useState(tasks.length || !downloads.length ? 'tasks' : 'downloads')
+    const panelId = React.useId()
     const activeTaskIds = new Set(tasks.map(task => task.taskId))
-    const downloadRows = downloads.map(record => h('details', { className: 'afp-wb-download-task', key: record.id },
+    const downloadRows = downloads.map(record => {
+      const processed = Math.min(record.total, record.completed + record.failed + record.pending + (record.cancelled ?? 0))
+      return h('details', { className: 'afp-wb-download-task', key: record.id },
       h('summary', null,
-        h('span', { className: 'afp-wb-download-task-title' }, t('downloadTask')),
+        h('span', { className: 'afp-wb-download-task-icon', 'aria-hidden': true }, icons.IconDownloadOutlineRegular ? h(icons.IconDownloadOutlineRegular, { size: 20 }) : null),
+        h('span', { className: 'afp-wb-download-task-title' }, h('strong', null, t('downloadTask')),
+          h('time', null, record.updatedAt ? new Date(record.updatedAt).toLocaleString() : t('dateUnknown'))),
         h(Tag, { tone: record.status === 'completed' ? 'success' : ['failed', 'interrupted', 'partial'].includes(record.status) ? 'warning' : 'neutral' }, t(`downloadStatus_${record.status}`)),
-        h('span', { className: 'afp-wb-subtle' }, `${record.completed}/${record.total} · ${t('failedCount')} ${record.failed} · ${t('pendingCount')} ${record.pending}`)),
-      record.updatedAt ? h('p', { className: 'afp-wb-subtle' }, new Date(record.updatedAt).toLocaleString()) : null,
-      h('div', { className: 'afp-wb-download-task-files' }, ...(record.items ?? []).slice(0, 8).map(item => h('p', { key: item.photoId },
+        h('svg', { className: 'afp-wb-download-task-chevron', width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, 'aria-hidden': true }, h('path', { d: 'm9 5 7 7-7 7', strokeLinecap: 'round', strokeLinejoin: 'round' })),
+        h('span', { className: 'afp-wb-download-task-counts' },
+          h('span', null, t('completed'), h('strong', null, `${record.completed}/${record.total}`)),
+          h('span', null, t('failedCount'), h('strong', null, record.failed)),
+          h('span', null, t('pendingCount'), h('strong', null, record.pending)),
+          record.cancelled ? h('span', null, t('downloadStatus_cancelled'), h('strong', null, record.cancelled)) : null),
+        h('progress', { max: Math.max(1, record.total), value: processed,
+          'aria-label': t('downloadProcessed').replace('{count}', String(processed)).replace('{total}', String(record.total)) })),
+      h('div', { className: 'afp-wb-download-task-files' }, ...(record.items ?? []).map(item => h('p', { key: item.photoId },
         h('span', null, item.fileName || item.title || item.photoId),
         h(Tag, { tone: item.status === 'completed' ? 'success' : ['failed', 'pending'].includes(item.status) ? 'warning' : 'neutral' }, t(`downloadStatus_${item.status}`)),
         item.errorCode === 'purchase-pending' ? h('span', { className: 'afp-wb-subtle' }, t('purchasePending'))
           : item.errorCode === 'host-stopped' ? h('span', { className: 'afp-wb-subtle' }, t('hostStopped')) : null))),
       record.taskId && activeTaskIds.has(record.taskId) ? h(Button, { variant: 'ghost', size: 'sm', disabled: state.busy,
-        onClick: () => { void store.invoke('cancel', { taskId: record.taskId }) } }, t('cancel')) : null))
-    return h('section', { className: 'afp-wb-section afp-wb-live-section', 'data-active': tasks.length > 0 || downloads.length > 0 }, h('div', { className: 'afp-wb-section-heading' }, h('h3', null, t('liveTasks')),
-      h(Tag, { tone: 'neutral' }, String(tasks.length))),
-      tasks.length ? h('div', { className: 'afp-wb-live-list' }, ...tasks.map(task => {
+        onClick: () => { void store.cancelDownload(record.taskId) } }, t('cancel')) : null)
+    })
+    return h('section', { className: 'afp-wb-section afp-wb-live-section' },
+      h('div', { className: 'afp-wb-activity-tabs', role: 'tablist', 'aria-label': t('taskActivity') },
+        ...[['tasks', 'liveTasks', tasks.length], ['downloads', 'downloadTasks', downloads.length]].map(([key, label, count]) => h(Button, {
+          key, id: `${panelId}-${key}`, variant: 'ghost', role: 'tab', 'aria-selected': section === key,
+          'aria-controls': `${panelId}-panel`, tabIndex: section === key ? 0 : -1, onClick: () => setSection(key),
+          onKeyDown: event => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+            event.preventDefault()
+            const next = event.key === 'Home' ? 'tasks' : event.key === 'End' ? 'downloads' : section === 'tasks' ? 'downloads' : 'tasks'
+            setSection(next); event.currentTarget.parentElement.querySelector(`[id="${panelId}-${next}"]`)?.focus()
+          },
+        }, t(label), h('span', { className: 'afp-wb-activity-count' }, count)))),
+      h('div', { id: `${panelId}-panel`, role: 'tabpanel', 'aria-labelledby': `${panelId}-${section}`, className: 'afp-wb-activity-body' },
+      section === 'tasks' && tasks.length ? h('div', { className: 'afp-wb-live-list' }, ...tasks.map(task => {
         let progress = null
         try { progress = task.progress ? JSON.parse(task.progress) : null } catch (error) { /* 隐藏不符合已知进度字段的内容，不显示原始输出。 */ }
         return h('article', { className: 'afp-wb-live-row', key: task.taskId },
@@ -85,8 +128,11 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
             progress?.requestFailures ? h('p', { className: 'afp-wb-subtle' }, t('feedbackRequestFailures').replace('{count}', String(progress.requestFailures))) : null),
           h(Button, { variant: 'ghost', size: 'sm', disabled: state.busy, onClick: () => { void store.invoke('cancel', { taskId: task.taskId }) } }, t('cancel')))
       })) : null,
-      downloads.length ? h('div', { className: 'afp-wb-download-tasks' }, h('h4', null, t('downloadTasks')), ...downloadRows) : null,
-      !tasks.length && !downloads.length ? h('p', { className: 'afp-wb-subtle' }, t('noLiveTasks')) : null)
+      section === 'downloads' && downloads.length ? h('div', { className: 'afp-wb-download-tasks' }, ...downloadRows) : null,
+      section === 'tasks' && !tasks.length || section === 'downloads' && !downloads.length
+        ? h('div', { className: 'afp-wb-activity-empty', role: 'status' },
+          h('span', { 'aria-hidden': true }, icons.IconDownloadOutlineRegular ? h(icons.IconDownloadOutlineRegular, { size: 24 }) : null),
+          h('p', null, t(section === 'tasks' ? 'noLiveTasks' : 'noDownloadTasks'))) : null))
   }
 
   function RefreshForm({ state, onOpenAccount }) {
@@ -134,65 +180,114 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
         h(Button, { variant: 'outline', disabled: !active || !state.runId.trim() || state.busy, onClick: () => { void store.invoke('refresh', { runId: state.runId.trim() }) } }, t('resumeRun')))))
   }
 
-  function ReportPanel({ state, onOpenChanges }) {
+  function ReportPanel({ state }) {
     const region = state.regions.run, report = region.data, items = report?.items ?? []
+    const scroller = React.useRef(null), lastAside = React.useRef(null)
+    const [showTop, setShowTop] = React.useState(false)
     const runSummary = report?.run
     const noReviewed = runSummary?.categories.every(row => row.reviewed === 0)
     const empty = !items.length || noReviewed && !items.some(item => item.requestFailed)
-    const canPlan = ['ready', 'paused'].includes(runSummary?.status) && !runSummary?.pendingBatch
     const selection = Object.values(state.selectedPhotos)
+    const asideOpen = Boolean(state.detail || state.selectionOpen)
+    if (state.detail && state.tab === 'tasks') lastAside.current = { kind: 'detail', props: { photo: state.detail,
+      report: true, loading: state.regions.detail.loading, error: state.regions.detail.error, onClose: () => store.closePhoto() } }
+    else if (state.selectionOpen) lastAside.current = { kind: 'selection', props: { photos: selection, onOpen: photo => { void store.openPhoto(photo) } } }
+    // 收起期间保留最后一个面板，让内容淡出与列宽过渡完成；隐藏面板不接受输入。
+    const aside = lastAside.current
     const canAdd = selection.length > 0 && selection.length <= 120 && !state.busy && !state.collectionSelecting
       && state.status?.features?.includes('read') && state.status?.features?.includes('write')
-    return h('section', { className: 'afp-wb-section afp-wb-report' },
-      h('div', { className: 'afp-wb-section-heading' }, h('div', { className: 'afp-wb-heading-group' }, h('h3', null, t('runReport')),
-        runSummary ? h(Tag, { tone: runSummary.status === 'failed' ? 'warning' : runSummary.status === 'ready' ? 'success' : 'neutral' }, t(`runStatus_${runSummary.status}`)) : null),
-        h(Button, { variant: 'ghost', size: 'sm', onClick: () => store.set({ runId: '', regions: { ...state.regions, run: { data: null, loading: false, error: '' } } }) }, t('closeReport'))),
+    return h('section', { className: `afp-wb-section afp-wb-report${state.detail || state.selectionOpen ? ' is-with-aside' : ''}` },
+      h('div', { className: 'afp-wb-report-main' },
+      h('div', { className: 'afp-wb-section-heading' }, h('div', { className: 'afp-wb-heading-group' },
+        h(ReportBack), h('h3', null, t('runReport')),
+        runSummary ? h(Tag, { tone: runSummary.status === 'failed' ? 'warning' : runSummary.status === 'ready' ? 'success' : 'neutral' }, t(`runStatus_${runSummary.status}`)) : null)),
+      h('div', { ref: scroller, className: 'afp-wb-gallery-wrap', tabIndex: -1,
+        onScroll: event => setShowTop(event.currentTarget.scrollTop > event.currentTarget.clientHeight / 2) },
       runSummary ? h('div', { className: 'afp-wb-report-summary' }, ...runSummary.categories.map(row => {
         const reviewed = row.pixelReviewed ?? Math.max(0, row.reviewed - (row.requestFailures ?? 0))
+        const metrics = [
+          ['reviewedCount', reviewed, 'neutral'], ['filter_kept', row.kept, 'success'],
+          ['filter_rejected', Math.max(0, reviewed - row.kept), 'neutral'], ['requestFailures', row.requestFailures ?? 0, 'warning'],
+        ]
+        const outcomes = metrics.slice(1).filter(([, count]) => count > 0)
         return h('article', { key: row.category, className: 'afp-wb-report-category' },
-          h('div', { className: 'afp-wb-report-category-heading' }, h('strong', null, t(row.category)),
-            h('span', { className: 'afp-wb-subtle' }, t('reportTarget').replace('{count}', String(row.target)))),
-          h('dl', { className: 'afp-wb-report-metrics' }, ...[
-            ['reviewedCount', reviewed, 'neutral'], ['filter_kept', row.kept, 'success'],
-            ['filter_rejected', Math.max(0, reviewed - row.kept), 'neutral'], ['requestFailures', row.requestFailures ?? 0, 'warning'],
-          ].map(([key, count, tone]) => h('div', { key, 'data-tone': count > 0 ? tone : 'neutral' }, h('dt', null, t(key)), h('dd', null, count)))))
+          h('div', { className: 'afp-wb-report-category-heading' },
+            h('span', { className: 'afp-wb-report-category-icon', 'aria-hidden': true }, h(ReportMetricIcon, { kind: 'category' })),
+            h('strong', null, t(row.category)),
+            h('span', { className: 'afp-wb-report-target' }, t('reportTarget').replace('{count}', String(row.target))),
+            outcomes.length ? h('div', { className: 'afp-wb-report-distribution', role: 'img',
+              'aria-label': metrics.slice(1).map(([key, count]) => `${t(key)} ${count}`).join(' · ') },
+            ...outcomes.map(([key, count, tone]) => h('span', { key, 'data-tone': tone, style: { flexGrow: count } }))) : null),
+          h('dl', { className: 'afp-wb-report-metrics' }, ...metrics.map(([key, count, tone]) => h('div', { key, 'data-metric': key, 'data-tone': count > 0 ? tone : 'neutral' },
+            h('dt', null, h('span', { className: 'afp-wb-report-metric-icon', 'aria-hidden': true }, h(ReportMetricIcon, { kind: key })), t(key)),
+            h('dd', null, count)))))
       })) : null,
-      h('div', { className: 'afp-wb-toolbar' },
-        h('div', { className: 'afp-wb-field' }, h('span', null, t('categoryFilter')),
+      h('div', { className: 'afp-wb-toolbar afp-wb-report-toolbar' },
+        h('div', { className: 'afp-wb-field' }, h('span', { className: 'afp-wb-sr-only' }, t('categoryFilter')),
           h(Selector, { value: state.reportCategory, label: t('categoryFilter'),
             options: [{ value: '', label: t('allCategories') }, ...categoryKeys.filter(category => runSummary?.categories.some(row => row.category === category)).map(value => ({ value, label: t(value) }))],
             onChange: category => { void store.openRun(state.runId, { category, decision: state.reportFilter }) } })),
-        h('div', { className: 'afp-wb-field' }, h('span', null, t('decisionFilter')),
-          h(Selector, { value: state.reportFilter, label: t('decisionFilter'), options: ['all', 'kept', 'rejected', 'failed'].map(value => ({ value, label: t(`filter_${value}`) })),
-            onChange: decision => { void store.openRun(state.runId, { category: state.reportCategory, decision }) } })),
+        h('div', { className: 'afp-wb-field' }, h('span', { className: 'afp-wb-sr-only' }, t('decisionFilter')),
+          h('div', { className: 'afp-wb-result-filters', role: 'group', 'aria-label': t('decisionFilter') },
+            ...['all', 'kept', 'rejected', 'failed'].map(decision => h(Button, { key: decision, size: 'sm',
+              variant: state.reportFilter === decision ? 'outline' : 'ghost', 'aria-pressed': state.reportFilter === decision,
+              onClick: () => { void store.openRun(state.runId, { category: state.reportCategory, decision }) } }, t(`filter_${decision}`))))),
         h('div', { className: 'afp-wb-actions afp-wb-report-actions' },
-          h(Button, { variant: state.selectionOpen ? 'outline' : 'ghost', size: 'sm', 'aria-expanded': state.selectionOpen,
-            onClick: () => store.set({ selectionOpen: !state.selectionOpen }) }, t('selectionList'), h(Tag, { tone: 'quiet' }, String(selection.length))),
-          h(Button, { variant: 'outline', size: 'sm', disabled: !canAdd, onClick: () => store.openAddFavorites() }, t('addFavorites')))),
+          h(Button, { variant: state.selectionOpen ? 'outline' : 'ghost', size: 'sm', className: 'afp-wb-report-selection', 'aria-expanded': state.selectionOpen,
+            onClick: () => store.set({ selectionOpen: !state.selectionOpen }) },
+            icons.IconFlatListOutlineRegular ? h(icons.IconFlatListOutlineRegular, { size: 14, 'aria-hidden': true }) : null,
+            t('selectionList'), h(Tag, { tone: selection.length ? 'info' : 'quiet' }, String(selection.length))),
+          h(Button, { variant: canAdd ? 'primary' : 'outline', size: 'sm', disabled: !canAdd, onClick: () => store.openAddFavorites() },
+            icons.IconFolderCloseRegular ? h(icons.IconFolderCloseRegular, { size: 14, 'aria-hidden': true }) : null, t('addFavorites')))),
       region.error ? h('div', { role: 'alert', className: 'afp-wb-error-row' }, t('regionReadFailed'),
         h(Button, { variant: 'ghost', size: 'sm', onClick: () => { void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter }) } }, t('retry'))) : null,
-      h('div', { className: `afp-wb-gallery-layout${state.detail || state.selectionOpen ? ' is-with-aside' : ''}` },
-          h('div', { className: 'afp-wb-gallery-wrap' }, empty ? h('div', { className: 'afp-wb-report-empty', role: 'status' },
+          h('div', { className: 'afp-wb-report-images', 'aria-busy': region.loading }, empty && region.loading && region.loadMode === 'filter'
+            ? h('div', { className: 'afp-wb-gallery' }, ...Array.from({ length: 6 }, (_, key) => h(gallery.PhotoSkeleton, { key, imageOnly: true })))
+            : empty ? h('div', { className: 'afp-wb-report-empty', role: 'status' },
             h('p', null, t(noReviewed ? 'noReviewedItems' : 'reportNoMatches')),
             noReviewed ? h('p', { className: 'afp-wb-subtle' }, t('reportEmptyHelp')) : null)
             : h(gallery.ReportGallery, { items, selectedPhotos: state.selectedPhotos }),
-            !empty && region.data?.hasMore ? h(Button, { variant: 'outline', disabled: region.loading, onClick: () => { void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter, more: true }) } }, t('loadMore')) : null),
-          state.detail && state.tab === 'tasks' ? h(gallery.DetailPane, { photo: state.detail, report: true, loading: state.regions.detail.loading, error: state.regions.detail.error, onClose: () => store.closePhoto() })
-            : state.selectionOpen ? h(gallery.SelectionPane, { photos: selection, onOpen: photo => { void store.openPhoto(photo) } }) : null),
-      h(DiagnosticsPanel, { key: state.runId, runId: state.runId }),
-      canPlan ? h(Button, { variant: 'primary', disabled: !state.status?.features?.includes('write'), onClick: () => onOpenChanges(runSummary.runId) }, t('previewWrite')) : null)
+            !empty && region.data?.hasMore ? h(Button, { variant: 'outline', disabled: region.loading, onClick: () => { void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter, more: true }) } }, t('loadMore')) : null)),
+      showTop ? h(Button, { variant: 'outline', size: 'sm', className: 'afp-wb-back-top', 'aria-label': t('backToTop'), onClick: () => {
+        scroller.current?.focus({ preventScroll: true })
+        scroller.current?.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+      } }, h('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, 'aria-hidden': true },
+        h('path', { d: 'm6 12 6-6 6 6M12 6v13', strokeLinecap: 'round', strokeLinejoin: 'round' }))) : null),
+      h('aside', { className: `afp-wb-report-aside${asideOpen ? ' is-open' : ''}`, inert: asideOpen ? undefined : '', 'aria-hidden': !asideOpen },
+        h('div', { className: 'afp-wb-report-aside-content' }, aside ? h(aside.kind === 'detail' ? gallery.DetailPane : gallery.SelectionPane, aside.props) : null)))
   }
 
-  function TasksPanel({ state, onOpenAccount, onOpenChanges }) {
+  function TasksPanel({ state, onOpenAccount }) {
     const report = state.regions.run
     const pendingReport = state.runId && !report.data && (report.loading || report.error)
-    return h('div', { className: 'afp-wb-panel-content afp-wb-task-layout' },
-      h(RefreshForm, { state, onOpenAccount }),
-      h('div', { className: 'afp-wb-task-results' }, h(LiveTasks, { state }),
-      state.runId && state.regions.run.data ? h(ReportPanel, { state, onOpenChanges }) : null,
+    const collapsed = Boolean(state.tasksSidebarCollapsed), sidebarId = React.useId()
+    const toggleLabel = t(collapsed ? 'expandTaskSetup' : 'collapseTaskSetup')
+    const toggle = h(Button, { variant: 'ghost', size: 'sm', className: 'afp-wb-sidebar-toggle afp-wb-task-setup-toggle',
+      'aria-label': toggleLabel, 'aria-expanded': !collapsed, 'aria-controls': sidebarId,
+      onClick: () => store.set({ tasksSidebarCollapsed: !collapsed }) },
+      icons.IconPanelLeftOutlineRegular ? h(icons.IconPanelLeftOutlineRegular, { size: 18 }) :
+        h('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true },
+          h('rect', { x: 3, y: 4, width: 18, height: 16, rx: 3, stroke: 'currentColor', strokeWidth: 1.5 }),
+          h('path', { d: 'M9 4v16', stroke: 'currentColor', strokeWidth: 1.5 })))
+    return h('div', { className: `afp-wb-panel-content afp-wb-task-layout${collapsed ? ' is-sidebar-collapsed' : ''}` },
+      h('aside', { className: 'afp-wb-task-sidebar', 'aria-label': t('taskSetup') },
+        h('div', { className: 'afp-wb-task-sidebar-heading' }, h('h3', { 'aria-hidden': collapsed }, t('taskSetup')),
+          Tooltip ? h(Tooltip, { label: toggleLabel, portal: true, side: 'right' }, toggle) : toggle),
+      // 保持表单挂载；收起只隐藏设置区，保留输入和当前审阅状态。
+        h('div', { id: sidebarId, className: 'afp-wb-task-sidebar-content', inert: collapsed ? '' : undefined, 'aria-hidden': collapsed },
+          h(RefreshForm, { state, onOpenAccount })),
+        h('nav', { className: 'afp-wb-task-compact', inert: collapsed ? undefined : '', 'aria-hidden': !collapsed, 'aria-label': t('categoryFilter') },
+          ...categoryKeys.map(category => {
+            const button = h(Button, { variant: 'ghost', size: 'sm', key: category, 'aria-label': t(category),
+              'aria-pressed': state.selected.includes(category), onClick: () => store.set({ selected: state.selected.includes(category)
+                ? state.selected.filter(value => value !== category) : [...state.selected, category] }) },
+            h('span', { 'aria-hidden': true }, Array.from(t(category))[0]))
+            return Tooltip ? h(Tooltip, { key: category, label: t(category), side: 'right', portal: true }, button) : button
+          }))),
+      h('div', { className: 'afp-wb-task-results' },
+      state.runId && state.regions.run.data ? h(ReportPanel, { state }) : null,
       pendingReport ? h('section', { className: 'afp-wb-section', 'aria-busy': report.loading },
-        h('div', { className: 'afp-wb-section-heading' }, h('h3', null, t('runReport')),
-          h(Button, { variant: 'ghost', size: 'sm', onClick: () => store.set({ runId: '', regions: { ...state.regions, run: { data: null, loading: false, error: '' } } }) }, t('closeReport'))),
+        h('div', { className: 'afp-wb-section-heading' }, h('div', { className: 'afp-wb-heading-group' }, h(ReportBack), h('h3', null, t('runReport')))),
         report.loading ? h(HistorySkeleton) : error({ ...report, retry: () => store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter }) })) : null,
       !report.data && !pendingReport ? h(RunHistory, { state }) : null))
   }
@@ -278,5 +373,33 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
         state.regions.plans.data?.hasMore ? h(Button, { variant: 'outline', size: 'sm', disabled: state.regions.plans.loading, onClick: () => { void store.loadHistory('plans', { more: true }) } }, t('loadMore')) : null)))
   }
 
-  return { TasksPanel, ChangesPanel }
+  function TaskUtilities({ state }) {
+    const [mode, setMode] = React.useState('')
+    React.useEffect(() => setMode(''), [state.tab])
+    // 变更弹窗内切换报告保留表单；诊断仅对应打开时的运行。
+    React.useEffect(() => setMode(value => value === 'diagnostics' ? '' : value), [state.runId])
+    if (state.tab !== 'tasks') return null
+    const entries = [
+      ['diagnostics', 'diagnosticsTitle', 'IconCodeOutlineRegular', !state.runId],
+      ['activity', 'taskActivity', 'IconDownloadOutlineRegular', false],
+      ['preview', 'previewWrite', 'IconFolderOpenOutlineRegular', !state.status?.features?.includes('write')],
+    ]
+    const label = entries.find(([value]) => value === mode)?.[1]
+    return h(React.Fragment, null,
+      h('div', { className: 'afp-wb-tab-tools', role: 'group', 'aria-label': t('taskActivity') },
+        ...entries.map(([value, key, icon, disabled]) => {
+          const button = h(Button, { key: value, variant: 'ghost', size: 'sm', className: 'afp-wb-tab-tool', disabled,
+            'aria-label': t(key), 'aria-haspopup': 'dialog', onClick: () => {
+              setMode(value)
+              if (value === 'preview') void store.loadHistory('plans')
+            } }, icons[icon] ? h(icons[icon], { size: 16, 'aria-hidden': true }) : h('span', null, t(key)))
+          return Tooltip ? h(Tooltip, { key: value, label: t(key), side: 'bottom', portal: true }, button) : button
+        })),
+      Modal ? h(Modal, { open: Boolean(mode), title: label ? t(label) : '', closeLabel: t('close'),
+        onClose: () => setMode(''), className: 'afp-wb-task-dialog', contentClassName: 'afp-wb-task-dialog-content' },
+      mode === 'diagnostics' ? h(DiagnosticsPanel, { runId: state.runId, initiallyOpen: true, standalone: true })
+        : mode === 'activity' ? h(LiveTasks, { state }) : mode === 'preview' ? h(ChangesPanel, { state }) : null) : null)
+  }
+
+  return { TasksPanel, ChangesPanel, TaskUtilities }
 }

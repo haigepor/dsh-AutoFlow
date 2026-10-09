@@ -95,15 +95,20 @@ export function createPreviewCache({ load = readPreviewMedia, now = Date.now,
       clear(); policy = value
       return true
     },
+    acquireCached(src, signal) {
+      if (disposed || signal?.aborted) return null
+      prune()
+      const entry = entries.get(src)
+      if (!entry) return null
+      hits++; entries.delete(src); entries.set(src, entry)
+      return lease(entry, signal)
+    },
     async acquire(src, signal, { refresh = false } = {}) {
       if (disposed || signal?.aborted) throw aborted()
       prune()
       if (refresh) this.invalidate(src)
-      const entry = entries.get(src)
-      if (entry) {
-        hits++; entries.delete(src); entries.set(src, entry)
-        return lease(entry, signal)
-      }
+      const cached = this.acquireCached(src, signal)
+      if (cached) return cached
       let job = pending.get(src)
       if (job) coalesced++
       else { misses++; job = launch(src) }

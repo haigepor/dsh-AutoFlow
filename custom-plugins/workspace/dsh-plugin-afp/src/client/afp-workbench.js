@@ -22,6 +22,37 @@ export function createWorkbench(React, UI, ctx, t, store, ConfigurationForm, ico
   const { Button, Input, Switch, Tag, Toast, StateDot, SegmentedControl, Tooltip, Modal, Checkbox, GlideHighlight } = UI
   const Selector = createAfpSelector(React, UI, icons.IconChevronDownOutlineRegular)
   const Gallery = createAfpGallery(React, UI, icons, t, store)
+
+  function WorkbenchTabs({ value, children }) {
+    const track = React.useRef(null), indicator = React.useRef(null)
+    React.useLayoutEffect(() => {
+      const root = track.current, layer = indicator.current
+      if (!root || !layer) return
+      const view = root.ownerDocument.defaultView
+      const place = () => {
+        const active = root.querySelector('[role="tab"][aria-selected="true"]')
+        if (!active) return
+        layer.style.transform = `translateX(${active.offsetLeft}px)`
+        layer.style.width = `${active.offsetWidth}px`
+        layer.style.height = `${active.offsetHeight}px`
+        layer.style.top = `${active.offsetTop}px`
+        // 窄屏和工具入口改变导航宽度时，只滚动标签栏以保留当前标签。
+        const end = active.offsetLeft + active.offsetWidth
+        if (active.offsetLeft < root.scrollLeft) root.scrollLeft = active.offsetLeft
+        else if (end > root.scrollLeft + root.clientWidth) root.scrollLeft = end - root.clientWidth
+      }
+      place()
+      // 首次定位不从原点滑入；后续切换、字体与容器变化保持同一底板。
+      const frame = view.requestAnimationFrame(() => { layer.dataset.placed = 'true' })
+      const observer = view.ResizeObserver ? new view.ResizeObserver(place) : null
+      observer?.observe(root)
+      root.querySelectorAll('[role="tab"]').forEach(tab => observer?.observe(tab))
+      view.addEventListener('resize', place)
+      return () => { view.cancelAnimationFrame(frame); observer?.disconnect(); view.removeEventListener('resize', place) }
+    }, [value])
+    return h('div', { ref: track, className: 'afp-wb-tabstrip', role: 'tablist', 'aria-label': t('workbenchTabs') },
+      h('span', { ref: indicator, className: 'afp-wb-tab-indicator', 'aria-hidden': true }), children)
+  }
   const DownloadDialog = createAfpDownloadDialog(React, UI, icons, t, store, Gallery.ImagePreview)
   const SearchInput = createAfpSearchInput(React, UI, icons, t)
   const AddFavoritesDialog = createAfpAddFavoritesDialog(React, UI, icons, t, store, Gallery.ImagePreview)
@@ -413,11 +444,12 @@ export function createWorkbench(React, UI, ctx, t, store, ConfigurationForm, ico
           state.account ? h(Tag, { tone: tokenExpired ? 'warning' : state.account.token?.verifiedAt ? 'success' : 'neutral' }, t(tokenExpired ? 'tokenExpired' : state.account.token?.verifiedAt ? 'tokenVerified' : state.account.token?.configured ? 'tokenUnverified' : 'missing'))
             : state.regions.account.error ? h('span', { className: 'afp-wb-subtle' }, t('accountUnavailable')) : h('span', { className: 'afp-skeleton afp-skeleton-label', 'aria-label': t('loading') }))),
       state.error ? h('p', { className: 'afp-wb-global-error', role: 'alert' }, t('operationFailed')) : null,
-      h('div', { className: 'afp-wb-tabstrip', role: 'tablist', 'aria-label': t('workbenchTabs') }, ...tabs.map(renderTab)),
+      h('div', { className: 'afp-wb-tabs-shell' },
+        h(WorkbenchTabs, { value: state.tab }, ...tabs.map(renderTab)), h(TaskPanels.TaskUtilities, { state })),
       h('div', { className: `afp-wb-content afp-wb-content-${state.tab}` },
         renderPanel('search', h(SearchPanel, { state })),
         renderPanel('collections', h(CollectionsPanel, { state })),
-        renderPanel('tasks', h(TaskPanels.TasksPanel, { state, onOpenAccount: () => handleTab('account'), onOpenChanges: runId => { store.set({ runId }); handleTab('changes'); void store.loadHistory('plans') } })),
+        renderPanel('tasks', h(TaskPanels.TasksPanel, { state, onOpenAccount: () => handleTab('account') })),
         renderPanel('changes', h(TaskPanels.ChangesPanel, { state })),
         renderPanel('account', state.accountVisited ? h(AccountPanel, { state }) : null)),
       h(AddFavoritesDialog, { state }),
