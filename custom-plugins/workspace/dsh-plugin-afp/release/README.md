@@ -50,13 +50,15 @@ Run diagnostics retain the current attempt's total duration, individual stage ti
 
 The workbench updates task, report, collection-change history and configuration layouts, with diagnostic tags, timing tables, run identity cards and log export. Left-click opens large-image review; right-click opens details. Review supports keyboard navigation and selecting passed photos while preserving automatic judgments, without manual overrides. Adding photos uses a scoped frosted-glass modal and still requires explicit confirmation. The rotating task icon, fixed-width task panel and update loading animations require an AutoFlow application containing these changes; the plugin bundle does not replace application components.
 
-## AFP 0.1.3
+## AFP 0.1.4
 
 Report history uses status polling to synchronize the loaded range. Automatic refresh preserves rows, while manual refresh uses matching row skeletons. Reports support selection, menus and operations over the loaded range. Pausing persists resumable checkpoints; deletion moves local reports to the profile's `archived-runs/` without deleting remote collections. Archival, resumption and confirmed writes share the run lock, and plans referencing archived reports refuse writes.
 
 Categories can bind existing named private collections, persisted per profile and account. Removing a binding retains the remote collection, and explicit unbinding does not restore a same-name default. Resuming legacy account reports without a binding snapshot preserves default targets. Explicit bindings validate collection IDs; new previews use renamed collections' current names, while old previews remain subject to the remote directory digest. Binding changes invalidate earlier confirmations and plans.
 
 The workbench completes report side columns, the fixed heading, back-to-top control, collapsible task settings, top tool entries, and solid dialogs with 8px backdrop blur. Publication now ends after the workflow succeeds and the public Release has the correct source tag and three assets; isolated profiles and update rehearsals are optional. Verification uses keyless fixtures and does not establish acceptance of real AFP writes or model judgments.
+
+Windows publication regressions use Bash built-in reads to reduce extra polling subprocesses and an outer execution budget that covers host startup. Draft visibility, absence and API-error cases still assert retry counts, wait counts and exit status individually.
 
 ## Dev Note
 

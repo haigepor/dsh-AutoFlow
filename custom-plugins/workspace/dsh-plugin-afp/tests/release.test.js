@@ -21,11 +21,11 @@ test('AFP draft lookup handles delayed visibility, missing drafts and API errors
   try {
     for (const [mode, status, calls, waits] of [['delayed', 0, 3, 2], ['missing', 1, 10, 10], ['api-error', 1, 1, 0]]) {
       const counter = join(root, 'calls'), waiting = join(root, 'waits')
-      writeFileSync(counter, '0', 'utf8')
+      writeFileSync(counter, '0\n', 'utf8')
       writeFileSync(waiting, '', 'utf8')
       const script = `set -e
 find_release_id() {
-  calls=$(cat "$COUNTER_FILE"); calls=$((calls + 1))
+  IFS= read -r calls < "$COUNTER_FILE"; calls=$((calls + 1))
   printf '%s\\n' "$calls" > "$COUNTER_FILE"
   if test "$LOOKUP_MODE" = api-error; then return 7; fi
   if test "$LOOKUP_MODE" = delayed && test "$calls" -ge 3; then echo 407632532; else echo 0; fi
@@ -34,10 +34,12 @@ sleep() { printf '%s\\n' "$1" >> "$WAIT_FILE"; }
 ${lookup.split('\n').map(line => line.slice(10)).join('\n')}
 wait_for_created_release_id
 `
+      // 内建 read 避免轮询反复创建 cat；外层预算覆盖 Windows Bash 启动，不替代业务重试次数断言。
       const result = spawnSync(bash, ['--noprofile', '--norc', '-c', script], {
-        encoding: 'utf8', windowsHide: true, timeout: 5000,
+        encoding: 'utf8', windowsHide: true, timeout: 30_000,
         env: { ...process.env, LOOKUP_MODE: mode, COUNTER_FILE: counter.replaceAll('\\', '/'), WAIT_FILE: waiting.replaceAll('\\', '/') },
       })
+      assert.equal(result.signal, null, 'Draft lookup child was terminated before completing')
       assert.equal(result.error, undefined)
       assert.equal(result.status, status, result.stderr)
       assert.equal(Number(readFileSync(counter, 'utf8')), calls)
