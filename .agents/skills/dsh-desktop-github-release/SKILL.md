@@ -63,4 +63,6 @@ pnpm --dir apps/desktop run publish:github win-x64
 
 ## 失败恢复
 
+若 npm 大包超时后出现 `missing required LibreOffice engine win32-x64`，保留失败记录；可在平台 dotenv 配置已有 `DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com`，先确认镜像包与 npm 官方 `dist.integrity` 相符，再重跑完整打包。不要删除 Office 组件、跳过完整性检查或仅重用不完整运行时。
+
 保留运行日志和 publication.json，回到最早失败步骤。安装包失败时不推进策略；策略发布失败时保留公开安装包并重试。以专用分支的新提交修复策略，不强制降级已安装应用。脚本拒绝降低版本和最低阈值；紧急解除错误强制策略需单独明确授权并审查。
