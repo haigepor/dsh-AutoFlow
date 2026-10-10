@@ -58,7 +58,7 @@ Categories can bind existing named private collections, persisted per profile an
 
 The workbench completes report side columns, the fixed heading, back-to-top control, collapsible task settings, top tool entries, and solid dialogs with 8px backdrop blur. Publication now ends after the workflow succeeds and the public Release has the correct source tag and three assets; isolated profiles and update rehearsals are optional. Verification uses keyless fixtures and does not establish acceptance of real AFP writes or model judgments.
 
-Windows publication regressions use Bash built-in reads to reduce extra polling subprocesses and an outer execution budget that covers host startup. Draft visibility, absence and API-error cases still assert retry counts, wait counts and exit status individually.
+Windows publication regressions use Bash built-in reads to reduce extra polling subprocesses and an outer execution budget that covers host startup. Draft visibility, absence and API-error cases still assert retry counts, wait counts and exit status individually. Lifecycle fixtures cancel and drain their jobs before deleting temporary files, and fake reads reject signals already cancelled before listener registration.
 
 ## Dev Note
 

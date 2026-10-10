@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { acquireSkill, skillNames } from '../src/host/afp-skill-leases.js'
 import { AfpService } from '../src/host/afp-service.js'
 import { resolveConfig } from '../config-schema.js'
@@ -11,8 +11,14 @@ import { agentError } from '../src/host/afp-agent-errors.js'
 
 async function fixture(t) {
   const home = await mkdtemp(join(tmpdir(), 'afp-life-'))
-  t.after(() => rm(home, { recursive: true, force: true }))
   const jobs = []
+  t.after(async () => {
+    // after 按注册顺序执行；先取消并等待夹具作业落盘，再删除临时目录。
+    for (const job of jobs) job.handle.cancel()
+    await Promise.all(jobs.map(job => job.handle.done))
+    assert.ok(resolve(home).startsWith(resolve(tmpdir()) + sep + 'afp-life-'))
+    await rm(home, { recursive: true, force: true })
+  })
   const ctx = { profileContext: { dir: join(home, 'profile'), home }, jobs: { start(spec) { const id = `job-${jobs.length}`; jobs.push({ spec, handle: spec.run({ append() {}, updateProgress() {} }) }); return id } } }
   const connection = { status: async () => ({ credentials: {}, visionConfigured: false }) }
   return { home, ctx, jobs, config: resolveConfig({}), connection }
@@ -40,14 +46,16 @@ test('profile pause saves a resumable connection checkpoint and archive refuses 
 })
 
 test('profile pause refuses Session-owned runs and collection-stage pause retains completed dedup checkpoints', async t => {
-  const { ctx, config, connection } = await fixture(t)
+  const { ctx, config, connection, jobs } = await fixture(t)
   config.collectionConcurrency = 1
   let entered
-  const reading = new Promise(resolve => { entered = resolve })
+  let reading = new Promise(resolve => { entered = resolve })
   connection.open = async signal => ({ account: 'fixture', client: {
     listSelections: async () => [{ id: 'one', name: 'One' }, { id: 'two', name: 'Two' }],
     getSelection: async id => {
       if (id === 'one') return { docs: [{ id: 'reserved' }] }
+      // 清理可能先于假客户端请求开始；已取消的信号不会再次触发 abort 事件。
+      signal.throwIfAborted()
       entered(); await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true })); signal.throwIfAborted()
     },
   } })
@@ -58,9 +66,14 @@ test('profile pause refuses Session-owned runs and collection-stage pause retain
   const saved = await service.store.readRun(first.runId)
   assert.equal(saved.status, 'paused'); assert.equal(saved.stage, 'collections')
   assert.deepEqual(saved.dedup.collections.one.ids, ['reserved'])
+  reading = new Promise(resolve => { entered = resolve })
   const owned = await service.startRefresh({ categories: ['animals'] }, 'session', new AbortController().signal)
+  await reading
   await assert.rejects(service.pauseRun(owned.runId), /Session cancellation/)
   await assert.rejects(service.deleteRun(owned.runId), /busy/)
+  await service.dispose()
+  assert.equal((await jobs[1].handle.done).status, 'killed')
+  assert.equal(service.live.size, 0)
 })
 
 test('resuming a legacy report preserves its default target after the account binding changes', async t => {
