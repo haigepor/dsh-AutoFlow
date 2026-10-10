@@ -86,6 +86,30 @@ test('plans refuse foreign sessions, remote drift and repeated writes', async t 
   await assert.rejects(changes.execute(next.planId, 'session-a', signal), /used/)
 })
 
+for (const phase of ['preview', 'vision', 'confirmation']) test(`pause preserves the ${phase} checkpoint and resume finishes the pending photo`, async t => {
+  const { config, store } = await fixture(t), run = await store.createRun(['food'], config)
+  const controller = new AbortController()
+  let searches = 0
+  const primitives = {
+    session: () => ({ nextBatch: async () => { searches++; return { candidates: [{ id: 'photo', title: 'Food' }] } },
+      exportState: () => ({ version: 1, categories: [] }), getStatus: () => ({ rawCandidateCount: 1 }) }),
+    triage: async ({ onReviewState }) => {
+      await onReviewState({ id: 'photo', category: 'food', attempts: 1, phase })
+      controller.abort(new DOMException('pause fixture', 'AfpPause')); controller.signal.throwIfAborted()
+    },
+  }
+  await assert.rejects(refreshRun({ run, store, config, client: {}, signal: controller.signal, primitives }), { name: 'AfpPause' })
+  const saved = await store.readRun(run.id)
+  assert.equal(saved.status, 'paused'); assert.equal(saved.reviews[0].phase, phase)
+  assert.equal(saved.pending.candidates[0].id, 'photo')
+  primitives.triage = async ({ reviewStates }) => {
+    assert.equal(reviewStates[0].phase, phase)
+    return [{ id: 'photo', category: 'food', keep: true, confidence: .99, appliedThreshold: .85 }]
+  }
+  const completed = await refreshRun({ run: saved, store, config, client: {}, signal: new AbortController().signal, primitives })
+  assert.equal(completed.status, 'ready'); assert.equal(completed.pending, null); assert.equal(searches, 1)
+})
+
 test('ambiguous and shared-only collection names refuse dry-run plans', async t => {
   const { config, store } = await fixture(t)
   for (const selections of [
@@ -137,4 +161,29 @@ test('expired plans and changed accounts refuse writes before mutation', async t
   const saved = await store.readPlan(preview.planId); saved.expiresAt = 0; await store.savePlan(saved)
   await assert.rejects(changes.execute(preview.planId, 's', signal), /expired/)
   assert.equal(writes, 0)
+})
+
+test('confirmed writes hold the run lock and archival makes referenced plans unavailable before mutation', async t => {
+  const { store, config } = await fixture(t), run = await store.createRun(['food'], config)
+  run.account = 'account'; run.status = 'ready'
+  run.groups.food = { candidates: [{ id: 'photo', title: 'Food', guid: 'guid', provider: 'AFP' }], batches: 1 }
+  run.decisions = [{ id: 'photo', category: 'food', keep: true, confidence: .99, appliedThreshold: .85 }]
+  await store.saveRun(run)
+  let entered, finish, writes = 0
+  const writing = new Promise(resolve => { entered = resolve }), waiting = new Promise(resolve => { finish = resolve })
+  const client = { listSelections: async () => [{ id: 'food', name: 'AutoFlow_食物', isPrivate: true }],
+    getSelection: async () => ({ docs: writes ? [{ id: 'photo' }] : [] }),
+    addSelectionDoc: async () => { entered(); await waiting; writes++ } }
+  const changes = new Changes({ store, config, connect: async () => ({ client, account: 'account' }) })
+  const signal = new AbortController().signal
+  const plan = await changes.plan({ operation: 'append', categories: ['food'], runId: run.id }, 'owner', signal)
+  const executing = changes.execute(plan.planId, 'owner', signal)
+  await writing
+  await assert.rejects(store.archiveRun(run.id), /busy/)
+  finish(); assert.equal((await executing).status, 'completed')
+  const next = await changes.plan({ operation: 'append', categories: ['food'], runId: run.id }, 'owner', signal)
+  await store.archiveRun(run.id)
+  await assert.rejects(changes.check(next.planId, 'owner'), /Missing AFP record/)
+  await assert.rejects(changes.execute(next.planId, 'owner', signal), /Missing AFP record/)
+  assert.equal(writes, 1)
 })

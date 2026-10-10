@@ -2,6 +2,7 @@
 import { fileURLToPath } from 'node:url'
 import { readFile, mkdir, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 import { expect, it } from 'vitest'
 import { ToolCallId, createAssistantMessage, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -20,7 +21,9 @@ it('exports a failed AFP run without secrets and exposes the debug configuration
     // This isolated profile has no AFP credentials: connection fails locally before any provider request.
     const result = await scaffold.ctx.pluginManager.invokeAction('dsh-plugin-afp', 'workbench',
       { operation: 'refresh', args: JSON.stringify({ categories: ['food'], targetPerCategory: 1 }) }, new AbortController().signal)
-    const handle: { runId: string; jobId: string } = JSON.parse(result.output)
+    const handle: unknown = JSON.parse(result.output)
+    assert(handle && typeof handle === 'object' && 'runId' in handle && 'jobId' in handle)
+    assert(typeof handle.runId === 'string' && typeof handle.jobId === 'string')
     const jobs = scaffold.ctx.jobs.list()
     const admitted = jobs.find(job => job.id === handle.jobId)
     expect(admitted).toBeDefined()
@@ -66,7 +69,8 @@ it('exports a failed AFP run without secrets and exposes the debug configuration
       ? route.fulfill({ status: 503, json: { retryable: false } })
       : route.fulfill({ status: 200, contentType: 'image/jpeg', body: previewFixture }))
     await page.route('**/api/afp/workbench-data', async (route) => {
-      const input: { operation: string; args: { photoId?: string } } = route.request().postDataJSON()
+      const input: unknown = route.request().postDataJSON()
+      assert(input && typeof input === 'object' && 'operation' in input && typeof input.operation === 'string')
       if (input.operation === 'collection-list') {
         await route.fulfill({ json: { ok: true, value: { items: [{ id: 'fixture-target', name: '审阅确认夹具', readOnly: false, count: 0 }] } } }); return
       }
@@ -75,7 +79,10 @@ it('exports a failed AFP run without secrets and exposes the debug configuration
           previewPath: 'api/afp/preview?photoId=collection-photo' }], total: 1, hasMore: false } } }); return
       }
       if (input.operation !== 'photo-details') { await route.continue(); return }
-      const photo = [...reviewRun.groups.food.candidates, ...reviewRun.pending.candidates].find(item => item.id === input.args.photoId)
+      assert('args' in input && input.args && typeof input.args === 'object' && 'photoId' in input.args)
+      assert(typeof input.args.photoId === 'string')
+      const photoId = input.args.photoId
+      const photo = [...reviewRun.groups.food.candidates, ...reviewRun.pending.candidates].find(item => item.id === photoId)
       await route.fulfill({ json: { ok: true, value: photo } })
     })
     const console = watchConsole(page)
@@ -127,13 +134,14 @@ it('exports a failed AFP run without secrets and exposes the debug configuration
     const path = await download.path()
     if (!path) throw new Error('AFP diagnostic download unavailable')
     const text = await readFile(path, 'utf8')
-    const summary: {
-      event: string
-      runId: string
-      debug: boolean
-      failure: { stage: string }
-      timings: { stage: string }[]
-    } = JSON.parse(text.trim())
+    const summary: unknown = JSON.parse(text.trim())
+    assert(summary && typeof summary === 'object' && 'event' in summary && 'runId' in summary && 'debug' in summary)
+    assert('failure' in summary && summary.failure && typeof summary.failure === 'object' && 'stage' in summary.failure)
+    assert('timings' in summary && Array.isArray(summary.timings))
+    const steps = summary.timings.map((row: unknown) => {
+      assert(row && typeof row === 'object' && 'stage' in row && typeof row.stage === 'string')
+      return row.stage
+    })
     expect(summary.event).toBe('summary')
     expect(summary.runId).toBe(handle.runId)
     expect(summary.debug).toBe(false)
@@ -141,7 +149,7 @@ it('exports a failed AFP run without secrets and exposes the debug configuration
     expect(text).not.toMatch(/https?:|accessToken|password|responseBody|data:image/)
     await compareOrRefreshGolden(fileURLToPath(new URL('./expected/afp-debug/diagnostics.expected.md', import.meta.url)),
       JSON.stringify({ event: summary.event, debug: summary.debug, failureStage: summary.failure.stage,
-        steps: summary.timings.map(row => row.stage), exported: download.suggestedFilename().replace(handle.runId, '<runId>'), reportStableAcrossPolling: true,
+        steps, exported: download.suggestedFilename().replace(handle.runId, '<runId>'), reportStableAcrossPolling: true,
         technicalDetailsInitiallyCollapsed: true, historyCounts: { planned: 2, completed: 1, missingActual: '—' } }, null, 2), webSnapshotMode())
     await diagnosticsDialog.getByRole('button', { name: '关闭', exact: true }).click()
     await page.getByRole('tab', { name: '变更记录', exact: true }).click()
@@ -165,7 +173,7 @@ it('exports a failed AFP run without secrets and exposes the debug configuration
     expect(await completed.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     expect(await page.locator('.afp-wb-panel-changes').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     await page.setViewportSize({ width: 1440, height: 1000 })
-    await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'))
+    await page.evaluate(() => { document.body.removeAttribute('data-ds-dark-theme') })
     await page.getByRole('tab', { name: '账户与设置', exact: true }).click()
     await page.getByRole('tab', { name: '视觉模型', exact: true }).click()
     const advanced = page.getByRole('button', { name: '高级配置', exact: true })
@@ -174,7 +182,9 @@ it('exports a failed AFP run without secrets and exposes the debug configuration
     await page.getByRole('switch', { name: '开启 Debug 详细诊断', exact: true }).click()
     expect(await page.getByRole('switch', { name: '开启 Debug 详细诊断', exact: true }).isChecked()).toBe(true)
     const draft = page.getByRole('textbox', { name: '部署配置（JSON，不含密钥）', exact: true })
-    expect(JSON.parse(await draft.inputValue()).debugEnabled).toBe(true)
+    const draftConfig: unknown = JSON.parse(await draft.inputValue())
+    assert(draftConfig && typeof draftConfig === 'object' && 'debugEnabled' in draftConfig)
+    expect(draftConfig.debugEnabled).toBe(true)
     expect(await page.locator('.afp-config-advanced-card .afp-muted').count()).toBe(0)
     const geometry = await page.locator('.afp-wb-panel-account').evaluate((element) => {
       const body = element.querySelector('.afp-wb-account-body')
@@ -213,7 +223,7 @@ it('exports a failed AFP run without secrets and exposes the debug configuration
     expect(await page.locator('.afp-wb-feature-section').isVisible()).toBe(true)
     await page.getByRole('tab', { name: '筛选任务', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await page.locator('.afp-wb-history-row').filter({ hasText: '结果可用' }).click()
+    await page.locator('.afp-wb-history-row').filter({ hasText: '已暂停，可继续' }).locator('.afp-wb-history-open').click()
     const photos = page.locator('.afp-wb-report .afp-wb-photo-tile')
     await photos.first().waitFor({ state: 'visible' })
     const taskLayout = page.locator('.afp-wb-task-layout')
@@ -407,7 +417,7 @@ it('exports a failed AFP run without secrets and exposes the debug configuration
     expect(await collectionFrame.getAttribute('aria-pressed')).toBe('true')
     expect(await collectionPhoto.locator('.afp-wb-photo-select').count()).toBe(0)
     expect(await collectionFrame.evaluate(element => getComputedStyle(element).outlineColor)).toBe('rgba(0, 0, 0, 0)')
-    expect(await collectionPhoto.evaluate(element => getComputedStyle(element).borderTopColor)).not.toBe('rgba(0, 0, 0, 0)')
+    await expect.poll(() => collectionPhoto.evaluate(element => getComputedStyle(element).borderTopColor)).not.toBe('rgba(0, 0, 0, 0)')
     await page.screenshot({ path: `${artifacts}/collection-selected-card.png`, fullPage: true })
     await collectionFrame.press('Space')
     expect(await collectionFrame.getAttribute('aria-pressed')).toBe('false')
@@ -523,7 +533,7 @@ it('replays closed launch cards with saved thumbnails across reload and explains
       expect(geometry.width).toBeGreaterThan(geometry.thumbnail * 5 + 32)
       expect(Math.abs(geometry.rightGap)).toBeLessThan(2)
       await expect.poll(() => launch.locator('img').evaluateAll(images => images.every(image => image instanceof HTMLImageElement && image.naturalWidth > 0))).toBe(true)
-      await launch.locator('.afp-reviewed-thumbnail').first().click()
+      await launch.locator('.afp-reviewed-thumbnail .afp-wb-image-button').first().click()
       const modal = page.locator('.afp-wb-preview-modal')
       await modal.waitFor()
       expect(await modal.getByRole('button', { name: '上一张', exact: true }).isDisabled()).toBe(true)
@@ -540,7 +550,7 @@ it('replays closed launch cards with saved thumbnails across reload and explains
       await expect.poll(() => page.locator('.afp-wb-preview-modal').count()).toBe(0)
       const rejected = launch.locator('[data-review-status="rejected"]')
       await rejected.getByText('未通过 15 张', { exact: true }).click()
-      await rejected.locator('.afp-reviewed-thumbnail').first().click()
+      await rejected.locator('.afp-reviewed-thumbnail .afp-wb-image-button').first().click()
       await modal.getByText('1 / 15', { exact: true }).waitFor()
       await modal.getByRole('button', { name: '下一张', exact: true }).click()
       await modal.getByText('2 / 15', { exact: true }).waitFor()
@@ -555,7 +565,7 @@ it('replays closed launch cards with saved thumbnails across reload and explains
         await page.setViewportSize({ width, height: 844 })
         expect(await launch.getByText('已通过 3 张', { exact: true }).isVisible()).toBe(true)
         expect(await strip.evaluate(element => element.scrollWidth >= element.clientWidth)).toBe(true)
-        await launch.locator('.afp-reviewed-thumbnail').first().click()
+        await launch.locator('.afp-reviewed-thumbnail .afp-wb-image-button').first().click()
         expect(await modal.getByRole('button', { name: '下一张', exact: true }).isVisible()).toBe(true)
         await page.keyboard.press('ArrowRight')
         await modal.getByText('2 / 3', { exact: true }).waitFor()

@@ -25,7 +25,7 @@ export function createAfpClientStore(ctx, options = {}) {
     downloadPlan: null, downloadBusy: false, downloadBusyStage: '', downloadError: '', downloadErrorStage: '', downloadQuoteChanged: false, downloadResult: null,
     downloadBrowsing: false, downloadDirectoryListing: null,
     downloadDockOpen: false, downloadDockHidden: false, downloadNotice: null, downloadCancellingId: '',
-    runId: '', selected: ['food'], operation: 'append', reportCategory: '', reportFilter: 'all',
+    runId: '', selectedRuns: [], runAction: null, runActionResult: null, bindingCategory: '', bindingBusy: false, bindingError: '', selected: ['food'], operation: 'append', reportCategory: '', reportFilter: 'all',
     targetPerCategory: null, threshold: null, plan: null, planFingerprint: '', confirmChecked: false,
     result: null, busy: false, error: '', toast: '', previewGeneration: 0,
   }
@@ -109,6 +109,7 @@ export function createAfpClientStore(ctx, options = {}) {
       if (report?.runId === state.runId && latestRun && !state.regions.run.loading && JSON.stringify(report) !== JSON.stringify(latestRun)) {
         void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter })
       }
+      for (const kind of ['runs', 'plans']) if (state.regions[kind].data) void store.loadHistory(kind, { mode: 'auto' })
     }).catch(error => { if (!disposed && sequence === reloadSequence) publish({ error: error.message }) }).finally(() => { if (poll === request) poll = null })
     poll = request
     return request
@@ -144,7 +145,7 @@ export function createAfpClientStore(ctx, options = {}) {
     for (const item of right) if (!items.has(item.id)) items.set(item.id, item)
     return [...items.values()]
   }
-  function pageArgs(region, size) { return { offset: region?.data?.items?.length ?? 0, ...(size ? { limit: size } : {}) } }
+  function pageArgs(data, size) { return { offset: (data?.offset ?? 0) + (data?.items?.length ?? 0), ...(size ? { limit: size } : {}) } }
   function currentDownload(sequence) { return !disposed && sequence === downloadSequence }
   function changedDownloadQuote(result) {
     publish({ downloadOptions: { ...state.downloadOptions, photos: result.photos, creditBalance: result.creditBalance },
@@ -482,6 +483,27 @@ export function createAfpClientStore(ctx, options = {}) {
     },
     async loadProfile() { return readRegion('profile', 'account-profile', {}) },
     async loadCollections() { return readRegion('collections', 'collection-list', {}) },
+    async openBinding(category) {
+      set({ bindingCategory: category, bindingError: '' })
+      await store.loadCollections()
+    },
+    async saveBinding(category, collectionId) {
+      if (state.bindingBusy || state.busy) return false
+      const sequence = ++actionSequence
+      publish({ bindingBusy: true, bindingError: '' })
+      try {
+        await call('category-binding', { category, collectionId })
+        if (disposed || sequence !== actionSequence) return false
+        set({ plan: null, planFingerprint: '', confirmChecked: false })
+        await store.loadCollections()
+        if (disposed || sequence !== actionSequence) return false
+        publish({ bindingCategory: '', toast: 'bindingSaved' })
+        return true
+      } catch (error) {
+        if (!disposed && sequence === actionSequence) publish({ bindingError: 'bindingSaveFailed' })
+        return false
+      } finally { if (!disposed && sequence === actionSequence) publish({ bindingBusy: false }) }
+    },
     async openCollection(id) {
       if (!id) return false
       cancelCollectionSelection()
@@ -513,23 +535,38 @@ export function createAfpClientStore(ctx, options = {}) {
       } catch (error) { return failRegion('collection', sequence, error) }
       finally { if (controllers.get('collection') === controller) controllers.delete('collection') }
     },
-    async loadHistory(kind, { more = false } = {}) {
+    async loadHistory(kind, { more = false, mode } = {}) {
       if (!['runs', 'plans'].includes(kind)) return false
       const name = kind
       const prior = state.regions[name].data
+      const loadMode = more ? 'more' : mode ?? (prior ? 'manual' : 'initial')
+      if (loadMode === 'auto' && state.regions[name].loading) return false
       if (more && (!prior?.hasMore || state.regions[name].loading)) return false
-      const { sequence, controller } = startRegion(name, { clearData: !more })
+      const { sequence, controller } = startRegion(name, { loadMode })
       const args = { kind, ...(more ? pageArgs(prior) : {}) }
       try {
-        const page = await callData('history-list', args, controller.signal)
+        let page = await callData('history-list', args, controller.signal)
         if (disposed || sequences[name] !== sequence) return false
-        return finishRegion(name, sequence, more ? { ...page, items: [...prior.items, ...page.items] } : page)
+        const wanted = prior?.items.length ?? 0
+        // 背景同步和手动刷新都保留已加载范围；每页推进偏移并拒绝停滞，避免重复第一页。
+        while (!more && page.hasMore && page.items.length < wanted) {
+          const offset = page.offset + page.items.length
+          const next = await callData('history-list', { kind, offset }, controller.signal)
+          if (disposed || sequences[name] !== sequence) return false
+          if (next.offset !== offset || !next.items.length) throw new Error('Invalid AFP history page')
+          page = { ...next, offset: 0, items: dedupeItems(page.items, next.items) }
+          if (page.items.length < offset + next.items.length) throw new Error('AFP history changed during paging')
+        }
+        const data = more ? { ...page, offset: 0, items: dedupeItems(prior.items, page.items) } : page
+        if (more && (page.offset !== prior.items.length || page.hasMore && !page.items.length)) throw new Error('Invalid AFP history page')
+        if (kind === 'runs') publish({ selectedRuns: state.selectedRuns.filter(id => data.items.some(row => row.id === id)) })
+        return finishRegion(name, sequence, data)
       } catch (error) { return failRegion(name, sequence, error) }
       finally { if (controllers.get(name) === controller) controllers.delete(name) }
     },
     refreshCompletedTaskData() {
-      if (state.regions.runs.data && !state.regions.runs.loading) void store.loadHistory('runs')
-      if (state.regions.plans.data && !state.regions.plans.loading) void store.loadHistory('plans')
+      if (state.regions.runs.data && !state.regions.runs.loading) void store.loadHistory('runs', { mode: 'auto' })
+      if (state.regions.plans.data && !state.regions.plans.loading) void store.loadHistory('plans', { mode: 'auto' })
       if (state.runId && state.regions.run.data && !state.regions.run.loading) {
         void store.openRun(state.runId, { category: state.reportCategory, decision: state.reportFilter })
       }
@@ -571,6 +608,31 @@ export function createAfpClientStore(ctx, options = {}) {
     },
     async readDiagnostics(runId) {
       return callData('diagnostics', { runId })
+    },
+    toggleRun(id) { set({ selectedRuns: state.selectedRuns.includes(id) ? state.selectedRuns.filter(value => value !== id) : [...state.selectedRuns, id] }) },
+    selectLoadedRuns() { set({ selectedRuns: (state.regions.runs.data?.items ?? []).map(row => row.id) }) },
+    async manageRuns(operation, ids) {
+      if (state.busy || !['pause-run', 'delete-run'].includes(operation) || !ids.length) return false
+      const sequence = ++actionSequence
+      publish({ busy: true, runActionResult: null, error: '' })
+      const outcomes = []
+      try {
+        for (const runId of [...new Set(ids)]) {
+          if (disposed || sequence !== actionSequence) return false
+          try { await call(operation, { runId }); outcomes.push({ runId, ok: true }) }
+          catch (error) { outcomes.push({ runId, ok: false }) }
+        }
+        if (disposed || sequence !== actionSequence) return false
+        const deleted = operation === 'delete-run' ? outcomes.filter(row => row.ok).map(row => row.runId) : []
+        if (deleted.includes(state.runId)) {
+          reportPages.clear(); store.closePhoto()
+          set({ runId: '', plan: null, confirmChecked: false, regions: { ...state.regions, run: emptyRegion() } })
+        }
+        publish({ runAction: null, runActionResult: { operation, outcomes }, selectedRuns: state.selectedRuns.filter(id => !deleted.includes(id)),
+          plan: null, confirmChecked: false })
+        await store.loadHistory('runs', { mode: 'auto' }); await reload()
+        return outcomes.every(row => row.ok)
+      } finally { if (!disposed && sequence === actionSequence) publish({ busy: false }) }
     },
     async openPhoto(photo) {
       if (!photo?.id) return false
@@ -664,7 +726,8 @@ export function createAfpClientStore(ctx, options = {}) {
       actionSequence++
       publish({ previewGeneration: state.previewGeneration + 1, account: null, status: null, features: [], queryDraft: '', submittedQuery: '', language: '', submittedLanguage: '',
         regions: Object.fromEntries(regionNames.map(name => [name, emptyRegion()])), collectionId: '', collectionNextOffset: 0, collectionFilter: '',
-        selectedPhotos: {}, photoSources: {}, selectionOpen: false, detail: null, runId: '', selected: ['food'], operation: 'append', reportCategory: '',
+        selectedPhotos: {}, photoSources: {}, selectionOpen: false, detail: null, runId: '', selectedRuns: [], runAction: null, runActionResult: null,
+        bindingCategory: '', bindingBusy: false, bindingError: '', selected: ['food'], operation: 'append', reportCategory: '',
         collectionSelecting: false, collectionSelectionError: '', collectionSelectionIds: [],
         favoritesRequest: null, favoritesBusy: false, favoritesError: '', favoritesResult: null,
         collectionAction: null, collectionActionResult: null, downloadOptions: null, downloadSelected: {}, downloadOptionsLoading: false, downloadBulkResult: null,

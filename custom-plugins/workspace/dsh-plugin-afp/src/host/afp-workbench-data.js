@@ -4,6 +4,7 @@ import { summary } from './afp-refresh-workflow.js'
 import { agentError } from './afp-agent-errors.js'
 import { isPrivateSelection } from '../vendor/auto-afp-img/afp-collection-run.mjs'
 import { buildPhotoSearchRequest, CATEGORY_PROFILES } from '../vendor/auto-afp-img/afp-photo-search.mjs'
+import { categoryTargets } from './afp-category-bindings.js'
 
 const languages = new Set(['en', 'fr', 'es', 'ar', 'de', 'pt'])
 const decisions = new Set(['all', 'kept', 'rejected', 'failed'])
@@ -72,11 +73,9 @@ function byCreatedAt(left, right) {
   return (right.createdAt ?? 0) - (left.createdAt ?? 0) || left.id.localeCompare(right.id)
 }
 
-function collectionDto(selection, selections) {
+function collectionDto(selection, selections, bindings = {}) {
   const privateSelection = isPrivateSelection(selection)
-  const profile = CATEGORY_PROFILES.find(item => item.selectionName === selection.name)
-  const named = profile ? selections.filter(item => item.name === selection.name) : []
-  const category = profile && privateSelection && named.length === 1 ? profile.key : null
+  const category = categoryTargets(selections, bindings).find(target => target.id === selection.id)?.category ?? null
   return { id: selection.id, name: String(selection.name ?? ''), isPrivate: privateSelection,
     readOnly: !privateSelection, count: Number.isSafeInteger(selection.docsCount) && selection.docsCount >= 0 ? selection.docsCount : null, category }
 }
@@ -213,11 +212,12 @@ export class WorkbenchData {
 
   async collectionList(callerSignal) {
     return this.track(callerSignal, true, async signal => {
-      const { client } = await this.connection.open(signal)
+      const { client, account } = await this.connection.open(signal)
       const selections = await client.listSelections()
       if (!Array.isArray(selections)) throw new Error('Invalid AFP collection list')
+      const bindings = account ? await this.store.readBindings(account) : { values: {} }
       return { items: selections.filter(item => typeof item?.id === 'string' && item.id)
-        .map(item => collectionDto(item, selections)) }
+        .map(item => collectionDto(item, selections, bindings.values)), bindings: categoryTargets(selections, bindings.values) }
     })
   }
 
@@ -227,7 +227,7 @@ export class WorkbenchData {
     const offset = pageNumber(args.offset, 0, 0, Number.MAX_SAFE_INTEGER, 'collection offset')
     const limit = pageNumber(args.limit, this.config.pageSize, 1, this.config.pageSize, 'page size')
     return this.track(callerSignal, true, async signal => {
-      const { client } = await this.connection.open(signal)
+      const { client, account } = await this.connection.open(signal)
       const selections = await client.listSelections()
       if (!Array.isArray(selections)) throw new Error('Invalid AFP collection list')
       const matches = selections.filter(item => item?.id === id)
@@ -244,7 +244,7 @@ export class WorkbenchData {
         if (typeof key === 'string' && page.includes(key.trim())) byId.set(key.trim(), photoDto(item))
       }
       return { items: page.map(photo => byId.get(photo) ?? placeholder(photo)), offset, total: ids.length,
-        hasMore: offset + page.length < ids.length, collection: collectionDto(selection, selections) }
+        hasMore: offset + page.length < ids.length, collection: collectionDto(selection, selections, account ? (await this.store.readBindings(account)).values : {}) }
     })
   }
 
@@ -301,6 +301,7 @@ export class WorkbenchData {
         for (const file of files.filter(name => /^[a-f0-9-]{36}\.json$/.test(name))) {
           signal.throwIfAborted()
           const id = file.slice(0, -5)
+          try {
           if (selected === 'runs') {
             const run = await this.store.readRun(id)
             rows.push({ kind: 'run', id, createdAt: createdAt(run.createdAt), status: run.status, run: summary(run) })
@@ -317,6 +318,10 @@ export class WorkbenchData {
                 existing: target.existing, remove: plan.operation === 'append' ? 0 : target.existing,
                 add: target.docs.length, create: target.id === null && plan.operation !== 'clear' })), result,
             } })
+          }
+          } catch (error) {
+            // 归档可与列表读取并发；仅忽略已移走的记录，损坏或不安全的文件仍报错。
+            if (error.code !== 'ENOENT') throw error
           }
         }
       }

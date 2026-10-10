@@ -453,6 +453,7 @@ export function createWorkbench(React, UI, ctx, t, store, ConfigurationForm, ico
         renderPanel('changes', h(TaskPanels.ChangesPanel, { state })),
         renderPanel('account', state.accountVisited ? h(AccountPanel, { state }) : null)),
       h(AddFavoritesDialog, { state }),
+      h(TaskPanels.BindingDialog, { state }),
       Toast && state.toast ? h(Toast, { key: `${state.toast}:${state.result?.taskId ?? state.result?.runId ?? ''}`,
         text: t(state.toast), tone: 'success', holdMs: 4000, onDone: () => store.set({ toast: '' }) }) : null)
   }

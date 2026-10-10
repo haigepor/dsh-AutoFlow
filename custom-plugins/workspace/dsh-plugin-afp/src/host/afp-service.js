@@ -1,7 +1,5 @@
 import { ConversationRecords, photoResultEnvelope } from './afp-conversation-records.js'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { readdir } from 'node:fs/promises'
-import { join } from 'node:path'
 import { Store, digest } from './afp-state-store.js'
 import { Connection } from './afp-credentials.js'
 import { Changes } from './afp-change-plans.js'
@@ -15,6 +13,7 @@ import { resolveConfig } from '../../config-schema.js'
 import { readFailure } from '../vendor/auto-afp-img/read-failure.mjs'
 import { boundedWork } from '../vendor/auto-afp-img/bounded-work.mjs'
 import { AfpDiagnostics, diagnosticFailure } from './afp-diagnostics.js'
+import { categoryTargets } from './afp-category-bindings.js'
 
 function photoMembership(selection) {
   const rows = Array.isArray(selection) ? selection : selection?.docs ?? selection?.content ?? selection?.documents ?? []
@@ -128,7 +127,11 @@ export class AfpService {
       const services = await diagnostic.measure('connection', () => this.connect(operationSignal, false, true))
       return await this.store.lock(`account:${services.account}`, async () => {
         if (current.account && current.account !== services.account) throw new Error('AFP account changed since refresh')
+        // 旧账号报告没有快照时仍代表默认目标；续跑不能套用后来更改的账号绑定。
+        const legacyBindings = Boolean(args.runId && current.account && current.bindings === undefined)
         current.account = services.account
+        // 每次运行固定目标绑定；后续改绑定不能把旧报告解释为新收藏夹的结果。
+        current.bindings ??= legacyBindings ? {} : (await this.store.readBindings(services.account)).values
         await prepare('collections')
         current.dedup ??= { collections: {} }
         const reserved = await diagnostic.measure('collections', () => reservedIds(services.client, operationSignal, {
@@ -159,20 +162,23 @@ export class AfpService {
       } catch (error) {
         // 报告保留连接、收藏夹等业务阶段；写入失败单独标明，细分请求位置留在诊断中。
         const failureStage = diagnostic.errorStage(error, stage) === 'checkpoint-save' ? 'checkpoint-save' : stage
-        const failure = taskSignal.aborted ? { code: 'cancelled', stage, retryable: true }
+        const paused = taskSignal.aborted && taskSignal.reason?.name === 'AfpPause'
+        const outcome = taskSignal.aborted ? paused ? 'paused' : 'cancelled' : 'failed'
+        const failure = taskSignal.aborted ? { code: paused ? 'paused' : 'cancelled', stage, retryable: true }
           : readFailure(operationSignal.aborted ? operationSignal.reason : error, failureStage)
         // 仅记录本地阶段与代码位置，不记录远端异常正文、令牌或媒体引用。
         // 先落盘原始失败，再通知 UI；回调或 logger 异常不能掩盖第一处错误。
-        await diagnostic.finish(taskSignal.aborted ? 'cancelled' : 'failed', operationSignal.aborted ? operationSignal.reason : error, stage)
+        await diagnostic.finish(outcome, operationSignal.aborted ? operationSignal.reason : error, stage)
         try { this.ctx.logger?.warn('AFP refresh failed', { runId: run.id, stage, cancelled: taskSignal.aborted, frames: diagnosticFailure(error, stage).frames }) }
         catch (loggerError) { /* 持久诊断已保存，日志订阅器故障不替换任务失败。 */ }
         // 仅持有运行锁的任务可更新失败状态，避免并发续跑覆写正在工作的任务。
         const saved = await this.store.readRun(run.id)
-        saved.status = taskSignal.aborted ? 'cancelled' : 'failed'
+        saved.status = outcome
         saved.stage = failure.stage
-        saved.failure = failure
+        if (paused) delete saved.failure
+        else saved.failure = failure
         await this.store.saveRun(saved)
-        try { progress({ state: taskSignal.aborted ? 'stopped' : 'failed', stage: 'failed', errorCode: saved.failure.code }) }
+        try { progress({ state: taskSignal.aborted ? 'stopped' : 'failed', stage, errorCode: failure.code }) }
         catch (progressError) { /* 原始失败和诊断已保存，进度回调不能替换失败结果。 */ }
         return summary(saved)
       } finally { clearTimeout(setupTimer) }
@@ -181,14 +187,15 @@ export class AfpService {
   }
   async collections(signal, progress = () => {}) {
     this.require('read')
-    const { client } = await this.connection.open(signal, false, false, false, event => progress({ retryCount: event.retryCount })), selections = await client.listSelections(), result = []
-    const rows = await boundedWork(CATEGORY_PROFILES, this.config.collectionConcurrency, async profile => {
-      progress({ stage: 'collections', completed: result.length, total: CATEGORY_PROFILES.length, category: profile.key })
-      const matches = selections.filter(item => item.name === profile.selectionName)
-      const privateTarget = matches.length === 1 && isPrivateSelection(matches[0])
+    const { client, account } = await this.connection.open(signal, false, false, false, event => progress({ retryCount: event.retryCount })), selections = await client.listSelections(), result = []
+    const targets = categoryTargets(selections, account ? (await this.store.readBindings(account)).values : {})
+    const rows = await boundedWork(targets, this.config.collectionConcurrency, async profile => {
+      progress({ stage: 'collections', completed: result.length, total: CATEGORY_PROFILES.length, category: profile.category })
+      const matches = selections.filter(item => item.id === profile.id)
+      const privateTarget = profile.status === 'private'
       const count = privateTarget ? Number.isSafeInteger(matches[0].docsCount) && matches[0].docsCount >= 0
         ? matches[0].docsCount : selectionDocIds(await client.getSelection(matches[0].id)).size : null
-      const row = { category: profile.key, selectionName: profile.selectionName, status: matches.length === 0 ? 'missing' : privateTarget ? 'private' : 'conflict', count }
+      const row = { category: profile.category, selectionName: profile.name, status: profile.status, count }
       result.push(row)
       return row
     }, signal)
@@ -223,18 +230,14 @@ export class AfpService {
     return { planId: plan.id, operation: plan.operation, state: plan.state, result: plan.result ?? null }
   }
   async reports() {
-    const result = []
-    for (const kind of ['runs', 'plans']) {
-      let files
-      try { files = await readdir(join(this.store.profile, kind)) }
-      catch (error) { if (error.code === 'ENOENT') continue; throw error }
-      for (const file of files.filter(file => /^[a-f0-9-]{36}\.json$/.test(file)).sort().slice(-12)) result.push(await this.report({ [kind === 'runs' ? 'runId' : 'planId']: file.slice(0, -5) }))
-    }
-    return result
+    const signal = new AbortController().signal
+    const pages = await Promise.all(['runs', 'plans'].map(kind => this.workbench.historyList({ kind, limit: Math.min(12, this.config.pageSize) }, signal)))
+    return pages.flatMap(page => page.items.map(item => item.kind === 'run' ? item.run
+      : { planId: item.id, operation: item.plan.operation, state: item.status, result: item.plan.result }))
   }
   async status() {
     return { ...(await this.connection.status()), writesEnabled: this.flags.has('write'), features: [...this.flags], categories, scope: 'profile',
-      tasks: [...this.live.values()].filter(task => !task.owner).map(({ taskId, feature, progress }) => ({ taskId, feature, progress: progress ?? null })),
+      tasks: [...this.live.values()].filter(task => !task.owner).map(({ taskId, feature, progress, runId }) => ({ taskId, feature, runId: runId ?? null, progress: progress ?? null })),
       downloads: await this.downloads.status(), reports: await this.reports(), pollIntervalMs: this.config.pollIntervalMs }
   }
   async collectionOperation(args, signal) {
@@ -358,6 +361,51 @@ export class AfpService {
     task.controller.abort(); await task.done
     return { taskId, cancelled: true }
   }
+  /** Pause only an active profile refresh and wait until its checkpoint and locks are released. */
+  async pauseRun(runId) {
+    this.require('refresh')
+    await this.store.readRun(runId)
+    const task = [...this.live.values()].find(task => task.runId === runId)
+    if (!task || task.owner || task.feature !== 'refresh') throw new Error('AFP profile run is not active; Agent jobs use Session cancellation')
+    task.controller.abort(new DOMException('AFP run paused', 'AfpPause'))
+    await task.done
+    const saved = await this.store.readRun(runId)
+    if (saved.status !== 'paused') throw new Error('AFP pause checkpoint was not saved')
+    return { runId, paused: true }
+  }
+  /** Active reports must be paused first; profile-scoped archival never deletes AFP collections. */
+  async deleteRun(runId) {
+    if (this.stopping) throw new Error('AFP service unavailable')
+    if ([...this.live.values()].some(task => task.runId === runId)) throw new Error('AFP run is busy; pause it before deleting')
+    const result = await this.store.archiveRun(runId)
+    this.challenges.clear()
+    return result
+  }
+  /** Persist only a local category association with a unique writable collection owned by this account. */
+  async bindCategory({ category, collectionId }, signal) {
+    this.require('read')
+    chooseCategories([category])
+    if (collectionId !== null && (typeof collectionId !== 'string' || !collectionId || collectionId.length > 256
+      || /[\u0000-\u001f\u007f]/.test(collectionId))) throw new Error('Invalid AFP collection ID')
+    const { client, account } = await this.connection.open(signal)
+    return this.store.lock(`account:${account}`, async () => {
+      const selections = await client.listSelections()
+      const record = await this.store.readBindings(account)
+      let binding = null
+      if (collectionId !== null) {
+        const matches = selections.filter(item => item.id === collectionId), chosen = matches[0]
+        if (matches.length !== 1 || !isPrivateSelection(chosen) || typeof chosen.name !== 'string' || !chosen.name.trim()
+          || chosen.name.length > 256 || /[\u0000-\u001f\u007f]/.test(chosen.name)
+          || selections.filter(item => item.name === chosen.name).length !== 1) throw new Error('AFP binding target is missing, ambiguous, shared or read-only')
+        if (categoryTargets(selections, record.values).some(target => target.category !== category && target.id === collectionId)) throw new Error('AFP collection is bound to another category')
+        binding = { id: collectionId, name: chosen.name }
+      }
+      signal.throwIfAborted(); this.require('read')
+      await this.store.saveBindings(account, { ...record.values, [category]: binding })
+      this.challenges.clear(); this.writeEpoch++
+      return { category, binding }
+    })
+  }
   async previewResponse(request) {
     if (this.stopping || !this.flags.has('read')) return new Response('AFP read unavailable', {
       status: 403, headers: { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
@@ -462,6 +510,8 @@ export class AfpService {
       'download-options': ['photoIds'], 'pick-download-directory': ['path'], 'browse-download-directory': ['path'],
       'download-prepare': ['items', 'directoryId', 'prefix', 'suffix'], 'download-confirm': ['planId', 'confirmation', 'confirmed'],
       'collection-operation': ['action', 'photoIds', 'photoSources', 'targetCollectionId'],
+      'pause-run': ['runId'], 'delete-run': ['runId'],
+      'category-binding': ['category', 'collectionId'],
       diagnostics: ['runId'], report: ['runId', 'planId'], cancel: ['taskId'], plan: ['operation', 'categories', 'runId'], confirm: ['planId', 'confirmation', 'confirmed'] }
     if (!Object.hasOwn(allowed, input.operation) || Object.keys(args).some(key => !allowed[input.operation].includes(key))) throw new Error('Unknown AFP operation or argument')
     switch (input.operation) {
@@ -489,6 +539,9 @@ export class AfpService {
       case 'report': return this.report(args)
       case 'diagnostics': return this.diagnostics.read(args.runId)
       case 'cancel': return this.cancel(args.taskId)
+      case 'pause-run': return this.pauseRun(args.runId)
+      case 'delete-run': return this.deleteRun(args.runId)
+      case 'category-binding': return this.bindCategory(args, signal)
       case 'plan': return this.pagePlan(args, signal)
       case 'confirm': return this.pageConfirm(args, signal)
       default: throw new Error('Unknown AFP operation')

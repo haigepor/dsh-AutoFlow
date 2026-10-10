@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
     'IconRefreshOutlineRegular', 'IconSettingsOutlineRegular', 'IconCloseOutlineRegular', 'IconChevronDownOutlineRegular',
     'IconSkillOutlineRegular', 'IconCodeOutlineRegular', 'IconPanelLeftOutlineRegular', 'IconCheckOutlineRegular',
     'IconDownloadOutlineRegular', 'IconTrashOutlineRegular', 'IconFolderOpenOutlineRegular', 'IconSlidersTwoOutlineRegular',
-    'IconChevronLeftOutlineRegular', 'IconChevronRightOutlineRegular'].map(name => [name, primitives[name]]))
+    'IconChevronLeftOutlineRegular', 'IconChevronRightOutlineRegular', 'IconEllipsisOutlineRegular'].map(name => [name, primitives[name]]))
   return { inject: ['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.credentials', 'layout', 'uiConversation'], apply(ctx) {
     const namespace = 'afpWorkbench', panel = 'afp-workbench'
     ctx.effect(() => ctx.locale.register(namespace, { en, zh }), 'AFP locale')

@@ -13,7 +13,7 @@ import { createDiagnosticsPanel } from './afp-diagnostics-panel.js'
  */
 export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icons = {}) {
   const h = React.createElement
-  const { Button, Checkbox, Input, Tag, StateDot, Tooltip, Modal } = UI
+  const { Button, Checkbox, Input, Tag, StateDot, Tooltip, Modal, Menu } = UI
   const categoryKeys = ['animals', 'food', 'landscape', 'movie-poster', 'celestial-body-wallpaper']
   const DiagnosticsPanel = createDiagnosticsPanel(React, UI, t, store)
 
@@ -41,6 +41,48 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
       ...Array.from({ length: 3 }, (_, index) => h('div', { key: index, 'aria-hidden': true },
         h('span', { className: 'afp-skeleton' }), h('span', { className: 'afp-skeleton' }), h('span', { className: 'afp-skeleton' }))))
   }
+  function MoreMenu({ label, items, onSelect, disabled = false, className = '' }) {
+    const [open, setOpen] = React.useState(false), trigger = React.useRef(null)
+    return h(Menu, { open: open && !disabled, onClose: () => setOpen(false), portal: true, compact: true, autoFocus: true,
+      getAnchorRect: () => trigger.current?.getBoundingClientRect() ?? null, items,
+      onSelect: id => { setOpen(false); onSelect(id) },
+      anchor: h(Button, { ref: trigger, variant: 'ghost', size: 'sm', disabled, className,
+        'aria-label': label, 'aria-haspopup': 'menu', 'aria-expanded': open && !disabled,
+        onClick: () => setOpen(value => !value) }, icons.IconEllipsisOutlineRegular ? h(icons.IconEllipsisOutlineRegular, { size: 16, 'aria-hidden': true }) : h('span', { 'aria-hidden': true }, '⋯')) })
+  }
+
+  function CategoryChoices({ state, disabled = false }) {
+    return h('div', { className: 'afp-wb-categories' }, ...categoryKeys.map(category => h('div', {
+      key: category, className: 'afp-wb-category-option', 'data-selected': state.selected.includes(category) },
+    h(Checkbox, { disabled, checked: state.selected.includes(category), label: t(category),
+      onChange: () => store.set({ selected: state.selected.includes(category) ? state.selected.filter(value => value !== category) : [...state.selected, category] }) }),
+    h(Button, { variant: 'ghost', size: 'sm', className: 'afp-wb-category-more', disabled: !state.status?.features?.includes('read'),
+      'aria-label': `${t('manageCategoryBinding')} · ${t(category)}`, 'aria-haspopup': 'dialog',
+      onClick: () => { void store.openBinding(category) } }, icons.IconEllipsisOutlineRegular ? h(icons.IconEllipsisOutlineRegular, { size: 16, 'aria-hidden': true }) : h('span', { 'aria-hidden': true }, '⋯')))))
+  }
+
+  function BindingDialog({ state }) {
+    const category = state.bindingCategory, region = state.regions.collections
+    const binding = region.data?.bindings?.find(item => item.category === category)
+    const [chosen, setChosen] = React.useState('')
+    React.useEffect(() => setChosen(binding?.id ?? ''), [category, binding?.id])
+    const targets = (region.data?.items ?? []).filter(item => item.name?.trim() && !item.readOnly && (!item.category || item.category === category))
+    const close = () => { if (!state.bindingBusy) store.set({ bindingCategory: '', bindingError: '' }) }
+    return Modal ? h(Modal, { open: Boolean(category), onClose: close,
+      title: `${t('manageCategoryBinding')} · ${category ? t(category) : ''}`, closeLabel: t('close'),
+      className: 'afp-wb-action-modal', contentClassName: 'afp-wb-action-modal-content',
+      footer: h('div', { className: 'afp-wb-actions' }, h(Button, { variant: 'ghost', disabled: state.bindingBusy, onClick: close }, t('cancel')),
+        h(Button, { variant: 'outline', disabled: state.busy || state.bindingBusy || region.loading || !binding?.id,
+          onClick: () => { void store.saveBinding(category, null) } }, t('deleteBinding')),
+        h(Button, { variant: 'primary', disabled: state.busy || state.bindingBusy || region.loading || !chosen,
+          onClick: () => { void store.saveBinding(category, chosen) } }, t(binding?.id ? 'editBinding' : 'addBinding'))) },
+    h('p', { className: 'afp-wb-subtle' }, t('bindingHint')),
+    region.loading ? h(StateDot, { state: 'ongoing' }) : h(Selector, { value: chosen, label: t('targetCollection'), options: [{ value: '', label: t('chooseCollection') },
+      ...targets.map(item => ({ value: item.id, label: item.name }))], onChange: setChosen, disabled: state.bindingBusy }),
+    !targets.length && !region.loading ? h('p', { className: 'afp-wb-subtle' }, t('noPrivateCollections')) : null,
+    region.error ? error({ ...region, retry: () => store.loadCollections() }) : null,
+    state.bindingError ? h('p', { className: 'afp-wb-field-error', role: 'alert' }, t(state.bindingError)) : null) : null
+  }
   function ReloadButton({ loading, onClick }) {
     const Icon = icons.IconRefreshOutlineRegular
     const button = h(Button, { variant: 'ghost', size: 'sm', disabled: loading, 'aria-busy': loading,
@@ -55,20 +97,57 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
   }
   function RunHistory({ state }) {
     const region = state.regions.runs, rows = region.data?.items ?? []
+    const manual = region.loading && region.loadMode === 'manual'
+    const active = id => (state.status?.tasks ?? []).find(task => task.runId === id && task.feature === 'refresh')
+    const pauseEnabled = id => Boolean(active(id) && state.status?.features?.includes('refresh'))
+    const selected = state.selectedRuns ?? []
+    const scroller = React.useRef(null), measured = React.useRef([])
+    React.useLayoutEffect(() => {
+      if (!manual && scroller.current) measured.current = Array.from(scroller.current.children).map(row => row.getBoundingClientRect().height)
+    }, [manual, rows])
+    const actions = ids => [
+      { id: 'pause-run', label: t(ids.some(pauseEnabled) ? 'pauseReport' : 'pauseReportUnavailable'), disabled: state.busy || !ids.some(pauseEnabled) },
+      { id: 'delete-run', label: t(ids.some(id => !active(id) && rows.find(row => row.id === id)?.status !== 'running') ? 'deleteReport' : 'deleteReportUnavailable'),
+        disabled: state.busy || !ids.some(id => !active(id) && rows.find(row => row.id === id)?.status !== 'running') },
+    ]
+    const request = (operation, ids) => {
+      const eligible = ids.filter(id => operation === 'pause-run' ? pauseEnabled(id) : !active(id) && rows.find(row => row.id === id)?.status !== 'running')
+      if (eligible.length) store.set({ runAction: { operation, ids: eligible, skipped: ids.length - eligible.length } })
+    }
     return h('section', { className: 'afp-wb-section afp-wb-history-section' }, h('div', { className: 'afp-wb-section-heading' },
       h('div', { className: 'afp-wb-heading-group' }, h('h3', null, t('runHistory')), h(Tag, { tone: 'quiet' }, String(region.data?.total ?? rows.length))),
-      h(ReloadButton, { loading: region.loading, onClick: () => { void store.loadHistory('runs') } })),
+      h('div', { className: 'afp-wb-actions' }, h(MoreMenu, { label: t('batchReports'), disabled: state.busy || manual || !rows.length,
+        items: [{ id: 'select', label: t('selectLoadedReports') }, { id: 'clear', label: t('clearReportSelection'), disabled: !selected.length }, ...actions(selected)],
+        onSelect: id => id === 'select' ? store.selectLoadedRuns() : id === 'clear' ? store.set({ selectedRuns: [] }) : request(id, selected) }),
+      h(ReloadButton, { loading: region.loading && region.loadMode !== 'auto', onClick: () => { void store.loadHistory('runs', { mode: 'manual' }) } }))),
       error({ ...region, retry: () => store.loadHistory('runs') }),
+      selected.length ? h('p', { className: 'afp-wb-subtle', role: 'status' }, t('reportsSelected').replace('{count}', String(selected.length))) : null,
+      state.runActionResult ? h('p', { role: 'status', className: 'afp-wb-subtle' },
+        t('reportsActionResult').replace('{done}', String(state.runActionResult.outcomes.filter(row => row.ok).length))
+          .replace('{failed}', String(state.runActionResult.outcomes.filter(row => !row.ok).length))) : null,
       !rows.length && !region.loading && !region.error ? h('p', { className: 'afp-wb-empty' }, t('noRunHistory')) : null,
       !rows.length && region.loading ? h(HistorySkeleton) : null,
-      h('div', { className: 'afp-wb-history-list' }, ...rows.map(item => h('button', { type: 'button', className: 'afp-wb-history-row', key: item.id,
-        onClick: () => { void store.openRun(item.id) } },
+      h('div', { ref: scroller, className: 'afp-wb-history-list', 'aria-busy': manual, 'aria-label': manual ? t('loading') : t('runHistory') },
+      ...rows.map((item, index) => h('div', { className: `afp-wb-history-row${manual ? ' is-skeleton' : ''}`, key: item.id,
+        style: manual && measured.current[index] ? { minHeight: measured.current[index] } : undefined,
+        'aria-hidden': manual ? true : undefined, 'data-selected': selected.includes(item.id) },
+        h(Checkbox, { checked: selected.includes(item.id), disabled: manual || state.busy,
+          label: `${t('selectReport')} · ${item.id.slice(0, 8)}`, onChange: () => store.toggleRun(item.id), className: 'afp-wb-history-select' }),
+        h('button', { type: 'button', className: 'afp-wb-history-open', disabled: manual, onClick: () => { void store.openRun(item.id) } },
         h('span', { className: 'afp-wb-history-main' },
           h('span', { className: 'afp-wb-history-title' }, (item.run?.categories ?? []).map(row => t(row.category)).join(' · ')),
           h('time', { className: 'afp-wb-subtle' }, item.createdAt ? new Date(item.createdAt).toLocaleString() : t('dateUnknown'))),
         h('span', { className: 'afp-wb-history-counts' }, (item.run?.categories ?? []).map(row => `${t('filter_kept')} ${row.kept}/${row.target}`).join(' · ')),
-        h(Tag, { tone: item.status === 'ready' || item.status === 'paused' ? 'success' : item.status === 'failed' ? 'warning' : 'neutral' }, t(`runStatus_${item.status}`)),
-        icons.IconChevronDownOutlineRegular ? h(icons.IconChevronDownOutlineRegular, { size: 14, className: 'afp-wb-history-chevron' }) : null))),
+        h(Tag, { tone: item.status === 'ready' ? 'success' : item.status === 'failed' ? 'warning' : 'neutral' }, t(`runStatus_${item.status}`)),
+        icons.IconChevronDownOutlineRegular ? h(icons.IconChevronDownOutlineRegular, { size: 14, className: 'afp-wb-history-chevron' }) : null),
+        h(MoreMenu, { label: `${t('reportMore')} · ${item.id.slice(0, 8)}`, disabled: manual || state.busy,
+          items: actions([item.id]), onSelect: id => request(id, [item.id]) })))),
+      state.runAction && Modal ? h(Modal, { open: true, title: t(state.runAction.operation === 'pause-run' ? 'pauseReport' : 'deleteReport'),
+        closeLabel: t('close'), onClose: () => { if (!state.busy) store.set({ runAction: null }) }, className: 'afp-wb-action-modal',
+        footer: h('div', { className: 'afp-wb-actions' }, h(Button, { variant: 'ghost', disabled: state.busy, onClick: () => store.set({ runAction: null }) }, t('cancel')),
+          h(Button, { variant: 'primary', disabled: state.busy, onClick: () => { void store.manageRuns(state.runAction.operation, state.runAction.ids) } }, t('confirmLocalAction'))) },
+      h('p', null, t(state.runAction.operation === 'pause-run' ? 'pauseReportsHint' : 'deleteReportsHint').replace('{count}', String(state.runAction.ids.length))),
+      state.runAction.skipped ? h('p', { className: 'afp-wb-subtle' }, t('reportsSkipped').replace('{count}', String(state.runAction.skipped))) : null) : null,
       region.data?.hasMore ? h(Button, { variant: 'outline', size: 'sm', disabled: region.loading, onClick: () => { void store.loadHistory('runs', { more: true }) } }, t('loadMore')) : null)
   }
 
@@ -145,8 +224,6 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
     const validNumbers = Number.isInteger(state.targetPerCategory) && state.targetPerCategory >= 1 && state.targetPerCategory <= 1000
       && Number.isFinite(state.threshold) && state.threshold >= .8 && state.threshold <= 1
     const validationId = React.useId()
-    const setCategories = category => store.set({ selected: state.selected.includes(category)
-      ? state.selected.filter(item => item !== category) : [...state.selected, category] })
     const submit = event => {
       event.preventDefault()
       if (!ready || state.busy || !state.selected.length || !validNumbers) return
@@ -158,15 +235,14 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
       !ready ? h('div', { className: 'afp-wb-prerequisite' }, h('p', null, t('refreshPrerequisite')),
         h(Button, { variant: 'outline', size: 'sm', onClick: onOpenAccount }, t('openAccountSettings'))) : null,
       h('form', { className: 'afp-wb-refresh-form', onSubmit: submit },
-        h('fieldset', { disabled: !ready || state.busy }, h('legend', null, t('categories')),
-          h('div', { className: 'afp-wb-categories' }, ...categoryKeys.map(category => h('div', { key: category, className: 'afp-wb-category-option', 'data-selected': state.selected.includes(category) },
-            h(Checkbox, { checked: state.selected.includes(category), label: t(category), onChange: () => setCategories(category) })))),
+        h('fieldset', null, h('legend', null, t('categories')),
+          h(CategoryChoices, { state, disabled: !ready || state.busy }),
           h('div', { className: 'afp-wb-number-fields' },
-            h('label', null, t('targetPerCategory'), h(Input, { className: 'afp-wb-input', type: 'number', min: 1, max: 1000, step: 1,
+            h('label', null, t('targetPerCategory'), h(Input, { className: 'afp-wb-input', disabled: !ready || state.busy, type: 'number', min: 1, max: 1000, step: 1,
               'aria-label': t('targetPerCategory'), 'aria-describedby': ready && !validNumbers ? validationId : undefined,
               'aria-invalid': ready && (!Number.isInteger(state.targetPerCategory) || state.targetPerCategory < 1 || state.targetPerCategory > 1000),
               value: state.targetPerCategory ?? '', onChange: event => store.set({ targetPerCategory: Number(event.target.value) }) })),
-            h('label', null, t('threshold'), h(Input, { className: 'afp-wb-input', type: 'number', min: .8, max: 1, step: .01,
+            h('label', null, t('threshold'), h(Input, { className: 'afp-wb-input', disabled: !ready || state.busy, type: 'number', min: .8, max: 1, step: .01,
               'aria-label': t('threshold'), 'aria-describedby': ready && !validNumbers ? validationId : undefined,
               'aria-invalid': ready && (!Number.isFinite(state.threshold) || state.threshold < .8 || state.threshold > 1),
               value: state.threshold ?? '', onChange: event => store.set({ threshold: Number(event.target.value) }) }))),
@@ -282,7 +358,11 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
               'aria-pressed': state.selected.includes(category), onClick: () => store.set({ selected: state.selected.includes(category)
                 ? state.selected.filter(value => value !== category) : [...state.selected, category] }) },
             h('span', { 'aria-hidden': true }, Array.from(t(category))[0]))
-            return Tooltip ? h(Tooltip, { key: category, label: t(category), side: 'right', portal: true }, button) : button
+            return h('div', { key: category, className: 'afp-wb-compact-category' },
+              Tooltip ? h(Tooltip, { label: t(category), side: 'right', portal: true }, button) : button,
+              h(Button, { variant: 'ghost', size: 'sm', className: 'afp-wb-category-more', disabled: !state.status?.features?.includes('read'),
+                'aria-label': `${t('manageCategoryBinding')} · ${t(category)}`, onClick: () => { void store.openBinding(category) } },
+              icons.IconEllipsisOutlineRegular ? h(icons.IconEllipsisOutlineRegular, { size: 14, 'aria-hidden': true }) : '⋯'))
           }))),
       h('div', { className: 'afp-wb-task-results' },
       state.runId && state.regions.run.data ? h(ReportPanel, { state }) : null,
@@ -353,9 +433,8 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
           h('div', { className: 'afp-wb-field' }, h('span', null, t('operation')),
             h(Selector, { value: state.operation, label: t('operation'), disabled: !writeEnabled || state.busy,
               options: ['append', 'replace', 'clear'].map(value => ({ value, label: t(value) })), onChange: operation => store.set({ operation }) }))),
-        h('fieldset', { disabled: !writeEnabled || state.busy }, h('legend', null, t('categories')),
-          h('div', { className: 'afp-wb-categories' }, ...categoryKeys.map(category => h('div', { key: category, className: 'afp-wb-category-option', 'data-selected': state.selected.includes(category) },
-            h(Checkbox, { checked: state.selected.includes(category), label: t(category), onChange: () => store.set({ selected: state.selected.includes(category) ? state.selected.filter(item => item !== category) : [...state.selected, category] }) })))),
+        h('fieldset', null, h('legend', null, t('categories')),
+          h(CategoryChoices, { state, disabled: !writeEnabled || state.busy }),
           h('div', { className: 'afp-wb-change-footer' },
             h('p', { className: 'afp-wb-subtle' }, t(state.operation === 'clear' ? 'clearPreviewHint' : !settled ? 'settledRunRequired' : 'previewOnlyHint')),
             h(Button, { variant: 'primary', 'aria-busy': state.busy,
@@ -401,5 +480,5 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
         : mode === 'activity' ? h(LiveTasks, { state }) : mode === 'preview' ? h(ChangesPanel, { state }) : null) : null)
   }
 
-  return { TasksPanel, ChangesPanel, TaskUtilities }
+  return { TasksPanel, ChangesPanel, TaskUtilities, BindingDialog }
 }

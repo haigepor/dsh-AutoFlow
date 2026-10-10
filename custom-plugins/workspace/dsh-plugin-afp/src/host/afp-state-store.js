@@ -3,6 +3,7 @@ import { lstat, mkdir, open, readFile, readdir, realpath, rename, unlink, writeF
 import { basename, dirname, join, resolve, parse } from 'node:path'
 import { resolveConfig } from '../../config-schema.js'
 import { setTimeout as delay } from 'node:timers/promises'
+import { CATEGORY_PROFILES } from '../vendor/auto-afp-img/afp-photo-search.mjs'
 
 /** Stable filesystem segment; never exposes account names. @param {string} value Identity. @returns {string} Hash. */
 export function digest(value) { return createHash('sha256').update(value).digest('hex') }
@@ -48,6 +49,16 @@ function id(value) {
   if (typeof value !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value)) throw new Error('Invalid AFP id')
   return value
 }
+function validateBindings(values) {
+  const keys = CATEGORY_PROFILES.map(profile => profile.key)
+  if (!values || typeof values !== 'object' || Array.isArray(values)
+    || Object.entries(values).some(([key, value]) => !keys.includes(key) || value !== null && (!value || typeof value !== 'object' || Array.isArray(value)
+      || typeof value.id !== 'string' || !value.id || value.id.length > 256 || /[\u0000-\u001f\u007f]/.test(value.id)
+      || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 256
+      || /[\u0000-\u001f\u007f]/.test(value.name) || Object.keys(value).some(field => !['id', 'name'].includes(field))))) throw new Error('Invalid AFP category bindings')
+  const ids = Object.values(values).filter(Boolean).map(value => value.id)
+  if (new Set(ids).size !== ids.length) throw new Error('Duplicate AFP category bindings')
+}
 function alive(pid) {
   if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Invalid AFP lock owner')
   try { process.kill(pid, 0); return true }
@@ -66,7 +77,8 @@ export class Store {
   async read(file) {
     await directory(dirname(file))
     const info = await stat(file)
-    if (!info?.isFile() || info.size > this.maxBytes) throw new Error('Missing, unsafe or oversized AFP record')
+    if (!info) throw Object.assign(new Error('Missing AFP record'), { code: 'ENOENT' })
+    if (!info.isFile() || info.size > this.maxBytes) throw new Error('Unsafe or oversized AFP record')
     const text = new TextDecoder('utf-8', { fatal: true }).decode(await readFile(file))
     const record = JSON.parse(text)
     if (record?.schema !== 1) throw new Error('Unsupported AFP record schema')
@@ -99,6 +111,7 @@ export class Store {
       || (run.pending !== null && (!run.pending || !Array.isArray(run.pending.candidates) || !run.categories.includes(run.pending.category)))) throw new Error('Invalid AFP run record')
     // 已发布的 schema:1 运行记录保留原设置，并显式补齐新增部署默认值。
     run.settings = resolveConfig(run.settings)
+    if (run.bindings !== undefined) validateBindings(run.bindings)
     if (run.reviews !== undefined && (!Array.isArray(run.reviews) || run.reviews.some(item => typeof item?.id !== 'string'
       || !run.categories.includes(item.category) || !Number.isSafeInteger(item.attempts) || item.attempts < 0
       || !['preview', 'vision', 'confirmation', 'done', 'failed'].includes(item.phase)))) throw new Error('Invalid AFP review checkpoint')
@@ -111,12 +124,25 @@ export class Store {
     return run
   }
   saveRun(run) { return this.write(join(this.profile, 'runs', `${id(run.id)}.json`), run) }
+  /** Archive under the same run lock as refresh; records and their references remain recoverable. */
+  async archiveRun(runId) {
+    id(runId)
+    return this.lock(`run:${runId}`, async () => {
+      await this.readRun(runId)
+      const destination = join(this.profile, 'archived-runs', `${runId}.json`)
+      await directory(dirname(destination))
+      if (await stat(destination)) throw new Error('AFP archive already exists')
+      await rename(join(this.profile, 'runs', `${runId}.json`), destination)
+      return { runId, archived: true }
+    })
+  }
   async readPlan(planId) {
     const plan = await this.read(join(this.profile, 'plans', `${id(planId)}.json`))
     if (plan.id !== planId || typeof plan.owner !== 'string' || typeof plan.account !== 'string'
       || !['append', 'replace', 'clear'].includes(plan.operation)
       || !['planned', 'executing', 'completed', 'failed', 'cancelled'].includes(plan.state)
       || !Number.isSafeInteger(plan.expiresAt) || typeof plan.remoteHash !== 'string'
+      || plan.bindingHash !== undefined && (typeof plan.bindingHash !== 'string' || !/^[a-f0-9]{64}$/.test(plan.bindingHash))
       || !Array.isArray(plan.targets) || !plan.targets.length
       || plan.targets.some(target => typeof target?.category !== 'string' || typeof target?.name !== 'string'
         || (target.id !== null && typeof target.id !== 'string') || !Array.isArray(target.docs)
@@ -124,6 +150,21 @@ export class Store {
     return plan
   }
   savePlan(plan) { return this.write(join(this.profile, 'plans', `${id(plan.id)}.json`), plan) }
+  /** Bindings are profile/account-local; null disables legacy name matching without rewriting runs. */
+  async readBindings(account) {
+    if (typeof account !== 'string' || !account) throw new Error('Invalid AFP binding account')
+    let record
+    try { record = await this.read(join(this.profile, 'bindings', `${digest(account)}.json`)) }
+    catch (error) { if (error.code === 'ENOENT') return { schema: 1, account, values: {} }; throw error }
+    if (record.account !== account) throw new Error('Invalid AFP binding account')
+    validateBindings(record.values)
+    return record
+  }
+  async saveBindings(account, values) {
+    if (typeof account !== 'string' || !account) throw new Error('Invalid AFP binding account')
+    validateBindings(values)
+    await this.write(join(this.profile, 'bindings', `${digest(account)}.json`), { schema: 1, account, values })
+  }
   /** Read the newest compact download outcomes; no destination paths or media URLs are persisted. */
   async readDownloads(limit = 20) {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid AFP download history limit')

@@ -3,18 +3,24 @@ import { buildCollectionPlans, isPrivateSelection, selectionDocIds } from '../ve
 import { CATEGORY_PROFILES } from '../vendor/auto-afp-img/afp-photo-search.mjs'
 import { chooseCategories, manifests } from './afp-refresh-workflow.js'
 import { digest } from './afp-state-store.js'
+import { categoryTargets } from './afp-category-bindings.js'
+
+function bindingHash(values, selected = CATEGORY_PROFILES.map(profile => profile.key)) {
+  return digest(JSON.stringify(selected.map(category => [category, Object.hasOwn(values, category) ? values[category] : 'default'])))
+}
 
 /** Resolve exact private targets and snapshot every collection's document membership. */
-async function snapshot(client, selected, signal) {
+async function snapshot(client, selected, signal, bindings = {}) {
   const list = await client.listSelections()
   if (!Array.isArray(list)) throw new Error('Invalid AFP collection list')
   const targets = []
+  const resolved = categoryTargets(list, bindings)
   for (const category of selected) {
-    const name = CATEGORY_PROFILES.find(profile => profile.key === category).selectionName
-    const matches = list.filter(item => item.name === name)
-    if (matches.length > 1 || (matches.length === 1 && !isPrivateSelection(matches[0]))) throw new Error('Ambiguous or shared AFP target')
-    if (matches[0] && (typeof matches[0].id !== 'string' || !matches[0].id)) throw new Error('AFP target has no id')
-    targets.push({ category, name, id: matches[0]?.id ?? null })
+    const target = resolved.find(item => item.category === category)
+    if (target.status === 'unbound') throw new Error('AFP category is unbound; choose a private collection')
+    if (target.status === 'conflict') throw new Error('Ambiguous or shared AFP target')
+    if (target.explicit && target.status === 'missing') throw new Error('AFP bound collection is missing')
+    targets.push({ category, name: target.name, id: target.id })
   }
   const records = []
   for (const item of list) {
@@ -42,7 +48,8 @@ export class Changes {
     const selected = chooseCategories(args.categories)
     const { client, account } = await this.connect(signal)
     return this.store.lock(`account:${account}`, async () => {
-      const remote = await snapshot(client, selected, signal)
+      const bindings = (await this.store.readBindings(account)).values
+      const remote = await snapshot(client, selected, signal, bindings)
       let docsByCategory = new Map()
       let runHash = null
       if (args.operation !== 'clear') {
@@ -50,9 +57,11 @@ export class Changes {
         if (!['ready', 'paused'].includes(run.status) || run.pending) throw new Error('AFP run must have a settled dry-run report')
         if (run.account !== account) throw new Error('AFP account changed since refresh')
         if (selected.some(category => !run.categories.includes(category))) throw new Error('Category absent from AFP run')
+        if (bindingHash(run.bindings ?? {}, selected) !== bindingHash(bindings, selected)) throw new Error('AFP run binding changed; use a new screening report')
         runHash = digest(JSON.stringify(run))
         const { candidateManifest, decisionManifest } = manifests(run, run.settings)
         candidateManifest.categories = candidateManifest.categories.filter(item => selected.includes(item.category))
+        for (const category of candidateManifest.categories) category.selectionName = remote.targets.find(target => target.category === category.category).name
         // Replacement excludes other targets and all non-target collections, but may reuse its own pictures.
         const targetIds = new Set(remote.targets.map(item => item.id).filter(Boolean))
         const reserved = new Set(remote.records.filter(item => args.operation === 'append' || !targetIds.has(item.id)).flatMap(item => item.docs))
@@ -61,7 +70,7 @@ export class Changes {
         docsByCategory = new Map(plans.map(item => [item.category, item.docs]))
       }
       const plan = { schema: 1, id: randomUUID(), owner, operation: args.operation, account,
-        runId: args.operation === 'clear' ? null : args.runId, runHash, remoteHash: remote.hash,
+        runId: args.operation === 'clear' ? null : args.runId, runHash, remoteHash: remote.hash, bindingHash: bindingHash(bindings),
         createdAt: Date.now(), expiresAt: Date.now() + this.config.planTtlMs, state: 'planned', targets: remote.targets.map(target => ({
           ...target, existing: remote.records.find(item => item.id === target.id)?.docs.length ?? 0,
           docs: docsByCategory.get(target.category) ?? [],
@@ -76,21 +85,29 @@ export class Changes {
   async check(planId, owner) {
     const plan = await this.store.readPlan(planId)
     chooseCategories(plan.targets.map(item => item.category))
-    if (plan.targets.some(target => target.name !== CATEGORY_PROFILES.find(profile => profile.key === target.category)?.selectionName)) throw new Error('Invalid AFP plan target')
     if (!owner || plan.owner !== owner) throw new Error('AFP plan owner mismatch')
+    const bindings = (await this.store.readBindings(plan.account)).values
+    if ((plan.bindingHash ?? bindingHash({})) !== bindingHash(bindings)) throw new Error('AFP binding changed; create a new dry-run plan')
+    // 显式绑定按 ID 校验；远端改名后新预览使用当前名称，旧预览仍由执行时目录摘要拒绝。
+    if (plan.targets.some(target => Object.hasOwn(bindings, target.category) ? !bindings[target.category] || target.id !== bindings[target.category].id
+      : target.name !== CATEGORY_PROFILES.find(profile => profile.key === target.category)?.selectionName)) throw new Error('Invalid AFP plan target')
     if (plan.state !== 'planned') throw new Error('AFP plan already used; create a new dry-run plan')
     if (plan.expiresAt <= Date.now()) throw new Error('AFP plan expired')
+    if (plan.runId && digest(JSON.stringify(await this.store.readRun(plan.runId))) !== plan.runHash) throw new Error('AFP run changed; create a new dry-run plan')
     return safeSummary(plan)
   }
   async execute(planId, owner, signal) {
     await this.check(planId, owner)
     const { client, account } = await this.connect(signal, true)
-    return this.store.lock(`account:${account}`, async () => {
+    const sourcePlan = await this.store.readPlan(planId)
+    const execute = () => this.store.lock(`account:${account}`, async () => {
       await this.check(planId, owner)
       const plan = await this.store.readPlan(planId)
       if (plan.account !== account) throw new Error('AFP account changed')
-      const remote = await snapshot(client, plan.targets.map(item => item.category), signal)
+      const bindings = (await this.store.readBindings(account)).values
+      const remote = await snapshot(client, plan.targets.map(item => item.category), signal, bindings)
       if (remote.hash !== plan.remoteHash) throw new Error('AFP collections changed; create a new dry-run plan')
+      if (JSON.stringify(remote.targets) !== JSON.stringify(plan.targets.map(({ category, name, id }) => ({ category, name, id })))) throw new Error('AFP binding target changed; create a new dry-run plan')
       if (plan.runId && digest(JSON.stringify(await this.store.readRun(plan.runId))) !== plan.runHash) throw new Error('AFP run changed; create a new dry-run plan')
       signal.throwIfAborted()
       plan.state = 'executing'
@@ -107,7 +124,7 @@ export class Changes {
             selectionId = created?.id ?? created?.selectionId ?? created?.data?.id ?? created?.data?.selectionId
             if (typeof selectionId !== 'string' || !selectionId) throw new Error('AFP create returned no id')
             // Re-list to detect concurrent creation before clearing/adding to the new target.
-            const checked = await snapshot(client, [target.category], signal)
+            const checked = await snapshot(client, [target.category], signal, bindings)
             if (checked.targets[0].id !== selectionId) throw new Error('AFP created target changed')
           }
           if (plan.operation !== 'append') {
@@ -138,5 +155,7 @@ export class Changes {
       await this.store.savePlan(plan)
       return plan.result
     })
+    // 写入执行和报告归档共享运行锁；锁顺序与刷新一致，始终先 run 后 account。
+    return sourcePlan.runId ? this.store.lock(`run:${sourcePlan.runId}`, execute) : execute()
   }
 }

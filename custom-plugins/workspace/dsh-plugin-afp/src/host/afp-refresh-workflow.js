@@ -48,7 +48,8 @@ export async function reservedIds(client, signal, { concurrency = 4, checkpoint 
 
 /** Reconstruct the apply inputs exclusively from persisted pixel-review results. */
 export function manifests(run, config) {
-  const profiles = CATEGORY_PROFILES.filter(profile => run.categories.includes(profile.key))
+  const profiles = CATEGORY_PROFILES.filter(profile => run.categories.includes(profile.key)).map(profile => ({ ...profile,
+    selectionName: Object.hasOwn(run.bindings ?? {}, profile.key) ? run.bindings[profile.key]?.name ?? null : profile.selectionName }))
   const candidateManifest = createCandidateManifest(profiles.map(profile => ({ ...run.groups[profile.key]?.discovery, profile, candidates: run.groups[profile.key]?.candidates ?? [] })))
   return { candidateManifest, decisionManifest: finalizeDecisionManifest(candidateManifest, run.decisions, {
     threshold: config.threshold, limitPerCategory: config.targetPerCategory,
@@ -58,7 +59,8 @@ export function manifests(run, config) {
 /** Model-visible summary excludes raw media references, document ids and provider errors. */
 export function summary(run) {
   return { runId: run.id, status: run.status, stage: run.stage ?? (run.status === 'running' ? 'visual' : run.status), categories: run.categories.map(category => ({
-    category, selectionName: CATEGORY_PROFILES.find(profile => profile.key === category).selectionName,
+    category, selectionName: Object.hasOwn(run.bindings ?? {}, category) ? run.bindings[category]?.name ?? null
+      : CATEGORY_PROFILES.find(profile => profile.key === category).selectionName,
     reviewed: run.decisions.filter(item => item.category === category && !requestFailed(item)).length,
     kept: run.decisions.filter(item => item.category === category && item.keep).length,
     target: run.settings.targetPerCategory, batches: run.groups[category]?.batches ?? 0,
@@ -266,7 +268,7 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
     await save()
     return run
   } catch (error) {
-    run.status = signal.aborted ? 'cancelled' : 'failed'
+    run.status = signal.aborted ? signal.reason?.name === 'AfpPause' ? 'paused' : 'cancelled' : 'failed'
     await save()
     throw error
   }

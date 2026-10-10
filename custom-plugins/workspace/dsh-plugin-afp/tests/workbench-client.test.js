@@ -49,6 +49,83 @@ function harness(options = {}) {
   return { store, calls, remoteCalls, reply, replyRemote }
 }
 
+test('batch archive retains failed selections and closes only the successfully archived open report', async t => {
+  const h = harness(); t.after(() => h.store.dispose())
+  const rows = [{ id: 'one' }, { id: 'two' }]
+  h.store.set({ runId: 'one', selectedRuns: ['one', 'two'], plan: { planId: 'old' }, confirmChecked: true,
+    regions: { ...h.store.getSnapshot().regions, runs: { data: { items: rows, offset: 0, total: 2, hasMore: false }, loading: false, error: '' } } })
+  const pending = h.store.manageRuns('delete-run', ['one', 'one', 'two'])
+  assert.deepEqual(h.remoteCalls[0].args, { runId: 'one' })
+  h.replyRemote(0, {})
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(h.remoteCalls[1].args, { runId: 'two' })
+  h.remoteCalls[1].wait.resolve({ ok: false, error: { message: 'still running' } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.store.getSnapshot().runId, '')
+  assert.deepEqual(h.store.getSnapshot().selectedRuns, ['two'])
+  assert.equal(h.store.getSnapshot().plan, null)
+  assert.equal(h.store.getSnapshot().confirmChecked, false)
+  const page = { items: rows.slice(1), offset: 0, total: 1, hasMore: false }
+  h.reply(0, page)
+  await new Promise(resolve => setImmediate(resolve))
+  h.replyRemote(2, { features: ['read'], reports: [], tasks: [] })
+  assert.equal(await pending, false)
+  h.reply(1, page)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(h.store.getSnapshot().runActionResult.outcomes, [{ runId: 'one', ok: true }, { runId: 'two', ok: false }])
+  assert.deepEqual(h.remoteCalls.map(row => row.operation), ['delete-run', 'delete-run', 'status'])
+  assert.equal(h.store.getSnapshot().busy, false)
+})
+
+test('batch pause stops issuing actions after profile reset and ignores the late completion', async t => {
+  const h = harness(); t.after(() => h.store.dispose())
+  h.store.set({ selectedRuns: ['one', 'two'] })
+  const pending = h.store.manageRuns('pause-run', ['one', 'two'])
+  h.store.resetData()
+  h.replyRemote(0, {})
+  assert.equal(await pending, false)
+  assert.equal(h.remoteCalls.length, 1)
+  assert.equal(h.calls.length, 0)
+  assert.equal(h.store.getSnapshot().runActionResult, null)
+  assert.deepEqual(h.store.getSnapshot().selectedRuns, [])
+  assert.equal(h.store.getSnapshot().busy, false)
+})
+
+test('history paging advances and automatic refresh retains every loaded row while manual refresh owns loading', async t => {
+  const h = harness(); t.after(() => h.store.dispose())
+  const rows = [{ id: 'one' }, { id: 'two' }]
+  const initial = h.store.loadHistory('runs')
+  h.reply(0, { items: rows, offset: 0, total: 4, hasMore: true }); await initial
+  const more = h.store.loadHistory('runs', { more: true })
+  assert.equal(h.calls[1].args.offset, 2)
+  h.reply(1, { items: [{ id: 'three' }, { id: 'four' }], offset: 2, total: 4, hasMore: false }); await more
+  const auto = h.store.loadHistory('runs', { mode: 'auto' })
+  assert.equal(h.store.getSnapshot().regions.runs.data.items.length, 4)
+  assert.equal(h.store.getSnapshot().regions.runs.loadMode, 'auto')
+  h.reply(2, { items: [{ id: 'new' }, ...rows.slice(0, 1)], offset: 0, total: 5, hasMore: true })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.calls[3].args.offset, 2)
+  h.reply(3, { items: [rows[1], { id: 'three' }], offset: 2, total: 5, hasMore: true }); await auto
+  assert.deepEqual(h.store.getSnapshot().regions.runs.data.items.map(row => row.id), ['new', 'one', 'two', 'three'])
+  const manual = h.store.loadHistory('runs', { mode: 'manual' })
+  assert.equal(h.store.getSnapshot().regions.runs.data.items.length, 4)
+  assert.equal(h.store.getSnapshot().regions.runs.loadMode, 'manual')
+  assert.equal(await h.store.loadHistory('runs', { mode: 'auto' }), false)
+  h.calls[4].wait.reject(new Error('offline')); await manual
+  assert.equal(h.store.getSnapshot().regions.runs.data.items.length, 4)
+})
+
+test('each poll synchronizes loaded report history without clearing it', async t => {
+  const h = harness(); t.after(() => h.store.dispose())
+  const data = { items: [{ id: 'one' }], offset: 0, total: 1, hasMore: false }
+  h.store.set({ regions: { ...h.store.getSnapshot().regions, runs: { data, loading: false, error: '' } } })
+  const poll = h.store.reload()
+  h.replyRemote(0, { features: ['read'], reports: [], tasks: [] }); await poll
+  assert.equal(h.calls[0].operation, 'history-list')
+  assert.equal(h.store.getSnapshot().regions.runs.data, data)
+  h.reply(0, data)
+})
+
 test('status polling refreshes an open report when a resumed run changes and retains its filter', async () => {
   const h = harness(), initial = { runId: 'run-one', status: 'paused', categories: [{ reviewed: 1 }] }
   const updated = { ...initial, status: 'failed', categories: [{ reviewed: 2 }] }

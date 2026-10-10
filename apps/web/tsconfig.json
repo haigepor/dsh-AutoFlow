@@ -24,6 +24,8 @@
   "exclude": [
     "tests/afp-builtin.e2e.ts",
     "tests/afp-debug.e2e.ts",
+    "tests/afp-management.e2e.ts",
+    "tests/conversation-tabs.e2e.ts",
     "tests/shortcuts-desktop.e2e.ts",
     "tests/shortcuts-workspace.e2e.ts",
     "tests/shortcuts-panels.e2e.ts",

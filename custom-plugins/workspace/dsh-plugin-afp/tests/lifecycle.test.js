@@ -18,6 +18,71 @@ async function fixture(t) {
   return { home, ctx, jobs, config: resolveConfig({}), connection }
 }
 
+test('profile pause saves a resumable connection checkpoint and archive refuses active or foreign jobs', async t => {
+  const { ctx, config, connection, jobs } = await fixture(t)
+  let entered
+  const connected = new Promise(resolve => { entered = resolve })
+  connection.open = async signal => { entered(); await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true })); signal.throwIfAborted() }
+  const service = new AfpService(ctx, config, { connection }); t.after(() => service.dispose())
+  await service.enable('refresh')
+  const started = await service.startRefresh({ categories: ['food'] }, undefined, new AbortController().signal)
+  await connected
+  assert.equal((await service.status()).tasks[0].runId, started.runId)
+  await assert.rejects(service.deleteRun(started.runId), /busy/)
+  await service.pauseRun(started.runId)
+  assert.equal((await service.store.readRun(started.runId)).status, 'paused')
+  assert.equal((await jobs[0].handle.done).status, 'killed')
+  const archive = await service.deleteRun(started.runId)
+  assert.equal(archive.archived, true)
+  assert.equal((await service.workbench.historyList({ kind: 'runs' }, new AbortController().signal)).total, 0)
+  assert.equal(JSON.parse(await readFile(join(service.store.profile, 'archived-runs', `${started.runId}.json`), 'utf8')).id, started.runId)
+  await assert.rejects(service.deleteRun('../foreign'), /id/)
+})
+
+test('profile pause refuses Session-owned runs and collection-stage pause retains completed dedup checkpoints', async t => {
+  const { ctx, config, connection } = await fixture(t)
+  config.collectionConcurrency = 1
+  let entered
+  const reading = new Promise(resolve => { entered = resolve })
+  connection.open = async signal => ({ account: 'fixture', client: {
+    listSelections: async () => [{ id: 'one', name: 'One' }, { id: 'two', name: 'Two' }],
+    getSelection: async id => {
+      if (id === 'one') return { docs: [{ id: 'reserved' }] }
+      entered(); await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true })); signal.throwIfAborted()
+    },
+  } })
+  const service = new AfpService(ctx, config, { connection }); t.after(() => service.dispose())
+  await service.enable('refresh')
+  const first = await service.startRefresh({ categories: ['food'] }, undefined, new AbortController().signal)
+  await reading; await service.pauseRun(first.runId)
+  const saved = await service.store.readRun(first.runId)
+  assert.equal(saved.status, 'paused'); assert.equal(saved.stage, 'collections')
+  assert.deepEqual(saved.dedup.collections.one.ids, ['reserved'])
+  const owned = await service.startRefresh({ categories: ['animals'] }, 'session', new AbortController().signal)
+  await assert.rejects(service.pauseRun(owned.runId), /Session cancellation/)
+  await assert.rejects(service.deleteRun(owned.runId), /busy/)
+})
+
+test('resuming a legacy report preserves its default target after the account binding changes', async t => {
+  const { ctx, config, connection } = await fixture(t)
+  let entered
+  const reading = new Promise(resolve => { entered = resolve })
+  connection.open = async signal => ({ account: 'fixture', client: {
+    listSelections: async () => [{ id: 'custom', name: 'New food target', isPrivate: true }],
+    getSelection: async () => { entered(); await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true })); signal.throwIfAborted() },
+  } })
+  const service = new AfpService(ctx, config, { connection }); t.after(() => service.dispose())
+  await service.enable('refresh')
+  const legacy = await service.store.createRun(['food'], config)
+  legacy.account = 'fixture'; legacy.status = 'paused'; await service.store.saveRun(legacy)
+  const original = (await service.report({ runId: legacy.id })).categories[0].selectionName
+  await service.store.saveBindings('fixture', { food: { id: 'custom', name: 'New food target' } })
+  await service.startRefresh({ runId: legacy.id }, undefined, new AbortController().signal)
+  await reading; await service.pauseRun(legacy.id)
+  assert.equal((await service.report({ runId: legacy.id })).categories[0].selectionName, original)
+  assert.deepEqual((await service.store.readRun(legacy.id)).bindings, {})
+})
+
 test('all six Skills share holders, retain edits and refuse user-owned directories', async t => {
   const { home, config } = await fixture(t)
   for (const skill of skillNames) {

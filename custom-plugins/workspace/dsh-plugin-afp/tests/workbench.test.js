@@ -402,6 +402,34 @@ test('history projects safe run and plan records, orders real dates before legac
   assert.doesNotMatch(JSON.stringify(result), /private-owner|private-account|private-hash|internal detail/)
 })
 
+test('status includes the twelve newest reports even when UUID order differs from creation order', async t => {
+  const { service, store } = await fixture(t, { config: { pageSize: 20 } })
+  const runs = []
+  for (let index = 0; index < 15; index++) runs.push(await store.createRun(['food'], resolveConfig({})))
+  runs.sort((left, right) => left.id.localeCompare(right.id))
+  for (let index = 0; index < runs.length; index++) {
+    runs[index].createdAt = 1000 - index; await store.saveRun(runs[index])
+  }
+  assert.deepEqual((await service.reports()).map(row => row.runId), runs.slice(0, 12).map(run => run.id))
+})
+
+test('history skips a report archived during reading and still rejects a damaged record', async t => {
+  const { service, store } = await fixture(t)
+  const removed = await store.createRun(['food'], resolveConfig({}))
+  const remaining = await store.createRun(['animals'], resolveConfig({}))
+  const readRun = store.readRun.bind(store)
+  let archive = true
+  store.readRun = async runId => {
+    if (runId === removed.id && archive) {
+      archive = false; await store.archiveRun(runId)
+    }
+    return readRun(runId)
+  }
+  assert.deepEqual((await page(service, 'history-list', { kind: 'runs' })).items.map(row => row.id), [remaining.id])
+  await store.write(join(store.profile, 'runs', `${removed.id}.json`), { schema: 1, id: removed.id })
+  await assert.rejects(page(service, 'history-list', { kind: 'runs' }), /Invalid AFP run record/)
+})
+
 test('preview route returns guarded image bytes, rejects invalid IDs and requests preview without vision config', async t => {
   const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0])
   const { service, calls } = await fixture(t, { previewClient: { async getPreviewBytes(id) { assert.equal(id, 'photo-1'); return { bytes: png, contentType: 'image/png' } } } })
