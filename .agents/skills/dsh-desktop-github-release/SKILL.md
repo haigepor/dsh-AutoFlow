@@ -34,6 +34,8 @@ pnpm exec vitest run apps/desktop/tests/github-update-policy.spec.ts apps/deskto
 
 预检失败时保留精确错误，修复实际缺失依赖或配置，不填假地址、不跳过检查。正式签名预检省略 `--unsigned`，签名凭据就绪后才执行签名。
 
+Windows Office helper 需要随包分发的 Microsoft x64 CRT，预检验证文件版本、架构和 Microsoft 签名；默认从 Visual Studio Redist 查找，可用平台 dotenv 的 `DSH_DESKTOP_WINDOWS_CRT_DIR` 指定完整目录。桌面更新维护这些应用私有 DLL，不修改系统运行库。
+
 ## 2. 构建与打包
 
 ```powershell

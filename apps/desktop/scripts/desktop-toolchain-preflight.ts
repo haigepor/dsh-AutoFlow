@@ -13,6 +13,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { promisify } from 'node:util'
+import { checkWindowsCppRuntime } from './windows-cpp-runtime.ts'
 
 const run = promisify(execFile)
 
@@ -64,6 +65,10 @@ async function probeWindowsInstallerToolchain(environment: NodeJS.ProcessEnv): P
     catch (error) {
       failures.push({ tool: 'vswhere', detail: error instanceof Error ? error.message : String(error) })
     }
+  }
+  if (failures.length === 0) {
+    try { await checkWindowsCppRuntime(environment) }
+    catch (error) { failures.push({ tool: 'Microsoft C++ x64 runtime', detail: error instanceof Error ? error.message : String(error) }) }
   }
   return failures
 }
