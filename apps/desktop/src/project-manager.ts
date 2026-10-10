@@ -23,7 +23,8 @@ import type { DesktopPaths } from './paths.ts'
 import type { DesktopRelease } from './release.ts'
 import { readDesktopRuntime } from './runtime-tree.ts'
 import {
-  initProfile, PROFILE_TEMPLATES, removeLinkProjections, sanitizeProfile, type ProfileTemplate,
+  initProfile, PROFILE_TEMPLATES, readProfileManifest, removeLinkProjections, sanitizeProfile,
+  writeProfileBundles, type ProfileTemplate,
 } from '@deepseek-ai/dsh-app-boot'
 
 const PROJECT_NAME = '@deepseek-ai/dsh-desktop-runtime'
@@ -170,7 +171,16 @@ export function createDevelopmentProjectMetadata(projectDir: string, release: De
   writeFileSync(join(projectDir, 'pnpm-workspace.yaml'), workspaceFile(), { mode: 0o600 })
 }
 
-/** Create the first external plugin profile without running a package manager. */
+/** Initialize the external profile and retire the former desktop bundle with a manifest backup. */
 export function createPluginProfile(projectDir: string): void {
   initProfile(projectDir, WEB_PROFILE.bundles)
+  const manifest = readProfileManifest('dsh', projectDir)
+  const bundles = manifest.dsh?.profile?.bundles ?? []
+  if (!bundles.includes('@deepseek-ai/dsh-desktop-app')) return
+  // 桌面载体由独立 Host 提供；只移除已退役条目，保留用户插件、禁用状态和原始备份。
+  const backup = join(projectDir, 'package.desktop-app.backup.json')
+  if (!existsSync(backup)) {
+    writeFileSync(backup, readFileSync(join(projectDir, 'package.json')), { flag: 'wx', mode: 0o600 })
+  }
+  writeProfileBundles(projectDir, manifest, bundles.filter(name => name !== '@deepseek-ai/dsh-desktop-app'))
 }

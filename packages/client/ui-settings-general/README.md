@@ -11,6 +11,8 @@ English | [中文](README.zh.md)
 
 Use this package to give the dsh web client a full-window Settings page, connection-recovery control, feature-contributed navigation, and sequential first-run onboarding. Users can open it from the sidebar and retry a failed connection immediately. Feature packages supply their own settings rows, sections, and onboarding steps; this package supplies their shared presentation and the Coding Tools switch without adding onboarding copy.
 
+Windows Settings uses the same navigation spacing as Web below the caption strip already reserved by AppFrame; macOS retains its native caption clearance.
+
 ## Table of Contents
 
 - [Use this package](#use-this-package)

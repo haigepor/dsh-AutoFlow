@@ -45,6 +45,15 @@ function hostFromEndpoint(endpoint) {
   return new URL(endpoint).hostname.toLowerCase();
 }
 
+/** 只接纳官方响应提供的标准 CloudFront HTTPS 分发域名；白名单仅属于当前图片下载。 */
+function discoverCloudFrontHost(reference, allowedHosts) {
+  let url;
+  try { url = new URL(reference); } catch (_error) { return; }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port
+    || !/^d[a-z0-9]{8,64}\.cloudfront\.net$/.test(url.hostname)) return;
+  allowedHosts.add(url.hostname.toLowerCase());
+}
+
 function allowedHostSet({ farEndpoint, apicoreEndpoint, allowedCdnHosts }) {
   return new Set([
     hostFromEndpoint(farEndpoint),
@@ -132,10 +141,12 @@ export function createAfpPreviewClient({
   maxRedirects = DEFAULT_MAX_REDIRECTS,
   maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
   allowedCdnHosts = process.env.AFP_PREVIEW_CDN_HOSTS ?? '',
+  autoDiscoverCdnHosts = false,
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   logger,
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('fetch implementation is required');
+  if (typeof autoDiscoverCdnHosts !== 'boolean') throw new Error('autoDiscoverCdnHosts must be boolean');
   if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1) throw new Error('requestTimeoutMs must be a positive integer');
   if (!Number.isInteger(retries) || retries < 0) throw new Error('retries must be a non-negative integer');
   if (!Number.isInteger(maxRedirects) || maxRedirects < 0) throw new Error('maxRedirects must be a non-negative integer');
@@ -151,8 +162,8 @@ export function createAfpPreviewClient({
     endpointCategory: 'afp-preview',
   });
 
-  async function request(requestOnce, url, options, { followRedirects = false } = {}) {
-    let currentUrl = isAllowedPreviewUrl(url, allowedHosts).toString();
+  async function request(requestOnce, url, options, { followRedirects = false, previewHosts = allowedHosts } = {}) {
+    let currentUrl = isAllowedPreviewUrl(url, previewHosts).toString();
     let currentOptions = { ...options, redirect: 'manual' };
     for (let redirectCount = 0; ; redirectCount += 1) {
       const currentHost = new URL(currentUrl).hostname;
@@ -167,7 +178,11 @@ export function createAfpPreviewClient({
       // 跳转响应不再使用；先释放其流，再检查目标域名，避免失败时留下未消费连接。
       await response.body?.cancel();
       if (redirectCount >= maxRedirects) throw new Error('preview redirect limit exceeded');
-      currentUrl = isAllowedPreviewUrl(nextUrl, allowedHosts).toString();
+      // CDN 的后续跳转不能扩张白名单，AFP 身份凭据仍只发送到官方接口。
+      if (autoDiscoverCdnHosts && isAfpTrustedHost(currentHost, farEndpoint, apicoreEndpoint)) {
+        discoverCloudFrontHost(nextUrl, previewHosts);
+      }
+      currentUrl = isAllowedPreviewUrl(nextUrl, previewHosts).toString();
       currentOptions = { ...currentOptions, headers };
     }
   }
@@ -189,13 +204,15 @@ export function createAfpPreviewClient({
       const photo = payload?.data?.docs?.find((item) => item?.id === String(photoId));
       if (!photo) throw new Error('requested photo mockup is unavailable');
       const reference = findMockupReference(photo);
-      const mediaReference = previewUrl(reference, apicoreEndpoint, allowedCdnHosts);
+      const previewHosts = new Set(allowedHosts);
+      if (autoDiscoverCdnHosts) discoverCloudFrontHost(reference, previewHosts);
+      const mediaReference = previewUrl(reference, apicoreEndpoint, [...previewHosts]);
       // 图片下载重试复用已读 metadata，不再次查询同一张图片的详情。
       return httpClient.retryOperation(async requestOnce => {
         const mediaResponse = await request(requestOnce, mediaReference, {
           method: 'GET',
           headers: previewHeaders(accessToken, { accept: 'image/jpeg,image/png,image/webp,image/gif', contentType: null }),
-        }, { followRedirects: true });
+        }, { followRedirects: true, previewHosts });
         if (!mediaResponse.ok) throw new Error(`mockup download failed with HTTP ${mediaResponse.status}`);
         return {
           bytes: await httpClient.readResponseBytes(mediaResponse),

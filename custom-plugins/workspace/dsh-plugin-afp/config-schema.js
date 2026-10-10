@@ -9,7 +9,7 @@ const defaults = Object.freeze({
   language: 'en', farEndpoint: 'https://far-api-news.app.afp.com/',
   selectionsEndpoint: 'https://slt-api-news.app.afp.com',
   loginEndpoint: 'https://hub-api-news.app.afp.com/search',
-  mediaEndpoint: 'https://afp-apicore-prod.afp.com/objects/api/medias', previewCdnHosts: [],
+  mediaEndpoint: 'https://afp-apicore-prod.afp.com/objects/api/medias', previewCdnHosts: [], previewAutoCdnHosts: true,
   targetPerCategory: 100, batchSize: 30, pageSize: 60, maxPages: 3, maxBatches: 10,
   concurrency: 3, threshold: 0.8, requestTimeoutMs: 180000, readRetries: 2,
   collectionConcurrency: 4, searchConcurrency: 3, maxSearchRequests: 30,
@@ -46,6 +46,7 @@ export function resolveConfig(input = {}) {
   if (typeof config.allowWrites !== 'boolean') throw new Error('allowWrites must be boolean')
   if (typeof config.debugEnabled !== 'boolean') throw new Error('debugEnabled must be boolean')
   if (typeof config.autoRefreshToken !== 'boolean') throw new Error('autoRefreshToken must be boolean')
+  if (typeof config.previewAutoCdnHosts !== 'boolean') throw new Error('previewAutoCdnHosts must be boolean')
   if (typeof config.previewAnimationEnabled !== 'boolean') throw new Error('previewAnimationEnabled must be boolean')
   for (const [key, [min, max]] of Object.entries(ranges)) {
     if (!Number.isSafeInteger(config[key]) || config[key] < min || config[key] > max) throw new Error(`Invalid ${key}: expected integer ${min}..${max}`)

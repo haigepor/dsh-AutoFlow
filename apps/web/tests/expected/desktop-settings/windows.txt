@@ -1,0 +1,4 @@
+Settings
+Palette: official
+Navigation top: 6px
+Account reachable: true

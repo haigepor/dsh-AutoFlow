@@ -9,6 +9,7 @@
     accessTokenRef: AFP_ACCESS_TOKEN
     usernameRef: AFP_USERNAME
     passwordRef: AFP_PASSWORD
+    previewAutoCdnHosts: true
     previewCdnHosts: []
     targetPerCategory: 100
     batchSize: 30

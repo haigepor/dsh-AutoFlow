@@ -1,8 +1,30 @@
 {
   "skill_name": "dsh-desktop-github-release",
   "evals": [
-    { "id": 1, "prompt": "构建一个 Windows 无签名安装包并发布到 GitHub。", "expected": "使用独立 unsigned 通道，执行预检和打包，先公开附件再推进策略。" },
-    { "id": 2, "prompt": "发布下一版桌面端，暂不强制旧版本升级。", "expected": "读取已有策略，保留 minimumSupportedVersion，仅提升 latestVersion。" },
-    { "id": 3, "prompt": "只发布 AFP 0.1.5 插件。", "expected": "不触发桌面 Skill，使用 dsh-custom-plugin-release。" }
+    {
+      "id": 1,
+      "prompt": "构建一个 Windows 无签名安装包并发布到 GitHub。",
+      "expected": "使用独立 unsigned 通道，执行预检和打包，先公开附件再推进策略。"
+    },
+    {
+      "id": 2,
+      "prompt": "发布下一版桌面端，暂不强制旧版本升级。",
+      "expected": "读取已有策略，保留 minimumSupportedVersion，仅提升 latestVersion。"
+    },
+    {
+      "id": 3,
+      "prompt": "只发布 AFP 0.1.5 插件。",
+      "expected": "不触发桌面 Skill，使用 dsh-custom-plugin-release。"
+    },
+    {
+      "id": 4,
+      "prompt": "只需要一步构建 Windows 安装包，最后打印位置，不发布。",
+      "expected": "执行项目 build-windows.ps1，保留现有 apps/desktop/.env.windows，不创建 Release；成功后输出安装包绝对路径和哈希。"
+    },
+    {
+      "id": 5,
+      "prompt": "按默认 Windows 打包流程执行，不提供版本，也没有签名证书。",
+      "expected": "一键脚本默认生成 UTC 时间戳版本并执行无签名预检和打包，不阻塞于证书或额外版本确认；发布需已授权且产物来源干净。"
+    }
   ]
 }

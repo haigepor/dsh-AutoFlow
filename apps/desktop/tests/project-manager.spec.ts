@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDesktopPaths } from '../src/paths.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
-import { readProfilePlugins } from '@deepseek-ai/dsh-app-boot'
+import { loadProfileDirectory, readProfilePlugins } from '@deepseek-ai/dsh-app-boot'
 import { runtimeFixture } from './runtime-fixture.ts'
 
 const roots: string[] = []
@@ -43,6 +43,26 @@ afterEach(() => {
 })
 
 describe('desktop external plugin profile', () => {
+  it('removes the retired desktop bundle on launch and backs up the profile without dropping external plugins', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    seedPlugin(manager)
+    const path = join(manager.paths.profile, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { profile: { bundles: string[] } } }
+    manifest.dsh.profile.bundles.push('@deepseek-ai/dsh-desktop-app')
+    const previous = JSON.stringify(manifest)
+    writeFileSync(path, previous)
+    const anchor = join(manager.runtime.dsh, 'node_modules/@deepseek-ai/dsh/package.json')
+    const load = () => loadProfileDirectory('dsh', manager.paths.profile, anchor)
+    expect(load().skippedBundles.some(bundle => bundle.packageName === '@deepseek-ai/dsh-desktop-app')).toBe(true)
+    await manager.applyRelease()
+    expect(load().skippedBundles.some(bundle => bundle.packageName === '@deepseek-ai/dsh-desktop-app')).toBe(false)
+    expect(plugins(manager)).toContainEqual({ name: 'plugin', version: '1.0.0', enabled: true })
+    expect(readFileSync(join(manager.paths.profile, 'package.desktop-app.backup.json'), 'utf8')).toBe(previous)
+    const current = readFileSync(path, 'utf8')
+    await manager.applyRelease()
+    expect(readFileSync(path, 'utf8')).toBe(current)
+  })
   it('preserves installed packages, profile state, and the lockfile when preparing a launch', async () => {
     const { manager } = setup()
     await manager.applyRelease()

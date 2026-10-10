@@ -106,13 +106,13 @@ describe('ThemeRuntime', () => {
     expect(events).toHaveLength(3)
   })
 
-  it('uses the current palette only for a legacy user layer, then persists an explicit palette', () => {
+  it('keeps blue gray for old appearance preferences until an explicit palette is selected', () => {
     const { theme, host } = make()
     host.publish({ status: 'ready', value: { ...VISUAL, preference: 'system', fontSize: 14 }, user: { accent: 'ocean' }, revision: 1, writable: true })
-    expect(theme.getTheme()).toMatchObject({ themeSet: 'current', legacyAccent: true })
-    theme.setThemeSet('official')
-    expect(host.set).toHaveBeenCalledWith('themeSet', 'official')
     expect(theme.getTheme()).toMatchObject({ themeSet: 'official', legacyAccent: false })
+    theme.setThemeSet('current')
+    expect(host.set).toHaveBeenCalledWith('themeSet', 'current')
+    expect(theme.getTheme()).toMatchObject({ themeSet: 'current', legacyAccent: false })
   })
 
   it('keeps an explicit palette while a stale legacy settings response arrives', () => {

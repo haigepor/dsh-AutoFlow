@@ -9,8 +9,14 @@
   color: var(--dsw-alias-label-primary);
   --dsh-settings-inset-start: clamp(20px, 3vw, 32px);
   --dsh-settings-inset-end: var(--dsh-settings-inset-start);
-  --dsh-settings-inset-top: calc(24px + var(--dsh-frame-top-clearance, 0px));
+  --dsh-settings-top-clearance: var(--dsh-frame-top-clearance, 0px);
+  --dsh-settings-inset-top: calc(24px + var(--dsh-settings-top-clearance));
   transition: grid-template-columns var(--dsh-sidebar-transition-duration, 500ms) var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* Windows 内容已由框架移到标题栏下方；设置页不重复预留这一高度。 */
+:global([data-windows-titlebar]) .page {
+  --dsh-settings-top-clearance: 0px;
 }
 
 .nav {
@@ -21,7 +27,7 @@
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
-  padding: calc(6px + var(--dsh-frame-top-clearance, 0px)) 12px 6px;
+  padding: calc(6px + var(--dsh-settings-top-clearance)) 12px 6px;
   overflow: hidden;
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
@@ -290,7 +296,7 @@
 
 .rail .nav {
   width: 56px;
-  padding: calc(18px + var(--dsh-frame-top-clearance, 0px)) 10px 6px;
+  padding: calc(18px + var(--dsh-settings-top-clearance)) 10px 6px;
 }
 
 .rail .navTop {
@@ -339,7 +345,7 @@
   .nav,
   .rail .nav {
     width: 100%;
-    padding: calc(12px + var(--dsh-frame-top-clearance, 0px)) 12px 8px;
+    padding: calc(12px + var(--dsh-settings-top-clearance)) 12px 8px;
   }
 
   .navTop,

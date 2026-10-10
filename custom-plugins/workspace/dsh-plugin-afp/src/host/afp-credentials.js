@@ -124,7 +124,8 @@ export class Connection {
     }]))
     const services = { client, account, readAccountProfile: () => read(() => createAccountProfileReader({ accessToken: token, fetchImpl, sleep, config })()) }
     if (vision || preview) services.previewClient = { getPreviewBytes: id => read(() => createAfpPreviewClient({ ...common(), apicoreEndpoint: config.mediaEndpoint,
-      allowedCdnHosts: config.previewCdnHosts, maxRedirects: config.maxRedirects, maxResponseBytes: config.maxPreviewBytes }).getPreviewBytes(id)) }
+      allowedCdnHosts: config.previewCdnHosts, autoDiscoverCdnHosts: config.previewAutoCdnHosts,
+      maxRedirects: config.maxRedirects, maxResponseBytes: config.maxPreviewBytes }).getPreviewBytes(id)) }
     if (!vision) return services
     if (!config.visionModel || !config.visionBaseUrl) throw new Error('Configure visionModel and visionBaseUrl in the AFP plugin config')
     const apiKey = await value(config.visionKeyRef)

@@ -92,7 +92,7 @@ export const ThemeSettingsSchema: z<ThemeSettings> = z.object({
 })
 
 /**
- * Resolve a pre-palette user layer without changing its saved values.
+ * Preserve configured palettes without inferring a palette from older appearance fields.
  * @param value - The configured palette after schema defaults are applied.
  * @param user - The raw persisted user layer, when one exists.
  * @returns resolved palette and whether its legacy accent remains active.
@@ -104,7 +104,8 @@ export function resolveThemeSet(value: ThemeSet, user: unknown): { themeSet: The
   const layer = user as Record<string, unknown>
   if (Object.hasOwn(layer, 'themeSet')) return { themeSet: value, legacyAccent: false }
   const legacy = ['preference', 'fontSize', 'accent', 'fontFamily', 'corners'].some(key => Object.hasOwn(layer, key))
-  return { themeSet: legacy ? 'current' : value, legacyAccent: legacy }
+  // 字体、字号和模式的旧设置不再把默认蓝灰切换为鸢尾紫。
+  return { themeSet: value, legacyAccent: legacy && value === 'current' }
 }
 
 /**

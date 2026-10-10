@@ -60,6 +60,10 @@ The workbench completes report side columns, the fixed heading, back-to-top cont
 
 Windows publication regressions use Bash built-in reads to reduce extra polling subprocesses and an outer execution budget that covers host startup. Draft visibility, absence and API-error cases still assert retry counts, wait counts and exit status individually. Lifecycle fixtures cancel and drain their jobs before deleting temporary files, and fake reads reject signals already cancelled before listener registration.
 
+## AFP 0.1.5
+
+Previews automatically recognize HTTPS CloudFront distribution hosts returned by matching AFP photo metadata or official media redirects. Admission lasts for one download, CDN redirects cannot admit other hosts, and AFP credentials stay on AFP origins. `previewAutoCdnHosts` defaults to true; other domains retain exact `previewCdnHosts` configuration. Tests use simulated AFP responses and do not establish live account access.
+
 ## Dev Note
 
 None.

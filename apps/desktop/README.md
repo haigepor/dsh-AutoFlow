@@ -96,6 +96,8 @@ Finish CLI commands before updating or uninstalling Desktop; the installer does 
 
 Electron owns `$DSH_HOME/profiles/desktop`. Its `dependencies` contains packages installed by pnpm; `dsh.profile.bundles` contains the built-in bundles followed by enabled plugins. The signed application supplies dsh, the private Desktop Host, and their production packages from `resources/app.asar/dsh`. Packaged applications select runtime profile resolution without creating package links; development profiles use filesystem links. Both host and plugins execute in the same Electron Node-mode process; Desktop does not enable `--preserve-symlinks`. The CLI cannot boot this profile. The Desktop-installed command can manage its plugins while the application is quit; npm-installed dsh cannot mutate it.
 
+Desktop removes the retired `@deepseek-ai/dsh-desktop-app` bundle from existing profile manifests before Host startup, retaining other plugins and settings. The original manifest is saved once as `package.desktop-app.backup.json` in that profile.
+
 The application preload exposes boot readiness, fatal startup reporting, native directory selection, the `__DSH_HOST_PATHS__` bridge for composer path references, and the lease-scoped Browser bridge only to `dsh-app://app` documents. The same preload forwards the main-process machine description from `dshDesktop.deviceInfo()` as `name=value` fields separated by `; `: `platform`, `os`, `app_arch` (the architecture the application binary runs as, which differs from the hardware architecture under emulation), `cpu`, and `memory_gib` (total physical memory in GiB with one decimal). A field is omitted when its source is unavailable. The description carries no hostname, user name, or serial number. Product documents use the shared authenticated HTTP APIs and receive the Desktop marker, update presentation, and an action that opens native confirmation; they cannot choose artifacts or authorize installation. Plugin management uses the Web application's authenticated HTTP APIs. Electron serves update-dialog documents and assets locally at `dsh-app://shell/`, independently of Host readiness. Electron exposes no plugin-management IPC or separate management document. No renderer receives filesystem access, raw Electron IPC, a shell, or arbitrary pnpm arguments.
 
 Only the main application window enables `<webview>`. Guest attachment must match a main-issued lease and partition; guests keep sandbox, context isolation and Web security without Node integration or guest preload. Browser IPC listeners are created only for the application document. [Sidebar Browser](../../packages/client/ui-sidebar-browser/README.md) describes storage grouping and guest limitations; Host authentication remains required independently of URL filtering.
@@ -178,11 +180,15 @@ The welcome window follows system appearance with the built-in light/dark colors
 
 ## Package
 
+### One-step unsigned Windows installer
+
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\desktop\scripts\build-windows.ps1` from the repository. The script locates the checkout from its own path, preserves `apps/desktop/.env.windows`, installs missing workspace dependencies, runs preflight and packaging smoke checks, and prints the installer absolute path last. `-BuildVersion` sets an explicit version; `-CheckOnly` stops after preflight. It does not sign or publish; GitHub publication follows the [project release skill](../../.agents/skills/dsh-desktop-github-release/SKILL.md).
+
 <a id="release-versions"></a>
 
 ### Release versions
 
-Before each Desktop packaging run, first confirm the complete version string with the current user. Check the selected deployment, dsh base version, retained release records, and published objects, then propose the exact version for approval. Do not start packaging until the user confirms that version; the deployment setting alone does not authorize a version choice.
+Use the user-selected complete version when supplied. The one-step unsigned Windows script otherwise appends a UTC timestamp to the Desktop base version; select a unique version and never reuse a published version. Production releases require the intended product version and signing configuration.
 
 Record the current dsh version as the base. A production Desktop release uses that exact version, including any `alpha`, `beta`, or `rc` identifiers. A test release preserves the complete prerelease base and appends `.YYYYMMDD.index`; a stable base uses `-test.YYYYMMDD.index` instead.
 

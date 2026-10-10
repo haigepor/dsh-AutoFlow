@@ -60,6 +60,10 @@ pnpm --filter dsh-plugin-afp run release:prepare --out .artifacts/afp-release
 
 Windows 发布回归使用 Bash 内建读取减少轮询中的额外子进程，外层执行预算覆盖宿主启动；草稿出现、缺失和 API 错误的重试次数、等待次数及退出状态仍逐项断言。生命周期夹具先取消并等待作业结束，再删除临时文件；模拟读取也拒绝在注册监听前已经取消的信号。
 
+## AFP 0.1.5
+
+图片预览自动识别匹配图片的 AFP 官方元数据或媒体跳转返回的 HTTPS CloudFront 域名。域名只在本次下载有效，CDN 跳转不能追加其他域名，AFP 凭据仅用于官方来源。`previewAutoCdnHosts` 默认开启；其他域名仍需精确配置 `previewCdnHosts`。测试使用模拟 AFP 响应，不代表真实账号访问已验收。
+
 ## Dev Note
 
 无。

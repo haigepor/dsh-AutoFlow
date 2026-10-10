@@ -21,7 +21,7 @@ compatibility: Windows x64 打包需 Node.js、pnpm、Visual C++ 和 Windows SDK
 
 读取根 AGENTS、Desktop README、相关测试和发布配置。加载 `ponytail`、`windows-utf8-editing`；提交推送前使用 `dsh-pre-push-checks`。检查工作区、远程头和来源提交，保护用户其他改动，不使用 `git add .`。
 
-不存在 `.env.windows` 时复制 `.env.github.windows.example`；存在时先读取，保留配置和凭据。更新仓库与 Pages URL，策略 URL 必须是同目录 `policy.json`。无签名升级要求 `DSH_DESKTOP_UNSIGNED_UPDATES=1`、独立应用 ID 和 `/unsigned/` 目录；正式通道移除该开关，使用其他 Pages 目录及签名配置。
+不存在 `apps/desktop/.env.windows` 时复制 `.env.github.windows.example`；存在时先读取，保留配置和凭据。更新仓库与 Pages URL，策略 URL 必须是同目录 `policy.json`。无签名升级要求 `DSH_DESKTOP_UNSIGNED_UPDATES=1`、独立应用 ID 和 `/unsigned/` 目录；正式通道移除该开关，使用其他 Pages 目录及签名配置。
 
 不打印 PIN、密码、私钥、Token 或完整 credential-helper 输出。发布脚本读取进程 `GITHUB_TOKEN`／`GH_TOKEN` 或 Git Credential Manager；Token 不放入平台 dotenv、安装包或项目文件。
 
@@ -39,10 +39,12 @@ Windows Office helper 需要随包分发的 Microsoft x64 CRT，预检验证文�
 ## 2. 构建与打包
 
 ```powershell
-pnpm --dir apps/desktop run package:win:x64:unsigned --build-version $desktopBuildVersion
+powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\desktop\scripts\build-windows.ps1 -BuildVersion $desktopBuildVersion
 ```
 
-命令执行官方构建、运行时准备、AFP 打包、NSIS 构建和产物 smoke。无签名输出在 `apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/`，正式输出在同目标 `artifacts/`。检查唯一 `packaging-runs` 记录：退出码必须为零，安装包非空，feed 与 completion record 齐全。公开发布使用干净已提交源码构建的产物；脏工作区允许本地构建，但发布脚本拒绝为其创建公开版本。必要的源码提交和推送须在用户已授权范围内完成。
+一键脚本按自身路径定位仓库，保留现有平台配置，安装缺失依赖并执行预检。省略 `-BuildVersion` 时生成带 UTC 时间戳的版本；`-CheckOnly` 只执行预检。成功时最后一行打印非空安装包绝对路径及前面的 SHA-256，失败时退出码非零，不打印成功。脚本默认不签名、不发布。
+
+打包执行官方构建、运行时准备、AFP 打包、NSIS 构建和产物 smoke。无签名输出在 `apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/`，正式输出在同目标 `artifacts/`。检查唯一 `packaging-runs` 记录：退出码必须为零，安装包非空，feed 与 completion record 齐全。公开发布使用干净已提交源码构建的产物；脏工作区允许本地构建，但发布脚本拒绝为其创建公开版本。必要的源码提交和推送须在用户已授权范围内完成。
 
 ## 3. 准备与发布
 
