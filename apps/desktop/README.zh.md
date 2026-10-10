@@ -313,6 +313,16 @@ Mac 打包从 `.env.macos` 读取三个调优字段：
 
 Apple 工具使用 macOS 当前活动网络服务的 HTTP/HTTPS 代理。配置公证代理后，打包会检查代理可达性、保存该服务的设置，在两条产物任务期间启用代理，并在两条任务均结束后恢复原设置。对于原本关闭、服务器为空且端口为零的代理，恢复时仅关闭代理；临时服务器和端口可能保留，但不生效。仅生成目录的打包会在签名目录构建完成后的 App 公证期间启用代理。这会临时影响其他应用，并要求修改系统代理的权限；必须先禁用 PAC、自动发现、SOCKS 及需要认证的代理配置。打包和恢复在读取恢复记录或修改代理前获取同一个用户级 POSIX 文件锁；进程退出会释放锁的持有权，锁文件保留。该锁在首次使用时才加载 `@deepseek-ai/node-addon-system/flock`，而不是在脚本启动时加载，因此 `check:package` 和打包入口在未构建 `native/system` 的 checkout 上也能加载；加锁时若宿主 addon 二进制或入口的 JavaScript 缺失，加载器会先运行 `pnpm run build:native-system` 和 `pnpm --dir native/system run build:ts` 再加锁，因此恢复命令在这样的 checkout 上同样可用。这会阻止不同 checkout 的代理事务重叠；其他用户及网络设置工具不得同时修改这些设置。SIGINT/SIGTERM 会等待活动任务结束后恢复。强制终止或恢复失败后，先停止残留公证进程，再运行 `pnpm --dir apps/desktop run restore:mac-proxy`；保存的记录会保留到恢复成功。配置检查仅验证 URL 语法，不修改系统设置或连接代理。
 
+### GitHub 更新与发布
+
+GitHub 部署配置 `DSH_DESKTOP_UPDATE_PROVIDER=github`、`DSH_DESKTOP_GITHUB_REPOSITORY=owner/repository`，以及 `DSH_DESKTOP_GITHUB_PAGES_URL` 中的 HTTPS 目录。generic Nightly updater 从该目录读取分目标清单；安装包和 blockmap 位于明确指定的桌面 Release。[Windows 模板](.env.github.windows.example)选择独立无签名通道。只有 `DSH_DESKTOP_UNSIGNED_UPDATES=1` 与 `/unsigned/` Pages 目录同时配置时才启用无签名升级；签名构建拒绝该配置。无签名升级验证 SHA-512，但不具备证书发布者校验。既有 COS 部署仍是默认模式。
+
+`DSH_DESKTOP_MANDATORY_UPDATE_SOURCE=static-json` 匿名读取完整 `DSH_DESKTOP_MANDATORY_UPDATE_URL`，不发送账号请求头或 Cookie，不接受重定向。GitHub 打包要求该 URL 指向同一 Pages 目录下的 `policy.json`。策略格式版本 1 包含 Nightly 通道及目标条目，条目提供 `latestVersion`、`minimumSupportedVersion` 和 `downloadPage`。版本使用不带 build metadata 的规范 SemVer；最低版本不能超过最新版本。只有已安装应用低于对应平台最低版本时才阻塞。目标缺失、页面未获批准、JSON 无效或 HTTP 失败均保留已知阻塞。API 部署保留既有协议和鉴权。
+
+运行 `pnpm --dir apps/desktop run publish:github win-x64 --prepare-only` 校验产物并生成发布文件，去掉 `--prepare-only` 后执行发布。脚本读取 `GITHUB_TOKEN`、`GH_TOKEN` 或 Git Credential Manager，不将凭据写入应用。发布要求公开仓库及干净已提交源码构建的产物。不可变 Release 附件通过 SHA-256 和匿名下载可用性检查后，清单与策略才共同推进到专用 `desktop-updates` 分支。脚本拒绝替换已有文档 Pages 站点。首次策略以首次版本为最低阈值；后续保留该阈值，仅通过 `--minimum-supported-version` 显式提高。脚本拒绝降低版本或最低阈值。
+
+无签名标签为 `desktop-v<version>-unsigned`，签名标签为 `desktop-v<version>`。发布不读取 `releases/latest`，AFP 标签和桌面预发布版本不会选出错误更新。手动 `Publish Windows Desktop` workflow 在原生 Windows runner 上构建和发布。[项目 Skill](../../.agents/skills/dsh-desktop-github-release/SKILL.md)负责可重复操作与失败恢复。
+
 ### 未签名 Windows 测试安装包
 
 在 Windows x64 上，使用完整的未签名打包命令进行本地安装测试：
@@ -321,7 +331,7 @@ Apple 工具使用 macOS 当前活动网络服务的 HTTP/HTTPS 代理。配置�
 pnpm run package:desktop:win:x64:unsigned
 ```
 
-该命令要求设置 `DSH_DESKTOP_APP_ID` 并具备常规构建依赖，包括编译原生模块所需的 Python 和 Visual C++ 构建工具。Python 不在 `PATH` 中时，将 `PYTHON` 设置为其可执行文件路径。命令将安装包写入 `.desktop-build/targets/win-x64/unsigned-artifacts/`，省略自动更新配置，清除签名凭据，且不生成发布完成记录。它不需要 EV 凭据或更新源地址。签名打包和上传命令仍遵循正式发布要求。
+命令要求 `DSH_DESKTOP_APP_ID`、选定的强制更新策略和常规构建依赖，包括原生模块所需的 Python 与 Visual C++ 构建工具。Python 不在 `PATH` 时，将 `PYTHON` 设为其可执行文件。安装包输出到 `.desktop-build/targets/win-x64/unsigned-artifacts/`，并移除签名凭据。未显式启用无签名 GitHub 更新时，省略自动更新配置且不生成发布完成记录；启用后写入独立清单地址，并生成 GitHub 发布记录。不需要 EV 凭据。签名打包与 COS 上传保留发布要求。
 
 ### Windows 安装界面
 

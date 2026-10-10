@@ -90,7 +90,10 @@ export function createElectronBuilderConfig(
   if (windowsSigner !== undefined) {
     installWindowsNsisBootstrapSigner({ sign: windowsSigner })
   }
-  const update = unsigned ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
+  if (env.DSH_DESKTOP_UNSIGNED_UPDATES === '1' && (!unsigned || env.DSH_DESKTOP_UPDATE_PROVIDER !== 'github')) {
+    throw new Error('desktop package: unsigned updates require explicit unsigned GitHub packaging')
+  }
+  const update = unsigned && env.DSH_DESKTOP_UNSIGNED_UPDATES !== '1' ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
   if (preparedRuntime !== undefined) buildPaths.dsh = preparedRuntime
   // electron-builder merges extraMetadata into the packaged manifest, so a build version here reaches
   // the artifact names, the update feed, and the installed app.getVersion() the updater compares against.

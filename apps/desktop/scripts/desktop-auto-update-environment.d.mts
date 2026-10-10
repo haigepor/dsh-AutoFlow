@@ -9,6 +9,9 @@ export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64'
 
 /** Public updater URL and object prefixes for one release target. */
 export interface DesktopAutoUpdateConfig {
+  readonly provider?: 'github'
+  readonly repository?: string
+  readonly pagesUrl?: string
   readonly environment: DesktopAutoUpdateEnvironment
   readonly target: DesktopAutoUpdateTarget
   readonly origin: string

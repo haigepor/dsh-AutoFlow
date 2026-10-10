@@ -1,7 +1,8 @@
 /** Mandatory-update policy, independent of local business traffic and updater artifacts. */
 
-import { valid } from 'semver'
+import { lt, valid } from 'semver'
 import { platformClientHeaders, type AccountClientMetadata } from '@deepseek-ai/dsh-deepseek-account'
+import { parseDesktopStaticUpdatePolicy } from './static-update-policy.ts'
 
 /** Installed release identity; no field is supplied by a renderer. */
 export interface DesktopPolicyIdentity {
@@ -11,7 +12,7 @@ export interface DesktopPolicyIdentity {
 }
 
 /** Validated deployment choices; test authentication is explicitly enabled, never inferred from a redirect. */
-export interface DesktopPolicyConfig {
+interface DesktopPolicyOptions {
   readonly origin: string
   readonly allowedPageOrigins: readonly string[]
   readonly allowedAuthOrigins: readonly string[]
@@ -21,6 +22,12 @@ export interface DesktopPolicyConfig {
   readonly jitter: number
   readonly authentication: 'anonymous' | 'feishu-test'
 }
+
+/** A static source requires a complete URL; API deployments retain origin-based requests. */
+export type DesktopPolicyConfig = DesktopPolicyOptions & (
+  { readonly source?: 'api'; readonly policyUrl?: never }
+  | { readonly source: 'static-json'; readonly policyUrl: string }
+)
 
 /** A known block survives transport and parsing failures, but not a fresh no-force success. */
 export interface DesktopPolicyState {
@@ -59,6 +66,17 @@ export function resolveDesktopPolicyConfig(input: unknown, allowLoopback = false
     throw new Error('desktop policy: configure origin and a nonempty allowedPageOrigins list')
   }
   const fields = value
+  const source = value.source ?? 'api'
+  if (source !== 'api' && source !== 'static-json') throw new Error('desktop policy: source must be api or static-json')
+  let policyUrl: URL | undefined
+  if (source === 'static-json') {
+    if (typeof value.policyUrl !== 'string') throw new Error('desktop policy: static-json requires policyUrl')
+    policyUrl = new URL(value.policyUrl)
+    if (policyUrl.username || policyUrl.password || policyUrl.search || policyUrl.hash
+      || (policyUrl.protocol !== 'https:' && !(allowLoopback && policyUrl.protocol === 'http:' && policyUrl.hostname === '127.0.0.1'))) {
+      throw new Error('desktop policy: policyUrl must use HTTPS without credentials, query, or fragment')
+    }
+  } else if (value.policyUrl !== undefined) throw new Error('desktop policy: API source must not configure policyUrl')
   function duration(key: string, fallback: number): number {
     const duration = fields[key] ?? fallback
     if (typeof duration !== 'number' || !Number.isSafeInteger(duration) || duration < 1_000 || duration > 2_147_483_647) {
@@ -73,6 +91,7 @@ export function resolveDesktopPolicyConfig(input: unknown, allowLoopback = false
   if (authentication !== 'anonymous' && authentication !== 'feishu-test') {
     throw new Error('desktop policy: authentication must be anonymous or feishu-test')
   }
+  if (source === 'static-json' && authentication !== 'anonymous') throw new Error('desktop policy: static-json must be anonymous')
   const authOrigins = value.allowedAuthOrigins
   if (authentication === 'feishu-test' && (!Array.isArray(authOrigins) || authOrigins.length === 0)) {
     throw new Error('desktop policy: test authentication requires nonempty allowedAuthOrigins')
@@ -83,12 +102,13 @@ export function resolveDesktopPolicyConfig(input: unknown, allowLoopback = false
   if (typeof jitter !== 'number' || !Number.isFinite(jitter) || jitter < 0 || jitter > 1 || maxBackoffMs < intervalMs) {
     throw new Error('desktop policy: jitter must be in [0, 1] and maxBackoffMs must cover intervalMs')
   }
-  return {
-    origin: origin(value.origin, authentication === 'anonymous' && allowLoopback),
+  const resolved: DesktopPolicyOptions = {
+    origin: origin(policyUrl?.origin ?? value.origin, authentication === 'anonymous' && allowLoopback),
     allowedPageOrigins: value.allowedPageOrigins.map(item => origin(item, false)),
     allowedAuthOrigins: authentication === 'feishu-test' ? (authOrigins as unknown[]).map(item => origin(item, false)) : [],
     intervalMs, timeoutMs: duration('timeoutMs', 15_000), maxBackoffMs, jitter, authentication,
   }
+  return policyUrl === undefined ? resolved : { ...resolved, source: 'static-json', policyUrl: policyUrl.href }
 }
 
 /**
@@ -184,9 +204,11 @@ export class DesktopMandatoryUpdatePolicy {
       const timeout = setTimeout(() => { controller.abort() }, this.config.timeoutMs)
       this.setState({ ...this.current, checking: true })
       try {
-        const url = new URL('/api/v0/check_client_update', this.config.origin)
-        url.searchParams.set('scenario', scenario)
-        const response = await this.request(url, { headers: this.requestHeaders(), signal: controller.signal,
+        const isStatic = this.config.source === 'static-json'
+        const url = this.config.source === 'static-json'
+          ? new URL(this.config.policyUrl) : new URL('/api/v0/check_client_update', this.config.origin)
+        if (!isStatic) url.searchParams.set('scenario', scenario)
+        const response = await this.request(url, { ...(isStatic ? {} : { headers: this.requestHeaders() }), signal: controller.signal,
           credentials: this.config.authentication === 'feishu-test' ? 'include' : 'omit', cache: 'no-store', redirect: 'error' })
         const body: unknown = await response.json()
         if (this.config.authentication === 'feishu-test' && response.status === 401
@@ -195,7 +217,20 @@ export class DesktopMandatoryUpdatePolicy {
           this.setState({ ...this.current, checking: false, error: 'authentication-required' })
           return this.current
         }
-        const state = parsePolicy(body, response.ok, this.config)
+        let state: DesktopPolicyState
+        if (isStatic) {
+          if (!response.ok) throw new Error('desktop policy: static policy request failed')
+          const policy = parseDesktopStaticUpdatePolicy(body)
+          const target = policy.targets[this.identity.platform === 'win32' ? 'win-x64' : this.identity.arch === 'arm64' ? 'mac-arm64' : 'mac-x64']
+          if (target === undefined) throw new Error('desktop policy: installed target is absent')
+          const page = desktopPolicyPage(target.downloadPage, this.config.allowedPageOrigins)
+          if (page === undefined) throw new Error('desktop policy: static download page is not approved')
+          // 最低支持版本决定强制更新；普通新版本由独立的 updater 清单处理。
+          state = lt(this.client().version, target.minimumSupportedVersion)
+            ? { blocking: true, checking: false, page, ...(target.title === undefined ? {} : { title: target.title }),
+              ...(target.detail === undefined ? {} : { detail: target.detail }) }
+            : { blocking: false, checking: false }
+        } else state = parsePolicy(body, response.ok, this.config)
         this.failures = 0
         this.setState(state)
       } catch {

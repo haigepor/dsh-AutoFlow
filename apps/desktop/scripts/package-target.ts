@@ -37,6 +37,9 @@ const WINDOWS_SIGNING_ENV_NAMES = [
   'DSH_DESKTOP_WINDOWS_SIGNATURE_CACHE_CONCURRENCY',
 ] as const
 const DESKTOP_UPLOAD_CREDENTIAL_ENV_NAMES = new Set([
+  'GH_TOKEN',
+  'GITHUB_TOKEN',
+  'GITHUB_RELEASE_TOKEN',
   'DOWNLOAD_TEST_COS_SECRET_ID',
   'DOWNLOAD_TEST_COS_SECRET_KEY',
   'DOWNLOAD_PROD_COS_SECRET_ID',
@@ -154,6 +157,8 @@ function writeReleaseRecord(
     version: buildVersion,
     environment: update.environment,
     publicUrl: update.publicUrl,
+    ...(update.provider === 'github' ? { provider: 'github', repository: update.repository,
+      pagesUrl: update.pagesUrl, signing: environment.DSH_DESKTOP_UNSIGNED === '1' ? 'unsigned' : 'signed' } : {}),
     // Upload reads this to tag the commit a production release was packaged from.
     ...packaged === undefined ? {} : { commit: packaged.commit, dirty: packaged.dirty },
   }, null, 2)}\n`)
@@ -503,7 +508,9 @@ export async function packageTarget(
     await signedStage('artifacts', () => execute(desktopElectronBuilderArguments(target, invocation.directory), electronBuilderEnv))
     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts', ...(invocation.unsigned ? ['--unsigned'] : [])], targetEnv)
   }
-  if (!invocation.directory && !invocation.unsigned) writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)
+  if (!invocation.directory && (!invocation.unsigned || environment.DSH_DESKTOP_UNSIGNED_UPDATES === '1')) {
+    writeReleaseRecord(target, electronBuilderEnv, invocation.unsigned ? buildPaths.unsignedArtifacts : buildPaths.artifacts)
+  }
   if (journal) recordPackagingEvent(journal, { type: 'artifacts', directory: buildPaths.artifacts })
 }
 

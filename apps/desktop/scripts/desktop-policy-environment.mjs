@@ -16,6 +16,27 @@ function origin(value, name) {
  * @returns {{ origin: string, allowedPageOrigins: string[], authentication: 'anonymous' | 'feishu-test', [key: string]: unknown }} Selected policy.
  */
 export function resolveDesktopPolicyEnvironment(environment) {
+  const source = environment.DSH_DESKTOP_MANDATORY_UPDATE_SOURCE?.trim() || 'api'
+  if (source !== 'api' && source !== 'static-json') throw new Error('desktop package: mandatory update source must be api or static-json')
+  if (source === 'static-json') {
+    let url
+    try { url = new URL(environment.DSH_DESKTOP_MANDATORY_UPDATE_URL) }
+    catch { throw new Error('desktop package: DSH_DESKTOP_MANDATORY_UPDATE_URL requires an HTTPS URL') }
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+      throw new Error('desktop package: static policy URL requires HTTPS without credentials, query, or fragment')
+    }
+    let options = {}
+    try { options = JSON.parse(environment.DSH_DESKTOP_MANDATORY_UPDATE_CONFIG ?? '{}') }
+    catch { throw new Error('desktop package: DSH_DESKTOP_MANDATORY_UPDATE_CONFIG must be valid JSON') }
+    if (typeof options !== 'object' || options === null || Array.isArray(options)
+      || ['origin', 'policyUrl', 'source', 'authentication', 'allowedAuthOrigins'].some(key => key in options)) {
+      throw new Error('desktop package: static policy options cannot override source, URL, or authentication')
+    }
+    const pages = options.allowedPageOrigins ?? ['https://github.com']
+    if (!Array.isArray(pages) || pages.length === 0) throw new Error('desktop package: allowedPageOrigins must be a nonempty array')
+    return { ...options, source, policyUrl: url.href, origin: url.origin, authentication: 'anonymous',
+      allowedPageOrigins: pages.map(value => origin(value, 'allowedPageOrigins')) }
+  }
   const deployment = resolveDesktopAutoUpdateEnvironment(environment)
   const name = deployment === 'test' ? 'DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN' : 'DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN'
   const selected = origin(environment[name], name)
@@ -25,7 +46,7 @@ export function resolveDesktopPolicyEnvironment(environment) {
     catch { throw new Error('desktop package: DSH_DESKTOP_MANDATORY_UPDATE_CONFIG must be valid JSON') }
   }
   if (typeof settings !== 'object' || settings === null || Array.isArray(settings)
-    || 'origin' in settings || 'authentication' in settings) {
+    || ['origin', 'authentication', 'source', 'policyUrl'].some(key => key in settings)) {
     throw new Error('desktop package: policy options must be an object without origin or authentication; use the deployment origin settings')
   }
   const pages = settings.allowedPageOrigins ?? [selected]

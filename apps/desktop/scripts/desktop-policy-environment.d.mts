@@ -1,5 +1,7 @@
 /** Required deployment-selected metadata for mandatory-update policy requests. */
 export interface DesktopPolicyEnvironment {
+  source?: 'static-json'
+  policyUrl?: string
   origin: string
   allowedPageOrigins: string[]
   allowedAuthOrigins?: string[]

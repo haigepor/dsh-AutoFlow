@@ -1,0 +1,8 @@
+{
+  "skill_name": "dsh-desktop-github-release",
+  "evals": [
+    { "id": 1, "prompt": "构建一个 Windows 无签名安装包并发布到 GitHub。", "expected": "使用独立 unsigned 通道，执行预检和打包，先公开附件再推进策略。" },
+    { "id": 2, "prompt": "发布下一版桌面端，暂不强制旧版本升级。", "expected": "读取已有策略，保留 minimumSupportedVersion，仅提升 latestVersion。" },
+    { "id": 3, "prompt": "只发布 AFP 0.1.5 插件。", "expected": "不触发桌面 Skill，使用 dsh-custom-plugin-release。" }
+  ]
+}

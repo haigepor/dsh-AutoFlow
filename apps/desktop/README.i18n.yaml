@@ -50,9 +50,12 @@
 /deepseek-harness-desktop/package/upload-updates:
   en: 72073b2e72590067
   zh: 63b1f9790395c37d
+/deepseek-harness-desktop/package/github-updates-and-publication:
+  en: 0480b43f96a0561d
+  zh: e63a9e2f6d2858f6
 /deepseek-harness-desktop/package/unsigned-windows-test-installer:
-  en: cfd5780dd26a8e46
-  zh: f7a16b1ede793b7b
+  en: ee593d6b4f2860d3
+  zh: 9bce8b34ab059c54
 /deepseek-harness-desktop/package/windows-installer-interface:
   en: f176a8b1c7de3064
   zh: 6ea2dbe6bb808c34

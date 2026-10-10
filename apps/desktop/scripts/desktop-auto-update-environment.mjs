@@ -130,6 +130,31 @@ function httpsOrigin(value, name) {
 export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
   const environment = resolveDesktopAutoUpdateEnvironment(env)
   const target = resolveDesktopAutoUpdateTarget(platform, arch)
+  const provider = env.DSH_DESKTOP_UPDATE_PROVIDER?.trim() || 'cos'
+  if (provider !== 'cos' && provider !== 'github') throw new Error('desktop auto-update: provider must be cos or github')
+  if (provider === 'github') {
+    const repository = requiredEnvironmentValue(env, 'DSH_DESKTOP_GITHUB_REPOSITORY')
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(repository)) {
+      throw new Error('desktop auto-update: GitHub repository must be owner/repository')
+    }
+    let pages
+    try { pages = new URL(requiredEnvironmentValue(env, 'DSH_DESKTOP_GITHUB_PAGES_URL')) }
+    catch { throw new Error('desktop auto-update: GitHub Pages URL must be an absolute HTTPS directory') }
+    if (pages.protocol !== 'https:' || pages.username || pages.password || pages.search || pages.hash || !pages.pathname.endsWith('/')) {
+      throw new Error('desktop auto-update: GitHub Pages URL must be an HTTPS directory without credentials, query, or fragment')
+    }
+    const unsignedUpdates = env.DSH_DESKTOP_UNSIGNED_UPDATES
+    if (unsignedUpdates !== undefined && unsignedUpdates !== '0' && unsignedUpdates !== '1') {
+      throw new Error('desktop auto-update: DSH_DESKTOP_UNSIGNED_UPDATES must be 0 or 1')
+    }
+    if ((unsignedUpdates === '1') !== pages.pathname.endsWith('/unsigned/')) {
+      throw new Error('desktop auto-update: unsigned updates require an isolated /unsigned/ Pages directory')
+    }
+    const keyPrefix = `${pages.pathname.slice(1)}feeds/${target}`
+    return { environment, target, origin: pages.origin, keyPrefix, binaryKeyPrefix: '',
+      publicUrl: `${pages.origin}/${keyPrefix}/`, provider: 'github', repository, pagesUrl: pages.href }
+  }
+  if (env.DSH_DESKTOP_UNSIGNED_UPDATES === '1') throw new Error('desktop auto-update: unsigned updates require GitHub')
   const deployment = UPDATE_ENVIRONMENTS[environment]
   let origin = deployment.fixedOrigin
   if (origin === undefined) {
@@ -166,6 +191,7 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
  */
 export function resolveDesktopUploadConfig(env, platform, arch) {
   const update = resolveDesktopAutoUpdateConfig(env, platform, arch)
+  if (update.provider === 'github') throw new Error('desktop upload: use publish:github for GitHub releases; COS upload is not available')
   const deployment = UPDATE_ENVIRONMENTS[update.environment]
   return {
     ...update,

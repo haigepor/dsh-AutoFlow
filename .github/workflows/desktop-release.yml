@@ -1,0 +1,81 @@
+name: Publish Windows Desktop
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Confirmed Desktop build version, such as 0.2.0-rc.2.20261010.1'
+        required: true
+        type: string
+      minimum_supported_version:
+        description: 'Optional forced-update threshold; leaving it empty preserves the published minimum'
+        required: false
+        type: string
+
+concurrency:
+  group: desktop-github-publication
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      pages: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Configure isolated unsigned GitHub channel
+        env:
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_OWNER: ${{ github.repository_owner }}
+        run: |
+          $repositoryName = $env:RELEASE_REPOSITORY.Split('/')[1]
+          $pagesUrl = "https://$($env:RELEASE_OWNER).github.io/$repositoryName/desktop/unsigned/"
+          $settings = @(
+            'DSH_DESKTOP_APP_ID=com.autoflow.desktop.unsigned',
+            'DSH_DESKTOP_AUTO_UPDATE_ENV=test',
+            'DSH_DESKTOP_UPDATE_PROVIDER=github',
+            "DSH_DESKTOP_GITHUB_REPOSITORY=$env:RELEASE_REPOSITORY",
+            "DSH_DESKTOP_GITHUB_PAGES_URL=$pagesUrl",
+            'DSH_DESKTOP_UNSIGNED_UPDATES=1',
+            'DSH_DESKTOP_MANDATORY_UPDATE_SOURCE=static-json',
+            "DSH_DESKTOP_MANDATORY_UPDATE_URL=$($pagesUrl)policy.json"
+          )
+          Set-Content -LiteralPath apps/desktop/.env.windows -Value $settings -Encoding utf8
+      - name: Verify update contracts
+        run: pnpm exec vitest run apps/desktop/tests/github-update-policy.spec.ts apps/desktop/tests/desktop-github-publication.spec.ts
+      - name: Package Windows installer
+        env:
+          BUILD_VERSION: ${{ inputs.version }}
+        run: pnpm --dir apps/desktop run package:win:x64:unsigned --build-version "$env:BUILD_VERSION"
+      - name: Retain installer and completion record
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-win-x64-unsigned
+          path: apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/*.*
+          compression-level: 0
+          if-no-files-found: error
+      - name: Publish Release and Pages policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MINIMUM_SUPPORTED_VERSION: ${{ inputs.minimum_supported_version }}
+        run: |
+          $arguments = @('--dir', 'apps/desktop', 'run', 'publish:github', 'win-x64')
+          if ($env:MINIMUM_SUPPORTED_VERSION) { $arguments += @('--minimum-supported-version', $env:MINIMUM_SUPPORTED_VERSION) }
+          pnpm @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
