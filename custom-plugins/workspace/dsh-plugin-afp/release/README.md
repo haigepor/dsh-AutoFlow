@@ -22,7 +22,7 @@ The command runs AFP tests, builds and checks the package through `prepack`, val
 
 Push the reviewed source and a new `afp-v<version>` tag to the configured repository. The [AFP workflow](../../../../.github/workflows/release-afp.yml) builds from that tag, checks the package version and source commit, prepares assets without write credentials, then uploads a draft with a separate publication job. It locates drafts by Release ID and publishes only after asset checks pass, with `latest=false`. Manual dispatch from the current workflow takes an existing AFP tag as input and builds that tag's source. Matching existing assets are verified without replacement; missing or different assets stop publication.
 
-After the workflow succeeds, inspect the Release, its three uploaded assets and tag commit. Download the `.tgz`, `SHA256SUMS` and `afp-update.json` into a new directory; recompute SHA-256 and check the metadata's version, source commit and size. Test the downloaded package in a disposable DSH profile using the supported `dsh` launcher; check Host entries, bundle features, Client resources and retained configuration. Do not install over an existing builtin AFP solely to test the tarball.
+After the workflow succeeds, confirm that the Release is public, its three assets are uploaded and the tag resolves to the correct commit; record its link, version, source commit and asset information to finish publication. Do not download assets, create a temporary profile, install the package or rehearse updates by default. Download relevant assets to verify SHA-256 and metadata only when requested or investigating publication, digest or installation failures. If installation verification is needed, use the supported `dsh` launcher and an isolated profile without replacing the AFP installation in use.
 
 After creating a draft, the publisher retries its Release ID lookup for up to 20 seconds. If the draft remains unavailable, publication stops without creating another draft or replacing assets. Recover through manual dispatch using the existing tag after checking its source and uploaded bytes.
 
@@ -49,6 +49,14 @@ Screening checkpoints each photo result and landscape confirmation; resuming reu
 Run diagnostics retain the current attempt's total duration, individual stage timings and sanitized failure locations. Debug adds only bounded detailed events. Blocked CDN previews report an exact hostname for verification and deployment `previewCdnHosts` configuration; arbitrary redirects and forwarding AFP credentials to CDNs remain prohibited.
 
 The workbench updates task, report, collection-change history and configuration layouts, with diagnostic tags, timing tables, run identity cards and log export. Left-click opens large-image review; right-click opens details. Review supports keyboard navigation and selecting passed photos while preserving automatic judgments, without manual overrides. Adding photos uses a scoped frosted-glass modal and still requires explicit confirmation. The rotating task icon, fixed-width task panel and update loading animations require an AutoFlow application containing these changes; the plugin bundle does not replace application components.
+
+## AFP 0.1.3
+
+Report history uses status polling to synchronize the loaded range. Automatic refresh preserves rows, while manual refresh uses matching row skeletons. Reports support selection, menus and operations over the loaded range. Pausing persists resumable checkpoints; deletion moves local reports to the profile's `archived-runs/` without deleting remote collections. Archival, resumption and confirmed writes share the run lock, and plans referencing archived reports refuse writes.
+
+Categories can bind existing named private collections, persisted per profile and account. Removing a binding retains the remote collection, and explicit unbinding does not restore a same-name default. Resuming legacy account reports without a binding snapshot preserves default targets. Explicit bindings validate collection IDs; new previews use renamed collections' current names, while old previews remain subject to the remote directory digest. Binding changes invalidate earlier confirmations and plans.
+
+The workbench completes report side columns, the fixed heading, back-to-top control, collapsible task settings, top tool entries, and solid dialogs with 8px backdrop blur. Publication now ends after the workflow succeeds and the public Release has the correct source tag and three assets; isolated profiles and update rehearsals are optional. Verification uses keyless fixtures and does not establish acceptance of real AFP writes or model judgments.
 
 ## Dev Note
 

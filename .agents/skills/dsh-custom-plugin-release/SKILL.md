@@ -1,7 +1,7 @@
 ---
 name: dsh-custom-plugin-release
 description: >-
-  Prepare, publish and verify an independent custom DSH plugin GitHub Release, including AFP under custom-plugins/workspace/dsh-plugin-afp: review source, validate package version and tag, build a tarball, publish checksums and update metadata, and verify downloaded bytes. Use for AFP first releases, subsequent version releases, and failed release recovery. Do not use for runtime updater implementation, ordinary plugin installation, npm registry publication, AutoFlow application releases, or official upstream synchronization.
+  Prepare and publish an independent custom DSH plugin GitHub Release, including AFP under custom-plugins/workspace/dsh-plugin-afp: review source, validate package version and tag, build a tarball, publish checksums and update metadata, and confirm publication. Download verification and isolated installation are optional when requested or diagnosing failures. Use for AFP first releases, subsequent releases, and failed release recovery. Do not use for runtime updater implementation, ordinary plugin installation, npm publication, AutoFlow application releases, or official upstream synchronization.
 compatibility: Requires Git, the repository Node.js/pnpm runtime and an authenticated GitHub CLI; publication requires explicit user authorization.
 ---
 
@@ -35,11 +35,11 @@ pnpm --filter dsh-plugin-afp run release:prepare --out .artifacts/afp-release
 
 正式准备前提交审核后的完整源码。该命令负责测试、prepack 构建、包检查和资产元数据；不要重复运行已通过且未被后续编辑影响的检查。脏树演练可加 `--allow-dirty`，其产物不能上传发布。核对 `.tgz` 的声明入口、patch、featureConfig、图标、Skill 和 Client 文件，并检查没有 node_modules、测试、环境文件或本机凭据。
 
-在独立临时 profile 中使用支持的 `dsh` 启动器安装/加载 tarball，检查 Host 代码、bundle 选择与配置，以及 Client 资源。发布复验只使用隔离 profile，不修改用户正在使用的 Web/Desktop。运行时更新由声明的 `dsh.bundle.update` 来源控制；核对已发布元数据、对应标签族、明确开启的自动安装许可和重启生效，不因 Release 存在就推定旧应用已提供更新器。
+默认发布不创建临时 profile，不安装或启动发布包，不执行手动/自动更新演练。源码测试、构建、包检查与发布器的资产校验仍在发布前完成。仅在用户明确要求安装验证，或存在需要定位的加载、更新、资产异常时追加相关验证；安装测试使用独立 profile，不修改用户正在使用的 Web/Desktop。运行时更新由声明的 `dsh.bundle.update` 来源控制，Release 成功不代表已验证旧应用更新或重启行为。
 
 更新文档配对记录，运行相关文档、语法与 Skill 元数据检查。遵循 `dsh-pre-push-checks` 选择必要的 build、lint、hygiene 和行为证据；平台基线失败要保留原始错误，不静默绕过钩子。
 
-临时远程更新验收按[更新验收流程](../../../custom-plugins/release-governance/README.zh.md#update-acceptance)使用独立标签族和隔离检出；测试声明与发布配置必须同族，生产来源不改。分别验收列表手动更新与明确开启后的自动安装，切离插件页检查全局完成弹窗，确认稍后重启及重新打开。Web 一键重启必须观察到旧 Host 退出、新进程标识就绪和相同来源恢复，并核对配置保留；桌面检查取消原生确认不安排 relaunch。自动安装不能自动重启，不停用用户原有服务。用户要求删除测试版本时，验证成功后删除临时 Release、Tag、profile、缓存、下载产物及工作树，最后复查正式资产和远程清单。历史标签治理遵循同文档的命名、完整附注及可恢复备份规则，不能用测试授权删除正式资产。
+只有用户要求远程更新验收，或需要诊断更新故障时，才按[更新验收流程](../../../custom-plugins/release-governance/README.zh.md#update-acceptance)使用独立标签族与隔离检出。根据实际问题选取手动安装、自动安装、配置保留或重启场景，不默认执行整套演练。测试来源不改生产声明，自动安装不自动重启，不停用用户原有服务。临时资源的清理限于测试创建且已授权的资源；测试授权不能用于删除正式版本。
 
 ## 3. 发布精确源码
 
@@ -49,9 +49,11 @@ pnpm --filter dsh-plugin-afp run release:prepare --out .artifacts/afp-release
 4. 如果改用本地发布，使用已验证的干净来源产物，先建立 draft，上传并验证三项资产，再公开。草稿从 Releases 列表查到 ID 后，按 ID 校验与发布；不要把按 tag 查询的 404 当作草稿不存在。不得把 GitHub 自动生成的全仓库源码压缩包当成 AFP npm 包。
 5. 已存在公开 Release 时不覆盖资产；相同内容可以复验，不同内容必须发布新版本。恢复失败 draft 前，核对 tag、来源提交和已上传内容；只续传缺失的匹配资产，其他修改需要明确的范围依据。仅修正发布工作流时更新当前源码，不移动发布 tag；可从当前工作流手动传入已有 tag 复验其冻结源码。
 
-## 4. 下载回验与交付
+## 4. 确认发布与交付
 
-通过 Release API 确认公开状态、tag 提交和三个资产；下载到新目录，核对文件名、大小、SHA-256 与 `afp-update.json` 中的来源提交。必要时对下载包重复隔离 profile smoke，验证的是已发布字节。
+默认在发布任务成功后，通过 Release API 确认公开状态、正确的 tag 提交和三个已上传资产，记录版本、来源提交、资产名称、大小及可用摘要，然后交付 Release 链接并结束。不要把只有 tag、草稿或缺少资产的状态当作发布成功。发布器已经验证的资产无需为交付再次下载。
+
+用户明确要求回验，或发布日志、资产摘要、安装反馈出现异常时，再下载相关资产核对 SHA-256 与元数据；只在加载或更新问题需要时追加隔离 profile smoke。报告实际执行的步骤，不将跳过的安装、更新或真实 AFP 行为说成已验证。
 
 最终给出 Release 链接、版本/tag/来源提交、产物及哈希、运行过的验证、剩余失败与恢复方式。明确 GitHub 发布渠道与运行时自动更新的实际状态；不得因 Release 存在就宣称插件页已支持自动更新。
 
