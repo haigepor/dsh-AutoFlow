@@ -327,6 +327,32 @@ Run `pnpm --dir apps/desktop run publish:github win-x64 --prepare-only` to valid
 
 Unsigned tags use `desktop-v<version>-unsigned`; signed tags use `desktop-v<version>`. Publication never resolves `releases/latest`, so AFP tags and Desktop prereleases cannot select an unintended update. The manual `Publish Windows Desktop` workflow builds and publishes on a native Windows runner. The [project Skill](../../.agents/skills/dsh-desktop-github-release/SKILL.md) owns the repeatable procedure and failure recovery.
 
+### macOS Actions artifacts
+
+The manual [Build macOS Desktop artifacts workflow](../../.github/workflows/desktop-macos-build.yml) builds `mac-arm64` on native `macos-15`. It runs only in `haigepor/dsh-AutoFlow` on `main`; its file must exist on that default branch before dispatch. Commit and push all intended customizations first. Select `test` or `production`, enter the confirmed complete `version` according to the Release versions section, and set `expected_commit` to the exact checked-out 40-character SHA. The initial `unconfirmed` environment rejects; empty/automatic versions, derived production versions and a different or dirty checkout also reject. Dispatch requires confirmation of the environment, version and credentials; creating or validating this workflow does not start packaging.
+
+Create GitHub Environments `desktop-macos-test` and `desktop-macos-production`; protect production with required approval where available. Configure these entries in the selected Environment; never put their secret values in repository files or chat:
+
+| Kind | Name | Value |
+|---|---|---|
+| Secret | `MACOS_CERTIFICATE_P12_BASE64` | Base64 of a Developer ID Application P12 containing its private key |
+| Secret | `MACOS_CERTIFICATE_PASSWORD` | P12 export password; empty only for an intentionally unencrypted P12 |
+| Secret | `APPLE_API_KEY_BASE64` | Base64 of the notarization `.p8` file |
+| Secret | `APPLE_API_KEY_ID` | Notarization key ID |
+| Secret | `APPLE_API_ISSUER` | Notarization issuer |
+| Variable | `MACOS_SIGNING_IDENTITY` | Certificate qualifier without the `Developer ID Application:` prefix |
+| Variable | `MACOS_TEAM_ID` | Ten-character Apple Team ID |
+| Variable | `DESKTOP_APP_ID` | Confirmed reverse-DNS Bundle ID for this environment |
+| Variable | `DESKTOP_GITHUB_PAGES_URL` | Confirmed signed-channel HTTPS directory ending in `/`; exclude `/unsigned/` |
+
+This workflow selects API-key notarization only. The [CI adapter](scripts/desktop-macos-ci.mjs) decodes credentials into private runner files, writes the required UTF-8 `.env.macos` with exclusive creation, and reuses package validation. `CSC_LINK` identifies the decoded local P12, never its Base64 value. Dotenv values must round-trip exactly; a value containing all three quote delimiters or incompatible line endings rejects without printing it. Existing `.env.macos` files are preserved. The update provider is GitHub/static-json, with policy URL `<DESKTOP_GITHUB_PAGES_URL>policy.json`; this workflow publishes neither policy nor feeds, so online update availability remains separate qualification.
+
+Node `24.14.0`, pnpm `11.7.0` and Xcode `16.4` are explicit build inputs; packaged interpreters remain runtime-lock-owned. Fresh locked dependencies and existing signing, notarization and runtime smoke checks are required. Workspace tarball concurrency is two, jobs have a 180-minute limit, and a new run does not cancel an active run. Only the pnpm store is cached; signing material and prepared runtimes are excluded. The standard arm64 runner has limited memory and disk: inspect retained toolchain/disk logs and actual build failures before changing resources. No paid runner fallback is automatic.
+
+Successful installer artifacts contain DMG, ZIP, ZIP blockmap, `nightly-mac.yml`, `mac-arm64-release.json` and `SHA256SUMS`. Staging validates the completion's version, deployment, clean source commit, signing mode and feed/payload hashes before exposing this explicit file list; it preserves generated feed bytes. Separate diagnostics retain new packaging journals with credential and URL-token redaction. No dotenv, P12, P8, keychain or entire preparation directory is uploaded. Cleanup restores keychain search paths and removes private files, including after failed steps; forced termination may prevent cleanup, so these files exist only on the disposable hosted runner. Uploads use non-hidden staging directories and retain artifacts for seven days. Public standard-runner compute is free, but artifact storage has account quotas; check billing before dispatch.
+
+On Windows, download the run's artifacts from GitHub Actions and check `SHA256SUMS` with `Get-FileHash -Algorithm SHA256`. Preserve the original DMG/ZIP; do not unpack and repackage `.app` on Windows. Configuration validation, a successful signed/notarized package with runtime smoke, and installation/GUI operation on a real Mac are three different results. The workflow does not claim the last result or perform Release/COS/Pages publication. `mac-x64` requires a later workflow extension using `macos-15-intel`, separate target artifacts and the existing x64 command.
+
 ### Unsigned Windows test installer
 
 On Windows x64, use the complete unsigned packaging command for local installation testing:

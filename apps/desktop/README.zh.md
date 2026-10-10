@@ -329,6 +329,32 @@ GitHub 部署配置 `DSH_DESKTOP_UPDATE_PROVIDER=github`、`DSH_DESKTOP_GITHUB_R
 
 无签名标签为 `desktop-v<version>-unsigned`，签名标签为 `desktop-v<version>`。发布不读取 `releases/latest`，AFP 标签和桌面预发布版本不会选出错误更新。手动 `Publish Windows Desktop` workflow 在原生 Windows runner 上构建和发布。[项目 Skill](../../.agents/skills/dsh-desktop-github-release/SKILL.md)负责可重复操作与失败恢复。
 
+### macOS Actions 产物
+
+手动 [Build macOS Desktop artifacts 工作流](../../.github/workflows/desktop-macos-build.yml)在原生 `macos-15` 上构建 `mac-arm64`。它仅在 `haigepor/dsh-AutoFlow` 的 `main` 上运行；触发前工作流文件必须存在于该默认分支。先提交并推送全部预期定制。选择 `test` 或 `production`，按发布版本一节填写确认后的完整 `version`，并将 `expected_commit` 设置为实际检出提交的完整 40 位 SHA。初始环境 `unconfirmed` 会被拒绝；空值或自动版本、派生的生产版本，以及不同或有改动的 checkout 同样会被拒绝。触发前须确认环境、版本和凭据；创建或验证工作流不会开始打包。
+
+创建 GitHub Environment `desktop-macos-test` 和 `desktop-macos-production`；在可用时为生产环境设置必要审批。在选定 Environment 中配置下表条目，不将敏感值放入仓库文件或聊天：
+
+| 类型 | 名称 | 值 |
+|---|---|---|
+| Secret | `MACOS_CERTIFICATE_P12_BASE64` | 包含私钥的 Developer ID Application P12 的 Base64 |
+| Secret | `MACOS_CERTIFICATE_PASSWORD` | P12 导出密码；仅明确使用未加密 P12 时留空 |
+| Secret | `APPLE_API_KEY_BASE64` | 公证 `.p8` 文件的 Base64 |
+| Secret | `APPLE_API_KEY_ID` | 公证 Key ID |
+| Secret | `APPLE_API_ISSUER` | 公证 Issuer |
+| Variable | `MACOS_SIGNING_IDENTITY` | 不带 `Developer ID Application:` 前缀的证书限定名称 |
+| Variable | `MACOS_TEAM_ID` | 10 位 Apple Team ID |
+| Variable | `DESKTOP_APP_ID` | 此环境确认后的反向域名 Bundle ID |
+| Variable | `DESKTOP_GITHUB_PAGES_URL` | 确认后的签名通道 HTTPS 目录，以 `/` 结尾，排除 `/unsigned/` |
+
+此工作流仅选择 API Key 公证。[CI 辅助脚本](scripts/desktop-macos-ci.mjs)将凭据解码到 runner 私有文件，以独占创建方式写入所需 UTF-8 `.env.macos`，并复用打包校验。`CSC_LINK` 指向解码后的本地 P12，不使用 Base64 值。dotenv 值必须精确往返解析；同时含三种引号分隔符或不兼容换行的值会被拒绝，且不会打印内容。已有 `.env.macos` 会被保留。更新配置使用 GitHub/static-json，策略 URL 为 `<DESKTOP_GITHUB_PAGES_URL>policy.json`；工作流不发布策略或清单，在线更新可用性需要单独验收。
+
+构建明确使用 Node `24.14.0`、pnpm `11.7.0` 和 Xcode `16.4`；安装包内置解释器仍由运行时锁文件决定。必须重新安装锁定依赖并执行既有签名、公证和运行时 smoke。工作区 tarball 并发为二，任务上限为 180 分钟，新任务不会取消活动任务。只缓存 pnpm store，排除签名材料和准备好的运行时。标准 arm64 runner 内存、磁盘有限，调整资源前先检查保留的工具链、磁盘日志和实际失败。不会自动切换到付费 runner。
+
+成功安装包 artifact 包含 DMG、ZIP、ZIP blockmap、`nightly-mac.yml`、`mac-arm64-release.json` 和 `SHA256SUMS`。暂存步骤先校验完成记录的版本、部署环境、干净来源提交、签名模式及清单和 payload 摘要，再提供该明确文件清单；生成的 feed 字节保持不变。独立诊断产物保留本次新增打包记录，并对凭据和 URL token 脱敏。不上传 dotenv、P12、P8、keychain 或整个准备目录。失败后也会恢复 keychain 搜索路径并删除私有文件；强制终止可能阻止清理，所以这些文件仅存在于一次性 hosted runner。上传使用非隐藏暂存目录，保留七天。公开仓库标准 runner 的计算免费，但产物存储有账户额度，触发前需检查计费设置。
+
+在 Windows 上从 GitHub Actions 下载本次产物，通过 `Get-FileHash -Algorithm SHA256` 核对 `SHA256SUMS`。保留原始 DMG/ZIP，不在 Windows 解压并重新打包 `.app`。配置验证通过、签名公证及运行时 smoke 通过的安装包构建成功、真实 Mac 安装与 GUI 运行通过，是三个不同结果。工作流不声称最后一项通过，也不执行 Release/COS/Pages 发布。`mac-x64` 需要后续扩展工作流，使用 `macos-15-intel`、独立目标产物和既有 x64 命令。
+
 ### 未签名 Windows 测试安装包
 
 在 Windows x64 上，使用完整的未签名打包命令进行本地安装测试：

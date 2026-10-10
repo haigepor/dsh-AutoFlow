@@ -1,0 +1,137 @@
+name: Build macOS Desktop artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment:
+        description: 'Explicitly confirm the deployment environment'
+        required: true
+        type: choice
+        options: [unconfirmed, test, production]
+      version:
+        description: 'Confirmed complete Desktop version; auto is forbidden'
+        required: true
+        type: string
+      expected_commit:
+        description: 'Confirmed 40-character commit SHA on main'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-macos-artifacts-${{ inputs.deployment }}-mac-arm64
+  cancel-in-progress: false
+
+jobs:
+  arm64:
+    if: github.repository == 'haigepor/dsh-AutoFlow' && github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 180
+    environment: ${{ inputs.deployment == 'production' && 'desktop-macos-production' || 'desktop-macos-test' }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEPLOYMENT: ${{ inputs.deployment }}
+      BUILD_VERSION: ${{ inputs.version }}
+      EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: '11.7.0'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.14.0'
+          architecture: arm64
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            .github/workflows/desktop-macos-build.yml
+      - name: Validate confirmed inputs and allocate private files
+        id: initialize
+        run: node apps/desktop/scripts/desktop-macos-ci.mjs init
+      - name: Record native toolchain and available disk
+        run: |
+          set -euo pipefail
+          {
+            sw_vers
+            uname -m
+            node --version
+            pnpm --version
+            test "$(node -p 'process.platform + ":" + process.arch')" = 'darwin:arm64'
+            test -d "$DEVELOPER_DIR"
+            xcodebuild -version
+            xcrun --find clang
+            xcrun notarytool --version
+            xcrun --find stapler
+            for tool in codesign security ditto hdiutil tar; do command -v "$tool"; done
+            df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+          } 2>&1 | tee "$DESKTOP_MACOS_DIAGNOSTICS/toolchain.log"
+      - name: Install macOS dependencies from the lockfile
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee "$DESKTOP_MACOS_DIAGNOSTICS/install.log"
+      - name: Verify CI configuration and packaging contracts
+        run: >-
+          pnpm exec vitest run
+          scripts/desktop-macos-workflow.spec.ts
+          apps/desktop/tests/desktop-macos-ci.spec.ts
+          apps/desktop/tests/package-target.spec.ts
+          apps/desktop/tests/package-target-stages.spec.ts
+          apps/desktop/tests/package-macos.spec.ts
+          apps/desktop/tests/desktop-package-environment.spec.ts
+          apps/desktop/tests/desktop-auto-update-environment.spec.ts
+          apps/desktop/tests/desktop-policy-environment.spec.ts
+          apps/desktop/tests/desktop-build-version.spec.ts
+          apps/desktop/tests/macos-signing-keychain.spec.ts
+          apps/desktop/tests/macos-package-settings.spec.ts
+          apps/desktop/tests/desktop-build-paths.spec.ts
+      - name: Generate private macOS signing configuration
+        env:
+          DESKTOP_APP_ID: ${{ vars.DESKTOP_APP_ID }}
+          DESKTOP_GITHUB_PAGES_URL: ${{ vars.DESKTOP_GITHUB_PAGES_URL }}
+          MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
+          MACOS_TEAM_ID: ${{ vars.MACOS_TEAM_ID }}
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: node apps/desktop/scripts/desktop-macos-ci.mjs prepare
+      - name: Preflight the existing package pipeline
+        run: pnpm --dir apps/desktop run check:package mac-arm64 --build-version "$BUILD_VERSION"
+      - name: Build signed and notarized mac-arm64 installers
+        run: pnpm run package:desktop:mac:arm64 --build-version "$BUILD_VERSION"
+      - name: Verify completion and stage the explicit artifact list
+        id: stage
+        run: pnpm exec tsx apps/desktop/scripts/desktop-macos-ci.mjs stage
+      - name: Retain redacted packaging diagnostics
+        if: always() && steps.initialize.outcome == 'success'
+        run: node apps/desktop/scripts/desktop-macos-ci.mjs diagnostics
+      - name: Remove private files and restore keychains
+        if: always() && steps.initialize.outcome == 'success'
+        run: node apps/desktop/scripts/desktop-macos-ci.mjs cleanup
+      - name: Save diagnostics on success or failure
+        if: always() && steps.initialize.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: desktop-mac-arm64-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.DESKTOP_MACOS_DIAGNOSTICS }}
+          retention-days: 7
+          if-no-files-found: error
+      - name: Save verified installers and update metadata
+        if: success() && steps.stage.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: desktop-mac-arm64-${{ inputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.DESKTOP_MACOS_DELIVERABLES }}
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
