@@ -27,6 +27,7 @@
     "tests/afp-management.e2e.ts",
     "tests/conversation-tabs.e2e.ts",
     "tests/shortcuts-desktop.e2e.ts",
+    "tests/desktop-settings.e2e.ts",
     "tests/shortcuts-workspace.e2e.ts",
     "tests/shortcuts-panels.e2e.ts",
     "tests/shortcuts-fixed.e2e.ts",
