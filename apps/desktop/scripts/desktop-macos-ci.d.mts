@@ -2,6 +2,7 @@
 
 /** Confirmed dispatch inputs and observed source checkout. */
 export interface MacOSCIBuild {
+  target: string
   deployment: string
   signing: string
   version: string
@@ -56,6 +57,7 @@ export function collectMacOSCIDiagnostics(options: MacOSCIPaths): void
  * @returns Resolves after staging, without networking or publication.
  */
 export function stageMacOSCIArtifacts(options: MacOSCIPaths & {
+  target: string
   version: string
   productVersion: string
   deployment: string

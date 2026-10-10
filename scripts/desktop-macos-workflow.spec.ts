@@ -22,13 +22,15 @@ const workflow = load(readFileSync(resolve(import.meta.dirname, '../.github/work
 function guardrails(value: Workflow): void {
   expect(Object.keys(value.on)).toEqual(['workflow_dispatch'])
   expect(value.permissions).toEqual({ contents: 'read' })
-  expect(Object.keys(value.jobs)).toEqual(['arm64'])
-  const job = value.jobs.arm64!
+  expect(Object.keys(value.jobs)).toEqual(['package'])
+  const job = value.jobs.package!
   for (const step of job.steps.filter(step => Object.values(step.env ?? {}).some(entry => entry.includes('secrets.')))) {
     expect(step.if).toBe("inputs.signing == 'signed'")
   }
   expect(job.permissions).toBeUndefined()
-  expect(job['runs-on']).toBe('macos-15')
+  expect(job['runs-on']).toBe("${{ inputs.target == 'mac-x64' && 'macos-15-intel' || 'macos-15' }}")
+  expect(job.env.DESKTOP_ARCH).toBe("${{ inputs.target == 'mac-x64' && 'x64' || 'arm64' }}")
+  expect(job.steps.find(step => step.uses?.startsWith('actions/setup-node@'))?.with?.architecture).toBe('${{ env.DESKTOP_ARCH }}')
   expect(job.if).toContain("github.repository == 'haigepor/dsh-AutoFlow'")
   expect(job.if).toContain("github.ref == 'refs/heads/main'")
   for (const step of job.steps) {
@@ -55,11 +57,13 @@ describe('artifact-only native macOS Desktop workflow', () => {
 
   it('requires an explicit deployment, full version and exact source commit', () => {
     const inputs = workflow.on.workflow_dispatch!.inputs
-    expect(Object.keys(inputs).sort()).toEqual(['deployment', 'expected_commit', 'signing', 'version'])
-    for (const input of Object.values(inputs)) { expect(input.required).toBe(true); expect(input.default).toBeUndefined() }
+    expect(Object.keys(inputs).sort()).toEqual(['deployment', 'expected_commit', 'signing', 'target', 'version'])
+    for (const [name, input] of Object.entries(inputs)) { expect(input.required).toBe(true); if (name !== 'target') expect(input.default).toBeUndefined() }
+    expect(inputs.target?.options).toEqual(['mac-arm64', 'mac-x64'])
+    expect(inputs.target?.default).toBe('mac-arm64')
     expect(inputs.deployment?.options).toEqual(['unconfirmed', 'test', 'production'])
     expect(inputs.signing?.options).toEqual(['unconfirmed', 'signed', 'unsigned'])
-    const job = workflow.jobs.arm64!
+    const job = workflow.jobs.package!
     expect(job.env).toMatchObject({ BUILD_VERSION: '${{ inputs.version }}', EXPECTED_COMMIT: '${{ inputs.expected_commit }}', DEPLOYMENT: '${{ inputs.deployment }}' })
     expect(job.environment).toContain('desktop-macos-production')
     expect(job.environment).toContain('desktop-macos-test')
@@ -67,11 +71,23 @@ describe('artifact-only native macOS Desktop workflow', () => {
     expect(workflow.concurrency['cancel-in-progress']).toBe(false)
   })
 
+  it('selects the native runner, Node architecture, preflight target and separate artifact names together', () => {
+    const job = workflow.jobs.package!
+    expect(job.env.DESKTOP_TARGET).toBe('${{ inputs.target }}')
+    expect(job.env.DESKTOP_ARCH).toBe("${{ inputs.target == 'mac-x64' && 'x64' || 'arm64' }}")
+    expect(workflow.concurrency.group).toContain('${{ inputs.target }}')
+    expect(job.steps.some(step => step.run?.includes('= "darwin:$DESKTOP_ARCH"'))).toBe(true)
+    expect(job.steps.some(step => step.run?.includes('args=("$DESKTOP_TARGET" --build-version'))).toBe(true)
+    for (const step of job.steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'))) {
+      expect(step.with?.name).toContain('desktop-${{ inputs.target }}-')
+    }
+  })
+
   it('uses fresh locked dependencies and the complete existing package entry after preflight', () => {
-    const steps = workflow.jobs.arm64!.steps
+    const steps = workflow.jobs.package!.steps
     const commands = steps.map(step => step.run ?? '')
     expect(commands.some(command => command.includes('pnpm --dir apps/desktop run check:package "${args[@]}"'))).toBe(true)
-    expect(commands.some(command => command.includes('pnpm run package:desktop:mac:arm64 "${args[@]}"'))).toBe(true)
+    expect(commands.some(command => command.includes('pnpm run "package:desktop:mac:$DESKTOP_ARCH" "${args[@]}"'))).toBe(true)
     for (const command of commands.filter(command => command.includes('"${args[@]}"'))) {
       expect(command).toContain('if [[ "$SIGNING_MODE" == \'unsigned\' ]]; then args+=(--unsigned); fi')
       expect(command).toContain('--build-version "$BUILD_VERSION"')
@@ -80,13 +96,13 @@ describe('artifact-only native macOS Desktop workflow', () => {
     const install = commands.findIndex(command => command.includes('pnpm install --frozen-lockfile'))
     const configure = commands.findIndex(command => command.endsWith('desktop-macos-ci.mjs prepare'))
     const preflight = commands.findIndex(command => command.includes('pnpm --dir apps/desktop run check:package'))
-    const build = commands.findIndex(command => command.includes('pnpm run package:desktop:mac:arm64'))
+    const build = commands.findIndex(command => command.includes('pnpm run "package:desktop:mac:$DESKTOP_ARCH"'))
     expect(initialize).toBeLessThan(install)
     expect(install).toBeLessThan(configure)
     expect(configure).toBeLessThan(preflight)
     expect(preflight).toBeLessThan(build)
     expect(steps.find(step => step.uses?.startsWith('actions/checkout@'))?.with?.['persist-credentials']).toBe(false)
-    expect(steps.find(step => step.uses?.startsWith('actions/setup-node@'))?.with).toMatchObject({ 'node-version': '24.14.0', architecture: 'arm64', cache: 'pnpm' })
+    expect(steps.find(step => step.uses?.startsWith('actions/setup-node@'))?.with).toMatchObject({ 'node-version': '24.14.0', architecture: '${{ env.DESKTOP_ARCH }}', cache: 'pnpm' })
     expect(steps.find(step => step.uses?.startsWith('actions/setup-node@'))?.with?.['cache-dependency-path']).toBe('pnpm-lock.yaml\n.github/workflows/desktop-macos-build.yml\n')
     expect(steps.filter(step => Object.values(step.env ?? {}).some(value => value.includes('secrets.')))).toHaveLength(1)
     const signed = steps.find(step => Object.values(step.env ?? {}).some(value => value.includes('secrets.')))
@@ -96,14 +112,16 @@ describe('artifact-only native macOS Desktop workflow', () => {
     expect(unsigned?.run).toBe('node apps/desktop/scripts/desktop-macos-ci.mjs prepare')
   })
 
-  it.each(['automatic-trigger', 'write-permission', 'publish-step', 'missing-cleanup', 'broad-upload', 'unsigned-secrets'])('rejects a dangerous workflow mutation: %s', (mutation) => {
+  it.each(['automatic-trigger', 'write-permission', 'publish-step', 'missing-cleanup', 'broad-upload', 'unsigned-secrets', 'wrong-runner', 'wrong-node-architecture'])('rejects a dangerous workflow mutation: %s', (mutation) => {
     const changed = structuredClone(workflow)
-    const steps = changed.jobs.arm64!.steps
+    const steps = changed.jobs.package!.steps
     if (mutation === 'automatic-trigger') changed.on.push = { inputs: {} }
     else if (mutation === 'write-permission') changed.permissions.contents = 'write'
     else if (mutation === 'publish-step') steps.push({ run: 'pnpm --dir apps/desktop run publish:github mac-arm64' })
-    else if (mutation === 'missing-cleanup') changed.jobs.arm64!.steps = steps.filter(step => !step.run?.endsWith('desktop-macos-ci.mjs cleanup'))
+    else if (mutation === 'missing-cleanup') changed.jobs.package!.steps = steps.filter(step => !step.run?.endsWith('desktop-macos-ci.mjs cleanup'))
     else if (mutation === 'unsigned-secrets') delete steps.find(step => Object.values(step.env ?? {}).some(entry => entry.includes('secrets.')))!.if
+    else if (mutation === 'wrong-runner') changed.jobs.package!['runs-on'] = 'macos-15'
+    else if (mutation === 'wrong-node-architecture') steps.find(step => step.uses?.startsWith('actions/setup-node@'))!.with!.architecture = 'arm64'
     else steps.find(step => step.uses?.startsWith('actions/upload-artifact@'))!.with!.path = 'apps/desktop/.desktop-build/**'
     expect(() =>{  guardrails(changed) }).toThrow()
   })

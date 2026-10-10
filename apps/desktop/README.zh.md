@@ -331,7 +331,7 @@ Windows 无签名标签为 `desktop-v<version>-unsigned`，签名标签为 `desk
 
 ### macOS Actions 产物
 
-手动 [Build macOS Desktop artifacts 工作流](../../.github/workflows/desktop-macos-build.yml)在原生 `macos-15` 上构建 `mac-arm64`。它仅在 `haigepor/dsh-AutoFlow` 的 `main` 上运行；触发前先提交并推送全部预期定制。选择 `test` 或 `production`，选择 `signed` 或 `unsigned`，按发布版本一节填写确认后的完整 `version`，并将 `expected_commit` 设置为实际检出提交的完整 40 位 SHA。初始 `unconfirmed` 选项、空值或自动版本、派生的生产版本，以及不同或有改动的 checkout 均会被拒绝。无证书模式还会拒绝 production。创建或验证工作流不会开始打包。
+手动 [Build macOS Desktop artifacts 工作流](../../.github/workflows/desktop-macos-build.yml)按 `target` 选择原生 runner：默认 `mac-arm64` 使用 `macos-15`，Intel `mac-x64` 使用 `macos-15-intel`。Node 与既有完整打包命令使用相同架构，并发分组及产物名称包含目标。它仅在 `haigepor/dsh-AutoFlow` 的 `main` 上运行；触发前先提交并推送全部预期定制。选择 `test` 或 `production`，选择 `signed` 或 `unsigned`，按发布版本一节填写确认后的完整 `version`，并将 `expected_commit` 设置为实际检出提交的完整 40 位 SHA。初始 `unconfirmed` 选项、空值或自动版本、派生的生产版本，以及不同或有改动的 checkout 均会被拒绝。无证书模式还会拒绝 production。创建或验证工作流不会开始打包。
 
 创建 GitHub Environment `desktop-macos-test` 和 `desktop-macos-production`；在可用时为生产环境设置必要审批。正式签名模式要求在选定 Environment 中配置下表条目，不将敏感值放入仓库文件或聊天：
 
@@ -353,9 +353,9 @@ Windows 无签名标签为 `desktop-v<version>-unsigned`，签名标签为 `desk
 
 构建明确使用 Node `24.14.0`、pnpm `11.7.0` 和 Xcode `16.4`；安装包内置解释器仍由运行时锁文件决定。两种模式均重新安装锁定依赖，复用现有完整构建、准备和运行时 smoke 链路。正式模式保留证书验证、公证和验签；无证书模式校验 ad-hoc 签名。tarball 并发为二，任务上限为 180 分钟，新任务不会取消活动任务。只缓存 pnpm store。调整标准 runner 有限资源前先检查保留的工具链、磁盘日志，不会自动切换到付费 runner。
 
-正式签名安装包 artifact 包含 DMG、ZIP、ZIP blockmap、`nightly-mac.yml`、`mac-arm64-release.json` 和 `SHA256SUMS`。无证书 artifact 仅包含 DMG、ZIP、完成记录和 `SHA256SUMS`；产物名称标识签名模式。暂存步骤先校验版本、部署环境、干净来源提交、签名模式及 payload 摘要，再复制明确文件清单；签名模式保留原始 feed 字节。独立诊断产物保留脱敏打包日志。不上传 dotenv、P12、P8、keychain 或整个准备目录。两种模式均清理临时配置，签名模式在失败后也恢复 keychain；强制终止可能阻止清理，所以私有文件仅存在于一次性 runner。产物保留七天。公开仓库标准 runner 的计算免费，产物存储有账户额度，触发前需检查计费设置。
+正式签名安装包 artifact 包含 DMG、ZIP、ZIP blockmap、`nightly-mac.yml`、`<target>-release.json` 和 `SHA256SUMS`。无证书 artifact 仅包含 DMG、ZIP、完成记录和 `SHA256SUMS`；产物名称标识签名模式。暂存步骤先校验版本、部署环境、干净来源提交、签名模式及 payload 摘要，再复制明确文件清单；签名模式保留原始 feed 字节。独立诊断产物保留脱敏打包日志。不上传 dotenv、P12、P8、keychain 或整个准备目录。两种模式均清理临时配置，签名模式在失败后也恢复 keychain；强制终止可能阻止清理，所以私有文件仅存在于一次性 runner。产物保留七天。公开仓库标准 runner 的计算免费，产物存储有账户额度，触发前需检查计费设置。
 
-在 Windows 上从 Actions 下载产物，通过 `Get-FileHash -Algorithm SHA256` 核对 `SHA256SUMS`。保留 DMG/ZIP，不重新打包 `.app`。工作流验证通过、按所选模式完成验签及运行时检查的打包成功、真实 Mac 安装与 GUI 运行通过，是三个不同结果。此工作流不证明最后一项，也不发布 Release/COS/Pages。`mac-x64` 需后续扩展，使用 `macos-15-intel`、独立目标产物和既有 x64 命令。
+在 Windows 上从 Actions 下载产物，通过 `Get-FileHash -Algorithm SHA256` 核对 `SHA256SUMS`。保留 DMG/ZIP，不重新打包 `.app`。工作流验证通过、按所选模式完成验签及运行时检查的打包成功、真实 Mac 安装与 GUI 运行通过，是三个不同结果。此工作流不证明最后一项，也不发布 Release/COS/Pages。同一个已确认完整版本可分别构建两种架构。
 
 ### 无证书 macOS 测试安装包
 
