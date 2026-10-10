@@ -3,6 +3,7 @@
 /** Confirmed dispatch inputs and observed source checkout. */
 export interface MacOSCIBuild {
   deployment: string
+  signing: string
   version: string
   productVersion: string
   expectedCommit: string
@@ -33,8 +34,8 @@ export function validateMacOSCIBuild(input: MacOSCIBuild): void
 export function initializeMacOSCI(runnerTemp: string, appRoot: string): string
 
 /**
- * Decode credentials and exclusively create .env.macos; validate without signing or contacting Apple.
- * @param options Owned paths, Environment secrets and optional keychain search-list adapter.
+ * Exclusively create .env.macos; signed mode decodes credentials, unsigned mode uses test configuration only.
+ * @param options Owned paths, confirmed signing mode, Environment values and optional keychain search-list adapter.
  * @returns Resolves after existing package environment validation.
  */
 export function prepareMacOSCI(options: MacOSCIPaths & {
@@ -50,7 +51,7 @@ export function prepareMacOSCI(options: MacOSCIPaths & {
 export function collectMacOSCIDiagnostics(options: MacOSCIPaths): void
 
 /**
- * Verify completion and feed hashes before staging the explicit artifact list and SHA256SUMS.
+ * Verify completion and payload hashes before staging mode-specific artifacts and SHA256SUMS.
  * @param options Owned paths and confirmed dispatch values.
  * @returns Resolves after staging, without networking or publication.
  */
@@ -58,6 +59,7 @@ export function stageMacOSCIArtifacts(options: MacOSCIPaths & {
   version: string
   productVersion: string
   deployment: string
+  signing: string
   expectedCommit: string
 }): Promise<void>
 

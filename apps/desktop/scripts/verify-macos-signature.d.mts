@@ -1,6 +1,28 @@
 import type { MacOSSigningEnvironment } from './desktop-release-environment.mjs'
 
 /**
+ * Reject signature details that do not describe a certificate-free ad-hoc identity.
+ * @param details Output from codesign --display --verbose=4.
+ */
+export function assertMacOSAdHocSignatureDetails(details: string): void
+
+/**
+ * Sign one runtime file without a certificate, keychain or timestamp service.
+ * @param path Writable standalone Mach-O file.
+ * @param identifier Stable runtime identifier.
+ * @param entitlements Optional JIT entitlement plist.
+ * @returns Resolves after codesign exits successfully.
+ */
+export function signMacOSAdHocCode(path: string, identifier: string, entitlements: string | undefined): Promise<void>
+
+/**
+ * Verify integrity and an ad-hoc identity without asserting Apple trust.
+ * @param path Runtime file or application bundle.
+ * @param deep Whether to verify nested code.
+ */
+export function verifyMacOSAdHocSignature(path: string, deep?: boolean): void
+
+/**
  * Reject signature metadata that does not name the company release authority and team.
  * @param details - Output from `codesign --display --verbose=4`.
  * @param expected - Public release identity.

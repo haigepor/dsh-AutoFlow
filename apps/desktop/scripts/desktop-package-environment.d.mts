@@ -25,3 +25,9 @@ export function validateDesktopPackageEnvironment(
   target: { platform: 'win32' | 'darwin', arch: string },
   options?: { unsigned?: boolean, prepareOnly?: boolean },
 ): void
+
+/**
+ * Require explicit test deployment and no automatic updates for certificate-free macOS packages.
+ * @param environment File-owned packaging settings.
+ */
+export function validateMacOSUnsignedEnvironment(environment: NodeJS.ProcessEnv): void

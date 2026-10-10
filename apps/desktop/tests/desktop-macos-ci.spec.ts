@@ -7,15 +7,18 @@ import { parseEnv } from 'node:util'
 import { dump } from 'js-yaml'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanupMacOSCI, collectMacOSCIDiagnostics, initializeMacOSCI, prepareMacOSCI, stageMacOSCIArtifacts, validateMacOSCIBuild } from '../scripts/desktop-macos-ci.mjs'
+import { writeMacOSUnsignedRecord } from '../scripts/macos-unsigned-artifacts.ts'
+// 预加载真实校验模块，避免把源码冷转换时间计入单条配置测试的超时。
+import '../scripts/desktop-package-environment.mjs'
 
 const directories: string[] = []
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))) })
 const version = '0.2.0-rc.2.20261010.7'
 const productVersion = '0.2.0-rc.2'
 const commit = 'a'.repeat(40)
-const confirmed = { deployment: 'test', version, productVersion, expectedCommit: commit, actualCommit: commit, dirty: false }
+const confirmed = { deployment: 'test', signing: 'signed', version, productVersion, expectedCommit: commit, actualCommit: commit, dirty: false }
 const environment = {
-  DEPLOYMENT: 'test', DESKTOP_APP_ID: 'com.example.desktop.test',
+  DEPLOYMENT: 'test', SIGNING_MODE: 'signed', DESKTOP_APP_ID: 'com.example.desktop.test',
   DESKTOP_GITHUB_PAGES_URL: 'https://owner.github.io/repository/desktop/macos-test/', GITHUB_REPOSITORY: 'owner/repository',
   MACOS_SIGNING_IDENTITY: 'Example Company (TEAMID1234)', MACOS_TEAM_ID: 'TEAMID1234',
   MACOS_CERTIFICATE_P12_BASE64: Buffer.from('fixture P12 bytes').toString('base64'), MACOS_CERTIFICATE_PASSWORD: 'fixture-password',
@@ -54,7 +57,7 @@ async function completedFixture() {
     target: 'mac-arm64', version, environment: 'test', signing: 'signed', commit, dirty: false,
     pagesUrl: environment.DESKTOP_GITHUB_PAGES_URL, publicUrl: `${environment.DESKTOP_GITHUB_PAGES_URL}feeds/mac-arm64/` }
   writeFileSync(join(artifacts, 'mac-arm64-release.json'), JSON.stringify(record))
-  const stageOptions = { ...item.options, version, productVersion, deployment: 'test', expectedCommit: commit }
+  const stageOptions = { ...item.options, version, productVersion, deployment: 'test', signing: 'signed', expectedCommit: commit }
   return { ...item, artifacts, base, metadata, record, stageOptions }
 }
 
@@ -75,10 +78,32 @@ describe('confirmed macOS CI inputs', () => {
     expect(() =>{  validateMacOSCIBuild({ ...confirmed, expectedCommit: 'main' }) }).toThrow('clean checkout')
     expect(() =>{  validateMacOSCIBuild({ ...confirmed, dirty: true }) }).toThrow('clean checkout')
     expect(() =>{  validateMacOSCIBuild({ ...confirmed, deployment: 'production' }) }).toThrow('production version')
+    expect(() =>{  validateMacOSCIBuild({ ...confirmed, signing: 'unconfirmed' }) }).toThrow('explicitly select signed')
+    expect(() =>{  validateMacOSCIBuild({ ...confirmed, signing: 'unsigned' }) }).not.toThrow()
+    expect(() =>{  validateMacOSCIBuild({ ...confirmed, signing: 'unsigned', deployment: 'production', version: productVersion }) }).toThrow('test deployment')
   })
 })
 
 describe('private macOS CI configuration and cleanup', () => {
+  it('generates certificate-free test configuration without requiring Secrets, keychains or update addresses', async () => {
+    const { options, calls, appRoot, directory } = await fixture()
+    await prepareMacOSCI({ ...options, environment: { DEPLOYMENT: 'test', SIGNING_MODE: 'unsigned', DESKTOP_APP_ID: 'com.example.desktop.unsigned' } })
+    expect(parseEnv(readFileSync(join(appRoot, '.env.macos'), 'utf8'))).toEqual({
+      DSH_DESKTOP_APP_ID: 'com.example.desktop.unsigned', DSH_DESKTOP_AUTO_UPDATE_ENV: 'test', DSH_DESKTOP_MACOS_PACK_CONCURRENCY: '2',
+    })
+    expect(readdirSync(join(directory, 'credentials'))).toEqual([])
+    expect(calls).toEqual([])
+    cleanupMacOSCI(options)
+    expect(calls).toEqual([])
+    expect(existsSync(join(appRoot, '.env.macos'))).toBe(false)
+  })
+
+  it('rejects production unsigned configuration before writing files or accessing keychains', async () => {
+    const { options, appRoot, calls } = await fixture()
+    await expect(prepareMacOSCI({ ...options, environment: { ...environment, SIGNING_MODE: 'unsigned', DEPLOYMENT: 'production' } })).rejects.toThrow('test deployment')
+    expect(existsSync(join(appRoot, '.env.macos'))).toBe(false)
+    expect(calls).toEqual([])
+  })
   it.each(['spaces # 中文', 'single\' and double" quotes', 'back`tick and single\' quote', 'two\nlines', ''])('round-trips a password through dotenv: %j', async (password) => {
     const { options, directory, appRoot } = await fixture()
     await prepareMacOSCI({ ...options, environment: { ...environment, MACOS_CERTIFICATE_PASSWORD: password } })
@@ -156,6 +181,17 @@ describe('private macOS CI configuration and cleanup', () => {
 })
 
 describe('macOS CI artifact evidence', () => {
+  it('retains only verified certificate-free DMG/ZIP and their completion record without feeds or Secrets', async () => {
+    const { options, directory, appRoot } = await fixture()
+    const artifactsRoot = join(appRoot, '.desktop-build', 'targets', 'mac-arm64', 'unsigned-artifacts')
+    mkdirSync(artifactsRoot, { recursive: true })
+    const base = `deepseek-harness-${version}-mac-arm64-unsigned`
+    for (const name of [`${base}.dmg`, `${base}.zip`, 'nightly-mac.yml', 'private.p12']) writeFileSync(join(artifactsRoot, name), 'fixture')
+    await writeMacOSUnsignedRecord({ target: 'mac-arm64', version, productVersion, artifactsRoot,
+      environment: { DSH_DESKTOP_BUILD_COMMIT: commit, DSH_DESKTOP_BUILD_DIRTY: '0' } })
+    await stageMacOSCIArtifacts({ ...options, version, productVersion, deployment: 'test', signing: 'unsigned', expectedCommit: commit })
+    expect(readdirSync(join(directory, 'deliverables')).sort()).toEqual(['SHA256SUMS', `${base}.dmg`, `${base}.zip`, 'mac-arm64-release.json'].sort())
+  })
   it('stages only complete signed artifacts and hashes every retained file', async () => {
     const { stageOptions, artifacts, directory, base, metadata } = await completedFixture()
     writeFileSync(join(artifacts, 'private.p12'), 'must not upload')

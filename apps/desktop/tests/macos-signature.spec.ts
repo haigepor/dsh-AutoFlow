@@ -10,7 +10,11 @@ import { notarizeMacOSDiskImageArtifact } from '../scripts/notarize-macos-disk-i
 import {
   assertMacOSRuntimeSignatureDetails,
   assertMacOSSignatureDetails,
+  assertMacOSAdHocSignatureDetails,
 } from '../scripts/verify-macos-signature.mjs'
+
+// 配置测试不加载 NSIS 编译器；安装器适配由专门的 installer 测试验证。
+vi.mock('../scripts/windows-directory-installer.mjs', () => ({ installWindowsDirectoryInstaller: vi.fn() }))
 
 const RELEASE_ENVIRONMENT = {
   DSH_DESKTOP_APP_ID: 'com.example.desktop',
@@ -129,12 +133,30 @@ describe('desktop macOS release signature', () => {
     })
   })
 
-  it('rejects unsigned macOS builds and malformed signing modes', async () => {
+  it('selects certificate-free macOS tests without enabling Apple or update services', async () => {
     const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
-    expect(() => createElectronBuilderConfig({ ...RELEASE_ENVIRONMENT, DSH_DESKTOP_UNSIGNED: '1' }))
-      .toThrow(/unsigned builds require Windows/u)
+    const testEnv = { DSH_DESKTOP_APP_ID: 'com.example.desktop.unsigned', DSH_DESKTOP_AUTO_UPDATE_ENV: 'test',
+      DSH_DESKTOP_UNSIGNED: '1', DSH_DESKTOP_TARGET_PLATFORM: 'darwin', DSH_DESKTOP_TARGET_ARCH: 'arm64' }
+    const config = createElectronBuilderConfig(testEnv, 'darwin', 'arm64')
+    expect(config.mac).toMatchObject({ identity: '-', timestamp: 'none', forceCodeSigning: false, hardenedRuntime: false, notarize: false })
+    expect(config.dmg.sign).toBe(false)
+    expect(config.publish).toBeNull()
+    expect(config.extraMetadata).not.toHaveProperty('dshMandatoryUpdatePolicy')
+    expect(config.artifactName).toContain('-unsigned')
+    expect(portablePath(config.directories.output)).toContain('/mac-arm64/unsigned-artifacts')
+    expect(config.artifactBuildCompleted({ file: '/does-not-exist/test.dmg' })).toBeUndefined()
+    expect(() => createElectronBuilderConfig({ ...testEnv, DSH_DESKTOP_AUTO_UPDATE_ENV: 'production' }, 'darwin', 'arm64')).toThrow('explicit test')
+    expect(() => createElectronBuilderConfig({ ...testEnv, DSH_DESKTOP_UNSIGNED_UPDATES: '1' }, 'darwin', 'arm64')).toThrow('automatic updates')
     expect(() => createElectronBuilderConfig({ ...RELEASE_ENVIRONMENT, DSH_DESKTOP_UNSIGNED: 'yes' }))
       .toThrow(/must be 0 or 1/u)
+  })
+
+  it('accepts only ad-hoc details for certificate-free test signatures', () => {
+    expect(() =>{  assertMacOSAdHocSignatureDetails('Signature=adhoc\nTeamIdentifier=not set\n') }).not.toThrow()
+    for (const details of ['TeamIdentifier=not set', 'Signature=adhoc\nTeamIdentifier=PRODTEAM12',
+      'Signature=adhoc\nTeamIdentifier=not set\nAuthority=Developer ID Application: Example']) {
+      expect(() =>{  assertMacOSAdHocSignatureDetails(details) }).toThrow('ad-hoc test signature')
+    }
   })
 
   it('accepts the configured authority and team', () => {

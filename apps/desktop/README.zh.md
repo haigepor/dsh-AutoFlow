@@ -217,7 +217,7 @@ production 发布使用产品版本本身，不传 `--build-version`。其上传
 
 打包、上传以及手动 macOS 签名检查使用 `apps/desktop/.env.windows` 或 `.env.macos`，由目标平台选择。复制对应的 [Windows 模板](.env.windows.example) 或 [macOS 模板](.env.macos.example)，填写本机配置；Git 忽略这两个本地文件，安装产物也不包含它们。发布字段只从目标文件读取，不回退到系统或 shell 中的同名变量；`PATH`、代理和构建工具环境仍保留。发布版本是命令参数而非发布字段，上传从打包写下的完成记录中读取它。文件使用 UTF-8，支持 BOM；相对证书、SignTool、Apple API Key 和钥匙串路径以 `apps/desktop` 为基准，变量值不做 shell 展开，包含 `#` 或空格的密码需要引号。CI 同样在运行前生成目标文件。
 
-每条打包命令在构建与下载前检查应用 ID、更新地址和该模式需要的签名配置，随后探测本次运行要用的外部工具：归档读取工具，以及 Windows 目标的安装器编译器。macOS 检查身份、Team ID、一套完整公证凭据、`CSC_LINK` 指定的可读本地 p12 文件、显式配置的 `CSC_KEY_PASSWORD`，以及引用的 API Key 和钥匙串文件；Windows 检查公开代码签名证书、SignTool 文件、容器名称和 PIN 格式。仅准备 Windows 资源或显式未签名打包不要求签名凭据。配置检查不验证 PIN 是否正确、Token 是否登录、钥匙串是否解锁或 Apple 是否接受凭据；实际签名与公证负责这些检查。`--build-version auto` 会访问目标 bucket，`--check` 下同样如此。单独运行相同检查：
+每条打包命令在构建与下载前检查应用 ID、更新地址和该模式需要的签名配置，随后探测本次运行要用的外部工具：归档读取工具，以及 Windows 目标的安装器编译器。正式签名 macOS 打包检查身份、Team ID、一套完整公证凭据、`CSC_LINK` 指定的可读本地 p12 文件、显式配置的 `CSC_KEY_PASSWORD`，以及引用的 API Key 和钥匙串文件；Windows 检查公开代码签名证书、SignTool 文件、容器名称和 PIN 格式。仅准备 Windows 资源或显式未签名打包不要求签名凭据。配置检查不验证 PIN 是否正确、Token 是否登录、钥匙串是否解锁或 Apple 是否接受凭据；实际签名与公证负责这些检查。`--build-version auto` 会访问目标 bucket，`--check` 下同样如此。单独运行相同检查：
 
 ```sh
 pnpm --dir apps/desktop run check:package
@@ -297,7 +297,7 @@ pnpm run upload:mac:arm64
 
 前期内测包使用 `test` 部署。只有正式发布才显式选择 `production`；更换上传凭据不会改变已有安装包的更新目标。打包不需要 COS 凭据，会禁用 electron-builder 发布、移除子进程的 COS 凭据，并且仅在签名与公证成功后记录完成状态。上传在读取凭据前验证该记录、部署、目标、共同版本号、文件名、大小与 SHA-512。安装包和 blockmap 先于 YAML 上传；历史对象继续保留。每个版本发布 `nightly.yml` 或 `nightly-mac.yml`；稳定版本还发布指向相同产物的 `latest.yml` 或 `latest-mac.yml`。发布的 YAML 使用安装包绝对 URL。上传器不设置 Cache-Control，包括 COS SDK 否则会添加的空头部：缓存策略由部署基础设施负责，清单不缓存，安装包缓存单独配置。同一目标应串行发布，并在发布验收前验证公网产物与清单内容。
 
-macOS 配置使用必填发布环境，不会接受钥匙串中最先发现的证书。空值、格式错误的 Team ID、包含 electron-builder 不支持的 `Developer ID Application:` 前缀的签名身份，以及不完整的公证凭据都会被拒绝。macOS 打包要求已配置的身份及其私钥可用。运行时准备会把该身份、安全时间戳与 hardened runtime 应用到每个内嵌 Mach-O 文件；应用签名完成后，深度严格检查会拒绝其他叶证书 Authority 或 Team ID，验证通过才生成发布产物。macOS 固定目标安装包命令为已签名应用创建独立副本，并发执行两条产物流。一路先公证 App 并钉票，再生成 ZIP 及其更新元数据。另一路把已签名 App 副本封装进签名 DMG，再公证 DMG、钉票并验证；其中的 App 不单独附加票据。只有两路均成功结束，产物才会移入最终目录并写入发布完成记录。仅生成目录的命令同样需要公证凭据，并等待 Apple 公证和 App 钉票完成。[并行公证决策](../../.agents/notes/implemented/process/2026-09-09-parallel-macos-notarization.zh.md)负责副本隔离与容器票据语义。`CSC_LINK` 必须指向包含 Developer ID Application 证书及私钥的本地 p12，不支持 URL 或 Base64 输入。`CSC_KEY_PASSWORD` 是其导出密码，不是 Apple 账号或登录密码；未加密的 p12 可显式填写空值。构建前，打包流程自动创建并解锁私有临时钥匙串、导入 p12、授权签名并签署小型探针。运行时与 App 签名显式使用该钥匙串，无需预先配置或手动解锁登录钥匙串。子进程只接收钥匙串路径，不接收 p12 密码。成功或普通失败后删除临时钥匙串；强制终止后由 CI 清理临时凭据。CI 从密钥存储生成证书文件和 `.env.macos`，限制文件访问权限，并在作业结束后删除二者。环境中的 `CSC_NAME` 与证书发现顺序都不能选择发布所有者。公证凭据也可以使用 electron-builder 支持的完整 Apple ID 或钥匙串 profile 方式。手动执行 `pnpm --dir apps/desktop run verify:mac-signature -- <path-to-app>` 重复应用检查时，也必须提供两个 macOS 身份变量。
+正式签名 macOS 配置使用必填发布环境，不会接受钥匙串中最先发现的证书。空值、格式错误的 Team ID、包含 electron-builder 不支持的 `Developer ID Application:` 前缀的签名身份，以及不完整的公证凭据都会被拒绝。macOS 打包要求已配置的身份及其私钥可用。运行时准备会把该身份、安全时间戳与 hardened runtime 应用到每个内嵌 Mach-O 文件；应用签名完成后，深度严格检查会拒绝其他叶证书 Authority 或 Team ID，验证通过才生成发布产物。macOS 固定目标安装包命令为已签名应用创建独立副本，并发执行两条产物流。一路先公证 App 并钉票，再生成 ZIP 及其更新元数据。另一路把已签名 App 副本封装进签名 DMG，再公证 DMG、钉票并验证；其中的 App 不单独附加票据。只有两路均成功结束，产物才会移入最终目录并写入发布完成记录。仅生成目录的命令同样需要公证凭据，并等待 Apple 公证和 App 钉票完成。[并行公证决策](../../.agents/notes/implemented/process/2026-09-09-parallel-macos-notarization.zh.md)负责副本隔离与容器票据语义。`CSC_LINK` 必须指向包含 Developer ID Application 证书及私钥的本地 p12，不支持 URL 或 Base64 输入。`CSC_KEY_PASSWORD` 是其导出密码，不是 Apple 账号或登录密码；未加密的 p12 可显式填写空值。构建前，打包流程自动创建并解锁私有临时钥匙串、导入 p12、授权签名并签署小型探针。运行时与 App 签名显式使用该钥匙串，无需预先配置或手动解锁登录钥匙串。子进程只接收钥匙串路径，不接收 p12 密码。成功或普通失败后删除临时钥匙串；强制终止后由 CI 清理临时凭据。CI 从密钥存储生成证书文件和 `.env.macos`，限制文件访问权限，并在作业结束后删除二者。环境中的 `CSC_NAME` 与证书发现顺序都不能选择发布所有者。公证凭据也可以使用 electron-builder 支持的完整 Apple ID 或钥匙串 profile 方式。手动执行 `pnpm --dir apps/desktop run verify:mac-signature -- <path-to-app>` 重复应用检查时，也必须提供两个 macOS 身份变量。
 
 macOS 签名遍历真实文件，不跟随 Framework 的软链接别名。PAK 资源保留全部随附语言，由外层 Framework 或应用签名记录完整性，不逐个签名。[发布策略](../../.agents/notes/implemented/architecture/2026-08-25-electron-desktop-packaging-and-updates.zh.md)负责依赖补丁和验证要求。
 
@@ -327,13 +327,13 @@ GitHub 部署配置 `DSH_DESKTOP_UPDATE_PROVIDER=github`、`DSH_DESKTOP_GITHUB_R
 
 运行 `pnpm --dir apps/desktop run publish:github win-x64 --prepare-only` 校验产物并生成发布文件，去掉 `--prepare-only` 后执行发布。脚本读取 `GITHUB_TOKEN`、`GH_TOKEN` 或 Git Credential Manager，不将凭据写入应用。发布要求公开仓库及干净已提交源码构建的产物。不可变 Release 附件通过 SHA-256 和匿名下载可用性检查后，清单与策略才共同推进到专用 `desktop-updates` 分支。脚本拒绝替换已有文档 Pages 站点。首次策略以首次版本为最低阈值；后续保留该阈值，仅通过 `--minimum-supported-version` 显式提高。脚本拒绝降低版本或最低阈值。
 
-无签名标签为 `desktop-v<version>-unsigned`，签名标签为 `desktop-v<version>`。发布不读取 `releases/latest`，AFP 标签和桌面预发布版本不会选出错误更新。手动 `Publish Windows Desktop` workflow 在原生 Windows runner 上构建和发布。[项目 Skill](../../.agents/skills/dsh-desktop-github-release/SKILL.md)负责可重复操作与失败恢复。
+Windows 无签名标签为 `desktop-v<version>-unsigned`，签名标签为 `desktop-v<version>`。发布不读取 `releases/latest`，AFP 标签和桌面预发布版本不会选出错误更新。手动 `Publish Windows Desktop` workflow 在原生 Windows runner 上构建和发布。[项目 Skill](../../.agents/skills/dsh-desktop-github-release/SKILL.md)负责可重复操作与失败恢复。
 
 ### macOS Actions 产物
 
-手动 [Build macOS Desktop artifacts 工作流](../../.github/workflows/desktop-macos-build.yml)在原生 `macos-15` 上构建 `mac-arm64`。它仅在 `haigepor/dsh-AutoFlow` 的 `main` 上运行；触发前工作流文件必须存在于该默认分支。先提交并推送全部预期定制。选择 `test` 或 `production`，按发布版本一节填写确认后的完整 `version`，并将 `expected_commit` 设置为实际检出提交的完整 40 位 SHA。初始环境 `unconfirmed` 会被拒绝；空值或自动版本、派生的生产版本，以及不同或有改动的 checkout 同样会被拒绝。触发前须确认环境、版本和凭据；创建或验证工作流不会开始打包。
+手动 [Build macOS Desktop artifacts 工作流](../../.github/workflows/desktop-macos-build.yml)在原生 `macos-15` 上构建 `mac-arm64`。它仅在 `haigepor/dsh-AutoFlow` 的 `main` 上运行；触发前先提交并推送全部预期定制。选择 `test` 或 `production`，选择 `signed` 或 `unsigned`，按发布版本一节填写确认后的完整 `version`，并将 `expected_commit` 设置为实际检出提交的完整 40 位 SHA。初始 `unconfirmed` 选项、空值或自动版本、派生的生产版本，以及不同或有改动的 checkout 均会被拒绝。无证书模式还会拒绝 production。创建或验证工作流不会开始打包。
 
-创建 GitHub Environment `desktop-macos-test` 和 `desktop-macos-production`；在可用时为生产环境设置必要审批。在选定 Environment 中配置下表条目，不将敏感值放入仓库文件或聊天：
+创建 GitHub Environment `desktop-macos-test` 和 `desktop-macos-production`；在可用时为生产环境设置必要审批。正式签名模式要求在选定 Environment 中配置下表条目，不将敏感值放入仓库文件或聊天：
 
 | 类型 | 名称 | 值 |
 |---|---|---|
@@ -347,13 +347,33 @@ GitHub 部署配置 `DSH_DESKTOP_UPDATE_PROVIDER=github`、`DSH_DESKTOP_GITHUB_R
 | Variable | `DESKTOP_APP_ID` | 此环境确认后的反向域名 Bundle ID |
 | Variable | `DESKTOP_GITHUB_PAGES_URL` | 确认后的签名通道 HTTPS 目录，以 `/` 结尾，排除 `/unsigned/` |
 
-此工作流仅选择 API Key 公证。[CI 辅助脚本](scripts/desktop-macos-ci.mjs)将凭据解码到 runner 私有文件，以独占创建方式写入所需 UTF-8 `.env.macos`，并复用打包校验。`CSC_LINK` 指向解码后的本地 P12，不使用 Base64 值。dotenv 值必须精确往返解析；同时含三种引号分隔符或不兼容换行的值会被拒绝，且不会打印内容。已有 `.env.macos` 会被保留。更新配置使用 GitHub/static-json，策略 URL 为 `<DESKTOP_GITHUB_PAGES_URL>policy.json`；工作流不发布策略或清单，在线更新可用性需要单独验收。
+无证书模式仅需在 `desktop-macos-test` 中配置 Variable `DESKTOP_UNSIGNED_APP_ID`，使用独立的反向域名测试 Bundle ID。它不读取 Apple Secrets、不创建 keychain、不配置更新。其无证书 ad-hoc 签名见下文。
 
-构建明确使用 Node `24.14.0`、pnpm `11.7.0` 和 Xcode `16.4`；安装包内置解释器仍由运行时锁文件决定。必须重新安装锁定依赖并执行既有签名、公证和运行时 smoke。工作区 tarball 并发为二，任务上限为 180 分钟，新任务不会取消活动任务。只缓存 pnpm store，排除签名材料和准备好的运行时。标准 arm64 runner 内存、磁盘有限，调整资源前先检查保留的工具链、磁盘日志和实际失败。不会自动切换到付费 runner。
+正式签名模式仅选择 API Key 公证。[CI 辅助脚本](scripts/desktop-macos-ci.mjs)将凭据解码到 runner 私有文件，以独占创建方式写入 UTF-8 `.env.macos`，并复用打包校验。`CSC_LINK` 指向本地 P12。dotenv 值必须精确往返解析；不支持的引号或换行会被拒绝，且不会打印内容。已有 `.env.macos` 会被保留。GitHub/static-json 更新策略使用 `<DESKTOP_GITHUB_PAGES_URL>policy.json`；工作流不发布策略或清单，在线更新可用性需要单独验收。
 
-成功安装包 artifact 包含 DMG、ZIP、ZIP blockmap、`nightly-mac.yml`、`mac-arm64-release.json` 和 `SHA256SUMS`。暂存步骤先校验完成记录的版本、部署环境、干净来源提交、签名模式及清单和 payload 摘要，再提供该明确文件清单；生成的 feed 字节保持不变。独立诊断产物保留本次新增打包记录，并对凭据和 URL token 脱敏。不上传 dotenv、P12、P8、keychain 或整个准备目录。失败后也会恢复 keychain 搜索路径并删除私有文件；强制终止可能阻止清理，所以这些文件仅存在于一次性 hosted runner。上传使用非隐藏暂存目录，保留七天。公开仓库标准 runner 的计算免费，但产物存储有账户额度，触发前需检查计费设置。
+构建明确使用 Node `24.14.0`、pnpm `11.7.0` 和 Xcode `16.4`；安装包内置解释器仍由运行时锁文件决定。两种模式均重新安装锁定依赖，复用现有完整构建、准备和运行时 smoke 链路。正式模式保留证书验证、公证和验签；无证书模式校验 ad-hoc 签名。tarball 并发为二，任务上限为 180 分钟，新任务不会取消活动任务。只缓存 pnpm store。调整标准 runner 有限资源前先检查保留的工具链、磁盘日志，不会自动切换到付费 runner。
 
-在 Windows 上从 GitHub Actions 下载本次产物，通过 `Get-FileHash -Algorithm SHA256` 核对 `SHA256SUMS`。保留原始 DMG/ZIP，不在 Windows 解压并重新打包 `.app`。配置验证通过、签名公证及运行时 smoke 通过的安装包构建成功、真实 Mac 安装与 GUI 运行通过，是三个不同结果。工作流不声称最后一项通过，也不执行 Release/COS/Pages 发布。`mac-x64` 需要后续扩展工作流，使用 `macos-15-intel`、独立目标产物和既有 x64 命令。
+正式签名安装包 artifact 包含 DMG、ZIP、ZIP blockmap、`nightly-mac.yml`、`mac-arm64-release.json` 和 `SHA256SUMS`。无证书 artifact 仅包含 DMG、ZIP、完成记录和 `SHA256SUMS`；产物名称标识签名模式。暂存步骤先校验版本、部署环境、干净来源提交、签名模式及 payload 摘要，再复制明确文件清单；签名模式保留原始 feed 字节。独立诊断产物保留脱敏打包日志。不上传 dotenv、P12、P8、keychain 或整个准备目录。两种模式均清理临时配置，签名模式在失败后也恢复 keychain；强制终止可能阻止清理，所以私有文件仅存在于一次性 runner。产物保留七天。公开仓库标准 runner 的计算免费，产物存储有账户额度，触发前需检查计费设置。
+
+在 Windows 上从 Actions 下载产物，通过 `Get-FileHash -Algorithm SHA256` 核对 `SHA256SUMS`。保留 DMG/ZIP，不重新打包 `.app`。工作流验证通过、按所选模式完成验签及运行时检查的打包成功、真实 Mac 安装与 GUI 运行通过，是三个不同结果。此工作流不证明最后一项，也不发布 Release/COS/Pages。`mac-x64` 需后续扩展，使用 `macos-15-intel`、独立目标产物和既有 x64 命令。
+
+### 无证书 macOS 测试安装包
+
+在匹配架构的 macOS 主机上，将 [.env.macos.unsigned.example](.env.macos.unsigned.example)复制为被忽略的 `.env.macos`，保留已有本地配置。使用独立测试 Bundle ID 和 `DSH_DESKTOP_AUTO_UPDATE_ENV=test`。默认 macOS 命令仍要求 Developer ID 签名及公证，包括 `--dir`。
+
+macOS 的 `--unsigned` 表示无需 Apple 证书：运行时 Mach-O 文件和应用仍使用 [ad-hoc 临时签名](https://www.electron.build/v26/docs/mac/#code-signing)。此模式跳过凭据、keychain、签名缓存、时间戳服务、强化运行时及公证。production 和 `DSH_DESKTOP_UNSIGNED_UPDATES=1` 会被拒绝。省略自动更新及强制更新元数据，并从子进程环境移除签名凭据。
+
+使用确认后的完整测试版本，不使用自动版本：
+
+```sh
+pnpm --dir apps/desktop run check:package mac-arm64 --unsigned --build-version <confirmed-test-version>
+pnpm run package:desktop:mac:arm64:unsigned --build-version <confirmed-test-version>
+pnpm run package:desktop:mac:x64:unsigned --build-version <confirmed-test-version>
+```
+
+两种模式均保留完整构建和安装包运行时 smoke。无证书 DMG/ZIP 输出到 `.desktop-build/targets/<target>/unsigned-artifacts/`，文件名包含 `-unsigned`。完成记录包含 SHA-256 摘要、`signing: ad-hoc`、`notarized: false` 和 `autoUpdate: false`；发布校验拒绝这些记录。不生成更新 feed。`--unsigned --dir` 验证应用和运行时但不记录安装包；`--unsigned --prepare-only` 会被拒绝。本地两种模式共用准备目录，同一目标不要并发运行。
+
+未公证测试应用可能需要[在 macOS 隐私与安全性中明确批准](https://support.apple.com/en-us/102445)。ad-hoc 验签和运行时 smoke 不证明 Gatekeeper 批准或真实 Mac GUI 运行通过。后续版本手动安装，此模式不支持自动升级。
 
 ### 未签名 Windows 测试安装包
 
@@ -438,7 +458,7 @@ pnpm run prepare:desktop
 
 每条打包命令都会构建仓库，打包以 dsh 和私有 Desktop Host 为根的第一方生产依赖闭包，并准备目标专用的 Electron 分发包与 pnpm CLI。`prepare:dsh` 在构建时安装一次生产依赖图，准备物化包供 electron-builder 归档到 `app.asar/dsh`，移除包管理器元数据，并生成包含共享包版本和最终文件哈希的 `desktop-runtime.json`。在 macOS 上，它先签名并验证原生文件，再生成清单；electron-builder 不对已签名的此目录重复进行嵌套签名。资源映射明确包含默认根目录过滤器会忽略的 `dsh/node_modules`；准备完成的运行时清单在原生签名后检查。原生可执行文件及库解包到 ASAR 旁；Python、独立 Node 和 pnpm 保留在外部 runtime 资源中。Windows 打包逐项检查准备好的 PE，确认其 ASAR 条目已标记为解包，且磁盘副本字节一致；未签名构建也执行此检查。Builder glob 规则用单字符通配符匹配 PE 文件名中的花括号，因此同目录中名称匹配的文件也可能被解包。准备好的运行时 smoke 沿用已验证的目标描述符，不使用构建宿主的架构。签名安装包、公证、已安装应用升级和各目标原生模块的验收需要发布环境。
 
-macOS 打包在组装 App 时、代码签名前写入 `Contents/Resources/app-update.yml`，供并行 ZIP 与 DMG 路线使用的目录构建也执行此操作。签名钩子验证准确的更新源和 updater 缓存目录。写入发布完成记录前，流程会再次检查两条路线的副本和最终移入的 App；配置缺失或不匹配会阻止移入产物，因而也会阻止上传。
+正式签名 macOS 打包在组装 App 时、代码签名前写入 `Contents/Resources/app-update.yml`，供并行 ZIP 与 DMG 路线使用的目录构建也执行此操作。签名钩子验证准确的更新源和 updater 缓存目录。写入发布完成记录前，流程会再次检查两条路线的副本和最终移入的 App；配置缺失或不匹配会阻止移入产物，因而也会阻止上传。
 
 未压缩产物包含 Electron、物化后的 dsh 生产依赖树、pnpm，以及壳应用。安装包大小与文件系统占用不同；发布验收需要测量两者，以及 profile 插件存储和首次启动耗时。此布局用更多应用内文件换取消除用户机器上的核心包安装过程。
 

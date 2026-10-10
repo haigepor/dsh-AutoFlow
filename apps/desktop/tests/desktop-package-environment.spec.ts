@@ -13,6 +13,16 @@ const RELEASE = { ...POLICY, DSH_DESKTOP_APP_ID: 'com.example.desktop', DOWNLOAD
   DOWNLOAD_TEST_RELEASE_ID: '0123456789abcdef0123456789abcdef' }
 const MAC_IDENTITY = { DSH_DESKTOP_MACOS_SIGNING_IDENTITY: 'Example Company (TEAMID1234)', DSH_DESKTOP_MACOS_TEAM_ID: 'TEAMID1234' }
 
+it('requires explicit test mode but no Apple credentials or update URLs for certificate-free macOS', () => {
+  const unsigned = { DSH_DESKTOP_APP_ID: 'com.example.desktop.unsigned', DSH_DESKTOP_AUTO_UPDATE_ENV: 'test' }
+  expect(() =>{  validateDesktopPackageEnvironment(unsigned, MACOS, { unsigned: true }) }).not.toThrow()
+  expect(() =>{  validateDesktopPackageEnvironment(unsigned, MACOS) }).toThrow()
+  for (const deployment of [undefined, '', 'production']) {
+    expect(() =>{  validateDesktopPackageEnvironment({ ...unsigned, DSH_DESKTOP_AUTO_UPDATE_ENV: deployment }, MACOS, { unsigned: true }) }).toThrow('explicit test')
+  }
+  expect(() =>{  validateDesktopPackageEnvironment({ ...unsigned, DSH_DESKTOP_UNSIGNED_UPDATES: '1' }, MACOS, { unsigned: true }) }).toThrow('automatic updates')
+})
+
 async function withDirectory(action: (directory: string) => Promise<void>): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), 'desktop-env-'))
   try {

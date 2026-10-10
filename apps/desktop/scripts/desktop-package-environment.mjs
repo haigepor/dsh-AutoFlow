@@ -71,6 +71,20 @@ function requireReadableFile(environment, name) {
 }
 
 /**
+ * Keep certificate-free macOS packages in the test deployment without an update channel.
+ * @param {NodeJS.ProcessEnv} environment File-owned packaging settings.
+ * @returns {void} Rejects production and the Windows-only unsigned update switch.
+ */
+export function validateMacOSUnsignedEnvironment(environment) {
+  if (environment.DSH_DESKTOP_AUTO_UPDATE_ENV !== 'test') {
+    throw new Error('desktop package: unsigned macOS requires explicit test deployment')
+  }
+  if (environment.DSH_DESKTOP_UNSIGNED_UPDATES === '1') {
+    throw new Error('desktop package: unsigned macOS does not support automatic updates')
+  }
+}
+
+/**
  * Validate release configuration before preparation without invoking a token or Apple's services.
  * @param {NodeJS.ProcessEnv} environment File-owned release settings.
  * @param {{ platform: 'win32' | 'darwin', arch: string }} target Selected release target.
@@ -80,9 +94,13 @@ function requireReadableFile(environment, name) {
 export function validateDesktopPackageEnvironment(environment, target, options = {}) {
   resolveDesktopAppId(environment)
   resolveNpmRegistry(environment)
-  resolveDesktopPolicyEnvironment(environment)
   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
   else resolveWindowsPackageSettings(environment)
+  if (target.platform === 'darwin' && options.unsigned) {
+    validateMacOSUnsignedEnvironment(environment)
+    return
+  }
+  resolveDesktopPolicyEnvironment(environment)
   if (environment.DSH_DESKTOP_UPDATE_PROVIDER === 'github') {
     const update = resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
     const policy = resolveDesktopPolicyEnvironment(environment)

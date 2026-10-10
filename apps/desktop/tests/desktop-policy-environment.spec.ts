@@ -49,7 +49,11 @@ it('rejects login origins in production', () => {
 
 it.each([{ unsigned: true }, { prepareOnly: true }, {}])('fails before signing/preparation when policy is absent in %j', (options) => {
   for (const platform of ['win32', 'darwin'] as const) {
+    // 无证书 macOS 测试包不嵌入更新策略，但必须先明确 test 环境。
+    const expected = platform === 'darwin' && 'unsigned' in options
+      ? 'unsigned macOS requires explicit test deployment'
+      : 'DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN'
     expect(() => { validateDesktopPackageEnvironment({ DSH_DESKTOP_APP_ID: 'com.example.test' }, { platform, arch: 'x64' }, options) })
-      .toThrow('DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN')
+      .toThrow(expected)
   }
 })

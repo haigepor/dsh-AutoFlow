@@ -7,7 +7,7 @@ import { inventoryDesktopRuntime } from '../src/runtime-tree.ts'
 import type { MacOSSigningEnvironment } from './desktop-release-environment.mjs'
 import { cachedMacOSSignature, pruneMacOSSignatureCache } from './macos-signature-cache.ts'
 import { macOSCachePolicy } from './macos-cache-policy.ts'
-import { signMacOSRuntimeCode, verifyMacOSRuntimeCode } from './verify-macos-signature.mjs'
+import { signMacOSAdHocCode, signMacOSRuntimeCode, verifyMacOSAdHocSignature, verifyMacOSRuntimeCode } from './verify-macos-signature.mjs'
 
 const MACH_O_MAGICS = new Set(['cafebabe', 'cafebabf', 'cefaedfe', 'cffaedfe', 'feedface', 'feedfacf', 'bebafeca', 'bfbafeca'])
 
@@ -23,14 +23,16 @@ function magic(path: string): string {
  * Sign and verify every materialized Mach-O file, awaiting all signers on failure.
  * @param root - Self-contained production runtime without symlinks.
  * @param appId - Release application identifier.
- * @param expected - Required signing identity.
+ * @param expected - Required Developer ID, or explicit certificate-free ad-hoc test mode.
  * @param arch - Target runtime architecture, independent of the signing host.
  * @param cacheDirectory - Optional content-addressed cache; requires the keychain-owned signing probe.
  * @returns Number of signed native files.
  */
 export async function signMacOSRuntime(
-  root: string, appId: string, expected: MacOSSigningEnvironment, arch: 'arm64' | 'x64', cacheDirectory?: string,
+  root: string, appId: string, expected: MacOSSigningEnvironment | 'ad-hoc', arch: 'arm64' | 'x64', cacheDirectory?: string,
 ): Promise<number> {
+  // 临时签名不读取正式证书缓存，避免测试产物复用正式身份。
+  if (expected === 'ad-hoc' && cacheDirectory !== undefined) throw new Error('desktop runtime: ad-hoc signing cannot use the release signature cache')
   const files = inventoryDesktopRuntime(root).map(file => file.path).filter(path => MACH_O_MAGICS.has(magic(join(root, path))))
   const policy = cacheDirectory === undefined ? undefined : macOSCachePolicy(process.env.DSH_DESKTOP_MACOS_SIGNING_PROBE ?? '')
   let hits = 0
@@ -49,7 +51,10 @@ export async function signMacOSRuntime(
       const entitlements = needsJit ? join(import.meta.dirname, entitlementsFile) : undefined
       const file = join(root, path)
       const thin = ['cefaedfe', 'cffaedfe', 'feedface', 'feedfacf'].includes(magic(file))
-      if (cacheDirectory !== undefined && policy !== undefined && thin) {
+      if (expected === 'ad-hoc') {
+        await signMacOSAdHocCode(file, identifier, entitlements)
+        verifyMacOSAdHocSignature(file)
+      } else if (cacheDirectory !== undefined && policy !== undefined && thin) {
         if (await cachedMacOSSignature(file, cacheDirectory, policy(identifier, expected, entitlements))) hits++
         else misses++
       } else {

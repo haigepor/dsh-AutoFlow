@@ -8,6 +8,11 @@ on:
         required: true
         type: choice
         options: [unconfirmed, test, production]
+      signing:
+        description: 'signed: Developer ID + notarization; unsigned: certificate-free ad-hoc test'
+        required: true
+        type: choice
+        options: [unconfirmed, signed, unsigned]
       version:
         description: 'Confirmed complete Desktop version; auto is forbidden'
         required: true
@@ -21,7 +26,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: desktop-macos-artifacts-${{ inputs.deployment }}-mac-arm64
+  group: desktop-macos-artifacts-${{ inputs.deployment }}-${{ inputs.signing }}-mac-arm64
   cancel-in-progress: false
 
 jobs:
@@ -35,6 +40,7 @@ jobs:
         shell: bash
     env:
       DEPLOYMENT: ${{ inputs.deployment }}
+      SIGNING_MODE: ${{ inputs.signing }}
       BUILD_VERSION: ${{ inputs.version }}
       EXPECTED_COMMIT: ${{ inputs.expected_commit }}
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
@@ -93,7 +99,10 @@ jobs:
           apps/desktop/tests/macos-signing-keychain.spec.ts
           apps/desktop/tests/macos-package-settings.spec.ts
           apps/desktop/tests/desktop-build-paths.spec.ts
+          apps/desktop/tests/macos-unsigned-artifacts.spec.ts
+          apps/desktop/tests/macos-ad-hoc.spec.ts
       - name: Generate private macOS signing configuration
+        if: inputs.signing == 'signed'
         env:
           DESKTOP_APP_ID: ${{ vars.DESKTOP_APP_ID }}
           DESKTOP_GITHUB_PAGES_URL: ${{ vars.DESKTOP_GITHUB_PAGES_URL }}
@@ -105,10 +114,21 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: node apps/desktop/scripts/desktop-macos-ci.mjs prepare
+      - name: Generate certificate-free test configuration
+        if: inputs.signing == 'unsigned'
+        env:
+          DESKTOP_APP_ID: ${{ vars.DESKTOP_UNSIGNED_APP_ID }}
+        run: node apps/desktop/scripts/desktop-macos-ci.mjs prepare
       - name: Preflight the existing package pipeline
-        run: pnpm --dir apps/desktop run check:package mac-arm64 --build-version "$BUILD_VERSION"
-      - name: Build signed and notarized mac-arm64 installers
-        run: pnpm run package:desktop:mac:arm64 --build-version "$BUILD_VERSION"
+        run: |
+          args=(mac-arm64 --build-version "$BUILD_VERSION")
+          if [[ "$SIGNING_MODE" == 'unsigned' ]]; then args+=(--unsigned); fi
+          pnpm --dir apps/desktop run check:package "${args[@]}"
+      - name: Build mac-arm64 installers in the confirmed signing mode
+        run: |
+          args=(--build-version "$BUILD_VERSION")
+          if [[ "$SIGNING_MODE" == 'unsigned' ]]; then args+=(--unsigned); fi
+          pnpm run package:desktop:mac:arm64 "${args[@]}"
       - name: Verify completion and stage the explicit artifact list
         id: stage
         run: pnpm exec tsx apps/desktop/scripts/desktop-macos-ci.mjs stage
@@ -122,15 +142,15 @@ jobs:
         if: always() && steps.initialize.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: desktop-mac-arm64-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: desktop-mac-arm64-${{ inputs.signing }}-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.DESKTOP_MACOS_DIAGNOSTICS }}
           retention-days: 7
           if-no-files-found: error
-      - name: Save verified installers and update metadata
+      - name: Save verified installers and mode-specific metadata
         if: success() && steps.stage.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: desktop-mac-arm64-${{ inputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: desktop-mac-arm64-${{ inputs.signing }}-${{ inputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.DESKTOP_MACOS_DELIVERABLES }}
           compression-level: 0
           retention-days: 7

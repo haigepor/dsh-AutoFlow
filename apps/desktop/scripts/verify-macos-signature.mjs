@@ -107,6 +107,42 @@ function runCodeSign(args) {
 }
 
 /**
+ * Reject a certificate signature or missing ad-hoc signature in a certificate-free test package.
+ * @param {string} details Output from codesign --display --verbose=4.
+ * @returns {void}
+ */
+export function assertMacOSAdHocSignatureDetails(details) {
+  const fields = details.split(/\r?\n/u).map(line => line.trim())
+  if (!fields.includes('Signature=adhoc') || !fields.includes('TeamIdentifier=not set')
+    || fields.some(line => line.startsWith('Authority='))) {
+    throw new Error('desktop macOS signing: expected an ad-hoc test signature without a Developer ID')
+  }
+}
+
+/**
+ * Apply an ad-hoc signature to runtime code without using a certificate, keychain or timestamp service.
+ * @param {string} path Writable standalone Mach-O file.
+ * @param {string} identifier Stable runtime identifier.
+ * @param {string | undefined} entitlements Optional JIT entitlement plist.
+ * @returns {Promise<void>} Resolves after codesign exits.
+ */
+export async function signMacOSAdHocCode(path, identifier, entitlements) {
+  await runAppleCommandAsync('/usr/bin/codesign', ['--force', '--sign', '-', '--identifier', identifier,
+    '--timestamp=none', ...(entitlements === undefined ? [] : ['--entitlements', entitlements]), path], 'codesign ad-hoc')
+}
+
+/**
+ * Verify code integrity and the ad-hoc identity, without asserting notarization or Gatekeeper acceptance.
+ * @param {string} path Runtime file or application bundle.
+ * @param {boolean} deep Whether to verify the nested application code as well.
+ * @returns {void}
+ */
+export function verifyMacOSAdHocSignature(path, deep = false) {
+  runCodeSign(['--verify', ...(deep ? ['--deep'] : []), '--strict', '--verbose=2', path])
+  assertMacOSAdHocSignatureDetails(runCodeSign(['--display', '--verbose=4', path]))
+}
+
+/**
  * Sign one Mach-O file using the packaging-owned CSC_KEYCHAIN; missing setup rejects before signing.
  * @param {string} path - Writable standalone Mach-O file.
  * @param {string} identifier - Stable code-signing identifier derived from the release app ID and CAS digest.

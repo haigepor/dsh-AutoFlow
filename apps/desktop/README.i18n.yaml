@@ -45,20 +45,23 @@
   en: ab9d6418cdb6e009
   zh: 0dee795a779804ba
 /deepseek-harness-desktop/package/release-versions:
-  en: 32e674462a51330e
-  zh: 8878bb3086b673e1
+  en: b4252620a92a500c
+  zh: b92b9ce2d7b40bc3
 /deepseek-harness-desktop/package/runtime-file-selection:
   en: 483730f8c4a5e7c6
   zh: d9a6bece04731e9a
 /deepseek-harness-desktop/package/upload-updates:
-  en: 72073b2e72590067
-  zh: 63b1f9790395c37d
+  en: 7cf74bb5250b3908
+  zh: 01df4e646f35b486
 /deepseek-harness-desktop/package/github-updates-and-publication:
-  en: 0480b43f96a0561d
-  zh: e63a9e2f6d2858f6
+  en: 1ae9806ed0955b77
+  zh: 543267a19e15ba17
 /deepseek-harness-desktop/package/macos-actions-artifacts:
-  en: d24083935a095b5c
-  zh: 9cec62ce0cecfdfd
+  en: c131ac9a3cc011bc
+  zh: 26424a94eff6f15b
+/deepseek-harness-desktop/package/certificate-free-macos-test-installers:
+  en: e2fabe55e583ec22
+  zh: 0145aa881c09d582
 /deepseek-harness-desktop/package/unsigned-windows-test-installer:
   en: ee593d6b4f2860d3
   zh: 9bce8b34ab059c54
@@ -66,8 +69,8 @@
   en: 116eeb97b7e6e818
   zh: eba2003fb8c1a86d
 /deepseek-harness-desktop/package/windows-ev-signing:
-  en: 8efe3498dbe8686d
-  zh: a88c16f20a9430f3
+  en: 7443e0adaad98fed
+  zh: 644ed3b013683c7d
 /deepseek-harness-desktop/updates:
   en: d0df867b69cbffa4
   zh: eeb47b79b86fe5ee

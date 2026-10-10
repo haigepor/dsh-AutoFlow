@@ -5,12 +5,14 @@ import { withMacOSNotarizationProxy } from '../scripts/macos-notarization-proxy.
 import { packageMacOSArtifacts } from '../scripts/package-macos.ts'
 import { withWindowsSigningStage } from '../scripts/windows-signing-stage.mjs'
 import { prepareWindowsSignatureCacheDirectory } from '../scripts/windows-signature-cache-directory.mjs'
+import { writeMacOSUnsignedRecord } from '../scripts/macos-unsigned-artifacts.ts'
 
 vi.mock('../scripts/macos-notarization-proxy.ts', () => ({
   withMacOSNotarizationProxy: vi.fn(async (_proxy: string | undefined, action: () => Promise<void>) => action()),
 }))
 vi.mock('../scripts/notarize-macos.mjs', () => ({ notarizeMacOS: vi.fn(async () => {}) }))
 vi.mock('../scripts/package-macos.ts', () => ({ packageMacOSArtifacts: vi.fn(async () => {}) }))
+vi.mock('../scripts/macos-unsigned-artifacts.ts', () => ({ writeMacOSUnsignedRecord: vi.fn(async () => {}) }))
 
 vi.mock('../scripts/windows-signing-stage.mjs', () => ({
   withWindowsSigningStage: vi.fn(async (_options: object, operation: () => Promise<void>) => operation()),
@@ -114,6 +116,38 @@ it('checks the assembled macOS runtime before notarizing and recording the relea
   await packageTarget(parseDesktopPackageInvocation(['mac-arm64'], 'darwin', 'arm64'), environment, run)
   expect(packageMacOSArtifacts).toHaveBeenCalledOnce()
   expect(writeFileSync).toHaveBeenCalledOnce()
+})
+
+it.each(['mac-arm64', 'mac-x64'])('builds and smokes %s certificate-free installers before completing their record', async (target) => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation([target, '--unsigned'], 'darwin', target === 'mac-arm64' ? 'arm64' : 'x64'), {
+    ...environment, APPLE_API_KEY: 'must-not-reach-children.p8', CSC_LINK: 'must-not-reach-children.p12',
+    DSH_DESKTOP_MACOS_SIGNING_IDENTITY: 'production',
+  }, run)
+  expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')
+  expect(withMacOSNotarizationProxy).not.toHaveBeenCalled()
+  expect(packageMacOSArtifacts).not.toHaveBeenCalled()
+  expect(writeFileSync).not.toHaveBeenCalled()
+  expect(writeMacOSUnsignedRecord).toHaveBeenCalledOnce()
+  for (const call of run.run.mock.calls) {
+    expect(call[3].env).toHaveProperty('DSH_DESKTOP_UNSIGNED', '1')
+    for (const name of ['APPLE_API_KEY', 'CSC_LINK', 'DSH_DESKTOP_MACOS_SIGNING_IDENTITY']) expect(call[3].env).not.toHaveProperty(name)
+  }
+})
+
+it.each(['exec electron-builder --config electron-builder.config.mjs --mac --arm64 --publish never',
+  'exec tsx scripts/smoke-packaged-runtime.ts --unsigned'])('rejects unsigned macOS completion after %s fails', async (failure) => {
+  const { run } = supervisor(failure)
+  await expect(packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--unsigned'], 'darwin', 'arm64'), environment, run)).rejects.toThrow('stage refused')
+  expect(writeMacOSUnsignedRecord).not.toHaveBeenCalled()
+})
+
+it('retains smoke for certificate-free macOS directory packages without recording installers', async () => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--unsigned', '--dir'], 'darwin', 'arm64'), environment, run)
+  expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')
+  expect(withMacOSNotarizationProxy).not.toHaveBeenCalled()
+  expect(writeMacOSUnsignedRecord).not.toHaveBeenCalled()
 })
 
 it.each([false, true])('refuses macOS notarization and release records after an assembled-runtime failure (directory=%s)', async (directory) => {
