@@ -30,7 +30,7 @@ kind: "package-reference"
   name: '@deepseek-ai/dsh-config-editor'
 ```
 
-使用 [settings](../../settings/settings/README.zh.md) 提供只编辑即时字段的表单。编辑完整配置的调用方可使用 `ctx.configEditor.edit()`；普通字段保留 Loader 的正常生命周期。
+使用 [settings](../../settings/settings/README.zh.md) 提供只编辑即时字段的表单。编辑完整配置的调用方可使用 `ctx.configEditor.edit()`；普通字段保留 Loader 的正常生命周期。在替换包的默认配置前，将第三个参数设为 `{ retainOverride: true }`，可显式保留与继承值相同的配置。 停用的配置行仅在回调不修改原始配置时接受此选项。更新未选中的组合包前可调用 `retainDisabledBundle(name)`：离线组合并保存配置，不选择或启动组合包；已选中的组合包、分组配置和行所有者冲突会被拒绝。
 
 <a id="understand-the-implementation"></a>
 ## 理解实现

@@ -61,6 +61,8 @@ dsh --profile web --no-open --port 8080
 
 默认情况下 GUI 只接受本机的连接。绑定所有网络接口的部署也会允许 LAN 内的浏览器访问，此时打印的 URL 会附带一个 LAN 地址；`--trusted-host` 在两种情况下都能添加额外主机。Host 与 Origin 检查控制可达性，token 交换则认证每个 Host API 方法与 WebSocket 流。LAN 地址只在启动时采样一次，因此之后的网络变化不会被感知——重启 GUI 以重新公告。
 
+单独挂载的 `sidebar-access` 行将相同 Connection 策略应用到可选增强侧栏的 HTTP 与 WebSocket 路由。关闭侧栏或更新器，以及官方 npm 后继包替换侧栏实现后，该鉴权行仍生效。
+
 ### 通过 SSH 运行
 
 通过 SSH 启动 `dsh --profile web` 时，URL 行仍会打印，但不会为你打开浏览器：本地转发地址由 SSH 客户端或编辑器持有。请在自己的机器上打开转发后的 URL；打印出的 URL 指向远端宿主机 loopback 端点。

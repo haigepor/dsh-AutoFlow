@@ -36,7 +36,7 @@ Persist complete raw configs and apply them through the normal Loader path.
 
 ```ts cordis-catalog
 /** Addressable profile rows; nested Includes have independent configuration ownership.
- * @returns Active entries with unique profile patch ids.
+ * @returns Entries with unique profile patch ids, including disabled rows.
  */
 entries(): Entry[]
 
@@ -45,12 +45,19 @@ entries(): Entry[]
  */
 configuration(): Array<{ entry: Entry; inherited: Record<string, unknown>; override: Record<string, unknown> }>
 
+/** Retain a deselected bundle's raw configs without mounting its plugins.
+ * @param name Installed bundle whose defaults will be replaced.
+ * @returns Fulfillment after dormant profile overrides are atomically saved.
+ */
+async retainDisabledBundle(name: string): Promise<void>
+
 /** Validate, persist, and reconcile a plugin's next config; ordinary fields keep normal lifecycle rules.
  * @param entry Current Loader entry, also used to detect replacement during the write.
  * @param change Derive a raw config from the current entry and its inherited layer.
+ * @param options.retainOverride Retain explicit config for package replacement; inactive entries accept only unchanged raw config.
  * @returns Fulfillment after Loader reconciliation completes.
  */
-async edit( entry: Entry, change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>, ): Promise<void>
+async edit( entry: Entry, change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>, options: { retainOverride?: boolean } = {}, ): Promise<void>
 ```
 
 Source: [`packages/boot/config-editor/src/index.ts`](../../packages/boot/config-editor/src/index.ts)
@@ -118,6 +125,23 @@ Manage profile files and apply their declared reload lifecycle.
  * @returns Existing installation diagnostics and restart-required after success.
  */
 @Remote updateBundle(name: string): Promise<ChangeResult>
+
+/**
+ * Install a verified archive supplied by the bundle's declared independent updater.
+ * The installation manifest authorizes the updater; the profile owns the successor.
+ * @param manager - Updater package declared by the installation-owned bundle.
+ * @param name - Custom bundle to replace without changing its activation.
+ * @param version - Exact version expected in the verified archive.
+ * @param archive - Retained local npm tarball verified by the updater.
+ * @returns The shared installation outcome, with restart required after success.
+ */
+async installManagedUpdate(manager: string, name: string, version: string, archive: string): Promise<ChangeResult>
+
+/** Read an independent update awaiting restart, including after its updater is reactivated.
+ * @param name - Managed custom bundle package name.
+ * @returns Active and installed versions while restart is pending, or undefined.
+ */
+managedUpdateStatus(name: string): { currentVersion: string | undefined installedVersion: string restartRequired: true } | undefined
 
 /** Read exact plugin-version exemptions saved in this profile.
  * @returns Accepted package-name@version keys with the runtime versions they may run on, and any

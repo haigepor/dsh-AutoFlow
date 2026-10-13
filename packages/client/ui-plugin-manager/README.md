@@ -11,6 +11,14 @@ Desktop product events use the optional [product analytics service](../product-a
 
 A bundle with a declared update source shows **Version updates** in its detail page: check, install, automatic download/install permission and restart status. Page entry and manual refresh check versions without enabling automatic installation. Host-owned checks continue while the page is closed; installation requires a manual action or the saved automatic permission. Updated feature and activation controls wait for restart. Builtin bundles installed into a profile for updates retain their removal protection. See the [Host updater](../../boot/plugin-manager/README.md) for validation, persistence and failure behavior.
 
+Independent bundle update panels can call `ctx.pluginNavigation.showUpdateRestart(packageName)` after installation to open the same save-work dialog and carrier-owned restart recovery.
+
+Independent updaters register `plugins.detail.updates` to place a card before bundle features and component rows. They retain their own actions and state. The Plugins page shares its built-in update styles through `data-plugin-update-card` on a native details element: summary children use `data-update-title`, `data-update-version` and `data-update-summary`; expanded content uses `data-update-body`, `data-update-release`, `data-update-status`, `data-update-actions` and `data-update-hint`. Error status sets `data-error="true"`. Render one live status in the summary when folded or in the body when expanded, and use shared small outline buttons for checks and default buttons for installation or restart.
+
+Pending checks and installations reuse the shared ongoing StateDot. `data-update-activity` wraps `data-update-activity-label`; expanded activity also renders `data-update-progress-track` and `data-update-progress-sweep` with an indeterminate progressbar. These selectors use the built-in motion and reduced-motion rules. Folded activity omits the track; settled activity removes both treatments.
+
+A bundle's installation-authorized updateManager groups its independent updater under one list entry when that updater has one owner and no separate feature page. Opening the updater by its old entry selects the owner's combined page. The compact page shows update actions, independent bundle switches and folded technical metadata; disabling the updater leaves its activation control available. Shared or orphaned updaters remain listed. This presentation changes neither package installation nor bundle selection semantics.
+
 The expanded version section aligns release status with update actions and separates the automatic-install setting. Installation badges show a loading ring; expanded checks, installation and restart recovery show an indeterminate progress track. These states expose no measured total percentage. Failure removes the activity feedback and leaves retry controls available; reduced-motion preferences disable the animations.
 
 ## Summary

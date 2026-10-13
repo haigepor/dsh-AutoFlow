@@ -56,6 +56,8 @@ export interface BundleFeatureInfo extends DshBundleFeature {
 
 /** One installed or installation-provided bundle. */
 export interface BundleInfo {
+  /** Installation-authorized independent updater, presented with its owning bundle. */
+  updateManager?: string
   /** Independent update state; absent when this package declares no supported source. */
   update?: BundleUpdateInfo
   name: string

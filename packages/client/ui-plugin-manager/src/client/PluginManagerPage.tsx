@@ -44,7 +44,7 @@ export type PluginManagerPageProps =
   & PropsLocale<'pluginManager'>
   & PropsRenderSlots<
     | 'plugins.item' | 'plugins.bundle.config' | 'plugins.row.config' | 'plugins.bundle.activation'
-    | 'plugins.detail.actions' | 'plugins.detail.badge' | 'plugins.detail.section'
+    | 'plugins.detail.actions' | 'plugins.detail.badge' | 'plugins.detail.updates' | 'plugins.detail.section'
   >
   & InjectFace<PluginManagerFace>
   & PropsStore<ReturnType<typeof createNavigationStore>>
@@ -404,21 +404,27 @@ function DetailTop({ crumbLabel, crumbText, onBack, icon }: {
         <IconChevronLeftOutlineMedium className={css.crumbIcon} size={16} aria-hidden="true" />
         <span>{crumbText}</span>
       </button>
-      <div className={css.detailHead}>
+      {icon === null ? null : <div className={css.detailHead}>
         <span className={css.cardIcon} aria-hidden="true">{icon}</span>
-      </div>
+      </div>}
     </div>
   )
 }
 
 /** Existing identifiers remain available below configuration without crowding the page heading. */
-function DetailInformation({ title, entries }: {
+function DetailInformation({ title, entries, folded = false }: {
   readonly title: string
+  readonly folded?: boolean
   readonly entries: readonly { readonly label: string; readonly value: ReactNode }[]
 }): ReactNode {
+  const Container = folded ? 'details' : 'section'
+  const heading = <>
+    {folded ? <IconChevronRightOutlineRegular className={css.partsChevron} size={14} aria-hidden="true" /> : null}
+    <h4 className={css.sectionTitle}>{title}</h4>
+  </>
   return (
-    <section className={css.detailInformation}>
-      <div className={css.sectionHead}><h4 className={css.sectionTitle}>{title}</h4></div>
+    <Container className={css.detailInformation}>
+      {folded ? <summary className={css.sectionHead}>{heading}</summary> : <div className={css.sectionHead}>{heading}</div>}
       <dl className={css.informationList}>
         {entries.map(({ label, value }) => (
           <div key={label} className={css.informationRow}>
@@ -427,7 +433,7 @@ function DetailInformation({ title, entries }: {
           </div>
         ))}
       </dl>
-    </section>
+    </Container>
   )
 }
 
@@ -512,6 +518,7 @@ function rowRef(row: PackageRow): PluginRowRef {
 function packageRef(pkg: PackageView): PluginPackageRef {
   return {
     name: pkg.name,
+    ...pkg.updateManager === undefined ? {} : { updateManager: pkg.updateManager },
     ...pkg.version === undefined ? {} : { version: pkg.version },
     installed: pkg.installed,
     enabled: pkg.enabled,
@@ -669,13 +676,46 @@ function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdat
   </details>
 }
 
-/** A bundle's selectable capabilities, shared configuration, and folded component inventory. */
+/** Independent bundle switches share one page without coupling their activation or installation. */
+function ManagedModules({ packages, t, resolveText, busy, targets, onSetEnabled }: {
+  readonly packages: readonly PackageView[]
+  readonly t: Translate
+  readonly resolveText: ResolveText
+  readonly busy: (name: string) => boolean
+  readonly targets: Readonly<Record<string, boolean>>
+  readonly onSetEnabled: (name: string, enabled: boolean) => void
+}): ReactNode {
+  return <section className={css.managedModules} data-managed-modules>
+    <div className={css.managedSectionHead}><h4>{t('managedModules')}</h4></div>
+    {packages.map((module) => {
+      const text = packageText(module, resolveText)
+      const row = module.rows.find(item => item.enabled) ?? module.rows[0]
+      return <div className={css.managedModule} key={module.name} data-managed-module={module.name}>
+        <span className={css.rowIcon} aria-hidden="true"><PackageArtwork src={module.meta?.icon} size={24} /></span>
+        <div className={css.managedModuleText}><span>{text.title}</span>
+          {module.version === undefined ? null : <small>{t('updatesVersion', { version: module.version })}</small>}
+        </div>
+        <span className={css.rowState}><StateDot state={module.enabled && row !== undefined ? rowDotState(row) : 'idle'} />
+          {module.enabled && row !== undefined ? rowStateText(row, t) : t('partOff')}
+        </span>
+        <EnableSwitch pkg={module} title={text.title} t={t} busy={busy(module.name)} target={targets[module.name]}
+          onSetEnabled={(enabled) => { onSetEnabled(module.name, enabled) }} />
+      </div>
+    })}
+  </section>
+}
+
+/** A bundle's selectable capabilities, shared configuration, and component inventory. */
 function PackageDetail({
-  pkg, t, resolveText, busy, featureBusy, rowBusy, targets, rowForm, configured, configure, renderSlot,
+  pkg, companion, companionBusy = false, onSetCompanionEnabled,
+  t, resolveText, busy, featureBusy, rowBusy, targets, rowForm, configured, configure, renderSlot,
   onBack, onSetEnabled, onUninstall, onSetRowEnabled, onSetFeature, onOpenExample,
   updateChecking, onCheckUpdates, onUpdate, onAutoUpdate, onRestart,
 }: {
   readonly pkg: PackageView
+  readonly companion?: PackageView | undefined
+  readonly companionBusy?: boolean
+  readonly onSetCompanionEnabled?: ((enabled: boolean) => void) | undefined
   readonly t: Translate
   readonly resolveText: ResolveText
   readonly busy: boolean
@@ -708,15 +748,19 @@ function PackageDetail({
   const status = packageStatus(pkg)
   const subject: PluginsSubject = { kind: 'bundle', pkg: packageRef(pkg) }
   return (
-    <div className={`${css.detail} ${css.bundleDetail}`} data-plugin-detail={pkg.name}>
+    <div className={`${css.detail} ${css.bundleDetail}`} data-plugin-detail={pkg.name}
+      {...companion === undefined ? {} : { 'data-managed-bundle': '' }}>
       <DetailTop
         crumbLabel={t('backToList')}
         crumbText={t('crumbRoot')}
         onBack={onBack}
-        icon={<PackageArtwork key={pkg.meta?.icon} src={pkg.meta?.icon} />}
+        icon={companion === undefined ? <PackageArtwork key={pkg.meta?.icon} src={pkg.meta?.icon} /> : null}
       />
       <div className={css.detailMain}>
         <div className={css.detailTitleLine}>
+          {companion === undefined ? null : <span className={css.managedBrandIcon} aria-hidden="true">
+            <PackageArtwork key={pkg.meta?.icon} src={pkg.meta?.icon} />
+          </span>}
           <div className={css.titleRow}>
             <h3 className={css.detailTitle}>{title}</h3>
             {beta ? <Tag className={css.statusTag} tone="info">{t('statusBeta')}</Tag> : null}
@@ -740,8 +784,8 @@ function PackageDetail({
                 </Button>
               )
               : null}
-            <EnableSwitch pkg={pkg} title={title} t={t} busy={busy || pkg.update?.restartRequired === true}
-              target={targets[pkg.name]} onSetEnabled={onSetEnabled} />
+            {companion === undefined ? <EnableSwitch pkg={pkg} title={title} t={t} busy={busy || pkg.update?.restartRequired === true}
+              target={targets[pkg.name]} onSetEnabled={onSetEnabled} /> : null}
           </div>
         </div>
       </div>
@@ -765,6 +809,14 @@ function PackageDetail({
       <div className={css.detailSections}>
         <UpdatesSection key={pkg.name} pkg={pkg} t={t} busy={busy} checking={updateChecking}
           onCheck={onCheckUpdates} onUpdate={onUpdate} onAutoUpdate={onAutoUpdate} onRestart={onRestart} />
+        {renderSlot('plugins.detail.updates', { subject })}
+        {companion !== undefined && (!companion.enabled || !companion.rows.some(row => row.enabled && row.phase === 'active'))
+          ? <div className={css.managedUpdaterInactive} role="status">
+            <span>{t('managedUpdaterInactive')}</span>
+            <Button variant="outline" size="sm" disabled={companionBusy} onClick={() => { onSetCompanionEnabled?.(true) }}>
+              {t('managedUpdaterEnable')}
+            </Button>
+          </div> : null}
         {pkg.features === undefined ? null : (
           <section className={css.detailSection} data-plugin-features>
             <div className={css.sectionHead}>
@@ -799,7 +851,12 @@ function PackageDetail({
             </section>
           )
           : null}
-        <RowsSection
+        {companion !== undefined ? <ManagedModules packages={[pkg, companion]} t={t} resolveText={resolveText}
+          targets={targets} busy={name => name === pkg.name ? busy : companionBusy}
+          onSetEnabled={(name, enabled) => {
+            if (name === pkg.name) onSetEnabled(enabled)
+            else onSetCompanionEnabled?.(enabled)
+          }} /> : <RowsSection
           rows={pkg.rows}
           t={t}
           resolveText={resolveText}
@@ -808,7 +865,7 @@ function PackageDetail({
           targets={targets}
           configure={{ has: row => configure.has(row) && !pkg.features?.some(feature => feature.rowId === row.rowId),
             open: (row) => { setEditing({ rowId: row.rowId }) } }}
-        />
+        />}
         {renderSlot('plugins.detail.section', { subject })}
       </div>
       {editing === null || editingRow === undefined || !configure.has(editingRow) ? null : <Modal open
@@ -818,9 +875,11 @@ function PackageDetail({
         {renderSlot('plugins.row.config', { view: 'page', ...editing.featureId === undefined ? {} : { featureId: editing.featureId }, form: rowForm(editingRow) },
           { entryKey: rowConfigKey(pkg.name, editingRow.rowId) })}
       </Modal>}
-      <DetailInformation title={t('detailInformation')} entries={[
+      <DetailInformation title={t(companion === undefined ? 'detailInformation' : 'managedInformation')} folded={companion !== undefined} entries={[
         { label: t('detailPackage'), value: <code data-plugin-name>{pkg.name}</code> },
         ...(pkg.version === undefined ? [] : [{ label: t('detailVersion'), value: pkg.version }]),
+        ...(companion === undefined ? [] : [{ label: t('managedUpdaterPackage'), value: <code>{companion.name}</code> },
+          ...companion.version === undefined ? [] : [{ label: t('managedUpdaterVersion'), value: companion.version }]]),
       ]} />
     </div>
   )
@@ -1497,13 +1556,26 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   const noticeLine = state.notice === null || state.notice.kind === 'refresh-failed' ? null : noticeText(state.notice, t)
 
   // 随安装交付且声明功能开关的业务组合包也进入管理列表；基础 profile 组合包保留在只读清单。
-  const listed = state.packages.filter(pkg => !BUILTIN_PROFILE_BUNDLES.has(pkg.name)
+  const available = state.packages.filter(pkg => !BUILTIN_PROFILE_BUNDLES.has(pkg.name)
     && (pkg.installed || pkg.optional || (pkg.features?.length ?? 0) > 0 || pkg.error !== undefined))
+  // 仅合并唯一所属且没有独立功能页的更新器；共享更新器和失去主插件的更新器仍保留入口。
+  const updaterOwners = new Map<string, PackageView>()
+  for (const candidate of available) {
+    const owners = available.filter(owner => owner.updateManager === candidate.name && owner.name !== candidate.name)
+    const owner = owners[0]
+    if (owners.length === 1 && owner !== undefined && candidate.updateManager === undefined && (candidate.features?.length ?? 0) === 0) {
+      updaterOwners.set(candidate.name, owner)
+    }
+  }
+  const listed = available.filter(pkg => !updaterOwners.has(pkg.name))
   const mine = listed.filter(pkg => pkg.installed || !pkg.optional)
   const official = listed.filter(pkg => pkg.optional && !pkg.installed)
   const loaded = state.status === 'ready' || state.status === 'error'
   const refreshing = state.refreshStatus === 'refreshing'
-  const openPkg = view.kind === 'package' ? listed.find(pkg => pkg.name === view.name) : undefined
+  const openName = view.kind === 'package' ? updaterOwners.get(view.name)?.name ?? view.name : undefined
+  const openPkg = listed.find(pkg => pkg.name === openName)
+  const companion = openPkg?.updateManager !== undefined && updaterOwners.get(openPkg.updateManager)?.name === openPkg.name
+    ? available.find(pkg => pkg.name === openPkg.updateManager) : undefined
   const openItem = view.kind === 'item' ? ledger.items.find(item => item.id === view.id) : undefined
   const showsCards = openPkg === undefined && openItem === undefined
   const activated = listed.find(pkg => pkg.name === activation && pkg.enabled && !state.busy.includes(pkg.name))
@@ -1612,6 +1684,9 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
           <PackageDetail
             key={openPkg.name}
             pkg={openPkg}
+            companion={companion}
+            companionBusy={companion !== undefined && state.busy.includes(companion.name)}
+            onSetCompanionEnabled={companion === undefined ? undefined : (enabled) => { props.setEnabled(companion.name, enabled) }}
             t={t}
             resolveText={resolveText}
             busy={state.busy.includes(openPkg.name)}

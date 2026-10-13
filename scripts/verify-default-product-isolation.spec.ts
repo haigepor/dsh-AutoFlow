@@ -147,6 +147,21 @@ describe('default product isolation', () => {
     expect(verifyDefaultProductIsolation(root).failures.join('\n')).toContain(`@deepseek-ai/dsh dependencies -> ${experimental}`)
   })
 
+  it('checks an independent updater workspace nested inside its custom bundle', () => {
+    const root = fixture()
+    const name = 'custom-updater'
+    manifest(root, 'apps/cli/package.json', { dependencies: { [core]: 'workspace:^', [name]: 'workspace:*' } })
+    write(root, 'custom-plugins/workspace/custom-plugin/updater/package.json', {
+      name, icon: './icon.svg', exports: { './locale/*.json': './locale/*.json' },
+      dsh: { bundle: { patch: './cordis.patch.yml' } },
+    })
+    write(root, profile, `export const PROFILE_TEMPLATES = { web: { bundles: ['${base}'] } }\n`
+      + `export const DEFAULT_PROFILE_BUNDLES = ['${base}']\nexport const OPTIONAL_BUNDLES = ['${name}']\n`)
+    expect(verifyDefaultProductIsolation(root).failures).toEqual([])
+    manifest(root, 'custom-plugins/workspace/custom-plugin/updater/package.json', { icon: undefined })
+    expect(verifyDefaultProductIsolation(root).failures.join('\n')).toContain(`optional bundle ${name} must declare an icon`)
+  })
+
   it.each(['dependencies', 'optionalDependencies', 'peerDependencies'])(
     'rejects transitive experimental %s',
     (section) => {

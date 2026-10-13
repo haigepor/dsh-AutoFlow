@@ -61,6 +61,8 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 By default the GUI accepts connections from this machine only. A deployment that binds all network interfaces also allows browsers from the LAN, and the printed URL then includes a LAN address; `--trusted-host` adds extra hosts in either case. Host and Origin checks control reachability, while the token exchange authenticates every Host API method and WebSocket stream. The LAN addresses are sampled once at startup, so a network change later is not picked up — restart the GUI to re-advertise.
 
+The separately mounted `sidebar-access` row applies the same Connection policy to optional Better Sidebar HTTP and WebSocket routes. It remains active when the sidebar or its updater is disabled, and when an official npm successor replaces the sidebar implementation.
+
 ### Running over SSH
 
 When you launch `dsh --profile web` over SSH, the URL line still prints but the browser is not opened for you: the SSH client or editor owns the local forwarding address. Open the forwarded URL on your machine yourself; the printed URL names the remote host's loopback endpoint.

@@ -2,7 +2,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { Context } from '@deepseek-ai/cordis'
@@ -17,6 +17,7 @@ import {
   evaluatePluginCompatibility, readProfileCompatibility, readProfileVersionExemptions,
   setProfileVersionExemption, PROFILE_COMPATIBILITY_FILENAME,
   resolveBundleUpdateSource, bundleFeatureConfigPath, readBundleFeatureConfig, stageBundleFeatureConfigUpdate,
+  resolveBundleUpdateManager,
 } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-hmr'
 import type {} from '@deepseek-ai/dsh-cmdline'
@@ -32,7 +33,7 @@ import { readPluginFeatureEnabled, writePluginEnabled, writePluginEnabledBatch }
 import { incompatiblePlugin, ManagementFailure } from './failure.ts'
 import { approveBuilds, readPendingBuilds } from './build-approval.ts'
 import { checkGithubConnection } from './github-connection.ts'
-import { cacheBundleUpdate, discoverBundleUpdate, type UpdateLimits } from './github-updates.ts'
+import { cacheBundleUpdate, discoverBundleUpdate, validateBundleArchive, type UpdateLimits } from './github-updates.ts'
 import { backupUpdateEntry, readAutomaticUpdates, writeAutomaticUpdate, type UpdateEntryBackup } from './update-state.ts'
 import type {
   BundleFeatureInfo, BundleInfo, BundleRowInfo, BundleUpdateInfo, ChangeResult, InspectOptions, InstallBundleOptions, ManagementError,
@@ -298,6 +299,7 @@ export class PluginManager extends TypertRemoteService {
   private readonly updateChecks = new Map<string, Promise<BundleUpdateInfo>>()
   private readonly updateInstalls = new Map<string, Promise<ChangeResult>>()
   private readonly restartBundles = new Set<string>()
+  private readonly managedUpdateVersions = new Map<string, { currentVersion: string | undefined; version: string }>()
   private updateSweep: Promise<void> | undefined
   // 同一 Node 进程内重新加载服务不能伪装成后台重启。
   private readonly restartGeneration = createHash('sha256').update(`${process.pid}:${performance.timeOrigin}`).digest('hex') as PluginRestartGeneration
@@ -513,6 +515,49 @@ export class PluginManager extends TypertRemoteService {
     }
   }
 
+  /**
+   * Install a verified archive supplied by the bundle's declared independent updater.
+   * The installation manifest authorizes the updater; the profile owns the successor.
+   * @param manager - Updater package declared by the installation-owned bundle.
+   * @param name - Custom bundle to replace without changing its activation.
+   * @param version - Exact version expected in the verified archive.
+   * @param archive - Retained local npm tarball verified by the updater.
+   * @returns The shared installation outcome, with restart required after success.
+   */
+  async installManagedUpdate(manager: string, name: string, version: string, archive: string): Promise<ChangeResult> {
+    const before = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
+    // 更新声明来自安装包；官方 npm 后继包不必携带 AutoFlow 的管理字段。
+    if (this.protectsManager(name)
+      || resolveBundleUpdateManager(name, this.profile.installAnchor, this.profile.dir) !== manager || before?.dsh?.bundle === undefined) {
+      throw new ManagementFailure('unknown-plugin')
+    }
+    if (this.restartBundles.has(name)) throw new Error('Restart before installing another bundle update')
+    await validateBundleArchive(archive, name, version, this.updateLimits, this.abort.signal)
+    const enabled = readProfileManifest('dsh', this.profile.dir).dsh?.profile?.bundles?.includes(name) === true
+    const result = await this.install(archive, { enabled }, { name, version, before })
+    if (result.application === 'restart-required' && result.error === undefined) {
+      this.restartBundles.add(name)
+      this.managedUpdateVersions.set(name, { currentVersion: before.version, version })
+      this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
+    }
+    return result
+  }
+
+  /** Read an independent update awaiting restart, including after its updater is reactivated.
+   * @param name - Managed custom bundle package name.
+   * @returns Active and installed versions while restart is pending, or undefined.
+   */
+  managedUpdateStatus(name: string): {
+    currentVersion: string | undefined
+    installedVersion: string
+    restartRequired: true
+  } | undefined {
+    const versions = this.managedUpdateVersions.get(name)
+    return versions === undefined ? undefined : {
+      currentVersion: versions.currentVersion, installedVersion: versions.version, restartRequired: true,
+    }
+  }
+
   private sweepUpdates(): void {
     if (this.abort.signal.aborted || this.updateSweep !== undefined) return
     const task = (async () => {
@@ -614,7 +659,14 @@ export class PluginManager extends TypertRemoteService {
         if (compatibility !== undefined && !compatibility.exempted) throw new ManagementFailure('incompatible-version', [incompatiblePlugin(compatibility)])
         const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
         const manifestPath = join(dir, 'package.json')
-        const meta = readPluginMeta(info.name ?? name, pathToFileURL(manifestPath).href, iconURL)
+        const updateManager = resolveBundleUpdateManager(name, this.profile.installAnchor, this.profile.dir)
+        let meta = readPluginMeta(info.name ?? name, pathToFileURL(manifestPath).href, iconURL)
+        // 独立更新只替换实现；随应用提供的自定义图标继续由安装目录持有。
+        if (updateManager !== undefined && Object.hasOwn(installation.dependencies ?? {}, name)) {
+          const shippedDir = resolveBundleDir('dsh', name, this.profile.installAnchor, dirname(this.profile.installAnchor))
+          const shippedMeta = readPluginMeta(name, pathToFileURL(join(shippedDir, 'package.json')).href, iconURL)
+          if (shippedMeta?.icon !== undefined) meta = { ...meta, icon: shippedMeta.icon }
+        }
         // 待重启时继续展示旧选择，只有下一次启动才迁移新版功能文件。
         const selections = info.dsh?.bundle?.featureConfig !== undefined && !this.restartBundles.has(name)
           ? readBundleFeatureConfig(this.profile.dir, dir, name, info.dsh.bundle).features : undefined
@@ -626,6 +678,7 @@ export class PluginManager extends TypertRemoteService {
         const examples = declaredExamples(info)
         const update = this.updateInfo(name)
         bundles.push({ name, ...(info.version === undefined ? {} : { version: info.version }),
+          ...updateManager === undefined ? {} : { updateManager },
           ...update === undefined ? {} : { update },
           ...(info.description === undefined || info.description === '' ? {} : { description: info.description }),
           ...meta === undefined ? {} : { meta },
@@ -890,6 +943,11 @@ export class PluginManager extends TypertRemoteService {
     const result = this.change(async (result) => {
       if (spec.trim() === '' || spec.startsWith('-')) throw new ManagementFailure('invalid-spec')
       if (stopped()) throw new InstallCancelledError()
+      // 安装锁内再次确认版本，避免下载期间的其他安装被旧检查结果覆盖。
+      if (update !== undefined
+        && bundleManifest(update.name, this.profile.dir, this.profile.installAnchor)?.version !== update.before.version) {
+        throw new Error('Bundle version changed; check updates again')
+      }
       if (options?.approvedBuilds !== undefined) {
         await approveBuilds(this.profile.dir, options.approvedBuilds)
         result.approvedBuilds = options.approvedBuilds

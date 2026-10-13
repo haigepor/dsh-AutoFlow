@@ -212,6 +212,8 @@ export const DEFAULT_PROFILE_BUNDLES: readonly string[] = ['@deepseek-ai/dsh-bas
  * [admission](../../../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.md)).
  */
 export const OPTIONAL_BUNDLES: readonly string[] = [
+  'dsh-better-sidebar',
+  'dsh-plugin-better-sidebar-updater',
   '@deepseek-ai/dsh-experimental-agent-team-profile',
   '@deepseek-ai/dsh-experimental-voice-input-bundle',
   '@deepseek-ai/dsh-experimental-auto-review',
@@ -645,6 +647,23 @@ export function resolveBundleUpdateSource(name: string, installAnchor: string, p
   return parseBundleUpdateSource(name, manifest.dsh?.bundle?.update)
 }
 
+/** Read the installation-owned independent updater, or an external bundle's declaration.
+ * @param name Managed custom bundle name.
+ * @param installAnchor Running installation manifest.
+ * @param profileDir Profile containing external dependencies.
+ * @returns Updater package name, or undefined when not declared.
+ */
+export function resolveBundleUpdateManager(name: string, installAnchor: string, profileDir: string): string | undefined {
+  if (!/^(?:@[a-z0-9-]+\/)?[a-z0-9][a-z0-9._-]*$/.test(name)) throw new Error('Invalid bundle package name')
+  const dir = packageDirFromAnchor(installAnchor, name) ?? join(profileDir, 'node_modules', name)
+  const manager = readProfileManifest('dsh', dir).dsh?.bundle?.updateManager
+  if (manager !== undefined && (name.startsWith('@deepseek-ai/')
+    || typeof manager !== 'string' || !/^(?:@[a-z0-9-]+\/)?[a-z0-9][a-z0-9._-]*$/.test(manager))) {
+    throw new Error(`dsh: invalid independent update manager for ${name}`)
+  }
+  return manager
+}
+
 /**
  * Resolve one bundle package's directory: installation anchor first, then the
  * profile directory, except explicitly updateable custom bundles whose profile owns a direct dependency.
@@ -663,8 +682,10 @@ export function resolveBundleDir(
 ): string {
   const installation = packageDirFromAnchor(installAnchor, packageName)
   if (installation !== undefined) {
-    const source = parseBundleUpdateSource(packageName, readProfileManifest(binName, installation).dsh?.bundle?.update)
-    if (source !== undefined) {
+    const bundle = readProfileManifest(binName, installation).dsh?.bundle
+    const source = parseBundleUpdateSource(packageName, bundle?.update)
+    const managed = resolveBundleUpdateManager(packageName, installAnchor, profileDir) !== undefined
+    if (source !== undefined || managed) {
       const profile = readProfileManifest(binName, profileDir)
       if (Object.hasOwn(profile.dependencies ?? {}, packageName)) {
         const local = join(profileDir, 'node_modules', packageName)

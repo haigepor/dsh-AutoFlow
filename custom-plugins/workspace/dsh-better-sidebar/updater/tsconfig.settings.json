@@ -1,0 +1,4 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["src/client/settings-page.tsx", "../src/client/css-modules.d.ts", "src/client/settings-css.d.ts"]
+}

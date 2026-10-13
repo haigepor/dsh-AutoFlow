@@ -74,6 +74,10 @@ The CLI exposes `dsh plugin --profile <profile> version-exemptions`, `allow-vers
 
 ### Configuration
 
+Host-only `installManagedUpdate(manager, name, version, archive)` accepts a verified local npm archive from a bundle's declared `updateManager`. It checks archive identity and paths, reuses the locked installation and recovery transaction, preserves activation and marks the package for restart. Host-only `managedUpdateStatus(name)` retains active and installed versions until restart, so a reactivated updater can restore its status. Independent updater UI reaches its own registered action; it cannot supply arbitrary archive paths through this method's Remote API because the method is not Remote-exposed.
+
+`listBundles` reports the installation-authorized updateManager even when an official profile successor omits that field. Clients can group the two entries without changing either package's activation or installation. Independently managed bundles supplied by the installation retain its declared artwork, including when disabled; absent installation artwork uses the successor's icon. Versions and localized text continue to come from the successor.
+
 | Field | Default | Meaning |
 |---|---|---|
 | `pnpmCommand` | `pnpm` | The pnpm executable name or path, resolved through `PATH` like the `dsh plugin` command. |

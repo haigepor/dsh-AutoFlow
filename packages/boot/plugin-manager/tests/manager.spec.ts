@@ -25,7 +25,7 @@ import * as operations from '../src/operations.ts'
 import * as githubConnection from '../src/github-connection.ts'
 import { parse, parseDocument } from 'yaml'
 import { isolateGitCommandLineConfig } from './git-environment.ts'
-import { githubFixture, source as updateSource } from './update-fixture.ts'
+import { archive, githubFixture, source as updateSource } from './update-fixture.ts'
 
 // These cases install through real Git and pnpm, so the host's command-line configuration group must not reach their children.
 let restoreGitCommandLineConfig: () => void
@@ -118,6 +118,102 @@ it('checks by default without installing, then installs verified release bytes t
   expect(manager.restartAfterUpdate(previous.generation)).toBe(true)
   expect(restart).toHaveBeenCalledOnce()
   expect(manager.restartStatus().ready).toBe(false)
+})
+
+it('installs an independent updater archive into the profile, retains activation and enables restart', async () => {
+  const { manager, dir, bundle, profile, ctx } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const installation = join(profileDir, '..', '..', 'node_modules', 'extra')
+    mkdirSync(installation, { recursive: true })
+    writeFileSync(join(installation, 'package.json'), JSON.stringify({ name: 'extra', version: '1.0.0', dsh: {
+      bundle: { patch: './cordis.patch.yml', updateManager: 'independent-updater' },
+    } }))
+  })
+  const bytes = archive([
+    { path: 'package/package.json', body: JSON.stringify({ name: 'extra', version: '1.1.0', dsh: { bundle: { patch: './cordis.patch.yml' } } }) },
+    { path: 'package/cordis.patch.yml', body: '[{"insert":[{"id":"managed","name":"./plugin.mjs"}]}]' },
+    { path: 'package/plugin.mjs', body: 'export function apply() {}' },
+  ])
+  const file = join(profile.cwd, 'extra-1.1.0.tgz')
+  writeFileSync(file, bytes)
+  const selection = readProfileManifest('test', dir).dsh?.profile?.bundles
+  const run = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
+    bundle('extra', [{ id: 'managed', name: './plugin.mjs' }])
+    const path = join(dir, 'node_modules', 'extra', 'package.json')
+    const installed = readProfileManifest('test', join(dir, 'node_modules', 'extra'))
+    writeFileSync(path, JSON.stringify({ ...installed, version: '1.1.0' }))
+    const manifest = readProfileManifest('test', dir)
+    manifest.dependencies = { ...manifest.dependencies, extra: 'file:' + file }
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+    return { exitCode: 0, output: '', truncated: false, logPath: join(dir, 'pnpm.log') }
+  })
+  onTestFinished(() => { run.mockRestore() })
+  await expect(manager.installManagedUpdate('other-updater', 'extra', '1.1.0', file)).rejects.toThrow()
+  expect(run).not.toHaveBeenCalled()
+  const result = await manager.installManagedUpdate('independent-updater', 'extra', '1.1.0', file)
+  expect(manager.managedUpdateStatus('extra')).toEqual({ currentVersion: '1.0.0', installedVersion: '1.1.0', restartRequired: true })
+  expect((await manager.listBundles()).find(item => item.name === 'extra')?.updateManager).toBe('independent-updater')
+  expect(result).toMatchObject({ application: 'restart-required', packageResult: { exitCode: 0 } })
+  expect(readProfileManifest('test', dir).dsh?.profile?.bundles).toEqual(selection)
+  expect(readProfileManifest('test', join(dir, 'node_modules', 'extra')).version).toBe('1.1.0')
+  expect(Reflect.get(ctx, 'managedProbe')).toBe(true)
+  const restart = vi.fn()
+  Object.assign(profile, { restart })
+  expect(manager.restartAfterUpdate(manager.restartStatus().generation)).toBe(true)
+  expect(restart).toHaveBeenCalledOnce()
+})
+
+it('keeps installation artwork while an independently managed profile successor supplies its own version and title', async () => {
+  const shippedIcon = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M1 1h2"/></svg>'
+  const successorIcon = '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="2" cy="2" r="1"/></svg>'
+  const { manager, dir, profile } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const installation = join(profileDir, '..', '..')
+    writeFileSync(join(installation, 'package.json'), JSON.stringify({ name: 'installation', dependencies: { extra: '1.0.0' } }))
+    const shipped = join(installation, 'node_modules', 'extra')
+    mkdirSync(shipped, { recursive: true })
+    writeFileSync(join(shipped, 'package.json'), JSON.stringify({ name: 'extra', version: '1.0.0', icon: './icon.svg',
+      dsh: { bundle: { patch: './cordis.patch.yml', updateManager: 'independent-updater' } } }))
+    writeFileSync(join(shipped, 'icon.svg'), shippedIcon)
+    const successor = join(profileDir, 'node_modules', 'extra')
+    const manifest = readProfileManifest('test', successor)
+    writeFileSync(join(successor, 'package.json'), JSON.stringify({ ...manifest, version: '1.1.0', icon: './icon.svg' }))
+    mkdirSync(join(successor, 'locale'))
+    writeFileSync(join(successor, 'locale', 'en.json'), JSON.stringify({ meta: { title: 'Successor sidebar' } }))
+    writeFileSync(join(successor, 'icon.svg'), successorIcon)
+  })
+  const readBundle = async () => (await manager.listBundles()).find(item => item.name === 'extra')
+  expect(await readBundle()).toMatchObject({ version: '1.1.0', updateManager: 'independent-updater',
+    meta: { title: { en: 'Successor sidebar' }, icon: `data:image/svg+xml;base64,${Buffer.from(shippedIcon).toString('base64')}` } })
+  await manager.setBundleEnabled('extra', false)
+  expect((await readBundle())?.meta?.icon).toBe(`data:image/svg+xml;base64,${Buffer.from(shippedIcon).toString('base64')}`)
+  const shippedManifestPath = join(profile.cwd, 'node_modules', 'extra', 'package.json')
+  const shippedManifest = readProfileManifest('test', join(profile.cwd, 'node_modules', 'extra'))
+  delete shippedManifest.icon
+  writeFileSync(shippedManifestPath, JSON.stringify(shippedManifest))
+  expect((await readBundle())?.meta?.icon).toBe(`data:image/svg+xml;base64,${Buffer.from(successorIcon).toString('base64')}`)
+  expect(readProfileManifest('test', join(dir, 'node_modules', 'extra')).version).toBe('1.1.0')
+})
+
+it('refuses a stale independent update when another installation changed the version during archive validation', async () => {
+  const { manager, dir, profile } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const path = join(profileDir, 'node_modules/extra/package.json')
+    const manifest = readProfileManifest('test', join(profileDir, 'node_modules/extra'))
+    writeFileSync(path, JSON.stringify({ ...manifest, dsh: { bundle: { patch: './cordis.patch.yml', updateManager: 'independent-updater' } } }))
+  })
+  const file = join(profile.cwd, 'extra-1.1.0.tgz')
+  writeFileSync(file, archive([
+    { path: 'package/package.json', body: JSON.stringify({ name: 'extra', version: '1.1.0', dsh: { bundle: { patch: './cordis.patch.yml' } } }) },
+    { path: 'package/cordis.patch.yml', body: '[]' },
+  ]))
+  const run = vi.spyOn(operations, 'runProfilePnpm')
+  onTestFinished(() => { run.mockRestore() })
+  // 异步压缩包检查尚未完成时模拟其他安装；事务锁内必须重新读取版本。
+  const pending = manager.installManagedUpdate('independent-updater', 'extra', '1.1.0', file)
+  const path = join(dir, 'node_modules/extra/package.json')
+  const current = readProfileManifest('test', join(dir, 'node_modules/extra'))
+  writeFileSync(path, JSON.stringify({ ...current, version: '2.0.0' }))
+  expect(await pending).toMatchObject({ changed: false, application: 'failed' })
+  expect(run).not.toHaveBeenCalled()
+  expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('2.0.0')
 })
 
 it('installs a newer release only after automatic installation is explicitly enabled', async () => {

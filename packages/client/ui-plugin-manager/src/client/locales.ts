@@ -7,6 +7,12 @@ export const INSTALL_PATH_EXAMPLE = '/Users/name/my-plugin'
 
 /** Simplified Chinese dictionary and key source of truth. */
 export const zh = {
+  managedModules: '组件与运行状态',
+  managedInformation: '技术信息',
+  managedUpdaterPackage: '更新器包',
+  managedUpdaterVersion: '更新器版本',
+  managedUpdaterInactive: '更新器未运行，启用后即可检查和安装版本',
+  managedUpdaterEnable: '启用更新器',
   updatesTitle: '版本更新',
   updatesVersion: '已安装 v{version}',
   updatesBadge: '更新到 v{version}',
@@ -255,6 +261,12 @@ export type PluginManagerLocaleKey = keyof typeof zh
 
 /** English dictionary checked against the Chinese key set. */
 export const en = {
+  managedModules: 'Components and status',
+  managedInformation: 'Technical information',
+  managedUpdaterPackage: 'Updater package',
+  managedUpdaterVersion: 'Updater version',
+  managedUpdaterInactive: 'The updater is inactive. Enable it to check and install versions.',
+  managedUpdaterEnable: 'Enable updater',
   updatesTitle: 'Version updates',
   updatesVersion: 'Installed v{version}',
   updatesBadge: 'Update to v{version}',

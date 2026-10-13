@@ -36,6 +36,27 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`@anthropic-ai/sdk`](https://github.com/anthropics/anthropic-sdk-typescript) | MIT |
 | [`@babel/code-frame`](https://github.com/babel/babel) | MIT |
 | [`@browserbasehq/stagehand`](https://github.com/browserbase/stagehand) | MIT |
+| [`@codemirror/commands`](https://code.haverbeke.berlin/codemirror/commands) | MIT |
+| [`@codemirror/lang-cpp`](https://github.com/codemirror/lang-cpp) | MIT |
+| [`@codemirror/lang-css`](https://github.com/codemirror/lang-css) | MIT |
+| [`@codemirror/lang-go`](https://github.com/codemirror/lang-go) | MIT |
+| [`@codemirror/lang-html`](https://code.haverbeke.berlin/codemirror/lang-html) | MIT |
+| [`@codemirror/lang-java`](https://github.com/codemirror/lang-java) | MIT |
+| [`@codemirror/lang-javascript`](https://github.com/codemirror/lang-javascript) | MIT |
+| [`@codemirror/lang-json`](https://github.com/codemirror/lang-json) | MIT |
+| [`@codemirror/lang-markdown`](https://code.haverbeke.berlin/codemirror/lang-markdown) | MIT |
+| [`@codemirror/lang-php`](https://github.com/codemirror/lang-php) | MIT |
+| [`@codemirror/lang-python`](https://github.com/codemirror/lang-python) | MIT |
+| [`@codemirror/lang-rust`](https://github.com/codemirror/lang-rust) | MIT |
+| [`@codemirror/lang-sql`](https://github.com/codemirror/lang-sql) | MIT |
+| [`@codemirror/lang-vue`](https://github.com/codemirror/lang-vue) | MIT |
+| [`@codemirror/lang-xml`](https://github.com/codemirror/lang-xml) | MIT |
+| [`@codemirror/lang-yaml`](https://github.com/codemirror/lang-yaml) | MIT |
+| [`@codemirror/language`](https://code.haverbeke.berlin/codemirror/language) | MIT |
+| [`@codemirror/legacy-modes`](https://code.haverbeke.berlin/codemirror/legacy-modes) | MIT |
+| [`@codemirror/search`](https://code.haverbeke.berlin/codemirror/search) | MIT |
+| [`@codemirror/state`](https://code.haverbeke.berlin/codemirror/state) | MIT |
+| [`@codemirror/view`](https://code.haverbeke.berlin/codemirror/view) | MIT |
 | [`@deepseek-ai/libreoffice-kit`](https://github.com/deepseek-harness/libreoffice-kit) | MPL-2.0 |
 | [`@earendil-works/pi-ai`](https://github.com/earendil-works/pi) | MIT |
 | [`@eslint-community/regexpp`](https://github.com/eslint-community/regexpp) | MIT |
@@ -48,6 +69,7 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`@lexical/plain-text`](https://github.com/facebook/lexical) | MIT |
 | [`@lexical/text`](https://github.com/facebook/lexical) | MIT |
 | [`@lexical/utils`](https://github.com/facebook/lexical) | MIT |
+| [`@lezer/highlight`](https://code.haverbeke.berlin/lezer/highlight) | MIT |
 | [`@modelcontextprotocol/client`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
 | [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
 | [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) | MIT |
@@ -100,6 +122,7 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`mdast-util-from-markdown`](https://github.com/syntax-tree/mdast-util-from-markdown) | MIT |
 | [`mdast-util-gfm`](https://github.com/syntax-tree/mdast-util-gfm) | MIT |
 | [`mdast-util-math`](https://github.com/syntax-tree/mdast-util-math) | MIT |
+| [`mermaid`](https://github.com/mermaid-js/mermaid) | MIT |
 | [`micromark-core-commonmark`](https://github.com/micromark/micromark/tree/main/packages/micromark-core-commonmark) | MIT |
 | [`micromark-extension-gfm`](https://github.com/micromark/micromark-extension-gfm) | MIT |
 | [`micromark-extension-math`](https://github.com/micromark/micromark-extension-math) | MIT |
@@ -118,8 +141,10 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`picomatch`](https://github.com/micromatch/picomatch) | MIT |
 | [`react`](https://github.com/facebook/react) | MIT |
 | [`react-dom`](https://github.com/facebook/react) | MIT |
+| [`react-icons`](https://github.com:react-icons/react-icons) | MIT |
 | [`readable-stream`](https://github.com/nodejs/readable-stream) | MIT |
 | [`resolve.exports`](https://github.com/lukeed/resolve.exports) | MIT |
+| [`rxjs`](https://github.com/reactivex/rxjs) | Apache-2.0 |
 | [`semver`](https://github.com/npm/node-semver) | ISC |
 | [`sharp`](https://github.com/lovell/sharp) | Apache-2.0 |
 | [`sherpa-onnx-node`](https://github.com/csukuangfj/sherpa-onnx) | Apache-2.0 |
@@ -182,15 +207,19 @@ External packages **directly declared** for development, tests, types, or toolin
 | [`@braintree/sanitize-url`](https://github.com/braintree/sanitize-url) | MIT |
 | [`@electron/get`](https://github.com/electron/get) | MIT |
 | [`@electron/notarize`](https://github.com/electron/notarize) | MIT |
+| [`@eslint/js`](https://github.com/eslint/eslint) | MIT |
+| [`@huanlin/dsh-plugin-better-locale`](https://www.npmjs.com/package/@huanlin/dsh-plugin-better-locale) | AGPL-3.0 |
 | [`@lexical/headless`](https://github.com/facebook/lexical) | MIT |
 | [`@modelcontextprotocol/node`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
 | [`@modelcontextprotocol/server`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
 | [`@modelcontextprotocol/server-everything`](https://github.com/modelcontextprotocol/servers) | MIT / Apache-2.0 |
 | [`@modelcontextprotocol/server-filesystem`](https://github.com/modelcontextprotocol/servers) | MIT / Apache-2.0 |
 | [`@panzoom/panzoom`](https://github.com/timmywil/panzoom) | MIT |
+| [`@playwright/test`](https://github.com/microsoft/playwright) | Apache-2.0 |
 | [`@stylistic/eslint-plugin`](https://github.com/eslint-stylistic/eslint-stylistic) | MIT |
 | [`@testing-library/dom`](https://github.com/testing-library/dom-testing-library) | MIT |
 | [`@testing-library/react`](https://github.com/testing-library/react-testing-library) | MIT |
+| [`@total-typescript/shoehorn`](https://github.com/total-typescript/shoehorn) | MIT |
 | [`@types/babel__code-frame`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
 | [`@types/big.js`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
 | [`@types/compression`](https://github.com/DefinitelyTyped/DefinitelyTyped) | MIT |
@@ -224,16 +253,18 @@ External packages **directly declared** for development, tests, types, or toolin
 | [`electron`](https://github.com/electron/electron) | MIT |
 | [`electron-builder`](https://github.com/electron-userland/electron-builder) | MIT |
 | [`esbuild`](https://github.com/evanw/esbuild) | MIT |
+| [`eslint`](https://github.com/eslint/eslint) | MIT |
+| [`eslint-plugin-react-hooks`](https://github.com/facebook/react) | MIT |
 | [`eslint-plugin-sonarjs`](https://github.com/SonarSource/SonarJS) | LGPL-3.0-only |
 | [`extract-zip`](https://github.com/maxogden/extract-zip) | BSD-2-Clause |
 | [`fast-check`](https://github.com/dubzzz/fast-check) | MIT |
+| [`globals`](https://github.com/sindresorhus/globals) | MIT |
 | [`http-server`](https://github.com/http-party/http-server) | MIT |
 | [`istanbul-lib-report`](https://github.com/istanbuljs/istanbuljs) | BSD-3-Clause |
 | [`jscpd`](https://github.com/kucherenko/jscpd) | MIT |
 | [`jsdom`](https://github.com/jsdom/jsdom) | MIT |
 | [`lefthook`](https://github.com/evilmartians/lefthook) | MIT |
 | [`lightningcss`](https://github.com/parcel-bundler/lightningcss) | MPL-2.0 |
-| [`mermaid`](https://github.com/mermaid-js/mermaid) | MIT |
 | [`micromark-util-types`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-types) | MIT |
 | [`oxlint`](https://github.com/oxc-project/oxc) | MIT |
 | [`oxlint-tsgolint`](https://github.com/oxc-project/tsgolint) | MIT |
@@ -243,7 +274,9 @@ External packages **directly declared** for development, tests, types, or toolin
 | [`smol-toml`](https://github.com/squirrelchat/smol-toml) | BSD-3-Clause |
 | [`spdx-expression-parse`](https://github.com/jslicense/spdx-expression-parse.js) | MIT |
 | [`tsdown`](https://github.com/rolldown/tsdown) | MIT |
+| [`typescript-eslint`](https://github.com/typescript-eslint/typescript-eslint) | MIT |
 | [`typescript-language-server`](https://github.com/typescript-language-server/typescript-language-server) | Apache-2.0 |
+| [`unrun`](https://github.com/Gugustinette/unrun) | MIT |
 | [`vite`](https://github.com/vitejs/vite) | MIT |
 | [`vite-tsconfig-paths`](https://github.com/aleclarson/vite-tsconfig-paths) | MIT |
 | [`vitepress`](https://github.com/vuejs/vitepress) | MIT |
@@ -251,7 +284,7 @@ External packages **directly declared** for development, tests, types, or toolin
 | [`vitest`](https://github.com/vitest-dev/vitest) | MIT |
 | [`vue`](https://github.com/vuejs/core) | MIT |
 
-`eslint-plugin-sonarjs` (LGPL-3.0-only) and `lightningcss` (MPL-2.0) run only as development tooling; their code is not linked into or distributed with any DeepSeek Harness artifact.
+`@huanlin/dsh-plugin-better-locale` (AGPL-3.0), `eslint-plugin-sonarjs` (LGPL-3.0-only) and `lightningcss` (MPL-2.0) run only as development tooling; their code is not linked into or distributed with any DeepSeek Harness artifact.
 
 ## Python SDK dependencies (`python/`)
 

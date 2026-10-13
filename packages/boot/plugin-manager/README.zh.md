@@ -76,6 +76,10 @@ CLI 提供 `dsh plugin --profile <profile> version-exemptions`、`allow-version 
 
 ### 配置
 
+仅 Host 可调用的 `installManagedUpdate(manager, name, version, archive)` 接收组合包所声明 `updateManager` 提供的、已校验的本地 npm 压缩包。它检查压缩包身份与路径，复用加锁的安装与恢复事务，保留启用状态并登记重启要求。仅 Host 可调用的 `managedUpdateStatus(name)` 保留重启前的正在使用与已安装版本，使再次启用的更新器恢复状态。独立更新器界面调用自己注册的操作；此方法不通过 Remote 暴露，界面不能通过其 Remote API 提供任意压缩包路径。
+
+`listBundles` 返回安装包授权的 updateManager，即使官方 profile 后继包没有该字段。客户端可合并显示两个入口，不改变各自的启用或安装行为。安装包提供的独立更新组合包保留其声明的图标，包括停用时；安装包没有图标时使用后继包图标。版本和本地化文案继续读取后继包。
+
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `pnpmCommand` | `pnpm` | pnpm 可执行文件名或路径，与 `dsh plugin` 命令一样通过 `PATH` 解析。 |

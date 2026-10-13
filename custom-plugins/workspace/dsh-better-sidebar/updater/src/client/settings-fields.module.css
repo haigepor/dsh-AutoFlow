@@ -1,0 +1,29 @@
+.fields { font: var(--dsw-font-s-14); color: var(--dsw-alias-label-primary); }
+.row, .stack { display:flex; align-items:center; gap:24px; padding:20px 0; border-bottom:0.5px solid var(--dsw-alias-border-l2); }
+.row:last-child, .stack:last-child { border-bottom:0; }
+.stack { flex-direction:column; align-items:stretch; gap:12px; }
+.copy { display:flex; flex:1; min-width:0; flex-direction:column; gap:6px; }
+.title { font:var(--dsw-font-s-strong-14); }
+.description { color:var(--dsw-alias-label-secondary); font:var(--dsw-font-xxs-12); overflow-wrap:anywhere; }
+.control { display:flex; align-items:center; gap:8px; min-width:0; max-width:100%; }
+.input { width:200px; max-width:100%; }
+.number { width:88px; }
+.grow { flex:1; min-width:0; }
+.menu { width:320px; max-width:calc(100vw - 24px); }
+.option { display:flex; flex-direction:column; gap:2px; min-width:0; white-space:normal; overflow-wrap:anywhere; font:var(--dsw-font-xs-13); }
+.selection { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; }
+.chips:empty { display:none; }
+.chip { display:flex; align-items:center; gap:4px; padding-left:8px; border-radius:var(--dsw-radius-sm); background:var(--dsw-alias-bg-module-platform); font:var(--dsw-font-xxs-12); max-width:100%; }
+.chip > span { overflow-wrap:anywhere; min-width:0; }
+.editors { display:flex; flex-direction:column; gap:12px; }
+.editor { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:16px; border:0.5px solid var(--dsw-alias-border-l2); border-radius:var(--dsw-radius-md); }
+.editorInput { grid-column:1 / -1; min-width:0; }
+.family { display:flex; align-items:center; gap:12px; font:var(--dsw-font-xs-13); }
+.hint { margin-top:12px; color:var(--dsw-alias-label-secondary); font:var(--dsw-font-xxs-12); }
+@media(max-width:540px) {
+  .row { flex-wrap:wrap; gap:12px; }
+  .row > .copy { flex-basis:100%; }
+  .row > .control, .row > .input { width:100%; }
+  .control .input { flex:1; width:auto; }
+}

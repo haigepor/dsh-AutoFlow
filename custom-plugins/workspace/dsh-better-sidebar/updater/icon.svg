@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 32 32" fill="none">
+  <rect x="3" y="3" width="26" height="26" rx="8" fill="url(#updater-base)"/>
+  <path d="M9 14a7.3 7.3 0 0 1 12-3.4" stroke="white" stroke-width="2.3" stroke-linecap="round"/>
+  <path d="m21.7 7.8.2 4.5-4.4-.5" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23 18a7.3 7.3 0 0 1-12 3.4" stroke="url(#updater-return)" stroke-width="2.3" stroke-linecap="round"/>
+  <path d="m10.3 24.2-.2-4.5 4.4.5" stroke="#83F0D5" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="updater-base" x1="5" y1="3" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#619AFF"/>
+      <stop offset="1" stop-color="#3B5BDD"/>
+    </linearGradient>
+    <linearGradient id="updater-return" x1="23" y1="18" x2="11" y2="24" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D2FFF2"/>
+      <stop offset="1" stop-color="#83F0D5"/>
+    </linearGradient>
+  </defs>
+</svg>

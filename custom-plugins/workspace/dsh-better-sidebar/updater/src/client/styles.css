@@ -1,0 +1,74 @@
+/* 卡片外观由插件管理页的 data-plugin-update-card 规则统一提供。 */
+.better-sidebar-updater-description { margin: 0; }
+.better-sidebar-updater-versions { display: grid; gap: 8px; margin: 0; font-size: 13px; line-height: 20px; }
+.better-sidebar-updater-version { display: grid; grid-template-columns: minmax(96px, 140px) minmax(0, 1fr); gap: 12px; }
+.better-sidebar-updater-version dt { color: var(--dsw-alias-label-secondary); }
+.better-sidebar-updater-version dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.better-sidebar-updater-release { width: fit-content; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; text-decoration: none; }
+.better-sidebar-updater-release:hover { color: var(--dsw-alias-state-business-primary); }
+.better-sidebar-updater-release:focus-visible { outline: 2px solid var(--dsw-alias-label-primary); outline-offset: 2px; border-radius: var(--dsw-radius-sm); }
+
+/* 实测几何只作用于启用定制 CSS 的变动控件，原按钮继续处理输入和焦点。 */
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [data-dsh-changes-motion] { position: relative; isolation: isolate; }
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="tablist"][data-dsh-changes-motion="tabs"] > span[aria-hidden="true"]:first-child {
+  display: block;
+  position: absolute;
+  top: auto;
+  bottom: 0;
+  left: 0;
+  width: var(--dsh-changes-width);
+  height: 2px;
+  border: 0;
+  border-radius: 0;
+  background: var(--dsw-alias-state-business-primary);
+  box-shadow: none;
+  transform: translateX(var(--dsh-changes-x));
+  pointer-events: none;
+  transition: none;
+}
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="tablist"][data-dsh-changes-motion="tabs"] > button[role="tab"][id^="changes-lens-"]::after { display: none; }
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"]::before {
+  content: "";
+  position: absolute;
+  top: var(--dsh-changes-y);
+  left: 0;
+  width: var(--dsh-changes-width);
+  height: var(--dsh-changes-height);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+  transform: translateX(var(--dsh-changes-x));
+  pointer-events: none;
+  z-index: 0;
+  transition: none;
+}
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"] > button[aria-pressed] { position: relative; z-index: 1; }
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"][data-dsh-changes-motion-ready] > button[type="button"][aria-pressed="true"],
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"][data-dsh-changes-motion-ready] > button[type="button"][aria-pressed="true"]:hover { background: transparent; }
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="tablist"][data-dsh-changes-motion="tabs"][data-dsh-changes-motion-ready] > span[aria-hidden="true"],
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"][data-dsh-changes-motion-ready]::before {
+  transition: transform 240ms cubic-bezier(.22, 1, .36, 1), width 240ms cubic-bezier(.22, 1, .36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  :where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="tablist"][data-dsh-changes-motion="tabs"][data-dsh-changes-motion-ready] > span[aria-hidden="true"],
+  :where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"][data-dsh-changes-motion-ready]::before { transition: none; }
+}
+/* 原生标题槽位原为 display:contents，图标作为行内盒会偏离文字中心。 */
+[data-sidebar-right-tab] > [data-slot="sidebar.right.pane.tab.title"]:has(> span[aria-hidden="true"] > span > svg) {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  vertical-align: middle;
+}
+[data-sidebar-right-tab] > [data-slot="sidebar.right.pane.tab.title"] > span[aria-hidden="true"]:has(> span > svg) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  margin: 0;
+  line-height: 1;
+}
+[data-sidebar-right-tab] > [data-slot="sidebar.right.pane.tab.title"] > span[aria-hidden="true"] > span:has(> svg),
+[data-sidebar-right-tab] > [data-slot="sidebar.right.pane.tab.title"] > span[aria-hidden="true"] > span > svg {
+  display: block;
+}

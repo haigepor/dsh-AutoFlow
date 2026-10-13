@@ -1,0 +1,147 @@
+/* AutoFlow 文件变动面板：通过 customCss 设置应用，不绑定 CSS Modules 的哈希。 */
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+div:has(> [role="tablist"] > button[id^="changes-lens-"]) {
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 12px;
+  gap: 12px;
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+[role="tablist"]:has(> button[id^="changes-lens-"]) {
+  --dsh-changes-motion-enabled: 1;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 20px;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* 指示条由真实按钮的选中态绘制，保留原控件的键盘与焦点逻辑。 */
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+[role="tablist"]:has(> button[id^="changes-lens-"]) > span[aria-hidden="true"] {
+  display: none;
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+button[role="tab"][id^="changes-lens-"] {
+  height: 100%;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xxs-12);
+  font-weight: 500;
+  transition: color 180ms ease;
+}
+
+/* 每个标签保留自己的宽度，指示线交叉淡入并伸展，不改变布局。 */
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+button[role="tab"][id^="changes-lens-"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 2px;
+  background: var(--dsw-alias-state-business-primary);
+  opacity: 0;
+  transform: scaleX(.45);
+  transform-origin: center;
+  transition: transform 220ms cubic-bezier(.22, 1, .36, 1), opacity 180ms ease;
+  pointer-events: none;
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+button[role="tab"][id^="changes-lens-"]:hover:not(:disabled) {
+  color: var(--dsw-alias-label-primary);
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+button[role="tab"][id^="changes-lens-"][aria-selected="true"] {
+  color: var(--dsw-alias-label-primary);
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+button[role="tab"][id^="changes-lens-"][aria-selected="true"]::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+button[role="tab"][id^="changes-lens-"]:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -3px;
+}
+
+/* 只匹配切换栏之后的文件操作筛选组，不改变 Git 行操作或其他面板。 */
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]:has(> button[aria-pressed]) {
+  --dsh-changes-motion-enabled: 1;
+  gap: 4px;
+  padding: 8px 12px;
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed] {
+  height: 24px;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xxxs-11);
+  transition: background-color 200ms ease, color 180ms ease, transform 160ms cubic-bezier(.22, 1, .36, 1);
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed]:active:not(:disabled) {
+  transform: scale(.96);
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed]:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed="true"] {
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+  color: var(--dsw-alias-label-primary);
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed] > span:last-child {
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed]:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+  button[role="tab"][id^="changes-lens-"],
+  :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+  button[role="tab"][id^="changes-lens-"]::after,
+  :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+  div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed] {
+    transition: none;
+  }
+
+  :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
+  div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed]:active:not(:disabled) {
+    transform: none;
+  }
+}

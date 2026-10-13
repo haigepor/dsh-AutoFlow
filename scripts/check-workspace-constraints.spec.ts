@@ -358,6 +358,15 @@ it('requires the shared Web injection entry in the published payload', () => {
   } })).toEqual([expect.stringContaining('package.json files must be')])
 })
 
+it('requires the separately mounted Sidebar authentication entry in the Web bundle payload', () => {
+  const dir = 'packages/bundle/web-app'
+  const manifest = JSON.parse(readFileSync(new URL(`../${dir}/package.json`, import.meta.url), 'utf8')) as WorkspaceManifest['manifest']
+  expect(checkWorkspaceManifest({ dir, manifest })).toEqual([])
+  expect(checkWorkspaceManifest({ dir, manifest: {
+    ...manifest, files: manifest.files!.filter(file => file !== 'lib/sidebar-access.js'),
+  } })).toEqual([expect.stringContaining('package.json files must be')])
+})
+
 it('requires Office skill bodies and helpers in the published payload', () => {
   const manifest = JSON.parse(readFileSync(new URL('../packages/skill/skill-office/package.json', import.meta.url), 'utf8')) as WorkspaceManifest['manifest']
   expect(checkWorkspaceManifest({ dir: 'packages/skill/skill-office', manifest })).toEqual([])

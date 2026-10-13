@@ -7,7 +7,7 @@ import { entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-i
 import yaml from 'js-yaml'
 import type { Entry, EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-hmr'
-import { composeEntries, loadProfileDirectory, readProfilePatches, reconcileProfilePatches } from '@deepseek-ai/dsh-app-boot'
+import { bundlePatchPaths, composeEntries, loadOverlayPatches, loadProfileDirectory, readProfileManifest, readProfilePatches, reconcileProfilePatches, resolveBundleDir } from '@deepseek-ai/dsh-app-boot'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { isMap, isSeq, parseDocument, Scalar, visit } from 'yaml'
 
@@ -34,7 +34,7 @@ export class ConfigEditor extends Service {
   get documentPath(): string { return this.ownerContext.profileContext.patchPath }
 
   /** Addressable profile rows; nested Includes have independent configuration ownership.
-   * @returns Active entries with unique profile patch ids.
+   * @returns Entries with unique profile patch ids, including disabled rows.
    */
   entries(): Entry[] {
     const candidates = [...this.ownerContext.loader.entries()].filter(entry => entry.parent.tree.ctx.fiber.entry?.id === 'include')
@@ -79,29 +79,93 @@ export class ConfigEditor extends Service {
     return structuredClone((row?.config ?? {}) as Record<string, unknown>)
   }
 
+  /** Retain a deselected bundle's raw configs without mounting its plugins.
+   * @param name Installed bundle whose defaults will be replaced.
+   * @returns Fulfillment after dormant profile overrides are atomically saved.
+   */
+  async retainDisabledBundle(name: string): Promise<void> {
+    const run = async (): Promise<void> => {
+      const profile = this.ownerContext.profileContext
+      await withFileLock(join(profile.dir, 'package.json'), async () => {
+        if (readProfileManifest('dsh', profile.dir).dsh?.profile?.bundles?.includes(name)) throw new Error('Bundle is selected')
+        const directory = resolveBundleDir('dsh', name, profile.installAnchor, profile.dir)
+        const bundle = readProfileManifest('dsh', directory).dsh?.bundle
+        if (!bundle) throw new Error('Bundle configuration is unavailable')
+        const patchPaths = bundlePatchPaths(directory, bundle)
+        const patches = patchPaths.flatMap(path => loadOverlayPatches('dsh', path))
+        const owned = composeEntries([patches])
+        if (!owned.length || owned.some(row => row.group)) throw new Error('Bundle configuration is not individually addressable')
+        const loaded = loadProfileDirectory('dsh', profile.dir, profile.installAnchor)
+        const active = flatten(composeEntries([readProfilePatches('dsh', profile, loaded)]))
+        if (owned.some(row => active.some(entry => entry.id === row.id))) throw new Error('Bundle configuration id is already in use')
+        // 只做离线组合；保存时不选择 bundle，也不执行任何插件或配置表达式。
+        const candidate = { ...loaded, layers: [...loaded.layers, { packageName: name, packageDir: directory, patchPaths, patches }] }
+        const effective = composeEntries([readProfilePatches('dsh', profile, candidate)])
+        const retained = owned.map((row) => {
+          const value = effective.find(entry => entry.id === row.id)
+          if (!value || value.name !== row.name) throw new Error('Bundle configuration owner changed')
+          return { id: row.id, name: row.name, config: value.config ?? {} }
+        })
+        let before: string
+        try { before = await readFile(this.documentPath, 'utf8') }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          before = '[]\n'
+        }
+        const document = parseDocument(before, { customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value }] })
+        if (document.errors[0]) throw document.errors[0]
+        if (!isSeq(document.contents)) throw new Error('Profile patch must be a YAML sequence')
+        document.contents.flow = false
+        for (const row of retained) {
+          const index = document.contents.items.findLastIndex((item, index) => isMap(item)
+            && document.getIn([index, 'id']) === row.id && !item.has('insert')
+            && (!item.has('name') || document.getIn([index, 'name']) === row.name))
+          if (index < 0) document.add(document.createNode(row))
+          else document.setIn([index, 'config'], document.createNode(row.config))
+        }
+        visit(document, { Map(_key, node) {
+          if (node.items.length !== 1 || typeof node.get('__jsExpr') !== 'string') return
+          const expression = new Scalar(node.get('__jsExpr')); expression.tag = 'tag:yaml.org,2002:js'; return expression
+        } })
+        const saved = readProfilePatches('dsh', profile, { ...candidate, patches: yaml.load(String(document), { schema: entryListSchema }) as PatchOptions[] })
+        const verified = composeEntries([saved])
+        if (retained.some(row => !isDeepStrictEqual(verified.find(entry => entry.id === row.id)?.config, row.config))) throw new Error('Retained bundle configuration is overridden')
+        await writeFileAtomic(this.documentPath, String(document), { mode: 0o600 })
+      })
+    }
+    const hmr = this.ownerContext.get('hmr')
+    await (hmr === undefined ? run() : hmr.runExclusive(run))
+  }
+
   /** Validate, persist, and reconcile a plugin's next config; ordinary fields keep normal lifecycle rules.
    * @param entry Current Loader entry, also used to detect replacement during the write.
    * @param change Derive a raw config from the current entry and its inherited layer.
+   * @param options.retainOverride Retain explicit config for package replacement; inactive entries accept only unchanged raw config.
    * @returns Fulfillment after Loader reconciliation completes.
    */
   async edit(
     entry: Entry,
     change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>,
+    options: { retainOverride?: boolean } = {},
   ): Promise<void> {
     const run = async (): Promise<void> => {
       const path = this.documentPath
       await withFileLock(join(this.ownerContext.profileContext.dir, 'package.json'), async () => {
-        if (!this.entries().includes(entry) || entry.fiber === undefined) throw new Error('Configuration entry is no longer available')
+        if (!this.entries().includes(entry)) throw new Error('Configuration entry is no longer available')
         const beforePatches = readProfilePatches('dsh', this.ownerContext.profileContext)
         await reconcileProfilePatches(this.ownerContext.root, beforePatches, 'dsh')
         if (!this.entries().includes(entry)) throw new Error('Configuration entry changed during reload')
         const current = structuredClone((entry.options.config ?? {}) as Record<string, unknown>)
         const inherited = this.inherited(entry, loadProfileDirectory('dsh', this.ownerContext.profileContext.dir, this.ownerContext.profileContext.installAnchor))
-        const next = change(current, inherited)
+        const next = change(structuredClone(current), inherited)
         const fiber = entry.fiber
-        if (fiber.state !== FiberState.ACTIVE) throw new Error('Configuration plugin is no longer active')
-        const resolved: unknown = fiber.ctx.waterfall(fiber, 'internal/config', next, () => next)
-        resolveConfig(fiber.runtime as NonNullable<typeof fiber.runtime>, resolved)
+        if (fiber?.state === FiberState.ACTIVE) {
+          const resolved: unknown = fiber.ctx.waterfall(fiber, 'internal/config', next, () => next)
+          resolveConfig(fiber.runtime as NonNullable<typeof fiber.runtime>, resolved)
+        } else if (!options.retainOverride || !isDeepStrictEqual(next, current)) {
+          // 停用时只允许原样固化配置；没有运行时 schema 时不能接受新的配置值。
+          throw new Error('Configuration plugin is no longer active')
+        }
         let before: string
         try { before = await readFile(path, 'utf8') }
         catch (error) {
@@ -117,7 +181,7 @@ export class ConfigEditor extends Service {
         const index = document.contents.items.findLastIndex((item, index) => isMap(item)
           && document.getIn([index, 'id']) === entry.options.id && !item.has('insert')
           && (!item.has('name') || document.getIn([index, 'name']) === entry.options.name))
-        if (isDeepStrictEqual(next, inherited)) {
+        if (!options.retainOverride && isDeepStrictEqual(next, inherited)) {
           for (let index = document.contents.items.length - 1; index >= 0; index--) {
             const row = document.contents.items[index]
             if (!isMap(row) || document.getIn([index, 'id']) !== entry.options.id || row.has('insert')) continue

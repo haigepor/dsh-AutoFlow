@@ -690,7 +690,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'entries(): Entry[]',
         description: 'Addressable profile rows; nested Includes have independent configuration ownership.',
         parameters: [],
-        returns: 'Active entries with unique profile patch ids.',
+        returns: 'Entries with unique profile patch ids, including disabled rows.',
       },
       {
         signature: 'configuration(): Array<{ entry: Entry; inherited: Record<string, unknown>; override: Record<string, unknown> }>',
@@ -699,9 +699,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Detached layer values alongside their Loader entries.',
       },
       {
-        signature: 'async edit( entry: Entry, change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>, ): Promise<void>',
+        signature: 'async retainDisabledBundle(name: string): Promise<void>',
+        description: 'Retain a deselected bundle\'s raw configs without mounting its plugins.',
+        parameters: [{ name: 'name', description: 'Installed bundle whose defaults will be replaced.' }],
+        returns: 'Fulfillment after dormant profile overrides are atomically saved.',
+      },
+      {
+        signature: 'async edit( entry: Entry, change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>, options: { retainOverride?: boolean } = {}, ): Promise<void>',
         description: 'Validate, persist, and reconcile a plugin\'s next config; ordinary fields keep normal lifecycle rules.',
-        parameters: [{ name: 'entry', description: 'Current Loader entry, also used to detect replacement during the write.' }, { name: 'change', description: 'Derive a raw config from the current entry and its inherited layer.' }],
+        parameters: [{ name: 'entry', description: 'Current Loader entry, also used to detect replacement during the write.' }, { name: 'change', description: 'Derive a raw config from the current entry and its inherited layer.' }, { name: 'options', description: '.retainOverride Retain explicit config for package replacement; inactive entries accept only unchanged raw config.' }],
         returns: 'Fulfillment after Loader reconciliation completes.',
       },
     ],
@@ -1662,6 +1668,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Recheck a declared release, verify its bytes and install into this profile without changing activation.',
         parameters: [{ name: 'name', description: 'Independently updateable bundle name; callers cannot supply an asset URL.' }],
         returns: 'Existing installation diagnostics and restart-required after success.',
+      },
+      {
+        signature: 'async installManagedUpdate(manager: string, name: string, version: string, archive: string): Promise<ChangeResult>',
+        description: 'Install a verified archive supplied by the bundle\'s declared independent updater. The installation manifest authorizes the updater; the profile owns the successor.',
+        parameters: [{ name: 'manager', description: 'Updater package declared by the installation-owned bundle.' }, { name: 'name', description: 'Custom bundle to replace without changing its activation.' }, { name: 'version', description: 'Exact version expected in the verified archive.' }, { name: 'archive', description: 'Retained local npm tarball verified by the updater.' }],
+        returns: 'The shared installation outcome, with restart required after success.',
+      },
+      {
+        signature: 'managedUpdateStatus(name: string): { currentVersion: string | undefined installedVersion: string restartRequired: true } | undefined',
+        description: 'Read an independent update awaiting restart, including after its updater is reactivated.',
+        parameters: [{ name: 'name', description: 'Managed custom bundle package name.' }],
+        returns: 'Active and installed versions while restart is pending, or undefined.',
       },
       {
         signature: '@Remote listVersionExemptions(): { exemptions: Record<string, string[]>; warnings: string[] }',
@@ -3568,6 +3586,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the disposer removing the route.',
       },
       {
+        signature: 'registerRequestGuard(prefix: string, reject: (request: IncomingMessage) => 401 | 403 | undefined): () => void',
+        description: 'Guard a pathname prefix before HTTP or upgrade dispatch, including later registrations.',
+        parameters: [{ name: 'prefix', description: 'Absolute pathname; matches itself and descendants, not similarly named paths.' }, { name: 'reject', description: 'Returns an authentication or permission rejection, or undefined to admit.' }],
+        returns: 'Disposer removing this guard; overlapping guards must all admit the request.',
+      },
+      {
         signature: 'registerFallback(handler: WebRoute[\'handler\']): () => void',
         description: 'Claim the fallback seat: the handler answering every request no named route matches (the SPA dist server in the shipped Web composition). One owner only — a second registration throws, because two fallbacks cannot compose.',
         parameters: [{ name: 'handler', description: 'owns the full response lifecycle of unmatched requests.' }],
@@ -4774,7 +4798,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'BundleInfo',
-    declaration: 'export interface BundleInfo {\n    update?: BundleUpdateInfo;\n    name: string;\n    version?: string;\n    meta?: PluginLocalizedMeta;\n    description?: string;\n    enabled: boolean;\n    installed: boolean;\n    optional: boolean;\n    removable: boolean;\n    readOnlyReason?: ReadOnlyReason;\n    error?: ManagementError;\n    rows: BundleRowInfo[];\n    features?: BundleFeatureInfo[];\n    examples?: DshBundleExample[];\n    overrides: string[];\n}',
+    declaration: 'export interface BundleInfo {\n    updateManager?: string;\n    update?: BundleUpdateInfo;\n    name: string;\n    version?: string;\n    meta?: PluginLocalizedMeta;\n    description?: string;\n    enabled: boolean;\n    installed: boolean;\n    optional: boolean;\n    removable: boolean;\n    readOnlyReason?: ReadOnlyReason;\n    error?: ManagementError;\n    rows: BundleRowInfo[];\n    features?: BundleFeatureInfo[];\n    examples?: DshBundleExample[];\n    overrides: string[];\n}',
   },
   {
     name: 'BundleRowInfo',

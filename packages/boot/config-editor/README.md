@@ -30,7 +30,7 @@ Mount this service in a profile application with Loader and `profileContext`. It
   name: '@deepseek-ai/dsh-config-editor'
 ```
 
-Use [settings](../../settings/settings/README.md) for forms restricted to live fields. Callers that edit complete configuration can use `ctx.configEditor.edit()`; ordinary fields retain Loader’s normal lifecycle.
+Use [settings](../../settings/settings/README.md) for forms restricted to live fields. Callers that edit complete configuration can use `ctx.configEditor.edit()`; ordinary fields retain Loader’s normal lifecycle. Before replacing a package's defaults, pass `{ retainOverride: true }` as the third argument to retain an explicit config even when it equals the inherited values. Inactive entries accept this option only when the callback leaves raw configuration unchanged. Use `retainDisabledBundle(name)` before updating a deselected bundle: it saves the composed configs without selecting or mounting the bundle, rejecting selected bundles, grouped rows and conflicting row owners.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation

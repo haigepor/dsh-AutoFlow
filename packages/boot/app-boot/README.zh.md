@@ -11,6 +11,8 @@ kind: "package-library"
 
 组合包声明 `featureConfig` 时，`readProfilePatches` 从包默认值及旧 patch 的明确选择初始化 profile 所属 JSON，并将其布尔选择应用在 profile patch 之上、home 和启动覆盖之下。现有 JSON 无效时直接报错，不覆盖原文件。插件页面修改功能时同时保存 JSON 与匹配的旧 patch，失败则恢复两者；包更新安装后锁定功能修改，重启才应用暂存迁移。
 
+安装提供的自定义组合包也可在 `dsh.bundle.updateManager` 中声明独立更新器的包名。`resolveBundleUpdateManager` 读取这一权威声明。profile 直接安装的后继包提供组合包的全部资源，更新器仍独立安装；官方运行时组合包不能以此方式委托更新。
+
 ## 概述
 
 `dsh-app-boot` 是 `dsh` profile（包括 Python 运行时 wheel 包所含的 CLI（命令行界面））背后的共享 Loader 启动库。它加载环境层、组合 profile 组合包与 patch、启动每个插件，再返回运行中的应用，或指出失败插件与原因。产品应用使用 `dsh` launcher 而不发布单独 bin；直接配置 helper 只保留给低层嵌入方与测试。你还可以在启动前预览生效配置，按 profile 选择实时或仅启动时应用 patch，并让持有终端的应用在致命退出前恢复终端。

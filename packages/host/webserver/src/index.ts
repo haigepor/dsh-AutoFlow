@@ -135,6 +135,7 @@ export class WebServer extends Service {
   private readonly prefixes = new Map<string, WebRoute>()
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
   private readonly upgradedSockets = new Set<Duplex>()
+  private readonly requestGuards = new Map<string, (request: IncomingMessage) => 401 | 403 | undefined>()
   private readonly indexTaps: ((html: string) => string)[] = []
   private fallback: WebRoute['handler'] | undefined
   private server!: Server
@@ -187,6 +188,27 @@ export class WebServer extends Service {
   }
 
   /**
+   * Guard a pathname prefix before HTTP or upgrade dispatch, including later registrations.
+   * @param prefix - Absolute pathname; matches itself and descendants, not similarly named paths.
+   * @param reject - Returns an authentication or permission rejection, or undefined to admit.
+   * @returns Disposer removing this guard; overlapping guards must all admit the request.
+   */
+  registerRequestGuard(prefix: string, reject: (request: IncomingMessage) => 401 | 403 | undefined): () => void {
+    if (this.requestGuards.has(prefix)) throw new Error(`webserver: duplicate request guard "${prefix}"`)
+    this.requestGuards.set(prefix, reject)
+    return () => { this.requestGuards.delete(prefix) }
+  }
+
+  private requestRejection(path: string, request: IncomingMessage): 401 | 403 | undefined {
+    for (const [prefix, reject] of this.requestGuards) {
+      if (path !== prefix && !path.startsWith(`${prefix}/`)) continue
+      const status = reject(request)
+      if (status !== undefined) return status
+    }
+    return undefined
+  }
+
+  /**
    * Claim the fallback seat: the handler answering every request no named
    * route matches (the SPA dist server in the shipped Web composition). One
    * owner only — a second registration throws, because two fallbacks cannot
@@ -223,6 +245,12 @@ export class WebServer extends Service {
       /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
       requests; the field is only optional on the client-side IncomingMessage type */
       const rawPath = new URL(req.url ?? '/', 'http://x').pathname
+      const rejection = this.requestRejection(rawPath, req)
+      if (rejection !== undefined) {
+        res.writeHead(rejection)
+        res.end(rejection === 401 ? 'unauthorized' : 'forbidden')
+        return
+      }
       const route = this.match(rawPath)
       if (route !== undefined) {
         await route.handler(req, res)
@@ -268,7 +296,13 @@ export class WebServer extends Service {
       let route: WebUpgradeRoute | undefined
       try {
         /* v8 ignore next -- node:http always sets url on server requests. */
-        route = this.upgrades.get(new URL(req.url ?? '/', 'http://x').pathname)
+        const path = new URL(req.url ?? '/', 'http://x').pathname
+        const rejection = this.requestRejection(path, req)
+        if (rejection !== undefined) {
+          socket.end(`HTTP/1.1 ${String(rejection)} ${rejection === 401 ? 'Unauthorized' : 'Forbidden'}\r\nConnection: close\r\n\r\n`)
+          return
+        }
+        route = this.upgrades.get(path)
       } catch (error) {
         this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
         socket.destroy()

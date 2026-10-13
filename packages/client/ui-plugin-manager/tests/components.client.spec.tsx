@@ -94,6 +94,37 @@ function row(overrides: Partial<PackageRow> = {}): PackageRow {
   return { entryId: 'include:sidebar' as PluginEntryId, rowId: 'sidebar', moduleName: 'dsh-better-sidebar', enabled: true, phase: 'active', ...overrides }
 }
 
+it('groups an independent updater into one entry while keeping both bundle switches independent', () => {
+  const manager = 'dsh-plugin-better-sidebar-updater'
+  const b = renderTab({ packages: [pkg({ updateManager: manager, rows: [row()] }), pkg({ name: manager, version: '0.1.0',
+    optional: true, installed: false, rows: [row({ rowId: 'better-sidebar-updater', moduleName: manager })] })] })
+  expect(screen.queryByRole('button', { name: `View ${manager}` })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'View dsh-better-sidebar' }))
+  expect(document.querySelector('[data-plugin-detail]')?.hasAttribute('data-managed-bundle')).toBe(true)
+  expect(document.querySelectorAll('[data-managed-module]')).toHaveLength(2)
+  fireEvent.click(screen.getByRole('switch', { name: `Enable ${manager}` }))
+  expect(b.props.setEnabled).toHaveBeenLastCalledWith(manager, false)
+  fireEvent.click(screen.getByRole('switch', { name: 'Enable dsh-better-sidebar' }))
+  expect(b.props.setEnabled).toHaveBeenLastCalledWith('dsh-better-sidebar', false)
+  expect(screen.getByText(en.managedInformation).closest('details')?.hasAttribute('open')).toBe(false)
+  act(() => { b.navigation.actions.setView({ kind: 'package', name: manager }) })
+  expect(document.querySelector('[data-plugin-detail]')?.getAttribute('data-plugin-detail')).toBe('dsh-better-sidebar')
+})
+
+it('keeps shared or orphaned updaters visible instead of assigning an ambiguous owner', () => {
+  const manager = 'dsh-shared-updater'
+  renderTab({ packages: [pkg({ updateManager: manager }), pkg({ name: 'another-plugin', updateManager: manager }), pkg({ name: manager })] })
+  expect(screen.getByRole('button', { name: `View ${manager}` })).toBeDefined()
+})
+
+it('offers updater activation from the combined page when its bundle is disabled', () => {
+  const manager = 'dsh-private-updater'
+  const b = renderTab({ packages: [pkg({ updateManager: manager }), pkg({ name: manager, enabled: false, rows: [] })] })
+  fireEvent.click(screen.getByRole('button', { name: 'View dsh-better-sidebar' }))
+  fireEvent.click(screen.getByRole('button', { name: en.managedUpdaterEnable }))
+  expect(b.props.setEnabled).toHaveBeenCalledExactlyOnceWith(manager, true)
+})
+
 const INCOMPATIBLE = { name: 'dsh-late', version: '2.0.0', runtimeVersion: '0.1.0', peers: { '@deepseek-ai/dsh': '^0.2.0', '@deepseek-ai/dsh-core': '^0.2.0' } }
 /** The English sentence an incompatibility of {@link INCOMPATIBLE}, optionally renamed, reads as. */
 const incompatibleText = (name = INCOMPATIBLE.name): string => en.reasonIncompatibleVersion
@@ -987,6 +1018,7 @@ describe('PluginManagerPage', () => {
       'plugins.row.config:dsh-better-sidebar#sidebar': view => view === 'summary' ? 'The sidebar row.' : <form aria-label="row form" />,
       'plugins.detail.actions:': (_view, owner) => <button type="button">{`act ${label(owner)}`}</button>,
       'plugins.detail.badge:': (_view, owner) => <span>{`badge ${label(owner)}`}</span>,
+      'plugins.detail.updates:': (_view, owner) => <section aria-label={`updates ${label(owner)}`} />,
       'plugins.detail.section:': (_view, owner) => <section aria-label={`section ${label(owner)}`} />,
     }
 
@@ -1008,6 +1040,8 @@ describe('PluginManagerPage', () => {
       const toggle = within(detail).getByRole('switch', { name: en.enableToggle.replace('{name}', 'dsh-better-sidebar') })
       expect(act.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       const rows = detail.querySelector('[data-plugin-rows]') as HTMLElement
+      const updates = within(detail).getByRole('region', { name: 'updates bundle dsh-better-sidebar' })
+      expect(updates.compareDocumentPosition(rows) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       expect(rows.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       // A contribution sees the bundle's facts, not the page's own state.
       expect(subjects.at(-1)).toEqual({

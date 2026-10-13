@@ -46,6 +46,11 @@ declare module '@deepseek-ai/cordis' {
        * @param packageName - npm package name of the bundle.
        */
       openBundle(packageName: string): void
+      /**
+       * Show the shared save-work and restart dialog after an independent update.
+       * @param packageName - Updated npm bundle awaiting application restart.
+       */
+      showUpdateRestart(packageName: string): void
     }
   }
 }
@@ -156,6 +161,7 @@ export function apply(ctx: ClientContext): void {
         'plugins.row.config': { kind: 'keyed', scope: 'root' },
         'plugins.detail.actions': { kind: 'list', scope: 'root' },
         'plugins.detail.badge': { kind: 'list', scope: 'root' },
+        'plugins.detail.updates': { kind: 'list', scope: 'root' },
         'plugins.detail.section': { kind: 'list', scope: 'root' },
       },
     }, PluginManagerPage)
@@ -167,6 +173,7 @@ export function apply(ctx: ClientContext): void {
         ctx.layout.selectPanel(PANEL_ID)
         instance.actions.setView({ kind: 'package', name: packageName })
       },
+      showUpdateRestart: face.showUpdateRestart,
     })
     yield () => { void disposeNavigation() }
   })

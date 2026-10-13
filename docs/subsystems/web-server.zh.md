@@ -132,6 +132,14 @@ register(route: WebRoute): () => void
 registerUpgrade(route: WebUpgradeRoute): () => void
 
 /**
+ * Guard a pathname prefix before HTTP or upgrade dispatch, including later registrations.
+ * @param prefix - Absolute pathname; matches itself and descendants, not similarly named paths.
+ * @param reject - Returns an authentication or permission rejection, or undefined to admit.
+ * @returns Disposer removing this guard; overlapping guards must all admit the request.
+ */
+registerRequestGuard(prefix: string, reject: (request: IncomingMessage) => 401 | 403 | undefined): () => void
+
+/**
  * Claim the fallback seat: the handler answering every request no named
  * route matches (the SPA dist server in the shipped Web composition). One
  * owner only — a second registration throws, because two fallbacks cannot

@@ -44,6 +44,7 @@ function main(): void {
   runScript('build:native-system', buildEnvironment)
   runScript('build:lib', buildEnvironment)
   runScript('build:afp', buildEnvironment)
+  runScript('build:sidebar', buildEnvironment)
   runScript('build:web', buildEnvironment)
   const record = writeClientBuildRecord(root, clientEnvironment)
   console.log(

@@ -173,6 +173,20 @@ export function updateCacheDirectory(profileDir: string): string {
 export async function validateUpdateArchive(
   file: string, release: BundleUpdateRelease, limits: UpdateLimits, signal: AbortSignal,
 ): Promise<ProfileManifest> {
+  return validateBundleArchive(file, release.metadata.package, release.metadata.version, limits, signal)
+}
+
+/** Inspect one verified npm archive without extracting or executing its code.
+ * @param file Local compressed archive whose integrity was checked by its source owner.
+ * @param name Expected npm package name.
+ * @param version Expected exact package version.
+ * @param limits Expanded-content and JSON bounds.
+ * @param signal Operation lifetime.
+ * @returns Package declaration with matching identity and present bundle patch.
+ */
+export async function validateBundleArchive(
+  file: string, name: string, version: string, limits: UpdateLimits, signal: AbortSignal,
+): Promise<ProfileManifest> {
   signal.throwIfAborted()
   const paths = new Set<string>()
   const manifest: Buffer[] = []
@@ -210,7 +224,7 @@ export async function validateUpdateArchive(
     await pipeline(createReadStream(file), createGunzip(), sink, { signal })
   } catch (error) { signal.throwIfAborted(); throw error }
   const value: unknown = JSON.parse(Buffer.concat(manifest).toString('utf8'))
-  const identity = z.object({ name: z.literal(release.metadata.package), version: z.literal(release.metadata.version),
+  const identity = z.object({ name: z.literal(name), version: z.literal(version),
     dsh: z.object({ bundle: z.object({ patch: z.union([z.string(), z.array(z.string()).min(1)]) }) }) }).parse(value)
   for (const patch of typeof identity.dsh.bundle.patch === 'string' ? [identity.dsh.bundle.patch] : identity.dsh.bundle.patch) {
     const path = patch.replace(/^\.\//, '')

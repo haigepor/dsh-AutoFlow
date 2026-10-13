@@ -25,11 +25,16 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./presets/*.patch.yml": "./presets/*.patch.yml",
     "./src/*": "./src/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./sidebar-access": {
+      "types": "./lib/types/sidebar-access.d.ts",
+      "default": "./lib/sidebar-access.js"
+    }
   },
   "files": [
     "lib/index.js",
     "lib/startup.js",
+    "lib/sidebar-access.js",
     "cordis.patch.yml",
     "presets/standard.patch.yml",
     "presets/ptc.patch.yml",

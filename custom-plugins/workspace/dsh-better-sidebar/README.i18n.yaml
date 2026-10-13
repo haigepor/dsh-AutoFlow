@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-better-sidebar/README.md
+/:
+  en: ca619b3e4bb82c2e
+  zh: 7e9e987fb096704f
+/dsh-better-sidebar:
+  en: 88046263ab9c3d33
+  zh: 0eeca9dccf79d115
+/dsh-better-sidebar/summary:
+  en: 2254d1ca4114a088
+  zh: f14042b458cf22b0
+/dsh-better-sidebar/use-this-package:
+  en: 01fd006df36ec727
+  zh: 345695010817ff6a
+/dsh-better-sidebar/updates-and-ownership:
+  en: 170c204ea6fe00cc
+  zh: aa864f07bbae4e5f
+/dsh-better-sidebar/model-experience:
+  en: 514e7d84e59346d0
+  zh: b112940575bc2def
+/dsh-better-sidebar/known-limitations-and-deferred-work:
+  en: 55e6359c4d3b7d77
+  zh: 0d9aae77a796c14a
+/dsh-better-sidebar/dev-note:
+  en: 6454c628ec11ef8f
+  zh: 5dfcd713c979795b

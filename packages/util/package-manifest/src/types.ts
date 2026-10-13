@@ -69,6 +69,8 @@ export interface DshEnginesManifest {
 
 /** The configuration layer exported by a bundle package. */
 export interface DshBundleManifest {
+  /** Independent updater package permitted to install profile-owned successors of this bundle. */
+  updateManager?: string
   /** Independent custom bundle updates; official runtime bundles cannot opt in. */
   update?: DshBundleUpdateSource
   /** One patch file path, or an ordered list applied in sequence, each relative to the declaring package root. */

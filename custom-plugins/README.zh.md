@@ -11,7 +11,7 @@ kind: "package-group"
 
 ## Summary
 
-在 `workspace/` 下开发长期维护的插件组合包，每个直接子目录对应一个独立版本的 npm 包。AFP 显式纳入仓库 pnpm 工作区，并随 Web/Desktop 内置分发；其他子包仍独立安装。本目录组织插件源码，本身不是待发布的包。修改组件行或文件归属前，先阅读[架构文档](architecture.md)。
+在 `workspace/` 下开发长期维护的插件组合包，各 npm 包独立版本。AFP、增强侧栏和嵌套更新器显式纳入仓库 pnpm 工作区，并随 Web/Desktop 内置分发；两个侧栏包为可选组合包。本目录组织插件源码，本身不是待发布的包。修改组件行或文件归属前，先阅读[架构文档](architecture.md)。
 
 ## Table of Contents
 
@@ -20,6 +20,9 @@ kind: "package-group"
 - [Dev Note](#dev-note)
 
 ## Packages
+
+- [增强侧栏](workspace/dsh-better-sidebar/README.zh.md)：上游快照与原生侧栏注册。
+- [侧栏更新器](workspace/dsh-better-sidebar/updater/README.zh.md)：独立的官方版本检查与 npm 更新。
 
 - [AFP 图片策展](workspace/dsh-plugin-afp/README.zh.md)：图片搜索、视觉策展与本地安装步骤。
 - [AFP 版本发布](workspace/dsh-plugin-afp/release/README.zh.md)：有版本的 GitHub 产物和可复用发布流程。

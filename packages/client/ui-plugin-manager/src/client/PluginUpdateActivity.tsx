@@ -1,4 +1,4 @@
-/** Shared indeterminate feedback for update installation and Host recovery. */
+/** Shared indeterminate feedback for version checks, installation and Host recovery. */
 import type { ReactNode } from 'react'
 import { StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './PluginUpdateActivity.module.css'

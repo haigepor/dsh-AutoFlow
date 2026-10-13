@@ -51,6 +51,16 @@ const PRODUCT_ONBOARDING: readonly { id: string; order: number }[] = [
 ]
 
 describe('ui-settings-general shell', () => {
+  it('projects one navigation item for a shadowed section and restores its original label', async ({ start }) => {
+    const c = await start()
+    const rows = injectedOf(c).hooks.sections
+    const original = rows.getSnapshot().find(row => row.id === 'general')!
+    const remove = c.ctx.slots.register({ name: 'settings.section', id: 'general', priority: -1, label: 'Local settings' }, () => null)
+    expect(rows.getSnapshot().filter(row => row.id === 'general')).toEqual([{ id: 'general', order: 0, label: 'Local settings' }])
+    remove()
+    expect(rows.getSnapshot().filter(row => row.id === 'general')).toEqual([original])
+  }, COLD_BOOT_TIMEOUT_MS)
+
   it('shares one carrier subscription between both update locations and releases it on unload', async ({ start }) => {
     const initial = Promise.withResolvers<DesktopUpdatePresentation>()
     let publish: ((state: DesktopUpdatePresentation) => void) | undefined

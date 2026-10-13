@@ -11,6 +11,14 @@ kind: "package-reference"
 
 声明更新来源的组合包在详情页显示「版本更新」，提供检查、安装、自动下载安装许可和重启状态。进入页面及手动刷新会检查版本，不会开启自动安装；关闭页面后 Host 仍继续检查。安装须手动执行或已保存自动许可。更新后的功能与启用控制等待重启；为更新安装到 profile 的内置包仍不可卸载。验证、持久化与失败行为见[Host 更新器](../../boot/plugin-manager/README.zh.md)。
 
+独立组合包更新面板安装完成后，可调用 `ctx.pluginNavigation.showUpdateRestart(packageName)`，复用保存工作提示与应用载体负责的重启恢复。
+
+独立更新器注册 `plugins.detail.updates`，将卡片放在组合包功能与组件列表之前，并保留自身操作与状态。插件页通过原生 details 元素上的 `data-plugin-update-card` 共享内置更新样式：summary 子元素使用 `data-update-title`、`data-update-version` 和 `data-update-summary`；展开内容使用 `data-update-body`、`data-update-release`、`data-update-status`、`data-update-actions` 和 `data-update-hint`。错误状态设置 `data-error="true"`。收起时仅在 summary 显示一个实时状态，展开时移到正文；检查使用共享的小号描边按钮，安装或重启使用默认按钮。
+
+检查和安装期间复用共享的 ongoing StateDot。`data-update-activity` 包含 `data-update-activity-label`；展开时还显示 `data-update-progress-track` 和 `data-update-progress-sweep` 组成的不定进度条。这些选择器使用内置动画和减少动态效果规则。收起时省略进度条，操作结束后移除两种加载反馈。
+
+组合包通过安装包授权的 updateManager 关联独立更新器；当更新器只有一个所属组合包且没有独立功能页时，列表合并为一个入口。通过旧更新器入口打开时转到所属组合包的合并页。紧凑页面显示更新操作、独立组合包开关及默认折叠的技术信息；停用更新器后仍保留启用控制。共享或失去主插件的更新器继续单独显示。此呈现方式不改变包安装及组合包选择语义。
+
 版本更新展开后将状态与操作对齐，自动安装设置单独成行。安装标签显示加载环，展开的检查、安装和重启恢复显示不定进度条；这些状态不提供可测量的总百分比。失败后移除加载反馈并恢复重试操作；减少动态效果偏好会停止动画。
 
 ## 概述

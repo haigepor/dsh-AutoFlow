@@ -11,6 +11,8 @@ An installation-owned custom bundle may opt into independent updates with a vali
 
 For bundles declaring `featureConfig`, `readProfilePatches` initializes profile-owned JSON from package defaults and explicit legacy selections, then applies those booleans above the profile patch and below home/launch overlays. Invalid existing JSON fails without being rewritten. Plugin-page feature changes persist JSON and matching legacy patches together, restoring both on failure; after package installation they are locked until restart applies the staged migration.
 
+An installation-owned custom bundle may instead declare `dsh.bundle.updateManager` with the package name of an independent updater. `resolveBundleUpdateManager` reads that authoritative declaration. A direct profile successor supplies all bundle resources while the updater remains separately installed; official runtime bundles cannot delegate updates this way.
+
 ## Summary
 
 `dsh-app-boot` is the shared Loader boot library behind `dsh` profiles, including the CLI packaged by the Python runtime wheel. It loads environment layers, composes profile bundles and patches, boots every plugin, and returns the running app or identifies the failed plugin and cause. Product applications use the `dsh` launcher instead of publishing separate bins; direct-config helpers remain only for lower-level embedders and tests. You can preview the effective configuration before booting, configure HMR through profile YAML, and let a terminal-owning app restore its terminal before a fatal exit.

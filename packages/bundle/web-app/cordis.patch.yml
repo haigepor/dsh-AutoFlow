@@ -224,6 +224,9 @@
 
     # Raw Blob and ReadableStream uploads run independently of Connection's
     # RPC and generation service.
+    - id: better-sidebar-access
+      name: '@deepseek-ai/dsh-web-app/sidebar-access'
+
     - id: file-upload
       name: '@deepseek-ai/dsh-client-file-upload'
 

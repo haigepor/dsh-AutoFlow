@@ -15,7 +15,9 @@
     "native/system/packages/*",
     "apps/*",
     "custom-plugins/workspace/dsh-plugin-afp",
-    "website"
+    "website",
+    "custom-plugins/workspace/dsh-better-sidebar",
+    "custom-plugins/workspace/dsh-better-sidebar/updater"
   ],
   "scripts": {
     "prepare:primary-runtime": "tsx scripts/primary-runtime/prepare.ts",
@@ -210,7 +212,8 @@
     "start:web": "node --import tsx/esm apps/cli/src/bin.ts web",
     "web:rebuild": "pnpm run build && pnpm run start:web",
     "dev:web": "tsx scripts/dev-web.ts --poll",
-    "postinstall": "node scripts/install-lefthook.mjs"
+    "postinstall": "node scripts/install-lefthook.mjs",
+    "build:sidebar": "pnpm --filter dsh-better-sidebar run build && pnpm --filter dsh-plugin-better-sidebar-updater run build"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:*",

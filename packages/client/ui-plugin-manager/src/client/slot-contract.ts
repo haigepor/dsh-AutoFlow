@@ -2,8 +2,8 @@
  * The slots the Plugins page declares for other plugins. Three carry a
  * plugin's own configuration: the official plugins listed beside the official
  * bundles, one bundle's configuration on its page, and one row's configuration
- * opened from that row. Three more take contributions to any detail page —
- * its head actions, the badges beside its title, and the sections under its
+ * opened from that row. Detail contributions supply bundle updates,
+ * head actions, badges beside its title, and sections under its
  * own content — from a plugin that has something to say about bundles, rows,
  * or official plugins it does not own. A registrant merges this contract with
  * `import type` and registers through `ctx.slots`; it never imports this
@@ -43,6 +43,8 @@ export interface PluginRowRef {
 export interface PluginPackageRef {
   /** The package name. */
   readonly name: string
+  /** Independent updater managed on the same bundle page, when declared. */
+  readonly updateManager?: string
   /** The installed version, when the Host reports one. */
   readonly version?: string
   /** Whether the profile's own dependencies hold the package; false for a bundle the installation supplies. */
@@ -113,6 +115,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * tags the page draws itself, rendered with the page's subject.
      */
     'plugins.detail.badge': { kind: 'list'; scope: 'root'; owner: PluginDetailProps }
+    /**
+     * Independent update cards before a bundle's features and component rows.
+     * The page's subject identifies the bundle; unrelated entries render null.
+     * Use data-plugin-update-card and its data-update-* descendants for the
+     * same card styling as the page's built-in updater.
+     */
+    'plugins.detail.updates': { kind: 'list'; scope: 'root'; owner: PluginDetailProps }
     /**
      * Sections under a detail page's own content: after the rows on a bundle's
      * page, after the configuration on a row's or an official plugin's page.

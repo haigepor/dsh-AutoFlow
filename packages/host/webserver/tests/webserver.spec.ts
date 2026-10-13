@@ -20,6 +20,40 @@ import HttpServer, { renderIndexInjections } from '../src/index.ts'
 let root: string | undefined
 let context: Context | undefined
 
+it('guards a prefix without guarding similarly named routes and removes the guard on disposal', async () => {
+  const ctx = await loadComposition()
+  ctx.webServer.register({ kind: 'prefix', path: '/sidebar', handler: (_req, res) => { res.end('allowed') } })
+  ctx.webServer.register({ kind: 'exact', path: '/sidebar-other', handler: (_req, res) => { res.end('other') } })
+  const dispose = ctx.webServer.registerRequestGuard('/sidebar', () => 401)
+  expect((await request(ctx.webServer.port, '/sidebar/file')).status).toBe(401)
+  expect((await request(ctx.webServer.port, '/sidebar-other')).body).toBe('other')
+  dispose()
+  expect((await request(ctx.webServer.port, '/sidebar/file')).body).toBe('allowed')
+})
+
+it('rejects an upgrade before dispatching a guarded sidebar route', async () => {
+  const ctx = await loadComposition()
+  let dispatched = false
+  ctx.webServer.registerUpgrade({ path: '/sidebar/watch', handler: (_req, socket) => {
+    dispatched = true
+    socket.end('HTTP/1.1 101 Switching Protocols\r\n\r\n')
+  } })
+  ctx.webServer.registerRequestGuard('/sidebar', () => 403)
+  const socket = connect(ctx.webServer.port, '127.0.0.1')
+  const closed = once(socket, 'close')
+  try {
+    await once(socket, 'connect')
+    const response = once(socket, 'data')
+    socket.write('GET /sidebar/watch HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\nUpgrade: dsh-test\r\n\r\n')
+    const [bytes] = await response as [Buffer]
+    expect(String(bytes)).toContain('403 Forbidden')
+    expect(dispatched).toBe(false)
+  } finally {
+    socket.destroy()
+    await closed
+  }
+})
+
 afterEach(async () => {
   await context?.fiber.dispose()
   context = undefined

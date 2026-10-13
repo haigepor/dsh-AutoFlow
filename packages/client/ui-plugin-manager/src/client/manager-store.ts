@@ -87,6 +87,8 @@ export interface PackageRow {
 /** One bundle as the page shows it: the Host's bundle joined with the entries its rows run as. */
 export interface PackageView {
   readonly name: string
+  /** Independent updater grouped with this bundle on the management page. */
+  readonly updateManager?: string
   /** Source-specific update status and saved installation permission. */
   readonly update?: BundleUpdateInfo
   /** Whether profile removal is available for this package. */
@@ -461,6 +463,7 @@ export function packageView(bundle: BundleInfo, plugins: readonly PluginInfo[]):
   })
   return {
     name: bundle.name,
+    ...bundle.updateManager === undefined ? {} : { updateManager: bundle.updateManager },
     installed: bundle.installed,
     removable: bundle.removable,
     ...bundle.update === undefined ? {} : { update: bundle.update },
