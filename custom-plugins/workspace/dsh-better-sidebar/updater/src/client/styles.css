@@ -1,10 +1,10 @@
 /* 卡片外观由插件管理页的 data-plugin-update-card 规则统一提供。 */
 .better-sidebar-updater-description { margin: 0; }
-.better-sidebar-updater-versions { display: grid; gap: 8px; margin: 0; font-size: 13px; line-height: 20px; }
+.better-sidebar-updater-versions { display: grid; gap: 8px; margin: 0; font: var(--dsw-font-xs-13); }
 .better-sidebar-updater-version { display: grid; grid-template-columns: minmax(96px, 140px) minmax(0, 1fr); gap: 12px; }
 .better-sidebar-updater-version dt { color: var(--dsw-alias-label-secondary); }
 .better-sidebar-updater-version dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.better-sidebar-updater-release { width: fit-content; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; text-decoration: none; }
+.better-sidebar-updater-release { width: fit-content; flex: none; color: var(--dsw-alias-label-secondary); font: var(--dsw-font-xs-13); text-decoration: none; }
 .better-sidebar-updater-release:hover { color: var(--dsw-alias-state-business-primary); }
 .better-sidebar-updater-release:focus-visible { outline: 2px solid var(--dsw-alias-label-primary); outline-offset: 2px; border-radius: var(--dsw-radius-sm); }
 

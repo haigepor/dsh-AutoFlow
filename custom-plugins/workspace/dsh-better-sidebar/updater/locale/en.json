@@ -4,6 +4,7 @@
     "description": "Check official GitHub versions, install the npm package and restart to apply."
   },
   "title": "Version updates",
+  "manualUpdates": "Install updates manually",
   "installedSummary": "Installed v{version}",
   "description": "Check official GitHub releases and install the matching npm package. Settings are retained; restart to use the update.",
   "installedVersion": "Installed version: ",

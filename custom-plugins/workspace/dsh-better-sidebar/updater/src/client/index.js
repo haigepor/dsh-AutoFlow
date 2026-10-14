@@ -88,11 +88,14 @@ export function apply(ctx) {
               React.createElement(Button, { variant: 'outline', size: 'sm', disabled: busy || state.restartRequired, onClick: () => { void reload('check') } }, t(busy && state.status === 'checking' ? 'status_checking' : 'check')),
               state.restartRequired ? React.createElement(Button, { size: 'sm', onClick: restart }, t('restart'))
                 : state.status === 'available' ? React.createElement(Button, { size: 'sm', disabled: busy, onClick: () => { void reload('install') } }, t('install')) : null)),
-          React.createElement('p', { className: 'better-sidebar-updater-description', 'data-update-hint': '' }, t('description')),
           state.restartRequired || state.latestVersion && state.latestVersion !== state.installedVersion ? React.createElement('dl', { className: 'better-sidebar-updater-versions' },
             state.restartRequired ? row('activeVersion', state.currentVersion) : null,
             row('latestVersion', state.latestVersion)) : null,
-          state.releaseUrl ? React.createElement('a', { className: 'better-sidebar-updater-release', href: state.releaseUrl, target: '_blank', rel: 'noopener noreferrer' }, t('release')) : null,
+          React.createElement('div', { 'data-update-preference': '' },
+            React.createElement('div', { 'data-update-preference-text': '' },
+              React.createElement('span', { 'data-update-preference-title': '' }, t('manualUpdates')),
+              React.createElement('p', { className: 'better-sidebar-updater-description', 'data-update-hint': '' }, t('description'))),
+            state.releaseUrl ? React.createElement('a', { className: 'better-sidebar-updater-release', href: state.releaseUrl, target: '_blank', rel: 'noopener noreferrer' }, t('release')) : null),
           state.restartUnavailable ? React.createElement('p', { 'data-update-hint': '' }, t('restartManually')) : null))
     }
     ctx.effect(() => ctx.slots.inject('plugins.detail.updates', () => ctx.slots.register({ name: 'plugins.detail.updates', id: namespace, locale: namespace }, UpdatePanel)), 'Sidebar update detail section')

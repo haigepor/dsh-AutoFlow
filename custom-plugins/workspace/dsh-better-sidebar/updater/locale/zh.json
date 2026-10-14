@@ -4,6 +4,7 @@
     "description": "从官方 GitHub 检查侧栏版本，使用 npm 安装更新并重启生效。"
   },
   "title": "版本更新",
+  "manualUpdates": "手动安装更新",
   "installedSummary": "已安装 v{version}",
   "description": "检查官方 GitHub 发布并安装对应 npm 包。保留设置，重启后使用新版",
   "installedVersion": "已安装版本：",
@@ -17,7 +18,7 @@
   "status_unchecked": "尚未检查更新",
   "status_checking": "正在检查更新",
   "status_installing": "正在安装更新",
-  "status_current": "已是最新版本",
+  "status_current": "当前已是最新版本",
   "status_available": "有可用更新",
   "status_package-pending": "官方已发布版本，安装包尚未就绪",
   "status_incompatible": "此版本需要更新应用或运行环境",

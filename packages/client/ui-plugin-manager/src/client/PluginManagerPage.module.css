@@ -1162,10 +1162,6 @@ label.registryOption {
 .managedBrandIcon { display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; width: 44px; height: 44px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
 .bundleDetail[data-managed-bundle] .bundleDescription { padding-top: 12px; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; }
 .bundleDetail[data-managed-bundle] .detailSections { margin-top: 24px; gap: 20px; }
-.bundleDetail[data-managed-bundle] :global([data-plugin-update-card]) { border: 0; border-bottom: 0.5px solid var(--dsw-alias-border-l2); border-radius: 0; }
-.bundleDetail[data-managed-bundle] :global([data-plugin-update-card] > summary) { padding: 0 0 12px; }
-.bundleDetail[data-managed-bundle] :global([data-update-title]) { font-size: 14px; line-height: 20px; }
-.bundleDetail[data-managed-bundle] :global([data-update-body]) { padding: 0 0 16px; }
 .managedModules { min-width: 0; }
 .managedSectionHead h4 { margin: 0; color: var(--dsw-alias-label-primary); font-size: 14px; line-height: 20px; font-weight: 500; }
 .managedModule { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 0.5px solid var(--dsw-alias-border-l2); }
@@ -1899,10 +1895,14 @@ label.registryOption {
 :global([data-plugin-update-card] [data-update-status]) { flex: 1 1 180px; min-width: 0; color: var(--dsw-alias-label-primary); }
 .updateActions,
 :global([data-plugin-update-card] [data-update-actions]) { display: flex; flex: none; flex-wrap: wrap; gap: 8px; }
-.updatePreference { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; border-top: 0.5px solid var(--dsw-alias-border-l2); }
-.updatePreferenceText { min-width: 0; }
-.updatePreferenceTitle { font-size: 14px; line-height: 20px; font-weight: 500; }
-.updateHint { margin: 2px 0 0; }
+.updatePreference,
+:global([data-plugin-update-card] [data-update-preference]) { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; border-top: 0.5px solid var(--dsw-alias-border-l2); }
+.updatePreferenceText,
+:global([data-plugin-update-card] [data-update-preference-text]) { min-width: 0; }
+.updatePreferenceTitle,
+:global([data-plugin-update-card] [data-update-preference-title]) { font-size: 14px; line-height: 20px; font-weight: 500; }
+.updateHint,
+:global([data-plugin-update-card] [data-update-preference] [data-update-hint]) { margin: 2px 0 0; }
 
 @media (max-width: 640px) {
   .updatesHead,
