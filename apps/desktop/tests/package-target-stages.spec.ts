@@ -49,9 +49,15 @@ it('requires one signing preflight before building, then records only the comple
   const { run, stages } = supervisor()
   await packageTarget(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64'), environment, run)
   expect(stages.slice(0, 2)).toEqual(['preflight:windows-signing', 'run build:official'])
-  const afpPack = run.run.mock.calls.findIndex(call => call[2].includes('custom-plugins/workspace/dsh-plugin-afp'))
-  expect(afpPack).toBeGreaterThan(1)
-  expect(afpPack).toBeLessThan(stages.indexOf('run prepare:packages'))
+  for (const directory of [
+    'custom-plugins/workspace/dsh-plugin-afp',
+    'custom-plugins/workspace/dsh-better-sidebar',
+    'custom-plugins/workspace/dsh-better-sidebar/updater',
+  ]) {
+    const packed = run.run.mock.calls.findIndex(call => call[2].includes(directory))
+    expect(packed, directory).toBeGreaterThan(1)
+    expect(packed, directory).toBeLessThan(stages.indexOf('run prepare:packages'))
+  }
   expect(stages.filter(stage => stage === 'preflight:windows-signing')).toHaveLength(1)
   expect(vi.mocked(withWindowsSigningStage).mock.calls.map(([options]) => options.stage))
     .toEqual(['preflight', 'artifacts'])

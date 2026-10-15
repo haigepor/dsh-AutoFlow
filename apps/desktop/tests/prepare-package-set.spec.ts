@@ -24,7 +24,8 @@ describe('desktop package-set selection', () => {
   it('includes only the available internal production closure', () => {
     const available = new Map<string, PackedDesktopPackage>([
       ['@deepseek-ai/dsh', packed('@deepseek-ai/dsh', {
-        dependencies: { '@deepseek-ai/dsh-base': '^1.0.0', 'dsh-plugin-afp': '0.1.0', external: '^2.0.0' },
+        dependencies: { '@deepseek-ai/dsh-base': '^1.0.0', 'dsh-plugin-afp': '0.1.0', external: '^2.0.0',
+          'dsh-better-sidebar': '0.25.0', 'dsh-plugin-better-sidebar-updater': '0.1.0' },
         optionalDependencies: { '@deepseek-ai/platform-package': '1.0.0', '@deepseek-ai/missing-platform': '1.0.0' },
       })],
       ['@deepseek-ai/dsh-desktop-host', packed('@deepseek-ai/dsh-desktop-host', {
@@ -37,6 +38,8 @@ describe('desktop package-set selection', () => {
       ['@deepseek-ai/platform-package', packed('@deepseek-ai/platform-package')],
       ['@deepseek-ai/unused', packed('@deepseek-ai/unused')],
       ['dsh-plugin-afp', packed('dsh-plugin-afp')],
+      ['dsh-better-sidebar', packed('dsh-better-sidebar')],
+      ['dsh-plugin-better-sidebar-updater', packed('dsh-plugin-better-sidebar-updater')],
     ])
     expect(selectDesktopPackageClosure(available).map(entry => entry.manifest.name)).toEqual([
       '@deepseek-ai/cordis',
@@ -44,13 +47,15 @@ describe('desktop package-set selection', () => {
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-desktop-host',
       '@deepseek-ai/platform-package',
+      'dsh-better-sidebar',
       'dsh-plugin-afp',
+      'dsh-plugin-better-sidebar-updater',
     ])
   })
 
   it.each([
     '@deepseek-ai/dsh-base', '@deepseek-ai/cordis', '@deepseek-ai/node-addon-system',
-    'dsh-plugin-afp',
+    'dsh-plugin-afp', 'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
   ])('rejects required prepared package %s absent from the packed release inputs', (dependency) => {
     const available = new Map<string, PackedDesktopPackage>([
       ['@deepseek-ai/dsh', packed('@deepseek-ai/dsh', {

@@ -13,7 +13,7 @@ kind: "package-bundle"
 
 ## Use this package
 
-运行 `pnpm --filter dsh-plugin-better-sidebar-updater build`，在插件页面启用更新器。打开侧栏或更新器详情页，先点击**检查更新**，再点击**安装更新**。点击**重启生效**前保存工作；不支持重启的载体需要关闭并重新打开应用。
+运行 `pnpm --filter dsh-plugin-better-sidebar-updater build`。新建 Web 和 Desktop profile 默认启用随应用交付的更新器；已有 profile 保留开关选择，可在插件页面启用。打开侧栏或更新器详情页，先点击**检查更新**，再点击**安装更新**。点击**重启生效**前保存工作；不支持重启的载体需要关闭并重新打开应用。
 
 更新器不使用凭据。上游来源为 omdsh-dev/DSH-better-sidebar；npm 安装包只来自 registry.npmjs.org/dsh-better-sidebar。GitHub 发布版本必须与 registry 包及预期下载 URL 匹配。完整字节按 npm SHA-512 integrity 校验；这验证 registry 产物完整性，不证明其与某个 Git 提交等价。npm 尚未发布、DSH 或 Node 版本不兼容时拒绝安装。
 

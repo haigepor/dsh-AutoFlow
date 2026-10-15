@@ -34,6 +34,9 @@ export const CLIENT_BUILD_RECORD_PATH = '.dsh-build/client-build-environment.jso
 const CLIENT_BUILD_RECORD_FORMAT = 1
 const CLIENT_ARTIFACT_PATTERNS = [
   'custom-plugins/workspace/dsh-plugin-afp/client.js',
+  'custom-plugins/workspace/dsh-better-sidebar/lib/client*.js',
+  'custom-plugins/workspace/dsh-better-sidebar/lib/client*.js.map',
+  'custom-plugins/workspace/dsh-better-sidebar/updater/client.js',
   'apps/web/dist/**/*',
   'packages/*/*/lib/client.js',
   'packages/*/*/lib/client.js.map',

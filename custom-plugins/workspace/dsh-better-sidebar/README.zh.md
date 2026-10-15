@@ -9,11 +9,11 @@ kind: "package-bundle"
 
 ## Summary
 
-本工作区包含上游增强侧栏源码快照和独立装载的[更新器](updater/README.zh.md)。插件通过现有右侧栏注册接口提供文件编辑、Git 变更、任务和侧边对话，并拥有底部工作台。应用独立于两个可选组合包，为 `/sidebar` HTTP 和 WebSocket 请求提供鉴权。
+本工作区包含上游增强侧栏源码快照和独立装载的[更新器](updater/README.zh.md)。插件通过现有右侧栏注册接口提供文件编辑、Git 变更、任务和侧边对话，并拥有底部工作台。应用独立于两个组合包，为 `/sidebar` HTTP 和 WebSocket 请求提供鉴权。
 
 ## Use this package
 
-在仓库根目录运行 `pnpm run build:sidebar`。Web 与 Desktop 将两个包作为可选组合包提供；在插件页面启用 **dsh-better-sidebar** 和 **dsh-plugin-better-sidebar-updater**。已有 profile 和主题偏好保持不变。关闭侧栏可恢复原生文件页和查看器注册。
+在仓库根目录运行 `pnpm run build:sidebar`。Web 与 Desktop 随应用交付两个包，与 AFP 一样在新建 profile 中默认启用。已有 profile 保留组合包选择和已保存的插件开关；需要时可在插件页面启用 **dsh-better-sidebar** 和 **dsh-plugin-better-sidebar-updater**。Desktop 恢复模式停用两个组合包并备份 profile patch，保留已安装包。主题偏好保持不变。关闭侧栏可恢复原生文件页和查看器注册。
 
 插件接管原生 `files` 类型与可编辑文本资源。现有外框、分栏控件与主题仍由 AutoFlow 管理。PDF、图片、Office 和电子表格预览继续使用原生提供者。底部工作台由插件管理，初始收起。
 

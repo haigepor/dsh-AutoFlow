@@ -1,12 +1,13 @@
-/** Every bundle the installation ships switched off composes over the shipped Web layers and carries display metadata. */
+/** Shipped sidebar defaults and optional bundles compose over Web layers and carry display metadata. */
 
 import { globSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 import { loadOverlayPatches } from '../packages/boot/app-boot/src/index.ts'
 import { readPluginMeta } from '../packages/boot/app-boot/src/package-meta.ts'
-import { OPTIONAL_BUNDLES, bundlePatchPaths, composeEntries } from '../packages/boot/app-boot/src/profile.ts'
+import { OPTIONAL_BUNDLES, PROFILE_TEMPLATES, bundlePatchPaths, composeEntries } from '../packages/boot/app-boot/src/profile.ts'
 import type { DshBundleManifest } from '../packages/util/package-manifest/src/types.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -16,10 +17,35 @@ interface Manifest {
   dsh?: { bundle?: DshBundleManifest }
 }
 
-const bundles = new Map(globSync('packages/*/*/package.json', { cwd: root }).map((path) => {
+const workspace = yaml.load(readFileSync(resolve(root, 'pnpm-workspace.yaml'), 'utf8')) as { packages: string[] }
+const bundles = new Map(globSync(workspace.packages.map(pattern => `${pattern}/package.json`), { cwd: root }).map((path) => {
   const manifest = JSON.parse(readFileSync(resolve(root, path), 'utf8')) as Manifest
   return [manifest.name, { dir: dirname(resolve(root, path)), manifest }]
 }))
+
+describe('default sidebar bundles', () => {
+  it('supplies both bundles as installation dependencies enabled by the Web template', () => {
+    const cli = JSON.parse(readFileSync(resolve(root, 'apps/cli/package.json'), 'utf8')) as { dependencies: Record<string, string> }
+    for (const name of ['dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater']) {
+      expect(cli.dependencies[name]).toBe('workspace:*')
+      expect(PROFILE_TEMPLATES.web?.bundles).toContain(name)
+      expect(OPTIONAL_BUNDLES).not.toContain(name)
+      const entry = bundles.get(name)!
+      const meta = readPluginMeta(name, pathToFileURL(resolve(entry.dir, 'package.json')).href)
+      expect(meta?.error).toBeUndefined()
+      expect(meta?.icon).toMatch(/^data:image\//)
+    }
+  })
+
+  it('composes the actual Web default layers with both sidebar rows and no duplicate ids', () => {
+    const warnings: string[] = []
+    const rows = composeEntries(PROFILE_TEMPLATES.web!.bundles.map(name => bundle(name).patches), message => warnings.push(message))
+    expect(warnings).toEqual([])
+    expect(rows.map(row => row.id)).toHaveLength(new Set(rows.map(row => row.id)).size)
+    expect(rows.find(row => row.id === 'better-sidebar')).toMatchObject({ name: 'dsh-better-sidebar' })
+    expect(rows.find(row => row.id === 'better-sidebar-updater')).toMatchObject({ name: 'dsh-plugin-better-sidebar-updater' })
+  })
+})
 
 function bundle(name: string): { dir: string; patches: ReturnType<typeof loadOverlayPatches> } {
   const entry = bundles.get(name)

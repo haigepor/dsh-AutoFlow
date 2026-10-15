@@ -370,6 +370,7 @@ describe('loadProfile', () => {
     expect(PROFILE_TEMPLATES.web?.bundles).toContain('@deepseek-ai/dsh-base')
     expect(PROFILE_TEMPLATES.web?.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
+      'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
     ])
     expect(PROFILE_TEMPLATES.acp).toEqual({
       bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app'],
@@ -383,6 +384,26 @@ describe('loadProfile', () => {
     loadProfile('t', 'web', anchor, home)
     expect(readProfileManifest('t', resolveProfileDir('web', home)).dsh?.profile?.bundles)
       .toEqual([...PROFILE_TEMPLATES.web?.bundles ?? []])
+  })
+
+  it.each([
+    { selected: [] }, { selected: ['dsh-better-sidebar'] }, { selected: ['dsh-plugin-better-sidebar-updater'] },
+    { selected: ['dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater'] },
+  ])('preserves existing Web sidebar selections $selected when defaults change', ({ selected }) => {
+    const names = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
+      'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater']
+    const anchor = stageInstallation(Object.fromEntries(names.map(name => [name, { patch: '[]\n' }])))
+    const home = tmp()
+    const dir = resolveProfileDir('web', home)
+    const bundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp', ...selected]
+    initProfile(dir, bundles)
+    const patch = '- id: better-sidebar\n  disabled: true\n  config:\n    customCss: ".local { color: red; }"\n'
+    writeFileSync(join(dir, PROFILE_PATCH_FILENAME), patch, 'utf8')
+    const manifest = readFileSync(join(dir, 'package.json'), 'utf8')
+    const loaded = loadProfile('t', 'web', anchor, home)
+    expect(loaded.layers.map(layer => layer.packageName)).toEqual(bundles)
+    expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(manifest)
+    expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toBe(patch)
   })
 
   it('normalizes only the exact installation-owned headless bundle tuple', () => {

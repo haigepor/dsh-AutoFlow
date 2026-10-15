@@ -13,7 +13,7 @@ This independent package checks the official Better Sidebar GitHub release and d
 
 ## Use this package
 
-Run `pnpm --filter dsh-plugin-better-sidebar-updater build` and enable the updater on the Plugins page. Open the sidebar or updater detail page, choose **Check for updates**, then **Install update**. Save your work before **Restart to apply**; a carrier without restart support requires closing and reopening the application.
+Run `pnpm --filter dsh-plugin-better-sidebar-updater build`. New Web and Desktop profiles enable this shipped updater by default; existing profiles retain their activation choices and can enable it on the Plugins page. Open the sidebar or updater detail page, choose **Check for updates**, then **Install update**. Save your work before **Restart to apply**; a carrier without restart support requires closing and reopening the application.
 
 The updater uses no credentials. The upstream source is omdsh-dev/DSH-better-sidebar; npm artifacts come only from registry.npmjs.org/dsh-better-sidebar. The GitHub release version must match the registry package and expected tarball URL. Complete bytes are checked with npm SHA-512 integrity; this verifies registry artifact integrity, not equivalence to a Git commit. Missing npm publication and incompatible DSH or Node versions prevent installation.
 

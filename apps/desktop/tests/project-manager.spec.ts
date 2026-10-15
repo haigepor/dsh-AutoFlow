@@ -43,6 +43,71 @@ afterEach(() => {
 })
 
 describe('desktop external plugin profile', () => {
+  it('enables the shipped sidebar and updater only when initializing a new profile', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    const manifest = JSON.parse(readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>
+      dsh: { profile: { bundles: string[] } }
+    }
+    expect(manifest.dsh.profile.bundles).toEqual([
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
+      'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
+    ])
+    expect(manifest.dependencies).toEqual({})
+  })
+
+  it.each([
+    { selected: [] }, { selected: ['dsh-better-sidebar'] }, { selected: ['dsh-plugin-better-sidebar-updater'] },
+    { selected: ['dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater'] },
+  ])('retains existing Desktop sidebar choices $selected across application launches', async ({ selected }) => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    const path = join(manager.paths.profile, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { profile: { bundles: string[] } } }
+    manifest.dsh.profile.bundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp', ...selected]
+    const before = JSON.stringify(manifest)
+    writeFileSync(path, before, 'utf8')
+    const patchPath = join(manager.paths.profile, 'cordis.patch.yml')
+    const patch = '- id: better-sidebar\n  disabled: true\n  config:\n    customCss: ".local { color: red; }"\n'
+    writeFileSync(patchPath, patch, 'utf8')
+    await manager.applyRelease()
+    await manager.applyRelease()
+    expect(readFileSync(path, 'utf8')).toBe(before)
+    expect(readFileSync(patchPath, 'utf8')).toBe(patch)
+  })
+
+  it('disables both sidebar bundles during recovery without reading them or enabling them on restart', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    const path = join(manager.paths.profile, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as {
+      dependencies: Record<string, string>
+      dsh: { profile: { bundles: string[] } }
+    }
+    const sidebars = ['dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater']
+    for (const name of sidebars) {
+      manifest.dependencies[name] = '1.0.0'
+      if (!manifest.dsh.profile.bundles.includes(name)) manifest.dsh.profile.bundles.push(name)
+      const directory = join(manager.paths.profile, 'node_modules', name)
+      mkdirSync(directory, { recursive: true })
+      writeFileSync(join(directory, 'package.json'), '{broken', 'utf8')
+    }
+    writeFileSync(path, JSON.stringify(manifest), 'utf8')
+    const cssPatch = '- id: better-sidebar\n  config:\n    customCss: ".local { color: red; }"\n'
+    writeFileSync(join(manager.paths.profile, 'cordis.patch.yml'), cssPatch, 'utf8')
+    const backup = await manager.disableAllPlugins()
+    expect(backup).toBeDefined()
+    expect(readFileSync(backup!, 'utf8')).toBe(cssPatch)
+    await manager.applyRelease()
+    const restored = JSON.parse(readFileSync(path, 'utf8')) as typeof manifest
+    expect(restored.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp'])
+    for (const name of sidebars) {
+      expect(restored.dependencies[name]).toBe('1.0.0')
+      expect(readFileSync(join(manager.paths.profile, 'node_modules', name, 'package.json'), 'utf8')).toBe('{broken')
+    }
+  })
+
   it('removes the retired desktop bundle on launch and backs up the profile without dropping external plugins', async () => {
     const { manager } = setup()
     await manager.applyRelease()

@@ -9,11 +9,11 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This workspace contains the upstream Better Sidebar source snapshot and the independently loaded [updater](updater/README.md). It contributes file editing, Git changes, tasks and side chat through the existing right-sidebar registration API, and owns a bottom workbench. The application supplies authentication for `/sidebar` HTTP and WebSocket requests independently of either optional bundle.
+This workspace contains the upstream Better Sidebar source snapshot and the independently loaded [updater](updater/README.md). It contributes file editing, Git changes, tasks and side chat through the existing right-sidebar registration API, and owns a bottom workbench. The application supplies authentication for `/sidebar` HTTP and WebSocket requests independently of either bundle.
 
 ## Use this package
 
-Run `pnpm run build:sidebar` at the repository root. Both packages are supplied as optional bundles by Web and Desktop; enable **dsh-better-sidebar** and **dsh-plugin-better-sidebar-updater** on the Plugins page. Existing profiles and theme preferences are retained. Disable the sidebar to restore the native file and viewer registrations.
+Run `pnpm run build:sidebar` at the repository root. Web and Desktop ship both packages and enable them for new profiles, like AFP. Existing profiles retain their bundle selections and saved plugin activation settings; enable **dsh-better-sidebar** and **dsh-plugin-better-sidebar-updater** on the Plugins page if needed. Desktop recovery disables both bundles and backs up the profile patch while retaining installed packages. Theme preferences are retained. Disable the sidebar to restore the native file and viewer registrations.
 
 The plugin takes over the native `files` kind and editable text resources. The existing shell, splitter and theme remain owned by AutoFlow. PDF, images, Office and spreadsheet previews continue through the native providers. The bottom workbench is plugin-owned and starts collapsed.
 
