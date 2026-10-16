@@ -51,6 +51,7 @@ it('requires one signing preflight before building, then records only the comple
   expect(stages.slice(0, 2)).toEqual(['preflight:windows-signing', 'run build:official'])
   for (const directory of [
     'custom-plugins/workspace/dsh-plugin-afp',
+    'custom-plugins/workspace/dsh-plugin-article-image',
     'custom-plugins/workspace/dsh-better-sidebar',
     'custom-plugins/workspace/dsh-better-sidebar/updater',
   ]) {

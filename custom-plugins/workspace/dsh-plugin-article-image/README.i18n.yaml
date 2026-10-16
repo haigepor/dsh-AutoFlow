@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-plugin-article-image/README.md
+/:
+  en: 17d1293daccb41db
+  zh: e6d104623c040997
+/article-images:
+  en: 8c9c8392bd67a671
+  zh: 66ce129af7f8a0ec
+/article-images/summary:
+  en: 48d8eca10f8145d9
+  zh: ff4a09a171a25725
+/article-images/installation-and-development:
+  en: 01f92599124631ec
+  zh: 0002dd46d70263aa
+/article-images/workflow:
+  en: a0ebab42d50b8026
+  zh: 0553254045354537
+/article-images/configuration-and-records:
+  en: 92fadedc91100d07
+  zh: 2adf76d2a88d2857
+/article-images/model-experience:
+  en: f93ff16338ef4138
+  zh: 560e4b5eb4dccb77
+/article-images/releases-and-recovery:
+  en: fef34f1189165c2d
+  zh: fe03137ebb00eeb7
+/article-images/known-limitations-and-deferred-work:
+  en: dc1d8f80140021b6
+  zh: 805e26583ecc4f92
+/article-images/dev-note:
+  en: b75c8458928b72b9
+  zh: 02cbcc6baa338b07

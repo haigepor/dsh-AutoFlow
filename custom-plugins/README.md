@@ -25,6 +25,7 @@ Develop maintained plugin bundles under `workspace/`, with independently version
 - [Sidebar updater](workspace/dsh-better-sidebar/updater/README.md): independent official version checks and npm updates.
 
 - [AFP curation](workspace/dsh-plugin-afp/README.md): photo search, visual curation, and local installation steps.
+- [Article images](workspace/dsh-plugin-article-image/README.md): public-sheet imports, article text and reviewed editorial prompts.
 - [AFP releases](workspace/dsh-plugin-afp/release/README.md): versioned GitHub artifacts and the reusable release procedure.
 - [Architecture](architecture.md): package layout, feature declarations, UI placement, file lifecycle, and distribution rules.
 

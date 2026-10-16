@@ -184,6 +184,7 @@ export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
   web: {
     bundles: [
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
+      'dsh-plugin-article-image',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
     ],
   },

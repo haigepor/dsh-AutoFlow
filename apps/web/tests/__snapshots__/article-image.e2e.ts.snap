@@ -1,0 +1,40 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`replays article reads and prompt saves, reviews in the workbench and removes disabled contributions 1`] = `
+{
+  "calls": [
+    {
+      "arguments": "{"id":"f924cd04b6062d70b59e7f816db5930d","sourceHash":"71eaa0da8eb1db63fff1b67216d80620872c8c1a11df894bbbd197e923940d3c","offset":0}",
+      "name": "article_image_article",
+    },
+    {
+      "arguments": "{"id":"f924cd04b6062d70b59e7f816db5930d","revision":3,"plan":{"sourceHash":"71eaa0da8eb1db63fff1b67216d80620872c8c1a11df894bbbd197e923940d3c","brief":{"theme":"家庭旅行","facts":["Parents plan rest breaks"],"subjects":["Family"],"scenes":["A family walking in a park"]},"shots":[{"purpose":"cover","paragraphs":[1],"rationale":"Illustrates a relaxed family trip","subject":"Family","action":"Walking together","environment":"Public park","composition":"Wide shot","lighting":"Natural daylight","colors":"Natural greens","style":"Realistic editorial photography","details":"Natural expressions","avoid":"No text or invented event claims","prompt":"Realistic editorial photograph of a family walking in a public park in natural daylight.","ratio":"16:9"}]}}",
+      "name": "article_image_save_plan",
+    },
+    {
+      "arguments": "{"id":"f924cd04b6062d70b59e7f816db5930d"}",
+      "name": "article_image_report",
+    },
+  ],
+  "results": [
+    [
+      {
+        "text": "{"id":"f924cd04b6062d70b59e7f816db5930d","revision":3,"state":"ready","error":null,"sourceHash":"71eaa0da8eb1db63fff1b67216d80620872c8c1a11df894bbbd197e923940d3c","title":"https://example.com/family-travel","titleTruncated":false,"language":"pt","basis":"web","source":{"url":"https://example.com/family-travel","fetchedAt":"2026-10-16T00:00:00.000Z"},"offset":0,"paragraphs":[{"id":1,"text":"Families can enjoy a relaxed trip together. Parents plan outdoor activities and rest breaks for children. Families can enjoy a relaxed trip together. Parents plan outdoor activities and rest breaks for children. Families can enjoy a relaxed trip together. Parents plan outdoor activities and rest breaks for children. Families can enjoy a relaxed trip together. Parents plan outdoor activities and rest breaks for children. Families can enjoy a relaxed trip together. Parents plan outdoor activities and rest breaks for children. Families can enjoy a relaxed trip together. Parents plan outdoor activities and rest breaks for children. Families can enjoy a relaxed trip together. Parents plan outdoor activities and rest breaks for children."}],"nextOffset":null,"total":1}",
+        "type": "text",
+      },
+    ],
+    [
+      {
+        "text": "{"id":"f924cd04b6062d70b59e7f816db5930d","revision":4,"state":"review","sourceHash":"71eaa0da8eb1db63fff1b67216d80620872c8c1a11df894bbbd197e923940d3c","shots":1}",
+        "type": "text",
+      },
+    ],
+    [
+      {
+        "text": "{"id":"f924cd04b6062d70b59e7f816db5930d","revision":4,"state":"review","title":"https://example.com/family-travel","titleTruncated":false,"sourceHash":"71eaa0da8eb1db63fff1b67216d80620872c8c1a11df894bbbd197e923940d3c","paragraphs":1,"source":{"requestedUrl":"https://example.com/family-travel","finalUrl":"https://example.com/family-travel","category":"Travel","notes":"","notesTruncated":false,"fetchedAt":"2026-10-16T00:00:00.000Z","basis":"web","language":"pt"},"plan":{"theme":"家庭旅行","shots":[{"purpose":"cover","paragraphs":[1],"ratio":"16:9"}]},"approval":null,"error":null,"generationAvailable":false}",
+        "type": "text",
+      },
+    ],
+  ],
+}
+`;
