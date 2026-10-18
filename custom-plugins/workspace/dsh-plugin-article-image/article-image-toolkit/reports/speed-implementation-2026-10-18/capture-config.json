@@ -1,0 +1,232 @@
+{
+  "adapters": [
+    {
+      "id": "bcb-notice-v1",
+      "hosts": [
+        "www.bcb.gov.br"
+      ],
+      "articleSelector": ".detalhe-noticia .corpo",
+      "endSelector": "promise"
+    },
+    {
+      "id": "otempo-body-v1",
+      "hosts": [
+        "www.otempo.com.br"
+      ],
+      "articleSelector": ".article-body"
+    },
+    {
+      "id": "canaltech-body-v1",
+      "hosts": [
+        "canaltech.com.br"
+      ],
+      "articleSelector": "#content-news",
+      "excludeSelector": "#content-news > div:has(img[src$=\"canaltech-icon.svg\"]),#content-news .CLT_VIDEO[data-notsy-container-index][data-notsy-mapped-container]"
+    },
+    {
+      "id": "lance-body-v1",
+      "hosts": [
+        "www.lance.com.br"
+      ],
+      "articleSelector": ".paywall-content",
+      "excludeSelector": "p:has(a[href*=\"whatsapp.com/channel/\"])"
+    },
+    {
+      "id": "govbr-body-v1",
+      "hosts": [
+        "www.gov.br"
+      ],
+      "articleSelector": "main",
+      "excludeSelector": "#viewlet-above-content,#viewlet-below-content,.documentByLine,.documentActions,.social-links,.social-media,.portalMessage,#portal-breadcrumbs,article > p.section,#viewlet-above-content-body > script",
+      "expectedMinImages": 1,
+      "static": {
+        "startSelector": "h1.documentFirstHeading",
+        "endSelector": "#category",
+        "requiredSelectors": [
+          "#content-core [property=\"rnews:articleBody\"]"
+        ]
+      }
+    },
+    {
+      "id": "cnn-body-v1",
+      "hosts": [
+        "www.cnnbrasil.com.br"
+      ],
+      "articleSelector": "article > div:has(> p)",
+      "excludeSelector": "article > div > div.my-6.border-y:has(> ul)",
+      "embeddedSources": [
+        {
+          "selector": "iframe[data-web-stories-embed=\"true\"]",
+          "hosts": [
+            "stories.cnnbrasil.com.br"
+          ],
+          "kind": "story",
+          "rootSelector": "amp-story",
+          "pageSelector": "amp-story-page",
+          "excludeSelector": "amp-img[src=\"https://stories.cnnbrasil.com.br/wp-content/uploads/sites/9/2023/08/CNN.png\"],amp-img[src=\"https://stories.cnnbrasil.com.br/wp-content/uploads/sites/9/2023/08/Vector.png\"]"
+        }
+      ]
+    },
+    {
+      "id": "r7-body-v1",
+      "hosts": [
+        "record.r7.com"
+      ],
+      "articleSelector": "main",
+      "excludeSelector": "main > .article-flex,.b-see-also__container,.b-article-tags-container,.ultimas-divider__header-container,main > div:has(.b-ultimas-list__item),.vjs-control-bar,.vjs-modal-dialog,.vjs-logo-content,.vjs-text-track-display",
+      "captionSources": [
+        {
+          "selector": "video track[kind=\"subtitles\"]",
+          "hosts": [
+            "d3gupebucmge1e.cloudfront.net"
+          ],
+          "metadata": {
+            "globalPath": [
+              "Fusion",
+              "globalContent"
+            ],
+            "identityPath": [
+              "canonical_url"
+            ],
+            "tracksPath": [
+              "subtitles",
+              "urls"
+            ],
+            "formatKey": "format",
+            "formatValue": "WEB_VTT",
+            "urlKey": "url",
+            "anchorSelector": ".wrapper-video",
+            "language": "pt-br",
+            "poster": {
+              "urlPath": [
+                "promo_image",
+                "url"
+              ],
+              "titlePath": [
+                "promo_image",
+                "caption"
+              ],
+              "hosts": [
+                "d22yf0mxeu0gma.cloudfront.net"
+              ]
+            }
+          }
+        }
+      ],
+      "browserResources": {
+        "deferTypes": [
+          "image",
+          "font",
+          "media"
+        ]
+      }
+    },
+    {
+      "id": "folha-guia-body-v1",
+      "hosts": [
+        "guia.folha.uol.com.br"
+      ],
+      "articleSelector": ".c-article-body",
+      "pendingSelector": ".c-gallery .c-loader",
+      "embeddedSources": [
+        {
+          "selector": ".c-embed-infographic iframe",
+          "hosts": [
+            "www1.folha.uol.com.br"
+          ],
+          "kind": "story",
+          "rootSelector": ".story-slides",
+          "pageSelector": ".story-slide",
+          "pageIndexAttribute": "data-slide",
+          "excludeSelector": ".story-slide:has(.story-page-attachment[data-orig-url^=\"https://assinaturas.folha.com.br/\"]),.story-slide:has(.story-page-attachment[data-orig-url=\"https://www.folha.uol.com.br/\"]),.rich-component-reaction,.story-page-attachment,.storifyme-layers"
+        }
+      ],
+      "expectedMinImages": 6
+    },
+    {
+      "id": "metropoles-article",
+      "hosts": [
+        "www.metropoles.com"
+      ],
+      "articleSelector": "article",
+      "imageRedirects": [
+        {
+          "from": "https://assets-jpcust.jwpsrv.com",
+          "to": "https://cdn.jwplayer.com"
+        },
+        {
+          "from": "https://cdn.jwplayer.com",
+          "to": "https://assets-jpcust.jwpsrv.com"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "selector": "iframe[src^=\"https://cdn.jwplayer.com/players/\"]",
+          "hosts": [
+            "cdn.jwplayer.com"
+          ],
+          "kind": "video",
+          "rootSelector": "body"
+        }
+      ]
+    },
+    {
+      "id": "correio-aqui-ssr-v1",
+      "hosts": [
+        "www.correiobraziliense.com.br"
+      ],
+      "articleSelector": ".entry-content > .content-inner",
+      "excludeSelector": ".jnews_inline_related_post_wrapper,.jeg_post_tags",
+      "expectedMinImages": 1,
+      "static": {
+        "startSelector": "[data-neural-content=\"start\"]",
+        "endSelector": "[data-neural-content=\"end\"]",
+        "requiredSelectors": [
+          "ol.wp-block-list > li"
+        ]
+      },
+      "pathPrefixes": [
+        "/aqui/"
+      ]
+    }
+  ],
+  "requestTimeoutMs": 60000,
+  "renderTimeoutMs": 120000,
+  "maxArticleHtmlBytes": 16000000,
+  "maxArticleHtmlChars": 16000000,
+  "maxImageBytes": 24000000,
+  "maxTotalImageBytes": 160000000,
+  "network": {
+    "dnsProvider": "cloudflare",
+    "proxyConfigured": true,
+    "proxyUrl": "[redacted]"
+  },
+  "imageMetadataSources": [
+    {
+      "hosts": [
+        "www.estadao.com.br"
+      ],
+      "globalPath": [
+        "Fusion",
+        "globalContent"
+      ],
+      "identityPath": [
+        "canonical_url"
+      ],
+      "itemsPath": [
+        "content_elements"
+      ],
+      "typeKey": "type",
+      "typeValue": "image",
+      "sourcePath": [
+        "additional_properties",
+        "resizeUrl"
+      ],
+      "altPath": [
+        "alt_text"
+      ]
+    }
+  ],
+  "rendererConnectionPoolSize": 8,
+  "rendererConnectionsPerOrigin": 4
+}

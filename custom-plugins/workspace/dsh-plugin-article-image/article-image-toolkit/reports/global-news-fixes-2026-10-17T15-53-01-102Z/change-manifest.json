@@ -1,0 +1,68 @@
+[
+  {
+    "file": "src/capture.js",
+    "beforeHash": "279e538ebc55b3c5e9d868302dc40200054ac0e98685df9534eca24b43fcd70d",
+    "afterHash": "1e65b990f43389609c4160532856be17b7cf8247c883cd0be4b569aa725f718e",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\src\\capture.js"
+  },
+  {
+    "file": "src/capture-renderer.js",
+    "beforeHash": "0f61ce2cb4631f188550a5a183dc50c8940f18429e71ce099a4312ffd96155c1",
+    "afterHash": "f3c4f3e2bd4281e54cc277247522b68d13cbafe661704e6820cc41ffcbce1cff",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\src\\capture-renderer.js"
+  },
+  {
+    "file": "src/capture-service.js",
+    "beforeHash": "e711fd74221313499ca89f4caa6947889a8431bb72885d7fa2e6954255d955cd",
+    "afterHash": "39399c62245d401b1485bb9a8adea720f75d83b439b761810260e60fd79304c7",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\src\\capture-service.js"
+  },
+  {
+    "file": "src/service.js",
+    "beforeHash": "26e5f9dbd0470f980a0ede71988781385ff8f8a771656b6e3a461e459e6392a0",
+    "afterHash": "c5fbbc8360ea42b81fa3aa70c4b633f4f94bdf242f967a4369e4d729e40b3492",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\src\\service.js"
+  },
+  {
+    "file": "test/capture.test.js",
+    "beforeHash": "c2e152111d0611b496c53f91d3b73fafee3447889045eeb381428401acbde338",
+    "afterHash": "bda5c170254db28ab6a20c230ba6376cb43bc53b5f2f5ca810fa872c73e91253",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\test\\capture.test.js"
+  },
+  {
+    "file": "test/capture-browser.test.js",
+    "beforeHash": "681589fa41fddfd093d4c4272bd7c48e8a4f53acc75e47bf560630e4d11329e4",
+    "afterHash": "2fd3be5cd587273961d59285f7170d414e5b87b672b72a6c6fdb4eafee3bb8ef",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\test\\capture-browser.test.js"
+  },
+  {
+    "file": "README.md",
+    "beforeHash": "d81cace61294370df398891273c6cf384049b4d33ae3ecbdf3b06e2254c31cd4",
+    "afterHash": "ef8cff660d299cf38b67d738f74c53a2fcdc4d1b79c11a601da293140a12614e",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\README.md"
+  },
+  {
+    "file": "README.zh.md",
+    "beforeHash": "14bb6fc849346cdf7636a9e3097cc90e636625eff751b869c783e99f97cf62af",
+    "afterHash": "f64a10215908d61c7ec7277a4858b37f7ec87dc77f6cde1e844df6e6e0634915",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\README.zh.md"
+  },
+  {
+    "file": "README.i18n.yaml",
+    "beforeHash": "9737b55bab63747c8eab46d591fdbd2f0d7736d7f6396211d9dd850ae607b19c",
+    "afterHash": "72572edd1167c00efd1f56a6d5b7b8961b864f1885fc31a45991308eae50150b",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\README.i18n.yaml"
+  },
+  {
+    "file": "test/progress-diagnostics.test.js",
+    "beforeHash": "658fe700c16fbabb88a7f01defbdb2a916e9dc39847596778b1baabb73c58293",
+    "afterHash": "35ae98ce27a9b2d12a35ad5d415400ae29eeace12bac2e3edfc12bd340a4b6d4",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\test\\progress-diagnostics.test.js"
+  },
+  {
+    "file": "test/stdio-lifecycle.test.js",
+    "beforeHash": "4b9bb755f8c37b304804de02ee2172164ca0ee17eec429c21972c815d0ffcdd9",
+    "afterHash": "297f1620bd3fc5c47eed739f28ba8cd1d5bc1773c7e54204e4458a22e6eec542",
+    "rollback": "C:\\Users\\haige\\AppData\\Local\\Temp\\news-capture-fixes-pYDVMF\\before\\test\\stdio-lifecycle.test.js"
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "test": "timeout",
+    "ms": 87.7556999999997,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool make_request"
+        }
+      ],
+      "isError": true
+    }
+  },
+  {
+    "test": "connect",
+    "ms": 1008.5989000000009,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool make_request"
+        }
+      ],
+      "isError": true
+    }
+  },
+  {
+    "test": "existing-dispose",
+    "disposeMs": 0.2712000000010448,
+    "fetchSettledAtDisposeReturn": false
+  }
+]

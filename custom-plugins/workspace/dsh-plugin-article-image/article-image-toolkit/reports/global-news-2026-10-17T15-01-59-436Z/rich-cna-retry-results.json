@@ -1,0 +1,97 @@
+{
+  "stage": "rich-cna-retry",
+  "startedAt": "2026-10-17T15:01:59.447Z",
+  "updatedAt": "2026-10-17T15:10:49.382Z",
+  "concurrency": 2,
+  "requestTimeoutMs": 60000,
+  "renderTimeoutMs": 120000,
+  "callDeadlineMs": 180000,
+  "results": [
+    {
+      "site": "CNA",
+      "region": "东南亚",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.channelnewsasia.com/world/nasa-artemis-ii-launch-moon-us-6032266",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "f0bef3c94a33418667e9e5ac8dbe0f0e",
+      "elapsedMs": 22493.791299999997,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 4.938799999999901
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 870.4593999999997
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 22481.128299999997
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 22492.5978
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "f0bef3c94a33418667e9e5ac8dbe0f0e",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:10:26.884Z",
+        "endedAt": "2026-10-17T15:10:49.373Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 1.0704999999998108,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 867.3187,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 203,
+              "limitMs": 120000,
+              "origin": "https://www.channelnewsasia.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 22478.2386,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21814,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://www.channelnewsasia.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 22489.7334,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,1171 @@
+{
+  "generatedAt": "2026-10-18T05:28:25.632Z",
+  "stats": {
+    "tested": 28,
+    "bodySuccess": 21,
+    "partial": 2,
+    "needsReview": 19,
+    "restricted": 6,
+    "short": 1,
+    "readyImages": 97,
+    "failedImages": 1,
+    "identicalHashes": [
+      5,
+      6,
+      7,
+      8,
+      11,
+      12,
+      15,
+      16,
+      17,
+      18,
+      20,
+      24,
+      25,
+      26,
+      27,
+      28
+    ],
+    "missingBaselineImages": [],
+    "mainCoverageFailures": [],
+    "storyCoverageFailures": [],
+    "elapsedSeconds": 558.8
+  },
+  "rows": [
+    {
+      "index": 1,
+      "url": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "quality": null,
+      "elapsedMs": 31111,
+      "counts": null,
+      "coverage": null,
+      "baselineQuality": "article-restricted",
+      "baselineHash": null,
+      "sourceHash": null,
+      "hashIdentical": null,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "可见阅读/订阅限制，保持 article-restricted，不绕过访问限制。"
+    },
+    {
+      "index": 2,
+      "url": "https://www1.folha.uol.com.br/turismo/2026/08/taiwan-e-destino-turistico-vibrante-apesar-de-tensoes-com-a-china.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "quality": null,
+      "elapsedMs": 28513,
+      "counts": null,
+      "coverage": null,
+      "baselineQuality": "article-restricted",
+      "baselineHash": null,
+      "sourceHash": null,
+      "hashIdentical": null,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "可见阅读/订阅限制，保持 article-restricted，不绕过访问限制。"
+    },
+    {
+      "index": 3,
+      "url": "https://www1.folha.uol.com.br/turismo/2026/07/resort-oiti-beach-e-base-confortavel-para-conhecer-tutoia-no-maranhao.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "quality": null,
+      "elapsedMs": 27382,
+      "counts": null,
+      "coverage": null,
+      "baselineQuality": "article-restricted",
+      "baselineHash": null,
+      "sourceHash": null,
+      "hashIdentical": null,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "可见阅读/订阅限制，保持 article-restricted，不绕过访问限制。"
+    },
+    {
+      "index": 4,
+      "url": "https://www.metropoles.com/conteudo-especial/orlando-com-bebes-e-criancas",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "unsettled-resources",
+          "article-redirect"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "embedded-video:1/1",
+          "adapter:metropoles-article"
+        ],
+        "adapter": "metropoles-article"
+      },
+      "elapsedMs": 28259,
+      "counts": {
+        "paragraphs": 24,
+        "headings": 5,
+        "listItems": 0,
+        "readyImages": 2,
+        "failedImages": 1,
+        "readyBytes": 1086128
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [
+        {
+          "origin": "https://cdn.jwplayer.com",
+          "kind": "video",
+          "pages": 1,
+          "excluded": 0,
+          "expected": {
+            "paragraphs": 1,
+            "headings": 0,
+            "listItems": 0,
+            "declaredImages": 0
+          },
+          "missingParagraphs": 0,
+          "missingHeadings": 0,
+          "missingListItems": 0,
+          "unmatchedDomImages": 1
+        }
+      ],
+      "baselineQuality": "partial",
+      "baselineHash": "7aec5a6cd1e370f0b977fa9a49dc04bf23fe52dc275785ebcf9e808db745859a",
+      "sourceHash": "9b4a028666f9f93357e01dac9c0995461a5febf2b61afc0fd164f44611fcc7c5",
+      "hashIdentical": false,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [
+        {
+          "code": "unsupported-iframe",
+          "total": 3,
+          "origin": "https://www.instagram.com"
+        },
+        {
+          "code": "unsupported-iframe",
+          "total": 1,
+          "origin": "https://cdn.jwplayer.com"
+        }
+      ],
+      "note": "公开播放器封面已发现，但声明地址及播放列表所列封面均跨域跳转，被现有策略拒绝；保留原2张照片、公开标题及失败资产。3个 Instagram Reel 和1个报道视频继续提示未获取。"
+    },
+    {
+      "index": 5,
+      "url": "https://www.correiobraziliense.com.br/aqui/2026/08/06/7-destinos-na-argentina-para-fugir-da-alta-do-dolar-e-aproveitar/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "blocked-network-resource",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "elapsedMs": 25768,
+      "counts": {
+        "paragraphs": 2,
+        "headings": 1,
+        "listItems": 7,
+        "readyImages": 1,
+        "failedImages": 0,
+        "readyBytes": 84824
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 4,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "ef1b881931139a69a15fbad25e82aa7c0529b2e6e5aa9856aa1163bb315db5cf",
+      "sourceHash": "ef1b881931139a69a15fbad25e82aa7c0529b2e6e5aa9856aa1163bb315db5cf",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "未匹配DOM图片4张均为相关文章推荐缩略图；正文照片与基线相同。"
+    },
+    {
+      "index": 6,
+      "url": "https://www.correiobraziliense.com.br/aqui/2026/08/06/mallorca-5-passeios-para-fazer-na-ilha-espanhola-paradisiaca/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "blocked-network-resource",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "elapsedMs": 22226,
+      "counts": {
+        "paragraphs": 13,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 1,
+        "failedImages": 0,
+        "readyBytes": 178249
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 4,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "beb7e4eea3eef2dd4de8c9f4d8202fad8eedefc96d68871b8af49c68535fdcd0",
+      "sourceHash": "beb7e4eea3eef2dd4de8c9f4d8202fad8eedefc96d68871b8af49c68535fdcd0",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "未匹配DOM图片4张均为相关文章推荐缩略图；正文照片与基线相同。"
+    },
+    {
+      "index": 7,
+      "url": "https://www.otempo.com.br/turismo/2026/7/23/temporada-de-aguas-mais-cristalinas-em-bonito-6-passeios-imperdiveis",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:otempo-body-v1"
+        ],
+        "adapter": "otempo-body-v1"
+      },
+      "elapsedMs": 48770,
+      "counts": {
+        "paragraphs": 16,
+        "headings": 7,
+        "listItems": 0,
+        "readyImages": 8,
+        "failedImages": 0,
+        "readyBytes": 6526405
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 2
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "8d5c7a26688ce575f2a1eba66bee4ff1dda277649128012ddc220422c1d60f70",
+      "sourceHash": "8d5c7a26688ce575f2a1eba66bee4ff1dda277649128012ddc220422c1d60f70",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 8,
+      "url": "https://guia.folha.uol.com.br/restaurantes/2026/10/festival-gastronomico-da-folha-tem-curadoria-musical-do-blue-note.shtml",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:folha-guia-body-v1"
+        ],
+        "adapter": "folha-guia-body-v1"
+      },
+      "elapsedMs": 100807,
+      "counts": {
+        "paragraphs": 40,
+        "headings": 3,
+        "listItems": 0,
+        "readyImages": 20,
+        "failedImages": 0,
+        "readyBytes": 1516057
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "116f38c63a9af3a6101fba35af60b6b1ed725db3ae0a897f776027f88de9d104",
+      "sourceHash": "116f38c63a9af3a6101fba35af60b6b1ed725db3ae0a897f776027f88de9d104",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 9,
+      "url": "https://www1.folha.uol.com.br/comida/2026/10/veja-como-fazer-a-buchimgae-panqueca-coreana-com-receita-de-arthur-paek.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "quality": null,
+      "elapsedMs": 25523,
+      "counts": null,
+      "coverage": null,
+      "baselineQuality": "article-restricted",
+      "baselineHash": null,
+      "sourceHash": null,
+      "hashIdentical": null,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "可见阅读/订阅限制，保持 article-restricted，不绕过访问限制。"
+    },
+    {
+      "index": 10,
+      "url": "https://guia.folha.uol.com.br/restaurantes/2026/10/saiko-leva-sandos-sanduiches-ao-estilo-japones-a-festival-gastronomico-da-folha.shtml",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "embedded-story:13/15",
+          "adapter:folha-guia-body-v1"
+        ],
+        "adapter": "folha-guia-body-v1"
+      },
+      "elapsedMs": 137917,
+      "counts": {
+        "paragraphs": 28,
+        "headings": 14,
+        "listItems": 0,
+        "readyImages": 20,
+        "failedImages": 0,
+        "readyBytes": 90308857
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [
+        {
+          "origin": "https://www1.folha.uol.com.br",
+          "kind": "story",
+          "pages": 15,
+          "excluded": 2,
+          "expected": {
+            "paragraphs": 7,
+            "headings": 12,
+            "listItems": 0,
+            "declaredImages": 0
+          },
+          "missingParagraphs": 0,
+          "missingHeadings": 0,
+          "missingListItems": 0,
+          "unmatchedDomImages": 0
+        }
+      ],
+      "baselineQuality": "partial",
+      "baselineHash": "279734d7753c65e0abc2dbb3ff1f9112560079bfd9aa67c26ca0c812f295e68f",
+      "sourceHash": "89d2513fafc3d3ccaed4048134addac1c075634d9bd64f69843c77290088dea9",
+      "hashIdentical": false,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "读取15页 Storifyme；按订阅入口/首页推广组件排除2页，合并13页编辑内容与来源。原6图均保留，新增14份去重子页资产，共20图；子页7个非空段落、12个标题均覆盖，无真实列表。"
+    },
+    {
+      "index": 11,
+      "url": "https://g1.globo.com/sp/vale-do-paraiba-regiao/especial-publicitario/festa-das-flores-e-morangos-de-atibaia/flores-e-morangos/noticia/2026/09/10/festa-em-atibaia-flores-morangos-gastronomia-e-cultura-japonesa-sao-atracoes.ghtml",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "elapsedMs": 48253,
+      "counts": {
+        "paragraphs": 19,
+        "headings": 3,
+        "listItems": 10,
+        "readyImages": 4,
+        "failedImages": 0,
+        "readyBytes": 700547
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "ade567d0d17a235d5c049361dbfffcd92f1f6a4cf113b9d13fde69de87487dd4",
+      "sourceHash": "ade567d0d17a235d5c049361dbfffcd92f1f6a4cf113b9d13fde69de87487dd4",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 12,
+      "url": "https://www.gov.br/saude/pt-br/campanhas-da-saude/2026/triplice-viral",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "elapsedMs": 35658,
+      "counts": {
+        "paragraphs": 25,
+        "headings": 1,
+        "listItems": 9,
+        "readyImages": 3,
+        "failedImages": 0,
+        "readyBytes": 707795
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 1,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "2dea9c81f00093d8ae1c1ab2f8bc930cf6f47307f30b79f99bb64e3fb2b0c3d3",
+      "sourceHash": "2dea9c81f00093d8ae1c1ab2f8bc930cf6f47307f30b79f99bb64e3fb2b0c3d3",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "未匹配DOM图片为 Vaccine Safety Net 品牌SVG；正文文字与既有3张照片保留。"
+    },
+    {
+      "index": 13,
+      "url": "https://www1.folha.uol.com.br/sobretudo/carreiras/2026/10/nao-sabe-para-onde-ir-na-carreira-aprenda-a-definir-seus-objetivos.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "quality": null,
+      "elapsedMs": 30365,
+      "counts": null,
+      "coverage": null,
+      "baselineQuality": "article-restricted",
+      "baselineHash": null,
+      "sourceHash": null,
+      "hashIdentical": null,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "可见阅读/订阅限制，保持 article-restricted，不绕过访问限制。"
+    },
+    {
+      "index": 14,
+      "url": "https://www1.folha.uol.com.br/ambiente/2026/10/seca-e-calor-extremos-do-ultimo-el-nino-antecipam-novo-normal-nas-florestas-tropicais.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "quality": null,
+      "elapsedMs": 34962,
+      "counts": null,
+      "coverage": null,
+      "baselineQuality": "article-restricted",
+      "baselineHash": null,
+      "sourceHash": null,
+      "hashIdentical": null,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "可见阅读/订阅限制，保持 article-restricted，不绕过访问限制。"
+    },
+    {
+      "index": 15,
+      "url": "https://canaltech.com.br/entretenimento/crunchyroll-animes-imperdiveis-outubro-2026/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:canaltech-body-v1"
+        ],
+        "adapter": "canaltech-body-v1"
+      },
+      "elapsedMs": 28815,
+      "counts": {
+        "paragraphs": 31,
+        "headings": 9,
+        "listItems": 8,
+        "readyImages": 9,
+        "failedImages": 0,
+        "readyBytes": 184255
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 4
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "b1560e56d0fe9f5d76446999f08adca5f456e0685b8c6bf70d0bfcb9e3e9df3d",
+      "sourceHash": "b1560e56d0fe9f5d76446999f08adca5f456e0685b8c6bf70d0bfcb9e3e9df3d",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 16,
+      "url": "https://www.cultura.sc.gov.br/programacao/tipo/exposicao/3960-exposicao-pinturas-derivas?date=2026-10-13-00-00",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "elapsedMs": 22600,
+      "counts": {
+        "paragraphs": 13,
+        "headings": 1,
+        "listItems": 1,
+        "readyImages": 1,
+        "failedImages": 0,
+        "readyBytes": 303433
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "dfb94b92d1a56a9b1451569103844fe8018957bde401cc581d084e0cc4e25ff9",
+      "sourceHash": "dfb94b92d1a56a9b1451569103844fe8018957bde401cc581d084e0cc4e25ff9",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 17,
+      "url": "https://www.lance.com.br/tenis/thiago-wild-deixa-mais-um-torneio-e-aumenta-duvida-sobre-retorno.html",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:lance-body-v1"
+        ],
+        "adapter": "lance-body-v1"
+      },
+      "elapsedMs": 14971,
+      "counts": {
+        "paragraphs": 10,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 2,
+        "failedImages": 0,
+        "readyBytes": 97474
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 2
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "a9efed220c55d78ee11aff310f98c9449eb7e2b12a14be554c1fc631f0f01f8b",
+      "sourceHash": "a9efed220c55d78ee11aff310f98c9449eb7e2b12a14be554c1fc631f0f01f8b",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 18,
+      "url": "https://www.gov.br/jbrj/pt-br/assuntos/noticias/semana-nacional-de-ciencia-e-tecnologia-2026-201cciencia-delas-destaca-o-papel-de-mulheres-cientistas",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "elapsedMs": 25458,
+      "counts": {
+        "paragraphs": 5,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 1,
+        "failedImages": 0,
+        "readyBytes": 121278
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "0badbd03cd81c9c456d1b7e53dcd752df860094fb2203c129b6f0562bca61183",
+      "sourceHash": "0badbd03cd81c9c456d1b7e53dcd752df860094fb2203c129b6f0562bca61183",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 19,
+      "url": "https://www.cnnbrasil.com.br/auto/quatro-cuidados-para-ter-no-carro-durante-periodo-da-primavera-confira/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "embedded-story:11/11",
+          "adapter:cnn-body-v1"
+        ],
+        "adapter": "cnn-body-v1"
+      },
+      "elapsedMs": 81940,
+      "counts": {
+        "paragraphs": 36,
+        "headings": 6,
+        "listItems": 0,
+        "readyImages": 13,
+        "failedImages": 0,
+        "readyBytes": 29951198
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 2
+      },
+      "embedded": [
+        {
+          "origin": "https://stories.cnnbrasil.com.br",
+          "kind": "story",
+          "pages": 11,
+          "excluded": 0,
+          "expected": {
+            "paragraphs": 21,
+            "headings": 2,
+            "listItems": 0,
+            "declaredImages": 0
+          },
+          "missingParagraphs": 0,
+          "missingHeadings": 0,
+          "missingListItems": 0,
+          "unmatchedDomImages": 0
+        }
+      ],
+      "baselineQuality": "partial",
+      "baselineHash": "26a4c27422600c41f9af389f365082287f00cf48f1c5c44dc9b45f1c753916aa",
+      "sourceHash": "ce573b13088ab35c6678c40ba964341062e924dcd3fbda7e8b557e969af68461",
+      "hashIdentical": false,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "读取11页 AMP Story，转换 AMP-IMG 并保留原始 srcset 候选；排除重复 CNN 标识及 Vector 装饰图。主文档原2图保留，新增11份子页资产，共13图；子页21段、2个标题覆盖，无真实列表。"
+    },
+    {
+      "index": 20,
+      "url": "https://www.correiobraziliense.com.br/brasil/2026/09/7510825-viagem-de-carro-5-dicas-para-trafegar-com-seguranca-pelas-rodovias.html",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "elapsedMs": 20324,
+      "counts": {
+        "paragraphs": 15,
+        "headings": 2,
+        "listItems": 3,
+        "readyImages": 3,
+        "failedImages": 0,
+        "readyBytes": 401937
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "ad473b76fbbfe8958c1de3237ca96faeb9674b02293408def702dc2a8fa2ca7b",
+      "sourceHash": "ad473b76fbbfe8958c1de3237ca96faeb9674b02293408def702dc2a8fa2ca7b",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 21,
+      "url": "https://record.r7.com/fala-brasil/mulheres-positivas/video/mulheres-positivas-influenciadora-promove-autonomia-feminina-com-dicas-sobre-cuidados-automotivos-26092026/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:r7-body-v1"
+        ],
+        "adapter": "r7-body-v1"
+      },
+      "elapsedMs": 42130,
+      "counts": {
+        "paragraphs": 7,
+        "headings": 2,
+        "listItems": 0,
+        "readyImages": 1,
+        "failedImages": 0,
+        "readyBytes": 52898
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "partial",
+      "baselineHash": "8ddda80fbb6edf7a3bc8a4fa947f67a447f42b6feff1b56cf622f9107e7691ff",
+      "sourceHash": "c491853a213115a14869fbe6421678500ea82764eb030754f2c2a1961152b24e",
+      "hashIdentical": false,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 1,
+      "unsupported": [
+        {
+          "code": "unsupported-video",
+          "total": 1
+        }
+      ],
+      "note": "原视频封面960×540保留；VideoObject 简介已出现在现有正文，未重复追加。未发现字幕 track；播放器的一处重复标题标签在本轮渲染中不可见，不属于新增正文遗漏。真实视频继续 partial。"
+    },
+    {
+      "index": 22,
+      "url": "https://www.estadao.com.br/jornal-do-carro/oito-sinais-de-que-os-freios-do-seu-carro-vao-falhar/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "elapsedMs": 24574,
+      "counts": {
+        "paragraphs": 43,
+        "headings": 4,
+        "listItems": 3,
+        "readyImages": 3,
+        "failedImages": 0,
+        "readyBytes": 673189
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 3
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "556f07bfd2ac517999242a3d4568aec72f66566365dac10f74bcd5e1bc51df92",
+      "sourceHash": "525e2e551b9d0828efb12ef3e5f9a34effeae5ebeb05a9a3e203bca7b8d1c56f",
+      "hashIdentical": false,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "三张原图字节与尺寸均不变；第三张alt从Mecânico变为空，图注仍完整保留Mecânico Foto: Layer Up，造成语义哈希变化。正文无遗漏。"
+    },
+    {
+      "index": 23,
+      "url": "https://www.bcb.gov.br/detalhenoticia/21283/nota",
+      "ok": false,
+      "code": "article-short",
+      "quality": null,
+      "elapsedMs": 30599,
+      "counts": null,
+      "coverage": null,
+      "baselineQuality": "article-short",
+      "baselineHash": null,
+      "sourceHash": null,
+      "hashIdentical": null,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "公告正文仍低于最低字数，保留 article-short。"
+    },
+    {
+      "index": 24,
+      "url": "https://www.bcb.gov.br/detalhenoticia/21276/noticia",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:bcb-notice-v1"
+        ],
+        "adapter": "bcb-notice-v1"
+      },
+      "elapsedMs": 42472,
+      "counts": {
+        "paragraphs": 8,
+        "headings": 0,
+        "listItems": 0,
+        "readyImages": 0,
+        "failedImages": 0,
+        "readyBytes": 0
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "cddb8a88e8414f3ce7ee5ff01a7effb97e59ac839660a7f18bb3914cf4836c75",
+      "sourceHash": "cddb8a88e8414f3ce7ee5ff01a7effb97e59ac839660a7f18bb3914cf4836c75",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 25,
+      "url": "https://www.bcb.gov.br/detalhenoticia/21275/nota",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:bcb-notice-v1"
+        ],
+        "adapter": "bcb-notice-v1"
+      },
+      "elapsedMs": 38239,
+      "counts": {
+        "paragraphs": 1,
+        "headings": 0,
+        "listItems": 0,
+        "readyImages": 0,
+        "failedImages": 0,
+        "readyBytes": 0
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 0,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "e16a39089dc833daac496177d8ec6d5982fc4929ca92a70b5f130f5103e31c75",
+      "sourceHash": "e16a39089dc833daac496177d8ec6d5982fc4929ca92a70b5f130f5103e31c75",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "主文档段落、标题与编辑列表覆盖通过，既有原图字节保留；声明图片URL变体仍按未匹配数量供核对。"
+    },
+    {
+      "index": 26,
+      "url": "https://www.gov.br/suframa/pt-br/assuntos/noticias/suframa-e-receita-federal-discutem-implementacao-da-reforma-tributaria-na-zona-franca-de-manaus-e-areas-de-livre-comercio",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "elapsedMs": 27612,
+      "counts": {
+        "paragraphs": 11,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 2,
+        "failedImages": 0,
+        "readyBytes": 429792
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 1,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "3af99c7e5dfe982c617c863e3e7835290fe74d57516d11109241bb2727fce885",
+      "sourceHash": "3af99c7e5dfe982c617c863e3e7835290fe74d57516d11109241bb2727fce885",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "未匹配DOM地址为Plone动态裁剪变体；两张既有图片的原始字节与语义哈希不变。"
+    },
+    {
+      "index": 27,
+      "url": "https://www.gov.br/receitafederal/pt-br/assuntos/noticias/2026/outubro/operacao-inflamavel-ii-da-receita-federal-apura-aproveitamento-indevido-de-creditos-de-pis-pasep-e-cofins-na-revenda-de-oleo-diesel-gasolina-e-etanol",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "elapsedMs": 31327,
+      "counts": {
+        "paragraphs": 14,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 1,
+        "failedImages": 0,
+        "readyBytes": 1039081
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 1,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "83192645c1e7976ae23150b0457cf21a9265f087d2d27c7b3b16ba68420acf95",
+      "sourceHash": "83192645c1e7976ae23150b0457cf21a9265f087d2d27c7b3b16ba68420acf95",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "未匹配DOM地址为Plone动态裁剪变体；既有图片的原始字节与语义哈希不变。"
+    },
+    {
+      "index": 28,
+      "url": "https://www.gov.br/nfse/pt-br/noticias/comite-gestor-da-nfs-e-se-reune-belo-horizonte-mg-para-homologar-novas-funcionalidades-para-a-reforma-tributaria",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "elapsedMs": 33757,
+      "counts": {
+        "paragraphs": 8,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 2,
+        "failedImages": 0,
+        "readyBytes": 2222696
+      },
+      "coverage": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "unmatchedDomNodes": 1,
+        "unmatchedDeclaredUrls": 0
+      },
+      "embedded": [],
+      "baselineQuality": "needs-review",
+      "baselineHash": "0c19fe96558032bf739eacfbe1de319c2afe3f31712b2d2688c8b02365a5aa94",
+      "sourceHash": "0c19fe96558032bf739eacfbe1de319c2afe3f31712b2d2688c8b02365a5aa94",
+      "hashIdentical": true,
+      "retainedBaselineImages": true,
+      "baselineTextDifferences": 0,
+      "unsupported": [],
+      "note": "未匹配DOM地址为Plone动态裁剪变体；两张既有图片的原始字节与语义哈希不变。"
+    }
+  ]
+}

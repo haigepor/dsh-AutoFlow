@@ -1,0 +1,123 @@
+{
+  "text": [
+    {
+      "site": "CBS News",
+      "ok": true,
+      "hashBefore": "d43e025d869bb944252911885ec0fa256f1fdbe3878869ff6da50e7fb9c7c1c9",
+      "hashAfter": "d43e025d869bb944252911885ec0fa256f1fdbe3878869ff6da50e7fb9c7c1c9",
+      "hashSame": true,
+      "paragraphsBefore": 45,
+      "paragraphsAfter": 45
+    },
+    {
+      "site": "新华社",
+      "ok": true,
+      "hashBefore": "2c69da77f0fa315af8795ae7f754a90615056822896bf2d4c5a924115484a54b",
+      "hashAfter": "2c69da77f0fa315af8795ae7f754a90615056822896bf2d4c5a924115484a54b",
+      "hashSame": true,
+      "paragraphsBefore": 38,
+      "paragraphsAfter": 38
+    },
+    {
+      "site": "Associated Press",
+      "ok": true,
+      "hashBefore": "5c6da3f4bb6eef44afab3d60b051c940102ee0bf006971ebbdfa37ee147a8968",
+      "hashAfter": "5c6da3f4bb6eef44afab3d60b051c940102ee0bf006971ebbdfa37ee147a8968",
+      "hashSame": true,
+      "paragraphsBefore": 16,
+      "paragraphsAfter": 16
+    },
+    {
+      "site": "France 24",
+      "ok": true,
+      "hashBefore": "f63f2dd452127cc4642964f0bb6adf69b614467f50bc8975d5fbcca80275b342",
+      "hashAfter": "f63f2dd452127cc4642964f0bb6adf69b614467f50bc8975d5fbcca80275b342",
+      "hashSame": true,
+      "paragraphsBefore": 20,
+      "paragraphsAfter": 20
+    },
+    {
+      "site": "Folha de S.Paulo",
+      "ok": true,
+      "hashBefore": "08e63b4020a245b864fe535461ef5a06397bb2653df278eb45bf241a2cbf71db",
+      "hashAfter": "08e63b4020a245b864fe535461ef5a06397bb2653df278eb45bf241a2cbf71db",
+      "hashSame": true,
+      "paragraphsBefore": 59,
+      "paragraphsAfter": 59
+    },
+    {
+      "site": "NPR",
+      "ok": true,
+      "hashBefore": "ffaf9b15b7502466ee2f357d0fa7be955c9f5ed1c57af2d293cc5b402365db76",
+      "hashAfter": "ffaf9b15b7502466ee2f357d0fa7be955c9f5ed1c57af2d293cc5b402365db76",
+      "hashSame": true,
+      "paragraphsBefore": 28,
+      "paragraphsAfter": 28
+    },
+    {
+      "site": "CNN",
+      "ok": true,
+      "hashBefore": "462d83676da50fe5b1be281e6977462e64c36f569ab9fcf304f100d212c02f2b",
+      "hashAfter": "462d83676da50fe5b1be281e6977462e64c36f569ab9fcf304f100d212c02f2b",
+      "hashSame": true,
+      "paragraphsBefore": 354,
+      "paragraphsAfter": 354
+    }
+  ],
+  "rich": [
+    {
+      "site": "CBS News",
+      "paragraphsBefore": 38,
+      "paragraphsAfter": 38,
+      "nonemptyBlocksBefore": 40,
+      "retainedBlocks": 40,
+      "oldReadyImages": 6,
+      "retainedReadyImages": 6
+    },
+    {
+      "site": "新华社",
+      "paragraphsBefore": 38,
+      "paragraphsAfter": 38,
+      "nonemptyBlocksBefore": 38,
+      "retainedBlocks": 38,
+      "oldReadyImages": 0,
+      "retainedReadyImages": 0
+    },
+    {
+      "site": "Associated Press",
+      "paragraphsBefore": 18,
+      "paragraphsAfter": 20,
+      "nonemptyBlocksBefore": 17,
+      "retainedBlocks": 17,
+      "oldReadyImages": 0,
+      "retainedReadyImages": 0
+    },
+    {
+      "site": "France 24",
+      "paragraphsBefore": 30,
+      "paragraphsAfter": 30,
+      "nonemptyBlocksBefore": 32,
+      "retainedBlocks": 32,
+      "oldReadyImages": 3,
+      "retainedReadyImages": 0
+    },
+    {
+      "site": "NPR",
+      "paragraphsBefore": 33,
+      "paragraphsAfter": 33,
+      "nonemptyBlocksBefore": 39,
+      "retainedBlocks": 39,
+      "oldReadyImages": 1,
+      "retainedReadyImages": 1
+    },
+    {
+      "site": "CNN",
+      "paragraphsBefore": 354,
+      "paragraphsAfter": 354,
+      "nonemptyBlocksBefore": 354,
+      "retainedBlocks": 354,
+      "oldReadyImages": 0,
+      "retainedReadyImages": 0
+    }
+  ]
+}

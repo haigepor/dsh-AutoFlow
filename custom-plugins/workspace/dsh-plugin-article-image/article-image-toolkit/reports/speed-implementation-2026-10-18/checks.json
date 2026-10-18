@@ -1,0 +1,82 @@
+{
+  "at": "2026-10-18T12:42:15.199Z",
+  "checks": [
+    {
+      "command": "pnpm exec vitest run",
+      "cwd": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit",
+      "result": "PASS",
+      "files": 32,
+      "tests": 524,
+      "durationMs": 25750
+    },
+    {
+      "command": "pnpm run test",
+      "cwd": "custom-plugins/workspace/dsh-plugin-article-image",
+      "result": "PASS",
+      "files": 17,
+      "tests": 157,
+      "durationMs": 10870
+    },
+    {
+      "command": "pnpm run build:client",
+      "cwd": "custom-plugins/workspace/dsh-plugin-article-image",
+      "result": "PASS"
+    },
+    {
+      "command": "pnpm run check",
+      "cwd": "custom-plugins/workspace/dsh-plugin-article-image",
+      "result": "PASS"
+    },
+    {
+      "command": "pnpm exec vitest run --config vitest.web.config.ts apps/web/tests/article-image.e2e.ts --update",
+      "result": "PASS",
+      "files": 1,
+      "tests": 1,
+      "snapshotsUpdated": 1
+    },
+    {
+      "command": "pnpm exec vitest run --config vitest.web.config.ts apps/web/tests/article-image.e2e.ts",
+      "result": "PASS",
+      "files": 1,
+      "tests": 1,
+      "durationMs": 46540
+    },
+    {
+      "command": "pnpm run verify-translation-pairing -- custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/README.md docs/upgrade-guide/v0.2.0-rc.2/article-image-workflow/guide.md",
+      "result": "PASS",
+      "pairs": 2
+    },
+    {
+      "command": "pnpm run verify-upgrade-guides",
+      "result": "PASS"
+    },
+    {
+      "command": "pnpm exec vitest run test/renderer-performance.test.js",
+      "cwd": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit",
+      "result": "PASS",
+      "tests": 12,
+      "files": 1
+    }
+  ],
+  "testFirst": {
+    "initialStaticFailed": 46,
+    "metadataSchemaFailed": 1,
+    "reviewConflictFailed": 3,
+    "finalAllPassed": true,
+    "pathScopeFailed": 3
+  },
+  "models": "Local web fixture adapter only; no real model/image generation",
+  "review": {
+    "result": "PASS",
+    "method": "Read-only independent review of final conflict/limit guards; no additional network probes.",
+    "pathScope": "Final renderer reselects host/path adapter from the controlled final URL before fulfillment; both redirect directions and generic scope confirmed."
+  },
+  "delivery": {
+    "files": 15,
+    "badEncoding": [],
+    "missingLinks": [],
+    "scopedDiffCheck": "PASS",
+    "finalProfileExact": true,
+    "controlPlaneModified": false
+  }
+}

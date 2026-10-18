@@ -1,0 +1,276 @@
+{
+  "fixtureRows": 28,
+  "measured": 26,
+  "skipped": 2,
+  "networkCallsAttempted": 0,
+  "sameFirstParagraph": 6,
+  "lowerThan90PercentBaselineShingles": [
+    12,
+    21
+  ],
+  "medianDefuddleMs": 633.3858999999993,
+  "rows": [
+    {
+      "index": 1,
+      "existing": 59,
+      "readabilityP": 58,
+      "defuddleP": 63,
+      "readabilityImages": 0,
+      "defuddleImages": 8,
+      "recall": 0.9846227775108121,
+      "candidateFirst": "Laura Rysman"
+    },
+    {
+      "index": 2,
+      "existing": 22,
+      "readabilityP": 22,
+      "defuddleP": 31,
+      "readabilityImages": 0,
+      "defuddleImages": 5,
+      "recall": 0.981998199819982,
+      "candidateFirst": "Renan Marra"
+    },
+    {
+      "index": 3,
+      "existing": 9,
+      "readabilityP": 9,
+      "defuddleP": 19,
+      "readabilityImages": 0,
+      "defuddleImages": 3,
+      "recall": 0.9805825242718447,
+      "candidateFirst": "Gabriel Justo"
+    },
+    {
+      "index": 4,
+      "existing": 24,
+      "readabilityP": 22,
+      "defuddleP": 21,
+      "readabilityImages": 1,
+      "defuddleImages": 2,
+      "recall": 0.9953139643861293,
+      "candidateFirst": "atualizado 15/09/2026 19:06"
+    },
+    {
+      "index": 5,
+      "existing": 9,
+      "readabilityP": 2,
+      "defuddleP": 2,
+      "readabilityImages": 0,
+      "defuddleImages": 0,
+      "recall": 0.9913419913419913,
+      "candidateFirst": "A Argentina se tornou um dos destinos mais atrativos para brasileiros devido ao câmbio favorável. Co"
+    },
+    {
+      "index": 6,
+      "existing": 14,
+      "readabilityP": 13,
+      "defuddleP": 13,
+      "readabilityImages": 0,
+      "defuddleImages": 0,
+      "recall": 1,
+      "candidateFirst": "Mallorca ganhou os holofotes recentemente ao sediar um amistoso de pré-temporada contra o Paris Sain"
+    },
+    {
+      "index": 7,
+      "skipped": "No saved static HTML"
+    },
+    {
+      "index": 8,
+      "existing": 24,
+      "readabilityP": 21,
+      "defuddleP": 20,
+      "readabilityImages": 1,
+      "defuddleImages": 1,
+      "recall": 0.9630606860158312,
+      "candidateFirst": "7.out.2026 às 23h00"
+    },
+    {
+      "index": 9,
+      "existing": 32,
+      "readabilityP": 7,
+      "defuddleP": 12,
+      "readabilityImages": 0,
+      "defuddleImages": 2,
+      "recall": 0.9746031746031746,
+      "candidateFirst": "Adrielly Kilryann"
+    },
+    {
+      "index": 10,
+      "existing": 18,
+      "readabilityP": 15,
+      "defuddleP": 15,
+      "readabilityImages": 1,
+      "defuddleImages": 1,
+      "recall": 0.9588744588744589,
+      "candidateFirst": "2.out.2026 às 23h00"
+    },
+    {
+      "index": 11,
+      "skipped": "Saved static response has no HTML"
+    },
+    {
+      "index": 12,
+      "existing": 43,
+      "readabilityP": 20,
+      "defuddleP": 0,
+      "readabilityImages": 0,
+      "defuddleImages": 1,
+      "recall": 0,
+      "candidateFirst": ""
+    },
+    {
+      "index": 13,
+      "existing": 38,
+      "readabilityP": 30,
+      "defuddleP": 34,
+      "readabilityImages": 0,
+      "defuddleImages": 2,
+      "recall": 0.9760726072607261,
+      "candidateFirst": "Luana Franzão"
+    },
+    {
+      "index": 14,
+      "existing": 27,
+      "readabilityP": 24,
+      "defuddleP": 30,
+      "readabilityImages": 0,
+      "defuddleImages": 1,
+      "recall": 0.9945054945054945,
+      "candidateFirst": "Luciana Constantino"
+    },
+    {
+      "index": 15,
+      "existing": 49,
+      "readabilityP": 49,
+      "defuddleP": 34,
+      "readabilityImages": 1,
+      "defuddleImages": 2,
+      "recall": 0.911864406779661,
+      "candidateFirst": "Por Diego Corumba • Editado por Jones Oliveira |"
+    },
+    {
+      "index": 16,
+      "existing": 20,
+      "readabilityP": 13,
+      "defuddleP": 14,
+      "readabilityImages": 1,
+      "defuddleImages": 1,
+      "recall": 0.9827586206896551,
+      "candidateFirst": "Categoria:"
+    },
+    {
+      "index": 17,
+      "existing": 13,
+      "readabilityP": 12,
+      "defuddleP": 14,
+      "readabilityImages": 1,
+      "defuddleImages": 2,
+      "recall": 0.953416149068323,
+      "candidateFirst": "Por Joanna Colaço •Rio de Janeiro (RJ)"
+    },
+    {
+      "index": 18,
+      "existing": 28,
+      "readabilityP": 25,
+      "defuddleP": 2,
+      "readabilityImages": 0,
+      "defuddleImages": 0,
+      "recall": 0.978742249778565,
+      "candidateFirst": "De 27 de outubro a 1º de novembro, a 23ª Semana Nacional de Ciência e Tecnologia (SNCT) acontece no "
+    },
+    {
+      "index": 19,
+      "existing": 23,
+      "readabilityP": 18,
+      "defuddleP": 14,
+      "readabilityImages": 0,
+      "defuddleImages": 1,
+      "recall": 0.9709864603481625,
+      "candidateFirst": "A chegada da primavera muda algumas condições às quais o carro fica exposto. O aumento da umidade do"
+    },
+    {
+      "index": 20,
+      "existing": 22,
+      "readabilityP": 15,
+      "defuddleP": 14,
+      "readabilityImages": 2,
+      "defuddleImages": 1,
+      "recall": 0.9109311740890689,
+      "candidateFirst": "A discussão sobre a fiscalização da velocidade média em rodovias federais, que levou à suspensão de "
+    },
+    {
+      "index": 21,
+      "existing": 52,
+      "readabilityP": 36,
+      "defuddleP": 5,
+      "readabilityImages": 17,
+      "defuddleImages": 0,
+      "recall": 0.30684931506849317,
+      "candidateFirst": "No novo episódio do Mulheres Positivas, a especialista em mecânica Vittória Gabriela compartilhou se"
+    },
+    {
+      "index": 22,
+      "existing": 55,
+      "readabilityP": 54,
+      "defuddleP": 44,
+      "readabilityImages": 3,
+      "defuddleImages": 4,
+      "recall": 0.9136630343671417,
+      "candidateFirst": "Freios devem ser revisados a cada 10 mil km. Veja as dicas"
+    },
+    {
+      "index": 23,
+      "existing": "article-extraction",
+      "defuddleP": 0,
+      "defuddleImages": 0,
+      "recall": null,
+      "candidateFirst": ""
+    },
+    {
+      "index": 24,
+      "existing": "article-extraction",
+      "defuddleP": 0,
+      "defuddleImages": 0,
+      "recall": null,
+      "candidateFirst": ""
+    },
+    {
+      "index": 25,
+      "existing": "article-extraction",
+      "defuddleP": 0,
+      "defuddleImages": 0,
+      "recall": null,
+      "candidateFirst": ""
+    },
+    {
+      "index": 26,
+      "existing": 8,
+      "readabilityP": 7,
+      "defuddleP": 8,
+      "readabilityImages": 1,
+      "defuddleImages": 1,
+      "recall": 0.9633401221995926,
+      "candidateFirst": "Reunião discutiu a implementação da reforma, os aspectos técnicos e operacionais relacionados às par"
+    },
+    {
+      "index": 27,
+      "existing": 12,
+      "readabilityP": 10,
+      "defuddleP": 11,
+      "readabilityImages": 0,
+      "defuddleImages": 0,
+      "recall": 1,
+      "candidateFirst": "Notícias"
+    },
+    {
+      "index": 28,
+      "existing": 6,
+      "readabilityP": 7,
+      "defuddleP": 5,
+      "readabilityImages": 2,
+      "defuddleImages": 0,
+      "recall": 0.9543147208121827,
+      "candidateFirst": "Entre os dias 5 e 9 de outubro, o Comitê Gestor da Nota Fiscal de Serviço Eletrônica de Padrão Nacio"
+    }
+  ]
+}

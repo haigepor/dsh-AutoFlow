@@ -1,0 +1,421 @@
+[
+  {
+    "site": "CBS News",
+    "hostname": "www.cbsnews.com",
+    "checkedAt": "2026-10-17T15:09:05.825Z",
+    "addresses": [
+      {
+        "address": "151.101.199.56",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "新华社",
+    "hostname": "www.news.cn",
+    "checkedAt": "2026-10-17T15:09:05.865Z",
+    "addresses": [
+      {
+        "address": "2408:8760:107:5::106",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2408:8760:107:5::108",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2408:8760:107:5::10a",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2408:8760:107:5::10b",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2408:8760:107:5::109",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2408:8760:107:5::107",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "116.169.180.152",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "116.169.180.155",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "116.169.180.154",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "116.169.180.153",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "116.169.180.156",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "116.169.180.135",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "Associated Press",
+    "hostname": "apnews.com",
+    "checkedAt": "2026-10-17T15:09:05.866Z",
+    "addresses": [
+      {
+        "address": "2606:4700::6810:1708",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2606:4700::6810:1608",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "104.16.22.8",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "104.16.23.8",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "France 24",
+    "hostname": "www.france24.com",
+    "checkedAt": "2026-10-17T15:09:05.902Z",
+    "addresses": [
+      {
+        "address": "2600:1417:4400:24::17d2:7a8",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2600:1417:4400:24::17d2:7ad",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2.16.62.160",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "2.16.62.178",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "CNA",
+    "hostname": "www.channelnewsasia.com",
+    "checkedAt": "2026-10-17T15:09:05.948Z",
+    "addresses": [
+      {
+        "address": "2a03:2880:f127:83:face:b00c:0:25de",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "23.225.141.210",
+        "family": 4,
+        "range": "unicast"
+      }
+    ],
+    "cloudflare": {
+      "code": "article-timeout"
+    }
+  },
+  {
+    "site": "ABC Australia",
+    "hostname": "www.abc.net.au",
+    "checkedAt": "2026-10-17T15:09:05.983Z",
+    "addresses": [
+      {
+        "address": "66.220.147.11",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "2001::c73b:95d2",
+        "family": 6,
+        "range": "teredo"
+      }
+    ],
+    "cloudflare": {
+      "code": "article-timeout"
+    }
+  },
+  {
+    "site": "Al Jazeera",
+    "hostname": "www.aljazeera.com",
+    "checkedAt": "2026-10-17T15:09:06.032Z",
+    "addresses": [
+      {
+        "address": "2a03:2880:f11c:8183:face:b00c:0:25de",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "103.226.246.99",
+        "family": 4,
+        "range": "unicast"
+      }
+    ],
+    "cloudflare": {
+      "code": "article-timeout"
+    }
+  },
+  {
+    "site": "DW",
+    "hostname": "amp.dw.com",
+    "checkedAt": "2026-10-17T15:09:06.061Z",
+    "addresses": [
+      {
+        "address": "2a03:2880:f131:83:face:b00c:0:25de",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "199.59.149.201",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "EL PAÍS",
+    "hostname": "elpais.com",
+    "checkedAt": "2026-10-17T15:09:06.062Z",
+    "addresses": [
+      {
+        "address": "2a03:2880:f12c:183:face:b00c:0:25de",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "103.252.115.59",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "Folha de S.Paulo",
+    "hostname": "www1.folha.uol.com.br",
+    "checkedAt": "2026-10-17T15:09:06.110Z",
+    "addresses": [
+      {
+        "address": "18.155.202.4",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "18.155.202.45",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "18.155.202.79",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "18.155.202.99",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "News24",
+    "hostname": "www.news24.com",
+    "checkedAt": "2026-10-17T15:09:06.110Z",
+    "addresses": [
+      {
+        "address": "2a03:2880:f127:83:face:b00c:0:25de",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "179.60.193.16",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "South China Morning Post",
+    "hostname": "www.scmp.com",
+    "checkedAt": "2026-10-17T15:09:06.111Z",
+    "addresses": [
+      {
+        "address": "2a03:2880:f136:83:face:b00c:0:25de",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "31.13.80.54",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "NPR",
+    "hostname": "www.npr.org",
+    "checkedAt": "2026-10-17T15:09:06.150Z",
+    "addresses": [
+      {
+        "address": "2600:1417:4400:7::1720:3d90",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2600:1417:4400:7::1720:3dac",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2.19.96.168",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "2.19.96.177",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "The Guardian",
+    "hostname": "www.theguardian.com",
+    "checkedAt": "2026-10-17T15:09:06.151Z",
+    "addresses": [
+      {
+        "address": "2a03:2880:f12a:83:face:b00c:0:25de",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "103.252.114.101",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  },
+  {
+    "site": "BBC News",
+    "hostname": "www.bbc.co.uk",
+    "checkedAt": "2026-10-17T15:09:06.188Z",
+    "addresses": [
+      {
+        "address": "2a03:2880:f10d:183:face:b00c:0:25de",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "174.37.154.236",
+        "family": 4,
+        "range": "unicast"
+      }
+    ],
+    "cloudflare": {
+      "code": "article-timeout"
+    }
+  },
+  {
+    "site": "CNN",
+    "hostname": "transcripts.cnn.com",
+    "checkedAt": "2026-10-17T15:09:06.229Z",
+    "addresses": [
+      {
+        "address": "2600:9000:201e:6400:4:947a:5880:93a1",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2600:9000:201e:9a00:4:947a:5880:93a1",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2600:9000:201e:7200:4:947a:5880:93a1",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2600:9000:201e:ba00:4:947a:5880:93a1",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2600:9000:201e:f600:4:947a:5880:93a1",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2600:9000:201e:600:4:947a:5880:93a1",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2600:9000:201e:400:4:947a:5880:93a1",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "2600:9000:201e:9e00:4:947a:5880:93a1",
+        "family": 6,
+        "range": "unicast"
+      },
+      {
+        "address": "52.85.151.33",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "52.85.151.13",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "52.85.151.10",
+        "family": 4,
+        "range": "unicast"
+      },
+      {
+        "address": "52.85.151.41",
+        "family": 4,
+        "range": "unicast"
+      }
+    ]
+  }
+]

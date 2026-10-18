@@ -1,0 +1,306 @@
+{
+  "acceptance": "GO",
+  "gates": {
+    "all28FreshAttemptsAccounted": true,
+    "all21FreshSnapshots": true,
+    "orderedBodyBlocksIdentical": true,
+    "listStructuresIdentical": true,
+    "allOriginalBytesIdentical": true,
+    "bodySemanticHashesIdentical": true,
+    "r7All131CuesIdentical": true,
+    "noNewCaptureFailures": true,
+    "noNewPartialStatuses": true,
+    "noModelAnalysis": true
+  },
+  "rawSnapshotHashesUnchanged": 20,
+  "explicitNoiseDifference": {
+    "article22AdvertisementLabels": {
+      "index": 22,
+      "rawSourceHashUnchanged": true,
+      "removedBlocks": [],
+      "beforeCount": 51,
+      "afterCount": 51,
+      "baselineBodyCount": 51,
+      "exactBlocks": true,
+      "normalizedSemanticHashEqual": true,
+      "normalizedSourceHash": "f05caebdfdb9ae04e5873af1e2e3491a688e4b092f1a5291deb13d08bef49238",
+      "currentSourceHash": "f05caebdfdb9ae04e5873af1e2e3491a688e4b092f1a5291deb13d08bef49238",
+      "evidence": {
+        "selector": ".ads-container .ads-placeholder-label",
+        "source": "Controlled public original HTML saved before regression; all standalone PUBLICIDADE nodes were ad placeholders.",
+        "noOtherContentDropped": true
+      }
+    },
+    "r7PlayerTitleOverlay": {
+      "index": 21,
+      "rawSourceHashUnchanged": false,
+      "removedBlock": {
+        "id": "b138",
+        "type": "paragraph",
+        "kind": "video-js-title-channel-overlay",
+        "sourceLinks": 2
+      },
+      "beforeCount": 143,
+      "afterCount": 142,
+      "domTextAndCanonicalMatch": true,
+      "exactRemainingBlocks": true,
+      "normalizedSemanticHashEqual": true,
+      "normalizedSourceHash": "8c6ed22e5e69aed201fa72e8bc7c282f6b49e9d93ffdb7e1dc36b53009d93aef",
+      "currentSourceHash": "8c6ed22e5e69aed201fa72e8bc7c282f6b49e9d93ffdb7e1dc36b53009d93aef",
+      "evidence": {
+        "selector": ".vjs-overlay .vjs-title-overlay-wrap",
+        "titleSelector": ".vjs-title-text__link",
+        "channelSelector": ".vjs-title-description__link",
+        "freshControlledRenderWithoutDeferral": true,
+        "articleByline": false
+      }
+    }
+  },
+  "baseline": {
+    "attempted": 28,
+    "completed": 28,
+    "freshSnapshots": 20,
+    "storedSnapshots": 21,
+    "initialImages": 98,
+    "retainedOriginalHashes": 98,
+    "readyImages": 98,
+    "failedImages": 0,
+    "orderedBlockLosses": [],
+    "changedBlocks": [],
+    "listChanges": [],
+    "badImageFiles": [],
+    "r7Captions": 131,
+    "r7CuesMatch": true,
+    "failed": [
+      {
+        "index": 1,
+        "code": "article-restricted"
+      },
+      {
+        "index": 2,
+        "code": "article-restricted"
+      },
+      {
+        "index": 3,
+        "code": "article-restricted"
+      },
+      {
+        "index": 7,
+        "code": "article-timeout"
+      },
+      {
+        "index": 9,
+        "code": "article-restricted"
+      },
+      {
+        "index": 13,
+        "code": "article-restricted"
+      },
+      {
+        "index": 14,
+        "code": "article-restricted"
+      },
+      {
+        "index": 23,
+        "code": "article-short"
+      }
+    ],
+    "staticComplete": [],
+    "modelStages": 0,
+    "wallMs": 1286758,
+    "p50Ms": 67761,
+    "p95Ms": 183755
+  },
+  "rejected": {
+    "attempted": 28,
+    "completed": 28,
+    "freshSnapshots": 21,
+    "storedSnapshots": 21,
+    "initialImages": 98,
+    "retainedOriginalHashes": 98,
+    "readyImages": 98,
+    "failedImages": 0,
+    "orderedBlockLosses": [
+      22
+    ],
+    "changedBlocks": [
+      22
+    ],
+    "listChanges": [],
+    "badImageFiles": [],
+    "r7Captions": 131,
+    "r7CuesMatch": true,
+    "failed": [
+      {
+        "index": 1,
+        "code": "article-restricted"
+      },
+      {
+        "index": 2,
+        "code": "article-restricted"
+      },
+      {
+        "index": 3,
+        "code": "article-restricted"
+      },
+      {
+        "index": 9,
+        "code": "article-restricted"
+      },
+      {
+        "index": 13,
+        "code": "article-restricted"
+      },
+      {
+        "index": 14,
+        "code": "article-restricted"
+      },
+      {
+        "index": 23,
+        "code": "article-short"
+      }
+    ],
+    "staticComplete": [
+      5,
+      18,
+      26
+    ],
+    "modelStages": 0,
+    "wallMs": 784754,
+    "p50Ms": 45298,
+    "p95Ms": 143750
+  },
+  "templateRejected": {
+    "attempted": 28,
+    "completed": 28,
+    "freshSnapshots": 21,
+    "storedSnapshots": 21,
+    "initialImages": 98,
+    "retainedOriginalHashes": 98,
+    "readyImages": 98,
+    "failedImages": 0,
+    "orderedBlockLosses": [
+      22
+    ],
+    "changedBlocks": [
+      22
+    ],
+    "listChanges": [],
+    "badImageFiles": [],
+    "r7Captions": 131,
+    "r7CuesMatch": true,
+    "failed": [
+      {
+        "index": 1,
+        "code": "article-restricted"
+      },
+      {
+        "index": 2,
+        "code": "article-restricted"
+      },
+      {
+        "index": 3,
+        "code": "article-restricted"
+      },
+      {
+        "index": 9,
+        "code": "article-restricted"
+      },
+      {
+        "index": 13,
+        "code": "article-restricted"
+      },
+      {
+        "index": 14,
+        "code": "article-restricted"
+      },
+      {
+        "index": 23,
+        "code": "article-short"
+      }
+    ],
+    "staticComplete": [
+      5,
+      18,
+      26
+    ],
+    "modelStages": 0,
+    "wallMs": 755370,
+    "p50Ms": 42779,
+    "p95Ms": 145467
+  },
+  "final": {
+    "attempted": 28,
+    "completed": 28,
+    "freshSnapshots": 21,
+    "storedSnapshots": 21,
+    "initialImages": 98,
+    "retainedOriginalHashes": 98,
+    "readyImages": 98,
+    "failedImages": 0,
+    "orderedBlockLosses": [
+      21
+    ],
+    "changedBlocks": [
+      21
+    ],
+    "listChanges": [],
+    "badImageFiles": [],
+    "r7Captions": 131,
+    "r7CuesMatch": true,
+    "failed": [
+      {
+        "index": 1,
+        "code": "article-restricted"
+      },
+      {
+        "index": 2,
+        "code": "article-restricted"
+      },
+      {
+        "index": 3,
+        "code": "article-restricted"
+      },
+      {
+        "index": 9,
+        "code": "article-restricted"
+      },
+      {
+        "index": 13,
+        "code": "article-restricted"
+      },
+      {
+        "index": 14,
+        "code": "article-restricted"
+      },
+      {
+        "index": 23,
+        "code": "article-short"
+      }
+    ],
+    "staticComplete": [
+      5,
+      18,
+      26
+    ],
+    "modelStages": 0,
+    "wallMs": 731679,
+    "p50Ms": 43321,
+    "p95Ms": 107994,
+    "extraAttemptCount": 1,
+    "attemptsIncludingRetries": 29
+  },
+  "observedChange": {
+    "wallReductionPercent": 43.14,
+    "p50ReductionPercent": 36.07,
+    "p95ReductionPercent": 41.23
+  },
+  "limits": [
+    "One complete reference and final pair, not interleaved repeated medians.",
+    "Public network, CDN, OS and proxy caches are not controlled.",
+    "Two incomplete batches were invalidated; two complete NO-GO candidates are retained separately.",
+    "Baseline O Tempo timed out and retained its earlier snapshot; final must publish all 21 fresh snapshots.",
+    "R7 raw hash differs by one DOM-confirmed player title/channel overlay; original hash mismatch and exact full-body comparison remain explicit.",
+    "No real model or image generation."
+  ]
+}

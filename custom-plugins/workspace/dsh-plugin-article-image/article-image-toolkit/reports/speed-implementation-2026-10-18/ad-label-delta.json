@@ -1,0 +1,17 @@
+{
+  "index": 22,
+  "rawSourceHashUnchanged": true,
+  "removedBlocks": [],
+  "beforeCount": 51,
+  "afterCount": 51,
+  "baselineBodyCount": 51,
+  "exactBlocks": true,
+  "normalizedSemanticHashEqual": true,
+  "normalizedSourceHash": "f05caebdfdb9ae04e5873af1e2e3491a688e4b092f1a5291deb13d08bef49238",
+  "currentSourceHash": "f05caebdfdb9ae04e5873af1e2e3491a688e4b092f1a5291deb13d08bef49238",
+  "evidence": {
+    "selector": ".ads-container .ads-placeholder-label",
+    "source": "Controlled public original HTML saved before regression; all standalone PUBLICIDADE nodes were ad placeholders.",
+    "noOtherContentDropped": true
+  }
+}

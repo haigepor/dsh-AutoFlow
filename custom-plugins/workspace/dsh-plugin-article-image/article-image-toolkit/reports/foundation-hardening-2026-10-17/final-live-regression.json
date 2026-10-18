@@ -1,0 +1,266 @@
+{
+  "config": {
+    "requestTimeoutMs": 60000,
+    "renderTimeoutMs": 120000,
+    "fetchConcurrency": 2,
+    "renderMode": "fallback",
+    "fetchCache": false
+  },
+  "elapsedMs": 329621.494,
+  "completed": 25,
+  "total": 28,
+  "results": [
+    {
+      "index": 1,
+      "url": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 59,
+      "chars": 12469,
+      "sourceHash": "08e63b4020a245b864fe535461ef5a06397bb2653df278eb45bf241a2cbf71db"
+    },
+    {
+      "index": 2,
+      "url": "https://www1.folha.uol.com.br/turismo/2026/08/taiwan-e-destino-turistico-vibrante-apesar-de-tensoes-com-a-china.shtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 22,
+      "chars": 6699,
+      "sourceHash": "3b74fbe787a1614f1b6b575ba3a428de3324f7e0d810bf00088661604b4e2768"
+    },
+    {
+      "index": 3,
+      "url": "https://www1.folha.uol.com.br/turismo/2026/07/resort-oiti-beach-e-base-confortavel-para-conhecer-tutoia-no-maranhao.shtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 9,
+      "chars": 2395,
+      "sourceHash": "ff579d0d54f71d2b15dfb9899dbffb94d7f9c79b90badf6de059650f358e9802"
+    },
+    {
+      "index": 4,
+      "url": "https://www.metropoles.com/conteudo-especial/orlando-com-bebes-e-criancas",
+      "ok": true,
+      "code": null,
+      "paragraphs": 24,
+      "chars": 6317,
+      "sourceHash": "1bece1dee7b24e5c7079de76822eff21441ec99e3fc268187b0aa648c0545fe4"
+    },
+    {
+      "index": 5,
+      "url": "https://www.correiobraziliense.com.br/aqui/2026/08/06/7-destinos-na-argentina-para-fugir-da-alta-do-dolar-e-aproveitar/",
+      "ok": true,
+      "code": null,
+      "paragraphs": 9,
+      "chars": 2934,
+      "sourceHash": "8f2f93d8f1d88c44d87b3224ae453bb78e7c496a75fdf06d43a13c9ce473f69a"
+    },
+    {
+      "index": 6,
+      "url": "https://www.correiobraziliense.com.br/aqui/2026/08/06/mallorca-5-passeios-para-fazer-na-ilha-espanhola-paradisiaca/",
+      "ok": true,
+      "code": null,
+      "paragraphs": 14,
+      "chars": 2674,
+      "sourceHash": "6c0bac97176ae243fab9a7fbe27d1f47cb8e7bbe25be433235c670d637096406"
+    },
+    {
+      "index": 7,
+      "url": "https://www.otempo.com.br/turismo/2026/7/23/temporada-de-aguas-mais-cristalinas-em-bonito-6-passeios-imperdiveis",
+      "ok": false,
+      "code": "article-timeout",
+      "paragraphs": 0,
+      "chars": 0,
+      "sourceHash": null
+    },
+    {
+      "index": 8,
+      "url": "https://guia.folha.uol.com.br/restaurantes/2026/10/festival-gastronomico-da-folha-tem-curadoria-musical-do-blue-note.shtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 24,
+      "chars": 4444,
+      "sourceHash": "3bfba3870913f35f23405da05247ae09cd91d546eb25fa7d6c71102dd2098ca9"
+    },
+    {
+      "index": 9,
+      "url": "https://www1.folha.uol.com.br/comida/2026/10/veja-como-fazer-a-buchimgae-panqueca-coreana-com-receita-de-arthur-paek.shtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 32,
+      "chars": 1757,
+      "sourceHash": "bcc75d4bc8efeb0b28bb82bf211adde6310ae89ff47269749924ba8bb9647c7a"
+    },
+    {
+      "index": 10,
+      "url": "https://guia.folha.uol.com.br/restaurantes/2026/10/saiko-leva-sandos-sanduiches-ao-estilo-japones-a-festival-gastronomico-da-folha.shtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 18,
+      "chars": 2780,
+      "sourceHash": "046ba0cf0cf8ab3bd48d76e33f8d643c78b03b2658c0fd9fcb59fe51c9b31320"
+    },
+    {
+      "index": 11,
+      "url": "https://g1.globo.com/sp/vale-do-paraiba-regiao/especial-publicitario/festa-das-flores-e-morangos-de-atibaia/flores-e-morangos/noticia/2026/09/10/festa-em-atibaia-flores-morangos-gastronomia-e-cultura-japonesa-sao-atracoes.ghtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 27,
+      "chars": 7115,
+      "sourceHash": "5a37e5cf23f4de64a79a8064eb70ea677d1b6972b8e6d568dbfd2b61c5977599"
+    },
+    {
+      "index": 12,
+      "url": "https://www.gov.br/saude/pt-br/campanhas-da-saude/2026/triplice-viral",
+      "ok": true,
+      "code": null,
+      "paragraphs": 43,
+      "chars": 1693,
+      "sourceHash": "0f25061869aef3090f1bec3d72334b9c2fd1cab8efbaf8a8a2bc4549078f760d"
+    },
+    {
+      "index": 13,
+      "url": "https://www1.folha.uol.com.br/sobretudo/carreiras/2026/10/nao-sabe-para-onde-ir-na-carreira-aprenda-a-definir-seus-objetivos.shtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 38,
+      "chars": 7296,
+      "sourceHash": "e43c6f18ae0c91da682068192b577623202d83c7f92fd1be711f9ad090393155"
+    },
+    {
+      "index": 14,
+      "url": "https://www1.folha.uol.com.br/ambiente/2026/10/seca-e-calor-extremos-do-ultimo-el-nino-antecipam-novo-normal-nas-florestas-tropicais.shtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 27,
+      "chars": 9031,
+      "sourceHash": "6dc92599ca5876466a0298970e2ef30c5bec50a811a43ff46495d92e578312c2"
+    },
+    {
+      "index": 15,
+      "url": "https://canaltech.com.br/entretenimento/crunchyroll-animes-imperdiveis-outubro-2026/",
+      "ok": true,
+      "code": null,
+      "paragraphs": 49,
+      "chars": 7086,
+      "sourceHash": "d369c00bfc3d3cc33853964755627a0a616d6728d621283c0ae572b7e47d5a86"
+    },
+    {
+      "index": 16,
+      "url": "https://www.cultura.sc.gov.br/programacao/tipo/exposicao/3960-exposicao-pinturas-derivas?date=2026-10-13-00-00",
+      "ok": true,
+      "code": null,
+      "paragraphs": 20,
+      "chars": 1900,
+      "sourceHash": "2a2c193895e0068dc8ec3ec17ae1a3524f367fab2fcfafd52cc1970fe0f723e9"
+    },
+    {
+      "index": 17,
+      "url": "https://www.lance.com.br/tenis/thiago-wild-deixa-mais-um-torneio-e-aumenta-duvida-sobre-retorno.html",
+      "ok": true,
+      "code": null,
+      "paragraphs": 13,
+      "chars": 2021,
+      "sourceHash": "af350a95af545afa5ff15c9ec23eb05bd83327ec8819a0510c0c787303b3a69e"
+    },
+    {
+      "index": 18,
+      "url": "https://www.gov.br/jbrj/pt-br/assuntos/noticias/semana-nacional-de-ciencia-e-tecnologia-2026-201cciencia-delas-destaca-o-papel-de-mulheres-cientistas",
+      "ok": true,
+      "code": null,
+      "paragraphs": 28,
+      "chars": 7634,
+      "sourceHash": "cd45e7fa35fc6c6f90c0e1cc8485237d048e815f1b4094ecf1bc4e062692238d"
+    },
+    {
+      "index": 19,
+      "url": "https://www.cnnbrasil.com.br/auto/quatro-cuidados-para-ter-no-carro-durante-periodo-da-primavera-confira/",
+      "ok": true,
+      "code": null,
+      "paragraphs": 23,
+      "chars": 3184,
+      "sourceHash": "20f53a966abe82b23522aa26080cd7c7834fad23692c6c3a7aa725b68fc03bed"
+    },
+    {
+      "index": 20,
+      "url": "https://www.correiobraziliense.com.br/brasil/2026/09/7510825-viagem-de-carro-5-dicas-para-trafegar-com-seguranca-pelas-rodovias.html",
+      "ok": true,
+      "code": null,
+      "paragraphs": 22,
+      "chars": 2948,
+      "sourceHash": "ce2356e5b261bc3cd48acccb36958254e0c3ed6ebfbd569ce26deaa4a8d29f30"
+    },
+    {
+      "index": 21,
+      "url": "https://record.r7.com/fala-brasil/mulheres-positivas/video/mulheres-positivas-influenciadora-promove-autonomia-feminina-com-dicas-sobre-cuidados-automotivos-26092026/",
+      "ok": true,
+      "code": null,
+      "paragraphs": 51,
+      "chars": 4996,
+      "sourceHash": "2f44bb3b035b3c1ac257eeb024ce7290e5c4e44b881aba18a2f8839d0ed505a5"
+    },
+    {
+      "index": 22,
+      "url": "https://www.estadao.com.br/jornal-do-carro/oito-sinais-de-que-os-freios-do-seu-carro-vao-falhar/",
+      "ok": true,
+      "code": null,
+      "paragraphs": 55,
+      "chars": 7443,
+      "sourceHash": "bab4fbd7fbc3567f89e94802a10a1ad4e33dd202f45490c051afaa00a687ad7f"
+    },
+    {
+      "index": 23,
+      "url": "https://www.bcb.gov.br/detalhenoticia/21283/nota",
+      "ok": false,
+      "code": "article-short",
+      "paragraphs": 0,
+      "chars": 0,
+      "sourceHash": null
+    },
+    {
+      "index": 24,
+      "url": "https://www.bcb.gov.br/detalhenoticia/21276/noticia",
+      "ok": true,
+      "code": null,
+      "paragraphs": 8,
+      "chars": 3661,
+      "sourceHash": "2eea2c91932ef5657daf60e9d6ae05cccc39ad54b89e552428eb96faf0475dfc"
+    },
+    {
+      "index": 25,
+      "url": "https://www.bcb.gov.br/detalhenoticia/21275/nota",
+      "ok": false,
+      "code": "article-short",
+      "paragraphs": 0,
+      "chars": 0,
+      "sourceHash": null
+    },
+    {
+      "index": 26,
+      "url": "https://www.gov.br/suframa/pt-br/assuntos/noticias/suframa-e-receita-federal-discutem-implementacao-da-reforma-tributaria-na-zona-franca-de-manaus-e-areas-de-livre-comercio",
+      "ok": true,
+      "code": null,
+      "paragraphs": 8,
+      "chars": 3357,
+      "sourceHash": "3449ea0f498a5b78f3654c6c181ab3075b362ec35e9a748a9badac953b55aa29"
+    },
+    {
+      "index": 27,
+      "url": "https://www.gov.br/receitafederal/pt-br/assuntos/noticias/2026/outubro/operacao-inflamavel-ii-da-receita-federal-apura-aproveitamento-indevido-de-creditos-de-pis-pasep-e-cofins-na-revenda-de-oleo-diesel-gasolina-e-etanol",
+      "ok": true,
+      "code": null,
+      "paragraphs": 12,
+      "chars": 2639,
+      "sourceHash": "ec1588817ed4d004ecd2151dc77d662ea6d3220f4b688e0c21317f9a60510edd"
+    },
+    {
+      "index": 28,
+      "url": "https://www.gov.br/nfse/pt-br/noticias/comite-gestor-da-nfs-e-se-reune-belo-horizonte-mg-para-homologar-novas-funcionalidades-para-a-reforma-tributaria",
+      "ok": true,
+      "code": null,
+      "paragraphs": 6,
+      "chars": 2443,
+      "sourceHash": "e8d4b5f553479e13721c9da88933cb2b51d55096867ed6a66a659135761f117b"
+    }
+  ]
+}

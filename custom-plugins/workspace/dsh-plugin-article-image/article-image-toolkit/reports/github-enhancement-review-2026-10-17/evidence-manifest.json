@@ -1,0 +1,107 @@
+{
+  "generatedAt": "2026-10-17T13:40:22.880Z",
+  "node": "v25.2.1",
+  "scope": "research artifacts only; no product implementation",
+  "existingProductFilesVerified": 58,
+  "productChanges": [],
+  "removedGitStatuses": [],
+  "addedGitStatuses": [],
+  "artifacts": {
+    "candidate-source-audit.md": {
+      "bytes": 20136,
+      "sha256": "67dc935bbfdff0f6de7f82150350ed00c9f379019ddf243515c06a9157d1401a"
+    },
+    "defuddle-summary.json": {
+      "bytes": 7101,
+      "sha256": "c5e745f83ad9a823d01580eff8997f1e56e8d3682739370494f4253f25510be2"
+    },
+    "experiments.json": {
+      "bytes": 13862,
+      "sha256": "f5740719bdebca88266bce4340eacbff205f0a4c61c497d128961cf0221ba6f3"
+    },
+    "impit-probe.json": {
+      "bytes": 1918,
+      "sha256": "9ab036b6a3343b8e47dccbb26eb264eb262d8458f6380b2c04e1beea00dbcde3"
+    },
+    "report.md": {
+      "bytes": 29128,
+      "sha256": "0d9eacb14249ccb14026be07a88fff4e6cfbe215d9da552545a9d40c72a01786"
+    },
+    "source-index.json": {
+      "bytes": 1615,
+      "sha256": "387d0dfc64c4d87574601f8158ef973251590294eb8432eb8f49d5f89b07527c"
+    },
+    "srcset-probe.json": {
+      "bytes": 481,
+      "sha256": "c98728d911412b96fa1139a86fb852339a6c7f8078c08cc3318efcc691ac0a1a"
+    }
+  },
+  "productSha256": {
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\articles.js": "39605cfe0f3816a302bb15e094b5ddb46068f38d742aaf0eb6bdc598812bce71",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\cache.js": "d73e5063d7d8f1e118912ef6cdcd8ed7783359ed6d70dea2a34a9fcd7ff477ed",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\capture-contracts.js": "9d02b9f2dbfe4bf343124712e0de8b19c84c79473569e0ca24912071eb35254a",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\capture-media.js": "3655ef90a9304d5d208e7b4c280130fb52456d200403c4baa378eaf524bbc117",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\capture-renderer.js": "0f61ce2cb4631f188550a5a183dc50c8940f18429e71ce099a4312ffd96155c1",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\capture-service.js": "03f3446c50d0e8bc0ee2cddafd9ba2b0d6824506d1492b0a21628fbeee15dbce",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\capture.js": "8d4e1a4627a560dc03b3f5edc0e17152cfbfb8066369104f0324b77160c6fa9b",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\config.js": "c06d0cef41e1e11c72cb6ab4f9facf1dcc0cc613f4e0a1afe26ee9dc3e5f981a",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\contracts.js": "ccfc78395032bba24ca44b3ab2eb7e576fbae7f9c8700f8787c3be102a0ee1fe",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\decode.js": "dba2b7369205f237414a48de9779b6371976dffe929e6274630d39b51cf041ba",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\endpoints.js": "126a19ae5482bdd2d25706a09361fc53b2862174ac7a09ffad35b330d9ea27db",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\fetch.js": "c37749458f3cbb2f40be56d3a4b298936ff8aa1d058ce317d055bf3032898726",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\har.js": "6438a9a6b541ea31884221773da720871ef544ddc9d4430f0759dad2ba237c51",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\hash.js": "b5c4ac1290d11a08c06dbb0f0df68121efb600cc8d53758ae41ea53a2029a90d",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\pacing.js": "9f572812cea1cfdcd3202d45d933ad1b381178a68f5e9c1d8c328fafbc78c25f",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\pipeline.js": "418604476681c0a79583de8a8e2003f4b6785674d08ee1c1c1c5861edfe280a0",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\prune.js": "3480cb4b0cda6d9aa08667ab92fab7934604f47ccf8285981f109e490c17e8dc",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\recorder.js": "313767447285ccb23e6c0b916ea5084b97b9b5e04d7ec2489e0ebd58bb9ea79d",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\render.js": "633d7614e380c50fb63f5839a6e414003f19afd587e818d87e4deef9c78f48d0",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\replay.js": "62ea1b2e39cc0f4c94c7fc71de6f1e55bbbca4aad1b16822903a8302fb933f31",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\server.js": "585420ffc2c8fcbfd37075a2ee858106f17c12dbfce18b24fccacdf2f46f53bc",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\service.js": "abe45031521b74b172896fda7318b6517d11886a9d9a96086b551f3efeaef80a",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\session.js": "789ea6fa8e9c07e4651edbc7fc029cc858863feb8c3f7551a16ed6d8433027cb",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\sheets.js": "b53ebe34be9383c2cacfd6e00952ad2147cdef39c566e89e1cfe2b10f294e563",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\store.js": "93ddc434b963a5cb82d724921a42ddb00ce4fdeadad94d6626c5a20053e9262b",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\src\\tools.js": "8bad813db643ee53cbfa370459fdefaf85ef89c96899ef416d75235e063672f9",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\cache.test.js": "26691ce4c856a1129e2caff5044a0d78fb1af3d404e1f703e364841a88237292",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\capture-browser.test.js": "f1d50d5dd95c064058afe7f36905ecf50dd5d21dc8a81cd030ada29a7a8d7fdb",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\capture-service.test.js": "33e592307615f4e14a8e25f3373c09a2c00f571d10ddbdf69e062754cfcf30dc",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\capture.test.js": "c2e152111d0611b496c53f91d3b73fafee3447889045eeb381428401acbde338",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\decode.test.js": "bf2fe7a8ed787543fea8c4a2210caeb3278f5b22af789ce8b6649fed9f94b45e",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\endpoints.test.js": "15f78c1d1e322005fbdd94ec9decfb42c849628a83f75f4c821f53eef11aa9c5",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\har.test.js": "190e9a00e2ce340fc64110c0687a80c611ca351843715d441daf00f687d8f790",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\interop.test.js": "71e76c93442be73a2a5ecd433189ac7f2e516a7eb2c6cdb1abcd1667663b28f9",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\mcp.test.js": "9eaf103d0b3480cd5f130d345a8707b720418a0dcfb561ea57823367e6da693a",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\pacing.test.js": "f04475bd0238ccd9700b16e1c05445065a851af0a4e3a1dd6cb853c2d1aa6d5d",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\pipeline.test.js": "3c209d1f2cc1d421bf1f87149e1f052961dbb1b351a45f7d542677769faf414a",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\prune.test.js": "480ddb00d9d72950f31c1ef25f0dded463d6571eee09c2d2a8321656b5d66fc7",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\record-replay.test.js": "c13ff774a96741af46e601d3cdde87e807b112b6097adf16cefd761d152178cf",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\render.test.js": "20ea2aab29deeacff390e83becd2a581d29fea5d17eaebac825853e9161666eb",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\retrieval.test.js": "320123b03d25a42b6c5120c280406b620a776d4d6f258a4ad3afa9c58b5c4924",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\service.test.js": "a042f5283517fe639c9c9ad81c679916e7ac4eb3561864a34b4224d0cc4e31e4",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\session.test.js": "4e171c67ad33b65a922c38ee1f203d761d12c3bc0a1367ef88d0e6e7d6a99b02",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\test\\fixtures\\sample-sheet.csv": "deaf29780404a27ef6b0a651d05f15bfc0533d853ad69a7bab6ca32274394f96",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\analysis-runner.js": "146a8ce60f09cb053dafcdd5ed9cf4389dfc1bf4594eb5941ed1efc235189f6a",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\article-fetch.js": "4e09e6b74732f8e8f78cfbc91f4373e635269efc66c650c3dff8ddae559c6c6c",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\articles.js": "ed2e6803a9151b9798c2f424fbdc0ce6aabc5bffe18bdce974b8132193542a63",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\artifact-store.js": "7b40420c7c337d83019a0ac7b9170b6f87637a84b7cac55617d18e1e08cb01c7",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\editorial-rules.js": "c04784bcb0d05f8c815994a7912ac9bfe0f71af6c791ea4784f42b716d7876a6",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\run-diagnostics.js": "8fb489ddeb65fd73410c2acf8251030f0d43b5349aa6e9681defcf5a06318fb6",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\service.js": "2fd8617a21fc969182e49bbe1ab3d5154e016e270e283666a063bd5244e9615e",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\sheets.js": "f3cfeddc1ff51f43318fc09c64a193c266f4505fb548821056bbb557655fe566",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\store.js": "71d4e2225335d645ec2df5c7cabf59f01889657de383002efb7f8a56ccee1a6f",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\tools.js": "19f136dc021b362dfe20403258aa8d40a139ba40848baebfd1e1a25011a8282c",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\src\\host\\workflow-service.js": "1f3d63dedda9910e7f89c3ce51ec8b4f838896acde6035bb01b72c66d9a0b73a",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\package.json": "02ba5a945a6d98006a77a1c9d505ee59e0c0fac3f90d5746410e2d2b4d6b8341",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\package-lock.json": "476a996c28603518c2676864f9ee2e066f6e21818d9506fbbbb57d714a58289c",
+    "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\package.json": "ac540d6691c8a8a9dda1d4cf723b20da087a09014fda280881a36392358798e1"
+  },
+  "original240Tests": "not rerun; user-supplied verified baseline",
+  "experiments": [
+    "Defuddle 26 saved HTML parses; 2 skipped; no external fetch",
+    "Impit 4 public URL requests with initial public policy; no IP pin capability",
+    "Impit pre-aborted signal",
+    "srcset offline parser"
+  ],
+  "runtimeAndBrowserInstall": false
+}

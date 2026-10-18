@@ -1,0 +1,26 @@
+{
+  "xinhua": {
+    "status": 200,
+    "semanticArticleRoots": 0,
+    "pageParagraphElements": 39,
+    "readabilityParagraphElements": 39,
+    "readabilityTextChars": 3567,
+    "readabilityRoot": "DIV"
+  },
+  "npr": [
+    {
+      "variant": "default",
+      "sourceOrigin": "https://npr.brightspotcdn.com",
+      "status": 403,
+      "mime": "text/html",
+      "bytes": 986
+    },
+    {
+      "variant": "image-accept-referer",
+      "sourceOrigin": "https://npr.brightspotcdn.com",
+      "status": 403,
+      "mime": "text/html",
+      "bytes": 986
+    }
+  ]
+}

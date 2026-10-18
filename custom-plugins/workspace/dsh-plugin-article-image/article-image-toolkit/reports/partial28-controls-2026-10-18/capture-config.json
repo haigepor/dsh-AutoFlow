@@ -1,0 +1,77 @@
+{
+  "capture": {
+    "adapters": [
+      {
+        "id": "bcb-notice-v1",
+        "hosts": [
+          "www.bcb.gov.br"
+        ],
+        "articleSelector": ".detalhe-noticia .corpo",
+        "endSelector": "promise"
+      },
+      {
+        "id": "otempo-body-v1",
+        "hosts": [
+          "www.otempo.com.br"
+        ],
+        "articleSelector": ".article-body"
+      },
+      {
+        "id": "canaltech-body-v1",
+        "hosts": [
+          "canaltech.com.br"
+        ],
+        "articleSelector": "#content-news",
+        "excludeSelector": "#content-news > div:has(img[src$=\"canaltech-icon.svg\"]),#content-news .CLT_VIDEO[data-notsy-container-index][data-notsy-mapped-container]"
+      },
+      {
+        "id": "lance-body-v1",
+        "hosts": [
+          "www.lance.com.br"
+        ],
+        "articleSelector": ".paywall-content",
+        "excludeSelector": "p:has(a[href*=\"whatsapp.com/channel/\"])"
+      },
+      {
+        "id": "govbr-body-v1",
+        "hosts": [
+          "www.gov.br"
+        ],
+        "articleSelector": "main",
+        "excludeSelector": "#viewlet-above-content,#viewlet-below-content,.documentByLine,.documentActions,.social-links,.social-media,.portalMessage,#portal-breadcrumbs"
+      },
+      {
+        "id": "cnn-body-v1",
+        "hosts": [
+          "www.cnnbrasil.com.br"
+        ],
+        "articleSelector": "article > div:has(> p)",
+        "excludeSelector": "article > div > div.my-6.border-y:has(> ul)"
+      },
+      {
+        "id": "r7-body-v1",
+        "hosts": [
+          "record.r7.com"
+        ],
+        "articleSelector": "main",
+        "excludeSelector": "main > .article-flex,.b-see-also__container,.b-article-tags-container,.ultimas-divider__header-container,main > div:has(.b-ultimas-list__item),.vjs-control-bar,.vjs-modal-dialog,.vjs-logo-content,.vjs-text-track-display"
+      },
+      {
+        "id": "folha-guia-body-v1",
+        "hosts": [
+          "guia.folha.uol.com.br"
+        ],
+        "articleSelector": ".c-article-body",
+        "pendingSelector": ".c-gallery .c-loader"
+      }
+    ],
+    "requestTimeoutMs": 60000,
+    "renderTimeoutMs": 120000,
+    "maxArticleHtmlBytes": 16000000,
+    "maxArticleHtmlChars": 16000000
+  },
+  "network": {
+    "proxyUrl": "http://127.0.0.1:7897",
+    "dnsProvider": "cloudflare"
+  }
+}

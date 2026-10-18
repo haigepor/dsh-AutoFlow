@@ -1,0 +1,18 @@
+{
+  "toolkit": {
+    "passed": 412,
+    "files": 29
+  },
+  "plugin": {
+    "passed": 157,
+    "files": 17
+  },
+  "web": {
+    "passed": 1,
+    "files": 1,
+    "durationSeconds": 50.08
+  },
+  "packageCheck": "PASS",
+  "pairedDocs": "PASS",
+  "diffCheck": "PASS"
+}

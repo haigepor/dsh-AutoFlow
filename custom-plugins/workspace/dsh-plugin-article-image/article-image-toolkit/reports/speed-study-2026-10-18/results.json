@@ -1,0 +1,6817 @@
+{
+  "at": "2026-10-18T09:41:19.508Z",
+  "node": "v25.2.1",
+  "platform": "win32",
+  "cases": [
+    {
+      "index": 5,
+      "host": "www.correiobraziliense.com.br",
+      "mode": "browser",
+      "round": 1,
+      "ok": true,
+      "ms": 19727.5651,
+      "baselineBlocks": 5,
+      "blocks": 5,
+      "orderedRetained": 5,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "blocked-network-resource",
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "cleanupMs": 2257.9984000000004,
+      "browserResources": {
+        "document": {
+          "count": 1,
+          "bytes": 213373,
+          "totalRequestMs": 4292
+        },
+        "image": {
+          "count": 16,
+          "bytes": 85122,
+          "totalRequestMs": 15792
+        },
+        "stylesheet": {
+          "count": 10,
+          "bytes": 1242766,
+          "totalRequestMs": 18407
+        },
+        "script": {
+          "count": 12,
+          "bytes": 1008650,
+          "totalRequestMs": 26514
+        },
+        "font": {
+          "count": 9,
+          "bytes": 277732,
+          "totalRequestMs": 21167
+        },
+        "ping": {
+          "count": 1,
+          "bytes": 0,
+          "totalRequestMs": 0
+        },
+        "fetch": {
+          "count": 2,
+          "bytes": 0,
+          "totalRequestMs": 0
+        }
+      },
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 213373,
+          "ms": 4290.056100000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4672,
+          "ms": 872.5360000000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 37040,
+          "ms": 922.8426
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 70,
+          "ms": 567.8122000000003
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 428,
+          "ms": 1525.4174999999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 1461,
+          "ms": 1522.7423
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 2098,
+          "ms": 1534.8909999999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 13577,
+          "ms": 1546.9235000000008
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 48534,
+          "ms": 1571.4154999999992
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 579492,
+          "ms": 1628.5149999999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 31000,
+          "ms": 1687.3864999999987
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 2999,
+          "ms": 1842.9688999999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://nrl.myth.services",
+          "status": 200,
+          "bytes": 8505,
+          "ms": 1903.6227999999992
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 116363,
+          "ms": 1901.3361000000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 87553,
+          "ms": 1878.5653999999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.googleapis.com",
+          "status": 200,
+          "bytes": 1555,
+          "ms": 1978.9171999999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 404,
+          "bytes": 0,
+          "ms": 2336.8963999999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 458836,
+          "ms": 2437.851199999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cache.myth.dev",
+          "code": "article-url-blocked",
+          "ms": 539.5455000000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 1499,
+          "ms": 1586.893
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 5520,
+          "ms": 860.0432000000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3026,
+          "ms": 887.3580999999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 22920,
+          "ms": 1081.7097000000012
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3480,
+          "ms": 1267.2181999999993
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4399,
+          "ms": 1216.9774000000016
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 7144,
+          "ms": 1296.6057
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 77160,
+          "ms": 2407.6580000000013
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.chartbeat.com",
+          "status": 200,
+          "bytes": 43004,
+          "ms": 2527.8500999999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 26808,
+          "ms": 2423.5308999999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 22776,
+          "ms": 2452.4081000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 22732,
+          "ms": 2544.076299999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 307011,
+          "ms": 2934.5116
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 26692,
+          "ms": 2793.498600000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 26776,
+          "ms": 2858.4536000000007
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://mythtracker.com",
+          "status": 403,
+          "bytes": 2,
+          "ms": 3064.592199999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 86,
+          "ms": 3187.7903000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 44724,
+          "ms": 3107.4377000000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3015,
+          "ms": 617.6652000000013
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4162,
+          "ms": 651.3906000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3579,
+          "ms": 654.6170000000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3006,
+          "ms": 664.7861000000012
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3774,
+          "ms": 673.3266999999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4006,
+          "ms": 661.3369999999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4303,
+          "ms": 679.4354999999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 2640,
+          "ms": 679.8197
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4313,
+          "ms": 700.8069999999989
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 6100,
+          "ms": 1396.187
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.googletagmanager.com",
+          "status": 200,
+          "bytes": 535387,
+          "ms": 4519.2083
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://ping.chartbeat.net",
+          "status": 200,
+          "bytes": 43,
+          "ms": 1998.7408999999989
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "code": "article-interrupted",
+          "ms": 33.40149999999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "code": "article-interrupted",
+          "ms": 5300.486500000001
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 84824,
+          "ms": 864.1071000000011
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "phase": "rendering",
+          "event": "navigation-start",
+          "details": {
+            "elapsedMs": 420,
+            "limitMs": 120000,
+            "origin": "https://www.correiobraziliense.com.br"
+          },
+          "at": 1776.3739999999998
+        },
+        {
+          "phase": "rendering",
+          "event": "document-loaded",
+          "details": {
+            "elapsedMs": 5115,
+            "statusCode": 200,
+            "bytes": 213373,
+            "origin": "https://www.correiobraziliense.com.br"
+          },
+          "at": 6471.264099999999
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-http-error",
+          "details": {
+            "elapsedMs": 7647,
+            "statusCode": 404,
+            "resourceType": "image",
+            "origin": "https://www.correiobraziliense.com.br"
+          },
+          "at": 9003.748500000002
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 8300,
+            "code": "article-url-blocked",
+            "resourceType": "script",
+            "origin": "https://cache.myth.dev"
+          },
+          "at": 9656.163
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-http-error",
+          "details": {
+            "elapsedMs": 10830,
+            "statusCode": 403,
+            "resourceType": "script",
+            "origin": "https://mythtracker.com"
+          },
+          "at": 12186.2206
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 10963,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://nrl.myth.services"
+          },
+          "at": 12319.502199999999
+        },
+        {
+          "phase": "rendering",
+          "event": "waiting-content",
+          "details": {
+            "elapsedMs": 10981
+          },
+          "at": 12336.924500000001
+        },
+        {
+          "phase": "rendering",
+          "event": "content-ready",
+          "details": {
+            "elapsedMs": 11052
+          },
+          "at": 12408.5376
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 12403,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google-analytics.com"
+          },
+          "at": 13759.3165
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 12407,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google.com"
+          },
+          "at": 13763.704700000002
+        },
+        {
+          "phase": "rendering",
+          "event": "render-complete",
+          "details": {
+            "elapsedMs": 16271,
+            "statusCode": 200,
+            "bytes": 82022,
+            "chars": 115,
+            "diagnostics": [
+              "blocked-network-resource",
+              "resource-request-failed",
+              "unsettled-resources"
+            ]
+          },
+          "at": 17627.8319
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 17869.4785
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 5,
+            "assets": 1,
+            "chars": 3026
+          },
+          "at": 18558.7186
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 864,
+            "decodeMs": 253,
+            "chargedBytes": 84824
+          },
+          "at": 19681.776400000002
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "host": "www.correiobraziliense.com.br",
+      "mode": "static",
+      "round": 1,
+      "ok": true,
+      "ms": 4956.653700000003,
+      "baselineBlocks": 5,
+      "blocks": 5,
+      "orderedRetained": 5,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "cleanupMs": 193.03740000000107,
+      "browserResources": {},
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 213373,
+          "ms": 2773.314199999997
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 84824,
+          "ms": 895.149599999997
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "event": "http-complete",
+          "ms": 2775.281799999997,
+          "status": 200
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 2942.0280999999995
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 5,
+            "assets": 1,
+            "chars": 3026
+          },
+          "at": 3347.6267000000007
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 895,
+            "decodeMs": 691,
+            "chargedBytes": 84824
+          },
+          "at": 4935.720000000001
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "host": "www.correiobraziliense.com.br",
+      "mode": "static",
+      "round": 2,
+      "ok": true,
+      "ms": 6234.296200000004,
+      "baselineBlocks": 5,
+      "blocks": 5,
+      "orderedRetained": 5,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "cleanupMs": 225.4733999999953,
+      "browserResources": {},
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 213373,
+          "ms": 4023.9174999999996
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 84824,
+          "ms": 948.0960999999952
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "event": "http-complete",
+          "ms": 4024.6584999999977,
+          "status": 200
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 4159.4084
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 5,
+            "assets": 1,
+            "chars": 3026
+          },
+          "at": 4675.465799999998
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 948,
+            "decodeMs": 594,
+            "chargedBytes": 84824
+          },
+          "at": 6218.5887
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "host": "www.correiobraziliense.com.br",
+      "mode": "browser",
+      "round": 2,
+      "ok": true,
+      "ms": 26852.1435,
+      "baselineBlocks": 5,
+      "blocks": 5,
+      "orderedRetained": 5,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "blocked-network-resource",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "cleanupMs": 464.8571000000011,
+      "browserResources": {
+        "document": {
+          "count": 1,
+          "bytes": 213373,
+          "totalRequestMs": 4870
+        },
+        "image": {
+          "count": 16,
+          "bytes": 85122,
+          "totalRequestMs": 17498
+        },
+        "stylesheet": {
+          "count": 10,
+          "bytes": 1242766,
+          "totalRequestMs": 21625
+        },
+        "script": {
+          "count": 13,
+          "bytes": 1027914,
+          "totalRequestMs": 29427
+        },
+        "ping": {
+          "count": 1,
+          "bytes": 0,
+          "totalRequestMs": 0
+        },
+        "font": {
+          "count": 9,
+          "bytes": 277732,
+          "totalRequestMs": 24787
+        },
+        "fetch": {
+          "count": 2,
+          "bytes": 0,
+          "totalRequestMs": 0
+        }
+      },
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 213373,
+          "ms": 4868.825499999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4672,
+          "ms": 846.5597999999954
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 428,
+          "ms": 1149.2278000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 2999,
+          "ms": 1154.7213000000047
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 87553,
+          "ms": 1183.8410999999978
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 116363,
+          "ms": 1234.8123999999953
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 458836,
+          "ms": 1253.532299999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 37040,
+          "ms": 1249.065800000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 31000,
+          "ms": 1526.001599999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 13577,
+          "ms": 1510.6195999999982
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 1461,
+          "ms": 1529.2818000000043
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 48534,
+          "ms": 1547.9244000000035
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 2098,
+          "ms": 1547.6244000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 70,
+          "ms": 721.7903000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 579492,
+          "ms": 1633.908000000003
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 404,
+          "bytes": 0,
+          "ms": 2478.0607999999993
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 1499,
+          "ms": 1309.2354999999952
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 5520,
+          "ms": 1162.131699999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 307011,
+          "ms": 1446.5096000000049
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3480,
+          "ms": 936.0995000000039
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 86,
+          "ms": 1151.5648999999976
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.googleapis.com",
+          "status": 200,
+          "bytes": 1555,
+          "ms": 8346.609499999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://nrl.myth.services",
+          "status": 200,
+          "bytes": 8505,
+          "ms": 8747.225899999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3026,
+          "ms": 853.3058000000019
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4303,
+          "ms": 785.6993000000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 2640,
+          "ms": 850.5026999999973
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4399,
+          "ms": 967.7144999999946
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 6100,
+          "ms": 858.3162000000011
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4162,
+          "ms": 868.0933000000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3006,
+          "ms": 872.3726999999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3774,
+          "ms": 950.0045000000027
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4006,
+          "ms": 948.5968999999968
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3015,
+          "ms": 950.7714999999953
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4313,
+          "ms": 948.5453999999954
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3579,
+          "ms": 952.5449000000008
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 7144,
+          "ms": 1647.3935999999958
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 77160,
+          "ms": 1826.4041999999972
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cache.myth.dev",
+          "code": "article-url-blocked",
+          "ms": 2028.0201000000015
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 22776,
+          "ms": 2434.2100999999966
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 22920,
+          "ms": 2450.478600000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.chartbeat.com",
+          "status": 200,
+          "bytes": 43004,
+          "ms": 2595.9639000000025
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://mythtracker.com",
+          "status": 403,
+          "bytes": 2,
+          "ms": 2629.201699999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 26808,
+          "ms": 2522.580900000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 22732,
+          "ms": 2801.6284000000014
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 26692,
+          "ms": 2854.1757
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 19264,
+          "ms": 1090.2090000000026
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 26776,
+          "ms": 3492.1491000000024
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://ping.chartbeat.net",
+          "status": 200,
+          "bytes": 43,
+          "ms": 1805.7070000000022
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.googletagmanager.com",
+          "status": 200,
+          "bytes": 535387,
+          "ms": 4543.973099999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 44724,
+          "ms": 4519.807499999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "code": "article-interrupted",
+          "ms": 6.618799999996554
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 84824,
+          "ms": 6762.400099999999
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "phase": "rendering",
+          "event": "navigation-start",
+          "details": {
+            "elapsedMs": 232,
+            "limitMs": 120000,
+            "origin": "https://www.correiobraziliense.com.br"
+          },
+          "at": 568.667300000001
+        },
+        {
+          "phase": "rendering",
+          "event": "document-loaded",
+          "details": {
+            "elapsedMs": 5300,
+            "statusCode": 200,
+            "bytes": 213373,
+            "origin": "https://www.correiobraziliense.com.br"
+          },
+          "at": 5635.775300000001
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-http-error",
+          "details": {
+            "elapsedMs": 7972,
+            "statusCode": 404,
+            "resourceType": "image",
+            "origin": "https://www.correiobraziliense.com.br"
+          },
+          "at": 8308.665199999996
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 14199,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://nrl.myth.services"
+          },
+          "at": 14535.277600000001
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 15836,
+            "code": "article-url-blocked",
+            "resourceType": "script",
+            "origin": "https://cache.myth.dev"
+          },
+          "at": 16171.703799999996
+        },
+        {
+          "phase": "rendering",
+          "event": "waiting-content",
+          "details": {
+            "elapsedMs": 15851
+          },
+          "at": 16187.532699999996
+        },
+        {
+          "phase": "rendering",
+          "event": "content-ready",
+          "details": {
+            "elapsedMs": 15910
+          },
+          "at": 16246.6397
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-http-error",
+          "details": {
+            "elapsedMs": 16451,
+            "statusCode": 403,
+            "resourceType": "script",
+            "origin": "https://mythtracker.com"
+          },
+          "at": 16787.3421
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 18492,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google-analytics.com"
+          },
+          "at": 18828.0714
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 18522,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google.com"
+          },
+          "at": 18857.891799999998
+        },
+        {
+          "phase": "rendering",
+          "event": "render-complete",
+          "details": {
+            "elapsedMs": 19061,
+            "statusCode": 200,
+            "bytes": 82022,
+            "chars": 115,
+            "diagnostics": [
+              "resource-request-failed",
+              "blocked-network-resource"
+            ]
+          },
+          "at": 19397.4986
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 19498.432999999997
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 5,
+            "assets": 1,
+            "chars": 3026
+          },
+          "at": 19837.2324
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 6762,
+            "decodeMs": 230,
+            "chargedBytes": 84824
+          },
+          "at": 26831.410499999998
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "host": "www.correiobraziliense.com.br",
+      "mode": "browser",
+      "round": 3,
+      "ok": true,
+      "ms": 12565.6135,
+      "baselineBlocks": 5,
+      "blocks": 5,
+      "orderedRetained": 5,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "blocked-network-resource",
+          "resource-request-failed",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "cleanupMs": 431.00800000000163,
+      "browserResources": {
+        "document": {
+          "count": 1,
+          "bytes": 213373,
+          "totalRequestMs": 2853
+        },
+        "image": {
+          "count": 16,
+          "bytes": 85122,
+          "totalRequestMs": 19642
+        },
+        "stylesheet": {
+          "count": 10,
+          "bytes": 1242766,
+          "totalRequestMs": 15393
+        },
+        "script": {
+          "count": 13,
+          "bytes": 1027914,
+          "totalRequestMs": 20283
+        },
+        "font": {
+          "count": 9,
+          "bytes": 277732,
+          "totalRequestMs": 24129
+        },
+        "ping": {
+          "count": 1,
+          "bytes": 0,
+          "totalRequestMs": 0
+        },
+        "fetch": {
+          "count": 2,
+          "bytes": 0,
+          "totalRequestMs": 0
+        }
+      },
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 213373,
+          "ms": 2852.489499999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4672,
+          "ms": 928.5408000000025
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 37040,
+          "ms": 938.9645000000019
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 2999,
+          "ms": 1081.840000000011
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 2098,
+          "ms": 1130.9795000000013
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 116363,
+          "ms": 1147.6719999999914
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 87553,
+          "ms": 1147.3608999999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 13577,
+          "ms": 1534.6687000000093
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 48534,
+          "ms": 1543.1667000000016
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 31000,
+          "ms": 1555.0683000000136
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 1461,
+          "ms": 1548.7399999999907
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.googleapis.com",
+          "status": 200,
+          "bytes": 1555,
+          "ms": 1571.6869000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 428,
+          "ms": 1610.3587999999872
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 579492,
+          "ms": 1652.5103999999992
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://nrl.myth.services",
+          "status": 200,
+          "bytes": 8505,
+          "ms": 1773.9358999999968
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 458836,
+          "ms": 2120.1263999999937
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 404,
+          "bytes": 0,
+          "ms": 2336.6077000000078
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cache.myth.dev",
+          "code": "article-url-blocked",
+          "ms": 550.7766999999876
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 70,
+          "ms": 1923.4279999999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4399,
+          "ms": 703.1917000000103
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3480,
+          "ms": 919.5751000000018
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.chartbeat.com",
+          "status": 200,
+          "bytes": 43004,
+          "ms": 1026.6350999999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://mythtracker.com",
+          "status": 403,
+          "bytes": 2,
+          "ms": 1163.0617999999959
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 1499,
+          "ms": 1214.7795000000042
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3026,
+          "ms": 1316.2565000000031
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 86,
+          "ms": 1374.4809999999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 5520,
+          "ms": 1394.383799999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 7144,
+          "ms": 1671.1553999999887
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 77160,
+          "ms": 1898.8215999999957
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 307011,
+          "ms": 2041.266499999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 22920,
+          "ms": 2372.669499999989
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 22732,
+          "ms": 2422.2342999999964
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 22776,
+          "ms": 2420.066399999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 6100,
+          "ms": 808.7455000000045
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4162,
+          "ms": 926.5624000000098
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4006,
+          "ms": 965.3273999999947
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3579,
+          "ms": 984.380600000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3774,
+          "ms": 1026.733500000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3015,
+          "ms": 1013.0432000000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 26692,
+          "ms": 3114.391699999993
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 3006,
+          "ms": 1133.158899999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4303,
+          "ms": 1192.11510000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 2640,
+          "ms": 1148.4729999999981
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 4313,
+          "ms": 1206.0988999999972
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 26808,
+          "ms": 3267.558699999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 26776,
+          "ms": 3365.535799999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 19264,
+          "ms": 1255.7198000000062
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 44724,
+          "ms": 3493.578699999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.googletagmanager.com",
+          "status": 200,
+          "bytes": 535387,
+          "ms": 3893.4064999999973
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://ping.chartbeat.net",
+          "status": 200,
+          "bytes": 43,
+          "ms": 1933.5829999999987
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "code": "article-interrupted",
+          "ms": 13.731700000003912
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 84824,
+          "ms": 1304.5092000000004
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "phase": "rendering",
+          "event": "navigation-start",
+          "details": {
+            "elapsedMs": 220,
+            "limitMs": 120000,
+            "origin": "https://www.correiobraziliense.com.br"
+          },
+          "at": 549.5660999999964
+        },
+        {
+          "phase": "rendering",
+          "event": "document-loaded",
+          "details": {
+            "elapsedMs": 3302,
+            "statusCode": 200,
+            "bytes": 213373,
+            "origin": "https://www.correiobraziliense.com.br"
+          },
+          "at": 3631.367999999995
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-http-error",
+          "details": {
+            "elapsedMs": 5778,
+            "statusCode": 404,
+            "resourceType": "image",
+            "origin": "https://www.correiobraziliense.com.br"
+          },
+          "at": 6107.827299999997
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 6131,
+            "code": "article-url-blocked",
+            "resourceType": "script",
+            "origin": "https://cache.myth.dev"
+          },
+          "at": 6461.146499999995
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-http-error",
+          "details": {
+            "elapsedMs": 6746,
+            "statusCode": 403,
+            "resourceType": "script",
+            "origin": "https://mythtracker.com"
+          },
+          "at": 7075.5648
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 7787,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://nrl.myth.services"
+          },
+          "at": 8117.059300000001
+        },
+        {
+          "phase": "rendering",
+          "event": "waiting-content",
+          "details": {
+            "elapsedMs": 7788
+          },
+          "at": 8118.308199999992
+        },
+        {
+          "phase": "rendering",
+          "event": "content-ready",
+          "details": {
+            "elapsedMs": 7836
+          },
+          "at": 8165.406500000005
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 9636,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google-analytics.com"
+          },
+          "at": 9965.875699999997
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 9643,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google.com"
+          },
+          "at": 9973.282700000003
+        },
+        {
+          "phase": "rendering",
+          "event": "render-complete",
+          "details": {
+            "elapsedMs": 10287,
+            "statusCode": 200,
+            "bytes": 82022,
+            "chars": 115,
+            "diagnostics": [
+              "blocked-network-resource",
+              "resource-request-failed"
+            ]
+          },
+          "at": 10616.472199999997
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 10711.7388
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 5,
+            "assets": 1,
+            "chars": 3026
+          },
+          "at": 11008.673799999997
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 1305,
+            "decodeMs": 221,
+            "chargedBytes": 84824
+          },
+          "at": 12535.991000000002
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "host": "www.correiobraziliense.com.br",
+      "mode": "static",
+      "round": 3,
+      "ok": true,
+      "ms": 9851.872799999997,
+      "baselineBlocks": 5,
+      "blocks": 5,
+      "orderedRetained": 5,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "cleanupMs": 205.20699999999488,
+      "browserResources": {},
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 213373,
+          "ms": 7010.874400000001
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.correiobraziliense.com.br",
+          "status": 200,
+          "bytes": 84824,
+          "ms": 1630.3590000000113
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "event": "http-complete",
+          "ms": 7012.441200000001,
+          "status": 200
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 7176.938699999999
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 5,
+            "assets": 1,
+            "chars": 3026
+          },
+          "at": 7624.1149000000005
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 1630,
+            "decodeMs": 578,
+            "chargedBytes": 84824
+          },
+          "at": 9836.142099999997
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "host": "www.gov.br",
+      "mode": "browser",
+      "round": 1,
+      "ok": true,
+      "ms": 32020.837799999994,
+      "baselineBlocks": 7,
+      "blocks": 7,
+      "orderedRetained": 7,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "cleanupMs": 488.9904999999999,
+      "browserResources": {
+        "document": {
+          "count": 1,
+          "bytes": 137642,
+          "totalRequestMs": 9702
+        },
+        "stylesheet": {
+          "count": 17,
+          "bytes": 2307618,
+          "totalRequestMs": 49426
+        },
+        "script": {
+          "count": 26,
+          "bytes": 2166845,
+          "totalRequestMs": 80094
+        },
+        "image": {
+          "count": 4,
+          "bytes": 130717,
+          "totalRequestMs": 9295
+        },
+        "font": {
+          "count": 16,
+          "bytes": 1422504,
+          "totalRequestMs": 41677
+        },
+        "fetch": {
+          "count": 2,
+          "bytes": 75074,
+          "totalRequestMs": 5742
+        }
+      },
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 137642,
+          "ms": 9699.6691
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 17759,
+          "ms": 1664.4124999999913
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1108,
+          "ms": 1791.709799999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1839,
+          "ms": 1805.824299999993
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 219,
+          "ms": 1735.0524999999907
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 795,
+          "ms": 1723.8471999999892
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1461,
+          "ms": 1734.8135000000038
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1483,
+          "ms": 1750.9789000000019
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 2821,
+          "ms": 1881.9170000000013
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 12312,
+          "ms": 1793.8726999999926
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 543,
+          "ms": 1934.4582999999984
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 5973,
+          "ms": 1944.134699999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 668,
+          "ms": 1820.8761999999988
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 470,
+          "ms": 1998.7044999999925
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 949,
+          "ms": 1960.5555000000022
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 96419,
+          "ms": 1857.0978000000032
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 741,
+          "ms": 2441.6389999999956
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 22965,
+          "ms": 2471.1205999999947
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 2393,
+          "ms": 2509.6293000000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 31664,
+          "ms": 2793.3491000000067
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 76425,
+          "ms": 2935.141899999988
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 104502,
+          "ms": 2842.21620000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 39604,
+          "ms": 2825.5367000000115
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 63728,
+          "ms": 2983.6909000000014
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 36567,
+          "ms": 3081.1842000000033
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 46675,
+          "ms": 3007.9639000000025
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 121278,
+          "ms": 3361.522600000011
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 107284,
+          "ms": 3442.2899999999936
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 131157,
+          "ms": 3555.3638999999966
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 169331,
+          "ms": 4676.2455000000045
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 377827,
+          "ms": 4901.058900000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 428145,
+          "ms": 5010.352899999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 239269,
+          "ms": 5465.918000000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 6382,
+          "ms": 1741.9334999999992
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 323,
+          "ms": 1933.7569000000076
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 57179,
+          "ms": 2437.8282999999938
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 637220,
+          "ms": 4716.7906000000075
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 140631,
+          "ms": 3930.7976000000053
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://vlibras.gov.br",
+          "code": "article-redirect",
+          "ms": 7481.082500000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 674,
+          "ms": 2552.1594999999943
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://embedr.flickr.com",
+          "status": 200,
+          "bytes": 642,
+          "ms": 4527.279399999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1529605,
+          "ms": 9724.833899999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 59305,
+          "ms": 747.9302000000025
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 158224,
+          "ms": 1369.0308000000077
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://embedr.flickr.com",
+          "status": 200,
+          "bytes": 225,
+          "ms": 1779.3106999999873
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 118724,
+          "ms": 1394.5529999999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 78268,
+          "ms": 845.100299999991
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 76736,
+          "ms": 933.6463999999978
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1899,
+          "ms": 1661.1722000000009
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 4158,
+          "ms": 1976.2403999999951
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 3382,
+          "ms": 1956.06749999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 1442,
+          "ms": 1973.2342000000062
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 7846,
+          "ms": 2268.4860000000044
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 82580,
+          "ms": 2453.300299999988
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 81280,
+          "ms": 2752.7013000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 85084,
+          "ms": 3060.2299000000057
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 73632,
+          "ms": 3689.0938000000024
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 80524,
+          "ms": 3985.9052999999985
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 83564,
+          "ms": 3906.4962000000087
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 82244,
+          "ms": 4175.226200000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 82580,
+          "ms": 2761.4152999999933
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 80524,
+          "ms": 2759.2762999999977
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 85084,
+          "ms": 2753.364400000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 82244,
+          "ms": 2769.690399999992
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 83564,
+          "ms": 2792.0991000000067
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 81280,
+          "ms": 2855.789699999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://widgets.flickr.com",
+          "status": 200,
+          "bytes": 11335,
+          "ms": 4916.0025999999925
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://browser-update.org",
+          "code": "article-interrupted",
+          "ms": 6172.347899999993
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 121278,
+          "ms": 3455.541100000002
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "phase": "rendering",
+          "event": "navigation-start",
+          "details": {
+            "elapsedMs": 218,
+            "limitMs": 120000,
+            "origin": "https://www.gov.br"
+          },
+          "at": 602.2946999999986
+        },
+        {
+          "phase": "rendering",
+          "event": "document-loaded",
+          "details": {
+            "elapsedMs": 10175,
+            "statusCode": 200,
+            "bytes": 137642,
+            "origin": "https://www.gov.br"
+          },
+          "at": 10558.507899999997
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 19838,
+            "code": "article-redirect",
+            "resourceType": "script",
+            "origin": "https://vlibras.gov.br"
+          },
+          "at": 20222.010899999994
+        },
+        {
+          "phase": "rendering",
+          "event": "waiting-content",
+          "details": {
+            "elapsedMs": 20641
+          },
+          "at": 21025.34049999999
+        },
+        {
+          "phase": "rendering",
+          "event": "content-ready",
+          "details": {
+            "elapsedMs": 20742
+          },
+          "at": 21126.2886
+        },
+        {
+          "phase": "rendering",
+          "event": "render-complete",
+          "details": {
+            "elapsedMs": 26856,
+            "statusCode": 200,
+            "bytes": 303182,
+            "chars": 11702,
+            "diagnostics": [
+              "resource-request-failed",
+              "unsettled-resources"
+            ]
+          },
+          "at": 27239.747699999993
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 27704.406199999998
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 7,
+            "assets": 1,
+            "chars": 7848
+          },
+          "at": 28357.495899999994
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 3456,
+            "decodeMs": 153,
+            "chargedBytes": 121278
+          },
+          "at": 31968.310799999992
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "host": "www.gov.br",
+      "mode": "static",
+      "round": 1,
+      "ok": true,
+      "ms": 16581.21669999999,
+      "baselineBlocks": 7,
+      "blocks": 8,
+      "orderedRetained": 7,
+      "exactBlocks": false,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "passed",
+        "reasons": [],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "cleanupMs": 166.21770000000834,
+      "browserResources": {},
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 137648,
+          "ms": 10342.4853
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 121278,
+          "ms": 5242.445299999992
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "event": "http-complete",
+          "ms": 10343.802599999995,
+          "status": 200
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 10529.906000000003
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 8,
+            "assets": 1,
+            "chars": 7856
+          },
+          "at": 10730.501100000009
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 5243,
+            "decodeMs": 583,
+            "chargedBytes": 121278
+          },
+          "at": 16557.668600000005
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "host": "www.gov.br",
+      "mode": "static",
+      "round": 2,
+      "ok": true,
+      "ms": 7930.5098,
+      "baselineBlocks": 7,
+      "blocks": 8,
+      "orderedRetained": 7,
+      "exactBlocks": false,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "passed",
+        "reasons": [],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "cleanupMs": 204.06489999999758,
+      "browserResources": {},
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 137648,
+          "ms": 3892.8755999999994
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 121278,
+          "ms": 3014.0886000000173
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "event": "http-complete",
+          "ms": 3893.467000000004,
+          "status": 200
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 4089.9565000000002
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 8,
+            "assets": 1,
+            "chars": 7856
+          },
+          "at": 4290.9972000000125
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 3014,
+            "decodeMs": 563,
+            "chargedBytes": 121278
+          },
+          "at": 7870.246299999999
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "host": "www.gov.br",
+      "mode": "browser",
+      "round": 2,
+      "ok": true,
+      "ms": 32006.084900000016,
+      "baselineBlocks": 7,
+      "blocks": 7,
+      "orderedRetained": 7,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "cleanupMs": 311.26720000000205,
+      "browserResources": {
+        "document": {
+          "count": 1,
+          "bytes": 137648,
+          "totalRequestMs": 5405
+        },
+        "script": {
+          "count": 27,
+          "bytes": 2176544,
+          "totalRequestMs": 91275
+        },
+        "stylesheet": {
+          "count": 17,
+          "bytes": 2307618,
+          "totalRequestMs": 56989
+        },
+        "image": {
+          "count": 4,
+          "bytes": 130717,
+          "totalRequestMs": 10240
+        },
+        "font": {
+          "count": 16,
+          "bytes": 1422504,
+          "totalRequestMs": 46190
+        },
+        "fetch": {
+          "count": 2,
+          "bytes": 75074,
+          "totalRequestMs": 4536
+        }
+      },
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 137648,
+          "ms": 5403.566999999981
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 795,
+          "ms": 2216.5536999999895
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 543,
+          "ms": 2262.03290000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1108,
+          "ms": 2257.165399999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 741,
+          "ms": 2276.4030000000203
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 668,
+          "ms": 2239.6444000000192
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 949,
+          "ms": 2289.0267000000167
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 5973,
+          "ms": 2356.0956000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1461,
+          "ms": 2324.037799999991
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1483,
+          "ms": 2328.800199999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 12312,
+          "ms": 2410.4303000000073
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 470,
+          "ms": 2536.0962
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 31664,
+          "ms": 2498.9467000000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 2393,
+          "ms": 2575.255300000019
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 39604,
+          "ms": 2739.7108999999764
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 22965,
+          "ms": 3031.794200000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1839,
+          "ms": 3055.1925000000047
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 107284,
+          "ms": 3298.236600000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 76425,
+          "ms": 3454.7085999999836
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 2821,
+          "ms": 3452.590899999981
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 219,
+          "ms": 3621.774000000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 17759,
+          "ms": 3751.3073999999906
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 121278,
+          "ms": 3951.664299999975
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 36567,
+          "ms": 4106.594600000011
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 96419,
+          "ms": 4221.5577999999805
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 104502,
+          "ms": 4264.64439999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 46675,
+          "ms": 4268.544800000003
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 169331,
+          "ms": 4430.1263000000035
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 63728,
+          "ms": 4605.692699999985
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 131157,
+          "ms": 4717.031600000017
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://vlibras.gov.br",
+          "code": "article-redirect",
+          "ms": 2449.3507999999856
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 377827,
+          "ms": 4914.109599999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 239269,
+          "ms": 5170.168999999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 428145,
+          "ms": 5256.133200000011
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 6382,
+          "ms": 1757.907899999991
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://embedr.flickr.com",
+          "status": 200,
+          "bytes": 642,
+          "ms": 2373.7921999999962
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 57179,
+          "ms": 2563.8856000000087
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 323,
+          "ms": 2728.387799999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 140631,
+          "ms": 3108.7050000000163
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 674,
+          "ms": 1676.1087000000116
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://embedr.flickr.com",
+          "status": 200,
+          "bytes": 225,
+          "ms": 1631.0093999999808
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1529605,
+          "ms": 9827.719799999992
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 118724,
+          "ms": 1870.2703000000038
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 4158,
+          "ms": 2218.019499999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://widgets.flickr.com",
+          "status": 200,
+          "bytes": 11335,
+          "ms": 2908.99099999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 637220,
+          "ms": 8866.491899999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 81280,
+          "ms": 3104.252999999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 80524,
+          "ms": 3164.7142000000167
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 82580,
+          "ms": 3056.6112999999896
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 158224,
+          "ms": 3238.836800000019
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 83564,
+          "ms": 3283.320699999982
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 85084,
+          "ms": 3415.8740000000107
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 59305,
+          "ms": 971.8706999999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1899,
+          "ms": 1836.512000000017
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 1442,
+          "ms": 2010.0844999999972
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 7846,
+          "ms": 2025.5337
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 3382,
+          "ms": 2052.616700000013
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 78268,
+          "ms": 1125.3926999999967
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 76736,
+          "ms": 1287.3293000000122
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 82244,
+          "ms": 2422.8358000000007
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 73632,
+          "ms": 2458.305800000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://browser-update.org",
+          "status": 200,
+          "bytes": 9699,
+          "ms": 3612.797500000015
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 80524,
+          "ms": 2577.5915000000095
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 85084,
+          "ms": 2794.6005000000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 83564,
+          "ms": 3479.2495000000054
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 82244,
+          "ms": 3611.9568000000145
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 81280,
+          "ms": 3751.090499999991
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 82580,
+          "ms": 3885.7943000000087
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 121278,
+          "ms": 5233.7074999999895
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "phase": "rendering",
+          "event": "navigation-start",
+          "details": {
+            "elapsedMs": 252,
+            "limitMs": 120000,
+            "origin": "https://www.gov.br"
+          },
+          "at": 621.3966000000073
+        },
+        {
+          "phase": "rendering",
+          "event": "document-loaded",
+          "details": {
+            "elapsedMs": 5837,
+            "statusCode": 200,
+            "bytes": 137648,
+            "origin": "https://www.gov.br"
+          },
+          "at": 6206.309800000017
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 10832,
+            "code": "article-redirect",
+            "resourceType": "script",
+            "origin": "https://vlibras.gov.br"
+          },
+          "at": 11200.52860000002
+        },
+        {
+          "phase": "rendering",
+          "event": "waiting-content",
+          "details": {
+            "elapsedMs": 18991
+          },
+          "at": 19359.78820000001
+        },
+        {
+          "phase": "rendering",
+          "event": "content-ready",
+          "details": {
+            "elapsedMs": 19184
+          },
+          "at": 19553.415500000003
+        },
+        {
+          "phase": "rendering",
+          "event": "render-complete",
+          "details": {
+            "elapsedMs": 25276,
+            "statusCode": 200,
+            "bytes": 303188,
+            "chars": 11702,
+            "diagnostics": [
+              "resource-request-failed",
+              "unsettled-resources"
+            ]
+          },
+          "at": 25645.11540000001
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 25968.21120000002
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 7,
+            "assets": 1,
+            "chars": 7848
+          },
+          "at": 26583.5907
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 5234,
+            "decodeMs": 151,
+            "chargedBytes": 121278
+          },
+          "at": 31969.58440000002
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "host": "www.gov.br",
+      "mode": "browser",
+      "round": 3,
+      "ok": true,
+      "ms": 29672.301799999987,
+      "baselineBlocks": 7,
+      "blocks": 7,
+      "orderedRetained": 7,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "cleanupMs": 332.1000000000058,
+      "browserResources": {
+        "document": {
+          "count": 1,
+          "bytes": 137648,
+          "totalRequestMs": 6136
+        },
+        "script": {
+          "count": 27,
+          "bytes": 2176523,
+          "totalRequestMs": 94410
+        },
+        "stylesheet": {
+          "count": 17,
+          "bytes": 2307618,
+          "totalRequestMs": 44789
+        },
+        "image": {
+          "count": 4,
+          "bytes": 130717,
+          "totalRequestMs": 9935
+        },
+        "font": {
+          "count": 16,
+          "bytes": 1422504,
+          "totalRequestMs": 53406
+        },
+        "fetch": {
+          "count": 2,
+          "bytes": 75074,
+          "totalRequestMs": 6797
+        }
+      },
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 137648,
+          "ms": 6134.935100000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1108,
+          "ms": 1701.6050000000105
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1461,
+          "ms": 1688.6741000000038
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 219,
+          "ms": 1699.3525000000081
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 543,
+          "ms": 1723.7044999999925
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 2821,
+          "ms": 1737.9973000000173
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 795,
+          "ms": 1730.1111999999848
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 949,
+          "ms": 1762.3006999999925
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 470,
+          "ms": 1786.1976999999897
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 668,
+          "ms": 1745.7203000000154
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1839,
+          "ms": 1988.415100000013
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 2393,
+          "ms": 2052.887300000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 36567,
+          "ms": 2090.993999999977
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 17759,
+          "ms": 2141.7313999999897
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 12312,
+          "ms": 2109.797900000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 5973,
+          "ms": 2226.8183000000136
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 22965,
+          "ms": 2387.99059999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 63728,
+          "ms": 2411.999599999981
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 46675,
+          "ms": 2449.085400000011
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 104502,
+          "ms": 2602.8478000000177
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1483,
+          "ms": 2611.1561999999976
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 31664,
+          "ms": 2652.2314999999944
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 741,
+          "ms": 2678.302399999986
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 96419,
+          "ms": 2706.9668999999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 39604,
+          "ms": 2756.0578000000096
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 121278,
+          "ms": 2758.828899999993
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 107284,
+          "ms": 3872.8617000000086
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 169331,
+          "ms": 3899.705799999996
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 76425,
+          "ms": 3931.6412000000128
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 131157,
+          "ms": 3991.421399999992
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 239269,
+          "ms": 4124.650599999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 377806,
+          "ms": 4123.341899999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 428145,
+          "ms": 4428.223200000008
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://vlibras.gov.br",
+          "code": "article-redirect",
+          "ms": 3065.809099999984
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://embedr.flickr.com",
+          "status": 200,
+          "bytes": 642,
+          "ms": 2448.294499999989
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1529605,
+          "ms": 7079.2663000000175
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://embedr.flickr.com",
+          "status": 200,
+          "bytes": 225,
+          "ms": 2778.198400000023
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 118724,
+          "ms": 2707.016799999983
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 158224,
+          "ms": 3070.8490000000165
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://widgets.flickr.com",
+          "status": 200,
+          "bytes": 11335,
+          "ms": 1130.75
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 4158,
+          "ms": 3893.4602000000014
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 323,
+          "ms": 6692.659200000024
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 6382,
+          "ms": 6725.388299999991
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 82580,
+          "ms": 4301.38519999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 83564,
+          "ms": 4320.695600000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 81280,
+          "ms": 4620.363699999987
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 80524,
+          "ms": 4724.748300000007
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 140631,
+          "ms": 7442.73060000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 57179,
+          "ms": 7678.150200000004
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 85084,
+          "ms": 4981.910299999989
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 674,
+          "ms": 1597.9863999999943
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 637220,
+          "ms": 10198.669499999989
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 59305,
+          "ms": 733.3686000000162
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 76736,
+          "ms": 736.6779999999853
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 3382,
+          "ms": 1532.4541000000027
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdnjs.cloudflare.com",
+          "status": 200,
+          "bytes": 78268,
+          "ms": 774.2266999999993
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 1442,
+          "ms": 1583.5411000000022
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 1899,
+          "ms": 1671.6463000000222
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 7846,
+          "ms": 1740.7189000000071
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://browser-update.org",
+          "status": 200,
+          "bytes": 9699,
+          "ms": 1892.489900000015
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 82244,
+          "ms": 2805.854099999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 85084,
+          "ms": 3345.8675999999978
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 83564,
+          "ms": 3373.8826000000117
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 82244,
+          "ms": 3360.3277000000235
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 82580,
+          "ms": 3393.047900000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 80524,
+          "ms": 3396.967399999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://barra.sistema.gov.br",
+          "status": 200,
+          "bytes": 81280,
+          "ms": 3399.5993000000017
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 73632,
+          "ms": 5204.357199999999
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 121278,
+          "ms": 2382.2299999999814
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "phase": "rendering",
+          "event": "navigation-start",
+          "details": {
+            "elapsedMs": 204,
+            "limitMs": 120000,
+            "origin": "https://www.gov.br"
+          },
+          "at": 518.4593999999925
+        },
+        {
+          "phase": "rendering",
+          "event": "document-loaded",
+          "details": {
+            "elapsedMs": 6470,
+            "statusCode": 200,
+            "bytes": 137648,
+            "origin": "https://www.gov.br"
+          },
+          "at": 6783.985400000005
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 11759,
+            "code": "article-redirect",
+            "resourceType": "script",
+            "origin": "https://vlibras.gov.br"
+          },
+          "at": 12072.684399999998
+        },
+        {
+          "phase": "rendering",
+          "event": "waiting-content",
+          "details": {
+            "elapsedMs": 19700
+          },
+          "at": 20013.893500000006
+        },
+        {
+          "phase": "rendering",
+          "event": "content-ready",
+          "details": {
+            "elapsedMs": 19738
+          },
+          "at": 20052.6477
+        },
+        {
+          "phase": "rendering",
+          "event": "render-complete",
+          "details": {
+            "elapsedMs": 25536,
+            "statusCode": 200,
+            "bytes": 303188,
+            "chars": 11702,
+            "diagnostics": [
+              "resource-request-failed"
+            ]
+          },
+          "at": 25850.708600000013
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 26328.991099999985
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 7,
+            "assets": 1,
+            "chars": 7848
+          },
+          "at": 27071.842399999994
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 2382,
+            "decodeMs": 166,
+            "chargedBytes": 121278
+          },
+          "at": 29621.34719999999
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "host": "www.gov.br",
+      "mode": "static",
+      "round": 3,
+      "ok": true,
+      "ms": 7691.716200000024,
+      "baselineBlocks": 7,
+      "blocks": 8,
+      "orderedRetained": 7,
+      "exactBlocks": false,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "passed",
+        "reasons": [],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "cleanupMs": 172.75639999998384,
+      "browserResources": {},
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 137648,
+          "ms": 4102.359499999991
+        },
+        {
+          "kind": "original",
+          "origin": "https://www.gov.br",
+          "status": 200,
+          "bytes": 121278,
+          "ms": 2808.6489
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "event": "http-complete",
+          "ms": 4102.965899999981,
+          "status": 200
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 4184.556500000006
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 8,
+            "assets": 1,
+            "chars": 7856
+          },
+          "at": 4346.895500000013
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 2809,
+            "decodeMs": 520,
+            "chargedBytes": 121278
+          },
+          "at": 7676.633700000006
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "host": "record.r7.com",
+      "mode": "browser",
+      "round": 1,
+      "ok": true,
+      "ms": 41352.92299999998,
+      "baselineBlocks": 143,
+      "blocks": 143,
+      "orderedRetained": 143,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [
+        "caption-track:131"
+      ],
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "caption-track:131",
+          "adapter:r7-body-v1"
+        ],
+        "adapter": "r7-body-v1"
+      },
+      "cleanupMs": 356.79000000000815,
+      "browserResources": {
+        "document": {
+          "count": 1,
+          "bytes": 1213453,
+          "totalRequestMs": 7172
+        },
+        "stylesheet": {
+          "count": 3,
+          "bytes": 941818,
+          "totalRequestMs": 5728
+        },
+        "image": {
+          "count": 28,
+          "bytes": 2641643,
+          "totalRequestMs": 49687
+        },
+        "script": {
+          "count": 39,
+          "bytes": 9892117,
+          "totalRequestMs": 101061
+        },
+        "font": {
+          "count": 1,
+          "bytes": 43068,
+          "totalRequestMs": 1214
+        },
+        "fetch": {
+          "count": 29,
+          "bytes": 5540244,
+          "totalRequestMs": 65437
+        },
+        "ping": {
+          "count": 7,
+          "bytes": 0,
+          "totalRequestMs": 0
+        },
+        "xhr": {
+          "count": 3,
+          "bytes": 10247,
+          "totalRequestMs": 9668
+        },
+        "media": {
+          "count": 3,
+          "bytes": 1434506,
+          "totalRequestMs": 2932
+        },
+        "other": {
+          "count": 1,
+          "bytes": 65480,
+          "totalRequestMs": 753
+        }
+      },
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 1213453,
+          "ms": 7171.344700000016
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 74287,
+          "ms": 713.5660999999964
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.themebuilder.aws.arc.pub",
+          "status": 200,
+          "bytes": 1007,
+          "ms": 1057.587899999984
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 574499,
+          "ms": 1141.9735999999975
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.themebuilder.aws.arc.pub",
+          "status": 200,
+          "bytes": 7804,
+          "ms": 1753.8401000000013
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cloudfront-us-east-1.images.arcpublishing.com",
+          "status": 200,
+          "bytes": 1017703,
+          "ms": 2783.81660000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://assets.r7.com",
+          "status": 403,
+          "bytes": 2496,
+          "ms": 3075.3081999999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.themebuilder.aws.arc.pub",
+          "status": 200,
+          "bytes": 50120,
+          "ms": 3507.399800000014
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net",
+          "status": 200,
+          "bytes": 54371,
+          "ms": 1986.831199999986
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 293032,
+          "ms": 3829.518300000025
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net",
+          "status": 200,
+          "bytes": 110752,
+          "ms": 1498.498500000016
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net",
+          "status": 200,
+          "bytes": 106933,
+          "ms": 729.6882000000041
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net",
+          "status": 200,
+          "bytes": 52898,
+          "ms": 674.8691000000108
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.chartbeat.com",
+          "status": 200,
+          "bytes": 43004,
+          "ms": 1222.5994000000064
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "status": 200,
+          "bytes": 43068,
+          "ms": 1190.8525999999838
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://analytics.tiktok.com",
+          "status": 200,
+          "bytes": 8088,
+          "ms": 1341.3503999999957
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.chartbeat.com",
+          "status": 200,
+          "bytes": 24348,
+          "ms": 1417.011599999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.googletagmanager.com",
+          "status": 200,
+          "bytes": 591675,
+          "ms": 1598.7578999999969
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 90536,
+          "ms": 1536.542999999976
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://s.go-mpulse.net",
+          "status": 200,
+          "bytes": 209939,
+          "ms": 1801.2124999999942
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 81615,
+          "ms": 1756.072199999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://ba197bb2-11ba-4ec2-abfe-bd0e634be0e6.edge.permutive.app",
+          "status": 200,
+          "bytes": 485082,
+          "ms": 2328.8199000000022
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://analytics.tiktok.com",
+          "status": 200,
+          "bytes": 488179,
+          "ms": 1109.6255000000237
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://player.r7.com",
+          "status": 200,
+          "bytes": 1719707,
+          "ms": 2725.1903000000166
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 81220,
+          "ms": 2797.4183000000194
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdn.taboola.com",
+          "status": 200,
+          "bytes": 9,
+          "ms": 2975.271300000022
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://ping.chartbeat.net",
+          "status": 200,
+          "bytes": 43,
+          "ms": 1834.4853000000003
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://t.seedtag.com",
+          "status": 200,
+          "bytes": 42031,
+          "ms": 1559.4559000000008
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://storage.googleapis.com",
+          "status": 200,
+          "bytes": 11648,
+          "ms": 1644.62539999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://t.seedtag.com",
+          "status": 200,
+          "bytes": 5191,
+          "ms": 585.9292000000132
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://mab.chartbeat.com",
+          "status": 200,
+          "bytes": 298,
+          "ms": 2677.662000000011
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdn.jsdelivr.net",
+          "status": 200,
+          "bytes": 2361,
+          "ms": 1522.7550999999803
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://plugins.soclminer.com.br",
+          "status": 200,
+          "bytes": 247258,
+          "ms": 2626.121700000018
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 594334,
+          "ms": 4461.467799999984
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://c.go-mpulse.net",
+          "status": 200,
+          "bytes": 51,
+          "ms": 2659.717399999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://t.seedtag.com",
+          "status": 200,
+          "bytes": 200717,
+          "ms": 921.0528000000049
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://analytics.tiktok.com",
+          "status": 200,
+          "bytes": 155676,
+          "ms": 2641.4621000000043
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://sb.scorecardresearch.com",
+          "status": 200,
+          "bytes": 21945,
+          "ms": 5268.015599999984
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://ad.doubleclick.net",
+          "status": 405,
+          "bytes": 0,
+          "ms": 4172.791599999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://sb.scorecardresearch.com",
+          "status": 204,
+          "bytes": 0,
+          "ms": 816.2130999999936
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://s.seedtag.com",
+          "status": 200,
+          "bytes": 910,
+          "ms": 1346.2857999999833
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.google.com",
+          "status": 200,
+          "bytes": 42,
+          "ms": 5711.608000000007
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://api.soclminer.com.br",
+          "code": "article-network",
+          "ms": 592.8162999999768
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2971945,
+          "ms": 15913.9522
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.themebuilder.aws.arc.pub",
+          "status": 200,
+          "bytes": 998,
+          "ms": 1074.7890999999945
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 78549,
+          "ms": 889.7417000000132
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 74505,
+          "ms": 877.4389000000083
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 110360,
+          "ms": 958.7804999999935
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.googletagmanager.com",
+          "status": 200,
+          "bytes": 487633,
+          "ms": 1244.4934000000067
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 103722,
+          "ms": 904.7816999999923
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://ping.chartbeat.net",
+          "status": 200,
+          "bytes": 43,
+          "ms": 1314.0309999999881
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 310,
+          "ms": 1556.1575000000012
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 1868,
+          "ms": 1688.0692999999737
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2000,
+          "ms": 1722.9138000000094
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 521,
+          "ms": 1701.6541000000143
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 342,
+          "ms": 1628.111499999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 3370,
+          "ms": 1714.1640000000189
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 14001,
+          "ms": 1850.9219999999914
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2554,
+          "ms": 1945.8168000000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 13947,
+          "ms": 1890.6934000000183
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 9192,
+          "ms": 1914.3459000000148
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2435,
+          "ms": 2020.432300000015
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 80683,
+          "ms": 738.3869999999879
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 5070,
+          "ms": 2182.9414000000106
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 1318,
+          "ms": 2150.0137000000104
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 84839,
+          "ms": 852.2107999999716
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 80828,
+          "ms": 1007.8255999999819
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 981,
+          "ms": 2218.241000000009
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 80904,
+          "ms": 1046.8692999999912
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 339,
+          "ms": 2166.7445000000007
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 108410,
+          "ms": 1472.4700000000012
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 339,
+          "ms": 2365.056199999992
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 871,
+          "ms": 2410.0282000000007
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 2676.6597000000183
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 2871.5933000000077
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 2697.1550999999745
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 2066.8428999999887
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 92233,
+          "ms": 1967.3172000000195
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 267,
+          "ms": 3574.1951000000117
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://pagead2.googlesyndication.com",
+          "status": 200,
+          "bytes": 0,
+          "ms": 3956.717499999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 424,
+          "ms": 3810.0237000000197
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 1639.616800000018
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 1669.510900000023
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 1662.2466999999888
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 1794.1700999999885
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 1781.9407000000065
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 1894.4912999999942
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-config-prod.api.arc-cdn.net",
+          "status": 200,
+          "bytes": 9898,
+          "ms": 4115.673299999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net",
+          "status": 200,
+          "bytes": 90525,
+          "ms": 3169.399000000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.sunmedia.tv",
+          "status": 200,
+          "bytes": 8286,
+          "ms": 4268.428199999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 474,
+          "ms": 2613.0889000000025
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 474,
+          "ms": 4584.104800000001
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 474,
+          "ms": 4616.237499999988
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 3450,
+          "ms": 796.0138999999908
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2764578,
+          "ms": 4763.577500000014
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "status": 200,
+          "bytes": 131655,
+          "ms": 2097.2620999999926
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2764578,
+          "ms": 3201.901899999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 474,
+          "ms": 3632.615300000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "status": 200,
+          "bytes": 3017,
+          "ms": 556.1332999999868
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "status": 200,
+          "bytes": 65480,
+          "ms": 750.1288000000059
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 715528,
+          "ms": 1126.9640000000072
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "status": 200,
+          "bytes": 698783,
+          "ms": 990.473800000007
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://imasdk.googleapis.com",
+          "status": 200,
+          "bytes": 504644,
+          "ms": 2799.9464000000153
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 715528,
+          "ms": 1001.5752999999968
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.sunmedia.tv",
+          "status": 200,
+          "bytes": 179449,
+          "ms": 2442.746199999994
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gstatic.com",
+          "code": "article-interrupted",
+          "ms": 515.7125000000233
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://sb.scorecardresearch.com",
+          "code": "article-interrupted",
+          "ms": 513.4303000000073
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.chartbeat.com",
+          "code": "article-interrupted",
+          "ms": 478.3990000000049
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d3gupebucmge1e.cloudfront.net",
+          "code": "article-interrupted",
+          "ms": 445.38730000000214
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://s0.2mdn.net",
+          "code": "article-interrupted",
+          "ms": 400.9048999999941
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://sc.r7.com",
+          "code": "article-interrupted",
+          "ms": 398.6453000000038
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://a-fds.youborafds01.com",
+          "code": "article-interrupted",
+          "ms": 274.68330000000424
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "code": "article-interrupted",
+          "ms": 18.94519999998738
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.sunmedia.tv",
+          "code": "article-interrupted",
+          "ms": 262.35579999999027
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "code": "article-interrupted",
+          "ms": 287.6247999999905
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://pagead2.googlesyndication.com",
+          "code": "article-interrupted",
+          "ms": 402.20919999998296
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://imasdk.googleapis.com",
+          "code": "article-interrupted",
+          "ms": 425.3341000000073
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "code": "article-interrupted",
+          "ms": 489.98459999999614
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fonts.gstatic.com",
+          "code": "article-interrupted",
+          "ms": 521.0400000000081
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "code": "article-interrupted",
+          "ms": 813.8111999999965
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fundingchoicesmessages.google.com",
+          "code": "article-interrupted",
+          "ms": 1058.699900000007
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdn.taboola.com",
+          "code": "article-interrupted",
+          "ms": 5224.851699999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d3gupebucmge1e.cloudfront.net",
+          "status": 200,
+          "bytes": 11770,
+          "ms": 2448.7304000000004
+        },
+        {
+          "kind": "original",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net",
+          "status": 200,
+          "bytes": 52898,
+          "ms": 1178.4032000000007
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "phase": "rendering",
+          "event": "navigation-start",
+          "details": {
+            "elapsedMs": 193,
+            "limitMs": 120000,
+            "origin": "https://record.r7.com"
+          },
+          "at": 509.53329999998095
+        },
+        {
+          "phase": "rendering",
+          "event": "document-loaded",
+          "details": {
+            "elapsedMs": 7794,
+            "statusCode": 200,
+            "bytes": 1213453,
+            "origin": "https://record.r7.com"
+          },
+          "at": 8110.789699999994
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-http-error",
+          "details": {
+            "elapsedMs": 10980,
+            "statusCode": 403,
+            "resourceType": "script",
+            "origin": "https://assets.r7.com"
+          },
+          "at": 11296.320599999977
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 13579,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google.com"
+          },
+          "at": 13896.039799999999
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 13587,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://ad.doubleclick.net"
+          },
+          "at": 13904.117399999988
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 14358,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://analytics.tiktok.com"
+          },
+          "at": 14674.744299999991
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 14588,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://analytics.tiktok.com"
+          },
+          "at": 14904.537299999996
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 16731,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://s.seedtag.com"
+          },
+          "at": 17047.356299999985
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 16742,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://s.seedtag.com"
+          },
+          "at": 17058.628599999996
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-http-error",
+          "details": {
+            "elapsedMs": 17858,
+            "statusCode": 405,
+            "resourceType": "image",
+            "origin": "https://ad.doubleclick.net"
+          },
+          "at": 18175.28
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 18096,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://s.seedtag.com"
+          },
+          "at": 18413.125100000005
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 19852,
+            "code": "article-network",
+            "resourceType": "xhr",
+            "origin": "https://api.soclminer.com.br"
+          },
+          "at": 20168.42989999999
+        },
+        {
+          "phase": "rendering",
+          "event": "waiting-content",
+          "details": {
+            "elapsedMs": 28092
+          },
+          "at": 28409.222099999984
+        },
+        {
+          "phase": "rendering",
+          "event": "content-ready",
+          "details": {
+            "elapsedMs": 28779
+          },
+          "at": 29095.709600000002
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 29927,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google-analytics.com"
+          },
+          "at": 30243.533999999985
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 29928,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://stats.g.doubleclick.net"
+          },
+          "at": 30244.744600000005
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 29934,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google.com"
+          },
+          "at": 30251.039699999994
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 34356,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://analytics.tiktok.com"
+          },
+          "at": 34672.835699999996
+        },
+        {
+          "phase": "rendering",
+          "event": "render-complete",
+          "details": {
+            "elapsedMs": 35710,
+            "statusCode": 200,
+            "bytes": 599805,
+            "chars": 7520,
+            "diagnostics": [
+              "resource-request-failed",
+              "unsettled-resources"
+            ]
+          },
+          "at": 36025.7892
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 36402.20989999999
+        },
+        {
+          "phase": "extracting",
+          "event": "caption-source-start",
+          "details": {
+            "origin": "https://d3gupebucmge1e.cloudfront.net",
+            "attempt": 1
+          },
+          "at": 36959.6881
+        },
+        {
+          "phase": "extracting",
+          "event": "caption-source-complete",
+          "completed": 131,
+          "total": 131,
+          "details": {
+            "origin": "https://d3gupebucmge1e.cloudfront.net",
+            "bytes": 11770,
+            "chars": 6881
+          },
+          "at": 39444.75589999999
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 143,
+            "assets": 1,
+            "chars": 12366
+          },
+          "at": 40008.1722
+        },
+        {
+          "phase": "extracting",
+          "event": "unsupported-graphic",
+          "details": {
+            "code": "unsupported-video",
+            "total": 1
+          },
+          "at": 40009.27739999999
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 1178,
+            "decodeMs": 135,
+            "chargedBytes": 52898
+          },
+          "at": 41324.2518
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "host": "record.r7.com",
+      "mode": "static",
+      "round": 1,
+      "ok": true,
+      "ms": 3491.5225999999966,
+      "baselineBlocks": 143,
+      "blocks": 11,
+      "orderedRetained": 8,
+      "exactBlocks": false,
+      "baselineImages": 1,
+      "readyImages": 0,
+      "originalHashesRetained": 0,
+      "failedImages": 0,
+      "captions": [],
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "embedded-source-incomplete"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:r7-body-v1"
+        ],
+        "adapter": "r7-body-v1"
+      },
+      "cleanupMs": 0.1130000000121072,
+      "browserResources": {},
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 1213458,
+          "ms": 2211.3462
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "event": "http-complete",
+          "ms": 2213.7467999999935,
+          "status": 200
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 2527.3090000000084
+        },
+        {
+          "phase": "extracting",
+          "event": "caption-source-failed",
+          "details": {
+            "code": "article-content-not-ready"
+          },
+          "at": 3008.165000000008
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 11,
+            "assets": 0,
+            "chars": 1907
+          },
+          "at": 3474.3640000000014
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "host": "record.r7.com",
+      "mode": "defer-media",
+      "round": 1,
+      "ok": true,
+      "ms": 34169.8541,
+      "baselineBlocks": 143,
+      "blocks": 143,
+      "orderedRetained": 143,
+      "exactBlocks": true,
+      "baselineImages": 1,
+      "readyImages": 1,
+      "originalHashesRetained": 1,
+      "failedImages": 0,
+      "captions": [
+        "caption-track:131"
+      ],
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "caption-track:131",
+          "adapter:r7-body-v1"
+        ],
+        "adapter": "r7-body-v1"
+      },
+      "cleanupMs": 298.92419999995036,
+      "browserResources": {
+        "document": {
+          "count": 1,
+          "bytes": 1213458,
+          "totalRequestMs": 13431
+        },
+        "stylesheet": {
+          "count": 3,
+          "bytes": 941818,
+          "totalRequestMs": 6855
+        },
+        "script": {
+          "count": 39,
+          "bytes": 11483347,
+          "totalRequestMs": 60624
+        },
+        "fetch": {
+          "count": 37,
+          "bytes": 5551509,
+          "totalRequestMs": 39126
+        },
+        "ping": {
+          "count": 6,
+          "bytes": 0,
+          "totalRequestMs": 0
+        },
+        "xhr": {
+          "count": 5,
+          "bytes": 20498,
+          "totalRequestMs": 11047
+        },
+        "other": {
+          "count": 1,
+          "bytes": 65480,
+          "totalRequestMs": 1992
+        }
+      },
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 1213458,
+          "ms": 13430.36070000002
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 293032,
+          "ms": 1475.4659000000102
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://assets.r7.com",
+          "status": 403,
+          "bytes": 2496,
+          "ms": 1484.7774000000209
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 574499,
+          "ms": 1630.0866000000387
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://ba197bb2-11ba-4ec2-abfe-bd0e634be0e6.edge.permutive.app",
+          "status": 200,
+          "bytes": 485082,
+          "ms": 1652.7741999999853
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 74287,
+          "ms": 3718.3359000000055
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.chartbeat.com",
+          "status": 200,
+          "bytes": 24348,
+          "ms": 1081.4922999999835
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 594334,
+          "ms": 1257.3744000000297
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://analytics.tiktok.com",
+          "status": 200,
+          "bytes": 8096,
+          "ms": 1579.5327999999863
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2971945,
+          "ms": 1765.1456999999937
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://s.go-mpulse.net",
+          "status": 200,
+          "bytes": 209939,
+          "ms": 1751.6741000000038
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.googletagmanager.com",
+          "status": 200,
+          "bytes": 591675,
+          "ms": 1842.5619000000297
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://sb.scorecardresearch.com",
+          "status": 200,
+          "bytes": 21945,
+          "ms": 2192.7484000000404
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://analytics.tiktok.com",
+          "status": 200,
+          "bytes": 488179,
+          "ms": 1196.4815999999992
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.chartbeat.com",
+          "status": 200,
+          "bytes": 43004,
+          "ms": 2888.814000000013
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://player.r7.com",
+          "status": 200,
+          "bytes": 1719707,
+          "ms": 3260.1150999999954
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://storage.googleapis.com",
+          "status": 200,
+          "bytes": 11648,
+          "ms": 1203.290699999954
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://t.seedtag.com",
+          "status": 200,
+          "bytes": 42031,
+          "ms": 1245.9694000000018
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://c.go-mpulse.net",
+          "status": 200,
+          "bytes": 766,
+          "ms": 1720.2819000000018
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://plugins.soclminer.com.br",
+          "status": 200,
+          "bytes": 247258,
+          "ms": 1826.9647000000114
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://analytics.tiktok.com",
+          "status": 200,
+          "bytes": 155676,
+          "ms": 1062.6251000000047
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://mab.chartbeat.com",
+          "status": 200,
+          "bytes": 298,
+          "ms": 3415.4802999999956
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdn.taboola.com",
+          "status": 200,
+          "bytes": 9,
+          "ms": 4234.6110000000335
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 9192,
+          "ms": 645.7227999999886
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 5070,
+          "ms": 673.0525999999954
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 267,
+          "ms": 720.1350000000093
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 14001,
+          "ms": 708.0522999999812
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 474,
+          "ms": 656.7462999999989
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2554,
+          "ms": 725.610400000005
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2435,
+          "ms": 750.4697999999626
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 871,
+          "ms": 716.4535000000033
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 474,
+          "ms": 807.0250999999698
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 3370,
+          "ms": 870.9472999999998
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 521,
+          "ms": 876.2396999999764
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 894.2688999999664
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 899.8769999999786
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 424,
+          "ms": 990.0445999999647
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 981,
+          "ms": 1068.4934999999823
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 1004.7548999999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.googletagmanager.com",
+          "status": 200,
+          "bytes": 487615,
+          "ms": 988.5638000000035
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://t.seedtag.com",
+          "status": 200,
+          "bytes": 5191,
+          "ms": 988.1918000000296
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 13947,
+          "ms": 1070.7202999999863
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 1318,
+          "ms": 1078.012699999963
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdn.jsdelivr.net",
+          "status": 200,
+          "bytes": 2361,
+          "ms": 1703.1968999999808
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 792.2119999999995
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://pagead2.googlesyndication.com",
+          "status": 200,
+          "bytes": 0,
+          "ms": 1788.0108999999939
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 1572.46179999999
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 310,
+          "ms": 1593.0826000000234
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 339,
+          "ms": 1639.5301999999792
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 1633.5965999999898
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2764578,
+          "ms": 1753.9255999999586
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 474,
+          "ms": 629.0604000000167
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 674.2678000000305
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 682.0966999999946
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 676.5626000000047
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 673.2035000000033
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 474,
+          "ms": 655.3041000000085
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 826.7919000000111
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 115,
+          "ms": 833.337200000009
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2000,
+          "ms": 2189.6814000000013
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://t.seedtag.com",
+          "status": 200,
+          "bytes": 200717,
+          "ms": 969.6522000000114
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 1868,
+          "ms": 2272.7783000000054
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 342,
+          "ms": 2321.468499999959
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 11035,
+          "ms": 1453.0542000000132
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://record.r7.com",
+          "status": 200,
+          "bytes": 2764578,
+          "ms": 1456.4318999999668
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "status": 200,
+          "bytes": 131726,
+          "ms": 1484.1937000000034
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://cdn.taboola.com",
+          "status": 200,
+          "bytes": 1564955,
+          "ms": 1788.3770000000368
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://newr7-config-prod.api.arc-cdn.net",
+          "status": 200,
+          "bytes": 9898,
+          "ms": 3693.532200000016
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "status": 200,
+          "bytes": 3017,
+          "ms": 1100.4108000000124
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "status": 200,
+          "bytes": 65480,
+          "ms": 1991.1701999999932
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://api.soclminer.com.br",
+          "code": "article-network",
+          "ms": 1594.824100000027
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "status": 200,
+          "bytes": 699146,
+          "ms": 2151.161300000036
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 339,
+          "ms": 4928.360700000019
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://imasdk.googleapis.com",
+          "status": 200,
+          "bytes": 504644,
+          "ms": 3460.8942999999854
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://s.seedtag.com",
+          "status": 200,
+          "bytes": 910,
+          "ms": 2792.7725999999675
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://securepubads.g.doubleclick.net",
+          "status": 200,
+          "bytes": 6086,
+          "ms": 604.5349999999744
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "status": 200,
+          "bytes": 3450,
+          "ms": 1547.6133000000264
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://sb.scorecardresearch.com",
+          "status": 200,
+          "bytes": 213586,
+          "ms": 1787.2997999999789
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://gum.criteo.com",
+          "code": "article-interrupted",
+          "ms": 4433.340399999986
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://pm-widget.taboola.com",
+          "code": "article-interrupted",
+          "ms": 4427.497299999988
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://fundingchoicesmessages.google.com",
+          "code": "article-interrupted",
+          "ms": 2701.7423999999883
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://www.gstatic.com",
+          "code": "article-interrupted",
+          "ms": 2387.493299999973
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://static.chartbeat.com",
+          "code": "article-interrupted",
+          "ms": 2362.5590000000084
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d3gupebucmge1e.cloudfront.net",
+          "code": "article-interrupted",
+          "ms": 2293.83269999997
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://s0.2mdn.net",
+          "code": "article-interrupted",
+          "ms": 2258.390300000028
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d147dt0faszygd.cloudfront.net",
+          "code": "article-interrupted",
+          "ms": 749.9798000000301
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://pagead2.googlesyndication.com",
+          "code": "article-interrupted",
+          "ms": 2256.8456000000006
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://imasdk.googleapis.com",
+          "code": "article-interrupted",
+          "ms": 2285.2788999999757
+        },
+        {
+          "kind": "document-resource",
+          "origin": "https://d3gupebucmge1e.cloudfront.net",
+          "status": 200,
+          "bytes": 11770,
+          "ms": 1358.030700000003
+        },
+        {
+          "kind": "original",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net",
+          "status": 200,
+          "bytes": 52898,
+          "ms": 1586.8021999999764
+        }
+      ],
+      "skipped": [
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://cloudfront-us-east-1.images.arcpublishing.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "font",
+          "origin": "https://fonts.gstatic.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://www.google.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://ad.doubleclick.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://sb.scorecardresearch.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://ping.chartbeat.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://cloudfront-us-east-1.images.arcpublishing.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://cloudfront-us-east-1.images.arcpublishing.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "media",
+          "origin": "https://d147dt0faszygd.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://newr7-r7-prod.web.arc-cdn.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://cdn.taboola.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://cdn.taboola.com"
+        },
+        {
+          "type": "font",
+          "origin": "https://fonts.gstatic.com"
+        },
+        {
+          "type": "font",
+          "origin": "https://fonts.gstatic.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://sc.r7.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://static.themebuilder.aws.arc.pub"
+        },
+        {
+          "type": "image",
+          "origin": "https://cloudfront-us-east-1.images.arcpublishing.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://sc.r7.com"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        },
+        {
+          "type": "image",
+          "origin": "https://d22yf0mxeu0gma.cloudfront.net"
+        }
+      ],
+      "events": [
+        {
+          "phase": "rendering",
+          "event": "navigation-start",
+          "details": {
+            "elapsedMs": 200,
+            "limitMs": 120000,
+            "origin": "https://record.r7.com"
+          },
+          "at": 512.4323999999906
+        },
+        {
+          "phase": "rendering",
+          "event": "document-loaded",
+          "details": {
+            "elapsedMs": 13908,
+            "statusCode": 200,
+            "bytes": 1213458,
+            "origin": "https://record.r7.com"
+          },
+          "at": 14220.151299999969
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-http-error",
+          "details": {
+            "elapsedMs": 15495,
+            "statusCode": 403,
+            "resourceType": "script",
+            "origin": "https://assets.r7.com"
+          },
+          "at": 15807.126400000008
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 19856,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google.com"
+          },
+          "at": 20168.705099999963
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 19857,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://ad.doubleclick.net"
+          },
+          "at": 20169.087899999984
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 20691,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://analytics.tiktok.com"
+          },
+          "at": 21002.95869999996
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 20911,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://analytics.tiktok.com"
+          },
+          "at": 21223.464799999958
+        },
+        {
+          "phase": "rendering",
+          "event": "waiting-content",
+          "details": {
+            "elapsedMs": 21355
+          },
+          "at": 21667.86719999998
+        },
+        {
+          "phase": "rendering",
+          "event": "content-ready",
+          "details": {
+            "elapsedMs": 21868
+          },
+          "at": 22180.362199999974
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 22881,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google-analytics.com"
+          },
+          "at": 23193.55660000001
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 22882,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://stats.g.doubleclick.net"
+          },
+          "at": 23193.998099999968
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 22901,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://www.google.com"
+          },
+          "at": 23213.305899999978
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 23983,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://s.seedtag.com"
+          },
+          "at": 24295.51740000001
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 23984,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://s.seedtag.com"
+          },
+          "at": 24296.582999999984
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 24949,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://trc.taboola.com"
+          },
+          "at": 25261.65889999998
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 24969,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://trc.taboola.com"
+          },
+          "at": 25281.346699999995
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 24998,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://trc.taboola.com"
+          },
+          "at": 25310.209299999988
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 25002,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://trc.taboola.com"
+          },
+          "at": 25314.211699999985
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 25008,
+            "code": "article-resource-method",
+            "resourceType": "fetch",
+            "origin": "https://trc.taboola.com"
+          },
+          "at": 25320.630399999965
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 26420,
+            "code": "article-network",
+            "resourceType": "xhr",
+            "origin": "https://api.soclminer.com.br"
+          },
+          "at": 26731.992700000003
+        },
+        {
+          "phase": "rendering",
+          "event": "resource-failed",
+          "details": {
+            "elapsedMs": 26786,
+            "code": "article-resource-method",
+            "resourceType": "ping",
+            "origin": "https://s.seedtag.com"
+          },
+          "at": 27098.277399999963
+        },
+        {
+          "phase": "rendering",
+          "event": "render-complete",
+          "details": {
+            "elapsedMs": 29385,
+            "statusCode": 200,
+            "bytes": 601674,
+            "chars": 7568,
+            "diagnostics": [
+              "resource-request-failed",
+              "unsettled-resources"
+            ]
+          },
+          "at": 29697.43199999997
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 29992.920999999973
+        },
+        {
+          "phase": "extracting",
+          "event": "caption-source-start",
+          "details": {
+            "origin": "https://d3gupebucmge1e.cloudfront.net",
+            "attempt": 1
+          },
+          "at": 30602.09639999998
+        },
+        {
+          "phase": "extracting",
+          "event": "caption-source-complete",
+          "completed": 131,
+          "total": 131,
+          "details": {
+            "origin": "https://d3gupebucmge1e.cloudfront.net",
+            "bytes": 11770,
+            "chars": 6881
+          },
+          "at": 31984.815599999973
+        },
+        {
+          "phase": "extracting",
+          "event": "source-extracted",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "blocks": 143,
+            "assets": 1,
+            "chars": 12366
+          },
+          "at": 32421.888099999982
+        },
+        {
+          "phase": "extracting",
+          "event": "unsupported-graphic",
+          "details": {
+            "code": "unsupported-video",
+            "total": 1
+          },
+          "at": 32424.155299999984
+        },
+        {
+          "phase": "assets",
+          "completed": 1,
+          "total": 1,
+          "details": {
+            "downloadMs": 1587,
+            "decodeMs": 133,
+            "chargedBytes": 52898
+          },
+          "at": 34145.01449999999
+        }
+      ]
+    },
+    {
+      "index": 24,
+      "host": "www.bcb.gov.br",
+      "mode": "static",
+      "round": 1,
+      "ok": false,
+      "ms": 4043.260799999989,
+      "code": "article-extraction",
+      "cleanupMs": 0.6412999999593012,
+      "browserResources": {},
+      "downloads": [
+        {
+          "kind": "document-resource",
+          "origin": "https://www.bcb.gov.br",
+          "status": 200,
+          "bytes": 2871,
+          "ms": 3962.0699000000022
+        }
+      ],
+      "skipped": [],
+      "events": [
+        {
+          "event": "http-complete",
+          "ms": 3963.3422999999602,
+          "status": 200
+        },
+        {
+          "phase": "extracting",
+          "completed": 0,
+          "total": 1,
+          "at": 3978.045999999973
+        },
+        {
+          "phase": "extracting",
+          "event": "extraction-failed",
+          "details": {
+            "code": "article-extraction",
+            "chars": 0,
+            "diagnostics": []
+          },
+          "at": 4042.356899999955
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "fixtureCount": 28,
+  "nodeSucceeded": 26,
+  "Asucceeded": 24,
+  "BhasLengthAndStatus": 22,
+  "exactParagraphArrayMatches": 24,
+  "BmatchedLedes": 0,
+  "nodeBatchMs": 137897.09290000002,
+  "scraplingTwoProjectionBatchMs": 242003.7604,
+  "nodeMedianMs": 2272.4513000000006,
+  "scraplingMedianMs": 1175.5571000000018,
+  "speedupPercent": 48.26920603315013,
+  "pageIpcMedianMs": 22.84789999999998,
+  "page28IpcEstimateMs": 639.7411999999995,
+  "emptyIpcMedianMs": 1.375400000000809,
+  "emptyIpcP95Ms": 2.0124999999970896,
+  "concurrency": [
+    {
+      "concurrency": 2,
+      "requests": 16,
+      "batchMs": 19727.6305,
+      "startupMs": 1922.9114,
+      "maxActive": 2,
+      "rpcMedianMs": 1996.9290999999998,
+      "success": 15,
+      "failures": [
+        {
+          "index": 10,
+          "status": 403,
+          "ms": 2403.8277,
+          "wireBytes": 909
+        }
+      ]
+    },
+    {
+      "concurrency": 8,
+      "requests": 16,
+      "batchMs": 9427.000200000002,
+      "startupMs": 1328.6014000000032,
+      "maxActive": 8,
+      "rpcMedianMs": 1573.5295000000006,
+      "success": 15,
+      "failures": [
+        {
+          "index": 10,
+          "status": 403,
+          "ms": 1305.9488999999994,
+          "wireBytes": 909
+        }
+      ]
+    },
+    {
+      "concurrency": 16,
+      "requests": 16,
+      "batchMs": 4969.835999999996,
+      "startupMs": 1297.7751999999964,
+      "maxActive": 16,
+      "rpcMedianMs": 1375.175849999996,
+      "success": 15,
+      "failures": [
+        {
+          "index": 10,
+          "status": 403,
+          "ms": 1269.205799999996,
+          "wireBytes": 909
+        }
+      ]
+    }
+  ],
+  "venvBytes": 315569472
+}

@@ -1,0 +1,198 @@
+[
+  {
+    "site": "CBS News",
+    "assets": [
+      {
+        "status": "ready",
+        "contentHash": "38ee4ab36aec2f692d1d42ace7ba3727a5b4a012109f67e1006eab66bb9de92e",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 174605,
+        "positions": [
+          "b11"
+        ],
+        "error": null,
+        "origin": "https://assets1.cbsnewsstatic.com"
+      },
+      {
+        "status": "ready",
+        "contentHash": "d48b4836a8ec0d8ded5fffffef7ffc42d45115d5bd449bfb412edda3f4ffd750",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 176435,
+        "positions": [
+          "b15"
+        ],
+        "error": null,
+        "origin": "https://assets1.cbsnewsstatic.com"
+      },
+      {
+        "status": "ready",
+        "contentHash": "5556ab5fcb8019b41a3e31562f6573813d56e486c8119818feeb1c2698949001",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 42552,
+        "positions": [
+          "b19"
+        ],
+        "error": null,
+        "origin": "https://assets3.cbsnewsstatic.com"
+      },
+      {
+        "status": "ready",
+        "contentHash": "8007b330784508915063315d912a33c360fb2394e759795f17109ead94caff1e",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 169605,
+        "positions": [
+          "b24"
+        ],
+        "error": null,
+        "origin": "https://assets1.cbsnewsstatic.com"
+      },
+      {
+        "status": "ready",
+        "contentHash": "2fee2dd811e34ad5c8448e3dd28eb06490f3d533e84f0e4e52607ab18a802293",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 66712,
+        "positions": [
+          "b32"
+        ],
+        "error": null,
+        "origin": "https://assets3.cbsnewsstatic.com"
+      },
+      {
+        "status": "ready",
+        "contentHash": "a150c1995083783f9eeda4ef602e7282118bba9da5528bfc5884fe8a0a41e63a",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 234582,
+        "positions": [
+          "b37"
+        ],
+        "error": null,
+        "origin": "https://assets2.cbsnewsstatic.com"
+      }
+    ]
+  },
+  {
+    "site": "新华社",
+    "assets": []
+  },
+  {
+    "site": "Associated Press",
+    "assets": []
+  },
+  {
+    "site": "France 24",
+    "assets": [
+      {
+        "status": "ready",
+        "contentHash": "c593d92db6bb80cc3332a20efe9049f9df7c24383475c3af26a62b052295f2a5",
+        "mime": "image/jpeg",
+        "width": 1024,
+        "height": 576,
+        "byteLength": 66290,
+        "positions": [
+          "b13"
+        ],
+        "error": null,
+        "origin": "https://s.france24.com"
+      },
+      {
+        "status": "ready",
+        "contentHash": "059d38f400d611239afb3b24697c6a85938565331a061cdacb895ecee0af6c16",
+        "mime": "image/jpeg",
+        "width": 1024,
+        "height": 1820,
+        "byteLength": 235046,
+        "positions": [
+          "b21"
+        ],
+        "error": null,
+        "origin": "https://s.france24.com"
+      },
+      {
+        "status": "ready",
+        "contentHash": "a390832caf68ddde05fd4e7e1b71535a5990c89632debe8061ad6990cccc7ff2",
+        "mime": "image/jpeg",
+        "width": 980,
+        "height": 658,
+        "byteLength": 142748,
+        "positions": [
+          "b26"
+        ],
+        "error": null,
+        "origin": "https://s.france24.com"
+      }
+    ]
+  },
+  {
+    "site": "NPR",
+    "assets": [
+      {
+        "status": "failed",
+        "contentHash": null,
+        "mime": null,
+        "width": null,
+        "height": null,
+        "byteLength": 0,
+        "positions": [
+          "b6"
+        ],
+        "error": "image-download",
+        "origin": "https://npr.brightspotcdn.com"
+      },
+      {
+        "status": "ready",
+        "contentHash": "65ff28ba7c0b85482bfeee5c61badac3fdc3cbb20ab33fc4a44838bc98da11d5",
+        "mime": "image/jpeg",
+        "width": 100,
+        "height": 100,
+        "byteLength": 14232,
+        "positions": [
+          "b14"
+        ],
+        "error": null,
+        "origin": "https://media.npr.org"
+      },
+      {
+        "status": "failed",
+        "contentHash": null,
+        "mime": null,
+        "width": null,
+        "height": null,
+        "byteLength": 0,
+        "positions": [
+          "b24"
+        ],
+        "error": "image-download",
+        "origin": "https://npr.brightspotcdn.com"
+      },
+      {
+        "status": "failed",
+        "contentHash": null,
+        "mime": null,
+        "width": null,
+        "height": null,
+        "byteLength": 0,
+        "positions": [
+          "b34"
+        ],
+        "error": "image-download",
+        "origin": "https://npr.brightspotcdn.com"
+      }
+    ]
+  },
+  {
+    "site": "CNN",
+    "assets": []
+  }
+]

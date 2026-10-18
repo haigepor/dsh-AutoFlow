@@ -1,0 +1,78 @@
+{
+  "adapters": [
+    {
+      "id": "r7-body-v1",
+      "hosts": [
+        "record.r7.com"
+      ],
+      "articleSelector": "main",
+      "excludeSelector": "main > .article-flex,.b-see-also__container,.b-article-tags-container,.ultimas-divider__header-container,main > div:has(.b-ultimas-list__item),.vjs-control-bar,.vjs-modal-dialog,.vjs-logo-content,.vjs-text-track-display",
+      "captionSources": [
+        {
+          "selector": "video track[kind=\"subtitles\"]",
+          "hosts": [
+            "d3gupebucmge1e.cloudfront.net"
+          ],
+          "metadata": {
+            "globalPath": [
+              "Fusion",
+              "globalContent"
+            ],
+            "identityPath": [
+              "canonical_url"
+            ],
+            "tracksPath": [
+              "subtitles",
+              "urls"
+            ],
+            "formatKey": "format",
+            "formatValue": "WEB_VTT",
+            "urlKey": "url",
+            "anchorSelector": ".wrapper-video",
+            "language": "pt-br",
+            "poster": {
+              "urlPath": [
+                "promo_image",
+                "url"
+              ],
+              "titlePath": [
+                "promo_image",
+                "caption"
+              ],
+              "hosts": [
+                "d22yf0mxeu0gma.cloudfront.net"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "metropoles-article",
+      "hosts": [
+        "www.metropoles.com"
+      ],
+      "articleSelector": "article",
+      "imageRedirects": [
+        {
+          "from": "https://assets-jpcust.jwpsrv.com",
+          "to": "https://cdn.jwplayer.com"
+        },
+        {
+          "from": "https://cdn.jwplayer.com",
+          "to": "https://assets-jpcust.jwpsrv.com"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "selector": "iframe[src^=\"https://cdn.jwplayer.com/players/\"]",
+          "hosts": [
+            "cdn.jwplayer.com"
+          ],
+          "kind": "video",
+          "rootSelector": "body"
+        }
+      ]
+    }
+  ]
+}

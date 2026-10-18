@@ -1,0 +1,559 @@
+{
+  "stage": "rich",
+  "startedAt": "2026-10-17T17:11:05.952Z",
+  "updatedAt": "2026-10-17T17:11:37.886Z",
+  "concurrency": 2,
+  "requestTimeoutMs": 60000,
+  "renderTimeoutMs": 120000,
+  "callDeadlineMs": 180000,
+  "results": [
+    {
+      "site": "News24",
+      "region": "非洲",
+      "language": "en",
+      "kind": "科普文章",
+      "url": "https://www.news24.com/life/passengers-and-the-real-life-science-of-deep-space-travel-20161222",
+      "ok": true,
+      "code": null,
+      "snapshotId": "37a57c4bc22187d024e31227f38f91d2",
+      "sourceHash": "24c609aed8b51c2ffa5e9eb7d2b34b8664972fbc27d3bfc63b1342df2725d0f5",
+      "blocks": 26,
+      "images": 0,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "generationAvailable": false,
+      "diagnosticId": "504bf1c0db71f40d90823eba4daf12f2",
+      "pages": 1,
+      "bodyChars": 4391,
+      "paragraphs": 24,
+      "blockTypes": {
+        "paragraph": 24,
+        "heading": 2
+      },
+      "readyImages": 0,
+      "failedImages": 0,
+      "imageBytes": 0,
+      "integrityVerified": true,
+      "elapsedMs": 28927.6685,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 5.577400000000125
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 769.2856999999999
+        },
+        {
+          "progress": 3,
+          "message": "rendering: document-loaded",
+          "elapsedMs": 8197.403600000001
+        },
+        {
+          "progress": 4,
+          "message": "rendering: resource-http-error",
+          "elapsedMs": 10378.488700000002
+        },
+        {
+          "progress": 5,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 15884.7411
+        },
+        {
+          "progress": 7,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 16855.5821
+        },
+        {
+          "progress": 8,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 17258.8226
+        },
+        {
+          "progress": 12,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 19257.8209
+        },
+        {
+          "progress": 15,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 20364.7217
+        },
+        {
+          "progress": 20,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 22221.3449
+        },
+        {
+          "progress": 21,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 25723.498799999998
+        },
+        {
+          "progress": 22,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 26766.8765
+        },
+        {
+          "progress": 26,
+          "message": "rendering: render-complete",
+          "elapsedMs": 27803.379399999998
+        },
+        {
+          "progress": 27,
+          "message": "extracting: extracting",
+          "elapsedMs": 28418.7252
+        },
+        {
+          "progress": 28,
+          "message": "extracting: source-extracted",
+          "elapsedMs": 28830.5557
+        },
+        {
+          "progress": 29,
+          "message": "completed: completed",
+          "elapsedMs": 28892.7942
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "504bf1c0db71f40d90823eba4daf12f2",
+        "tool": "article_image_capture_source",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:11:08.957Z",
+        "endedAt": "2026-10-17T17:11:37.847Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 29,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 1.1493000000000393,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 766.2712999999999,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 178,
+              "limitMs": 120000,
+              "origin": "https://www.news24.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 8194.3616,
+            "phase": "rendering",
+            "event": "document-loaded",
+            "details": {
+              "elapsedMs": 7606,
+              "bytes": 172043,
+              "statusCode": 200,
+              "origin": "https://www.news24.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 10375.8981,
+            "phase": "rendering",
+            "event": "resource-http-error",
+            "details": {
+              "elapsedMs": 9788,
+              "statusCode": 404,
+              "resourceType": "image",
+              "origin": "https://www.news24.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 15881.756999999998,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15294,
+              "code": "article-resource-method",
+              "origin": "https://secure.mantis-intelligence.com"
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 15972.269,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15384,
+              "code": "article-redirect",
+              "resourceType": "script",
+              "origin": "https://cdn.brandmetrics.com"
+            }
+          },
+          {
+            "sequence": 7,
+            "elapsedMs": 16852.6591,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 16265,
+              "code": "article-resource-method",
+              "origin": "https://secure.mantis-intelligence.com"
+            }
+          },
+          {
+            "sequence": 8,
+            "elapsedMs": 17255.9086,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 16668,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.google.com"
+            }
+          },
+          {
+            "sequence": 9,
+            "elapsedMs": 17256.8757,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 16669,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://ad.doubleclick.net"
+            }
+          },
+          {
+            "sequence": 10,
+            "elapsedMs": 17331.7289,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 16744,
+              "code": "article-resource-method",
+              "origin": "https://secure.mantis-intelligence.com"
+            }
+          },
+          {
+            "sequence": 11,
+            "elapsedMs": 17368.2754,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 16780,
+              "code": "article-resource-method",
+              "origin": "https://secure.mantis-intelligence.com"
+            }
+          },
+          {
+            "sequence": 12,
+            "elapsedMs": 19255.1278,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 18667,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.google-analytics.com"
+            }
+          },
+          {
+            "sequence": 13,
+            "elapsedMs": 19255.8862,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 18668,
+              "code": "article-resource-method",
+              "origin": "https://stats.g.doubleclick.net"
+            }
+          },
+          {
+            "sequence": 14,
+            "elapsedMs": 19263.8475,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 18676,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.google.com"
+            }
+          },
+          {
+            "sequence": 15,
+            "elapsedMs": 20361.914099999998,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 19774,
+              "code": "article-resource-method",
+              "resourceType": "xhr",
+              "origin": "https://sdk.fra-02.braze.eu"
+            }
+          },
+          {
+            "sequence": 16,
+            "elapsedMs": 20362.531899999998,
+            "phase": "rendering",
+            "event": "waiting-content",
+            "details": {
+              "elapsedMs": 19775
+            }
+          },
+          {
+            "sequence": 17,
+            "elapsedMs": 20485.384299999998,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 19897,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.google.com"
+            }
+          },
+          {
+            "sequence": 18,
+            "elapsedMs": 20486.903299999998,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 19899,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.google.com"
+            }
+          },
+          {
+            "sequence": 19,
+            "elapsedMs": 20525.9047,
+            "phase": "rendering",
+            "event": "content-ready",
+            "details": {
+              "elapsedMs": 19938
+            }
+          },
+          {
+            "sequence": 20,
+            "elapsedMs": 22218.0852,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21630,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://ad.doubleclick.net"
+            }
+          },
+          {
+            "sequence": 21,
+            "elapsedMs": 25720.8102,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 25133,
+              "code": "article-resource-method",
+              "resourceType": "xhr",
+              "origin": "https://www.youtube.com"
+            }
+          },
+          {
+            "sequence": 22,
+            "elapsedMs": 26764.014199999998,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 26176,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.youtube.com"
+            }
+          },
+          {
+            "sequence": 23,
+            "elapsedMs": 26892.1077,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 26304,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://id5-sync.com"
+            }
+          },
+          {
+            "sequence": 24,
+            "elapsedMs": 26923.2486,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 26335,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.google-analytics.com"
+            }
+          },
+          {
+            "sequence": 25,
+            "elapsedMs": 26973.1043,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 26385,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.google.com"
+            }
+          },
+          {
+            "sequence": 26,
+            "elapsedMs": 27800.725,
+            "phase": "rendering",
+            "event": "render-complete",
+            "details": {
+              "elapsedMs": 27213,
+              "bytes": 212102,
+              "chars": 38129,
+              "statusCode": 200
+            }
+          },
+          {
+            "sequence": 27,
+            "elapsedMs": 28415.799,
+            "phase": "extracting",
+            "event": "extracting",
+            "details": {
+              "completed": 0,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 28,
+            "elapsedMs": 28827.6681,
+            "phase": "extracting",
+            "event": "source-extracted",
+            "details": {
+              "chars": 4366,
+              "blocks": 26,
+              "assets": 0,
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 29,
+            "elapsedMs": 28889.994899999998,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "South China Morning Post",
+      "region": "东亚",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.scmp.com/news/world/united-states-canada/article/3346456/nasa-clears-artemis-moon-rocket-april-launch-4-astronauts",
+      "ok": false,
+      "code": "article-restricted",
+      "diagnosticId": "ac1a0932e2601b9cb1569b516accfd3d",
+      "elapsedMs": 4653.850700000001,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 300.65729999999985
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 813.6433000000002
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 4631.2173
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 4651.7744999999995
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "ac1a0932e2601b9cb1569b516accfd3d",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T17:11:09.255Z",
+        "endedAt": "2026-10-17T17:11:13.606Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.07310000000006767,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 513.1749000000002,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 220,
+              "limitMs": 120000,
+              "origin": "https://www.scmp.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 4330.5993,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 4038,
+              "code": "article-restricted",
+              "resourceType": "document",
+              "origin": "https://www.scmp.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 4350.6184,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-restricted"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    }
+  ]
+}

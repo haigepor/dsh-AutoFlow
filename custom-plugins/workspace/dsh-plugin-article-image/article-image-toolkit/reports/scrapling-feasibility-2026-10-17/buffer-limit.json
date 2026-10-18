@@ -1,0 +1,7 @@
+{
+  "error": "MCP error -32000: Connection closed",
+  "clientErrors": [
+    "ReadBuffer exceeded maximum size of 10485760 bytes",
+    "Unexpected token 'l', \"le helpers\"... is not valid JSON"
+  ]
+}

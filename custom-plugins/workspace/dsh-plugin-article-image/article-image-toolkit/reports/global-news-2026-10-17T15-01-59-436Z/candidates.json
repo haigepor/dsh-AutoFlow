@@ -1,0 +1,114 @@
+[
+  {
+    "site": "CBS News",
+    "region": "北美",
+    "language": "en",
+    "kind": "新闻文章",
+    "url": "https://www.cbsnews.com/news/artemis-ii-mission-astronauts-still-awed-moonshot/"
+  },
+  {
+    "site": "新华社",
+    "region": "东亚",
+    "language": "zh",
+    "kind": "新闻文章",
+    "url": "https://www.news.cn/tech/20260129/c14ec2642dec4be7942f807dc586e1e9/c.html"
+  },
+  {
+    "site": "Associated Press",
+    "region": "北美",
+    "language": "en",
+    "kind": "新闻文章",
+    "url": "https://apnews.com/article/dadb5f9499fa9b52200baada0fdf1f15"
+  },
+  {
+    "site": "France 24",
+    "region": "欧洲",
+    "language": "en",
+    "kind": "新闻文章",
+    "url": "https://www.france24.com/en/france/20260818-sophie-adenot-set-to-become-first-french-female-astronaut-to-venture-outside-iss"
+  },
+  {
+    "site": "CNA",
+    "region": "东南亚",
+    "language": "en",
+    "kind": "新闻文章",
+    "url": "https://www.channelnewsasia.com/world/nasa-artemis-ii-launch-moon-us-6032266"
+  },
+  {
+    "site": "ABC Australia",
+    "region": "大洋洲",
+    "language": "en",
+    "kind": "新闻文章",
+    "url": "https://www.abc.net.au/news/2026-03-29/australia-support-nasa-artemis-moon-mission/106508360"
+  },
+  {
+    "site": "Al Jazeera",
+    "region": "中东",
+    "language": "en",
+    "kind": "新闻文章",
+    "url": "https://www.aljazeera.com/news/2026/4/1/nasas-artemis-ii-lifts-off-to-the-moon"
+  },
+  {
+    "site": "DW",
+    "region": "欧洲",
+    "language": "de",
+    "kind": "公开 AMP 文章",
+    "url": "https://amp.dw.com/de/artemis-crew-kehrt-nach-mondumrundung-zur-erde-zurueck-orion-trump-carney/a-76746113"
+  },
+  {
+    "site": "EL PAÍS",
+    "region": "欧洲",
+    "language": "es",
+    "kind": "新闻文章",
+    "url": "https://elpais.com/ciencia/2026-03-24/la-nasa-revela-sus-planes-para-crear-la-primera-colonia-humana-en-la-luna.html"
+  },
+  {
+    "site": "Folha de S.Paulo",
+    "region": "南美",
+    "language": "pt",
+    "kind": "新闻文章",
+    "url": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml"
+  },
+  {
+    "site": "News24",
+    "region": "非洲",
+    "language": "en",
+    "kind": "科普文章",
+    "url": "https://www.news24.com/life/passengers-and-the-real-life-science-of-deep-space-travel-20161222"
+  },
+  {
+    "site": "South China Morning Post",
+    "region": "东亚",
+    "language": "en",
+    "kind": "新闻文章",
+    "url": "https://www.scmp.com/news/world/united-states-canada/article/3346456/nasa-clears-artemis-moon-rocket-april-launch-4-astronauts"
+  },
+  {
+    "site": "NPR",
+    "region": "北美",
+    "language": "en",
+    "kind": "新闻文章",
+    "url": "https://www.npr.org/2025/06/06/nx-s1-5424751/private-lunar-lander-from-japan-crashes-into-moon-in-failed-mission"
+  },
+  {
+    "site": "The Guardian",
+    "region": "欧洲",
+    "language": "en",
+    "kind": "科普文章",
+    "url": "https://www.theguardian.com/science/2024/may/01/astronauts-could-run-round-wall-of-death-to-keep-fit-on-moon-say-scientists"
+  },
+  {
+    "site": "BBC News",
+    "region": "欧洲",
+    "language": "en",
+    "kind": "新闻文章",
+    "url": "https://www.bbc.co.uk/news/articles/clyrdkxvmmpo"
+  },
+  {
+    "site": "CNN",
+    "region": "北美",
+    "language": "en",
+    "kind": "官方节目文字实录",
+    "url": "https://transcripts.cnn.com/show/se/date/2024-04-08/segment/04"
+  }
+]

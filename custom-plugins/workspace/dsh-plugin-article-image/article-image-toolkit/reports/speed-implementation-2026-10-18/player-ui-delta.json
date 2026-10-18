@@ -1,0 +1,24 @@
+{
+  "index": 21,
+  "rawSourceHashUnchanged": false,
+  "removedBlock": {
+    "id": "b138",
+    "type": "paragraph",
+    "kind": "video-js-title-channel-overlay",
+    "sourceLinks": 2
+  },
+  "beforeCount": 143,
+  "afterCount": 142,
+  "domTextAndCanonicalMatch": true,
+  "exactRemainingBlocks": true,
+  "normalizedSemanticHashEqual": true,
+  "normalizedSourceHash": "8c6ed22e5e69aed201fa72e8bc7c282f6b49e9d93ffdb7e1dc36b53009d93aef",
+  "currentSourceHash": "8c6ed22e5e69aed201fa72e8bc7c282f6b49e9d93ffdb7e1dc36b53009d93aef",
+  "evidence": {
+    "selector": ".vjs-overlay .vjs-title-overlay-wrap",
+    "titleSelector": ".vjs-title-text__link",
+    "channelSelector": ".vjs-title-description__link",
+    "freshControlledRenderWithoutDeferral": true,
+    "articleByline": false
+  }
+}

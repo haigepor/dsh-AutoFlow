@@ -1,0 +1,20 @@
+[
+  {
+    "label": "before",
+    "url": "https://www.estadao.com.br/jornal-do-carro/oito-sinais-de-que-os-freios-do-seu-carro-vao-falhar/",
+    "outcome": "ok",
+    "paragraphs": 55,
+    "chars": 7443,
+    "hash": "bab4fbd7fbc3567f89e94802a10a1ad4e33dd202f45490c051afaa00a687ad7f",
+    "elapsedMs": 12808.013300000002
+  },
+  {
+    "label": "after",
+    "url": "https://www.estadao.com.br/jornal-do-carro/oito-sinais-de-que-os-freios-do-seu-carro-vao-falhar/",
+    "outcome": "ok",
+    "paragraphs": 55,
+    "chars": 7443,
+    "hash": "bab4fbd7fbc3567f89e94802a10a1ad4e33dd202f45490c051afaa00a687ad7f",
+    "elapsedMs": 15162.608899999996
+  }
+]

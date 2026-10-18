@@ -1,0 +1,1697 @@
+{
+  "at": "2026-10-18T12:58:59.515Z",
+  "name": "scoped-final",
+  "summary": {
+    "attempted": 28,
+    "completed": 28,
+    "freshSnapshots": 21,
+    "storedSnapshots": 21,
+    "initialImages": 98,
+    "retainedOriginalHashes": 98,
+    "readyImages": 98,
+    "failedImages": 0,
+    "orderedBlockLosses": [
+      21
+    ],
+    "changedBlocks": [
+      21
+    ],
+    "listChanges": [],
+    "badImageFiles": [],
+    "r7Captions": 131,
+    "r7CuesMatch": true,
+    "failed": [
+      {
+        "index": 1,
+        "code": "article-restricted"
+      },
+      {
+        "index": 2,
+        "code": "article-restricted"
+      },
+      {
+        "index": 3,
+        "code": "article-restricted"
+      },
+      {
+        "index": 9,
+        "code": "article-restricted"
+      },
+      {
+        "index": 13,
+        "code": "article-restricted"
+      },
+      {
+        "index": 14,
+        "code": "article-restricted"
+      },
+      {
+        "index": 23,
+        "code": "article-short"
+      }
+    ],
+    "staticComplete": [
+      5,
+      18,
+      26
+    ],
+    "modelStages": 0,
+    "wallMs": 731679,
+    "p50Ms": 43321,
+    "p95Ms": 107994,
+    "extraAttemptCount": 1,
+    "attemptsIncludingRetries": 29
+  },
+  "rows": [
+    {
+      "index": 1,
+      "host": "www1.folha.uol.com.br",
+      "status": "failed",
+      "error": "article-restricted",
+      "runStatus": "failed",
+      "freshAttempt": true,
+      "freshSnapshot": false,
+      "blocks": {
+        "before": 0,
+        "retained": 0,
+        "after": 0,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 0,
+        "retainedHashes": 0,
+        "ready": 0,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": null,
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:40:24.462Z",
+        "completedAt": "2026-10-18T12:41:03.329Z",
+        "queueMs": 31,
+        "runMs": 38867,
+        "renderMs": 37514,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 2,
+      "host": "www1.folha.uol.com.br",
+      "status": "failed",
+      "error": "article-restricted",
+      "runStatus": "failed",
+      "freshAttempt": true,
+      "freshSnapshot": false,
+      "blocks": {
+        "before": 0,
+        "retained": 0,
+        "after": 0,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 0,
+        "retainedHashes": 0,
+        "ready": 0,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": null,
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:40:24.864Z",
+        "completedAt": "2026-10-18T12:41:03.276Z",
+        "queueMs": 433,
+        "runMs": 38412,
+        "renderMs": 37106,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 3,
+      "host": "www1.folha.uol.com.br",
+      "status": "failed",
+      "error": "article-restricted",
+      "runStatus": "failed",
+      "freshAttempt": true,
+      "freshSnapshot": false,
+      "blocks": {
+        "before": 0,
+        "retained": 0,
+        "after": 0,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 0,
+        "retainedHashes": 0,
+        "ready": 0,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": null,
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:41:03.322Z",
+        "completedAt": "2026-10-18T12:41:27.427Z",
+        "queueMs": 38891,
+        "runMs": 24105,
+        "renderMs": 23826,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 4,
+      "host": "www.metropoles.com",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 38,
+        "retained": 38,
+        "after": 38,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 3,
+        "retainedHashes": 3,
+        "ready": 3,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "embedded-video:1/1",
+          "adapter:metropoles-article"
+        ],
+        "adapter": "metropoles-article"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:41:03.339Z",
+        "completedAt": "2026-10-18T12:41:26.226Z",
+        "queueMs": 38908,
+        "runMs": 22887,
+        "renderMs": 13748,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 5,
+      "host": "www.correiobraziliense.com.br",
+      "status": "waiting-config",
+      "error": "analysis-disabled",
+      "runStatus": "waiting-config",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 5,
+        "retained": 5,
+        "after": 5,
+        "exact": true
+      },
+      "lists": {
+        "before": 1,
+        "after": 1,
+        "exact": true
+      },
+      "images": {
+        "before": 1,
+        "retainedHashes": 1,
+        "ready": 1,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "passed",
+        "reasons": [],
+        "checks": [
+          "static-dom",
+          "static-site-verified",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:correio-aqui-ssr-v1"
+        ],
+        "adapter": "correio-aqui-ssr-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:41:26.236Z",
+        "completedAt": "2026-10-18T12:41:36.226Z",
+        "queueMs": 61805,
+        "runMs": 9990,
+        "renderMs": null,
+        "staticMs": 9950
+      },
+      "staticComplete": true,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 0,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 6,
+      "host": "www.correiobraziliense.com.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 15,
+        "retained": 15,
+        "after": 15,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 1,
+        "retainedHashes": 1,
+        "ready": 1,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "blocked-network-resource",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:correio-aqui-ssr-v1"
+        ],
+        "adapter": "correio-aqui-ssr-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:41:27.434Z",
+        "completedAt": "2026-10-18T12:42:09.744Z",
+        "queueMs": 63003,
+        "runMs": 42310,
+        "renderMs": 32291,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": true,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 7,
+      "host": "www.otempo.com.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 31,
+        "retained": 31,
+        "after": 31,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 8,
+        "retainedHashes": 8,
+        "ready": 8,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:otempo-body-v1"
+        ],
+        "adapter": "otempo-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:41:36.239Z",
+        "completedAt": "2026-10-18T12:43:15.109Z",
+        "queueMs": 71808,
+        "runMs": 98870,
+        "renderMs": 84767,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 8,
+      "host": "guia.folha.uol.com.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 63,
+        "retained": 63,
+        "after": 63,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 20,
+        "retainedHashes": 20,
+        "ready": 20,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:folha-guia-body-v1"
+        ],
+        "adapter": "folha-guia-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:42:18.804Z",
+        "completedAt": "2026-10-18T12:43:48.942Z",
+        "queueMs": 114372,
+        "runMs": 90138,
+        "renderMs": 59163,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 9,
+      "host": "www1.folha.uol.com.br",
+      "status": "failed",
+      "error": "article-restricted",
+      "runStatus": "failed",
+      "freshAttempt": true,
+      "freshSnapshot": false,
+      "blocks": {
+        "before": 0,
+        "retained": 0,
+        "after": 0,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 0,
+        "retainedHashes": 0,
+        "ready": 0,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": null,
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:43:15.124Z",
+        "completedAt": "2026-10-18T12:43:42.441Z",
+        "queueMs": 170692,
+        "runMs": 27317,
+        "renderMs": 26248,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 10,
+      "host": "guia.folha.uol.com.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 72,
+        "retained": 72,
+        "after": 72,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 20,
+        "retainedHashes": 20,
+        "ready": 20,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "embedded-story:13/15",
+          "adapter:folha-guia-body-v1"
+        ],
+        "adapter": "folha-guia-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:43:42.488Z",
+        "completedAt": "2026-10-18T12:46:45.246Z",
+        "queueMs": 198056,
+        "runMs": 182758,
+        "renderMs": 54338,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 11,
+      "host": "g1.globo.com",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 27,
+        "retained": 27,
+        "after": 27,
+        "exact": true
+      },
+      "lists": {
+        "before": 1,
+        "after": 1,
+        "exact": true
+      },
+      "images": {
+        "before": 4,
+        "retainedHashes": 4,
+        "ready": 4,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:43:48.967Z",
+        "completedAt": "2026-10-18T12:44:43.771Z",
+        "queueMs": 204535,
+        "runMs": 54804,
+        "renderMs": 39955,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 12,
+      "host": "www.gov.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 32,
+        "retained": 32,
+        "after": 32,
+        "exact": true
+      },
+      "lists": {
+        "before": 3,
+        "after": 3,
+        "exact": true
+      },
+      "images": {
+        "before": 3,
+        "retainedHashes": 3,
+        "ready": 3,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:44:43.820Z",
+        "completedAt": "2026-10-18T12:45:45.498Z",
+        "queueMs": 259388,
+        "runMs": 61678,
+        "renderMs": 51060,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": true,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 13,
+      "host": "www1.folha.uol.com.br",
+      "status": "failed",
+      "error": "article-restricted",
+      "runStatus": "failed",
+      "freshAttempt": true,
+      "freshSnapshot": false,
+      "blocks": {
+        "before": 0,
+        "retained": 0,
+        "after": 0,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 0,
+        "retainedHashes": 0,
+        "ready": 0,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": null,
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:45:45.557Z",
+        "completedAt": "2026-10-18T12:46:30.907Z",
+        "queueMs": 321125,
+        "runMs": 45350,
+        "renderMs": 44838,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 14,
+      "host": "www1.folha.uol.com.br",
+      "status": "failed",
+      "error": "article-restricted",
+      "runStatus": "failed",
+      "freshAttempt": true,
+      "freshSnapshot": false,
+      "blocks": {
+        "before": 0,
+        "retained": 0,
+        "after": 0,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 0,
+        "retainedHashes": 0,
+        "ready": 0,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": null,
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:46:30.928Z",
+        "completedAt": "2026-10-18T12:47:06.889Z",
+        "queueMs": 366496,
+        "runMs": 35961,
+        "renderMs": 33795,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 15,
+      "host": "canaltech.com.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 50,
+        "retained": 50,
+        "after": 50,
+        "exact": true
+      },
+      "lists": {
+        "before": 1,
+        "after": 1,
+        "exact": true
+      },
+      "images": {
+        "before": 9,
+        "retainedHashes": 9,
+        "ready": 9,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:canaltech-body-v1"
+        ],
+        "adapter": "canaltech-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:46:45.281Z",
+        "completedAt": "2026-10-18T12:47:42.618Z",
+        "queueMs": 380849,
+        "runMs": 57337,
+        "renderMs": 44598,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 16,
+      "host": "www.cultura.sc.gov.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 16,
+        "retained": 16,
+        "after": 16,
+        "exact": true
+      },
+      "lists": {
+        "before": 1,
+        "after": 1,
+        "exact": true
+      },
+      "images": {
+        "before": 1,
+        "retainedHashes": 1,
+        "ready": 1,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:47:06.921Z",
+        "completedAt": "2026-10-18T12:47:56.595Z",
+        "queueMs": 402489,
+        "runMs": 49674,
+        "renderMs": 40787,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 17,
+      "host": "www.lance.com.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 13,
+        "retained": 13,
+        "after": 13,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 2,
+        "retainedHashes": 2,
+        "ready": 2,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:lance-body-v1"
+        ],
+        "adapter": "lance-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:47:42.677Z",
+        "completedAt": "2026-10-18T12:48:16.844Z",
+        "queueMs": 438245,
+        "runMs": 34167,
+        "renderMs": 29085,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 18,
+      "host": "www.gov.br",
+      "status": "waiting-config",
+      "error": "analysis-disabled",
+      "runStatus": "waiting-config",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 7,
+        "retained": 7,
+        "after": 7,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 1,
+        "retainedHashes": 1,
+        "ready": 1,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "passed",
+        "reasons": [],
+        "checks": [
+          "static-dom",
+          "static-site-verified",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:47:56.660Z",
+        "completedAt": "2026-10-18T12:48:11.709Z",
+        "queueMs": 452228,
+        "runMs": 15049,
+        "renderMs": null,
+        "staticMs": 14861
+      },
+      "staticComplete": true,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 0,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 19,
+      "host": "www.cnnbrasil.com.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 55,
+        "retained": 55,
+        "after": 55,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 13,
+        "retainedHashes": 13,
+        "ready": 13,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "unsettled-resources",
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "embedded-story:11/11",
+          "adapter:cnn-body-v1"
+        ],
+        "adapter": "cnn-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:48:12.089Z",
+        "completedAt": "2026-10-18T12:50:00.083Z",
+        "queueMs": 467657,
+        "runMs": 107994,
+        "renderMs": 28198,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 20,
+      "host": "www.correiobraziliense.com.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 21,
+        "retained": 21,
+        "after": 21,
+        "exact": true
+      },
+      "lists": {
+        "before": 1,
+        "after": 1,
+        "exact": true
+      },
+      "images": {
+        "before": 3,
+        "retainedHashes": 3,
+        "ready": 3,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:48:16.893Z",
+        "completedAt": "2026-10-18T12:49:00.214Z",
+        "queueMs": 472461,
+        "runMs": 43321,
+        "renderMs": 33388,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 21,
+      "host": "record.r7.com",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 143,
+        "retained": 142,
+        "after": 142,
+        "exact": false
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 1,
+        "retainedHashes": 1,
+        "ready": 1,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "caption-track:131",
+          "adapter:r7-body-v1"
+        ],
+        "adapter": "r7-body-v1"
+      },
+      "sourceHashUnchanged": false,
+      "captions": 131,
+      "captionMatches": true,
+      "captionTextHash": "3f3a4b5a592174465b1d3fc2425c33f7814907177577eb49513771f46511be55",
+      "timing": {
+        "startedAt": "2026-10-18T12:49:00.258Z",
+        "completedAt": "2026-10-18T12:49:41.916Z",
+        "queueMs": 515826,
+        "runMs": 41658,
+        "renderMs": 25315,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [
+        "image",
+        "font",
+        "media"
+      ],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 22,
+      "host": "www.estadao.com.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 51,
+        "retained": 51,
+        "after": 51,
+        "exact": true
+      },
+      "lists": {
+        "before": 1,
+        "after": 1,
+        "exact": true
+      },
+      "images": {
+        "before": 3,
+        "retainedHashes": 3,
+        "ready": 3,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "published-image-descriptions"
+        ]
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:49:41.934Z",
+        "completedAt": "2026-10-18T12:50:22.002Z",
+        "queueMs": 557502,
+        "runMs": 40068,
+        "renderMs": 31651,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 23,
+      "host": "www.bcb.gov.br",
+      "status": "failed",
+      "error": "article-short",
+      "runStatus": "failed",
+      "freshAttempt": true,
+      "freshSnapshot": false,
+      "blocks": {
+        "before": 0,
+        "retained": 0,
+        "after": 0,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 0,
+        "retainedHashes": 0,
+        "ready": 0,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": null,
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:50:00.127Z",
+        "completedAt": "2026-10-18T12:51:15.472Z",
+        "queueMs": 575695,
+        "runMs": 75345,
+        "renderMs": 69156,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 24,
+      "host": "www.bcb.gov.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 8,
+        "retained": 8,
+        "after": 8,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 0,
+        "retainedHashes": 0,
+        "ready": 0,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:bcb-notice-v1"
+        ],
+        "adapter": "bcb-notice-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:50:22.046Z",
+        "completedAt": "2026-10-18T12:51:06.593Z",
+        "queueMs": 597614,
+        "runMs": 44547,
+        "renderMs": 43562,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 25,
+      "host": "www.bcb.gov.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 1,
+        "retained": 1,
+        "after": 1,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 0,
+        "retainedHashes": 0,
+        "ready": 0,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:bcb-notice-v1"
+        ],
+        "adapter": "bcb-notice-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:51:06.664Z",
+        "completedAt": "2026-10-18T12:51:47.498Z",
+        "queueMs": 642232,
+        "runMs": 40834,
+        "renderMs": 40190,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 26,
+      "host": "www.gov.br",
+      "status": "waiting-config",
+      "error": "analysis-disabled",
+      "runStatus": "waiting-config",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 14,
+        "retained": 14,
+        "after": 14,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 2,
+        "retainedHashes": 2,
+        "ready": 2,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "passed",
+        "reasons": [],
+        "checks": [
+          "static-dom",
+          "static-site-verified",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:51:15.692Z",
+        "completedAt": "2026-10-18T12:51:30.570Z",
+        "queueMs": 651260,
+        "runMs": 14878,
+        "renderMs": null,
+        "staticMs": 14712
+      },
+      "staticComplete": true,
+      "staticFallback": false,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 0,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 27,
+      "host": "www.gov.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 16,
+        "retained": 16,
+        "after": 16,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 1,
+        "retainedHashes": 1,
+        "ready": 1,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:51:30.676Z",
+        "completedAt": "2026-10-18T12:52:20.280Z",
+        "queueMs": 666244,
+        "runMs": 49604,
+        "renderMs": 32735,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": true,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    },
+    {
+      "index": 28,
+      "host": "www.gov.br",
+      "status": "needs-source-review",
+      "error": null,
+      "runStatus": "needs-source-review",
+      "freshAttempt": true,
+      "freshSnapshot": true,
+      "blocks": {
+        "before": 11,
+        "retained": 11,
+        "after": 11,
+        "exact": true
+      },
+      "lists": {
+        "before": 0,
+        "after": 0,
+        "exact": true
+      },
+      "images": {
+        "before": 2,
+        "retainedHashes": 2,
+        "ready": 2,
+        "failed": 0,
+        "bytesValid": true
+      },
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "sourceHashUnchanged": true,
+      "captions": 0,
+      "captionMatches": null,
+      "captionTextHash": null,
+      "timing": {
+        "startedAt": "2026-10-18T12:51:47.533Z",
+        "completedAt": "2026-10-18T12:52:36.110Z",
+        "queueMs": 683101,
+        "runMs": 48577,
+        "renderMs": 31461,
+        "staticMs": null
+      },
+      "staticComplete": false,
+      "staticFallback": true,
+      "deferredTypes": [],
+      "modelStages": 0,
+      "exchangeCounts": {
+        "documents": 1,
+        "assetDownloads": 0
+      }
+    }
+  ],
+  "extraAttempts": [
+    {
+      "index": 1,
+      "kind": "additional-retry",
+      "queuedAt": "2026-10-18T12:41:45.673Z",
+      "startedAt": "2026-10-18T12:41:45.703Z",
+      "completedAt": "2026-10-18T12:43:15.060Z",
+      "runMs": 89357,
+      "queueMs": 30,
+      "error": "article-restricted",
+      "status": "failed"
+    }
+  ],
+  "acceptance": "GO"
+}

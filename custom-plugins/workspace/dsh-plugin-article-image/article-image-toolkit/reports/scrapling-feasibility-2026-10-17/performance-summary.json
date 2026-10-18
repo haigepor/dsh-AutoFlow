@@ -1,0 +1,45 @@
+{
+  "url": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml",
+  "startupMs": 2115.4713,
+  "nodeMedianMs": 2272.4513000000006,
+  "scraplingMedianMs": 1175.5571000000018,
+  "pageOverheadMs": [
+    26.153900000000704,
+    22.84789999999998,
+    65.99860000000035,
+    20.886400000001913,
+    17.840200000001005
+  ],
+  "inner": [
+    {
+      "urlHash": "35083c361511875a56e17108f76a4f1da507fed4e7ba77b413e793ad71aabf58",
+      "innerMs": 1719.8739,
+      "peak": 1,
+      "active": 1
+    },
+    {
+      "urlHash": "35083c361511875a56e17108f76a4f1da507fed4e7ba77b413e793ad71aabf58",
+      "innerMs": 1067.1462,
+      "peak": 1,
+      "active": 1
+    },
+    {
+      "urlHash": "35083c361511875a56e17108f76a4f1da507fed4e7ba77b413e793ad71aabf58",
+      "innerMs": 1078.9962,
+      "peak": 1,
+      "active": 1
+    },
+    {
+      "urlHash": "35083c361511875a56e17108f76a4f1da507fed4e7ba77b413e793ad71aabf58",
+      "innerMs": 1154.6707,
+      "peak": 1,
+      "active": 1
+    },
+    {
+      "urlHash": "35083c361511875a56e17108f76a4f1da507fed4e7ba77b413e793ad71aabf58",
+      "innerMs": 1276.2116,
+      "peak": 1,
+      "active": 1
+    }
+  ]
+}

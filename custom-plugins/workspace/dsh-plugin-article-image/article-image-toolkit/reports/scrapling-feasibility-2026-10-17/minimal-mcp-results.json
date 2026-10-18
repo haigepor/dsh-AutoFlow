@@ -1,0 +1,46 @@
+[
+  {
+    "experiment": 1,
+    "stdio": "ready",
+    "startupMs": 2350,
+    "tools": [
+      "open_session",
+      "open_request_session",
+      "close_session",
+      "list_sessions",
+      "make_request",
+      "bulk_get",
+      "fetch",
+      "bulk_fetch",
+      "stealthy_fetch",
+      "bulk_stealthy_fetch",
+      "session_fetch",
+      "session_make_request",
+      "screenshot"
+    ]
+  },
+  {
+    "experiment": "experiment-3-site-1",
+    "url": "https://apnews.com/",
+    "ms": 7914,
+    "isError": false,
+    "status": 200,
+    "contentChars": 188072
+  },
+  {
+    "experiment": "experiment-3-site-2",
+    "url": "https://edition.cnn.com/",
+    "ms": 5210,
+    "isError": false,
+    "status": 200,
+    "contentChars": 55453
+  },
+  {
+    "experiment": "experiment-3-site-3",
+    "url": "https://www.usatoday.com/",
+    "ms": 892,
+    "isError": false,
+    "status": 403,
+    "contentChars": 179
+  }
+]

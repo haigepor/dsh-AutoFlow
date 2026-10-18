@@ -1,0 +1,58 @@
+{
+  "package": "impit@0.14.6",
+  "node": "v25.2.1",
+  "platform": "win32",
+  "arch": "x64",
+  "initialPublicPolicy": true,
+  "pinning": "not supported by audited public options; experiment does not prove connection pinning",
+  "redirects": "manual",
+  "certificateValidation": true,
+  "browserInstall": false,
+  "results": [
+    {
+      "url": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml",
+      "status": 200,
+      "urlReturned": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml",
+      "bytes": 338250,
+      "mime": "text/html",
+      "title": "Lago de Como: roteiro de fim de semana com passeios - 12/10/2026 - Turismo - Folha",
+      "hasSetCookieAccessor": true,
+      "ms": 4768.6316
+    },
+    {
+      "url": "https://apnews.com/",
+      "status": 403,
+      "urlReturned": "https://apnews.com/",
+      "bytes": 5902,
+      "mime": "text/html; charset=UTF-8",
+      "title": "Just a moment...",
+      "hasSetCookieAccessor": true,
+      "ms": 1429.6791000000003
+    },
+    {
+      "url": "https://edition.cnn.com/",
+      "status": 200,
+      "urlReturned": "https://edition.cnn.com/",
+      "bytes": 5804146,
+      "mime": "text/html; charset=utf-8",
+      "title": "Breaking News, Latest News and Videos | CNN",
+      "hasSetCookieAccessor": true,
+      "ms": 2025.487900000001
+    },
+    {
+      "url": "https://www.usatoday.com/",
+      "status": 200,
+      "urlReturned": "https://www.usatoday.com/",
+      "bytes": 240944,
+      "mime": "text/html; charset=utf-8",
+      "title": "USA TODAY - Breaking News and Latest News Today",
+      "hasSetCookieAccessor": true,
+      "ms": 2720.9349
+    }
+  ],
+  "preAborted": {
+    "error": "AbortError",
+    "message": "This operation was aborted",
+    "ms": 5.892799999999625
+  }
+}

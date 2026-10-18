@@ -1,0 +1,159 @@
+[
+  {
+    "site": "CBS News",
+    "snapshotId": "9e399d5e98ea751c28170e44265cf1f2",
+    "assets": [
+      {
+        "id": "38ee4ab36aec2f692d1d42ace7ba3727",
+        "status": "ready",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 174605,
+        "contentHash": "38ee4ab36aec2f692d1d42ace7ba3727a5b4a012109f67e1006eab66bb9de92e",
+        "positions": [
+          "b11"
+        ],
+        "sourceOrigin": "https://assets1.cbsnewsstatic.com",
+        "error": null
+      },
+      {
+        "id": "d48b4836a8ec0d8ded5fffffef7ffc42",
+        "status": "ready",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 176435,
+        "contentHash": "d48b4836a8ec0d8ded5fffffef7ffc42d45115d5bd449bfb412edda3f4ffd750",
+        "positions": [
+          "b15"
+        ],
+        "sourceOrigin": "https://assets1.cbsnewsstatic.com",
+        "error": null
+      },
+      {
+        "id": "5556ab5fcb8019b41a3e31562f657381",
+        "status": "ready",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 42552,
+        "contentHash": "5556ab5fcb8019b41a3e31562f6573813d56e486c8119818feeb1c2698949001",
+        "positions": [
+          "b19"
+        ],
+        "sourceOrigin": "https://assets3.cbsnewsstatic.com",
+        "error": null
+      },
+      {
+        "id": "8007b330784508915063315d912a33c3",
+        "status": "ready",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 169605,
+        "contentHash": "8007b330784508915063315d912a33c360fb2394e759795f17109ead94caff1e",
+        "positions": [
+          "b24"
+        ],
+        "sourceOrigin": "https://assets1.cbsnewsstatic.com",
+        "error": null
+      },
+      {
+        "id": "2fee2dd811e34ad5c8448e3dd28eb064",
+        "status": "ready",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 66712,
+        "contentHash": "2fee2dd811e34ad5c8448e3dd28eb06490f3d533e84f0e4e52607ab18a802293",
+        "positions": [
+          "b32"
+        ],
+        "sourceOrigin": "https://assets3.cbsnewsstatic.com",
+        "error": null
+      },
+      {
+        "id": "a150c1995083783f9eeda4ef602e7282",
+        "status": "ready",
+        "mime": "image/jpeg",
+        "width": 1240,
+        "height": 826,
+        "byteLength": 234582,
+        "contentHash": "a150c1995083783f9eeda4ef602e7282118bba9da5528bfc5884fe8a0a41e63a",
+        "positions": [
+          "b37"
+        ],
+        "sourceOrigin": "https://assets2.cbsnewsstatic.com",
+        "error": null
+      }
+    ]
+  },
+  {
+    "site": "新华社",
+    "snapshotId": "bbf7962522fe7d9842a6b7ab8f75e54b",
+    "assets": []
+  },
+  {
+    "site": "NPR",
+    "snapshotId": "741c7d270968ca3a18256ae3ac551c11",
+    "assets": [
+      {
+        "id": "e5b3e562b6efcb191a17e7b65e244bb5",
+        "status": "failed",
+        "mime": null,
+        "width": null,
+        "height": null,
+        "byteLength": 0,
+        "contentHash": null,
+        "positions": [
+          "b6"
+        ],
+        "sourceOrigin": "https://npr.brightspotcdn.com",
+        "error": "image-download"
+      },
+      {
+        "id": "65ff28ba7c0b85482bfeee5c61badac3",
+        "status": "ready",
+        "mime": "image/jpeg",
+        "width": 100,
+        "height": 100,
+        "byteLength": 14232,
+        "contentHash": "65ff28ba7c0b85482bfeee5c61badac3fdc3cbb20ab33fc4a44838bc98da11d5",
+        "positions": [
+          "b14"
+        ],
+        "sourceOrigin": "https://media.npr.org",
+        "error": null
+      },
+      {
+        "id": "055cfa2545da9ba823cfe15fc3ae2337",
+        "status": "failed",
+        "mime": null,
+        "width": null,
+        "height": null,
+        "byteLength": 0,
+        "contentHash": null,
+        "positions": [
+          "b24"
+        ],
+        "sourceOrigin": "https://npr.brightspotcdn.com",
+        "error": "image-download"
+      },
+      {
+        "id": "012efb473dc5b6ab379272a8dc510639",
+        "status": "failed",
+        "mime": null,
+        "width": null,
+        "height": null,
+        "byteLength": 0,
+        "contentHash": null,
+        "positions": [
+          "b34"
+        ],
+        "sourceOrigin": "https://npr.brightspotcdn.com",
+        "error": "image-download"
+      }
+    ]
+  }
+]

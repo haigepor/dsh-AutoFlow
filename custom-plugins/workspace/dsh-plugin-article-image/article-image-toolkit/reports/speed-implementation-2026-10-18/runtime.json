@@ -1,0 +1,130 @@
+{
+  "at": "2026-10-18T13:02:28.587Z",
+  "url": "http://127.0.0.1:3080/",
+  "pid": 40608,
+  "authenticatedHttp": {
+    "http": 200,
+    "status": {
+      "articles": 28,
+      "jobs": 0,
+      "analysis": true,
+      "generation": false,
+      "browser": true
+    },
+    "rows": [
+      {
+        "index": 5,
+        "blocks": 5,
+        "quality": "passed",
+        "checks": [
+          "static-dom",
+          "static-site-verified",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:correio-aqui-ssr-v1"
+        ],
+        "assets": [
+          {
+            "http": 200,
+            "hashMatches": true,
+            "lengthMatches": true
+          }
+        ]
+      },
+      {
+        "index": 20,
+        "blocks": 21,
+        "quality": "needs-review",
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ],
+        "assets": []
+      },
+      {
+        "index": 21,
+        "blocks": 142,
+        "quality": "partial",
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "caption-track:131",
+          "adapter:r7-body-v1"
+        ],
+        "assets": [
+          {
+            "http": 200,
+            "hashMatches": true,
+            "lengthMatches": true
+          }
+        ]
+      },
+      {
+        "index": 22,
+        "blocks": 51,
+        "quality": "needs-review",
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "published-image-descriptions"
+        ],
+        "assets": [
+          {
+            "http": 200,
+            "hashMatches": true,
+            "lengthMatches": true
+          },
+          {
+            "http": 200,
+            "hashMatches": true,
+            "lengthMatches": true
+          },
+          {
+            "http": 200,
+            "hashMatches": true,
+            "lengthMatches": true
+          }
+        ]
+      }
+    ]
+  },
+  "ui": {
+    "blocks": 142,
+    "cues": 131,
+    "firstCue": "00:00:00.000–00:00:06.000",
+    "lastCue": "00:06:57.000–00:07:01.000",
+    "poster": {
+      "complete": true,
+      "width": 960,
+      "height": 540
+    },
+    "alerts": []
+  },
+  "consoleErrors": 0,
+  "consoleWarnings": 0,
+  "profile": {
+    "originalAnalysisProviderModelRestored": true,
+    "originalProxyDohUnchanged": true,
+    "acceptedScopedCaptureInstalled": true
+  },
+  "sourceFreeze": {
+    "at": "2026-10-18T12:39:24.673Z",
+    "files": {
+      "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture.js": "359ead138e0e3023791a0b25249ff1dea18016aef5097b88b507777cecba1a01",
+      "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture-renderer.js": "144db8eea8cabb775ee34f3fffb56acbfd9b2061f5a5b513b68b2baf9a93a606",
+      "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture-media.js": "0192a313d79d479082517bb4b33598583e3b8dfdf132e7f61d8c6daf994d21dd",
+      "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture-static.js": "82342d24aa0ba19666301dc47551b3e201c2d58950acea632e8f4fd3fa747858",
+      "custom-plugins/workspace/dsh-plugin-article-image/src/client/locales/en.json": "edb191b1dbfe8c92aaeb2d61e31a240903fce4118edc7995ea1be263cfbcec30",
+      "custom-plugins/workspace/dsh-plugin-article-image/src/client/locales/zh.json": "419e0484c394c0257d3daacca86a236140776d42c5c6b8441b2f0bcfb623882f",
+      "custom-plugins/workspace/dsh-plugin-article-image/client.js": "6104b7eedebe5f2a000fa2ec0c0a37c87873da5777127ed06faec4c4eff9aa46",
+      "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/declared-images.js": "a883c3ad03b38b4f39de8d6b5bcc1fea0c1dcd808ad09f30d9e782426e5a239a",
+      "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture-image-metadata.js": "a9dac0503a5c00fa3476a96555e2de102e7f4650015d0d9a0e50fed72665a4e1",
+      "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture-adapters.js": "1667d5796857ea77938ebccbf0b7474a83e409d0a26196665543c82c832bbd61"
+    }
+  },
+  "noRealModelCalls": true,
+  "noGeneration": true
+}

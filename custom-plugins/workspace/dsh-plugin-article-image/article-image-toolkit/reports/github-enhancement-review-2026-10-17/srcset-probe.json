@@ -1,0 +1,19 @@
+{
+  "input": "https://cdn.example.org/photo,large.jpg 1600w, https://cdn.example.org/photo-small.jpg 640w",
+  "naiveCommaSplit": [
+    "https://cdn.example.org/photo",
+    "large.jpg 1600w",
+    "https://cdn.example.org/photo-small.jpg 640w"
+  ],
+  "specParser": [
+    {
+      "url": "https://cdn.example.org/photo,large.jpg",
+      "w": 1600
+    },
+    {
+      "url": "https://cdn.example.org/photo-small.jpg",
+      "w": 640
+    }
+  ],
+  "mode": "offline parser only; no HTTP"
+}

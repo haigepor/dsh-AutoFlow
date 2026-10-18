@@ -1,0 +1,50 @@
+{
+  "operation": "3080 workbench select all 28 then Process selected",
+  "completion": "All 28 fresh attempts terminal after extraction, asset validation and atomic snapshot publication; no model generation",
+  "workload": {
+    "articles": 28,
+    "originals": 98,
+    "r7Cues": 131,
+    "concurrency": 2
+  },
+  "clock": {
+    "start": "Earliest persisted queued event",
+    "end": "Latest persisted terminal updatedAt",
+    "phases": "Per-attempt running event excludes queue",
+    "include": [
+      "publisher networking",
+      "browser JS/loading/scrolling",
+      "rich extraction",
+      "full original image download and real Chromium decoding",
+      "workflow persistence"
+    ],
+    "exclude": [
+      "app startup",
+      "model analysis",
+      "image generation"
+    ],
+    "cache": "Fresh captures and contexts, no HTTP response disk cache; system/proxy caches not flushed. Reference server/browser already warm; candidate restarts server."
+  },
+  "comparison": {
+    "required": "No ordered block/list or original hash loss; exact R7 cue times/text.",
+    "samples": "One complete reference, two complete NO-GO candidates, one final path-scoped frozen-code batch; two incomplete intermediate batches explicitly excluded.",
+    "limitations": "Reference overlapped light source/document edits and several short focused tests; heavy owner checks run only between batches. External server/network variability is retained.",
+    "attemptCounts": {
+      "reference": 28,
+      "final": 29,
+      "finalArticles": 28,
+      "additionalRetry": {
+        "index": 1,
+        "runMs": 89357,
+        "code": "article-restricted",
+        "includedInWallAndQuantiles": true
+      }
+    }
+  },
+  "scope": {
+    "runtime": "Node v25.2.1",
+    "platform": "win32",
+    "dependenciesAdded": [],
+    "modelsDisabledDuringCandidateMeasurement": true
+  }
+}

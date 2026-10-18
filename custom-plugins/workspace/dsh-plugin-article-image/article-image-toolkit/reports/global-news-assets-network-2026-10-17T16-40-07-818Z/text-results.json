@@ -1,0 +1,1834 @@
+{
+  "stage": "text",
+  "startedAt": "2026-10-17T17:06:26.650Z",
+  "updatedAt": "2026-10-17T17:07:42.006Z",
+  "concurrency": 2,
+  "requestTimeoutMs": 60000,
+  "renderTimeoutMs": 120000,
+  "callDeadlineMs": 180000,
+  "results": [
+    {
+      "site": "CBS News",
+      "region": "北美",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.cbsnews.com/news/artemis-ii-mission-astronauts-still-awed-moonshot/",
+      "ok": true,
+      "code": null,
+      "paragraphs": 45,
+      "diagnosticId": "220b7caaadd26db569e298c1b9f94e78",
+      "bodyChars": 8914,
+      "sourceHash": "d43e025d869bb944252911885ec0fa256f1fdbe3878869ff6da50e7fb9c7c1c9",
+      "elapsedMs": 4337.0751,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 6.773599999999988
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 11.760999999999967
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 3488.0042
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 4279.0429
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 4335.0807
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "220b7caaadd26db569e298c1b9f94e78",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:06:53.443Z",
+        "endedAt": "2026-10-17T17:06:57.776Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 1.7221999999999298,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 8.536800000000085,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "bc0ceee178bb30cf1a7c038cdc83ac7a",
+              "rung": "static",
+              "origin": "https://www.cbsnews.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 3484.6798000000003,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "bc0ceee178bb30cf1a7c038cdc83ac7a",
+              "rung": "static",
+              "origin": "https://www.cbsnews.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 4275.949699999999,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 8914,
+              "blocks": 45,
+              "itemId": "bc0ceee178bb30cf1a7c038cdc83ac7a",
+              "rung": "static",
+              "origin": "https://www.cbsnews.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 4331.8811000000005,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 4332.121999999999,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "新华社",
+      "region": "东亚",
+      "language": "zh",
+      "kind": "新闻文章",
+      "url": "https://www.news.cn/tech/20260129/c14ec2642dec4be7942f807dc586e1e9/c.html",
+      "ok": true,
+      "code": null,
+      "paragraphs": 38,
+      "diagnosticId": "6eeabdb380a2df112b2dc021230f8852",
+      "bodyChars": 3567,
+      "sourceHash": "2c69da77f0fa315af8795ae7f754a90615056822896bf2d4c5a924115484a54b",
+      "elapsedMs": 2660.7185,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 7.464100000000144
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 23.626300000000356
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 2238.6682
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 2648.0901000000003
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 2659.3008
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "6eeabdb380a2df112b2dc021230f8852",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:06:53.446Z",
+        "endedAt": "2026-10-17T17:06:56.100Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.05559999999991305,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 17.65949999999998,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "ec732f95a353f868e04bf35472760966",
+              "rung": "static",
+              "origin": "https://www.news.cn"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 2232.8253000000004,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "ec732f95a353f868e04bf35472760966",
+              "rung": "static",
+              "origin": "https://www.news.cn"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 2641.9543999999996,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 3567,
+              "blocks": 38,
+              "itemId": "ec732f95a353f868e04bf35472760966",
+              "rung": "static",
+              "origin": "https://www.news.cn"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 2653.3323,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 2653.5401,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "Associated Press",
+      "region": "北美",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://apnews.com/article/dadb5f9499fa9b52200baada0fdf1f15",
+      "ok": true,
+      "code": null,
+      "paragraphs": 16,
+      "diagnosticId": "338a078720426116b61f8a4bf7ca0215",
+      "bodyChars": 4042,
+      "sourceHash": "5c6da3f4bb6eef44afab3d60b051c940102ee0bf006971ebbdfa37ee147a8968",
+      "elapsedMs": 12115.1064,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 3.4774999999999636
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 11.16190000000006
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 9854.8766
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 12098.0524
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 12113.357899999999
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "338a078720426116b61f8a4bf7ca0215",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:06:56.110Z",
+        "endedAt": "2026-10-17T17:07:08.220Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.04140000000006694,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 7.662199999999757,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "4c26353e9951d775d5d409cb38137118",
+              "rung": "static",
+              "origin": "https://apnews.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 9851.2323,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "4c26353e9951d775d5d409cb38137118",
+              "rung": "static",
+              "origin": "https://apnews.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 12094.510699999999,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 4042,
+              "blocks": 16,
+              "itemId": "4c26353e9951d775d5d409cb38137118",
+              "rung": "static",
+              "origin": "https://apnews.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 12109.846,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 12110.0314,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "France 24",
+      "region": "欧洲",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.france24.com/en/france/20260818-sophie-adenot-set-to-become-first-french-female-astronaut-to-venture-outside-iss",
+      "ok": true,
+      "code": null,
+      "paragraphs": 20,
+      "diagnosticId": "b9ff2c731b1d605fab0dadf53aa37b14",
+      "bodyChars": 2670,
+      "sourceHash": "f63f2dd452127cc4642964f0bb6adf69b614467f50bc8975d5fbcca80275b342",
+      "elapsedMs": 7528.6750999999995,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 2.5073999999995067
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 9.93539999999939
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 6870.5348
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 7510.7529
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 7526.5472
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "b9ff2c731b1d605fab0dadf53aa37b14",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:06:57.783Z",
+        "endedAt": "2026-10-17T17:07:05.307Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.04580000000078144,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 7.584400000000642,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "186757cdec70200de4c0186a950b34cf",
+              "rung": "static",
+              "origin": "https://www.france24.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 6867.9933,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "186757cdec70200de4c0186a950b34cf",
+              "rung": "static",
+              "origin": "https://www.france24.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 7508.389000000001,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 2670,
+              "blocks": 20,
+              "itemId": "186757cdec70200de4c0186a950b34cf",
+              "rung": "static",
+              "origin": "https://www.france24.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 7524.0846,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 7524.229800000001,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "CNA",
+      "region": "东南亚",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.channelnewsasia.com/world/nasa-artemis-ii-launch-moon-us-6032266",
+      "ok": true,
+      "code": null,
+      "paragraphs": 31,
+      "diagnosticId": "d417a519e3c9d92edfa04d76cebd6209",
+      "bodyChars": 6363,
+      "sourceHash": "3e54c3f9d6b8a2bf5c393043cb04daa1f1862cf1ac56b5d23672d7ff4f5976a1",
+      "elapsedMs": 5803.6911999999975,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.7379000000000815
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 6.735599999999977
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 4829.4411999999975
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 5739.839599999999
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 5799.463
+        },
+        {
+          "progress": 6,
+          "message": "completed: completed",
+          "elapsedMs": 5799.934000000001
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "d417a519e3c9d92edfa04d76cebd6209",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:05.314Z",
+        "endedAt": "2026-10-17T17:07:11.112Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.03210000000035507,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 4.958900000001449,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "7f354078047f081db3fcacd9996e38cd",
+              "rung": "static",
+              "origin": "https://www.channelnewsasia.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 4826.7238,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "7f354078047f081db3fcacd9996e38cd",
+              "rung": "static",
+              "origin": "https://www.channelnewsasia.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 5737.9761,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 6363,
+              "blocks": 31,
+              "itemId": "7f354078047f081db3fcacd9996e38cd",
+              "rung": "static",
+              "origin": "https://www.channelnewsasia.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 5797.563600000001,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 5797.725300000002,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "ABC Australia",
+      "region": "大洋洲",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.abc.net.au/news/2026-03-29/australia-support-nasa-artemis-moon-mission/106508360",
+      "ok": true,
+      "code": null,
+      "paragraphs": 33,
+      "diagnosticId": "c86077a6def3facbe99946b302a40e33",
+      "bodyChars": 4495,
+      "sourceHash": "8411440ed64691a93e17b6449f7b769a467deb3261481825854ac00599ce5065",
+      "elapsedMs": 2862.7001999999993,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 2.32930000000124
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 9.32549999999901
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 1524.2423999999992
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 1910.3938999999991
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "c86077a6def3facbe99946b302a40e33",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:08.227Z",
+        "endedAt": "2026-10-17T17:07:11.086Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.040300000000570435,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 7.20089999999982,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "8bb037bf394e7996022c00f097d352cb",
+              "rung": "static",
+              "origin": "https://www.abc.net.au"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 1521.7925000000014,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "8bb037bf394e7996022c00f097d352cb",
+              "rung": "static",
+              "origin": "https://www.abc.net.au"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 1908.306200000001,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 4495,
+              "blocks": 33,
+              "itemId": "8bb037bf394e7996022c00f097d352cb",
+              "rung": "static",
+              "origin": "https://www.abc.net.au"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 2858.4514,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 2858.6275000000005,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "Al Jazeera",
+      "region": "中东",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.aljazeera.com/news/2026/4/1/nasas-artemis-ii-lifts-off-to-the-moon",
+      "ok": true,
+      "code": null,
+      "paragraphs": 25,
+      "diagnosticId": "ab89dfbed2f64ddffd5674057dc2bc90",
+      "bodyChars": 4276,
+      "sourceHash": "13087d18a09a3958b0440eba87f66ab05cfb0b47918216c8f38dedfdd6af5dcf",
+      "elapsedMs": 2116.105800000001,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 3.3123000000014144
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 14.731400000000576
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 1862.2954000000027
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 2059.2854000000007
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "ab89dfbed2f64ddffd5674057dc2bc90",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:11.097Z",
+        "endedAt": "2026-10-17T17:07:13.209Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.04349999999976717,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 11.112800000002608,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "140d945f14f1ad1eaaa9a2713cbd2673",
+              "rung": "static",
+              "origin": "https://www.aljazeera.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 1859.4448000000011,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "140d945f14f1ad1eaaa9a2713cbd2673",
+              "rung": "static",
+              "origin": "https://www.aljazeera.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 2056.2157000000007,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 4276,
+              "blocks": 25,
+              "itemId": "140d945f14f1ad1eaaa9a2713cbd2673",
+              "rung": "static",
+              "origin": "https://www.aljazeera.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 2111.4442000000017,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 2111.5987999999998,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "DW",
+      "region": "欧洲",
+      "language": "de",
+      "kind": "公开 AMP 文章",
+      "url": "https://amp.dw.com/de/artemis-crew-kehrt-nach-mondumrundung-zur-erde-zurueck-orion-trump-carney/a-76746113",
+      "ok": true,
+      "code": null,
+      "paragraphs": 44,
+      "diagnosticId": "49f74c283f20c1115d8b5e11d9a743a0",
+      "bodyChars": 8388,
+      "sourceHash": "47257703f48d02f931da4dc79e7dd53cb99eb2170f599c85632b69618a032b9f",
+      "elapsedMs": 3877.7815999999984,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 5.031599999998434
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 34.44239999999991
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 2900.5302999999985
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 3851.2798000000003
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 3875.764199999998
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "49f74c283f20c1115d8b5e11d9a743a0",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:11.122Z",
+        "endedAt": "2026-10-17T17:07:14.996Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.041199999999662396,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 32.27549999999974,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "4d6be5da544690176b575c58e51849da",
+              "rung": "static",
+              "origin": "https://amp.dw.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 2898.6242999999995,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "4d6be5da544690176b575c58e51849da",
+              "rung": "static",
+              "origin": "https://amp.dw.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 3849.193900000002,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 8388,
+              "blocks": 44,
+              "itemId": "4d6be5da544690176b575c58e51849da",
+              "rung": "static",
+              "origin": "https://amp.dw.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 3873.655999999999,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 3874.0145999999986,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "EL PAÍS",
+      "region": "欧洲",
+      "language": "es",
+      "kind": "新闻文章",
+      "url": "https://elpais.com/ciencia/2026-03-24/la-nasa-revela-sus-planes-para-crear-la-primera-colonia-humana-en-la-luna.html",
+      "ok": true,
+      "code": null,
+      "paragraphs": 14,
+      "diagnosticId": "53f8ecc275342dc0f0488432354287de",
+      "bodyChars": 7259,
+      "sourceHash": "5af0686bb8320a893cf284987a817336a7458bccd45a886f47810dcc4ca819bb",
+      "elapsedMs": 7816.810099999999,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 2.666799999999057
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 12.067199999997683
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 6577.898799999999
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 7775.073899999999
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 7814.416999999998
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "53f8ecc275342dc0f0488432354287de",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:13.216Z",
+        "endedAt": "2026-10-17T17:07:21.028Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.06090000000040163,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 9.536099999997532,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "2a45ec0b3b279dac068933bccf3bb8e4",
+              "rung": "static",
+              "origin": "https://elpais.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 6575.3822999999975,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "2a45ec0b3b279dac068933bccf3bb8e4",
+              "rung": "static",
+              "origin": "https://elpais.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 7772.471999999998,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 7259,
+              "blocks": 14,
+              "itemId": "2a45ec0b3b279dac068933bccf3bb8e4",
+              "rung": "static",
+              "origin": "https://elpais.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 7811.8606,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 7812.047699999999,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "Folha de S.Paulo",
+      "region": "南美",
+      "language": "pt",
+      "kind": "新闻文章",
+      "url": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml",
+      "ok": true,
+      "code": null,
+      "paragraphs": 59,
+      "diagnosticId": "372ca0979e77d9570b27a6d3c7c5c490",
+      "bodyChars": 12469,
+      "sourceHash": "08e63b4020a245b864fe535461ef5a06397bb2653df278eb45bf241a2cbf71db",
+      "elapsedMs": 8462.926500000001,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 2.2057999999997264
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 14.055799999998271
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 7410.011999999999
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 8443.687699999999
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 8460.493599999998
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "372ca0979e77d9570b27a6d3c7c5c490",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:15.003Z",
+        "endedAt": "2026-10-17T17:07:23.462Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.04460000000108266,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 11.86670000000231,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "6a0c3343bda0eafdde78e350f0cbe0c3",
+              "rung": "static",
+              "origin": "https://www1.folha.uol.com.br"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 7407.786600000003,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "6a0c3343bda0eafdde78e350f0cbe0c3",
+              "rung": "static",
+              "origin": "https://www1.folha.uol.com.br"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 8441.327200000003,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 12469,
+              "blocks": 59,
+              "itemId": "6a0c3343bda0eafdde78e350f0cbe0c3",
+              "rung": "static",
+              "origin": "https://www1.folha.uol.com.br"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 8458.239500000003,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 8458.688700000002,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "News24",
+      "region": "非洲",
+      "language": "en",
+      "kind": "科普文章",
+      "url": "https://www.news24.com/life/passengers-and-the-real-life-science-of-deep-space-travel-20161222",
+      "ok": true,
+      "code": null,
+      "paragraphs": 26,
+      "diagnosticId": "8639e147237d5eeb4b61281a602c8af4",
+      "bodyChars": 4366,
+      "sourceHash": "980bbdab1aa10580dca94cecf522e6fdec583d71ae3af9ee67758b6cc2a74ae1",
+      "elapsedMs": 7167.464399999997,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 8.930700000000797
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 23.982599999999366
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 6636.916299999997
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 7043.420299999998
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 7165.123899999999
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "8639e147237d5eeb4b61281a602c8af4",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:21.044Z",
+        "endedAt": "2026-10-17T17:07:28.203Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.028000000002066372,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 17.580900000000838,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "61ab8c13323902a8262529cf93603422",
+              "rung": "static",
+              "origin": "https://www.news24.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 6630.472300000001,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "61ab8c13323902a8262529cf93603422",
+              "rung": "static",
+              "origin": "https://www.news24.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 7037.061500000003,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 4366,
+              "blocks": 26,
+              "itemId": "61ab8c13323902a8262529cf93603422",
+              "rung": "static",
+              "origin": "https://www.news24.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 7158.725899999998,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 7158.884299999998,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "South China Morning Post",
+      "region": "东亚",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.scmp.com/news/world/united-states-canada/article/3346456/nasa-clears-artemis-moon-rocket-april-launch-4-astronauts",
+      "ok": false,
+      "code": "article-restricted",
+      "paragraphs": 0,
+      "diagnosticId": "3038bef5c0516d85486828625892c89b",
+      "elapsedMs": 5280.699300000004,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.5793000000012398
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 12.013200000001234
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 5044.870599999998
+        },
+        {
+          "progress": 6,
+          "message": "completed: completed",
+          "elapsedMs": 5280.3766
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "3038bef5c0516d85486828625892c89b",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:23.469Z",
+        "endedAt": "2026-10-17T17:07:28.748Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.021899999999732245,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 10.340199999998731,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "8f4bfbc5a69069effaecd3a7cd39e7b8",
+              "rung": "static",
+              "origin": "https://www.scmp.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 5042.928099999997,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "8f4bfbc5a69069effaecd3a7cd39e7b8",
+              "rung": "static",
+              "origin": "https://www.scmp.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 5277.974699999999,
+            "phase": "fetching",
+            "event": "rung-failed",
+            "details": {
+              "code": "article-restricted",
+              "itemId": "8f4bfbc5a69069effaecd3a7cd39e7b8",
+              "rung": "static",
+              "origin": "https://www.scmp.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 5278.6898,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1,
+              "code": "article-restricted"
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 5278.748099999997,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "NPR",
+      "region": "北美",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.npr.org/2025/06/06/nx-s1-5424751/private-lunar-lander-from-japan-crashes-into-moon-in-failed-mission",
+      "ok": true,
+      "code": null,
+      "paragraphs": 28,
+      "diagnosticId": "d469c006a6d0e9cc07f430dd4d164fdc",
+      "bodyChars": 5201,
+      "sourceHash": "ffaf9b15b7502466ee2f357d0fa7be955c9f5ed1c57af2d293cc5b402365db76",
+      "elapsedMs": 3046.5012999999963,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 4.749600000002829
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 15.822899999999208
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 2749.046000000002
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 3033.798799999997
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 3044.7679999999964
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "d469c006a6d0e9cc07f430dd4d164fdc",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:28.215Z",
+        "endedAt": "2026-10-17T17:07:31.255Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.02239999999437714,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 10.530299999998533,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "5369e75b79bbcaf1195d81f85793c6f4",
+              "rung": "static",
+              "origin": "https://www.npr.org"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 2744.414399999994,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "5369e75b79bbcaf1195d81f85793c6f4",
+              "rung": "static",
+              "origin": "https://www.npr.org"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 3029.1240999999936,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 5201,
+              "blocks": 28,
+              "itemId": "5369e75b79bbcaf1195d81f85793c6f4",
+              "rung": "static",
+              "origin": "https://www.npr.org"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 3040.1227,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 3040.2391999999963,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "The Guardian",
+      "region": "欧洲",
+      "language": "en",
+      "kind": "科普文章",
+      "url": "https://www.theguardian.com/science/2024/may/01/astronauts-could-run-round-wall-of-death-to-keep-fit-on-moon-say-scientists",
+      "ok": true,
+      "code": null,
+      "paragraphs": 12,
+      "diagnosticId": "df55b4dfd22ba765dcfcd2057ab87d75",
+      "bodyChars": 4072,
+      "sourceHash": "2bf0a4861fe7d6faed547cee3c3be0299480a0d9810c9991a75b9751f5da6b04",
+      "elapsedMs": 5053.261100000003,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.2829000000056112
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 7.75
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 4652.899700000002
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 4957.645500000006
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "df55b4dfd22ba765dcfcd2057ab87d75",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:28.799Z",
+        "endedAt": "2026-10-17T17:07:33.849Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.019800000001851004,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 6.360099999998056,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "196eb15b3e647e5dee0e5533ef9655b5",
+              "rung": "static",
+              "origin": "https://www.theguardian.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 4651.391499999998,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "196eb15b3e647e5dee0e5533ef9655b5",
+              "rung": "static",
+              "origin": "https://www.theguardian.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 4956.230300000003,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 4072,
+              "blocks": 12,
+              "itemId": "196eb15b3e647e5dee0e5533ef9655b5",
+              "rung": "static",
+              "origin": "https://www.theguardian.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 5050.0147,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 5050.1348,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "BBC News",
+      "region": "欧洲",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.bbc.co.uk/news/articles/clyrdkxvmmpo",
+      "ok": true,
+      "code": null,
+      "paragraphs": 85,
+      "diagnosticId": "772d18c15e2e4819eec82b80ab4aa76a",
+      "bodyChars": 8631,
+      "sourceHash": "4bf3e7a801d54dd11e1f57909ab98138201010068d41a5a9d3c119a6e47d1b82",
+      "elapsedMs": 2556.774599999997,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.6175999999977648
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 7.663899999999558
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 1461.5018999999957
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 2187.6722999999984
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 2554.4340999999986
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "772d18c15e2e4819eec82b80ab4aa76a",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:31.261Z",
+        "endedAt": "2026-10-17T17:07:33.814Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.02500000000145519,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 6.099099999999453,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "7f6ae1160fbcf5e959ad10dec2d602f3",
+              "rung": "static",
+              "origin": "https://www.bbc.co.uk"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 1459.5622000000003,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "7f6ae1160fbcf5e959ad10dec2d602f3",
+              "rung": "static",
+              "origin": "https://www.bbc.co.uk"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 2185.9115999999995,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 8631,
+              "blocks": 85,
+              "itemId": "7f6ae1160fbcf5e959ad10dec2d602f3",
+              "rung": "static",
+              "origin": "https://www.bbc.co.uk"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 2552.813900000001,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 2552.9519,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "CNN",
+      "region": "北美",
+      "language": "en",
+      "kind": "官方节目文字实录",
+      "url": "https://transcripts.cnn.com/show/se/date/2024-04-08/segment/04",
+      "ok": true,
+      "code": null,
+      "paragraphs": 354,
+      "diagnosticId": "641d01b1c04abb507760883b00f10843",
+      "bodyChars": 45722,
+      "sourceHash": "462d83676da50fe5b1be281e6977462e64c36f569ab9fcf304f100d212c02f2b",
+      "elapsedMs": 8178.746800000001,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 3.961199999997916
+        },
+        {
+          "progress": 2,
+          "message": "fetching: rung-started",
+          "elapsedMs": 19.9545999999973
+        },
+        {
+          "progress": 3,
+          "message": "fetching: response-received",
+          "elapsedMs": 7375.713199999998
+        },
+        {
+          "progress": 4,
+          "message": "extracting: article-extracted",
+          "elapsedMs": 8162.420299999998
+        },
+        {
+          "progress": 5,
+          "message": "fetching: article-finished",
+          "elapsedMs": 8176.294900000001
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "641d01b1c04abb507760883b00f10843",
+        "tool": "article_image_fetch",
+        "state": "completed",
+        "startedAt": "2026-10-17T17:07:33.828Z",
+        "endedAt": "2026-10-17T17:07:42.001Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 6,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.03020000000105938,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 15.997500000004948,
+            "phase": "fetching",
+            "event": "rung-started",
+            "details": {
+              "itemId": "8ec3b4d2bc162e069bfe9ffb2de0090d",
+              "rung": "static",
+              "origin": "https://transcripts.cnn.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 7370.441299999999,
+            "phase": "fetching",
+            "event": "response-received",
+            "details": {
+              "statusCode": 200,
+              "itemId": "8ec3b4d2bc162e069bfe9ffb2de0090d",
+              "rung": "static",
+              "origin": "https://transcripts.cnn.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 8158.376600000003,
+            "phase": "extracting",
+            "event": "article-extracted",
+            "details": {
+              "chars": 45722,
+              "blocks": 354,
+              "itemId": "8ec3b4d2bc162e069bfe9ffb2de0090d",
+              "rung": "static",
+              "origin": "https://transcripts.cnn.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 8172.322800000002,
+            "phase": "fetching",
+            "event": "article-finished",
+            "details": {
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 8172.4522,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    }
+  ]
+}

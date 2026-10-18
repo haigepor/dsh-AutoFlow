@@ -1,0 +1,1779 @@
+{
+  "before": {
+    "total": 28,
+    "body": 19,
+    "failed": 9,
+    "readyAssets": 93,
+    "failedAssets": 4,
+    "quality": {
+      "passed": 0,
+      "needs-review": 9,
+      "partial": 10
+    }
+  },
+  "after": {
+    "total": 28,
+    "body": 21,
+    "failed": 7,
+    "readyAssets": 79,
+    "failedAssets": 0,
+    "quality": {
+      "passed": 0,
+      "needs-review": 16,
+      "partial": 5
+    }
+  },
+  "previousSuccessesPreserved": true,
+  "regression": [
+    {
+      "index": 4,
+      "stillRetrieved": true
+    },
+    {
+      "index": 5,
+      "stillRetrieved": true
+    },
+    {
+      "index": 6,
+      "stillRetrieved": true
+    },
+    {
+      "index": 8,
+      "stillRetrieved": true
+    },
+    {
+      "index": 10,
+      "stillRetrieved": true
+    },
+    {
+      "index": 11,
+      "stillRetrieved": true
+    },
+    {
+      "index": 12,
+      "stillRetrieved": true
+    },
+    {
+      "index": 15,
+      "stillRetrieved": true
+    },
+    {
+      "index": 16,
+      "stillRetrieved": true
+    },
+    {
+      "index": 17,
+      "stillRetrieved": true
+    },
+    {
+      "index": 18,
+      "stillRetrieved": true
+    },
+    {
+      "index": 19,
+      "stillRetrieved": true
+    },
+    {
+      "index": 20,
+      "stillRetrieved": true
+    },
+    {
+      "index": 21,
+      "stillRetrieved": true
+    },
+    {
+      "index": 24,
+      "stillRetrieved": true
+    },
+    {
+      "index": 25,
+      "stillRetrieved": true
+    },
+    {
+      "index": 26,
+      "stillRetrieved": true
+    },
+    {
+      "index": 27,
+      "stillRetrieved": true
+    },
+    {
+      "index": 28,
+      "stillRetrieved": true
+    }
+  ],
+  "baselineElapsedMs": 427708,
+  "fullRetestElapsedMs": 404167,
+  "originalsRetestElapsedMs": 61698,
+  "validation": {
+    "toolkitTests": 346,
+    "pluginTests": 147,
+    "realImageGeneration": false,
+    "modelCallsInCorpus": 0
+  },
+  "rows": [
+    {
+      "index": 1,
+      "name": "Folha：科莫湖行程",
+      "url": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "counts": null,
+      "reference": {
+        "paragraphs": 49,
+        "headings": 1,
+        "listItems": 7,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "note": "[Observed] 可见阅读额度限制及订阅声明，保持 article-restricted；需可访问的完整来源或人工补正文。"
+    },
+    {
+      "index": 2,
+      "name": "Folha：台湾旅游",
+      "url": "https://www1.folha.uol.com.br/turismo/2026/08/taiwan-e-destino-turistico-vibrante-apesar-de-tensoes-com-a-china.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "counts": null,
+      "reference": {
+        "paragraphs": 21,
+        "headings": 0,
+        "listItems": 14,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "note": "[Observed] 同上，访问限制不因 HTML 中有摘要或结构化文本而解除。"
+    },
+    {
+      "index": 3,
+      "name": "Folha：Oiti Beach",
+      "url": "https://www1.folha.uol.com.br/turismo/2026/07/resort-oiti-beach-e-base-confortavel-para-conhecer-tutoia-no-maranhao.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "counts": null,
+      "reference": {
+        "paragraphs": 9,
+        "headings": 0,
+        "listItems": 14,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "note": "[Observed] 同上，未绕过阅读额度。"
+    },
+    {
+      "index": 4,
+      "name": "Metrópoles：奥兰多亲子游",
+      "url": "https://www.metropoles.com/conteudo-especial/orlando-com-bebes-e-criancas",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "blocks": 36,
+      "counts": {
+        "paragraphs": 23,
+        "headings": 5,
+        "listItems": 0,
+        "readyImages": 2,
+        "chars": 6741
+      },
+      "reference": {
+        "paragraphs": 23,
+        "headings": 4,
+        "listItems": 0,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "798a9c5d725d032ca0c704e287174097",
+          "status": "ready",
+          "width": 1381,
+          "height": 900,
+          "byteLength": 498458,
+          "error": null
+        },
+        {
+          "id": "2ff249cd0fa6c5baf5dadbed355ec44c",
+          "status": "ready",
+          "width": 1600,
+          "height": 900,
+          "byteLength": 587670,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 所选范围内段落/标题均覆盖，2 张图均解码；Instagram 嵌入仍属不支持内容，质量保持 partial。"
+    },
+    {
+      "index": 5,
+      "name": "Correio：阿根廷七处目的地",
+      "url": "https://www.correiobraziliense.com.br/aqui/2026/08/06/7-destinos-na-argentina-para-fugir-da-alta-do-dolar-e-aproveitar/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "blocked-network-resource",
+          "resource-request-failed",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "blocks": 5,
+      "counts": {
+        "paragraphs": 2,
+        "headings": 1,
+        "listItems": 7,
+        "readyImages": 1,
+        "chars": 2989
+      },
+      "reference": {
+        "paragraphs": 2,
+        "headings": 1,
+        "listItems": 7,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 4,
+      "assets": [
+        {
+          "id": "416f746de4f993423319a37f043b0e13",
+          "status": "ready",
+          "width": 1280,
+          "height": 720,
+          "byteLength": 84824,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 修复 Readability 误删相似小节标题；保留 7 个有序列表项和主图。DOM 中额外缩略图来自相关推荐，不属于正文。"
+    },
+    {
+      "index": 6,
+      "name": "Correio：Mallorca 五处行程",
+      "url": "https://www.correiobraziliense.com.br/aqui/2026/08/06/mallorca-5-passeios-para-fazer-na-ilha-espanhola-paradisiaca/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "blocked-network-resource",
+          "resource-request-failed",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "blocks": 15,
+      "counts": {
+        "paragraphs": 13,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 1,
+        "chars": 2687
+      },
+      "reference": {
+        "paragraphs": 11,
+        "headings": 1,
+        "listItems": 0,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 4,
+      "assets": [
+        {
+          "id": "c6270a4aa251b0d6f486bde42bb35214",
+          "status": "ready",
+          "width": 1280,
+          "height": 720,
+          "byteLength": 178249,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 13 个段落块与主图保留；直/弯引号差异只在审计比较中统一。额外 DOM 缩略图为推荐卡片。"
+    },
+    {
+      "index": 7,
+      "name": "O Tempo：Bonito 六处行程",
+      "url": "https://www.otempo.com.br/turismo/2026/7/23/temporada-de-aguas-mais-cristalinas-em-bonito-6-passeios-imperdiveis",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:otempo-body-v1"
+        ],
+        "adapter": "otempo-body-v1"
+      },
+      "blocks": 31,
+      "counts": {
+        "paragraphs": 16,
+        "headings": 7,
+        "listItems": 0,
+        "readyImages": 8,
+        "chars": 6931
+      },
+      "reference": {
+        "paragraphs": 13,
+        "headings": 7,
+        "listItems": 0,
+        "declaredImages": 3
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 2,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "7be72d82d2d46af586cad8b6bd74d6b4",
+          "status": "ready",
+          "width": 841,
+          "height": 630,
+          "byteLength": 175043,
+          "error": null
+        },
+        {
+          "id": "4282584ca7b1d27a2e646166a052e9d9",
+          "status": "ready",
+          "width": 4000,
+          "height": 2250,
+          "byteLength": 1858957,
+          "error": null
+        },
+        {
+          "id": "2c5aa1af5f35773eb100f25c64077a90",
+          "status": "ready",
+          "width": 3000,
+          "height": 2045,
+          "byteLength": 569018,
+          "error": null
+        },
+        {
+          "id": "a1aef43c035d4b1ce3d3123b9ea08d9f",
+          "status": "ready",
+          "width": 800,
+          "height": 695,
+          "byteLength": 170543,
+          "error": null
+        },
+        {
+          "id": "4543f708733a5ffb9e1697a8a2829fd2",
+          "status": "ready",
+          "width": 1282,
+          "height": 1491,
+          "byteLength": 514979,
+          "error": null
+        },
+        {
+          "id": "6ddc51534b3b6ed38a6e0feb0ce652e8",
+          "status": "ready",
+          "width": 1600,
+          "height": 1201,
+          "byteLength": 897099,
+          "error": null
+        },
+        {
+          "id": "918f56a6ca368c6b752f49ff74ce56f9",
+          "status": "ready",
+          "width": 1600,
+          "height": 1063,
+          "byteLength": 916220,
+          "error": null
+        },
+        {
+          "id": "925cc6ed0047fe8075b9a299934b910e",
+          "status": "ready",
+          "width": 2048,
+          "height": 1534,
+          "byteLength": 1424546,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 主响应约 8.66 MB 超过原 8 MB 预算；显式配置 16 MB，去除重复 currentSrc 和执行状态。保留 7 张内联照片与 1 张主图、6 个目的地小节。[Inferred] 声明中另两个尺寸地址是同一主图变体。"
+    },
+    {
+      "index": 8,
+      "name": "Guia Folha：美食节/Blue Note",
+      "url": "https://guia.folha.uol.com.br/restaurantes/2026/10/festival-gastronomico-da-folha-tem-curadoria-musical-do-blue-note.shtml",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:folha-guia-body-v1"
+        ],
+        "adapter": "folha-guia-body-v1"
+      },
+      "blocks": 65,
+      "counts": {
+        "paragraphs": 42,
+        "headings": 3,
+        "listItems": 0,
+        "readyImages": 20,
+        "chars": 5474
+      },
+      "reference": {
+        "paragraphs": 15,
+        "headings": 3,
+        "listItems": 0,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "e7515e672c574c1a20dbfedfcbb1860f",
+          "status": "ready",
+          "width": 2400,
+          "height": 1600,
+          "byteLength": 460470,
+          "error": null
+        },
+        {
+          "id": "d3b1378c18d8f71f0b598af1578518b3",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 31228,
+          "error": null
+        },
+        {
+          "id": "0fd816c2fdbf44387b96f803610783f5",
+          "status": "ready",
+          "width": 437,
+          "height": 768,
+          "byteLength": 48034,
+          "error": null
+        },
+        {
+          "id": "2c2f279e3d1d2378fb2ba6022760eff0",
+          "status": "ready",
+          "width": 768,
+          "height": 432,
+          "byteLength": 29111,
+          "error": null
+        },
+        {
+          "id": "edf6e0e6cfb320650874059704c62085",
+          "status": "ready",
+          "width": 768,
+          "height": 768,
+          "byteLength": 40879,
+          "error": null
+        },
+        {
+          "id": "112eafaa38abde4231f3999def6b812e",
+          "status": "ready",
+          "width": 768,
+          "height": 768,
+          "byteLength": 54631,
+          "error": null
+        },
+        {
+          "id": "deae240609e2262b42444b58960cbade",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 49285,
+          "error": null
+        },
+        {
+          "id": "c41a242a2622082460dabcacc8d7ac2c",
+          "status": "ready",
+          "width": 768,
+          "height": 479,
+          "byteLength": 56045,
+          "error": null
+        },
+        {
+          "id": "e26eba8c9d0249922d0b5f557af6e38f",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 64441,
+          "error": null
+        },
+        {
+          "id": "2d8d9f011c6ac2a8a619096f975712fe",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 51053,
+          "error": null
+        },
+        {
+          "id": "6e66b84e207a2a5fd1a91542954922b5",
+          "status": "ready",
+          "width": 576,
+          "height": 768,
+          "byteLength": 62802,
+          "error": null
+        },
+        {
+          "id": "5f5517251aced855f2cb0db7fd2815c2",
+          "status": "ready",
+          "width": 768,
+          "height": 512,
+          "byteLength": 32382,
+          "error": null
+        },
+        {
+          "id": "45e8d445a96d1d0dd5299acc2191b1e0",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 36738,
+          "error": null
+        },
+        {
+          "id": "899969ce0495e33737c041735fcaa9c4",
+          "status": "ready",
+          "width": 768,
+          "height": 768,
+          "byteLength": 96039,
+          "error": null
+        },
+        {
+          "id": "40105890177b3c74ae99880b8368014a",
+          "status": "ready",
+          "width": 768,
+          "height": 768,
+          "byteLength": 87758,
+          "error": null
+        },
+        {
+          "id": "62d5cf01479cfe4724e139eed9db0ea8",
+          "status": "ready",
+          "width": 768,
+          "height": 512,
+          "byteLength": 38327,
+          "error": null
+        },
+        {
+          "id": "9ec4b999c36b41f9a9128c69ac28f997",
+          "status": "ready",
+          "width": 970,
+          "height": 600,
+          "byteLength": 104440,
+          "error": null
+        },
+        {
+          "id": "c05e799a3a269e4b19ab333ec6849369",
+          "status": "ready",
+          "width": 970,
+          "height": 600,
+          "byteLength": 50173,
+          "error": null
+        },
+        {
+          "id": "24c3a9bdf1dfbb2376732eb57e12c236",
+          "status": "ready",
+          "width": 970,
+          "height": 600,
+          "byteLength": 62960,
+          "error": null
+        },
+        {
+          "id": "f9e1ab63b148826f6ea0442fb7e6d0b6",
+          "status": "ready",
+          "width": 970,
+          "height": 600,
+          "byteLength": 59261,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 滚动后等待图库加载；获得主图 1 张、Tony Gordon 图库 15 张、André Frateschi 图库 4 张。图库标题/图注保留；修复明示 Advertisement 的广告 iframe 被误当作不支持正文视觉内容，质量改为 needs-review。"
+    },
+    {
+      "index": 9,
+      "name": "Folha：松饼",
+      "url": "https://www1.folha.uol.com.br/comida/2026/10/veja-como-fazer-a-buchimgae-panqueca-coreana-com-receita-de-arthur-paek.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "counts": null,
+      "reference": {
+        "paragraphs": 5,
+        "headings": 1,
+        "listItems": 31,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "note": "[Observed] 订阅/阅读限制，保持 article-restricted。"
+    },
+    {
+      "index": 10,
+      "name": "Guia Folha：Saiko 日式三明治",
+      "url": "https://guia.folha.uol.com.br/restaurantes/2026/10/saiko-leva-sandos-sanduiches-ao-estilo-japones-a-festival-gastronomico-da-folha.shtml",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:folha-guia-body-v1"
+        ],
+        "adapter": "folha-guia-body-v1"
+      },
+      "blocks": 29,
+      "counts": {
+        "paragraphs": 21,
+        "headings": 2,
+        "listItems": 0,
+        "readyImages": 6,
+        "chars": 3201
+      },
+      "reference": {
+        "paragraphs": 11,
+        "headings": 2,
+        "listItems": 0,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "f8e222b87f1237f448c19a2041658e45",
+          "status": "ready",
+          "width": 2400,
+          "height": 1600,
+          "byteLength": 594112,
+          "error": null
+        },
+        {
+          "id": "b7b7167cb67a8b25bf93b79be06f2cac",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 46987,
+          "error": null
+        },
+        {
+          "id": "58cdef74d74b4edacce9dc1f9c10bc4a",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 55484,
+          "error": null
+        },
+        {
+          "id": "c413bcd3d33291593bee8e618a2f3a11",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 67787,
+          "error": null
+        },
+        {
+          "id": "d86ea44b3a2cc823ebe2d8a3815794ae",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 56449,
+          "error": null
+        },
+        {
+          "id": "a0dc5afec5c2cfc2ff8dfae6ab182ded",
+          "status": "ready",
+          "width": 512,
+          "height": 768,
+          "byteLength": 45790,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 解决异步图库尚在 Carregando 时提前结束的问题；5 张图库照片及 1 张主图均取得。首轮另含头像与推荐图，因此资产数 10→6 不等于少取正文照片。图库视觉组件仍保守标 partial。"
+    },
+    {
+      "index": 11,
+      "name": "G1：花卉节",
+      "url": "https://g1.globo.com/sp/vale-do-paraiba-regiao/especial-publicitario/festa-das-flores-e-morangos-de-atibaia/flores-e-morangos/noticia/2026/09/10/festa-em-atibaia-flores-morangos-gastronomia-e-cultura-japonesa-sao-atracoes.ghtml",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "blocks": 27,
+      "counts": {
+        "paragraphs": 19,
+        "headings": 3,
+        "listItems": 10,
+        "readyImages": 4,
+        "chars": 7658
+      },
+      "reference": {
+        "paragraphs": 19,
+        "headings": 3,
+        "listItems": 10,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "37be5a3736eb547b7f24354258439c0e",
+          "status": "ready",
+          "width": 1000,
+          "height": 716,
+          "byteLength": 130987,
+          "error": null
+        },
+        {
+          "id": "2e120f71678260e08290db77f5ce9dc7",
+          "status": "ready",
+          "width": 1000,
+          "height": 663,
+          "byteLength": 244621,
+          "error": null
+        },
+        {
+          "id": "89c0d18c5dcd37a7bd45d56c86f26783",
+          "status": "ready",
+          "width": 1000,
+          "height": 666,
+          "byteLength": 189952,
+          "error": null
+        },
+        {
+          "id": "0e196e6a9aadd20321eef734f2a248ff",
+          "status": "ready",
+          "width": 1000,
+          "height": 561,
+          "byteLength": 134987,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 正文、10 个列表项及 4 张图均取得；不把广告网络错误当成正文失败。"
+    },
+    {
+      "index": 12,
+      "name": "Gov Saúde：三联疫苗",
+      "url": "https://www.gov.br/saude/pt-br/campanhas-da-saude/2026/triplice-viral",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "blocks": 32,
+      "counts": {
+        "paragraphs": 25,
+        "headings": 1,
+        "listItems": 9,
+        "readyImages": 3,
+        "chars": 1941
+      },
+      "reference": {
+        "paragraphs": 11,
+        "headings": 1,
+        "listItems": 9,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 1,
+      "assets": [
+        {
+          "id": "b2f7cb5a56b9235865b2a7570c9903df",
+          "status": "ready",
+          "width": 1905,
+          "height": 450,
+          "byteLength": 576209,
+          "error": null
+        },
+        {
+          "id": "f5714a0595f59925c25fcc784cb8b728",
+          "status": "ready",
+          "width": 245,
+          "height": 306,
+          "byteLength": 124867,
+          "error": null
+        },
+        {
+          "id": "1c1a8d04708d22581d705d4aca97be86",
+          "status": "ready",
+          "width": 228,
+          "height": 51,
+          "byteLength": 6719,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 剔除页脚 VSN SVG，原 1 个失败资产消失；保留 3 个可解码视觉资产（含机构标志）。审计未匹配 SVG 是被剔除的页脚标志。"
+    },
+    {
+      "index": 13,
+      "name": "Folha：职业",
+      "url": "https://www1.folha.uol.com.br/sobretudo/carreiras/2026/10/nao-sabe-para-onde-ir-na-carreira-aprenda-a-definir-seus-objetivos.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "counts": null,
+      "reference": {
+        "paragraphs": 27,
+        "headings": 2,
+        "listItems": 13,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "note": "[Observed] 阅读限制，保持 article-restricted。"
+    },
+    {
+      "index": 14,
+      "name": "Folha：环境",
+      "url": "https://www1.folha.uol.com.br/ambiente/2026/10/seca-e-calor-extremos-do-ultimo-el-nino-antecipam-novo-normal-nas-florestas-tropicais.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "counts": null,
+      "reference": {
+        "paragraphs": 28,
+        "headings": 8,
+        "listItems": 4,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "note": "[Observed] 阅读限制，保持 article-restricted。"
+    },
+    {
+      "index": 15,
+      "name": "Canaltech：八部动画",
+      "url": "https://canaltech.com.br/entretenimento/crunchyroll-animes-imperdiveis-outubro-2026/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:canaltech-body-v1"
+        ],
+        "adapter": "canaltech-body-v1"
+      },
+      "blocks": 50,
+      "counts": {
+        "paragraphs": 31,
+        "headings": 9,
+        "listItems": 8,
+        "readyImages": 9,
+        "chars": 7047
+      },
+      "reference": {
+        "paragraphs": 24,
+        "headings": 9,
+        "listItems": 8,
+        "declaredImages": 5
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 4,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "fed36953b385e3767d8f7e8e7e331196",
+          "status": "ready",
+          "width": 640,
+          "height": 360,
+          "byteLength": 49464,
+          "error": null
+        },
+        {
+          "id": "31b587fea49b64aa271454a6cbdc1368",
+          "status": "ready",
+          "width": 480,
+          "height": 360,
+          "byteLength": 16692,
+          "error": null
+        },
+        {
+          "id": "b66261386c2a74fa7ed082f52bc2d477",
+          "status": "ready",
+          "width": 480,
+          "height": 360,
+          "byteLength": 19852,
+          "error": null
+        },
+        {
+          "id": "fee607dd87d5abdab4e77e22cdf8a055",
+          "status": "ready",
+          "width": 480,
+          "height": 360,
+          "byteLength": 17192,
+          "error": null
+        },
+        {
+          "id": "d4be6127e2d65d1572e3c4c7e945fb39",
+          "status": "ready",
+          "width": 480,
+          "height": 360,
+          "byteLength": 15803,
+          "error": null
+        },
+        {
+          "id": "2a4f4782f1b0ceba01974b7760206753",
+          "status": "ready",
+          "width": 480,
+          "height": 360,
+          "byteLength": 21703,
+          "error": null
+        },
+        {
+          "id": "816a5cb35cde4e25cdfc5189c018efc1",
+          "status": "ready",
+          "width": 480,
+          "height": 360,
+          "byteLength": 15295,
+          "error": null
+        },
+        {
+          "id": "2f06f0d957c9e95b51e8abaf364186e9",
+          "status": "ready",
+          "width": 480,
+          "height": 360,
+          "byteLength": 15748,
+          "error": null
+        },
+        {
+          "id": "5ff594a29c5821c3db15d23c4040f7c5",
+          "status": "ready",
+          "width": 480,
+          "height": 360,
+          "byteLength": 12506,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 配置正文范围并剔除 WhatsApp 品牌推广；主图和 8 个视频缩略图均取得，8 项列表完整。[Inferred] 另 4 个声明地址是主图响应式变体。"
+    },
+    {
+      "index": 16,
+      "name": "Cultura SC：展览",
+      "url": "https://www.cultura.sc.gov.br/programacao/tipo/exposicao/3960-exposicao-pinturas-derivas?date=2026-10-13-00-00",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "blocks": 16,
+      "counts": {
+        "paragraphs": 13,
+        "headings": 1,
+        "listItems": 1,
+        "readyImages": 1,
+        "chars": 1931
+      },
+      "reference": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "e0636c9e7676eb261a96e3830d9928a3",
+          "status": "ready",
+          "width": 900,
+          "height": 600,
+          "byteLength": 303433,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 正文、列表项与 1 张图均取得。"
+    },
+    {
+      "index": 17,
+      "name": "Lance：Thiago Wild",
+      "url": "https://www.lance.com.br/tenis/thiago-wild-deixa-mais-um-torneio-e-aumenta-duvida-sobre-retorno.html",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:lance-body-v1"
+        ],
+        "adapter": "lance-body-v1"
+      },
+      "blocks": 13,
+      "counts": {
+        "paragraphs": 10,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 2,
+        "chars": 1871
+      },
+      "reference": {
+        "paragraphs": 7,
+        "headings": 1,
+        "listItems": 0,
+        "declaredImages": 3
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 2,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "b1194eff62b6c13858fc0be9a76db347",
+          "status": "ready",
+          "width": 1280,
+          "height": 720,
+          "byteLength": 67693,
+          "error": null
+        },
+        {
+          "id": "6a4da9dc513a8cd64266f81e6bcd837a",
+          "status": "ready",
+          "width": 950,
+          "height": 534,
+          "byteLength": 29781,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 收窄正文并剔除赛事推荐，恢复主图；2 张正文图就绪。[Inferred] 另两个声明地址是同一主图的裁剪尺寸。"
+    },
+    {
+      "index": 18,
+      "name": "Gov JBRJ：女性科学家",
+      "url": "https://www.gov.br/jbrj/pt-br/assuntos/noticias/semana-nacional-de-ciencia-e-tecnologia-2026-201cciencia-delas-destaca-o-papel-de-mulheres-cientistas",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "blocks": 7,
+      "counts": {
+        "paragraphs": 5,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 1,
+        "chars": 7814
+      },
+      "reference": {
+        "paragraphs": 2,
+        "headings": 0,
+        "listItems": 0,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "07b57cd35b1adf92666c5040495bc847",
+          "status": "ready",
+          "width": 768,
+          "height": 434,
+          "byteLength": 121278,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 保留源站完整正文和海报；外层 p/内层块带来的排版空白只在审计时统一，不是缺段。"
+    },
+    {
+      "index": 19,
+      "name": "CNN：春季汽车养护",
+      "url": "https://www.cnnbrasil.com.br/auto/quatro-cuidados-para-ter-no-carro-durante-periodo-da-primavera-confira/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:cnn-body-v1"
+        ],
+        "adapter": "cnn-body-v1"
+      },
+      "blocks": 20,
+      "counts": {
+        "paragraphs": 14,
+        "headings": 4,
+        "listItems": 0,
+        "readyImages": 2,
+        "chars": 2957
+      },
+      "reference": {
+        "paragraphs": 14,
+        "headings": 4,
+        "listItems": 0,
+        "declaredImages": 3
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 2,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "cecd44d0ebc4d6edd6939e1d7f17f3ee",
+          "status": "ready",
+          "width": 1200,
+          "height": 876,
+          "byteLength": 128891,
+          "error": null
+        },
+        {
+          "id": "3c535b3fb0ff0a1397012616d39b09c2",
+          "status": "ready",
+          "width": 849,
+          "height": 566,
+          "byteLength": 91645,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 剔除推荐模块、关注 CTA；2 张图就绪。[Inferred] 未匹配的两个声明地址属于同一主图尺寸。部分视觉标记仍使质量为 partial。"
+    },
+    {
+      "index": 20,
+      "name": "Correio：公路驾驶五条建议",
+      "url": "https://www.correiobraziliense.com.br/brasil/2026/09/7510825-viagem-de-carro-5-dicas-para-trafegar-com-seguranca-pelas-rodovias.html",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "blocks": 32,
+      "counts": {
+        "paragraphs": 16,
+        "headings": 3,
+        "listItems": 13,
+        "readyImages": 10,
+        "chars": 4000
+      },
+      "reference": {
+        "paragraphs": 14,
+        "headings": 3,
+        "listItems": 9,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "cba09c714987afcddde5adf2459cd447",
+          "status": "ready",
+          "width": 1280,
+          "height": 853,
+          "byteLength": 323039,
+          "error": null
+        },
+        {
+          "id": "78b01ce5c01ce1a76f91ee1b7aade03c",
+          "status": "ready",
+          "width": 66,
+          "height": 70,
+          "byteLength": 2434,
+          "error": null
+        },
+        {
+          "id": "45ae7a6db0217467905197b976c725eb",
+          "status": "ready",
+          "width": 2649,
+          "height": 1925,
+          "byteLength": 188986,
+          "error": null
+        },
+        {
+          "id": "978252d46d48ed20cd4c3e72dba2d715",
+          "status": "ready",
+          "width": 675,
+          "height": 450,
+          "byteLength": 45782,
+          "error": null
+        },
+        {
+          "id": "88e9144e75b01292d3151f5b21e85f0a",
+          "status": "ready",
+          "width": 1000,
+          "height": 665,
+          "byteLength": 155832,
+          "error": null
+        },
+        {
+          "id": "20a39b2c6edf692514ca1808571187e9",
+          "status": "ready",
+          "width": 675,
+          "height": 450,
+          "byteLength": 47633,
+          "error": null
+        },
+        {
+          "id": "24b1633269c3f6b7cb884a2b05615427",
+          "status": "ready",
+          "width": 675,
+          "height": 450,
+          "byteLength": 47517,
+          "error": null
+        },
+        {
+          "id": "ea4138914a6d7e687562c95fc0650702",
+          "status": "ready",
+          "width": 675,
+          "height": 450,
+          "byteLength": 36973,
+          "error": null
+        },
+        {
+          "id": "65c87941ea54beab3afe5f65ce759f1a",
+          "status": "ready",
+          "width": 23,
+          "height": 22,
+          "byteLength": 560,
+          "error": null
+        },
+        {
+          "id": "cde1ef9e9da2867452696aa556a13ff1",
+          "status": "ready",
+          "width": 1200,
+          "height": 1200,
+          "byteLength": 76464,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 5 条养护建议、正文图片均保留；源站还包含推荐列表，快照列表项总数不等于建议条数。引号/脚本噪声造成的比较误报已校正；视觉内容仍需核对。"
+    },
+    {
+      "index": 21,
+      "name": "R7：女性汽车养护",
+      "url": "https://record.r7.com/fala-brasil/mulheres-positivas/video/mulheres-positivas-influenciadora-promove-autonomia-feminina-com-dicas-sobre-cuidados-automotivos-26092026/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:r7-body-v1"
+        ],
+        "adapter": "r7-body-v1"
+      },
+      "blocks": 12,
+      "counts": {
+        "paragraphs": 8,
+        "headings": 2,
+        "listItems": 6,
+        "readyImages": 1,
+        "chars": 1986
+      },
+      "reference": {
+        "paragraphs": 6,
+        "headings": 1,
+        "listItems": 6,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 5,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "d16461d0fbe0e8b77e199cd238c8dfe9",
+          "status": "ready",
+          "width": 960,
+          "height": 540,
+          "byteLength": 52898,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 正文段落全部覆盖，取得视频封面；移除推荐缩略图和 R7 品牌 SVG。原文审计剩余的 5 个未匹配 LI 为分享/无障碍控件，快照中 6 个 LI 也含播放器界面项，不能视作编辑列表。视频流未获取，保持 partial。"
+    },
+    {
+      "index": 22,
+      "name": "Estadão：制动故障八种征兆",
+      "url": "https://www.estadao.com.br/jornal-do-carro/oito-sinais-de-que-os-freios-do-seu-carro-vao-falhar/",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "blocks": 51,
+      "counts": {
+        "paragraphs": 43,
+        "headings": 4,
+        "listItems": 3,
+        "readyImages": 3,
+        "chars": 7378
+      },
+      "reference": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "declaredImages": 3
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 3,
+      "unmatchedDomImages": 0,
+      "assets": [
+        {
+          "id": "cbbf862876b7690cdb18c462d1103cf0",
+          "status": "ready",
+          "width": 1200,
+          "height": 2133,
+          "byteLength": 135607,
+          "error": null
+        },
+        {
+          "id": "c1c1d619f18b27ffe645711719d9bbd8",
+          "status": "ready",
+          "width": 1200,
+          "height": 2134,
+          "byteLength": 338676,
+          "error": null
+        },
+        {
+          "id": "0dd3ea574596ce69b938bf548b5d1c8a",
+          "status": "ready",
+          "width": 1200,
+          "height": 2134,
+          "byteLength": 198906,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 修复先选到含短段落的商品 article 卡片的问题；正文与 3 张纵向配图成功。额外封面 XRF4JL…只在元数据中出现，渲染 DOM 无匹配图片，保留人工核对；不是自动补入的正文原图。"
+    },
+    {
+      "index": 23,
+      "name": "BCB：Poupança 短公告",
+      "url": "https://www.bcb.gov.br/detalhenoticia/21283/nota",
+      "ok": false,
+      "code": "article-short",
+      "counts": null,
+      "reference": {
+        "paragraphs": 1,
+        "headings": 0,
+        "listItems": 0,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "note": "[Observed] 源站正文为单段跳转公告，短于现有 minArticleChars=100；保持 article-short，不降低阈值或拼接导航。"
+    },
+    {
+      "index": 24,
+      "name": "BCB：Pix/TIPS",
+      "url": "https://www.bcb.gov.br/detalhenoticia/21276/noticia",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:bcb-notice-v1"
+        ],
+        "adapter": "bcb-notice-v1"
+      },
+      "blocks": 8,
+      "counts": {
+        "paragraphs": 8,
+        "headings": 0,
+        "listItems": 0,
+        "readyImages": 0,
+        "chars": 3668
+      },
+      "reference": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [],
+      "note": "[Observed] 自定义 promise 包裹 div 段落曾被压成 1 段；修复后为 8 段，保留链接，尾段校验通过。"
+    },
+    {
+      "index": 25,
+      "name": "BCB：货币信贷公告",
+      "url": "https://www.bcb.gov.br/detalhenoticia/21275/nota",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:bcb-notice-v1"
+        ],
+        "adapter": "bcb-notice-v1"
+      },
+      "blocks": 1,
+      "counts": {
+        "paragraphs": 1,
+        "headings": 0,
+        "listItems": 0,
+        "readyImages": 0,
+        "chars": 112
+      },
+      "reference": {
+        "paragraphs": 0,
+        "headings": 0,
+        "listItems": 0,
+        "declaredImages": 0
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 0,
+      "assets": [],
+      "note": "[Observed] 原有单段公告保持成功，源站无正文图片。"
+    },
+    {
+      "index": 26,
+      "name": "Gov Suframa：税改会议",
+      "url": "https://www.gov.br/suframa/pt-br/assuntos/noticias/suframa-e-receita-federal-discutem-implementacao-da-reforma-tributaria-na-zona-franca-de-manaus-e-areas-de-livre-comercio",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "blocks": 14,
+      "counts": {
+        "paragraphs": 11,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 2,
+        "chars": 4032
+      },
+      "reference": {
+        "paragraphs": 7,
+        "headings": 0,
+        "listItems": 0,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 1,
+      "assets": [
+        {
+          "id": "fba398be507c2e05c7d022a7eb482692",
+          "status": "ready",
+          "width": 1157,
+          "height": 768,
+          "byteLength": 303719,
+          "error": null
+        },
+        {
+          "id": "b65ce8f9640d010eb6d4ddd0a8a0d169",
+          "status": "ready",
+          "width": 663,
+          "height": 440,
+          "byteLength": 126073,
+          "error": null
+        }
+      ],
+      "note": "[Observed] Plone /@@images/ 缩放图匹配到明确声明的原文件，主图 768×509→1157×768；第二张公开图片保留 663×440。正文均覆盖。"
+    },
+    {
+      "index": 27,
+      "name": "Gov Receita：Inflamável II",
+      "url": "https://www.gov.br/receitafederal/pt-br/assuntos/noticias/2026/outubro/operacao-inflamavel-ii-da-receita-federal-apura-aproveitamento-indevido-de-creditos-de-pis-pasep-e-cofins-na-revenda-de-oleo-diesel-gasolina-e-etanol",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "blocks": 16,
+      "counts": {
+        "paragraphs": 14,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 1,
+        "chars": 2919
+      },
+      "reference": {
+        "paragraphs": 8,
+        "headings": 0,
+        "listItems": 0,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 1,
+      "assets": [
+        {
+          "id": "b3e8df9a6a1336e06a275f4e1366f772",
+          "status": "ready",
+          "width": 1500,
+          "height": 540,
+          "byteLength": 1039081,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 已声明原图 768×276→1500×540，正文均覆盖。该图为源站公开的选举期横幅，不替换为臆造新闻图片。"
+    },
+    {
+      "index": 28,
+      "name": "Gov NFS-e：功能验收",
+      "url": "https://www.gov.br/nfse/pt-br/noticias/comite-gestor-da-nfs-e-se-reune-belo-horizonte-mg-para-homologar-novas-funcionalidades-para-a-reforma-tributaria",
+      "ok": true,
+      "code": null,
+      "quality": {
+        "status": "needs-review",
+        "reasons": [
+          "resource-request-failed"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets",
+          "adapter:govbr-body-v1"
+        ],
+        "adapter": "govbr-body-v1"
+      },
+      "blocks": 11,
+      "counts": {
+        "paragraphs": 8,
+        "headings": 1,
+        "listItems": 0,
+        "readyImages": 2,
+        "chars": 2607
+      },
+      "reference": {
+        "paragraphs": 5,
+        "headings": 0,
+        "listItems": 0,
+        "declaredImages": 1
+      },
+      "missingParagraphs": 0,
+      "missingHeadings": 0,
+      "missingListItems": 0,
+      "unmatchedDeclaredUrls": 0,
+      "unmatchedDomImages": 1,
+      "assets": [
+        {
+          "id": "d661c731feee2847c0b1dbd0a607175f",
+          "status": "ready",
+          "width": 1728,
+          "height": 623,
+          "byteLength": 597781,
+          "error": null
+        },
+        {
+          "id": "4dfeedd44e213460084c63612631130f",
+          "status": "ready",
+          "width": 1581,
+          "height": 417,
+          "byteLength": 1624915,
+          "error": null
+        }
+      ],
+      "note": "[Observed] 已声明原图 768×276→1728×623，另 1581×417 正文图保留，正文均覆盖。"
+    }
+  ]
+}

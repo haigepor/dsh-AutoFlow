@@ -1,0 +1,544 @@
+{
+  "root": "C:\\Users\\haige\\Desktop\\deepseek-harness-master",
+  "toolkit": "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit",
+  "run": "C:\\Users\\haige\\AppData\\Local\\Temp\\global-news-toolkit-AM4Kji",
+  "report": "C:\\Users\\haige\\Desktop\\deepseek-harness-master\\custom-plugins\\workspace\\dsh-plugin-article-image\\article-image-toolkit\\reports\\global-news-2026-10-17T15-01-59-436Z",
+  "dataDir": "C:\\Users\\haige\\AppData\\Local\\Temp\\global-news-toolkit-AM4Kji\\data",
+  "startedAt": "2026-10-17T15:01:59.447Z",
+  "node": "v25.2.1",
+  "finishedAt": "2026-10-17T15:21:00.392Z",
+  "sampleCount": 16,
+  "success": {
+    "text": 7,
+    "richSnapshots": 3,
+    "qualityPassed": 0,
+    "qualityPartial": 3,
+    "readyImages": 7,
+    "failedImages": 3
+  },
+  "verification": {
+    "checkedSourceFiles": 33,
+    "changedSourceFiles": [],
+    "mcpTools": 18,
+    "diagnosticCallsExported": 33,
+    "sourcePageAndAssetHashVerified": true,
+    "noGeneration": true
+  },
+  "results": [
+    {
+      "site": "CBS News",
+      "url": "https://www.cbsnews.com/news/artemis-ii-mission-astronauts-still-awed-moonshot/",
+      "region": "北美",
+      "language": "en",
+      "kind": "新闻文章",
+      "text": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 45,
+        "chars": 8914,
+        "elapsedMs": 5655.946000000001,
+        "diagnosticId": "dfe48a606a26a1c1fe9b8abd3ba5d28e"
+      },
+      "rich": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 38,
+        "chars": 8095,
+        "images": 6,
+        "failedImages": 0,
+        "quality": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "elapsedMs": 105200.77979999999,
+        "diagnosticId": "484a7eada46c1d52e7cad37c62c0df51",
+        "snapshotId": "9e399d5e98ea751c28170e44265cf1f2",
+        "resourceCauses": []
+      }
+    },
+    {
+      "site": "新华社",
+      "url": "https://www.news.cn/tech/20260129/c14ec2642dec4be7942f807dc586e1e9/c.html",
+      "region": "东亚",
+      "language": "zh",
+      "kind": "新闻文章",
+      "text": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 38,
+        "chars": 3567,
+        "elapsedMs": 901.6878000000002,
+        "diagnosticId": "63421b42e5cacf41e24814a7fdd46ac6"
+      },
+      "rich": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 1,
+        "chars": 3567,
+        "images": 0,
+        "failedImages": 0,
+        "quality": "partial",
+        "reasons": [
+          "resource-request-failed",
+          "content-not-ready",
+          "unknown-article-scope"
+        ],
+        "elapsedMs": 121486.3306,
+        "diagnosticId": "bf7c06ca3702a78942ce1e71043398ce",
+        "snapshotId": "bbf7962522fe7d9842a6b7ab8f75e54b",
+        "resourceCauses": [
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method",
+          "article-resource-method"
+        ]
+      }
+    },
+    {
+      "site": "Associated Press",
+      "url": "https://apnews.com/article/dadb5f9499fa9b52200baada0fdf1f15",
+      "region": "北美",
+      "language": "en",
+      "kind": "新闻文章",
+      "text": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 16,
+        "chars": 4042,
+        "elapsedMs": 7700.0478,
+        "diagnosticId": "cf74cad4fe67e72c0611776212581665"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-access",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 6384.290300000008,
+        "diagnosticId": "ef0bd1f3c4a1f43ab14206b5da32b2d0",
+        "snapshotId": null,
+        "resourceCauses": []
+      }
+    },
+    {
+      "site": "France 24",
+      "url": "https://www.france24.com/en/france/20260818-sophie-adenot-set-to-become-first-french-female-astronaut-to-venture-outside-iss",
+      "region": "欧洲",
+      "language": "en",
+      "kind": "新闻文章",
+      "text": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 20,
+        "chars": 2670,
+        "elapsedMs": 6784.455,
+        "diagnosticId": "a80bdc29c35fd701e4af0dcdc7392316"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 60100.49149999999,
+        "diagnosticId": "8b2160597ec0366e88e1e676b61a1c37",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-timeout"
+        ]
+      }
+    },
+    {
+      "site": "CNA",
+      "url": "https://www.channelnewsasia.com/world/nasa-artemis-ii-launch-moon-us-6032266",
+      "region": "东南亚",
+      "language": "en",
+      "kind": "新闻文章",
+      "text": {
+        "ok": false,
+        "code": "article-network",
+        "paragraphs": 0,
+        "chars": 0,
+        "elapsedMs": 21560.5407,
+        "diagnosticId": "1af1477e32b56508915ac9ac9d6c64ce"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 22493.791299999997,
+        "diagnosticId": "f0bef3c94a33418667e9e5ac8dbe0f0e",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-network"
+        ]
+      }
+    },
+    {
+      "site": "ABC Australia",
+      "url": "https://www.abc.net.au/news/2026-03-29/australia-support-nasa-artemis-moon-mission/106508360",
+      "region": "大洋洲",
+      "language": "en",
+      "kind": "新闻文章",
+      "text": {
+        "ok": false,
+        "code": "article-url-blocked",
+        "paragraphs": 0,
+        "chars": 0,
+        "elapsedMs": 43.26969999999892,
+        "diagnosticId": "f206ffc16a7b5ac6b97d9fe1bb0ed9ba"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 21715.21059999999,
+        "diagnosticId": "f0baa25d397bd0cba871127dfe745b7c",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-network"
+        ]
+      }
+    },
+    {
+      "site": "Al Jazeera",
+      "url": "https://www.aljazeera.com/news/2026/4/1/nasas-artemis-ii-lifts-off-to-the-moon",
+      "region": "中东",
+      "language": "en",
+      "kind": "新闻文章",
+      "text": {
+        "ok": false,
+        "code": "article-url-blocked",
+        "paragraphs": 0,
+        "chars": 0,
+        "elapsedMs": 45.65179999999964,
+        "diagnosticId": "c42a4229fceded5a2dd762e0ae7f2bc4"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 21727.019700000004,
+        "diagnosticId": "912f594646c352e68393cd88650fb9b3",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-network"
+        ]
+      }
+    },
+    {
+      "site": "DW",
+      "url": "https://amp.dw.com/de/artemis-crew-kehrt-nach-mondumrundung-zur-erde-zurueck-orion-trump-carney/a-76746113",
+      "region": "欧洲",
+      "language": "de",
+      "kind": "公开 AMP 文章",
+      "text": {
+        "ok": false,
+        "code": "article-network",
+        "paragraphs": 0,
+        "chars": 0,
+        "elapsedMs": 21595.5729,
+        "diagnosticId": "f28a513c506712cd03f4786d4e0c0c65"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 21728.236199999985,
+        "diagnosticId": "2b68944e2c9bee654bc925c675bfc2be",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-network"
+        ]
+      }
+    },
+    {
+      "site": "EL PAÍS",
+      "url": "https://elpais.com/ciencia/2026-03-24/la-nasa-revela-sus-planes-para-crear-la-primera-colonia-humana-en-la-luna.html",
+      "region": "欧洲",
+      "language": "es",
+      "kind": "新闻文章",
+      "text": {
+        "ok": false,
+        "code": "article-url-blocked",
+        "paragraphs": 0,
+        "chars": 0,
+        "elapsedMs": 49.83729999999923,
+        "diagnosticId": "95a95a1f3f8a8418dd858e5b6be089c7"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 21722.32150000002,
+        "diagnosticId": "cbc7f4ac899f61778aff487afe7380fe",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-network"
+        ]
+      }
+    },
+    {
+      "site": "Folha de S.Paulo",
+      "url": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml",
+      "region": "南美",
+      "language": "pt",
+      "kind": "新闻文章",
+      "text": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 59,
+        "chars": 12469,
+        "elapsedMs": 2715.6882999999943,
+        "diagnosticId": "5d013fb2731753a7417d4e1a84629643"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-restricted",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 23730.226399999985,
+        "diagnosticId": "f50b9caae2207fe2252711fca672d946",
+        "snapshotId": null,
+        "resourceCauses": []
+      }
+    },
+    {
+      "site": "News24",
+      "url": "https://www.news24.com/life/passengers-and-the-real-life-science-of-deep-space-travel-20161222",
+      "region": "非洲",
+      "language": "en",
+      "kind": "科普文章",
+      "text": {
+        "ok": false,
+        "code": "article-network",
+        "paragraphs": 0,
+        "chars": 0,
+        "elapsedMs": 21049.915100000006,
+        "diagnosticId": "d90f937bb7b7a8742d96741c3ef8c785"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 21689.7555,
+        "diagnosticId": "9412810a5736cc47f5ddf14f92e8e1a9",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-network"
+        ]
+      }
+    },
+    {
+      "site": "South China Morning Post",
+      "url": "https://www.scmp.com/news/world/united-states-canada/article/3346456/nasa-clears-artemis-moon-rocket-april-launch-4-astronauts",
+      "region": "东亚",
+      "language": "en",
+      "kind": "新闻文章",
+      "text": {
+        "ok": false,
+        "code": "article-network",
+        "paragraphs": 0,
+        "chars": 0,
+        "elapsedMs": 21583.383,
+        "diagnosticId": "a6b72245826e7d84e1056c092c6f3020"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 21647.41440000001,
+        "diagnosticId": "4ce04db0f3da0d3b89e9836319d36a8f",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-network"
+        ]
+      }
+    },
+    {
+      "site": "NPR",
+      "url": "https://www.npr.org/2025/06/06/nx-s1-5424751/private-lunar-lander-from-japan-crashes-into-moon-in-failed-mission",
+      "region": "北美",
+      "language": "en",
+      "kind": "新闻文章",
+      "text": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 28,
+        "chars": 5201,
+        "elapsedMs": 3755.2474999999977,
+        "diagnosticId": "64fa7379d560a52f37ebe7af1c7f5cd7"
+      },
+      "rich": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 33,
+        "chars": 5671,
+        "images": 1,
+        "failedImages": 3,
+        "quality": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources",
+          "image-download",
+          "unknown-article-scope"
+        ],
+        "elapsedMs": 32550.515799999994,
+        "diagnosticId": "290a71d42e08035182145f4ffa88018c",
+        "snapshotId": "741c7d270968ca3a18256ae3ac551c11",
+        "resourceCauses": []
+      }
+    },
+    {
+      "site": "The Guardian",
+      "url": "https://www.theguardian.com/science/2024/may/01/astronauts-could-run-round-wall-of-death-to-keep-fit-on-moon-say-scientists",
+      "region": "欧洲",
+      "language": "en",
+      "kind": "科普文章",
+      "text": {
+        "ok": false,
+        "code": "article-network",
+        "paragraphs": 0,
+        "chars": 0,
+        "elapsedMs": 21557.72490000001,
+        "diagnosticId": "fdc44aea92adb5ac003d2c262ed95526"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 21681.78859999997,
+        "diagnosticId": "e19e01a3afb964a764f2d5480855115b",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-network"
+        ]
+      }
+    },
+    {
+      "site": "BBC News",
+      "url": "https://www.bbc.co.uk/news/articles/clyrdkxvmmpo",
+      "region": "欧洲",
+      "language": "en",
+      "kind": "新闻文章",
+      "text": {
+        "ok": false,
+        "code": "article-url-blocked",
+        "paragraphs": 0,
+        "chars": 0,
+        "elapsedMs": 34.21259999999893,
+        "diagnosticId": "5452167c55b259af6d6bcadf4b0157e2"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 22527.18929999997,
+        "diagnosticId": "ae8718f9d19123a276b6da56bc761931",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-network"
+        ]
+      }
+    },
+    {
+      "site": "CNN",
+      "url": "https://transcripts.cnn.com/show/se/date/2024-04-08/segment/04",
+      "region": "北美",
+      "language": "en",
+      "kind": "官方节目文字实录",
+      "text": {
+        "ok": true,
+        "code": null,
+        "paragraphs": 354,
+        "chars": 45722,
+        "elapsedMs": 2512.0579,
+        "diagnosticId": "7374f420019fb8a05caad6942ea16813"
+      },
+      "rich": {
+        "ok": false,
+        "code": "article-render",
+        "paragraphs": 0,
+        "chars": 0,
+        "images": 0,
+        "failedImages": 0,
+        "quality": null,
+        "reasons": [],
+        "elapsedMs": 60111.90110000002,
+        "diagnosticId": "43de10e2635a689fd19f2c52048c0766",
+        "snapshotId": null,
+        "resourceCauses": [
+          "article-timeout"
+        ]
+      }
+    }
+  ]
+}

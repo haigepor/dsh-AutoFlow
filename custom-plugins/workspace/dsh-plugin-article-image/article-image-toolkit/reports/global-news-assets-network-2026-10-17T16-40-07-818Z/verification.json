@@ -1,0 +1,48 @@
+{
+  "toolkit": {
+    "command": "npm test -- --reporter=dot",
+    "files": 23,
+    "passed": 320
+  },
+  "plugin": {
+    "command": "npx vitest run --config vitest.config.mjs tests/article-fetch.test.js tests/articles.test.js tests/native-tools.test.js --reporter=dot",
+    "files": 3,
+    "passed": 40
+  },
+  "translation": {
+    "command": "node --import tsx scripts/verify-translation-pairing.ts custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/README.md",
+    "passed": true
+  },
+  "standalone": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "exitCode": 0,
+    "installedPackages": 191,
+    "importAndConfigSmoke": true
+  },
+  "syntax": {
+    "directories": [
+      "src",
+      "bin",
+      "test"
+    ],
+    "command": "node --check",
+    "passed": true
+  },
+  "recheck": [
+    {
+      "site": "News24",
+      "firstCode": "article-network",
+      "recheckCode": null,
+      "ok": true,
+      "elapsedMs": 28927.6685
+    },
+    {
+      "site": "South China Morning Post",
+      "firstCode": "article-network",
+      "recheckCode": "article-restricted",
+      "ok": false,
+      "elapsedMs": 4653.850700000001
+    }
+  ],
+  "finalSourceDrift": []
+}

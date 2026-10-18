@@ -1,0 +1,2783 @@
+{
+  "stage": "rich",
+  "startedAt": "2026-10-17T15:01:59.447Z",
+  "updatedAt": "2026-10-17T15:09:42.465Z",
+  "concurrency": 2,
+  "requestTimeoutMs": 60000,
+  "renderTimeoutMs": 120000,
+  "callDeadlineMs": 180000,
+  "results": [
+    {
+      "site": "CBS News",
+      "region": "北美",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.cbsnews.com/news/artemis-ii-mission-astronauts-still-awed-moonshot/",
+      "ok": true,
+      "code": null,
+      "snapshotId": "9e399d5e98ea751c28170e44265cf1f2",
+      "sourceHash": "cb6a227a5620a4f8d207e343f71c369b7b1fecb4b4b35deae4b163a06a474aa7",
+      "blocks": 46,
+      "images": 6,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "generationAvailable": false,
+      "diagnosticId": "484a7eada46c1d52e7cad37c62c0df51",
+      "pages": 2,
+      "bodyChars": 8095,
+      "paragraphs": 38,
+      "blockTypes": {
+        "paragraph": 38,
+        "heading": 1,
+        "figure": 6,
+        "list": 1
+      },
+      "readyImages": 6,
+      "failedImages": 0,
+      "imageBytes": 864491,
+      "integrityVerified": true,
+      "elapsedMs": 105200.77979999999,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 6.204000000000178
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 1180.1499000000003
+        },
+        {
+          "progress": 3,
+          "message": "rendering: document-loaded",
+          "elapsedMs": 35467.2159
+        },
+        {
+          "progress": 4,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 48151.2104
+        },
+        {
+          "progress": 5,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 51144.9306
+        },
+        {
+          "progress": 8,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 57817.137
+        },
+        {
+          "progress": 10,
+          "message": "rendering: render-complete",
+          "elapsedMs": 59061.2884
+        },
+        {
+          "progress": 11,
+          "message": "extracting: extracting",
+          "elapsedMs": 59410.6132
+        },
+        {
+          "progress": 13,
+          "message": "assets: assets",
+          "elapsedMs": 66888.4096
+        },
+        {
+          "progress": 14,
+          "message": "assets: assets",
+          "elapsedMs": 73041.5253
+        },
+        {
+          "progress": 15,
+          "message": "assets: assets",
+          "elapsedMs": 75156.7701
+        },
+        {
+          "progress": 16,
+          "message": "assets: assets",
+          "elapsedMs": 77124.53929999999
+        },
+        {
+          "progress": 17,
+          "message": "assets: assets",
+          "elapsedMs": 78591.11589999999
+        },
+        {
+          "progress": 18,
+          "message": "assets: assets",
+          "elapsedMs": 105130.31999999999
+        },
+        {
+          "progress": 19,
+          "message": "completed: completed",
+          "elapsedMs": 105168.1519
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "484a7eada46c1d52e7cad37c62c0df51",
+        "tool": "article_image_capture_source",
+        "state": "completed",
+        "startedAt": "2026-10-17T15:04:19.734Z",
+        "endedAt": "2026-10-17T15:06:04.899Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 19,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 1.4025000000001455,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 1176.6069,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 351,
+              "limitMs": 120000,
+              "origin": "https://www.cbsnews.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 35463.783299999996,
+            "phase": "rendering",
+            "event": "document-loaded",
+            "details": {
+              "elapsedMs": 34639,
+              "bytes": 644876,
+              "statusCode": 200,
+              "origin": "https://www.cbsnews.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 48147.910299999996,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 47323,
+              "code": "article-resource-method",
+              "origin": "https://counter.snackly.co"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 51141.748999999996,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 50317,
+              "code": "article-resource-method",
+              "origin": "https://counter.snackly.co"
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 51368.9955,
+            "phase": "rendering",
+            "event": "waiting-content",
+            "details": {
+              "elapsedMs": 50544
+            }
+          },
+          {
+            "sequence": 7,
+            "elapsedMs": 51390.5098,
+            "phase": "rendering",
+            "event": "content-ready",
+            "details": {
+              "elapsedMs": 50565
+            }
+          },
+          {
+            "sequence": 8,
+            "elapsedMs": 57813.6973,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 56989,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://fitnesssponsor.com"
+            }
+          },
+          {
+            "sequence": 9,
+            "elapsedMs": 57816.697199999995,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 56992,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://fitnesssponsor.com"
+            }
+          },
+          {
+            "sequence": 10,
+            "elapsedMs": 59058.3644,
+            "phase": "rendering",
+            "event": "render-complete",
+            "details": {
+              "elapsedMs": 58233,
+              "bytes": 662503,
+              "chars": 16051,
+              "statusCode": 200
+            }
+          },
+          {
+            "sequence": 11,
+            "elapsedMs": 59407.5265,
+            "phase": "extracting",
+            "event": "extracting",
+            "details": {
+              "completed": 0,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 12,
+            "elapsedMs": 59502.5017,
+            "phase": "extracting",
+            "event": "source-extracted",
+            "details": {
+              "chars": 9197,
+              "blocks": 46,
+              "assets": 6,
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 13,
+            "elapsedMs": 66885.444,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 1,
+              "total": 6
+            }
+          },
+          {
+            "sequence": 14,
+            "elapsedMs": 73038.56730000001,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 2,
+              "total": 6
+            }
+          },
+          {
+            "sequence": 15,
+            "elapsedMs": 75153.8441,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 3,
+              "total": 6
+            }
+          },
+          {
+            "sequence": 16,
+            "elapsedMs": 77121.66260000001,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 4,
+              "total": 6
+            }
+          },
+          {
+            "sequence": 17,
+            "elapsedMs": 78588.23730000001,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 5,
+              "total": 6
+            }
+          },
+          {
+            "sequence": 18,
+            "elapsedMs": 105127.0159,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 6,
+              "total": 6
+            }
+          },
+          {
+            "sequence": 19,
+            "elapsedMs": 105165.23730000001,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "新华社",
+      "region": "东亚",
+      "language": "zh",
+      "kind": "新闻文章",
+      "url": "https://www.news.cn/tech/20260129/c14ec2642dec4be7942f807dc586e1e9/c.html",
+      "ok": true,
+      "code": null,
+      "snapshotId": "bbf7962522fe7d9842a6b7ab8f75e54b",
+      "sourceHash": "c5c54648f445f5cd0dc05cbd913eb9c509a8dc8f27feeda67a03f1fa6c8dfbed",
+      "blocks": 1,
+      "images": 0,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "resource-request-failed",
+          "content-not-ready",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "generationAvailable": false,
+      "diagnosticId": "bf7c06ca3702a78942ce1e71043398ce",
+      "pages": 1,
+      "bodyChars": 3567,
+      "paragraphs": 1,
+      "blockTypes": {
+        "paragraph": 1
+      },
+      "readyImages": 0,
+      "failedImages": 0,
+      "imageBytes": 0,
+      "integrityVerified": true,
+      "elapsedMs": 121486.3306,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 347.65660000000025
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 1205.8782
+        },
+        {
+          "progress": 3,
+          "message": "rendering: document-loaded",
+          "elapsedMs": 1708.2002000000002
+        },
+        {
+          "progress": 4,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 3256.7736000000004
+        },
+        {
+          "progress": 19,
+          "message": "rendering: content-not-ready",
+          "elapsedMs": 120834.3654
+        },
+        {
+          "progress": 21,
+          "message": "extracting: extracting",
+          "elapsedMs": 121299.42439999999
+        },
+        {
+          "progress": 23,
+          "message": "completed: completed",
+          "elapsedMs": 121482.29
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "bf7c06ca3702a78942ce1e71043398ce",
+        "tool": "article_image_capture_source",
+        "state": "completed",
+        "startedAt": "2026-10-17T15:04:20.078Z",
+        "endedAt": "2026-10-17T15:06:21.214Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 23,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.0906999999999698,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 858.3978000000002,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 375,
+              "limitMs": 120000,
+              "origin": "https://www.news.cn"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 1360.7612,
+            "phase": "rendering",
+            "event": "document-loaded",
+            "details": {
+              "elapsedMs": 877,
+              "bytes": 25135,
+              "statusCode": 200,
+              "origin": "https://www.news.cn"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 2908.8605,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2425,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 2910.8787,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2427,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 2912.6827000000003,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2429,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 7,
+            "elapsedMs": 2914.923,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2431,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 8,
+            "elapsedMs": 2915.987,
+            "phase": "rendering",
+            "event": "waiting-content",
+            "details": {
+              "elapsedMs": 2432
+            }
+          },
+          {
+            "sequence": 9,
+            "elapsedMs": 2919.1940000000004,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2436,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 10,
+            "elapsedMs": 2919.5348000000004,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2436,
+              "code": "article-resource-method",
+              "resourceType": "xhr",
+              "origin": "https://qrapi.news.cn"
+            }
+          },
+          {
+            "sequence": 11,
+            "elapsedMs": 2919.9112999999998,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2436,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 12,
+            "elapsedMs": 2920.1485000000002,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2437,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 13,
+            "elapsedMs": 2920.3972999999996,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2437,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 14,
+            "elapsedMs": 2922.8143,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2439,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 15,
+            "elapsedMs": 2923.3152,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2440,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 16,
+            "elapsedMs": 2923.6348,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2440,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 17,
+            "elapsedMs": 2923.8392000000003,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2440,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 18,
+            "elapsedMs": 2927.367,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 2444,
+              "code": "article-resource-method",
+              "resourceType": "document",
+              "origin": "https://a3.xinhuanet.com"
+            }
+          },
+          {
+            "sequence": 19,
+            "elapsedMs": 120487.05480000001,
+            "phase": "rendering",
+            "event": "content-not-ready",
+            "details": {
+              "elapsedMs": 120004
+            }
+          },
+          {
+            "sequence": 20,
+            "elapsedMs": 120668.8457,
+            "phase": "rendering",
+            "event": "render-complete",
+            "details": {
+              "elapsedMs": 120185,
+              "bytes": 79921,
+              "chars": 0,
+              "statusCode": 200
+            }
+          },
+          {
+            "sequence": 21,
+            "elapsedMs": 120952.02040000001,
+            "phase": "extracting",
+            "event": "extracting",
+            "details": {
+              "completed": 0,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 22,
+            "elapsedMs": 121109.46620000001,
+            "phase": "extracting",
+            "event": "source-extracted",
+            "details": {
+              "chars": 3567,
+              "blocks": 1,
+              "assets": 0,
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 23,
+            "elapsedMs": 121135.0028,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "Associated Press",
+      "region": "北美",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://apnews.com/article/dadb5f9499fa9b52200baada0fdf1f15",
+      "ok": false,
+      "code": "article-access",
+      "diagnosticId": "ef0bd1f3c4a1f43ab14206b5da32b2d0",
+      "elapsedMs": 6384.290300000008,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.5606000000116182
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 87.38850000000093
+        },
+        {
+          "progress": 3,
+          "message": "rendering: document-loaded",
+          "elapsedMs": 1088.7482000000018
+        },
+        {
+          "progress": 6,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 5175.860700000005
+        },
+        {
+          "progress": 7,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 5434.602400000003
+        },
+        {
+          "progress": 8,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 5939.2889
+        },
+        {
+          "progress": 9,
+          "message": "rendering: render-complete",
+          "elapsedMs": 6378.27870000001
+        },
+        {
+          "progress": 10,
+          "message": "failed: failed",
+          "elapsedMs": 6382.939900000012
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "ef0bd1f3c4a1f43ab14206b5da32b2d0",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:06:04.938Z",
+        "endedAt": "2026-10-17T15:06:11.320Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 10,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.034800000008544885,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 85.49290000001201,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 83,
+              "limitMs": 120000,
+              "origin": "https://apnews.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 1087.1491000000096,
+            "phase": "rendering",
+            "event": "document-loaded",
+            "details": {
+              "elapsedMs": 1084,
+              "bytes": 5701,
+              "statusCode": 403,
+              "origin": "https://apnews.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 1190.106500000009,
+            "phase": "rendering",
+            "event": "waiting-content",
+            "details": {
+              "elapsedMs": 1187
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 1206.7340000000113,
+            "phase": "rendering",
+            "event": "content-ready",
+            "details": {
+              "elapsedMs": 1204
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 5174.093800000002,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 5171,
+              "code": "article-resource-method",
+              "resourceType": "xhr",
+              "origin": "https://apnews.com"
+            }
+          },
+          {
+            "sequence": 7,
+            "elapsedMs": 5432.835800000001,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 5430,
+              "code": "article-resource-method",
+              "resourceType": "xhr",
+              "origin": "https://apnews.com"
+            }
+          },
+          {
+            "sequence": 8,
+            "elapsedMs": 5937.316600000006,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 5935,
+              "code": "article-resource-method",
+              "resourceType": "xhr",
+              "origin": "https://apnews.com"
+            }
+          },
+          {
+            "sequence": 9,
+            "elapsedMs": 6376.6391,
+            "phase": "rendering",
+            "event": "render-complete",
+            "details": {
+              "elapsedMs": 6374,
+              "bytes": 28253,
+              "chars": 342,
+              "statusCode": 403
+            }
+          },
+          {
+            "sequence": 10,
+            "elapsedMs": 6381.260300000009,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-access"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "France 24",
+      "region": "欧洲",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.france24.com/en/france/20260818-sophie-adenot-set-to-become-first-french-female-astronaut-to-venture-outside-iss",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "8b2160597ec0366e88e1e676b61a1c37",
+      "elapsedMs": 60100.49149999999,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.123299999992014
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 89.06699999999546
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 60092.66470000001
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 60100.2301
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "8b2160597ec0366e88e1e676b61a1c37",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:06:11.324Z",
+        "endedAt": "2026-10-17T15:07:11.423Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.025500000003376044,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 87.81660000000556,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 84,
+              "limitMs": 120000,
+              "origin": "https://www.france24.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 60091.48180000001,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 60087,
+              "code": "article-timeout",
+              "resourceType": "document",
+              "origin": "https://www.france24.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 60099.04569999999,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "CNA",
+      "region": "东南亚",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.channelnewsasia.com/world/nasa-launches-four-astronauts-worlds-first-crewed-lunar-mission-half-century-6032266",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "cc0f11b86af40c0c6b6051d60f594751",
+      "elapsedMs": 21708.849099999992,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.748200000001816
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 103.53320000000531
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 21698.786099999998
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 21708.50760000001
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "cc0f11b86af40c0c6b6051d60f594751",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:06:21.222Z",
+        "endedAt": "2026-10-17T15:06:42.929Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.08139999999548309,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 101.81179999999586,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 98,
+              "limitMs": 120000,
+              "origin": "https://www.channelnewsasia.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 21697.02410000001,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21693,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://www.channelnewsasia.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 21706.85380000001,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "ABC Australia",
+      "region": "大洋洲",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.abc.net.au/news/2026-03-29/australia-support-nasa-artemis-moon-mission/106508360",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "f0baa25d397bd0cba871127dfe745b7c",
+      "elapsedMs": 21715.21059999999,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.7448999999905936
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 143.51660000000265
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 21706.0374
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 21714.9718
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "f0baa25d397bd0cba871127dfe745b7c",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:06:42.934Z",
+        "endedAt": "2026-10-17T15:07:04.647Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.029199999989941716,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 142.05449999999837,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 138,
+              "limitMs": 120000,
+              "origin": "https://www.abc.net.au"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 21704.5086,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21700,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://www.abc.net.au"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 21713.530299999984,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "Al Jazeera",
+      "region": "中东",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.aljazeera.com/news/2026/4/1/nasas-artemis-ii-lifts-off-to-the-moon",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "912f594646c352e68393cd88650fb9b3",
+      "elapsedMs": 21727.019700000004,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.3533000000170432
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 117.4609000000055
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 21719.372600000002
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 21726.744000000006
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "912f594646c352e68393cd88650fb9b3",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:07:04.651Z",
+        "endedAt": "2026-10-17T15:07:26.376Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.05240000001504086,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 115.81650000001537,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 112,
+              "limitMs": 120000,
+              "origin": "https://www.aljazeera.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 21717.78,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21713,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://www.aljazeera.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 21725.28780000002,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "DW",
+      "region": "欧洲",
+      "language": "de",
+      "kind": "公开 AMP 文章",
+      "url": "https://amp.dw.com/de/artemis-crew-kehrt-nach-mondumrundung-zur-erde-zurueck-orion-trump-carney/a-76746113",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "2b68944e2c9bee654bc925c675bfc2be",
+      "elapsedMs": 21728.236199999985,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.1448999999847729
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 125.01109999997425
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 21720.800499999983
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 21727.9001
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "2b68944e2c9bee654bc925c675bfc2be",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:07:11.427Z",
+        "endedAt": "2026-10-17T15:07:33.153Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.025200000003678724,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 123.6087000000116,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 121,
+              "limitMs": 120000,
+              "origin": "https://amp.dw.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 21719.60660000003,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21717,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://amp.dw.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 21726.54860000001,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "EL PAÍS",
+      "region": "欧洲",
+      "language": "es",
+      "kind": "新闻文章",
+      "url": "https://elpais.com/ciencia/2026-03-24/la-nasa-revela-sus-planes-para-crear-la-primera-colonia-humana-en-la-luna.html",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "cbc7f4ac899f61778aff487afe7380fe",
+      "elapsedMs": 21722.32150000002,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.9660000000149012
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 126.22650000001886
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 21713.39970000001
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 21721.950299999997
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "cbc7f4ac899f61778aff487afe7380fe",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:07:26.381Z",
+        "endedAt": "2026-10-17T15:07:48.101Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.04869999998481944,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 124.35579999999027,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 119,
+              "limitMs": 120000,
+              "origin": "https://elpais.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 21711.47159999999,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21706,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://elpais.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 21719.998900000006,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "Folha de S.Paulo",
+      "region": "南美",
+      "language": "pt",
+      "kind": "新闻文章",
+      "url": "https://www1.folha.uol.com.br/turismo/2026/10/roteiro-de-36-horas-no-lago-de-como-na-italia-destaca-vilarejos-arte-e-gastronomia.shtml",
+      "ok": false,
+      "code": "article-restricted",
+      "diagnosticId": "f50b9caae2207fe2252711fca672d946",
+      "elapsedMs": 23730.226399999985,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 2.4527999999991152
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 118.75169999999343
+        },
+        {
+          "progress": 3,
+          "message": "rendering: document-loaded",
+          "elapsedMs": 2146.50940000001
+        },
+        {
+          "progress": 4,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 14248.378200000006
+        },
+        {
+          "progress": 11,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 15262.446200000006
+        },
+        {
+          "progress": 17,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 15513.367700000003
+        },
+        {
+          "progress": 22,
+          "message": "rendering: resource-http-error",
+          "elapsedMs": 15911.495599999995
+        },
+        {
+          "progress": 23,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 17787.002299999993
+        },
+        {
+          "progress": 24,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 19101.56210000001
+        },
+        {
+          "progress": 26,
+          "message": "rendering: render-complete",
+          "elapsedMs": 23249.4951
+        },
+        {
+          "progress": 27,
+          "message": "extracting: extracting",
+          "elapsedMs": 23517.515799999994
+        },
+        {
+          "progress": 29,
+          "message": "failed: failed",
+          "elapsedMs": 23730.005600000004
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "f50b9caae2207fe2252711fca672d946",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:07:33.158Z",
+        "endedAt": "2026-10-17T15:07:56.886Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 29,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.03900000001885928,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 116.65200000000186,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 113,
+              "limitMs": 120000,
+              "origin": "https://www1.folha.uol.com.br"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 2144.4054999999935,
+            "phase": "rendering",
+            "event": "document-loaded",
+            "details": {
+              "elapsedMs": 2140,
+              "bytes": 338144,
+              "statusCode": 200,
+              "origin": "https://www1.folha.uol.com.br"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 14246.306199999992,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 14242,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://trc.taboola.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 14286.843599999993,
+            "phase": "rendering",
+            "event": "waiting-content",
+            "details": {
+              "elapsedMs": 14283
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 14291.592600000004,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 14288,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://trc.taboola.com"
+            }
+          },
+          {
+            "sequence": 7,
+            "elapsedMs": 14305.8364,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 14302,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://trc.taboola.com"
+            }
+          },
+          {
+            "sequence": 8,
+            "elapsedMs": 14309.058500000014,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 14305,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://trc.taboola.com"
+            }
+          },
+          {
+            "sequence": 9,
+            "elapsedMs": 14312.958799999993,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 14309,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://trc.taboola.com"
+            }
+          },
+          {
+            "sequence": 10,
+            "elapsedMs": 14313.61070000002,
+            "phase": "rendering",
+            "event": "content-ready",
+            "details": {
+              "elapsedMs": 14310
+            }
+          },
+          {
+            "sequence": 11,
+            "elapsedMs": 15260.361600000004,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15256,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.google.com"
+            }
+          },
+          {
+            "sequence": 12,
+            "elapsedMs": 15260.778099999996,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15257,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://www.google.com"
+            }
+          },
+          {
+            "sequence": 13,
+            "elapsedMs": 15260.960699999996,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15257,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://ad.doubleclick.net"
+            }
+          },
+          {
+            "sequence": 14,
+            "elapsedMs": 15304.5956,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15301,
+              "code": "article-url-blocked",
+              "resourceType": "image",
+              "origin": "https://www.google.com"
+            }
+          },
+          {
+            "sequence": 15,
+            "elapsedMs": 15305.247600000002,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15301,
+              "code": "article-url-blocked",
+              "resourceType": "image",
+              "origin": "https://www.google.com"
+            }
+          },
+          {
+            "sequence": 16,
+            "elapsedMs": 15500.362099999998,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15496,
+              "code": "article-resource-method",
+              "resourceType": "xhr",
+              "origin": "https://z.clarity.ms"
+            }
+          },
+          {
+            "sequence": 17,
+            "elapsedMs": 15511.145199999999,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15507,
+              "code": "article-resource-method",
+              "resourceType": "xhr",
+              "origin": "https://z.clarity.ms"
+            }
+          },
+          {
+            "sequence": 18,
+            "elapsedMs": 15516.098800000007,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15512,
+              "code": "article-resource-method",
+              "origin": "https://z.clarity.ms"
+            }
+          },
+          {
+            "sequence": 19,
+            "elapsedMs": 15517.505300000019,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 15514,
+              "code": "article-resource-method",
+              "origin": "https://z.clarity.ms"
+            }
+          },
+          {
+            "sequence": 20,
+            "elapsedMs": 15680.991500000004,
+            "phase": "rendering",
+            "event": "resource-http-error",
+            "details": {
+              "elapsedMs": 15677,
+              "statusCode": 405,
+              "resourceType": "image",
+              "origin": "https://ad.doubleclick.net"
+            }
+          },
+          {
+            "sequence": 21,
+            "elapsedMs": 15755.198300000018,
+            "phase": "rendering",
+            "event": "resource-http-error",
+            "details": {
+              "elapsedMs": 15751,
+              "statusCode": 403,
+              "resourceType": "script",
+              "origin": "https://tag.navdmp.com"
+            }
+          },
+          {
+            "sequence": 22,
+            "elapsedMs": 15909.340400000016,
+            "phase": "rendering",
+            "event": "resource-http-error",
+            "details": {
+              "elapsedMs": 15905,
+              "statusCode": 502,
+              "resourceType": "fetch",
+              "origin": "https://udr.uol.com.br"
+            }
+          },
+          {
+            "sequence": 23,
+            "elapsedMs": 17784.8652,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 17781,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://a.teads.tv"
+            }
+          },
+          {
+            "sequence": 24,
+            "elapsedMs": 19099.352199999994,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 19095,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://a.teads.tv"
+            }
+          },
+          {
+            "sequence": 25,
+            "elapsedMs": 19100.7819,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 19097,
+              "code": "article-resource-method",
+              "resourceType": "fetch",
+              "origin": "https://display.bidder.taboola.com"
+            }
+          },
+          {
+            "sequence": 26,
+            "elapsedMs": 23247.47200000001,
+            "phase": "rendering",
+            "event": "render-complete",
+            "details": {
+              "elapsedMs": 23243,
+              "bytes": 402821,
+              "chars": 50566,
+              "statusCode": 200
+            }
+          },
+          {
+            "sequence": 27,
+            "elapsedMs": 23515.338600000017,
+            "phase": "extracting",
+            "event": "extracting",
+            "details": {
+              "completed": 0,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 28,
+            "elapsedMs": 23709.271399999998,
+            "phase": "extracting",
+            "event": "extraction-failed",
+            "details": {
+              "chars": 24475,
+              "code": "article-restricted"
+            }
+          },
+          {
+            "sequence": 29,
+            "elapsedMs": 23727.966199999995,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-restricted"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "News24",
+      "region": "非洲",
+      "language": "en",
+      "kind": "科普文章",
+      "url": "https://www.news24.com/life/passengers-and-the-real-life-science-of-deep-space-travel-20161222",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "9412810a5736cc47f5ddf14f92e8e1a9",
+      "elapsedMs": 21689.7555,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.892599999991944
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 130.3697000000102
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 21682.61249999999
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 21689.557299999986
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "9412810a5736cc47f5ddf14f92e8e1a9",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:07:48.106Z",
+        "endedAt": "2026-10-17T15:08:09.794Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.04850000000442378,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 128.54850000000442,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 123,
+              "limitMs": 120000,
+              "origin": "https://www.news24.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 21680.800900000002,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21675,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://www.news24.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 21687.862300000008,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "South China Morning Post",
+      "region": "东亚",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.scmp.com/news/world/united-states-canada/article/3346456/nasa-clears-artemis-moon-rocket-april-launch-4-astronauts",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "4ce04db0f3da0d3b89e9836319d36a8f",
+      "elapsedMs": 21647.41440000001,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 2.431800000020303
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 91.18009999999776
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 21639.184800000017
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 21646.521700000012
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "4ce04db0f3da0d3b89e9836319d36a8f",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:07:56.891Z",
+        "endedAt": "2026-10-17T15:08:18.535Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.04750000001513399,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 88.85570000001462,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 85,
+              "limitMs": 120000,
+              "origin": "https://www.scmp.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 21636.805200000003,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21633,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://www.scmp.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 21644.081999999995,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "NPR",
+      "region": "北美",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.npr.org/2025/06/06/nx-s1-5424751/private-lunar-lander-from-japan-crashes-into-moon-in-failed-mission",
+      "ok": true,
+      "code": null,
+      "snapshotId": "741c7d270968ca3a18256ae3ac551c11",
+      "sourceHash": "0526695f1b96244b056905022beb44f177fb7177bd85c63a1c2e989b1716d263",
+      "blocks": 45,
+      "images": 4,
+      "quality": {
+        "status": "partial",
+        "reasons": [
+          "unsupported-graphic",
+          "resource-request-failed",
+          "unsettled-resources",
+          "image-download",
+          "unknown-article-scope"
+        ],
+        "checks": [
+          "rendered-dom",
+          "ordered-blocks",
+          "decoded-assets"
+        ]
+      },
+      "generationAvailable": false,
+      "diagnosticId": "290a71d42e08035182145f4ffa88018c",
+      "pages": 2,
+      "bodyChars": 5671,
+      "paragraphs": 33,
+      "blockTypes": {
+        "heading": 6,
+        "paragraph": 33,
+        "figure": 4,
+        "list": 2
+      },
+      "readyImages": 1,
+      "failedImages": 3,
+      "imageBytes": 14232,
+      "integrityVerified": true,
+      "elapsedMs": 32550.515799999994,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.4784999999974389
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 123.83129999999073
+        },
+        {
+          "progress": 3,
+          "message": "rendering: document-loaded",
+          "elapsedMs": 4817.9750999999815
+        },
+        {
+          "progress": 4,
+          "message": "rendering: resource-http-error",
+          "elapsedMs": 5675.678899999999
+        },
+        {
+          "progress": 5,
+          "message": "rendering: resource-http-error",
+          "elapsedMs": 10536.169199999975
+        },
+        {
+          "progress": 8,
+          "message": "rendering: waiting-content",
+          "elapsedMs": 17877.468899999978
+        },
+        {
+          "progress": 10,
+          "message": "rendering: resource-http-error",
+          "elapsedMs": 19261.322199999995
+        },
+        {
+          "progress": 12,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 23327.027599999972
+        },
+        {
+          "progress": 13,
+          "message": "rendering: render-complete",
+          "elapsedMs": 24449.319199999998
+        },
+        {
+          "progress": 14,
+          "message": "extracting: extracting",
+          "elapsedMs": 24558.569299999974
+        },
+        {
+          "progress": 16,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 24943.946399999986
+        },
+        {
+          "progress": 17,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 25239.35029999999
+        },
+        {
+          "progress": 18,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 25534.253699999972
+        },
+        {
+          "progress": 19,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 25829.4669
+        },
+        {
+          "progress": 20,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 26142.839099999983
+        },
+        {
+          "progress": 22,
+          "message": "assets: assets",
+          "elapsedMs": 29248.00959999999
+        },
+        {
+          "progress": 23,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 29561.394099999976
+        },
+        {
+          "progress": 24,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 29886.833799999964
+        },
+        {
+          "progress": 25,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 30170.54449999996
+        },
+        {
+          "progress": 26,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 31477.530099999974
+        },
+        {
+          "progress": 27,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 31802.912499999977
+        },
+        {
+          "progress": 29,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 32133.751300000004
+        },
+        {
+          "progress": 30,
+          "message": "assets: image-candidate-failed",
+          "elapsedMs": 32518.04099999997
+        },
+        {
+          "progress": 32,
+          "message": "completed: completed",
+          "elapsedMs": 32539.637400000007
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "290a71d42e08035182145f4ffa88018c",
+        "tool": "article_image_capture_source",
+        "state": "completed",
+        "startedAt": "2026-10-17T15:08:09.798Z",
+        "endedAt": "2026-10-17T15:08:42.336Z",
+        "offset": 30,
+        "nextOffset": null,
+        "totalEvents": 32,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.022999999986495823,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 122.6079000000027,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 119,
+              "limitMs": 120000,
+              "origin": "https://www.npr.org"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 4816.495800000004,
+            "phase": "rendering",
+            "event": "document-loaded",
+            "details": {
+              "elapsedMs": 4813,
+              "bytes": 162974,
+              "statusCode": 200,
+              "origin": "https://www.npr.org"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 5674.253700000001,
+            "phase": "rendering",
+            "event": "resource-http-error",
+            "details": {
+              "elapsedMs": 5671,
+              "statusCode": 403,
+              "resourceType": "image",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 5,
+            "elapsedMs": 10534.713900000002,
+            "phase": "rendering",
+            "event": "resource-http-error",
+            "details": {
+              "elapsedMs": 10531,
+              "statusCode": 403,
+              "resourceType": "image",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 6,
+            "elapsedMs": 10549.747800000012,
+            "phase": "rendering",
+            "event": "resource-http-error",
+            "details": {
+              "elapsedMs": 10546,
+              "statusCode": 403,
+              "resourceType": "image",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 7,
+            "elapsedMs": 10568.724599999987,
+            "phase": "rendering",
+            "event": "resource-http-error",
+            "details": {
+              "elapsedMs": 10565,
+              "statusCode": 403,
+              "resourceType": "image",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 8,
+            "elapsedMs": 17875.940200000012,
+            "phase": "rendering",
+            "event": "waiting-content",
+            "details": {
+              "elapsedMs": 17873
+            }
+          },
+          {
+            "sequence": 9,
+            "elapsedMs": 17897.94570000001,
+            "phase": "rendering",
+            "event": "content-ready",
+            "details": {
+              "elapsedMs": 17895
+            }
+          },
+          {
+            "sequence": 10,
+            "elapsedMs": 19259.89129999999,
+            "phase": "rendering",
+            "event": "resource-http-error",
+            "details": {
+              "elapsedMs": 19257,
+              "statusCode": 403,
+              "resourceType": "image",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 11,
+            "elapsedMs": 19414.4148,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 19411,
+              "code": "article-network",
+              "resourceType": "xhr",
+              "origin": "https://c.go-mpulse.net"
+            }
+          },
+          {
+            "sequence": 12,
+            "elapsedMs": 23325.664099999995,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 23322,
+              "code": "article-resource-method",
+              "resourceType": "xhr",
+              "origin": "https://m.stripe.com"
+            }
+          },
+          {
+            "sequence": 13,
+            "elapsedMs": 24447.50589999999,
+            "phase": "rendering",
+            "event": "render-complete",
+            "details": {
+              "elapsedMs": 24444,
+              "bytes": 182903,
+              "chars": 9717,
+              "statusCode": 200
+            }
+          },
+          {
+            "sequence": 14,
+            "elapsedMs": 24556.885500000004,
+            "phase": "extracting",
+            "event": "extracting",
+            "details": {
+              "completed": 0,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 15,
+            "elapsedMs": 24612.616700000013,
+            "phase": "extracting",
+            "event": "source-extracted",
+            "details": {
+              "chars": 6028,
+              "blocks": 45,
+              "assets": 4,
+              "completed": 1,
+              "total": 1
+            }
+          },
+          {
+            "sequence": 16,
+            "elapsedMs": 24942.56599999999,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 0,
+              "total": 4,
+              "attempt": 1,
+              "code": "image-download",
+              "blockId": "b6",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 17,
+            "elapsedMs": 25237.68609999999,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 0,
+              "total": 4,
+              "attempt": 2,
+              "code": "image-download",
+              "blockId": "b6",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 18,
+            "elapsedMs": 25532.93179999999,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 0,
+              "total": 4,
+              "attempt": 3,
+              "code": "image-download",
+              "blockId": "b6",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 19,
+            "elapsedMs": 25827.8897,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 0,
+              "total": 4,
+              "attempt": 4,
+              "code": "image-download",
+              "blockId": "b6",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 20,
+            "elapsedMs": 26141.415299999993,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 0,
+              "total": 4,
+              "attempt": 5,
+              "code": "image-download",
+              "blockId": "b6",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 21,
+            "elapsedMs": 26141.582400000014,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 1,
+              "total": 4
+            }
+          },
+          {
+            "sequence": 22,
+            "elapsedMs": 29246.645500000013,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 2,
+              "total": 4
+            }
+          },
+          {
+            "sequence": 23,
+            "elapsedMs": 29560.124899999995,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 2,
+              "total": 4,
+              "attempt": 1,
+              "code": "image-download",
+              "blockId": "b24",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 24,
+            "elapsedMs": 29885.458799999993,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 2,
+              "total": 4,
+              "attempt": 2,
+              "code": "image-download",
+              "blockId": "b24",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 25,
+            "elapsedMs": 30169.266600000003,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 2,
+              "total": 4,
+              "attempt": 3,
+              "code": "image-download",
+              "blockId": "b24",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 26,
+            "elapsedMs": 31475.934400000027,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 2,
+              "total": 4,
+              "attempt": 4,
+              "code": "image-download",
+              "blockId": "b24",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 27,
+            "elapsedMs": 31801.587500000023,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 2,
+              "total": 4,
+              "attempt": 5,
+              "code": "image-download",
+              "blockId": "b24",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 28,
+            "elapsedMs": 31801.70280000003,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 3,
+              "total": 4
+            }
+          },
+          {
+            "sequence": 29,
+            "elapsedMs": 32132.29759999999,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 3,
+              "total": 4,
+              "attempt": 1,
+              "code": "image-download",
+              "blockId": "b34",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 30,
+            "elapsedMs": 32516.542799999996,
+            "phase": "assets",
+            "event": "image-candidate-failed",
+            "details": {
+              "completed": 3,
+              "total": 4,
+              "attempt": 2,
+              "code": "image-download",
+              "blockId": "b34",
+              "origin": "https://npr.brightspotcdn.com"
+            }
+          },
+          {
+            "sequence": 31,
+            "elapsedMs": 32516.667299999972,
+            "phase": "assets",
+            "event": "assets",
+            "details": {
+              "completed": 4,
+              "total": 4
+            }
+          },
+          {
+            "sequence": 32,
+            "elapsedMs": 32538.197600000014,
+            "phase": "completed",
+            "event": "completed",
+            "details": {}
+          }
+        ],
+        "pages": 2
+      }
+    },
+    {
+      "site": "The Guardian",
+      "region": "欧洲",
+      "language": "en",
+      "kind": "科普文章",
+      "url": "https://www.theguardian.com/science/2024/may/01/astronauts-could-run-round-wall-of-death-to-keep-fit-on-moon-say-scientists",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "e19e01a3afb964a764f2d5480855115b",
+      "elapsedMs": 21681.78859999997,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.3867999999783933
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 121.6587999999756
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 21674.732099999965
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 21681.44769999996
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "e19e01a3afb964a764f2d5480855115b",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:08:18.540Z",
+        "endedAt": "2026-10-17T15:08:40.220Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.024099999980535358,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 120.1418999999878,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 117,
+              "limitMs": 120000,
+              "origin": "https://www.theguardian.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 21673.321999999986,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 21670,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://www.theguardian.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 21680.056899999996,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "BBC News",
+      "region": "欧洲",
+      "language": "en",
+      "kind": "新闻文章",
+      "url": "https://www.bbc.co.uk/news/articles/clyrdkxvmmpo",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "ae8718f9d19123a276b6da56bc761931",
+      "elapsedMs": 22527.18929999997,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.1621000000159256
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 121.23040000000037
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 22520.693099999975
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 22527.001600000018
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "ae8718f9d19123a276b6da56bc761931",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:08:40.224Z",
+        "endedAt": "2026-10-17T15:09:02.750Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.01760000002104789,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 119.85670000003302,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 115,
+              "limitMs": 120000,
+              "origin": "https://www.bbc.co.uk"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 22519.49590000001,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 22514,
+              "code": "article-network",
+              "resourceType": "document",
+              "origin": "https://www.bbc.co.uk"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 22525.802400000015,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    },
+    {
+      "site": "CNN",
+      "region": "北美",
+      "language": "en",
+      "kind": "官方节目文字实录",
+      "url": "https://transcripts.cnn.com/show/se/date/2024-04-08/segment/04",
+      "ok": false,
+      "code": "article-render",
+      "diagnosticId": "43de10e2635a689fd19f2c52048c0766",
+      "elapsedMs": 60111.90110000002,
+      "notifications": [
+        {
+          "progress": 1,
+          "message": "queued: started",
+          "elapsedMs": 1.4905000000144355
+        },
+        {
+          "progress": 2,
+          "message": "rendering: navigation-start",
+          "elapsedMs": 101.33460000000196
+        },
+        {
+          "progress": 3,
+          "message": "rendering: resource-failed",
+          "elapsedMs": 60105.507900000026
+        },
+        {
+          "progress": 4,
+          "message": "failed: failed",
+          "elapsedMs": 60111.693499999994
+        }
+      ],
+      "diagnostic": {
+        "diagnosticId": "43de10e2635a689fd19f2c52048c0766",
+        "tool": "article_image_capture_source",
+        "state": "failed",
+        "startedAt": "2026-10-17T15:08:42.353Z",
+        "endedAt": "2026-10-17T15:09:42.463Z",
+        "offset": 0,
+        "nextOffset": null,
+        "totalEvents": 4,
+        "droppedEvents": 0,
+        "events": [
+          {
+            "sequence": 1,
+            "elapsedMs": 0.03129999997327104,
+            "phase": "queued",
+            "event": "started",
+            "details": {}
+          },
+          {
+            "sequence": 2,
+            "elapsedMs": 99.8914999999688,
+            "phase": "rendering",
+            "event": "navigation-start",
+            "details": {
+              "elapsedMs": 96,
+              "limitMs": 120000,
+              "origin": "https://transcripts.cnn.com"
+            }
+          },
+          {
+            "sequence": 3,
+            "elapsedMs": 60104.0625,
+            "phase": "rendering",
+            "event": "resource-failed",
+            "details": {
+              "elapsedMs": 60100,
+              "code": "article-timeout",
+              "resourceType": "document",
+              "origin": "https://transcripts.cnn.com"
+            }
+          },
+          {
+            "sequence": 4,
+            "elapsedMs": 60110.338699999964,
+            "phase": "failed",
+            "event": "failed",
+            "details": {
+              "code": "article-render"
+            }
+          }
+        ],
+        "pages": 1
+      }
+    }
+  ]
+}

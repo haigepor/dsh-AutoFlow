@@ -1,0 +1,179 @@
+{
+  "at": "2026-10-18T07:48:43.546Z",
+  "baselineFiles": 15274,
+  "changedExisting": [
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture-media.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture-renderer.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/diagnostics.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/test/lifecycle-foundations.test.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/src/host/run-diagnostics.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/src/host/workflow-service.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/tests/workflow-v2.test.js",
+    "docs/upgrade-guide/v0.2.0-rc.2/article-image-workflow/guide.i18n.yaml",
+    "docs/upgrade-guide/v0.2.0-rc.2/article-image-workflow/guide.md",
+    "docs/upgrade-guide/v0.2.0-rc.2/article-image-workflow/guide.zh.md",
+    "apps/web/tests/__snapshots__/article-image.e2e.ts.snap",
+    "apps/web/tests/article-image.e2e.ts",
+    "custom-plugins/workspace/dsh-plugin-article-image/README.i18n.yaml",
+    "custom-plugins/workspace/dsh-plugin-article-image/README.md",
+    "custom-plugins/workspace/dsh-plugin-article-image/README.zh.md",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/README.i18n.yaml",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/README.md",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/README.zh.md",
+    "custom-plugins/workspace/dsh-plugin-article-image/client.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/config-schema.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/src/client/locales/en.json",
+    "custom-plugins/workspace/dsh-plugin-article-image/src/client/locales/zh.json",
+    "custom-plugins/workspace/dsh-plugin-article-image/src/host/service.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/src/host/store.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/src/shared/contracts.js"
+  ],
+  "added": [
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/reports/web3080-fixed-2026-10-18/report.zh.md",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/reports/web3080-fixed-2026-10-18/results.json",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/reports/web3080-fixed-2026-10-18/scope.json",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/reports/web3080-fixed-2026-10-18/verification.json",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/test/capture-performance.test.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/test/image-transport-retry.test.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/src/host/run-progress.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/tests/run-progress.test.js",
+    "custom-plugins/workspace/dsh-plugin-article-image/tests/workbench-io.test.js"
+  ],
+  "deleted": [],
+  "unrelatedChanges": [],
+  "profileUnchanged": true,
+  "hashes": [
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture-media.js",
+      "before": "d5d3eeacb0d1147b53837df238cee2b7f92b139d76f654990ad7fbb3de5357ba",
+      "after": "2138a645d3e5cbf979afe1d9938b8586888e0ba726cdbc3498b809bed76efdbb"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture-renderer.js",
+      "before": "da8430eb6c9887415d93cfd316d0378eb9615084acbf23a3c4a3d1949b34b83c",
+      "after": "e889729cefae784087f3428e06f88b1a4f50ce88919581ebed238be2edcd8090"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/capture.js",
+      "before": "d12f42ad1d735bb1c7a44885f9df813e82482c81d5851e49b8194726a0a05127",
+      "after": "8645b3268679e24fd580d21b24d80678ef47a0f7c89784be5b49f3549c01afe6"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/src/diagnostics.js",
+      "before": "a9441069f8f5f54f1197d1205e8b045020fe679a7aeffb8b0d4917f4bdb5fbb6",
+      "after": "db6e49c888c8056c6516f4bfc7434d15497023630619ebdec7a961d9840510f7"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/test/lifecycle-foundations.test.js",
+      "before": "3472c88a1a77c353e7e10275365e6c94ed5f1f4d44cd99a03455cc74f67533ea",
+      "after": "154c98611f7d71dcb3be4434833c3ab2762cd0f7ec2eb9b8a655e69c3f1bfa20"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/src/host/run-diagnostics.js",
+      "before": "8fb489ddeb65fd73410c2acf8251030f0d43b5349aa6e9681defcf5a06318fb6",
+      "after": "82cdb766a895650bdb472cb4e21f2e8fdde35330b09ddd6af08f90b748098b59"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/src/host/workflow-service.js",
+      "before": "1f3d63dedda9910e7f89c3ce51ec8b4f838896acde6035bb01b72c66d9a0b73a",
+      "after": "e60bb33b46b8307ee3496783393704b133d760528f9ee37ebd575b1f9e8594ae"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/tests/workflow-v2.test.js",
+      "before": "d9c1334ef84da3184cf019d9377b844a5a0697c9bf7a89ea95295ae89d9b1c70",
+      "after": "9b0d825515e421c205a314ef248bd9ac28a0ef520c641f763af3e22abfe9fdd6"
+    },
+    {
+      "path": "docs/upgrade-guide/v0.2.0-rc.2/article-image-workflow/guide.i18n.yaml",
+      "before": "4a757220ddf31a7a18ac3920c00ccf6d00e5922d67e67c1923e2ff394a834f5b",
+      "after": "724bd5b66f559144a3de8560bb304968be81466c0e1aa4042ea3d44a2a1e5ff8"
+    },
+    {
+      "path": "docs/upgrade-guide/v0.2.0-rc.2/article-image-workflow/guide.md",
+      "before": "b73a095bd729af8111626676c0ceb91a88397a05c6bcf1a9f04babeca4470b96",
+      "after": "09aa3078cb3f976517e2872bd91b14efffcae84775cf4ce0dfa6956d2cc79cbc"
+    },
+    {
+      "path": "docs/upgrade-guide/v0.2.0-rc.2/article-image-workflow/guide.zh.md",
+      "before": "13a754a7a08ea1f677c409994fc0ea64e42517768aaf185a7843c0421c0f024b",
+      "after": "cb2d0d3645665d2ab112d6bb60609d86df5e7c51f9a9a08ee4c7ce314864a745"
+    },
+    {
+      "path": "apps/web/tests/__snapshots__/article-image.e2e.ts.snap",
+      "before": "44316e3821d58df524c613fca3b6de9517c8cb31eb981b317ae52fc7a5ff386d",
+      "after": "f5b8c7a8629bcd533b86ad2766c21e3b2c5d1ff500f00daf067f507344cd4537"
+    },
+    {
+      "path": "apps/web/tests/article-image.e2e.ts",
+      "before": "87ad6ebac72a5a70506e750d3d118299ebfe49c0e9ab263aba75b2c6d8466475",
+      "after": "8745a8f3437b4659c02a04489e21d250fa14fec564272ab229f7a23fb3c4bd3c"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/README.i18n.yaml",
+      "before": "ae9e74ac4916046511dbb454702603e37f2e9b9885364efffe3d97f7c860f829",
+      "after": "eecce63776b658f3507126a54870bca97b0478cfeb3bed4859316bd0489fc2a3"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/README.md",
+      "before": "ee8e7f80ef61273b94c42dffa8edb12de9f4f433e6aef8e83f4836ffdc09c149",
+      "after": "d3b62b72b7f255bc49ae34383fff670f8d6739384fab86f28444fad360659819"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/README.zh.md",
+      "before": "deba15c432b96a5580e1611b603decc05f33adcee3d769218329ae9084704180",
+      "after": "834b748b2268d4d2d1b498d02ce62be13f1cf6c8f30e1dd85ccf806389d7de5e"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/README.i18n.yaml",
+      "before": "8cfa7f5e9a575bb6a58ae423843a69aad55ca9f55277db375b45e5a210769b6a",
+      "after": "f4e86291343fe7fa1ed406ec275404100dc35ffaa46e4aac474ede877e583f9e"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/README.md",
+      "before": "d2378fa50f8430da0091779b14faa1425fb4f7be4080a816cde23c0ffd80dc92",
+      "after": "0259b941013dc508a003381199389f7f9cde23093cb426defaf0a40440216eb5"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/README.zh.md",
+      "before": "d606ba9e5a3a03f87e6fc29fd6ea242f5a09fa20f5755ef5345b4cca4210d16f",
+      "after": "6a41800c24c345cd7983242adfb61ceeed0fcc6a5eb121c7e6134563c92b4296"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/client.js",
+      "before": "4e9f582822552a6cb504025e8b3f1beb718321ae8b3053593b2393dc2834551c",
+      "after": "4053b0ac891bf0ae66c1f6af59da9c8cf63100a2423554bcaebede9ea39b4f02"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/config-schema.js",
+      "before": "35bcbd16a43c9b55c26bd29a0d51093690fadb771e99f96757e676d2bdf1fbc2",
+      "after": "6daa8b03f55ef89baa266298c05dc3a060899ba19be116f98e0c14d4e7212401"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/src/client/locales/en.json",
+      "before": "8341f2aab439e7949e0d6315603d4a7051876971b8f94027bc41cc88252b6516",
+      "after": "6a60a326548ed96e0c22c238fd091e2a9551c13c307b41bfcbb94f20d6038eb3"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/src/client/locales/zh.json",
+      "before": "798a71d3093dc8dfec017d10bcb14c8f05f228d3b4847bb92318afc829faf2c7",
+      "after": "9138196e6af3e3fee954128b8713a90ea1bafaea89514283e96108ce8237609d"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/src/host/service.js",
+      "before": "2fd8617a21fc969182e49bbe1ab3d5154e016e270e283666a063bd5244e9615e",
+      "after": "3392f4260f7194fb730ff814d6b5634bf98bcb4b9fb85bef71649ced88ada76c"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/src/host/store.js",
+      "before": "71d4e2225335d645ec2df5c7cabf59f01889657de383002efb7f8a56ccee1a6f",
+      "after": "417df80305319ecdc0c09978718d952be3e9cdef92434609522bf76fc673622e"
+    },
+    {
+      "path": "custom-plugins/workspace/dsh-plugin-article-image/src/shared/contracts.js",
+      "before": "c8ce7656a80a3159b5ddd22cc2709e971bb7111283493da6b0d27b6428af99de",
+      "after": "49ca301fe58d3b0f16f40447df86163f0c7593ce1eba7d81f4d10337c556d42d"
+    }
+  ],
+  "rollback": "Exact pre-task dirty bytes retained privately; restore only these files and remove only this task's added paths."
+}

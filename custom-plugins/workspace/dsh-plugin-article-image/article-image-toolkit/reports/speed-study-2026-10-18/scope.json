@@ -1,0 +1,18 @@
+{
+  "baselineFiles": 15293,
+  "headUnchanged": true,
+  "changedExisting": [],
+  "deleted": [],
+  "added": [
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/reports/speed-study-2026-10-18/aggregates.json",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/reports/speed-study-2026-10-18/historical-costs.json",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/reports/speed-study-2026-10-18/report.zh.md",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/reports/speed-study-2026-10-18/results.json",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit/reports/speed-study-2026-10-18/scope.json"
+  ],
+  "outOfScope": [],
+  "businessStateUnchanged": true,
+  "profileUnchanged": true,
+  "verdict": "PASS",
+  "reportFiles": 5
+}

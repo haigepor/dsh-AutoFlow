@@ -1,0 +1,12 @@
+{
+  "pendingBeforeKill": true,
+  "result": {
+    "error": "MCP error -32000: Connection closed"
+  },
+  "oldPid": 29492,
+  "oldExistsAfterClose": false,
+  "newPid": 30756,
+  "restarted": true,
+  "newExistsAfterClose": false,
+  "ms": 3852.1616000000004
+}
