@@ -460,6 +460,7 @@ export async function packageTarget(
   for (const pluginDirectory of [
     'custom-plugins/workspace/dsh-plugin-afp',
     'custom-plugins/workspace/dsh-plugin-article-image',
+    'custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit',
     'custom-plugins/workspace/dsh-better-sidebar',
     'custom-plugins/workspace/dsh-better-sidebar/updater',
   ]) {

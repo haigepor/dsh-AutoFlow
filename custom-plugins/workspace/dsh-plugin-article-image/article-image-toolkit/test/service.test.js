@@ -134,7 +134,10 @@ describe('tool surface', () => {
     const tools = createTools(service)
     expect(tools.map(tool => tool.name)).toEqual([
       'article_image_status', 'article_image_import', 'article_image_items', 'article_image_fetch',
+      'article_image_capture_source', 'article_image_diagnostics', 'article_image_source_page',
       'article_image_article', 'article_image_save_plan', 'article_image_report', 'article_image_skip', 'article_image_set_text',
+      'article_image_capture_record', 'article_image_capture_endpoints', 'article_image_capture_exchange',
+      'article_image_capture_replay', 'article_image_har_export', 'article_image_har_import',
     ])
     await expect(tools[0].run({ unexpected: true })).rejects.toThrow('invalid-request')
   })
@@ -152,6 +155,95 @@ describe('tool surface', () => {
     expect(imported).toMatchObject({ added: 28, rejectedCount: 0 })
     const listed = await tools[2].run({})
     expect(listed.total).toBe(28)
+  })
+})
+
+describe('capture tool contracts', () => {
+  const tool = name => createTools(service).find(entry => entry.name === name)
+
+  it('validates the capture id as 32 lowercase hex characters', async () => {
+    await expect(tool('article_image_capture_endpoints').run({ captureId: 'nope' })).rejects.toThrow('invalid-request')
+    await expect(tool('article_image_capture_exchange').run({ captureId: 'A'.repeat(32), index: 0 })).rejects.toThrow('invalid-request')
+    await expect(tool('article_image_capture_exchange').run({ captureId: 'a'.repeat(32), index: -1 })).rejects.toThrow('invalid-request')
+  })
+
+  it('requires exactly one of file or har for import', async () => {
+    await expect(tool('article_image_har_import').run({})).rejects.toThrow('invalid-request')
+    await expect(tool('article_image_har_import').run({ file: 'a.har', har: '{}' })).rejects.toThrow('invalid-request')
+  })
+
+  it('rejects unknown keys on every capture tool', async () => {
+    for (const name of ['article_image_capture_record', 'article_image_capture_endpoints', 'article_image_capture_exchange', 'article_image_capture_replay', 'article_image_har_export', 'article_image_har_import']) {
+      await expect(tool(name).run({ captureId: 'a'.repeat(32), unexpected: true })).rejects.toThrow('invalid-request')
+    }
+  })
+
+  it('restricts replay overrides to known fields and credentials to the two policies', async () => {
+    const replay = tool('article_image_capture_replay')
+    await expect(replay.run({ captureId: 'a'.repeat(32), index: 0, credentials: 'steal' })).rejects.toThrow('invalid-request')
+    await expect(replay.run({ captureId: 'a'.repeat(32), index: 0, overrides: { cookie: 'x' } })).rejects.toThrow('invalid-request')
+    await expect(replay.run({ captureId: 'a'.repeat(32), index: 0, overrides: { method: 'TRACE' } })).rejects.toThrow('capture-missing')
+  })
+
+  it('reports a missing capture through the owned code instead of a stack trace', async () => {
+    await expect(tool('article_image_capture_endpoints').run({ captureId: '0'.repeat(32) })).rejects.toThrow('capture-missing')
+    await expect(tool('article_image_har_export').run({ captureId: '0'.repeat(32) })).rejects.toThrow('capture-missing')
+  })
+
+  it('rejects an import file name outside the exports directory', async () => {
+    await expect(tool('article_image_har_import').run({ file: '../../../etc/passwd' })).rejects.toThrow('har-invalid')
+    await expect(tool('article_image_har_import').run({ file: 'missing.har' })).rejects.toThrow('har-invalid')
+  })
+
+  it('imports, pages and exports a HAR document end to end', async () => {
+    const entries = Array.from({ length: 40 }, (_, index) => ({
+      startedDateTime: '2026-10-17T12:00:00.000Z', time: 10,
+      request: { method: 'GET', url: `https://api.example.com/v1/items/${index}?page=${index % 3}`, headers: [{ name: 'Authorization', value: `Bearer token-${index}` }] },
+      response: { status: 200, headers: [], content: { size: 2, mimeType: 'application/json', text: '{}' } },
+    }))
+    const imported = await tool('article_image_har_import').run({ har: JSON.stringify({ log: { version: '1.2', entries } }) })
+    expect(imported).toMatchObject({ entries: 40, scope: 'har' })
+    expect(imported.endpoints).toBe(1)
+
+    const first = await tool('article_image_capture_endpoints').run({ captureId: imported.captureId })
+    expect(first.total).toBe(1)
+    expect(first.nextOffset).toBeNull()
+
+    const exchange = await tool('article_image_capture_exchange').run({ captureId: imported.captureId, index: 0 })
+    expect(exchange.revealsCredentials).toBe(false)
+    expect(exchange.owner).toBe('site')
+    expect(exchange.request.headers.Authorization).toBe(`Bearer <redacted:${'Bearer token-0'.length}>`)
+
+    const revealed = await tool('article_image_capture_exchange').run({ captureId: imported.captureId, index: 0, reveal: true })
+    expect(revealed.revealsCredentials).toBe(true)
+    expect(revealed.request.headers.Authorization).toBe('Bearer token-0')
+
+    const exported = await tool('article_image_har_export').run({ captureId: imported.captureId })
+    expect(exported).toMatchObject({ file: `exports/${imported.captureId}.har`, entries: 40 })
+    expect(exported.bytes).toBeGreaterThan(0)
+
+    // 导出的文件按 exportHar 返回的路径可以原样导回。
+    const reimported = await tool('article_image_har_import').run({ file: exported.file })
+    expect(reimported.entries).toBe(40)
+  })
+
+  it('pages a long endpoint inventory under the response budget', async () => {
+    const entries = Array.from({ length: 300 }, (_, index) => ({
+      request: { method: 'GET', url: `https://api.example.com/feature-${index}/detail`, headers: [] },
+      response: { status: 200, headers: [], content: { size: 0, mimeType: 'application/json' } },
+    }))
+    const imported = await tool('article_image_har_import').run({ har: JSON.stringify({ log: { entries } }) })
+    const seen = []
+    let offset = 0
+    for (let page = 0; page < 20; page++) {
+      const result = await tool('article_image_capture_endpoints').run({ captureId: imported.captureId, offset })
+      expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThanOrEqual(service.config.toolResultBytes)
+      seen.push(...result.endpoints.map(endpoint => endpoint.path))
+      if (result.nextOffset === null) break
+      offset = result.nextOffset
+    }
+    expect(seen).toHaveLength(300)
+    expect(new Set(seen).size).toBe(300)
   })
 })
 

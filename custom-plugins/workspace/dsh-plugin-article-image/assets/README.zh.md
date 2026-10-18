@@ -6,7 +6,7 @@
 
 `article-flow-animated.svg` 是从运行时图形导出的浅色独立预览版。抓取时，工作台使用主题动效 token 驱动现有纸页、图片、箭头和星点；减少动态效果时保持静态，不显示估算进度。
 
-`article-image-logo.png` 是通过内置 image_gen 工具生成的透明品牌图。Client 在构建时嵌入此图，不依赖外部图片地址。它仅作为紧凑品牌标记显示，所有交互控件的颜色仍由 token 管理。
+`article-image-logo.png` 是通过内置 image_gen 工具生成的透明品牌原图。`article-image-logo.webp` 是其 512 × 512 分发版本，缩小后以无损格式编码，供插件图标和 Client 共用。Client 在构建时嵌入此图，不依赖外部图片地址。插件检查会拒绝超过 Host 256 KiB 限制的图标。它仅作为紧凑品牌标记显示，所有交互控件的颜色仍由 token 管理。
 
 生成提示词：
 

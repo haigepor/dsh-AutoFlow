@@ -5,7 +5,9 @@ const PACKAGE = 'dsh-plugin-article-image'
 export function createStore(ctx) {
   let state = { status: null, page: null, detail: null, selected: '', category: '', offset: 0, busy: false, error: '', lastImport: null }
   let disposed = false, timer, loading, epoch = 0
-  const listeners = new Set(), controllers = new Set()
+  const listeners = new Set(), controllers = new Set(), editorDrafts = new Map()
+  const preventUnload = event => { if (editorDrafts.size) { event.preventDefault(); event.returnValue = '' } }
+  window.addEventListener('beforeunload', preventUnload)
   const publish = patch => { if (!disposed) { state = { ...state, ...patch }; for (const listener of listeners) listener() } }
   async function read(operation, args = {}) {
     const controller = new AbortController(); controllers.add(controller)
@@ -22,7 +24,7 @@ export function createStore(ctx) {
     const version = epoch
     loading = (async () => {
       try {
-        const status = await read('status'), page = await read('list', { offset: state.offset, ...(state.category ? { category: state.category } : {}) })
+        const [status, page] = await Promise.all([read('status'), read('list', { offset: state.offset, ...(state.category ? { category: state.category } : {}) })])
         if (version !== epoch) return
         const selected = state.selected || page.items[0]?.id || ''
         const detail = selected ? await read('detail', { id: selected }) : null
@@ -47,9 +49,12 @@ export function createStore(ctx) {
   async function poll() { await reload(); if (!disposed) timer = setTimeout(poll, state.status?.pollIntervalMs ?? 3000) }
   void poll()
   return { subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) }, getSnapshot: () => state,
+    getEditorDraft(id) { const draft = editorDrafts.get(id); return draft ? structuredClone(draft) : null },
+    setEditorDraft(id, draft) { editorDrafts.set(id, structuredClone(draft)) },
+    clearEditorDraft(id) { editorDrafts.delete(id) },
     reload, select, mutate,
     filter(category) { epoch++; publish({ category, offset: 0, selected: '', detail: null }); void (async () => { await loading; await reload() })() },
     page(offset) { epoch++; publish({ offset, selected: '', detail: null }); void (async () => { await loading; await reload() })() },
-    dispose() { disposed = true; clearTimeout(timer); for (const controller of controllers) controller.abort(); listeners.clear() },
+    dispose() { disposed = true; clearTimeout(timer); for (const controller of controllers) controller.abort(); listeners.clear(); editorDrafts.clear(); window.removeEventListener('beforeunload', preventUnload) },
   }
 }

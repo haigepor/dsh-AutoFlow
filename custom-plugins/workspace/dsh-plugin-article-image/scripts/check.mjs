@@ -8,6 +8,7 @@ const root = fileURLToPath(new URL('../', import.meta.url))
 const read = path => JSON.parse(readFileSync(join(root, path), 'utf8'))
 const manifest = read('package.json'), rows = read('cordis.patch.yml')[0].insert, config = read('config.json')
 assert.equal(manifest.bin, undefined)
+assert.ok(readFileSync(join(root, manifest.icon)).byteLength <= 256 * 1024, 'Plugin icon must not exceed 256 KiB')
 assert.equal(new Set(rows.map(row => row.id)).size, rows.length)
 for (const feature of manifest.dsh.bundle.features) {
   const row = rows.find(row => row.id === feature.rowId)

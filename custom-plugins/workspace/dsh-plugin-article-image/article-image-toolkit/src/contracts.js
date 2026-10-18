@@ -28,5 +28,17 @@ export const itemSchema = z.object({ id: idSchema, url: z.string().url(), source
 /** Create a safe machine error without remote URLs or credential-bearing text. @param {string} code Failure code. @returns {Error} Safe error. */
 export function failure(code) { return Object.assign(new Error(code), { code }) }
 
+/** Reject non-success HTTP statuses consistently before either text or rich extraction. @param {number} statusCode HTTP status. @returns {void} Throws an owned article failure for non-2xx responses. */
+export function assertArticleStatus(statusCode) {
+  if (statusCode === 404) throw failure('article-not-found')
+  if (statusCode === 429) throw failure('article-rate-limit')
+  if (statusCode >= 500) throw failure('article-server')
+  if (statusCode < 200 || statusCode >= 300) throw failure('article-access')
+}
+
 /** Translate only owned errors across the wire; unknown upstream text is withheld. @param {unknown} error Failure. @returns {string} Safe code. */
 export function errorCode(error) { return error instanceof z.ZodError ? 'invalid-request' : error instanceof Error && error.code?.length <= 64 && /^[a-z]+(?:-[a-z]+)+$/.test(error.code) ? error.code : 'operation-failed' }
+
+/** Tool-facing capture schemas. */
+export const captureIdSchema = z.string().regex(/^[a-f0-9]{32}$/)
+export const revealSchema = z.boolean().default(false)

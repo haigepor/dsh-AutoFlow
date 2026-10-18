@@ -25,8 +25,10 @@ afterAll(async () => {
 describe('cross-generation interop', () => {
   it('lists tools through a v2 client', async () => {
     const { tools } = await client.listTools()
-    expect(tools).toHaveLength(9)
+    expect(tools).toHaveLength(18)
+    expect(tools.map(tool => tool.name)).toContain('article_image_diagnostics')
     expect(tools.map(tool => tool.name)).toContain('article_image_save_plan')
+    expect(tools.map(tool => tool.name)).toContain('article_image_capture_record')
   })
 
   it('calls a tool and parses its JSON result', async () => {

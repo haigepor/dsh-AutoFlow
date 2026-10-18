@@ -61,6 +61,14 @@ describe('parseSheet', () => {
     expect(parsed.rejected).toEqual([{ row: 3, code: 'article-url' }])
   })
 
+  it('imports a small sheet whose delimiter auto-detection cannot read', () => {
+    const csv = 'Links,Notes\nhttps://example.com/one,first\nhttps://example.com/two,second\n'
+    const mapping = { link: 'Links', category: '', language: '', notes: 'Notes' }
+    const parsed = parseSheet(csv, SHEET_URL, mapping, config.maxRows)
+    expect(parsed.items.map(item => item.url)).toEqual(['https://example.com/one', 'https://example.com/two'])
+    expect(parsed.items.map(item => item.notes)).toEqual(['first', 'second'])
+  })
+
   it('requires every column named by the configured mapping', () => {
     expect(() => parseSheet('Links,Category\nhttps://example.com,News\n', SHEET_URL, config.mapping, config.maxRows)).toThrow('sheet-columns')
   })
@@ -89,6 +97,11 @@ describe('articleRecord', () => {
 })
 
 describe('extractArticle', () => {
+  it('keeps a declared subscriber teaser out of the text ladder even above the minimum length', () => {
+    const html = `<title>Subscriber story</title><script type="application/ld+json">{"@type":"NewsArticle","isAccessibleForFree":"False"}</script><article><p>${'Public teaser. '.repeat(60)}</p><div class="metering__paywall-container"></div></article>`
+    expect(() => extractArticle(page(html), { url: 'https://example.com/a', language: '' }, config)).toThrow('article-restricted')
+  })
+
   const page = html => ({ url: 'https://example.com/a', statusCode: 200, truncated: false, body: { kind: 'html', content: html } })
 
   it('extracts readable text from an article page', () => {
@@ -99,6 +112,30 @@ describe('extractArticle', () => {
     expect(article.paragraphs.length).toBeGreaterThan(3)
   })
 
+  it('removes cookie consent banners so they cannot become the article', () => {
+    const body = Array.from({ length: 12 }, (_, index) => `<p>Paragraph number ${index + 1} with enough words to clear the extraction threshold comfortably.</p>`).join('')
+    const banner = '<div class="cookie-consent"><p>We use cookies to improve your experience and personalise services.</p></div>'
+    const article = extractArticle(page(`<html lang="pt-BR"><head><title>Reportagem</title></head><body>${banner}<article><h1>Reportagem</h1>${body}</article></body></html>`), { url: 'https://example.com/a', language: '' }, config)
+    expect(article.paragraphs.some(paragraph => /cookies/i.test(paragraph.text))).toBe(false)
+    expect(article.paragraphs.length).toBeGreaterThan(3)
+  })
+
+  it('drops accessibility skip links from the extracted paragraphs', () => {
+    const body = Array.from({ length: 8 }, (_, index) => `<p>Trecho ${index + 1} da nota com conteúdo suficiente para passar do limite mínimo de extração de artigo.</p>`).join('')
+    const skip = '<p><a href="#inicioConteudo">Ir para o conteúdo 1</a></p><p><a href="#inicioMenu">Ir para o menu 2</a></p><p><a href="#inicioRodape">Ir para o rodapé 3</a></p>'
+    const article = extractArticle(page(`<html lang="pt-BR"><body><main>${skip}<h1>Nota do banco</h1>${body}</main></body></html>`), { url: 'https://example.com/a', language: '' }, config)
+    expect(article.paragraphs.length).toBeGreaterThan(3)
+    expect(article.paragraphs.some(paragraph => /Ir para/i.test(paragraph.text))).toBe(false)
+  })
+
+  it('drops landmark regions around the article', () => {
+    const body = Array.from({ length: 8 }, (_, index) => `<p>Trecho ${index + 1} da reportagem com conteúdo suficiente para passar do limite mínimo de extração.</p>`).join('')
+    const landmarks = '<nav><p>Notícias</p></nav><aside><p>Leia também outra matéria</p></aside><footer><p>Política de privacidade</p></footer>'
+    const article = extractArticle(page(`<html lang="pt-BR"><body><main>${landmarks}<h1>Reportagem</h1>${body}</main></body></html>`), { url: 'https://example.com/a', language: '' }, config)
+    expect(article.paragraphs.length).toBeGreaterThan(3)
+    expect(article.paragraphs.some(paragraph => /Notícias|Leia também|Política de privacidade/.test(paragraph.text))).toBe(false)
+  })
+
   it('detects a Cloudflare challenge page instead of storing it as an article', () => {
     const challenge = '<html><head><title>Just a moment...</title></head><body><form id="challenge-form">Verifique se você é humano</form><div class="cf-turnstile"></div></body></html>'
     expect(() => extractArticle(page(challenge), { url: 'https://example.com/a', language: '' }, config)).toThrow('article-challenge')
@@ -107,5 +144,77 @@ describe('extractArticle', () => {
   it('maps transport status codes to owned error codes', () => {
     expect(() => extractArticle({ url: 'https://example.com/a', statusCode: 404, truncated: false, body: { kind: 'text', content: '' } }, { url: 'https://example.com/a', language: '' }, config)).toThrow('article-not-found')
     expect(() => extractArticle({ url: 'https://example.com/a', statusCode: 429, truncated: false, body: { kind: 'text', content: '' } }, { url: 'https://example.com/a', language: '' }, config)).toThrow('article-rate-limit')
+  })
+
+  it('reads a body hidden with visibility until scripts reveal it', () => {
+    const body = Array.from({ length: 40 }, (_, index) => `<p>Trecho ${index + 1} da reportagem com conteúdo suficiente para a extração completa.</p>`).join('')
+    const html = `<html lang="pt-BR"><head><title>Reportagem</title></head><body><article><h1>Reportagem</h1><div class="container j-paywall" data-paywall-box style="visibility: hidden">${body}</div></article></body></html>`
+    const article = extractArticle(page(html), { url: 'https://example.com/a', language: '' }, config)
+    expect(article.paragraphs.length).toBeGreaterThan(20)
+  })
+
+  it('accepts a full body that ends with an in-container subscription notice', () => {
+    const body = Array.from({ length: 40 }, (_, index) => `<p>Trecho ${index + 1} da reportagem com conteúdo suficiente para a extração completa.</p>`).join('')
+    const notice = '<p>Assine o jornal para continuar lendo esta reportagem exclusiva. Faça seu login.</p>'
+    const html = `<html lang="pt-BR"><head><title>Reportagem</title></head><body><article><h1>Reportagem</h1><div class="container j-paywall" data-paywall-box>${body}${notice}</div></article></body></html>`
+    const article = extractArticle(page(html), { url: 'https://example.com/a', language: '' }, config)
+    expect(article.paragraphs.length).toBeGreaterThan(20)
+    expect(article.paragraphs.some(paragraph => /Assine o jornal/.test(paragraph.text))).toBe(false)
+  })
+
+  it('narrows a page-level result to the main region', () => {
+    const body = Array.from({ length: 10 }, (_, index) => `<p>Trecho ${index + 1} da nota com conteúdo suficiente para passar do limite mínimo de extração.</p>`).join('')
+    const chrome = '<div class="busca-mobile"><p>Filtrar por:</p><p>Tudo Notícias Publicações Normativos</p></div>'
+    const html = `<html lang="pt-BR"><head><title>Nota do banco</title></head><body><div class="page"><header><p>Menu</p></header>${chrome}<main><div class="corpo"><h1>Nota do banco</h1>${body}</div></main></div></body></html>`
+    const article = extractArticle(page(html), { url: 'https://example.com/a', language: '' }, config)
+    expect(article.paragraphs[0].text).not.toContain('Filtrar por')
+    expect(article.paragraphs.some(paragraph => /Trecho 1 da nota/.test(paragraph.text))).toBe(true)
+  })
+
+  it('keeps the page-level result when main holds little text', () => {
+    const body = Array.from({ length: 10 }, (_, index) => `<p>Trecho ${index + 1} da reportagem com conteúdo suficiente para passar do limite mínimo.</p>`).join('')
+    const html = `<html lang="pt-BR"><head><title>Reportagem</title></head><body><div class="page"><main><p>Publicado hoje</p></main><article><h1>Reportagem</h1>${body}</article></div></body></html>`
+    const article = extractArticle(page(html), { url: 'https://example.com/a', language: '' }, config)
+    expect(article.paragraphs.length).toBeGreaterThan(5)
+    expect(article.paragraphs.some(paragraph => /Trecho 1 da reportagem/.test(paragraph.text))).toBe(true)
+  })
+
+  it('trims a multi-block byline and photo credit from the body start', () => {
+    const body = Array.from({ length: 10 }, (_, index) => `<p>Paragraph ${index + 1} carries the reporting with enough words to clear the extraction threshold.</p>`).join('')
+    const head = '<p>By</p><p>Kerry Breen</p><p>News Editor</p><p>Kerry Breen is a news editor at Example News and a graduate of Example University.</p><p>Read Full Bio</p>'
+      + '<p>Updated on: October 16, 2026 / 6:55 PM EDT / Example News</p>'
+      + '<p>Traders work on the floor of the exchange during morning trading on Oct. 14, 2026 in New York City.</p><p>Michael M. Santiago | Getty Images</p>'
+    const html = `<html lang="en"><head><title>Report</title></head><body><article><h1>Report</h1>${head}${body}</article></body></html>`
+    const article = extractArticle(page(html), { url: 'https://example.com/a', language: '' }, config)
+    expect(article.paragraphs[0].text).toMatch(/^Paragraph 1 /)
+    expect(article.paragraphs.some(paragraph => /Read Full Bio|News Editor|Getty Images|Updated on/.test(paragraph.text))).toBe(false)
+  })
+
+  it('keeps a lede that follows a short opening line', () => {
+    const body = Array.from({ length: 10 }, (_, index) => `<p>Paragraph ${index + 1} carries the reporting with enough words to clear the extraction threshold.</p>`).join('')
+    const html = `<html lang="en"><head><title>Report</title></head><body><article><h1>Report</h1><p>PARIS — The crowds gathered early.</p>${body}</article></body></html>`
+    const article = extractArticle(page(html), { url: 'https://example.com/a', language: '' }, config)
+    expect(article.paragraphs[0].text).toContain('PARIS')
+  })
+
+  it('reports article-restricted when a gate notice is the whole body', () => {
+    const notice = '<p>Assine a Folha para continuar lendo esta reportagem. Conteúdo exclusivo para assinantes.</p>'
+    const html = `<html lang="pt-BR"><head><title>Reportagem</title></head><body><article><h1>Reportagem</h1><div class="container j-paywall" data-paywall-box>${notice}${notice}${notice}${notice}${notice}${notice}${notice}${notice}${notice}${notice}${notice}${notice}</div></article></body></html>`
+    expect(() => extractArticle(page(html), { url: 'https://example.com/a', language: '' }, config)).toThrow('article-restricted')
+  })
+
+  it('trims the same leading noise from a plain-text projection', () => {
+    // 渲染后的可见文本没有块标记，头部噪声按行出现；清理规则必须与 HTML 路径一致。
+    const body = Array.from({ length: 10 }, (_, index) => `Parágrafo ${index + 1} traz a reportagem com palavras suficientes para passar do limite.`).join('\n')
+    const notice = page('')
+    const text = `detalhenoticia\nBC divulga Estatísticas Monetárias\nPublicado 29/09/2026 às 08:31\nAtualizado 29/09 às 10:20\nCompartilhe:\nprint Imprimir\n${body}`
+    const article = extractArticle({ ...notice, declaredTitle: 'BC divulga Estatísticas Monetárias', body: { kind: 'text', content: text } }, { url: 'https://example.com/a', language: 'pt-BR' }, config)
+    expect(article.paragraphs[0].text).toMatch(/^Parágrafo 1 /)
+    expect(article.paragraphs.some(paragraph => /detalhenoticia|Publicado|Compartilhe|print Imprimir/.test(paragraph.text))).toBe(false)
+  })
+
+  it('keeps a plain-text projection too short to be an article as article-short', () => {
+    const text = 'detalhenoticia\nBC divulga Relatório de Poupança\nPublicado 09/10/2026 às 09:00\nCompartilhe:\nprint Imprimir\nClique para acessar o Relatório de Poupança de setembro de 2026.'
+    expect(() => extractArticle({ url: 'https://example.com/a', statusCode: 200, truncated: false, body: { kind: 'text', content: text } }, { url: 'https://example.com/a', language: 'pt-BR' }, config)).toThrow('article-short')
   })
 })

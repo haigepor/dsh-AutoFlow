@@ -7,8 +7,8 @@
   "engines": { "node": "^22.19.0 || >=24.0.0" },
   "repository": { "type": "git", "url": "git+https://github.com/haigepor/dsh-AutoFlow.git", "directory": "custom-plugins/workspace/dsh-plugin-article-image" },
   "exports": { ".": "./index.js", "./execute": "./execute.js", "./skill": "./skill.js", "./client": "./client.js", "./package.json": "./package.json", "./locale/*.json": "./locale/*.json" },
-  "files": ["index.js", "execute.js", "skill.js", "config-schema.js", "client.js", "cordis.patch.yml", "config.json", "src/**", "skills/**", "assets/**", "locale/*.json", "README.md", "README.zh.md", "release/**", "release.config.json"],
-  "icon": "./assets/article-image-logo.png",
+  "files": ["index.js", "execute.js", "skill.js", "config-schema.js", "client.js", "cordis.patch.yml", "config.json", "src/**", "skills/**", "rules/**", "assets/**", "locale/*.json", "README.md", "README.zh.md", "release/**", "release.config.json"],
+  "icon": "./assets/article-image-logo.webp",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml",
@@ -24,7 +24,7 @@
     "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-plugin-manager", "@deepseek-ai/dsh-client-locale"] }
   },
   "scripts": { "test": "vitest run --config vitest.config.mjs", "build:client": "node scripts/build-client.mjs", "check": "node scripts/check.mjs", "release:prepare": "node scripts/prepare-release.mjs", "prepack": "npm run build:client && npm run check" },
-  "dependencies": { "@mozilla/readability": "0.6.0", "jsdom": "29.1.1", "papaparse": "5.5.3", "zod": "^4.4.3" },
-  "peerDependencies": { "@deepseek-ai/cordis": "workspace:~", "@deepseek-ai/dsh-atomic-write": "workspace:*", "@deepseek-ai/dsh-web-fetch-http": "workspace:*" },
-  "devDependencies": { "@deepseek-ai/cordis": "workspace:~", "@deepseek-ai/dsh-atomic-write": "workspace:*", "@deepseek-ai/dsh-web-fetch-http": "workspace:*", "esbuild": "0.28.1", "vitest": "^4.1.8" }
+  "dependencies": { "article-image-toolkit": "workspace:*", "@mozilla/readability": "0.6.0", "jsdom": "29.1.1", "papaparse": "5.5.3", "zod": "^4.4.3" },
+  "peerDependencies": { "@deepseek-ai/cordis": "workspace:~", "@deepseek-ai/dsh-atomic-write": "workspace:*", "@deepseek-ai/dsh-web-fetch-http": "workspace:*", "@deepseek-ai/dsh-llm": "workspace:*" },
+  "devDependencies": { "@deepseek-ai/cordis": "workspace:~", "@deepseek-ai/dsh-atomic-write": "workspace:*", "@deepseek-ai/dsh-web-fetch-http": "workspace:*", "@deepseek-ai/dsh-llm": "workspace:*", "esbuild": "0.28.1", "vitest": "^4.1.8" }
 }

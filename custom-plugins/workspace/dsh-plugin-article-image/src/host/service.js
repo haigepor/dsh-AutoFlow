@@ -106,10 +106,14 @@ export class ArticleService {
     const args = listSchema.parse(input), state = await this.store.read()
     const items = state.items.filter(item => !args.category || item.category === args.category)
     return { total: items.length, offset: args.offset, previousOffset: Math.max(0, args.offset - this.config.pageSize), nextOffset: args.offset + this.config.pageSize < items.length ? args.offset + this.config.pageSize : null,
-      categories: [...new Set(state.items.map(item => item.category))], items: items.slice(args.offset, args.offset + this.config.pageSize).map(summary) }
+      categories: [...new Set(state.items.map(item => item.category))], items: items.slice(args.offset, args.offset + this.config.pageSize).map(item => summary(this.presentItem(item))) }
   }
   async detail(id) {
     const item = this.item(await this.store.read(), id)
+    return this.presentItem(item)
+  }
+  /** Project interrupted legacy fetches without mutating the saved record. @param {object} item Read record. @returns {object} Presented record. */
+  presentItem(item) {
     // Host 崩溃后只呈现中断，不在读取页面时自动重新请求远端。
     if (item.state === 'fetching' && item.fetching && !alive(item.fetching.pid)) return { ...item, state: 'interrupted', error: 'article-interrupted' }
     return item

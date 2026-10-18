@@ -3,32 +3,32 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-plugin-article-image/README.md
 /:
-  en: 17d1293daccb41db
-  zh: e6d104623c040997
+  en: 31217c661a3380e5
+  zh: 54e36c1fa6e6c17a
 /article-images:
   en: 8c9c8392bd67a671
   zh: 66ce129af7f8a0ec
 /article-images/summary:
-  en: 48d8eca10f8145d9
-  zh: ff4a09a171a25725
+  en: eb87ce6285b3b826
+  zh: b5906ebfb7ec22e6
 /article-images/installation-and-development:
-  en: 01f92599124631ec
-  zh: 0002dd46d70263aa
+  en: d6b9a977380aa14e
+  zh: 22b8c448ae63dec9
 /article-images/workflow:
-  en: a0ebab42d50b8026
-  zh: 0553254045354537
+  en: fb1973fb54055ea3
+  zh: e94adaa1f4e5bf2a
 /article-images/configuration-and-records:
-  en: 92fadedc91100d07
-  zh: 2adf76d2a88d2857
+  en: e4793ab3dfae35d7
+  zh: 9961242870664fc6
 /article-images/model-experience:
-  en: f93ff16338ef4138
-  zh: 560e4b5eb4dccb77
+  en: 749a5cb304f7a56f
+  zh: f73ee2f51c497202
 /article-images/releases-and-recovery:
-  en: fef34f1189165c2d
-  zh: fe03137ebb00eeb7
+  en: d1c51b77953fb78b
+  zh: 2f0259f3f05a9956
 /article-images/known-limitations-and-deferred-work:
-  en: dc1d8f80140021b6
-  zh: 805e26583ecc4f92
+  en: 688439f1b6606ad7
+  zh: 52af61328c1f11d1
 /article-images/dev-note:
   en: b75c8458928b72b9
   zh: 02cbcc6baa338b07

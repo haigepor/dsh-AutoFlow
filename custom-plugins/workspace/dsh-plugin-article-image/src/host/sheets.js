@@ -27,7 +27,8 @@ export function articleUrl(value) {
 export function parseSheet(csv, url, mapping, maxRows = 2000) {
   const source = sheetSource(url)
   if (/^\s*</.test(csv)) throw failure('sheet-auth')
-  const parsed = Papa.parse(csv.replace(/^\uFEFF/, ''), { skipEmptyLines: false })
+  // 显式指定逗号：Papa 的自动探测在不足 10 行的表格上误报 UndetectableDelimiter（预览计入尾随空行，平均字段数低于 2）。
+  const parsed = Papa.parse(csv.replace(/^\uFEFF/, ''), { skipEmptyLines: false, delimiter: ',' })
   if (parsed.errors.length || parsed.data.length > maxRows + 1) throw failure('sheet-csv')
   const headers = (parsed.data.shift() ?? []).map(header => header.trim())
   const column = key => mapping[key] ? headers.indexOf(mapping[key]) : -1

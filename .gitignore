@@ -48,3 +48,4 @@ worktrees/
 .agents/worktrees/
 .typert-*/
 native/system/test/bin/
+.vscode/private-folder-alias.json

@@ -2,4 +2,4 @@
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
 await build({ absWorkingDir: fileURLToPath(new URL('../', import.meta.url)), entryPoints: ['src/client/entry.js'], outfile: 'client.js',
-  bundle: true, minify: true, format: 'iife', platform: 'browser', loader: { '.css': 'text', '.png': 'dataurl' }, target: 'es2022', legalComments: 'none' })
+  bundle: true, minify: true, format: 'iife', platform: 'browser', loader: { '.css': 'text', '.png': 'dataurl', '.webp': 'dataurl' }, target: 'es2022', legalComments: 'none' })

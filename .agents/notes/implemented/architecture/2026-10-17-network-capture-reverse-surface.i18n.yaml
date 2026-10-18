@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for 2026-10-17-network-capture-reverse-surface.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-17-network-capture-reverse-surface.md
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface:
+  en: 995f4109783fbe99
+  zh: 508fd2cd22bea2a1
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/problem:
+  en: 4711331c8508009d
+  zh: 0b60e2e32226b301
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/decision:
+  en: 1514589ed531517b
+  zh: 761fe0d11ab47681
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/decision/credential-boundary:
+  en: 86abdbfd8669df3e
+  zh: 32bda64e6683e51c
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/decision/replay-target-validation:
+  en: cb8531b02eadaef7
+  zh: f64f7082c70172d9
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/decision/write-requests:
+  en: e727adf5b06b492f
+  zh: 9eb447ffc88a0301
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/alternatives-considered:
+  en: 0ebfb8a9e78ce5c6
+  zh: 1ff1d6cbc432a409
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/retrieval-stability:
+  en: 9089caba3731c2e5
+  zh: d466a07abe98af1f
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/retrieval-stability/failure-families-instead-of-an-error-code-whitelist:
+  en: 5f094feae03c0fb1
+  zh: 79b83115b0e5a517
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/retrieval-stability/charset:
+  en: ec2ade0494b248c3
+  zh: 74a649d41b422931
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/retrieval-stability/sessions-and-redirects:
+  en: f0ff1a8514b7131d
+  zh: c951a60087838326
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/retrieval-stability/pacing:
+  en: 757ada8cf58be8a5
+  zh: 07205b84a4d117f7
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/verification:
+  en: 254065452405213c
+  zh: 75ddcaf02e4a6fbf
+/agent-note-network-capture-as-a-first-class-reverse-engineering-surface/consequences:
+  en: e0c964179a948a0d
+  zh: fc66e400a8ba03e6

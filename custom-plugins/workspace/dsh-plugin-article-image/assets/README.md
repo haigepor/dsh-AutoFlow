@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 `article-flow-animated.svg` is a standalone light-theme preview exported from the runtime artwork. During retrieval, the workbench animates the existing paper, picture, arrow and sparkles using theme motion tokens. Reduced motion keeps the illustration static. It does not show estimated progress.
 
-`article-image-logo.png` is the transparent brand illustration generated with the built-in image_gen tool. The Client embeds it at build time, so it does not depend on an external image URL. It appears only as a compact brand mark; all interactive control colors remain token-owned.
+`article-image-logo.png` is the transparent brand source generated with the built-in image_gen tool. `article-image-logo.webp` is its 512 × 512 delivery version, encoded losslessly after resizing and shared by the package icon and Client. The Client embeds it at build time, so it does not depend on an external image URL. The package check rejects icons larger than the Host's 256 KiB limit. It appears only as a compact brand mark; all interactive control colors remain token-owned.
 
 Generation prompt:
 

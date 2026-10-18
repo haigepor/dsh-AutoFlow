@@ -16,6 +16,7 @@
     "apps/*",
     "custom-plugins/workspace/dsh-plugin-afp",
     "custom-plugins/workspace/dsh-plugin-article-image",
+    "custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit",
     "website",
     "custom-plugins/workspace/dsh-better-sidebar",
     "custom-plugins/workspace/dsh-better-sidebar/updater"

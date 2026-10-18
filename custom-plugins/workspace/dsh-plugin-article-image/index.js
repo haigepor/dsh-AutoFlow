@@ -1,6 +1,6 @@
 /** Article image planning bundle: Host state and authenticated workbench operations. */
 import { Config, resolveConfig } from './config-schema.js'
-import { ArticleService } from './src/host/service.js'
+import { ArticleWorkflowService as ArticleService } from './src/host/workflow-service.js'
 import { errorCode, failure, PACKAGE } from './src/shared/contracts.js'
 export { Config }
 export const name = PACKAGE
@@ -25,4 +25,10 @@ export function apply(ctx, input = {}) {
   ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
     path: '/api/article-image/data', methods: ['POST'], requestBody: 'streaming', fetch: request => service.dataResponse(request),
   }), 'Article image workbench data'))
+  ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
+    path: '/api/article-image/asset', methods: ['GET'], requestBody: 'buffered', fetch: request => {
+      const url = new URL(request.url)
+      return service.assetResponse(request, url.searchParams.get('snapshot'), url.searchParams.get('asset'))
+    },
+  }), 'Article image local originals'))
 }

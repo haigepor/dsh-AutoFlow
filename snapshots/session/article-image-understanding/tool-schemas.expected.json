@@ -1,0 +1,123 @@
+{
+  "initial": [
+    {
+      "name": "article_image_fetch",
+      "description": "Start browser capture and automatic article analysis. Collect job_output, then read the report for source review, setup failures or prompts awaiting human review. A job handle is not a completed plan. No images are generated.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "article_image_plan_page",
+      "description": "Read the complete current plan as bounded JSON fragments. Copy inputHash and revision from article_image_report and pass both unchanged on every page. A revision change rejects the read; restart from the current report. Concatenate fragment strings in offset order, following nextOffset until null, then parse JSON. Offsets count Unicode code points. Never invent hashes or omit unread fields when saving edits.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "inputHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "revision": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "inputHash",
+          "revision",
+          "offset"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "article_image_report",
+      "description": "Read readiness, exact revision/source/input/rules hashes, model, source URL, retrieval time, bounded source notes, plan summary and approval. Failed refreshes can retain earlier text; check state/error. Completed automatic plans await human review; read article_image_plan_page only for requested edits. No image is generated.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "job_kill",
+      "description": "Request cancellation of a running background job.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "Job id returned by the tool that started the background work."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional short reason, recorded in the log and forwarded to the job."
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      }
+    },
+    {
+      "name": "job_output",
+      "description": "Read a background job: output since the previous read for stream jobs, or the result of a finished final-output job.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "Job id returned by the tool that started the background work."
+          },
+          "wait": {
+            "type": "boolean",
+            "description": "Block until the job finishes or the timeout expires; a timed-out wait leaves the job running. Defaults to false."
+          },
+          "timeout_ms": {
+            "type": "number",
+            "description": "Max wait in milliseconds with wait: true. Defaults to and is capped by configuration."
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      }
+    }
+  ],
+  "changes": []
+}

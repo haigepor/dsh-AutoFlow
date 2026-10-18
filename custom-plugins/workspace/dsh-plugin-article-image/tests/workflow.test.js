@@ -37,6 +37,13 @@ test('imports grouped CSV with business query parameters and invalid-row diagnos
   expect(() => parseSheet('<html>Login</html>', source, { link: 'Links' })).toThrow()
 })
 
+test('imports a small sheet whose delimiter auto-detection cannot read', () => {
+  const small = 'Links,Notes\nhttps://example.com/one,first\nhttps://example.com/two,second\n'
+  const parsed = parseSheet(small, source, { link: 'Links', notes: 'Notes' })
+  expect(parsed.items.map(item => item.url)).toEqual(['https://example.com/one', 'https://example.com/two'])
+  expect(parsed.items.map(item => item.notes)).toEqual(['first', 'second'])
+})
+
 test('current source fixture contains 28 distinct article links', async () => {
   const text = await readFile(fileURLToPath(new URL('./fixtures/source.csv', import.meta.url)), 'utf8')
   const parsed = parseSheet(text, source, resolveConfig({}).mapping)
@@ -138,6 +145,20 @@ test('batch size respects the full one-time job result budget and bounds foreign
   const { service, tasks } = await fixture(t, async () => { throw Object.assign(new Error('private text'), { code }) }, { toolResultBytes: 8000 })
   service.download = async () => 'Category,Links,语言,备注\n' + Array.from({ length: 100 }, (_, index) => `Travel,https://example.com/${index},pt,\n`).join('')
   await service.importSource({ url: source })
+  // 结果预算用例隔离磁盘争用；存储失败和原子提交由所属存储用例验证。
+  let records = await service.store.read(), writes = Promise.resolve()
+  service.store = {
+    read: async () => structuredClone(records),
+    update(operation) {
+      const result = writes.then(async () => {
+        const next = structuredClone(records), value = await operation(next)
+        records = next
+        return value
+      })
+      writes = result.then(() => {}, () => {})
+      return result
+    },
+  }
   const ids = (await service.store.read()).items.map(item => item.id), limit = service.fetchBatchLimit()
   expect((await service.status()).retrievalPolicy.maxFetchBatch).toBe(limit)
   expect(limit).toBeLessThan(100)
@@ -146,7 +167,7 @@ test('batch size respects the full one-time job result budget and bounds foreign
   const result = await tasks[0].done
   expect(Buffer.byteLength(result.result)).toBeLessThan(8000 - 256)
   expect(JSON.parse(result.result).results).toHaveLength(limit)
-  expect(JSON.parse(result.result).results.every(item => item.code === code)).toBe(true)
+  expect([...new Set(JSON.parse(result.result).results.map(item => item.code))]).toEqual([code])
   expect(errorCode(Object.assign(new Error('remote details'), { code: 'a-'.repeat(100) + 'a' }))).toBe('operation-failed')
 })
 
@@ -292,7 +313,7 @@ test('unloading rejects a CSV import waiting to commit', async t => {
     release.resolve()
     expect(await result).toBeInstanceOf(Error)
     await disposing
-    expect(await service.store.read()).toEqual({ schema: 1, source: null, items: [] })
+    expect(await service.store.read()).toEqual({ schema: 2, source: null, items: [] })
   } finally { release.resolve(); await result }
 })
 

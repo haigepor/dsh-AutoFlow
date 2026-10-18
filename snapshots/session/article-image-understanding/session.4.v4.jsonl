@@ -1,0 +1,8 @@
+{"type":"session","version":4,"id":"{{session:5}}","createdAt":1783950000005,"cwd":"{{cwd}}","isSeeded":false,"delegationDepth":0}
+{"type":"permission/preset","data":{"preset":"danger-full-access"}}
+{"type":"sandbox/mode","data":{"mode":"danger-full-access"}}
+{"type":"approval/policy","data":{"policy":"never"}}
+{"type":"agent/inbox/spliced","data":{"target":"next-turn","start":0,"inserted":[{"content":[{"type":"text","text":"{\"task\":\"chunk-1\",\"attemptId\":\"a1000000000040008000000000000011\",\"inputHash\":\"c35c52bb7b51a28a048c305d13fc5a523869b5c733a93136561b26f22b5d0f1c\",\"metadata\":{\"category\":\"Travel\",\"language\":\"en\",\"notes\":\"Cancellation case\"},\"instructions\":\"# 理解当前输入\\n\\n阅读本阶段提供的全部正文块及实际附件。输出文章类型、读者、目的、语言、中心观点、章节、实体、事实、限制与疑点。每项事实引用支持它的正文块或图片，区分 source（原文明示）、visual（实际图片可观察）、interpretation（编辑解释）。原图分析说明观察内容与相邻正文关系；图注不能冒充视觉证据。覆盖清单必须与实际分配相符，不得推测未提供的内容。不写最终提示词，不输出内部思维过程。按当前工具 schema 提交。\\n\",\"expectedCoverage\":{\"blockIds\":[\"b1\"],\"assetIds\":[]},\"sourceData\":{\"title\":\"Cancelled article\",\"blocks\":[{\"id\":\"b1\",\"type\":\"paragraph\",\"inline\":[{\"text\":\"Families plan outdoor activities and rest breaks during a relaxed trip.\"}]}],\"assets\":[]}}"}],"source":{"kind":"user"},"role":"user","id":"{{message:41}}"}]}}
+{"type":"turn/start","data":{"turn":1}}
+{"type":"agent/inbox/spliced","data":{"target":"next-turn","start":0,"removedCount":1,"inserted":[]}}
+{"type":"turn/end","data":{"turn":1,"reason":{"kind":"aborted","reason":{"kind":"user"}}}}

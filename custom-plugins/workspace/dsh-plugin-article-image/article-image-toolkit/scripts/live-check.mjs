@@ -10,10 +10,21 @@ import { parseSheet } from '../src/sheets.js'
 
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1qggSoBOoLrdHOM-Y3YGaMUTQ3BwphWohVeDtOABWRCg/edit#gid=461869238'
 const csv = readFileSync(fileURLToPath(new URL('../test/fixtures/sample-sheet.csv', import.meta.url)), 'utf8')
-const limit = Number(process.argv[2] ?? 28)
+const argv = process.argv.slice(2)
+const flag = name => { const index = argv.indexOf(`--${name}`); return index >= 0 ? argv[index + 1] : undefined }
+const limit = Number(argv.find(argument => !argument.startsWith('--') && Number.isFinite(Number(argument))) ?? 28)
+// 默认值与运行时一致；需要覆盖时按 CLI 同名参数传入，例如 --render-mode fallback。
+const overrides = {
+  ...(flag('render-mode') ? { renderMode: flag('render-mode') } : {}),
+  ...(flag('timeout-ms') ? { requestTimeoutMs: Number(flag('timeout-ms')) } : {}),
+  ...(flag('render-timeout-ms') ? { renderTimeoutMs: Number(flag('render-timeout-ms')) } : {}),
+  ...(flag('render-wait-ms') ? { renderWaitMs: Number(flag('render-wait-ms')) } : {}),
+  ...(flag('fetch-concurrency') ? { fetchConcurrency: Number(flag('fetch-concurrency')) } : {}),
+  ...(flag('fetch-cache') ? { fetchCache: flag('fetch-cache') !== 'false' } : {}),
+}
 
 const dir = await mkdtemp(join(tmpdir(), 'article-image-live-'))
-const service = new ArticleService(resolveConfig({ dataDir: dir, requestTimeoutMs: 45000 }))
+const service = new ArticleService(resolveConfig({ dataDir: dir, requestTimeoutMs: 45000, ...overrides }))
 
 // fixture 用真实 CSV 内容，避免依赖 Google Sheets 的当前可访问性。
 const parsed = parseSheet(csv, SHEET_URL, resolveConfig({}).mapping, 2000)
