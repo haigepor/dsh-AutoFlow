@@ -1,3 +1,0 @@
-- insert:
-    - id: article-image-snapshot-fixture
-      name: './fixture.mjs'

@@ -25,7 +25,6 @@ kind: "package-group"
 - [侧栏更新器](workspace/dsh-better-sidebar/updater/README.zh.md)：独立的官方版本检查与 npm 更新。
 
 - [AFP 图片策展](workspace/dsh-plugin-afp/README.zh.md)：图片搜索、视觉策展与本地安装步骤。
-- [文章生图](workspace/dsh-plugin-article-image/README.zh.md)：公开表格导入、文章正文和经审核的编辑配图提示词。
 - [AFP 版本发布](workspace/dsh-plugin-afp/release/README.zh.md)：有版本的 GitHub 产物和可复用发布流程。
 - [架构文档](architecture.md)：包目录、功能声明、UI 位置、文件生命周期与分发规则。
 

@@ -72,7 +72,6 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`@lezer/highlight`](https://code.haverbeke.berlin/lezer/highlight) | MIT |
 | [`@modelcontextprotocol/client`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
 | [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) | MIT |
-| [`@mozilla/readability`](https://github.com/mozilla/readability) | Apache-2.0 |
 | [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) | MIT |
 | [`@octokit/webhooks`](https://github.com/octokit/webhooks.js) | MIT |
 | [`@openai/codex`](https://github.com/openai/codex) | Apache-2.0 |
@@ -84,7 +83,6 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`@opentelemetry/resources`](https://github.com/open-telemetry/opentelemetry-js) | Apache-2.0 |
 | [`@opentelemetry/sdk-logs`](https://github.com/open-telemetry/opentelemetry-js) | Apache-2.0 |
 | [`@playwright/mcp`](https://github.com/microsoft/playwright-mcp) | Apache-2.0 |
-| [`@prettier/parse-srcset`](https://github.com/prettier/parse-srcset) | MIT |
 | [`@puppeteer/browsers`](https://github.com/puppeteer/puppeteer/tree/main/packages/browsers) | Apache-2.0 |
 | [`@shikijs/langs`](https://github.com/shikijs/shiki) | MIT |
 | [`@standard-schema/spec`](https://github.com/standard-schema/standard-schema) | MIT |
@@ -115,11 +113,9 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`fast-xml-parser`](https://github.com/NaturalIntelligence/fast-xml-parser) | MIT |
 | [`fflate`](https://github.com/101arrowz/fflate) | MIT |
 | [`got`](https://github.com/sindresorhus/got) | MIT |
-| [`https-proxy-agent`](https://github.com/TooTallNate/proxy-agents) | MIT |
 | [`immer`](https://github.com/immerjs/immer) | MIT |
 | [`ipaddr.js`](https://github.com/whitequark/ipaddr.js) | MIT |
 | [`js-yaml`](https://github.com/nodeca/js-yaml) | MIT |
-| [`jsdom`](https://github.com/jsdom/jsdom) | MIT |
 | [`katex`](https://github.com/KaTeX/KaTeX) | MIT |
 | [`koffi`](https://github.com/Koromix/koffi) | MIT |
 | [`lexical`](https://github.com/facebook/lexical) | MIT |
@@ -141,10 +137,8 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`node-pty`](https://github.com/microsoft/node-pty) | MIT |
 | [`open`](https://github.com/sindresorhus/open) | MIT |
 | [`papaparse`](https://github.com/mholt/PapaParse) | MIT |
-| [`patchright`](https://github.com/Kaliiiiiiiiii-Vinyzu/patchright) | Apache-2.0 |
 | [`pdfjs-dist`](https://github.com/mozilla/pdf.js) | Apache-2.0 |
 | [`picomatch`](https://github.com/micromatch/picomatch) | MIT |
-| [`proper-lockfile`](https://github.com/git@github.com:moxystudio/node-proper-lockfile) | MIT |
 | [`react`](https://github.com/facebook/react) | MIT |
 | [`react-dom`](https://github.com/facebook/react) | MIT |
 | [`react-icons`](https://github.com:react-icons/react-icons) | MIT |
@@ -268,6 +262,7 @@ External packages **directly declared** for development, tests, types, or toolin
 | [`http-server`](https://github.com/http-party/http-server) | MIT |
 | [`istanbul-lib-report`](https://github.com/istanbuljs/istanbuljs) | BSD-3-Clause |
 | [`jscpd`](https://github.com/kucherenko/jscpd) | MIT |
+| [`jsdom`](https://github.com/jsdom/jsdom) | MIT |
 | [`lefthook`](https://github.com/evilmartians/lefthook) | MIT |
 | [`lightningcss`](https://github.com/parcel-bundler/lightningcss) | MPL-2.0 |
 | [`micromark-util-types`](https://github.com/micromark/micromark/tree/main/packages/micromark-util-types) | MIT |

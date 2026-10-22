@@ -1,8 +1,0 @@
-[
-  { "insert": [
-    { "id": "article-image", "name": "dsh-plugin-article-image" },
-    { "id": "article-image-tools", "name": "dsh-plugin-article-image/execute", "disabled": false, "config": { "feature": "tools" } },
-    { "id": "article-image-ui", "name": "dsh-plugin-article-image/execute", "disabled": false, "config": { "feature": "ui-panel" } },
-    { "id": "article-image-skills", "name": "dsh-plugin-article-image/skill", "disabled": false }
-  ] }
-]

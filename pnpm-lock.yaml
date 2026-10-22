@@ -430,9 +430,6 @@ importers:
       dsh-plugin-afp:
         specifier: workspace:*
         version: link:../../custom-plugins/workspace/dsh-plugin-afp
-      dsh-plugin-article-image:
-        specifier: workspace:*
-        version: link:../../custom-plugins/workspace/dsh-plugin-article-image
       dsh-plugin-better-sidebar-updater:
         specifier: workspace:*
         version: link:../../custom-plugins/workspace/dsh-better-sidebar/updater
@@ -1332,83 +1329,6 @@ importers:
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
-
-  custom-plugins/workspace/dsh-plugin-article-image:
-    dependencies:
-      '@mozilla/readability':
-        specifier: 0.6.0
-        version: 0.6.0
-      article-image-toolkit:
-        specifier: workspace:*
-        version: link:article-image-toolkit
-      jsdom:
-        specifier: 29.1.1
-        version: 29.1.1(@noble/hashes@2.3.0)
-      papaparse:
-        specifier: 5.5.3
-        version: 5.5.3
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:~
-        version: link:../../../vendor/cordis
-      '@deepseek-ai/dsh-atomic-write':
-        specifier: workspace:*
-        version: link:../../../packages/util/atomic-write
-      '@deepseek-ai/dsh-llm':
-        specifier: workspace:*
-        version: link:../../../packages/llm/llm
-      '@deepseek-ai/dsh-web-fetch-http':
-        specifier: workspace:*
-        version: link:../../../packages/web/web-fetch-http
-      esbuild:
-        specifier: 0.28.1
-        version: 0.28.1
-      vitest:
-        specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.8)(happy-dom@20.11.6)(jsdom@29.1.1(@noble/hashes@2.3.0))(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.1))
-
-  custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit:
-    dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.32.1
-        version: 1.32.1(supports-color@9.4.0)(zod@4.4.3)
-      '@mozilla/readability':
-        specifier: 0.6.0
-        version: 0.6.0
-      '@prettier/parse-srcset':
-        specifier: 3.1.0
-        version: 3.1.0
-      https-proxy-agent:
-        specifier: 9.1.0
-        version: 9.1.0
-      ipaddr.js:
-        specifier: ^2.5.0
-        version: 2.5.0
-      jsdom:
-        specifier: 29.1.1
-        version: 29.1.1(@noble/hashes@2.3.0)
-      papaparse:
-        specifier: 5.5.3
-        version: 5.5.3
-      patchright:
-        specifier: ^1.64.1
-        version: 1.64.1
-      proper-lockfile:
-        specifier: 4.1.2
-        version: 4.1.2
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@modelcontextprotocol/client':
-        specifier: ^2.3.1
-        version: 2.3.1
-      vitest:
-        specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.8)(happy-dom@20.11.6)(jsdom@29.1.1(@noble/hashes@2.3.0))(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.1))
 
   native/system:
     devDependencies:
@@ -16844,16 +16764,8 @@ packages:
     resolution: {integrity: sha512-8f1OghQ2rjzIOfqgUCP+8GiUWqRs89njoWLNqAe8kWmDePv3s1fZXseej+QXemssEuuOvLLmLO/kqM3IQHtISw==}
     engines: {node: '>=20'}
 
-  '@modelcontextprotocol/client@2.3.1':
-    resolution: {integrity: sha512-mIGZXpHsjnZ6lD+gD/WCMpR5k8yVQQ8nNFH1N0Srf7AvnwTUMYD6pvTY8ng2+He5FfV7YMZLmrjL7cLa/cc3dQ==}
-    engines: {node: '>=20'}
-
   '@modelcontextprotocol/core@2.0.0':
     resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
-    engines: {node: '>=20'}
-
-  '@modelcontextprotocol/core@2.3.1':
-    resolution: {integrity: sha512-laVmIhPGpWi7rG9q+0UigblRN0Hws/Yjlb6qLFtVqryXVLkc4h+yN8z731POD2LnAGQlFe7/tXhUm7Bi0YB91g==}
     engines: {node: '>=20'}
 
   '@modelcontextprotocol/node@2.0.0':
@@ -16899,10 +16811,6 @@ packages:
   '@modelcontextprotocol/server@2.0.0':
     resolution: {integrity: sha512-YhHWdHfpFMQfd0prsEnxKeS3Qz3ytIGmsS0sth4KDjnacIT7hxk6hXHkJ9KysxlkvTM+WZAtQbbcUhdoP4Hvtw==}
     engines: {node: '>=20'}
-
-  '@mozilla/readability@0.6.0':
-    resolution: {integrity: sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==}
-    engines: {node: '>=14.0.0'}
 
   '@napi-rs/canvas-android-arm64@1.0.8':
     resolution: {integrity: sha512-5+nkh8i3gt6lqS/d2jTZ1xAn6tdgtB4Lf1mW6T0Qm5/rXNwBuV1sAEyLEWan5o9gJPU/GuvHR3rvSeZ+FaGrbw==}
@@ -17422,9 +17330,6 @@ packages:
 
   '@preact/signals-core@1.14.4':
     resolution: {integrity: sha512-HNB6HYeYKhQbJ1aKl+YRjrS4+QWHLKX6qKoUsfS/m0vqzsVaEBiZiaKbG/e+NKk2ch5ALQr/ihWaMHxiCuuWHA==}
-
-  '@prettier/parse-srcset@3.1.0':
-    resolution: {integrity: sha512-FIRv2rZotO9NP/r66taYqD1zICpPiBbrECqjKV/xqNotqDxF7fLzzUeK+1RSRx9Tenk0DajR/GcRmTJ2qtHaKQ==}
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -21464,16 +21369,6 @@ packages:
   partial-json@0.1.7:
     resolution: {integrity: sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA==}
 
-  patchright-core@1.64.1:
-    resolution: {integrity: sha512-nUWuqaaUVd60qepdDPv+i5g257F8jywbzn7aKV8fPRur4dmkFLxYV/xus8f69gKAB7+S/zfdYe0zA3mJkO6+0w==}
-    engines: {node: '>=20'}
-    hasBin: true
-
-  patchright@1.64.1:
-    resolution: {integrity: sha512-uZYBmH3iofTHhUj9DvNQkdFYAY2weGJtoGIEjGJ9K0kNA/ycC4p9sx3QhioEutIzJjsAzBGKbNAaNNvf7Wyw4Q==}
-    engines: {node: '>=20'}
-    hasBin: true
-
   path-data-parser@0.1.0:
     resolution: {integrity: sha512-NOnmBpt5Y2RWbuv0LMzsayp3lVylAHLPUTut412ZA3l+C4uw4ZVkQbjShYCQ8TCpUMdPapr4YjUqLYD6v68j+w==}
 
@@ -23865,7 +23760,7 @@ snapshots:
       '@google/genai': 2.21.0(@modelcontextprotocol/sdk@1.32.1(zod@4.4.3))
       '@smithy/node-http-handler': 4.12.1
       http-proxy-agent: 9.1.0(supports-color@9.4.0)
-      https-proxy-agent: 9.1.0
+      https-proxy-agent: 9.1.0(supports-color@9.4.0)
       openai: 6.40.0(ws@8.21.0)(zod@4.4.3)
       partial-json: 0.1.7
       typebox: 1.3.27
@@ -24329,7 +24224,7 @@ snapshots:
       protobufjs: 7.6.4
       ws: 8.21.0
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.32.1(supports-color@9.4.0)(zod@4.4.3)
+      '@modelcontextprotocol/sdk': 1.32.1(zod@4.4.3)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -24814,21 +24709,7 @@ snapshots:
       pkce-challenge: 5.0.1
       zod: 4.4.3
 
-  '@modelcontextprotocol/client@2.3.1':
-    dependencies:
-      '@modelcontextprotocol/core': 2.3.1
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.1.0
-      jose: 6.2.3
-      pkce-challenge: 5.0.1
-      zod: 4.4.3
-
   '@modelcontextprotocol/core@2.0.0':
-    dependencies:
-      zod: 4.4.3
-
-  '@modelcontextprotocol/core@2.3.1':
     dependencies:
       zod: 4.4.3
 
@@ -24849,7 +24730,7 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.0
-      express: 5.2.1(supports-color@9.4.0)
+      express: 5.2.1
       express-rate-limit: 8.5.2(express@5.2.1)
       hono: 4.12.29
       jose: 6.2.3
@@ -24861,7 +24742,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@modelcontextprotocol/sdk@1.32.1(supports-color@9.4.0)(zod@4.4.3)':
+  '@modelcontextprotocol/sdk@1.32.1(zod@4.4.3)':
     dependencies:
       '@hono/node-server': 1.19.14(hono@4.12.29)
       ajv: 8.20.0
@@ -24871,7 +24752,7 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.0
-      express: 5.2.1(supports-color@9.4.0)
+      express: 5.2.1
       express-rate-limit: 8.5.2(express@5.2.1)
       hono: 4.12.29
       jose: 6.2.3
@@ -24882,12 +24763,13 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@4.4.3)
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@modelcontextprotocol/server-everything@2026.7.4':
     dependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
       cors: 2.8.6
-      express: 5.2.1(supports-color@9.4.0)
+      express: 5.2.1
       jszip: 3.10.1
       zod: 4.4.3
     transitivePeerDependencies:
@@ -24909,8 +24791,6 @@ snapshots:
     dependencies:
       '@modelcontextprotocol/core': 2.0.0
       zod: 4.4.3
-
-  '@mozilla/readability@0.6.0': {}
 
   '@napi-rs/canvas-android-arm64@1.0.8':
     optional: true
@@ -25273,8 +25153,6 @@ snapshots:
       playwright: 1.64.0
 
   '@preact/signals-core@1.14.4': {}
-
-  '@prettier/parse-srcset@3.1.0': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -26813,7 +26691,7 @@ snapshots:
 
   bluebird@3.7.2: {}
 
-  body-parser@2.3.0(supports-color@9.4.0):
+  body-parser@2.3.0:
     dependencies:
       bytes: 3.1.2
       content-type: 2.1.0
@@ -27896,13 +27774,13 @@ snapshots:
 
   express-rate-limit@8.5.2(express@5.2.1):
     dependencies:
-      express: 5.2.1(supports-color@9.4.0)
+      express: 5.2.1
       ip-address: 10.2.0
 
-  express@5.2.1(supports-color@9.4.0):
+  express@5.2.1:
     dependencies:
       accepts: 2.0.0
-      body-parser: 2.3.0(supports-color@9.4.0)
+      body-parser: 2.3.0
       content-disposition: 1.1.0
       content-type: 1.0.5
       cookie: 0.7.2
@@ -27912,7 +27790,7 @@ snapshots:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
-      finalhandler: 2.1.1(supports-color@9.4.0)
+      finalhandler: 2.1.1
       fresh: 2.0.0
       http-errors: 2.0.1
       merge-descriptors: 2.0.0
@@ -27923,8 +27801,8 @@ snapshots:
       proxy-addr: 2.0.8
       qs: 6.15.3
       range-parser: 1.3.0
-      router: 2.2.0(supports-color@9.4.0)
-      send: 1.2.1(supports-color@9.4.0)
+      router: 2.2.0
+      send: 1.2.1
       serve-static: 2.2.1
       statuses: 2.0.2
       type-is: 2.1.0
@@ -28010,7 +27888,7 @@ snapshots:
     dependencies:
       minimatch: 5.1.9
 
-  finalhandler@2.1.1(supports-color@9.4.0):
+  finalhandler@2.1.1:
     dependencies:
       debug: 4.4.3(supports-color@9.4.0)
       encodeurl: 2.0.0
@@ -28466,7 +28344,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  https-proxy-agent@9.1.0:
+  https-proxy-agent@9.1.0(supports-color@9.4.0):
     dependencies:
       agent-base: 9.0.0
       debug: 4.4.3(supports-color@9.4.0)
@@ -29717,12 +29595,6 @@ snapshots:
 
   partial-json@0.1.7: {}
 
-  patchright-core@1.64.1: {}
-
-  patchright@1.64.1:
-    dependencies:
-      patchright-core: 1.64.1
-
   path-data-parser@0.1.0: {}
 
   path-exists@4.0.0: {}
@@ -30230,7 +30102,7 @@ snapshots:
       points-on-curve: 0.2.0
       points-on-path: 0.2.1
 
-  router@2.2.0(supports-color@9.4.0):
+  router@2.2.0:
     dependencies:
       debug: 4.4.3(supports-color@9.4.0)
       depd: 2.0.0
@@ -30299,7 +30171,7 @@ snapshots:
 
   semver@7.8.5: {}
 
-  send@1.2.1(supports-color@9.4.0):
+  send@1.2.1:
     dependencies:
       debug: 4.4.3(supports-color@9.4.0)
       encodeurl: 2.0.0
@@ -30325,7 +30197,7 @@ snapshots:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       parseurl: 1.3.3
-      send: 1.2.1(supports-color@9.4.0)
+      send: 1.2.1
     transitivePeerDependencies:
       - supports-color
 
@@ -31277,37 +31149,6 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@types/node': 25.9.3
-      '@vitest/coverage-v8': 4.1.8(vitest@4.1.8)
-      happy-dom: 20.11.6
-      jsdom: 29.1.1(@noble/hashes@2.3.0)
-    transitivePeerDependencies:
-      - msw
-
-  vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.8)(happy-dom@20.11.6)(jsdom@29.1.1(@noble/hashes@2.3.0))(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.1)):
-    dependencies:
-      '@vitest/expect': 4.1.8
-      '@vitest/mocker': 4.1.8(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.1))
-      '@vitest/pretty-format': 4.1.8
-      '@vitest/runner': 4.1.8
-      '@vitest/snapshot': 4.1.8
-      '@vitest/spy': 4.1.8
-      '@vitest/utils': 4.1.8
-      es-module-lexer: 2.1.0
-      expect-type: 1.3.0
-      magic-string: 0.30.21
-      obug: 2.1.3
-      pathe: 2.0.3
-      picomatch: 4.0.4
-      std-env: 4.1.0
-      tinybench: 2.9.0
-      tinyexec: 1.2.4
-      tinyglobby: 0.2.17
-      tinyrainbow: 3.1.0
-      vite: 8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.1)
-      why-is-node-running: 2.3.0
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.1
-      '@types/node': 26.1.2
       '@vitest/coverage-v8': 4.1.8(vitest@4.1.8)
       happy-dom: 20.11.6
       jsdom: 29.1.1(@noble/hashes@2.3.0)

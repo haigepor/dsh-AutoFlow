@@ -370,7 +370,6 @@ describe('loadProfile', () => {
     expect(PROFILE_TEMPLATES.web?.bundles).toContain('@deepseek-ai/dsh-base')
     expect(PROFILE_TEMPLATES.web?.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
-      'dsh-plugin-article-image',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
     ])
     expect(PROFILE_TEMPLATES.acp).toEqual({

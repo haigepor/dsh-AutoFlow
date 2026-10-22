@@ -459,8 +459,6 @@ export async function packageTarget(
   await execute(['run', 'release:pack', '--family', 'dsh', '--out', buildPaths.packedDsh, ...packArguments], buildEnv, REPOSITORY_ROOT)
   for (const pluginDirectory of [
     'custom-plugins/workspace/dsh-plugin-afp',
-    'custom-plugins/workspace/dsh-plugin-article-image',
-    'custom-plugins/workspace/dsh-plugin-article-image/article-image-toolkit',
     'custom-plugins/workspace/dsh-better-sidebar',
     'custom-plugins/workspace/dsh-better-sidebar/updater',
   ]) {
