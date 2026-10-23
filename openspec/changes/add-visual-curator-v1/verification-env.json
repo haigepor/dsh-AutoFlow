@@ -1,0 +1,39 @@
+{
+  "formatVersion": 1,
+  "verifiedOn": "2026-10-23",
+  "timezone": "Asia/Singapore",
+  "baselineRecord": "C:/Users/zhuyi/AppData/Local/Temp/visual-curator-baseline-770iJe/baseline.json",
+  "includesUncommittedChanges": true,
+  "platform": "win32-x64",
+  "node": "24.14.0",
+  "pnpm": "11.28.5",
+  "packageVersion": "0.1.0",
+  "packageSha256": "6587071fe002f0640d1501b4b5c6f6bd07655cb59875d531654649259dfe0049",
+  "fixtureUnitTestsPassed": 107,
+  "afpBaselineFilesMatched": 189,
+  "completedOpenSpecTasks": 50,
+  "totalOpenSpecTasks": 52,
+  "allAcceptanceScenariosIndividuallyVerified": false,
+  "realApiVerificationDeferredByUser": true,
+  "builtinIntegration": {
+    "baselineRecord": "C:/Users/zhuyi/AppData/Local/Temp/visual-curator-builtin-drT1d9/baseline.json",
+    "focusedTestsPassed": 124,
+    "browserTestsPassed": 2,
+    "shippedWithInstallation": true,
+    "newWebDesktopProfilesEnabled": true,
+    "existingProfileSelectionsPreserved": true,
+    "runningUserHostNeedsRestart": true,
+    "desktopInstallerBuilt": false,
+    "defaultProfileDumpPassed": true,
+    "staticChecksPassed": true
+  },
+  "currentDelivery": {
+    "uiReset": true,
+    "optionalFeatures": 12,
+    "pageEntriesDefaultEnabled": false,
+    "pageContents": "entry-only",
+    "browserVerification": "pending-manual",
+    "realApiVerification": "deferred",
+    "historicalResultsApplyToCurrentUI": false
+  }
+}

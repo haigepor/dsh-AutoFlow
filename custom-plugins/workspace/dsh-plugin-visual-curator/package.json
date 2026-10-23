@@ -1,0 +1,350 @@
+{
+  "name": "dsh-plugin-visual-curator",
+  "version": "0.1.0",
+  "description": "Versioned visual styles, human feedback, image search and reviewed crops for DSH",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./tools": "./tools.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./skill": "./skill.js",
+    "./page": "./page.js"
+  },
+  "files": [
+    "index.js",
+    "tools.js",
+    "skill.js",
+    "page.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale",
+    "assets",
+    "README.md",
+    "README.zh.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml",
+      "examples": [
+        {
+          "id": "styles",
+          "prompt": {
+            "en": "Use visual_style_list to show saved visual styles and published versions. Read existing data only.",
+            "zh": "请用 visual_style_list 查看已保存的视觉风格和发布版本，只读取已有数据。"
+          }
+        },
+        {
+          "id": "review",
+          "prompt": {
+            "en": "Read an existing Visual Curator task using visual_run_get. Explain its status and review results without starting a task or changing feedback.",
+            "zh": "请用 visual_run_get 查看一个已有视觉策展任务，说明任务状态和复核结果，不启动新任务或修改反馈。"
+          }
+        }
+      ],
+      "features": [
+        {
+          "id": "visual-style-reference",
+          "rowId": "visual-style-reference",
+          "kind": "skill",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Reference styles",
+            "zh": "参考图与风格"
+          },
+          "description": {
+            "en": "Read reference dimensions, style rules and fixed releases.",
+            "zh": "读取参考维度、风格规则与固定发布版本。"
+          },
+          "details": {
+            "en": "References apply only to their selected dimensions. Drafts are not executable standards. This skill provides instructions; it does not import images or publish styles.",
+            "zh": "参考图只影响明确指定的维度；草稿不会作为正式搜图标准。此技能提供操作指引，不会自动导入图片或发布风格。"
+          },
+          "icon": "./assets/icons/visual-style-reference.svg"
+        },
+        {
+          "id": "visual-style-calibration",
+          "rowId": "visual-style-calibration",
+          "kind": "skill",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Style calibration",
+            "zh": "风格分析与校准"
+          },
+          "description": {
+            "en": "Inspect rule evidence, conflicts and proposed calibration.",
+            "zh": "检查规则依据、冲突和待确认的校准建议。"
+          },
+          "details": {
+            "en": "Distinguish requirements, preferences and reference-only rules, with explicit evidence and exceptions. Humans confirm rules and publish releases.",
+            "zh": "保持硬性规则、偏好与参考规则的区别，明确例外和证据。规则修改与版本发布始终由人工确认。"
+          },
+          "icon": "./assets/icons/visual-style-calibration.svg"
+        },
+        {
+          "id": "visual-image-search",
+          "rowId": "visual-image-search",
+          "kind": "skill",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Style-guided search",
+            "zh": "按风格找图"
+          },
+          "description": {
+            "en": "Search with a published standard and inspect visual reviews.",
+            "zh": "按已发布标准检索图片并读取视觉筛选结果。"
+          },
+          "details": {
+            "en": "Requires curation tools, an image source and a vision model. Runs pin style, usage and budgets without weakening rules to fill quotas.",
+            "zh": "需要启用找图与裁图工具并配置图片来源与视觉模型。任务固定风格版本、用途版本和预算，不为凑数量放宽规则。"
+          },
+          "icon": "./assets/icons/visual-image-search.svg"
+        },
+        {
+          "id": "visual-crop-composition",
+          "rowId": "visual-crop-composition",
+          "kind": "skill",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Crop composition",
+            "zh": "智能裁图与构图"
+          },
+          "description": {
+            "en": "Specify usage and protected content, then review rendered crops.",
+            "zh": "指定比例与保护内容，复核实际裁后画面。"
+          },
+          "details": {
+            "en": "Uses authorized saved images and fixed usage revisions. sharp renders each crop before vision review; automated results are not human confirmations.",
+            "zh": "使用已有授权图片和固定用途版本，由 sharp 实际裁剪，再由视觉模型复核。自动结果不会成为人工确认。"
+          },
+          "icon": "./assets/icons/visual-crop-composition.svg"
+        },
+        {
+          "id": "visual-human-feedback",
+          "rowId": "visual-human-feedback",
+          "kind": "skill",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Human feedback",
+            "zh": "人工反馈整理"
+          },
+          "description": {
+            "en": "Organize visual differences, feedback dimensions and suggestions.",
+            "zh": "整理视觉差异、反馈维度与待人工确认建议。"
+          },
+          "details": {
+            "en": "Agent suggestions retain authorship and scope. They do not become human labels, modify published versions or silently change later searches.",
+            "zh": "Agent 只提交未确认建议，保留原始作者与任务范围。反馈不会自动修改已发布版本，也不会直接改变后续找图标准。"
+          },
+          "icon": "./assets/icons/visual-human-feedback.svg"
+        },
+        {
+          "id": "visual-dataset-export",
+          "rowId": "visual-dataset-export",
+          "kind": "skill",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Dataset and Skill export",
+            "zh": "数据集与 Skill 导出"
+          },
+          "description": {
+            "en": "Export reviewed data with fixed versions, splits and permissions.",
+            "zh": "按固定版本、数据划分和授权导出复核数据。"
+          },
+          "details": {
+            "en": "Uses existing confirmed labels and saved splits. Exports references by default. A Skill is a downloadable guide, not automatic installation or model training.",
+            "zh": "只使用已有人工确认标签与保存的数据划分，默认导出引用。Skill 是可下载的指导文档，不会自动安装或训练模型。"
+          },
+          "icon": "./assets/icons/visual-dataset-export.svg"
+        },
+        {
+          "id": "agent-tools",
+          "rowId": "visual-curator-tools",
+          "kind": "script",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Read tools",
+            "zh": "只读工具"
+          },
+          "description": {
+            "en": "Read styles, runs and exports.",
+            "zh": "读取风格、任务与导出记录。"
+          },
+          "details": {
+            "en": "Provides visual_style_list, visual_style_get, visual_run_get and visual_export_get. Disabling removes these four tools without deleting data.",
+            "zh": "提供 visual_style_list、visual_style_get、visual_run_get 和 visual_export_get。关闭后撤销这四项 Agent 工具，不删除已保存的数据。"
+          },
+          "icon": "./assets/icons/agent-tools.svg"
+        },
+        {
+          "id": "curation-tools",
+          "rowId": "visual-curator-curation",
+          "kind": "script",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Search and crop",
+            "zh": "找图与裁图"
+          },
+          "description": {
+            "en": "Start searches and crops against a fixed style.",
+            "zh": "启动按固定风格执行的找图和裁图任务。"
+          },
+          "details": {
+            "en": "Provides visual_search_start and visual_crop_start. Search requires a source and vision model; cropping requires a vision model and renders with sharp. Disabling removes new Agent starts; existing tasks remain.",
+            "zh": "提供 visual_search_start 和 visual_crop_start。找图需要来源与视觉模型，裁图需要视觉模型，复用 sharp 输出实际图片。关闭后不接受新的 Agent 启动请求；已有任务保留。"
+          },
+          "icon": "./assets/icons/curation-tools.svg"
+        },
+        {
+          "id": "export-tools",
+          "rowId": "visual-curator-export",
+          "kind": "script",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Feedback and export",
+            "zh": "反馈建议与导出"
+          },
+          "description": {
+            "en": "Save Agent suggestions and export existing reviewed data.",
+            "zh": "保存 Agent 建议，导出已有人工复核数据。"
+          },
+          "details": {
+            "en": "Provides visual_feedback_suggest and visual_export_start. Does not confirm human labels, publish styles, install Skills or train models. Image-byte exports require prior permission.",
+            "zh": "提供 visual_feedback_suggest 和 visual_export_start。不会自动确认人工标签、发布风格、安装 Skill 或训练模型；导出图片字节必须已有授权。"
+          },
+          "icon": "./assets/icons/export-tools.svg"
+        },
+        {
+          "id": "ui-settings",
+          "rowId": "visual-curator-ui-settings",
+          "kind": "ui",
+          "defaultEnabled": false,
+          "title": {
+            "en": "Settings sidebar",
+            "zh": "设置侧栏"
+          },
+          "description": {
+            "en": "Show a Visual Curator entry in Settings.",
+            "zh": "在设置中显示视觉策展入口。"
+          },
+          "details": {
+            "en": "Currently provides an entry and a pending-design notice. Page contents will be built incrementally with the new design. Off by default; hiding an entry does not delete data or stop tasks.",
+            "zh": "当前只提供页面入口与待设计提示，具体页面将按新的设计逐步搭建。默认关闭；关闭入口不会删除数据或停止后台任务。"
+          },
+          "icon": "./assets/icons/ui-settings.svg"
+        },
+        {
+          "id": "ui-panel",
+          "rowId": "visual-curator-ui-panel",
+          "kind": "ui",
+          "defaultEnabled": false,
+          "title": {
+            "en": "Global panel",
+            "zh": "全局面板"
+          },
+          "description": {
+            "en": "Show a Visual Curator entry in the home sidebar.",
+            "zh": "在首页侧栏显示视觉策展入口。"
+          },
+          "details": {
+            "en": "Currently provides an entry and a pending-design notice. Page contents will be built incrementally with the new design. Off by default; hiding an entry does not delete data or stop tasks.",
+            "zh": "当前只提供页面入口与待设计提示，具体页面将按新的设计逐步搭建。默认关闭；关闭入口不会删除数据或停止后台任务。"
+          },
+          "icon": "./assets/icons/ui-panel.svg"
+        },
+        {
+          "id": "ui-conversation",
+          "rowId": "visual-curator-ui-conversation",
+          "kind": "ui",
+          "defaultEnabled": false,
+          "title": {
+            "en": "Conversation tab",
+            "zh": "会话 Tab"
+          },
+          "description": {
+            "en": "Show a Visual Curator tab in conversations.",
+            "zh": "在会话中显示视觉策展标签。"
+          },
+          "details": {
+            "en": "Currently provides an entry and a pending-design notice. Page contents will be built incrementally with the new design. Off by default; hiding an entry does not delete data or stop tasks.",
+            "zh": "当前只提供页面入口与待设计提示，具体页面将按新的设计逐步搭建。默认关闭；关闭入口不会删除数据或停止后台任务。"
+          },
+          "icon": "./assets/icons/ui-conversation.svg"
+        }
+      ]
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "slots",
+        "locale",
+        "remote",
+        "remote.pluginManager",
+        "layout",
+        "uiConversation"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --import tsx/esm --test tests/*.test.ts",
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs",
+    "prepack": "pnpm run check && pnpm run build"
+  },
+  "dependencies": {
+    "ipaddr.js": "2.5.0",
+    "sharp": "0.35.5",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-app-boot": "workspace:*",
+    "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "@deepseek-ai/dsh-brand": "workspace:*",
+    "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/dsh-config-editor": "workspace:*",
+    "@deepseek-ai/dsh-credentials": "workspace:*",
+    "@deepseek-ai/dsh-jobs": "workspace:*",
+    "@deepseek-ai/dsh-plugin-manager": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@deepseek-ai/dsh-skill": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
+    "@deepseek-ai/dsh-app-boot": "workspace:*",
+    "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "@deepseek-ai/dsh-brand": "workspace:*",
+    "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-primitives": "workspace:*",
+    "@deepseek-ai/dsh-config-editor": "workspace:*",
+    "@deepseek-ai/dsh-credentials": "workspace:*",
+    "@deepseek-ai/dsh-jobs": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-plugin-manager": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-session-persistence": "workspace:*",
+    "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@types/node": "^22.20.1",
+    "@types/react": "~18.3.1",
+    "@cropper/elements": "2.3.1",
+    "esbuild": "0.28.1",
+    "react": "~18.3.1",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3",
+    "@deepseek-ai/dsh-skill": "workspace:*"
+  },
+  "icon": "./assets/visual-curator-logo-v1.png"
+}

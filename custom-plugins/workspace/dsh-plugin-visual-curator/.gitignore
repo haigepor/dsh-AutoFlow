@@ -1,0 +1,8 @@
+/node_modules/
+/index.js
+/tools.js
+/skill.js
+/page.js
+/client.js
+/*.tgz
+/tests/fixtures/browser-plugin.mjs

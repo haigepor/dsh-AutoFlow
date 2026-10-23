@@ -1,0 +1,19 @@
+# Production service fixture for the shipped headless profile.
+
+- id: headless-runner
+  inject: [headlessStartup, visualCurator]
+  config:
+    task: !!js ctx.headlessStartup.task
+    sessionId: visual-curator-recorded-session
+    json: !!js ctx.headlessStartup.json
+
+- insert:
+    - id: visual-curator-snapshot-fixture
+      name: ../../../custom-plugins/workspace/dsh-plugin-visual-curator/tests/fixtures/snapshot-plugin.ts
+
+
+# Visual workflows do not expose a platform shell tool.
+- id: tool-bash
+  disabled: true
+- id: tool-pwsh
+  disabled: true

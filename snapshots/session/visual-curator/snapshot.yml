@@ -1,0 +1,11 @@
+version: 1
+scenario: visual-curator
+profile: headless
+composition: visual-curator
+recording: authored
+header:
+  class: visual-curator
+  pin: true
+  changes: 1
+replay:
+  override: true

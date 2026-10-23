@@ -43,7 +43,7 @@ afterEach(() => {
 })
 
 describe('desktop external plugin profile', () => {
-  it('enables the shipped sidebar and updater only when initializing a new profile', async () => {
+  it('enables the shipped curation and sidebar bundles only when initializing a new profile', async () => {
     const { manager } = setup()
     await manager.applyRelease()
     const manifest = JSON.parse(readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')) as {
@@ -52,6 +52,7 @@ describe('desktop external plugin profile', () => {
     }
     expect(manifest.dsh.profile.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
+      'dsh-plugin-visual-curator',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
     ])
     expect(manifest.dependencies).toEqual({})
@@ -60,7 +61,8 @@ describe('desktop external plugin profile', () => {
   it.each([
     { selected: [] }, { selected: ['dsh-better-sidebar'] }, { selected: ['dsh-plugin-better-sidebar-updater'] },
     { selected: ['dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater'] },
-  ])('retains existing Desktop sidebar choices $selected across application launches', async ({ selected }) => {
+    { selected: ['dsh-plugin-visual-curator'] },
+  ])('retains existing Desktop bundle choices $selected across application launches', async ({ selected }) => {
     const { manager } = setup()
     await manager.applyRelease()
     const path = join(manager.paths.profile, 'package.json')
@@ -101,7 +103,9 @@ describe('desktop external plugin profile', () => {
     expect(readFileSync(backup!, 'utf8')).toBe(cssPatch)
     await manager.applyRelease()
     const restored = JSON.parse(readFileSync(path, 'utf8')) as typeof manifest
-    expect(restored.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp'])
+    expect(restored.dsh.profile.bundles).toEqual([
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp', 'dsh-plugin-visual-curator',
+    ])
     for (const name of sidebars) {
       expect(restored.dependencies[name]).toBe('1.0.0')
       expect(readFileSync(join(manager.paths.profile, 'node_modules', name, 'package.json'), 'utf8')).toBe('{broken')

@@ -69,7 +69,7 @@ export function parseBuildArguments(args: readonly string[]): BuildArguments {
 /**
  * Construct the build steps of one scope as a gate dependency graph.
  * Artifact steps keep the serial order native, Host compilation, Host bundle (Typert),
- * Desktop bundle, Client compilation, Client bundle, then parallel AFP/Sidebar bundles before Web. The typecheck scope runs Host
+ * Desktop bundle, Client compilation, Client bundle, then parallel custom bundles before Web. The typecheck scope runs Host
  * compilation beside the bundle-free Typert pass, which reads only source, and then Client
  * compilation, which needs both outputs; it writes no bundle. In the complete and typecheck
  * scopes each aggregate check waits only for its own face's package compilation; alone, the
@@ -95,8 +95,9 @@ export function buildGates(
       gates.push(libraryGate(step, step.id === 'host-src' ? ['native'] : step.needs, env))
     }
     gates.push(pnpmGate('afp', 'AFP bundle', ['run', 'build:afp'], ['client-bundle'], env))
+    gates.push(pnpmGate('visual-curator', 'Visual curator bundle', ['run', 'build:visual-curator'], ['client-bundle'], env))
     gates.push(pnpmGate('sidebar', 'Better Sidebar bundles', ['run', 'build:sidebar'], ['client-bundle'], env))
-    gates.push(pnpmGate('web', 'Web build', ['run', 'build:web'], ['afp', 'sidebar'], env))
+    gates.push(pnpmGate('web', 'Web build', ['run', 'build:web'], ['afp', 'sidebar', 'visual-curator'], env))
   }
   if (scope === 'typecheck') {
     for (const step of contractSteps(root, 'all')) gates.push(libraryGate(step, step.needs, env))

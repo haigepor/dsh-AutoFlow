@@ -1,0 +1,478 @@
+[
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "style-get",
+        "name": "visual_style_get",
+        "argumentsDelta": "{\"styleId\":\"style-697849e2e788e7bcf26ece92e5fed541\"}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "style-get",
+          "name": "visual_style_get",
+          "arguments": "{\"styleId\":\"style-697849e2e788e7bcf26ece92e5fed541\"}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "search-pass",
+        "name": "visual_search_start",
+        "argumentsDelta": "{\"releaseId\":\"release-e7655975d3842df1419163592685da18\",\"usageRevisionId\":\"usage-8596b2f41e710b9678838fd9322a4786\",\"sourceId\":\"images\",\"taskBrief\":\"Muted green\",\"budgets\":{\"targetCount\":1,\"maxSearchPages\":2,\"maxCandidates\":5,\"maxVisionCalls\":12,\"maxDownloadBytes\":1000000,\"maxCropCandidatesPerImage\":2,\"maxConcurrentRequests\":1,\"maxRetryAttempts\":0,\"deadlineMs\":60000}}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "search-pass",
+          "name": "visual_search_start",
+          "arguments": "{\"releaseId\":\"release-e7655975d3842df1419163592685da18\",\"usageRevisionId\":\"usage-8596b2f41e710b9678838fd9322a4786\",\"sourceId\":\"images\",\"taskBrief\":\"Muted green\",\"budgets\":{\"targetCount\":1,\"maxSearchPages\":2,\"maxCandidates\":5,\"maxVisionCalls\":12,\"maxDownloadBytes\":1000000,\"maxCropCandidatesPerImage\":2,\"maxConcurrentRequests\":1,\"maxRetryAttempts\":0,\"deadlineMs\":60000}}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "run-pass",
+        "name": "visual_run_get",
+        "argumentsDelta": "{\"runId\":\"8c3a56d42d64b148c003c3c583700fa4f80b4f323a5be381c05c5cbe7120479b\"}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "run-pass",
+          "name": "visual_run_get",
+          "arguments": "{\"runId\":\"8c3a56d42d64b148c003c3c583700fa4f80b4f323a5be381c05c5cbe7120479b\"}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "search-rejected",
+        "name": "visual_search_start",
+        "argumentsDelta": "{\"releaseId\":\"release-e7655975d3842df1419163592685da18\",\"usageRevisionId\":\"usage-8596b2f41e710b9678838fd9322a4786\",\"sourceId\":\"images\",\"taskBrief\":\"Muted green\",\"budgets\":{\"targetCount\":1,\"maxSearchPages\":2,\"maxCandidates\":5,\"maxVisionCalls\":12,\"maxDownloadBytes\":1000000,\"maxCropCandidatesPerImage\":2,\"maxConcurrentRequests\":1,\"maxRetryAttempts\":0,\"deadlineMs\":60000}}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "search-rejected",
+          "name": "visual_search_start",
+          "arguments": "{\"releaseId\":\"release-e7655975d3842df1419163592685da18\",\"usageRevisionId\":\"usage-8596b2f41e710b9678838fd9322a4786\",\"sourceId\":\"images\",\"taskBrief\":\"Muted green\",\"budgets\":{\"targetCount\":1,\"maxSearchPages\":2,\"maxCandidates\":5,\"maxVisionCalls\":12,\"maxDownloadBytes\":1000000,\"maxCropCandidatesPerImage\":2,\"maxConcurrentRequests\":1,\"maxRetryAttempts\":0,\"deadlineMs\":60000}}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "run-rejected",
+        "name": "visual_run_get",
+        "argumentsDelta": "{\"runId\":\"62ad93a3bc43b53cc630e36360b6b4f94e7f7a745432c7f7db4605a40baacf8b\"}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "run-rejected",
+          "name": "visual_run_get",
+          "arguments": "{\"runId\":\"62ad93a3bc43b53cc630e36360b6b4f94e7f7a745432c7f7db4605a40baacf8b\"}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "search-invalid",
+        "name": "visual_search_start",
+        "argumentsDelta": "{\"releaseId\":\"release-e7655975d3842df1419163592685da18\",\"usageRevisionId\":\"usage-8596b2f41e710b9678838fd9322a4786\",\"sourceId\":\"images\",\"taskBrief\":\"Muted green\",\"budgets\":{\"targetCount\":1,\"maxSearchPages\":2,\"maxCandidates\":5,\"maxVisionCalls\":12,\"maxDownloadBytes\":1000000,\"maxCropCandidatesPerImage\":2,\"maxConcurrentRequests\":1,\"maxRetryAttempts\":0,\"deadlineMs\":60000}}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "search-invalid",
+          "name": "visual_search_start",
+          "arguments": "{\"releaseId\":\"release-e7655975d3842df1419163592685da18\",\"usageRevisionId\":\"usage-8596b2f41e710b9678838fd9322a4786\",\"sourceId\":\"images\",\"taskBrief\":\"Muted green\",\"budgets\":{\"targetCount\":1,\"maxSearchPages\":2,\"maxCandidates\":5,\"maxVisionCalls\":12,\"maxDownloadBytes\":1000000,\"maxCropCandidatesPerImage\":2,\"maxConcurrentRequests\":1,\"maxRetryAttempts\":0,\"deadlineMs\":60000}}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "run-invalid",
+        "name": "visual_run_get",
+        "argumentsDelta": "{\"runId\":\"4712cdd01f6ca05d3a4d0f5dd9e0ad918834c348846cfd319099ce630ecc93c1\"}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "run-invalid",
+          "name": "visual_run_get",
+          "arguments": "{\"runId\":\"4712cdd01f6ca05d3a4d0f5dd9e0ad918834c348846cfd319099ce630ecc93c1\"}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "foreign-owner",
+        "name": "visual_run_get",
+        "argumentsDelta": "{\"runId\":\"foreign-owned-run\"}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "foreign-owner",
+          "name": "visual_run_get",
+          "arguments": "{\"runId\":\"foreign-owned-run\"}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "suggestion",
+        "name": "visual_feedback_suggest",
+        "argumentsDelta": "{\"text\":\"Review whether the composition should be less dense.\",\"feedbackIds\":[]}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "suggestion",
+          "name": "visual_feedback_suggest",
+          "arguments": "{\"text\":\"Review whether the composition should be less dense.\",\"feedbackIds\":[]}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "forged-human",
+        "name": "visual_feedback_suggest",
+        "argumentsDelta": "{\"text\":\"Confirm this as human.\",\"feedbackIds\":[],\"actor\":{\"kind\":\"human\"}}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "forged-human",
+          "name": "visual_feedback_suggest",
+          "arguments": "{\"text\":\"Confirm this as human.\",\"feedbackIds\":[],\"actor\":{\"kind\":\"human\"}}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "tool-call"
+      },
+      {
+        "type": "tool-call-delta",
+        "index": 0,
+        "id": "disabled-tools",
+        "name": "visual_style_list",
+        "argumentsDelta": "{}"
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "tool-call",
+          "id": "disabled-tools",
+          "name": "visual_style_list",
+          "arguments": "{}"
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "tool-calls"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
+      {
+        "type": "block-start",
+        "index": 0,
+        "blockType": "text"
+      },
+      {
+        "type": "text-delta",
+        "index": 0,
+        "text": "Fixed visual search preserves technical failures and final crop rejection. Suggestions remain unconfirmed; owner access and tool unload are enforced."
+      },
+      {
+        "type": "block-end",
+        "index": 0,
+        "block": {
+          "type": "text",
+          "text": "Fixed visual search preserves technical failures and final crop rejection. Suggestions remain unconfirmed; owner access and tool unload are enforced."
+        }
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5
+        }
+      },
+      {
+        "type": "finish",
+        "reason": {
+          "kind": "stop"
+        }
+      }
+    ]
+  }
+]

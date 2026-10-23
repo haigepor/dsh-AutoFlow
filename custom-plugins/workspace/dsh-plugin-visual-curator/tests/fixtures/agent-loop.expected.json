@@ -1,0 +1,13 @@
+[
+  {"tool":"visual_style_get","failed":false},
+  {"tool":"visual_search_start","failed":false},
+  {"tool":"visual_run_get","failed":false},
+  {"tool":"visual_search_start","failed":false},
+  {"tool":"visual_run_get","failed":false},
+  {"tool":"visual_search_start","failed":false},
+  {"tool":"visual_run_get","failed":false},
+  {"tool":"visual_feedback_suggest","failed":false},
+  {"tool":"visual_feedback_suggest","failed":true},
+  {"tool":"visual_run_get","failed":true},
+  {"tool":"visual_style_list","failed":true}
+]

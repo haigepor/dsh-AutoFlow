@@ -1,0 +1,12 @@
+/** Private media storage, bounded HTTP adapters and deterministic geometry. */
+export { MediaError, checkCancelled } from './errors.ts'
+export { resolveCrop, parseRect, CROP_ALGORITHM } from './geometry.ts'
+export type { NormalizedRect, PixelRect, CropUsage, ImageGeometry } from './geometry.ts'
+export { AssetFiles } from './assets.ts'
+export type { BlobRef, ImageFile, ImportedFiles, MediaLimits, CropFile } from './assets.ts'
+export { SafeHttpClient, isPublicAddress, validateEndpoint } from './network.ts'
+export type { HttpClient, HttpRequest, HttpResponse, RequestBounds, NetworkPolicy, DnsResolver } from './network.ts'
+export { SourceHttpProvider } from './source.ts'
+export type { SourceConfig, SourceQuery, SourcePage, SourceItem, SourceLocation, SourceRequestMapping, SourceResponseMapping, SourceLookupConfig } from './source.ts'
+export { CompatibleVisionProvider, visionCropProposalSchema, visionAnalysisSchema, visionReviewSchema } from './vision.ts'
+export type { VisionConfig, VisionImage, VisionInput, VisionRule, VisionRequestDescriptor, VisionReview, VisionAnalysis, VisionCropProposal } from './vision.ts'

@@ -1,0 +1,18 @@
+.vc-entry {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+  padding: 32px clamp(20px, 4vw, 48px);
+  color: var(--dsw-alias-label-primary);
+  overflow-wrap: anywhere;
+}
+.vc-entry header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block-end: 24px;
+}
+.vc-entry h1 { margin: 0; font-size: 24px; font-weight: 600; }
+.vc-entry p { margin-block: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); }

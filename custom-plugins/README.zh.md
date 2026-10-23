@@ -26,6 +26,7 @@ kind: "package-group"
 
 - [AFP 图片策展](workspace/dsh-plugin-afp/README.zh.md)：图片搜索、视觉策展与本地安装步骤。
 - [AFP 版本发布](workspace/dsh-plugin-afp/release/README.zh.md)：有版本的 GitHub 产物和可复用发布流程。
+- [视觉策展](workspace/dsh-plugin-visual-curator/README.zh.md)：随应用提供的风格版本、人工反馈、搜图和裁后复核。
 - [架构文档](architecture.md)：包目录、功能声明、UI 位置、文件生命周期与分发规则。
 
 ## Structure

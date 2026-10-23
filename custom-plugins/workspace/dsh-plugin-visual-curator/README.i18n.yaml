@@ -1,0 +1,52 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-plugin-visual-curator/README.md
+/:
+  en: 980f68caa25afbb9
+  zh: 2cebf1f555aaedf4
+/dsh-plugin-visual-curator:
+  en: 9f134b034ff5b4e5
+  zh: 15db384fb6990941
+/dsh-plugin-visual-curator/summary:
+  en: baa71cf4dd85af4a
+  zh: 0dd51c6b4755e5f8
+/dsh-plugin-visual-curator/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 91957bb5fa1bd8c5
+/dsh-plugin-visual-curator/use-this-package:
+  en: bbff250eba0f1b89
+  zh: 0a618f05cc88ee2b
+/dsh-plugin-visual-curator/use-this-package/enable-the-profile-layer:
+  en: 05336ab8a2007528
+  zh: 3750a4218f0ff759
+/dsh-plugin-visual-curator/use-this-package/configure-external-services:
+  en: a70a163b1cebef68
+  zh: f8de5476006fc28c
+/dsh-plugin-visual-curator/use-this-package/establish-a-fixed-style:
+  en: d79c4c50ed4c40e7
+  zh: 16b40f0cbdd4f71a
+/dsh-plugin-visual-curator/use-this-package/review-results-and-corrections:
+  en: 084831464eafd29d
+  zh: 208b157a042340d1
+/dsh-plugin-visual-curator/use-this-package/scope-and-recover-work:
+  en: 2af0f4ded7831a3b
+  zh: bbb25d37a1afad61
+/dsh-plugin-visual-curator/use-this-package/split-compare-and-export:
+  en: fc10fe22509387a0
+  zh: 4f9db5c00e88365b
+/dsh-plugin-visual-curator/understand-the-implementation:
+  en: b7271e2927d7be43
+  zh: 59e8189a62f0b5de
+/dsh-plugin-visual-curator/further-exploration:
+  en: fa88edfac2729df6
+  zh: 7ced494d03baa8ab
+/dsh-plugin-visual-curator/model-experience:
+  en: fe19a6f0654d0a1a
+  zh: a393aa0aeaa38b49
+/dsh-plugin-visual-curator/known-limitations-and-deferred-work:
+  en: 525d089339c5df88
+  zh: b839fb41df8541c9
+/dsh-plugin-visual-curator/dev-note:
+  en: 5de1d6304e00c58f
+  zh: e090bc658d949fd3

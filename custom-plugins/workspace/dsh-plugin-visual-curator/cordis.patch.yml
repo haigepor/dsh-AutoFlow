@@ -1,0 +1,106 @@
+[
+  {
+    "insert": [
+      {
+        "id": "visual-curator",
+        "name": "dsh-plugin-visual-curator"
+      },
+      {
+        "id": "visual-curator-tools",
+        "name": "dsh-plugin-visual-curator/tools",
+        "disabled": false,
+        "config": {
+          "group": "read"
+        }
+      },
+      {
+        "id": "visual-curator-curation",
+        "name": "dsh-plugin-visual-curator/tools",
+        "disabled": false,
+        "config": {
+          "group": "curate"
+        }
+      },
+      {
+        "id": "visual-curator-export",
+        "name": "dsh-plugin-visual-curator/tools",
+        "disabled": false,
+        "config": {
+          "group": "export"
+        }
+      },
+      {
+        "id": "visual-style-reference",
+        "name": "dsh-plugin-visual-curator/skill",
+        "disabled": false,
+        "config": {
+          "skill": "visual-style-reference"
+        }
+      },
+      {
+        "id": "visual-style-calibration",
+        "name": "dsh-plugin-visual-curator/skill",
+        "disabled": false,
+        "config": {
+          "skill": "visual-style-calibration"
+        }
+      },
+      {
+        "id": "visual-image-search",
+        "name": "dsh-plugin-visual-curator/skill",
+        "disabled": false,
+        "config": {
+          "skill": "visual-image-search"
+        }
+      },
+      {
+        "id": "visual-crop-composition",
+        "name": "dsh-plugin-visual-curator/skill",
+        "disabled": false,
+        "config": {
+          "skill": "visual-crop-composition"
+        }
+      },
+      {
+        "id": "visual-human-feedback",
+        "name": "dsh-plugin-visual-curator/skill",
+        "disabled": false,
+        "config": {
+          "skill": "visual-human-feedback"
+        }
+      },
+      {
+        "id": "visual-dataset-export",
+        "name": "dsh-plugin-visual-curator/skill",
+        "disabled": false,
+        "config": {
+          "skill": "visual-dataset-export"
+        }
+      },
+      {
+        "id": "visual-curator-ui-settings",
+        "name": "dsh-plugin-visual-curator/page",
+        "disabled": true,
+        "config": {
+          "page": "settings"
+        }
+      },
+      {
+        "id": "visual-curator-ui-panel",
+        "name": "dsh-plugin-visual-curator/page",
+        "disabled": true,
+        "config": {
+          "page": "panel"
+        }
+      },
+      {
+        "id": "visual-curator-ui-conversation",
+        "name": "dsh-plugin-visual-curator/page",
+        "disabled": true,
+        "config": {
+          "page": "conversation"
+        }
+      }
+    ]
+  }
+]

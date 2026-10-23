@@ -26,6 +26,7 @@ Develop maintained plugin bundles under `workspace/`, with independently version
 
 - [AFP curation](workspace/dsh-plugin-afp/README.md): photo search, visual curation, and local installation steps.
 - [AFP releases](workspace/dsh-plugin-afp/release/README.md): versioned GitHub artifacts and the reusable release procedure.
+- [Visual Curator](workspace/dsh-plugin-visual-curator/README.md): versioned styles, human feedback, image search and reviewed crops, carried with the application.
 - [Architecture](architecture.md): package layout, feature declarations, UI placement, file lifecycle, and distribution rules.
 
 ## Structure

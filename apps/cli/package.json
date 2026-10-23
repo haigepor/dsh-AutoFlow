@@ -90,6 +90,7 @@
     "@deepseek-ai/schemastery": "workspace:~",
     "commander": "^15.0.0",
     "dsh-plugin-afp": "workspace:*",
+    "dsh-plugin-visual-curator": "workspace:*",
     "js-yaml": "^4.3.2",
     "node-addon-require-builtin": "^0.1.9",
     "@deepseek-ai/dsh-http-proxy": "workspace:*",
