@@ -14,6 +14,17 @@ export function flatten(rows: EntryOptions[]): EntryOptions[] {
   return rows.flatMap(row => [row, ...(row.group && Array.isArray(row.config) ? flatten(row.config as EntryOptions[]) : [])])
 }
 
+/** Parse one profile sequence without executing Loader expressions. */
+function parseProfilePatch(text: string) {
+  const document = parseDocument(text, {
+    customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value }],
+  })
+  const error = document.errors[0]
+  if (error !== undefined) throw error
+  if (!isSeq(document.contents)) throw new Error('Profile patch must be a YAML sequence')
+  return { document, sequence: document.contents }
+}
+
 /** Replace the last matching override or append one after existing insertions. An override that holds only `id` and
  * `disabled`, without anchors, is removed, or not appended, when the bundle layers and the remaining profile patches
  * already give the entry the requested literal `disabled` value; home patches and launch overlays are not consulted.
@@ -40,14 +51,9 @@ export function readPluginFeatureEnabled(filename: string, id: string, defaultEn
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return defaultEnabled
     throw error
   }
-  const document = parseDocument(text, {
-    customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value }],
-  })
-  const error = document.errors[0]
-  if (error !== undefined) throw error
-  if (!isSeq(document.contents)) throw new Error('Profile patch must be a YAML sequence')
-  for (let index = document.contents.items.length - 1; index >= 0; index--) {
-    const item = document.contents.items[index]
+  const { document, sequence } = parseProfilePatch(text)
+  for (let index = sequence.items.length - 1; index >= 0; index--) {
+    const item = sequence.items[index]
     if (!isMap(item) || item.has('insert') || document.getIn([index, 'id']) !== id) continue
     const disabled = document.getIn([index, 'disabled'])
     if (typeof disabled === 'boolean') return !disabled
@@ -72,15 +78,10 @@ export async function writePluginEnabledBatch(
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     text = '[]\n'
   }
-  const document = parseDocument(text, {
-    customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value }],
-  })
-  const error = document.errors[0]
-  if (error !== undefined) throw error
-  if (!isSeq(document.contents)) throw new Error('Profile patch must be a YAML sequence')
+  const { document, sequence } = parseProfilePatch(text)
   const patches = loadOptionalPatches('dsh', filename) ?? []
   const bundlePatches = typeof profile === 'string' ? [] : readBundlePatches('dsh', profile)
-  const items = document.contents.items
+  const items = sequence.items
   let changed = false
   for (const { id, name, enabled } of changes) {
     const target = items.findLast((item, index) => {
@@ -106,7 +107,7 @@ export async function writePluginEnabledBatch(
         const comment = target.commentBefore
         const next = items[index]
         if (comment && isNode(next)) next.commentBefore = next.commentBefore ? `${comment}\n${next.commentBefore}` : comment
-        else if (comment && items.length === 0) document.contents.commentBefore = comment
+        else if (comment && items.length === 0) sequence.commentBefore = comment
         else if (comment) document.comment = document.comment ? `${comment}\n${document.comment}` : comment
       } else if (document.getIn([index, 'disabled']) === !enabled) {
         continue

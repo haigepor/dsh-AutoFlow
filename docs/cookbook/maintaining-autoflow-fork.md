@@ -69,6 +69,8 @@ Product-use validation includes custom workspace bundles and their updater direc
 
 The artifact build compiles AFP and Better Sidebar after the Client bundle and waits for both before Web. Keep the build graph tests and commands aligned with this fork-specific dependency order; separately successful package builds do not verify the aggregate graph.
 
+Keep [AutoFlow main CI](../../.github/workflows/autoflow-ci.yml) on hosted runners. Retain its complete fork build, local style assertions, and Linux keyless replay; do not replace protected visuals with official defaults to satisfy a checker. Review exact local selector/declaration inventories when upstream moves a component. Windows config validation follows only Git-declared link stubs and rejects escaping or cyclic targets. Check the pushed commit's workflow result before reporting remote verification.
+
 <a id="3-resolve-changes-by-behavior"></a>
 
 ## 3. Resolve changes by behavior

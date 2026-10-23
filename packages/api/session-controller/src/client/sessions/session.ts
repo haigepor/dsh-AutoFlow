@@ -365,11 +365,7 @@ export class Session implements SessionFace {
    * @returns accepted title and event position, or the business error.
    */
   async regenerateTitle(): Promise<RemoteResult<{ title: string; seq: SessionSeq }>> {
-    const result = await this.remote.session.regenerateTitle({ sessionId: this.sessionId })
-    if (!result.ok) return result
-    const seq = SessionSeq(result.value.seq)
-    this.projections.apply('title', result.value.title, seq)
-    return { ok: true, value: { title: result.value.title, seq } }
+    return this.settleTitle(await this.remote.session.regenerateTitle({ sessionId: this.sessionId }))
   }
 
   /**
@@ -378,7 +374,10 @@ export class Session implements SessionFace {
    * @returns accepted title and event position, or the business error.
    */
   async rename(title: string): Promise<RemoteResult<{ title: string; seq: SessionSeq }>> {
-    const result = await this.remote.session.rename({ sessionId: this.sessionId, title })
+    return this.settleTitle(await this.remote.session.rename({ sessionId: this.sessionId, title }))
+  }
+
+  private settleTitle(result: RemoteResult<{ title: string; seq: number }>): RemoteResult<{ title: string; seq: SessionSeq }> {
     if (!result.ok) return result
     const seq = SessionSeq(result.value.seq)
     this.projections.apply('title', result.value.title, seq)

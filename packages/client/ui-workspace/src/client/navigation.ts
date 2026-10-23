@@ -97,12 +97,12 @@ export interface UiWorkspace {
    * @param sessionId - Session to archive.
    * @param options - `stopActivity` asks the Host to stop the Session's running work instead of refusing.
    */
-  archiveSession(sessionId: SessionId, options?: { readonly stopActivity?: boolean }): Promise<void>
+  archiveSession: IWorkspaces['archiveSession']
   /**
    * Unarchive a Session, restoring it to its recorded Workspace position.
    * @param sessionId - Session to unarchive.
    */
-  unarchiveSession(sessionId: SessionId): Promise<void>
+  unarchiveSession: IWorkspaces['unarchiveSession']
   /**
    * Pin a Session on the Host, then lead it in its accounts' saved orders
    * (its Workspace group or Ungrouped, and the flat list). The order write
@@ -110,12 +110,12 @@ export interface UiWorkspace {
    * while the Host call was pending keep their positions.
    * @param sessionId - Session to pin.
    */
-  pinSession(sessionId: SessionId): Promise<void>
+  pinSession: IWorkspaces['pinSession']
   /**
    * Unpin a Session on the Host; saved positions stay as they are.
    * @param sessionId - Session to unpin.
    */
-  unpinSession(sessionId: SessionId): Promise<void>
+  unpinSession: IWorkspaces['unpinSession']
   /**
    * Open the Host-native directory picker.
    * @returns the selected directory, or null when cancelled.
@@ -328,16 +328,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const draftOptions = options === undefined ? undefined : draft
     const initializeDraft = draftOptions !== undefined
       && (draftOptions.prompt !== undefined || draftOptions.clearPreviousDraft === true)
-    const workspace = this.workspaces.list.getSnapshot()
-    const sessions = this.sessions.list.getSnapshot()
-    const current = this.mainReference?.sessionId
-    const currentWorkspaceId = current === undefined
-      ? undefined
-      : workspace.items.find(item => item.sessionIds.includes(current))?.workspaceId
-    const recent = workspace.phase === 'ready' && sessions.phase === 'ready'
-      ? recentWorkspace(workspace.items, sessions.byId)
-      : undefined
-    const target = workspaceId ?? currentWorkspaceId ?? recent
+    const target = this.newSessionTarget(workspaceId)
     if (target === undefined) {
       if (initializeDraft) {
         this.notify({ kind: 'createFailed', message: this.ctx.locale.bind('workspace')('draft.workspaceRequired') })

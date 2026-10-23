@@ -625,6 +625,8 @@ it.each(['github:acme/connected', 'https://github.com/acme/connected.git', 'git+
     expect(readProfileManifest('test', dir).dependencies).toHaveProperty(name)
     expect(requests).toContain('github.com:443')
   },
+  // Real Git and pnpm startup exceed the unit default on Windows and shared CI hosts.
+  30_000,
 )
 
 it.each(['missing package', 'invalid manifest', 'not a bundle', 'missing patch', 'invalid patch'])(

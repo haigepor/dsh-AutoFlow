@@ -171,8 +171,10 @@ describe('SessionMediaReferences /api/file', () => {
       const path = join(outside, 'image.png')
       await writeFile(path, PNG_BYTES)
       expect(await responseBytes(await route.call(path))).toEqual(PNG_BYTES)
-      const link = join(root, 'linked.png')
-      await symlink(path, link)
+      const link = process.platform === 'win32' ? join(root, 'linked', 'image.png') : join(root, 'linked.png')
+      // A directory junction exercises the same outside-cwd resolution without file-link privileges.
+      if (process.platform === 'win32') await symlink(outside, join(root, 'linked'), 'junction')
+      else await symlink(path, link)
       expect(await responseBytes(await route.call(link))).toEqual(PNG_BYTES)
     } finally {
       await rm(outside, { recursive: true, force: true })

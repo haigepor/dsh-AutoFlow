@@ -1,12 +1,33 @@
 /** Recorded npm evidence stays intact while authored files and exact edits remain checked. */
 
 import { describe, expect, it } from 'vitest'
-import { exactEditState, isRescopeExcluded } from './rescope-vendor.ts'
+import { exactEditState, isRescopeExcluded, rescopeText } from './rescope-vendor.ts'
 
 const ANCHOR = '\n## Sync procedure'
 const INSERTED = `\n15. **rescope**: one log entry.\n${ANCHOR}`
 
 describe('rescope file selection', () => {
+  it('preserves product ids without hiding imports in the same file', () => {
+    const file = 'packages/client/ui-agent-preset/src/client/CreatePluginMenuItem.tsx'
+    const source = "import { Context } from 'cordis'\nconst preset = 'cordis'\nconst pkg = import('cordis')\n"
+    const scoped = "import { Context } from '@deepseek-ai/cordis'\nconst preset = 'cordis'\nconst pkg = import('@deepseek-ai/cordis')\n"
+    expect(rescopeText(source, file)).toBe(scoped)
+    expect(rescopeText(scoped, file)).toBe(scoped)
+    expect(rescopeText(scoped, file, true)).toBe(source)
+    expect(rescopeText("import 'cordis'\ndeclare module 'cordis' {}\nrequire.resolve('cordis')", file))
+      .not.toContain("'cordis'")
+    expect(rescopeText("import\n 'cordis'\nexport { Context } from\n 'cordis'", file))
+      .not.toContain("'cordis'")
+  })
+
+  it('keeps declared event names but still checks actual package subpaths', () => {
+    const file = 'snapshots/session/cordis-inspect-liveness/client-fixture.mjs'
+    expect(rescopeText("ctx.on('cordis/inspect-query', handler)", file))
+      .toBe("ctx.on('cordis/inspect-query', handler)")
+    expect(rescopeText("import 'cordis/inspect-query'", file)).toBe("import '@deepseek-ai/cordis/inspect-query'")
+    expect(rescopeText("import 'cordis/context'", file)).toBe("import '@deepseek-ai/cordis/context'")
+    expect(rescopeText('name: cordis', 'packages/bundle/web-app/cordis.patch.yml')).toBe('name: @deepseek-ai/cordis')
+  })
   it('preserves the recorded npm resolution', () => {
     expect(isRescopeExcluded('scripts/dependency-catalog/package-lock.json')).toBe(true)
   })

@@ -145,37 +145,9 @@ export function ModelRow(props: ModelRowProps): ReactNode {
       </div>
       <AnimatedDisclosure open={props.expanded} id={panelId}>
         <div className={styles['modelAdvanced']}>
-          {(['contextWindow', 'maxTokens'] as const).map(field => (
-            <label className={styles['modelField']} key={field}>
-              <span className={styles['modelFieldLabel']}>{t(field)}</span>
-              {field === 'contextWindow' ? <div className={styles['capacityControl']}>
-                <input
-                  className={styles['input']}
-                  type="text"
-                  inputMode="numeric"
-                  value={props[field].value}
-                  placeholder={props[field].placeholder}
-                  aria-label={`${t(field)} ${String(position)}`}
-                  disabled={disabled}
-                  onChange={(event) => { props[field].onChange(event.target.value) }}
-                  onBlur={props[field].onBlur}
-                />
-                <Menu open={contextMenuOpen} portal autoFocus selectedId={props[field].value}
-                  listClassName={styles['reasoningMenu']}
-                  items={CONTEXT_WINDOW_PRESETS.map(value => ({ id: value, label: value }))}
-                  onClose={() => { setContextMenuOpen(false) }}
-                  onSelect={(value) => {
-                    setContextMenuOpen(false)
-                    const updateCapacity = props[field].onPreset ?? props[field].onChange
-                    updateCapacity(value)
-                  }}
-                  anchor={<button type="button" className={styles['capacityMenuButton']}
-                    aria-label={`${t('contextWindowMenu')} ${String(position)}`} aria-haspopup="menu"
-                    aria-expanded={contextMenuOpen} disabled={disabled}
-                    onClick={() => { setContextMenuOpen(current => !current) }}>
-                    <IconChevronDownOutlineRegular size={14} />
-                  </button>} />
-              </div> : <input
+          {(['contextWindow', 'maxTokens'] as const).map((field) => {
+            const input = (
+              <input
                 className={styles['input']}
                 type="text"
                 inputMode="numeric"
@@ -185,9 +157,32 @@ export function ModelRow(props: ModelRowProps): ReactNode {
                 disabled={disabled}
                 onChange={(event) => { props[field].onChange(event.target.value) }}
                 onBlur={props[field].onBlur}
-              />}
-            </label>
-          ))}
+              />
+            )
+            return (
+              <label className={styles['modelField']} key={field}>
+                <span className={styles['modelFieldLabel']}>{t(field)}</span>
+                {field === 'contextWindow' ? <div className={styles['capacityControl']}>
+                  {input}
+                  <Menu open={contextMenuOpen} portal autoFocus selectedId={props[field].value}
+                    listClassName={styles['reasoningMenu']}
+                    items={CONTEXT_WINDOW_PRESETS.map(value => ({ id: value, label: value }))}
+                    onClose={() => { setContextMenuOpen(false) }}
+                    onSelect={(value) => {
+                      setContextMenuOpen(false)
+                      const updateCapacity = props[field].onPreset ?? props[field].onChange
+                      updateCapacity(value)
+                    }}
+                    anchor={<button type="button" className={styles['capacityMenuButton']}
+                      aria-label={`${t('contextWindowMenu')} ${String(position)}`} aria-haspopup="menu"
+                      aria-expanded={contextMenuOpen} disabled={disabled}
+                      onClick={() => { setContextMenuOpen(current => !current) }}>
+                      <IconChevronDownOutlineRegular size={14} />
+                    </button>} />
+                </div> : input}
+              </label>
+            )
+          })}
           <ModelInputTypes model={model} field={props.inputField} position={position}
             fallback={props.inputFallback} disabled={disabled || props.inputLoading === true} t={t} onChange={props.onChange} />
           {props.reasoningOptions === undefined && props.reasoningLevels !== undefined && props.reasoningLevels.length > 0

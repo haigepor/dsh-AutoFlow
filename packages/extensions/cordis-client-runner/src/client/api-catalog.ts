@@ -370,12 +370,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'workspaceId', description: 'explicit target; absent inherits the current or most recent Workspace.' }, { name: 'options', description: 'initial content and the reused blank\'s preset; existing text or attachments are preserved unless clearPreviousDraft is true.' }],
       },
       {
-        signature: 'archiveSession(sessionId: SessionId, options?: { readonly stopActivity?: boolean }): Promise<void>',
+        signature: 'archiveSession: IWorkspaces[\'archiveSession\']',
         description: 'Archive a Session and clear it when it is the current selection.',
         parameters: [{ name: 'sessionId', description: 'Session to archive.' }, { name: 'options', description: '`stopActivity` asks the Host to stop the Session\'s running work instead of refusing.' }],
       },
       {
-        signature: 'unarchiveSession(sessionId: SessionId): Promise<void>',
+        signature: 'unarchiveSession: IWorkspaces[\'unarchiveSession\']',
         description: 'Unarchive a Session, restoring it to its recorded Workspace position.',
         parameters: [{ name: 'sessionId', description: 'Session to unarchive.' }],
       },
@@ -683,6 +683,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ISessions',
     declaration: 'export interface ISessions {\n    readonly list: ObservableSnapshot<SessionListState>;\n    retain(target: SessionTarget, options: SessionRetainOptions): SessionReference;\n    using<T>(target: SessionTarget, options: SessionRetainOptions, operation: (reference: SessionReference) => T | Promise<T>): Promise<T>;\n    retainInfo(id: SessionId): ObservableSnapshot<SessionRetainInfo>;\n    readonly searchResultLimit: number;\n    create(opts?: {\n        workspaceId?: WorkspaceId;\n        cwd?: string;\n        sessionId?: SessionId;\n        agentPreset?: string;\n    }): Promise<SessionId>;\n    subagentAddress(id: SessionId): SubagentAddress | undefined;\n    refreshProjections(sessionId: SessionId): Promise<void>;\n    refresh(): Promise<void>;\n    search(query: string, signal: AbortSignal): Promise<RemoteResult<{\n        items: SessionSearchResultItem[];\n        hasMore: boolean;\n    }>>;\n    fork(opts: {\n        sessionId: SessionId;\n        atSeq?: number;\n        increaseTitle?: boolean;\n        onCreated?: (childId: SessionId) => void;\n        allowMigration?: boolean;\n    }): Promise<SessionId>;\n    scope(id: SessionId): AgentContext | undefined;\n    scopeOf(ctx: Context): SessionId | undefined;\n    sessionOf(ctx: Context): SessionFace | undefined;\n    binding(id: SessionId): SessionBinding | undefined;\n}',
+  },
+  {
+    name: 'IWorkspaces',
+    declaration: 'export interface IWorkspaces {\n    readonly list: WorkspaceSource;\n    create(input: {\n        path: string;\n    }): Promise<WorkspaceView>;\n    initializeDefault(signal?: AbortSignal): Promise<WorkspaceView | undefined>;\n    rename(workspaceId: WorkspaceId, title: string): Promise<WorkspaceView>;\n    delete(workspaceId: WorkspaceId): Promise<void>;\n    insertBefore(workspaceId: WorkspaceId, beforeWorkspaceId?: WorkspaceId): Promise<void>;\n    archiveSession(sessionId: SessionId, options?: {\n        readonly stopActivity?: boolean;\n    }): Promise<void>;\n    unarchiveSession(sessionId: SessionId): Promise<void>;\n    pinSession(sessionId: SessionId): Promise<void>;\n    unpinSession(sessionId: SessionId): Promise<void>;\n    insertSessionBefore(workspaceId: WorkspaceId, sessionId: SessionId, beforeSessionId?: SessionId): Promise<WorkspaceView>;\n}',
   },
   {
     name: 'KeyedHooksSources',
@@ -1103,6 +1107,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'UseFactorySlot',
     declaration: 'export type UseFactorySlot<F extends keyof SlotFactoryMap & string> = <N extends FactoryLocalNameOf<F>>(name: N, fallback: FactoryLocalComponent<F, N>) => SlotComponent<FactoryLocalInputPropsOf<F, N>>;',
+  },
+  {
+    name: 'WorkspaceArchiveValue',
+    declaration: 'export interface WorkspaceArchiveValue {\n    readonly archivedSessionIds: readonly SessionId[];\n}',
+  },
+  {
+    name: 'WorkspaceListPhase',
+    declaration: 'export type WorkspaceListPhase = \'pending\' | \'ready\';',
+  },
+  {
+    name: 'WorkspacePinValue',
+    declaration: 'export interface WorkspacePinValue {\n    readonly pinnedSessionIds: readonly SessionId[];\n}',
+  },
+  {
+    name: 'WorkspaceSnapshot',
+    declaration: 'export interface WorkspaceSnapshot {\n    readonly items: readonly WorkspaceView[];\n    readonly archivedSessionIds: WorkspaceArchiveValue[\'archivedSessionIds\'];\n    readonly pinnedSessionIds: WorkspacePinValue[\'pinnedSessionIds\'];\n    readonly state: \'idle\' | \'loading\' | \'error\';\n    readonly phase: WorkspaceListPhase;\n    readonly error: RemoteFailure | null;\n}',
+  },
+  {
+    name: 'WorkspaceSource',
+    declaration: 'export interface WorkspaceSource {\n    getSnapshot(): WorkspaceSnapshot;\n    subscribe(listener: () => void): () => void;\n}',
   },
   {
     name: 'WorkspaceView',

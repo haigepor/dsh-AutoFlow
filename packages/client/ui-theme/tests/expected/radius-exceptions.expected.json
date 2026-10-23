@@ -1,12 +1,51 @@
 {
-  "ui-deliverables/src/client/ChangedFiles.module.css": [
-    ".tile: border-radius: 10px"
+  "ui-agent-preset/src/client/AgentPresetSection.module.css": [
+    ".pageIcon: border-radius: 16px"
   ],
-  "ui-deliverables/src/client/Deliverables.module.css": [
-    ".fileIcon: border-radius: 10px"
+  "ui-attachment/src/FileCard.module.css": [
+    ".card: border-radius: 16px"
+  ],
+  "ui-chat/src/client/chat/MessageItem.module.css": [
+    ".fileCard: border-radius: 16px"
+  ],
+  "ui-chat/src/client/chat/TurnTriggerNodeView.module.css": [
+    ".root: border-radius: 16px"
+  ],
+  "ui-conversation/src/client/skeleton/InputBar.module.css": [
+    ".card: border-radius: 22px"
+  ],
+  "ui-deliverables/src/client/ChangedFiles.module.css": [
+    ".card: border-radius: 18px"
+  ],
+  "ui-dockkit/src/components/dockkit.module.css": [
+    ".menu: border-radius: 8px",
+    ".float: border-radius: 20px"
+  ],
+  "ui-input-trigger/src/client/MenuView.module.css": [
+    ".itemIcon img: border-radius: 5px"
+  ],
+  "ui-jobs/src/client/JobListAction.module.css": [
+    ".rowLineLive: border-radius: 10px"
+  ],
+  "ui-message-feedback/src/client/FeedbackDialog.module.css": [
+    ".chip: border-radius: 14px"
   ],
   "ui-plan/src/client/PlanPreview.module.css": [
+    ".card: border-radius: 18px",
     ".cardIcon: border-radius: 10px"
+  ],
+  "ui-plugin-manager/src/client/PluginManagerPage.module.css": [
+    ".card: border-radius: 12px",
+    ".guide: border-radius: 14px",
+    ".registry: border-radius: 12px",
+    ".bundleExample: border-radius: 16px"
+  ],
+  "ui-primitives/src/HoverCard.module.css": [
+    ".card: border-radius: 12px",
+    ".preview: border-radius: 12px"
+  ],
+  "ui-primitives/src/Modal.module.css": [
+    ".dialog: border-radius: 24px"
   ],
   "ui-schedule/src/client/ClockPicker.module.css": [
     ".option: border-radius: 10px"
@@ -26,6 +65,7 @@
     ".deleteButton: border-radius: 6px"
   ],
   "ui-schedule/src/client/ScheduleCreateCard.module.css": [
+    ".card: border-radius: 18px",
     ".leading: border-radius: 10px"
   ],
   "ui-schedule/src/client/TaskManagerPage.module.css": [
@@ -44,8 +84,15 @@
     ".delivery: border-radius: 8px",
     ".linkedSession: border-radius: 14px"
   ],
+  "ui-schedule/src/client/TaskMenu.module.css": [
+    ".list: border-radius: 16px",
+    ".item: border-radius: 8px"
+  ],
   "ui-settings-account/src/client/AccountNotice.module.css": [
     ".card: border-radius: 16px"
+  ],
+  "ui-settings-account/src/client/AccountSection.module.css": [
+    ".card, .balanceCard: border-radius: 10px"
   ],
   "ui-settings-account/src/client/DesktopOnboarding.module.css": [
     ".card: border-radius: 32px",
@@ -54,6 +101,20 @@
     ".page .action: border-radius: 12px",
     ".indicator: border-radius: 6px"
   ],
+  "ui-settings-general/src/client/SettingsPage.module.css": [
+    ".content: border-radius: var(--dsh-windows-content-radius, 16px) 0 0 0",
+    ".content: border-radius: 16px 16px 0 0"
+  ],
+  "ui-settings-models/src/client/ModelsSection.module.css": [
+    ".pageIcon: border-radius: 16px",
+    ".providerRail, .detail: border-radius: 16px",
+    ".rowCard: border-radius: 16px",
+    ".addCard, .setupCard: border-radius: 16px",
+    ".modelInputChoices .modelChoice input: border-radius: 5px"
+  ],
+  "ui-settings-plugins/src/client/PluginsSettingsSection.module.css": [
+    ".tab:focus-visible: border-radius: 10px"
+  ],
   "ui-shortcuts/src/client/Reference.module.css": [
     ".dialog: border-radius: 24px",
     ".close: border-radius: 28px",
@@ -61,5 +122,26 @@
     ".keyBadge: border-radius: 10px",
     ".unbound: border-radius: 10px",
     ".recorder: border-radius: 10px"
+  ],
+  "ui-sidebar-documentpreview/src/client/zoom/ZoomControls.module.css": [
+    ".panel: border-radius: 12px"
+  ],
+  "ui-sidebar-right/src/client/tabs/guide/GuideBody.module.css": [
+    ".entry: border-radius: 24px"
+  ],
+  "ui-sidebar-terminal/src/client/TerminalGuide.module.css": [
+    ".entry: border-radius: 24px"
+  ],
+  "ui-subagent/src/client/SubagentReadOnlyComposer.module.css": [
+    ".frame: border-radius: 14px"
+  ],
+  "ui-tool/src/client/tool/components/AskQuestionCard.module.css": [
+    ".card: border-radius: 12px"
+  ],
+  "ui-user-questions/src/client/PlanReviewPanel.module.css": [
+    ".card: border-radius: 20px"
+  ],
+  "ui-user-questions/src/client/QuestionComposer.module.css": [
+    ".card: border-radius: 20px"
   ]
 }

@@ -110,6 +110,10 @@
     },
     {
       "status": "A",
+      "path": ".github/workflows/autoflow-ci.yml"
+    },
+    {
+      "status": "A",
       "path": ".github/workflows/desktop-macos-build.yml"
     },
     {
@@ -3474,6 +3478,14 @@
     },
     {
       "status": "M",
+      "path": "docs/module-graph.md"
+    },
+    {
+      "status": "M",
+      "path": "docs/module-graph.zh.md"
+    },
+    {
+      "status": "M",
       "path": "docs/persistence-catalog.i18n.yaml"
     },
     {
@@ -3515,6 +3527,18 @@
     {
       "status": "M",
       "path": "docs/persistence-schema.json"
+    },
+    {
+      "status": "M",
+      "path": "docs/rescope.i18n.yaml"
+    },
+    {
+      "status": "M",
+      "path": "docs/rescope.md"
+    },
+    {
+      "status": "M",
+      "path": "docs/rescope.zh.md"
     },
     {
       "status": "M",
@@ -3839,6 +3863,10 @@
     {
       "status": "M",
       "path": "packages/api/session-controller/src/types.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/api/session-controller/tests/media-references.host.spec.ts"
     },
     {
       "status": "A",
@@ -5461,6 +5489,10 @@
       "path": "packages/client/ui-theme/src/client/previews/PalettePreview.tsx"
     },
     {
+      "status": "A",
+      "path": "packages/client/ui-theme/src/client/previews/ThemePreviewBars.tsx"
+    },
+    {
       "status": "M",
       "path": "packages/client/ui-theme/src/client/settings-store.ts"
     },
@@ -5582,7 +5614,19 @@
     },
     {
       "status": "M",
+      "path": "packages/client/ui-theme/tests/corner-shape-styles.client.spec.ts"
+    },
+    {
+      "status": "M",
       "path": "packages/client/ui-theme/tests/elevation-styles.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/tests/expected/radius-exceptions.expected.json"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/tests/focus-ring-styles.client.spec.ts"
     },
     {
       "status": "M",
@@ -5603,6 +5647,10 @@
     {
       "status": "M",
       "path": "packages/client/ui-theme/tests/menu-surfaces.client.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "packages/client/ui-theme/tests/scrollbar-styles.client.spec.ts"
     },
     {
       "status": "M",
@@ -6033,6 +6081,10 @@
       "path": "recipes.json"
     },
     {
+      "status": "A",
+      "path": "scripts/autoflow-ci-workflow.spec.ts"
+    },
+    {
       "status": "M",
       "path": "scripts/build.spec.ts"
     },
@@ -6057,8 +6109,24 @@
       "path": "scripts/client-build-environment.ts"
     },
     {
+      "status": "M",
+      "path": "scripts/cordis-config-files.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "scripts/cordis-config-files.ts"
+    },
+    {
       "status": "A",
       "path": "scripts/desktop-macos-workflow.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "scripts/gen-cli-help.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "scripts/gen-cli-help.ts"
     },
     {
       "status": "M",
@@ -6079,6 +6147,18 @@
     {
       "status": "M",
       "path": "scripts/project-doc-site.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "scripts/rescope-vendor.spec.ts"
+    },
+    {
+      "status": "M",
+      "path": "scripts/rescope-vendor.ts"
+    },
+    {
+      "status": "M",
+      "path": "scripts/verify-cordis-config.ts"
     },
     {
       "status": "M",
@@ -10281,20 +10361,37 @@
     "checks": {
       "completeBuild": "11 passed",
       "buildAndSourceTests": "106 passed, 1 existing skip",
-      "hostSettingsThemeTests": "208 passed, 1 existing skip"
+      "hostSettingsThemeTests": "208 passed, 1 existing skip",
+      "ciMaintenance": {
+        "completeBuild": "11 passed",
+        "localUiAndCompatibility": "1572 passed",
+        "installationAndMedia": "142 passed, 1 existing POSIX-only skip",
+        "documentation": "43 passed",
+        "lint": "passed with existing unused-disable warnings",
+        "duplication": "zero clones",
+        "styleSource": "No CSS changes; light/dark SVG output identical",
+        "static": "61 passed initially; all 3 failed leaves repaired and independently rechecked",
+        "hygiene": "20 passed initially; remaining rescope leaf repaired and rechecked"
+      }
     },
     "fixes": [
       "Custom bundle build graph expectations and commands",
       "Settings action-slot rendering and invocation expectation",
       "Windows foreign-icon fixture uses a junction with the same rejection assertions",
-      "Mirror tracking ref and portable integration/rollback tags"
+      "Mirror tracking ref and portable integration/rollback tags",
+      "Hosted Ubuntu/Windows main CI without API credentials or publication",
+      "Exact retained AutoFlow style assertions and semantic scrollbar materials",
+      "Index-declared Windows config link stubs with containment and cycle rejection",
+      "Preset/event identifiers remain intact while real package references still rename",
+      "Seven shared code blocks extracted without changing layout or color",
+      "Bounded CLI help startup and portable installation/media fixtures",
+      "Generated inspect catalog and module graph refreshed"
     ],
     "remaining": [
-      "Five existing style-policy assertions",
-      "Native-Windows keyless replay cwd/Bash limits",
-      "ACP symlink checkout and vendor rescope preset/event-key false positives",
-      "Inherited full CI has no ordinary main-push trigger",
+      "Recorded Bash scenarios belong to Linux/macOS; native-Windows cwd/Bash replay is not claimed",
+      "Real provider calls, signed installers, and macOS runtime are not exercised",
       "Unattached temporary worktree ownership is unverifiable; retained"
-    ]
+    ],
+    "branchCleanup": "Temporary codex branches are removed after main verification; rollback and integration tags remain immutable. Unrelated documentation branches are retained."
   }
 }

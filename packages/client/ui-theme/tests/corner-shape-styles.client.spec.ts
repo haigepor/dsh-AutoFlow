@@ -70,22 +70,26 @@ function unpairedFullRound(css: string): string[] {
       .some(([property, value]) => property === 'border-radius' && isFullRound(value)))
     .filter(rule => !rule.declarations
       .some(([property, value]) => property === 'corner-shape' && value === 'round'))
-    .map(rule => rule.selectors.join(', '))
+    .map(rule => `${rule.selectors.join(', ')}: ${rule.declarations.find(([name]) => name === 'border-radius')?.[1]}`)
 }
 
 describe('full-round radii keep circular corners', () => {
   it('rejects a full-round radius without the pairing', () => {
-    expect(unpairedFullRound('.a { border-radius: 50%; }')).toEqual(['.a'])
-    expect(unpairedFullRound('.a { border-radius: 999px; }')).toEqual(['.a'])
+    expect(unpairedFullRound('.a { border-radius: 50%; }')).toEqual(['.a: 50%'])
+    expect(unpairedFullRound('.a { border-radius: 999px; }')).toEqual(['.a: 999px'])
     expect(unpairedFullRound('.a { border-radius: 50%; corner-shape: round; }')).toEqual([])
   })
 
-  it('pairs corner-shape: round with every full-round border-radius under packages/', () => {
+  it('pairs circular radii except the exact retained AutoFlow decorations', () => {
     // The universal superellipse reaches every element, so each circle and
     // pill states its own arc back; a new one without the pairing regresses
     // silently on supporting engines only, which no jsdom test renders.
     const unpaired = packageStylesheets().flatMap(file =>
-      unpairedFullRound(readFileSync(file, 'utf8')).map(selectors => `${file} ${selectors}`))
-    expect(unpaired).toEqual([])
+      unpairedFullRound(readFileSync(file, 'utf8')).map(selectors => `${file.split('/packages/')[1]} ${selectors}`))
+    // These retained decorations follow the global corner preference, including superellipse.
+    expect(unpaired).toEqual([
+      'client/ui-chat/src/client/chat/AssistantMarkdown.module.css .root .body blockquote::before: 999px',
+      'client/ui-plugin-manager/src/client/PluginManagerPage.module.css .bundleExampleArrow: 50%',
+    ])
   })
 })

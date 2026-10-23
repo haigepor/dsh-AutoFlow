@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type SVGProps } from 'react'
+import { ThemePreviewBars } from './ThemePreviewBars.tsx'
 
 export function IconThemeDark(props: SVGProps<SVGSVGElement>) {
   return (
@@ -40,42 +41,7 @@ export function IconThemeDark(props: SVGProps<SVGSVGElement>) {
         fill='#426187'
       />
       <g fill='#2a62bc'>
-        <rect
-          x={33.36}
-          y={19.73}
-          width={2.75}
-          height={3.42}
-          rx={0.33}
-          ry={0.33}
-          opacity={0.32}
-        />
-        <rect
-          x={29.64}
-          y={16.57}
-          width={2.75}
-          height={6.58}
-          rx={0.33}
-          ry={0.33}
-          opacity={0.44}
-        />
-        <rect
-          x={37.16}
-          y={14.44}
-          width={2.75}
-          height={8.7}
-          rx={0.33}
-          ry={0.33}
-          opacity={0.53}
-        />
-        <rect
-          x={41.19}
-          y={10.75}
-          width={2.75}
-          height={12.4}
-          rx={0.33}
-          ry={0.33}
-          opacity={0.53}
-        />
+        <ThemePreviewBars />
       </g>
       <circle cx={62.74} cy={16.32} r={8} fill='#2f5491' opacity={0.5} />
       <path

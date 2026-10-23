@@ -146,8 +146,11 @@ const SURFACE_PROPERTIES = ['background', 'background-color']
  * carries a radius, a shadow, and a fixed size, so shape cannot separate them.
  */
 const SURFACE_TOKEN_PATTERN = /^--dsw-(?:alias-bg-|specific-)/
-/** Translucent elevated surfaces whose colors do not resolve to a palette rung. */
-const TRANSLUCENT_ELEVATED_SURFACES = new Set(['--dsw-specific-menu'])
+/** Component materials retain elevated scrollbar treatment across local palette choices.
+ * AutoFlow's input shares layer-1 and its tip uses a separate neutral, so color
+ * equality alone cannot recover their component elevation.
+ */
+const MATERIAL_ELEVATED_SURFACES = new Set(['--dsw-specific-menu', '--dsw-specific-input-major', '--dsw-specific-tip'])
 
 /**
  * The palette's own dark elevation ladder, resolved from `design-platform.css`:
@@ -184,7 +187,7 @@ function elevatedRungs(): Set<string> {
   return tokens
 }
 
-const elevatedSurfaces = new Set([...elevatedRungs(), ...TRANSLUCENT_ELEVATED_SURFACES])
+const elevatedSurfaces = new Set([...elevatedRungs(), ...MATERIAL_ELEVATED_SURFACES])
 
 for (const file of packageStylesheets()) {
   const rules = parseRules(readFileSync(file, 'utf8'))

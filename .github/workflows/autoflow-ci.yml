@@ -1,0 +1,115 @@
+name: AutoFlow main CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DSH_TELEMETRY_DISABLED: '1'
+  DSH_GATE_CONCURRENCY: '2'
+  DSH_CLI_HELP_CONCURRENCY: '2'
+  DSH_OXLINT_THREADS: '2'
+  DSH_PUBLINT_CONCURRENCY: '2'
+  DSH_SNAPSHOT_MAX_CONCURRENCY: '2'
+
+jobs:
+  static:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Static and documentation checks
+        env:
+          DSH_ARCHIVE_BASE_REF: ${{ github.event.before || github.sha }}
+        run: pnpm run check:ci:static
+
+  client-and-replay:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare process sandbox
+        run: bash scripts/prepare-ci-bubblewrap.sh
+      - name: Build AutoFlow and aggregate types
+        run: pnpm run build
+      - name: Package hygiene
+        run: pnpm run hygiene
+      - name: Lint and duplication
+        run: pnpm run check:ci:lint:contracts-ready
+      - name: Local layout and compatibility regressions
+        run: >-
+          pnpm exec vitest run
+          scripts/ci-workflow.spec.ts scripts/autoflow-ci-workflow.spec.ts
+          scripts/rescope-vendor.spec.ts scripts/cordis-config-files.spec.ts
+          scripts/verify-cordis-config.spec.ts scripts/build.spec.ts
+          scripts/gen-cli-help.spec.ts
+          packages/boot/plugin-manager/tests/patch.spec.ts
+          packages/boot/plugin-manager/tests/manager.spec.ts
+          packages/api/session-controller/tests/session.client.spec.ts
+          packages/client/ui-workspace/tests
+          packages/client/ui-theme/tests packages/client/ui-settings-general/tests
+          packages/client/ui-settings-models/tests packages/client/ui-plugin-manager/tests
+          custom-plugins/workspace/dsh-plugin-afp/tests
+          custom-plugins/workspace/dsh-better-sidebar/tests
+          --maxWorkers=2
+      # These recorded Bash scenarios belong to the Linux/macOS lane.
+      - name: Keyless text, tool call and retained format replay
+        env:
+          DSH_EXAMPLE_MODE: lib
+        run: pnpm run test:snapshot snapshots/session/headless.snapshot.ts -t 'text-turn|tool-call-turn'
+
+  windows:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build Windows artifacts and aggregate types
+        run: pnpm run build
+      - name: Windows config and UI regressions
+        run: >-
+          pnpm exec vitest run
+          scripts/autoflow-ci-workflow.spec.ts scripts/rescope-vendor.spec.ts
+          scripts/cordis-config-files.spec.ts scripts/verify-cordis-config.spec.ts
+          scripts/build.spec.ts packages/boot/app-boot/tests/package-meta.spec.ts
+          scripts/gen-cli-help.spec.ts
+          packages/api/session-controller/tests/media-references.host.spec.ts
+          packages/boot/plugin-manager/tests/manager.spec.ts
+          packages/client/ui-theme/tests packages/client/ui-settings-general/tests
+          --maxWorkers=2
+      - run: pnpm run verify-cordis-config

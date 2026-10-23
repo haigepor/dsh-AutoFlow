@@ -296,13 +296,7 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
                 model={model}
                 position={index + 1}
                 total={props.models.length}
-                dragging={order.dragged === index}
-                dropTarget={order.over === index}
-                onDragStart={(event) => { order.dragStart(index, event) }}
-                onDragOver={(event) => { order.dragOver(index, event) }}
-                onDrop={(event) => { order.drop(index, event) }}
-                onDragEnd={order.dragEnd}
-                onMove={(to) => { order.move(index, to) }}
+                {...order.rowProps(index)}
                 inputField="inputModalities"
                 reasoningOptions={props.reasoningOptions}
                 expanded={expanded.has(index)}

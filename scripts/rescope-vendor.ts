@@ -431,7 +431,7 @@ const VENDORED_LIBRARY = /^@deepseek-ai\\/(cosmokit|schemastery)(\\/|$)/
  * @returns Whether the codemod must preserve the file without scanning its tokens.
  */
 export function isRescopeExcluded(file: string): boolean {
-  if (file === 'scripts/rescope-vendor.ts') return true // the mapping itself
+  if (file === 'scripts/rescope-vendor.ts' || file === 'scripts/rescope-vendor.spec.ts') return true // mapping and before/after fixtures
   if (file.startsWith('.agents/notes/')) return true // notes record what was true when written
   // Recorded model payloads quote documentation verbatim, so they must mirror the
   // sources on disk — including the notes this rescope leaves alone.
@@ -478,11 +478,42 @@ function skipped(file: string, pattern: Pattern): boolean {
   return GENERIC_SKIPS.some(skip => skip.file === file && skip.upstream.includes(pattern.upstream))
 }
 
-function rewriteLine(line: string, file: string, all: readonly Pattern[]): string {
+/** Product ids and event names share a spelling with the framework package. */
+const PRODUCT_IDENTIFIERS = new Map<string, readonly string[]>([
+  ...[
+    'apps/cli/tests/optional-bundle-transitions.e2e.ts',
+    'apps/web/tests/agent-preset-selection.e2e.ts',
+    'apps/web/tests/developer-tools-settings.e2e.ts',
+    'docs/subsystems/schedule.md', 'docs/subsystems/schedule.zh.md',
+    'docs/upgrade-guide/v0.2.0-rc.2/schedule-bundle-retired/guide.md',
+    'docs/upgrade-guide/v0.2.0-rc.2/schedule-bundle-retired/guide.zh.md',
+    'docs/upgrade-guide/v0.2.1-alpha.1/subagent-preset-composition/guide.md',
+    'docs/upgrade-guide/v0.2.1-alpha.1/subagent-preset-composition/guide.zh.md',
+    'docs/user/guide/schedule.md', 'docs/user/guide/schedule.zh.md',
+    'packages/bundle/web-app/cordis.patch.yml',
+    'packages/client/ui-agent-preset/src/client/CreatePluginMenuItem.tsx',
+    'packages/client/ui-agent-preset/src/client/PresetIllustration.tsx',
+    'packages/client/ui-agent-preset/tests/components.client.spec.tsx',
+    'packages/client/ui-agent-preset/tests/create-plugin-menu-item.client.spec.tsx',
+    'packages/client/ui-agent-preset/tests/section-store.client.spec.ts',
+  ].map((file): [string, readonly string[]] => [file, ['cordis']]),
+  ...[
+    'packages/extensions/cordis-host-runner/tests/inspect-registry.spec.ts',
+    'snapshots/session/cordis-inspect-liveness/client-fixture.mjs',
+    'snapshots/session/cordis-inspect-timeout/client-fixture.mjs',
+  ].map((file): [string, readonly string[]] => [file, ['cordis/inspect-query', 'cordis/inspect-query-resolved']]),
+])
+
+function rewriteLine(line: string, file: string, all: readonly Pattern[], preceding = ''): string {
   let out = line
   for (const pattern of all) {
     if (skipped(file, pattern)) continue
-    out = out.replace(pattern.token, (_match, quote: string, subpath: string) => `${quote}${pattern.to}${subpath}${quote}`)
+    out = out.replace(pattern.token, (match: string, quote: string, subpath: string, offset: number) => {
+      // Imports still rename even beside a product id in the same file.
+      const moduleSpecifier = /\b(?:from|import|module|require(?:\.resolve)?)\s*(?:\(\s*)?$/.test(preceding + out.slice(0, offset))
+      if (!moduleSpecifier && PRODUCT_IDENTIFIERS.get(file)?.includes(`${pattern.from}${subpath}`)) return match
+      return `${quote}${pattern.to}${subpath}${quote}`
+    })
     out = out.replace(pattern.yamlName, (_match, prefix: string, suffix: string) => `${prefix}${pattern.to}${suffix}`)
   }
   return out
@@ -504,7 +535,10 @@ function rewrite(text: string, file: string, all: readonly Pattern[]): { text: s
   const prose = markdown && file.startsWith('docs/')
   let insideFence = false
   let lines = 0
+  let preceding = ''
   const out = text.split('\n').map((line) => {
+    const before = preceding
+    if (PRODUCT_IDENTIFIERS.has(file)) preceding += `${line}\n`
     if (markdown) {
       if (/^\s*```/.test(line)) {
         insideFence = !insideFence
@@ -512,11 +546,21 @@ function rewrite(text: string, file: string, all: readonly Pattern[]): { text: s
       }
       if (!insideFence && !prose) return line
     }
-    const next = rewriteLine(line, file, all)
+    const next = rewriteLine(line, file, all, before)
     if (next !== line) lines += 1
     return next
   })
   return { text: out.join('\n'), lines }
+}
+
+/** Rewrite package references while preserving declared product identifiers.
+ * @param text Source text.
+ * @param file Repository-relative path.
+ * @param reverse Restore upstream package names when true.
+ * @returns Rewritten source text.
+ */
+export function rescopeText(text: string, file: string, reverse = false): string {
+  return rewrite(text, file, patterns(reverse)).text
 }
 
 function classify(file: string): string {

@@ -27,7 +27,7 @@ function ringColorViolations(source: string): string[] {
       }
       if (rule.selectors.every(selector => selector.includes(':focus-visible'))
         && tokens.includes(ACCENT) && !tokens.includes(COLOR)) {
-        violations.push(`${rule.selectors.join(', ')} bypasses ${COLOR}`)
+        violations.push(`${rule.selectors.join(', ')} { ${property}: ${value} } bypasses ${COLOR}`)
       }
     }
   }
@@ -61,10 +61,19 @@ describe('focus styles', () => {
     expect(ringColorViolations(`.a:focus-visible::after { outline: 2px solid ${FALLBACK}; }`)).toEqual([])
   })
 
-  it('uses the shared ring color throughout a non-empty client stylesheet corpus', () => {
+  it('uses shared rings with exact retained AutoFlow focus treatments', () => {
     const files = packageStylesheets().filter(file => file.includes('/packages/client/'))
     expect(files.length).toBeGreaterThan(0)
-    const failures = files.flatMap(file => ringColorViolations(readFileSync(file, 'utf8')).map(value => `${file}: ${value}`))
-    expect(failures).toEqual([])
+    const failures = files.flatMap(file => ringColorViolations(readFileSync(file, 'utf8'))
+      .map(value => `${file.split('/packages/client/')[1]}: ${value}`))
+    // The local neutral rings and plugin feature accent are protected visual choices.
+    // Exact declarations keep other controls and future changes subject to the shared-ring rule.
+    expect(failures).toEqual([
+      'ui-plan/src/client/PlanPreview.module.css: .card:focus-visible { outline: 2px solid var(--dsw-alias-label-primary) }',
+      'ui-plugin-manager/src/client/PluginManagerPage.module.css: .bundleDetail[data-managed-bundle] .detailInformation > summary:focus-visible { outline: 2px solid var(--dsw-alias-label-primary) }',
+      'ui-plugin-manager/src/client/PluginManagerPage.module.css: .featureTitle:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary) } bypasses --dsw-focus-ring-color',
+      'ui-plugin-manager/src/client/PluginManagerPage.module.css: .updatesHead:focus-visible { outline: 2px solid var(--dsw-alias-label-primary) }',
+      'ui-plugin-manager/src/client/PluginManagerPage.module.css: :global([data-plugin-update-card] > summary:focus-visible) { outline: 2px solid var(--dsw-alias-label-primary) }',
+    ])
   })
 })

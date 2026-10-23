@@ -113,8 +113,12 @@ describe('shared menu material', () => {
           && !file.endsWith('/client/web/src/base.css'))
         || (name === '--dsw-menu-backdrop-filter'
           && !file.endsWith('/ui-theme/src/styles/gradient-shadow-text.css')
-          && !file.endsWith('/ui-theme/src/styles/design-platform.css'))))
-      .map(([name]) => `${file}: ${name}`))
-    expect(failures).toEqual([])
+          && !file.endsWith('/ui-theme/src/styles/design-platform.css')))
+        .map(([name, value]) => `${file.split('/packages/client/')[1]}: ${rule.selectors.join(', ')}: ${name}: ${value}`)))
+    // The model picker deliberately uses a lighter theme-derived material than other menus.
+    expect(failures).toEqual([
+      'ui-model-selection/src/client/ModelSelect.module.css: .menu: --dsw-menu-surface-fill: var(--dsh-model-menu-surface)',
+      'ui-model-selection/src/client/ModelSelect.module.css: .menu: --dsw-specific-menu: var(--dsh-model-menu-surface)',
+    ])
   })
 })

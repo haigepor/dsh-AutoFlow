@@ -390,13 +390,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
             model={model}
             position={index + 1}
             total={models.length}
-            dragging={order.dragged === index}
-            dropTarget={order.over === index}
-            onDragStart={(event) => { order.dragStart(index, event) }}
-            onDragOver={(event) => { order.dragOver(index, event) }}
-            onDrop={(event) => { order.drop(index, event) }}
-            onDragEnd={order.dragEnd}
-            onMove={(to) => { order.move(index, to) }}
+            {...order.rowProps(index)}
             inputField="input"
             inputFallback={inputDefaults.get(textOf(model, 'id')) ?? props.defaultInput}
             inputLoading={catalogProvider !== undefined && catalog === undefined}

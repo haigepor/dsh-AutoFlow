@@ -1,7 +1,7 @@
 /** Command discovery and complete output preservation for the CLI reference. */
 
 import { describe, expect, it } from 'vitest'
-import { collectCliHelp, parseCliHelp, prefetchHelp, topLevelHelpArgs } from './gen-cli-help.ts'
+import { cliHelpConcurrency, collectCliHelp, parseCliHelp, prefetchHelp, topLevelHelpArgs } from './gen-cli-help.ts'
 
 interface PendingRead {
   args: string
@@ -27,6 +27,13 @@ async function flush(): Promise<void> {
 }
 
 describe('CLI help discovery', () => {
+  it('accepts an explicit process budget and rejects malformed limits', () => {
+    expect(cliHelpConcurrency({ DSH_CLI_HELP_CONCURRENCY: '2' })).toBe(2)
+    expect(cliHelpConcurrency({})).toBeGreaterThan(0)
+    for (const value of ['0', '-1', '1.5', '02', 'NaN', 'Infinity']) {
+      expect(() => cliHelpConcurrency({ DSH_CLI_HELP_CONCURRENCY: value })).toThrow('positive integer')
+    }
+  })
   it('reads command rows while retaining wrapped descriptions and examples', () => {
     const help = 'Usage: dsh\r\n\r\nCommands:\r\n  web [options]  Serve the browser\r\n                 with a wrapped description\r\n  plugin         Manage plugins\r\n\r\nExamples:\r\n  dsh web\r\n'
     const result = parseCliHelp(help)

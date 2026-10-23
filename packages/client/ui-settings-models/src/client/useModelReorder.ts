@@ -1,6 +1,10 @@
 /** Shared ordering behavior for the two editable model catalogs. */
 import { useState } from 'react'
-import type { Dispatch, DragEvent, SetStateAction } from 'react'
+import type { ComponentProps, Dispatch, DragEvent, SetStateAction } from 'react'
+import type { ModelRow } from './ModelRow.tsx'
+
+type RowOrderProps = Pick<ComponentProps<typeof ModelRow>,
+  'dragging' | 'dropTarget' | 'onDragStart' | 'onDragOver' | 'onDrop' | 'onDragEnd' | 'onMove'>
 
 interface ModelReorderOptions<T> {
   models: readonly T[]
@@ -31,6 +35,7 @@ export function useModelReorder<T>(options: ModelReorderOptions<T>): {
   dragOver: (index: number, event: DragEvent<HTMLDivElement>) => void
   dragEnd: () => void
   drop: (index: number, event: DragEvent<HTMLDivElement>) => void
+  rowProps: (index: number) => RowOrderProps
 } {
   const { models, onChange, setEditing, setExpanded, disabled } = options
   const [dragged, setDragged] = useState<number | null>(null)
@@ -71,5 +76,14 @@ export function useModelReorder<T>(options: ModelReorderOptions<T>): {
     dragEnd()
   }
 
-  return { dragged, over, move, dragStart, dragOver, dragEnd, drop }
+  const rowProps = (index: number): RowOrderProps => ({
+    dragging: dragged === index,
+    dropTarget: over === index,
+    onDragStart: (event) => { dragStart(index, event) },
+    onDragOver: (event) => { dragOver(index, event) },
+    onDrop: (event) => { drop(index, event) },
+    onDragEnd: dragEnd,
+    onMove: (to) => { move(index, to) },
+  })
+  return { dragged, over, move, dragStart, dragOver, dragEnd, drop, rowProps }
 }

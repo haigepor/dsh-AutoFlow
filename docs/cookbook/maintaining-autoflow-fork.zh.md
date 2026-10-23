@@ -69,6 +69,8 @@ AFP 是独立的自定义插件，其源码、描述和 profile 选择仍由该�
 
 产物构建在 Client bundle 完成后编译 AFP 和 Better Sidebar，Web 等待两者完成。构建图测试及命令须覆盖这一本地依赖顺序；各包分别构建成功不能证明聚合构建图已经验证。
 
+保持 [AutoFlow main CI](../../.github/workflows/autoflow-ci.yml) 使用托管 runner，保留完整 fork 构建、本地样式断言及 Linux 无密钥回放；不能为满足检查器而把受保护视觉恢复为官方默认值。官方迁移组件时，审阅本地精确选择器/声明清单。Windows 配置检查只跟随 Git 声明的链接文本，拒绝越界和循环目标。报告远程验证前，核对已推送提交的工作流结果。
+
 <a id="3-resolve-changes-by-behavior"></a>
 
 ## 3. 按行为解决改动

@@ -18,6 +18,20 @@ const root = resolve(import.meta.dirname, '..')
 const paths = translationPairPaths('docs/cli-help.md')
 const execFileAsync = promisify(execFile)
 
+/** Resolve the independent process budget for CLI help boots.
+ * @param env Environment with an optional positive DSH_CLI_HELP_CONCURRENCY.
+ * @returns Maximum simultaneously booted help processes.
+ */
+export function cliHelpConcurrency(env: NodeJS.ProcessEnv = process.env): number {
+  const value = env.DSH_CLI_HELP_CONCURRENCY
+  if (value === undefined || value === '') return defaultParallelism(env)
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || String(parsed) !== value) {
+    throw new Error(`DSH_CLI_HELP_CONCURRENCY must be a positive integer, got ${JSON.stringify(value)}`)
+  }
+  return parsed
+}
+
 /** Complete help text and the immediate subcommands it advertises. */
 export interface CliHelp {
   /** Complete help text with LF line endings. */
@@ -207,7 +221,7 @@ async function collectHelp(): Promise<HelpPage[]> {
     } finally {
       signal.removeEventListener('abort', abort)
     }
-  }, topLevelHelpArgs(profiles), defaultParallelism())
+  }, topLevelHelpArgs(profiles), cliHelpConcurrency())
   try {
     return await collectCliHelp(reader.readHelp, profiles)
   } finally {
