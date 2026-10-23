@@ -41,6 +41,7 @@ apps/web/dist/
 .dsh-build/
 /output/
 /.tmp-codex-ui-analysis/
+.dsh-report/
 .playwright-mcp/
 .orig
 .worktrees/

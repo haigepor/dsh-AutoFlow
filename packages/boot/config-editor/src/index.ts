@@ -104,7 +104,8 @@ export class ConfigEditor extends Service {
         const retained = owned.map((row) => {
           const value = effective.find(entry => entry.id === row.id)
           if (!value || value.name !== row.name) throw new Error('Bundle configuration owner changed')
-          return { id: row.id, name: row.name, config: value.config ?? {} }
+          const config: unknown = value.config
+          return { id: row.id, name: row.name, config: config ?? {} }
         })
         let before: string
         try { before = await readFile(this.documentPath, 'utf8') }

@@ -1,3 +1,4 @@
+import { testConnection } from './connection-fixture.ts'
 /**
  * Host `fs.write` route: the two guarantees the editor's save depends on.
  *
@@ -21,7 +22,7 @@ import { encodeText } from '../src/text-encoding.ts'
 import type { SidebarWebRoute } from '../src/context-types.ts'
 
 interface FakeContext {
-  webRuntime: { trustedHosts: readonly string[] }
+  connection: ReturnType<typeof testConnection>
   webServer: {
     register: (route: SidebarWebRoute) => () => void
     registerUpgrade: () => () => void
@@ -39,7 +40,7 @@ interface FakeContext {
 function mountApi(workspace: string): SidebarWebRoute {
   const routes: SidebarWebRoute[] = []
   const ctx: FakeContext = {
-    webRuntime: { trustedHosts: [] },
+    connection: testConnection(),
     webServer: { register: (route) => { routes.push(route); return () => {} }, registerUpgrade: () => () => {} },
     sessions: { get: () => ({ header: { cwd: workspace } }) },
     tools: { register: () => () => {} },

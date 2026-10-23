@@ -14,11 +14,14 @@ vi.mock('../src/startup-diagnostics.ts', () => ({ reportStartupFailure: vi.fn() 
 
 const originalArgv = process.argv
 const connectedDescriptor = Object.getOwnPropertyDescriptor(process, 'connected')
+const channelDescriptor = Object.getOwnPropertyDescriptor(process, 'channel')
 
 afterEach(() => {
   process.argv = originalArgv
   if (connectedDescriptor === undefined) Reflect.deleteProperty(process, 'connected')
   else Object.defineProperty(process, 'connected', connectedDescriptor)
+  if (channelDescriptor === undefined) Reflect.deleteProperty(process, 'channel')
+  else Object.defineProperty(process, 'channel', channelDescriptor)
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
   vi.resetAllMocks()
@@ -28,6 +31,8 @@ describe('supervised Web startup', () => {
   it.each(['shutdown', 'disconnect'] as const)('remembers an early parent %s until boot returns', async (request) => {
     process.argv = [process.execPath, '/owned/dsh/bin.js', 'web', '--no-open']
     Object.defineProperty(process, 'connected', { configurable: true, value: true })
+    const unref = vi.fn()
+    Object.defineProperty(process, 'channel', { configurable: true, value: { unref } })
     vi.stubEnv('DSH_WEB_SUPERVISED_CHILD', '1')
     const on = vi.spyOn(process, 'on').mockReturnValue(process)
     const once = vi.spyOn(process, 'once').mockReturnValue(process)
@@ -38,6 +43,7 @@ describe('supervised Web startup', () => {
     const pending = runCli()
     try {
       await vi.waitFor(() => { expect(runProfile).toHaveBeenCalledOnce() })
+      expect(unref).toHaveBeenCalledOnce()
       if (request === 'shutdown') {
         const registration = on.mock.calls.find(([event]) => event === 'message')
         registration?.[1]({ type: 'dsh-web-shutdown' })

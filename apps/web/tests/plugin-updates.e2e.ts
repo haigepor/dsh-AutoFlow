@@ -13,6 +13,7 @@ it('checks remote plugin updates, requires explicit automatic permission and rep
   const name = 'dsh-update-fixture'
   let update: BundleUpdateInfo = { name, repository: 'example/plugins', automatic: false, status: 'unchecked', restartRequired: false }
   const fixture = (): BundleInfo => ({ name, version: '1.0.0', installed: true, removable: false, optional: false,
+    official: false, availability: 'profile',
     enabled: true, rows: [], overrides: [], update })
   const original = scaffold.ctx.pluginManager.listBundles.bind(scaffold.ctx.pluginManager)
   const listing = vi.spyOn(scaffold.ctx.pluginManager, 'listBundles').mockImplementation(async () => [...await original(), fixture()])

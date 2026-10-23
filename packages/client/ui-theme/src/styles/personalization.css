@@ -1,28 +1,28 @@
 /* User-selected values override the base palette and shared geometry only. */
 body[data-ds-font-family='inter'] {
-  --dsw-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+  --dsh-font-family-preset: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
     'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 body[data-ds-font-family='noto-sans-sc'] {
-  --dsw-font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont,
+  --dsh-font-family-preset: 'Noto Sans SC', -apple-system, BlinkMacSystemFont,
     'Segoe UI', sans-serif;
 }
 
 body[data-ds-font-family='source-sans-3'] {
-  --dsw-font-family: 'Source Sans 3', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --dsh-font-family-preset: 'Source Sans 3', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 body[data-ds-font-family='ibm-plex-serif'] {
-  --dsw-font-family: 'IBM Plex Serif', 'Songti SC', 'SimSun', serif;
+  --dsh-font-family-preset: 'IBM Plex Serif', 'Songti SC', 'SimSun', serif;
 }
 
 body[data-ds-font-family='jetbrains-mono'] {
-  --dsw-font-family: 'JetBrains Mono', 'PingFang SC', 'Microsoft YaHei', monospace;
+  --dsh-font-family-preset: 'JetBrains Mono', 'PingFang SC', 'Microsoft YaHei', monospace;
 }
 
 body[data-ds-font-family='ibm-plex-sans-condensed'] {
-  --dsw-font-family: 'IBM Plex Sans Condensed', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --dsh-font-family-preset: 'IBM Plex Sans Condensed', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 body[data-ds-corners='0'] {

@@ -13,7 +13,7 @@
 <a id="component-rules"></a>
 ## 组件规则
 
-- 重新设计控件样式之前先复用控件：[ui-primitives 组件目录](../packages/client/ui-primitives/README.zh.md#component-catalog)是唯一跨功能包的通道，有意的视觉差异应作为那里的一个 prop，而不是另起一份拷贝（[决定](../.agents/notes/implemented/architecture/2026-09-05-shared-client-control-primitives.zh.md)）。
+- 重新设计控件样式之前先复用控件：[ui-primitives 组件目录](../packages/client/ui-primitives/README.zh.md#component-catalog)是唯一跨功能包的通道，有意的视觉差异应作为那里的一个 prop，而不是另起一份拷贝（[参考](../packages/client/ui-primitives/README.zh.md)）。
 - 使用 CSS Modules 和 `clsx`；不得添加组件库或 Tailwind。
 - 功能组件使用 `--dsw-alias-*` 语义 token。不得复制静态色板值或在其中写入颜色字面量。
 - 功能组件 CSS 不得包含主题选择器。明暗主题覆盖属于主题所有方。
@@ -26,7 +26,7 @@
 - 对话、设置、插件管理和侧栏中的卡片外壳以侧栏引导卡片为基准：亮色卡片采用 76% 暖白填充与略清晰的柔和阴影，暗色卡片保留 88% 炭灰填充和细亮边。亮色共享菜单采用 68% 填充和更轻的阴影，让背后模糊的内容仍隐约可见；暗色表面保持较稳的填充以便阅读。共享材质使用`--dsw-specific-menu`、`backdrop-filter: var(--dsw-menu-backdrop-filter)`（`blur(16px) saturate(108%)`），以及带主题适配内缘高光和柔和阴影的 elevation token。设置弹窗使用 90–92% 的填充和 22px 模糊；内置亮暗主题使用暖瓷白与墨灰画布、低饱和鸢尾紫强调色和中性阴影。内层详情卡使用半透明染色底，不再重复模糊，让外壳成为唯一玻璃层。代码/数据画布、消息气泡和控件保留各自语义底色，以维持内容可读性与交互对比。不支持 blur 或系统启用 `prefers-reduced-transparency` 时改用不透明主题底色；macOS 透明桌面窗口仍使用近不透明填充。包含 fixed 定位浮层的表面把材质绘制在隔离的背景伪元素上，避免滤镜改变这些浮层的包含块。共享下拉菜单采用紧凑 `Menu` 几何；功能包自有菜单内容可以不同，但不得重新实现材质或滚动条（[决定](../.agents/notes/implemented/feature/2026-09-17-compact-translucent-menu-surfaces.zh.md)）。
 - 下拉、上下文、子菜单和选择菜单使用 `Menu` 或 `MenuSurface`，由共享组件统一使用 `--dsw-menu-surface-fill`、`--dsw-menu-backdrop-filter` 和菜单专用发丝线及投影；功能 CSS 不重定义这些 token。独立的任务与会话树菜单使用 `--dsw-menu-standalone-fill` 和相同投影，`TaskMenu` 与 `ClockPicker` 仍是日程功能自有的例外。macOS 上，`MenuSurface` 在菜单范围内挂载底层，让 Chromium 能在原生 vibrancy 上模糊页面内容；独立菜单使用接近不透明的填充。不支持模糊或减少透明度时，菜单使用不透明底色。其他浮层保留 `--dsw-specific-menu` 填充。模态遮罩使用主题定义的轻微 `--dsw-mask-blur`，Desktop 管理的浮层不对父页面施加滤镜。
 - 使用中性 `--dsw-alias-border-*` token 的平面边框与分割线一律 `0.5px`——按钮、输入框、卡片、行分割线，以及以填充盒绘制的分隔线（菜单分隔、对话标题栏接缝、markdown `hr`、竖向轨道线）共用发丝线粗细，Chromium 将其绘制为一个设备像素。dashed 记号与状态色 border 保持 1px；spinner 圆环经 spec 的显式豁免保留原宽度。更宽的中性 solid border 会被 ui-theme elevation spec 拒绝。
-- 可点击产物链接（Markdown 锚点、正文文件引用、网页来源与抓取链接、产物 chips、workflow 成员链接）经 `--dsw-alias-link` 着色、`font-weight: 500`，默认无下划线，hover/focus 时为 3px offset 的点状下划线。紧凑 Thinking Markdown 保持 tertiary 文字色和默认点状下划线（[紧凑展示](../.agents/notes/implemented/bug-fix/2026-09-17-thinking-markdown.zh.md)）。带文字的锚点另以 ui-primitives 的 `LinkIconMedium` 分类图形（随 `currentColor`）作前置；目的地是已知外部站点时改用该站点自己的标记而非地球；workflow 成员链接与只包图片的锚点不带图形，工具行文件链接保持其灰色点线示能。
+- 可点击产物链接（Markdown 锚点、正文文件引用、网页来源与抓取链接、产物 chips、workflow 成员链接）经 `--dsw-alias-link` 着色、`font-weight: 500`，默认无下划线，hover/focus 时为 3px offset 的点状下划线。紧凑 Thinking Markdown 保持 tertiary 文字色和默认点状下划线（[紧凑展示](../packages/client/ui-primitives/README.zh.md#rendering-agent-output)）。带文字的锚点另以 ui-primitives 的 `LinkIconMedium` 分类图形（随 `currentColor`）作前置；目的地是已知外部站点时改用该站点自己的标记而非地球；workflow 成员链接与只包图片的锚点不带图形，工具行文件链接保持其灰色点线示能。
 
 <a id="corner-radii-and-settings-cards"></a>
 ## 圆角与设置卡片
@@ -35,4 +35,4 @@
 
 ## 变更系统
 
-在所属 `ui-theme` 样式表中添加或修改共享 token，然后在功能包中使用其语义别名。公共样式约定发生变化时，更新所属包的参考文档。视觉行为遵循[测试策略](testing.zh.md)；[样式系统 Agent Note](../.agents/notes/implemented/process/2026-07-19-web-styling-system.zh.md) 记录框架依据。
+在所属 `ui-theme` 样式表中添加或修改共享 token，然后在功能包中使用其语义别名。公共样式约定发生变化时，更新所属包的参考文档。视觉行为遵循[测试策略](testing.zh.md)；[已归档的样式系统 Agent Note](../.agents/notes/archived/process/2026-07-19-web-styling-system.md) 记录框架依据。

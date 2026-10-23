@@ -19,7 +19,7 @@ afterEach(async () => { await Promise.all(policies.splice(0).map(policy => polic
 function fixture(version: string) {
   const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(manifest))
   const policy = new DesktopMandatoryUpdatePolicy(resolveDesktopPolicyConfig(resolveDesktopPolicyEnvironment(environment))!,
-    { platform: 'win32', arch: 'x64', bundledDshVersion: '0.2.0' }, () => {}, request,
+    { platform: 'win32', arch: 'x64', bundledDshVersion: '0.2.0', channel: 'nightly' }, () => {}, request,
     () => ({ version, locale: 'zh-CN', timezoneOffsetSeconds: 28800 }))
   policies.push(policy)
   return { policy, request }

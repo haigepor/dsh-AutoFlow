@@ -1,4 +1,4 @@
 - listitem:
-  - button "tool-subagent, 已启用":
-    - strong: tool-subagent
+  - button "子智能体委派工具, tool-subagent, 已启用":
+    - strong: 子智能体委派工具
     - text: 将任务委派给指定的子 Agent。

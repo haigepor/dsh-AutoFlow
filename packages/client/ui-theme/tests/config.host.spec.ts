@@ -28,11 +28,11 @@ describe('ui-theme host', () => {
     const configuration = await liveConfig(ctx, { Config, apply })
     const { fiber } = configuration
     expect(plainConfig(configuration.fiber.config)).toEqual({
-      preference: DEFAULT_PREFERENCE, fontSize: 14, accent: 'iris', themeSet: 'official', glideDuration: 220, fontFamily: 'system', corners: 'standard',
+      codeFontSize: 11, terminalFontSize: 13, textFontFamily: '', codeFontFamily: '', terminalFontFamily: '', preference: DEFAULT_PREFERENCE, fontSize: 14, accent: 'iris', themeSet: 'official', glideDuration: 220, fontFamily: 'system', corners: 'standard',
     })
-    await configuration.update({ preference: 'dark', fontSize: 10, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft' })
+    await configuration.update({ codeFontSize: 11, terminalFontSize: 13, textFontFamily: '', codeFontFamily: '', terminalFontFamily: '', preference: 'dark', fontSize: 10, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft' })
     expect(plainConfig(configuration.fiber.config)).toEqual({
-      preference: 'dark', fontSize: 10, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft',
+      codeFontSize: 11, terminalFontSize: 13, textFontFamily: '', codeFontFamily: '', terminalFontFamily: '', preference: 'dark', fontSize: 10, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft',
     })
     await configuration.update({ fontSize: 22 })
     expect(plainConfig(configuration.fiber.config)).toMatchObject({ fontSize: 22 })
@@ -62,7 +62,10 @@ describe('ui-theme host', () => {
     expect(rowText(rows[0])).toContain('@media(prefers-color-scheme:dark)')
     expect(rowText(rows[1])).toContain('const preference = "system"')
     expect(rowText(rows[1])).toContain('"14px"')
-    await configuration.update({ preference: 'dark', fontSize: 22 })
+    expect(rowText(rows[1])).not.toContain('--dsh-font-family')
+    await configuration.update({ preference: 'dark', fontSize: 22, terminalFontSize: 18, terminalFontFamily: 'MesloLGS NF' })
+    expect(rowText(collect(ctx)[1])).toContain('"--dsh-terminal-font-size", "18px"')
+    expect(rowText(collect(ctx)[1])).toContain('"--dsh-font-family-terminal", "\\"MesloLGS NF\\""')
     expect(rowText(collect(ctx)[0])).toContain('color-scheme:dark')
     expect(rowText(collect(ctx)[1])).toContain('const preference = "dark"')
     expect(rowText(collect(ctx)[1])).toContain('"22px"')

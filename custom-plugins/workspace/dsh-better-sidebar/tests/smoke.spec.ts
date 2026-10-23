@@ -1,3 +1,4 @@
+import { testConnection } from './connection-fixture.ts'
 import { fromAny } from '@total-typescript/shoehorn'
 /**
  * Smoke spec: mounts the host plugin against a minimal fake context and
@@ -34,7 +35,7 @@ const canCreateSymlink = (() => {
 })()
 
 interface FakeContext {
-  webRuntime: { trustedHosts: readonly string[] }
+  connection: ReturnType<typeof testConnection>
   webServer: {
     register: (route: SidebarWebRoute) => () => void
     registerUpgrade: (route: SidebarWebUpgradeRoute) => () => void
@@ -62,7 +63,7 @@ describe('host plugin smoke', () => {
     const upgrades: SidebarWebUpgradeRoute[] = []
     const effects: Array<() => void | (() => void)> = []
     const ctx: FakeContext = {
-      webRuntime: { trustedHosts: [] },
+      connection: testConnection(),
       webServer: {
         register: (route) => { routes.push(route); return () => {} },
         registerUpgrade: (route) => { upgrades.push(route); return () => {} },
@@ -104,7 +105,7 @@ describe('host plugin smoke', () => {
     const routes: SidebarWebRoute[] = []
     const effects: Array<() => void | (() => void)> = []
     const ctx: FakeContext = {
-      webRuntime: { trustedHosts: [] },
+      connection: testConnection(),
       webServer: {
         register: (route) => { routes.push(route); return () => {} },
         registerUpgrade: () => () => {},
@@ -184,7 +185,9 @@ describe('host plugin smoke', () => {
     expect(all.slice(0, 5)).toEqual(first)
     expect(all.slice(5)).toEqual(second)
     // A skip past the end returns an empty page (the lazy loader's stop sign).
-    expect(await git.log(cwd, 5, 10_000)).toEqual([])
+    const count = Number(spawnSync('git', ['rev-list', '--count', 'HEAD'], { cwd, encoding: 'utf8' }).stdout.trim())
+    expect(count).toBeGreaterThan(0)
+    expect(await git.log(cwd, 5, count)).toEqual([])
   })
 
   it('lists the repository root level', async () => {
@@ -401,7 +404,7 @@ describe('session cwd resolution over the API route', () => {
   const mountAll = (overrides: CtxOverrides = {}): SidebarWebRoute[] => {
     const routes: SidebarWebRoute[] = []
     const ctx = {
-      webRuntime: { trustedHosts: [] },
+      connection: testConnection(),
       webServer: {
         register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
         registerUpgrade: (route: SidebarWebUpgradeRoute) => { void route; return () => {} },
@@ -660,16 +663,21 @@ describe('session cwd resolution over the API route', () => {
   })
 
   it('fs.read resolves repo-relative paths (untracked diff fallback)', async () => {
-    const route = mount({
-      sessions: {
-        get: () => ({ header: { cwd: join(process.cwd(), 'src') } }),
-      },
-    })
-    const result = await invoke(route, 'fs.read', { sessionId: 's-sub', path: 'src/git.ts' })
-    expect(result.ok).toBe(true)
-    const value = result as { ok: boolean; value?: { kind: string; content: string } }
-    expect(value.value?.kind).toBe('text')
-    expect(value.value?.content).toContain('runGit')
+    const root = mkdtempSync(join(tmpdir(), 'sidebar-relative-read-'))
+    try {
+      mkdirSync(join(root, 'src'))
+      writeFileSync(join(root, 'src', 'git.ts'), 'export const runGit = true\n', 'utf8')
+      const initialized = spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' })
+      expect(initialized.status).toBe(0)
+      const route = mount({ sessions: { get: () => ({ header: { cwd: join(root, 'src') } }) } })
+      const result = await invoke(route, 'fs.read', { sessionId: 's-sub', path: 'src/git.ts' })
+      expect(result.ok).toBe(true)
+      const value = result as { ok: boolean; value?: { kind: string; content: string } }
+      expect(value.value?.kind).toBe('text')
+      expect(value.value?.content).toContain('runGit')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   it('reads repo-root-relative paths outside a nested session workspace (fence removed)', async () => {
@@ -1229,7 +1237,7 @@ const createFakeSettings = (pre?: Record<string, Record<string, unknown>>) => {
 const mountWithSettings = (settings?: unknown, home?: string): SidebarWebRoute => {
   const routes: SidebarWebRoute[] = []
   const ctx = {
-    webRuntime: { trustedHosts: [] },
+    connection: testConnection(),
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
       registerUpgrade: (route: SidebarWebUpgradeRoute) => { void route; return () => {} },
@@ -1469,7 +1477,7 @@ describe('agent sidebar-open tool gating', () => {
       configure: () => () => {},
     }
     const ctx = {
-      webRuntime: { trustedHosts: [] },
+      connection: testConnection(),
       webServer: {
         register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
         registerUpgrade: (route: SidebarWebUpgradeRoute) => { void route; return () => {} },

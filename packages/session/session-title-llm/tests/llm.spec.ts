@@ -1,16 +1,22 @@
 import { Context } from '@deepseek-ai/cordis'
-import { describe, expect, it, vi } from 'vitest'
-import LlmRuntime, { createUserMessage, ToolCallId, ReasoningEffortId, isAgentLoopRequest, LlmAdapter  } from '@deepseek-ai/dsh-llm'
-import type { FinishReason, GenerateOptions, StreamChunk, LlmModelReasoningInfo } from '@deepseek-ai/dsh-llm'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import LlmRuntime, { createUserMessage, isAgentLoopRequest, LlmAdapter, LlmError, ReasoningEffortId, ToolCallId } from '@deepseek-ai/dsh-llm'
+import type {
+  FinishReason,
+  GenerateOptions,
+  LlmResolvedModelInfo,
+  StreamChunk,
+} from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import { SessionTitleProviderId } from '@deepseek-ai/dsh-session-title'
 import type { SessionTitleProviderRequest } from '@deepseek-ai/dsh-session-title'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
-  generateSessionTitleWithLlm,
+  executeSessionTitleLlm,
   resolveSessionTitleLlmConfig,
+  SESSION_TITLE_TIMEOUT_CODE,
 } from '@deepseek-ai/dsh-session-title-llm'
-import type { SessionTitleLlmConfig } from '@deepseek-ai/dsh-session-title-llm'
+import type { SessionTitleLlmConfig, SessionTitleLlmPreparedRequest } from '@deepseek-ai/dsh-session-title-llm'
 
 class RecordingAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []
@@ -18,60 +24,32 @@ class RecordingAdapter extends LlmAdapter {
   constructor(
     private readonly script: readonly StreamChunk[],
     private readonly onDispatch?: () => void,
-    private readonly reasoning?: LlmModelReasoningInfo,
+    private readonly reasoningEfforts?: readonly string[],
   ) {
     super()
+  }
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    const efforts = this.reasoningEfforts
+    const floor = efforts?.[0]
+    return Promise.resolve({
+      provider,
+      id: model,
+      name: model,
+      ...efforts === undefined || floor === undefined
+        ? {}
+        : {
+          reasoning: {
+            efforts: efforts.map(id => ({ id: ReasoningEffortId(id), name: id })),
+          },
+        },
+    })
   }
 
   override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     this.onDispatch?.()
     this.requests.push(options)
     yield * this.script
-  }
-
-  override resolveModel(provider: string, model: string) {
-    return Promise.resolve({ provider, id: model, name: model,
-      ...this.reasoning === undefined ? {} : { reasoning: this.reasoning },
-    })
-  }
-}
-
-class AttemptAdapter extends LlmAdapter {
-  readonly requests: GenerateOptions[] = []
-
-  constructor(private readonly attempts: readonly (Error | readonly StreamChunk[])[]) {
-    super()
-  }
-
-  override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    const attempt = this.attempts[this.requests.length]
-    this.requests.push(options)
-    if (attempt instanceof Error) throw attempt
-    if (attempt === undefined) throw new Error('Unexpected extra title attempt')
-    yield * attempt
-  }
-}
-
-class DelayedMetadataAdapter extends RecordingAdapter {
-  readonly started: Promise<void>
-  private readonly metadata: Promise<void>
-  private markStarted!: () => void
-  private releaseMetadata!: () => void
-
-  constructor() {
-    super(SCRIPT)
-    this.started = new Promise<void>((resolve) => { this.markStarted = resolve })
-    this.metadata = new Promise<void>((resolve) => { this.releaseMetadata = resolve })
-  }
-
-  override async resolveModel(provider: string, model: string) {
-    this.markStarted()
-    await this.metadata
-    return super.resolveModel(provider, model)
-  }
-
-  release(): void {
-    this.releaseMetadata()
   }
 }
 
@@ -110,24 +88,57 @@ const SCRIPT: StreamChunk[] = [
   { type: 'finish', reason: { kind: 'stop' } },
 ]
 
-const CONFIG = {
-  targetWords: 5,
-  targetCjkCharacters: 10,
+/** Execution controls only; title-length targets belong to each provider. */
+const CONFIG: SessionTitleLlmConfig = {
   maxInputBytes: 1_000,
   maxOutputTokens: 32,
   timeoutMs: 1_000,
   maxAttempts: 1,
   retryDelaysMs: [],
-} satisfies SessionTitleLlmConfig
+}
+
+/** Leaves reasoning unselected, as a provider with no preference would. */
+const NO_EFFORT_SELECTOR = (): ReasoningEffortId | undefined => undefined
+
+/** Selects the route's least advertised effort, as both shipped providers do. */
+const FLOOR_SELECTOR = (model: Readonly<LlmResolvedModelInfo>): ReasoningEffortId | undefined =>
+  model.reasoning?.efforts[0]?.id
+
+/** Selects the route's greatest effort, which the executor must not override. */
+const CEILING_SELECTOR = (model: Readonly<LlmResolvedModelInfo>): ReasoningEffortId | undefined =>
+  model.reasoning?.efforts.at(-1)?.id
 
 const TITLE_PROVIDER = SessionTitleProviderId('test-title-provider')
 let nextSession = 0
 
-function request(ctx: Context, signal = new AbortController().signal): SessionTitleProviderRequest {
+/** Script successive dispatches without changing the provider-prepared input. */
+class AttemptAdapter extends LlmAdapter {
+  readonly requests: GenerateOptions[] = []
+  constructor(private readonly attempts: readonly (Error | readonly StreamChunk[])[]) { super() }
+  override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    const attempt = this.attempts[this.requests.length]
+    this.requests.push(options)
+    if (attempt instanceof Error) throw attempt
+    if (attempt === undefined) throw new Error('Unexpected title retry')
+    yield * attempt
+  }
+}
+
+function request(
+  ctx: Context,
+  signal = new AbortController().signal,
+  headerMaxTokens?: number,
+): SessionTitleProviderRequest {
   const session = ctx.sessions.create(SessionId(`title-call-${++nextSession}`))
   session.append('turn/start', {
     turn: 1,
   })
+  if (headerMaxTokens !== undefined) {
+    session.append('request/header', {
+      header: { config: { provider: 'current-route', model: 'current-model', maxTokens: headerMaxTokens } },
+      reason: 'initial',
+    })
+  }
   const first = session.append('user/message', createUserMessage({
     content: [{ type: 'text', text: 'first prompt' }],
     source: { kind: 'user' },
@@ -153,173 +164,78 @@ function requestWithoutRoute(ctx: Context, signal = new AbortController().signal
   return { session: routed.session, messages: routed.messages, signal }
 }
 
-async function withScript(script: readonly StreamChunk[]): Promise<{
+/** Provider-prepared input attributing both fixture messages to one exact text. */
+function prepared(
+  providerRequest: SessionTitleProviderRequest,
+  overrides: Partial<SessionTitleLlmPreparedRequest> = {},
+): SessionTitleLlmPreparedRequest {
+  return {
+    system: 'Exact provider system prompt',
+    input: 'Exact provider user input',
+    messageSeqs: providerRequest.messages.map(message => message.seq),
+    selectReasoningEffort: NO_EFFORT_SELECTOR,
+    ...overrides,
+  }
+}
+
+async function withScript(script: readonly StreamChunk[], reasoningEfforts?: readonly string[]): Promise<{
   ctx: Context
   adapter: RecordingAdapter
 }> {
   const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
   await ctx.plugin(SessionStore)
   await ctx.plugin(LlmRuntime)
-  const adapter = new RecordingAdapter(script)
+  const adapter = new RecordingAdapter(script, undefined, reasoningEfforts)
   ctx.llm.registerAdapter(['current-route'], adapter)
   return { ctx, adapter }
 }
 
-describe('generateSessionTitleWithLlm', () => {
-  it.each(['cancelled', 'closed'] as const)('does not log dispatch after metadata lookup was %s', async (operation) => {
+describe('executeSessionTitleLlm', () => {
+  it('retries transient failures and empty text while keeping telemetry sanitized', async () => {
     const ctx = new Context()
-    await ctx.plugin(SessionStore)
-    await ctx.plugin(LlmRuntime)
-    const adapter = new DelayedMetadataAdapter()
-    ctx.llm.registerAdapter(['current-route'], adapter)
-    const controller = new AbortController()
-    let ownerCtx!: Context
-    const owner = await ctx.plugin(Object.assign((inner: Context) => { ownerCtx = inner }, { inject: ['sessions'] }))
-    const providerRequest = request(ownerCtx, controller.signal)
-    const pending = generateSessionTitleWithLlm(ctx, resolveSessionTitleLlmConfig(CONFIG),
-      providerRequest, providerRequest.messages, TITLE_PROVIDER)
-    const rejection = expect(pending).rejects.toThrow('title request cancelled')
-    await adapter.started
-    if (operation === 'closed') await owner.dispose()
-    controller.abort(new Error('title request cancelled'))
-    adapter.release()
-    await rejection
-    expect(adapter.requests).toHaveLength(0)
-    const events = providerRequest.session.snapshotEvents()
-    expect(events.some(event => event.type === 'session/title-llm-request')).toBe(false)
-    expect(events.some(event => event.type === 'session/title-llm-attempt' && event.data.status === 'started')).toBe(false)
-    if (operation === 'cancelled') {
-      expect(events.findLast(event => event.type === 'session/title-llm-attempt')?.data)
-        .toMatchObject({ status: 'cancelled', failureCode: 'TITLE_CANCELLED' })
-      await owner.dispose()
-    } else {
-      expect(ctx.sessions.get(providerRequest.session.id)).toBeUndefined()
-    }
-  })
-
-  it('logs cleaned model input while preserving plugin markers in source messages', async () => {
-    const { ctx, adapter } = await withScript(SCRIPT)
-    const providerRequest = request(ctx)
-    const original = '@[AFP 图片策展](dsh-plugin:dsh-plugin-afp) 寻找香港风景'
-    const message = providerRequest.session.append('user/message', createUserMessage({
-      content: [{ type: 'text', text: original }], source: { kind: 'user' },
-    }), { surfaceOp: 'append' })
-    await generateSessionTitleWithLlm(ctx, resolveSessionTitleLlmConfig(CONFIG), providerRequest,
-      [{ seq: message.seq, text: original }], TITLE_PROVIDER)
-    const prompt = adapter.requests[0]?.messages[0]?.content[0]
-    expect(prompt?.type === 'text' && prompt.text).toContain('寻找香港风景')
-    expect(prompt?.type === 'text' && prompt.text).not.toContain('dsh-plugin:')
-    expect(providerRequest.session.snapshotEvents().find(event => event.seq === message.seq)?.data)
-      .toMatchObject({ content: [{ type: 'text', text: original }] })
-  })
-
-  it('retries a temporary network failure and empty output before accepting the third title', async () => {
-    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
     await ctx.plugin(SessionStore)
     await ctx.plugin(LlmRuntime)
     const adapter = new AttemptAdapter([
-      Object.assign(new Error('socket failed at secret endpoint'), { code: 'ECONNRESET' }),
-      [{ type: 'finish', reason: { kind: 'stop' } }],
-      SCRIPT,
+      Object.assign(new Error('socket failed at private endpoint'), { code: 'ECONNRESET' }),
+      [{ type: 'finish', reason: { kind: 'stop' } }], SCRIPT,
     ])
     ctx.llm.registerAdapter(['current-route'], adapter)
-    const providerRequest = request(ctx)
-    const result = await generateSessionTitleWithLlm(ctx,
+    const input = request(ctx)
+    const result = await executeSessionTitleLlm(ctx,
       resolveSessionTitleLlmConfig({ ...CONFIG, maxAttempts: 3, retryDelaysMs: [0, 0] }),
-      providerRequest, providerRequest.messages, TITLE_PROVIDER)
-    expect(result.title).toBe('五个字标题')
+      input, TITLE_PROVIDER, prepared(input))
+    expect(result.blocks).toEqual([{ type: 'text', text: '  五个字标题  ' }])
     expect(adapter.requests).toHaveLength(3)
-    const attempts = providerRequest.session.snapshotEvents().filter(event => event.type === 'session/title-llm-attempt')
+    const attempts = input.session.snapshotEvents().filter(event => event.type === 'session/title-llm-attempt')
     expect(attempts.map(event => event.data)).toMatchObject([
-      { attempt: 1, status: 'started', reasoning: 'provider-default' },
-      { attempt: 1, status: 'failed', failureCode: 'TITLE_NETWORK' },
-      { attempt: 2, status: 'started' },
-      { attempt: 2, status: 'failed', failureCode: 'TITLE_EMPTY' },
-      { attempt: 3, status: 'started' },
-      { attempt: 3, status: 'succeeded' },
+      { attempt: 1, status: 'started' }, { attempt: 1, status: 'failed', failureCode: 'TITLE_NETWORK' },
+      { attempt: 2, status: 'started' }, { attempt: 2, status: 'failed', failureCode: 'TITLE_EMPTY' },
+      { attempt: 3, status: 'started' }, { attempt: 3, status: 'succeeded' },
     ])
-    expect(JSON.stringify(attempts)).not.toContain('secret endpoint')
+    expect(JSON.stringify(attempts)).not.toContain('private endpoint')
   })
 
-  it('retries a provider-neutral SERVER terminal failure without depending on the provider message', async () => {
+  it.each([[401, 'TITLE_AUTH', 1], [429, 'TITLE_RATE_LIMIT', 3]] as const)('bounds retry for HTTP %s', async (status, code, count) => {
     const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
     await ctx.plugin(SessionStore)
     await ctx.plugin(LlmRuntime)
-    const adapter = new AttemptAdapter([
-      [{ type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'Provider request failed' } } }],
-      SCRIPT,
-    ])
+    const failure = new LlmError('request refused', status === 401 ? 'AUTH' : 'RATE_LIMIT', { status })
+    const adapter = new AttemptAdapter([failure, failure, failure])
     ctx.llm.registerAdapter(['current-route'], adapter)
-    const providerRequest = request(ctx)
-    const result = await generateSessionTitleWithLlm(ctx,
+    const input = request(ctx)
+    await expect(executeSessionTitleLlm(ctx,
       resolveSessionTitleLlmConfig({ ...CONFIG, maxAttempts: 3, retryDelaysMs: [0, 0] }),
-      providerRequest, providerRequest.messages, TITLE_PROVIDER)
-    expect(result.title).toBe('五个字标题')
-    expect(adapter.requests).toHaveLength(2)
-  })
-
-  it.each([
-    [['high', 'off', 'low'], 'off', 'disabled'],
-    [['high', 'low'], 'low', 'lowest-declared'],
-    [undefined, undefined, 'provider-default'],
-  ] as const)('uses only a declared reasoning effort from %s', async (efforts, selected, reasoning) => {
-    const ctx = new Context()
-    await ctx.plugin(SessionStore)
-    await ctx.plugin(LlmRuntime)
-    const adapter = new RecordingAdapter(SCRIPT, undefined,
-      efforts === undefined ? undefined : { efforts: efforts.map(id => ({ id: ReasoningEffortId(id), name: id })) })
-    ctx.llm.registerAdapter(['current-route'], adapter)
-    const providerRequest = request(ctx)
-    await generateSessionTitleWithLlm(ctx, resolveSessionTitleLlmConfig(CONFIG),
-      providerRequest, providerRequest.messages, TITLE_PROVIDER)
-    expect(adapter.requests[0]?.reasoningEffort).toBe(selected)
-    expect(providerRequest.session.snapshotEvents().findLast(event => event.type === 'session/title-llm-attempt')?.data)
-      .toMatchObject({ status: 'succeeded', reasoning })
-  })
-
-  it('stops after three rate-limit attempts and never retries authentication failure', async () => {
-    for (const [failure, code, expectedAttempts] of [
-      [Object.assign(new Error('Too many requests'), { status: 429 }), 'TITLE_RATE_LIMIT', 3],
-      [Object.assign(new Error('Unauthorized secret key'), { status: 401 }), 'TITLE_AUTH', 1],
-    ] as const) {
-      const ctx = new Context()
-      await ctx.plugin(SessionStore)
-      await ctx.plugin(LlmRuntime)
-      const adapter = new AttemptAdapter([failure, failure, failure])
-      ctx.llm.registerAdapter(['current-route'], adapter)
-      const providerRequest = request(ctx)
-      await expect(generateSessionTitleWithLlm(ctx,
-        resolveSessionTitleLlmConfig({ ...CONFIG, maxAttempts: 3, retryDelaysMs: [0, 0] }),
-        providerRequest, providerRequest.messages, TITLE_PROVIDER)).rejects.toMatchObject({ code })
-      expect(adapter.requests).toHaveLength(expectedAttempts)
-      expect(JSON.stringify(providerRequest.session.snapshotEvents())).not.toContain('secret key')
-    }
-  })
-
-  it('cancels a retry wait before another dispatch', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SessionStore)
-    await ctx.plugin(LlmRuntime)
-    const adapter = new AttemptAdapter([new Error('network unavailable'), SCRIPT])
-    ctx.llm.registerAdapter(['current-route'], adapter)
-    const controller = new AbortController()
-    const providerRequest = request(ctx, controller.signal)
-    let failed!: () => void
-    const failure = new Promise<void>((resolve) => { failed = resolve })
-    ctx.on('session/event', (session, event) => {
-      if (session === providerRequest.session && event.type === 'session/title-llm-attempt' && event.data.status === 'failed') failed()
+      input, TITLE_PROVIDER, prepared(input))).rejects.toMatchObject({
+      code, cause: { code: failure.code, failure: { status } },
     })
-    const pending = generateSessionTitleWithLlm(ctx,
-      resolveSessionTitleLlmConfig({ ...CONFIG, maxAttempts: 3, retryDelaysMs: [1000, 3000] }),
-      providerRequest, providerRequest.messages, TITLE_PROVIDER)
-    const rejection = expect(pending).rejects.toThrow()
-    await failure
-    controller.abort(new Error('user cancelled'))
-    await rejection
-    expect(adapter.requests).toHaveLength(1)
+    expect(adapter.requests).toHaveLength(count)
   })
-  it('uses the exact logged route, language targets, full framed input, and output token cap', async () => {
+  it('dispatches the prepared system and input, logs attribution, and forwards the provider reasoning selector', async () => {
     const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
     await ctx.plugin(SessionStore)
     await ctx.plugin(LlmRuntime)
     const providerRequest = request(ctx)
@@ -327,22 +243,25 @@ describe('generateSessionTitleWithLlm', () => {
     const adapter = new RecordingAdapter(SCRIPT, () => {
       requestWasLoggedAtDispatch = providerRequest.session.snapshotEvents()
         .some(event => event.type === 'session/title-llm-request')
-    })
+    }, ['off', 'low', 'high', 'max'])
     ctx.llm.registerAdapter(['current-route'], adapter)
+    const preparedRequest = prepared(providerRequest, {
+      system: 'Provider-owned system instruction',
+      input: 'Provider-owned user payload with 第二个问题',
+      selectReasoningEffort: FLOOR_SELECTOR,
+    })
 
-    const result = await generateSessionTitleWithLlm(
+    const result = await executeSessionTitleLlm(
       ctx,
       resolveSessionTitleLlmConfig(CONFIG),
       providerRequest,
-      providerRequest.messages,
       TITLE_PROVIDER,
+      preparedRequest,
     )
 
-    expect(result).toEqual({
-      title: '五个字标题',
-      messageSeqs: providerRequest.messages.map(message => message.seq),
-      model: { provider: 'current-route', model: 'current-model' },
-    })
+    expect(result.blocks).toEqual([{ type: 'text', text: '  五个字标题  ' }])
+    expect(result.finish).toEqual({ kind: 'stop' })
+    expect(result.model).toEqual({ provider: 'current-route', model: 'current-model' })
     expect(requestWasLoggedAtDispatch).toBe(true)
     expect(adapter.requests).toHaveLength(1)
     const options = adapter.requests[0]!
@@ -355,33 +274,152 @@ describe('generateSessionTitleWithLlm', () => {
       maxTokens: 32,
       sessionId: providerRequest.session.id,
       purpose: 'session-title',
+      reasoningEffort: ReasoningEffortId('off'),
     })
-    expect(options.system).toContain('5 words')
-    expect(options.system).toContain('10 CJK characters')
+    expect(options.system).toBe(preparedRequest.system)
     const prompt = options.messages[0]?.content[0]
-    expect(prompt?.type === 'text' && prompt.text).toContain('first prompt')
-    expect(prompt?.type === 'text' && prompt.text).toContain('第二个问题')
+    expect(prompt?.type === 'text' && prompt.text).toBe(preparedRequest.input)
     expect(providerRequest.session.snapshotEvents().findLast(event => event.type === 'session/title-llm-request')?.data)
       .toEqual({
         titleProvider: TITLE_PROVIDER,
-        messageSeqs: providerRequest.messages.map(message => message.seq),
+        messageSeqs: preparedRequest.messageSeqs,
         route: { provider: 'current-route', model: 'current-model' },
-        system: options.system,
+        system: preparedRequest.system,
         messages: options.messages,
         maxTokens: 32,
+        reasoningEffort: ReasoningEffortId('off'),
       })
   })
 
-  it('uses paired explicit overrides and bounds the final framed input before model dispatch', async () => {
+  it('forwards a different valid reasoning selector instead of choosing one itself', async () => {
+    const { ctx, adapter } = await withScript(SCRIPT, ['off', 'low', 'high', 'max'])
+    const providerRequest = request(ctx)
+
+    await executeSessionTitleLlm(
+      ctx,
+      resolveSessionTitleLlmConfig(CONFIG),
+      providerRequest,
+      TITLE_PROVIDER,
+      prepared(providerRequest, { selectReasoningEffort: CEILING_SELECTOR }),
+    )
+
+    const options = adapter.requests[0]!
+    const logged = providerRequest.session.snapshotEvents()
+      .findLast(event => event.type === 'session/title-llm-request')?.data
+    expect(options.maxTokens).toBe(32)
+    expect(logged?.maxTokens).toBe(32)
+    expect(options.reasoningEffort).toBe(ReasoningEffortId('max'))
+    expect(logged?.reasoningEffort).toBe(ReasoningEffortId('max'))
+  })
+
+  it('keeps the title output cap independent of a smaller conversation cap', async () => {
+    const { ctx, adapter } = await withScript(SCRIPT)
+    const providerRequest = request(ctx, undefined, 8)
+
+    await expect(executeSessionTitleLlm(
+      ctx,
+      resolveSessionTitleLlmConfig(CONFIG),
+      providerRequest,
+      TITLE_PROVIDER,
+      prepared(providerRequest),
+    )).resolves.toMatchObject({ model: { provider: 'current-route', model: 'current-model' } })
+
+    expect(adapter.requests[0]?.maxTokens).toBe(32)
+    expect(providerRequest.session.snapshotEvents()
+      .findLast(event => event.type === 'session/title-llm-request')?.data.maxTokens).toBe(32)
+  })
+
+  it('enforces the exact multibyte input byte limit before logging or dispatch', async () => {
+    const { ctx, adapter } = await withScript(SCRIPT)
+    const providerRequest = request(ctx)
+    const input = '标题输入："番茄"'
+    const inputBytes = Buffer.byteLength(input, 'utf8')
+    expect(inputBytes).toBeGreaterThan(input.length)
+
+    await expect(executeSessionTitleLlm(
+      ctx,
+      resolveSessionTitleLlmConfig({ ...CONFIG, maxInputBytes: inputBytes - 1 }),
+      providerRequest,
+      TITLE_PROVIDER,
+      prepared(providerRequest, { input }),
+    )).rejects.toThrow(/input.*bytes.*maxInputBytes/i)
+    expect(adapter.requests).toHaveLength(0)
+    expect(providerRequest.session.snapshotEvents().some(event => event.type === 'session/title-llm-request')).toBe(false)
+
+    const result = await executeSessionTitleLlm(
+      ctx,
+      resolveSessionTitleLlmConfig({ ...CONFIG, maxInputBytes: inputBytes }),
+      providerRequest,
+      TITLE_PROVIDER,
+      prepared(providerRequest, { input }),
+    )
+    expect(result.blocks).toHaveLength(1)
+    expect(adapter.requests).toHaveLength(1)
+  })
+
+  it('keeps the configured output cap when the session request recorded a larger one', async () => {
+    const { ctx, adapter } = await withScript(SCRIPT)
+    const providerRequest = request(ctx, undefined, 4_096)
+
+    await expect(executeSessionTitleLlm(
+      ctx,
+      resolveSessionTitleLlmConfig(CONFIG),
+      providerRequest,
+      TITLE_PROVIDER,
+      prepared(providerRequest),
+    )).resolves.toBeDefined()
+
+    expect(adapter.requests[0]?.maxTokens).toBe(32)
+  })
+
+  it('rejects an unregistered route before recording or dispatching a title request', async () => {
     const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(LlmRuntime)
+    const requests: GenerateOptions[] = []
+    ctx.on('llm/stream', (options: GenerateOptions) => {
+      requests.push(options)
+      return (async function* (): AsyncIterable<StreamChunk> { yield * SCRIPT })()
+    })
+    const providerRequest = request(ctx)
+
+    await expect(executeSessionTitleLlm(
+      ctx,
+      resolveSessionTitleLlmConfig(CONFIG),
+      providerRequest,
+      TITLE_PROVIDER,
+      prepared(providerRequest),
+    )).rejects.toMatchObject({ code: 'TITLE_CONFIG', cause: { code: 'NO_ADAPTER' } })
+
+    expect(requests).toEqual([])
+    expect(providerRequest.session.snapshotEvents().some(event => event.type === 'session/title-llm-request')).toBe(false)
+  })
+
+  it('sends no effort when the provider reasoning selector leaves it unset', async () => {
+    const { ctx, adapter } = await withScript(SCRIPT, ['off', 'low'])
+    const providerRequest = request(ctx)
+
+    await expect(executeSessionTitleLlm(
+      ctx,
+      resolveSessionTitleLlmConfig(CONFIG),
+      providerRequest,
+      TITLE_PROVIDER,
+      prepared(providerRequest),
+    )).resolves.toBeDefined()
+
+    expect(adapter.requests[0]).not.toHaveProperty('reasoningEffort')
+  })
+
+  it('uses paired explicit overrides and bounds the final input before model dispatch', async () => {
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
     await ctx.plugin(SessionStore)
     await ctx.plugin(LlmRuntime)
     const adapter = new RecordingAdapter(SCRIPT)
     ctx.llm.registerAdapter(['explicit-route'], adapter)
     const oversized = request(ctx)
-    const [selected] = oversized.messages
-    if (selected === undefined) throw new Error('expected one selected message')
-    const rawInputBytes = Buffer.byteLength(selected.text, 'utf8')
+    const rawInputBytes = Buffer.byteLength('x'.repeat(20), 'utf8')
     const config = resolveSessionTitleLlmConfig({
       ...CONFIG,
       provider: 'explicit-route',
@@ -389,30 +427,32 @@ describe('generateSessionTitleWithLlm', () => {
       maxInputBytes: rawInputBytes,
     })
 
-    await expect(generateSessionTitleWithLlm(ctx, config, oversized, [selected], TITLE_PROVIDER))
+    await expect(executeSessionTitleLlm(ctx, config, oversized, TITLE_PROVIDER, prepared(oversized, { input: 'x'.repeat(21) })))
       .rejects.toThrow(/input.*bytes.*maxInputBytes/i)
     expect(adapter.requests).toEqual([])
     expect(oversized.session.snapshotEvents().some(event => event.type === 'session/title-llm-request')).toBe(false)
 
     const withinLimit = resolveSessionTitleLlmConfig({ ...config, maxInputBytes: 1_000 })
     const within = request(ctx)
-    await generateSessionTitleWithLlm(ctx, withinLimit, within, [within.messages[0]!], TITLE_PROVIDER)
+    await executeSessionTitleLlm(ctx, withinLimit, within, TITLE_PROVIDER, prepared(within, { input: 'x'.repeat(21) }))
     expect(adapter.requests[0]).toMatchObject({
       provider: 'explicit-route',
       model: 'explicit-model',
     })
   })
 
-  it('requires every deployment limit and a complete optional route pair', () => {
+  it('requires every execution limit and a complete optional route pair', () => {
     expect(() => resolveSessionTitleLlmConfig(undefined as never)).toThrow(/configuration is required/)
     expect(() => resolveSessionTitleLlmConfig(null as never)).toThrow(/configuration is required/)
     expect(() => resolveSessionTitleLlmConfig('invalid' as never)).toThrow(/configuration is required/)
     expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, extra: true } as SessionTitleLlmConfig))
       .toThrow(/unknown config key "extra"/)
-    expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, targetWords: 0 }))
-      .toThrow(/targetWords.*positive integer/)
-    expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, targetWords: 1.5 }))
-      .toThrow(/targetWords.*positive integer/)
+    expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, maxInputBytes: 0 }))
+      .toThrow(/maxInputBytes.*positive integer/)
+    expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, maxOutputTokens: 1.5 }))
+      .toThrow(/maxOutputTokens.*positive integer/)
+    expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, timeoutMs: 0 }))
+      .toThrow(/timeoutMs.*positive integer/)
     expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, provider: 'only-provider' }))
       .toThrow(/provider and model must be supplied together/)
     expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, model: 'only-model' }))
@@ -427,111 +467,106 @@ describe('generateSessionTitleWithLlm', () => {
       .toThrow(/overrides must be non-empty strings/)
     expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, timeoutMs: MAX_TIMER_DELAY_MS + 1 }))
       .toThrow(/timeoutMs must not exceed/)
-    expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, maxAttempts: 4 })).toThrow(/invalid retry policy/)
-    expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, maxAttempts: 3, retryDelaysMs: [0] })).toThrow(/invalid retry policy/)
-    expect(() => resolveSessionTitleLlmConfig({ ...CONFIG, retryDelaysMs: [-1] })).toThrow(/invalid retry policy/)
-    const { maxAttempts: _attempts, retryDelaysMs: _delays, ...requiredConfig } = CONFIG
-    expect(resolveSessionTitleLlmConfig(requiredConfig)).toMatchObject({ maxAttempts: 3, retryDelaysMs: [1000, 3000] })
     expect(() => resolveSessionTitleLlmConfig(CONFIG)).not.toThrow()
   })
 
-  it('rejects an absent route, empty selection, and pre-aborted caller before model dispatch', async () => {
+  it('rejects an absent route, empty attribution, and pre-aborted caller before model dispatch', async () => {
     const { ctx, adapter } = await withScript(SCRIPT)
     const config = resolveSessionTitleLlmConfig(CONFIG)
     const unrouted = requestWithoutRoute(ctx)
-    await expect(generateSessionTitleWithLlm(ctx, config, unrouted, unrouted.messages, TITLE_PROVIDER))
+    await expect(executeSessionTitleLlm(ctx, config, unrouted, TITLE_PROVIDER, prepared(unrouted)))
       .rejects.toThrow(/no logged request route/)
     const empty = request(ctx)
-    await expect(generateSessionTitleWithLlm(ctx, config, empty, [], TITLE_PROVIDER))
+    await expect(executeSessionTitleLlm(ctx, config, empty, TITLE_PROVIDER, prepared(empty, { messageSeqs: [] })))
       .rejects.toThrow(/at least one source message/)
     const controller = new AbortController()
     controller.abort(new Error('caller stopped'))
     const aborted = request(ctx, controller.signal)
-    await expect(generateSessionTitleWithLlm(ctx, config, aborted, aborted.messages, TITLE_PROVIDER))
+    await expect(executeSessionTitleLlm(ctx, config, aborted, TITLE_PROVIDER, prepared(aborted)))
       .rejects.toThrow('caller stopped')
     expect(adapter.requests).toEqual([])
   })
 
   it.each([
-    [{ kind: 'error', failure: { message: 'provider failed', code: 'UNRECOGNIZED' } }, 'TITLE_INVALID_OUTPUT'],
-    [{ kind: 'aborted', failure: { message: 'provider aborted', code: 'ABORTED' } }, 'TITLE_CANCELLED'],
-  ] satisfies Array<[FinishReason, string]>)('sanitizes %s terminal failure details', async (reason, code) => {
+    [{ kind: 'error', failure: { message: 'provider failed', code: 'SERVER' } }, 'provider failed', 'SERVER'],
+    [{ kind: 'aborted', failure: { message: 'provider aborted', code: 'ABORTED' } }, 'provider aborted', 'ABORTED'],
+  ] satisfies Array<[FinishReason, string, string]>)('preserves %s terminal failure details', async (reason, message, code) => {
     const { ctx } = await withScript([{ type: 'finish', reason }])
     const providerRequest = request(ctx)
-    await expect(generateSessionTitleWithLlm(
+    await expect(executeSessionTitleLlm(
       ctx,
       resolveSessionTitleLlmConfig(CONFIG),
       providerRequest,
-      providerRequest.messages,
       TITLE_PROVIDER,
-    )).rejects.toMatchObject({ message: code, code })
+      prepared(providerRequest),
+    )).rejects.toMatchObject({ cause: { message, code } })
     expect(providerRequest.session.snapshotEvents().some(event => event.type === 'session/title-llm-request')).toBe(true)
   })
 
-  it.each([
-    [{ kind: 'max-tokens' }, 'TITLE_INVALID_OUTPUT'],
-    [{ kind: 'tool-calls' }, 'TITLE_INVALID_OUTPUT'],
-    [{ kind: 'future-finish' } as never, 'TITLE_CONFIG'],
-  ] satisfies Array<[FinishReason, string]>)('rejects the terminal finish reason %s', async (reason, code) => {
-    const { ctx } = await withScript([{ type: 'finish', reason }])
+  it('returns a max-tokens terminal finish for provider interpretation', async () => {
+    const { ctx } = await withScript([
+      { type: 'block-start', index: 0, blockType: 'text' },
+      { type: 'text-delta', index: 0, text: 'partial title' },
+      { type: 'finish', reason: { kind: 'max-tokens' } },
+    ])
     const providerRequest = request(ctx)
-    await expect(generateSessionTitleWithLlm(
+
+    const result = await executeSessionTitleLlm(
       ctx,
       resolveSessionTitleLlmConfig(CONFIG),
       providerRequest,
-      providerRequest.messages,
       TITLE_PROVIDER,
-    )).rejects.toMatchObject({ code })
+      prepared(providerRequest),
+    )
+
+    expect(result.finish).toEqual({ kind: 'max-tokens' })
+    expect(result.blocks).toEqual([{ type: 'text', text: 'partial title' }])
   })
 
-  it('rejects tool-call blocks and a successful response with no text', async () => {
-    const toolScript: StreamChunk[] = [
-      { type: 'block-start', index: 0, blockType: 'tool-call' },
-      { type: 'tool-call-delta', index: 0, id: ToolCallId('title-tool'), name: 'unexpected', argumentsDelta: '{}' },
-      { type: 'finish', reason: { kind: 'stop' } },
-    ]
-    const tool = await withScript(toolScript)
-    const toolRequest = request(tool.ctx)
-    await expect(generateSessionTitleWithLlm(
-      tool.ctx,
-      resolveSessionTitleLlmConfig(CONFIG),
-      toolRequest,
-      toolRequest.messages,
-      TITLE_PROVIDER,
-    )).rejects.toMatchObject({ code: 'TITLE_INVALID_OUTPUT' })
-
-    const reasoning = await withScript([
-      { type: 'block-start', index: 0, blockType: 'reasoning' },
-      { type: 'reasoning-delta', index: 0, text: 'no final title' },
-      { type: 'finish', reason: { kind: 'stop' } },
+  it('returns a tool-calls terminal finish and its assembled blocks for provider interpretation', async () => {
+    const { ctx } = await withScript([
+      { type: 'block-start', index: 0, blockType: 'text' },
+      { type: 'text-delta', index: 0, text: 'text beside a tool call' },
+      { type: 'block-start', index: 1, blockType: 'tool-call' },
+      { type: 'tool-call-delta', index: 1, id: ToolCallId('title-tool'), name: 'unexpected', argumentsDelta: '{}' },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
     ])
-    const reasoningRequest = request(reasoning.ctx)
-    await expect(generateSessionTitleWithLlm(
-      reasoning.ctx,
+    const providerRequest = request(ctx)
+
+    const result = await executeSessionTitleLlm(
+      ctx,
       resolveSessionTitleLlmConfig(CONFIG),
-      reasoningRequest,
-      reasoningRequest.messages,
+      providerRequest,
       TITLE_PROVIDER,
-    )).rejects.toMatchObject({ code: 'TITLE_EMPTY' })
+      prepared(providerRequest),
+    )
+
+    expect(result.finish).toEqual({ kind: 'tool-calls' })
+    expect(result.blocks).toEqual([
+      { type: 'text', text: 'text beside a tool call' },
+      { type: 'tool-call', id: 'title-tool', name: 'unexpected', arguments: '{}' },
+    ])
   })
 
   it('aborts a cooperative model stream at the configured deadline', async () => {
     vi.useFakeTimers()
     try {
       const ctx = new Context()
+      onTestFinished(() => ctx.fiber.dispose())
       await ctx.plugin(SessionStore)
       await ctx.plugin(LlmRuntime)
       ctx.llm.registerAdapter(['current-route'], new CooperativeAdapter())
       const providerRequest = request(ctx)
-      const pending = generateSessionTitleWithLlm(
+      const pending = executeSessionTitleLlm(
         ctx,
         resolveSessionTitleLlmConfig({ ...CONFIG, timeoutMs: 10 }),
         providerRequest,
-        providerRequest.messages,
         TITLE_PROVIDER,
+        prepared(providerRequest),
       )
       const rejected = expect(pending).rejects.toMatchObject({
         code: 'TITLE_TIMEOUT',
+        cause: { code: SESSION_TITLE_TIMEOUT_CODE, timeoutMs: 10 },
       })
       await vi.advanceTimersByTimeAsync(10)
       await rejected
@@ -544,24 +579,46 @@ describe('generateSessionTitleWithLlm', () => {
     vi.useFakeTimers()
     try {
       const ctx = new Context()
+      onTestFinished(() => ctx.fiber.dispose())
       await ctx.plugin(SessionStore)
       await ctx.plugin(LlmRuntime)
       ctx.llm.registerAdapter(['current-route'], new DelayedSuccessAdapter(20))
       const providerRequest = request(ctx)
-      const pending = generateSessionTitleWithLlm(
+      const pending = executeSessionTitleLlm(
         ctx,
         resolveSessionTitleLlmConfig({ ...CONFIG, timeoutMs: 10 }),
         providerRequest,
-        providerRequest.messages,
         TITLE_PROVIDER,
+        prepared(providerRequest),
       )
       const rejected = expect(pending).rejects.toMatchObject({
         code: 'TITLE_TIMEOUT',
+        cause: { code: SESSION_TITLE_TIMEOUT_CODE, timeoutMs: 10 },
       })
       await vi.advanceTimersByTimeAsync(20)
       await rejected
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('propagates caller cancellation through the composed request signal', async () => {
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['current-route'], new CooperativeAdapter())
+    const controller = new AbortController()
+    const providerRequest = request(ctx, controller.signal)
+    const pending = executeSessionTitleLlm(
+      ctx,
+      resolveSessionTitleLlmConfig(CONFIG),
+      providerRequest,
+      TITLE_PROVIDER,
+      prepared(providerRequest),
+    )
+    const rejected = expect(pending).rejects.toThrow('caller stopped')
+    controller.abort(new Error('caller stopped'))
+    await rejected
   })
 })

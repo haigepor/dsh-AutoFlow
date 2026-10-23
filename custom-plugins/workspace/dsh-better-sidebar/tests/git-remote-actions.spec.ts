@@ -1,3 +1,4 @@
+import { testConnection } from './connection-fixture.ts'
 /**
  * The Git panel's remote routes over the real `/sidebar/api` surface:
  * `git.push` / `git.pull` against a real bare remote (fast-forward succeeds,
@@ -90,7 +91,7 @@ function makeRemoteFixture(): RemoteFixture {
 function mount(): { route: SidebarWebRoute } {
   const routes: SidebarWebRoute[] = []
   const ctx = {
-    webRuntime: { trustedHosts: [] },
+    connection: testConnection(),
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
       registerUpgrade: (_route: SidebarWebUpgradeRoute) => () => {},

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-theme` 拥有设置中的「外观主题」分区：跟随系统／浅色／深色模式、官方默认与当前项目两套配色、五种界面字体、五档圆角、菜单动效速度，以及 10 至 22 px 的会话正文字号。回环客户端把这些选择存入 `ui-theme` 设置命名空间，本地提供方默认将其持久化到 `$DSH_HOME/cordis.patch.yml`。插件通过 `prefers-color-scheme` 解析 `system` 并发布不可变的 `ThemeSnapshot`；ui-layout 把每份快照应用到文档。本包还提供 `--dsw-*` token 样式表，并在外壳加载前同步注入所选值。第三方主题可通过 `ctx.theme` 注册别名 token 覆盖。
+`dsh-client-ui-theme` 拥有设置中的「外观主题」分区：跟随系统／浅色／深色模式、官方默认与当前项目两套配色、五种界面字体、五档圆角、菜单动效速度，以及 10 至 22 px 的会话正文字号。具有设置写入权限的认证客户端把这些选择存入 `ui-theme` 设置命名空间，本地提供方默认将其持久化到 `$DSH_HOME/cordis.patch.yml`。插件通过 `prefers-color-scheme` 解析 `system` 并发布不可变的 `ThemeSnapshot`；ui-layout 把每份快照应用到文档。本包还提供 `--dsw-*` token 样式表，并在外壳加载前同步注入所选值。第三方主题可通过 `ctx.theme` 注册别名 token 覆盖。
 
 ## 目录
 
@@ -31,9 +31,11 @@ kind: "package-reference"
 
 ### 外观选项
 
-外观页采用与通用设置一致的单列设置行：左侧为名称与说明，右侧为 36px 选择控件，上下内边距 16px，行间使用细分隔线。三张等宽模式卡直接切换跟随系统、浅色和深色，选中时显示细边框与按下状态。两张紧凑配色卡展示本包绘制的 SVG 界面预览与「蓝灰」「鸢尾紫」名称，分别选择官方默认与当前项目配色。预览颜色独立于当前激活的配色，并随浅深模式切换。三个共享菜单分别选择界面字体、圆角与菜单高亮移动时长（80、140、220、300 或 400 ms）。字体控件和菜单中的每个名称都用对应的本地字体显示；系统默认预览独立使用设备字体栈，不继承当前界面字体。控件右边缘对齐，窄屏时移到说明下方。菜单使用 token 化表面、选中勾选、portal 定位与键盘导航。五种现有字体为系统默认、Source Sans 3、IBM Plex Serif、JetBrains Mono 与 IBM Plex Sans Condensed。官方默认配色取自 `dsh-v0.2.0-rc.1` 发布标签；其会话与全窗口设置页内容区使用官方主背景色，并与官方侧栏背景色配对。当前项目配色保留暖灰与鸢尾紫。代码和品牌文字保留独立字体栈。服务接受的写入经 Host settings API 按操作顺序携带命名空间 revision 串行处理，最新写入被拒时重新加载持久值。非 loopback 页面把选择保留在进程内。
+外观页采用与通用设置一致的单列设置行：左侧为名称与说明，右侧为 36px 选择控件，上下内边距 16px，行间使用细分隔线。三张等宽模式卡直接切换跟随系统、浅色和深色，选中时显示细边框与按下状态。两张紧凑配色卡展示本包绘制的 SVG 界面预览与「蓝灰」「鸢尾紫」名称，分别选择官方默认与当前项目配色。预览颜色独立于当前激活的配色，并随浅深模式切换。三个共享菜单分别选择界面字体、圆角与菜单高亮移动时长（80、140、220、300 或 400 ms）。字体控件和菜单中的每个名称都用对应的本地字体显示；系统默认预览独立使用设备字体栈，不继承当前界面字体。控件右边缘对齐，窄屏时移到说明下方。菜单使用 token 化表面、选中勾选、portal 定位与键盘导航。五种现有字体为系统默认、Source Sans 3、IBM Plex Serif、JetBrains Mono 与 IBM Plex Sans Condensed。官方默认配色取自 `dsh-v0.2.0-rc.1` 发布标签；其会话与全窗口设置页内容区使用官方主背景色，并与官方侧栏背景色配对。当前项目配色保留暖灰与鸢尾紫。代码和品牌文字保留独立字体栈。服务接受的写入经 Host settings API 按操作顺序携带命名空间 revision 串行处理，最新写入被拒时重新加载持久值。认证远程页面通过 Host 设置服务持久化偏好。
 
 Web 与 Desktop 默认使用蓝灰（`themeSet: official`），未明确选择配色的旧用户设置也使用这一默认值。已保存的配色选择保持不变；旧强调色只用于明确选择当前项目配色的设置。新安装与「重置外观」会恢复官方默认、跟随系统、系统字体、标准圆角和 220 ms 动效。已保存的 Inter 与思源黑体仍可读取，并在用户主动选择新字体前保留显示。
+
+正文、代码和终端支持独立的字号及字体列表，入口位于本外观页的「更多字体设置」。正文字号为 10–22 px，代码为 10–16 px，终端为 10–20 px。角色字体列表优先于界面字体预设；清空后恢复对应默认栈。Cmd/Ctrl 加减号会一起调整三个角色的字号，并分别限制在各自范围内。通用设置不重复挂载这组控件。
 
 ### 注册主题
 
@@ -41,7 +43,7 @@ Web 与 Desktop 默认使用蓝灰（`themeSet: official`），未明确选择�
 
 ### 插件前调色板
 
-当主机组合包含 HTTP 服务器时，宿主侧会把已注册的 `ui-theme` 设置或 schema 默认值嵌入每份 index 响应。head CSS 会在任何脚本运行前选择文档画布的配色方案，其中 `system` 偏好使用 `prefers-color-scheme` 查询；随后，body 脚本会在加载页面和应用脚本之前设置 `body[data-ds-dark-theme]`、强调色／字体／圆角属性与 `--dsh-content-font-size`，因此首帧绘制就采用所选值。
+当主机组合包含 HTTP 服务器时，宿主侧把 `ui-theme` 设置或默认值嵌入 index 响应。head CSS 在脚本运行前解析跟随系统的配色；body 脚本同步设置暗色标记、强调色、字体预设、圆角、正文／代码／终端字号及非空的角色字体列表。首帧与 `ThemeRuntime` 因而使用相同的已保存值。
 
 -----
 
@@ -61,7 +63,7 @@ Web 与 Desktop 默认使用蓝灰（`themeSet: official`），未明确选择�
 
 ### 样式表
 
-`base.css` 持有共享圆角尺度与设置卡片材质别名。材质别名在 `body` 上随当前色板解析。组件圆角选择遵循 [Web 样式参考](../../../docs/web-styling.zh.md#corner-radii-and-settings-cards)。
+`base.css` 持有共享圆角尺度、字体 token 与设置卡片材质别名。`--dsh-font-family-text-default` 与 `--dsh-font-family-code-default` 在 `:root` 上保存内置字体栈；在 `body` 上，`--dsw-font-family` 与 `--ds-font-family-code` 把 `--dsh-font-family-text` 与 `--dsh-font-family-code` 排在这些字体栈之前，未设置的列表解析为内置字体栈（重复一次，字体匹配会忽略重复项）。材质别名在 `body` 上随当前色板解析。组件圆角选择遵循 [Web 样式参考](../../../docs/web-styling.zh.md#corner-radii-and-settings-cards)。
 
 `src/styles/` 下有八张样式表，由 ui-theme 的动态客户端 entry 依次导入：`base.css`、`corner-shape.css`、`design-platform.css`、`focus.css`、`onboarding.css`、`scrollbar.css`、`gradient-shadow-text.css` 与 `shiki.css`。客户端 bundle 将其编译并注入为插件持有的全局样式，因此卸载与 HMR（热模块替换）会随 ui-theme 一同移除。`scrollbar.css` 消费 `--dsw-alias-scrollbar-*` token，必须排在声明这些 token 的 `design-platform.css` 之后。状态标记使用各自的语义状态 token。`--dsw-alias-bg-document-selection` 以本地紫色链接色绘制文档原色上的选区，浅色主题不透明度为 36%，深色主题为 34%。`design-platform.css` 还负责代码差异底色的别名及其静态透明度色阶，以及文件对比所用的 `--dsw-alias-file-diff-*` 代码区、行号区和标记配色；`shiki.css` 负责语法颜色。
 
@@ -93,7 +95,7 @@ Web 与 Desktop 默认使用蓝灰（`themeSet: official`），未明确选择�
 
 ### 偏好持久化
 
-在 loopback 浏览器上，服务先以 schema 默认值立即提供自身，随后加载 `ui-theme` 命名空间，并把每次通过的外观变更经 Host settings API 写入。收到推送的设置变更时或重连后都会重新拉取该命名空间。非 loopback 页面不会创建该 Host-backed scope。该持久化边界由 [Host 支撑的偏好笔记](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.zh.md) 拥有。
+服务先以 schema 默认值立即提供自身，随后加载 `ui-theme` 命名空间，并把每次通过的主题、字号或字体变更经 Host settings API 写入。收到推送的设置变更时或重连后都会重新拉取该命名空间。自身写入尚未完成时，服务忽略重新拉取的配置段，避免较早写入的回显覆盖之后的修改；写入全部完成后再采用持久配置段。该持久化边界由 [Host 支撑的偏好参考](../ui-settings/README.zh.md) 拥有。
 
 </details>
 
@@ -108,7 +110,7 @@ Web 与 Desktop 默认使用蓝灰（`themeSet: official`），未明确选择�
 - [ui-sidebar](../ui-sidebar/README.zh.md)——滚动条重新绑定约定的消费方。
 - [ui-conversation](../ui-conversation/README.zh.md)——为 composer 席位消费 `--dsh-scrollbar-width` 的消费方。
 - [Web 样式](../../../docs/web-styling.zh.md)——Web 客户端组件的权威样式规则。
-- [Host 支撑的偏好](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.zh.md)——持久化边界决策。
+- [已认证浏览器 Host 偏好](../../../.agents/notes/implemented/bug-fix/2026-09-15-authenticated-browser-host-preferences.zh.md)——持久化策略决策。
 
 -----
 
@@ -140,5 +142,3 @@ Web 与 Desktop 默认使用蓝灰（`themeSet: official`），未明确选择�
 无。
 
 </details>
-
-**运行时不变式：** 不发布伴生入口。settings scope 校验并发布持久 theme section，注册表与自身变更同步发出 `theme/change`；存储与注册表的一致性由本包针对 Host、scope 与服务行为的测试直接覆盖。

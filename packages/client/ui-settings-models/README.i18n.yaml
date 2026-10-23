@@ -15,14 +15,14 @@
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
 /deepseek-ai-dsh-client-ui-settings-models/use-this-package:
-  en: 385fbf8bc1b48a10
-  zh: 739e7aadbec58b37
+  en: cdb7f977b2a38522
+  zh: 49a58e901690bd2b
 /deepseek-ai-dsh-client-ui-settings-models/use-this-package/api-keys:
-  en: 65250937253024d3
-  zh: 19e95618e4e2fe41
+  en: 17fd1a1b1ad70989
+  zh: 2ecc6e89a10dd4b7
 /deepseek-ai-dsh-client-ui-settings-models/use-this-package/editing-a-provider:
-  en: eb7cc9d44240a229
-  zh: e5c86b1e2c2767e1
+  en: daec86c109c15c80
+  zh: 06a4dd1899052c89
 /deepseek-ai-dsh-client-ui-settings-models/use-this-package/adding-and-deleting-providers:
   en: f82865d24c31002e
   zh: ada3880d9314d747
@@ -30,8 +30,8 @@
   en: 589397a35f82244e
   zh: 342fbceee2c173a2
 /deepseek-ai-dsh-client-ui-settings-models/use-this-package/extension-slots:
-  en: 596f1ba9f047151c
-  zh: 6698e4cf9a673da9
+  en: 7ad36e7e65ce5517
+  zh: d182d662cc788fc8
 /deepseek-ai-dsh-client-ui-settings-models/understand-the-implementation:
   en: a87afbec5e339b36
   zh: 6348c81af7e650e1
@@ -39,11 +39,11 @@
   en: 74948a88fe1f9aac
   zh: 8ad2200fa74c12c9
 /deepseek-ai-dsh-client-ui-settings-models/understand-the-implementation/concurrency-and-credentials:
-  en: 670b8c066aed9b7a
-  zh: 2bedba9a2e0e3fee
+  en: 4c7e992dadc523d9
+  zh: 96d97ba0ed94889f
 /deepseek-ai-dsh-client-ui-settings-models/understand-the-implementation/onboarding-coordinator:
-  en: 70ca2a5cc1ef6a8e
-  zh: 8d4563de585f82fe
+  en: dc515a31212e477a
+  zh: 770ba77cd9a69f73
 /deepseek-ai-dsh-client-ui-settings-models/further-exploration:
   en: 20abd8b98b6c20e2
   zh: 6dfda7955ce5f33f
@@ -57,5 +57,5 @@
   en: cc69c9934bf22302
   zh: 4ea896f4b54aa203
 /deepseek-ai-dsh-client-ui-settings-models/known-limitations-and-deferred-work/dev-note:
-  en: 4f6749870e661a48
-  zh: 4953f3ea814546a4
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

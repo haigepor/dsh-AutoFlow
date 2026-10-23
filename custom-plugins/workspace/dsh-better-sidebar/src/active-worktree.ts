@@ -260,7 +260,7 @@ export async function activeWorktreeRootOf(ctx: Context, sessionId: string, base
     return base
   }
   const canonicalTop = requireAbsolute(top)
-  const effectiveBase = pathUnderOf(base, canonicalTop) ? base : canonicalTop
+  const effectiveBase = pathUnderOf(canonicalTop, base) ? base : canonicalTop
   const active = await activeRootFromEvents(await sessionEventsOf(ctx, sessionId), effectiveBase)
   const root = active ?? effectiveBase
   activeWorktreeRootCache.set(sessionId, { root, base, expires: Date.now() + ACTIVE_ROOT_TTL_MS })

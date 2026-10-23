@@ -6,7 +6,7 @@ import {
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AccountSectionInjected } from './AccountSection.tsx'
 import { SignInDialog } from './SignInDialog.tsx'
-import { AccountNoticeCard } from './AccountNotice.tsx'
+import { AccountNoticeStack } from './AccountNotice.tsx'
 import css from './AccountMenu.module.css'
 
 /** Account launcher composed by the settings shell. */
@@ -39,7 +39,8 @@ export function AccountMenu({
   return <div ref={anchor} className={css.root}>
     {signInNotice > 0 && <Toast key={signInNotice} text={t('modelSignInRequired')} onDone={() => { setSignInNotice(0) }} />}
     {expiryNotice && <Toast text={t('sessionExpired')} onDone={() => { setExpiryNotice(false) }} />}
-    {signedIn && account.notice && <AccountNoticeCard key={account.notice.orderId} notice={account.notice}
+    {signedIn && !account.desktopOnboardingVisible && !account.onboarding && account.notices && <AccountNoticeStack
+      notices={account.notices}
       anchor={anchor} title={t('bonusNoticeTitle')} closeLabel={t('close')}
       onShown={bonusNoticeShown} onDismiss={bonusNoticeDismissed} />}
     <Tooltip disabled={settingsOpen} label={t('settings')} shortcutKeys={settingsShortcut?.keys}>

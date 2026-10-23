@@ -28,6 +28,7 @@ import { PluginManagerPage } from './PluginManagerPage.tsx'
 import { PluginRefreshToast, type PluginRefreshToastFace } from './PluginRefreshToast.tsx'
 import { PluginsPanelIcon } from './PluginsPanelIcon.tsx'
 import { configLedgerSource } from './config-ledger.ts'
+import { tabLedgerSource } from './tab-ledger.ts'
 import { PluginManagerController } from './manager-store.ts'
 import { PluginUpdateRestartModal, type PluginUpdateRestartFace } from './PluginUpdateRestartModal.tsx'
 import { waitForUpdatedWebHost } from './update-restart.ts'
@@ -35,6 +36,7 @@ import { en, zh, type PluginManagerLocaleKey } from './locales.ts'
 import { createNavigationStore } from './navigation-store.ts'
 import type {} from './slot-contract.ts'
 import { pluginMentionSource } from './plugin-mention.ts'
+import { PluginReference, pluginReferenceRule } from './PluginReference.tsx'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -60,7 +62,8 @@ export type { ConfigLedger, OfficialItem } from './config-ledger.ts'
 export type { PluginManagerFace } from './manager-store.ts'
 export type { PluginManagerLocaleKey } from './locales.ts'
 export type {
-  ConfigPageForm, PluginActivationOwnerProps, PluginConfigViewProps, PluginDetailProps, PluginPackageRef, PluginRowRef, PluginsSubject,
+  ConfigPageForm, PluginActivationOwnerProps, PluginAddActionsProps, PluginTabInstall, PluginTabProps,
+  PluginConfigViewProps, PluginDetailProps, PluginPackageRef, PluginRowRef, PluginsSubject,
 } from './slot-contract.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -85,6 +88,10 @@ export const inject = ['slots', 'locale', 'remote', 'remote.pluginManager', 'rem
  * @param ctx - the browser plugin context.
  */
 export function apply(ctx: ClientContext): void {
+  ctx.inject(['uiConversation'], (scope) => { scope.uiConversation.userText.register(pluginReferenceRule) })
+  ctx.slots.inject('conversation.user.text.node', () => ctx.slots.register({
+    name: 'conversation.user.text.node', key: 'plugin', priority: 100,
+  }, PluginReference))
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-plugin-manager: dictionaries')
   const t = ctx.locale.bind(NS)
   const inputTriggers = ctx.get('inputTriggers') as InputTriggerServiceContract
@@ -116,7 +123,7 @@ export function apply(ctx: ClientContext): void {
   // the page's own; a plugin's configuration arrives through the slots the
   // page declares here, so the page never names a configurable plugin.
   const configLedger = configLedgerSource(ctx)
-  const face = controller.inject(configLedger, text => ctx.locale.resolveText(text))
+  const face = controller.inject(configLedger, tabLedgerSource(ctx), text => ctx.locale.resolveText(text))
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay', id: 'plugin-manager.refresh-toast', locale: NS,
     inject: (): PluginRefreshToastFace => ({
@@ -155,6 +162,8 @@ export function apply(ctx: ClientContext): void {
       store,
       inject: () => face,
       children: {
+        'plugins.add.actions': { kind: 'list', scope: 'root' },
+        'plugins.tab': { kind: 'list', scope: 'root' },
         'plugins.item': { kind: 'list', scope: 'root' },
         'plugins.bundle.activation': { kind: 'keyed', scope: 'root' },
         'plugins.bundle.config': { kind: 'keyed', scope: 'root' },
@@ -171,6 +180,7 @@ export function apply(ctx: ClientContext): void {
     const disposeNavigation = ctx.reflect.provide('pluginNavigation', {
       openBundle: (packageName: string) => {
         ctx.layout.selectPanel(PANEL_ID)
+        instance.actions.setTab('installed')
         instance.actions.setView({ kind: 'package', name: packageName })
       },
       showUpdateRestart: face.showUpdateRestart,

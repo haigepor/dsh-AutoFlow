@@ -3,8 +3,17 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/autoflow-upstream-integration.md
 /autoflow-upstream-integration-record:
-  en: 353ce0b24f2d85b1
-  zh: 1bf43818189ffcf3
+  en: 65ebf1fa29753b94
+  zh: 2b679b4a0653da2c
+/autoflow-upstream-integration-record/dsh-v0-2-1-rc-2-integration-2026-10-23:
+  en: a73362168b7ab2ce
+  zh: 565f829fac9e3e78
+/autoflow-upstream-integration-record/dsh-v0-2-1-rc-2-integration-2026-10-23/integration-decisions:
+  en: cd834b924a279dae
+  zh: 0e1856023adc817d
+/autoflow-upstream-integration-record/dsh-v0-2-1-rc-2-integration-2026-10-23/verification-and-remaining-limits:
+  en: faaea441700416a1
+  zh: 59f285436fffb818
 /autoflow-upstream-integration-record/dsh-v0-2-0-rc-2-comparison-and-integration-2026-10-08:
   en: 748e78934dd15268
   zh: 39717b14da237e5e

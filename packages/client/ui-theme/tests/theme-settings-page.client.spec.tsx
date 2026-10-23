@@ -12,12 +12,13 @@ afterEach(cleanup)
 
 function mountPage(overrides: Partial<ThemePageState> = {}) {
   const store = createThemePageStore().create()
-  store.actions.sync({
+  store.actions.sync({ ...store.getSnapshot(),
     preference: 'dark', accent: 'iris', themeSet: 'official', legacyAccent: false,
     glideDuration: 220, fontFamily: 'system', corners: '0.75', fontSize: 14, revision: 1, ...overrides,
   })
   const writes = {
-    setTheme: vi.fn(), setAccent: vi.fn(), setThemeSet: vi.fn(), setFontFamily: vi.fn(),
+    setRoleFontSize: vi.fn(), setRoleFontFamily: vi.fn(), setTheme: vi.fn(), setAccent: vi.fn(),
+    setThemeSet: vi.fn(), setFontFamily: vi.fn(),
     setCorners: vi.fn(), setGlideDuration: vi.fn(), setFontSize: vi.fn(), resetAppearance: vi.fn(),
   }
   const props: ThemeSettingsPageProps = {

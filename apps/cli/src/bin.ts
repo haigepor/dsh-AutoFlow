@@ -49,6 +49,8 @@ export async function runCli(options: RunCliOptions = {}): Promise<void> {
         process.on('message', parentMessage)
         process.once('disconnect', shutdownChild)
         process.send?.({ type: 'dsh-web-listening' })
+        // IPC 不延长一次性命令的生命周期；Web 服务自己的句柄负责维持运行。
+        process.channel?.unref()
       }
       try {
         const { runProfile } = await import('./profile-boot.ts')

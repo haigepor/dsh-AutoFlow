@@ -21,6 +21,8 @@ A bundle's installation-authorized updateManager groups its independent updater 
 
 The expanded version section aligns release status with update actions and separates the automatic-install setting. Installation badges show a loading ring; expanded checks, installation and restart recovery show an indeterminate progress track. These states expose no measured total percentage. Failure removes the activity feedback and leaves retry controls available; reduced-motion preferences disable the animations.
 
+Plugin references in suggested drafts use the conversation-owned UserText registry. This package registers the `dsh-plugin:` mention rule and its node renderer, retaining the shared reference chip; it does not add plugin parsing to primitives.
+
 ## Summary
 
 Feature configuration dialogs stay within the Modal viewport inset. The header stays visible while the body can shrink and scroll.
@@ -43,9 +45,11 @@ Use **Plugins** in the Web sidebar to manage installed and shipped official bund
 <a id="use-this-package"></a>
 ## Use this package
 
+Installed and Discover tabs share the existing two-column cards. On-demand official packages remain in More until installed; updates use the catalog target while independent GitHub updates retain their own controls. Unavailable packages retain recorded sources and offer removal when permitted. Package row forms retain the local configuration dialog; direct row navigation also has a dedicated page.
+
 Select **Plugins** in the sidebar. The information button uses an 11px caption-colored icon in a 20px square hover area, with a 4px gap after the subtitle. It explains that this page configures official plugins and installs or manages other plugins, while **Settings → Built-in plugins** shows the built-in inventory and runtime status. Hover or focus shows the shared tooltip; clicking keeps it open until another click, Escape, Tab, or an outside click. The page reads the inventory and the bundles through `api-remotes` when first opened; a Host without a managed profile shows the page as unavailable. **Official** comes first and lists the bundles the installation ships for switching on — off until switched on, without an uninstall, and tagged **Experimental** for experimental features — followed by the official plugins that registered a configuration page; **Installed** lists the bundles the profile holds. Cards are listed by name, so switching a bundle on or off does not move its card. They rest directly on the page surface and receive the shared hover fill only while the pointer is over the row. A dependency without a bundle patch is not a plugin and is not listed unless the profile selects it, in which case it carries a problem tag. Global configuration remains in the Settings **Built-in plugins** section.
 
-Installed bundles and their plugin rows display their own title and description in the current UI language on cards and detail pages. Each field falls back from exported locale `meta` to the accessible `package.json` at that plugin address; the final title is the full package or module name, with no package description when both sources omit it. See [Plugin display metadata](../../../docs/cookbook/adding-a-package.md#plugin-display-metadata) for the author format. Bundle cards, details, and component rows display the image declared by their own `package.json.icon`; absent or undecodable images retain the default artwork. Installation previews still use registry or manifest information.
+The heading moves its complete action group to another line when space is insufficient. Action labels stay on one line, and the information button follows the subtitle text.
 
 The first list read shows a short Official-heading placeholder and four skeleton cards, using the real cards' row, icon, text-line, and vertical card spacing, with the action area left blank. Cards have a 10px gap that keeps neighboring rows distinct. The placeholders use the same opacity pulse as Session search and remain static with reduced motion. The accessible loading label and read timing are unchanged; refreshes retain the existing list, and installation and component-loading indicators keep their own states.
 
@@ -56,6 +60,15 @@ Detail pages place the artwork above the title, description, and existing action
 The **Refresh** button shows its tooltip after 500 ms of hovering or keyboard focus. During a manual refresh, the button shows a spinner and stays disabled until all pending reads settle and at least 400 ms have elapsed, preventing a brief spinner flash; repeated refresh requests are ignored and the existing list remains visible. Success shows no toast. With a loaded list, a failed manual refresh keeps the cached content and shows a failure toast, including after leaving Plugins; select **Refresh** again to retry. Before any successful list read, failures show an in-place message with **Retry**. Background reads do not show the refresh spinner.
 
 ### Installing a bundle
+
+The **Add plugin** control has a main button and a separate arrow for choosing how to add a plugin.
+
+| Button or menu item | Result |
+| --- | --- |
+| **Add plugin** | Opens the installation dialog with focus in its package field. |
+| Arrow: **Choose how to add a plugin** | Opens the menu of installation and plugin-contributed actions. |
+| **Install a third-party plugin** | Closes the menu and opens the same dialog for a package name, Git repository, or local directory. |
+| **Let the agent create a plugin** | When [ui-agent-preset](../ui-agent-preset/README.md#use-this-package) contributes this item, closes the menu and opens Creator to author a DSH plugin. |
 
 On first use, when pnpm uses the unconfigured official npm registry and npmmirror is offered, the Host probes both registries in parallel. The first successful HTTPS ping response selects the initial source. The dialog preserves remembered choices, manual selections, explicit manager configuration, and custom or unknown pnpm registries. An install clicked during initial probing waits for that bounded operation; a late result cannot overwrite a manual choice or reopen a closed dialog.
 
@@ -77,7 +90,7 @@ A bundle's page shows its full package name under the title, the spec that insta
 
 ### Switching one row of a bundle
 
-A row's switch on the bundle's page calls `pluginManager.setPluginEnabled`, which writes the row's `disabled` override into the profile's `cordis.patch.yml`. The tree recomposes at once on a profile with HMR, so the row's host half unmounts or mounts while the rest of the bundle keeps running, and the page follows the client module graph without reloading. Rows use the shared status marker for their Host fiber phase: pending and disabled are idle, loading and unloading are ongoing, active is done, and failed is error. The switch appears only on a bundle that is on; a row without a live entry, or one the Host will not address through the profile patch, is locked with the Host's reason. A list longer than ten rows gets a filter over localized titles, descriptions, row ids, and module names.
+A row's switch on the bundle's page calls `pluginManager.setPluginEnabled`, which records the row's enablement in the profile's `cordis.patch.yml` under the [toggle rules](../../boot/plugin-manager/README.md#use-this-package). The tree recomposes at once on a profile with HMR, so the row's host half unmounts or mounts while the rest of the bundle keeps running, and the page follows the client module graph without reloading. Rows use the shared status marker for their Host fiber phase: pending and disabled are idle, loading and unloading are ongoing, active is done, and failed is error. The switch appears only on a bundle that is on; a row without a live entry, or one the Host will not address through the profile patch, is locked with the Host's reason. A list longer than ten rows gets a filter over localized titles, descriptions, row ids, and module names.
 
 ### Configuration pages
 
@@ -107,12 +120,18 @@ ctx.slots.inject('plugins.detail.section', () => ctx.slots.register({
 
 Component configuration opens in a dialog from its feature or inventory edit icon while its `plugins.row.config` registration exists; component inventory titles do not navigate.
 
+### Page tabs
+
+Another plugin adds a tab after the page's own **Installed** tab by registering into the `plugins.tab` list slot; the entry's `label` names the tab and `order` places it. The tabs appear under the page header once one entry exists and are hidden on a bundle's, row's, or official plugin's page; the selected tab survives leaving **Plugins**, and a tab whose entry leaves falls back to **Installed**. The page renders the selected entry in place of its groups and hides its own refresh and add buttons there. The owner props carry `install({ spec, registry?, title, version })` and `openPackage(name)`. `install` is for a version the person already confirmed in the tab: the install dialog opens at its check screen, without the spec form, names the plugin with `title` and `version` above the spec, which it shows in smaller monospace text, keeps that name on the progress and result screens, with the installed version once done, asks `registry` first for that install only and never remembers it, and offers **Retry** after a refusal; a hidden installation reopens instead. `openPackage` switches to **Installed** and opens the bundle's page when that tab lists it; a bundle the page leaves out, such as a built-in profile bundle, leaves the Installed list open. A confirmed install offers no GitHub mirror recovery, since that recovery reopens the spec form, and its back button cancels a running install. [`ui-plugin-market`](../ui-plugin-market/README.md) contributes the **Discover** tab here.
+
 -----
+
+Built-in illustrations follow the [feature preview authoring guide](../../../docs/cookbook/adding-a-plugin-preview.md): optional, one 640×300 SVG per language, with both English and Chinese required. The internal map and its asset test enforce the format; packages have no preview declaration interface.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-Package management uses the profile's dependency records: installed bundles can be toggled and removed; installation-owned bundles remain locked. This distinction does not select startup failure policy.
+Package management uses the profile's dependency records: installed bundles can be toggled and removed; installation-owned bundles remain locked. A selected bundle that neither the profile nor the installation holds also offers uninstall, which only removes it from the profile's bundle list. This distinction does not select startup failure policy.
 
 <details>
 <summary>Implementation internals — click to expand</summary>
@@ -123,6 +142,8 @@ The Host entry exposes `pluginRegistryProbe.fastest()` through the generated Rem
 
 The browser plugin registers the `plugins` sidebar entry and its `main` panel through `ctx.slots.inject()`, so both follow late slot declaration, locale changes and teardown. The page is global and belongs to no Session. Display text comes from package metadata and the page's dictionary.
 
+The add control reuses `Button`, `Menu`, and `MenuItemButton`. Both installation actions call the same `openInstall` callback and use `InstallDialog` and `PluginManagerController`. The root-scoped list slot `plugins.add.actions` accepts contributed `MenuItemButton` rows after the install action; each contribution receives an `onDismiss()` callback to close the menu before starting its action.
+
 ### The store
 
 `PluginManagerController` owns the bundle views, busy keys, notices, install progress and the uninstall confirmation. Each read asks the inventory whether the Host manages a profile, then joins `listBundles` with `listPlugins` into one view per bundle, whose rows carry the live entry's enablement and fiber phase. It coalesces overlapping reads, refreshes after operations, on `plugin-manager/changed`, and on reconnect, and ignores late results after disposal. Install output is grouped by job id. The install dialog moves `idle → checking → starting → running → done | failed`, with `cancelling` and `applying` as the Host reports them and `unconfirmed` when an installation or cancellation response is lost; confirmed `applying` progress never regresses. Recovery uses `waitForInstall`, settling to `unknown` if no active request remains; checking and every active phase use ongoing, while the final screens use done or error. The check runs under an `AbortController` that going back or closing aborts, and its settlement is dropped; a run is stopped only through `pluginManager.cancelInstall`. Closing hides a run without discarding its state. A cancellation that overtakes installation is retried when progress or output acknowledges the request. Ordinary changes the Host could not apply, changes awaiting restart, and overrides by higher layers become temporary toasts. Remote-update completion uses the global restart dialog described below.
@@ -131,7 +152,7 @@ The browser plugin registers the `plugins` sidebar entry and its `main` panel th
 
 Custom item pages use the Host entry id as their registration id; component editors use the bundle package and row id. The page owner supplies `form.state` and `form.mutate(operations, expectedRevision)` when the entry exposes editable Config fields. A custom page owns its draft and validation display, and may reuse `ConfigField` from ui-primitives. Bundle-wide pages can contain several entries and have no single form.
 
-The page's `main` registration declares `plugins.item`, `plugins.bundle.config`, and `plugins.row.config` as its children, so the slots exist while the page does and a registrant's `ctx.slots.inject` waits for them. `configLedgerSource` projects the three ledgers into one observable — the official items in ledger order with their labels resolved in the active locale, and the bundle and row keys — cached until a ledger or the locale moves; the page binds it as `useConfigLedger` beside the store and never names a configurable plugin itself. The registration-owned navigation store selects the cards, a bundle, or an official plugin; switching away from the Plugins panel resets it to the list, while React remounts preserve the selected target. Other Client plugins inject `pluginNavigation` and call `ctx.pluginNavigation.openBundle(packageName)` to open bundle details without changing the current Session. The target survives the initial inventory load; an absent bundle displays the list. A registration lives with the browser half that made it. `dsh-client-modules` attaches a package's browser half to the Loader row whose specifier is the bare package name, so every page a bundle registers, for itself or for any of its rows, goes away when that row is switched off; a sub-plugin whose page must outlive the other rows ships as its own package. Official packages whose names begin with `@deepseek-ai/dsh-experimental-` display the Experimental marker.
+The page's `main` registration declares `plugins.item`, `plugins.bundle.config`, and `plugins.row.config` as its children, so the slots exist while the page does and a registrant's `ctx.slots.inject` waits for them. `configLedgerSource` projects the three ledgers into one observable — the official items in ledger order with their labels resolved in the active locale, and the bundle and row keys — cached until a ledger or the locale moves; the page binds it as `useConfigLedger` beside the store and never names a configurable plugin itself. The registration-owned navigation store selects the main list, the full experimental plugin list, a bundle, an official plugin, or a bundle row; switching away from the Plugins panel resets it to the list, while React remounts preserve the selected target. A fresh registration starts on the main list. Installation highlighting scrolls to a card only when it is on the current page; it does not change the selected page. Other Client plugins inject `pluginNavigation` and call `ctx.pluginNavigation.openBundle(packageName)` to open bundle details without changing the current Session. The target survives the initial inventory load; an absent bundle displays the list. A registration lives with the browser half that made it. `dsh-client-modules` attaches a package's browser half to the Loader row whose specifier is the bare package name, so every page a bundle registers, for itself or for any of its rows, goes away when that row is switched off; a sub-plugin whose page must outlive the other rows ships as its own package. Official packages whose names begin with `@deepseek-ai/dsh-experimental-` display the Experimental marker. Feature previews are SVG files under `src/client/assets/`, keyed by package name in the page and embedded in the Client bundle; packages cannot declare their own ([rationale](../../../.agents/notes/implemented/feature/2026-10-14-built-in-plugin-feature-previews.md)).
 
 `plugins.bundle.config` supplies bundle detail configuration, keyed by npm package name. `plugins.bundle.activation` offers bundle-owned guidance after explicit enablement from the list, with callbacks to dismiss it or open the bundle details. It does not appear merely because an enabled bundle was listed.
 
@@ -162,6 +183,7 @@ None; this package neither assembles nor sends a provider request.
 
 ## Known Limitations and Deferred Work
 
+- Feature previews have one image per language and no dark-theme variant, so the badge skill preview keeps its light background in dark theme.
 - Ping response time does not measure package-download throughput. Probes use the Host fetch route, which pnpm-specific proxy settings can differ from; users can always choose the registry manually, and installation retains its existing fallback rules.
 
 <a id="known-limitations-and-deferred-work"></a>
@@ -188,5 +210,3 @@ Declared updates appear as actionable version badges in the bundle list and a fo
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. The panel reads Host-owned facts, and the registry-probe cache stores one comparison result without an independently maintained projection.

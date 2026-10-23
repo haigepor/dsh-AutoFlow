@@ -47,7 +47,7 @@ it('rejects login origins in production', () => {
     .toThrow('must not configure allowedAuthOrigins')
 })
 
-it.each([{ unsigned: true }, { prepareOnly: true }, {}])('fails before signing/preparation when policy is absent in %j', (options) => {
+it.each([{ unsigned: true }, { prepareOnly: true }, {}])('requires policy outside local macOS builds in %j', (options) => {
   for (const platform of ['win32', 'darwin'] as const) {
     // 无证书 macOS 测试包不嵌入更新策略，但必须先明确 test 环境。
     const expected = platform === 'darwin' && 'unsigned' in options

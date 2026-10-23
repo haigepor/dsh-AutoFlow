@@ -79,8 +79,10 @@ describe('desktop package target', () => {
     expect(parseDesktopPackageInvocation(['--unsigned', '--dir'], 'win32', 'x64')).toMatchObject({
       unsigned: true, directory: true,
     })
-    expect(parseDesktopPackageInvocation(['mac-arm64', '--unsigned'], 'darwin', 'arm64').unsigned).toBe(true)
-    expect(parseDesktopPackageInvocation(['mac-x64', '--unsigned', '--dir'], 'darwin', 'x64')).toMatchObject({ unsigned: true, directory: true })
+    for (const name of ['mac-arm64', 'mac-x64']) {
+      expect(parseDesktopPackageInvocation([name, '--unsigned'], 'darwin', 'arm64').unsigned).toBe(true)
+      expect(parseDesktopPackageInvocation([name, '--unsigned', '--dir'], 'darwin', 'arm64').directory).toBe(true)
+    }
     expect(() => parseDesktopPackageInvocation(['--unsigned', '--prepare-only'], 'win32', 'x64'))
       .toThrow(/cannot use --prepare-only/u)
   })
@@ -95,11 +97,12 @@ describe('desktop package target', () => {
       CSC_IDENTITY_AUTO_DISCOVERY: 'true',
       APPLE_API_KEY: 'private.p8', APPLE_APP_SPECIFIC_PASSWORD: 'apple-secret',
       DSH_DESKTOP_MACOS_SIGNING_IDENTITY: 'production', DSH_DESKTOP_MACOS_TEAM_ID: 'PRODTEAM12',
-      DSH_DESKTOP_MACOS_NOTARIZATION_PROXY: 'http://apple.example',
+      DSH_DESKTOP_MACOS_NOTARIZATION_PROXY: 'http://apple.example', DSH_DESKTOP_MACOS_PACK_CONCURRENCY: '2',
       DSH_DESKTOP_UNSIGNED: '1',
     }
     expect(desktopElectronBuilderEnvironment(environment, true)).toEqual({
       DSH_DESKTOP_APP_ID: 'com.example.desktop',
+      DSH_DESKTOP_MACOS_PACK_CONCURRENCY: '2',
       CSC_IDENTITY_AUTO_DISCOVERY: 'false',
       DSH_DESKTOP_UNSIGNED: '1',
     })
@@ -142,4 +145,13 @@ describe('desktop package target', () => {
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
     })
   })
+})
+
+it('allows skipping notarization only for signed macOS packages', () => {
+  expect(parseDesktopPackageInvocation(['mac-arm64'], 'darwin', 'arm64').skipNotarization).toBe(false)
+  expect(parseDesktopPackageInvocation(['mac-arm64', '--skip-notarization'], 'darwin', 'arm64').skipNotarization).toBe(true)
+  for (const flag of ['--unsigned', '--prepare-only']) {
+    expect(() => parseDesktopPackageInvocation(['mac-arm64', '--skip-notarization', flag], 'darwin', 'arm64')).toThrow(/requires a signed macOS build/u)
+  }
+  expect(() => parseDesktopPackageInvocation(['win-x64', '--skip-notarization'], 'win32', 'x64')).toThrow(/requires a signed macOS build/u)
 })

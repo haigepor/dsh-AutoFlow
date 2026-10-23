@@ -9,7 +9,7 @@ English | [中文](2026-10-08-session-title-attempts.zh.md)
 
 ## Summary
 
-Adds sanitized session title attempt telemetry and optional recorded reasoning effort.
+Retains sanitized local session-title attempt telemetry alongside the official title request declaration.
 
 ## Table of Contents
 
@@ -30,21 +30,17 @@ changes:
     previous: null
     after: "e5ae9f18f9da222773c06af817e9d4694cf85f213a03f4e462af4e4071686ed7"
     decision: same-version
-  - root: "event:session/title-llm-request"
-    previous: "2026-09-21-user-question-reply"
-    after: "1cb6437add22641c189dc8391565e6bec6217f3530f632eef999f20767307689"
-    decision: same-version
 ```
 
 <a id="compatibility"></a>
 ## Compatibility
 
-Existing request and title records remain readable without the new optional field or attempt events. New readers recognize the new log-only event. The writer format version and existing surface events are unchanged; no historical Session log is rewritten.
+The title request type matches the official declaration and needs no additional fork transition. This local acknowledgement adds only the log-only attempt event, which does not enter model input. Older readers that do not know this required event refuse the Session. Official acknowledgements, the writer version, and committed historical Session generations remain unchanged.
 
 <a id="verification"></a>
 ## Verification
 
-Host and Client TypeScript compilation and 86 focused tests passed, covering bounded retries, cancellation, manual renaming, Remote regeneration, and retained titles after failure. Persistence format, type-equivalence, and bilingual-pair checks passed.
+pnpm exec tsx scripts/compile-referenced-projects.ts host-contracts and pnpm exec tsc -b tsconfig.client.json passed. The focused session-title-llm llm.spec.ts run passed 20 tests, including bounded transient retries, terminal authentication failures, cancellation, operational stream failures, sanitized attempt records, and provider reasoning selection.
 
 <a id="dev-note"></a>
 ## Dev Note

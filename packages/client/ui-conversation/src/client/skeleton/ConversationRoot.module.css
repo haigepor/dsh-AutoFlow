@@ -586,6 +586,19 @@ button.crumb:hover {
   border-top: 0.5px solid var(--dsw-alias-border-l1);
 }
 .composerContext [data-queue-dock]:last-child { padding-bottom: 10px; }
+/* Plugin options share the row, pushed to its right edge. */
+.heroOptions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.heroOptions:empty {
+  display: none;
+}
 
 /* Hero: the composer sits inside the session scroll body; center there so
    the tree seat matches active (sticky footer) without a Root remount. */

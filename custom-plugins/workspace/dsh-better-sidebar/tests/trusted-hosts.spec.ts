@@ -1,8 +1,9 @@
+import { testConnection } from './connection-fixture.ts'
 import { fromAny } from '@total-typescript/shoehorn'
 /**
  * Remote-access trust regression tests: the /sidebar fence must accept a
- * reverse-proxy domain or LAN IP listed in the DSH web runtime's
- * `webRuntime.trustedHosts` — the same trust list the /api gateway accepts
+ * reverse-proxy domain or LAN IP admitted by the Host Connection service
+ * through `connection.requestRejection` — the same policy the /api gateway accepts
  * (LAN IP literals sampled at bind plus `--trusted-host` authorities).
  *
  * Regression: the fence used to read the connection row's trustedHosts
@@ -76,7 +77,7 @@ function mount(initialTrustedHosts: readonly string[] = []): {
   const upgrades: SidebarWebUpgradeRoute[] = []
   const effects: Array<() => void | (() => void)> = []
   const ctx = {
-    webRuntime: runtime,
+    connection: testConnection(() => runtime.trustedHosts),
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
       registerUpgrade: (route: SidebarWebUpgradeRoute) => { upgrades.push(route); return () => {} },

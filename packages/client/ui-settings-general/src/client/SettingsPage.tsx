@@ -27,7 +27,7 @@ export function SettingsPage({
   const entries = useSearchEntries(snapshot => snapshot)
   const activeId = useStore(state => state.activeId)
   // A section can unload while open; the first available section takes its place.
-  const active = rows.find(row => row.id === activeId) ?? rows[0]
+  const active = rows.find(row => row.id === activeId) ?? rows.find(row => row.id === 'general') ?? rows[0]
   const titleId = useId()
   const navId = useId()
   const [collapsed, setCollapsed] = useState(false)
@@ -192,6 +192,7 @@ export function SettingsPage({
           <div key={shown?.id} ref={bodyRef} className={clsx(css.optionBody, leaving && css.leaving)}>
             {shown !== undefined && renderSlot('settings.section', { close: () => { closeSettings(false) } }, { only: shown.id })}
           </div>
+          <footer className={css.actions}>{renderSlot('settings.action', {})}</footer>
         </div>
       </section>
     </div>

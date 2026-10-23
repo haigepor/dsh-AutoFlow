@@ -133,7 +133,8 @@ async function main(): Promise<void> {
   if (!pagesUrl.startsWith(expectedRoot)) throw new Error('desktop GitHub: Pages URL must use this repository project site')
   const sitePrefix = pagesUrl.slice(expectedRoot.length)
   const oldFile = head === undefined ? undefined : await request(`${prefix}/contents/${sitePrefix}policy.json?ref=${head}`)
-  const old = oldFile === undefined ? undefined : JSON.parse(Buffer.from(String(object(oldFile).content), 'base64').toString('utf8')) as unknown
+  const old: unknown = oldFile === undefined ? undefined
+    : JSON.parse(Buffer.from(String(object(oldFile).content), 'base64').toString('utf8'))
   const product = object(JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')))
   if (typeof product.version !== 'string') throw new Error('desktop GitHub: missing product version')
   const paths = desktopTargetBuildPaths(target)

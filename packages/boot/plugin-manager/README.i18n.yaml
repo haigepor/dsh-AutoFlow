@@ -15,17 +15,17 @@
   en: 87679c51aa3693f5
   zh: 11684a48a5806afb
 /deepseek-ai-dsh-plugin-manager/use-this-package:
-  en: 244894c4b189c9ee
-  zh: 1e2c4ab4986b0c13
+  en: c41210223358cd5e
+  zh: 21ea5cd05e5a8886
 /deepseek-ai-dsh-plugin-manager/use-this-package/version-compatibility-and-exemptions:
-  en: 920c0acb3b9feaf3
-  zh: ba6e832a256880a7
+  en: 483285658e267dd5
+  zh: 846bec2daac59a96
 /deepseek-ai-dsh-plugin-manager/use-this-package/configuration:
   en: 8664414881bcdd0c
   zh: 8687abf467945a35
 /deepseek-ai-dsh-plugin-manager/understand-the-implementation:
-  en: 1c737c375aeac163
-  zh: 009d7f139a749c79
+  en: 495dadf79c48c43c
+  zh: 9884dd04a5bb49dc
 /deepseek-ai-dsh-plugin-manager/further-exploration:
   en: c6538243d8702a0d
   zh: 04a82d923353c75f
@@ -36,8 +36,8 @@
   en: 1815ec6ce56c80d4
   zh: 2d7ac75d3b25eb6b
 /deepseek-ai-dsh-plugin-manager/model-experience/management-tool/what-the-model-sees:
-  en: 72d6c70869b12f22
-  zh: 45218d6f1e765fb1
+  en: b1dae91f98350290
+  zh: 802ae86d923ac6ce
 /deepseek-ai-dsh-plugin-manager/model-experience/management-tool/token-effect:
   en: bc70208bd361dbcd
   zh: bb651d6066066c6c
@@ -45,11 +45,11 @@
   en: c29f60be7f3edc1a
   zh: d9b9388b96ef95cc
 /deepseek-ai-dsh-plugin-manager/known-limitations-and-deferred-work:
-  en: fde2d9491fe5dd4f
-  zh: ef6e6db15c4f19d2
+  en: 6b93fd9851b79a0e
+  zh: d2cf1982e8cfc718
 /deepseek-ai-dsh-plugin-manager/known-limitations-and-deferred-work/failure-behavior:
-  en: cb012bbd874c5c78
-  zh: 1663dd54beb4009c
+  en: 9ee6c23499e49df0
+  zh: 0adfbc95491ec72a
 /deepseek-ai-dsh-plugin-manager/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: 3bb0c20c93f16f98

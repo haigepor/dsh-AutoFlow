@@ -1,11 +1,12 @@
 /** Read plugin display text and icons through exported resources without evaluating plugin code. */
 
-import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
-import { dirname, extname, isAbsolute, relative, resolve, sep, win32 } from 'node:path'
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { dirname, extname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ModuleLoader } from '@deepseek-ai/cordis-plugin-loader'
 import type { LocalizedText, PluginLocalizedMeta } from '@deepseek-ai/dsh-package-manifest'
 import { barePackageName } from './profile-resolution/resolver.ts'
+import { realModuleFile } from './profile-resolution/legacy-links.ts'
 
 const LANGUAGE_ID = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/u
 
@@ -53,9 +54,54 @@ export function readPluginIcon(value: unknown, manifestPath: string): PluginIcon
   return { contentType: mediaType, bytes }
 }
 
+function iconOf(
+  specifier: string, packageName: string, parentURL: string, manifestPath: string | undefined,
+  value: unknown, iconURL?: (icon: PluginIcon) => string,
+): string | undefined {
+  const icon = manifestPath === undefined ? undefined : textOf(value, `${manifestPath}: icon`)
+  let target: string
+  // Diagnostics name the file the author edits: the declaring manifest or the exported image.
+  let label: string
+  if (manifestPath !== undefined && icon !== undefined) {
+    if (isAbsolute(icon) || win32.isAbsolute(icon) || /^[A-Za-z][A-Za-z\d+.-]*:/u.test(icon)) {
+      throw new Error(`${manifestPath}: icon must be a relative file path`)
+    }
+    label = manifestPath
+    const root = realpathSync(dirname(manifestPath))
+    target = resolve(root, icon)
+    const local = relative(root, realModuleFile(target))
+    if (local === '..' || local.startsWith(`..${sep}`) || isAbsolute(local)) {
+      throw new Error(`${label}: icon must remain inside its manifest directory`)
+    }
+  } else {
+    const exported = optionalResourcePath(`${specifier}/icon`, parentURL)
+    if (exported === undefined) return undefined
+    target = label = exported
+    assertPackageOwned(realModuleFile(target), packageName)
+  }
+  const mediaType = ICON_MEDIA_TYPES.get(extname(target).toLowerCase())
+  if (mediaType === undefined) throw new Error(`${label}: icon must be SVG, PNG, JPEG, or WebP`)
+  const file = realModuleFile(target)
+  const stat = statSync(file)
+  if (!stat.isFile()) throw new Error(`${label}: icon must be a regular file`)
+  if (stat.size > MAX_ICON_BYTES) throw new Error(`${label}: icon exceeds 256 KiB`)
+  const bytes = readFileSync(file)
+  if (bytes.length > MAX_ICON_BYTES) throw new Error(`${label}: icon exceeds 256 KiB`)
+  return iconURL === undefined ? `data:${mediaType};base64,${bytes.toString('base64')}` : iconURL({ contentType: mediaType, bytes })
+}
+
+/** Require an ancestor of the real file whose package.json names the owning package. */
+function assertPackageOwned(file: string, name: string): void {
+  for (let directory = dirname(file); ; directory = dirname(directory)) {
+    const manifest = join(directory, 'package.json')
+    if (existsSync(manifest) && readObject(manifest).name === name) return
+    if (dirname(directory) === directory) throw new Error(`${file}: icon must remain inside its package directory`)
+  }
+}
+
 /**
  * Resolve a plugin resource through the active Node ESM resolver without evaluating it.
- * @param specifier - complete resource module specifier, including its locale filename.
+ * @param specifier - plugin module or exported resource specifier.
  * @param parentURL - owning module-resolution base.
  * @returns the local filesystem path selected by Node and the active profile.
  * @throws when the resolver is unavailable or the resource cannot resolve to a local file.
@@ -146,27 +192,32 @@ function localizedText(
 }
 
 /**
- * Read localized display text and the icon declared in a plugin's exported package.json.
- * Icons are manifest-relative SVG, PNG, JPEG, or WebP files of at most 256 KiB,
- * contained in the manifest directory after realpath resolution. Icon failures retain display text.
+ * Read plugin locale JSON display text and icon without evaluating JavaScript entries.
+ * Only a package-root specifier reads its exported package.json: `name`/`description` fill missing
+ * locale fields, and a declared `icon` takes priority over the `<specifier>/icon` resource.
+ * A subpath specifier never reads package.json; its icon comes only from `<specifier>/icon`.
+ * Manifest icons remain inside their declaring directory; exported icons remain inside their
+ * owning package after realpath resolution. Both accept SVG, PNG, JPEG, or WebP up to 256 KiB.
+ * Icon failures retain display text without falling back.
  * Non-package specifiers are skipped without invoking the resource resolver.
  * Language files share the directory containing the resolved English resource;
  * each file is resolved through the complete plugin specifier before reading.
- * Missing fields use the same address's package.json name/description. Translation
- * maps retain an English fallback, ultimately the full module specifier for titles and empty for descriptions.
+ * Translation maps retain an English fallback, ultimately the full module specifier
+ * for titles and empty for descriptions.
  * @param specifier - configured plugin module name, including any package subpath.
  * @param parentURL - owning Loader tree's module-resolution base.
- * @param iconURL - optional delivery callback; omission retains image data URLs.
- * @returns display fields and any icon diagnostic, or undefined for non-package specifiers or absent metadata.
+ * @param iconURL - Optional resource delivery callback; omission retains image data URLs.
+ * @returns display fields and any resource diagnostic, or undefined for non-package specifiers or absent metadata.
  */
 export function readPluginMeta(
   specifier: string, parentURL: string, iconURL?: (icon: PluginIcon) => string,
 ): PluginLocalizedMeta | undefined {
-  if (barePackageName(specifier) === undefined) return undefined
+  const packageName = barePackageName(specifier)
+  if (packageName === undefined) return undefined
   try {
     const englishPath = optionalResourcePath(`${specifier}/locale/en.json`, parentURL)
     const dictionaries = englishPath === undefined ? new Map<string, DisplayFields>() : dictionariesOf(englishPath, specifier, parentURL)
-    const manifestPath = optionalResourcePath(`${specifier}/package.json`, parentURL)
+    const manifestPath = packageName === specifier ? optionalResourcePath(`${specifier}/package.json`, parentURL) : undefined
     const manifest = manifestPath === undefined ? undefined : readObject(manifestPath)
     const title = localizedText('title', dictionaries, fallbackText(manifest?.name), specifier)
     const description = localizedText('description', dictionaries, fallbackText(manifest?.description), '')
@@ -176,9 +227,7 @@ export function readPluginMeta(
     }
     let icon: string | undefined
     try {
-      const image = manifestPath === undefined ? undefined : readPluginIcon(manifest?.icon, manifestPath)
-      icon = image === undefined ? undefined : iconURL === undefined
-        ? `data:${image.contentType};base64,${image.bytes.toString('base64')}` : iconURL(image)
+      icon = iconOf(specifier, packageName, parentURL, manifestPath, manifest?.icon, iconURL)
     } catch (error) {
       return { ...text, error: `Plugin metadata for ${specifier}: ${String(error)}` }
     }

@@ -10,9 +10,10 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import { bootThemeInjections } from './boot-theme.ts'
 import {
   ACCENT_PRESETS, CORNER_PRESETS, DEFAULT_ACCENT, DEFAULT_CORNER_PRESET,
-  DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GLIDE_DURATION, DEFAULT_PREFERENCE,
+  DEFAULT_FONT_FAMILY, DEFAULT_GLIDE_DURATION, DEFAULT_PREFERENCE,
   DEFAULT_THEME_SET, FONT_FAMILIES, GLIDE_DURATIONS, resolveThemeSet,
-  FONT_SIZE_MIN, FONT_SIZE_MAX, THEME_PREFERENCES, THEME_SETS, THEME_SETTINGS_NAMESPACE,
+  THEME_PREFERENCES, THEME_SETS, THEME_SETTINGS_NAMESPACE,
+  FONT_SIZE_SPECS, fontSizeSchema,
 } from './theme-settings.ts'
 
 export {
@@ -40,12 +41,27 @@ export interface Config {
   fontFamily: Volatile<FontFamily>
   /** Shared corner scale. */
   corners: Volatile<CornerPreset>
+  /** Code-block font size in pixels. */
+  codeFontSize: Volatile<number>
+  /** Sidebar terminal font size in pixels. */
+  terminalFontSize: Volatile<number>
+  /** Interface and body text font list; `''` keeps the built-in stack. */
+  textFontFamily: Volatile<string>
+  /** Code font list; `''` keeps the built-in stack. */
+  codeFontFamily: Volatile<string>
+  /** Sidebar terminal font list; `''` keeps the built-in stack. */
+  terminalFontFamily: Volatile<string>
 }
 
 /** Live theme and typography preferences. */
 export const Config = z.object({
   preference: z.union([...THEME_PREFERENCES]).default(DEFAULT_PREFERENCE).volatile(),
-  fontSize: z.number().step(1).min(FONT_SIZE_MIN).max(FONT_SIZE_MAX).default(DEFAULT_FONT_SIZE).volatile(),
+  fontSize: fontSizeSchema(FONT_SIZE_SPECS.text).volatile(),
+  codeFontSize: fontSizeSchema(FONT_SIZE_SPECS.code).volatile(),
+  terminalFontSize: fontSizeSchema(FONT_SIZE_SPECS.terminal).volatile(),
+  textFontFamily: z.string().default('').volatile(),
+  codeFontFamily: z.string().default('').volatile(),
+  terminalFontFamily: z.string().default('').volatile(),
   accent: z.union([...ACCENT_PRESETS]).default(DEFAULT_ACCENT).volatile(),
   themeSet: z.union([...THEME_SETS]).default(DEFAULT_THEME_SET).volatile(),
   glideDuration: z.union([...GLIDE_DURATIONS]).default(DEFAULT_GLIDE_DURATION).volatile(),
@@ -76,6 +92,8 @@ export function apply(ctx: Context, config: Config): void {
       config.preference.get(), config.fontSize.get(),
       config.accent.get(), config.fontFamily.get(), config.corners.get(),
       palette.themeSet, config.glideDuration.get(), palette.legacyAccent,
+      { text: config.fontSize.get(), code: config.codeFontSize.get(), terminal: config.terminalFontSize.get() },
+      { text: config.textFontFamily.get(), code: config.codeFontFamily.get(), terminal: config.terminalFontFamily.get() },
     ))
   }, { prepend: true })
 }

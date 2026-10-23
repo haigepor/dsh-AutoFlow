@@ -9,7 +9,7 @@ kind: persistence-change
 
 ## 概述
 
-新增脱敏的会话标题尝试记录及可选的请求思考强度字段。
+在官方标题请求声明之外保留脱敏的本地会话标题尝试记录。
 
 ## 目录
 
@@ -30,21 +30,17 @@ changes:
     previous: null
     after: "e5ae9f18f9da222773c06af817e9d4694cf85f213a03f4e462af4e4071686ed7"
     decision: same-version
-  - root: "event:session/title-llm-request"
-    previous: "2026-09-21-user-question-reply"
-    after: "1cb6437add22641c189dc8391565e6bec6217f3530f632eef999f20767307689"
-    decision: same-version
 ```
 
 <a id="compatibility"></a>
 ## 兼容性
 
-已有请求及标题记录在缺少新可选字段或尝试事件时仍可读取；新读取方识别新增的仅日志事件。写入格式版本和现有表面事件不变，不重写历史会话日志。
+标题请求类型与官方声明一致，不需要额外的分支类型变更。本地确认只新增用于日志的尝试事件，不进入模型输入。不认识该必需事件的旧读取器会拒绝会话。官方确认、写入版本和已提交的历史会话日志代际保持不变。
 
 <a id="verification"></a>
 ## 验证
 
-Host 与 Client TypeScript 编译及 86 项专项测试已通过，覆盖有限重试、取消、手动重命名、Remote 重新生成及失败后保留标题。持久化格式、类型等价及双语配对检查已通过。
+pnpm exec tsx scripts/compile-referenced-projects.ts host-contracts 和 pnpm exec tsc -b tsconfig.client.json 通过。session-title-llm 的 llm.spec.ts 聚焦运行通过 20 项测试，覆盖有界瞬时故障重试、终止认证失败、取消、操作流故障、脱敏尝试记录及提供商推理强度选择。
 
 <a id="dev-note"></a>
 ## 开发备注

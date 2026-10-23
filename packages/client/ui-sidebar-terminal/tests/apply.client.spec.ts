@@ -74,7 +74,8 @@ async function mountPlugin() {
   } as never)
   const theme = { preference: 'light' as const, fontSize: 14, accent: 'iris' as const,
     themeSet: 'official' as const, legacyAccent: false, glideDuration: 220 as const,
-    fontFamily: 'system' as const, corners: 'standard' as const,
+    fontFamily: 'system' as const, corners: 'standard' as const,  fontSizes: { text: 14, code: 11, terminal: 13 }, fontFamilies: { text: '', code: '', terminal: '' },
+
     active: { id: 'light', colorScheme: 'light' as const, tokens: {} }, themes: [], revision: 0 }
   ctx.provide('theme', { getTheme: () => theme } as never)
   const fiber = await ctx.plugin({ inject, apply })

@@ -8,10 +8,11 @@ import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-cli
 import {
   GLIDE_DURATIONS,
   type AccentPreset, type CornerPreset, type FontFamily, type GlideDuration,
-  type ThemePreference, type ThemeSet,
+  type ThemePreference, type ThemeSet, type FontRole,
 } from '../theme-settings.ts'
 import type { createThemePageStore } from './settings-store.ts'
 import { PalettePreview } from './previews/PalettePreview.tsx'
+import { FontSettingsGroup } from './FontSettingsGroup.tsx'
 import css from './ThemeSettingsPage.module.css'
 
 /** Theme writes supplied by the plugin. */
@@ -23,6 +24,9 @@ export interface ThemeSettingsPageInjected {
   setCorners: (value: CornerPreset) => void
   setGlideDuration: (value: GlideDuration) => void
   setFontSize: (value: number) => void
+  /** Change an independent text, code, or terminal font preference. */
+  setRoleFontSize: (role: FontRole, value: number) => void
+  setRoleFontFamily: (role: FontRole, value: string) => void
   resetAppearance: () => void
 }
 
@@ -76,6 +80,7 @@ function AppearanceRow<Value extends string | number>({ id, title, description, 
  */
 export function ThemeSettingsPage({
   t, useStore, setTheme, setThemeSet, setFontFamily, setCorners, setGlideDuration, resetAppearance,
+  setRoleFontSize, setRoleFontFamily,
 }: ThemeSettingsPageProps) {
   const state = useStore(snapshot => snapshot)
   // 旧字体只在仍被使用时展示；浏览页面不会改写已有偏好。
@@ -125,6 +130,7 @@ export function ThemeSettingsPage({
       options={fonts.map(value => ({ value,
         label: <span className={css.fontSample} data-font={value}>{t(`preset.font.${value}.label`)}</span>,
       }))} onSelect={setFontFamily} />
+    <FontSettingsGroup t={t} useStore={useStore} setFontSize={setRoleFontSize} setFontFamily={setRoleFontFamily} />
     <AppearanceRow id="appearance-radius-heading" title={t('preset.radiusHeading')} description={t('corners.description')}
       label={t(`preset.radius.${radius}.label`)} selected={radius}
       options={RADII.map(value => ({ value, label: t(`preset.radius.${value}.label`) }))} onSelect={setCorners} />

@@ -1,25 +1,17 @@
 - list:
   - listitem:
-    - button "tool-subagent-control, 已启用":
-      - strong: tool-subagent-control
+    - button "子智能体控制工具, tool-subagent-control, 已启用":
+      - strong: 子智能体控制工具
       - text: 向子 Agent 发消息或中断其任务。
   - listitem:
-    - button "tool-subagent-control/list-agents, tool-subagent-list-agents, 已启用":
-      - strong: tool-subagent-control/list-agents
+    - button "子智能体列表工具, tool-subagent-list-agents, 已启用":
+      - strong: 子智能体列表工具
       - text: 列出子 Agent 及其当前状态。
   - listitem:
-    - button "tool-subagent, 已启用":
-      - strong: tool-subagent
+    - button "子智能体委派工具, tool-subagent, 已启用":
+      - strong: 子智能体委派工具
       - text: 将任务委派给指定的子 Agent。
   - listitem:
-    - button "tool-subagent, tool-subagent-fork, 已启用":
-      - strong: tool-subagent
+    - button "子智能体委派工具, tool-subagent-fork, 已启用":
+      - strong: 子智能体委派工具
       - text: 将任务委派给指定的子 Agent。
-  - listitem:
-    - button "tool-subagent, tool-subagent-codex, 已停用":
-      - strong: tool-subagent
-      - text: 将任务委派给指定的子 Agent。 已停用
-  - listitem:
-    - button "tool-subagent, tool-subagent-claude-code, 已停用":
-      - strong: tool-subagent
-      - text: 将任务委派给指定的子 Agent。 已停用

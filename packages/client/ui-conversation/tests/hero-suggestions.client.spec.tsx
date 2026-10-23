@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { allowAllAccess, bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -34,6 +34,7 @@ function noPendingInteraction() {
 
 function mount(prefill: HeroSuggestionsProps['prefill'], draftPresent = false) {
   const props: HeroSuggestionsProps = {
+    ...allowAllAccess,
     draftPresent,
     prefill,
     useWorkspaces: bindSnapshotSelector(createSnapshotStore<WorkspaceSnapshot>({

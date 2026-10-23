@@ -33,9 +33,9 @@ export type ModelDiscoveryOutcome =
 /** The Host operations the Models page and its cards invoke. */
 export interface ModelsOperations {
   /**
-   * Read one credential reference's state.
+   * Read one credential before a destructive provider reset.
    * @param ref - credential reference name.
-   * @returns the state, or undefined when the reference is unknown or the read was refused.
+   * @returns current state, or undefined when the read is refused or unavailable.
    */
   describeCredential(ref: string): Promise<CredentialInfo | undefined>
   /**

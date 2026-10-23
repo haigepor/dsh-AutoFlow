@@ -229,6 +229,17 @@
   max-width: none;
 }
 
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+}
+
+.actions:not(:has(button)) { display: none; }
+
 .options[data-settings-section='models'] .actions {
   flex: none;
   margin-top: 14px;

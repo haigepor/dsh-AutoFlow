@@ -1,3 +1,4 @@
+import { testConnection } from './connection-fixture.ts'
 /**
  * ZIP builder + /sidebar/archive route.
  *
@@ -111,7 +112,7 @@ function readZip(archive: Buffer): ParsedEntry[] {
 function mountHost(): { api: SidebarWebRoute; download: SidebarWebRoute } {
   const routes: SidebarWebRoute[] = []
   const ctx = {
-    webRuntime: { trustedHosts: [] },
+    connection: testConnection(),
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
       registerUpgrade: (route: SidebarWebUpgradeRoute) => { void route; return () => {} },

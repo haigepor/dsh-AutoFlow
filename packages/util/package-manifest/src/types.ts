@@ -47,8 +47,8 @@ export interface PluginLocalizedMeta {
   readonly title?: LocalizedText
   /** Display introduction after locale and package-field fallback. */
   readonly description?: LocalizedText
-  /** Image URL read from the manifest's icon file; Web may serve a resource URL instead of a data URL.
-   * Render as an image, not inline markup.
+  /** Image URL from a package root's manifest icon or exported `<specifier>/icon`.
+   * Web may serve a resource URL instead of a data URL; render as an image, not inline markup.
    */
   readonly icon?: string
   /** Unmodified local metadata diagnostic; the plugin remains manageable. */

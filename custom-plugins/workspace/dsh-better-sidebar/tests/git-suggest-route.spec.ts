@@ -1,3 +1,4 @@
+import { testConnection } from './connection-fixture.ts'
 /**
  * The `git.suggest-message` HOST ROUTE's own contract, over the real
  * `/sidebar/api` surface: the provider/model route one suggestion runs on
@@ -207,7 +208,7 @@ function mount(setup: {
     },
     logger: { info: () => {}, warn: () => {} },
     profileContext: undefined,
-    webRuntime: { trustedHosts: [] },
+    connection: testConnection(),
     webServer: {
       register: (route: SidebarWebRoute) => { routes.push(route); return () => {} },
       registerUpgrade: (_route: SidebarWebUpgradeRoute) => () => {},

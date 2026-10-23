@@ -29,9 +29,11 @@ Mode help uses 13px body text and 12px supporting copy, with 15px example headin
 <a id="use-this-package"></a>
 ## Use this package
 
+Presets that declare requiresCodingTools are filtered by the coding-view setting, and disabling that setting reconciles the new-task default to Standard. Other presets remain selectable. The local skeleton, pending-save feedback, and current-session selection remain independent of the persisted new-task default. Plugin creation opens its Creator Session through the registered action.
+
 Settings shows the built-in and custom card groups with default highlighting and card-body selection; a group without presets is omitted, except the custom group, which keeps its Creator entry on screen. Every card offers “View configuration”, which opens the preset's declared plugin list as read-only YAML in the Loader's own dialect (`!!js` conditions included); a failed preset stays readable because its diagnostic points into that YAML. Escape closes only the viewer and returns focus to its card; leaving Settings clears the viewer, and a late read does not reopen it. The page edits nothing: the Creator entry starts a Creator-mode task that authors or overrides a preset as a bundle, offered while the `cordis` preset is on the roster and a conversation flow exists.
 
-Coding Tools in General Settings decide whether a mode can be chosen at all: with them off the new-session picker disappears, while the settings cards still choose the saved default that keeps composing new tasks and Creator stays available. With Coding Tools on, choosing a healthy default also synchronizes the blank session on the current new-task surface; with them off, a reused blank session keeps its preset. Creator starts a new task using the `cordis` preset.
+With Coding Tools off in General Settings, the new-session picker and Settings roster offer Standard, Creator, and custom presets; turning them on also offers PTC and Minimal. Default selection and the Creator entry remain available in both states. Choosing a healthy default also synchronizes the blank session on the current new-task surface. Creator starts a new task using the `cordis` preset.
 
 Selecting a card immediately shows “Switching…”. Once the settings write succeeds, its default highlight updates without waiting for the roster refresh. The roster is then verified before synchronizing the captured blank session; earlier reads cannot overwrite the confirmed write. Selection stays busy until these steps settle, and failures remain visible without labeling an unconfirmed write as saved.
 
@@ -48,6 +50,8 @@ Preset cards use a vertical layout with a tinted illustration stage above the na
 <summary>Implementation internals — click to expand</summary>
 
 `agentPresets/list` supplies the roster and marks the current default, and `agentPresets/read` one declaration's YAML for the viewer; default changes write the `agent-preset-registry` settings namespace. The picker, blank-session synchronization and read-only session label use recorded preset identities. Connection resets and settings updates refresh the roster.
+
+`CreatePluginMenuItem` contributes to `plugins.add.actions` using the shared roster store. Its selection calls the owner's `onDismiss()` before the same `startCreatorDraft` callback exposed to Settings as `creatorDraft`. That callback stages `cordis` through `AgentPresetSeatController` and opens the task through `uiWorkspace.startSession` with explicit draft preservation and `agentPreset: 'cordis'`, so the Host composes the reused blank or new Session under Creator; without a target Workspace, the staged choice applies when a Session binding becomes available. The choice is consumed once applied. Both Coding Tools states use the same picker and selection store, and `AgentPresetSeat` renders refusals through the shared `Toast` component.
 
 </details>
 
@@ -82,5 +86,3 @@ Selection changes affect only later tasks; existing plugins and prompts remain u
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published; the Host registry owns state, and component tests cover client presentation and selection.

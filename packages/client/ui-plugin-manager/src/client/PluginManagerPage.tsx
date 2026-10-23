@@ -1,7 +1,6 @@
 /**
- * Global plugin management: the Official group's cards for the bundles the
- * installation ships switched off and for the official plugins that register
- * their configuration, the Installed group's cards for the profile's bundles,
+ * Global plugin management: grouped cards for official configuration and
+ * optional bundles, the Installed group's cards for the profile's bundles,
  * their row switches, the install dialog with its guide and folded pnpm
  * output, the uninstall confirmation, and the toasts an action's outcome
  * becomes. A bundle's page lists the rows it contributes as the Host runs
@@ -17,10 +16,10 @@ import {
   Button, IconCheckCircleFillRegular, IconChevronDownOutlineRegular, IconChevronLeftOutlineMedium,
   IconChevronRightOutlineRegular, IconCloseOutlineMedium, IconCodeOutlineRegular,
   IconInfoOutlineRegular, IconPlusOutlineRegular, IconRefreshOutlineRegular, IconTrashOutlineRegular,
-  IconPanelLeftOutlineRegular, IconSkillOutlineRegular, IconSparkleRegular,
-  IconWarningOutlineRegular, IconEditOutlineRegular, Input, Modal, pointerModality,
+  IconPanelLeftOutlineRegular, IconSkillOutlineRegular, IconSparkleRegular, IconDownloadOutlineRegular,
+  IconWarningOutlineRegular, IconEditOutlineRegular, Input, Menu, MenuItemButton, Modal, pointerModality,
   PluginArtworkDefault, PluginArtworkLoop, PluginArtworkSearch, PluginArtworkSubagent, PluginArtworkTerminal,
-  StateDot, Switch, Tag, TerminalBlock, Toast, Tooltip, useAnchoredPosition, useDismissOnOutsidePointer,
+  SegmentedTabs, StateDot, Switch, Tag, TerminalBlock, Toast, Tooltip, useAnchoredPosition, useDismissOnOutsidePointer,
   type IconProps, type StateDotState, type TerminalBlockLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
@@ -32,11 +31,15 @@ import {
   type InstallInputError, type InstallState, type InstallSubject, type PackageRow, type PackageView,
   type PluginManagerFace, type RegistryChoice,
 } from './manager-store.ts'
-import { BUILTIN_PROFILE_BUNDLES, managementText, noticeText, packageText, registryText, rowText, type Translate } from './presentation.ts'
+import { BUILTIN_PROFILE_BUNDLES, managementText, noticeText, packageText, registryText, restartText, rowText, type Translate } from './presentation.ts'
 import type { PluginPackageRef, PluginRowRef, PluginsSubject } from './slot-contract.ts'
 import type { ConfigPageForm } from './slot-contract.ts'
 import css from './PluginManagerPage.module.css'
 import { PluginUpdateActivity } from './PluginUpdateActivity.tsx'
+import badgeSkillPreview from './assets/badge-skill-preview.svg'
+import badgeSkillPreviewZh from './assets/badge-skill-preview.zh.svg'
+import voiceInputPreview from './assets/voice-input-preview.svg'
+import voiceInputPreviewZh from './assets/voice-input-preview.zh.svg'
 
 /** Full component props assembled by the main slot renderer. */
 export type PluginManagerPageProps =
@@ -44,6 +47,7 @@ export type PluginManagerPageProps =
   & PropsLocale<'pluginManager'>
   & PropsRenderSlots<
     | 'plugins.item' | 'plugins.bundle.config' | 'plugins.row.config' | 'plugins.bundle.activation'
+    | 'plugins.add.actions' | 'plugins.tab'
     | 'plugins.detail.actions' | 'plugins.detail.badge' | 'plugins.detail.updates' | 'plugins.detail.section'
   >
   & InjectFace<PluginManagerFace>
@@ -88,8 +92,104 @@ function FeatureKindIcon({ kind }: { readonly kind: DshBundleFeatureKind | undef
   }
 }
 
+/** The primary action installs; the adjacent menu offers every add-plugin path. */
+function AddPluginMenu({ t, disabled, openInstall, renderSlot }: {
+  readonly t: Translate
+  readonly disabled: boolean
+  readonly openInstall: () => void
+  readonly renderSlot: RenderConfig
+}): ReactNode {
+  const [open, setOpen] = useState(false)
+  const onDismiss = (): void => { setOpen(false) }
+  return (
+    <span className={css.addGroup} role="group" aria-label={t('addPlugin')}>
+      <Button variant="primary" size="sm" className={css.addPrimary} icon={<IconPlusOutlineRegular size={13} />}
+        disabled={disabled} onClick={() => { onDismiss(); openInstall() }}>
+        {t('addPlugin')}
+      </Button>
+      <Menu open={open} onClose={onDismiss} align="end" portal autoFocus listClassName={css.addMenu}
+        anchor={(
+          <Button variant="primary" size="sm" className={css.addMore}
+            disabled={disabled} aria-label={t('chooseAddMethod')} aria-haspopup="menu" aria-expanded={open}
+            onClick={() => { setOpen(value => !value) }}
+            onKeyDown={(event) => {
+              if (!open && event.key === 'ArrowDown') { event.preventDefault(); setOpen(true) }
+            }}>
+            <IconChevronDownOutlineRegular size={12} aria-hidden="true" />
+          </Button>
+        )}>
+        <MenuItemButton icon={<IconDownloadOutlineRegular size={14} />} onSelect={() => { onDismiss(); openInstall() }}>
+          <span className={css.addMenuItem}>
+            <span>{t('installExisting')}</span>
+            <span className={css.addMenuDescription}>{t('installExistingDescription')}</span>
+          </span>
+        </MenuItemButton>
+        {renderSlot('plugins.add.actions', { onDismiss })}
+      </Menu>
+    </span>
+  )
+}
+
 /** How long the list marks a package an install just enabled. */
 const HIGHLIGHT_MS = 2_400
+
+/** The optional bundles the main list always holds, in this order; new bundles join the main list. */
+const EXTENSION_BUNDLES = [
+  '@deepseek-ai/dsh-experimental-agent-team-profile',
+  '@deepseek-ai/dsh-experimental-voice-input-bundle',
+  '@deepseek-ai/dsh-experimental-auto-review',
+  '@deepseek-ai/dsh-experimental-inspector-profile',
+]
+/** The optional bundles the main list holds back until the profile picks them; the More list shows them from the start. */
+const MORE_BUNDLES = [
+  '@deepseek-ai/dsh-experimental-tool-worktree',
+  '@deepseek-ai/dsh-experimental-cot-translation-bundle',
+  '@deepseek-ai/dsh-experimental-terminal-bundle',
+  '@deepseek-ai/dsh-experimental-session-search',
+  '@deepseek-ai/dsh-experimental-session-titles-bundle',
+  '@deepseek-ai/dsh-experimental-badge-skill-bundle',
+  '@deepseek-ai/dsh-experimental-ralph-bundle',
+  '@deepseek-ai/dsh-experimental-plugin-market-bundle',
+  '@deepseek-ai/dsh-subagent-codex',
+  '@deepseek-ai/dsh-subagent-claude-code',
+]
+/**
+ * Whether the main list shows an official optional bundle: the always-held ones, and any held-back one the profile enabled.
+ * @param pkg - the official bundle as the Host reports it.
+ * @returns whether the main list shows it.
+ */
+function pinnedToMainList(pkg: PackageView): boolean {
+  return !MORE_BUNDLES.includes(pkg.name) || pkg.enabled
+}
+
+/**
+ * Where an optional bundle sits on both lists: the always-held ones in their order, then the bundles neither list
+ * ranks, then the held-back ones in theirs, so Codex and Claude Code stay last on the More list.
+ * @param name - the bundle's package name.
+ * @returns the rank; bundles of equal rank keep the order the Host reported.
+ */
+function optionalBundleRank(name: string): number {
+  const alwaysHeld = EXTENSION_BUNDLES.indexOf(name)
+  if (alwaysHeld >= 0) return alwaysHeld
+  const heldBack = MORE_BUNDLES.indexOf(name)
+  return heldBack < 0 ? EXTENSION_BUNDLES.length : EXTENSION_BUNDLES.length + 1 + heldBack
+}
+
+/**
+ * Order the official optional bundles as both lists show them, so a bundle the profile picks from the More list
+ * keeps its place among the neighbours the main list already holds.
+ * @param packages - the official bundles the Host offers.
+ * @returns the bundles in display order.
+ */
+function orderOptionalBundles(packages: readonly PackageView[]): PackageView[] {
+  return [...packages].sort((a, b) => optionalBundleRank(a.name) - optionalBundleRank(b.name))
+}
+
+/** Feature previews of official bundles, shown on their detail pages and selected by UI language. */
+const BUNDLE_PREVIEWS = new Map<string, Readonly<Record<'en' | 'zh', string>>>([
+  ['@deepseek-ai/dsh-experimental-badge-skill-bundle', { en: badgeSkillPreview, zh: badgeSkillPreviewZh }],
+  ['@deepseek-ai/dsh-experimental-voice-input-bundle', { en: voiceInputPreview, zh: voiceInputPreviewZh }],
+])
 
 /** How long a toast holds: long enough to read a failure that names what broke. */
 function toastHoldMs(text: string): number {
@@ -172,6 +272,14 @@ function PackageArtwork({ src, row = false, size = row ? ROW_ARTWORK_SIZE : CARD
   return src === undefined || src === failedSource
     ? <Fallback size={size} />
     : <img className={css.packageImage} src={src} width={size} height={size} alt="" onError={() => { setFailedSource(src) }} />
+}
+
+/** A bundle's feature preview; a failed decode is reported in place without blocking management. */
+function PackagePreview({ src, title, t }: { readonly src: string; readonly title: string; readonly t: Translate }): ReactNode {
+  const [failedSource, setFailedSource] = useState<string>()
+  return src === failedSource
+    ? <p className={css.reason} role="status">{t('previewUnavailable')}</p>
+    : <img className={css.packagePreview} src={src} alt={t('previewAlt', { name: title })} onError={() => { setFailedSource(src) }} />
 }
 
 /** A row's switch: locked, saying why, when the Host refuses to address the row through the profile patch. */
@@ -319,7 +427,7 @@ function EnableSwitch({ pkg, title, t, busy, target, onSetEnabled }: {
       checked={target ?? pkg.enabled}
       loading={busy}
       label={t('enableToggle', { name: title })}
-      disabled={busy || pkg.readOnlyReason !== undefined || (!pkg.enabled && pkg.error !== undefined)}
+      disabled={busy || pkg.readOnlyReason !== undefined || (!pkg.enabled && pkg.error !== undefined && !(pkg.availability === 'missing' && pkg.installTarget !== undefined))}
       {...pkg.readOnlyReason === undefined ? {} : { title: managementText({ code: pkg.readOnlyReason }, t) }}
       onChange={onSetEnabled}
     />
@@ -358,7 +466,7 @@ function CardHead({ title, t, onOpen, icon, tags, description, end }: {
   )
 }
 
-/** First-read placeholders share the Official group's card and text-line layout. */
+/** First-read placeholders share the core configuration group's card and text-line layout. */
 function ListSkeleton({ label }: { readonly label: string }): ReactNode {
   return (
     <section className={css.group} role="status" aria-label={label} data-plugin-loading>
@@ -437,6 +545,14 @@ function DetailInformation({ title, entries, folded = false }: {
   )
 }
 
+function updateAvailable(pkg: PackageView): boolean {
+  const target = pkg.installTarget
+  // An update removes the installed package first, so a package that cannot be removed offers none.
+  if (!pkg.installed || !pkg.removable || pkg.availability === 'installation' || target === undefined) return false
+  return pkg.version !== target.version
+    || ((target.spec.startsWith('link:') || pkg.source?.startsWith('link:') === true) && pkg.source !== target.spec)
+}
+
 /** One package as a card that opens its page: its name, its one-liner, its tags, and its bundle switch. */
 function PackageCard({ pkg, t, resolveText, busy, target, highlighted, onOpen, onSetEnabled, onUpdate, onRestart }: {
   readonly pkg: PackageView
@@ -480,6 +596,8 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, onOpen, o
                   </Button>
                   : pkg.update?.status === 'error'
                     ? <Tag tone="danger">{t('updatesFailed')}</Tag> : null}
+            {pkg.availability === 'missing' ? <Tag className={css.statusTag}>{t(pkg.installed ? 'statusMissingFiles' : 'statusNotInstalled')}</Tag> : null}
+            {updateAvailable(pkg) ? <Tag className={css.statusTag} tone="info">{t('statusUpdateAvailable')}</Tag> : null}
           </>
         )}
         description={description}
@@ -521,6 +639,8 @@ function packageRef(pkg: PackageView): PluginPackageRef {
     ...pkg.updateManager === undefined ? {} : { updateManager: pkg.updateManager },
     ...pkg.version === undefined ? {} : { version: pkg.version },
     installed: pkg.installed,
+    availability: pkg.availability,
+    official: pkg.official,
     enabled: pkg.enabled,
     rows: pkg.rows.map(rowRef),
   }
@@ -564,6 +684,50 @@ function ItemDetail({ item, t, onBack, renderSlot, form }: {
         {renderSlot('plugins.detail.section', { subject })}
       </div>
       <DetailInformation title={t('detailInformation')} entries={[{ label: t('detailId'), value: <code>{item.id}</code> }]} />
+    </div>
+  )
+}
+
+/**
+ * A row's configuration page keeps its technical identity beside local package
+ * text and the form supplied by its configuration entry.
+ */
+function RowDetail({ pkg, row, t, resolveText, onBack, renderSlot, form }: {
+  readonly pkg: PackageView
+  readonly row: PackageRow
+  readonly t: Translate
+  readonly resolveText: ResolveText
+  readonly onBack: () => void
+  readonly renderSlot: RenderConfig
+  readonly form: ConfigPageForm | undefined
+}): ReactNode {
+  const { title } = packageText(pkg, resolveText)
+  const { title: rowTitle, description } = rowText(row, resolveText)
+  const key = rowConfigKey(pkg.name, row.rowId)
+  const subject: PluginsSubject = { kind: 'row', pkg: packageRef(pkg), row: rowRef(row) }
+  return (
+    <div className={css.detail} data-plugin-row-detail={key}>
+      <DetailTop
+        crumbLabel={t('backToPackage', { name: title })}
+        crumbText={title}
+        onBack={onBack}
+        icon={<PackageArtwork key={row.meta?.icon} src={row.meta?.icon} row size={CARD_ARTWORK_SIZE} />}
+      />
+      <div className={css.detailMain}>
+        <div className={css.titleRow}>
+          <h3 className={css.detailTitle}>{rowTitle}</h3>
+          {renderSlot('plugins.detail.badge', { subject })}
+        </div>
+        <div className={css.detailActions}>{renderSlot('plugins.detail.actions', { subject })}</div>
+        {rowTitle === row.rowId ? null : <p className={css.detailName}><code>{row.rowId}</code></p>}
+        <p className={css.detailName}><code>{row.moduleName}</code></p>
+        <p className={css.detailDesc}>{description ?? renderSlot('plugins.row.config', { view: 'summary' }, { entryKey: key })}</p>
+      </div>
+      <MetadataError error={row.meta?.error} t={t} />
+      <div className={css.detailSections} data-plugin-config>
+        {renderSlot('plugins.row.config', { view: 'page', form }, { entryKey: key })}
+        {renderSlot('plugins.detail.section', { subject })}
+      </div>
     </div>
   )
 }
@@ -709,8 +873,8 @@ function ManagedModules({ packages, t, resolveText, busy, targets, onSetEnabled 
 function PackageDetail({
   pkg, companion, companionBusy = false, onSetCompanionEnabled,
   t, resolveText, busy, featureBusy, rowBusy, targets, rowForm, configured, configure, renderSlot,
-  onBack, onSetEnabled, onUninstall, onSetRowEnabled, onSetFeature, onOpenExample,
-  updateChecking, onCheckUpdates, onUpdate, onAutoUpdate, onRestart,
+  onBack, onSetEnabled, onUninstall, onOfficialUpdate, onSetRowEnabled, onSetFeature, onOpenExample,
+  updateChecking, onCheckUpdates, onUpdate, onAutoUpdate, onRestart, inMore,
 }: {
   readonly pkg: PackageView
   readonly companion?: PackageView | undefined
@@ -729,9 +893,11 @@ function PackageDetail({
   readonly configured: boolean
   readonly configure: Pick<RowConfigure, 'has'>
   readonly renderSlot: RenderConfig
+  readonly inMore: boolean
   readonly onBack: () => void
   readonly onSetEnabled: (enabled: boolean) => void
   readonly onUninstall: () => void
+  readonly onOfficialUpdate: () => void
   readonly onSetRowEnabled: (row: PackageRow, enabled: boolean) => void
   readonly onSetFeature: (featureId: string, enabled: boolean) => void
   readonly onOpenExample: (prompt: string) => void
@@ -746,13 +912,15 @@ function PackageDetail({
   const editingFeature = pkg.features?.find(feature => feature.id === editing?.featureId)
   const { title, description, beta } = packageText(pkg, resolveText)
   const status = packageStatus(pkg)
+  const previews = BUNDLE_PREVIEWS.get(pkg.name)
+  const preview = previews === undefined ? undefined : resolveText(previews)
   const subject: PluginsSubject = { kind: 'bundle', pkg: packageRef(pkg) }
   return (
     <div className={`${css.detail} ${css.bundleDetail}`} data-plugin-detail={pkg.name}
       {...companion === undefined ? {} : { 'data-managed-bundle': '' }}>
       <DetailTop
-        crumbLabel={t('backToList')}
-        crumbText={t('crumbRoot')}
+        crumbLabel={inMore ? t('backToPackage', { name: t('moreTitle') }) : t('backToList')}
+        crumbText={t(inMore ? 'moreTitle' : 'crumbRoot')}
         onBack={onBack}
         icon={companion === undefined ? <PackageArtwork key={pkg.meta?.icon} src={pkg.meta?.icon} /> : null}
       />
@@ -769,7 +937,9 @@ function PackageDetail({
           </div>
           <div className={css.detailActions}>
             {renderSlot('plugins.detail.actions', { subject })}
-            {pkg.installed && pkg.removable !== false
+            {updateAvailable(pkg) ? <Button variant="outline" size="sm" icon={<IconRefreshOutlineRegular size={13} />}
+              disabled={busy} aria-label={t('updateLabel', { name: title })} onClick={onOfficialUpdate}>{t('update')}</Button> : null}
+            {pkg.removable
               ? (
                 <Button
                   variant="outline"
@@ -787,6 +957,7 @@ function PackageDetail({
             {companion === undefined ? <EnableSwitch pkg={pkg} title={title} t={t} busy={busy || pkg.update?.restartRequired === true}
               target={targets[pkg.name]} onSetEnabled={onSetEnabled} /> : null}
           </div>
+
         </div>
       </div>
       {pkg.examples === undefined ? null : <div className={css.bundleHero}>
@@ -804,8 +975,11 @@ function PackageDetail({
       </div>}
       {description === undefined ? null : <p className={css.bundleDescription}>{description}</p>}
       <MetadataError error={pkg.meta?.error} t={t} />
+      {pkg.availability === 'missing' && pkg.installed
+        ? <p className={css.reason} role="status">{t('statusMissingFiles')}</p> : null}
       {pkg.error === undefined ? null : <p className={css.reason} role="status">{t('reasonLabel')}: {managementText(pkg.error, t)}</p>}
       {pkg.readOnlyReason === undefined ? null : <p className={css.reason} role="status">{managementText({ code: pkg.readOnlyReason }, t)}</p>}
+      {preview === undefined ? null : <PackagePreview src={preview} title={title} t={t} />}
       <div className={css.detailSections}>
         <UpdatesSection key={pkg.name} pkg={pkg} t={t} busy={busy} checking={updateChecking}
           onCheck={onCheckUpdates} onUpdate={onUpdate} onAutoUpdate={onAutoUpdate} onRestart={onRestart} />
@@ -856,7 +1030,7 @@ function PackageDetail({
           onSetEnabled={(name, enabled) => {
             if (name === pkg.name) onSetEnabled(enabled)
             else onSetCompanionEnabled?.(enabled)
-          }} /> : <RowsSection
+          }} /> : pkg.availability === 'missing' ? null : <RowsSection
           rows={pkg.rows}
           t={t}
           resolveText={resolveText}
@@ -878,6 +1052,13 @@ function PackageDetail({
       <DetailInformation title={t(companion === undefined ? 'detailInformation' : 'managedInformation')} folded={companion !== undefined} entries={[
         { label: t('detailPackage'), value: <code data-plugin-name>{pkg.name}</code> },
         ...(pkg.version === undefined ? [] : [{ label: t('detailVersion'), value: pkg.version }]),
+        ...(pkg.availability === 'missing' && pkg.source === undefined && !pkg.removable ? [] : [{ label: t('sourceSpec'),
+          value: pkg.source !== undefined ? <code>{pkg.source}</code>
+            : pkg.availability === 'missing' ? t(pkg.installed ? 'statusMissingFiles' : 'sourceNotInstalled') : t('sourceBuiltIn') }]),
+        ...(pkg.installTarget === undefined ? [] : [
+          { label: t('sourceTargetSpec'), value: <code>{pkg.installTarget.spec}</code> },
+          { label: t('sourceTargetVersion'), value: pkg.installTarget.version },
+        ]),
         ...(companion === undefined ? [] : [{ label: t('managedUpdaterPackage'), value: <code>{companion.name}</code> },
           ...companion.version === undefined ? [] : [{ label: t('managedUpdaterVersion'), value: companion.version }]]),
       ]} />
@@ -891,6 +1072,7 @@ const INSTALL_TERMINAL_LINES = 12
 /** The install terminal's display copy, from the tab's dictionary. */
 function terminalLabels(t: Translate): TerminalBlockLabels {
   return {
+    commandLine: line => t('terminalCommandLine', { n: String(line) }),
     /* v8 ignore next -- the Host reports a killed pnpm as a null exit code, never a signal name; the label interface needs one */
     signal: signal => t('terminalSignal', { signal }),
     exitCode: code => t('terminalExitCode', { code: String(code) }),
@@ -947,6 +1129,9 @@ const FAILURE_KIND_KEYS = {
   'unknown': 'installFailureGeneric',
 } satisfies Record<PluginInstallFailureKind, PluginManagerLocaleKey>
 
+/** The navigation value of the page's own tab; contributed tabs use their registration ids. */
+const INSTALLED_TAB = 'installed'
+
 /** The heading of each screen past the spec. */
 const SCREEN_TITLE_KEYS = {
   starting: 'installStarting',
@@ -966,6 +1151,14 @@ const SUBJECT_KIND_KEYS = {
   git: 'installSubjectGit',
   tarball: 'installSubjectTarball',
 } satisfies Record<InstallSubject['kind'], PluginManagerLocaleKey | undefined>
+
+/** A check no registry answered names every registry asked; any other refusal reads by its problem. */
+function inputProblemSentence(problem: InstallInputError, t: Translate, resolved: string | null): string {
+  const asked = problem.registries ?? []
+  return problem.problem === 'network' && asked.length > 1
+    ? t('installProblemNetworkAll', { registries: registryList(asked, t, resolved) })
+    : t(INPUT_PROBLEM_KEYS[problem.problem], { reason: problem.reason })
+}
 
 /** The registries asked, by name, in the dictionary's list form. */
 function registryList(registries: readonly Registry[], t: Translate, resolved: string | null): string {
@@ -1004,17 +1197,42 @@ function failureText(failure: InstallState['failure'], t: Translate, install?: P
   return failure.reason === '' ? t('installFailureGeneric') : failure.reason
 }
 
-/** The package the install is about: its name, one-liner, and version, as the Host read them before installing. */
-function SubjectCard({ subject, t }: { readonly subject: InstallSubject; readonly t: Translate }): ReactNode {
-  const title = subject.name ?? subject.spec
-  const kindKey = SUBJECT_KIND_KEYS[subject.kind]
-  const description = subject.description ?? (kindKey === undefined ? undefined : t(kindKey))
+interface SubjectLines {
+  readonly spec: string
+  readonly title: string
+  readonly description?: string | undefined
+  readonly version?: string | undefined
+  /** A confirmed version is named by its tab, so the spec follows as reference text. */
+  readonly showSpec: boolean
+}
+
+/** The package an install is about: its name, one-liner, version, and, when `showSpec` is set, its spec. */
+function SubjectBlock({ lines, t }: { readonly lines: SubjectLines; readonly t: Translate }): ReactNode {
   return (
-    <div className={css.subject} data-install-subject={subject.spec}>
-      <p className={css.subjectName}>{title}</p>
-      {description === undefined ? null : <p className={css.subjectDesc}>{description}</p>}
-      {subject.version === undefined ? null : <p className={css.subjectMeta}>{t('installVersion', { version: subject.version })}</p>}
+    <div className={css.subject} data-install-subject={lines.spec}>
+      <p className={css.subjectName}>{lines.title}</p>
+      {lines.description === undefined ? null : <p className={css.subjectDesc}>{lines.description}</p>}
+      {lines.version === undefined ? null : <p className={css.subjectMeta}>{t('installVersion', { version: lines.version })}</p>}
+      {lines.showSpec ? <p className={css.subjectSpec}>{lines.spec}</p> : null}
     </div>
+  )
+}
+
+/** The checked package as the Host read it before installing; a confirmed version keeps its tab's name and version. */
+function SubjectCard({ subject, confirmed, t }: {
+  readonly subject: InstallSubject
+  readonly confirmed: InstallState['confirmed']
+  readonly t: Translate
+}): ReactNode {
+  const kindKey = SUBJECT_KIND_KEYS[subject.kind]
+  return (
+    <SubjectBlock t={t} lines={{
+      spec: subject.spec,
+      title: confirmed?.title ?? subject.name ?? subject.spec,
+      description: subject.description ?? (kindKey === undefined ? undefined : t(kindKey)),
+      version: subject.version ?? confirmed?.version,
+      showSpec: confirmed !== undefined,
+    }} />
   )
 }
 
@@ -1128,20 +1346,45 @@ function InstallDialog({
       />
     )
   }
+  if ((phase === 'idle' || phase === 'checking') && install.confirmed !== undefined) {
+    // A confirmed spec has no form to return to: the dialog names the plugin and version above the spec, with its
+    // check, a refusal with a retry, or, after a cancelled run, Install.
+    const checking = phase === 'checking'
+    const problem = install.inputError
+    return (
+      <Modal
+        open={install.open}
+        onClose={onClose}
+        title={t(problem === null ? 'installConfirmedTitle' : 'installConfirmedRefused')}
+        closeLabel={t('close')}
+        className={css.installDialog as string}
+        footer={checking ? undefined : (
+          <>
+            <Button variant="outline" onClick={onClose}>{t('close')}</Button>
+            <Button variant="primary" autoFocus onClick={onRun}>{t(problem === null ? 'installRun' : 'retry')}</Button>
+          </>
+        )}
+      >
+        <div className={css.installBody} data-install-phase={phase}>
+          <SubjectBlock t={t} lines={{ spec: install.spec, ...install.confirmed, showSpec: true }} />
+          {checking
+            ? <p className={`${css.status} ${css.statusWithDot}`} role="status"><StateDot state="ongoing" />{t('installChecking')}</p>
+            : problem === null
+              ? null
+              : (
+                <p className={css.inputError} role="alert">{inputProblemSentence(problem, t, install.registries?.resolved ?? null)}</p>
+              )}
+        </div>
+      </Modal>
+    )
+  }
   if (phase === 'idle' || phase === 'checking') {
     const checking = phase === 'checking'
     const empty = install.spec.trim() === ''
     const choice = install.registry
     const resolved = install.registries?.resolved ?? null
     const chosenTitle = choice.kind === 'custom' ? t('registryCustom') : registryText(choice.registry, t, resolved).name
-    const inputProblem = install.inputError
-    // A check no registry answered names every registry asked; any other refusal reads by its problem.
-    const askedByCheck = inputProblem?.registries ?? []
-    const inputSentence = inputProblem === null
-      ? null
-      : inputProblem.problem === 'network' && askedByCheck.length > 1
-        ? t('installProblemNetworkAll', { registries: registryList(askedByCheck, t, resolved) })
-        : t(INPUT_PROBLEM_KEYS[inputProblem.problem], { reason: inputProblem.reason })
+    const inputSentence = install.inputError === null ? null : inputProblemSentence(install.inputError, t, resolved)
     const templateHint = install.spec === INSTALL_GIT_EXAMPLE
       ? t('installGitTemplateHint')
       : install.spec === INSTALL_PATH_EXAMPLE ? t('installPathTemplateHint') : null
@@ -1175,6 +1418,7 @@ function InstallDialog({
             <input
               type="text"
               autoFocus={install.mirrorRecovery === true}
+              data-modal-autofocus
               value={install.spec}
               placeholder={t('installSpecPlaceholder')}
               disabled={checking}
@@ -1366,17 +1610,19 @@ function InstallDialog({
     })
     : null
   // Another registry is worth offering only for a failure the Host laid at the one it asked.
-  const changeable = phase === 'failed' && !approvable && install.failure?.failedAt === 'registry'
+  const changeable = phase === 'failed' && !approvable && install.failure?.failedAt === 'registry' && install.confirmed === undefined
+  const subject = install.subject
   return (
     <Modal open={install.open} onClose={onClose} title={heading} headless className={css.installDialog as string}>
       <div className={css.wizard} data-install-phase={phase}>
         <div className={css.wizardHead}>
-          {phase === 'done'
+          {phase === 'done' || (install.confirmed !== undefined && !pending)
             ? <span />
             : (
-              <button type="button" className={css.wizardBack} aria-label={t(pending ? 'installCancelAndEdit' : 'installEditAria')} disabled={!stoppable} onClick={onCancel}>
+              <button type="button" className={css.wizardBack} aria-label={t(install.confirmed !== undefined ? 'cancel' : pending ? 'installCancelAndEdit' : 'installEditAria')}
+                disabled={!stoppable} onClick={onCancel}>
                 <IconChevronLeftOutlineMedium aria-hidden="true" />
-                <span>{t(pending ? 'installCancelAndEdit' : 'installEdit')}</span>
+                <span>{t(install.confirmed !== undefined ? 'cancel' : pending ? 'installCancelAndEdit' : 'installEdit')}</span>
               </button>
             )}
           <button
@@ -1403,7 +1649,9 @@ function InstallDialog({
             {uncertaintyText === null ? null : <p className={css.wizardSub} role="alert">{uncertaintyText}</p>}
             {phase === 'unknown' ? <p className={css.wizardSub}>{t('installUnknownDescription')}</p> : null}
           </div>
-          {install.subject === null ? null : <SubjectCard subject={install.subject} t={t} />}
+          {subject === null
+            ? null
+            : <SubjectCard subject={phase === 'done' && install.installedVersion !== null ? { ...subject, version: install.installedVersion } : subject} confirmed={install.confirmed} t={t} />}
           {approvable
             ? (
               <section className={css.approval} role="group" aria-labelledby={approvalId} data-install-approval>
@@ -1422,7 +1670,19 @@ function InstallDialog({
             ? <p className={css.result} role="status">{t('installDoneNothing')}</p>
             : null}
           {phase === 'done' && install.restartRequired
-            ? <p className={css.resultWarn} role="status">{t('installDoneRestart')}</p>
+            ? <p className={css.resultWarn} role="status">{restartText('installDoneRestart', install.restartReason, t)}</p>
+            : null}
+          {phase === 'done' && subject?.kind === 'registry' && subject.name !== undefined && subject.version !== undefined
+            && install.installedVersion !== null && install.installedVersion !== subject.version
+            // A fallback registry can serve another release than the one inspected, so only a single-registry run is explained.
+            && (install.attempts?.registries.length ?? 1) === 1
+            ? (
+              <p className={css.resultWarn} role="status">
+                {t('installDoneOtherVersion', {
+                  installed: install.installedVersion, version: subject.version, exact: `${subject.name}@${subject.version}`,
+                })}
+              </p>
+            )
             : null}
           {phase === 'done' && install.approvedBuilds.length > 0
             ? <p className={css.result} role="status">{t('installDoneApproved', { names: install.approvedBuilds.join(', ') })}</p>
@@ -1493,7 +1753,7 @@ function InstallDialog({
             : null}
           {phase !== 'done'
             ? null
-            : install.installed !== null
+            : install.installed !== null && install.subject?.selection === undefined
               ? <Button variant="primary" className={css.wide} disabled={install.enabling || installedPackage === undefined}
                 aria-busy={install.enabling} onClick={() =>{  onEnableNow(selectedFeatures) }}>{t('installEnableNow')}</Button>
               : <Button variant="primary" className={css.wide} onClick={onClose}>{t('installClose')}</Button>}
@@ -1541,10 +1801,18 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   const state = props.usePluginManager(snapshot => snapshot)
   const ledger = props.useConfigLedger(snapshot => snapshot)
   // What is open; a package that leaves the list (uninstalled) drops back to the cards.
-  const view = props.useStore(state => state.view), { setView } = props.actions
+  const view = props.useStore(state => state.view), { setView, setTab } = props.actions
+  const tabs = props.usePluginTabs(snapshot => snapshot)
+  const selectedTab = props.useStore(state => state.tab)
+  // A contributed tab that left the ledger falls back to Installed, and stays there when it returns.
+  const tab = tabs.some(item => item.id === selectedTab) ? selectedTab : INSTALLED_TAB
+  useEffect(() => { if (tab !== selectedTab) setTab(tab) }, [tab, selectedTab, setTab])
+  // A bundle an install just enabled is shown where its card is.
+  useEffect(() => { if (state.highlight !== null) setTab(INSTALLED_TAB) }, [state.highlight, setTab])
+  const tabsId = useId()
   const [activation, setActivation] = useState<string | null>(null)
   useEffect(() => { ensure() }, [ensure])
-  // A package an install just enabled: scroll it into view and mark it for a moment.
+  // Installation highlights visible cards without changing the user's current page.
   const { highlight, clearHighlight } = { highlight: state.highlight, clearHighlight: props.clearHighlight }
   useEffect(() => {
     if (highlight === null) return
@@ -1557,7 +1825,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
 
   // 随安装交付且声明功能开关的业务组合包也进入管理列表；基础 profile 组合包保留在只读清单。
   const available = state.packages.filter(pkg => !BUILTIN_PROFILE_BUNDLES.has(pkg.name)
-    && (pkg.installed || pkg.optional || (pkg.features?.length ?? 0) > 0 || pkg.error !== undefined))
+    && (pkg.installed || pkg.official || pkg.optional || (pkg.features?.length ?? 0) > 0 || pkg.error !== undefined))
   // 仅合并唯一所属且没有独立功能页的更新器；共享更新器和失去主插件的更新器仍保留入口。
   const updaterOwners = new Map<string, PackageView>()
   for (const candidate of available) {
@@ -1568,65 +1836,85 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
     }
   }
   const listed = available.filter(pkg => !updaterOwners.has(pkg.name))
-  const mine = listed.filter(pkg => pkg.installed || !pkg.optional)
-  const official = listed.filter(pkg => pkg.optional && !pkg.installed)
+  const mine = listed.filter(pkg => !pkg.official)
+  const official = listed.filter(pkg => pkg.official)
+  const ordered = orderOptionalBundles(official)
+  const pinned = new Set(official.filter(pinnedToMainList).map(pkg => pkg.name))
+  const extensions = ordered.filter(pkg => pinned.has(pkg.name))
+  const more = ordered
   const loaded = state.status === 'ready' || state.status === 'error'
   const refreshing = state.refreshStatus === 'refreshing'
-  const openName = view.kind === 'package' ? updaterOwners.get(view.name)?.name ?? view.name : undefined
+  const openName = view.kind === 'package' || view.kind === 'row' ? updaterOwners.get(view.name)?.name ?? view.name : undefined
   const openPkg = listed.find(pkg => pkg.name === openName)
   const companion = openPkg?.updateManager !== undefined && updaterOwners.get(openPkg.updateManager)?.name === openPkg.name
     ? available.find(pkg => pkg.name === openPkg.updateManager) : undefined
   const openItem = view.kind === 'item' ? ledger.items.find(item => item.id === view.id) : undefined
-  const showsCards = openPkg === undefined && openItem === undefined
+  const openRow = view.kind === 'row' && openPkg !== undefined ? openPkg.rows.find(row => row.rowId === view.rowId) : undefined
+  const onInstalled = tab === INSTALLED_TAB
+  const showsCards = !onInstalled || (openPkg === undefined && openItem === undefined)
+  const detailFromMore = (view.kind === 'package' || view.kind === 'row')
+    && (view.from === 'more' || (MORE_BUNDLES.includes(view.name) && !pinned.has(view.name)))
+  const showsMoreList = onInstalled && showsCards && (view.kind === 'more' || detailFromMore)
+  const showsMainList = showsCards && !showsMoreList
+  const installedCards = onInstalled && showsCards
+  const openPkgInMore = openPkg !== undefined && openPkg.official && detailFromMore
+  // The Installed tab's panel, whatever it currently shows; the More list is not a tab panel.
+  const installedPanel = tabs.length === 0 || showsMoreList
+    ? {}
+    : { role: 'tabpanel', id: `${tabsId}-${INSTALLED_TAB}-panel`, 'aria-labelledby': `${tabsId}-${INSTALLED_TAB}` }
   const activated = listed.find(pkg => pkg.name === activation && pkg.enabled && !state.busy.includes(pkg.name))
   const setRowEnabled = (row: PackageRow, enabled: boolean): void => {
     /* v8 ignore next -- a row without a live entry has its switch disabled */
     if (row.entryId !== undefined) props.setRowEnabled(row.entryId, enabled)
   }
-  const configure = (pkg: PackageView): Pick<RowConfigure, 'has'> => ({
+  const configure = (pkg: PackageView): RowConfigure => ({
     has: row => ledger.rows.has(rowConfigKey(pkg.name, row.rowId)),
+    open: (row) => { setView({ kind: 'row', name: pkg.name, rowId: row.rowId, ...openPkgInMore ? { from: 'more' } : {} }) },
   })
+  const packageBusy = (pkg: PackageView): boolean => state.busy.includes(pkg.name)
+    || (state.install.subject?.name === pkg.name && (isInstallPending(state.install.phase) || state.install.phase === 'checking'))
   const packageCard = (pkg: PackageView): ReactNode => (
     <PackageCard
       key={pkg.name}
       pkg={pkg}
       t={t}
       resolveText={resolveText}
-      busy={state.busy.includes(pkg.name)}
+      busy={packageBusy(pkg)}
       target={state.pendingTargets[pkg.name]}
       highlighted={state.highlight === pkg.name}
-      onOpen={() => { setActivation(null); setView({ kind: 'package', name: pkg.name }) }}
+      onOpen={() => { setActivation(null); setView({ kind: 'package', name: pkg.name, ...showsMoreList ? { from: 'more' } : {} }) }}
       onSetEnabled={(enabled) => { setActivation(enabled ? pkg.name : null); props.setEnabled(pkg.name, enabled) }}
       onUpdate={() => { props.updateBundle(pkg.name) }}
       onRestart={() => { props.showUpdateRestart(pkg.name) }}
     />
   )
-  // The Official group: the bundles the installation ships, then the plugins that registered their configuration.
-  const officialCards = [
-    ...official.map(packageCard),
-    ...ledger.items.map(item => (
-      <ItemCard key={`item:${item.id}`} item={item} t={t} renderSlot={renderSlot} onOpen={() => { setView({ kind: 'item', id: item.id }) }} />
-    )),
-  ]
-  // One group of cards under its heading and count; the Official group comes first, and a group with nothing in it takes no room.
-  const renderGroup = (id: 'official' | 'bundles', heading: string, cards: readonly ReactNode[]): ReactNode => cards.length === 0
-    ? null
-    : (
+  const basicCards = ledger.items.map(item => (
+    <ItemCard key={`item:${item.id}`} item={item} t={t} renderSlot={renderSlot} onOpen={() => { setView({ kind: 'item', id: item.id }) }} />
+  ))
+  const renderGroup = (id: 'basic' | 'extensions' | 'bundles', heading: string, cards: readonly ReactNode[]): ReactNode => {
+    const offersMore = id === 'extensions' && more.length > 0
+    if (cards.length === 0 && !offersMore) return null
+    return (
       <section className={css.group} data-plugin-scope="global" data-plugin-group={id}>
         <div className={css.groupHead}>
           <h3 className={css.groupTitle}>{heading}</h3>
-          <span className={css.count} data-plugin-count={cards.length}>{cards.length}</span>
+          {offersMore ? (
+            <Button size="sm" className={css.groupMore} onClick={() => { setView({ kind: 'more' }) }}>
+              {t('moreAction')}<IconChevronRightOutlineRegular size={14} aria-hidden="true" />
+            </Button>
+          ) : null}
         </div>
-        <ul className={css.cards}>{cards}</ul>
+        {cards.length > 0 ? <ul className={css.cards}>{cards}</ul> : null}
       </section>
     )
+  }
 
   return (
     <section className={css.page} data-plugin-panel aria-busy={state.status === 'loading' || refreshing}>
-      {showsCards
+      {showsMainList
         ? (
           <header className={css.pageHead} data-window-drag>
-            <div>
+            <div className={css.pageHeading}>
               <h1 className={css.pageTitle}>{t('title')}</h1>
               <div className={css.pageIntro}>
                 <span>{t('intro')}</span>
@@ -1637,7 +1925,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
                 </Tooltip>
               </div>
             </div>
-            <div className={css.toolbar}>
+            <div className={css.toolbar} hidden={!onInstalled}>
               <Tooltip label={t('refresh')} delayMs={500} focusDelayMs={500} side="bottom" portal disabled={!loaded || refreshing}>
                 <button type="button" className={css.iconButton} aria-label={t('refresh')} aria-busy={refreshing} disabled={!loaded || refreshing} onClick={props.refresh}>
                   <span className={css.iconWrap} aria-hidden="true">
@@ -1645,18 +1933,58 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
                   </span>
                 </button>
               </Tooltip>
-              <Button variant="primary" size="sm" className={css.addButton} icon={<IconPlusOutlineRegular size={13} />} disabled={!loaded} onClick={props.openInstall}>
-                {t(state.install.requestId === undefined ? 'addPlugin' : 'installViewTask')}
-              </Button>
+              {state.install.requestId === undefined
+                ? <AddPluginMenu t={t} disabled={!loaded} openInstall={props.openInstall} renderSlot={renderSlot} />
+                : <Button variant="primary" size="sm" className={css.addButton} icon={<IconPlusOutlineRegular size={13} />} disabled={!loaded} onClick={props.openInstall}>
+                  {t('installViewTask')}
+                </Button>}
             </div>
           </header>
         )
         : null}
-      {showsCards && state.status === 'loading' ? <ListSkeleton label={t('loading')} /> : null}
-      {showsCards && state.status === 'unavailable' ? (
-        <p className={`${css.status} ${css.statusWithDot}`} role="status">
-          <StateDot state="idle" />{t('unavailable')}
-        </p>
+      {showsMainList && tabs.length > 0
+        ? (
+          <div className={css.pageTabs}>
+            <SegmentedTabs
+              className={css.pageTabList}
+              label={t('tabsLabel')}
+              value={tab}
+              onChange={(next) => { setTab(next) }}
+              items={[
+                { value: INSTALLED_TAB, label: t('installedTab'), id: `${tabsId}-${INSTALLED_TAB}`, panelId: `${tabsId}-${INSTALLED_TAB}-panel` },
+                ...tabs.map(item => ({ value: item.id, label: item.label, id: `${tabsId}-${item.id}`, panelId: `${tabsId}-${item.id}-panel` })),
+              ]}
+            />
+          </div>
+        )
+        : null}
+      {!onInstalled
+        ? (
+          <div role="tabpanel" id={`${tabsId}-${tab}-panel`} aria-labelledby={`${tabsId}-${tab}`} className={css.tabPanel}>
+            {renderSlot('plugins.tab', {
+              install: props.installFrom,
+              openPackage: (name) => { setTab(INSTALLED_TAB); setView({ kind: 'package', name }) },
+            }, { only: tab })}
+          </div>
+        )
+        : null}
+      {showsMoreList ? (
+        <header className={css.moreHead} data-window-drag>
+          <Button size="sm" className={css.moreBack} aria-label={t('backToList')} onClick={() => { setView({ kind: 'list' }) }}>
+            <IconChevronLeftOutlineMedium size={20} aria-hidden="true" />
+          </Button>
+          <h1 className={css.pageTitle}>{t('moreTitle')}</h1>
+        </header>
+      ) : null}
+      {installedCards && !loaded ? (
+        <div className={css.installedPanel} {...installedPanel}>
+          {state.status === 'loading' ? <ListSkeleton label={t('loading')} /> : null}
+          {state.status === 'unavailable' ? (
+            <p className={`${css.status} ${css.statusWithDot}`} role="status">
+              <StateDot state="idle" />{t('unavailable')}
+            </p>
+          ) : null}
+        </div>
       ) : null}
       {state.notice === null || noticeLine === null
         ? null
@@ -1679,7 +2007,20 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
           </div>
         )
         : null}
-      {loaded && openPkg !== undefined
+      {onInstalled && loaded && openPkg !== undefined && openRow !== undefined
+        ? (
+          <RowDetail
+            pkg={openPkg}
+            row={openRow}
+            form={formFor(openRow.rowId)}
+            t={t}
+            resolveText={resolveText}
+            renderSlot={renderSlot}
+            onBack={() => { setView({ kind: 'package', name: openPkg.name, ...openPkgInMore ? { from: 'more' } : {} }) }}
+          />
+        )
+        : null}
+      {onInstalled && loaded && openPkg !== undefined && openRow === undefined
         ? (
           <PackageDetail
             key={openPkg.name}
@@ -1689,7 +2030,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
             onSetCompanionEnabled={companion === undefined ? undefined : (enabled) => { props.setEnabled(companion.name, enabled) }}
             t={t}
             resolveText={resolveText}
-            busy={state.busy.includes(openPkg.name)}
+            busy={packageBusy(openPkg)}
             featureBusy={featureId => state.busy.includes(featureKey(openPkg.name, featureId))}
             rowBusy={row => row.entryId !== undefined && state.busy.includes(rowKey(row.entryId))}
             targets={state.pendingTargets}
@@ -1697,9 +2038,11 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
             configured={ledger.bundles.has(openPkg.name)}
             configure={configure(openPkg)}
             renderSlot={renderSlot}
-            onBack={() => { setView({ kind: 'list' }) }}
+            inMore={openPkgInMore}
+            onBack={() => { setView({ kind: openPkgInMore ? 'more' : 'list' }) }}
             onSetEnabled={(enabled) => { props.setEnabled(openPkg.name, enabled) }}
             onUninstall={() => { props.uninstall(openPkg.name) }}
+            onOfficialUpdate={() => { props.update(openPkg.name) }}
             onSetRowEnabled={setRowEnabled}
             onSetFeature={(featureId, enabled) => { props.setFeature(openPkg.name, featureId, enabled) }}
             onOpenExample={(prompt) => { props.openExample(openPkg.name, prompt) }}
@@ -1711,17 +2054,26 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
           />
         )
         : null}
-      {loaded && openItem !== undefined
+      {onInstalled && loaded && openItem !== undefined
         ? <ItemDetail form={formFor(openItem.id)} item={openItem} t={t} renderSlot={renderSlot} onBack={() => { setView({ kind: 'list' }) }} />
         : null}
-      {loaded && showsCards
-        ? officialCards.length === 0 && mine.length === 0 && state.status !== 'error'
-          ? <p className={css.empty}>{t('empty')}</p>
+      {loaded && installedCards
+        ? basicCards.length === 0 && official.length === 0 && mine.length === 0 && state.status !== 'error'
+          ? <div className={css.installedPanel} {...installedPanel}><p className={css.empty}>{t('empty')}</p></div>
           : (
-            <>
-              {renderGroup('official', t('officialTitle'), officialCards)}
-              {renderGroup('bundles', t('bundlesTitle'), mine.map(packageCard))}
-              {/* A failed package read trails the groups it left incomplete: right under Official on a
+            <div className={css.installedPanel} {...installedPanel}>
+              {showsMoreList ? (
+                <section className={css.group} data-plugin-scope="global" data-plugin-group="more">
+                  <ul className={css.cards}>{more.map(packageCard)}</ul>
+                </section>
+              ) : (
+                <>
+                  {renderGroup('basic', t('basicTitle'), basicCards)}
+                  {renderGroup('extensions', t('extensionsTitle'), extensions.map(packageCard))}
+                  {renderGroup('bundles', t('bundlesTitle'), mine.map(packageCard))}
+                </>
+              )}
+              {/* A failed package read trails the groups it left incomplete: right under the groups on a
                   first-load failure, and after the kept cards when a refresh fails over stale data. */}
               {state.status === 'error' && !refreshing
                 ? (
@@ -1733,14 +2085,17 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
                   </div>
                 )
                 : null}
-            </>
+            </div>
           )
         : null}
       {showsCards && activated !== undefined && !state.install.open
         ? renderSlot('plugins.bundle.activation', {
           packageName: activated.name,
           onDismiss: () => { setActivation(null) },
-          onOpenDetails: () => { setActivation(null); setView({ kind: 'package', name: activated.name }) },
+          onOpenDetails: () => {
+            setActivation(null)
+            setView({ kind: 'package', name: activated.name, ...showsMoreList ? { from: 'more' } : {} })
+          },
         }, { entryKey: activated.name }) : null}
       <InstallDialog
         install={state.install}

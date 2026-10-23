@@ -4,11 +4,14 @@
  * `prefers-color-scheme`, and publishes immutable snapshots; it never touches
  * the DOM — ui-layout's presenter consumes the resolved snapshot. The Host
  * settings scope loads and stores the preference in the user-settings
- * document. The plugin also registers the Appearance preference row into the
- * settings General section — the theme feature owns its own settings surface.
+ * document. The plugin also registers the Appearance and font settings rows
+ * into the settings General section — the theme feature owns its own settings
+ * surface. Desktop shortcuts adjust text, code, and terminal font sizes together.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
+import type { NormalizedBinding } from '@deepseek-ai/dsh-client-shortcuts/protocol'
 // Type-only: the ctx.configForms Context merge. Cross-plugin collaboration
 // goes through the service, never a value import (client bundle purity gate).
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -25,7 +28,10 @@ import {
   ACCENT_PRESETS, CORNER_PRESETS, DEFAULT_ACCENT, DEFAULT_CORNER_PRESET,
   DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_GLIDE_DURATION, DEFAULT_PREFERENCE,
   DEFAULT_THEME_SET, FONT_FAMILIES, GLIDE_DURATIONS, THEME_SETS, resolveThemeSet,
-  FONT_SIZE_FIELD, FONT_SIZE_MAX, FONT_SIZE_MIN,
+  FONT_SIZE_FIELD,
+  DEFAULT_FONT_SIZES, FONT_FAMILY_FIELDS, FONT_ROLES, FONT_SIZE_SPECS,
+  fontFamilyVariable, isFontSize, normalizeFontFamily, sectionFontSizes,
+  type FontFamilies, type FontRole, type FontSizes,
   isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
   type AccentPreset, type CornerPreset, type FontFamily, type GlideDuration, type ThemePreference,
   type ThemeSet, type ThemeSettings,
@@ -33,9 +39,12 @@ import {
 
 export type { ThemeSettingsPageInjected, ThemeSettingsPageProps } from './ThemeSettingsPage.tsx'
 export type { ThemePageState } from './settings-store.ts'
+export type { FontRowState } from './settings-store.ts'
+export type { FontSettingsGroupProps, FontSettingsInjected } from './FontSettingsGroup.tsx'
 export type { ThemeKey } from './locales.ts'
 export type { ThemePreference, ThemeSettings } from '../theme-settings.ts'
 export type { AccentPreset, CornerPreset, FontFamily, GlideDuration, ThemeSet } from '../theme-settings.ts'
+export type { FontFamilies, FontRole, FontSizes } from '../theme-settings.ts'
 
 /** Namespace owning this feature's settings-row copy. */
 export const SETTINGS_NS = 'settings.theme'
@@ -96,6 +105,10 @@ export interface ThemeSnapshot {
   fontFamily: FontFamily
   /** Shared corner scale. */
   corners: CornerPreset
+  /** Integer px font sizes by role, each within its `FONT_SIZE_SPECS` range (`text` is the conversation content size). */
+  fontSizes: FontSizes
+  /** Normalized user font lists by role; `''` selects the role's built-in stack. */
+  fontFamilies: FontFamilies
   /**
    * The resolved active theme (`system` resolved via prefers-color-scheme)
    * with override layers folded into its tokens (seq order, later layers win
@@ -175,7 +188,7 @@ export class ThemeRuntime {
   private readonly host: ConfigForm<ThemeSettings>
   private themes: ThemeDefinition[] = [...BUILTIN_THEMES]
   private preference: ThemePreference
-  private fontSize: number = bootstrapFontSize()
+  private fontSize: number = bootstrapFontSizes().text
   private accent: AccentPreset = bootstrapChoice('dsAccent', ACCENT_PRESETS, DEFAULT_ACCENT)
   private themeSet: ThemeSet = bootstrapChoice('dsPalette', THEME_SETS, DEFAULT_THEME_SET)
   /** A local selection must not be overwritten by an in-flight legacy snapshot. */
@@ -186,7 +199,11 @@ export class ThemeRuntime {
   private corners: CornerPreset = bootstrapChoice('dsCorners', CORNER_PRESETS, DEFAULT_CORNER_PRESET)
   /** Optimistic writes stay authoritative until their Host mutation settles. */
   private readonly pendingValues = new Map<string, unknown>()
+  private fontSizes: FontSizes = bootstrapFontSizes()
+  private fontFamilies: FontFamilies = bootstrapFontFamilies()
   private revision = 0
+  /** Own settings writes not yet settled; adoption waits for zero so a Host echo of an earlier write cannot revert a later local change. */
+  private pendingWrites = 0
   private snapshot: ThemeSnapshot
   private readonly media: MediaQueryList | undefined
   /** Override layers by source; seq (monotonic) is the stacking order. */
@@ -218,6 +235,7 @@ export class ThemeRuntime {
     }
     ctx.effect(() => host.subscribe(() => { this.adopt() }), 'ui-theme: settings scope adoption')
     this.adopt()
+    installFontSizeShortcuts(ctx, (delta) => { this.adjustFontSizes(delta) })
   }
 
   /**
@@ -264,18 +282,25 @@ export class ThemeRuntime {
   }
 
   /**
-   * Change the conversation content font size — the only font-size write
-   * entry. Accepted values are written through the settings scope and emit
-   * `theme/change`.
-   * @param px - integer px within FONT_SIZE_MIN..FONT_SIZE_MAX; out-of-range or fractional values throw.
+   * Change the conversation text size and persist it through the settings scope.
+   * @param px - integer pixel size within the text role's range.
    */
-  setFontSize(px: number): void {
-    if (!Number.isInteger(px) || px < FONT_SIZE_MIN || px > FONT_SIZE_MAX) {
-      throw new Error(`font size ${px} is outside ${FONT_SIZE_MIN}..${FONT_SIZE_MAX}`)
-    }
-    if (this.fontSize === px) return
-    this.fontSize = px
-    this.persist(FONT_SIZE_FIELD, px)
+  setFontSize(px: number): void
+  /**
+   * Change one role's font size and publish the optimistic value.
+   * @param role - text, code, or terminal.
+   * @param px - integer pixel size within the selected role's range.
+   */
+  setFontSize(role: FontRole, px: number): void
+  setFontSize(roleOrPx: FontRole | number, value?: number): void {
+    const role = typeof roleOrPx === 'number' ? 'text' : roleOrPx
+    const px = typeof roleOrPx === 'number' ? roleOrPx : value
+    const spec = FONT_SIZE_SPECS[role]
+    if (px === undefined || !isFontSize(role, px)) throw new Error(`${role} font size ${px} is outside ${spec.min}..${spec.max}`)
+    if (this.fontSizes[role] === px) return
+    this.fontSizes = Object.freeze({ ...this.fontSizes, [role]: px })
+    this.fontSize = this.fontSizes.text
+    this.persist(spec.field, px)
     this.publish()
   }
 
@@ -325,11 +350,15 @@ export class ThemeRuntime {
     this.fontFamily = DEFAULT_FONT_FAMILY
     this.corners = DEFAULT_CORNER_PRESET
     this.fontSize = DEFAULT_FONT_SIZE
+    this.fontSizes = DEFAULT_FONT_SIZES
+    this.fontFamilies = Object.freeze({ text: '', code: '', terminal: '' })
     this.glideDuration = DEFAULT_GLIDE_DURATION
     const values = {
       preference: this.preference, themeSet: this.themeSet, accent: this.accent,
       fontFamily: this.fontFamily, corners: this.corners, fontSize: this.fontSize,
       glideDuration: this.glideDuration,
+      codeFontSize: this.fontSizes.code, terminalFontSize: this.fontSizes.terminal,
+      textFontFamily: '', codeFontFamily: '', terminalFontFamily: '',
     }
     for (const [field, value] of Object.entries(values)) this.pendingValues.set(field, value)
     void this.host.mutate([
@@ -340,6 +369,11 @@ export class ThemeRuntime {
       { path: ['corners'], op: 'set', value: this.corners },
       { path: ['fontSize'], op: 'set', value: this.fontSize },
       { path: ['glideDuration'], op: 'set', value: this.glideDuration },
+      { path: ['codeFontSize'], op: 'set', value: this.fontSizes.code },
+      { path: ['terminalFontSize'], op: 'set', value: this.fontSizes.terminal },
+      { path: ['textFontFamily'], op: 'set', value: '' },
+      { path: ['codeFontFamily'], op: 'set', value: '' },
+      { path: ['terminalFontFamily'], op: 'set', value: '' },
     ]).then(
       () => { this.settleWrites(values) },
       () => { this.settleWrites(values) },
@@ -351,10 +385,28 @@ export class ThemeRuntime {
    * Set the application text family without changing code or brand text.
    * @param value - The selected family.
    */
-  setFontFamily(value: FontFamily): void {
-    if (this.fontFamily === value) return
-    this.fontFamily = value
-    this.persist('fontFamily', value)
+  setFontFamily(value: FontFamily): void
+  /**
+   * Persist a role-specific font list; an empty list restores its fallback stack.
+   * @param role - text, code, or terminal.
+   * @param value - comma-separated font families.
+   */
+  setFontFamily(role: FontRole, value: string): void
+  setFontFamily(roleOrValue: FontRole | FontFamily, value?: string): void {
+    if (value === undefined) {
+      const preset = FONT_FAMILIES.find(font => font === roleOrValue)
+      if (preset === undefined) throw new Error(`unsupported font preset ${roleOrValue}`)
+      if (this.fontFamily === preset) return
+      this.fontFamily = preset
+      this.persist('fontFamily', preset)
+    } else {
+      const role = FONT_ROLES.find(candidate => candidate === roleOrValue)
+      if (role === undefined) throw new Error(`unsupported font role ${roleOrValue}`)
+      const list = normalizeFontFamily(value)
+      if (this.fontFamilies[role] === list) return
+      this.fontFamilies = Object.freeze({ ...this.fontFamilies, [role]: list })
+      this.persist(FONT_FAMILY_FIELDS[role], list)
+    }
     this.publish()
   }
 
@@ -369,8 +421,41 @@ export class ThemeRuntime {
     this.publish()
   }
 
+  /**
+   * Step all font sizes within their own ranges and save changed fields in one mutation.
+   * Emits one `theme/change`; no write or event occurs when every role is at its limit.
+   * @param delta - one pixel to add or remove from each role's current size.
+   */
+  private adjustFontSizes(delta: 1 | -1): void {
+    const fontSizes = { ...this.fontSizes }
+    const fields: Record<string, number> = {}
+    for (const role of FONT_ROLES) {
+      const { field, min, max } = FONT_SIZE_SPECS[role]
+      const px = Math.max(min, Math.min(max, fontSizes[role] + delta))
+      if (px === fontSizes[role]) continue
+      fontSizes[role] = px
+      fields[field] = px
+    }
+    const ops = Object.entries(fields).map(([field, value]) => ({ op: 'set' as const, path: [field], value }))
+    if (ops.length === 0) return
+    this.fontSizes = Object.freeze(fontSizes)
+    this.fontSize = fontSizes.text
+    this.write(() => this.host.mutate(ops))
+    this.publish()
+  }
+
+  /** Queue one settings write, then adopt the durable section once no own write remains. */
+  private write(operation: () => Promise<boolean>): void {
+    this.pendingWrites += 1
+    void operation().finally(() => {
+      this.pendingWrites -= 1
+      this.adopt()
+    })
+  }
+
   /** Adopt the scope's accepted durable preference without writing it back. */
   private adopt(): void {
+    if (this.pendingWrites > 0 || this.pendingValues.size > 0) return
     const form = this.host.getSnapshot()
     const section = form.value
     if (section === undefined) return
@@ -380,6 +465,18 @@ export class ThemeRuntime {
     const fontFamily = this.pendingOr('fontFamily', section.fontFamily)
     const corners = this.pendingOr('corners', section.corners)
     const glideDuration = this.pendingOr('glideDuration', section.glideDuration)
+    const sizes = sectionFontSizes(section)
+    const families = durableFontFamilies(section)
+    const fontSizes: FontSizes = Object.freeze({
+      text: fontSize,
+      code: this.pendingOr('codeFontSize', sizes.code),
+      terminal: this.pendingOr('terminalFontSize', sizes.terminal),
+    })
+    const fontFamilies: FontFamilies = Object.freeze({
+      text: this.pendingOr('textFontFamily', families.text),
+      code: this.pendingOr('codeFontFamily', families.code),
+      terminal: this.pendingOr('terminalFontFamily', families.terminal),
+    })
     const userHasThemeSet = isOwnThemeSet(form.user)
     if (userHasThemeSet) this.themeSetExplicit = true
     const palette = this.themeSetExplicit
@@ -389,9 +486,12 @@ export class ThemeRuntime {
       && this.accent === accent && this.fontFamily === fontFamily
       && this.corners === corners && this.themeSet === palette.themeSet
       && this.legacyAccent === palette.legacyAccent
-      && this.glideDuration === glideDuration) return
+      && this.glideDuration === glideDuration
+      && FONT_ROLES.every(role => this.fontSizes[role] === fontSizes[role] && this.fontFamilies[role] === fontFamilies[role])) return
     this.preference = preference
     this.fontSize = fontSize
+    this.fontSizes = fontSizes
+    this.fontFamilies = fontFamilies
     this.accent = accent
     this.themeSet = palette.themeSet
     this.legacyAccent = palette.legacyAccent
@@ -493,6 +593,8 @@ export class ThemeRuntime {
       glideDuration: this.glideDuration,
       fontFamily: this.fontFamily,
       corners: this.corners,
+      fontSizes: this.fontSizes,
+      fontFamilies: this.fontFamilies,
       active: this.composeActive(active),
       themes: Object.freeze([...this.themes]),
       revision: this.revision,
@@ -524,20 +626,41 @@ export class ThemeRuntime {
 }
 
 /**
- * Read the font size the Host boot script wrote on `body` before any plugin
+ * Read the font sizes the Host boot script wrote on `body` before any plugin
  * ran, so the initial snapshot matches first paint and ui-layout's presenter
- * does not flash the schema default while the settings read is in flight.
- * Non-browser runs and mounts without the boot script fall back to the
- * schema default; the durable settings adoption still lands afterwards.
+ * does not flash the schema defaults while the settings read is in flight.
+ * Non-browser runs, mounts without the boot script, and out-of-range values
+ * fall back to each role's default; the durable settings adoption still lands afterwards.
  */
-function bootstrapFontSize(): number {
+function bootstrapFontSizes(): FontSizes {
   /* v8 ignore next -- needs a documentless run (node e2e booting the client tree), not constructible under jsdom */
-  if (typeof document === 'undefined') return DEFAULT_FONT_SIZE
-  const raw = document.body.style.getPropertyValue('--dsh-content-font-size')
-  const parsed = Number.parseInt(raw, 10)
-  return Number.isInteger(parsed) && parsed >= FONT_SIZE_MIN && parsed <= FONT_SIZE_MAX
-    ? parsed
-    : DEFAULT_FONT_SIZE
+  if (typeof document === 'undefined') return DEFAULT_FONT_SIZES
+  const read = (role: FontRole): number => {
+    const parsed = Number.parseInt(document.body.style.getPropertyValue(FONT_SIZE_SPECS[role].variable), 10)
+    return isFontSize(role, parsed) ? parsed : FONT_SIZE_SPECS[role].default
+  }
+  return Object.freeze({ text: read('text'), code: read('code'), terminal: read('terminal') })
+}
+
+/** Font lists the Host boot script wrote on `body`, read for the same first-paint reason as {@link bootstrapFontSizes}. */
+function bootstrapFontFamilies(): FontFamilies {
+  /* v8 ignore next -- needs a documentless run (node e2e booting the client tree), not constructible under jsdom */
+  if (typeof document === 'undefined') return Object.freeze({ text: '', code: '', terminal: '' })
+  const style = document.body.style
+  return Object.freeze({
+    text: normalizeFontFamily(style.getPropertyValue(fontFamilyVariable('text'))),
+    code: normalizeFontFamily(style.getPropertyValue(fontFamilyVariable('code'))),
+    terminal: normalizeFontFamily(style.getPropertyValue(fontFamilyVariable('terminal'))),
+  })
+}
+
+/** Normalized font lists from one accepted settings section (hand-edited documents may hold raw input). */
+function durableFontFamilies(section: ThemeSettings): FontFamilies {
+  return Object.freeze({
+    text: normalizeFontFamily(section.textFontFamily),
+    code: normalizeFontFamily(section.codeFontFamily),
+    terminal: normalizeFontFamily(section.terminalFontFamily),
+  })
 }
 
 /** Read a validated choice installed by the Host before the client activates. */
@@ -597,6 +720,39 @@ function dynamicToken(name: string): ThemeTokenInspection {
   }
 }
 
+/** Register desktop font-size keys when keyboard and locale services are available. */
+function installFontSizeShortcuts(ctx: ClientContext, adjust: (delta: 1 | -1) => void): void {
+  ctx.inject(['shortcuts', 'locale'], (scope) => {
+    if (scope.shortcuts.runtime !== 'desktop') return
+    const t = scope.locale.bind(SETTINGS_NS)
+    const combinations: { binding: NormalizedBinding; delta: 1 | -1 }[] = []
+    // Fixed bindings drive both reservation and matching.
+    for (const [direction, code, delta] of [['increase', 'Equal', 1], ['decrease', 'Minus', -1]] as const) {
+      const binding = { code, modifiers: ['primary'] as const }
+      const bindings = direction === 'increase'
+        ? [binding, { code, modifiers: ['primary', 'shift'] as const }] as const : [binding] as const
+      for (const candidate of bindings) {
+        combinations.push({ binding: scope.shortcuts.describeBinding(candidate).binding as NormalizedBinding, delta })
+      }
+      scope.effect(() => scope.shortcuts.registerFixed({
+        id: `fontSize.${direction}` as ShortcutCommandId, label: () => t(`fontSize.text.${direction}`),
+        keys: scope.shortcuts.describeBinding(binding).keys,
+        bindings, group: 'application',
+      }), `ui-theme: ${direction} font size reference`)
+    }
+    scope.effect(() => scope.shortcuts.observeFixedInput((input) => {
+      if (input.type === 'reset') return
+      const { gesture, context } = input
+      if (gesture.composing || gesture.defaultPrevented || gesture.repeat || context.region === 'terminal') return
+      const matched = combinations.find(({ binding }) => binding.code === gesture.code
+        && (['control', 'alt', 'shift', 'meta'] as const).every(modifier => gesture[modifier] === binding.modifiers.includes(modifier)))
+      if (matched === undefined) return
+      input.consume()
+      adjust(matched.delta)
+    }), 'ui-theme: font size input')
+  })
+}
+
 /**
  * Required services: settings transport plus slots/locale for the Appearance
  * row. `remote` carries the forwarded settings invalidation that
@@ -606,17 +762,17 @@ export const inject = ['slots', 'locale', 'remote', 'configForms']
 
 /**
  * Client plugin body: provide the theme service and register the
- * feature-owned Appearance preference row into the General section's item
- * slot (a feature owns its settings surface).
+ * feature-owned Appearance and font settings rows into the General section's item
+ * slot (a feature owns its settings surface). Desktop font-size shortcuts share
+ * all three font-size settings when the keyboard service is available.
  * @param ctx - client cordis context.
  */
 export function apply(ctx: ClientContext): void {
   installThemeStyles(ctx)
+  ctx.effect(() => ctx.locale.register(SETTINGS_NS, { zh, en }), 'ui-theme: settings row dictionaries')
   const host = ctx.configForms.get<ThemeSettings>(THEME_SETTINGS_NAMESPACE)
   const theme = new ThemeRuntime(ctx, host)
   ctx.provide('theme', theme)
-
-  ctx.effect(() => ctx.locale.register(SETTINGS_NS, { zh, en }), 'ui-theme: settings row dictionaries')
 
   const store = createThemePageStore()
   let bound: BoundActions<typeof store> | undefined
@@ -627,6 +783,7 @@ export function apply(ctx: ClientContext): void {
       glideDuration: snapshot.glideDuration,
       fontFamily: snapshot.fontFamily, corners: snapshot.corners,
       fontSize: snapshot.fontSize, revision: snapshot.revision,
+      fontSizes: snapshot.fontSizes, fontFamilies: snapshot.fontFamilies,
     })
   }
   ctx.on('theme/change', sync)
@@ -644,6 +801,8 @@ export function apply(ctx: ClientContext): void {
       setFontFamily: (value) => { theme.setFontFamily(value) },
       setCorners: (value) => { theme.setCorners(value) },
       setFontSize: (value) => { theme.setFontSize(value) },
+      setRoleFontSize: (role, value) => { theme.setFontSize(role, value) },
+      setRoleFontFamily: (role, value) => { theme.setFontFamily(role, value) },
     }
   }
   ctx.slots.inject('settings.section', () => ctx.slots.register({

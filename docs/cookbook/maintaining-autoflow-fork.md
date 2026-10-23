@@ -47,7 +47,7 @@ For each affected owner, compare its implementation, locale dictionaries, tests,
 
 | Owner and documentation | Behavior to retain | Review points |
 |---|---|---|
-| [Settings shell](../../packages/client/ui-settings-general/README.md), [settings services](../../packages/client/ui-settings/README.md) | Full-page settings, grouped navigation, collapsed icon rail, localized search and return navigation; no bottom configuration-file area. | `SettingsPage`, `SettingsNavIcon`, `search.ts`, registration consumers, focus restoration, unloaded sections, disposal. |
+| [Settings shell](../../packages/client/ui-settings-general/README.md), [settings services](../../packages/client/ui-settings/README.md) | Full-page settings, grouped navigation, collapsed icon rail, localized search and return navigation; configuration-file access uses the bottom settings-action slot, without restoring a dialog header. | `SettingsPage`, `SettingsNavIcon`, `search.ts`, registration consumers, focus restoration, unloaded sections, disposal. |
 | [Theme](../../packages/client/ui-theme/README.md) | Shared page geometry; mode, palette, font, corner and motion choices; legacy font selections remain readable. | `ThemeSettingsPage`, `PalettePreview`, theme-owned variables, locale keys, persisted preference compatibility. |
 | [Sidebar](../../packages/client/ui-sidebar/README.md), [layout](../../packages/client/ui-layout/README.md), [official brand](../../packages/client/ui-brand-official/README.md) | Compact aligned icons, a single brand identity contribution, consistent collapse timing and Windows title-bar behavior. | Brand slots, layout tracks, rail labels, right sidebar transitions and workspace indentation. |
 | [Models](../../packages/client/ui-settings-models/README.md) | Matching initial skeleton, retained refresh drafts, compact model controls, stable tag/delete overlay, provider rail and fixed settings-page actions. | `ModelsSection`, `ProviderEditor`, `ModelsSkeleton`, disclosure focus, small screens and both themes. |
@@ -60,6 +60,10 @@ For each affected owner, compare its implementation, locale dictionaries, tests,
 | [Questions](../../packages/client/ui-user-questions/README.md), [primitives](../../packages/client/ui-primitives/README.md) | Compact question areas and reusable pointer/focus highlights without changing other callers' defaults. | Collapse focus, retained answers, `GlideHighlight.bridgeGaps`, listener and animation-frame cleanup. |
 
 AFP is a separate custom plugin. Its source, descriptions and profile choices remain owned by that plugin; do not add AFP-specific global style overrides while resolving inventory conflicts.
+
+Role-specific font controls belong to Appearance; General must not duplicate them. Review pending-write echoes and legacy preference fallbacks. ChatFlow and UserText own conversation rendering; feature packages register their own nodes rather than restoring the removed node list or adding domain parsing to primitives. Better Sidebar uses Host Connection admission instead of the removed webRuntime service. Account model catalogs remain read-only, and environment/OAuth authentication must not be replaced with an API-key-only form.
+
+Product-use validation includes custom workspace bundles and their updater directories. Preserve the handwritten source aliases outside the generated tsconfig region; JavaScript with adjacent declarations is traced through its actual JavaScript source. Check the custom bundles together with the shipped profile instead of treating their installed output as source evidence.
 
 <a id="3-resolve-changes-by-behavior"></a>
 

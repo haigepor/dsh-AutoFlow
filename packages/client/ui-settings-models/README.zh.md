@@ -27,6 +27,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+提供商刷新发生传输失败后保留已打开的草稿并提供重试，不把旧数据当成新的保存基线。凭据引用每批最多读取 64 项；原生环境变量或 OAuth 认证与页面管理的命名密钥保持区分。账号提供商只读展示模型目录，其模型选择由账号适配器管理，不通过本 API 密钥表单保存。
+
 保存凭据或自定义提供方时保留已选模型。用户可在 composer 中选择可用模型。
 
 提供方列表中 DeepSeek 账号排第一，DeepSeek 排第二；第三方提供方保留目录中的相对顺序。
@@ -39,11 +41,13 @@ kind: "package-reference"
 
 存在已存储目录错误的提供商仍显示诊断以及编辑、删除入口。添加操作只面向已注册的 settings 命名空间，因此不可用的命名空间不会留下无法打开编辑器的按钮。保存被拒绝时，编辑器保持打开并展示 Host 诊断。
 
+应用设置并关闭编辑器后，当前提供商、settings 与凭据快照就绪时才显示保存状态。打开任一行的编辑器、添加提供商和打开移除确认都会等待该刷新。新打开的 Models 区域或页面加载失败后的重试会等到 ready 快照后才挂载编辑器。后台刷新期间，只要编辑器仍挂载，已打开的草稿就会保留用户的修改；页面加载失败或提供商被移除可能关闭编辑器。
+
 Host 配置 `credentialOnboarding` 默认为 `true`。Electron preload 标记会抑制自动凭证引导和 Web 欢迎须知；模型设置页与显式 API Key 编辑仍然可用。[账号插件](../ui-settings-account/README.zh.md#desktop-onboarding)负责 Desktop 引导。其他原生壳可以通过 `credentialOnboarding: false` 仅禁用凭证步骤。Host 通过 `webserver/index-inject` 发布这个公开的布尔值，Client 在注册弹窗前校验它。它是页面初始化数据，不是持久化的完成标记。
 
 ### API 密钥
 
-API 密钥输入框初始为空，并通过 `autocomplete="new-password"` 请求浏览器不要自动填入已保存的登录密码。
+API 密钥输入框初始为空，并通过 `autocomplete="new-password"` 请求浏览器不要自动填入已保存的登录密码。输入非空时，显示与会话密钥遮罩一致的眼睛按钮：**显示密钥**展示当前输入，**隐藏密钥**重新遮住输入。修改或清空输入后会重新遮住密钥。已保存凭据从不读入输入框。
 
 编辑卡片上的主字段是单独一个 **API 密钥**输入框——页面从不询问环境变量名。键入的密钥经 `credentials.set` 以**只写**方式存入 profile 的引用之下，profile 没有引用时便派生 `<ROUTE>_API_KEY`，pi-ai profile 会把这次派生记录为 `apiKeyEnv`，因此 `cordis.patch.yml` 从不携带密钥值。为新的 pi-ai 提供商留空密钥会保存一个不带引用的 profile，从而保留提供商原生认证（例如 Bedrock 凭据链或 Vertex ADC）。只有确认引用的凭据已配置时，提供商列表项才会以绿色实心点标示 API 密钥状态；只有确认具名引用缺失时，才会以红色实心点标示。「应用」成功后显示共享的主题感知成功通知，且绝不回显任何机密内容。连续保存会重新开始通知的显示周期，通知随后自动消失。
 
@@ -59,6 +63,8 @@ API 密钥输入框初始为空，并通过 `autocomplete="new-password"` 请求
 
 模型表格显示行序号。拖动手柄可调整顺序，也可以聚焦手柄后按上下方向键；保存时沿用调整后的数组顺序。排序时，每个模型的展开选项和未完成的容量输入会跟随该模型。自定义设置与模型选项使用可反向连续过渡的 250ms 高度、透明度动画和旋转箭头；收起内容保持挂载但设为 inert，减少动态效果时立即切换。两个目录共用线性的目录与模型节点图标。凭据状态点位于固定在最右的自定义标签之前；悬浮或键盘聚焦时，删除图标覆盖标签，名称和状态点不移动。触屏设备持续显示删除图标。删除其他提供商后保留当前编辑器与草稿；只读或写入进行中时禁用操作。
 
+手工声明的 pi-ai 路由上，模型行还会编辑**推理等级**，即适配器本来就从 `cordis.patch.yml` 读取的 `reasoningEfforts`；标签旁的 **?** 说明两列的含义。开关关闭时该字段不存在，模型不推理，模型选择器不提供任何档位；已存储的 `false` 在开关被操作前保持不变。打开开关总是从 off、low、medium 和 high 四行开始，不会恢复之前删掉的档位；要放弃修改请点**取消**。每行把一个档位选择框——可选值是 `llm-pi-ai` 配置 schema 允许作为 `reasoningEfforts` 键的档位，与协议选项一样从命名空间 schema 读取，目前为 `off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`，每个档位只能用一次——与发送给它的 **API 参数值**配成一对，参数值初始为档位名；输入时清空的字段会存为档位名，离开字段后显示出来。Off 只表示关闭思考，因此它的参数值输入框是禁用的；`cordis.patch.yml` 中已为它写好的值会显示并保留。修改某行的档位时，仍是旧档位名的参数值会随之重置；自定义值只在两个思考档位之间保留，切到或切离 Off 都会重置。schema 未列出的已存键会保留自己的行，并可在该行中继续选择。行可以增删，并按行的顺序保存，模型选择器则按升级顺序列出档位。本节拒绝适配器会拒绝的配置：没有 Off 以外的档位（包括未写值的 `reasoningEfforts:`，此时开关显示为打开且没有任何行），或者 Off 以外的档位缺少参数值、任意档位的参数值为空字符串。被拒绝的值会把对应输入框标为无效，离开该输入框时会填入档位名。各行不保留自己的状态，因此删除、恢复默认或折叠之后被复用的模型行只显示它自己的模型。走已安装目录的路由和 DeepSeek 卡片沿用适配器的档位，不显示推理等级控件。
+
 ### 新增与删除提供商
 
 DeepSeek 删除图标打开**清除配置**确认框，并保留提供商入口。操作按确认时的设置修订号清除可写用户层字段，再重新检查凭据状态，清除未被共享的可写、本页管理凭据。基础配置、环境凭据、只读凭据及共享引用保留。无可清除内容时禁用按钮并说明原因。冲突或分阶段失败会在确认框保留诊断，重试仅继续未完成阶段，不重复已完成的设置写入。取消确认保留编辑草稿。
@@ -73,7 +79,7 @@ DeepSeek 删除图标打开**清除配置**确认框，并保留提供商入口�
 
 本分区为仓库外分发的插件声明两个席位，类型定义在 [`src/client/slot-contract.ts`](src/client/slot-contract.ts) 并从 `./client` 导出。`settings.models.provider-card`（keyed）渲染在当前选中的已保存提供商配置区、其首次运行 setup 形态或「添加提供商」草稿中——以 `entryKey = settingsNs` 分发，owner props 携带该行的 `ConfigurableProviderView`、其 configured 状态与已确认的 api-key 凭据状态，因此以某适配器家族的 namespace 注册一次即可收到该家族当前选中的配置区，含手工声明的路由；手工声明的草稿卡尚无目录行，保存之前不分发。`settings.models.footer`（list）渲染在提供商工作区之后。注册方通过 `ctx.slots.inject` 激活，并以 type-only import 引入本包 `/client` 入口；没有注册方时两个席位均不渲染任何内容。
 
-Models 页面包含 **DeepSeek 账号**（`deepseek-account`，英文为 **DeepSeek Account**）。其编辑器展示共享的 DeepSeek 模型目录，不提供 API Key 或 Base URL 输入框；目录保存到账号路由自己的设置段（默认为 `llm-deepseek-account`），因此账号侧的编辑不会改写 official 路由读取的 `llm-deepseek` 段。账号可用模型目录为空时隐藏账号行，包括登录前和退登后；账号模型恢复可用时重新显示。
+Models 页面包含 **DeepSeek 账号**（`deepseek-account`，英文为 **DeepSeek Account**）。该行显示 **已登录** 状态，不提供编辑器：模型来自账号的模型列表，[模型覆盖](../../llm/llm-deepseek-account/README.zh.md#use-this-package)写在 `cordis.patch.yml` 中。账号可用模型目录为空时隐藏账号行，包括登录前和退登后；账号模型恢复可用时重新显示。
 
 -----
 
@@ -95,9 +101,11 @@ Models 页面包含 **DeepSeek 账号**（`deepseek-account`，英文为 **DeepS
 
 每次 settings 写入都携带卡片当前的 `revision`，因此来自另一个标签页或外部 `cordis.patch.yml` 编辑的并发写入会以 `settings/conflict` 被拒绝。settings 提交后，卡片会在存储凭据前采纳返回的脱敏用户子树与 revision，因此失败的凭据阶段只重试该阶段。删除只会在 profile 指名本页派生的 `<ROUTE>_API_KEY` 目标时移除已配置且可写的凭据，然后 unset 该 profile；两个操作都幂等。加载完成后，页面订阅转发的 `settings/document-updated`、`credentials/reference-updated` 与 `llm/adapters-updated` 属主事件，以及本地 `connection/reset`，因此外部编辑无需轮询即可收敛。
 
+并发的 `ModelsSettingsStore.load()` 调用会在当前刷新发布 ready 或 error 快照后 resolve，包括读取已被后续刷新取代的调用。旧响应不能发布快照或完成等待中的调用；快照订阅者同步发起的刷新负责等待中的调用。Remote 失败和意外读取拒绝都发布错误诊断并完成等待中的调用，不留下未处理的拒绝。
+
 ### 引导协调器
 
-声明步骤在 `src/client/locales.ts` 中持有精确文案，并在 `src/onboarding-copy.ts` 中持有确认版本；回环时它通过既有 settings API 比较并写入 `ui-settings-general.welcomeNoticeVersion`，且只有显式点击「继续」才会记录当前版本。已确认旧版的用户会再次看到当前说明。非回环浏览器无法使用这个仅限宿主的 namespace，因此确认只保留在进程内，刷新后声明会再次出现。DeepSeek 步骤面向 `llm-deepseek` 中的 `deepseek-official`，在共享引导模态框内以仅凭据模式渲染既有 `ProviderEditor`；`credentials.set` 仍是唯一的机密写入，且不改变任何提供商设置。
+预览版说明在 `src/client/locales.ts` 中持有精确文案，并在 `src/onboarding-copy.ts` 中持有确认版本。认证浏览器通过共享配置表单比较并写入 `ui-settings-general.welcomeNoticeVersion`；只有显式点击「继续」才会记录当前版本；命名空间不可用或写入被拒时，声明保持未确认状态。已确认旧版的用户会再次看到当前说明。DeepSeek 步骤面向 `llm-deepseek` 中的 `deepseek-official`，在共享引导模态框内以仅凭据模式渲染既有 `ProviderEditor`；`credentials.set` 仍是唯一的机密写入，且不改变任何提供商设置。
 
 </details>
 
@@ -150,5 +158,3 @@ Models 页面包含 **DeepSeek 账号**（`deepseek-account`，英文为 **DeepS
 无。
 
 </details>
-
-**运行时不变式：** 不发布伴生入口。这是只贡献 nav entry 的 section 插件，渲染固定空 content column，不发出 Cordis 事件，也不持有跨插件可变关系。

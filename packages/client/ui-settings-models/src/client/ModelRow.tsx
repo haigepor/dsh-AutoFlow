@@ -10,6 +10,7 @@ import type { ModelsKey } from './locales.ts'
 import { ModelInputTypes } from './ModelInputTypes.tsx'
 import { AnimatedDisclosure } from './AnimatedDisclosure.tsx'
 import { ModelReasoningCapabilities, ModelReasoningDefault } from './ModelReasoningCapabilities.tsx'
+import { ModelReasoningEfforts } from './ModelReasoningEfforts.tsx'
 import type { ModelReasoningOptions } from './model-reasoning.ts'
 import type { LlmModelReasoningInfo } from '@deepseek-ai/dsh-api-remotes/client'
 import styles from './ModelsSection.module.css'
@@ -36,6 +37,8 @@ interface ModelRowProps {
   inputLoading?: boolean
   reasoningOptions?: ModelReasoningOptions | undefined
   reasoningInherited?: LlmModelReasoningInfo | undefined
+  /** Levels the row's `reasoningEfforts` may declare; absent or empty shows no reasoning control. */
+  reasoningLevels?: readonly string[] | undefined
   expanded: boolean
   disabled: boolean
   t: (key: ModelsKey) => string
@@ -187,7 +190,10 @@ export function ModelRow(props: ModelRowProps): ReactNode {
           ))}
           <ModelInputTypes model={model} field={props.inputField} position={position}
             fallback={props.inputFallback} disabled={disabled || props.inputLoading === true} t={t} onChange={props.onChange} />
-          <ModelReasoningCapabilities {...reasoningProps} />
+          {props.reasoningOptions === undefined && props.reasoningLevels !== undefined && props.reasoningLevels.length > 0
+            ? <ModelReasoningEfforts model={model} levels={props.reasoningLevels} position={position}
+              disabled={disabled} t={t} onChange={props.onChange} />
+            : <ModelReasoningCapabilities {...reasoningProps} />}
         </div>
       </AnimatedDisclosure>
     </div>

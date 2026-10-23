@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-theme` owns the Appearance theme Settings section: system/light/dark modes, official and current-project palettes, five interface fonts, five corner scales, menu animation speed, and conversation content size from 10 to 22 px. A loopback client persists these choices in the `ui-theme` settings namespace, which the local provider stores in `$DSH_HOME/cordis.patch.yml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package ships the `--dsw-*` token stylesheets and injects synchronous bootstrap values before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.
+`dsh-client-ui-theme` owns the Appearance theme Settings section: system/light/dark modes, official and current-project palettes, five interface fonts, five corner scales, menu animation speed, and conversation content size from 10 to 22 px. An authenticated client with settings-write access persists these choices in the `ui-theme` settings namespace, which the local provider stores in `$DSH_HOME/cordis.patch.yml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package ships the `--dsw-*` token stylesheets and injects synchronous bootstrap values before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.
 
 ## Table of Contents
 
@@ -33,9 +33,11 @@ The page fills the Settings shell’s content width and contributes its five pre
 
 ### Appearance choices
 
-The Appearance page uses the same single-column setting rows as General: labels and descriptions on the left, 36px selection controls on the right, 16px vertical padding, and fine separators. Three equal-width mode cards switch directly between system, light, and dark, with a thin selected border and pressed state. Two compact palette cards show theme-owned SVG interface previews and the names Blue Gray and Iris; they select the official or current-project palette respectively. Preview colors remain independent of the active palette and follow light/dark mode. Three shared menus select the interface font, corner scale, and menu-glide duration (80, 140, 220, 300, or 400 ms). The font trigger and each menu label use the corresponding locally bundled font; the system-default sample uses the device stack independently of the current interface font. Controls align to the right edge and move below the text on narrow screens. Menus use tokenized surfaces, selection checks, portal placement, and keyboard navigation. The five current fonts are system default, Source Sans 3, IBM Plex Serif, JetBrains Mono, and IBM Plex Sans Condensed. The official palette is copied from the `dsh-v0.2.0-rc.1` release tag; its conversation and full-window Settings content use the official base fill beside the official sidebar fill. The current-project palette keeps the warm-gray and iris-purple treatment. Code and brand text retain their own font stacks. Accepted service writes pass through the Host settings API in gesture order with namespace revisions, and a rejected latest write reloads durable values. Non-loopback pages keep choices process-local.
+The Appearance page uses the same single-column setting rows as General: labels and descriptions on the left, 36px selection controls on the right, 16px vertical padding, and fine separators. Three equal-width mode cards switch directly between system, light, and dark, with a thin selected border and pressed state. Two compact palette cards show theme-owned SVG interface previews and the names Blue Gray and Iris; they select the official or current-project palette respectively. Preview colors remain independent of the active palette and follow light/dark mode. Three shared menus select the interface font, corner scale, and menu-glide duration (80, 140, 220, 300, or 400 ms). The font trigger and each menu label use the corresponding locally bundled font; the system-default sample uses the device stack independently of the current interface font. Controls align to the right edge and move below the text on narrow screens. Menus use tokenized surfaces, selection checks, portal placement, and keyboard navigation. The five current fonts are system default, Source Sans 3, IBM Plex Serif, JetBrains Mono, and IBM Plex Sans Condensed. The official palette is copied from the `dsh-v0.2.0-rc.1` release tag; its conversation and full-window Settings content use the official base fill beside the official sidebar fill. The current-project palette keeps the warm-gray and iris-purple treatment. Code and brand text retain their own font stacks. Accepted service writes pass through the Host settings API in gesture order with namespace revisions, and a rejected latest write reloads durable values. Authenticated remote browsers persist preferences through the Host settings service.
 
 Web and Desktop default to Blue Gray (`themeSet: official`), including user layers without an explicit palette choice. Explicitly saved palettes remain selected; legacy accents apply only to an explicitly selected current-project palette. A new installation and Reset appearance select the official palette, system mode, system font, the standard corner scale, and 220 ms motion. Legacy Inter and Noto Sans SC values remain readable until a user picks a new font.
+
+Text, code, and terminal have independent sizes and font lists under More font settings on this Appearance page. Text ranges from 10–22 px, code from 10–16 px, and terminal from 10–20 px. An explicit role font list takes precedence over the interface preset; clearing it restores that role’s default stack. Cmd/Ctrl plus and minus adjust all three sizes within their own ranges. General does not duplicate these controls.
 
 ### Registering a theme
 
@@ -43,7 +45,7 @@ A composition can register a third-party theme id with alias-token overrides thr
 
 ### Pre-plugin palette
 
-When the host composition includes an HTTP server, the host half embeds the registered `ui-theme` settings, or schema defaults, into each index response. Head CSS selects the document canvas color scheme before any script runs, including a `prefers-color-scheme` query for the `system` preference. A body script then sets `body[data-ds-dark-theme]`, the accent/font/corner attributes, and `--dsh-content-font-size` before the loading page and application scripts, so the first paint uses the selected values.
+When the host composition includes an HTTP server, the host embeds the `ui-theme` settings or defaults into index responses. Head CSS resolves system mode before scripts run; a body script synchronously applies the dark marker, accent, font preset, corners, text/code/terminal sizes, and non-empty role font lists. First paint and `ThemeRuntime` therefore use the same saved values.
 
 -----
 
@@ -63,7 +65,7 @@ The service owns appearance state and publishes snapshots. The ui-layout present
 
 ### Stylesheets
 
-`base.css` owns the shared radius scale and settings-card material aliases. The material aliases resolve on `body`, alongside the active palette. Follow [Web styling](../../../docs/web-styling.md#corner-radii-and-settings-cards) when choosing component radii.
+`base.css` owns the shared radius scale, the font tokens, and settings-card material aliases. `--dsh-font-family-text-default` and `--dsh-font-family-code-default` hold the built-in stacks on `:root`; on `body`, `--dsw-font-family` and `--ds-font-family-code` place `--dsh-font-family-text` and `--dsh-font-family-code` ahead of those stacks, and an unset list resolves to the built-in stack (repeated once, which font matching ignores). The material aliases resolve on `body`, alongside the active palette. Follow [Web styling](../../../docs/web-styling.md#corner-radii-and-settings-cards) when choosing component radii.
 
 `src/styles/` holds eight sheets imported in order by ui-theme's dynamic client entry: `base.css`, `corner-shape.css`, `design-platform.css`, `focus.css`, `onboarding.css`, `scrollbar.css`, `gradient-shadow-text.css`, and `shiki.css`. The client bundle compiles and injects them as plugin-owned global styles, so unload and HMR remove them with ui-theme. `scrollbar.css` consumes the `--dsw-alias-scrollbar-*` tokens and must follow `design-platform.css`, which declares them. Status marks use their own semantic state tokens. `--dsw-alias-bg-document-selection` uses the local violet link color at 36% opacity in light mode and 34% in dark mode for selections over original document colors. `design-platform.css` also owns the code-diff fill aliases and their static alpha palette entries, plus the `--dsw-alias-file-diff-*` code, gutter, and marker palette for file comparisons; `shiki.css` owns syntax colors.
 
@@ -95,7 +97,7 @@ Sticky model-menu headings use `--dsw-alias-menu-group-header-fill`, derived fro
 
 ### Preference persistence
 
-The service provides itself immediately with the schema defaults on a loopback browser, then loads the `ui-theme` namespace and writes each accepted appearance change through the Host settings API. Pushed settings changes and reconnects refetch the namespace. Non-loopback pages do not create that Host-backed scope. The persistence boundary is owned by the [Host-backed preferences note](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.md).
+The service provides itself immediately with the schema defaults, then loads the `ui-theme` namespace and writes each accepted theme, font-size, or font-family change through the Host settings API. Pushed settings changes and reconnects refetch the namespace. While its own writes are pending, the service ignores refetched sections, so an echo of an earlier write cannot revert a later change; it adopts the durable section once the writes settle. The persistence boundary is owned by the [Host-backed preferences reference](../ui-settings/README.md).
 
 </details>
 
@@ -110,7 +112,7 @@ These pages cover the layout presenter, the token consumers, and the styling rul
 - [ui-sidebar](../ui-sidebar/README.md) — a consumer of the scrollbar rebinding contract.
 - [ui-conversation](../ui-conversation/README.md) — a consumer of `--dsh-scrollbar-width` for the composer seat.
 - [Web styling](../../../docs/web-styling.md) — the authoritative styling rules for web client components.
-- [Host-backed preferences](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.md) — the persistence boundary decision.
+- [Authenticated-browser Host preferences](../../../.agents/notes/implemented/bug-fix/2026-09-15-authenticated-browser-host-preferences.md) — the persistence policy decision.
 
 -----
 
@@ -142,5 +144,3 @@ These limits define the theme extension surface and the color authority; they ar
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. The settings scope validates and publishes the durable theme section, while the registry emits `theme/change` synchronously with its own mutations. Store/registry agreement is covered directly by this package's Host, scope, and service behavior specs.

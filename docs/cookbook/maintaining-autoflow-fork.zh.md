@@ -47,7 +47,7 @@ git log --oneline origin/deepseek-harness..HEAD
 
 | 所属模块与文档 | 需要保留的行为 | 审查位置 |
 |---|---|---|
-| [设置外壳](../../packages/client/ui-settings-general/README.zh.md)、[设置服务](../../packages/client/ui-settings/README.zh.md) | 设置独立页面、分组导航、折叠图标栏、本地化搜索和返回导航；底部不出现配置文件区域。 | `SettingsPage`、`SettingsNavIcon`、`search.ts`、各注册消费者、焦点恢复、未加载模块和资源释放。 |
+| [设置外壳](../../packages/client/ui-settings-general/README.zh.md)、[设置服务](../../packages/client/ui-settings/README.zh.md) | 设置独立页面、分组导航、折叠图标栏、本地化搜索和返回导航；配置文件入口使用底部设置操作插槽，不恢复弹窗标题区。 | `SettingsPage`、`SettingsNavIcon`、`search.ts`、各注册消费者、焦点恢复、未加载模块和资源释放。 |
 | [主题](../../packages/client/ui-theme/README.zh.md) | 统一页面尺寸；模式、配色、字体、圆角和动画选项；旧字体设置仍可读取。 | `ThemeSettingsPage`、`PalettePreview`、主题所属变量、语言键、已保存偏好的兼容性。 |
 | [侧栏](../../packages/client/ui-sidebar/README.zh.md)、[布局](../../packages/client/ui-layout/README.zh.md)、[官方品牌](../../packages/client/ui-brand-official/README.zh.md) | 紧凑且对齐的图标、单一品牌标识贡献、一致的折叠时间，以及 Windows 标题栏行为。 | 品牌插槽、布局列宽、折叠文字、右侧栏过渡和工作区缩进。 |
 | [模型](../../packages/client/ui-settings-models/README.zh.md) | 与实际布局一致的首次骨架屏、刷新保留草稿、紧凑模型控件、稳定的标签与删除覆盖、提供商折叠栏和设置页固定操作区。 | `ModelsSection`、`ProviderEditor`、`ModelsSkeleton`、折叠焦点、窄屏和两种主题。 |
@@ -60,6 +60,10 @@ git log --oneline origin/deepseek-harness..HEAD
 | [提问](../../packages/client/ui-user-questions/README.zh.md)、[基础组件](../../packages/client/ui-primitives/README.zh.md) | 紧凑提问区域和可复用的鼠标、焦点高亮，不改变其他调用者的默认行为。 | 折叠焦点、答案保留、`GlideHighlight.bridgeGaps`、监听器与动画帧释放。 |
 
 AFP 是独立的自定义插件，其源码、描述和 profile 选择仍由该插件管理；解决插件清单冲突时，不新增针对 AFP 的全局样式覆盖。
+
+按角色配置字体归属外观页，通用设置不重复展示；核对待完成写入的回传及旧偏好回退。ChatFlow 和 UserText 负责会话渲染；功能包注册自己的节点，不恢复旧节点列表，也不向基础组件添加领域解析。Better Sidebar 使用 Host Connection 请求检查，替代已移除的 webRuntime 服务。账号模型目录保持只读，不把环境/OAuth 认证替换成仅 API 密钥表单。
+
+产品依赖检查包含自定义 workspace 组合包及其更新器目录。保留 tsconfig 生成区域之外的手工源码别名；带相邻类型声明的 JavaScript 按实际 JavaScript 源文件追踪。将自定义组合包与发布 profile 一起检查，不把安装输出当作源码证据。
 
 <a id="3-resolve-changes-by-behavior"></a>
 

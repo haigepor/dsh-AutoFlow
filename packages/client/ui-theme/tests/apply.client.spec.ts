@@ -20,7 +20,7 @@ async function bench(isLoopback = true) {
   locale.setLocale('zh')
   ctx.provide('locale', locale)
   const section: Record<string, unknown> = {
-    preference: 'system', fontSize: 14, accent: 'iris', themeSet: 'official', glideDuration: 220, fontFamily: 'system', corners: 'standard',
+    codeFontSize: 11, terminalFontSize: 13, textFontFamily: '', codeFontFamily: '', terminalFontFamily: '', preference: 'system', fontSize: 14, accent: 'iris', themeSet: 'official', glideDuration: 220, fontFamily: 'system', corners: 'standard',
   }
   const namespace = () => ({
     ns: THEME_SETTINGS_NAMESPACE, schema: ThemeSettingsSchema.toJSON(), value: { ...section },
@@ -30,8 +30,7 @@ async function bench(isLoopback = true) {
     ok: true as const, value: { writable: true, hasDocument: true, namespaces: [namespace()] },
   }))
   const mutate = vi.fn((_ns: string, ops: { path: string[]; value: unknown }[]) => {
-    const op = ops[0]!
-    section[op.path[0]!] = op.value
+    for (const op of ops) section[op.path[0]!] = op.value
     return Promise.resolve({ ok: true as const, value: namespace() })
   })
   const events = new TestRemote(ctx, { settings: { describe, mutate } })
@@ -106,10 +105,10 @@ describe('ui-theme settings section', () => {
     const remote = await bench(false)
     await remote.ctx.plugin({ inject: [...inject], apply }).await()
     const remoteTheme = remote.ctx.get('theme') as ThemeRuntime
-    remoteTheme.setAccent('coral')
-    await Promise.resolve()
-    expect(remote.describe).not.toHaveBeenCalled()
-    expect(remote.mutate).not.toHaveBeenCalled()
+    remoteTheme.setTheme('dark')
+    await vi.waitFor(() => {
+      expect(remote.mutate).toHaveBeenCalledWith(THEME_SETTINGS_NAMESPACE, [{ op: 'set', path: ['preference'], value: 'dark' }], 0)
+    })
   })
 
   it('recovers after section collapse and removes its entry and copy on disposal', async () => {

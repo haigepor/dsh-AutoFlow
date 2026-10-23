@@ -2,7 +2,32 @@
 
 English | [中文](autoflow-upstream-integration.zh.md)
 
-This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.0-rc.2`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) stores current comparison references and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.1-rc.2`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) stores current comparison references and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+
+## `dsh-v0.2.1-rc.2` integration (2026-10-23)
+
+The official range starts at `dsh-v0.2.0-rc.2`: 1925 upstream commits, 9058 changed paths, 1516 pre-upgrade custom paths, and 430 overlaps without rename folding. The mirror `deepseek-harness` is synchronized and pushed to the verified target tag. Integration uses `codex/integrate-dsh-021rc2`; publishing `main`, tags, and releases requires separate authorization. Rollback references are `codex/backup-main-before-021rc2-20261023` and `codex/backup-mirror-before-021rc2-20261023`.
+
+### Integration decisions
+
+| Area | Adopted upstream behavior | Retained local implementation |
+| --- | --- | --- |
+| Settings and theme | Account navigation, role-specific fonts and sizes, zoom shortcuts, settings actions, and bottom-panel slots. | Full-window settings and return navigation; Appearance owns all font controls; existing palette, materials, corners, motion defaults, and responsive layout remain. Configuration-file access uses the existing bottom action slot. |
+| Models | Credential reveal, native environment/OAuth authentication, batched credential reads, and current provider catalogs. | Provider rail, independent configuration scrolling, compact forms, catalog table, ordering, reasoning controls, reset safeguards, and drafts across refresh. Account catalogs are read-only. |
+| Conversation and workspace | ChatFlow, domain-owned UserText, keyed notices, question state handling, and current provider execution. | Skill and plugin references, suggestion drafts, input history, queue and goal editors, title retry telemetry, workspace actions, and compact question presentation. |
+| Plugins | Installed/Discover catalogs, availability and installation targets, compatibility checks, and direct row navigation. | Two-column cards, rich details, compact back button, configuration dialogs, independent GitHub updates, AFP, and Better Sidebar. Missing packages retain source information and permitted removal. |
+| Desktop and custom plugins | Current runtime, signing safeguards, environment handling, and Host Connection admission. | Local distribution endpoints and test packaging; existing sidebar visuals. Better Sidebar replaces removed Host services and preserves subdirectory workspaces. |
+| Persistence and generated references | Official declarations and regenerated catalogs, lockfile, and notices. | Only the local title-attempt event needs a fork acknowledgement. Official acknowledgements and committed Session generations remain unchanged. |
+
+### Verification and remaining limits
+
+Host and Client library builds, Web and custom-plugin builds, both aggregate TypeScript checks, lint, and all 43 documentation checks pass. Focused checks cover settings, models, conversation, plugin updates, title execution, desktop packaging, and sidebar admission/worktrees; the final sidebar selection passes 162 tests with four existing skips. Settings browser checks pass for navigation and role-font persistence. An isolated profile checks light/dark Appearance, model layout, narrow-window overflow, plugin columns, compact return controls, and return navigation without altering the user's profile. The final cold browser session reports no console errors. Exact command evidence belongs to the integration commit description.
+
+Five style-policy assertions still fail: focus-ring corpus, corner-shape pairing, menu token ownership, radius exceptions, and elevated-surface discovery. The same current assertions reproduce the same five failures against an archive of pre-upgrade `main`. They are existing differences from official visual policy; no assertions are weakened and no protected styles are replaced to make them green.
+
+Three selected keyless headless replays fail on native Windows: `text-turn`, `tool-call-turn`, and its retained V3 input. Recorded cwd text differs from the JSON-escaped Windows path, and the recorded Bash tool is unavailable on this platform. The snapshot lane owns macOS/Linux evidence; no recorded Session generation or normalizer is rewritten. Real provider calls, signed installers, and macOS/Linux runtime validation remain outside this machine's evidence.
+
+Two hygiene checks remain outside the passing evidence. The ACP profile's committed symbolic link is checked out as a text stub on this Windows host, so Cordis configuration validation rejects it. Vendor rescope flags 20 uses of the preset ID `cordis`; applying the unchanged checker to the official blobs, or the pre-upgrade local illustration where upstream has no file, reproduces every flagged rewrite. Those IDs are not npm package references and remain unchanged. Package constraints, source reachability, dependencies, and unknown-cast checks are repaired and rechecked separately; the full hygiene aggregate is not reported as passing.
 
 ## `dsh-v0.2.0-rc.2` comparison and integration (2026-10-08)
 

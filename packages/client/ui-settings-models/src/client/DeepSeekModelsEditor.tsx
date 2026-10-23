@@ -121,7 +121,8 @@ export function validateDeepSeekModels(value: unknown): DeepSeekModelsValidation
       && (typeof maxTokens !== 'number' || !Number.isInteger(maxTokens) || maxTokens <= 0)) {
       return { index, key: 'modelMaxTokensInvalid' }
     }
-    const reasoningFailure = validateModelReasoning(model, Array.isArray(model['reasoningEfforts']))
+    const reasoningFailure = Array.isArray(model['reasoningEfforts']) || model['defaultReasoningEffort'] !== undefined
+      ? validateModelReasoning(model, Array.isArray(model['reasoningEfforts'])) : undefined
     if (reasoningFailure !== undefined) return { index, key: reasoningFailure }
   }
   return undefined

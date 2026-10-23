@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** Frame interactions with a real store and explicitly driven browser measurements. */
 import type { GlobalStandardProps, RenderOpts } from '@deepseek-ai/dsh-client-ui-slots'
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
+import { allowAllAccess, bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import { useLayoutEffect } from 'react'
@@ -107,6 +107,7 @@ function mountFrame(windowWidth = frameWidth, measureCommit?: (frame: HTMLElemen
       useSessionRetainInfo={() => undefined}
       useResource={useResource}
       useWorkspaces={sel => sel(workspaceState)}
+      {...allowAllAccess}
       t={key => key === 'brand.localBuild' ? 'DSH Local Build' : key}
     />
   )
@@ -229,12 +230,13 @@ describe('AppFrame', () => {
     expect(slotCalls.find(c => c.key === 'main')).toEqual({ key: 'main', props: {}, options: { entryKey: 'conversation' } })
   })
 
-  it('renders the main, sidebar, and root-scoped rightbar outlets without a current Session', () => {
+  it('renders the column and bottom outlets without a current Session', () => {
     selectedSession = undefined
     const { frame, getByTestId } = mountFrame()
     expect(getByTestId('main-content').getAttribute('data-entry-key')).toBe('conversation')
     expect(getByTestId('sidebar-content')).toBeTruthy()
     expect(getByTestId('rightbar-content')).toBeTruthy()
+    expect(getByTestId('shell.bottom-content').parentElement?.hasAttribute('data-shell-bottom')).toBe(true)
     expect(tracks(frame)).toEqual([280, 0])
   })
 
