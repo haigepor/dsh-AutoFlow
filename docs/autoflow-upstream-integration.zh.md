@@ -27,7 +27,15 @@ Host、Client 库构建、Web 与自定义插件构建、两侧聚合 TypeScript
 
 原生 Windows 上选取的三项无密钥 headless 回放失败：`text-turn`、`tool-call-turn` 及其保留的 V3 输入。录制的 cwd 文本与经过 JSON 转义的 Windows 路径不同，录制使用的 Bash 工具在该平台不可用。快照所属验证平台为 macOS/Linux；未改写录制的会话日志代际或归一化器。真实提供商调用、签名安装包及 macOS/Linux 运行验证不属于此次本机证据。
 
-两项 hygiene 检查仍不属于通过证据。ACP profile 已提交的符号链接在此 Windows 主机上被检出为文本，因此 Cordis 配置检查拒绝该文件。Vendor 改名检查把 20 处预设 ID `cordis` 当作包名；对官方文件内容运行相同检查器，或在官方没有对应文件时检查升级前的本地插画文件，均复现所报的改写。这些 ID 不是 npm 包引用，保持原值。包约束、源码可达性、依赖和 unknown 断言检查已分别修复并复验，不把完整 hygiene 聚合报告为通过。
+两项 hygiene 检查仍不属于通过证据。ACP profile 已提交的符号链接在此 Windows 主机上被检出为文本，因此 Cordis 配置检查拒绝该文件。Vendor 改名检查报告了 20 个包含预设 ID `cordis` 或 `cordis/inspect-*` 事件键的文件；对官方文件内容运行相同检查器，或在官方没有对应文件时检查升级前的本地插画文件，均复现所报的改写。这些 ID 和事件键不是 npm 包引用，保持原值。包约束、源码可达性、依赖和 unknown 断言检查已分别修复并复验，不把完整 hygiene 聚合报告为通过。
+
+### 交付复查
+
+追加复查修复了两项过期构建图预期和一项设置动作插槽预期。产物构建图明确在 Client 后构建 AFP 与 Better Sidebar，Web 等待两者完成；动作插槽测试实际调用注册的文档操作，不恢复设置弹窗。完整 `pnpm run build` 的 11 个步骤全部通过，包括原生产物准备、两侧聚合检查、自定义组合包及 Web。构建与源码检查聚焦测试通过 106 项，另有一项既有跳过；Host、profile、元数据、设置及主题选择通过 208 项，另有一项既有跳过。两项图标归属测试在 Windows 使用目录 junction，仍验证拒绝其他包资源，无需文件符号链接权限；POSIX 保留文件符号链接用例。
+
+远程整理保留 `main` 承载定制产品，`deepseek-harness` 固定核验后的官方标签。镜像现在跟踪 `origin/deepseek-harness`，替代持续变化的 `upstream/master`；交付按用户授权推送已审阅的 main 及现有官方目标标签。`milestone/pre-upstream-v0.2.1-rc.2` 保留升级前产品，`milestone/upstream-v0.2.1-rc.2` 固定复查后的集成结果，供新克隆准确使用；本地备份与集成分支也继续保留。原有未跟踪 OpenSpec 修改不纳入提交。一个未关联的临时检出因应用无法核验归属而保留。
+
+沿用的完整 CI 监听拉取请求及 `master` 推送，不监听普通 `main` 推送；真实 API 工作流另有 fork 主动开启条件。因此推送成功不代表远程 CI 通过；在适用的远程运行完成前，以已记录的本地证据为准。既有视觉策略失败、Windows 回放限制及 hygiene 限制仍列为后续事项。
 
 ## `dsh-v0.2.0-rc.2` 对比与集成（2026-10-08）
 

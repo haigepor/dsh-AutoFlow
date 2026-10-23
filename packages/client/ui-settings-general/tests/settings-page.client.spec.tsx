@@ -21,11 +21,12 @@ function mount(rows: readonly SettingsSectionRow[] = [
   const shell = createSettingsShellStore().create()
   shell.actions.open()
   const closeSettings = vi.fn()
+  const openDocument = vi.fn()
   const renderSlot = vi.fn(((name: string, _props: object, opts?: { only?: string }) => {
     if (name === 'settings.section') return <div data-testid={`section-${opts?.only}`}><h2 id="font-heading">Font</h2></div>
     if (name === 'settings.close') return 'Back'
     if (name === 'settings.header') return 'Settings'
-    if (name === 'settings.action') return 'Open configuration file'
+    if (name === 'settings.action') return <button onClick={openDocument}>Open configuration file</button>
     return null
   }) as SettingsPageComponentProps['renderSlot'])
   const props = {
@@ -38,12 +39,12 @@ function mount(rows: readonly SettingsSectionRow[] = [
     closeSettings, renderSlot, t: makeTranslate(en),
   } as SettingsPageComponentProps
   const view = render(<SettingsPage {...props} />)
-  return { shell, closeSettings, renderSlot, view }
+  return { shell, closeSettings, openDocument, renderSlot, view }
 }
 
 describe('SettingsPage', () => {
-  it('renders section navigation without a document footer or dialog', () => {
-    const { renderSlot } = mount()
+  it('renders section navigation and the settings action slot without a dialog', () => {
+    const { renderSlot, openDocument } = mount()
     expect(document.querySelector('[data-settings-page]')).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByRole('navigation', { name: 'Settings' })).toBeTruthy()
@@ -51,8 +52,10 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('heading', { name: 'Preferences' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Models and agents' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Plugins and apps' })).toBeTruthy()
-    expect(screen.queryByText('Open configuration file')).toBeNull()
-    expect(document.querySelector('[data-settings-page] footer')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Open configuration file' }))
+    expect(openDocument).toHaveBeenCalledOnce()
+    expect(document.querySelector('[data-settings-page] footer')).toBeTruthy()
+    expect(renderSlot).toHaveBeenCalledWith('settings.action', {})
     expect(screen.getByTestId('section-general')).toBeTruthy()
     const sectionCall = vi.mocked(renderSlot).mock.calls.find(call => call[0] === 'settings.section')
     expect(sectionCall?.[2]).toEqual({ only: 'general' })

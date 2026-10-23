@@ -22,6 +22,8 @@
 
 官方仓库是 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)，在本指南基线时的默认分支为 `master`。AutoFlow 发布 `main`，`origin/deepseek-harness` 保存官方镜像。每次更新时重新核对远程地址和分支名称；镜像可能落后于官方仓库。
 
+本地镜像的跟踪分支保持为 `origin/deepseek-harness`；从 `upstream` 读取官方变化，仅推进到明确核验的目标。发布集成结果时同步同一官方目标标签，让新克隆的 fork 可以解析文档中的比较引用。
+
 每次更新的比较起点是定制提交系列开始前的 AutoFlow 提交，以及先前已核实的官方镜像提交。将准确标识记录在本次更新的提交或拉取请求描述中，历史引用归属于这些记录；本指南链接持续维护的分支，不在仓库文档中嵌入提交标识。
 
 1. 从干净检出开始，记录当前 AutoFlow 提交、旧官方提交、拟合并的新官方提交，以及它们的共同祖先。单独备份本机 profile 文件，Git 无法恢复这些文件。
@@ -64,6 +66,8 @@ AFP 是独立的自定义插件，其源码、描述和 profile 选择仍由该�
 按角色配置字体归属外观页，通用设置不重复展示；核对待完成写入的回传及旧偏好回退。ChatFlow 和 UserText 负责会话渲染；功能包注册自己的节点，不恢复旧节点列表，也不向基础组件添加领域解析。Better Sidebar 使用 Host Connection 请求检查，替代已移除的 webRuntime 服务。账号模型目录保持只读，不把环境/OAuth 认证替换成仅 API 密钥表单。
 
 产品依赖检查包含自定义 workspace 组合包及其更新器目录。保留 tsconfig 生成区域之外的手工源码别名；带相邻类型声明的 JavaScript 按实际 JavaScript 源文件追踪。将自定义组合包与发布 profile 一起检查，不把安装输出当作源码证据。
+
+产物构建在 Client bundle 完成后编译 AFP 和 Better Sidebar，Web 等待两者完成。构建图测试及命令须覆盖这一本地依赖顺序；各包分别构建成功不能证明聚合构建图已经验证。
 
 <a id="3-resolve-changes-by-behavior"></a>
 

@@ -281,12 +281,15 @@ describe('plugin locale display metadata', () => {
     }
   })
 
-  it.each(['manifest', 'export'])('refuses a %s icon file symlink owned by another package', (source) => {
-    manifest({ './package.json': './package.json', './icon': './icon.svg' }, source === 'manifest' ? { icon: './icon.svg' } : {})
+  it.each(['manifest', 'export'])('refuses a %s icon reached through a foreign package link', (source) => {
+    const icon = process.platform === 'win32' ? './linked/icon.svg' : './icon.svg'
+    manifest({ './package.json': './package.json', './icon': icon }, source === 'manifest' ? { icon } : {})
     const foreign = join(root, 'foreign-package', 'icon.svg')
     file(foreign, '<svg/>')
     file(join(root, 'foreign-package', 'package.json'), '{"name":"foreign-package"}')
-    symlinkSync(foreign, join(dir, 'icon.svg'), 'file')
+    // Windows 目录 junction 不需要文件符号链接权限，仍验证实际路径越过包目录后的拒绝行为。
+    if (process.platform === 'win32') symlinkSync(dirname(foreign), join(dir, 'linked'), 'junction')
+    else symlinkSync(foreign, join(dir, 'icon.svg'), 'file')
     const meta = readPluginMeta('localized', parentURL)
     expect(meta?.icon).toBeUndefined()
     expect(meta?.error).toContain(source === 'manifest' ? 'icon must remain inside its manifest directory' : 'icon must remain inside its package directory')

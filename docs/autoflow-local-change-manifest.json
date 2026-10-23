@@ -3,7 +3,7 @@
   "officialRef": "dsh-v0.2.1-rc.2",
   "oldOfficialRef": "dsh-v0.2.0-rc.2",
   "mainRef": "main",
-  "rollbackRef": "codex/backup-main-before-021rc2-20261023",
+  "rollbackRef": "milestone/pre-upstream-v0.2.1-rc.2",
   "comparison": {
     "officialCommits": 1925,
     "officialPaths": 9058,
@@ -6034,6 +6034,10 @@
     },
     {
       "status": "M",
+      "path": "scripts/build.spec.ts"
+    },
+    {
+      "status": "M",
       "path": "scripts/build.ts"
     },
     {
@@ -7019,7 +7023,7 @@
   "maintenanceGuide": "docs/cookbook/maintaining-autoflow-fork.zh.md",
   "currentProtection": {
     "recordedDate": "2026-10-23",
-    "sourceBaseline": "codex/backup-main-before-021rc2-20261023",
+    "sourceBaseline": "milestone/pre-upstream-v0.2.1-rc.2",
     "behaviorOwners": [
       "custom-plugins/workspace/dsh-plugin-afp",
       "custom-plugins/release-governance",
@@ -10268,5 +10272,29 @@
       }
     ]
   },
-  "integrationRef": "codex/integrate-dsh-021rc2"
+  "integrationRef": "milestone/upstream-v0.2.1-rc.2",
+  "audit": {
+    "date": "2026-10-23",
+    "mainRemote": "origin/main",
+    "mirrorTracking": "origin/deepseek-harness",
+    "scope": "Merged interfaces and consumers, preserved local visuals, build graph, Host admission, metadata isolation, settings actions, persistence records, generated references, Git refs and workflow triggers.",
+    "checks": {
+      "completeBuild": "11 passed",
+      "buildAndSourceTests": "106 passed, 1 existing skip",
+      "hostSettingsThemeTests": "208 passed, 1 existing skip"
+    },
+    "fixes": [
+      "Custom bundle build graph expectations and commands",
+      "Settings action-slot rendering and invocation expectation",
+      "Windows foreign-icon fixture uses a junction with the same rejection assertions",
+      "Mirror tracking ref and portable integration/rollback tags"
+    ],
+    "remaining": [
+      "Five existing style-policy assertions",
+      "Native-Windows keyless replay cwd/Bash limits",
+      "ACP symlink checkout and vendor rescope preset/event-key false positives",
+      "Inherited full CI has no ordinary main-push trigger",
+      "Unattached temporary worktree ownership is unverifiable; retained"
+    ]
+  }
 }

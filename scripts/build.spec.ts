@@ -12,7 +12,9 @@ const artifactGraph = {
   'desktop-bundle': ['host-bundle'],
   'client-src': ['desktop-bundle'],
   'client-bundle': ['client-src'],
-  'web': ['client-bundle'],
+  'afp': ['client-bundle'],
+  'sidebar': ['client-bundle'],
+  'web': ['afp', 'sidebar'],
 }
 
 function graph(gates: ReturnType<typeof buildGates>): Record<string, string[] | undefined> {
@@ -59,8 +61,11 @@ describe('repository build CLI', () => {
 })
 
 describe('repository build steps', () => {
-  it('keeps artifact steps in serial dependency order', () => {
+  it('builds custom bundles after Client and waits for both before Web', () => {
     expect(graph(buildGates(root, 'artifacts'))).toEqual(artifactGraph)
+    const gates = buildGates(root, 'artifacts')
+    expect(gates.find(gate => gate.id === 'afp')?.args.slice(-2)).toEqual(['run', 'build:afp'])
+    expect(gates.find(gate => gate.id === 'sidebar')?.args.slice(-2)).toEqual(['run', 'build:sidebar'])
   })
 
   it('checks both aggregate programs without artifact predecessors', () => {

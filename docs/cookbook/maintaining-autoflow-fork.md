@@ -22,6 +22,8 @@ Use this guide to compare AutoFlow customizations with an upstream update before
 
 The official repository is [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness), whose default branch is `master` at this guide's baseline. AutoFlow publishes `main`; `origin/deepseek-harness` is its upstream mirror. Verify both remote URLs and branch names again when updating; the mirror may lag the official repository.
 
+Keep the local mirror's tracking branch at `origin/deepseek-harness`; read official changes from `upstream` and advance the mirror only to the explicitly verified target. Push the same official target tag when publishing an integration so a fresh fork clone can resolve the documented comparison ref.
+
 For each update, the comparison baseline is the AutoFlow tip before the customization series and the previously verified upstream mirror tip. Record their exact identifiers in the update's commit or pull-request description, where historical references belong; this guide links maintained branches rather than embedding repository commit identifiers.
 
 1. Start from a clean checkout and record the current AutoFlow tip, the old upstream tip, the proposed official tip, and their merge base. Preserve local profile files separately; Git cannot recover them.
@@ -64,6 +66,8 @@ AFP is a separate custom plugin. Its source, descriptions and profile choices re
 Role-specific font controls belong to Appearance; General must not duplicate them. Review pending-write echoes and legacy preference fallbacks. ChatFlow and UserText own conversation rendering; feature packages register their own nodes rather than restoring the removed node list or adding domain parsing to primitives. Better Sidebar uses Host Connection admission instead of the removed webRuntime service. Account model catalogs remain read-only, and environment/OAuth authentication must not be replaced with an API-key-only form.
 
 Product-use validation includes custom workspace bundles and their updater directories. Preserve the handwritten source aliases outside the generated tsconfig region; JavaScript with adjacent declarations is traced through its actual JavaScript source. Check the custom bundles together with the shipped profile instead of treating their installed output as source evidence.
+
+The artifact build compiles AFP and Better Sidebar after the Client bundle and waits for both before Web. Keep the build graph tests and commands aligned with this fork-specific dependency order; separately successful package builds do not verify the aggregate graph.
 
 <a id="3-resolve-changes-by-behavior"></a>
 
