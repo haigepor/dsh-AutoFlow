@@ -3,35 +3,47 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write README.md
 /autoflow:
-  en: 5e66256d290f3147
-  zh: b0d463933ce37b34
-/autoflow/developer-preview:
-  en: 4ef4d8a71ac143f0
-  zh: 1bfc3149ba8e5543
-/autoflow/run:
-  en: 4e0248e4c6474fc6
-  zh: eb2fb8d78c7d6bc0
-/autoflow/run/run-from-npm:
-  en: 905e97465600ea19
-  zh: ce23cd8a4552b16e
-/autoflow/run/run-from-source:
-  en: 8dbb3d49054603d0
-  zh: 752b43a2cf3f272a
-/autoflow/run/update-another-device:
-  en: dc396ec6e5e16772
-  zh: d2c3855c65db63b5
-/autoflow/community-and-support:
-  en: 20acf6451fdc869b
-  zh: d06246dd019ecef7
-/autoflow/contributing:
-  en: cabc2d3e9f8898bd
-  zh: 83b6d238bae29ce3
-/autoflow/development:
-  en: 803ca2b11b497bed
-  zh: 8b4071eb0e7783ef
-/autoflow/citation:
-  en: 6704e9e5a8d49a91
-  zh: 85c9cdd8d56f8e9d
-/autoflow/license:
-  en: 926995344fc1c72b
-  zh: c92fab5abf85932f
+  en: 7bc43cacd9b7b118
+  zh: d58f56450547b625
+/autoflow/summary:
+  en: 5c41195bcac90db6
+  zh: 55550efb86627ae5
+/autoflow/table-of-contents:
+  en: 3a2961ef4e2e209d
+  zh: 2995cd6dd6d5bf3d
+/autoflow/what-makes-autoflow-different:
+  en: e3c505ea8af83fc4
+  zh: badad749880c7149
+/autoflow/install-and-run:
+  en: 4c3cd940104420a6
+  zh: f44dd94976cbc018
+/autoflow/install-and-run/prerequisites:
+  en: d7421a2c507fb028
+  zh: 1b5bcd01e6b1815a
+/autoflow/install-and-run/run-autoflow-from-source:
+  en: fbdc04ffca6b0f9c
+  zh: c8323d14335847d6
+/autoflow/install-and-run/run-upstream-deepseek-harness:
+  en: 6ff198c9f232ce9a
+  zh: 84f4824281a25ba4
+/autoflow/first-session:
+  en: f639b0c9d855492e
+  zh: 1dbef2f033307d04
+/autoflow/update-an-existing-checkout:
+  en: 9d68a40f531c8b44
+  zh: 437aa3b6e83ac5af
+/autoflow/troubleshooting:
+  en: aa31402ec2de133b
+  zh: 9703f83e6c26d30c
+/autoflow/development-and-support:
+  en: 645dc62147c12275
+  zh: 3f71d6a4f409a126
+/autoflow/upstream-and-license:
+  en: 4d69e2d0be9fd1fb
+  zh: 6fd81aa1e52b605e
+/autoflow/upstream-and-license/citation:
+  en: 5d651b6ff6d5f981
+  zh: 8be53fc2365e6745
+/autoflow/dev-note:
+  en: a2f0ed1ae8083bd9
+  zh: 695e1b1fec4779b6
