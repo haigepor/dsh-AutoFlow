@@ -15,6 +15,10 @@ export const FOS_PICKFOLDERS = 0x20
 export const FOS_FORCEFILESYSTEM = 0x40
 /** `FOS_NOCHANGEDIR`: never mutate the process working directory. */
 export const FOS_NOCHANGEDIR = 0x8
+/** `FOS_ALLOWMULTISELECT`: return every selected image path. */
+export const FOS_ALLOWMULTISELECT = 0x200
+const FOS_FILEMUSTEXIST = 0x1000
+const FOS_PATHMUSTEXIST = 0x800
 
 /** One created folder dialog: the vtable calls the sequencing needs. */
 export interface Win32FolderDialog {
@@ -42,6 +46,12 @@ export interface Win32FolderDialog {
    * @returns the call chain's HRESULT and, on success, the selected path.
    */
   resultPath(): { hr: number; path?: string }
+  /** Apply JPEG, PNG and WebP file filters. @returns The call's HRESULT. */
+  setImageFilter(): number
+  /** Add a current-folder button beside image selection. @param label Localized button text. @returns HRESULT. */
+  enableFolderChoice(label: string): number
+  /** Read all selected filesystem paths, releasing every COM item. @returns HRESULT and paths. */
+  resultPaths(): { hr: number; paths?: string[] }
   /** Release the dialog's COM reference. */
   release(): void
 }
@@ -121,6 +131,48 @@ export function runFolderDialog(
   title: string,
   onShowing: (threadId: number) => void,
 ): string | null {
+  return runDialog(bindings, title, onShowing, FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR, (dialog) => {
+    const result = dialog.resultPath()
+    check(result.hr, 'GetResult')
+    return result.path as string
+  })
+}
+
+/** Open an image-only, multiple-selection dialog without reading or copying the selected files.
+ * @param bindings Native COM operations.
+ * @param title Localized window title.
+ * @param onShowing Dialog-thread notice used to cancel the modal window.
+ * @returns Original filesystem paths, or null on cancel.
+ */
+export function runImageDialog(bindings: Win32DialogBindings, title: string, onShowing: (threadId: number) => void): string[] | null {
+  const options = FOS_ALLOWMULTISELECT | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR
+  return runDialog(bindings, title, onShowing, options, (dialog) => {
+    const result = dialog.resultPaths()
+    check(result.hr, 'GetResults')
+    return result.paths as string[]
+  }, (dialog) => { check(dialog.setImageFilter(), 'SetFileTypes') })
+}
+
+/** Open one window for individual images or the current folder, without copying bytes.
+ * @param bindings Native COM operations.
+ * @param title Localized title.
+ * @param folderLabel Current-folder button label.
+ * @param onShowing Dialog-thread notice for cancellation.
+ * @returns Selected original image or folder paths, or null.
+ */
+export function runReferenceDialog(
+  bindings: Win32DialogBindings, title: string, folderLabel: string, onShowing: (threadId: number) => void,
+): string[] | null {
+  const options = FOS_ALLOWMULTISELECT | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR
+  return runDialog(bindings, title, onShowing, options, (dialog) => {
+    const result = dialog.resultPaths(); check(result.hr, 'GetResults'); return result.paths as string[]
+  }, (dialog) => { check(dialog.setImageFilter(), 'SetFileTypes'); check(dialog.enableFolderChoice(folderLabel), 'AddFolderChoice') })
+}
+
+function runDialog<T>(
+  bindings: Win32DialogBindings, title: string, onShowing: (threadId: number) => void,
+  options: number, read: (dialog: Win32FolderDialog) => T, configure?: (dialog: Win32FolderDialog) => void,
+): T | null {
   bindings.setThreadDpiAwareness()
   check(bindings.coInitializeSta(), 'CoInitializeEx')
   // From here the apartment is initialized (S_OK or S_FALSE) and must be
@@ -128,16 +180,15 @@ export function runFolderDialog(
   try {
     const dialog = bindings.createFolderDialog()
     try {
-      check(dialog.setOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR), 'SetOptions')
+      check(dialog.setOptions(options), 'SetOptions')
       check(dialog.setTitle(title), 'SetTitle')
+      configure?.(dialog)
       onShowing(bindings.currentThreadId())
       bindings.pressAltForForeground()
       const shown = dialog.show()
       if (shown === HRESULT_CANCELLED) return null
       check(shown, 'Show')
-      const result = dialog.resultPath()
-      check(result.hr, 'GetResult')
-      return result.path as string
+      return read(dialog)
     } finally {
       dialog.release()
     }

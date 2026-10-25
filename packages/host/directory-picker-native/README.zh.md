@@ -27,6 +27,8 @@ kind: "package-reference"
 
 当操作者工作在宿主屏幕前，且原生选择器是合适的交互时，组合此后端。打开目录选择器的工作区流程每个打开请求调用一次 `pick(signal)`；返回的 Promise 解析为所选绝对路径，操作者取消时解析为 `null`。
 
+导出的图片选择器复用同一平台窗口，筛选 JPEG、PNG 和 WebP，并支持多选。它返回原始路径，取消时返回 `null`，不读取或复制图片内容。调用方提供本地化标题；目录选择也可提供本地化标题，工作区选择行为保持一致。`pickNativeReferences` 接收本地化标题、图片模式和文件夹动作标签：Windows 在图片窗口添加“引用当前文件夹”按钮，macOS 允许同时选择文件与文件夹，Linux 先选择类型再打开对应窗口。返回原始路径，不复制图片字节。
+
 ### 何时选择
 
 为 macOS、Windows 或桌面 Linux 上的工作站本地操作者选择此后端。当客户端无法触达 OS 选择器时——远程浏览器、SSH 转发会话或无人值守宿主——请选择[浏览后端](../directory-picker-browse/README.zh.md)。具体情况不固定时，[自适应选择器](../directory-picker-auto/README.zh.md)会在启动时判定。

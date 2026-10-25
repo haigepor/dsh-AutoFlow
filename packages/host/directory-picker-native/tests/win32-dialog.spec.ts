@@ -9,7 +9,7 @@
 import { spawnSync } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { pickWin32Directory, type Win32DialogInternals, type Win32DialogWorkerLike } from '../src/win32-dialog.ts'
+import { pickWin32Directory, pickWin32Images, pickWin32References, type Win32DialogInternals, type Win32DialogWorkerLike } from '../src/win32-dialog.ts'
 import type { Win32DialogWorkerMessage } from '../src/win32-dialog-worker.ts'
 
 class FakeWorker extends EventEmitter implements Win32DialogWorkerLike {
@@ -65,6 +65,23 @@ const opensRealDialog = process.platform === 'win32' && spawnSync('powershell.ex
 ], { encoding: 'utf8' }).status !== 1
 
 describe('pickWin32Directory', () => {
+  it('passes the folder label and resolves the combined picker selection through the child protocol', async () => {
+    const h = harness(), spawnWorker = vi.fn(() => h.worker)
+    const chosen = pickWin32References(live(), 'References', 'Use current folder', { ...h.internals, spawnWorker })
+    h.worker.post({ kind: 'images-done', paths: ['C:\\Photos'] })
+    await expect(chosen).resolves.toEqual(['C:\\Photos'])
+    expect(spawnWorker).toHaveBeenCalledWith({ title: 'References', folderLabel: 'Use current folder', kind: 'references' })
+  })
+  it('uses image mode on the same worker and propagates cancellation without paths', async () => {
+    const first = harness(), spawnWorker = vi.fn(() => first.worker)
+    const selected = pickWin32Images(live(), '引用图片', { ...first.internals, spawnWorker })
+    first.worker.post({ kind: 'images-done', paths: ['C:\\图库\\一.JPG', 'C:\\图库\\二.PNG'] })
+    await expect(selected).resolves.toEqual(['C:\\图库\\一.JPG', 'C:\\图库\\二.PNG'])
+    expect(spawnWorker).toHaveBeenCalledWith({ title: '引用图片', kind: 'images' })
+    const second = harness(), cancelled = pickWin32Images(live(), '引用图片', second.internals)
+    second.worker.post({ kind: 'images-done', paths: null })
+    await expect(cancelled).resolves.toBeNull()
+  })
   it('resolves the selected path and the cancellation null', async () => {
     const first = harness()
     const picked = pickWin32Directory(live(), first.internals)

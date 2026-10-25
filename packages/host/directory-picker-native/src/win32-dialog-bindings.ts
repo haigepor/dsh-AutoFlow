@@ -13,18 +13,23 @@
  */
 
 import type { Win32DialogBindings, Win32FolderDialog } from './win32-dialog-logic.ts'
+import { createWin32DialogEvents } from './win32-dialog-events.ts'
 
 interface KoffiFunction { (...args: unknown[]): unknown }
 interface KoffiLibrary { func(convention: string, name: string, result: string, args: string[]): KoffiFunction }
 interface Koffi {
   load(path: string): KoffiLibrary
   proto(declaration: string): unknown
+  proto(convention: string, result: string, args: string[]): unknown
+  struct(name: string, members: Record<string, string>): unknown
   pointer(type: unknown): unknown
   call(pointer: unknown, proto: unknown, ...args: unknown[]): unknown
   decode(value: unknown, offsetOrType: unknown, type?: unknown): unknown
   register(fn: (...args: unknown[]) => unknown, type: unknown): unknown
   unregister(callback: unknown): void
   sizeof(type: string): number
+  address(value: Buffer): bigint
+  encode(value: unknown, type: string, data: unknown): void
 }
 
 /**
@@ -66,6 +71,10 @@ const SLOT_SHOW = 3
 const SLOT_SET_OPTIONS = 9
 const SLOT_SET_TITLE = 17
 const SLOT_GET_RESULT = 20
+const SLOT_SET_FILE_TYPES = 4
+const SLOT_GET_RESULTS = 27
+const SLOT_ARRAY_GET_COUNT = 7
+const SLOT_ARRAY_GET_ITEM = 8
 /** IShellItem vtable slot for `GetDisplayName`. */
 const SLOT_GET_DISPLAY_NAME = 5
 
@@ -86,6 +95,8 @@ function guidBytes(text: string): Buffer {
 
 const CLSID_FILE_OPEN_DIALOG = guidBytes('dc1c5a9c-e88a-4dde-a5a1-60f82a20aef7')
 const IID_IFILE_OPEN_DIALOG = guidBytes('d57c7288-d4ad-4768-be02-9d969532d960')
+const IID_IFILE_DIALOG_CUSTOMIZE = guidBytes('e6fdd21a-163f-4975-9c8c-a69f1ba37034')
+const FOLDER_BUTTON_ID = 1001
 
 /**
  * Load koffi and expose the dialog bindings for this thread.
@@ -111,8 +122,17 @@ export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
   const protoSetOptions = koffi.proto('int32 __stdcall DshDialogSetOptions(void *self, uint32 options)')
   const protoSetTitle = koffi.proto('int32 __stdcall DshDialogSetTitle(void *self, str16 title)')
   const protoGetResult = koffi.proto('int32 __stdcall DshDialogGetResult(void *self, _Out_ void **item)')
+  koffi.struct('DshImageFilter', { name: 'str16', spec: 'str16' })
+  const protoSetFileTypes = koffi.proto('int32 __stdcall DshDialogSetFileTypes(void *self, uint32 count, const DshImageFilter *filters)')
+  const protoGetCount = koffi.proto('int32 __stdcall DshItemsGetCount(void *self, _Out_ uint32 *count)')
+  const protoGetItem = koffi.proto('int32 __stdcall DshItemsGetItemAt(void *self, uint32 index, _Out_ void **item)')
   const protoGetDisplayName = koffi.proto('int32 __stdcall DshItemGetDisplayName(void *self, int32 form, _Out_ void **name)')
   const protoRelease = koffi.proto('uint32 __stdcall DshComRelease(void *self)')
+  const protoQuery = koffi.proto('int32 __stdcall DshComQuery(void *self, void *iid, _Out_ void **object)')
+  const protoAddButton = koffi.proto('int32 __stdcall DshAddButton(void *self, uint32 id, str16 label)')
+  const protoAdvise = koffi.proto('int32 __stdcall DshAdvise(void *self, void *events, _Out_ uint32 *cookie)')
+  const protoUnadvise = koffi.proto('int32 __stdcall DshUnadvise(void *self, uint32 cookie)')
+  const protoClose = koffi.proto('int32 __stdcall DshDialogClose(void *self, int32 result)')
 
   /** Bind vtable slot `slot` of COM object `self` to a caller through `proto`. */
   const method = (self: unknown, slot: number, proto: unknown): (...args: unknown[]) => number => {
@@ -154,10 +174,48 @@ export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
       const created = coCreateInstance(CLSID_FILE_OPEN_DIALOG, null, CLSCTX_INPROC_SERVER, IID_IFILE_OPEN_DIALOG, out) as number
       if (created < 0) throw new Error(`CoCreateInstance(FileOpenDialog) failed: HRESULT 0x${(created >>> 0).toString(16)}`)
       const dialog = koffi.decode(out, 'void *')
+      let customize: unknown, sink: ReturnType<typeof createWin32DialogEvents> | undefined, cookie: number | undefined
+      let folderPath: string | undefined, callbackError: Error | undefined
       return {
         setOptions: options => method(dialog, SLOT_SET_OPTIONS, protoSetOptions)(options),
         setTitle: title => method(dialog, SLOT_SET_TITLE, protoSetTitle)(title),
-        show: () => method(dialog, SLOT_SHOW, protoShow)(null),
+        setImageFilter: () => method(dialog, SLOT_SET_FILE_TYPES, protoSetFileTypes)(1, [{ name: 'JPEG / PNG / WebP', spec: '*.jpg;*.jpeg;*.png;*.webp' }]),
+        show: () => { const hr = method(dialog, SLOT_SHOW, protoShow)(null); if (callbackError) throw callbackError; return hr },
+        enableFolderChoice: (label) => {
+          const customOut: unknown[] = [null]
+          const queried = method(dialog, 0, protoQuery)(IID_IFILE_DIALOG_CUSTOMIZE, customOut)
+          if (queried < 0) return queried
+          customize = customOut[0]
+          const added = method(customize, 5, protoAddButton)(FOLDER_BUTTON_ID, label)
+          if (added < 0) return added
+          sink = createWin32DialogEvents(koffi, (id) => {
+            if (id !== FOLDER_BUTTON_ID) return 0
+            try {
+              const itemOut: unknown[] = [null]
+              const got = method(dialog, 13, protoGetResult)(itemOut)
+              if (got < 0) throw new Error(`GetFolder failed: HRESULT 0x${(got >>> 0).toString(16)}`)
+              const item = itemOut[0]
+              try {
+                const nameOut: unknown[] = [null]
+                const named = method(item, SLOT_GET_DISPLAY_NAME, protoGetDisplayName)(SIGDN_FILESYSPATH, nameOut)
+                if (named < 0) throw new Error(`GetDisplayName failed: HRESULT 0x${(named >>> 0).toString(16)}`)
+                try { folderPath = readUtf16(koffi, nameOut[0], pointerSize) } finally { coTaskMemFree(nameOut[0]) }
+              } finally { method(item, SLOT_RELEASE, protoRelease)() }
+              const closed = method(dialog, 23, protoClose)(0)
+              if (closed < 0) throw new Error(`Close failed: HRESULT 0x${(closed >>> 0).toString(16)}`)
+              return 0
+            } catch (error) {
+              // 异常不能穿过 COM 回调；关闭窗口后在 Show 的调用方报告。
+              callbackError = error instanceof Error ? error : new Error(String(error))
+              method(dialog, 23, protoClose)(0x80004005 | 0)
+              return 0x80004005 | 0
+            }
+          })
+          const advised: [number] = [0]
+          const hr = method(dialog, 7, protoAdvise)(sink.pointer, advised)
+          if (hr >= 0) cookie = advised[0]
+          return hr
+        },
         resultPath: () => {
           const itemOut: unknown[] = [null]
           const gotItem = method(dialog, SLOT_GET_RESULT, protoGetResult)(itemOut)
@@ -174,8 +232,38 @@ export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
             method(item, SLOT_RELEASE, protoRelease)()
           }
         },
+        resultPaths: () => {
+          if (folderPath !== undefined) return { hr: 0, paths: [folderPath] }
+          const itemsOut: unknown[] = [null]
+          const gotItems = method(dialog, SLOT_GET_RESULTS, protoGetResult)(itemsOut)
+          if (gotItems < 0) return { hr: gotItems }
+          const items = itemsOut[0]
+          try {
+            const count: [number] = [0]
+            const counted = method(items, SLOT_ARRAY_GET_COUNT, protoGetCount)(count)
+            if (counted < 0) return { hr: counted }
+            const paths: string[] = []
+            for (let index = 0; index < count[0]; index++) {
+              const itemOut: unknown[] = [null]
+              const gotItem = method(items, SLOT_ARRAY_GET_ITEM, protoGetItem)(index, itemOut)
+              if (gotItem < 0) return { hr: gotItem }
+              const item = itemOut[0]
+              try {
+                const nameOut: unknown[] = [null]
+                const named = method(item, SLOT_GET_DISPLAY_NAME, protoGetDisplayName)(SIGDN_FILESYSPATH, nameOut)
+                if (named < 0) return { hr: named }
+                try { paths.push(readUtf16(koffi, nameOut[0], pointerSize)) } finally { coTaskMemFree(nameOut[0]) }
+              } finally { method(item, SLOT_RELEASE, protoRelease)() }
+            }
+            return { hr: 0, paths }
+          } finally { method(items, SLOT_RELEASE, protoRelease)() }
+        },
         release: () => {
-          method(dialog, SLOT_RELEASE, protoRelease)()
+          try { if (cookie !== undefined) method(dialog, 8, protoUnadvise)(cookie) }
+          finally {
+            try { if (customize !== undefined) method(customize, SLOT_RELEASE, protoRelease)() }
+            finally { try { method(dialog, SLOT_RELEASE, protoRelease)() } finally { sink?.dispose() } }
+          }
         },
       }
     },

@@ -9,7 +9,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { HRESULT_CANCELLED, runFolderDialog } from '../src/win32-dialog-logic.ts'
+import { HRESULT_CANCELLED, runFolderDialog, runImageDialog } from '../src/win32-dialog-logic.ts'
 
 const E_FAIL = 0x80004005 | 0
 const WM_CLOSE = 0x10
@@ -27,6 +27,8 @@ interface ComWorld {
   supportedDpiContexts: number[]
   enumThrows: boolean
   path: string
+  paths: string[]
+  filters: unknown[]
   titles: string[]
   options: number[]
   dpiContexts: unknown[]
@@ -49,6 +51,7 @@ function comWorld(overrides: Partial<ComWorld> = {}): ComWorld {
     coInitHr: 0, coCreateHr: 0, showHr: 0, getResultHr: 0, getDisplayNameHr: 0,
     hasThreadDpi: true, supportedDpiContexts: [-4], enumThrows: false,
     path: 'C:\\选中\\directory',
+    paths: ['C:\\照片\\一.JPG', 'D:\\图库\\二.PNG'], filters: [],
     titles: [], options: [], dpiContexts: [], freed: [], released: [], posted: [],
     str16PointerSizes: [],
     registered: 0, unregistered: 0, uninitialized: 0,
@@ -73,13 +76,19 @@ function installFakeKoffi(world: ComWorld, options: {
     [dialogPtr, { kind: 'dialog' }],
     [itemPtr, { kind: 'item' }],
     [namePtr, { kind: 'name', text: world.path }],
+    [0x4400n, { kind: 'items' }],
   ])
+  for (const [index, path] of world.paths.entries()) {
+    pointers.set(0x5500n + BigInt(index), { kind: 'item', index })
+    pointers.set(0x6600n + BigInt(index), { kind: 'name', text: path })
+  }
   const outBuffers = new Map<unknown, bigint>()
   world.str16PointerSizes = []
 
   const dispatch = (self: FakePtr, slot: number, args: unknown[]): number => {
     if (self.kind === 'dialog') {
       switch (slot) {
+        case 4: world.filters.push(args[1]); return 0
         case 9: world.options.push(args[0] as number); return 0
         case 17: world.titles.push(args[0] as string); return 0
         case 3: world.nativeOrder.push('show'); return world.showHr
@@ -88,14 +97,25 @@ function installFakeKoffi(world: ComWorld, options: {
           ;(args[0] as unknown[])[0] = itemPtr
           return 0
         }
+        case 27: {
+          if (world.getResultHr < 0) return world.getResultHr
+          ;(args[0] as unknown[])[0] = 0x4400n
+          return 0
+        }
         case 2: world.released.push('dialog'); return 0
         default: throw new Error(`unexpected dialog slot ${slot}`)
       }
     }
+    if (self.kind === 'items') {
+      if (slot === 7) { (args[0] as number[])[0] = world.paths.length; return 0 }
+      if (slot === 8) { (args[1] as unknown[])[0] = 0x5500n + BigInt(args[0] as number); return 0 }
+      if (slot === 2) { world.released.push('items'); return 0 }
+      throw new Error(`unexpected item array slot ${slot}`)
+    }
     switch (slot) {
       case 5: {
         if (world.getDisplayNameHr < 0) return world.getDisplayNameHr
-        ;(args[1] as unknown[])[0] = namePtr
+        ;(args[1] as unknown[])[0] = typeof self.index === 'number' ? 0x6600n + BigInt(self.index) : namePtr
         return 0
       }
       case 2: world.released.push('item'); return 0
@@ -144,6 +164,7 @@ function installFakeKoffi(world: ComWorld, options: {
         },
       }),
       proto: (declaration: string) => ({ declaration }),
+      struct: (name: string, members: object) => ({ name, members }),
       pointer: (type: unknown) => type,
       sizeof: (type: string) => { void type; return pointerSize },
       register: (fn: (hwnd: unknown, lparam: unknown) => number) => { world.registered += 1; return { fn } },
@@ -185,6 +206,25 @@ afterEach(() => {
 })
 
 describe('loadWin32DialogBindings over the fake COM world', () => {
+  it('extracts every image path and frees both shell items and their array', async () => {
+    const world = comWorld()
+    installFakeKoffi(world)
+    const bindings = await (await loadBindingsModule()).loadWin32DialogBindings()
+    expect(runImageDialog(bindings, '选择参考图片', vi.fn())).toEqual(world.paths)
+    expect(world.filters).toEqual([[{ name: 'JPEG / PNG / WebP', spec: '*.jpg;*.jpeg;*.png;*.webp' }]])
+    expect(world.freed).toHaveLength(2)
+    expect(world.released).toEqual(['item', 'item', 'items', 'dialog'])
+    expect(world.uninitialized).toBe(1)
+  })
+
+  it('releases the image array and current item when a selected path cannot be decoded', async () => {
+    const world = comWorld({ getDisplayNameHr: E_FAIL })
+    installFakeKoffi(world)
+    const bindings = await (await loadBindingsModule()).loadWin32DialogBindings()
+    expect(() => runImageDialog(bindings, 'Pick', vi.fn())).toThrow('GetResults failed')
+    expect(world.released).toEqual(['item', 'items', 'dialog'])
+    expect(world.uninitialized).toBe(1)
+  })
   it('drives the full selection conversation with memory hygiene', async () => {
     const world = comWorld()
     installFakeKoffi(world)

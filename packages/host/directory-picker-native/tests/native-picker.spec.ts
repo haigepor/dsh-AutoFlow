@@ -21,7 +21,7 @@ const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn<ExecFileMock>()
 vi.mock('node:child_process', () => ({ execFile: execFileMock }))
 
 import { describe, expect, it, vi } from 'vitest'
-import { pickNativeDirectory, type DirectoryPickerRunner } from '../src/native-picker.ts'
+import { pickNativeDirectory, pickNativeImages, pickNativeReferences, type DirectoryPickerRunner } from '../src/native-picker.ts'
 
 function failure(code: string | number, stderr = ''): Error {
   return Object.assign(new Error(`command failed: ${String(code)}`), { code, stderr })
@@ -31,6 +31,60 @@ const signal = () => new AbortController().signal
 
 /** A Win32 dialog that always fails — the no-fallback case. */
 const noDialog = async (): Promise<string | null> => { throw new Error('dialog unavailable') }
+
+describe('combined reference picker', () => {
+  const labels = { title: 'Local references', folderLabel: 'Current folder', imagesLabel: 'Images' }
+  it('returns either image paths or the current folder from the Win32 window', async () => {
+    const pickWin32ReferenceDialog = vi.fn(async () => ['C:\\Photos'])
+    await expect(pickNativeReferences(signal(), labels, { platform: 'win32', pickWin32ReferenceDialog })).resolves.toEqual(['C:\\Photos'])
+    expect(pickWin32ReferenceDialog).toHaveBeenCalledWith(expect.any(AbortSignal), labels.title, labels.folderLabel)
+  })
+  it('allows both files and folders in the macOS panel and preserves Unicode paths', async () => {
+    const run = vi.fn<DirectoryPickerRunner>(async () => ({ stdout: '["/Photos/一.JPG","/Photos/Folder"]', stderr: '' }))
+    await expect(pickNativeReferences(signal(), labels, { platform: 'darwin', run })).resolves.toEqual(['/Photos/一.JPG', '/Photos/Folder'])
+    expect(run.mock.calls[0]?.[1].at(-1)).toBe('references')
+  })
+  it('uses one Linux entry with an explicit native file or folder choice', async () => {
+    const run = vi.fn<DirectoryPickerRunner>().mockResolvedValueOnce({ stdout: 'folder\n', stderr: '' }).mockResolvedValueOnce({ stdout: '/photos\n', stderr: '' })
+    await expect(pickNativeReferences(signal(), labels, { platform: 'linux', run })).resolves.toEqual(['/photos'])
+    expect(run.mock.calls[1]?.[1]).toContain('--directory')
+  })
+})
+
+describe('native image picker', () => {
+  it('returns Win32 multi-selection paths and propagates cancellation or failure without another dialog tier', async () => {
+    const paths = ['C:\\照片\\一.JPG', 'D:\\图库\\二.PNG']
+    const pickWin32ImageDialog = vi.fn<(signal: AbortSignal, title: string) => Promise<string[] | null>>(async () => paths)
+    const run = vi.fn<DirectoryPickerRunner>()
+    await expect(pickNativeImages(signal(), '引用图片', { platform: 'win32', run, pickWin32ImageDialog })).resolves.toEqual(paths)
+    expect(pickWin32ImageDialog.mock.calls[0]?.[1]).toBe('引用图片')
+    pickWin32ImageDialog.mockResolvedValueOnce(null)
+    await expect(pickNativeImages(signal(), 'Pick', { platform: 'win32', pickWin32ImageDialog })).resolves.toBeNull()
+    pickWin32ImageDialog.mockRejectedValueOnce(new Error('unavailable'))
+    await expect(pickNativeImages(signal(), 'Pick', { platform: 'win32', run, pickWin32ImageDialog })).rejects.toThrow('unavailable')
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('reads macOS paths from JSON and rejects malformed chooser output', async () => {
+    const paths = ['/Users/test/一.JPG', '/Users/test/二.PNG']
+    const run = vi.fn<DirectoryPickerRunner>(async () => ({ stdout: JSON.stringify(paths), stderr: '' }))
+    await expect(pickNativeImages(signal(), 'Pick images', { platform: 'darwin', run })).resolves.toEqual(paths)
+    expect(run.mock.calls[0]?.[1].slice(-2)).toEqual(['Pick images', 'images'])
+    run.mockResolvedValueOnce({ stdout: '\n', stderr: '' })
+    await expect(pickNativeImages(signal(), 'Pick', { platform: 'darwin', run })).resolves.toBeNull()
+    run.mockResolvedValueOnce({ stdout: '[123]', stderr: '' })
+    await expect(pickNativeImages(signal(), 'Pick', { platform: 'darwin', run })).rejects.toThrow('invalid paths')
+  })
+
+  it('uses Linux image filters and reaches KDialog only when Zenity is missing', async () => {
+    const run = vi.fn<DirectoryPickerRunner>().mockRejectedValueOnce(failure('ENOENT')).mockResolvedValueOnce({ stdout: '/images/一.JPG\n/images/二.PNG\n', stderr: '' })
+    await expect(pickNativeImages(signal(), 'Pick', { platform: 'linux', run })).resolves.toEqual(['/images/一.JPG', '/images/二.PNG'])
+    expect(run.mock.calls.map(call => call[0])).toEqual(['zenity', 'kdialog'])
+    const cancelled = vi.fn<DirectoryPickerRunner>(async () => { throw failure(1) })
+    await expect(pickNativeImages(signal(), 'Pick', { platform: 'linux', run: cancelled })).resolves.toBeNull()
+    expect(cancelled).toHaveBeenCalledOnce()
+  })
+})
 
 describe('native directory picker', () => {
   it('opens the macOS Edit-menu panel and maps an unanswered panel to null', async () => {

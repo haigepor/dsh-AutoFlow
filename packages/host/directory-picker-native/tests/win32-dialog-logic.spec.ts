@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   FOS_FORCEFILESYSTEM, FOS_NOCHANGEDIR, FOS_PICKFOLDERS, HRESULT_CANCELLED,
-  runFolderDialog, type Win32DialogBindings, type Win32FolderDialog,
+  runFolderDialog, runImageDialog, runReferenceDialog, type Win32DialogBindings, type Win32FolderDialog,
 } from '../src/win32-dialog-logic.ts'
 
 const E_FAIL = 0x80004005 | 0
@@ -23,6 +23,9 @@ interface FakeWorld {
     setTitle: ReturnType<typeof vi.fn>
     show: ReturnType<typeof vi.fn>
     resultPath: ReturnType<typeof vi.fn>
+    resultPaths: ReturnType<typeof vi.fn>
+    setImageFilter: ReturnType<typeof vi.fn>
+    enableFolderChoice: ReturnType<typeof vi.fn>
     release: ReturnType<typeof vi.fn>
   }
 }
@@ -33,6 +36,9 @@ function world(overrides: Partial<Win32FolderDialog> = {}, coInit = 0): FakeWorl
     setTitle: vi.fn(() => 0),
     show: vi.fn(() => 0),
     resultPath: vi.fn(() => ({ hr: 0, path: 'C:\\picked\\目录' })),
+    resultPaths: vi.fn(() => ({ hr: 0, paths: ['C:\\照片\\一.JPG', 'C:\\照片\\二.PNG'] })),
+    setImageFilter: vi.fn(() => 0),
+    enableFolderChoice: vi.fn(() => 0),
     release: vi.fn(),
     ...overrides,
   }
@@ -50,6 +56,19 @@ function world(overrides: Partial<Win32FolderDialog> = {}, coInit = 0): FakeWorl
   }
   return { bindings, dpi, pressAlt, createDialog, uninitialize, dialog: dialog as FakeWorld['dialog'] }
 }
+
+describe('combined reference dialog', () => {
+  it('adds a localized folder action while keeping the image multi-selection and releases after setup failure', () => {
+    const w = world()
+    expect(runReferenceDialog(w.bindings, 'Images or folder', 'Use current folder', vi.fn())).toEqual(['C:\\照片\\一.JPG', 'C:\\照片\\二.PNG'])
+    expect(w.dialog.enableFolderChoice).toHaveBeenCalledWith('Use current folder')
+    expect(w.dialog.setImageFilter).toHaveBeenCalledOnce()
+    const failed = world({ enableFolderChoice: () => E_FAIL })
+    expect(() => runReferenceDialog(failed.bindings, 'Pick', 'Folder', vi.fn())).toThrow('AddFolderChoice')
+    expect(failed.dialog.show).not.toHaveBeenCalled()
+    expect(failed.dialog.release).toHaveBeenCalledOnce(); expect(failed.uninitialize).toHaveBeenCalledOnce()
+  })
+})
 
 describe('runFolderDialog', () => {
   it('sequences DPI, STA, options, title, show, result extraction, and apartment teardown', () => {
@@ -102,5 +121,27 @@ describe('runFolderDialog', () => {
     expect(() => runFolderDialog(bindings, 'Pick', vi.fn())).toThrow(`${what} failed: HRESULT 0x80004005`)
     expect(dialog.release).toHaveBeenCalledOnce()
     expect(uninitialize).toHaveBeenCalledOnce()
+  })
+})
+
+describe('runImageDialog', () => {
+  it('returns multiple original paths through an image-filtered file dialog', () => {
+    const { bindings, dialog, uninitialize } = world()
+    expect(runImageDialog(bindings, '选择参考图片', vi.fn())).toEqual(['C:\\照片\\一.JPG', 'C:\\照片\\二.PNG'])
+    expect(dialog.setOptions.mock.calls[0]?.[0] & FOS_PICKFOLDERS).toBe(0)
+    expect(dialog.setImageFilter).toHaveBeenCalledOnce()
+    expect(dialog.resultPath).not.toHaveBeenCalled()
+    expect(dialog.release).toHaveBeenCalledOnce()
+    expect(uninitialize).toHaveBeenCalledOnce()
+  })
+
+  it('cancels without reading results and releases resources after a result failure', () => {
+    const cancelled = world({ show: vi.fn(() => HRESULT_CANCELLED) })
+    expect(runImageDialog(cancelled.bindings, 'Pick', vi.fn())).toBeNull()
+    expect(cancelled.dialog.resultPaths).not.toHaveBeenCalled()
+    const failed = world({ resultPaths: vi.fn(() => ({ hr: E_FAIL })) })
+    expect(() => runImageDialog(failed.bindings, 'Pick', vi.fn())).toThrow('GetResults failed')
+    expect(failed.dialog.release).toHaveBeenCalledOnce()
+    expect(failed.uninitialize).toHaveBeenCalledOnce()
   })
 })

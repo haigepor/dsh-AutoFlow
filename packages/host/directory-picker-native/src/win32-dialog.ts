@@ -61,23 +61,60 @@ function assertNever(value: never): never {
  * Open the modern Win32 folder picker off the event loop.
  * @param signal - caller lifetime; abort closes the dialog and rejects.
  * @param internals - Worker/window hooks for deterministic tests.
+ * @param title - Localized title; omitted for the workspace chooser.
  * @returns the selected path, or null when the user cancels.
  */
 export async function pickWin32Directory(
   signal: AbortSignal,
   internals: Win32DialogInternals = {},
+  title = DIALOG_TITLE,
 ): Promise<string | null> {
+  const result = await pickWin32Paths(signal, { title }, internals)
+  if (Array.isArray(result)) throw new Error('native directory picker returned image paths')
+  return result
+}
+
+/** Open the same cancellable native window in image multi-selection mode.
+ * @param signal Request lifetime.
+ * @param title Localized window title.
+ * @param internals Test process operations.
+ * @returns Original image paths, or null on cancel.
+ */
+export async function pickWin32Images(signal: AbortSignal, title: string, internals: Win32DialogInternals = {}): Promise<string[] | null> {
+  const result = await pickWin32Paths(signal, { title, kind: 'images' }, internals)
+  if (typeof result === 'string') throw new Error('native image picker returned a folder path')
+  return result
+}
+
+/** Open a cancellable image chooser with a current-folder action.
+ * @param signal Request lifetime.
+ * @param title Localized window title.
+ * @param folderLabel Current-folder action text.
+ * @param internals Test process operations.
+ * @returns Original image or folder paths, or null on cancellation.
+ */
+export async function pickWin32References(
+  signal: AbortSignal, title: string, folderLabel: string, internals: Win32DialogInternals = {},
+): Promise<string[] | null> {
+  const result = await pickWin32Paths(signal, { title, kind: 'references', folderLabel }, internals)
+  if (typeof result === 'string') throw new Error('native reference picker returned an invalid selection')
+  return result
+}
+
+async function pickWin32Paths(
+  signal: AbortSignal, data: Win32DialogWorkerData, internals: Win32DialogInternals,
+): Promise<string | string[] | null> {
   if (signal.aborted) throw new Error('native directory picker aborted')
   const spawnWorker = internals.spawnWorker ?? spawnDialogWorker
   const closeWindows = internals.closeThreadWindows ?? hostCloseThreadWindows
   const closeRetryMs = internals.closeRetryMs ?? CLOSE_RETRY_MS
 
-  const worker: Win32DialogWorkerLike = spawnWorker({ title: DIALOG_TITLE })
+  const worker: Win32DialogWorkerLike = spawnWorker(data)
   let dialogThreadId: number | undefined
   let closeTimer: NodeJS.Timeout | undefined
   let settled = false
 
-  return await new Promise<string | null>((resolve, reject) => {
+  return await new Promise<string | string[] | null>((resolve, reject) => {
     const settle = (outcome: () => void): void => {
       if (settled) return
       settled = true
@@ -129,10 +166,10 @@ export async function pickWin32Directory(
           // An abort that raced ahead of this notice now has a window to hit.
           if (signal.aborted) postClose()
           return
-        case 'done':
+        case 'done': case 'images-done':
           settle(() => {
             if (signal.aborted) reject(new Error('native directory picker aborted'))
-            else resolve(message.path)
+            else resolve(message.kind === 'done' ? message.path : message.paths)
           })
           return
         case 'error':

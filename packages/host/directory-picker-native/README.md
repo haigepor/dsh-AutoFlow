@@ -27,6 +27,8 @@ An operator at the host's display picks a workspace directory through a native O
 
 Compose this backend when the operator works at the host's display and a native chooser is the right interaction. A workspace flow that opens a directory picker calls `pick(signal)` once per open request; the returned promise resolves with the chosen absolute path, or `null` when the operator cancels.
 
+The exported image chooser opens the same platform window with JPEG, PNG and WebP filters and supports multiple selection. It returns original paths, or `null` on cancellation, and reads or copies no image contents. Consumers supply its localized title; directory consumers can also supply a localized title without changing workspace selection behavior. `pickNativeReferences` accepts localized title, image-mode and folder-action labels: Windows adds a current-folder button to the image chooser, macOS allows files and folders together, and Linux asks for the mode before opening its chooser. Returned paths contain no copied bytes.
+
 ### When to choose it
 
 Choose this backend for a workstation-local operator on macOS, Windows, or desktop Linux. Choose the [browse backend](../directory-picker-browse/README.md) when clients cannot reach an OS chooser — remote browsers, SSH-forwarded sessions, or unattended hosts. When the situation varies, the [adaptive chooser](../directory-picker-auto/README.md) resolves it at boot.

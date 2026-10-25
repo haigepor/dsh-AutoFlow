@@ -13,15 +13,16 @@
  */
 
 import { loadWin32DialogBindings } from './win32-dialog-bindings.ts'
-import { runFolderDialog } from './win32-dialog-logic.ts'
+import { runFolderDialog, runImageDialog, runReferenceDialog } from './win32-dialog-logic.ts'
 
 /** The driver-to-child payload: the dialog title (passed via env). */
-export interface Win32DialogWorkerData { title: string }
+export type Win32DialogWorkerData = { title: string } & ({ kind?: 'images' } | { kind: 'references'; folderLabel: string })
 
 /** One notice or outcome posted back to the driver. */
 export type Win32DialogWorkerMessage =
   | { kind: 'showing'; threadId: number }
   | { kind: 'done'; path: string | null }
+  | { kind: 'images-done'; paths: string[] | null }
   | { kind: 'error'; message: string }
 
 const title = process.env.DSH_DIALOG_TITLE ?? ''
@@ -44,10 +45,15 @@ process.on('disconnect', () => process.exit(0))
 void (async () => {
   try {
     const bindings = await loadWin32DialogBindings()
-    const path = runFolderDialog(bindings, title, (threadId) => {
+    const showing = (threadId: number) => {
       post({ kind: 'showing', threadId } satisfies Win32DialogWorkerMessage)
-    })
-    post({ kind: 'done', path } satisfies Win32DialogWorkerMessage)
+    }
+    if (process.env.DSH_DIALOG_KIND === 'references') {
+      const label = process.env.DSH_DIALOG_FOLDER_LABEL
+      if (!label) throw new Error('win32-dialog-worker: folder label is required')
+      post({ kind: 'images-done', paths: runReferenceDialog(bindings, title, label, showing) })
+    } else if (process.env.DSH_DIALOG_KIND === 'images') post({ kind: 'images-done', paths: runImageDialog(bindings, title, showing) })
+    else post({ kind: 'done', path: runFolderDialog(bindings, title, showing) })
   } catch (error: unknown) {
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
     post({ kind: 'error', message } satisfies Win32DialogWorkerMessage)

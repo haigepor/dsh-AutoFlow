@@ -22,7 +22,7 @@ import type { Win32DialogWorkerData } from './win32-dialog-worker.ts'
  * @returns the spawned child process.
  */
 export function spawnDialogWorker(data: Win32DialogWorkerData): ReturnType<typeof spawn> {
-  const env = { ...process.env, DSH_DIALOG_TITLE: data.title }
+  const env = { ...process.env, DSH_DIALOG_TITLE: data.title, DSH_DIALOG_KIND: data.kind ?? 'folder', DSH_DIALOG_FOLDER_LABEL: data.kind === 'references' ? data.folderLabel : '' }
   const stdio: StdioOptions = ['ignore', 'inherit', 'inherit', 'ipc']
   /* v8 ignore next 3 -- the built-output arm: tests always run unbuilt (src/) */
   if (!import.meta.url.endsWith('.ts')) {
