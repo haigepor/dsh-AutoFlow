@@ -1,0 +1,4 @@
+{
+  "byPreference": ["high", "low"],
+  "equalScoreIds": ["final-a", "final-z"]
+}

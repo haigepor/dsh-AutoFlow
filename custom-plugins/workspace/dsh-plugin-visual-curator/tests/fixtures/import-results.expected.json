@@ -1,0 +1,7 @@
+[
+  {"name":"folder/a.JPG","status":"imported","reason":null,"errorCode":null},
+  {"name":"folder/sub/a.PNG","status":"imported","reason":null,"errorCode":null},
+  {"name":"folder/readme.txt","status":"skipped","reason":"unsupportedFile","errorCode":null},
+  {"name":"folder/bad.PNG","status":"failed","reason":"invalidFile","errorCode":"invalid-input"},
+  {"name":"folder/too-large.jpg","status":"failed","reason":"fileTooLarge","errorCode":null}
+]

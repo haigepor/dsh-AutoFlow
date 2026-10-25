@@ -93,6 +93,7 @@ export interface CommitResult { revision: number; state: Json }
 export class DomainRepository {
   private chain: Promise<void> = Promise.resolve()
   private closed = false
+  private readScope: { pointers: Map<string, AggregateManifest['records'][number]>; records: Map<string, CuratorRecord | undefined> } | undefined
   /** @param profileId Owning profile. @param adapter Storage-domain or deterministic fixture. */
   constructor(readonly profileId: string, private readonly adapter: DomainAdapter) {
     for (const manifest of adapter.manifests()) {
@@ -110,8 +111,34 @@ export class DomainRepository {
   manifest(aggregateId: string): AggregateManifest | undefined { return structuredClone(this.adapter.manifests().find(m => m.aggregateId === aggregateId)) }
   /** @returns Cloned commit manifests for durable operation recovery. */
   manifests(): AggregateManifest[] { return structuredClone(this.adapter.manifests()) }
+  /** Reuse verified records only during a synchronous read; caller mutations still receive independent clones.
+   * @param read Synchronous projection with no writes or external callbacks.
+   * @returns Projection result; nested reads share this scope and exceptions release it.
+   */
+  readSnapshot<T>(read: () => T): T {
+    if (this.readScope) return read()
+    const pointers = new Map<string, AggregateManifest['records'][number]>()
+    for (const manifest of this.adapter.manifests()) for (const pointer of manifest.records) {
+      const identity = `${pointer.kind}:${pointer.id}`
+      if (!pointers.has(identity)) pointers.set(identity, pointer)
+    }
+    this.readScope = { pointers, records: new Map() }
+    try { return read() } finally { this.readScope = undefined }
+  }
   /** @param kind Record tag. @param id Logical record ID. @returns Only committed records. */
   get<K extends RecordKind>(kind: K, id: string): RecordOf<K> | undefined {
+    if (this.readScope) {
+      const identity = `${kind}:${id}`, { pointers, records } = this.readScope
+      if (!records.has(identity)) {
+        const pointer = pointers.get(identity)
+        if (!pointer) return undefined
+        const value = this.adapter.readRecord(pointer.key)
+        if (!value || contentDigest(value) !== pointer.digest) throw new CuratorError('reference-unavailable', 'storage-read', 'Committed data is missing or has changed.')
+        records.set(identity, value)
+      }
+      const value = records.get(identity)
+      return value?.kind === kind ? structuredClone(value) as RecordOf<K> : undefined
+    }
     for (const manifest of this.adapter.manifests()) {
       const pointer = manifest.records.find(p => p.kind === kind && p.id === id)
       if (!pointer) continue
@@ -123,7 +150,7 @@ export class DomainRepository {
   }
   /** @param kind Record tag. @returns Committed records in stable ID order. */
   list<K extends RecordKind>(kind: K): RecordOf<K>[] {
-    const ids = new Set(this.adapter.manifests().flatMap(m => m.records.filter(p => p.kind === kind).map(p => p.id)))
+    const ids = new Set(this.readScope ? [...this.readScope.pointers.values()].filter(p => p.kind === kind).map(p => p.id) : this.adapter.manifests().flatMap(m => m.records.filter(p => p.kind === kind).map(p => p.id)))
     return [...ids].sort().map(id => this.get(kind, id)).filter((r): r is RecordOf<K> => r !== undefined)
   }
   /** @param input Complete aggregate mutation. @returns Original operation receipt after durability. */

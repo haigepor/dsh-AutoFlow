@@ -1,0 +1,6 @@
+Use case: background-extraction.
+Asset type: exact existing welcome illustration isolated as transparent PNG.
+Edit target: the provided 558 x 242 pixel reference image.
+Primary request: remove ONLY the pale gray/off-white surrounding background and replace it with genuine transparent alpha. Preserve the original illustration exactly.
+Invariants: strictly retain the SAME original three overlapping photo cards, the exact photographic content (left foggy pine forest, center mountain reflected in alpine lake, right old stone village street), original positions, angles, scale, arrangement, thin white rounded borders, and subtle soft shadows. Preserve the SAME pale blue/lavender decorative short rays above the center/right card. Do not repaint, reinterpret, replace, or enhance any scenery. Do not add anything. Preserve all photo pixels and decorative lines. Preserve the horizontal approximately 2.3:1 composition with its existing margins.
+Output: a real transparent PNG with transparent pixels outside the illustration, keeping soft partially transparent shadows and antialiased edges. No white/gray canvas, no baked checkerboard, no new background, no text, no UI, no watermark. This is background removal only, not a new illustration.

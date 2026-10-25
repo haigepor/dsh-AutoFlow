@@ -234,8 +234,8 @@
             "zh": "在设置中显示视觉策展入口。"
           },
           "details": {
-            "en": "Currently provides an entry and a pending-design notice. Page contents will be built incrementally with the new design. Off by default; hiding an entry does not delete data or stop tasks.",
-            "zh": "当前只提供页面入口与待设计提示，具体页面将按新的设计逐步搭建。默认关闭；关闭入口不会删除数据或停止后台任务。"
+            "en": "Opens the reference-style workbench for model configuration, image recognition, style-guided search and dataset or Skill export. Off by default; hiding an entry does not delete data or stop tasks.",
+            "zh": "打开参考风格工作台，可配置模型、识别图片、按风格找图及导出数据集或 Skill。默认关闭；关闭入口不会删除数据或停止后台任务。"
           },
           "icon": "./assets/icons/ui-settings.svg"
         },
@@ -253,8 +253,8 @@
             "zh": "在首页侧栏显示视觉策展入口。"
           },
           "details": {
-            "en": "Currently provides an entry and a pending-design notice. Page contents will be built incrementally with the new design. Off by default; hiding an entry does not delete data or stop tasks.",
-            "zh": "当前只提供页面入口与待设计提示，具体页面将按新的设计逐步搭建。默认关闭；关闭入口不会删除数据或停止后台任务。"
+            "en": "Opens the reference-style workbench for model configuration, image recognition, style-guided search and dataset or Skill export. Off by default; hiding an entry does not delete data or stop tasks.",
+            "zh": "打开参考风格工作台，可配置模型、识别图片、按风格找图及导出数据集或 Skill。默认关闭；关闭入口不会删除数据或停止后台任务。"
           },
           "icon": "./assets/icons/ui-panel.svg"
         },
@@ -272,8 +272,8 @@
             "zh": "在会话中显示视觉策展标签。"
           },
           "details": {
-            "en": "Currently provides an entry and a pending-design notice. Page contents will be built incrementally with the new design. Off by default; hiding an entry does not delete data or stop tasks.",
-            "zh": "当前只提供页面入口与待设计提示，具体页面将按新的设计逐步搭建。默认关闭；关闭入口不会删除数据或停止后台任务。"
+            "en": "Opens the reference-style workbench for model configuration, image recognition, style-guided search and dataset or Skill export. Off by default; hiding an entry does not delete data or stop tasks.",
+            "zh": "打开参考风格工作台，可配置模型、识别图片、按风格找图及导出数据集或 Skill。默认关闭；关闭入口不会删除数据或停止后台任务。"
           },
           "icon": "./assets/icons/ui-conversation.svg"
         }
@@ -287,6 +287,7 @@
         "locale",
         "remote",
         "remote.pluginManager",
+        "remote.credentials",
         "layout",
         "uiConversation"
       ]
@@ -299,7 +300,9 @@
     "prepack": "pnpm run check && pnpm run build"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-host-directory-picker-native": "workspace:*",
     "ipaddr.js": "2.5.0",
+    "playwright-core": "1.64.1",
     "sharp": "0.35.5",
     "zod": "^4.4.3"
   },
@@ -314,19 +317,23 @@
     "@deepseek-ai/dsh-jobs": "workspace:*",
     "@deepseek-ai/dsh-plugin-manager": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-skill": "workspace:*",
     "@deepseek-ai/dsh-storage-domain": "workspace:*",
     "@deepseek-ai/dsh-tools": "workspace:*",
-    "@deepseek-ai/schemastery": "workspace:~",
-    "@deepseek-ai/dsh-skill": "workspace:*"
+    "@deepseek-ai/schemastery": "workspace:~"
   },
   "devDependencies": {
+    "@cropper/elements": "2.3.1",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
     "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-chat": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-conversation": "workspace:*",
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-slots": "workspace:*",
     "@deepseek-ai/dsh-config-editor": "workspace:*",
     "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/dsh-jobs": "workspace:*",
@@ -334,17 +341,16 @@
     "@deepseek-ai/dsh-plugin-manager": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-session-persistence": "workspace:*",
+    "@deepseek-ai/dsh-skill": "workspace:*",
     "@deepseek-ai/dsh-storage-domain": "workspace:*",
     "@deepseek-ai/dsh-tools": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
     "@types/node": "^22.20.1",
     "@types/react": "~18.3.1",
-    "@cropper/elements": "2.3.1",
     "esbuild": "0.28.1",
     "react": "~18.3.1",
     "tsx": "^4.23.13",
-    "typescript": "^6.0.3",
-    "@deepseek-ai/dsh-skill": "workspace:*"
+    "typescript": "^6.0.3"
   },
   "icon": "./assets/visual-curator-logo-v1.png"
 }

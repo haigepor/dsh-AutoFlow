@@ -1,0 +1,8 @@
+{
+  "formatVersion": 2,
+  "ruleSource": "model-adopted",
+  "ruleConfirmations": ["suggested"],
+  "files": ["style-profile.json", "samples.jsonl", "references.json", "SKILL.md", "manifest.json"],
+  "humanReleaseCount": 0,
+  "splitCount": 0
+}

@@ -1,0 +1,4 @@
+[
+  { "operation": "analyze", "state": "committed", "available": true, "imageCount": 1, "sourceKind": "local" },
+  { "operation": "summarize", "state": "committed", "available": true, "imageCount": 1, "sourceKind": "local" }
+]

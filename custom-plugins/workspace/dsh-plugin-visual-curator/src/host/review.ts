@@ -1,6 +1,6 @@
 /** Required-rule decisions are computed locally from measured and inferred checks. */
 import { z } from 'zod'
-import { assessmentSchema, jsonSchema, type Assessment, type ImageVersion, type Rule, type StyleRelease, type StyleCandidate, type DomainActor } from '../shared/model.ts'
+import { assessmentSchema, jsonSchema, type Assessment, type ImageVersion, type Rule, type StyleRelease, type StyleStandard, type StyleCandidate, type DomainActor } from '../shared/model.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
 import { CuratorError } from '../shared/errors.ts'
@@ -8,6 +8,13 @@ import { visionReviewSchema } from '../media/index.ts'
 import type { AssetFiles, CompatibleVisionProvider, VisionImage, VisionReview } from '../media/index.ts'
 import { decideAssessment, toJson, type WorkContext } from './runtime.ts'
 import { requestBounds } from './providers.ts'
+import { remoteReferenceSource } from '../media/remote-reference.ts'
+
+/** @param image Authorized saved image. @param files Private byte reader. @param role Model-visible reference role. @param signal Request lifetime. @returns Exact pixels or an explicitly identified remote URL. */
+export async function visionImageInput(image: ImageVersion, files: AssetFiles, role: string, signal: AbortSignal): Promise<VisionImage> {
+  const remoteSource = remoteReferenceSource(image.blob)
+  return { imageVersionId: image.id, digest: image.blob.digest, mime: image.blob.mime, role, ...(remoteSource ? { remoteSource } : { bytes: await files.read(image.blob, signal) }) }
+}
 
 /** @param domain Authorized records. @param files Private verified files. @param release Frozen reference strategy. @param actor Task owner. @param signal Task cancellation. @returns Stable ordered, actual reference pixels. */
 export async function referenceImages(domain: CuratorDomain, files: AssetFiles, release: Pick<StyleRelease, 'references' | 'recipe'>, actor: DomainActor, signal: AbortSignal): Promise<VisionImage[]> {
@@ -16,10 +23,10 @@ export async function referenceImages(domain: CuratorDomain, files: AssetFiles, 
   for (const snapshot of selected) {
     const { image } = domain.authorizedImage(snapshot.reference.imageVersionId, actor)
     if (image.blob.digest !== snapshot.imageDigest) throw new Error('Fixed reference digest is unavailable')
-    const data = await files.read(image.blob, signal)
-    bytes += data.length
+    const input = await visionImageInput(image, files, JSON.stringify({ role: snapshot.reference.role, intent: snapshot.reference.intent, context: snapshot.reference.context, judgments: snapshot.judgments }), signal)
+    bytes += input.bytes?.length ?? 0
     if (bytes > release.recipe.referenceStrategy.maxBytes) throw new Error('Fixed references exceed the saved recipe byte limit')
-    result.push({ imageVersionId: image.id, digest: image.blob.digest, mime: image.blob.mime, bytes: data, role: JSON.stringify({ role: snapshot.reference.role, intent: snapshot.reference.intent, context: snapshot.reference.context, judgments: snapshot.judgments }) })
+    result.push(input)
   }
   return result
 }
@@ -30,22 +37,32 @@ export function runActor(ctx: WorkContext): DomainActor {
   return { kind: run.owner.kind === 'session' ? 'agent' : 'human', id: 'workflow', profileId: run.profileId, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}) }
 }
 
+/** @param standard Frozen style and its model-selected alternatives. @param brief Caller task. @returns The same style instructions for screening, crop planning and final review. */
+export function styleReviewBrief(standard: StyleStandard | StyleCandidate, brief: string): string {
+  return standard.kind === 'modelProfile' ? JSON.stringify({ task: brief, matchingPrompt: standard.matchingPrompt,
+    instruction: 'Inspect the actual candidate and reference images. Shared rules apply globally; style groups are alternatives, so match one applicable group instead of requiring every group at once. Subject-only hints do not impose a required subject. Report irrelevant when no group matches, unknown when evidence is missing, and not-applicable for rules of another group.',
+    groups: standard.groups, ruleGroups: standard.options.filter(option => option.enabled).map(option => ({ ruleId: option.rule.ruleId, groupId: option.groupId })) }) : brief
+}
+
 /** @param rule Measured rule. @param image Actual normalized or derived geometry. @returns Program result, or unknown when not a measurable rule. */
 export function measuredRule(rule: Rule, image: ImageVersion): Assessment['ruleResults'][number] {
   if (rule.check.kind !== 'measured') return { ruleId: rule.ruleId, result: 'unknown', basis: 'inferred', reason: 'Visual review is required.' }
+  if (image.blob.remoteSource) return { ruleId: rule.ruleId, result: 'unknown', basis: 'inferred', reason: 'Remote reference dimensions are provider metadata; local pixel measurements are unavailable.' }
   const value = rule.check.field === 'width' ? image.geometry.width : rule.check.field === 'height' ? image.geometry.height : rule.check.field === 'aspect' ? image.geometry.width / image.geometry.height : image.blob.byteLength
   const accepted = (rule.check.min === undefined || value + rule.check.tolerance >= rule.check.min) && (rule.check.max === undefined || value - rule.check.tolerance <= rule.check.max)
   return { ruleId: rule.ruleId, result: accepted ? 'satisfied' : 'violated', basis: 'measured', reason: `${rule.check.field}=${value} ${rule.check.unit}; tolerance=${rule.check.tolerance}` }
 }
 
 /** @param dependencies Domain, private files and resolved vision adapter. @param ctx Current run. @param image Authorized target. @param release Frozen release. @param stage Rule stage. @returns Persistable assessment and fixed preference score. */
-export async function reviewImage(dependencies: { domain: CuratorDomain; files: AssetFiles; vision: CompatibleVisionProvider }, ctx: WorkContext, image: ImageVersion, release: StyleRelease | StyleCandidate, stage: 'source' | 'final'): Promise<{ assessment: Assessment; score: number }> {
+export async function reviewImage(dependencies: { domain: CuratorDomain; files: AssetFiles; vision: CompatibleVisionProvider }, ctx: WorkContext, image: ImageVersion, release: StyleStandard | StyleCandidate, stage: 'source' | 'final'): Promise<{ assessment: Assessment; score: number }> {
   const actor = runActor(ctx), refs = await referenceImages(dependencies.domain, dependencies.files, release, actor, ctx.signal)
   const subject = { imageVersionId: image.id, digest: image.blob.digest, mime: image.blob.mime, bytes: await dependencies.files.read(image.blob, ctx.signal), role: 'subject' }
   const images = [subject, ...refs.filter(ref => ref.imageVersionId !== image.id)]
   const rules = release.rules.filter(rule => rule.stage === stage)
   const identity = contentDigest({ runId: ctx.runId, imageVersionId: image.id, standardDigest: release.contentDigest, stage }).slice(10)
-  const requestId = `review-${identity}`, input = { requestId, taskBrief: typeof ctx.spec.input.taskBrief === 'string' ? ctx.spec.input.taskBrief : 'Review supplied image against the frozen visual standard.', rules: rules.filter(rule => rule.check.kind === 'visual'), stage, images, ...(ctx.spec.fixed.usage ? { usage: ctx.spec.fixed.usage } : {}) }
+  const brief = typeof ctx.spec.input.taskBrief === 'string' ? ctx.spec.input.taskBrief : 'Review supplied image against the frozen visual standard.'
+  const taskBrief = styleReviewBrief(release, brief)
+  const requestId = `review-${identity}`, input = { requestId, taskBrief, rules: rules.filter(rule => rule.check.kind === 'visual'), stage, images, ...(ctx.spec.fixed.usage ? { usage: ctx.spec.fixed.usage } : {}) }
   const descriptor = dependencies.vision.describeRequest(input, 'review')
   const bundle = toJson(descriptor), requestDigest = contentDigest(bundle)
   const saved = dependencies.domain.repository.list('request').find(request => request.runId === ctx.runId && request.state === 'committed' && request.requestDigest === requestDigest)

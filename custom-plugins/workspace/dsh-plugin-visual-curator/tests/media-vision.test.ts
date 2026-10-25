@@ -11,10 +11,10 @@ const hasCode = (code: string) => (error: unknown) => error instanceof MediaErro
 
 class VisionFixture implements HttpClient {
   readonly requests: HttpRequest[] = []
-  constructor(private readonly content: unknown, private readonly raw = false) {}
+  constructor(private readonly content: unknown, private readonly raw = false, private readonly finishReason = 'stop') {}
   async request(_url: string, input: HttpRequest): Promise<HttpResponse> {
     this.requests.push(input)
-    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: this.raw ? this.content : JSON.stringify(this.content) }, finish_reason: 'stop' }] })) }
+    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: this.raw ? this.content : JSON.stringify(this.content) }, finish_reason: this.finishReason }] })) }
   }
 }
 
@@ -80,6 +80,31 @@ test('analysis separates uncertain observations from unconfirmed rules with fixe
   assert.equal(result.observations[0]?.dimensions[0]?.uncertain, true)
   assert.equal(result.suggestedRules[0]?.strength, 'preferred')
   assert.equal('confirmedBy' in (result.suggestedRules[0] ?? {}), false)
+})
+
+test('a token-limited response reports truncation even when its content is valid JSON', async () => {
+  const input = await bundle()
+  for (const fixture of [new VisionFixture({ observations: [], suggestedRules: [] }, false, 'length'), new VisionFixture('', true, 'length')]) await assert.rejects(new CompatibleVisionProvider(config, fixture).analyze(input, bounds), error => {
+    assert.ok(error instanceof MediaError)
+    assert.equal(error.code, 'vision-output-truncated')
+    assert.equal(error.retryable, false)
+    assert.match(error.suggestedAction, /maxVisionOutputTokens/)
+    return true
+  })
+})
+
+test('an explicit reasoning level is preserved in the saved descriptor and transmitted request while defaults omit it', async () => {
+  const input = await bundle()
+  for (const reasoningEffort of [undefined, 'low'] as const) {
+    const fixture = new VisionFixture({ observations: input.images.map(image => ({ imageVersionId: image.imageVersionId, dimensions: [] })), suggestedRules: [] })
+    const provider = new CompatibleVisionProvider({ ...config, ...(reasoningEffort ? { reasoningEffort } : {}) }, fixture)
+    await provider.analyze(input, bounds)
+    const descriptor = provider.describeRequest(input, 'analyze')
+    const sent = JSON.parse(Buffer.from(fixture.requests[0]!.body!).toString('utf8'))
+    assert.equal(descriptor.reasoningEffort, reasoningEffort)
+    assert.equal(sent.reasoning_effort, reasoningEffort)
+    if (!reasoningEffort) { assert.equal('reasoningEffort' in descriptor, false); assert.equal('reasoning_effort' in sent, false) }
+  }
 })
 
 test('crop proposals distinguish impossible/uncertain results and reject out-of-bounds or repeated regions', async () => {

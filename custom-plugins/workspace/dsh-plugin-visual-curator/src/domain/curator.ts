@@ -12,6 +12,9 @@ import { CuratorError } from '../shared/errors.ts'
 import { DomainRepository, contentDigest, openCuratorRepository } from './repository.ts'
 import { evaluationMetrics } from './evaluation.ts'
 import { renderExportFiles, supervisionExclusion } from './export.ts'
+import { styleAnalysisOf } from '../shared/style-analysis.ts'
+import { ModelProfiles } from './model-profile.ts'
+import type { StyleStandard } from '../shared/model.ts'
 
 const op = { operationId: z.string().min(1).max(256) }
 const styleMutation = { ...op, styleId: z.string().min(1), expectedRevision: z.number().int().positive() }
@@ -28,7 +31,7 @@ const referenceInputSchema = z.strictObject({ ...op, styleId: z.string(), imageV
 const splitInputSchema = z.strictObject({ ...op, assignments: z.array(z.strictObject({ familyId: z.string(), split: z.enum(['learning', 'development', 'holdout']), groupingConfirmed: z.literal(true) })), supersedesSplitId: z.string().optional(), uses: z.array(z.strictObject({ familyId: z.string(), purpose: z.enum(['revealed', 'evaluation', 'learning']), at: z.string().datetime({ offset: true }) })).optional() })
 const familyInputSchema = z.strictObject({ ...op, familyIds: z.array(z.string()).min(1) })
 const evaluationInputSchema = z.strictObject({ ...op, executionOutcome: z.enum(['completed', 'budget-exhausted']).optional(), left: standardRefSchema, right: standardRefSchema, splitId: z.string(), usageRevisionId: z.string(), recipeId: z.string(), budgetDigest: z.string(), items: z.array(evaluationItemSchema), assessment: z.enum(['unassessed', 'accepted', 'rejected']).optional(), notes: z.array(z.string()).optional() })
-const exportInputSchema = z.strictObject({ ...op, exportKind: z.enum(['style', 'classification', 'preference', 'crop', 'skill']), purpose: z.enum(['training', 'development', 'holdout', 'reference']), releaseId: z.string(), usageRevisionId: z.string().optional(), splitId: z.string(), feedbackIds: z.array(z.string()).optional(), imageVersionIds: z.array(z.string()).optional(), mode: z.enum(['references-only', 'with-bytes']).optional() })
+const exportInputSchema = z.strictObject({ ...op, exportKind: z.enum(['style', 'classification', 'preference', 'crop', 'skill']), purpose: z.enum(['training', 'development', 'holdout', 'reference']), releaseId: z.string(), usageRevisionId: z.string().optional(), splitId: z.string(), feedbackIds: z.array(z.string()).optional(), imageVersionIds: z.array(z.string()).optional(), mode: z.enum(['references-only', 'with-bytes']).optional(), analysisRunId: z.string().optional() })
 
 /** All locally stored workspace data; Session resources are filtered by the supplied Host actor. */
 export interface CuratorSnapshot {
@@ -98,17 +101,23 @@ export class CuratorDomain {
     return { image, asset: { ...asset, familyId: this.familyOf(asset.familyId) } }
   }
   /** Resolve a committed standard once; an empty default never selects a draft. */
-  resolveRelease(styleId: string, releaseId: string | undefined): StyleRelease {
+  resolveRelease(styleId: string, releaseId: string | undefined): StyleStandard {
     const style = this.require('style', styleId)
     if (style.archived) throw new CuratorError('constraint-conflict', 'resolve', 'Archived styles cannot start new tasks.')
-    const selected = releaseId ?? style.defaultReleaseId
+    const selected = releaseId ?? style.defaultReleaseId ?? new ModelProfiles(this).current(styleId)?.id
     if (selected === null || selected === undefined) throw new CuratorError('invalid-input', 'resolve', 'Select a published release; this style has no default.')
+    const profile = this.repository.get('modelProfile', selected)
+    if (profile) {
+      if (profile.styleId !== styleId) throw new CuratorError('owner-denied', 'resolve', 'The model profile belongs to another style.')
+      return profile
+    }
     const release = this.require('release', selected)
     if (release.styleId !== styleId || !style.committedReleaseIds.includes(release.id)) throw new CuratorError('owner-denied', 'resolve', 'The release belongs to another style.')
     return release
   }
   /** @param release Fixed standard. @param actor Host-created identity. @returns Completion after every reference byte is verified. */
-  async verifyRelease(release: StyleRelease, actor: DomainActor): Promise<void> {
+  async verifyRelease(release: StyleStandard, actor: DomainActor): Promise<void> {
+    if (release.kind === 'modelProfile') new ModelProfiles(this).assertFresh(release, actor)
     for (const ref of release.references) {
       const { image } = this.authorizedImage(ref.reference.imageVersionId, actor)
       if (image.blob.digest !== ref.imageDigest) throw new CuratorError('reference-unavailable', 'resolve', 'A fixed reference digest does not match.')
@@ -390,9 +399,22 @@ export class CuratorDomain {
   }
   /** @param familyId Immutable source family or merged alias. @returns Whether all current members have explicit confirmation. */
   isFamilyConfirmed(familyId: string): boolean {
-    const assets = this.familyAssets(familyId)
-    const confirmed = new Set([...this.repository.list('familyConfirmation'), ...this.repository.list('familyGroup')].filter(c => this.familyOf(c.familyId) === this.familyOf(familyId)).flatMap(c => c.assetIds))
-    return assets.length > 0 && assets.every(a => a.groupingStatus === 'confirmed' || confirmed.has(a.id))
+    return this.familyConfirmationStatuses().get(this.familyOf(familyId)) ?? false
+  }
+  /** @returns Current confirmation status for each canonical family; callers may reuse it within one synchronous projection. */
+  familyConfirmationStatuses(): ReadonlyMap<string, boolean> {
+    const confirmed = new Map<string, Set<string>>()
+    for (const item of [...this.repository.list('familyConfirmation'), ...this.repository.list('familyGroup')]) {
+      const family = this.familyOf(item.familyId), members = confirmed.get(family) ?? new Set<string>()
+      for (const id of item.assetIds) members.add(id)
+      confirmed.set(family, members)
+    }
+    const statuses = new Map<string, boolean>()
+    for (const asset of this.repository.list('asset')) {
+      const family = this.familyOf(asset.familyId)
+      statuses.set(family, (statuses.get(family) ?? true) && (asset.groupingStatus === 'confirmed' || confirmed.get(family)?.has(asset.id) === true))
+    }
+    return statuses
   }
   /** @param input Current families to confirm. @param actor Host-authenticated human. @returns Immutable membership audit records. */
   async confirmFamilies(input: z.infer<typeof familyInputSchema>, actor: DomainActor): Promise<RecordOf<'familyConfirmation'>[]> {
@@ -415,6 +437,18 @@ export class CuratorDomain {
     const exportActor: ExportSnapshot['actor'] = actor.kind === 'human' ? this.human(actor) : { kind: 'agent', id: actor.id, sessionId: actor.sessionId ?? '' }
     if (actor.kind === 'agent' && !actor.sessionId) throw new CuratorError('owner-denied', 'export', 'Agent export requires an owning Session.')
     const release = this.require('release', input.releaseId)
+    const analysisRun = input.analysisRunId ? this.require('run', input.analysisRunId) : undefined
+    if (analysisRun && !this.canReadRun(analysisRun.id, actor)) throw new CuratorError('owner-denied', 'export', 'The style analysis belongs to another owner.')
+    const analysis = analysisRun ? styleAnalysisOf(analysisRun) : undefined
+    if (analysisRun) {
+      if (input.exportKind !== 'style' || input.purpose !== 'reference' || analysisRun.status !== 'completed' || analysisRun.outcome !== 'target-met' || !analysis || analysis.styleId !== release.styleId) throw new CuratorError('constraint-conflict', 'export', 'Choose a completed analysis and reference-style export for this release.')
+      if (analysis.samples.length !== release.references.length || analysis.samples.some(sample => {
+        const fixed = release.references.find(ref => ref.reference.id === sample.reference.id)
+        return !fixed || fixed.imageDigest !== sample.imageDigest || fixed.reference.imageVersionId !== sample.reference.imageVersionId
+          || contentDigest(fixed.reference.intent) !== contentDigest(sample.reference.intent) || contentDigest(fixed.reference.context) !== contentDigest(sample.reference.context)
+          || contentDigest([...fixed.feedbackIds].sort()) !== contentDigest([...sample.feedbackIds].sort())
+      })) throw new CuratorError('revision-conflict', 'export', 'The published examples or judgments differ from this analysis. Analyze and publish the current examples before exporting.')
+    }
     const split = this.require('split', input.splitId)
     this.assertSplitUsable(split)
     if (input.usageRevisionId) this.require('usage', input.usageRevisionId)
@@ -460,7 +494,12 @@ export class CuratorDomain {
     }
     const resourceIds = new Set(resources.map(r => r.imageVersionId))
     const includedFeedback = feedback.filter(f => f.subject.kind === 'pair' ? resourceIds.has(f.subject.leftImageVersionId) && resourceIds.has(f.subject.rightImageVersionId) : resourceIds.has(f.subject.imageVersionId))
-    const files = renderExportFiles({ release, split, resources, feedback: includedFeedback, exportKind: input.exportKind, images })
+    const observations = analysis?.samples.map(sample => {
+      const observation = this.require('observation', sample.observationId)
+      if (observation.imageVersionId !== sample.reference.imageVersionId) throw new CuratorError('reference-unavailable', 'export', 'The saved observation refers to different pixels.')
+      return observation
+    })
+    const files = renderExportFiles({ release, split, resources, feedback: includedFeedback, exportKind: input.exportKind, images, ...(analysis && observations ? { analysis, observations } : {}) })
     const sessionResource = resources.some(resource => this.require('asset', resource.assetId).access.kind === 'session-run')
     const access: ExportSnapshot['access'] = actor.kind === 'agent' || sessionResource ? { kind: 'session-run', sessionId: actor.sessionId ?? '' } : { kind: 'profile-library' }
     const snapshot: ExportSnapshot = { ...this.base('export', this.id('export', input.operationId)), access, formatVersion: 1, exportKind: input.exportKind, purpose: input.purpose, releaseId: release.id, ...(input.usageRevisionId ? { usageRevisionId: input.usageRevisionId } : {}), splitId: split.id, feedbackIds: includedFeedback.map(f => f.id), feedbackHeads: Object.fromEntries(includedFeedback.map(f => [f.threadId, f.id])), resources, mode: input.mode ?? 'references-only', actor: exportActor, files, exclusions }
@@ -523,7 +562,9 @@ export class CuratorDomain {
   private validateContext(context: z.infer<typeof feedbackContextSchema>, actor: DomainActor, allowHistoricalDraft = false): void {
     const style = this.require('style', context.styleId)
     if (context.standard.kind === 'release') {
-      if (this.require('release', context.standard.releaseId).styleId !== style.id) throw new CuratorError('owner-denied', 'feedback-confirm', 'Feedback standard belongs to another style.')
+      const standard = this.resolveRelease(style.id, context.standard.releaseId)
+      if (standard.kind === 'modelProfile') new ModelProfiles(this).authorize(standard, actor)
+      if (standard.styleId !== style.id) throw new CuratorError('owner-denied', 'feedback-confirm', 'Feedback standard belongs to another style.')
     } else {
       const draft = this.require('draft', context.standard.draftId)
       if (draft.styleId !== style.id || (allowHistoricalDraft ? draft.revision < context.standard.draftRevision : draft.revision !== context.standard.draftRevision)) throw new CuratorError('revision-conflict', 'feedback-confirm', 'Feedback draft context is stale.')

@@ -5,11 +5,12 @@ import type { CuratorDomain } from '../domain/curator.ts'
 import { AssetFiles, CompatibleVisionProvider, parseRect, resolveCrop, visionCropProposalSchema, visionReviewSchema } from '../media/index.ts'
 import type { VisionImage, VisionInput, VisionRule } from '../media/index.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { assessmentSchema, cropCandidateSchema, dimensionSchema, humanActorSchema, imageVersionSchema, jsonSchema, releaseSchema, selectionSchema, usageSchema } from '../shared/model.ts'
-import type { Assessment, CuratorRecord, DomainActor, ImageVersion, Json, Rule, StyleRelease, UsageRevision } from '../shared/model.ts'
+import { assessmentSchema, cropCandidateSchema, dimensionSchema, humanActorSchema, imageVersionSchema, jsonSchema, styleStandardSchema, selectionSchema, usageSchema } from '../shared/model.ts'
+import type { Assessment, CuratorRecord, DomainActor, ImageVersion, Json, Rule, StyleStandard, UsageRevision } from '../shared/model.ts'
 import type { CuratorConfig } from './config.ts'
 import { dataOf, decideAssessment, rankedSelections, safeFailure, toJson } from './runtime.ts'
 import type { WorkContext, Worker } from './runtime.ts'
+import { styleReviewBrief, visionImageInput } from './review.ts'
 
 const progressSchema = z.strictObject({
   sourceAssessmentId: z.string().optional(), proposal: visionCropProposalSchema.optional(),
@@ -57,7 +58,7 @@ async function pixels(files: AssetFiles, image: ImageVersion, role: string, sign
   return { imageVersionId: image.id, digest: image.blob.digest, mime: image.blob.mime, bytes: await files.read(image.blob, signal), role }
 }
 
-async function referencePixels(deps: CropWorkerDependencies, ctx: WorkContext, release: StyleRelease): Promise<VisionImage[]> {
+async function referencePixels(deps: CropWorkerDependencies, ctx: WorkContext, release: StyleStandard): Promise<VisionImage[]> {
   const references: VisionImage[] = []
   const maxImages = Math.min(release.recipe.referenceStrategy.maxImages, ctx.spec.config.limits.maxReferenceImages)
   const maxBytes = Math.min(release.recipe.referenceStrategy.maxBytes, ctx.spec.config.limits.maxReferenceBytes)
@@ -66,7 +67,7 @@ async function referencePixels(deps: CropWorkerDependencies, ctx: WorkContext, r
     const { image } = deps.domain.authorizedImage(snapshot.reference.imageVersionId, actorOf(ctx))
     if (image.blob.digest !== snapshot.imageDigest) throw new CuratorError('reference-unavailable', 'cropping', 'A fixed style reference no longer matches its saved digest.')
     if (references.length >= maxImages || bytes + image.blob.byteLength > maxBytes) continue
-    references.push(await pixels(deps.files, image, JSON.stringify({ role: snapshot.reference.role, intent: snapshot.reference.intent, context: snapshot.reference.context, judgments: snapshot.judgments ?? [] }), ctx.signal))
+    references.push(await visionImageInput(image, deps.files, JSON.stringify({ role: snapshot.reference.role, intent: snapshot.reference.intent, context: snapshot.reference.context, judgments: snapshot.judgments ?? [] }), ctx.signal))
     bytes += image.blob.byteLength
   }
   return references
@@ -92,10 +93,10 @@ function committedOutput(deps: CropWorkerDependencies, ctx: WorkContext, descrip
  */
 export function createCropWorker(deps: CropWorkerDependencies): Worker {
   return async ctx => {
-    const release = releaseSchema.parse(ctx.spec.fixed.release)
+    const release = styleStandardSchema.parse(ctx.spec.fixed.release)
     const usage = usageSchema.parse(ctx.spec.fixed.usage)
     const ids = z.array(z.string().min(1)).min(1).parse(ctx.spec.input.imageVersionIds)
-    const taskBrief = z.string().min(1).parse(ctx.spec.input.taskBrief)
+    const taskBrief = styleReviewBrief(release, z.string().min(1).parse(ctx.spec.input.taskBrief))
     const manualRect = ctx.spec.input.manualRect === undefined ? undefined : parseRect(ctx.spec.input.manualRect)
     const allowWarning = ctx.spec.input.allowWarning === true
     const includeInLearning = ctx.spec.input.includeInLearning === true
@@ -164,6 +165,12 @@ export function createCropWorker(deps: CropWorkerDependencies): Worker {
       const parentPixels = await pixels(deps.files, parent, 'original', ctx.signal)
       try {
         let sourceAssessment = state.sourceAssessmentId === undefined ? undefined : deps.domain.require('assessment', state.sourceAssessmentId)
+        // 搜索已经审核同一原图及固定标准；裁图沿用这条已提交源审，终审仍检查实际裁后像素。
+        if (sourceAssessment === undefined && ctx.spec.kind === 'search') {
+          sourceAssessment = deps.domain.repository.list('assessment').find(item => item.runId === ctx.runId && item.imageVersionId === imageId && item.stage === 'source'
+            && item.technicalStatus === 'completed' && item.recipeId === release.recipe.id && item.standard?.id === release.id && item.standard.contentDigest === release.contentDigest)
+          if (sourceAssessment) { state.sourceAssessmentId = sourceAssessment.id; await save([], 'reviewing') }
+        }
         if (sourceAssessment === undefined) {
           sourceAssessment = await review(parent, [parentPixels, ...references], 'source', sourceRules)
           state.sourceAssessmentId = sourceAssessment.id
@@ -270,7 +277,7 @@ export function createCropWorker(deps: CropWorkerDependencies): Worker {
  * @param deps Shared domain/media/vision dependencies.
  * @returns Per-image processor; budget exhaustion remains an explicit outcome for the search owner.
  */
-export function createCropProcessor(deps: CropWorkerDependencies): (ctx: WorkContext, imageVersionId: string, release: StyleRelease, usage: UsageRevision) => Promise<'target-met' | 'source-exhausted' | 'budget-exhausted' | 'partial-failure'> {
+export function createCropProcessor(deps: CropWorkerDependencies): (ctx: WorkContext, imageVersionId: string, release: StyleStandard, usage: UsageRevision) => Promise<'target-met' | 'source-exhausted' | 'budget-exhausted' | 'partial-failure'> {
   const worker = createCropWorker(deps)
   return async (ctx, imageVersionId, release, usage) => await worker({ ...ctx, spec: { ...ctx.spec, input: { ...ctx.spec.input, imageVersionIds: [imageVersionId] }, fixed: { ...ctx.spec.fixed, release: toJson(release), usage: toJson(usage) } } })
 }

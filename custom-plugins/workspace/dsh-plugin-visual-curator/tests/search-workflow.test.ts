@@ -81,6 +81,7 @@ async function setup(pages: SearchFixture['pages'], options: { targetCount?: num
   let saveCount = 0
   let afterSave: ((records: readonly { kind: string }[]) => void) | undefined
   const context: WorkContext = { runId: run.id, get signal() { return currentSignal }, spec, ledger, current: () => domain.require('run', run.id),
+    report: () => { /* 此夹具只运行搜图与裁图，不产生分析消息。 */ },
     save: async (stage, patch, records = []) => {
       currentSignal.throwIfAborted()
       const current = context.current()
@@ -170,10 +171,10 @@ test('resume replays a committed source review after a crash before the assessme
     assert.deepEqual(fixture.fixture.visionOperations, ['review:source'])
     fixture.setSignal(new AbortController().signal)
     assert.equal(await fixture.worker(fixture.context), 'target-met')
-    assert.deepEqual(fixture.fixture.visionOperations, ['review:source', 'review:source', 'propose-crop:', 'review:final'])
+    assert.deepEqual(fixture.fixture.visionOperations, ['review:source', 'propose-crop:', 'review:final'])
     assert.equal(fixture.fixture.downloads.length, 1)
     assert.equal(fixture.fixture.sourceRequests.length, 1)
-    assert.equal(fixture.context.ledger.snapshot().vision, 4)
+    assert.equal(fixture.context.ledger.snapshot().vision, 3)
   } finally { await fixture.cleanup() }
 })
 
@@ -205,7 +206,7 @@ test('unknown failed download spends its byte reservation and a retry cannot byp
   } finally { await fixture.cleanup() }
 })
 
-test('a ten-image target retains exactly six qualified derivatives when the shared vision budget stops the Run', async () => {
+test('a ten-image target retains eight qualified derivatives without repeating source review before the shared budget stops the Run', async () => {
   const fixture = await setup(() => ({ items: Array.from({ length: 10 }, (_, index) => item(`image-${index}`)), next: null }), { targetCount: 10, maxVisionCalls: 24 })
   const jobs = new FixtureJobs(), engine = new RunEngine(fixture.domain.repository, jobs)
   try {
@@ -217,9 +218,9 @@ test('a ten-image target retains exactly six qualified derivatives when the shar
     assert.equal(complete.status, 'completed')
     assert.equal(complete.outcome, 'budget-exhausted')
     const selections = fixture.domain.repository.list('selection').filter(item => item.runId === run.id)
-    assert.equal(selections.length, 6)
-    assert.equal(new Set(selections.map(item => fixture.domain.require('imageVersion', item.imageVersionId).blob.digest)).size, 6)
-    assert.equal(dataOf(complete).counts.qualified, 6)
+    assert.equal(selections.length, 8)
+    assert.equal(new Set(selections.map(item => fixture.domain.require('imageVersion', item.imageVersionId).blob.digest)).size, 8)
+    assert.equal(dataOf(complete).counts.qualified, 8)
     assert.equal(dataOf(complete).budget.vision, 24)
     assert.equal(fixture.fixture.visionOperations.length, 24)
     assert.equal(contentDigest(specOf(complete).fixed.release), before)

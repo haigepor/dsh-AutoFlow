@@ -1,0 +1,10 @@
+{
+  "requestsUseRemoteUrls": true,
+  "referenceVersion": "remote-reference",
+  "digestKind": "remote-url-v1",
+  "pixelDigest": null,
+  "localBlobFiles": 0,
+  "fabricatedMeasurements": 0,
+  "remoteLocationExported": true,
+  "replayLimitationRecorded": true
+}

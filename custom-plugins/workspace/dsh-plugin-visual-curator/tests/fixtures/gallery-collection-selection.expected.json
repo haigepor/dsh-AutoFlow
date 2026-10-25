@@ -1,0 +1,7 @@
+{
+  "imported": ["one", "two", "three", "four"],
+  "statuses": ["imported", "imported", "imported", "imported"],
+  "references": 4,
+  "role": "negative",
+  "downloadedDeselectedPhoto": false
+}

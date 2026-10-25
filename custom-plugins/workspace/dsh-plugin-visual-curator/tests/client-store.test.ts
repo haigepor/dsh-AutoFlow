@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createCuratorStore, encodeUpload, safeResourcePath } from '../src/client/store.ts'
-import type { CuratorSnapshot, ImageView, RunView } from '../src/client/contract.ts'
+import type { CuratorSnapshot, ImageView, RunView, StyleView } from '../src/client/contract.ts'
 import { resolveConfig } from '../src/host/config.ts'
 
 function snapshot(): CuratorSnapshot {
@@ -15,6 +15,25 @@ function deferred<T>() {
   const promise = new Promise<T>(done => { resolve = done })
   return { promise, resolve }
 }
+
+test('refresh replaces an archived or missing selected collection and leaves no selection after the last removal', async () => {
+  const style = (styleId: string, archived = false): StyleView => ({ styleId, name: styleId, archived, revision: 1, draftId: styleId + '-draft', draftRevision: 1, rules: [], conflicts: [], referenceIds: [], releases: [], candidates: [] })
+  let current: CuratorSnapshot = { ...snapshot(), styles: [style('first', true), style('second'), style('third')] }
+  const store = createCuratorStore({ invoke: async () => current })
+  try {
+    await store.reload()
+    assert.equal(store.getSnapshot().styleId, 'second')
+    store.selectStyle('third')
+    await store.reload()
+    assert.equal(store.getSnapshot().styleId, 'third')
+    current = { ...current, styles: [style('first', true), style('second')] }
+    await store.reload()
+    assert.equal(store.getSnapshot().styleId, 'second')
+    current = { ...current, styles: current.styles.map(item => ({ ...item, archived: true })) }
+    await store.reload()
+    assert.equal(store.getSnapshot().styleId, '')
+  } finally { store.dispose() }
+})
 
 test('background refresh retains filters, image selection, open preview and task identity', async () => {
   let current = snapshot()
@@ -69,6 +88,22 @@ test('duplicate mutation gestures share the in-flight guard; failures retain use
   assert.equal(mutations, 1); assert.deepEqual(store.getSnapshot().selectedImageIds, ['image-a'])
   assert.equal(store.getSnapshot().toast?.success, true); assert.deepEqual(store.getSnapshot().pending, [])
   store.dispose()
+})
+
+test('a committed import refreshes past an older in-flight snapshot before the next batch', async () => {
+  const stale = deferred<CuratorSnapshot>()
+  let reads = 0
+  const fresh = { ...snapshot(), configuration: { ...snapshot().configuration, revision: 'after-import' } }
+  const store = createCuratorStore({ invoke: async operation => operation !== 'snapshot' ? { saved: true } : ++reads === 2 ? stale.promise : reads > 2 ? fresh : snapshot() })
+  try {
+    await store.reload()
+    const oldRead = store.reload(), mutation = store.execute('reference-import', { operationId: 'batch' })
+    await Promise.resolve(); await Promise.resolve()
+    stale.resolve(snapshot())
+    await Promise.all([oldRead, mutation])
+    assert.equal(store.getSnapshot().snapshot?.configuration.revision, 'after-import')
+    assert.equal(reads, 3)
+  } finally { store.dispose() }
 })
 
 test('mutation rejection keeps data and publishes a structured failure for the long-lived overlay', async () => {

@@ -69,6 +69,7 @@ async function setup(mode?: ConstructorParameters<typeof CropFixture>[0], maxVis
   let afterSave: ((records: readonly { kind: string }[]) => void) | undefined
   let currentSignal = controller.signal
   const context: WorkContext = { runId: run.id, get signal() { return currentSignal }, spec, ledger, current: () => domain.require('run', run.id),
+    report: () => { /* 此夹具只运行搜图与裁图，不产生分析消息。 */ },
     save: async (stage, patch, records = []) => {
       context.signal.throwIfAborted()
       const current = context.current()

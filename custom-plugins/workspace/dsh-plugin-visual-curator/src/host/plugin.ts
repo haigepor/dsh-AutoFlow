@@ -1,5 +1,6 @@
 /** Independent profile provider; all registrations and in-flight work leave with its Cordis fiber. */
 import type { Context } from '@deepseek-ai/cordis'
+import { z } from 'zod'
 import { CuratorService } from './service.ts'
 import { Config } from './config.ts'
 import type { ClientActionInput } from '../client/contract.ts'
@@ -36,7 +37,12 @@ export function safeFailure(error: unknown) {
  * @returns Settles after the durable repository and registrations are available.
  */
 export async function apply(ctx: Context, input: unknown = {}): Promise<void> {
-  const service = new CuratorService(ctx, input)
+  const read = () => {
+    const { vision, ...rest } = z.object({ vision: z.unknown().optional() }).passthrough().parse(input)
+    return { ...rest, vision: vision && typeof vision === 'object' && 'get' in vision && typeof vision.get === 'function' ? vision.get() : vision }
+  }
+  const service = new CuratorService(ctx, read())
+  ctx.on('loader/volatile-update', () => service.updateConfiguration(read()))
   await mountCurator(ctx, service)
 }
 
@@ -46,10 +52,11 @@ export async function apply(ctx: Context, input: unknown = {}): Promise<void> {
  * @returns Settles when storage and all profile entry points are ready.
  */
 export async function mountCurator(ctx: Context, service: CuratorService): Promise<void> {
+  // 初始化可能立即恢复任务，必须先注册可控制这些任务的能力。
+  ctx.effect(() => ctx.jobs.attachController('visual-curator'), 'Visual Curator profile jobs')
   ctx.effect(() => () => service.dispose(), 'Visual Curator task drain')
   await service.initialize()
   ctx.provide('visualCurator', service)
-  ctx.effect(() => ctx.jobs.attachController('visual-curator'), 'Visual Curator profile jobs')
   ctx.effect(() => ctx.pluginManager.registerAction(name, 'workbench', async (input, signal) => {
     try {
       if (Object.keys(input).some(key => key !== 'operation' && key !== 'args') || !input.operation || !input.args) {
@@ -70,4 +77,10 @@ export async function mountCurator(ctx: Context, service: CuratorService): Promi
   ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
     path: '/api/visual-curator/data', methods: ['POST'], requestBody: 'buffered', fetch: request => service.data(request),
   }), 'Visual Curator paginated workspace data'))
+  ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
+    path: '/api/visual-curator/gallery', methods: ['POST'], requestBody: 'buffered', fetch: request => service.gallery(request),
+  }), 'Visual Curator account galleries'))
+  ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
+    path: '/api/visual-curator/local-reference', methods: ['POST'], requestBody: 'buffered', fetch: request => service.localReferenceData(request),
+  }), 'Visual Curator original-path references'))
 }

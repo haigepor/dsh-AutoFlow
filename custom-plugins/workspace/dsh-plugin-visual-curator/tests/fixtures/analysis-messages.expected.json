@@ -1,0 +1,4 @@
+[
+  { "kind": "analysis", "batch": 1, "imageIds": ["one"], "content": "第一批观察", "reasoning": "真实推理文本", "state": "complete" },
+  { "kind": "summary", "batch": null, "imageIds": ["one"], "content": "跨图片风格归纳", "reasoning": "", "state": "complete" }
+]

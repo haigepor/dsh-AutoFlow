@@ -1,0 +1,7 @@
+{
+  "provider": "unsplash",
+  "permission": "references-only",
+  "referenceCount": 1,
+  "ruleSource": "model",
+  "confirmation": "suggested"
+}

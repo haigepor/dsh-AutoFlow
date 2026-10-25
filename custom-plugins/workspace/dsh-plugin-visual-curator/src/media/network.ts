@@ -8,7 +8,7 @@ import { checkCancelled, invalidInput, MediaError } from './errors.ts'
 /** Per-attempt bounds, already reserved by the Run owner; this layer never retries. */
 export interface RequestBounds { maxBytes: number; timeoutMs: number; maxRedirects: number; signal?: AbortSignal | undefined }
 /** Request parameters; authentication is sent only to the initial exact origin. */
-export interface HttpRequest extends RequestBounds { method: 'GET' | 'POST'; headers?: Readonly<Record<string, string>>; body?: Uint8Array | undefined }
+export interface HttpRequest extends RequestBounds { method: 'GET' | 'POST'; headers?: Readonly<Record<string, string>>; body?: Uint8Array | undefined; onChunk?: (chunk: Uint8Array, contentType: string) => void }
 /** Bounded response bytes; upstream URLs and raw failures are not exposed. */
 export interface HttpResponse { status: number; headers: Readonly<Record<string, string>>; bytes: Buffer }
 /** An injected fixture implements this interface without changing production DNS policy. */
@@ -157,6 +157,8 @@ export class SafeHttpClient implements HttpClient {
           size += chunk.length
           if (size > input.maxBytes) { response.destroy(); reject(new MediaError('budget-exhausted', 'network', false, 'The remote response exceeds the configured byte limit.', 'Request a smaller resource.')); return }
           chunks.push(chunk)
+          try { if (response.statusCode && response.statusCode >= 200 && response.statusCode < 300) input.onChunk?.(chunk, headers['content-type'] ?? '') }
+          catch (error) { response.destroy(); reject(error) }
         })
         response.on('error', reject)
         response.on('end', () => resolveResponse({ status: response.statusCode ?? 0, headers, bytes: Buffer.concat(chunks, size) }))

@@ -6,9 +6,13 @@ import sharp from 'sharp'
 import { checkCancelled, invalidInput, MediaError } from './errors.ts'
 import { resolveCrop } from './geometry.ts'
 import type { CropUsage, ImageGeometry, NormalizedRect, PixelRect } from './geometry.ts'
+import type { RemoteImageSource } from '../shared/gallery.ts'
+import { remoteReferenceSource } from './remote-reference.ts'
 
 /** Content-addressed private file; business ownership must be checked before reading it. */
-export interface BlobRef { digest: string; byteLength: number; mime: string; storageRef: string }
+export interface BlobRef { digest: string; byteLength: number; mime: string; storageRef: string; localSource?: LocalFileSource | undefined; remoteSource?: RemoteImageSource | undefined }
+/** Pinned original path and a reproducible, memory-only representation. */
+export interface LocalFileSource { path: string; digest: string; byteLength: number; mime: string; representation: 'original' | 'normalized' | 'preview'; maxDimension: number; processorVersion: string }
 /** Normalized pixels; orientation records the transformation from the original file. */
 export interface ImageFile { blob: BlobRef; width: number; height: number; sourceOrientation: number; processorVersion: string; colorSpace: 'srgb' }
 /** Original bytes remain unchanged; normalized and preview blobs are separate versions. */
@@ -52,6 +56,9 @@ export class AssetFiles {
   readonly root: string
   readonly processorVersion = `sharp-${sharp.versions.sharp}/vips-${sharp.versions.vips}/visual-normalize-v1`
   private writing: Promise<void> = Promise.resolve()
+  private localReading: Promise<void> = Promise.resolve()
+  private readonly localCache = new Map<string, Buffer>()
+  private localCacheBytes = 0
 
   constructor(root: string, readonly limits: MediaLimits) {
     if (!root.trim()) throw invalidInput('A private media directory is required.')
@@ -125,6 +132,76 @@ export class AssetFiles {
     } finally { await file.close() }
   }
 
+  /** Register an original path without copying image bytes into plugin storage.
+   * @param path Explicit human-selected absolute file path. @param signal Registration lifetime.
+   * @returns Pinned source and virtual preview/analysis images regenerated in memory from that source.
+   */
+  async referenceFile(path: string, signal?: AbortSignal): Promise<ImportedFiles> {
+    if (!isAbsolute(path)) throw invalidInput('Choose an absolute local image path.')
+    try {
+      const canonical = await realpath(path)
+      if ((await lstat(path)).isSymbolicLink()) throw this.unavailable()
+      const bytes = await this.localOriginal(canonical, signal)
+      const mime = sniff(bytes); rejectAnimation(bytes, mime)
+      const metadata = await sharp(bytes, { limitInputPixels: this.limits.maxPixels, animated: true }).metadata()
+      if (!metadata.width || !metadata.height || metadata.width > this.limits.maxDimension || metadata.height > this.limits.maxDimension || (metadata.pages ?? 1) !== 1) throw invalidInput('The local image dimensions or format are unsupported.')
+      const processorVersion = `${this.processorVersion}/path-reference-v1`
+      const source = { path: canonical, digest: digest(bytes), byteLength: bytes.length, mime, maxDimension: this.limits.previewMaxDimension, processorVersion }
+      const normalized = await this.renderLocal(bytes, { ...source, representation: 'normalized' })
+      const preview = await this.renderLocal(bytes, { ...source, representation: 'preview' })
+      const normalizedInfo = await sharp(normalized).metadata(), previewInfo = await sharp(preview).metadata()
+      const blob = (content: Buffer, mime: string, representation: LocalFileSource['representation']): BlobRef => ({ digest: digest(content), byteLength: content.length, mime, storageRef: `local-files/${digest(content)}`, localSource: { ...source, representation } })
+      checkCancelled(signal)
+      return { originalBlob: blob(bytes, mime, 'original'),
+        normalized: { blob: blob(normalized, 'image/png', 'normalized'), width: normalizedInfo.width!, height: normalizedInfo.height!, sourceOrientation: metadata.orientation ?? 1, processorVersion, colorSpace: 'srgb' },
+        preview: { blob: blob(preview, 'image/webp', 'preview'), width: previewInfo.width!, height: previewInfo.height!, sourceOrientation: metadata.orientation ?? 1, processorVersion, colorSpace: 'srgb' } }
+    } catch (error) { if (error instanceof MediaError) throw error; throw this.unavailable() }
+  }
+
+  private async localOriginal(path: string, signal?: AbortSignal): Promise<Buffer> {
+    checkCancelled(signal)
+    if (!isAbsolute(path) || (await lstat(path)).isSymbolicLink() || await realpath(path) !== path) throw this.unavailable()
+    const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+    try {
+      const stat = await file.stat()
+      if (!stat.isFile() || !stat.size || stat.size > this.limits.maxFileBytes) throw invalidInput('The local image exceeds the configured file limit.')
+      const bytes = Buffer.alloc(stat.size + 1)
+      let offset = 0
+      while (offset < bytes.length) { checkCancelled(signal); const part = await file.read(bytes, offset, bytes.length - offset, offset); if (!part.bytesRead) break; offset += part.bytesRead }
+      if (offset !== stat.size) throw this.unavailable()
+      return bytes.subarray(0, offset)
+    } finally { await file.close() }
+  }
+
+  private async renderLocal(bytes: Buffer, source: LocalFileSource): Promise<Buffer> {
+    if (source.representation === 'original') return bytes
+    if (source.processorVersion !== `${this.processorVersion}/path-reference-v1` || source.maxDimension > this.limits.maxDimension) throw this.unavailable()
+    const pipeline = sharp(bytes, { limitInputPixels: this.limits.maxPixels }).autoOrient().toColourspace('srgb').resize({ width: source.maxDimension, height: source.maxDimension, fit: 'inside', withoutEnlargement: true })
+    return await (source.representation === 'normalized' ? pipeline.png() : pipeline.webp({ lossless: true })).toBuffer()
+  }
+
+  private async readLocal(blob: BlobRef, source: LocalFileSource, signal?: AbortSignal): Promise<Buffer> {
+    // 原图每次都校验；有界内存缓存只避免重复编码，不允许变更后的原图复用旧结果。
+    const work = this.localReading.then(async () => {
+      const original = await this.localOriginal(source.path, signal)
+      if (original.length !== source.byteLength || digest(original) !== source.digest || sniff(original) !== source.mime || blob.storageRef !== `local-files/${blob.digest}`) throw this.unavailable()
+      let pixels = this.localCache.get(blob.digest)
+      if (pixels) { this.localCache.delete(blob.digest); this.localCache.set(blob.digest, pixels) }
+      else {
+        pixels = await this.renderLocal(original, source)
+        if (pixels.length !== blob.byteLength || digest(pixels) !== blob.digest) throw this.unavailable()
+        if (source.representation !== 'original' && pixels.length <= this.limits.maxFileBytes) {
+          while (this.localCacheBytes + pixels.length > this.limits.maxFileBytes) { const first = this.localCache.entries().next().value; if (!first) break; this.localCache.delete(first[0]); this.localCacheBytes -= first[1].length }
+          this.localCache.set(blob.digest, pixels); this.localCacheBytes += pixels.length
+        }
+      }
+      checkCancelled(signal)
+      return Buffer.from(pixels)
+    })
+    this.localReading = work.then(() => {}, () => {})
+    try { return await work } catch (error) { if (error instanceof MediaError) throw error; throw this.unavailable() }
+  }
+
   /** Read an authorized blob after checking the private path, byte count and SHA-256.
    * @param blob Reference from an authorized committed domain record.
    * @param signal Optional cancellation; absent allows completion.
@@ -132,6 +209,8 @@ export class AssetFiles {
    */
   async read(blob: BlobRef, signal?: AbortSignal): Promise<Buffer> {
     checkCancelled(signal)
+    if (remoteReferenceSource(blob)) throw new MediaError('reference-unavailable', 'media', false, 'This remote reference has no verified local pixel bytes.', 'Use it as a URL reference for visual analysis; pixel cropping and byte exports require an explicit byte import.')
+    if (blob.localSource) return await this.readLocal(blob, blob.localSource, signal)
     if (!/^[a-f0-9]{64}$/.test(blob.digest) || blob.storageRef !== storageRef(blob.digest)
       || !Number.isSafeInteger(blob.byteLength) || blob.byteLength <= 0 || blob.byteLength > this.limits.maxStorageBytes) throw this.unavailable()
     try {
@@ -160,6 +239,12 @@ export class AssetFiles {
       if (error instanceof MediaError) throw error
       throw this.unavailable()
     }
+  }
+
+  /** @param blob Authorized image reference. @param signal Verification lifetime. @returns Descriptor validity, or byte integrity for local images. */
+  async verifyReference(blob: BlobRef, signal?: AbortSignal): Promise<void> {
+    checkCancelled(signal)
+    if (!remoteReferenceSource(blob)) await this.read(blob, signal)
   }
 
   /** Generate an exact-size crop from the normalized parent without enlargement.

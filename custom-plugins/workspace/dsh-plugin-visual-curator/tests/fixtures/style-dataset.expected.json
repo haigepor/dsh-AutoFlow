@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "purpose": "api-style-reference",
+  "modelSummaryStatus": "unconfirmed",
+  "model": "fixture",
+  "declaredModelVersion": "fixture-v1",
+  "validationStatus": "provisional",
+  "files": ["release.json", "style-profile.json", "samples.jsonl", "references.json", "SKILL.md", "resources.json", "manifest.json"],
+  "sampleCount": 10,
+  "sampleSources": ["vision-api-observation"],
+  "roleCounts": {"positive": 9, "negative": 1},
+  "measuredWidthMethod": "decoded-oriented-pixels",
+  "observationDimensions": ["color"],
+  "resourceCount": 10,
+  "exportMode": "references-only"
+}

@@ -1,12 +1,12 @@
 /** Cursor search keeps stable source identities; media URLs live only during an attempt. */
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { releaseSchema, usageSchema, assessmentSchema, type Json, type CuratorRecord } from '../shared/model.ts'
+import { styleStandardSchema, usageSchema, assessmentSchema, type Json, type CuratorRecord } from '../shared/model.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
-import type { AssetFiles, SourceHttpProvider, SourcePage, HttpClient, CompatibleVisionProvider } from '../media/index.ts'
+import type { AssetFiles, ImageSourceProvider, SourcePage, HttpClient, CompatibleVisionProvider } from '../media/index.ts'
 import type { CuratorConfig } from './config.ts'
 import { dataOf, toJson, safeFailure, type Worker, type WorkContext } from './runtime.ts'
-import { requestBounds } from './providers.ts'
+import { requestBounds, sourceIdentity } from './providers.ts'
 import { importedRecords } from './imports.ts'
 import { reviewImage, runActor } from './review.ts'
 import { CuratorError } from '../shared/errors.ts'
@@ -22,7 +22,7 @@ const initialState = { queryIndex: 0, cursor: null, seenCursors: [], seenIds: []
 export interface SearchDependencies {
   domain: CuratorDomain
   files: AssetFiles
-  source(config: CuratorConfig): Promise<SourceHttpProvider>
+  source(config: CuratorConfig): Promise<ImageSourceProvider>
   media(config: CuratorConfig): HttpClient
   vision(config: CuratorConfig): Promise<CompatibleVisionProvider>
   crop(ctx: WorkContext, imageVersionIds: string[]): Promise<void>
@@ -31,9 +31,10 @@ export interface SearchDependencies {
 /** @param deps Shared owner services and crop subflow. @returns Search worker using the parent's quotas and snapshots. */
 export function createSearchWorker(deps: SearchDependencies): Worker {
   return async ctx => {
-    const release = releaseSchema.parse(ctx.spec.fixed.release), usage = usageSchema.parse(ctx.spec.fixed.usage)
+    const release = styleStandardSchema.parse(ctx.spec.fixed.release), usage = usageSchema.parse(ctx.spec.fixed.usage)
     const input = z.object({ taskBrief: z.string().min(1), queries: z.array(z.string().min(1).max(4096)).min(1), targetCount: z.number().int().positive() }).parse(ctx.spec.input)
     const source = await deps.source(ctx.spec.config), vision = await deps.vision(ctx.spec.config), media = deps.media(ctx.spec.config), actor = runActor(ctx)
+    const sourceOwner = sourceIdentity(ctx.spec.config)
     const checkpoint = dataOf(ctx.current()).checkpoint
     const state = searchStateSchema.parse(checkpoint.search ?? initialState)
     const warnings = dataOf(ctx.current()).warnings
@@ -53,7 +54,7 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
         if (state.pageLoaded) {
           page = { items: state.pageIds.map(providerAssetId => ({ providerAssetId, previewUrl: '' })), nextCursor: state.nextCursor }
         } else {
-          page = await ctx.request('search', toJson({ query, cursor: state.cursor, providerId: ctx.spec.config.source.id }), signal => source.search({ query, pageSize: ctx.spec.config.limits.pageSize }, state.cursor, { ...requestBounds(ctx.spec.config, ctx), signal, seenCursors: state.seenCursors }), pageSummary)
+          page = await ctx.request('search', toJson({ query, cursor: state.cursor, providerId: sourceOwner.providerId }), signal => source.search({ query, pageSize: ctx.spec.config.limits.pageSize }, state.cursor, { ...requestBounds(ctx.spec.config, ctx), signal, seenCursors: state.seenCursors }), pageSummary)
           state.pageLoaded = true; state.pageIds = page.items.map(item => item.providerAssetId); state.pageDone = []; state.nextCursor = page.nextCursor; state.successfulPages++
           await save()
         }
@@ -66,7 +67,7 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
       for (const item of page.items) {
         ctx.signal.throwIfAborted()
         if (state.pageDone.includes(item.providerAssetId)) continue
-        const identity = `${ctx.spec.config.source.id}:${ctx.spec.config.source.credentialRef}:${item.providerAssetId}`
+        const identity = `${sourceOwner.providerId}:${sourceOwner.accountIdentity}:${item.providerAssetId}`
         const previouslyImported = state.importedImages[identity]
         if (previouslyImported && !state.duplicateIds.includes(identity)) {
           const old = deps.domain.repository.list('assessment').find(a => a.runId === ctx.runId && a.imageVersionId === previouslyImported && a.stage === 'source')
@@ -93,7 +94,7 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
             if (response.status < 200 || response.status >= 300) throw new CuratorError('reference-unavailable', 'download', 'The original image is unavailable.')
             const imported = await deps.files.importBytes(response.bytes, response.headers['content-type'], ctx.signal)
             const duplicate = state.seenDigests.includes(imported.normalized.blob.digest)
-            const created = importedRecords(actor.profileId, actor, imported, { kind: 'provider', providerId: ctx.spec.config.source.id, providerAssetId: item.providerAssetId, accountIdentity: ctx.spec.config.source.credentialRef, description: item.providerAssetId, obtainedAt: new Date().toISOString() })
+            const created = importedRecords(actor.profileId, actor, imported, { kind: 'provider', providerId: sourceOwner.providerId, providerAssetId: item.providerAssetId, accountIdentity: sourceOwner.accountIdentity, description: item.providerAssetId, obtainedAt: new Date().toISOString() })
             state.importedImages[identity] = created.image.id
             if (duplicate) state.duplicateIds.push(identity)
             else state.seenDigests.push(imported.normalized.blob.digest)

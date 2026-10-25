@@ -18,6 +18,13 @@ export interface SourceItem extends SourceLocation { providerAssetId: string; wi
 /** One real source page; null means normal exhaustion. */
 export interface SourcePage { items: SourceItem[]; nextCursor: string | null }
 
+/** Source workflows depend on stable identities and continuation support rather than a particular JSON mapping. */
+export interface ImageSourceProvider {
+  readonly config: Pick<SourceConfig, 'lookup'>
+  search(query: SourceQuery, cursor: string | null, bounds: RequestBounds & { seenCursors?: readonly string[] }): Promise<SourcePage>
+  lookup(providerAssetId: string, bounds: RequestBounds): Promise<SourceItem>
+}
+
 function protocol(message: string, continuation = false): MediaError {
   return new MediaError(continuation ? 'source-continuation-invalid' : 'source-protocol-error', 'retrieving', false, message, continuation ? 'Start a new search explicitly; the saved continuation cannot be replaced.' : 'Correct the source field mappings or response and start a new search.')
 }

@@ -6,6 +6,7 @@ export class MediaError extends Error {
     readonly retryable: boolean,
     readonly safeMessage: string,
     readonly suggestedAction: string,
+    readonly diagnostics?: { modelOutput: unknown; issues: string[] },
   ) {
     super(safeMessage)
     this.name = 'MediaError'

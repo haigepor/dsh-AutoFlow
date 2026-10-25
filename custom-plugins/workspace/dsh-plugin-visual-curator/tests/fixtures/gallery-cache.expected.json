@@ -1,0 +1,7 @@
+{
+  "firstCollection": "folder",
+  "sameTabReloadCollection": "folder",
+  "readsBeforeRefresh": 1,
+  "readsAfterRefresh": 2,
+  "authorizationPersisted": false
+}

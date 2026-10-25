@@ -1,0 +1,5 @@
+{
+  "writes": 0,
+  "statuses": ["failed", "failed", "skipped"],
+  "errorCode": "gallery-reference-control-unavailable"
+}

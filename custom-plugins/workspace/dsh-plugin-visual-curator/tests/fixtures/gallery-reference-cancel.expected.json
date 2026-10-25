@@ -1,0 +1,6 @@
+{
+  "sawProgress": true,
+  "imports": 1,
+  "cancelRequests": 1,
+  "statuses": ["imported", "skipped", "skipped"]
+}

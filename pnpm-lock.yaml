@@ -1496,12 +1496,18 @@ importers:
 
   custom-plugins/workspace/dsh-plugin-visual-curator:
     dependencies:
+      '@deepseek-ai/dsh-host-directory-picker-native':
+        specifier: workspace:*
+        version: link:../../../packages/host/directory-picker-native
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
       ipaddr.js:
         specifier: 2.5.0
         version: 2.5.0
+      playwright-core:
+        specifier: 1.64.1
+        version: 1.64.1
       sharp:
         specifier: 0.35.5
         version: 0.35.5(@types/node@22.20.1)
@@ -1530,9 +1536,18 @@ importers:
       '@deepseek-ai/dsh-client-connection':
         specifier: workspace:*
         version: link:../../../packages/client/connection
+      '@deepseek-ai/dsh-client-ui-chat':
+        specifier: workspace:*
+        version: link:../../../packages/client/ui-chat
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:*
+        version: link:../../../packages/client/ui-conversation
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: workspace:*
         version: link:../../../packages/client/ui-primitives
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:*
+        version: link:../../../packages/client/ui-slots
       '@deepseek-ai/dsh-config-editor':
         specifier: workspace:*
         version: link:../../../packages/boot/config-editor
