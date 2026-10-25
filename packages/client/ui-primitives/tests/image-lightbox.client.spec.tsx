@@ -9,6 +9,49 @@ afterEach(cleanup)
 const labels = { dialog: '原图预览', close: '关闭原图预览' }
 
 describe('ImageLightbox', () => {
+  it('shows progress until the image loads and resets progress for a different URL', () => {
+    const loadingLabels = { loading: '正在加载大图', error: '图片加载失败', retry: '重试图片' }
+    const view = render(<ImageLightbox src="https://example.com/a.png" alt="原图" labels={labels} loadingLabels={loadingLabels}
+      loadingImageSrc="https://example.com/loading.webp" onClose={vi.fn()} />)
+    expect(view.getByRole('status').textContent).toMatchInlineSnapshot('"正在加载大图"')
+    expect(view.getByRole('status').getAttribute('data-illustrated')).toBe('true')
+    expect(view.getByRole('status').querySelector('img')?.alt).toBe('')
+    expect(view.getByRole('img').getAttribute('data-state')).toBe('loading')
+    fireEvent.load(view.getByRole('img'))
+    expect(view.queryByRole('status')).toBeNull()
+    expect(view.getByRole('img').getAttribute('data-state')).toBe('ready')
+    view.rerender(<ImageLightbox src="https://example.com/b.png" alt="原图" labels={labels} loadingLabels={loadingLabels} onClose={vi.fn()} />)
+    expect(view.getByRole('status').textContent).toBe('正在加载大图')
+  })
+
+  it('offers keyboard-reachable retry after a failed image and keeps dismissal available', () => {
+    const onClose = vi.fn()
+    const view = render(<ImageLightbox src="https://example.com/fail.png" alt="原图" labels={labels} loadingLabels={{ loading: '正在加载', error: '图片加载失败', retry: '重试图片' }} onClose={onClose} />)
+    const failedImage = view.getByRole('img'), close = view.getByRole('button', { name: labels.close })
+    fireEvent.error(failedImage)
+    const retry = view.getByRole('button', { name: '重试图片' })
+    expect(view.getByRole('alert').textContent).toContain('图片加载失败')
+    fireEvent.keyDown(close, { key: 'Tab' })
+    expect(document.activeElement).toBe(retry)
+    fireEvent.click(retry)
+    expect(document.activeElement).toBe(close)
+    expect(view.getByRole('img')).not.toBe(failedImage)
+    expect(view.getByRole('status').textContent).toBe('正在加载')
+    fireEvent.keyDown(close, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('shows a cached decoded image without waiting for another load event', () => {
+    const complete = vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true)
+    const width = vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(400)
+    try {
+      const view = render(<ImageLightbox src="https://example.com/cached.png" alt="原图" labels={labels}
+        loadingLabels={{ loading: '正在加载', error: '图片加载失败', retry: '重试图片' }} onClose={vi.fn()} />)
+      expect(view.queryByRole('status')).toBeNull()
+      expect(view.getByRole('img').getAttribute('data-state')).toBe('ready')
+    } finally { complete.mockRestore(); width.mockRestore() }
+  })
+
   it('focuses its close control, closes by button and Escape, and restores focus', () => {
     const opener = document.createElement('button')
     document.body.appendChild(opener)

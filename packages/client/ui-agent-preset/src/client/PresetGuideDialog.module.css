@@ -6,14 +6,11 @@
   padding: 0;
   gap: 0;
   border-radius: var(--dsw-radius-xl);
-  animation: preset-guide-enter 160ms ease-out;
 }
 
 .guideDialog::before { background: var(--dsw-alias-bg-layer-1); backdrop-filter: none; }
 
 :global([role='presentation']):has(> .guideDialog) > :global([aria-hidden='true']) { background: color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent); }
-@keyframes preset-guide-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .guideDialog { animation: none; } }
 
 .guideLayout {
   display: flex;

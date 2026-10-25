@@ -48,12 +48,41 @@
     box-shadow 180ms cubic-bezier(.2, .8, .2, 1);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .switch, .thumb { transition: none; }
-}
-
 .switch[aria-checked='true'] .thumb {
   transform: translateX(16px);
   background: var(--dsw-alias-switch-active-thumb, var(--dsw-alias-switch-thumb));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--dsw-alias-state-business-primary) 22%, transparent), 0 1px 2px rgb(0 0 0 / 12%);
+}
+
+/* Keep the 36px hit area while the track fades and the thumb becomes progress. */
+.switch[data-loading='true'] {
+  background: transparent;
+}
+
+.switch[data-loading='true'] .thumb {
+  transform: translateX(8px);
+  background: transparent;
+  box-shadow: none;
+}
+
+.progress {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.progressIcon {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.switch[data-loading='true'] .progress {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch, .thumb, .progress { transition: none; }
 }

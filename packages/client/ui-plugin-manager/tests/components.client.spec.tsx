@@ -966,7 +966,14 @@ describe('PluginManagerPage', () => {
     set({ packages: [bundle], busy: ['feature:dsh-demo:skill'], pendingTargets: { 'feature:dsh-demo:skill': true } })
     expect(screen.getByRole('switch', { name: 'Enable feature Skill' }).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByRole('switch', { name: 'Enable feature Skill' }).getAttribute('aria-busy')).toBe('true')
+    expect(screen.getByRole('switch', { name: 'Enable feature Skill' }).querySelector('[data-state="ongoing"]')).not.toBeNull()
     expect(screen.getByRole('switch', { name: 'Enable feature Prompt' }).getAttribute('aria-busy')).toBe('false')
+    expect(screen.getByRole('switch', { name: 'Enable feature Prompt' }).querySelector('[data-state="ongoing"]')).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable feature Skill' }))
+    expect(actions.setFeature).toHaveBeenCalledTimes(1)
+    set({ busy: [], pendingTargets: {} })
+    expect(screen.getByRole('switch', { name: 'Enable feature Skill' }).querySelector('[data-state="ongoing"]')).toBeNull()
+    expect(screen.getByRole('switch', { name: 'Enable feature Skill' }).getAttribute('aria-checked')).toBe('false')
   })
 
   it('shows localized example prompts in the image hero and requests an unsent new Session draft', () => {

@@ -32,13 +32,38 @@
   background: var(--dsw-specific-input-major);
   border: 0;
   box-shadow: var(--dsw-elevation-prominent);
+  transition: opacity 160ms ease;
 }
+
+.image[data-state='loading'], .image[data-state='error'] { opacity: 0; }
+
+.feedback {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: calc(100% - 80px);
+  padding: 14px 18px;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-specific-input-major);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+}
+
+.feedback[data-illustrated='true'] { flex-direction: column; gap: 14px; padding: 0; background: transparent; }
+.caption { display: inline-flex; align-items: center; gap: 8px; }
+.artwork { display: block; width: 88px; height: 88px; object-fit: contain; animation: image-lightbox-float 2.4s ease-in-out infinite; }
+@keyframes image-lightbox-float { 0%, 100% { transform: translateY(2px); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .image { transition: none; } .artwork { animation: none; } }
 
 .close {
   position: absolute;
   top: 20px;
   right: 20px;
-  z-index: 1;
+  z-index: 2;
   display: grid;
   place-items: center;
   width: 36px;

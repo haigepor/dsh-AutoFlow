@@ -36,3 +36,21 @@
 .input::placeholder {
   color: var(--dsw-alias-label-dimmed);
 }
+
+.textarea {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 80px;
+  padding: 8px 10px;
+  outline: none;
+  resize: vertical;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.textarea::placeholder { color: var(--dsw-alias-label-dimmed); }
+.textarea:disabled { opacity: 0.4; cursor: not-allowed; }

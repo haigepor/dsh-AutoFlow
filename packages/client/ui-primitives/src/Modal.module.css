@@ -20,6 +20,7 @@
   inset: var(--dsh-frame-chrome-top, 0px) 0 0;
   background: transparent;
   backdrop-filter: var(--dsw-mask-blur);
+  animation: modalMaskEnter var(--dsw-modal-enter-duration) var(--dsw-modal-enter-easing) backwards;
 }
 
 /* Dialog card: r24, soft shadow, shared frosted material, pb 24. */
@@ -37,16 +38,28 @@
   border-radius: 24px;
   background: transparent;
   box-shadow: var(--dsw-elevation-stroke), inset 0 1px 0 var(--dsw-glass-highlight), var(--dsw-shadow-lv3);
-  animation: modalEnter var(--ds-transition-duration) var(--ds-ease-in-out);
+  animation: modalEnter var(--dsw-modal-enter-duration) var(--dsw-modal-enter-easing) backwards;
 }
 
 @keyframes modalEnter {
+  /* Opacity below 1 creates a backdrop root and blocks ::before from sampling the page. */
+  from { transform: translateY(4px) scale(0.99); }
+  to { transform: none; }
+}
+
+@keyframes modalMaskEnter {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .mask::after, .dialog { animation: none; }
+@keyframes modalMaterialEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalContentEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .dialog:focus {
@@ -62,6 +75,15 @@
   backdrop-filter: var(--dsw-menu-backdrop-filter);
   content: '';
   pointer-events: none;
+  animation: modalMaterialEnter var(--dsw-modal-enter-duration) var(--dsw-modal-enter-easing) backwards;
+}
+
+.content, .footer {
+  animation: modalContentEnter var(--dsw-modal-enter-duration) var(--dsw-modal-enter-easing) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mask, .dialog, .dialog::before, .content, .footer { animation: none; }
 }
 
 .content {

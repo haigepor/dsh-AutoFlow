@@ -7,6 +7,22 @@ import { closeTopModal, isBehindModal } from '../src/useModalLayer.ts'
 import { Menu } from '../src/Menu.tsx'
 
 afterEach(cleanup)
+
+it('can retain a sign-in modal on mask clicks while keeping its close button available', () => {
+  const onClose = vi.fn()
+  const view = render(<Modal open title="Sign in" closeLabel="Close" closeOnBackdropClick={false} onClose={onClose} />)
+  const dialog = screen.getByRole('dialog')
+  fireEvent.click(dialog.previousElementSibling!)
+  expect(onClose).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  expect(onClose).toHaveBeenCalledTimes(1)
+  fireEvent.keyDown(document.activeElement ?? document, { key: 'Escape', code: 'Escape' })
+  expect(onClose).toHaveBeenCalledTimes(2)
+  view.rerender(<Modal open title="Sign in" closeLabel="Close" onClose={onClose} />)
+  fireEvent.click(dialog.previousElementSibling!)
+  expect(onClose).toHaveBeenCalledTimes(3)
+})
+
 function Nested({ withSearch = true }: { withSearch?: boolean }) {
   const [settings, setSettings] = useState(false)
   const [reference, setReference] = useState(false)

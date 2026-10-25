@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { useState } from 'react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SegmentedTabs } from '../src/SegmentedTabs.tsx'
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 const items = [
   { value: 'details', label: 'Details', id: 'details-tab', panelId: 'details-panel' },
@@ -13,6 +13,35 @@ const items = [
 ] as const
 
 describe('SegmentedTabs', () => {
+  it('fits one underline to the selected label and follows selection and resized labels', () => {
+    let resized: (() => void) | undefined
+    let examplesWidth = 90
+    const disconnect = vi.fn()
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resized = callback }
+      observe() {}
+      disconnect = disconnect
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.id === 'details-tab') return new DOMRect(108, 0, 64, 25)
+      if (this.id === 'examples-tab') return new DOMRect(208, 0, examplesWidth, 25)
+      return new DOMRect(100, 0, 350, 25)
+    })
+    const view = render(<SegmentedTabs variant="underline" items={items} value="details" onChange={() => {}} label="Help" />)
+    const indicator = () => screen.getByRole('tablist').querySelector<HTMLElement>('[aria-hidden="true"]')!
+    expect(indicator().style.width).toBe('64px')
+    expect(indicator().style.transform).toBe('translateX(8px)')
+    view.rerender(<SegmentedTabs variant="underline" items={items} value="examples" onChange={() => {}} label="Help" />)
+    expect(indicator().style.width).toBe('90px')
+    expect(indicator().style.transform).toBe('translateX(108px)')
+    examplesWidth = 114
+    act(() => { resized?.() })
+    expect(indicator().style.width).toBe('114px')
+    disconnect.mockClear()
+    view.unmount()
+    expect(disconnect).toHaveBeenCalledOnce()
+  })
+
   it('requests a selection while the caller owns its value and panels', () => {
     const onChange = vi.fn()
     const { rerender } = render(<SegmentedTabs items={items} value="details" onChange={onChange} label="Help" />)

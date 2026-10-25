@@ -18,6 +18,7 @@ interface ModalBaseProps {
   shortcutModal?: string
   onKeyDownCapture?: KeyboardEventHandler<HTMLDivElement>
   backdropBlur?: boolean
+  closeOnBackdropClick?: boolean
 }
 
 type ModalProps = ModalBaseProps & (
@@ -38,6 +39,8 @@ type ModalProps = ModalBaseProps & (
  * @param props.footer - action row (Cancel / Create).
  * @param props.contentClassName - optional class for a scrollable content region.
  * @param props.backdropBlur - disable when the caller already blurs the page; defaults to true.
+ * @param props.closeOnBackdropClick - whether mask clicks request closure; defaults to true.
+ * False retains the dialog while its explicit close controls and Escape remain available.
  * @param props.shortcutModal - command scope allowed by shortcut owners; unnamed
  * dialogs block application commands unless their owner allows the "other" scope.
  * @param props.headless - render children directly in the card (no default
@@ -47,7 +50,7 @@ type ModalProps = ModalBaseProps & (
  */
 export function Modal({
   open, onClose, title, closeLabel, description, children, footer, className, contentClassName,
-  onKeyDownCapture, headless = false, backdropBlur = true, shortcutModal,
+  onKeyDownCapture, headless = false, backdropBlur = true, closeOnBackdropClick = true, shortcutModal,
 }: ModalProps) {
   const dialog = useRef<HTMLDivElement>(null)
   useModalLayer(dialog, open, onClose)
@@ -56,7 +59,7 @@ export function Modal({
 
   return createPortal((
     <div className={css.root} role="presentation" onKeyDownCapture={onKeyDownCapture}>
-      <div className={css.mask} style={backdropBlur ? undefined : { backdropFilter: 'none' }} aria-hidden="true" onClick={onClose} />
+      <div className={css.mask} style={backdropBlur ? undefined : { backdropFilter: 'none' }} aria-hidden="true" onClick={closeOnBackdropClick ? onClose : undefined} />
       <div
         ref={dialog}
         tabIndex={-1}

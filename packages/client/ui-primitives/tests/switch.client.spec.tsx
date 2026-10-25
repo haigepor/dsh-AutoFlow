@@ -33,15 +33,29 @@ describe('Switch', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('keeps a plain thumb and refuses another click while saving', () => {
+  it('shows the shared progress indicator and refuses another click while saving', () => {
     const onChange = vi.fn()
     render(<Switch checked={false} loading label="Toggle" onChange={onChange} />)
     const control = screen.getByRole('switch')
     expect(control.getAttribute('aria-busy')).toBe('true')
-    expect(control.querySelector('svg')).toBeNull()
+    expect(control.querySelector('svg[data-state="ongoing"]')).not.toBeNull()
     expect((control as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(control)
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false])('returns from progress to the owner-confirmed %s state', (checked) => {
+    const onChange = vi.fn()
+    const { rerender } = render(<Switch checked={checked} loading label="Toggle" onChange={onChange} />)
+    const control = screen.getByRole('switch', { name: 'Toggle' })
+    expect(control.getAttribute('aria-checked')).toBe(String(checked))
+    expect(control.querySelector('[data-state="ongoing"]')).not.toBeNull()
+    rerender(<Switch checked={checked} label="Toggle" onChange={onChange} />)
+    expect(control.getAttribute('aria-busy')).toBe('false')
+    expect(control.querySelector('[data-state="ongoing"]')).toBeNull()
+    expect(control).toHaveProperty('disabled', false)
+    fireEvent.click(control)
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(!checked)
   })
 
   it('carries a lock reason as the hover title when the owner names one', () => {

@@ -2,6 +2,7 @@
 // site cannot ship the control without an accessible name.
 
 import clsx from 'clsx'
+import { StateDot } from './StateDot.tsx'
 import css from './Switch.module.css'
 
 /**
@@ -11,7 +12,7 @@ import css from './Switch.module.css'
  * @param props.label - localized accessible name, owned by the render site.
  * @param props.disabled - whether the control refuses input; owners also set it
  * while a write is in flight, not only when a deployment locks the toggle.
- * @param props.loading - marks a pending write and locks input without changing the selected appearance.
+ * @param props.loading - replaces the track and thumb with shared progress while locking input; layout and checked state stay controlled.
  * @param props.title - localized hover text, typically why the toggle is locked.
  * @param props.className - extra class for layout placement.
  * @returns the switch element.
@@ -40,7 +41,11 @@ export function Switch({ checked, onChange, label, disabled = false, loading = f
       className={clsx(css.switch, className)}
       onClick={() => { onChange(!checked) }}
     >
-      <span className={css.thumb} />
+      <span className={css.thumb} aria-hidden="true">
+        <span className={css.progress}>
+          {loading ? <StateDot state="ongoing" size={16} className={css.progressIcon} /> : null}
+        </span>
+      </span>
     </button>
   )
 }
