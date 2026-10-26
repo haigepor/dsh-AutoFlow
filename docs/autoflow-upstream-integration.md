@@ -2,7 +2,24 @@
 
 English | [中文](autoflow-upstream-integration.zh.md)
 
-This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.1-rc.2`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) stores current comparison references and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.1-rc.3`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) stores current comparison references and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+
+## `dsh-v0.2.1-rc.3` integration (2026-10-26)
+
+This comparison pins `dsh-v0.2.1-rc.2` and official `dsh-v0.2.1-rc.3`: 6 commits, 646 changed paths, 1796 pre-upgrade custom paths, and 82 overlaps without rename folding. The local official mirror points exactly to the target tag; the integration branch is `main`, with rollback branches `milestone/pre-upstream-v0.2.1-rc.3` and `milestone/pre-upstream-mirror-v0.2.1-rc.3`. After validation, commits are delivered and pushed through `main`, the official mirror, and comparison tags; no product release is created and everyday profiles and credentials remain unchanged.
+
+| Area | Integration decision |
+| --- | --- |
+| Navigation entries | Adopt More menus for the left sidebar, conversation views, and right sidebar, plugin browsing and creation, and navigation analytics; retain existing entries, brand slots, sidebar highlighting, 18px icons, and compact spacing. |
+| Conversation views | Adopt dynamic entries, narrow-width overflow, current-entry semantics, and tooltip positioning; retain view-row collapse, mounted state, 36px label gaps, and the existing content selection. Collapsing closes the portalled menu. |
+| Drafts and presets | New Session reuses a blank in the same workspace and preset to restore unsent drafts; adopt keep, replace, and append policies and preset analytics. Retain input history, references, and the dedicated fresh-session preparation entry for example prompts. |
+| Model catalog | The API-key route shares the account route's official listing, cache, timeouts, and capability checks; explicitly customized catalogs and proxy URLs retain their existing policy, together with local reasoning-effort configuration. |
+| Settings and plugins | More menus open the plugin list; retain full-window settings, return navigation, the two-column model page, independent plugin updates, and restart feedback. AFP, Better Sidebar, and Visual Curator remain in the aggregate build. |
+| Generated files and appearance | Regenerate the Client slot catalog, check source aliases and the lockfile, and confirm affected bilingual pairs; retain existing theme-token values, colors, default fonts, materials, corners, and layouts. |
+
+All 12 complete-build steps pass, including Host/Client compilation, both aggregate type checks, custom plugins, and Web. The user-selected browser verifies More menus, draft recovery, full-window settings, light/dark hover cards, narrow-width overflow, and keyboard focus; a fresh page on the stable build reports no console errors. The merge message records actual repository Web e2e and static-check results. Real DeepSeek network calls and cross-platform replay are outside the local evidence.
+
+The requested hover-card typography fix uses primary and secondary theme label colors while retaining card geometry. Three gate failures reproduced before the upgrade are also fixed: file-list capture accommodates the current repository, and segmented tabs use an optional DOM index; scan scope and rejection rules remain unchanged.
 
 ## `dsh-v0.2.1-rc.2` integration (2026-10-23)
 

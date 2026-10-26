@@ -40,8 +40,8 @@ export function SegmentedTabs<Value extends string>({ items, value, onChange, la
     if (variant !== 'underline' || root === null) return
     const tabs = root.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     const measure = (): void => {
-      const selected = tabs.item(selectedIndex)
-      if (selected === null) return
+      const selected = tabs[selectedIndex]
+      if (selected === undefined) return
       const container = root.getBoundingClientRect()
       const bounds = selected.getBoundingClientRect()
       const next = { left: bounds.left - container.left + root.scrollLeft, width: bounds.width }

@@ -61,6 +61,8 @@ git log --oneline origin/deepseek-harness..HEAD
 | [会话](../../packages/client/ui-conversation/README.zh.md) | 建议只填充草稿，不自动发送；输入历史有容量与作用域限制，并遵守输入法、光标和菜单按键优先级。 | 欢迎页插槽、输入历史解析、草稿恢复、工作区不可用状态和键盘路由。 |
 | [提问](../../packages/client/ui-user-questions/README.zh.md)、[基础组件](../../packages/client/ui-primitives/README.zh.md) | 紧凑提问区域和可复用的鼠标、焦点高亮，不改变其他调用者的默认行为。 | 折叠焦点、答案保留、`GlideHighlight.bridgeGaps`、监听器与动画帧释放。 |
 
+更多入口由 `ui-entry-customization` 贡献浏览与创建操作；左侧导航、会话视图和右侧指南保留各自的注册与释放。会话视图的新增菜单位于可折叠标签栏中，折叠时关闭 portal 浮层并保留正文与输入状态；窄屏的隐藏视图仍可从菜单打开。
+
 AFP 是独立的自定义插件，其源码、描述和 profile 选择仍由该插件管理；解决插件清单冲突时，不新增针对 AFP 的全局样式覆盖。
 
 按角色配置字体归属外观页，通用设置不重复展示；核对待完成写入的回传及旧偏好回退。ChatFlow 和 UserText 负责会话渲染；功能包注册自己的节点，不恢复旧节点列表，也不向基础组件添加领域解析。Better Sidebar 使用 Host Connection 请求检查，替代已移除的 webRuntime 服务。账号模型目录保持只读，不把环境/OAuth 认证替换成仅 API 密钥表单。
