@@ -7,7 +7,6 @@ import type { JobRegistry } from '@deepseek-ai/dsh-jobs'
 import type { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import type { ConfigEditor } from '@deepseek-ai/dsh-config-editor'
 import type { SessionStore } from '@deepseek-ai/dsh-session'
-import { appendPluginRecord } from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type {} from '@deepseek-ai/dsh-config-editor'
@@ -45,11 +44,6 @@ import { createDataWorker } from './data-workflows.ts'
 import { projectSnapshot, projectRun, projectConfiguration, projectAnalysisTasks } from './projection.ts'
 
 const actionSchema = z.strictObject({ operation: z.string().min(1), args: z.record(z.string(), jsonSchema) })
-declare module '@deepseek-ai/dsh-session' {
-  interface PluginRecordMap {
-    'plugin:visual-curator/request': { version: 1; runId: string; requestId: string; state: string; requestDigest: string; data: Json }
-  }
-}
 const startSchema = z.object({ operationId: z.string().min(1), releaseId: z.string().min(1), usageRevisionId: z.string().min(1), taskBrief: z.string().min(1).max(4000), budgets: z.record(z.string(), z.number()).optional(), sourceId: z.string().optional(), imageVersionId: z.string().optional(), imageVersionIds: z.array(z.string()).optional(), queries: z.array(z.string().min(1).max(4096)).optional(), targetCount: z.number().int().positive().optional(), protectedContent: z.array(z.string().min(1)).optional(), rect: z.unknown().optional(), includeInLearning: z.boolean().optional(), allowWarning: z.boolean().optional(), runId: z.string().optional() })
 const uploadSchema = z.strictObject({ operationId: z.string().min(1), styleId: z.string().min(1), expectedRevision: z.number().int().positive(), bytesAllowed: z.boolean().default(false), files: z.array(z.strictObject({ name: z.string().min(1).max(1024), mime: z.string(), base64: z.string(), role: z.enum(['positive', 'negative', 'undecided']), intent: z.enum(['overall', 'dimensions']), dimensions: z.array(z.enum(['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth'])) })).min(1) })
 
@@ -110,11 +104,11 @@ export class CuratorService {
     this.galleryValue = new GalleryService(this.config, this.domainValue, this.files, this.dependencies.galleryApi ?? ((config, accountId, ref, cookie) => galleryFactory.gallery(config, accountId, ref, cookie)), this.dependencies.galleryMedia ?? new SafeHttpClient({ allowedOrigins: ['https://images.unsplash.com', 'https://plus.unsplash.com'] }))
     this.galleryTasks = new GalleryReferenceTasks(this.config, this.domainValue, this.ctx.jobs, (operation, args, actor, signal) => this.galleryValue!.action(operation, args, actor, signal), (args, actor) => this.galleryValue!.referenceProgress(args, actor), async (styleId, actor) => { await this.action({ operation: 'reference-analyze', args: { operationId: randomUUID(), styleId, buildDataset: true } }, actor, this.lifetime.signal) })
     await this.galleryTasks.initialize()
-    this.engineValue = new RunEngine(this.domainValue.repository, this.ctx.jobs, (run, request) => {
+    this.engineValue = new RunEngine(this.domainValue.repository, this.ctx.jobs, (run) => {
       if (run.owner.kind !== 'session') return
       const session = this.ctx.sessions.get(brandString<SessionId>(run.owner.sessionId))
       if (!session) throw new CuratorError('owner-denied', 'auxiliary-request-log', 'The owning Session is unavailable; no auxiliary model request can be dispatched.')
-      appendPluginRecord(session, 'plugin:visual-curator/request', { version: 1, runId: run.id, requestId: request.id, state: request.state, requestDigest: request.requestDigest, data: request.data })
+      // 完整请求已提交到 run 的持久化日志；Session 通过工具结果中的 runId 关联，独立插件不写实验事件。
     }, this.config.limits)
     await this.engineValue.recover()
     // 旧的完整分析只补充模型档案，不重放模型请求，也不改写人工规则。

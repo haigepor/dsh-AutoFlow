@@ -152,7 +152,7 @@ See [custom bundle architecture](../../architecture.md) for installation/composi
 <a id="model-experience"></a>
 ## Model Experience
 
-The optional tools row exposes bounded style reads, search/crop starts, run reads, Agent suggestions and export starts/reads. It exposes no human-confirmation, publication, default-switching or split-confirmation command. Long operations return task handles; a start acknowledgment is not a qualified-image result. Tool results contain safe identifiers and authorized resource references; auxiliary vision requests retain their actual image order, digests, prompts, model/version declaration and validated output.
+The optional tools row exposes bounded style reads, search/crop starts, run reads, Agent suggestions and export starts/reads. It exposes no human-confirmation, publication, default-switching or split-confirmation command. Long operations return task handles; a start acknowledgment is not a qualified-image result. Tool results contain safe identifiers and authorized resource references; auxiliary vision requests retain their actual image order, digests, prompts, model/version declaration and validated output in the plugin-owned run request journal. Session tool results identify that run; the bundle checks Session ownership before dispatch and does not write experimental Session records.
 
 Tool declarations add to the model's tool-schema context while enabled. The bundle does not inject a style into every request or change Home instructions. Individual vision calls consume their own text and image budget; cached-prefix behavior and exact vendor token charges depend on the configured provider and are not measured here.
 

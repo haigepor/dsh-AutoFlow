@@ -9,7 +9,8 @@ import { z } from 'zod'
 import { createAgentTools } from '../src/host/tools.ts'
 import { dataOf } from '../src/host/runtime.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
-import type { Json } from '../src/shared/model.ts'
+import { jsonSchema, type Json } from '../src/shared/model.ts'
+import { contentDigest } from '../src/domain/repository.ts'
 
 function toolResponse(callId: string, name: string, args: Record<string, Json>): StreamChunk[] {
   const id = ToolCallId(callId), argumentsJson = JSON.stringify(args)
@@ -119,7 +120,18 @@ test('a real AgentLoop records fixed-style jobs, technical and crop failures, su
     const expected = JSON.parse(await readFile(new URL('./fixtures/agent-loop.expected.json', import.meta.url), 'utf8'))
     assert.deepEqual(trace, expected)
     const logged = JSON.stringify(events)
-    assert.ok(events.some(event => pluginRecordOf(event)?.type === 'plugin:visual-curator/request'), 'Auxiliary model inputs are recorded in their owning Session.')
+    const ownedRunIds = new Set<string>(f.repository.list('run')
+      .filter(run => run.owner.kind === 'session' && run.owner.sessionId === 'curator-session').map(run => run.id))
+    const requests = f.repository.list('request').filter(request => ownedRunIds.has(request.runId))
+    assert.ok(requests.some(request => request.state === 'committed'), 'Auxiliary inputs and outputs remain in the owning run journal.')
+    assert.ok(requests.every(request => request.requestDigest.length > 0 && request.data !== null))
+    for (const request of requests.filter(request => request.state === 'committed')) {
+      const saved = z.object({ bundle: jsonSchema, output: jsonSchema }).parse(request.data)
+      assert.equal(contentDigest(saved.bundle), request.requestDigest)
+      assert.notEqual(saved.output, null)
+    }
+    assert.ok(logged.includes(successfulRunId), 'The Session tool results identify the run that owns the auxiliary journal.')
+    assert.ok(!events.some(event => pluginRecordOf(event)?.type === 'plugin:visual-curator/request'), 'Independent bundles do not write experimental Session records.')
     assert.ok(logged.includes('owner-denied'))
     assert.ok(logged.includes('invalid-input'))
     assert.ok(!logged.includes('https://images.example.test'))

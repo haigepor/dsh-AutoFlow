@@ -493,9 +493,16 @@ const PRODUCT_IDENTIFIERS = new Map<string, readonly string[]>([
     'packages/bundle/web-app/cordis.patch.yml',
     'packages/client/ui-agent-preset/src/client/CreatePluginMenuItem.tsx',
     'packages/client/ui-agent-preset/src/client/PresetIllustration.tsx',
+    'packages/client/ui-agent-preset/src/client/analytics.ts',
+    'packages/client/ui-agent-preset/tests/analytics.client.spec.ts',
     'packages/client/ui-agent-preset/tests/components.client.spec.tsx',
     'packages/client/ui-agent-preset/tests/create-plugin-menu-item.client.spec.tsx',
     'packages/client/ui-agent-preset/tests/section-store.client.spec.ts',
+    'packages/client/ui-conversation/src/client/input/submission-analytics.ts',
+    'packages/client/ui-conversation/tests/service-orchestration.client.spec.ts',
+    'packages/client/ui-entry-customization/src/client/index.ts',
+    'packages/client/ui-entry-customization/tests/menu.client.spec.tsx',
+    'packages/client/ui-workspace/tests/workspaces-service.client.spec.ts',
   ].map((file): [string, readonly string[]] => [file, ['cordis']]),
   ...[
     'packages/extensions/cordis-host-runner/tests/inspect-registry.spec.ts',
@@ -612,7 +619,7 @@ function main(): void {
   const mode = args.includes('--apply') ? 'apply' : args.includes('--check') ? 'check' : 'dry'
   const reverse = args.includes('--reverse')
   const all = patterns(reverse)
-  const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
+  const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
     .split('\0')
     .filter(file => file !== '' && !isRescopeExcluded(file))
 

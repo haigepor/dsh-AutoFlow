@@ -28,6 +28,21 @@ describe('rescope file selection', () => {
     expect(rescopeText("import 'cordis/context'", file)).toBe("import '@deepseek-ai/cordis/context'")
     expect(rescopeText('name: cordis', 'packages/bundle/web-app/cordis.patch.yml')).toBe('name: @deepseek-ai/cordis')
   })
+  it.each([
+    'packages/client/ui-agent-preset/src/client/analytics.ts',
+    'packages/client/ui-agent-preset/tests/analytics.client.spec.ts',
+    'packages/client/ui-conversation/src/client/input/submission-analytics.ts',
+    'packages/client/ui-conversation/tests/service-orchestration.client.spec.ts',
+    'packages/client/ui-entry-customization/src/client/index.ts',
+    'packages/client/ui-entry-customization/tests/menu.client.spec.tsx',
+    'packages/client/ui-workspace/tests/workspaces-service.client.spec.ts',
+  ])('preserves the preset id in %s while rewriting framework imports', (file) => {
+    const source = "import type { Context } from 'cordis'\nconst agentPreset = 'cordis'\n"
+    const scoped = "import type { Context } from '@deepseek-ai/cordis'\nconst agentPreset = 'cordis'\n"
+    expect(rescopeText(source, file)).toBe(scoped)
+    expect(rescopeText(scoped, file)).toBe(scoped)
+    expect(rescopeText(scoped, file, true)).toBe(source)
+  })
   it('preserves the recorded npm resolution', () => {
     expect(isRescopeExcluded('scripts/dependency-catalog/package-lock.json')).toBe(true)
   })
