@@ -377,7 +377,7 @@
   bottom: -7px;
 }
 
-/* Hover-card body (figma 169:16903): dark surface, fixed colors both themes. */
+/* 悬浮卡片沿用菜单材质，文字随亮暗主题切换。 */
 .hoverContent {
   display: flex;
   flex-direction: column;
@@ -386,22 +386,23 @@
 
 .hoverTitle {
   font-size: 14px;
+  font-weight: 500;
   line-height: 20px;
-  color: #FFFFFF;
+  color: var(--dsw-alias-label-primary);
   overflow-wrap: break-word;
 }
 
 .hoverPath {
   font-size: 12px;
   line-height: 16px;
-  color: #CFD3D6;
+  color: var(--dsw-alias-label-secondary);
   word-break: break-all;
 }
 
 .hoverTime {
   font-size: 12px;
   line-height: 16px;
-  color: #CFD3D6;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .hoverStatus {
@@ -409,8 +410,8 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  line-height: 20px;
-  color: #ADB2B8;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
 }
 
 /* Archive glyph rides the status row's text color; slight inset aligns it with the 6px status dots. */
