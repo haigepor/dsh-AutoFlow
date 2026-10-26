@@ -23,7 +23,7 @@ export function createAfpGallery(React, UI, icons, t, store) {
     const currentLease = React.useRef(null)
     const recovery = React.useRef(null)
     if (!recovery.current) recovery.current = { used: 0, refresh: false }
-    const src = previewSource(photo?.previewPath, document.baseURI)
+    const src = previewSource(photo?.previewPath, document.baseURI, photo?.guid)
     const snapshot = React.useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
     const readEnabled = snapshot.status?.features?.includes('read')
     // 旧Host没有重试策略时保留手动刷新，不推测其代理502是否为临时错误。

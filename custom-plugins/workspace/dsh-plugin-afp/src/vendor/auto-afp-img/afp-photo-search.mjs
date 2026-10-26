@@ -625,7 +625,6 @@ const PHOTO_QUERY = `query getPhotos($input: PhotoQueryInput) {
       guid title caption
       afpEntityKeyword { keyword }
       partner { gcp { provider_code } }
-      mockup: medias(query:{role:Mockup}) { href type width height role }
     }
   }
 }`;
@@ -1036,6 +1035,7 @@ function snapshotSearchState(stateByCategory, preservedState = null) {
 /**
  * 创建可持续翻页的检索会话。每个 query variant 独立保存 FAR cursor，
  * 视觉复核淘汰一批后可以从上次 cursor 继续取下一批，而不是重复首页。
+ * 可选 onCandidates 在消费当前队列（含恢复队列）前完成归属校验；省略时使用传入的排除集合。
  */
 export function createPhotoSearchSession({
   client = null,
@@ -1050,6 +1050,7 @@ export function createPhotoSearchSession({
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   searchState = null,
   onStateChange = async () => {},
+  onCandidates = null,
 } = {}) {
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 120) throw new Error('pageSize must be between 1 and 120');
   if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 10) throw new Error('maxPages must be between 1 and 10');
@@ -1240,6 +1241,10 @@ export function createPhotoSearchSession({
       };
       while (candidates.length < bufferTarget) {
         signal?.throwIfAborted();
+        if (onCandidates && (state.pending.length || state.deferred.length)) {
+          await onCandidates([...state.deferred, ...state.pending]);
+          signal?.throwIfAborted();
+        }
         consumePending(state, bufferTarget, excluded, historicTitles, candidates, rejectedMetadataCandidates, stats);
         if (candidates.length >= bufferTarget) break;
         const activeVariants = state.variants.filter((variant) => {

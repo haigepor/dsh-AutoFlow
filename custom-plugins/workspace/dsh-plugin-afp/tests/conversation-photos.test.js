@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { conversationPhotoModel, createAfpConversationPhotos, registerAfpConversationPhotos } from '../src/client/afp-conversation-photos.js'
@@ -265,7 +265,9 @@ test('recorded Session results retain the horizontal card presentation and compa
         footerLink: nodes(modal.props.footer, node => node.type === 'a')[0].props.children[0],
         navigation: nodes(modal, node => node.type === UI.Button).map(node => node.props['aria-label']) } })
   })
-  assert.deepEqual(projection, JSON.parse(readFileSync(new URL('./fixtures/conversation-layout.expected.json', import.meta.url), 'utf8')))
+  const file = new URL('./fixtures/conversation-layout.expected.json', import.meta.url)
+  if (process.env.DSH_AFP_REFRESH_SNAPSHOT === '1') writeFileSync(file, JSON.stringify(projection, null, 2) + '\n', 'utf8')
+  assert.deepEqual(projection, JSON.parse(readFileSync(file, 'utf8')))
 })
 
 test('keyed toolview registrations wait for the slot and are independent of workbench tab flags', () => {

@@ -21,6 +21,7 @@ export function reviewedImageRows(results, ids = []) {
     if (!photo) continue
     const category = typeof result.category === 'string' ? result.category : ''
     rows.set(category + '\n' + photo.id, { ...photo, category,
+      ...(typeof result.guid === 'string' && result.guid.trim() && result.guid.length <= 256 && !/[\u0000-\u001f\u007f]/.test(result.guid) ? { guid: result.guid } : {}),
       title: typeof result.title === 'string' ? result.title : undefined,
       status: result.requestFailed === true ? 'incomplete' : result.keep === true ? 'passed' : result.keep === false ? 'rejected' : 'unknown',
       reasonCode: ['visual-rule', 'category', 'confidence', 'duplicate-or-limit'].includes(result.reasonCode) ? result.reasonCode : null })

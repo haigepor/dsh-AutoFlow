@@ -169,6 +169,26 @@
       "arguments": "{\"query\":\"fixture-unknown\",\"language\":\"en\",\"limit\":2}"
     },
     {
+      "name": "afp_photo_search_start",
+      "arguments": "{\"query\":\"fixture-malformed\",\"language\":\"en\",\"limit\":2}"
+    },
+    {
+      "name": "afp_refresh",
+      "arguments": "{\"mode\":\"start\",\"categories\":[\"food\"],\"runId\":null}"
+    },
+    {
+      "name": "afp_report",
+      "arguments": "{\"kind\":\"run\",\"id\":\"00000000-0000-4000-8000-000000000008\"}"
+    },
+    {
+      "name": "afp_refresh",
+      "arguments": "{\"mode\":\"start\",\"categories\":[\"food\"],\"runId\":null}"
+    },
+    {
+      "name": "afp_report",
+      "arguments": "{\"kind\":\"run\",\"id\":\"00000000-0000-4000-8000-000000000011\"}"
+    },
+    {
       "name": "todo_write",
       "arguments": "{\"todos\":[{\"content\":\"制定检索计划\",\"status\":\"completed\"},{\"content\":\"读取图片与收藏夹元数据\",\"status\":\"completed\"},{\"content\":\"保存最终选图\",\"status\":\"completed\"}]}"
     }
@@ -415,7 +435,7 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"items\":[{\"id\":\"shared\",\"name\":\"Shared\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":null,\"category\":null}],\"meta\":{}}"
+            "text": "{\"items\":[{\"id\":\"shared\",\"name\":\"Shared\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":3,\"category\":null},{\"id\":\"collection-0\",\"name\":\"Synthetic 0\",\"isPrivate\":true,\"readOnly\":false,\"writable\":true,\"count\":1,\"category\":null},{\"id\":\"collection-1\",\"name\":\"Synthetic 1\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":1,\"category\":null},{\"id\":\"collection-2\",\"name\":\"Synthetic 2\",\"isPrivate\":true,\"readOnly\":false,\"writable\":true,\"count\":1,\"category\":null},{\"id\":\"collection-3\",\"name\":\"Synthetic 3\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":1,\"category\":null},{\"id\":\"collection-4\",\"name\":\"Synthetic 4\",\"isPrivate\":true,\"readOnly\":false,\"writable\":true,\"count\":1,\"category\":null},{\"id\":\"collection-5\",\"name\":\"Synthetic 5\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":1,\"category\":null},{\"id\":\"collection-6\",\"name\":\"Synthetic 6\",\"isPrivate\":true,\"readOnly\":false,\"writable\":true,\"count\":1,\"category\":null},{\"id\":\"collection-7\",\"name\":\"Synthetic 7\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":1,\"category\":null}],\"meta\":{}}"
           }
         ],
         "isError": false
@@ -432,7 +452,79 @@
                 "isPrivate": false,
                 "readOnly": true,
                 "writable": false,
-                "count": null,
+                "count": 3,
+                "category": null
+              },
+              {
+                "id": "collection-0",
+                "name": "Synthetic 0",
+                "isPrivate": true,
+                "readOnly": false,
+                "writable": true,
+                "count": 1,
+                "category": null
+              },
+              {
+                "id": "collection-1",
+                "name": "Synthetic 1",
+                "isPrivate": false,
+                "readOnly": true,
+                "writable": false,
+                "count": 1,
+                "category": null
+              },
+              {
+                "id": "collection-2",
+                "name": "Synthetic 2",
+                "isPrivate": true,
+                "readOnly": false,
+                "writable": true,
+                "count": 1,
+                "category": null
+              },
+              {
+                "id": "collection-3",
+                "name": "Synthetic 3",
+                "isPrivate": false,
+                "readOnly": true,
+                "writable": false,
+                "count": 1,
+                "category": null
+              },
+              {
+                "id": "collection-4",
+                "name": "Synthetic 4",
+                "isPrivate": true,
+                "readOnly": false,
+                "writable": true,
+                "count": 1,
+                "category": null
+              },
+              {
+                "id": "collection-5",
+                "name": "Synthetic 5",
+                "isPrivate": false,
+                "readOnly": true,
+                "writable": false,
+                "count": 1,
+                "category": null
+              },
+              {
+                "id": "collection-6",
+                "name": "Synthetic 6",
+                "isPrivate": true,
+                "readOnly": false,
+                "writable": true,
+                "count": 1,
+                "category": null
+              },
+              {
+                "id": "collection-7",
+                "name": "Synthetic 7",
+                "isPrivate": false,
+                "readOnly": true,
+                "writable": false,
+                "count": 1,
                 "category": null
               }
             ],
@@ -454,7 +546,7 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000004\",\"items\":[{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p1\"},{\"id\":\"p2\",\"guid\":\"p2\",\"title\":\"Photo p2\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p2\"}],\"collection\":{\"id\":\"shared\",\"name\":\"Shared\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":null,\"category\":null},\"collectionOffset\":0,\"total\":3,\"hasMore\":true,\"collectionNextOffset\":2,\"meta\":{},\"offset\":0,\"totalItems\":2,\"nextOffset\":null}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000004\",\"items\":[{\"id\":\"p1\",\"guid\":\"p1\",\"title\":\"Photo p1\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p1\"},{\"id\":\"p2\",\"guid\":\"p2\",\"title\":\"Photo p2\",\"caption\":\"Cat\",\"keywords\":[],\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=p2\"}],\"collection\":{\"id\":\"shared\",\"name\":\"Shared\",\"isPrivate\":false,\"readOnly\":true,\"writable\":false,\"count\":3,\"category\":null},\"collectionOffset\":0,\"total\":3,\"hasMore\":true,\"collectionNextOffset\":2,\"meta\":{},\"offset\":0,\"totalItems\":2,\"nextOffset\":null}"
           }
         ],
         "isError": false
@@ -491,7 +583,7 @@
               "isPrivate": false,
               "readOnly": true,
               "writable": false,
-              "count": null,
+              "count": 3,
               "category": null
             },
             "collectionOffset": 0,
@@ -755,6 +847,325 @@
         "content": [
           {
             "type": "text",
+            "text": "Error: {\"code\":\"operation-failed\",\"stage\":\"read\",\"message\":\"AFP read failed.\",\"action\":\"Check read parameters, credentials and AFP availability. Do not repeat unchanged input automatically.\",\"retryable\":false}"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "turn": 1,
+      "step": 18,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-18"
+        },
+        "toolCallId": "afp-fixture-call-18",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"jobId\":\"afp-fixture-job-1\",\"taskId\":\"00000000-0000-4000-8000-000000000007\",\"runId\":\"00000000-0000-4000-8000-000000000008\"}"
+          }
+        ],
+        "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "jobId": "afp-fixture-job-1",
+            "taskId": "00000000-0000-4000-8000-000000000007",
+            "runId": "00000000-0000-4000-8000-000000000008"
+          }
+        }
+      }
+    },
+    {
+      "turn": 1,
+      "step": 19,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-19"
+        },
+        "toolCallId": "afp-fixture-call-19",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000009\",\"runId\":\"00000000-0000-4000-8000-000000000008\",\"status\":\"paused\",\"stage\":\"search\",\"categories\":[{\"category\":\"food\",\"selectionName\":\"AutoFlow_食物\",\"reviewed\":0,\"kept\":0,\"target\":100,\"batches\":0,\"exhausted\":true,\"requestFailures\":0,\"pixelReviewed\":0,\"rejected\":0,\"rejectionReasons\":[],\"search\":{\"rawRecall\":0,\"metadataRejected\":0,\"duplicateExcluded\":0,\"pagesFetched\":3,\"budgetReached\":false}}],\"pendingBatch\":false,\"preparation\":{\"completed\":9},\"diagnostics\":{\"durationScope\":\"refresh-attempt\",\"outcome\":\"paused\",\"failure\":null,\"errors\":[],\"timings\":[{\"stage\":\"progress-update\",\"count\":34,\"failed\":0},{\"stage\":\"checkpoint-save\",\"count\":20,\"failed\":0},{\"stage\":\"progress-output\",\"count\":16,\"failed\":0},{\"stage\":\"connection\",\"count\":1,\"failed\":0},{\"stage\":\"collection-list\",\"count\":1,\"failed\":0},{\"stage\":\"collection-read\",\"count\":9,\"failed\":0},{\"stage\":\"collection-parse\",\"count\":9,\"failed\":0},{\"stage\":\"collections\",\"count\":1,\"failed\":0},{\"stage\":\"search-initialization\",\"count\":1,\"failed\":0},{\"stage\":\"search\",\"count\":1,\"failed\":0},{\"stage\":\"workflow\",\"count\":1,\"failed\":0}]},\"items\":[],\"meta\":{},\"offset\":0,\"totalItems\":0,\"nextOffset\":null}"
+          }
+        ],
+        "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "resultRef": "00000000-0000-4000-8000-000000000009",
+            "runId": "00000000-0000-4000-8000-000000000008",
+            "status": "paused",
+            "stage": "search",
+            "categories": [
+              {
+                "category": "food",
+                "selectionName": "AutoFlow_食物",
+                "reviewed": 0,
+                "kept": 0,
+                "target": 100,
+                "batches": 0,
+                "exhausted": true,
+                "requestFailures": 0,
+                "pixelReviewed": 0,
+                "rejected": 0,
+                "rejectionReasons": [],
+                "search": {
+                  "rawRecall": 0,
+                  "metadataRejected": 0,
+                  "duplicateExcluded": 0,
+                  "pagesFetched": 3,
+                  "budgetReached": false
+                }
+              }
+            ],
+            "pendingBatch": false,
+            "preparation": {
+              "completed": 9
+            },
+            "diagnostics": {
+              "durationScope": "refresh-attempt",
+              "outcome": "paused",
+              "failure": null,
+              "errors": [],
+              "timings": [
+                {
+                  "stage": "progress-update",
+                  "count": 34,
+                  "failed": 0
+                },
+                {
+                  "stage": "checkpoint-save",
+                  "count": 20,
+                  "failed": 0
+                },
+                {
+                  "stage": "progress-output",
+                  "count": 16,
+                  "failed": 0
+                },
+                {
+                  "stage": "connection",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "collection-list",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "collection-read",
+                  "count": 9,
+                  "failed": 0
+                },
+                {
+                  "stage": "collection-parse",
+                  "count": 9,
+                  "failed": 0
+                },
+                {
+                  "stage": "collections",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "search-initialization",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "search",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "workflow",
+                  "count": 1,
+                  "failed": 0
+                }
+              ]
+            },
+            "items": [],
+            "meta": {},
+            "offset": 0,
+            "totalItems": 0,
+            "nextOffset": null
+          }
+        }
+      }
+    },
+    {
+      "turn": 1,
+      "step": 20,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-20"
+        },
+        "toolCallId": "afp-fixture-call-20",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"jobId\":\"afp-fixture-job-2\",\"taskId\":\"00000000-0000-4000-8000-000000000010\",\"runId\":\"00000000-0000-4000-8000-000000000011\"}"
+          }
+        ],
+        "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "jobId": "afp-fixture-job-2",
+            "taskId": "00000000-0000-4000-8000-000000000010",
+            "runId": "00000000-0000-4000-8000-000000000011"
+          }
+        }
+      }
+    },
+    {
+      "turn": 1,
+      "step": 21,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-21"
+        },
+        "toolCallId": "afp-fixture-call-21",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000012\",\"runId\":\"00000000-0000-4000-8000-000000000011\",\"status\":\"paused\",\"stage\":\"search\",\"categories\":[{\"category\":\"food\",\"selectionName\":\"AutoFlow_食物\",\"reviewed\":0,\"kept\":0,\"target\":100,\"batches\":0,\"exhausted\":true,\"requestFailures\":0,\"pixelReviewed\":0,\"rejected\":0,\"rejectionReasons\":[],\"search\":{\"rawRecall\":0,\"metadataRejected\":0,\"duplicateExcluded\":0,\"pagesFetched\":3,\"budgetReached\":false}}],\"pendingBatch\":false,\"preparation\":{\"completed\":9},\"diagnostics\":{\"durationScope\":\"refresh-attempt\",\"outcome\":\"paused\",\"failure\":null,\"errors\":[],\"timings\":[{\"stage\":\"progress-update\",\"count\":34,\"failed\":0},{\"stage\":\"checkpoint-save\",\"count\":12,\"failed\":0},{\"stage\":\"progress-output\",\"count\":16,\"failed\":0},{\"stage\":\"connection\",\"count\":1,\"failed\":0},{\"stage\":\"collection-list\",\"count\":1,\"failed\":0},{\"stage\":\"collections\",\"count\":1,\"failed\":0},{\"stage\":\"search-initialization\",\"count\":1,\"failed\":0},{\"stage\":\"search\",\"count\":1,\"failed\":0},{\"stage\":\"workflow\",\"count\":1,\"failed\":0}]},\"items\":[],\"meta\":{},\"offset\":0,\"totalItems\":0,\"nextOffset\":null}"
+          }
+        ],
+        "isError": false
+      },
+      "meta": {
+        "afp": {
+          "version": 1,
+          "complete": false,
+          "result": {
+            "resultRef": "00000000-0000-4000-8000-000000000012",
+            "runId": "00000000-0000-4000-8000-000000000011",
+            "status": "paused",
+            "stage": "search",
+            "categories": [
+              {
+                "category": "food",
+                "selectionName": "AutoFlow_食物",
+                "reviewed": 0,
+                "kept": 0,
+                "target": 100,
+                "batches": 0,
+                "exhausted": true,
+                "requestFailures": 0,
+                "pixelReviewed": 0,
+                "rejected": 0,
+                "rejectionReasons": [],
+                "search": {
+                  "rawRecall": 0,
+                  "metadataRejected": 0,
+                  "duplicateExcluded": 0,
+                  "pagesFetched": 3,
+                  "budgetReached": false
+                }
+              }
+            ],
+            "pendingBatch": false,
+            "preparation": {
+              "completed": 9
+            },
+            "diagnostics": {
+              "durationScope": "refresh-attempt",
+              "outcome": "paused",
+              "failure": null,
+              "errors": [],
+              "timings": [
+                {
+                  "stage": "progress-update",
+                  "count": 34,
+                  "failed": 0
+                },
+                {
+                  "stage": "checkpoint-save",
+                  "count": 12,
+                  "failed": 0
+                },
+                {
+                  "stage": "progress-output",
+                  "count": 16,
+                  "failed": 0
+                },
+                {
+                  "stage": "connection",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "collection-list",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "collections",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "search-initialization",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "search",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "workflow",
+                  "count": 1,
+                  "failed": 0
+                }
+              ]
+            },
+            "items": [],
+            "meta": {},
+            "offset": 0,
+            "totalItems": 0,
+            "nextOffset": null
+          }
+        }
+      }
+    },
+    {
+      "turn": 1,
+      "step": 22,
+      "message": {
+        "role": "tool",
+        "source": {
+          "kind": "tool",
+          "callId": "afp-fixture-call-22"
+        },
+        "toolCallId": "afp-fixture-call-22",
+        "content": [
+          {
+            "type": "text",
             "text": "Updated todo list: 0 pending, 0 in progress, 3 completed."
           }
         ],
@@ -802,6 +1213,7 @@
         {
           "id": "p1",
           "title": "Photo p1",
+          "guid": "p1",
           "provider": "AFP",
           "caption": "Cat",
           "previewPath": "api/afp/preview?photoId=p1"
@@ -816,6 +1228,7 @@
         {
           "id": "p2",
           "title": "Photo p2",
+          "guid": "p2",
           "provider": "AFP",
           "caption": "Cat",
           "previewPath": "api/afp/preview?photoId=p2"
@@ -836,6 +1249,7 @@
         {
           "id": "p1",
           "title": "Photo p1",
+          "guid": "p1",
           "provider": "AFP",
           "caption": "Cat",
           "previewPath": "api/afp/preview?photoId=p1"
@@ -850,6 +1264,7 @@
         {
           "id": "p1",
           "title": "Photo p1",
+          "guid": "p1",
           "provider": "AFP",
           "caption": "Cat",
           "previewPath": "api/afp/preview?photoId=p1"
@@ -857,6 +1272,7 @@
         {
           "id": "p2",
           "title": "Photo p2",
+          "guid": "p2",
           "provider": "AFP",
           "caption": "Cat",
           "previewPath": "api/afp/preview?photoId=p2"
@@ -880,6 +1296,12 @@
       "state": "error",
       "message": "agentPhotosFailed",
       "photos": []
+    },
+    {
+      "tool": "afp_photo_search_start",
+      "state": "error",
+      "message": "agentPhotosFailed",
+      "photos": []
     }
   ],
   "processCandidates": {
@@ -889,6 +1311,7 @@
       {
         "id": "p1",
         "title": "Photo p1",
+        "guid": "p1",
         "provider": "AFP",
         "caption": "Cat",
         "previewPath": "api/afp/preview?photoId=p1"
@@ -896,6 +1319,7 @@
       {
         "id": "p2",
         "title": "Photo p2",
+        "guid": "p2",
         "provider": "AFP",
         "caption": "Cat",
         "previewPath": "api/afp/preview?photoId=p2"
@@ -909,6 +1333,7 @@
       {
         "id": "p2",
         "title": "Photo p2",
+        "guid": "p2",
         "provider": "AFP",
         "caption": "Cat",
         "previewPath": "api/afp/preview?photoId=p2"
@@ -916,6 +1341,7 @@
       {
         "id": "p1",
         "title": "Photo p1",
+        "guid": "p1",
         "provider": "AFP",
         "caption": "Cat",
         "previewPath": "api/afp/preview?photoId=p1"

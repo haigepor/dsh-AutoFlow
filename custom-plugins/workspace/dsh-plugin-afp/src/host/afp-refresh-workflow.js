@@ -3,6 +3,7 @@ import { finalizeDecisionManifest, triageCandidates } from '../vendor/auto-afp-i
 import { selectionDocIds } from '../vendor/auto-afp-img/afp-collection-run.mjs'
 import { boundedWork } from '../vendor/auto-afp-img/bounded-work.mjs'
 import { savedReadFailure } from '../vendor/auto-afp-img/read-failure.mjs'
+import { resolveConfig } from '../../config-schema.js'
 
 /** Supported curation categories; original policies stay in the upstream modules. */
 export const categories = Object.freeze(CATEGORY_PROFILES.map(profile => profile.key))
@@ -13,9 +14,17 @@ export function chooseCategories(input = categories) {
   return [...new Set(input)]
 }
 
-/** Read collection contents before visual work; existing pictures are excluded globally. */
-export async function reservedIds(client, signal, { concurrency = 4, checkpoint = {}, ttlMs = 0,
-  onCheckpoint = async () => {}, onProgress = () => {}, measure = (_stage, operation) => operation() } = {}) {
+/** Read every named collection before visual work, revalidating the directory on every call.
+ * @param {object} client Authenticated collection reader.
+ * @param {AbortSignal} signal Preparation lifetime.
+ * @param {object} [options] Concurrency, run checkpoint, TTL and callbacks. Optional cachedCollections
+ * supplies a completed same-account scan; absent means only this run's checkpoint can be reused.
+ * Cross-task reuse requires an unchanged valid content timestamp and a matching member count.
+ * Optional invalidatedAt excludes checkpoints read at or before a local membership write.
+ * @returns {Promise<Set<string>>} Global membership; failures retain checkpoints and stop visual work.
+ */
+export async function reservedIds(client, signal, { concurrency = resolveConfig().collectionConcurrency, checkpoint = {}, ttlMs = 0,
+  cachedCollections, invalidatedAt = null, onCheckpoint = async () => {}, onProgress = () => {}, measure = (_stage, operation) => operation() } = {}) {
   const selections = await measure('collection-list', () => client.listSelections())
   if (!Array.isArray(selections)) throw new Error('Invalid AFP collection list')
   const named = selections.filter(selection => String(selection.name ?? '').trim())
@@ -23,26 +32,38 @@ export async function reservedIds(client, signal, { concurrency = 4, checkpoint 
   const previous = checkpoint.collections ?? {}
   checkpoint.collections = Object.create(null)
   const ids = new Set()
-  let completed = 0, writes = Promise.resolve()
+  let completed = 0, writes = Promise.resolve(), reused = false
   onProgress({ stage: 'collections', completed, total: named.length, reservedCount: 0 })
   await boundedWork(named, concurrency, async selection => {
     signal.throwIfAborted()
-    const fingerprint = JSON.stringify([selection.id, selection.name, selection.docsCount ?? selection.count ?? null,
-      selection.updatedAt ?? selection.modifiedAt ?? null])
-    const saved = Object.hasOwn(previous, selection.id) ? previous[selection.id] : undefined
-    // 恢复只复用新鲜且目录信息一致的成员快照；新增、变更或过期项重新读取。
-    const reusable = ttlMs > 0 && saved?.fingerprint === fingerprint && Number.isSafeInteger(saved.readAt)
+    const count = selection.docsCount ?? selection.count ?? null
+    const fingerprint = JSON.stringify([selection.id, selection.name, count, selection.lastContentUpdate ?? null,
+      selection.updatedAt ?? selection.modifiedAt ?? null, selection.isPrivate ?? null, selection.type ?? null])
+    const fresh = saved => ttlMs > 0 && saved?.fingerprint === fingerprint && Number.isSafeInteger(saved.readAt)
+      && (invalidatedAt === null || saved.readAt > invalidatedAt)
       && Date.now() >= saved.readAt && Date.now() - saved.readAt < ttlMs && Array.isArray(saved.ids)
       && saved.ids.every(id => typeof id === 'string')
+    let saved = Object.hasOwn(previous, selection.id) ? previous[selection.id] : undefined
+    if (!fresh(saved)) {
+      const cached = cachedCollections && Object.hasOwn(cachedCollections, selection.id) ? cachedCollections[selection.id] : undefined
+      // 跨任务复用必须有 AFP 的内容更新时间和完整成员数；缺失版本时仍逐个读取。
+      const revision = selection.lastContentUpdate
+      const versioned = typeof revision === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(revision) && Number.isFinite(Date.parse(revision))
+      saved = versioned && Number.isSafeInteger(count) && count >= 0 && fresh(cached) && cached.ids.length === count ? cached : undefined
+    }
+    const reusable = fresh(saved)
     const contents = reusable ? null : await measure('collection-read', () => client.getSelection(selection.id))
     const values = reusable ? saved.ids : await measure('collection-parse', () => [...selectionDocIds(contents)])
     for (const value of values) ids.add(value)
-    checkpoint.collections[selection.id] = reusable ? saved : { fingerprint, ids: values, readAt: Date.now() }
+    checkpoint.collections[selection.id] = { fingerprint, ids: [...values], readAt: reusable ? saved.readAt : Date.now() }
     completed++
-    writes = writes.then(() => onCheckpoint(checkpoint))
-    await writes
+    // 新获取的成员立即保存；复用项只在整次准备结束时合并保存，避免重复写入完整快照。
+    if (reusable) reused = true
+    else { writes = writes.then(() => onCheckpoint(checkpoint)); await writes }
     onProgress({ stage: 'collections', completed, total: named.length, reservedCount: ids.size })
   }, signal)
+  if (reused) { signal.throwIfAborted(); await onCheckpoint(checkpoint) }
+  signal.throwIfAborted()
   return ids
 }
 
@@ -107,23 +128,35 @@ export function reviewedPhotoResults(run) {
   const photos = new Map(Object.values(run.groups).flatMap(group => group.candidates.map(photo => [photo.id, photo])))
   return run.decisions.filter(item => photos.has(item.id)).map(item => {
     const photo = photos.get(item.id), requestFailed = item.reason === 'preview or vision request failed'
-    return { id: item.id, title: typeof photo.title === 'string' ? photo.title : item.id, category: item.category,
+    return { id: item.id, ...(typeof photo.guid === 'string' && photo.guid.trim() && photo.guid.length <= 256 && !/[\u0000-\u001f\u007f]/.test(photo.guid) ? { guid: photo.guid } : {}),
+      title: typeof photo.title === 'string' ? photo.title : item.id, category: item.category,
       keep: item.keep, requestFailed, reasonCode: !requestFailed && !item.keep ? rejectionCode(item) : null }
   })
 }
 
 /** Save each completed image and confirmation phase before admitting further work.
  * Search pages persist cursor and queued candidates together; resumes replace failures in place.
+ * Optional readReserved refreshes candidate membership before queue consumption and restored visual work;
+ * absent means reserved is the caller's complete account exclusion set.
  */
 export async function refreshRun({ run, store, config, client, previewClient, visionClient, signal,
-  onProgress = () => {}, primitives = {}, reserved = new Set(), diagnostic }) {
+  onProgress = () => {}, primitives = {}, reserved = new Set(), readReserved, diagnostic }) {
   const measure = (stage, operation) => diagnostic ? diagnostic.measure(stage, operation) : operation()
   const profiles = CATEGORY_PROFILES.filter(profile => run.categories.includes(profile.key))
   run.reviews ??= []
   for (const item of run.decisions.filter(requestFailed)) if (!run.reviews.some(review => review.id === item.id)) {
     run.reviews.push({ id: item.id, category: item.category, attempts: 1, phase: 'failed' })
   }
-  const blocked = new Set([...reserved, ...run.decisions.filter(item => !requestFailed(item)).map(item => item.id)])
+  // 恢复的待审批次不会重新搜索，必须在恢复视觉工作前重新查询归属。
+  if (readReserved) await readReserved([...(run.pending?.candidates ?? []), ...Object.values(run.groups).flatMap(group => group.candidates)])
+  const blocked = new Set()
+  // 每批以实时归属和已完成决策重建排除集，移除收藏不会留下旧的归属阻断。
+  const updateBlocked = () => {
+    blocked.clear()
+    for (const id of reserved) blocked.add(id)
+    for (const item of run.decisions) if (!requestFailed(item)) blocked.add(item.id)
+  }
+  updateBlocked()
   const titles = new Set(Object.values(run.groups).flatMap(group => group.candidates
     .filter(photo => run.decisions.some(item => item.id === photo.id && !requestFailed(item))).map(candidateTitleKey)).filter(Boolean))
   let saves = Promise.resolve()
@@ -136,6 +169,7 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
     (primitives.session ?? createPhotoSearchSession)({ client, profiles, pageSize: config.pageSize,
     maxPages: config.maxPages, readRetries: 0, searchConcurrency: config.searchConcurrency,
     maxSearchRequests: config.maxSearchRequests, signal, searchState: run.searchState,
+    onCandidates: readReserved ? async values => { await readReserved(values); updateBlocked() } : null,
     onStateChange: async (state, pending) => {
       await save(() => {
         run.searchState = state
@@ -204,6 +238,8 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
           group.budgetReached = pending.budgetReached === true
           run.pending = null
           await save()
+          // 恢复批次全部被新归属排除时继续补取候选；空检索及已耗尽预算仍停止。
+          if (pending.candidates.length && !group.exhausted && !group.budgetReached) continue
           break
         }
         const candidateManifest = createCandidateManifest([{ profile, candidates }])

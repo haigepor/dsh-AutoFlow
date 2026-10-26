@@ -1,3 +1,4 @@
+import packageInfo from '../../package.json' with { type: 'json' }
 import { ConversationRecords, photoResultEnvelope } from './afp-conversation-records.js'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { Store, digest } from './afp-state-store.js'
@@ -14,6 +15,7 @@ import { readFailure } from '../vendor/auto-afp-img/read-failure.mjs'
 import { boundedWork } from '../vendor/auto-afp-img/bounded-work.mjs'
 import { AfpDiagnostics, diagnosticFailure } from './afp-diagnostics.js'
 import { categoryTargets } from './afp-category-bindings.js'
+import { createCandidateDedup } from './afp-candidate-dedup.js'
 
 function photoMembership(selection) {
   const rows = Array.isArray(selection) ? selection : selection?.docs ?? selection?.content ?? selection?.documents ?? []
@@ -31,6 +33,8 @@ export class AfpService {
     this.conversationRecords = new ConversationRecords(this.store, config)
     this.connection = dependencies.connection ?? new Connection(ctx.credentials, config)
     this.workbench = dependencies.workbench ?? new WorkbenchData({ ctx, config, store: this.store, connection: this.connection })
+    this.dedupSnapshot = null
+    this.dedupInvalidation = null; this.dedupWriters = 0
     this.connect = (...args) => this.connection.open(...args)
     this.changes = dependencies.changes ?? new Changes({ store: this.store, config, connect: this.connect })
     this.flags = new Set(); this.live = new Map(); this.challenges = new Map(); this.stopping = false; this.writeEpoch = 0
@@ -53,6 +57,7 @@ export class AfpService {
       for (const task of tasks) task.controller.abort()
       await Promise.allSettled(tasks.map(task => task.done))
       if (feature === 'read') await this.workbench.disableReads()
+      if (feature === 'refresh') this.dedupSnapshot = null
     }
   }
   async dispose() {
@@ -62,6 +67,7 @@ export class AfpService {
     await this.workbench.dispose()
     this.downloads.dispose()
     await Promise.allSettled(tasks.map(task => task.done))
+    this.dedupSnapshot = null
     this.conversationRecords.dispose()
   }
   /** Admit a Session-owned Agent job or an unowned profile job; outcomes wait for resource release. */
@@ -73,7 +79,8 @@ export class AfpService {
         const controller = new AbortController(), task = { taskId, feature, owner, controller, done: null, runId }
         this.live.set(taskId, task)
         const tracked = { ...handle, updateProgress: progress => { task.progress = progress; handle.updateProgress(progress) } }
-        task.done = Promise.resolve().then(() => operation(controller.signal, tracked)).then(
+        task.done = Promise.resolve().then(() => feature === 'write'
+          ? this.membershipWrite(() => operation(controller.signal, tracked)) : operation(controller.signal, tracked)).then(
           result => ({ status: controller.signal.aborted ? 'killed' : ['failed', 'cancelled'].includes(result.status) ? 'failed' : 'completed', result: JSON.stringify(result) }),
           error => ({ status: controller.signal.aborted ? 'killed' : 'failed', detail: feature === 'write'
             ? 'AFP operation failed. Check setup and the saved report; remote writes may be partial.'
@@ -83,6 +90,15 @@ export class AfpService {
       },
     })
     return { jobId, taskId }
+  }
+  /** Invalidate preparation reuse around writes, including partial failures and concurrent scans.
+   * @param {Function} operation Confirmed membership mutation; its result and failure are preserved.
+   * @returns {Promise<unknown>} Mutation outcome after invalidating any overlapping scan.
+   */
+  async membershipWrite(operation) {
+    this.dedupWriters++; this.dedupInvalidation = { at: Date.now() }; this.dedupSnapshot = null
+    try { return await operation() }
+    finally { this.dedupWriters--; this.dedupInvalidation = { at: Date.now() }; this.dedupSnapshot = null }
   }
   async startRefresh(args, owner, signal, progress = () => {}) {
     this.require('refresh'); signal.throwIfAborted()
@@ -134,19 +150,42 @@ export class AfpService {
         current.bindings ??= legacyBindings ? {} : (await this.store.readBindings(services.account)).values
         await prepare('collections')
         current.dedup ??= { collections: {} }
-        const reserved = await diagnostic.measure('collections', () => reservedIds(services.client, operationSignal, {
-          concurrency: current.settings.collectionConcurrency, checkpoint: current.dedup, ttlMs: current.settings.dedupSnapshotTtlMs,
-          onCheckpoint: () => save(current),
-          measure: (step, operation) => diagnostic.measure(step, operation),
-          onProgress: ({ completed, total, ...event }) => {
-            const update = { ...event, collectionCompleted: completed, collectionTotal: total }
-            notify(update); diagnostic.sync('progress-update', () => handle.updateProgress(JSON.stringify(update)))
-            append(update)
-          },
-        }))
+        const readAll = async ({ fresh = false } = {}) => {
+          const dedupInvalidation = this.dedupInvalidation
+          const all = await diagnostic.measure('collections', () => reservedIds(services.client, operationSignal, {
+            concurrency: current.settings.collectionConcurrency, checkpoint: current.dedup,
+            ttlMs: fresh || this.dedupWriters ? 0 : current.settings.dedupSnapshotTtlMs, invalidatedAt: dedupInvalidation?.at,
+            cachedCollections: !fresh && !this.dedupWriters && this.dedupSnapshot?.account === services.account ? this.dedupSnapshot.collections : undefined,
+            onCheckpoint: () => save(current),
+            measure: (step, operation) => diagnostic.measure(step, operation),
+            onProgress: ({ completed, total, ...event }) => {
+              const update = { ...event, collectionCompleted: completed, collectionTotal: total }
+              notify(update); diagnostic.sync('progress-update', () => handle.updateProgress(JSON.stringify(update)))
+              append(update)
+            },
+          }))
+          operationSignal.throwIfAborted()
+          // 只发布完整扫描；候选归属结果不进入完整账号快照。
+          if (!this.dedupWriters && dedupInvalidation === this.dedupInvalidation) {
+            this.dedupSnapshot = { account: services.account, collections: structuredClone(current.dedup.collections) }
+          }
+          return all
+        }
+        let reserved = new Set()
+        const candidateReader = current.settings.dedupReadMode === 'candidate' ? await createCandidateDedup({
+          client: services.client, signal: operationSignal, reserved, pageSize: current.settings.pageSize, readAll,
+          version: () => this.dedupInvalidation, writesPending: () => this.dedupWriters > 0,
+        }) : null
+        if (!candidateReader) reserved = await readAll()
+        const readReserved = candidateReader?.mode === 'candidate' ? async values => {
+          if (!values.length) return
+          await prepare('collections')
+          await diagnostic.measure('candidate-membership', () => candidateReader.update(values))
+          await prepare('visual')
+        } : undefined
         await prepare('visual')
         const result = await diagnostic.measure('workflow', () => refreshRun({ run: current, store: { saveRun: save }, config: current.settings,
-          ...services, reserved, signal: taskSignal, diagnostic,
+          ...services, reserved, readReserved, signal: taskSignal, diagnostic,
           onProgress: event => {
             notify({ ...event, stage: event.stage ?? 'visual', state: 'running', completed: event.reviewed })
             // 已读取预览的 ID 只供认证页面展示，后台文本输出保留计数，避免重复传入模型。
@@ -254,7 +293,7 @@ export class AfpService {
     const targetId = args.targetCollectionId
     if (action !== 'remove' && (typeof targetId !== 'string' || targetId.length > 256)) throw new Error('Choose an AFP target collection')
     const { client, account } = await this.connection.open(signal, true)
-    return this.store.lock(`collection-actions:${account}`, async () => {
+    return this.membershipWrite(() => this.store.lock(`collection-actions:${account}`, async () => {
       const selections = await client.listSelections()
       const byId = new Map(selections.filter(item => typeof item?.id === 'string').map(item => [item.id, item]))
       const sourceIds = [...new Set(photoIds.flatMap(id => {
@@ -327,7 +366,7 @@ export class AfpService {
       return { action, completed: outcomes.filter(item => item.status === 'completed').length,
         partial: outcomes.filter(item => item.status === 'partial').length, pending: outcomes.filter(item => item.status === 'pending').length,
         failed: outcomes.filter(item => item.status === 'failed').length, items: outcomes }
-    })
+    }))
   }
   /** Acquire or refresh the AFP token through the configured credential provider. */
   async acquireToken(signal) {
@@ -516,7 +555,7 @@ export class AfpService {
     if (!Object.hasOwn(allowed, input.operation) || Object.keys(args).some(key => !allowed[input.operation].includes(key))) throw new Error('Unknown AFP operation or argument')
     switch (input.operation) {
       // 缓存和动画设置只提供给插件页面；Agent 状态输出保持原有字段。
-      case 'status': return { ...(await this.status()), previewAnimation: { enabled: this.config.previewAnimationEnabled }, previewCache: { scope: this.previewCacheScope,
+      case 'status': return { ...(await this.status()), runtime: { version: packageInfo.version }, previewAnimation: { enabled: this.config.previewAnimationEnabled }, previewCache: { scope: this.previewCacheScope,
         maxEntries: this.config.previewCacheMaxEntries, maxBytes: this.config.previewCacheMaxBytes, ttlMs: this.config.previewCacheTtlMs,
         retryCount: this.config.previewRetryCount, retryDelayMs: this.config.previewRetryDelayMs } }
       case 'collections': return this.collections(signal)

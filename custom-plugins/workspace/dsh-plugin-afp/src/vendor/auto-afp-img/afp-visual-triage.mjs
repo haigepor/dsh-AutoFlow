@@ -523,7 +523,7 @@ export async function triageCandidates({
     try {
       signal?.throwIfAborted();
       stage('preview');
-      const preview = await measure('preview', () => previewClient.getPreviewBytes(candidate.id));
+      const preview = await measure('preview', () => previewClient.getPreviewBytes(candidate.id, { guid: candidate.guid }));
       previewed++;
       previewPhotoIds.push(candidate.id);
       stage('vision');

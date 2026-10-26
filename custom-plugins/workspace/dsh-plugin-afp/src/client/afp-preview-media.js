@@ -3,15 +3,23 @@ const rasterTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif
 /** Resolve only the authenticated same-origin preview route.
  * @param {string} path Host-provided relative preview path.
  * @param {string} baseURI Current document URL.
+ * @param {string|null} [guid] Known AFP GUID; omission or null keeps UNO-only lookup.
  * @returns {string|null} Validated proxy URL or null.
  */
-export function previewSource(path, baseURI) {
+export function previewSource(path, baseURI, guid) {
   if (typeof path !== 'string' || !path.startsWith('api/afp/preview?photoId=')) return null
   try {
     const url = new URL(path, baseURI), expected = new URL('api/afp/preview', baseURI)
     if (url.origin !== expected.origin || url.pathname !== expected.pathname || url.hash
-      || [...url.searchParams.keys()].some(key => key !== 'photoId') || url.searchParams.getAll('photoId').length !== 1
+      || [...url.searchParams.keys()].some(key => !['photoId', 'guid'].includes(key)) || url.searchParams.getAll('photoId').length !== 1
+      || url.searchParams.getAll('guid').length > 1
       || !url.searchParams.get('photoId')) return null
+    const known = guid ?? url.searchParams.get('guid')
+    if (known !== null && known !== undefined) {
+      if (typeof known !== 'string' || !known.trim() || known.length > 256 || /[\u0000-\u001f\u007f]/.test(known)
+        || url.searchParams.has('guid') && url.searchParams.get('guid') !== known) return null
+      url.searchParams.set('guid', known)
+    }
     return url.href
   } catch (error) { return null }
 }

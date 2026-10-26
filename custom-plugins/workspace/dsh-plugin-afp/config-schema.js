@@ -12,9 +12,9 @@ const defaults = Object.freeze({
   mediaEndpoint: 'https://afp-apicore-prod.afp.com/objects/api/medias', previewCdnHosts: [], previewAutoCdnHosts: true,
   targetPerCategory: 100, batchSize: 30, pageSize: 60, maxPages: 3, maxBatches: 10,
   concurrency: 3, threshold: 0.8, requestTimeoutMs: 180000, readRetries: 2,
-  collectionConcurrency: 4, searchConcurrency: 3, maxSearchRequests: 30,
-  preparationTimeoutMs: 600000, dedupSnapshotTtlMs: 600000, maxPhotoAttempts: 3, minimumReviewedPerCategory: 0,
-  tokenRefreshMarginSeconds: 300, planTtlMs: 600000, outputLimitBytes: 16000,
+  collectionConcurrency: 8, searchConcurrency: 3, maxSearchRequests: 30,
+  preparationTimeoutMs: 600000, dedupSnapshotTtlMs: 600000, dedupReadMode: 'full', maxPhotoAttempts: 3, minimumReviewedPerCategory: 0,
+  tokenRefreshMarginSeconds: 300, tokenValidationTtlMs: 60000, planTtlMs: 600000, outputLimitBytes: 16000,
   maxStateBytes: 67108864, maxPreviewBytes: 12582912, maxResponseBytes: 4194304, maxRedirects: 3,
   stateWriteRetryCount: 8, stateWriteRetryDelayMs: 50,
   maxDownloadBytes: 134217728, downloadConcurrency: 2,
@@ -29,7 +29,7 @@ const ranges = {
   maxBatches: [1, 100], concurrency: [1, 16], requestTimeoutMs: [1000, 600000], readRetries: [0, 5],
   collectionConcurrency: [1, 16], searchConcurrency: [1, 16], maxSearchRequests: [1, 1000],
   preparationTimeoutMs: [1000, 3600000], dedupSnapshotTtlMs: [0, 3600000], maxPhotoAttempts: [1, 5], minimumReviewedPerCategory: [0, 1000],
-  tokenRefreshMarginSeconds: [0, 3600], planTtlMs: [1000, 3600000], outputLimitBytes: [1024, 1000000],
+  tokenRefreshMarginSeconds: [0, 3600], tokenValidationTtlMs: [0, 3600000], planTtlMs: [1000, 3600000], outputLimitBytes: [1024, 1000000],
   maxStateBytes: [1048576, 268435456], maxPreviewBytes: [1024, 52428800],
   stateWriteRetryCount: [0, 20], stateWriteRetryDelayMs: [10, 1000],
   maxResponseBytes: [1024, 16777216], maxRedirects: [0, 5], maxDownloadBytes: [1048576, 1073741824], downloadConcurrency: [1, 8],
@@ -48,6 +48,7 @@ export function resolveConfig(input = {}) {
   if (typeof config.autoRefreshToken !== 'boolean') throw new Error('autoRefreshToken must be boolean')
   if (typeof config.previewAutoCdnHosts !== 'boolean') throw new Error('previewAutoCdnHosts must be boolean')
   if (typeof config.previewAnimationEnabled !== 'boolean') throw new Error('previewAnimationEnabled must be boolean')
+  if (!['full', 'candidate'].includes(config.dedupReadMode)) throw new Error('Invalid dedupReadMode')
   for (const [key, [min, max]] of Object.entries(ranges)) {
     if (!Number.isSafeInteger(config[key]) || config[key] < min || config[key] > max) throw new Error(`Invalid ${key}: expected integer ${min}..${max}`)
   }

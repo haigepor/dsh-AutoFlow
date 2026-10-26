@@ -1,5 +1,5 @@
 import { createHttpClient } from './http-client.mjs';
-import { isIP } from 'node:net';
+import { isBlockedMediaHost } from './afp-media-host.mjs';
 
 const FAR_ENDPOINT = 'https://far-api-news.app.afp.com/';
 const SELECTIONS_ENDPOINT = 'https://slt-api-news.app.afp.com';
@@ -156,35 +156,23 @@ export function createAfpApiClient({
     });
   }
 
-  function blockedDeliveryHost(hostname) {
-    const host = hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase()
-    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true
-    if (isIP(host) === 4) {
-      const [a, b] = host.split('.').map(Number)
-      return a === 0 || a === 10 || a === 127 || a >= 224
-        || a === 169 && b === 254 || a === 172 && b >= 16 && b <= 31
-        || a === 192 && b === 168 || a === 100 && b >= 64 && b <= 127
-    }
-    return isIP(host) === 6 && (host === '::' || host === '::1' || host.startsWith('fc') || host.startsWith('fd')
-      || /^fe[89ab]/.test(host) || host.startsWith('ff') || host.startsWith('::ffff:'))
-  }
-
   function deliveryUrl(value) {
     let url;
     try { url = new URL(value); } catch (error) { throw new Error('AFP returned an invalid delivery URL'); }
-    if (url.protocol !== 'https:' || url.username || url.password || blockedDeliveryHost(url.hostname)) {
+    if (url.protocol !== 'https:' || url.username || url.password || isBlockedMediaHost(url.hostname)) {
       throw new Error('AFP returned a disallowed delivery URL');
     }
     return url;
   }
 
   return {
-    /** Read allowlisted photo metadata by stable AFP IDs without requesting media references. */
+    /** Read photo metadata without media references; only an explicit array can mean no photos. */
     async photosByIds(ids) {
       if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string' || !id)) throw new Error('photo ids must be non-empty strings');
       if (ids.length < 1 || ids.length > 120) throw new Error('photo ids must contain 1..120 entries');
       const payload = await graphQl({ operationName: 'getPhotosByIds', variables: { ids: [...ids], input: { isUno: true } }, query: PHOTOS_BY_IDS_QUERY });
-      return Array.isArray(payload?.data?.docs) ? payload.data.docs : [];
+      if (!Array.isArray(payload?.data?.docs)) throw new Error('AFP photo details returned an invalid response');
+      return payload.data.docs;
     },
     /** Read AFP downloadable media metadata; media keys and URLs must stay in the Host. */
     downloadPhotoDetails,
@@ -227,11 +215,28 @@ export function createAfpApiClient({
     },
     async searchPhotos(request) {
       const payload = await graphQl(request);
-      return payload?.data?.photos ?? payload?.data?.search ?? payload?.photos ?? payload?.search ?? { docs: [] };
+      const result = payload?.data?.photos ?? payload?.data?.search ?? payload?.photos ?? payload?.search;
+      if (!Array.isArray(result?.docs)) throw new Error('AFP photo search returned an invalid response');
+      return result;
+    },
+    /** 按候选 UNO 读取实时收藏关系；缺失图片或无效 selections 由去重调用方回退全量读取。
+     * @param {string[]} ids 候选图片的原始 UNO。
+     * @returns {Promise<unknown>} 未验证的成员行，由去重读取方核对完整性。
+     */
+    async photoSelectionsByIds(ids) {
+      const payload = await graphQl({ operationName: 'membership',
+        query: 'query membership($ids:[String!]!, $input:PhotoQueryByIdsInput){ docs:photosByIds(ids:$ids,input:$input){ id:uno selections { id } } }',
+        variables: { ids, input: { isUno: true } } });
+      return payload?.data?.docs;
     },
     async listSelections() {
       const payload = await selectionRequest('/get-selections/byuser?includeClientSelections=true');
-      return Array.isArray(payload) ? payload : (payload?.selections ?? payload?.data ?? []);
+      const selections = Array.isArray(payload) ? payload : (payload?.selections ?? payload?.data);
+      // 无效目录不能解释成空账号，否则全量和候选去重都会漏掉已有收藏。
+      if (!Array.isArray(selections) || selections.some(row => !row || typeof row.id !== 'string' || !row.id)) {
+        throw new Error('AFP collection list returned an invalid response');
+      }
+      return selections;
     },
     async createPrivateSelection(name) {
       return selectionRequest('/create-selection', { method: 'POST', body: { name, isPrivate: true } });

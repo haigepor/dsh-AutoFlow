@@ -64,6 +64,16 @@ Windows publication regressions use Bash built-in reads to reduce extra polling 
 
 Previews automatically recognize HTTPS CloudFront distribution hosts returned by matching AFP photo metadata or official media redirects. Admission lasts for one download, CDN redirects cannot admit other hosts, and AFP credentials stay on AFP origins. `previewAutoCdnHosts` defaults to true; other domains retain exact `previewCdnHosts` configuration. Tests use simulated AFP responses and do not establish live account access.
 
+## AFP 0.1.10
+
+Preview reads carry known photo GUIDs, recover an explicitly empty UNO lookup through a matching GUID, and refresh metadata once when a signed image explicitly reports expiration. A 401 from a configured AFP media origin renews authentication through the bounded read replay; CDN failures do not. Redirects keep AFP credentials on configured AFP origins.
+
+Connections share concurrent authentication and briefly reuse successful validation. Ordinary searches omit unused preview metadata. Full collection reads reuse only fresh, complete snapshots with matching directory versions. Optional `dedupReadMode: candidate` checks each candidate's current collection membership before screening and falls back to fresh full reads when directory coverage or consistency cannot be established. The default remains `full`; saved runs retain their settings.
+
+Malformed successful responses fail visibly instead of becoming empty results. Resumed queues refill newly excluded batches, and fresh collection removals update exclusions without repeating completed reviews. Workbench status exposes the loaded plugin version.
+
+No data migration is required; settings and reports are retained, and restart applies an installed update. Verification includes 501 automated regressions, live membership comparisons, a temporary private-collection add/remove freshness check and browser preview decoding. Naturally expiring signatures were not observed over their full lifetime; withdrawn photos, lost permissions and persistent network failures can still prevent previews.
+
 ## Dev Note
 
 None.

@@ -60,7 +60,7 @@ test('a cancelled visual batch remains pending and resumes without fetching agai
   assert.equal(complete.pending, null)
   assert.equal(progress.at(-1).previewed, 1); assert.equal(progress.at(-1).pixelReviewed, 1)
   assert.equal(progress.at(-1).requestFailures, 0)
-  assert.deepEqual(progress.at(-1).reviewedPhotos, [{ id: 'doc-1', title: 'Food', category: 'food', keep: true, requestFailed: false, reasonCode: null }])
+  assert.deepEqual(progress.at(-1).reviewedPhotos, [{ id: 'doc-1', guid: 'g', title: 'Food', category: 'food', keep: true, requestFailed: false, reasonCode: null }])
 })
 
 test('plans refuse foreign sessions, remote drift and repeated writes', async t => {

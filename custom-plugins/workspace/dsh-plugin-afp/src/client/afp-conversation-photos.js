@@ -54,6 +54,7 @@ export function conversationPhotoModel({ phase, block }) {
     seen.add(row.id)
     // 旧元数据没有 previewPath；新旧记录均由 ID 重建固定路由，忽略结果中任意地址。
     photos.push({ id: row.id, title: typeof row.title === 'string' ? row.title : row.id,
+      ...(resourceId(row.guid) ? { guid: row.guid } : {}),
       provider: typeof row.provider === 'string' ? row.provider : null,
       caption: typeof row.caption === 'string' ? row.caption : '',
       previewPath: `api/afp/preview?photoId=${encodeURIComponent(row.id)}` })
@@ -91,7 +92,7 @@ export function createAfpConversationPhotos(React, UI, icons, t, store) {
     const selectedIndex = model.photos.findIndex(photo => photo.id === selectedId)
     const photoKeys = model.photos.map(photo => photo.id).join('\u0000')
     const summary = t(model.message).replace('{count}', String(model.photos.length))
-    const href = photo => previewSource(photo.previewPath, document.baseURI)
+    const href = photo => previewSource(photo.previewPath, document.baseURI, photo.guid)
     function measureStrip() {
       const node = strip.current
       const next = { back: Boolean(node && node.scrollLeft > 1), forward: Boolean(node && node.scrollWidth - node.clientWidth - node.scrollLeft > 1) }

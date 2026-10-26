@@ -340,11 +340,16 @@ export class WorkbenchData {
       // 忽略 URL 解析错误，不回显请求内容或底层异常。
       return new Response('Invalid preview request', { status: 400, headers: safeHeaders })
     }
-    if ([...url.searchParams.keys()].some(key => key !== 'photoId')) return new Response('Invalid photo ID', { status: 400, headers: safeHeaders })
+    if ([...url.searchParams.keys()].some(key => !['photoId', 'guid'].includes(key))) return new Response('Invalid photo ID', { status: 400, headers: safeHeaders })
     const values = url.searchParams.getAll('photoId')
     if (values.length !== 1) return new Response('Invalid photo ID', { status: 400, headers: safeHeaders })
-    let id
-    try { id = photoId(values[0]) }
+    const guids = url.searchParams.getAll('guid')
+    if (guids.length > 1) return new Response('Invalid photo ID', { status: 400, headers: safeHeaders })
+    let id, guid
+    try {
+      id = photoId(values[0])
+      if (guids.length) { guid = photoId(guids[0]); if (!guid.trim()) throw new Error('Invalid AFP photo GUID') }
+    }
     catch (error) {
       // 忽略无效 photoId 的详细值，避免将请求数据写入响应。
       return new Response('Invalid photo ID', { status: 400, headers: safeHeaders })
@@ -354,7 +359,7 @@ export class WorkbenchData {
       const result = await this.track(request.signal, true, async signal => {
         const { previewClient } = await this.connection.open(signal, false, false, true)
         if (!previewClient) throw new Error('Preview client unavailable')
-        return previewClient.getPreviewBytes(id)
+        return previewClient.getPreviewBytes(id, { guid })
       })
       const kind = imageKind(result?.bytes)
       const contentType = imageTypes.get(kind)

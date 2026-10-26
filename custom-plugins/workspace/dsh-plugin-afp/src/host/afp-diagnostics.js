@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { readFailure } from '../vendor/auto-afp-img/read-failure.mjs'
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/
-const steps = new Set(['connection', 'collections', 'collection-list', 'collection-read', 'collection-parse', 'checkpoint-save',
+const steps = new Set(['connection', 'collections', 'collection-list', 'collection-read', 'collection-parse', 'candidate-membership', 'checkpoint-save',
   'search-initialization', 'search', 'preview', 'vision', 'confirmation', 'progress-update', 'progress-output', 'workflow', 'completion'])
 const names = new Set(['Error', 'TypeError', 'RangeError', 'SyntaxError', 'AbortError', 'TimeoutError', 'AggregateError'])
 const systemCodes = new Set(['EACCES', 'EPERM', 'ENOENT', 'EEXIST', 'ENOSPC', 'EIO', 'EBUSY', 'EINTR', 'EMFILE', 'ENFILE',

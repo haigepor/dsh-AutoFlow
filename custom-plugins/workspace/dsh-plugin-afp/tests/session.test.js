@@ -13,7 +13,7 @@ import { createAfpApiClient } from '../src/vendor/auto-afp-img/afp-api-client.mj
 // 此测试消费仓库构建产物；独立 npm 副本没有仓库时明确跳过，不冒充已执行会话验证。
 const repo = new URL('../../../../', import.meta.url)
 const built = path => import(new URL(path + '/lib/index.js', repo))
-test('recorded keyless Session plans and reads AFP metadata with safe errors, then disposal removes all tools',
+for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Session reads AFP metadata with ${dedupReadMode} preparation across fresh visual tasks`,
   { skip: !existsSync(new URL('packages/core/agent-loop/lib/index.js', repo)) }, async t => {
     const { Context } = await built('vendor/cordis')
     const { default: LlmRuntime, LlmAdapter, createUserMessage } = await built('packages/llm/llm')
@@ -29,7 +29,8 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
     for (const plugin of [LlmRuntime, SessionStore, Projection, ToolRuntime, Agents]) await ctx.plugin(plugin)
     await ctx.plugin(SystemPrompt, { personaPrefix: 'AFP fixture' }); await ctx.plugin(Loop, { agents: [] })
     const todoPlugin = await ctx.plugin(ToolTodo, { allowParallelInProgress: false })
-    const tasks = ['制定检索计划', '读取图片与收藏夹元数据', '保存最终选图']
+    const tasks = ['制定检索计划', '读取图片与收藏夹元数据', '保存最终选图'], jobs = []
+    const latestRun = async () => ({ kind: 'run', id: JSON.parse((await jobs.at(-1).done).result).runId })
     const scriptedCalls = [
       ['todo_write', { todos: tasks.map((content, index) => ({ content, status: index === 0 ? 'in_progress' : 'pending' })) }],
       ['afp_search_plan', { query: 'food photography' }],
@@ -45,15 +46,22 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
       ['afp_refresh', { mode: 'resume', categories: [], runId: '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f' }],
       ['afp_search_plan', { query: ' ' }],
       ...['schema', 'authentication', 'unknown'].map(category => ['afp_photo_search_start', { query: `fixture-${category}`, language: 'en', limit: 2 }]),
+      ['afp_photo_search_start', { query: 'fixture-malformed', language: 'en', limit: 2 }],
+      ['afp_refresh', { mode: 'start', categories: ['food'], runId: null }],
+      ['afp_report', latestRun],
+      ['afp_refresh', { mode: 'start', categories: ['food'], runId: null }],
+      ['afp_report', latestRun],
       ['todo_write', { todos: tasks.map(content => ({ content, status: 'completed' })) }],
     ]
     class ScriptedAdapter extends LlmAdapter {
       calls = 0
       async resolveModel(provider, model) { return { provider, id: model, name: model } }
       async *stream() {
+        if (jobs.length) await jobs.at(-1).done
         const call = scriptedCalls[this.calls++]
         if (call) {
-          const block = { type: 'tool-call', id: `afp-fixture-call-${this.calls}`, name: call[0], arguments: JSON.stringify(call[1]) }
+          const args = typeof call[1] === 'function' ? await call[1]() : call[1]
+          const block = { type: 'tool-call', id: `afp-fixture-call-${this.calls}`, name: call[0], arguments: JSON.stringify(args) }
           yield { type: 'block-start', index: 0, blockType: 'tool-call' }
           yield { type: 'tool-call-delta', index: 0, id: block.id, name: block.name, argumentsDelta: block.arguments }
           yield { type: 'block-end', index: 0, block }; yield { type: 'finish', reason: { kind: 'tool-calls' } }
@@ -67,20 +75,28 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
     }
     ctx.llm.registerAdapter(['fixture'], new ScriptedAdapter())
     const photo = id => ({ id, guid: id, title: `Photo ${id}`, caption: 'Cat', provider: 'AFP', mockup: [{ href: 'https://signed.example/?token=secret' }] })
+    let collectionReads = 0
     const client = {
       async searchPhotos(request) {
+        if (request.variables.input.query === 'caption="fixture-malformed"') return createAfpApiClient({ accessToken: 'fixture-only', retries: 0,
+          fetchImpl: async () => Response.json({ data: { photos: { hasMore: false } } }) }).searchPhotos(request)
         const errors = new Map([['schema', 'GRAPHQL_VALIDATION_FAILED'], ['authentication', 'UNAUTHENTICATED'], ['unknown', 'UNRECOGNIZED']])
         const category = [...errors.keys()].find(value => request.variables.input.query === `caption="fixture-${value}"`)
         if (category) return createAfpApiClient({ accessToken: 'fixture-only', retries: 0, fetchImpl: async () =>
           new Response(JSON.stringify({ errors: [{ message: 'secret https://signed.example/?token=secret', extensions: { code: errors.get(category) } }] }), { status: 200 }) }).searchPhotos(request)
+        if (request.variables.input.query !== 'caption="cat"') return { docs: [], hasMore: false }
         return request.variables.input.cursor ? { docs: [photo('p2')], hasMore: false }
         : { docs: [photo('p1')], hasMore: true, cursor: 'next' } },
       async photosByIds(ids) { return ids.map(photo) },
-      async listSelections() { return [{ id: 'shared', name: 'Shared', isPrivate: false }] },
-      async getSelection() { return { docs: ['p1', 'p2', 'p3'] } },
+      async photoSelectionsByIds(ids) { return ids.map(id => ({ id, selections: [] })) },
+      async listSelections() { return [{ id: 'shared', name: 'Shared', isPrivate: dedupReadMode === 'candidate', docsCount: 3, lastContentUpdate: '2026-10-26T01:00:00.000Z' },
+        ...Array.from({ length: 8 }, (_, i) => ({ id: `collection-${i}`, name: `Synthetic ${i}`, isPrivate: dedupReadMode === 'candidate' || i % 2 === 0,
+          docsCount: 1, lastContentUpdate: '2026-10-26T01:00:00.000Z' }))] },
+      async getSelection(id) { collectionReads++; return { docs: id === 'shared' ? ['p1', 'p2', 'p3'] : [`${id}-photo`] } },
     }
-    const service = new AfpService({ profileContext: { home, dir: join(home, 'profile') } }, resolveConfig({ pageSize: 2 }),
-      { connection: { async open() { return { client } } } })
+    const service = new AfpService({ profileContext: { home, dir: join(home, 'profile') },
+      jobs: { start(spec) { jobs.push(spec.run({ append() {}, updateProgress() {} })); return `afp-fixture-job-${jobs.length}` } } }, resolveConfig({ pageSize: 2, dedupReadMode }),
+      { connection: { async open() { return { client, account: 'fixture-account' } } } })
     const disable = await service.enable('read')
     const disableRefresh = await service.enable('refresh')
     await service.store.saveRun({ schema: 1, id: '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f', status: 'paused', stage: 'visual',
@@ -101,6 +117,8 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
       return agent.session.snapshotEvents()
     }
     const enabled = await turn('afp-enabled')
+    assert.equal(jobs.length, 2)
+    assert.equal(collectionReads, dedupReadMode === 'candidate' ? 1 : 10)
     await tools.dispose(); await todoPlugin.dispose(); await disable(); await disableRefresh()
     const disabled = await turn('afp-disabled')
     const offered = foldRequestHeader(enabled).tools
@@ -123,7 +141,7 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
     const afpResults = projection.results.filter((_result, index) => scriptedCalls[index][0] !== 'todo_write')
     assert.equal(projection.results[0].message.isError, false)
     assert.equal(afpResults[3].message.isError, true)
-    assert.equal(afpResults.at(-1).message.isError, true)
+    assert.equal(afpResults.at(-5).message.isError, true)
     assert.equal(Object.hasOwn(projection.cursorSchema, 'pattern'), false)
     assert.doesNotMatch(JSON.stringify(projection.results), /signed\.example|secret/)
     // 卡片从已记录输出重建；不再查询 AFP，也不依赖当前工作台搜索。
@@ -149,9 +167,10 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
     const references = new Map()
     function normalize(value) {
       if (Array.isArray(value)) return value.map(normalize)
+      if (typeof value === 'string') return references.get(value) ?? value
       if (!value || typeof value !== 'object') return value
       const entries = Object.entries(value).filter(([key]) => key !== 'durationMs').map(([key, item]) => {
-        if (key === 'resultRef') {
+        if (typeof item === 'string' && (key === 'resultRef' || key === 'taskId' || key === 'runId' && item !== '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f')) {
           if (!references.has(item)) references.set(item, `00000000-0000-4000-8000-${String(references.size + 1).padStart(12, '0')}`)
           return [key, references.get(item)]
         }
@@ -167,7 +186,8 @@ test('recorded keyless Session plans and reads AFP metadata with safe errors, th
       }
       if (result.meta) result.meta = normalize(result.meta)
     }
-    const file = new URL('./fixtures/session-search.expected.json', import.meta.url)
+    projection.calls = projection.calls.map(call => ({ ...call, arguments: JSON.stringify(normalize(JSON.parse(call.arguments))) }))
+    const file = new URL(`./fixtures/session-search${dedupReadMode === 'candidate' ? '-candidate' : ''}.expected.json`, import.meta.url)
     if (process.env.DSH_AFP_REFRESH_SNAPSHOT === '1') await writeFile(file, JSON.stringify(projection, null, 2) + '\n', 'utf8')
     assert.deepEqual(projection, JSON.parse(await readFile(file, 'utf8')))
   })

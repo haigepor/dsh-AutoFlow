@@ -1,5 +1,6 @@
 import { createHttpClient } from './http-client.mjs';
 import { readAfpJson } from './afp-api-client.mjs';
+import { isBlockedMediaHost } from './afp-media-host.mjs';
 
 const FAR_ENDPOINT = 'https://far-api-news.app.afp.com/';
 const APICORE_MEDIA_ENDPOINT = 'https://afp-apicore-prod.afp.com/objects/api/medias';
@@ -16,11 +17,13 @@ const PHOTO_PREVIEW_QUERY = `query getPhotosByIds($ids:[String!]!,$input:PhotoQu
   }
 }`;
 
-/** 从详情响应中选出 Mockup 媒体引用，不接触 HighRes/MidRes 等下载媒体。 */
+/** 优先选择可用 Mockup，兼容无档位旧引用；显式下载档位和非字符串引用不进入预览。 */
 export function findMockupReference(photo) {
   const mockups = Array.isArray(photo?.mockup) ? photo.mockup : [];
-  const media = mockups.find((item) => String(item?.role ?? '').toLowerCase() === 'mockup') ?? mockups[0];
-  const reference = String(media?.href ?? '').trim();
+  const usable = item => typeof item?.href === 'string' && item.href.trim();
+  const media = mockups.find(item => usable(item) && String(item?.role ?? '').trim().toLowerCase() === 'mockup')
+    ?? mockups.find(item => usable(item) && !String(item?.role ?? '').trim());
+  const reference = media?.href.trim();
   if (!reference) throw new Error('photo mockup is unavailable');
   return reference;
 }
@@ -29,16 +32,6 @@ function readToken(accessToken = process.env.AFP_ACCESS_TOKEN) {
   const token = String(accessToken ?? '').trim();
   if (!token) throw new Error('AFP_ACCESS_TOKEN is required');
   return token;
-}
-
-function isPrivateOrLocalHost(hostname) {
-  const host = String(hostname ?? '').toLowerCase().replace(/[\[\]]/g, '');
-  if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host === '::1') return true;
-  if (host.includes(':')) return /^(?:f[cd]|fe8[0-9a-f]):/i.test(host);
-  const octets = host.split('.').map(Number);
-  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
-  const [a, b] = octets;
-  return a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 
 function hostFromEndpoint(endpoint) {
@@ -64,7 +57,7 @@ function allowedHostSet({ farEndpoint, apicoreEndpoint, allowedCdnHosts }) {
   ]);
 }
 
-function isAllowedPreviewUrl(value, allowedHosts) {
+function isAllowedPreviewUrl(value, allowedHosts, trustedOrigins) {
   let url;
   try {
     url = new URL(value);
@@ -73,7 +66,8 @@ function isAllowedPreviewUrl(value, allowedHosts) {
   }
   if (url.protocol !== 'https:') throw new Error('preview URL must use HTTPS');
   if (url.username || url.password) throw new Error('preview URL must not contain credentials');
-  if (isPrivateOrLocalHost(url.hostname)) throw new Error('preview URL points to a local or internal host');
+  if (isBlockedMediaHost(url.hostname)) throw new Error('preview URL points to a local or internal host');
+  if (url.port && !trustedOrigins.has(url.origin)) throw new Error('preview URL port is not configured');
   if (!allowedHosts.has(url.hostname.toLowerCase())) {
     const error = new Error('preview URL host is not allowlisted');
     error.code = 'preview-host-blocked';
@@ -83,8 +77,14 @@ function isAllowedPreviewUrl(value, allowedHosts) {
   return url;
 }
 
-export function validatePreviewUrl(reference, { apicoreEndpoint = APICORE_MEDIA_ENDPOINT, allowedCdnHosts = [] } = {}) {
-  const allowedHosts = allowedHostSet({ farEndpoint: FAR_ENDPOINT, apicoreEndpoint, allowedCdnHosts });
+/** Validate an HTTPS Mockup URL or convert an opaque media reference to the configured APICore URL.
+ * @param {string} reference Mockup URL or APICore media identifier.
+ * @param {object} [options] Configured endpoints and exact CDN hostnames.
+ * @returns {string} Allowed URL; unconfigured ports and internal addresses are rejected.
+ */
+export function validatePreviewUrl(reference, { farEndpoint = FAR_ENDPOINT, apicoreEndpoint = APICORE_MEDIA_ENDPOINT, allowedCdnHosts = [] } = {}) {
+  const allowedHosts = allowedHostSet({ farEndpoint, apicoreEndpoint, allowedCdnHosts });
+  const trustedOrigins = new Set([new URL(farEndpoint).origin, new URL(apicoreEndpoint).origin]);
   const raw = /^https?:\/\//i.test(reference)
     ? String(reference)
     : (() => {
@@ -93,16 +93,11 @@ export function validatePreviewUrl(reference, { apicoreEndpoint = APICORE_MEDIA_
       url.searchParams.set('step', '5');
       return url.toString();
     })();
-  return isAllowedPreviewUrl(raw, allowedHosts).toString();
+  return isAllowedPreviewUrl(raw, allowedHosts, trustedOrigins).toString();
 }
 
-function previewUrl(reference, apicoreEndpoint, allowedCdnHosts) {
-  return validatePreviewUrl(reference, { apicoreEndpoint, allowedCdnHosts });
-}
-
-function isAfpTrustedHost(hostname, farEndpoint, apicoreEndpoint) {
-  const host = String(hostname).toLowerCase();
-  return host === hostFromEndpoint(farEndpoint) || host === hostFromEndpoint(apicoreEndpoint);
+function previewUrl(reference, apicoreEndpoint, allowedCdnHosts, farEndpoint) {
+  return validatePreviewUrl(reference, { farEndpoint, apicoreEndpoint, allowedCdnHosts });
 }
 
 function redirectLocation(response, currentUrl) {
@@ -152,6 +147,7 @@ export function createAfpPreviewClient({
   if (!Number.isInteger(maxRedirects) || maxRedirects < 0) throw new Error('maxRedirects must be a non-negative integer');
   if (typeof sleep !== 'function') throw new Error('sleep must be a function');
   const allowedHosts = allowedHostSet({ farEndpoint, apicoreEndpoint, allowedCdnHosts });
+  const trustedOrigins = new Set([new URL(farEndpoint).origin, new URL(apicoreEndpoint).origin]);
   const httpClient = createHttpClient({
     fetchImpl,
     timeoutMs: requestTimeoutMs,
@@ -163,62 +159,107 @@ export function createAfpPreviewClient({
   });
 
   async function request(requestOnce, url, options, { followRedirects = false, previewHosts = allowedHosts } = {}) {
-    let currentUrl = isAllowedPreviewUrl(url, previewHosts).toString();
-    let currentOptions = { ...options, redirect: 'manual' };
+    let currentUrl = isAllowedPreviewUrl(url, previewHosts, trustedOrigins).toString();
+    const currentOptions = { ...options, redirect: 'manual' };
     for (let redirectCount = 0; ; redirectCount += 1) {
-      const currentHost = new URL(currentUrl).hostname;
+      const currentOrigin = new URL(currentUrl).origin;
+      // 每跳从原请求头重建：回到已配置 AFP 源时恢复认证，CDN 始终剔除认证。
       const headers = { ...(currentOptions.headers ?? {}) };
-      if (!isAfpTrustedHost(currentHost, farEndpoint, apicoreEndpoint)) {
+      if (!trustedOrigins.has(currentOrigin)) {
         delete headers.authorization;
         delete headers.Authorization;
       }
       const response = await requestOnce(currentUrl, { ...currentOptions, headers });
       const nextUrl = followRedirects ? redirectLocation(response, currentUrl) : null;
-      if (!nextUrl) return response;
+      if (!nextUrl) return { response, origin: currentOrigin };
       // 跳转响应不再使用；先释放其流，再检查目标域名，避免失败时留下未消费连接。
       await response.body?.cancel();
       if (redirectCount >= maxRedirects) throw new Error('preview redirect limit exceeded');
       // CDN 的后续跳转不能扩张白名单，AFP 身份凭据仍只发送到官方接口。
-      if (autoDiscoverCdnHosts && isAfpTrustedHost(currentHost, farEndpoint, apicoreEndpoint)) {
+      if (autoDiscoverCdnHosts && trustedOrigins.has(currentOrigin)) {
         discoverCloudFrontHost(nextUrl, previewHosts);
       }
-      currentUrl = isAllowedPreviewUrl(nextUrl, previewHosts).toString();
-      currentOptions = { ...currentOptions, headers };
+      currentUrl = isAllowedPreviewUrl(nextUrl, previewHosts, trustedOrigins).toString();
     }
   }
 
-  return {
-    async getPreviewBytes(photoId) {
+  async function lookup(photoId, guid) {
+    const read = async isUno => {
       const payload = await httpClient.retryOperation(async requestOnce => {
-        const response = await request(requestOnce, farEndpoint, {
+        const { response } = await request(requestOnce, farEndpoint, {
           method: 'POST',
           headers: previewHeaders(accessToken),
           body: JSON.stringify({
             operationName: 'getPhotosByIds',
-            variables: { ids: [String(photoId)], input: { isUno: true } },
+            variables: { ids: [isUno ? String(photoId) : guid], input: { isUno } },
             query: PHOTO_PREVIEW_QUERY,
           }),
         });
         return readAfpJson(response, 'getPhotosByIds', httpClient);
       });
-      const photo = payload?.data?.docs?.find((item) => item?.id === String(photoId));
-      if (!photo) throw new Error('requested photo mockup is unavailable');
-      const reference = findMockupReference(photo);
-      const previewHosts = new Set(allowedHosts);
-      if (autoDiscoverCdnHosts) discoverCloudFrontHost(reference, previewHosts);
-      const mediaReference = previewUrl(reference, apicoreEndpoint, [...previewHosts]);
-      // 图片下载重试复用已读 metadata，不再次查询同一张图片的详情。
-      return httpClient.retryOperation(async requestOnce => {
-        const mediaResponse = await request(requestOnce, mediaReference, {
-          method: 'GET',
-          headers: previewHeaders(accessToken, { accept: 'image/jpeg,image/png,image/webp,image/gif', contentType: null }),
-        }, { followRedirects: true, previewHosts });
-        if (!mediaResponse.ok) throw new Error(`mockup download failed with HTTP ${mediaResponse.status}`);
-        return {
-          bytes: await httpClient.readResponseBytes(mediaResponse),
-          contentType: mediaResponse.headers.get('content-type')?.split(';')[0] || 'application/octet-stream',
-        };
-      });
+      return payload?.data?.docs;
+    };
+    let docs = await read(true);
+    let photo = Array.isArray(docs) ? docs.find(item => item?.id === String(photoId)) : undefined;
+    // 部分 AFP UNO 无法反查；GUID 只能补查明确空结果，且必须核对同一张图片的双重身份。
+    if (Array.isArray(docs) && docs.length === 0 && guid) {
+      docs = await read(false);
+      photo = Array.isArray(docs) ? docs.find(item => item?.id === String(photoId) && item?.guid === guid) : undefined;
+    }
+    if (!photo) throw new Error('requested photo mockup is unavailable');
+    return photo;
+  }
+
+  async function mediaFailure(response, origin) {
+    let expired = false;
+    if (response.status === 403 && !trustedOrigins.has(origin)) {
+      try {
+        // 只检查有界的固定媒体错误；拒绝正文和签名引用不进入日志或页面。
+        const text = await httpClient.readResponseText(response, Math.min(maxResponseBytes, 4096));
+        expired = /<Code>\s*(?:RequestExpired|ExpiredToken)\s*<\/Code>/.test(text)
+          || /<Code>\s*AccessDenied\s*<\/Code>/.test(text) && /<Message>\s*Request has expired\s*<\/Message>/.test(text);
+      } catch (bodyError) { /* 无效或超限错误正文不能触发媒体恢复。 */ }
+    } else await response.body?.cancel();
+    const error = new Error(`mockup download failed with HTTP ${response.status}`);
+    // 仅 AFP 源的明确 401 进入现有一次认证恢复；CDN 拒绝不是 AFP 凭据失效。
+    if (response.status === 401 && trustedOrigins.has(origin)) {
+      error.afpFailure = { protocol: 'http', httpStatus: 401, category: 'authentication' };
+    }
+    if (expired) error.code = 'preview-media-expired';
+    return error;
+  }
+
+  return {
+    /** Read a Mockup raster, with one identity-checked GUID fallback and one expired-media refresh.
+     * @param {string} photoId Canonical AFP UNO, preserved without decoding.
+     * @param {object} [options] Optional GUID from photo metadata; absence uses UNO only.
+     * @returns {Promise<object>} Raster bytes and declared content type, without media URLs.
+     */
+    async getPreviewBytes(photoId, { guid } = {}) {
+      if (guid !== undefined && (typeof guid !== 'string' || !guid.trim() || guid.length > 256 || /[\u0000-\u001f\u007f]/.test(guid))) throw new Error('Invalid AFP photo GUID');
+      for (let refresh = 0; ; refresh++) {
+        const photo = await lookup(photoId, guid);
+        const reference = findMockupReference(photo);
+        const previewHosts = new Set(allowedHosts);
+        if (autoDiscoverCdnHosts) discoverCloudFrontHost(reference, previewHosts);
+        const mediaReference = previewUrl(reference, apicoreEndpoint, [...previewHosts], farEndpoint);
+        // 传输重试复用 metadata；只有明确过期才重新解析一次媒体入口。
+        try {
+          return await httpClient.retryOperation(async requestOnce => {
+            const { response: mediaResponse, origin } = await request(requestOnce, mediaReference, {
+              method: 'GET',
+              headers: previewHeaders(accessToken, { accept: 'image/jpeg,image/png,image/webp,image/gif', contentType: null }),
+            }, { followRedirects: true, previewHosts });
+            if (!mediaResponse.ok) throw await mediaFailure(mediaResponse, origin);
+            return {
+              bytes: await httpClient.readResponseBytes(mediaResponse),
+              contentType: mediaResponse.headers.get('content-type')?.split(';')[0] || 'application/octet-stream',
+            };
+          });
+        } catch (error) {
+          if (refresh !== 0 || error.code !== 'preview-media-expired') throw error;
+        }
+      }
     },
   };
 }
