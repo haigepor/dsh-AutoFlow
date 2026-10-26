@@ -70,8 +70,8 @@ it('groups settings, finds an unmounted page setting, and keeps the rail and con
   for (const name of ['通用设置', '外观主题', '模型', '内置插件', 'Agent 预设']) {
     await shell.getByRole('button', { name, exact: true }).click()
     await shell.getByRole('region', { name, exact: true }).waitFor()
-    expect(await shell.getByRole('button', { name: '打开配置文件', exact: true }).count()).toBe(0)
-    expect(await shell.locator('footer').count()).toBe(0)
+    expect(await shell.locator('footer').getByRole('button', { name: '打开配置文件', exact: true }).count()).toBe(1)
+    expect(await shell.locator('footer').count()).toBe(1)
     insets.push(await shell.locator('[data-settings-section]').evaluate((element) => {
       const style = getComputedStyle(element)
       return `${style.paddingInlineStart} ${style.paddingInlineEnd} ${style.paddingBlockStart}`

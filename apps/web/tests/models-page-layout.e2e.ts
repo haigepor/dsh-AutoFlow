@@ -152,7 +152,7 @@ describe('web e2e: Models workspace layout and reset', () => {
     expect(await models().getByRole('button', { name: '编辑 DeepSeek (deepseek-official)', exact: true }).count()).toBe(1)
     expect(await models().getByRole('button', { name: '清除 DeepSeek (deepseek-official) 配置', exact: true }).isDisabled()).toBe(true)
     expect(await readFile(join(home, 'profiles', 'scaffold', 'cordis.patch.yml'), 'utf8')).not.toContain('https://fixture.example/anthropic')
-    expect(await shell().getByRole('button', { name: '打开配置文件', exact: true }).count()).toBe(0)
+    expect(await shell().getByRole('button', { name: '打开配置文件', exact: true }).count()).toBe(1)
     expect(tripwire.pageErrors).toEqual([])
   })
 

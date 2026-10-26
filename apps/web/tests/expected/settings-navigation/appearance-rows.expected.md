@@ -26,6 +26,11 @@
   - heading "字体" [level=2]
   - paragraph: 影响界面正文；代码字体保持原样。
   - button "字体": 系统默认
+- text: 字号大小 仅影响会话内容的字号 14
+- button "增大字号"
+- button "减小字号"
+- text: px
+- button "更多字体设置"
 - region "圆角":
   - heading "圆角" [level=2]
   - paragraph: 调整卡片、按钮等控件的圆角。

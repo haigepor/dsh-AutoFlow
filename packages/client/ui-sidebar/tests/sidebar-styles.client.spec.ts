@@ -26,6 +26,11 @@ function declarations(selector: string): Map<string, string> | undefined {
 }
 
 describe('SidebarRoot.module.css', () => {
+  it('retains compact AutoFlow navigation spacing in both sidebar states', () => {
+    expect(declarations('.panelList')?.get('gap')).toBe('2px')
+    expect(declarations('.collapsed .panelList')?.get('gap')).toBe('2px')
+  })
+
   it('shares and cancels the wide shell trailing padding structurally', () => {
     const root = declarations('.root')
     expect(root?.get('--dsh-sidebar-inline-padding')).toBe('12px')

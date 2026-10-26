@@ -1,3 +1,4 @@
+- button "Collapse view tabs" [expanded]
 - navigation "Session hierarchy": Seeded turn
 - text: Minimal mode
 - button "1 subagent"
