@@ -1,0 +1,339 @@
+<div>
+  <section
+    class="section"
+    data-mcp-settings="true"
+  >
+    <header
+      class="header"
+      data-settings-page-header="true"
+    >
+      <h1>
+        Server configuration
+      </h1>
+      <div
+        class="headerActions"
+      >
+        <button
+          class="button outline md"
+          type="button"
+        >
+          <span
+            class="icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="599d85c9"
+              fill="none"
+              height="14"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="14"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+          Back to servers
+        </button>
+      </div>
+    </header>
+    <div
+      class="introduction"
+      data-mcp-introduction="true"
+    >
+      <img
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        draggable="false"
+        height="78"
+        src="/packages/client/ui-settings-mcp/src/assets/mcp-connection-whale-maid-v2.webp"
+        width="104"
+      />
+      <div>
+        <div
+          class="introTitle"
+        >
+          <h2>
+            Connect external tools and data
+          </h2>
+          <button
+            aria-expanded="false"
+            aria-haspopup="dialog"
+            aria-label="How MCP configuration changes take effect"
+            class="helpButton"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="7aacddd3"
+              fill="none"
+              height="16"
+              viewBox="0 0 20 20"
+              width="16"
+            />
+          </button>
+        </div>
+        <p
+          class="intro"
+        >
+          Changes apply to subsequent steps in existing conversations.
+        </p>
+      </div>
+    </div>
+    <div
+      class="panel"
+    >
+      <div
+        class="detailHeader"
+      >
+        <div
+          class="rowTitle"
+        >
+          <h2>
+            demo
+          </h2>
+          <span
+            class="tag"
+            data-tone="success"
+          >
+            Connected
+          </span>
+        </div>
+        <button
+          class="button outline md"
+          type="button"
+        >
+          <span
+            class="icon"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="adb68519"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </span>
+          Restart server
+        </button>
+      </div>
+      <form
+        class="editor"
+      >
+        <fieldset
+          class="fields"
+        >
+          <label
+            class="field"
+          >
+            Server name
+            <span
+              class="wrap"
+            >
+              <input
+                class="input"
+                maxlength="32"
+                pattern="[A-Za-z0-9_\-]{1,32}"
+                required=""
+                value="demo"
+              />
+            </span>
+            <span
+              class="help"
+            >
+              Use letters, numbers, underscores, or hyphens, up to 32 characters.
+            </span>
+          </label>
+          <div
+            class="field"
+          >
+            <span>
+              Transport
+            </span>
+            <span
+              class="root selectWrapper"
+            >
+              <button
+                aria-expanded="false"
+                aria-haspopup="menu"
+                aria-label="Transport"
+                class="button outline md transportButton"
+                type="button"
+              >
+                <span>
+                  Remote service
+                </span>
+                <svg
+                  aria-hidden="true"
+                  class="transportChevron"
+                  data-content="199019d7"
+                  fill="none"
+                  height="16"
+                  stroke-width="1"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                />
+              </button>
+            </span>
+          </div>
+          <label
+            class="field"
+          >
+            Server URL
+            <span
+              class="wrap"
+            >
+              <input
+                class="input"
+                required=""
+                type="url"
+                value="https://example.test/mcp"
+              />
+            </span>
+          </label>
+          <div
+            class="secretSection"
+          >
+            <h3>
+              Request headers
+            </h3>
+            <p
+              class="help"
+            >
+              Saved values are never returned to this page. Enter a replacement value or remove an entry to delete it.
+            </p>
+            <div
+              class="secretRow"
+            >
+              <span
+                class="wrap"
+              >
+                <input
+                  aria-label="Name"
+                  class="input"
+                  value="Authorization"
+                />
+              </span>
+              <span
+                class="wrap"
+              >
+                <input
+                  aria-label="Value"
+                  autocomplete="new-password"
+                  class="input"
+                  placeholder="Saved; enter a value to replace"
+                  type="password"
+                  value=""
+                />
+              </span>
+              <button
+                aria-label="Remove Authorization"
+                class="button ghost md"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="9e4fae05"
+                  fill="none"
+                  height="14"
+                  stroke-width="1"
+                  viewBox="0 0 16 16"
+                  width="14"
+                  xmlns="http://www.w3.org/2000/svg"
+                />
+              </button>
+            </div>
+            <button
+              class="button outline sm"
+              type="button"
+            >
+              <span
+                class="icon"
+              >
+                <svg
+                  aria-hidden="true"
+                  data-content="b713fe59"
+                  fill="none"
+                  height="16"
+                  stroke-width="1"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                />
+              </span>
+              Add entry
+            </button>
+          </div>
+        </fieldset>
+        <div
+          class="advanced"
+        >
+          <button
+            aria-controls=":r2:"
+            aria-expanded="false"
+            class="advancedToggle"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="199019d7"
+              fill="none"
+              height="16"
+              stroke-width="1"
+              viewBox="0 0 16 16"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+            <span>
+              Advanced settings
+            </span>
+          </button>
+          <div
+            aria-hidden="true"
+            class="root"
+            id=":r2:"
+            inert=""
+          >
+            <div
+              class="clip"
+            />
+          </div>
+        </div>
+        <div
+          class="formActions"
+        >
+          <button
+            class="button outline md"
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            aria-busy="false"
+            class="button primary md"
+            type="submit"
+          >
+            Save and apply
+          </button>
+        </div>
+      </form>
+      <div
+        class="tools"
+      >
+        <h3>
+          Available tools
+        </h3>
+        <ul>
+          <li>
+            <code>
+              mcp__demo__ping
+            </code>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>

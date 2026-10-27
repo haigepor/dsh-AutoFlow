@@ -289,6 +289,9 @@
 @keyframes settings-enter { from { opacity: 0; transform: translateX(-15px); } }
 @keyframes settings-leave { to { opacity: 0; transform: translateX(15px); } }
 .optionBody.leaving { animation: settings-leave 175ms cubic-bezier(0.25, 0.1, 0.25, 1) forwards; }
+/* 分区内的子页面复用同一组动效，初次挂载仍由外层设置页负责入场。 */
+.optionBody :global([data-settings-subpage='true']) { animation: settings-enter 250ms cubic-bezier(0.25, 0.1, 0.25, 1); }
+.optionBody :global([data-settings-subpage='true'][data-leaving='true']) { animation: settings-leave 175ms cubic-bezier(0.25, 0.1, 0.25, 1) forwards; pointer-events: none; }
 .optionBody :global([data-settings-found]) { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 5px; border-radius: 3px; scroll-margin-block: 32px; }
 
 @media (max-width: 1200px) {
@@ -428,6 +431,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .wide, .rail .nav, .optionBody, .optionBody.leaving { animation: none; }
+  .optionBody :global([data-settings-subpage='true']), .optionBody :global([data-settings-subpage='true'][data-leaving='true']) { animation: none; }
   .fading .nav > * { transition: none; }
   .page,
   .back,

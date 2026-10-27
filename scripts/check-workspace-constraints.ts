@@ -299,6 +299,8 @@ export function expectedDshPackageFiles(manifest: PackageManifest): readonly str
     // A surface bundle's startup row is its own bundle: the Loader imports it
     // as a row module, so it cannot ride inside the package entry.
     ...exportDefault(manifest, './startup') === './lib/startup.js' ? ['lib/startup.js'] : [],
+    // MCP 连接清单可先于服务器客户端启动，需要独立的 Loader 入口。
+    ...exportDefault(manifest, './connections') === './lib/connections.js' ? ['lib/connections.js'] : [],
     // The Web authentication adapter remains outside independently updated Sidebar artifacts.
     ...exportDefault(manifest, './sidebar-access') === './lib/sidebar-access.js' ? ['lib/sidebar-access.js'] : [],
     ...extras,

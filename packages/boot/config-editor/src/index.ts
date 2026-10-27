@@ -79,6 +79,49 @@ export class ConfigEditor extends Service {
     return structuredClone((row?.config ?? {}) as Record<string, unknown>)
   }
 
+  /**
+   * Persist a new, caller-validated plugin entry and reconcile its activation.
+   * @param row - complete entry with a unique profile id and validated configuration.
+   * @param validate - owner validation repeated while the profile write lock is held.
+   * @returns fulfillment after persistence and Loader reconciliation; failures restore the prior patch.
+   */
+  async insert(row: EntryOptions, validate?: () => void): Promise<void> {
+    const run = async (): Promise<void> => {
+      const profile = this.ownerContext.profileContext
+      await withFileLock(join(profile.dir, 'package.json'), async () => {
+        const beforePatches = readProfilePatches('dsh', profile)
+        validate?.()
+        if (flatten(composeEntries([beforePatches])).some(entry => entry.id === row.id)) throw new Error('Configuration entry id is already in use')
+        let before: string
+        try { before = await readFile(this.documentPath, 'utf8') }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          before = '[]\n'
+        }
+        const document = parseDocument(before, { customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value }] })
+        if (document.errors[0]) throw document.errors[0]
+        if (!isSeq(document.contents)) throw new Error('Profile patch must be a YAML sequence')
+        document.contents.flow = false
+        document.add(document.createNode({ insert: [row] }))
+        const loaded = loadProfileDirectory('dsh', profile.dir, profile.installAnchor)
+        const patches = readProfilePatches('dsh', profile, { ...loaded, patches: yaml.load(String(document), { schema: entryListSchema }) as PatchOptions[] })
+        const effective = flatten(composeEntries([patches])).find(entry => entry.id === row.id)
+        if (!effective || effective.name !== row.name || !isDeepStrictEqual(effective.config, row.config)
+          || Boolean(effective.disabled) !== Boolean(row.disabled)) throw new Error('New configuration entry is overridden')
+        await writeFileAtomic(this.documentPath, String(document), { mode: 0o600 })
+        try {
+          await reconcileProfilePatches(this.ownerContext.root, patches, 'dsh', row.disabled ? [] : [row.id])
+        } catch (error) {
+          await writeFileAtomic(this.documentPath, before, { mode: 0o600 })
+          await reconcileProfilePatches(this.ownerContext.root, beforePatches, 'dsh')
+          throw error
+        }
+      })
+    }
+    const hmr = this.ownerContext.get('hmr')
+    await (hmr === undefined ? run() : hmr.runExclusive(run))
+  }
+
   /** Retain a deselected bundle's raw configs without mounting its plugins.
    * @param name Installed bundle whose defaults will be replaced.
    * @returns Fulfillment after dormant profile overrides are atomically saved.
@@ -141,13 +184,14 @@ export class ConfigEditor extends Service {
   /** Validate, persist, and reconcile a plugin's next config; ordinary fields keep normal lifecycle rules.
    * @param entry Current Loader entry, also used to detect replacement during the write.
    * @param change Derive a raw config from the current entry and its inherited layer.
-   * @param options.retainOverride Retain explicit config for package replacement; inactive entries accept only unchanged raw config.
+   * @param options.retainOverride Retain explicit config for package replacement.
+   * @param options.validate Validate a complete raw config when its owning plugin is inactive.
    * @returns Fulfillment after Loader reconciliation completes.
    */
   async edit(
     entry: Entry,
     change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>,
-    options: { retainOverride?: boolean } = {},
+    options: { retainOverride?: boolean; validate?: (raw: Record<string, unknown>) => void } = {},
   ): Promise<void> {
     const run = async (): Promise<void> => {
       const path = this.documentPath
@@ -163,6 +207,8 @@ export class ConfigEditor extends Service {
         if (fiber?.state === FiberState.ACTIVE) {
           const resolved: unknown = fiber.ctx.waterfall(fiber, 'internal/config', next, () => next)
           resolveConfig(fiber.runtime as NonNullable<typeof fiber.runtime>, resolved)
+        } else if (options.validate !== undefined) {
+          options.validate(next)
         } else if (!options.retainOverride || !isDeepStrictEqual(next, current)) {
           // 停用时只允许原样固化配置；没有运行时 schema 时不能接受新的配置值。
           throw new Error('Configuration plugin is no longer active')

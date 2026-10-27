@@ -11,7 +11,7 @@ import css from './SettingsPage.module.css'
 
 function sectionGroup(id: string): 'preferences' | 'agent' | 'apps' {
   if (['general', 'appearance-theme', 'account'].includes(id)) return 'preferences'
-  if (['models', 'agent-presets'].includes(id)) return 'agent'
+  if (['models', 'agent-presets', 'mcp'].includes(id)) return 'agent'
   return 'apps'
 }
 
@@ -192,7 +192,7 @@ export function SettingsPage({
           <div key={shown?.id} ref={bodyRef} className={clsx(css.optionBody, leaving && css.leaving)}>
             {shown !== undefined && renderSlot('settings.section', { close: () => { closeSettings(false) } }, { only: shown.id })}
           </div>
-          <footer className={css.actions}>{renderSlot('settings.action', {})}</footer>
+          {shown?.id !== 'mcp' && <footer className={css.actions}>{renderSlot('settings.action', {})}</footer>}
         </div>
       </section>
     </div>

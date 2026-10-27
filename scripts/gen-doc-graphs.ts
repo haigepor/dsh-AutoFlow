@@ -198,6 +198,22 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Connection-owned providers serve shared resource tools in the calling agent scope.',
   },
   {
+    key: 'mcpConnections',
+    pkg: 'mcp-client',
+    title: 'MCP connection inventory',
+    mode: 'service',
+    consumers: ['mcp-manager'],
+    note: 'Projects Fiber-owned readiness and tool discovery without taking ownership of client connections.',
+  },
+  {
+    key: 'mcpSettings',
+    pkg: 'mcp-manager',
+    title: 'Profile MCP configuration management',
+    mode: 'service',
+    consumers: ['api-remotes', 'client-ui-settings-mcp'],
+    note: 'Persists validated profile server settings, redacts credential values, and delegates connection lifetimes to the MCP clients.',
+  },
+  {
     key: 'browserUse',
     pkg: 'browser-use',
     title: 'Browser-use provider registration',

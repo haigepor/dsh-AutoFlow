@@ -32,6 +32,8 @@ kind: "package-reference"
 
 使用 [settings](../../settings/settings/README.zh.md) 提供只编辑即时字段的表单。编辑完整配置的调用方可使用 `ctx.configEditor.edit()`；普通字段保留 Loader 的正常生命周期。在替换包的默认配置前，将第三个参数设为 `{ retainOverride: true }`，可显式保留与继承值相同的配置。 停用的配置行仅在回调不修改原始配置时接受此选项。更新未选中的组合包前可调用 `retainDisabledBundle(name)`：离线组合并保存配置，不选择或启动组合包；已选中的组合包、分组配置和行所有者冲突会被拒绝。
 
+完整配置的所有者可向 `edit` 提供 `validate(raw)` 选项，在插件停用时校验编辑。`insert(row, validate)` 添加由调用方校验的条目，在 profile 锁内重新执行所有者检查，并拒绝重复 id 或更高层覆盖。两项操作都会在协调失败时恢复先前的 patch。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" }, { "path": "../../api/remotes/tsconfig.client.json" },
+    { "path": "../../mcp/mcp-manager" }, { "path": "../locale/tsconfig.client.json" },
+    { "path": "../resources" }, { "path": "../store" }, { "path": "../../test-support/client-runtime" },
+    { "path": "../ui-primitives" }, { "path": "../ui-layout" }, { "path": "../ui-renderer" },
+    { "path": "../ui-settings/tsconfig.client.json" }, { "path": "../ui-slots" }
+  ]
+}

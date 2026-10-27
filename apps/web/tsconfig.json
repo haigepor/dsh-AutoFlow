@@ -116,6 +116,7 @@
     "tests/developer-tools-settings.e2e.ts",
     "tests/models-settings.e2e.ts",
     "tests/models-page-layout.e2e.ts",
+    "tests/mcp-settings.e2e.ts",
     "tests/plugin-inventory-polish.e2e.ts",
     "tests/deepseek-messages-settings.e2e.ts",
     "tests/deepseek-model-label-1017.e2e.ts",

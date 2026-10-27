@@ -86,6 +86,14 @@ entries(): Entry[]
  */
 configuration(): Array<{ entry: Entry; inherited: Record<string, unknown>; override: Record<string, unknown> }>
 
+/**
+ * Persist a new, caller-validated plugin entry and reconcile its activation.
+ * @param row - complete entry with a unique profile id and validated configuration.
+ * @param validate - owner validation repeated while the profile write lock is held.
+ * @returns fulfillment after persistence and Loader reconciliation; failures restore the prior patch.
+ */
+async insert(row: EntryOptions, validate?: () => void): Promise<void>
+
 /** Retain a deselected bundle's raw configs without mounting its plugins.
  * @param name Installed bundle whose defaults will be replaced.
  * @returns Fulfillment after dormant profile overrides are atomically saved.
@@ -95,10 +103,11 @@ async retainDisabledBundle(name: string): Promise<void>
 /** Validate, persist, and reconcile a plugin's next config; ordinary fields keep normal lifecycle rules.
  * @param entry Current Loader entry, also used to detect replacement during the write.
  * @param change Derive a raw config from the current entry and its inherited layer.
- * @param options.retainOverride Retain explicit config for package replacement; inactive entries accept only unchanged raw config.
+ * @param options.retainOverride Retain explicit config for package replacement.
+ * @param options.validate Validate a complete raw config when its owning plugin is inactive.
  * @returns Fulfillment after Loader reconciliation completes.
  */
-async edit( entry: Entry, change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>, options: { retainOverride?: boolean } = {}, ): Promise<void>
+async edit( entry: Entry, change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>, options: { retainOverride?: boolean; validate?: (raw: Record<string, unknown>) => void } = {}, ): Promise<void>
 ```
 
 Source: [`packages/boot/config-editor/src/index.ts`](../../packages/boot/config-editor/src/index.ts)
@@ -164,6 +173,13 @@ Manage profile files and apply their declared reload lifecycle.
  * @returns False for unavailable, stale or busy launches; true once the owning launcher is notified.
  */
 @Remote restartAfterUpdate(generation: PluginRestartGeneration): boolean
+
+/**
+ * Restart the owning application after an explicit configuration-recovery action.
+ * @param generation - process identity read before the user's restart confirmation.
+ * @returns whether the owning launcher accepted the restart; stale or busy requests are refused.
+ */
+@Remote restartForConfiguration(generation: PluginRestartGeneration): boolean
 
 /** Check stable GitHub releases for declared bundle sources; a failed source keeps its own diagnostic.
  * @returns Last observed state for each independently updateable bundle.

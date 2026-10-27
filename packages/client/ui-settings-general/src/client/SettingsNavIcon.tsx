@@ -6,6 +6,7 @@ import {
 
 /** @param props - owning section id. @returns A monochrome 16px navigation glyph. */
 export function SettingsNavIcon({ id }: { id: string }) {
+  if (id === 'mcp') return <IconSettingsOutlineMedium size={16} />
   if (id === 'account') return <IconUserOutlineMedium size={16} />
   if (id === 'agent-presets') return <IconAgentPresetOutlineMedium size={16} />
   if (id === 'plugins') return <IconPersonalizationOutlineMedium size={16} />

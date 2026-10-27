@@ -1,0 +1,13 @@
+- heading "MCP 服务" [level=1]
+- button "重启并应用"
+- button "导入 JSON 配置"
+- button "添加 MCP"
+- heading "连接外部工具和数据源" [level=2]
+- button "了解 MCP 配置生效方式"
+- paragraph: 配置会应用到已有会话的后续步骤
+- button "配置 web_demo": web_demo 已连接 远程服务 1 个工具
+- switch "启用 web_demo" [checked]
+- button "配置 web_demo"
+- button "配置 json_added": json_added 已停用 远程服务 0 个工具
+- switch "启用 json_added"
+- button "配置 json_added"

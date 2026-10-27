@@ -99,6 +99,8 @@ Host-only `installManagedUpdate(manager, name, version, archive)` accepts a veri
 
 -----
 
+Settings recovery uses `restartForConfiguration(generation)` after an explicit restart action. It requires the current process identity, a ready application, an owning launcher, and no active package operation; unlike upgrade restart, it does not require an installed bundle update. Accepted repeated requests notify the launcher once.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

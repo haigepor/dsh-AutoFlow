@@ -731,15 +731,21 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Detached layer values alongside their Loader entries.',
       },
       {
+        signature: 'async insert(row: EntryOptions, validate?: () => void): Promise<void>',
+        description: 'Persist a new, caller-validated plugin entry and reconcile its activation.',
+        parameters: [{ name: 'row', description: 'complete entry with a unique profile id and validated configuration.' }, { name: 'validate', description: 'owner validation repeated while the profile write lock is held.' }],
+        returns: 'fulfillment after persistence and Loader reconciliation; failures restore the prior patch.',
+      },
+      {
         signature: 'async retainDisabledBundle(name: string): Promise<void>',
         description: 'Retain a deselected bundle\'s raw configs without mounting its plugins.',
         parameters: [{ name: 'name', description: 'Installed bundle whose defaults will be replaced.' }],
         returns: 'Fulfillment after dormant profile overrides are atomically saved.',
       },
       {
-        signature: 'async edit( entry: Entry, change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>, options: { retainOverride?: boolean } = {}, ): Promise<void>',
+        signature: 'async edit( entry: Entry, change: (current: Record<string, unknown>, inherited: Record<string, unknown>) => Record<string, unknown>, options: { retainOverride?: boolean; validate?: (raw: Record<string, unknown>) => void } = {}, ): Promise<void>',
         description: 'Validate, persist, and reconcile a plugin\'s next config; ordinary fields keep normal lifecycle rules.',
-        parameters: [{ name: 'entry', description: 'Current Loader entry, also used to detect replacement during the write.' }, { name: 'change', description: 'Derive a raw config from the current entry and its inherited layer.' }, { name: 'options', description: '.retainOverride Retain explicit config for package replacement; inactive entries accept only unchanged raw config.' }],
+        parameters: [{ name: 'entry', description: 'Current Loader entry, also used to detect replacement during the write.' }, { name: 'change', description: 'Derive a raw config from the current entry and its inherited layer.' }, { name: 'options', description: '.validate Validate a complete raw config when its owning plugin is inactive.' }],
         returns: 'Fulfillment after Loader reconciliation completes.',
       },
     ],
@@ -1553,6 +1559,25 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'mcpConnections',
+    summary: 'Optional registry joining profile entries to their live MCP connections.',
+    description: 'Optional registry joining profile entries to their live MCP connections.',
+    methods: [
+      {
+        signature: 'register(fiber: Fiber, read: () => McpConnectionSnapshot): () => void',
+        description: 'Register one client generation without taking its connection lifetime.',
+        parameters: [{ name: 'fiber', description: 'owning client Fiber.' }, { name: 'read', description: 'connection-owned readiness and tool names.' }],
+        returns: 'disposer for this exact registration.',
+      },
+      {
+        signature: 'snapshot(fiber: Fiber | undefined): McpConnectionSnapshot | undefined',
+        description: 'Read the current readiness of one configured entry.',
+        parameters: [{ name: 'fiber', description: 'owning client Fiber, when the entry is running.' }],
+        returns: 'detached connection status, or undefined for an inactive entry.',
+      },
+    ],
+  },
+  {
     key: 'mcpResources',
     summary: 'Scoped resource access plus three tools shared by configured MCP servers.',
     description: 'Scoped resource access plus three tools shared by configured MCP servers.',
@@ -1562,6 +1587,49 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Register one server and expose resource tools while that scope has providers.',
         parameters: [{ name: 'server', description: 'configured server name, unique in this scope.' }, { name: 'provider', description: 'connection-owned resource operations.' }],
         returns: 'the effect disposer for this exact registration.',
+      },
+    ],
+  },
+  {
+    key: 'mcpSettings',
+    summary: 'Persistent MCP controls and redacted connection status for the Settings page.',
+    description: 'Persistent MCP controls and redacted connection status for the Settings page.',
+    methods: [
+      {
+        signature: '@Remote async list(): Promise<McpServerList>',
+        description: 'Read the configured server list and new-entry defaults.',
+        parameters: [],
+        returns: 'configured entries, including disabled and disconnected servers, without credentials.',
+      },
+      {
+        signature: '@Remote async detail(id: PluginEntryId): Promise<McpServerDetail>',
+        description: 'Read one configured server for its editor.',
+        parameters: [{ name: 'id', description: 'entry identity returned by list.' }],
+        returns: 'complete redacted editor values.',
+      },
+      {
+        signature: '@Remote async create(draft: McpServerDraft, enabled: boolean): Promise<McpWriteResult>',
+        description: 'Add a validated profile entry; server startup failures remain visible as connection state.',
+        parameters: [{ name: 'draft', description: 'server configuration with explicit new secret values.' }, { name: 'enabled', description: 'whether the new server starts immediately.' }],
+        returns: 'saved application state or a redacted rejection.',
+      },
+      {
+        signature: '@Remote async update(id: PluginEntryId, draft: McpServerDraft, expectedRevision: string): Promise<McpWriteResult>',
+        description: 'Save an active or disabled server, preserving untouched expressions and hidden credentials.',
+        parameters: [{ name: 'id', description: 'configured entry identity.' }, { name: 'draft', description: 'complete editor values; null secrets preserve their saved key.' }, { name: 'expectedRevision', description: 'revision read when the editor opened.' }],
+        returns: 'application state or a conflict/validation rejection.',
+      },
+      {
+        signature: '@Remote async setEnabled(id: PluginEntryId, enabled: boolean): Promise<McpWriteResult>',
+        description: 'Persist a server\'s desired enablement and reconcile its connection.',
+        parameters: [{ name: 'id', description: 'configured entry identity.' }, { name: 'enabled', description: 'desired activation.' }],
+        returns: 'independently observed save and application outcome.',
+      },
+      {
+        signature: '@Remote async restart(id: PluginEntryId): Promise<McpWriteResult>',
+        description: 'Restart one server while retaining conversations and saved configuration.',
+        parameters: [{ name: 'id', description: 'enabled, profile-owned MCP entry.' }],
+        returns: 'readiness after the old connection is disposed and the replacement settles.',
       },
     ],
   },
@@ -1719,6 +1787,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Ask the owning Web launcher to replace the Host; an active installation refuses the request.',
         parameters: [{ name: 'generation', description: 'Process identity read before the user\'s confirmation.' }],
         returns: 'False for unavailable, stale or busy launches; true once the owning launcher is notified.',
+      },
+      {
+        signature: '@Remote restartForConfiguration(generation: PluginRestartGeneration): boolean',
+        description: 'Restart the owning application after an explicit configuration-recovery action.',
+        parameters: [{ name: 'generation', description: 'process identity read before the user\'s restart confirmation.' }],
+        returns: 'whether the owning launcher accepted the restart; stale or busy requests are refused.',
       },
       {
         signature: '@Remote async checkBundleUpdates(): Promise<BundleUpdateInfo[]>',
@@ -4461,6 +4535,30 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'options', description: 'the full request. A LOOP-built request carries the process-local {@link markAgentLoopRequest} identity and arrives deep-frozen (mutation throws): its content is a pure function of the session log (the reconstructability Agent Note), so listeners read it, never rewrite it. Hand-built calls do not carry that marker; callers own their request inputs and must keep them unchanged until the stream settles.' }],
   },
   {
+    name: 'mcp-client/changed',
+    mode: 'emit',
+    signature: '\'mcp-client/changed\'(fiber: Fiber): void',
+    summary: 'One client\'s connection state or discovered tools changed.',
+    description: 'One client\'s connection state or discovered tools changed.',
+    parameters: [{ name: 'fiber', description: 'MCP client whose connection or tools changed.' }],
+  },
+  {
+    name: 'mcp-connections/changed',
+    mode: 'emit',
+    signature: '\'mcp-connections/changed\'(): void',
+    summary: 'Registered connections or their readiness changed; listeners may refresh inventory.',
+    description: 'Registered connections or their readiness changed; listeners may refresh inventory.',
+    parameters: [],
+  },
+  {
+    name: 'mcp-settings/changed',
+    mode: 'emit',
+    signature: '\'mcp-settings/changed\'(): void',
+    summary: 'MCP configuration or connection readiness changed; readers refetch redacted values.',
+    description: 'MCP configuration or connection readiness changed; readers refetch redacted values.',
+    parameters: [],
+  },
+  {
     name: 'permission-presets/catalog-changed',
     mode: 'emit',
     signature: '\'permission-presets/catalog-changed\'(): void',
@@ -6225,12 +6323,40 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type MatcherValue = string | number | boolean | null | RegExp | readonly (string | number | boolean | null)[];',
   },
   {
+    name: 'McpConnectionSnapshot',
+    declaration: 'export interface McpConnectionSnapshot {\n    phase: \'connecting\' | \'connected\' | \'reconnecting\' | \'failed\' | \'stopped\';\n    tools: string[];\n}',
+  },
+  {
     name: 'McpResourceProvider',
     declaration: 'export interface McpResourceProvider {\n    request(request: McpResourceRequest, exec: ToolExecution): Promise<JsonValue>;\n}',
   },
   {
     name: 'McpResourceRequest',
     declaration: 'export type McpResourceRequest = {\n    method: \'resources/list\' | \'resources/templates/list\';\n    cursor?: string;\n} | {\n    method: \'resources/read\';\n    uri: string;\n};',
+  },
+  {
+    name: 'McpServerDetail',
+    declaration: 'export interface McpServerDetail extends McpServerRow {\n    config: McpServerDraft;\n}',
+  },
+  {
+    name: 'McpServerDraft',
+    declaration: 'export interface McpServerDraft {\n    serverName: string;\n    transport: \'stdio\' | \'streamable-http\';\n    command: string;\n    args: string[];\n    cwd: string;\n    url: string;\n    env: Record<string, string | null>;\n    headers: Record<string, string | null>;\n    toolCallTimeoutMs: number;\n    reconnect: {\n        enabled: boolean;\n        initialDelayMs: number;\n        maxDelayMs: number;\n        maxAttempts: number;\n    };\n    editedFields?: string[];\n}',
+  },
+  {
+    name: 'McpServerList',
+    declaration: 'export interface McpServerList {\n    servers: McpServerRow[];\n    defaults: McpServerDraft;\n}',
+  },
+  {
+    name: 'McpServerRow',
+    declaration: 'export interface McpServerRow {\n    id: PluginEntryId;\n    revision: string;\n    serverName: string;\n    transport: \'stdio\' | \'streamable-http\';\n    enabled: boolean;\n    phase: McpConnectionSnapshot[\'phase\'] | \'disabled\';\n    tools: string[];\n    readOnly: boolean;\n}',
+  },
+  {
+    name: 'McpSettingsErrorCode',
+    declaration: 'export type McpSettingsErrorCode = \'invalid-config\' | \'duplicate-name\' | \'conflict\' | \'read-only\' | \'not-found\' | \'apply-failed\';',
+  },
+  {
+    name: 'McpWriteResult',
+    declaration: 'export type McpWriteResult = {\n    status: \'saved\';\n    application: \'applied\' | \'restart-required\';\n    server: McpServerRow;\n} | {\n    status: \'rejected\';\n    code: McpSettingsErrorCode;\n};',
   },
   {
     name: 'Message',

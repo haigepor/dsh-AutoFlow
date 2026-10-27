@@ -43,6 +43,13 @@ function mount(rows: readonly SettingsSectionRow[] = [
 }
 
 describe('SettingsPage', () => {
+  it('omits the configuration-file action in MCP settings', () => {
+    mount([{ id: 'mcp', order: 30, label: 'MCP servers' }])
+    expect(screen.getByTestId('section-mcp')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Open configuration file' })).toBeNull()
+    expect(document.querySelector('[data-settings-page] footer')).toBeNull()
+  })
+
   it('renders section navigation and the settings action slot without a dialog', () => {
     const { renderSlot, openDocument } = mount()
     expect(document.querySelector('[data-settings-page]')).toBeTruthy()

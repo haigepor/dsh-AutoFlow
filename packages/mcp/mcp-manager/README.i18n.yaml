@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/mcp/mcp-manager/README.md
+/:
+  en: 86cf0393076114b7
+  zh: ac47c3386f9eec7d
+/deepseek-ai-dsh-mcp-manager:
+  en: 4aaba88431d337f0
+  zh: dbeb71a252aa7748
+/deepseek-ai-dsh-mcp-manager/summary:
+  en: 70f8c0153f43d849
+  zh: e1345ff72b0e9941
+/deepseek-ai-dsh-mcp-manager/table-of-contents:
+  en: 122f0d41696980b1
+  zh: 528864635b577290
+/deepseek-ai-dsh-mcp-manager/use-this-package:
+  en: fb3213abfc102e7d
+  zh: ca57d3324d300f00
+/deepseek-ai-dsh-mcp-manager/understand-the-implementation:
+  en: fd717712c2227829
+  zh: a0e1913a8bb369e9
+/deepseek-ai-dsh-mcp-manager/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-mcp-manager/model-experience/managed-server-contributions:
+  en: 216abd351e8bea03
+  zh: a3e2499f4db89959
+/deepseek-ai-dsh-mcp-manager/model-experience/managed-server-contributions/what-the-model-sees:
+  en: 69378d6fa9d3d9d3
+  zh: 253ddf3c0a3b2c9d
+/deepseek-ai-dsh-mcp-manager/model-experience/managed-server-contributions/token-effect:
+  en: c6f136d20e91a0b8
+  zh: 5ca6ea4fc5db9e50
+/deepseek-ai-dsh-mcp-manager/model-experience/managed-server-contributions/kv-cache-effect:
+  en: c8a2d8484cb1b8dd
+  zh: 359f69d8d74a16ba
+/deepseek-ai-dsh-mcp-manager/known-limitations-and-deferred-work:
+  en: 1f1327507408768f
+  zh: b8c5d56f955ac91c
+/deepseek-ai-dsh-mcp-manager/known-limitations-and-deferred-work/dev-note:
+  en: 654ff551b6a56563
+  zh: 87f29b850b1e2b1a

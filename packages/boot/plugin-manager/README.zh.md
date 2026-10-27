@@ -101,6 +101,8 @@ CLI 提供 `dsh plugin --profile <profile> version-exemptions`、`allow-version 
 
 -----
 
+设置恢复在用户显式发起重启后使用 `restartForConfiguration(generation)`。它要求当前进程身份、应用就绪、所属启动器支持重启，且没有活动的包操作；与升级后重启不同，它不要求已经安装组合包更新。重复的已接受请求只通知启动器一次。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

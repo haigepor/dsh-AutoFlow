@@ -402,6 +402,17 @@ it('publishes CLI runtime declarations and rejects a payload that omits them', (
     .toEqual([expect.stringContaining('@deepseek-ai/dsh: package.json files must be ["lib/*.js","lib/types/*.d.ts"]')])
 })
 
+it.each([
+  ['packages/mcp/mcp-client', 'lib/connections.js'],
+  ['packages/mcp/mcp-manager', 'lib/types/**/*.js'],
+  ['packages/client/ui-settings-mcp', 'lib/client.js'],
+])('publishes MCP management entries from %s and rejects an omitted runtime', (dir, required) => {
+  const manifest = JSON.parse(readFileSync(new URL(`../${dir}/package.json`, import.meta.url), 'utf8')) as WorkspaceManifest['manifest']
+  expect(checkWorkspaceManifest({ dir, manifest })).toEqual([])
+  expect(checkWorkspaceManifest({ dir, manifest: { ...manifest, files: manifest.files!.filter(file => file !== required) } }))
+    .toEqual([expect.stringContaining('package.json files must be')])
+})
+
 it('requires the shared Web injection entry in the published payload', () => {
   const manifest = JSON.parse(readFileSync(new URL('../packages/client/web/package.json', import.meta.url), 'utf8')) as WorkspaceManifest['manifest']
   expect(checkWorkspaceManifest({ dir: 'packages/client/web', manifest })).toEqual([])

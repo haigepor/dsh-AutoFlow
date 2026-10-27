@@ -13,6 +13,7 @@ Model Context Protocol (MCP) connects the model to tools supplied by external se
 - [Protocol and results](#protocol-and-results)
 - [Resources and instructions](#resources-and-instructions)
 - [Resource provider types](#resource-provider-types)
+- [Management types](#management-types)
 - [Limits](#limits)
 - [Further reading](#further-reading)
 
@@ -26,6 +27,7 @@ MCP servers are opt-in. Configure one `@deepseek-ai/dsh-mcp-client` entry per se
 | Choice | Configuration owner |
 |---|---|
 | Server identity, local process or HTTP endpoint, credentials, and process environment | [Client configuration](../../packages/mcp/mcp-client/README.md#use-this-package) |
+| Settings list, profile entry editing, enablement, and restart | [MCP settings](../../packages/client/ui-settings-mcp/README.md) |
 | Tool and resource request timeout, startup failure policy, and reconnection | [Client configuration](../../packages/mcp/mcp-client/README.md#use-this-package) |
 | Resource discovery and reading | The [MCP resource service](../../packages/mcp/mcp-resources/README.md#use-this-package) is included in shipped profiles; it has no configuration fields |
 | Server instruction size limit | Client `maxInstructionBytes`; the composition supplies [system-prompt assembly](system-prompt.md) |
@@ -95,6 +97,82 @@ interface McpResourceProvider {
 
 -----
 
+<a id="management-types"></a>
+## Management types
+
+The connection inventory and MCP settings Remote use redacted records. Configuration fields and write outcomes are defined below.
+
+```ts type-equiv
+/** Connection readiness exposed without server credentials or transport diagnostics. */
+interface McpConnectionSnapshot {
+  /** Current transport and discovery phase; only connected admits new operations. */
+  phase: 'connecting' | 'connected' | 'reconnecting' | 'failed' | 'stopped'
+  /** Last registered public tool names, including retained tools during reconnect. */
+  tools: string[]
+}
+```
+
+```ts type-equiv
+/** Editable MCP configuration; null secret values retain the saved value with that key. */
+interface McpServerDraft {
+  serverName: string
+  transport: 'stdio' | 'streamable-http'
+  command: string
+  args: string[]
+  cwd: string
+  url: string
+  env: Record<string, string | null>
+  headers: Record<string, string | null>
+  toolCallTimeoutMs: number
+  reconnect: { enabled: boolean; initialDelayMs: number; maxDelayMs: number; maxAttempts: number }
+  /** Editor-changed fields; omitted by non-UI callers that compare against resolved values. */
+  editedFields?: string[]
+}
+```
+
+```ts type-equiv
+/** Redacted management row, including saved enablement and observed readiness. */
+interface McpServerRow {
+  id: PluginEntryId
+  revision: string
+  serverName: string
+  transport: 'stdio' | 'streamable-http'
+  enabled: boolean
+  phase: McpConnectionSnapshot['phase'] | 'disabled'
+  tools: string[]
+  readOnly: boolean
+}
+```
+
+```ts type-equiv
+/** One server's redacted editor values and live status. */
+interface McpServerDetail extends McpServerRow {
+  config: McpServerDraft
+}
+```
+
+```ts type-equiv
+/** Server list and new-entry defaults derived from the MCP client's configuration schema. */
+interface McpServerList {
+  servers: McpServerRow[]
+  defaults: McpServerDraft
+}
+```
+
+```ts type-equiv
+/** Expected management rejection; diagnostics never contain server secrets. */
+type McpSettingsErrorCode = 'invalid-config' | 'duplicate-name' | 'conflict' | 'read-only' | 'not-found' | 'apply-failed'
+```
+
+```ts type-equiv
+/** Persistence outcome independent of connection readiness. */
+type McpWriteResult =
+  | { status: 'saved'; application: 'applied' | 'restart-required'; server: McpServerRow }
+  | { status: 'rejected'; code: McpSettingsErrorCode }
+```
+
+-----
+
 <a id="limits"></a>
 ## Limits
 
@@ -119,6 +197,31 @@ MCP prompt templates, human-input elicitation, task-based execution, and resourc
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxmcpconnections--mcpconnections"></a>
+
+### `ctx.mcpConnections` — `McpConnections`
+
+Optional registry joining profile entries to their live MCP connections.
+
+```ts cordis-catalog
+/**
+ * Register one client generation without taking its connection lifetime.
+ * @param fiber - owning client Fiber.
+ * @param read - connection-owned readiness and tool names.
+ * @returns disposer for this exact registration.
+ */
+register(fiber: Fiber, read: () => McpConnectionSnapshot): () => void
+
+/**
+ * Read the current readiness of one configured entry.
+ * @param fiber - owning client Fiber, when the entry is running.
+ * @returns detached connection status, or undefined for an inactive entry.
+ */
+snapshot(fiber: Fiber | undefined): McpConnectionSnapshot | undefined
+```
+
+Source: [`packages/mcp/mcp-client/src/connections.ts`](../../packages/mcp/mcp-client/src/connections.ts)
+
 <a id="ctxmcpresources--mcpresourceruntime"></a>
 
 ### `ctx.mcpResources` — `McpResourceRuntime`
@@ -136,4 +239,122 @@ register(server: string, provider: McpResourceProvider): () => void
 ```
 
 Source: [`packages/mcp/mcp-resources/src/index.ts`](../../packages/mcp/mcp-resources/src/index.ts)
+
+<a id="ctxmcpsettings--mcpsettings"></a>
+
+### `ctx.mcpSettings` — `McpSettings`
+
+Persistent MCP controls and redacted connection status for the Settings page.
+
+```ts cordis-catalog
+/**
+ * Read the configured server list and new-entry defaults.
+ * @returns configured entries, including disabled and disconnected servers, without credentials.
+ */
+@Remote async list(): Promise<McpServerList>
+
+/**
+ * Read one configured server for its editor.
+ * @param id - entry identity returned by list.
+ * @returns complete redacted editor values.
+ */
+@Remote async detail(id: PluginEntryId): Promise<McpServerDetail>
+
+/**
+ * Add a validated profile entry; server startup failures remain visible as connection state.
+ * @param draft - server configuration with explicit new secret values.
+ * @param enabled - whether the new server starts immediately.
+ * @returns saved application state or a redacted rejection.
+ */
+@Remote async create(draft: McpServerDraft, enabled: boolean): Promise<McpWriteResult>
+
+/**
+ * Save an active or disabled server, preserving untouched expressions and hidden credentials.
+ * @param id - configured entry identity.
+ * @param draft - complete editor values; null secrets preserve their saved key.
+ * @param expectedRevision - revision read when the editor opened.
+ * @returns application state or a conflict/validation rejection.
+ */
+@Remote async update(id: PluginEntryId, draft: McpServerDraft, expectedRevision: string): Promise<McpWriteResult>
+
+/**
+ * Persist a server's desired enablement and reconcile its connection.
+ * @param id - configured entry identity.
+ * @param enabled - desired activation.
+ * @returns independently observed save and application outcome.
+ */
+@Remote async setEnabled(id: PluginEntryId, enabled: boolean): Promise<McpWriteResult>
+
+/**
+ * Restart one server while retaining conversations and saved configuration.
+ * @param id - enabled, profile-owned MCP entry.
+ * @returns readiness after the old connection is disposed and the replacement settles.
+ */
+@Remote async restart(id: PluginEntryId): Promise<McpWriteResult>
+```
+
+Types: [PluginEntryId](boot.md)
+
+Source: [`packages/mcp/mcp-manager/src/index.ts`](../../packages/mcp/mcp-manager/src/index.ts)
+
+<a id="mcp-client-events"></a>
+
+### `mcp-client/*` events
+
+<a id="mcp-clientchanged--emit"></a>
+
+#### `mcp-client/changed` — emit
+
+One client's connection state or discovered tools changed.
+
+```ts cordis-catalog
+/**
+ * One client's connection state or discovered tools changed.
+ * @mode emit
+ * @param fiber - MCP client whose connection or tools changed.
+ */
+'mcp-client/changed'(fiber: Fiber): void
+```
+
+Source: [`packages/mcp/mcp-client/src/connections.ts`](../../packages/mcp/mcp-client/src/connections.ts)
+
+<a id="mcp-connections-events"></a>
+
+### `mcp-connections/*` events
+
+<a id="mcp-connectionschanged--emit"></a>
+
+#### `mcp-connections/changed` — emit
+
+Registered connections or their readiness changed; listeners may refresh inventory.
+
+```ts cordis-catalog
+/**
+ * Registered connections or their readiness changed; listeners may refresh inventory.
+ * @mode emit
+ */
+'mcp-connections/changed'(): void
+```
+
+Source: [`packages/mcp/mcp-client/src/connections.ts`](../../packages/mcp/mcp-client/src/connections.ts)
+
+<a id="mcp-settings-events"></a>
+
+### `mcp-settings/*` events
+
+<a id="mcp-settingschanged--emit"></a>
+
+#### `mcp-settings/changed` — emit
+
+MCP configuration or connection readiness changed; readers refetch redacted values.
+
+```ts cordis-catalog
+/**
+ * MCP configuration or connection readiness changed; readers refetch redacted values.
+ * @mode emit
+ */
+'mcp-settings/changed'(): void
+```
+
+Source: [`packages/mcp/mcp-manager/src/types.ts`](../../packages/mcp/mcp-manager/src/types.ts)
 <!-- END GENERATED cordis-surface -->

@@ -428,6 +428,21 @@ export class PluginManager extends TypertRemoteService {
     return true
   }
 
+  /**
+   * Restart the owning application after an explicit configuration-recovery action.
+   * @param generation - process identity read before the user's restart confirmation.
+   * @returns whether the owning launcher accepted the restart; stale or busy requests are refused.
+   */
+  @Remote
+  restartForConfiguration(generation: PluginRestartGeneration): boolean {
+    if (generation !== this.restartGeneration || this.profile.restart === undefined || !this.applicationReady) return false
+    if (this.restarting) return true
+    if (this.packageOperations.size !== 0) return false
+    this.restarting = true
+    try { this.profile.restart() } catch (error) { this.restarting = false; throw error }
+    return true
+  }
+
   /** Check stable GitHub releases for declared bundle sources; a failed source keeps its own diagnostic.
    * @returns Last observed state for each independently updateable bundle.
    */

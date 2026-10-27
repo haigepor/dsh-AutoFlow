@@ -27,6 +27,7 @@ kind: "package-group"
 | 包 | 提供的能力 |
 |---|---|
 | [`mcp-client/`](mcp-client/README.zh.md) | 连接一台 MCP 服务器，暴露其工具与指令，并提供其资源操作 |
+| [`mcp-manager/`](mcp-manager/README.zh.md) | 为设置页管理 profile 条目及隐藏敏感值的连接状态 |
 | [`mcp-resources/`](mcp-resources/README.zh.md) | 通过显式选择服务器的共享工具发现和读取资源 |
 
 -----

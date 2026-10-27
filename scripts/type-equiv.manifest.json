@@ -2403,6 +2403,41 @@
       "source": "packages/mcp/mcp-resources/src/index.ts"
     },
     {
+      "doc": "docs/subsystems/mcp.md",
+      "symbol": "McpConnectionSnapshot",
+      "source": "packages/mcp/mcp-client/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/mcp.md",
+      "symbol": "McpServerDraft",
+      "source": "packages/mcp/mcp-manager/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/mcp.md",
+      "symbol": "McpServerRow",
+      "source": "packages/mcp/mcp-manager/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/mcp.md",
+      "symbol": "McpServerDetail",
+      "source": "packages/mcp/mcp-manager/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/mcp.md",
+      "symbol": "McpServerList",
+      "source": "packages/mcp/mcp-manager/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/mcp.md",
+      "symbol": "McpSettingsErrorCode",
+      "source": "packages/mcp/mcp-manager/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/mcp.md",
+      "symbol": "McpWriteResult",
+      "source": "packages/mcp/mcp-manager/src/types.ts"
+    },
+    {
       "doc": "docs/subsystems/deliverables.md",
       "symbol": "PresentedFile",
       "source": "packages/deliverables/tool-present/src/types.ts"

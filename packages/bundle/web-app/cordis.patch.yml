@@ -315,6 +315,15 @@
     - id: ui-settings-models
       name: '@deepseek-ai/dsh-client-ui-settings-models'
 
+    - id: mcp-connections
+      name: '@deepseek-ai/dsh-mcp-client/connections'
+
+    - id: mcp-manager
+      name: '@deepseek-ai/dsh-mcp-manager'
+
+    - id: ui-settings-mcp
+      name: '@deepseek-ai/dsh-client-ui-settings-mcp'
+
     # Plugin management: the sidebar Plugins page installs, enables, disables,
     # and removes the profile's bundles through the `pluginManager` Remote.
     # Without a profile-backed Host it reports itself unavailable.

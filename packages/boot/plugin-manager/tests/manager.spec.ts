@@ -1575,6 +1575,30 @@ it('omits installation-owned plain packages from the bundle inventory', async ()
   expect((await manager.listBundles()).some(row => row.name === 'installation-plain')).toBe(false)
 })
 
+it.each(['dsh-plugin-codex-subscription', 'dsh-plugin-visual-curator'])('offers shipped %s as an independent installed plugin with its declared update source', async (name) => {
+  const network = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json([]))
+  let owner: Context | undefined
+  try {
+    const { ctx, manager, profile } = await fixture('startup')
+    owner = ctx
+    const packageRoot = join(resolve(profile.installAnchor, '..'), 'node_modules', name)
+    const manifest = JSON.parse(readFileSync(new URL(`../../../../custom-plugins/workspace/${name}/package.json`, import.meta.url), 'utf8')) as {
+      version: string
+      dsh: { bundle: { update: { repository: string; tagPrefix: string; metadataAsset: string } } }
+    }
+    mkdirSync(packageRoot, { recursive: true })
+    writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({ name, version: manifest.version, dsh: { bundle: { patch: './cordis.patch.yml', update: manifest.dsh.bundle.update } } }))
+    writeFileSync(join(packageRoot, 'cordis.patch.yml'), '[]\n')
+    writeFileSync(profile.installAnchor, JSON.stringify({ name: 'installation', dependencies: { [name]: manifest.version } }))
+    const entry = (await manager.listBundles()).find(row => row.name === name)
+    expect(entry).toMatchObject({ availability: 'installation', official: false, optional: false, enabled: false, removable: false,
+      update: { repository: manifest.dsh.bundle.update.repository, automatic: false, restartRequired: false } })
+  } finally {
+    await owner?.fiber.dispose()
+    network.mockRestore()
+  }
+})
+
 it('does not delete a bundle retained by a higher-priority overlay', async () => {
   const { ctx, manager, overlays, dir } = await fixture()
   const entry = [...ctx.loader.entries()].find(row => row.id === 'include:managed')!
