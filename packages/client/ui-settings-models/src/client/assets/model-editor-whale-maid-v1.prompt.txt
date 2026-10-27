@@ -1,0 +1,11 @@
+Generated using the built-in image_gen tool with standard-whale-maid-v6.webp and cordis-whale-maid-v6.webp as project style references. The final 256 x 256 WebP preserves transparency and is embedded in the client bundle.
+
+Final prompt:
+
+Use case: identity-preserve
+Asset type: small decorative illustration for an AI model configuration dialog.
+Input images: Image 1 is the exact blue-haired whale-maid character and 2D drawing style reference. Image 2 shows the same character with objects; it is an additional style reference.
+Primary request: create a new sibling illustration of this same friendly chibi whale maid sitting with a small white configuration clipboard. She is gently adjusting one oversized blue slider on the clipboard, with a tiny cog drawn on it. Keep the pose calm, focused and cheerful, with an easy closed-mouth smile.
+Preserve the project's character identity: long deep-blue hair with cyan ends, large blue eyes, white frilled maid headband, navy-and-white modest maid dress, blue bow, side whale tail, short cute chibi proportions, the same soft hand-drawn anime outlines and painterly cel shading.
+Composition: square transparent canvas, one complete full-body character centered, all hair, tail and shoes visible, small clear padding. The pose and one clipboard must read clearly at 88 CSS pixels.
+Constraints: genuine transparent alpha background; no scene, no backdrop, no typography or letters, no watermark, no surrounding frame, no floating particles, no 3D or glass rendering. Match the original illustration style faithfully. This is a decorative image, not an interactive control.

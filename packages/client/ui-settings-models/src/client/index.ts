@@ -13,6 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the ctx.remote merge and the forwarded-event key face
 // (settings/credentials invalidations ride the allowlist) into this program.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
@@ -29,6 +30,9 @@ import { createSettingsSchemaOperations } from './schema-operations.ts'
 import { en, zh, type ModelsKey } from './locales.ts'
 import { WELCOME_NOTICE_SETTINGS_NAMESPACE } from '../onboarding-copy.ts'
 import { Config, ONBOARDING_CONFIG_GLOBAL } from '../onboarding-config.ts'
+import { SubscriptionController } from './subscription-controller.ts'
+import { createSubscriptionOperations, SubscriptionFailure } from './subscription-api.ts'
+import { SubscriptionPage, SubscriptionToast, type SubscriptionInjected } from './SubscriptionPage.tsx'
 
 export type { ModelsSectionInjected, ModelsSectionProps } from './ModelsSection.tsx'
 export type { ModelsFooterOwnerProps, ProviderCardExtrasOwnerProps } from './slot-contract.ts'
@@ -87,9 +91,25 @@ export function apply(ctx: ClientContext): void {
   // own `inject`; the cards receive callbacks and never a context.
   const operations = createModelsOperations(ctx)
   const controller = new ModelsSettingsStore(ctx, schema, ctx.configForms.describe())
+  const subscription = new SubscriptionController(async () => {
+    await controller.load()
+    const snapshot = controller.store.getSnapshot()
+    if (snapshot.status !== 'ready' || snapshot.rows.some(row => row.entry.provider === 'autoflow-codex' && row.catalogError !== undefined)) throw new SubscriptionFailure('DIRECTORY_REFRESH_FAILED')
+  })
+  ctx.effect(() => () => subscription.dispose(), 'ui-settings-models: subscription lifetime')
+  ctx.inject(['remote.pluginManager'], (scope) => {
+    scope.effect(() => subscription.connect(createSubscriptionOperations(scope)), 'ui-settings-models: subscription Host operations')
+  })
   // Registration-time text (the nav label thunk) and the inject faces share
   // one bound translate; copy freshness rides the locale revision.
   const t = ctx.locale.bind(NS) as ModelsSectionInjected['t']
+  const subscriptionInjected = (): SubscriptionInjected => ({
+    hooks: { subscription: subscription.store }, t,
+    ensure: () => subscription.ensure(), activate: () => subscription.activate(), startLogin: () => subscription.startLogin(),
+    completeLogin: url => subscription.completeLogin(url), cancelLogin: () => subscription.cancelLogin(),
+    update: (account, patch) => subscription.update(account, patch), remove: account => subscription.remove(account),
+    refresh: () => subscription.refresh(), dismissNotice: () => { subscription.dismissNotice() },
+  })
   const injected = (): ModelsSectionInjected => ({
     controller,
     hooks: { snapshot: controller.store },
@@ -119,7 +139,7 @@ export function apply(ctx: ClientContext): void {
   // mirror refresh before this store joins that refresh. The welcome notice
   // follows its settings scope, so it needs no subscription here.
   ctx.effect(() => {
-    const refreshModels = (): void => { refreshIfLoaded(controller) }
+    const refreshModels = (): void => { refreshIfLoaded(controller); subscription.invalidate() }
     const disposers = [
       ctx.remote.$on('settings/document-updated', () => { refreshModels() }),
       ctx.remote.$on('credentials/record-updated', refreshModels),
@@ -142,8 +162,13 @@ export function apply(ctx: ClientContext): void {
     children: {
       'settings.models.provider-card': { kind: 'keyed', scope: 'root' },
       'settings.models.footer': { kind: 'list', scope: 'root' },
+      'settings.models.subscription': { kind: 'single', scope: 'root' },
     },
   }, ModelsSection))
+  ctx.slots.inject('settings.models.subscription', () => ctx.slots.register({ name: 'settings.models.subscription', inject: subscriptionInjected }, SubscriptionPage))
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'models.subscription-notice',
+    inject: () => ({ hooks: { subscription: subscription.store }, t, dismissNotice: () => { subscription.dismissNotice() } }),
+  }, SubscriptionToast))
   ctx.inject(['settingsSearch'], (scope) => {
     for (const key of ['providers', 'add', 'keyInput', 'customized'] as const) {
       scope.effect(() => scope.settingsSearch.register({

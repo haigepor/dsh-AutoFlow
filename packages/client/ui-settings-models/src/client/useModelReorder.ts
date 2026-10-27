@@ -32,9 +32,9 @@ export function useModelReorder<T>(options: ModelReorderOptions<T>): {
   over: number | null
   move: (from: number, to: number) => void
   dragStart: (index: number, event: DragEvent<HTMLButtonElement>) => void
-  dragOver: (index: number, event: DragEvent<HTMLDivElement>) => void
+  dragOver: (index: number, event: DragEvent<HTMLElement>) => void
   dragEnd: () => void
-  drop: (index: number, event: DragEvent<HTMLDivElement>) => void
+  drop: (index: number, event: DragEvent<HTMLElement>) => void
   rowProps: (index: number) => RowOrderProps
 } {
   const { models, onChange, setEditing, setExpanded, disabled } = options
@@ -62,14 +62,14 @@ export function useModelReorder<T>(options: ModelReorderOptions<T>): {
     event.dataTransfer.setData('text/plain', String(index))
     setDragged(index)
   }
-  const dragOver = (index: number, event: DragEvent<HTMLDivElement>): void => {
+  const dragOver = (index: number, event: DragEvent<HTMLElement>): void => {
     if (dragged === null || disabled) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
     setOver(index === dragged ? null : index)
   }
   const dragEnd = (): void => { setDragged(null); setOver(null) }
-  const drop = (index: number, event: DragEvent<HTMLDivElement>): void => {
+  const drop = (index: number, event: DragEvent<HTMLElement>): void => {
     if (dragged === null) return
     event.preventDefault()
     move(dragged, index)

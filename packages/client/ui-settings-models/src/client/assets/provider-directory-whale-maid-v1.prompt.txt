@@ -1,0 +1,13 @@
+Generated with the built-in image_gen tool. Transparent alpha retained; resized to WebP for the settings UI.
+Reference assets: catalog-whale-maid-v1.webp and provider-editor-whale-maid-v1.webp.
+
+Use case: illustration-story
+Asset type: transparent settings-page decorative illustration, rendered at 104 CSS pixels.
+Primary request: Generate a new full-body pose of the exact blue-haired whale maid mascot in the reference images, for a "model providers and connections" settings page.
+Input images: reference 1 is the character identity and drawing-style reference; reference 2 is the same character with service-connection props. These are style/identity references, not editing targets.
+Subject: the same cheerful chibi girl, long deep navy-blue hair with cyan ends, large blue eyes, tiny blue bows, white frilled maid headband, modest navy-and-white maid dress, white apron, navy shoes, blue whale tail. Keep her face, proportions, costume and silhouette consistent.
+Pose and props: she sits in a compact playful pose beside three small rounded white-and-cobalt service blocks arranged as a little connected hub, holding one short blue cable and gently plugging it into the nearest block. Show only a few simple connector details and no lettering. The props must remain simple enough to read at 104 pixels.
+Style/medium: exactly match the hand-drawn 2D chibi outline, clean cel shading, subtle painterly blue highlights, navy outlines, and matte colors of the references. Do not turn it into 3D, glossy toy art, or an icon.
+Composition: centered square canvas, full character and tail visible, close compact silhouette with a little clear padding; visually balanced at small size.
+Backdrop: genuinely transparent alpha, isolated cutout, no environment, no floor, no background glow or baked shadow.
+Avoid: text, letters, logos, watermark, particles, starbursts, frames, gradients in the backdrop, UI panels, extra characters.

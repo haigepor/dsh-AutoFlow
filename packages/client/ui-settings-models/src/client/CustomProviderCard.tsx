@@ -23,9 +23,13 @@
  * Their edits preserve the route's existing protocol compatibility fields.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { Button, IconChevronRightOutlineRegular, IconSettingsOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { ProviderFieldIcon } from './ProviderFieldIcon.tsx'
+import { AnimatedDisclosure } from './AnimatedDisclosure.tsx'
+import connectStyles from './ProviderConnect.module.css'
 import { apiKeyFailure } from './apiKey.ts'
 import { ApiKeyInput } from './ApiKeyInput.tsx'
 import { EditorFooter } from './EditorFooter.tsx'
@@ -95,6 +99,8 @@ export interface CustomProviderCardProps {
   t: (key: keyof typeof en) => string
   /** Disable writes (read-only settings provider). */
   readOnly: boolean
+  /** Optional page heading for the card-owned Cancel and create actions. */
+  actionsTarget?: HTMLElement | null | undefined
   /** Close the card; `changed` reports whether a provider was created. */
   onClose: (changed: boolean) => void
   /**
@@ -115,6 +121,8 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   const [openedAt] = useState(() => props.revision)
   const [route, setRoute] = useState(() => createRouteId(taken))
   const [displayName, setDisplayName] = useState('')
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const advancedId = useId()
   const [baseURL, setBaseURL] = useState('')
   const [protocol, setProtocol] = useState(protocols[0] ?? '')
   const [keyDraft, setKeyDraft] = useState('')
@@ -135,6 +143,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
 
   const routeInvalid = route.length > 0 && !ROUTE_PATTERN.test(route)
   const routeTaken = taken.includes(route)
+  const advancedVisible = advancedOpen || routeInvalid || routeTaken || route.length === 0
   const normalizedBaseURL = baseURL.trim()
   const baseUrlInvalid = baseURL.length > 0 && !isHttpUrl(normalizedBaseURL)
   // Rows are checked by the same per-row validator the editor cards use, so a
@@ -150,23 +159,9 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   const ready = route.length > 0 && !routeInvalid && !routeTaken
     && normalizedBaseURL.length > 0 && !baseUrlInvalid && models.length > 0 && modelFailure === undefined
     && keyFailure === undefined
-  // The one blocked gate worth a line under the form. A satisfied card says
-  // nothing at all rather than printing an empty paragraph.
-  const hint = failure !== undefined || ready
-    // The key field prints its own failure directly beneath itself, so a card
-    // blocked only by the key stays silent here rather than answering with the
-    // next unmet gate — which is satisfied, and reads as a second, false fault.
-    || keyFailure !== undefined
-    // Same for the route id, and it must be tested rather than assumed: the
-    // fallback arm below reads "no models yet", so an unmet route gate would
-    // fall through to it and contradict the filled-in list right above.
-    || route.length === 0 || routeInvalid || routeTaken || baseUrlInvalid
-    ? undefined
-    : normalizedBaseURL.length === 0
-      ? t('customNeedsBaseUrl')
-      : modelFailure !== undefined
-        ? `${t('model')} ${String(modelFailure.index + 1)}: ${t(modelFailure.key)}`
-        : t('customNeedsModels')
+  // 字段错误在原位显示，模型行校验在底部指明位置，未填写的初始表单不提前报错。
+  const modelHint = failure !== undefined || modelFailure === undefined
+    ? undefined : `${t('model')} ${String(modelFailure.index + 1)}: ${t(modelFailure.key)}`
 
   /** Perform the create, returning a failure message or undefined. */
   const createOnce = async (): Promise<string | undefined> => {
@@ -226,82 +221,47 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   }
 
   return (
-    <div className={styles['editor']}>
-      <div className={styles['fieldGrid']}>
-        <div className={styles['field']}>
-          <span className={styles['fieldLabel']}>{t('customRoute')}<FieldHelp title={t('customRoute')} text={t('customRouteHint')} t={t} /></span>
-          <input
-            className={styles['input']}
-            type="text"
-            value={route}
-            placeholder="acme-gateway"
-            aria-label={t('customRoute')}
-            disabled={profileDisabled}
-            onChange={(event) => { setRoute(event.target.value) }}
-          />
-          {routeInvalid || routeTaken
-            ? <p className={styles['error']}>{t(routeInvalid ? 'customRouteInvalid' : 'customRouteTaken')}</p>
-            : null}
-        </div>
-        <div className={styles['field']}>
-          <span className={styles['fieldLabel']}>{t('customDisplayName')}</span>
-          <input
-            className={styles['input']}
-            type="text"
-            value={displayName}
-            placeholder={route.length === 0 ? t('customDisplayName') : route}
-            aria-label={t('customDisplayName')}
-            disabled={profileDisabled}
-            onChange={(event) => { setDisplayName(event.target.value) }}
-          />
-        </div>
-      </div>
-      <div className={`${styles['fieldGrid']} ${styles['endpointGrid']}`}>
-        <div className={styles['field']}>
-          <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
-          <input
-            className={styles['input']}
-            type="text"
-            value={baseURL}
-            placeholder={t(protocol === 'anthropic-messages'
-              ? 'customAnthropicBaseUrlPlaceholder'
-              : 'customBaseUrlPlaceholder')}
-            aria-label={t('baseUrl')}
-            aria-invalid={baseUrlInvalid}
-            disabled={profileDisabled}
-            onChange={(event) => { setBaseURL(event.target.value) }}
-          />
-          {baseUrlInvalid ? <p className={styles['error']}>{t('customBaseUrlInvalid')}</p> : null}
-        </div>
-        <div className={styles['field']}>
-          <span className={styles['fieldLabel']}>{t('customApi')}</span>
-          <ProtocolPicker
-            value={protocol}
-            choices={protocols}
-            disabled={profileDisabled}
-            t={t}
-            onChange={setProtocol}
-          />
-        </div>
-      </div>
-      <div className={styles['field']}>
-        <span className={styles['fieldLabel']}>{t('keyInput')}</span>
-        <ApiKeyInput
-          t={t}
-          value={keyDraft}
-          placeholder={t('keyPlaceholder')}
-          aria-label={t('keyInput')}
-          disabled={disabled}
-          onChange={(event) => { setKeyDraft(event.target.value) }}
-        />
-        {/* A create card has no stored key to keep, so the blank case says
-            what a blank field means here instead: this route may authenticate
-            through the provider's own ambient discovery or OAuth. */}
-        {keyFailure === undefined
-          ? null
-          : <p className={styles['error']}>{t(keyFailure === 'keyBlank' ? 'keyBlankNew' : keyFailure)}</p>}
+    <div className={`${styles['editor']} ${connectStyles['form']}`}>
+      <div className={connectStyles['connectionFields']}>
+        <section className={connectStyles['group']} aria-label={t('providerIdentitySection')}>
+          <div className={connectStyles['topGrid']}>
+            <div className={styles['field']}>
+              <span className={styles['fieldLabel']}>{t('customDisplayName')} <span className={connectStyles['optional']}>{t('providerOptional')}</span></span>
+              <div className={connectStyles['endpoint']}><ProviderFieldIcon kind="name" />
+                <input className={styles['input']} type="text" value={displayName}
+                  placeholder={t('providerNamePlaceholder')} aria-label={t('customDisplayName')} disabled={profileDisabled}
+                  onChange={(event) => { setDisplayName(event.target.value) }} />
+              </div>
+            </div>
+            <div className={styles['field']}>
+              <span className={styles['fieldLabel']}>{t('customApi')}</span>
+              <ProtocolPicker value={protocol} choices={protocols} disabled={profileDisabled} t={t} onChange={setProtocol} />
+            </div>
+          </div>
+        </section>
+        <section className={connectStyles['group']} aria-label={t('providerConnectionSection')}>
+          <div className={styles['field']}>
+            <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
+            <div className={connectStyles['endpoint']}><ProviderFieldIcon kind="endpoint" />
+              <input className={styles['input']} type="text" value={baseURL}
+                placeholder={t(protocol === 'anthropic-messages' ? 'customAnthropicBaseUrlPlaceholder' : 'customBaseUrlPlaceholder')}
+                aria-label={t('baseUrl')} aria-invalid={baseUrlInvalid} disabled={profileDisabled}
+                onChange={(event) => { setBaseURL(event.target.value) }} />
+            </div>
+            {baseUrlInvalid ? <p className={styles['error']}>{t('customBaseUrlInvalid')}</p> : null}
+          </div>
+          <div className={styles['field']}>
+            <span className={styles['fieldLabel']}>{t('keyInput')} <span className={connectStyles['optional']}>{t('providerOptional')}</span></span>
+            <ApiKeyInput t={t} icon={<ProviderFieldIcon kind="key" />} value={keyDraft} placeholder={t('keyPlaceholder')} aria-label={t('keyInput')} disabled={disabled}
+              onChange={(event) => { setKeyDraft(event.target.value) }} />
+            {keyFailure === undefined ? null : <p className={styles['error']}>{t(keyFailure === 'keyBlank' ? 'keyBlankNew' : keyFailure)}</p>}
+          </div>
+        </section>
+
       </div>
       <ModelListEditor
+        connecting
+        emptyMessage={t('providerModelsEmpty')}
         reasoningOptions={props.reasoningOptions}
         models={models}
         onChange={setModels}
@@ -320,11 +280,28 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
         disabled={profileDisabled}
         onBusyChange={setListBusy}
       />
+      <section className={connectStyles['advanced']}>
+        <Button variant="ghost" size="sm" className={connectStyles['advancedToggle']}
+          aria-label={t('providerAdvanced')} aria-expanded={advancedVisible} aria-controls={advancedId} onClick={() => { setAdvancedOpen(value => !value) }}>
+          <IconSettingsOutlineRegular size={16} />{t('providerAdvanced')}<IconChevronRightOutlineRegular size={14} />
+        </Button>
+        <AnimatedDisclosure open={advancedVisible} id={advancedId}>
+          <div className={connectStyles['advancedBody']}>
+            <div className={styles['field']}>
+              <span className={styles['fieldLabel']}>{t('customRoute')}<FieldHelp title={t('customRoute')} text={t('customRouteHint')} t={t} /></span>
+              <input className={styles['input']} type="text" value={route} placeholder="acme-gateway" aria-label={t('customRoute')}
+                disabled={profileDisabled} onChange={(event) => { setRoute(event.target.value) }} />
+              {routeInvalid || routeTaken ? <p className={styles['error']}>{t(routeInvalid ? 'customRouteInvalid' : 'customRouteTaken')}</p> : null}
+            </div>
+          </div>
+        </AnimatedDisclosure>
+      </section>
+
       {failure !== undefined ? <p className={styles['error']}>{failure}</p> : null}
-      {/* Only the gates with something to say render; the route-id gate has its
-          own field-level hint, so its blocked state would print an empty line. */}
-      {hint === undefined ? null : <p className={styles['advancedHint']}>{hint}</p>}
+      {modelHint === undefined ? null : <p className={styles['advancedHint']}>{modelHint}</p>}
       <EditorFooter
+        connecting
+        actionsTarget={props.actionsTarget}
         t={t}
         busy={busy}
         submitDisabled={disabled || !ready}

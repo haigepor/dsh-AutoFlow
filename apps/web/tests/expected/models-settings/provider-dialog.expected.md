@@ -1,0 +1,42 @@
+- region "添加模型提供商":
+  - region "提供商配置":
+    - heading "添加模型提供商" [level=1]
+    - paragraph: 连接服务，管理可用模型
+    - button "取消"
+    - button "创建提供商" [disabled]
+    - tablist "添加方式":
+      - tab "第三方模型提供商": 内置提供商
+      - tab "自定义模型 API" [selected]: 自定义 API
+    - heading "连接自定义 API" [level=3]
+    - button "自定义模型 API说明"
+    - paragraph: 填写连接信息，再添加这个服务提供的模型
+    - tabpanel "自定义模型 API":
+      - region "提供商信息":
+        - text: 显示名称 可选
+        - textbox "显示名称":
+          - /placeholder: 例如：公司网关、本地服务
+        - text: API 协议
+        - button "API 协议": OpenAI Chat Completions
+      - region "连接与认证":
+        - text: API 地址
+        - textbox "API 地址":
+          - /placeholder: https://gateway.example/v1
+        - text: API 密钥 可选
+        - textbox "API 密钥":
+          - /placeholder: 输入 API 密钥
+      - region "模型目录":
+        - heading "模型目录" [level=3]
+        - button "获取可用模型" [disabled]
+        - button "添加模型"
+        - table "模型目录":
+          - rowgroup:
+            - row "模型 / ID 输入与推理 上下文窗口 操作":
+              - columnheader "模型 / ID"
+              - columnheader "输入与推理"
+              - columnheader "上下文窗口"
+              - columnheader "操作"
+          - rowgroup:
+            - row "至少添加一个模型。填写连接信息后可获取模型列表，也可手动填写模型 ID":
+              - cell "至少添加一个模型。填写连接信息后可获取模型列表，也可手动填写模型 ID":
+                - paragraph: 至少添加一个模型。填写连接信息后可获取模型列表，也可手动填写模型 ID
+      - button "高级选项"

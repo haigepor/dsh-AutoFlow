@@ -1,0 +1,62 @@
+- dialog "提供商配置":
+  - heading "提供商配置" [level=2]
+  - button "关闭"
+  - region "提供商配置":
+    - heading "Fixture Gateway" [level=2]
+    - button "Provider ID说明"
+    - paragraph: 管理模型提供商的连接和凭证。
+    - region "连接与认证":
+      - text: API 地址
+      - textbox "API 地址":
+        - /placeholder: https://fixture.example
+        - text: https://fixture.example
+      - text: API 密钥
+      - textbox "API 密钥":
+        - /placeholder: 输入 API 密钥
+    - region "模型目录":
+      - heading "模型目录" [level=3]
+      - button "模型目录说明"
+      - button "恢复默认模型"
+      - button "获取可用模型"
+      - button "添加模型"
+      - table "模型目录":
+        - rowgroup:
+          - row "模型 / ID 输入与推理 上下文窗口 操作":
+            - columnheader "模型 / ID"
+            - columnheader "输入与推理"
+            - columnheader "上下文窗口"
+            - columnheader "操作"
+        - rowgroup:
+          - row "拖拽排序，或使用方向键移动模型 1 Alpha renamed model-alpha 文本 继承 模型选项 1 删除模型 1":
+            - cell "拖拽排序，或使用方向键移动模型 1 Alpha renamed model-alpha":
+              - button "拖拽排序，或使用方向键移动模型 1"
+              - text: Alpha renamed
+              - code: model-alpha
+            - cell "文本"
+            - cell "继承"
+            - cell "模型选项 1 删除模型 1":
+              - button "模型选项 1": 编辑
+              - button "删除模型 1"
+          - row "拖拽排序，或使用方向键移动模型 2 Beta model-beta 文本 继承 模型选项 2 删除模型 2":
+            - cell "拖拽排序，或使用方向键移动模型 2 Beta model-beta":
+              - button "拖拽排序，或使用方向键移动模型 2"
+              - text: Beta
+              - code: model-beta
+            - cell "文本"
+            - cell "继承"
+            - cell "模型选项 2 删除模型 2":
+              - button "模型选项 2": 编辑
+              - button "删除模型 2"
+          - row "拖拽排序，或使用方向键移动模型 3 model-gamma 文本 继承 模型选项 3 删除模型 3":
+            - cell "拖拽排序，或使用方向键移动模型 3 model-gamma":
+              - button "拖拽排序，或使用方向键移动模型 3"
+              - text: model-gamma
+            - cell "文本"
+            - cell "继承"
+            - cell "模型选项 3 删除模型 3":
+              - button "模型选项 3": 编辑
+              - button "删除模型 3"
+    - button "高级选项"
+    - button "删除 Fixture Gateway (fixture-gateway)": 删除
+    - button "取消"
+    - button "保存"

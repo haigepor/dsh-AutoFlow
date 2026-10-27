@@ -10,11 +10,13 @@ import type { ReactNode } from 'react'
 import { IconPlusOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { en } from './locales.ts'
 import { ModelRow } from './ModelRow.tsx'
+import { ProviderModelTable } from './ProviderModelTable.tsx'
 import { validateModelReasoning } from './model-reasoning.ts'
 import type { ModelReasoningOptions } from './model-reasoning.ts'
 import { ModelCatalogHeading } from './ModelCatalogHeading.tsx'
 import { useModelReorder } from './useModelReorder.ts'
 import styles from './ModelsSection.module.css'
+import connectStyles from './ProviderConnect.module.css'
 
 /** One catalog entry kept structurally open so hidden or future fields survive an edit. */
 export type DeepSeekModelDraft = Record<string, unknown>
@@ -130,6 +132,10 @@ export function validateDeepSeekModels(value: unknown): DeepSeekModelsValidation
 
 /** Props of {@link DeepSeekModelsEditor}. */
 export interface DeepSeekModelsEditorProps {
+  /** Use compact rows in the provider connection dialog. */
+  connecting?: boolean
+  /** Show a single record while changes still replace the complete array. */
+  onlyIndex?: number | undefined
   /** Accepted reasoning choices read from the owning schema. */
   reasoningOptions?: ModelReasoningOptions | undefined
   /** Effective rows: inherited until the parent materializes an override. */
@@ -262,9 +268,49 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
     onBlur: () => { settleCapacity(index, field) },
   })
 
+  const modelRows = props.models.map((model, index) => props.onlyIndex !== undefined && index !== props.onlyIndex ? null : (
+    <ModelRow
+      compact={props.connecting === true}
+      key={index}
+      model={model}
+      position={index + 1}
+      total={props.models.length}
+      {...order.rowProps(index)}
+      inputField="inputModalities"
+      reasoningOptions={props.reasoningOptions}
+      expanded={props.onlyIndex !== undefined || expanded.has(index)}
+      single={props.onlyIndex !== undefined}
+      disabled={props.disabled}
+      t={props.t}
+      contextWindow={capacityInput(model, index, 'contextWindow', props.defaultContextWindow)}
+      maxTokens={capacityInput(model, index, 'maxTokens', props.defaultMaxTokens)}
+      onFieldChange={(field, value) => { update(index, field, value) }}
+      onIdBlur={(value) => {
+        const trimmed = value.trim()
+        if (trimmed !== value) update(index, 'id', trimmed)
+      }}
+      onChange={(next) => { props.onChange(props.models.map((row, at) => at === index ? next : row)) }}
+      onToggle={() => { toggle(index) }}
+      onRemove={() => { remove(index) }}
+    />
+  ))
+
+  const addAction = props.onlyIndex === undefined ? <button
+    type="button"
+    className={styles['addModelButton']}
+    disabled={props.disabled}
+    onClick={() => {
+      if (props.connecting === true) setExpanded(current => new Set([...current, props.models.length]))
+      props.onChange([...props.models.map(model => ({ ...model })), { id: '' }])
+    }}
+  >
+    <IconPlusOutlineRegular size={14} />
+    {props.t('addModel')}
+  </button> : null
+
   return (
-    <section className={styles['modelCatalog']} aria-label={props.t('models')}>
-      <div className={styles['modelListHead']}>
+    <section className={`${styles['modelCatalog']} ${props.connecting === true ? connectStyles['catalog'] : ''}`} data-connection={props.connecting === true} aria-label={props.t('models')}>
+      {props.onlyIndex === undefined && <div className={`${styles['modelListHead']} ${props.connecting === true ? connectStyles['catalogHeading'] : ''}`}>
         <ModelCatalogHeading t={props.t} overridden={props.overridden} />
         {props.overridden
           ? (
@@ -278,53 +324,27 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
             </button>
           )
           : null}
-      </div>
-      {props.models.length === 0
-        ? <p className={styles['modelEmpty']}>{props.t('modelsEmpty')}</p>
-        : (
-          <div className={styles['modelList']} data-model-list>
-            <div className={styles['modelTableHead']} aria-hidden="true">
-              <span>{props.t('modelOrder')}</span>
-              <span>{props.t('modelId')}</span>
-              <span>{props.t('modelName')}</span>
-              <span>{props.t('modelReasoning')}</span>
-              <span>{props.t('modelActions')}</span>
+        {props.connecting === true ? addAction : null}
+      </div>}
+      {props.connecting === true ? <ProviderModelTable t={props.t}>
+        {props.models.length > 0 ? modelRows : <tr><td colSpan={4} className={connectStyles['tableEmpty']}>{props.t('modelsEmpty')}</td></tr>}
+      </ProviderModelTable> : <>
+        {props.models.length === 0
+          ? <p className={styles['modelEmpty']}>{props.t('modelsEmpty')}</p>
+          : (
+            <div className={styles['modelList']} data-model-list>
+              {props.onlyIndex === undefined && <div className={styles['modelTableHead']} aria-hidden="true">
+                <span>{props.t('modelOrder')}</span>
+                <span>{props.t('modelId')}</span>
+                <span>{props.t('modelName')}</span>
+                <span>{props.t('modelReasoning')}</span>
+                <span>{props.t('modelActions')}</span>
+              </div>}
+              {modelRows}
             </div>
-            {props.models.map((model, index) => (
-              <ModelRow
-                key={index}
-                model={model}
-                position={index + 1}
-                total={props.models.length}
-                {...order.rowProps(index)}
-                inputField="inputModalities"
-                reasoningOptions={props.reasoningOptions}
-                expanded={expanded.has(index)}
-                disabled={props.disabled}
-                t={props.t}
-                contextWindow={capacityInput(model, index, 'contextWindow', props.defaultContextWindow)}
-                maxTokens={capacityInput(model, index, 'maxTokens', props.defaultMaxTokens)}
-                onFieldChange={(field, value) => { update(index, field, value) }}
-                onIdBlur={(value) => {
-                  const trimmed = value.trim()
-                  if (trimmed !== value) update(index, 'id', trimmed)
-                }}
-                onChange={(next) => { props.onChange(props.models.map((row, at) => at === index ? next : row)) }}
-                onToggle={() => { toggle(index) }}
-                onRemove={() => { remove(index) }}
-              />
-            ))}
-          </div>
-        )}
-      <button
-        type="button"
-        className={styles['addModelButton']}
-        disabled={props.disabled}
-        onClick={() => { props.onChange([...props.models.map(model => ({ ...model })), { id: '' }]) }}
-      >
-        <IconPlusOutlineRegular size={14} />
-        {props.t('addModel')}
-      </button>
+          )}
+      </>}
+      {props.connecting === true ? null : addAction}
     </section>
   )
 }

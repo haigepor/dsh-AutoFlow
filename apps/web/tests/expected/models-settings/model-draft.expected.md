@@ -1,0 +1,53 @@
+- dialog "模型配置":
+  - heading "模型配置" [level=2]
+  - button "关闭"
+  - heading "Compact model" [level=2]
+  - paragraph: 设置模型标识、容量与推理能力
+  - region "基本信息":
+    - heading "基本信息" [level=3]
+    - text: 模型 ID
+    - button "模型 ID说明"
+    - textbox "模型 ID 1":
+      - /placeholder: 模型 ID
+      - text: model-compact
+    - text: 显示名称
+    - button "显示名称说明"
+    - textbox "显示名称 1":
+      - /placeholder: 显示名称
+      - text: Compact model
+  - region "容量与输入":
+    - heading "容量与输入" [level=3]
+    - text: 上下文窗口
+    - button "上下文窗口说明"
+    - textbox "上下文窗口 1":
+      - /placeholder: 256K
+      - text: 128K
+    - button "选择上下文窗口 1"
+    - text: 最大输出 token 数
+    - button "最大输出 token 数说明"
+    - textbox "最大输出 token 数 1":
+      - /placeholder: 32K
+    - group "输入类型 1":
+      - text: 输入类型
+      - button "输入类型说明"
+      - checkbox "文本" [checked] [disabled]
+      - text: 文本
+      - checkbox "图片"
+      - text: 图片
+  - region "推理设置":
+    - heading "推理设置" [level=3]
+    - text: 思考强度
+    - button "思考强度说明"
+    - button "思考强度 1": 高 · high
+    - region "支持的思考强度 1":
+      - text: 支持的思考强度
+      - button "支持的思考强度说明"
+      - button "关闭 · off"
+      - button "低 · low" [pressed]
+      - button "中 · medium" [pressed]
+      - button "高 · high" [pressed]
+      - button "最高 · max" [pressed]
+      - button "新增档位 1": 新增档位
+      - button "高级协议映射"
+  - paragraph: 模型设置将随提供商配置一起保存
+  - button "完成"

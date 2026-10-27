@@ -1,6 +1,54 @@
-- dialog "清除 DeepSeek (deepseek-official) 配置？":
-  - heading "清除 DeepSeek (deepseek-official) 配置？" [level=2]
+- dialog "提供商配置":
+  - heading "提供商配置" [level=2]
   - button "关闭"
-  - paragraph: 恢复 DeepSeek (deepseek-official) 的基础配置，并清除本页管理的 API 密钥；提供商入口会保留。共享密钥、环境变量和只读凭证会保留。
-  - button "取消"
-  - button "清除配置"
+  - region "提供商配置":
+    - heading "DeepSeek" [level=2]
+    - button "Provider ID说明"
+    - paragraph: 管理模型提供商的连接和凭证。
+    - region "连接与认证":
+      - text: API 地址
+      - button "API 地址说明"
+      - textbox "API 地址":
+        - /placeholder: https://api.deepseek.com/anthropic（默认使用环境 DEEPSEEK_BASE_URL）
+        - text: https://fixture.example/anthropic
+      - text: API 密钥
+      - button "认证说明"
+      - textbox "API 密钥":
+        - /placeholder: 留空使用环境认证（DEEPSEEK_API_KEY）
+        - text: sk-unsaved-fixture
+      - button "显示密钥"
+    - region "模型目录":
+      - heading "模型目录" [level=3]
+      - button "模型目录说明"
+      - button "添加模型"
+      - table "模型目录":
+        - rowgroup:
+          - row "模型 / ID 输入与推理 上下文窗口 操作":
+            - columnheader "模型 / ID"
+            - columnheader "输入与推理"
+            - columnheader "上下文窗口"
+            - columnheader "操作"
+        - rowgroup:
+          - row "拖拽排序，或使用方向键移动模型 1 DeepSeek-V4.1-Flash deepseek-flash 图片 文本 推理 1048576 模型选项 1 删除模型 1":
+            - cell "拖拽排序，或使用方向键移动模型 1 DeepSeek-V4.1-Flash deepseek-flash":
+              - button "拖拽排序，或使用方向键移动模型 1"
+              - text: DeepSeek-V4.1-Flash
+              - code: deepseek-flash
+            - cell "图片 文本 推理"
+            - cell "1048576"
+            - cell "模型选项 1 删除模型 1":
+              - button "模型选项 1": 编辑
+              - button "删除模型 1"
+          - row "拖拽排序，或使用方向键移动模型 2 DeepSeek-V4-Pro deepseek-v4-pro 文本 推理 1048576 模型选项 2 删除模型 2":
+            - cell "拖拽排序，或使用方向键移动模型 2 DeepSeek-V4-Pro deepseek-v4-pro":
+              - button "拖拽排序，或使用方向键移动模型 2"
+              - text: DeepSeek-V4-Pro
+              - code: deepseek-v4-pro
+            - cell "文本 推理"
+            - cell "1048576"
+            - cell "模型选项 2 删除模型 2":
+              - button "模型选项 2": 编辑
+              - button "删除模型 2"
+    - button "清除 DeepSeek (deepseek-official) 配置": 清除配置
+    - button "取消"
+    - button "保存"

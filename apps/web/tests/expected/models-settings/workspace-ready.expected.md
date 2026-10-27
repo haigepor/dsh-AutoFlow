@@ -1,23 +1,61 @@
-- heading "模型" [level=1]
-- complementary "提供商":
+- heading "模型与连接" [level=1]
+- paragraph: 管理提供商、认证方式与模型目录。
+- button "添加模型提供商"
+- tablist "模型设置导航":
+  - tab "模型目录" [selected]
+  - tab "提供商"
+  - tab "ChatGPT 订阅"
+- tabpanel "模型目录":
+  - heading "模型目录 4" [level=2]
+  - paragraph: 查看模型能力，为不同任务配置合适的模型
+  - button "添加模型"
+  - searchbox "搜索模型名称或 ID"
   - text: 提供商
-  - button "收起提供商列表" [expanded]
-  - button "编辑 DeepSeek (deepseek-official)":
-    - text: DeepSeek
-    - img "API 密钥缺失"
-  - button "清除 DeepSeek (deepseek-official) 配置"
-  - button "编辑 Fixture Gateway (fixture-gateway)": Fixture Gateway 自定义
-  - button "删除 Fixture Gateway (fixture-gateway)"
-  - button "添加模型提供商"
-- region "提供商配置":
-  - heading "DeepSeek" [level=2]
-  - button "Provider ID说明"
-  - text: API 密钥
-  - button "认证说明": "?"
-  - textbox "API 密钥":
-    - /placeholder: 留空使用环境认证（DEEPSEEK_API_KEY）
-  - paragraph: 未检测到环境变量。请填写 API 密钥，或设置环境变量 DEEPSEEK_API_KEY。
-  - button "自定义设置"
-  - button "取消"
-  - button "保存"
+  - button "筛选提供商": 全部提供商
+  - table "模型目录":
+    - rowgroup:
+      - row "模型 / ID 提供商 输入与推理 上下文窗口 操作":
+        - columnheader "模型 / ID"
+        - columnheader "提供商"
+        - columnheader "输入与推理"
+        - columnheader "上下文窗口"
+        - columnheader "操作"
+    - rowgroup:
+      - row "DeepSeek-V4.1-Flash deepseek-flash DeepSeek 图片 文本 推理 1M 1,048,576 tokens 编辑 deepseek-flash":
+        - cell "DeepSeek-V4.1-Flash deepseek-flash":
+          - text: DeepSeek-V4.1-Flash
+          - code: deepseek-flash
+        - cell "DeepSeek"
+        - cell "图片 文本 推理"
+        - cell "1M 1,048,576 tokens"
+        - cell "编辑 deepseek-flash":
+          - button "编辑 deepseek-flash": 编辑
+      - row "DeepSeek-V4-Pro deepseek-v4-pro DeepSeek 文本 推理 1M 1,048,576 tokens 编辑 deepseek-v4-pro":
+        - cell "DeepSeek-V4-Pro deepseek-v4-pro":
+          - text: DeepSeek-V4-Pro
+          - code: deepseek-v4-pro
+        - cell "DeepSeek"
+        - cell "文本 推理"
+        - cell "1M 1,048,576 tokens"
+        - cell "编辑 deepseek-v4-pro":
+          - button "编辑 deepseek-v4-pro": 编辑
+      - row "Alpha model-alpha Fixture Gateway 继承 262.1K 262,144 tokens 编辑 model-alpha":
+        - cell "Alpha model-alpha":
+          - text: Alpha
+          - code: model-alpha
+        - cell "Fixture Gateway"
+        - cell "继承"
+        - cell "262.1K 262,144 tokens"
+        - cell "编辑 model-alpha":
+          - button "编辑 model-alpha": 编辑
+      - row "Beta model-beta Fixture Gateway 继承 262.1K 262,144 tokens 编辑 model-beta":
+        - cell "Beta model-beta":
+          - text: Beta
+          - code: model-beta
+        - cell "Fixture Gateway"
+        - cell "继承"
+        - cell "262.1K 262,144 tokens"
+        - cell "编辑 model-beta":
+          - button "编辑 model-beta": 编辑
+  - status: 显示 4 / 4 个模型
 - button "打开配置文件"

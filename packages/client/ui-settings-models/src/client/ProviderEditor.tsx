@@ -6,8 +6,9 @@
  * has none. The pi-ai profile records that derivation as `apiKeyEnv` only when
  * a key is entered; a blank key materializes a reference-free profile for
  * provider-native authentication);
- * the collapsed 自定义设置 area carries the per-family extras (`baseURL` for
- * both families, DeepSeek's id/name/context-window model catalog, and the
+ * the saved-provider dialog keeps connection fields above a model table.
+ * Other surfaces use the collapsed 自定义设置 area for per-family extras
+ * (`baseURL`, the model catalog, and the
  * display name and wire protocol of a pi-ai route the adapter does not ship —
  * the two fields the create card asked that route for, editable here for the
  * same reason).
@@ -22,16 +23,17 @@
  */
 
 import { useEffect, useId, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
-import type { CredentialInfo, LlmNativeAuth, SettingsNamespaceView, SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ChangeEvent, ReactNode } from 'react'
+import type { CredentialInfo, LlmDiscoveredModel, LlmNativeAuth, SettingsNamespaceView, SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Input, IconChevronRightOutlineRegular, IconInfoOutlineRegular, IconSettingsOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   DeepSeekModelsEditor, modelDrafts, validateDeepSeekModels,
 } from './DeepSeekModelsEditor.tsx'
 import type { DeepSeekModelsValidationFailure } from './DeepSeekModelsEditor.tsx'
 import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
+import { ProviderFieldIcon } from './ProviderFieldIcon.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
 import { FieldHelp } from './FieldHelp.tsx'
 import { deriveKeyRef, protocolChoices, reasoningLevelChoices } from './store.ts'
@@ -43,8 +45,10 @@ import type { ReasoningEffortsFailure } from './ModelReasoningEfforts.tsx'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type { en } from './locales.ts'
+import type { ModelEditTarget } from './ModelsDirectory.tsx'
 import { ApiKeyInput } from './ApiKeyInput.tsx'
 import styles from './ModelsSection.module.css'
+import connectStyles from './ProviderConnect.module.css'
 
 /** Per-adapter-family curated field sets (unknown namespaces get the hint alone). */
 type EditorLayout = 'deepseek' | 'pi-ai' | 'unknown'
@@ -53,6 +57,10 @@ type EditorLayout = 'deepseek' | 'pi-ai' | 'unknown'
 
 /** Props of {@link ProviderEditor}. */
 export interface ProviderEditorProps {
+  /** Focus one model while retaining all sibling configuration records. */
+  modelEdit?: ModelEditTarget | undefined
+  /** Installed metadata already read by the directory. */
+  catalogModels?: readonly LlmDiscoveredModel[] | undefined
   /** Provider route id. */
   provider: string
   /** Display name for the card title. */
@@ -61,6 +69,14 @@ export interface ProviderEditorProps {
   hideTitle?: boolean
   /** Pin actions below the scrolling form on the Models page only. */
   pinnedActions?: boolean
+  /** Use concise connection guidance when adopting a provider from the directory. */
+  connecting?: boolean
+  /** Show connection fields and a compact model table in the saved-provider dialog. */
+  providerDialog?: boolean
+  /** Optional reset or removal action kept beside the pinned footer controls. */
+  footerAction?: ReactNode
+  /** Optional page heading for the card-owned Cancel and commit actions. */
+  actionsTarget?: HTMLElement | null | undefined
   /**
    * Whether the adapter reports this route as hand-declared — absent from its
    * installed catalog. Such a route carries its own wire protocol, chosen when
@@ -182,10 +198,13 @@ function refFor(
  * @returns the editor card.
  */
 export function ProviderEditor(props: ProviderEditorProps): ReactNode {
-  const [customizedOpen, setCustomizedOpen] = useState(false)
+  const [customizedOpen, setCustomizedOpen] = useState(props.modelEdit !== undefined)
   const customizedId = useId()
   const { namespace, schema, settingsPath, operations, t } = props
-  const [draft, setDraft] = useState<Record<string, unknown>>(() => draftAt(schema, namespace, settingsPath))
+  const [draft, setDraft] = useState<Record<string, unknown>>(() => {
+    const initial = draftAt(schema, namespace, settingsPath)
+    return props.modelEdit === undefined ? initial : { ...initial, models: structuredClone(props.modelEdit.models) }
+  })
   const [keyDraft, setKeyDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [listBusy, setListBusy] = useState(false)
@@ -363,6 +382,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     // A whole-section `llm-deepseek` profile is a composition fact with no
     // per-route identity for its schema to carry, hence the family test.
     const ownsIdentity = family === 'pi-ai' && props.declared === true
+    const NameInput = props.providerDialog === true ? Input : 'input'
     const customModels = schema.getPath(draft, ['models'])
     const modelsOverridden = schema.hasPath(draft, ['models'])
     const models = modelDrafts(modelsOverridden ? customModels : inheritedModels())
@@ -400,18 +420,17 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       ? undefined
       : t('keyHelp').replace('{env}', () => visibleRefs.join(' / '))
     const authHelp = keyHelp === undefined ? null : (
-      <Tooltip label={keyHelp} side="right" delayMs={0} focusDelayMs={0} portal openOnClick>
-        <button type="button" className={styles['helpButton']} aria-label={t('authHelp')}>?</button>
-      </Tooltip>
+      <FieldHelp title={t('keyInput')} text={keyHelp} label={t('authHelp')} t={t} />
     )
     // A provider with no native key authentication has no key for this field to store.
     const keylessNativeAuth = nativeAuth?.env.length === 0 && nativeAuth.oauth
-    const keyPlaceholder = keyHint === undefined || props.credentialRequired === true
+    const keyPlaceholder = props.connecting === true ? t('providerKeyPlaceholder') : keyHint === undefined || props.credentialRequired === true
       ? t('keyPlaceholder')
       : t(savedCredential ? 'keyPlaceholderSaved' : 'keyPlaceholderFallback').replace('{hint}', () => keyHint)
     /** What both family editors take: the rows, whose layer owns them, and the two writes. */
     const catalogProps = {
       models,
+      onlyIndex: props.modelEdit?.index,
       reasoningOptions: modelReasoningOptions(namespace, schema, settingsPath, {
         ...typeof fallback === 'object' && fallback !== null ? fallback : {},
         ...draft,
@@ -424,41 +443,101 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       },
       onReset: () => { setDraft(current => schema.deletePath(current, ['models'])) },
     }
+    const catalogEditor = (
+      family === 'deepseek'
+        ? (
+          <DeepSeekModelsEditor
+            connecting={props.connecting === true || props.providerDialog === true}
+            {...catalogProps}
+            defaultContextWindow={typeof defaultContextWindow === 'number'
+              ? defaultContextWindow
+              : undefined}
+            defaultMaxTokens={typeof defaultMaxTokens === 'number' ? defaultMaxTokens : undefined}
+          />
+        )
+        : (
+          <ModelListEditor
+            connecting={props.connecting === true || props.providerDialog === true}
+            {...catalogProps}
+            catalogModels={props.catalogModels}
+            catalogProvider={props.declared === true ? undefined : props.provider}
+            reasoningLevels={reasoningLevels}
+            defaultInput={Array.isArray(defaultInput) ? defaultInput : undefined}
+            probe={probe}
+            probeBlocked={keyFailure}
+            operations={operations}
+            onBusyChange={setListBusy}
+          />
+        )
+    )
+    const credentialField = keylessNativeAuth || props.modelEdit !== undefined ? null : <section className={`${styles['field']} ${props.connecting === true ? connectStyles['group'] : ''}`} data-provider-credential={props.connecting === true ? '' : undefined} aria-label={props.connecting === true ? t('providerCredentials') : undefined}>
+      <span className={styles['fieldLabel']}>{t('keyInput')}{authHelp}</span>
+      <ApiKeyInput
+        icon={props.connecting === true || props.providerDialog === true ? <ProviderFieldIcon kind="key" /> : undefined}
+        t={t}
+        value={keyDraft}
+        placeholder={keyPlaceholder}
+        aria-label={t('keyInput')}
+        aria-invalid={shownKeyFailure !== undefined}
+        required={props.credentialRequired === true}
+        autoFocus={props.autoFocusCredential === true}
+        aria-describedby={credentialHint === undefined ? undefined : `${props.provider}-credential-hint`}
+        disabled={disabled}
+        onChange={(event) => { setKeyDraft(event.target.value) }}
+      />
+      {credentialHint === undefined ? null : <p id={`${props.provider}-credential-hint`}
+        className={props.connecting === true ? connectStyles['help'] : styles[missingRefs ? 'notice' : 'advancedHint']}>
+        {props.connecting === true && <IconInfoOutlineRegular size={16} />}
+        {props.connecting === true ? t(detectedRef === undefined ? missingRefs ? 'providerKeyMissing' : 'providerKeyGuidance' : 'providerKeyDetected') : credentialHint}</p>}
+      {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
+    </section>
+    const endpointAttributes = {
+      type: 'text',
+      value: stringAt(draft, 'baseURL') ?? '',
+      placeholder: family === 'deepseek' ? t('deepSeekBaseUrl')
+        : baseURL === undefined ? t(endpointEnv.length > 0 ? 'baseUrlConfigured' : 'baseUrlDefault')
+          : t('baseUrlPlaceholder').replace('{url}', () => baseURL),
+      'aria-label': t('baseUrl'),
+      disabled,
+      onChange: (event: ChangeEvent<HTMLInputElement>) => {
+        setField('baseURL', event.target.value === '' ? undefined : event.target.value)
+      },
+    }
+    const endpointField = props.modelEdit === undefined ? <div className={styles['field']}>
+      <span className={styles['fieldLabel']}>{t('baseUrl')}
+        {endpointHint === undefined ? null : <FieldHelp title={t('baseUrl')} text={endpointHint} t={t} />}
+      </span>
+      {props.providerDialog === true
+        ? <Input {...endpointAttributes} className={styles['providerTextInput'] as string} icon={<ProviderFieldIcon kind="endpoint" />} />
+        : <input {...endpointAttributes} className={styles['input']} />}
+    </div> : null
     return (
       <>
-        {keylessNativeAuth ? null : <div className={styles['field']}>
-          <span className={styles['fieldLabel']}>{t('keyInput')}{authHelp}</span>
-          <ApiKeyInput
-            t={t}
-            value={keyDraft}
-            placeholder={keyPlaceholder}
-            aria-label={t('keyInput')}
-            aria-invalid={shownKeyFailure !== undefined}
-            required={props.credentialRequired === true}
-            autoFocus={props.autoFocusCredential === true}
-            aria-describedby={credentialHint === undefined ? undefined : `${props.provider}-credential-hint`}
-            disabled={disabled}
-            onChange={(event) => { setKeyDraft(event.target.value) }}
-          />
-          {credentialHint === undefined ? null : <p id={`${props.provider}-credential-hint`} className={styles[missingRefs ? 'notice' : 'advancedHint']}>{credentialHint}</p>}
-          {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
-        </div>}
-        {props.credentialOnly === true ? null : <section className={styles['customized']}>
-          <button type="button" data-provider-disclosure className={styles['customizedSummary']}
+        {props.providerDialog === true ? <section className={styles['providerConnection']} aria-label={t('providerConnectionSection')}>
+          {endpointField}{credentialField}
+        </section> : credentialField}
+        {props.connecting === true || props.providerDialog === true ? catalogEditor : null}
+        {props.credentialOnly === true || (props.providerDialog === true && !ownsIdentity) ? null : <section className={styles['customized']}>
+          {props.modelEdit === undefined && <button type="button" data-provider-disclosure className={props.connecting === true || props.providerDialog === true ? connectStyles['advancedToggle'] : styles['customizedSummary']}
+            aria-label={props.connecting === true ? t('providerMoreOptions') : props.providerDialog === true ? t('providerAdvanced') : undefined}
             aria-expanded={customizedOpen} aria-controls={customizedId}
-            onClick={() => { setCustomizedOpen(value => !value) }}>{t('customized')}</button>
+            onClick={() => { setCustomizedOpen(value => !value) }}>
+            {props.providerDialog === true && <IconSettingsOutlineRegular size={16} />}
+            {t(props.connecting === true ? 'providerMoreOptions' : props.providerDialog === true ? 'providerAdvanced' : 'customized')}
+            {(props.connecting === true || props.providerDialog === true) && <IconChevronRightOutlineRegular size={16} />}</button>}
           <AnimatedDisclosure open={customizedOpen} id={customizedId}>
             <div className={styles['customizedBody']}>
               {/* The name and the protocol are the create card's two remaining
                 profile fields; a route the adapter ships defaults both from
                 its catalog entry and neither belongs on its card. */}
-              {ownsIdentity
+              {ownsIdentity && props.modelEdit === undefined
                 ? (
                   <div className={styles['fieldGrid']}>
                     <div className={styles['field']}>
                       <span className={styles['fieldLabel']}>{t('customDisplayName')}</span>
-                      <input
-                        className={styles['input']}
+                      <NameInput
+                        {...props.providerDialog === true ? { icon: <ProviderFieldIcon kind="name" /> } : {}}
+                        className={styles[props.providerDialog === true ? 'providerTextInput' : 'input'] as string}
                         type="text"
                         value={stringAt(draft, 'displayName') ?? ''}
                         // What this route is called the moment the field is
@@ -483,50 +562,8 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                   </div>
                 )
                 : null}
-              <div className={styles['field']}>
-                <span className={styles['fieldLabel']}>{t('baseUrl')}
-                  {endpointHint === undefined ? null : <FieldHelp title={t('baseUrl')} text={endpointHint} t={t} />}
-                </span>
-                <input
-                  className={styles['input']}
-                  type="text"
-                  value={stringAt(draft, 'baseURL') ?? ''}
-                  placeholder={family === 'deepseek'
-                    ? t('deepSeekBaseUrl')
-                    : baseURL === undefined ? t(endpointEnv.length > 0 ? 'baseUrlConfigured' : 'baseUrlDefault')
-                      : t('baseUrlPlaceholder').replace('{url}', () => baseURL)}
-                  aria-label={t('baseUrl')}
-                  disabled={disabled}
-                  onChange={(event) => {
-                    setField('baseURL', event.target.value === '' ? undefined : event.target.value)
-                  }}
-                />
-              </div>
-              {/* Both families edit the same rows through the same contract; only
-                the extras differ — DeepSeek's inherited capacities, pi-ai's
-                endpoint interrogation. */}
-              {family === 'deepseek'
-                ? (
-                  <DeepSeekModelsEditor
-                    {...catalogProps}
-                    defaultContextWindow={typeof defaultContextWindow === 'number'
-                      ? defaultContextWindow
-                      : undefined}
-                    defaultMaxTokens={typeof defaultMaxTokens === 'number' ? defaultMaxTokens : undefined}
-                  />
-                )
-                : (
-                  <ModelListEditor
-                    {...catalogProps}
-                    catalogProvider={props.declared === true ? undefined : props.provider}
-                    reasoningLevels={reasoningLevels}
-                    defaultInput={Array.isArray(defaultInput) ? defaultInput : undefined}
-                    probe={probe}
-                    probeBlocked={keyFailure}
-                    operations={operations}
-                    onBusyChange={setListBusy}
-                  />
-                )}
+              {props.providerDialog === true ? null : endpointField}
+              {props.connecting === true || props.providerDialog === true ? null : catalogEditor}
             </div>
           </AnimatedDisclosure>
         </section>}
@@ -535,8 +572,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   }
 
   return (
-    <div className={props.credentialOnly === true ? styles['addBlock'] : styles['editor']} data-pinned={props.pinnedActions === true}>
-      <div className={styles['editorScroll']}>
+    <div className={`${props.credentialOnly === true ? styles['addBlock'] : styles['editor']} ${props.providerDialog === true ? styles['providerDialogForm'] : ''}`} data-pinned={props.pinnedActions === true}
+      data-provider-connect={props.connecting === true ? '' : undefined}>
+      <div className={styles['editorScroll']} data-provider-fields={props.connecting === true ? '' : undefined}>
         {props.hideTitle === true
           ? null
           : (
@@ -555,11 +593,15 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
           ? null
           : (
             <p className={styles['advancedHint']}>
-              {`${t('model')} ${String(modelFailure.index + 1)}: ${t(modelFailure.key)}`}
+              {props.modelEdit?.index === modelFailure.index ? t(modelFailure.key)
+                : `${t('model')} ${String(modelFailure.index + 1)}: ${t(modelFailure.key)}`}
             </p>
           )}
       </div>
       <EditorFooter
+        leading={props.footerAction}
+        connecting={props.connecting === true}
+        actionsTarget={props.actionsTarget}
         t={t}
         busy={busy}
         submitDisabled={disabled || layout === 'unknown'

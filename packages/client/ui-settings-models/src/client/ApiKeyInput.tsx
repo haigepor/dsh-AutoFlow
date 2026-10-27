@@ -14,6 +14,8 @@ interface ApiKeyInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, '
   readonly value: string
   /** Section copy, including the same reveal labels as SecretText. */
   readonly t: (key: keyof typeof en) => string
+  /** Decorative field mark, separate from the reveal control. */
+  readonly icon?: ReactNode
 }
 
 /**
@@ -21,14 +23,15 @@ interface ApiKeyInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, '
  * @param props - current draft, input attributes, and translated control labels.
  * @returns a password input with an optional reveal button.
  */
-export function ApiKeyInput({ value, t, ...props }: ApiKeyInputProps): ReactNode {
+export function ApiKeyInput({ value, t, icon, ...props }: ApiKeyInputProps): ReactNode {
   const [revealedValue, setRevealedValue] = useState<string | undefined>()
   const revealed = value.length > 0 && revealedValue === value
   return (
     <div className={styles['keyInput']}>
+      {icon !== undefined && <span className={styles['keyLeading']} aria-hidden="true">{icon}</span>}
       <input
         {...props}
-        className={`${styles['input']} ${value.length > 0 ? styles['keyInputFilled'] : ''}`}
+        className={`${styles['input']} ${value.length > 0 ? styles['keyInputFilled'] : ''} ${icon !== undefined ? styles['keyWithIcon'] : ''}`}
         type={revealed ? 'text' : 'password'}
         autoComplete="new-password"
         value={value}

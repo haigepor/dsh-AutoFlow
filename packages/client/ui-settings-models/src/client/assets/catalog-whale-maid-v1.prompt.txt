@@ -1,0 +1,12 @@
+Generated using the built-in image_gen tool, referencing the project's standard-whale-maid-v6.webp and cordis-whale-maid-v6.webp. The final 320 x 320 WebP preserves transparency and is embedded by the shared client image loader.
+
+Final prompt:
+
+Use case: identity-preserve
+Asset type: a new sibling decorative illustration for the model catalog of the same app.
+Input images: Image 1 is the exact character identity and drawing style reference; Image 2 is a supporting reference for the same character interacting with objects. Neither source file should be altered.
+Primary request: redraw this same blue-haired whale maid as a model catalog assistant, happily organizing a small fan of three white model cards in her hands. The cards have tiny simple blue visual motifs suggesting conversation, images, and reasoning, with no letters or readable text. Her pose should be a new, relaxed standing pose with the cards held at chest height.
+Preserve: recognizable deep blue hair fading to cyan at the ends, large blue eyes, white maid headband, navy-and-white frilled maid dress, small blue bow, blue whale tail on the side, cute compact chibi proportions, soft hand-drawn anime outlines and painterly cel shading from the references.
+Style/medium: match the supplied project's 2D chibi illustration exactly, crisp but softly shaded, cheerful and friendly, not a 3D render. Keep the rendering detail and white edge highlights consistent with the reference.
+Composition: square transparent canvas, single complete full-body character centered, entire whale tail and shoes visible, modest clear padding on all sides. Figure and cards must read clearly at 100 CSS pixels. No surrounding frame or scene.
+Constraints: genuinely transparent alpha background; no ground plane, no background, no floating background particles, no typography, no watermark, no logo, no glass sculpture, no photorealism. Keep the character's original modest outfit. The only change is pose and model-card props.

@@ -1,7 +1,8 @@
 /** Per-model effort subsets and advanced wire mappings. */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Menu, IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Menu, IconChevronDownOutlineRegular, IconThinkOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { FieldHelp } from './FieldHelp.tsx'
 import type { LlmModelReasoningInfo } from '@deepseek-ai/dsh-api-remotes/client'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import type { ModelsKey } from './locales.ts'
@@ -14,6 +15,8 @@ export interface ModelReasoningProps {
   model: DeepSeekModelDraft
   position: number
   disabled: boolean
+  /** Add concise field guidance in a focused model dialog. */
+  showHelp?: boolean
   direct: boolean
   options: ModelReasoningOptions
   inherited?: LlmModelReasoningInfo | undefined
@@ -37,7 +40,9 @@ export function ModelReasoningDefault(props: ModelReasoningProps & { onConfigure
     ? model['defaultReasoningEffort']
     : levels.includes('high') ? 'high' : defaultLevels.find(id => levels.includes(id)) ?? ''
   return <div className={styles['modelReasoningCell']}>
-    <span className={styles['modelMobileLabel']}>{t('modelReasoning')}</span>
+    <span className={styles['modelMobileLabel']}>{t('modelReasoning')}
+      {props.showHelp === true && <FieldHelp title={t('modelReasoning')} text={t('modelDefaultReasoningHelp')} t={t} />}
+    </span>
     <Menu open={open} portal autoFocus selectedId={value}
       className={styles['catalogPicker']} listClassName={styles['reasoningMenu']}
       items={[
@@ -54,6 +59,7 @@ export function ModelReasoningDefault(props: ModelReasoningProps & { onConfigure
       anchor={<button type="button" className={`${styles['catalogTrigger']} ${styles['reasoningTrigger']}`}
         aria-label={`${t('modelReasoning')} ${String(position)}`} aria-haspopup="menu" aria-expanded={open}
         disabled={disabled} onClick={() => { setOpen(current => !current) }}>
+        {props.showHelp === true && <IconThinkOutlineRegular size={16} />}
         <span>{value === '' ? t('reasoningSelectEffort') : reasoningLabel(value, t, inherited)}</span>
         <IconChevronDownOutlineRegular size={14} />
       </button>} />
@@ -93,7 +99,9 @@ export function ModelReasoningCapabilities(props: ModelReasoningProps): ReactNod
   const issue = validateModelReasoning(model, direct)
   return <section className={styles['modelReasoningCapabilities']} tabIndex={-1} data-reasoning-editor={position}
     aria-label={`${t('reasoningSupported')} ${String(position)}`}>
-    <div className={styles['modelFieldLabel']}>{t('reasoningSupported')}</div>
+    <div className={styles['modelFieldLabel']}>{t('reasoningSupported')}
+      {props.showHelp === true && <FieldHelp title={t('reasoningSupported')} text={t('modelSupportedReasoningHelp')} t={t} />}
+    </div>
     <div className={styles['reasoningChips']}>
       {visibleLevels.map(id =>
         <button key={id} type="button" className={styles['reasoningChip']}

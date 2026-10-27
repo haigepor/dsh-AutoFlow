@@ -1,0 +1,26 @@
+- heading "模型与连接" [level=1]
+- paragraph: 管理提供商、认证方式与模型目录。
+- button "添加模型提供商"
+- tablist "模型设置导航":
+  - tab "模型目录"
+  - tab "提供商" [selected]
+  - tab "ChatGPT 订阅"
+- tabpanel "提供商":
+  - heading "提供商 2" [level=2]
+  - paragraph: 管理模型提供商的连接和凭证。
+  - article "DeepSeek":
+    - heading "DeepSeek" [level=3]
+    - code: deepseek-official
+    - paragraph: 2 个模型
+    - paragraph: API 密钥缺失
+    - button "编辑 DeepSeek (deepseek-official)": 提供商配置
+    - button "清除 DeepSeek (deepseek-official) 配置"
+  - article "Fixture Gateway":
+    - heading "Fixture Gateway" [level=3]
+    - code: fixture-gateway
+    - text: 自定义
+    - paragraph: 3 个模型
+    - paragraph: 由提供商管理认证
+    - button "编辑 Fixture Gateway (fixture-gateway)": 提供商配置
+    - button "删除 Fixture Gateway (fixture-gateway)"
+- button "打开配置文件"

@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { IconPlusOutlineRegular, IconTrashOutlineRegular, Switch, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPlusOutlineRegular, IconTrashOutlineRegular, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { FieldHelp } from './FieldHelp.tsx'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import { modelDrafts } from './DeepSeekModelsEditor.tsx'
 import type { ModelsKey } from './locales.ts'
@@ -164,9 +165,7 @@ export function ModelReasoningEfforts({ model, levels, position, disabled, t, on
       <div className={styles['modelReasoningHead']}>
         <span className={`${styles['modelFieldLabel']} ${styles['modelReasoningLabel']}`}>
           {t('modelReasoning')}
-          <Tooltip label={t('modelReasoningHelpText')} side="right" delayMs={0} focusDelayMs={0} portal openOnClick>
-            <button type="button" className={styles['helpButton']} aria-label={t('modelReasoningHelp')}>?</button>
-          </Tooltip>
+          <FieldHelp title={t('modelReasoning')} text={t('modelReasoningHelpText')} label={t('modelReasoningHelp')} t={t} />
         </span>
         <Switch
           checked={entries !== undefined}

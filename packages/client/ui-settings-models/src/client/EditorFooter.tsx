@@ -14,8 +14,11 @@
  */
 
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { Button, IconPlusOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
+import connectStyles from './ProviderConnect.module.css'
 
 /** Props of {@link EditorFooter}. */
 export interface EditorFooterProps {
@@ -31,6 +34,12 @@ export interface EditorFooterProps {
   submitBusyLabelKey: keyof typeof en
   /** Dismiss label; defaults to the settings editor copy. */
   cancelLabelKey?: keyof typeof en
+  /** Show the provider-setup footer guidance and spacing. */
+  connecting?: boolean
+  /** Page heading that hosts these actions; the card still owns commit state. */
+  actionsTarget?: HTMLElement | null | undefined
+  /** Secondary provider action that remains visible beside the pinned save controls. */
+  leading?: ReactNode
   /** Dismiss the card without committing. */
   onCancel: () => void
   /** Run the card's commit. */
@@ -44,24 +53,26 @@ export interface EditorFooterProps {
  */
 export function EditorFooter(props: EditorFooterProps): ReactNode {
   const { t } = props
-  return (
-    <div className={styles['editorActions']}>
-      <button
-        type="button"
-        className={styles['secondaryButton']}
+  const actions = (
+    <div className={`${styles['editorActions']} ${props.actionsTarget != null ? connectStyles['headerActions'] : props.connecting === true ? connectStyles['footer'] : ''}`}>
+      {props.leading === undefined ? null : <div className={styles['editorSecondaryAction']}>{props.leading}</div>}
+      {props.connecting === true && props.actionsTarget == null && <p>{t('providerFooterHint')}</p>}
+      <Button
+        variant="outline"
         disabled={props.busy}
         onClick={props.onCancel}
       >
         {t(props.cancelLabelKey ?? 'cancel')}
-      </button>
-      <button
-        type="button"
-        className={styles['primaryButton']}
+      </Button>
+      <Button
+        variant="primary"
+        icon={props.actionsTarget != null && !props.busy ? <IconPlusOutlineRegular size={16} /> : undefined}
         disabled={props.submitDisabled}
         onClick={props.onSubmit}
       >
         {props.busy ? t(props.submitBusyLabelKey) : t(props.submitLabelKey)}
-      </button>
+      </Button>
     </div>
   )
+  return props.actionsTarget == null ? actions : createPortal(actions, props.actionsTarget)
 }

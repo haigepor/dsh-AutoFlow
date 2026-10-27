@@ -16,6 +16,8 @@ const css = readFileSync(fileURLToPath(new URL('../src/client/ModelsSection.modu
 // Every theme sheet, not just the platform tokens: font and scrollbar
 // variables are declared in siblings, and a gate reading one file would call
 // their names undeclared.
+const directoryCss = readFileSync(fileURLToPath(new URL('../src/client/ModelsDirectory.module.css', import.meta.url)), 'utf8')
+const connectCss = readFileSync(fileURLToPath(new URL('../src/client/ProviderConnect.module.css', import.meta.url)), 'utf8')
 const tokens = readdirSync(fileURLToPath(new URL('../../ui-theme/src/styles/', import.meta.url)))
   .filter(name => name.endsWith('.css'))
   .map(name => readFileSync(fileURLToPath(new URL(`../../ui-theme/src/styles/${name}`, import.meta.url)), 'utf8'))
@@ -38,7 +40,7 @@ describe('ModelsSection theme styles', () => {
     // Every theme-variable prefix the sheets actually use, not just `--dsw-`:
     // a `--dsh-` name reads as a plausible sibling and would otherwise slip
     // past this gate into a fallback literal.
-    const named = [...css.matchAll(/var\((--(?:dsw|dsh|ds)-[a-z0-9-]+)/g)].map(match => match[1])
+    const named = [...`${css}\n${directoryCss}\n${connectCss}`.matchAll(/var\((--(?:dsw|dsh|ds)-[a-z0-9-]+)/g)].map(match => match[1])
     const undeclared = [...new Set(named)].filter(name => !`${tokens}\n${layoutTokens}\n${css}`.includes(`  ${String(name)}:`))
     expect(undeclared).toEqual([])
     expect(css).not.toMatch(/var\(--(?:surface|text-|border|accent-strong)/)
@@ -58,11 +60,6 @@ describe('ModelsSection theme styles', () => {
     expect(block('.editor')).toContain('background: var(--dsw-alias-bg-module-platform)')
     expect(block('.rowCard')).toContain('background: var(--dsw-specific-menu)')
     expect(block('.rowCard')).toContain('backdrop-filter: var(--dsw-menu-backdrop-filter)')
-  })
-
-  it('distinguishes the selected provider from hover with the active sidebar color', () => {
-    expect(block('.railProviderActive')).toContain('background: var(--dsw-specific-sidebar-nav-item-active)')
-    expect(css).toMatch(/\.railProviderActive:hover:not\(:disabled\) \{\s*background: var\(--dsw-specific-sidebar-nav-item-active\);/s)
   })
 
   it('gives every dropdown the shared chevron instead of the OS arrow', () => {

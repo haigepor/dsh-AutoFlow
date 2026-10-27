@@ -9,7 +9,7 @@
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {
-  CredentialInfo, LlmConfigurableProvider, LlmNativeAuth, LlmProviderInfo, SettingsNamespaceView,
+  CredentialInfo, LlmConfigurableProvider, LlmDiscoveredModel, LlmNativeAuth, LlmProviderInfo, SettingsNamespaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -77,6 +77,10 @@ export function joinProviderDirectory(
 
 /** One provider row the page renders. */
 export interface ProviderRow {
+  /** Installed or account model metadata; requested only by the model directory. */
+  catalogModels?: readonly LlmDiscoveredModel[]
+  /** Catalog enrichment failure, without discarding editable configuration. */
+  catalogError?: string
   /** Account route has usable credentials for the configured inference origin. */
   accountAvailable?: boolean
   /** The directory entry (route id, display name, settings address, live state). */
@@ -190,6 +194,7 @@ export class ModelsSettingsStore {
 
   /** Latest load wins; an older response never overwrites a newer one. */
   private generation = 0
+  private modelsRequested = false
   /** Callers follow the current refresh's outcome, including callers whose read was superseded. */
   private readonly pendingLoads = new Set<PromiseWithResolvers<void>>()
 
@@ -227,6 +232,40 @@ export class ModelsSettingsStore {
       },
     )
     return pending.promise
+  }
+
+  /**
+   * Include installed model metadata in this surface's subsequent refreshes.
+   * @returns resolution after the enriched snapshot is published.
+   */
+  async loadModels(): Promise<void> {
+    if (this.modelsRequested) return
+    this.modelsRequested = true
+    const snapshot = this.store.getSnapshot()
+    if (snapshot.status === 'idle' || snapshot.status === 'loading') return this.load()
+    if (snapshot.status !== 'ready') return
+    const generation = this.generation
+    const rows = snapshot.rows.map(row => ({ ...row }))
+    await this.enrichModels(rows)
+    if (generation === this.generation) this.store.update((state) => { state.rows = rows })
+  }
+
+  /** Resolve installed metadata independently from endpoint discovery. */
+  private async enrichModels(rows: ProviderRow[]): Promise<void> {
+    await Promise.all(rows.map(async (row) => {
+      if (!row.configured || row.entry.settingsNs !== 'llm-pi-ai' && row.entry.provider !== 'autoflow-codex' || row.entry.declared === true) return
+      // 仅查询适配器内置目录；自定义端点由用户在编辑器中主动读取。
+      try {
+        const result = await this.ctx.remote.llm.discoverModels(row.entry.settingsNs, { provider: row.entry.provider })
+        if (result.ok) {
+          row.catalogModels = result.value
+          if (row.entry.provider === 'autoflow-codex') row.accountAvailable = result.value.length > 0
+        }
+        else row.catalogError = result.error.message
+      } catch (error: unknown) {
+        row.catalogError = error instanceof Error ? error.message : String(error)
+      }
+    }))
   }
 
   /** Publish one joined answer; stale answers leave the current refresh in charge. */
@@ -272,9 +311,16 @@ export class ModelsSettingsStore {
       for (const row of rows) {
         if (row.entry.provider === 'deepseek-account') row.accountAvailable = catalog.ok
           && catalog.value.groups.some(group => group.id === 'deepseek-account' && group.models.length > 0)
+        if (row.entry.provider === 'deepseek-account' && catalog.ok) {
+          row.catalogModels = catalog.value.groups.find(group => group.id === row.entry.provider)?.models
+            .map(model => ({ id: model.id, name: model.name })) ?? []
+        }
       }
     }
-    const refs = [...new Set(rows.filter(row => row.entry.provider !== 'deepseek-account').flatMap(row =>
+    if (this.modelsRequested) {
+      await this.enrichModels(rows)
+    }
+    const refs = [...new Set(rows.filter(row => row.entry.provider !== 'deepseek-account' && row.entry.provider !== 'autoflow-codex').flatMap(row =>
       row.apiKeyEnv === undefined ? [deriveKeyRef(row.entry.provider), ...row.entry.nativeAuth?.env ?? []] : [row.apiKeyEnv]))]
     const credentials: Record<string, CredentialInfo> = {}
     let credentialError: string | null = null
@@ -343,7 +389,7 @@ export class ModelsSettingsStore {
  */
 export function providerUsable(row: ProviderRow): boolean {
   if (!row.entry.active) return false
-  if (row.entry.provider === 'deepseek-account') return row.accountAvailable === true
+  if (row.entry.provider === 'deepseek-account' || row.entry.provider === 'autoflow-codex') return row.accountAvailable === true
   if (row.apiKeyEnv === undefined) return true
   return row.credential?.configured === true
 }

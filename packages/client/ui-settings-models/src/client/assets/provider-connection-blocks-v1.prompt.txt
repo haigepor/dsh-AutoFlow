@@ -1,0 +1,11 @@
+Generated with the built-in image_gen tool. Transparent alpha retained; resized to WebP for the settings UI.
+Reference asset: the generated provider-directory-whale-maid-v1 illustration, before WebP downscaling.
+
+Use case: illustration-story
+Asset type: tiny transparent decorative bitmap for model-provider cards, visible at 72 CSS pixels.
+Primary request: a compact trio of small white-and-cobalt rounded service blocks joined by two short blue cables, matching the service blocks and the hand-drawn style of the reference.
+Input image: visual style and object reference only. Reuse the white/cobalt blocks and cable language of this mascot artwork; do not include the character, face, hands, clothing, hair, tail, or any person.
+Style: simple 2D outlined illustration, navy outlines, restrained cel shading with small cyan highlights, matte white faces and cobalt connectors; no photorealism or 3D render.
+Composition: three small blocks arranged in a compact, low triangular grouping, with one blue socket on each. Square canvas with generous transparent space around the grouping. Clear silhouette at small size, minimal detail.
+Backdrop: genuinely transparent alpha; isolated objects, no backdrop, no floor or cast shadow.
+Avoid: text, letters, branding, faces, people, gradients in background, sparkles, arrows, UI frames, watermarks, glossy 3D rendering.

@@ -17,16 +17,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { LlmDiscoveredModel } from '@deepseek-ai/dsh-api-remotes/client'
-import { Button, IconPlusOutlineRegular, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutlineRegular, IconRefreshOutlineRegular, Modal, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
 import type { ModelsOperations } from './operations.ts'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import type { en } from './locales.ts'
 import { ModelRow } from './ModelRow.tsx'
+import { ProviderModelTable } from './ProviderModelTable.tsx'
 import type { ModelReasoningOptions } from './model-reasoning.ts'
 import { ModelCatalogHeading } from './ModelCatalogHeading.tsx'
 import { useModelReorder } from './useModelReorder.ts'
 import styles from './ModelsSection.module.css'
+import connectStyles from './ProviderConnect.module.css'
+import emptyArtwork from './assets/provider-empty-whale-maid-v1.webp'
 
 /**
  * One configured model row. Fields this card does not edit must survive an
@@ -66,6 +69,14 @@ export interface ProbeTarget {
 
 /** Props of {@link ModelListEditor}. */
 export interface ModelListEditorProps {
+  /** Compact provider-setup catalog; inherited previews never materialize an override. */
+  connecting?: boolean
+  /** Context-specific, locale-owned guidance while the list has no models. */
+  emptyMessage?: string
+  /** Show a single record while changes still replace the complete array. */
+  onlyIndex?: number | undefined
+  /** Installed metadata already loaded by the owning surface. */
+  catalogModels?: readonly LlmDiscoveredModel[] | undefined
   /** Schema-owned effort vocabulary and protocol options. */
   reasoningOptions?: ModelReasoningOptions | undefined
   /** The rows as currently drafted. */
@@ -176,7 +187,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     models: readonly LlmDiscoveredModel[]
   } | undefined>(undefined)
   useEffect(() => {
-    if (catalogProvider === undefined) return
+    if (catalogProvider === undefined || props.catalogModels !== undefined) return
     let current = true
     void operations.discoverModels(probe.settingsNs, { provider: catalogProvider }).then((answer) => {
       if (!current) return
@@ -184,8 +195,8 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
       setFailure(answer.kind === 'refused' ? answer.message : undefined)
     })
     return () => { current = false }
-  }, [catalogProvider, operations, probe.settingsNs])
-  const catalog = inheritedCatalog?.provider === catalogProvider ? inheritedCatalog?.models : undefined
+  }, [catalogProvider, operations, probe.settingsNs, props.catalogModels])
+  const catalog = inheritedCatalog?.provider === catalogProvider ? inheritedCatalog?.models : props.catalogModels
   const inputDefaults = useMemo(() => new Map(catalog?.map(model => [model.id, model.inputModalities])), [catalog])
   const [candidates, setCandidates] = useState<readonly LlmDiscoveredModel[] | undefined>(undefined)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
@@ -342,12 +353,76 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
+  const modelRows = models.map((model, index) => props.onlyIndex !== undefined && index !== props.onlyIndex ? null : (
+    <ModelRow
+      compact={props.connecting === true}
+      key={index}
+      model={model}
+      position={index + 1}
+      total={models.length}
+      {...order.rowProps(index)}
+      inputField="input"
+      inputFallback={inputDefaults.get(textOf(model, 'id')) ?? props.defaultInput}
+      inputLoading={catalogProvider !== undefined && catalog === undefined}
+      reasoningOptions={props.reasoningOptions === undefined ? undefined : {
+        ...props.reasoningOptions, formats: probe.api === 'openai-completions' ? props.reasoningOptions.formats : [],
+        inheritedMapping: catalog?.find(entry => entry.id === textOf(model, 'id'))?.reasoningWireValues,
+      }}
+      reasoningInherited={catalog?.find(entry => entry.id === textOf(model, 'id'))?.reasoning}
+      reasoningLevels={props.reasoningLevels}
+      expanded={props.onlyIndex !== undefined || expanded.has(index)}
+      single={props.onlyIndex !== undefined}
+      disabled={disabled}
+      t={t}
+      contextWindow={{
+        value: capacityText(model, index, 'contextWindow'),
+        placeholder: CAPACITY_HINT.contextWindow,
+        onChange: (text) => { editCapacity(index, 'contextWindow', text) },
+        onPreset: (text) => { chooseCapacity(index, 'contextWindow', text) },
+      }}
+      maxTokens={{
+        value: capacityText(model, index, 'maxTokens'),
+        placeholder: CAPACITY_HINT.maxTokens,
+        onChange: (text) => { editCapacity(index, 'maxTokens', text) },
+        onPreset: (text) => { chooseCapacity(index, 'maxTokens', text) },
+      }}
+      onFieldChange={(field, value) => { patch(index, { [field]: value }) }}
+      onChange={(next) => { onChange(models.map((row, at) => at === index ? next : row)) }}
+      onToggle={() => { toggleExpanded(index) }}
+      onRemove={() => {
+        onChange(models.filter((_model, at) => at !== index))
+        setExpanded((current) => {
+          const next = new Set<number>()
+          for (const at of current) {
+            if (at < index) next.add(at)
+            else if (at > index) next.add(at - 1)
+          }
+          return next
+        })
+        setEditing(current => reindexOnRemove(current, index))
+      }}
+    />
+  ))
+
   // A route the adapter already describes answers without an endpoint; only a
   // draft with neither has nothing to ask about.
+  const addAction = props.onlyIndex === undefined ? <button
+    type="button"
+    className={styles['addModelButton']}
+    disabled={disabled}
+    onClick={() => {
+      if (props.connecting === true) setExpanded(current => new Set([...current, models.length]))
+      onChange([...models, newModel('')])
+    }}
+  >
+    <IconPlusOutlineRegular size={14} />
+    {t('addModel')}
+  </button> : null
+
   const askable = probe.provider !== undefined || (probe.baseURL !== undefined && probe.baseURL.length > 0)
   return (
-    <section className={styles['modelCatalog']} aria-label={t('models')}>
-      <div className={styles['modelListHead']}>
+    <section className={`${styles['modelCatalog']} ${props.connecting === true ? connectStyles['catalog'] : ''}`} data-connection={props.connecting === true} aria-label={t('models')}>
+      {props.onlyIndex === undefined && <div className={`${styles['modelListHead']} ${props.connecting === true ? connectStyles['catalogHeading'] : ''}`}>
         <ModelCatalogHeading t={t} overridden={props.overridden} />
         {props.overridden === true && props.onReset !== undefined
           ? (
@@ -363,85 +438,58 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           : null}
         <button
           type="button"
-          className={styles['linkButton']}
+          className={`${styles['linkButton']} ${props.connecting === true ? connectStyles['fetch'] : ''}`}
           disabled={disabled || busy || !askable || props.probeBlocked !== undefined}
           title={props.probeBlocked !== undefined
             ? t(props.probeBlocked)
             : askable ? undefined : t('fetchNeedsBaseUrl')}
           onClick={() => { void fetchModels() }}
         >
-          {busy ? t('fetching') : t('fetchModels')}
+          {props.connecting === true && <IconRefreshOutlineRegular size={14} />}{busy ? t('fetching') : t('fetchModels')}
         </button>
-      </div>
-      {models.length === 0 ? <p className={styles['modelEmpty']}>{t('modelsEmpty')}</p> : null}
-      <div className={styles['modelList']} data-model-list>
-        {models.length > 0 ? (
-          <div className={styles['modelTableHead']} aria-hidden="true">
-            <span>{t('modelOrder')}</span>
-            <span>{t('modelId')}</span>
-            <span>{t('modelName')}</span>
-            <span>{t('modelReasoning')}</span>
-            <span>{t('modelActions')}</span>
-          </div>
-        ) : null}
-        {models.map((model, index) => (
-          <ModelRow
-            key={index}
-            model={model}
-            position={index + 1}
-            total={models.length}
-            {...order.rowProps(index)}
-            inputField="input"
-            inputFallback={inputDefaults.get(textOf(model, 'id')) ?? props.defaultInput}
-            inputLoading={catalogProvider !== undefined && catalog === undefined}
-            reasoningOptions={props.reasoningOptions === undefined ? undefined : {
-              ...props.reasoningOptions, formats: probe.api === 'openai-completions' ? props.reasoningOptions.formats : [],
-              inheritedMapping: catalog?.find(entry => entry.id === textOf(model, 'id'))?.reasoningWireValues,
-            }}
-            reasoningInherited={catalog?.find(entry => entry.id === textOf(model, 'id'))?.reasoning}
-            reasoningLevels={props.reasoningLevels}
-            expanded={expanded.has(index)}
-            disabled={disabled}
-            t={t}
-            contextWindow={{
-              value: capacityText(model, index, 'contextWindow'),
-              placeholder: CAPACITY_HINT.contextWindow,
-              onChange: (text) => { editCapacity(index, 'contextWindow', text) },
-              onPreset: (text) => { chooseCapacity(index, 'contextWindow', text) },
-            }}
-            maxTokens={{
-              value: capacityText(model, index, 'maxTokens'),
-              placeholder: CAPACITY_HINT.maxTokens,
-              onChange: (text) => { editCapacity(index, 'maxTokens', text) },
-              onPreset: (text) => { chooseCapacity(index, 'maxTokens', text) },
-            }}
-            onFieldChange={(field, value) => { patch(index, { [field]: value }) }}
-            onChange={(next) => { onChange(models.map((row, at) => at === index ? next : row)) }}
-            onToggle={() => { toggleExpanded(index) }}
-            onRemove={() => {
-              onChange(models.filter((_model, at) => at !== index))
-              setExpanded((current) => {
-                const next = new Set<number>()
-                for (const at of current) {
-                  if (at < index) next.add(at)
-                  else if (at > index) next.add(at - 1)
-                }
-                return next
-              })
-              setEditing(current => reindexOnRemove(current, index))
-            }}
-          />
-        ))}
-      </div>
-      <button
-        type="button"
-        className={styles['addModelButton']}
-        disabled={disabled}
-        onClick={() => { onChange([...models, newModel('')]) }}
-      >
-        <IconPlusOutlineRegular size={14} />
-        {t('addModel')}
-      </button>
+        {props.connecting === true ? addAction : null}
+      </div>}
+      {props.connecting === true ? <>
+        {models.length === 0 && props.overridden === false && <div className={connectStyles['defaultCatalog']}>
+          <p>{t('providerDefaultModels')}{catalog === undefined || catalog.length === 0 ? '' : ` · ${t('providerModelCount').replace('{count}', String(catalog.length))}`}</p>
+        </div>}
+        <ProviderModelTable t={t}>
+          {models.length > 0 ? modelRows : props.overridden === false && catalog !== undefined && catalog.length > 0
+            ? catalog.slice(0, 3).map(model => <tr key={model.id}>
+              <td><div className={connectStyles['previewIdentity']}>
+                <span>{model.name ?? model.id}</span>
+                {model.name !== undefined && model.name !== model.id && <code>{model.id}</code>}
+              </div></td>
+              <td><div className={connectStyles['compactTags']}>
+                {(model.inputModalities ?? ['text']).includes('image') && <Tag tone="info">{t('modelInputImage')}</Tag>}
+                {(model.inputModalities ?? ['text']).includes('text') && <Tag tone="success">{t('modelInputText')}</Tag>}
+              </div></td>
+              <td className={connectStyles['tableCapacity']}>{model.contextWindow === undefined ? t('directoryInherited') : formatCapacity(model.contextWindow)}</td>
+              <td><span className={connectStyles['inherited']}>{t('directoryInherited')}</span></td>
+            </tr>)
+            : <tr><td colSpan={4} className={connectStyles['tableEmpty']}>
+              {props.overridden === false ? t('modelsInherited') : <div className={connectStyles['emptyContent']}>
+                <img src={emptyArtwork} width={80} height={80} alt="" aria-hidden="true" draggable={false} />
+                <p>{props.emptyMessage ?? t('modelsEmpty')}</p>
+              </div>}
+            </td></tr>}
+        </ProviderModelTable>
+      </> : <>
+        {models.length === 0 && <p className={styles['modelEmpty']}>{props.emptyMessage ?? t('modelsEmpty')}</p>}
+        <div className={styles['modelList']} data-model-list>
+          {models.length > 0 && props.onlyIndex === undefined ? (
+            <div className={styles['modelTableHead']} aria-hidden="true">
+              <span>{t('modelOrder')}</span>
+              <span>{t('modelId')}</span>
+              <span>{t('modelName')}</span>
+              <span>{t('modelReasoning')}</span>
+              <span>{t('modelActions')}</span>
+            </div>
+          ) : null}
+          {modelRows}
+        </div>
+      </>}
+      {props.connecting === true ? null : addAction}
       {failure !== undefined ? <p className={styles['error']}>{failure}</p> : null}
       <Modal
         open={candidates !== undefined}
