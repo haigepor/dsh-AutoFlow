@@ -1,0 +1,16 @@
+{
+  "width": 192,
+  "height": 192,
+  "frames": 68,
+  "durationMs": 2400,
+  "fps": 31.25,
+  "loop": 0,
+  "alpha": true,
+  "stages": [
+    "scan-in",
+    "scan-across",
+    "palette",
+    "return"
+  ],
+  "reducedMotion": "analysis-status-poster-v2.webp"
+}

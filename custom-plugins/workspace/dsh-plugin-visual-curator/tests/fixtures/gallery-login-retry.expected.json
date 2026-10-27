@@ -1,0 +1,10 @@
+{
+  "paused": "retry-paused",
+  "pausedAttempt": 2,
+  "curlExitCode": 56,
+  "resumed": "validating",
+  "final": "saved",
+  "attempts": 3,
+  "credentialWrites": 1,
+  "closedWindows": 1
+}

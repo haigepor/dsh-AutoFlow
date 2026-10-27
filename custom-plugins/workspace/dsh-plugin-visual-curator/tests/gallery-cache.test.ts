@@ -24,6 +24,19 @@ test('fresh listings survive cache reconstruction and explicit refresh performs 
   next.dispose()
 })
 
+test('a legacy direct-image cache cannot hide freshly projected Host preview paths after upgrade', async () => {
+  const saved = storage(), owner = context(), base = JSON.stringify(['gallery-collections', 'a', null, null])
+  saved.setItem('visual-curator.gallery-cache.v1', JSON.stringify({ identity: JSON.stringify([owner.namespace, owner.revision, owner.accounts]), entries: [{ key: JSON.stringify([base, null]), base, at: 1, value: page('old-direct') }] }))
+  let reads = 0
+  const current = { items: [{ ...page('current').items[0]!, coverUrl: 'https://images.unsplash.com/photo', coverPath: '/api/visual-curator/resource?galleryUrl=photo' }], nextCursor: null }
+  const cache = createGalleryCache({ context, storage: saved, now: () => 1, read: async () => { reads++; return current } })
+  try {
+    assert.deepEqual(await cache.read('gallery-collections', { accountId: 'a' }, new AbortController().signal), current)
+    assert.equal(reads, 1)
+    assert.equal(saved.values.has('visual-curator.gallery-cache.v1'), false)
+  } finally { cache.dispose() }
+})
+
 test('an explicit gallery refresh requests a fresh Host identity check without persisting that flag', async () => {
   const args: import('../src/client/contract.ts').ActionArgs[] = []
   const cache = createGalleryCache({ context, read: async (_operation, value) => { args.push(value); return page('folder') } })
@@ -69,7 +82,7 @@ test('a late response after all subscribers cancel cannot populate the next read
   await Promise.resolve();assert.deepEqual(await cache.read('gallery-collections',{},new AbortController().signal),page('current'));assert.equal(calls,2);cache.dispose()
 })
 test('oversized, corrupt storage, rejected reads and non-list operations are never cached', async () => {
-  const saved=storage(); saved.values.set('visual-curator.gallery-cache.v1','invalid JSON')
+  const saved=storage(); saved.values.set('visual-curator.gallery-cache.v2','invalid JSON')
   let calls=0
   const cache=createGalleryCache({context,storage:saved,read:async operation=>{calls++;if(operation==='gallery-collections')throw new Error('offline');return {accountId:'a'}}})
   const signal=new AbortController().signal

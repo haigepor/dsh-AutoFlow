@@ -13,6 +13,7 @@ import { connectGalleryLogin, withGalleryAccount } from '../src/client/gallery-l
 import { z } from 'zod'
 import { chromium } from 'playwright-core'
 import { launchGalleryLogin } from '../src/host/gallery-login-browser.ts'
+import { CurlRequestError } from '../src/media/unsplash-transport.ts'
 
 test('login capture starts at navigation commit and ignores anonymous website cookies', async () => {
   const lifetime = new AbortController(), settings = config()
@@ -42,7 +43,7 @@ test('login capture starts at navigation commit and ignores anonymous website co
 })
 
 const owner = 'profile-owner'
-const config = () => resolveConfig({ source: { unsplash: { login: { timeoutMs: 5000, pollIntervalMs: 1 } } } })
+const config = () => resolveConfig({ source: { unsplash: { login: { timeoutMs: 5000, pollIntervalMs: 1, retryDelayMs: 1 } } } })
 const identity = { userId: 'person-a', username: 'person_a', name: 'Person A', totalCollections: 1 }
 const fixture = (options: { me?: () => Promise<typeof identity>; opening?: Promise<void> } = {}) => {
   const closed = new AbortController(), lifetime = new AbortController(), stored: string[] = []
@@ -55,6 +56,13 @@ const fixture = (options: { me?: () => Promise<typeof identity>; opening?: Promi
 const settled = async (f: ReturnType<typeof fixture>, id: string) => {
   for (let count = 0; count < 100; count++) { const view = f.logins.status(id, owner); if (['ready', 'failed', 'cancelled'].includes(view.state)) return view; await setImmediate() }
   assert.fail('Sign-in did not settle')
+}
+const waitForLogin = async (f: ReturnType<typeof fixture>, id: string, state: string) => {
+  for (;;) {
+    const view = f.logins.status(id, owner)
+    if (view.state === state || view.state === 'failed' || view.state === 'cancelled') return view
+    await new Promise(resolve => setTimeout(resolve, 1))
+  }
 }
 
 test('Client publishes changed login progress instead of re-rendering unchanged polling replies', async () => {
@@ -86,6 +94,99 @@ test('website access checks remain visible until account validation succeeds', {
     assert.equal(ready.state, 'ready')
     assert.equal(ready.errorCode, undefined)
   } finally { complete?.(identity); await f.logins.dispose() }
+})
+
+test('temporary validation failures retry in the same login window before credentials can be saved', { timeout: 10000 }, async () => {
+  let attempts = 0
+  const f = fixture({ me: async () => {
+    if (++attempts === 1) throw new MediaError('source-network-failed', 'gallery', true, 'Temporary network failure', 'Retry')
+    return identity
+  } })
+  Object.assign(f.settings.source.unsplash.login, { validationTimeoutMs: 1000, maxValidationAttempts: 3, retryDelayMs: 1 })
+  const view = f.logins.start({ operationId: 'transient-network' }, owner)
+  try {
+    let current = f.logins.status(view.id, owner)
+    while (!['ready', 'failed', 'cancelled'].includes(current.state)) {
+      await new Promise(resolve => setTimeout(resolve, 1))
+      current = f.logins.status(view.id, owner)
+    }
+    assert.equal(current.state, 'ready')
+    assert.equal(attempts, 2)
+    assert.equal(f.closeCount, 1)
+    assert.deepEqual(f.stored, [])
+    await f.logins.finish(view.id, owner)
+    assert.equal(f.stored.length, 1)
+  } finally { await f.logins.dispose() }
+})
+
+test('exhausted retries pause without losing the window and an owned manual retry saves the verified session', { timeout: 10000 }, async () => {
+  let recovered = false, attempts = 0
+  const f = fixture({ me: async () => {
+    attempts++
+    if (!recovered) throw new CurlRequestError(56)
+    return identity
+  } })
+  f.settings.source.unsplash.login.maxValidationAttempts = 2
+  const view = f.logins.start({ operationId: 'pause-and-retry' }, owner)
+  try {
+    const paused = await waitForLogin(f, view.id, 'retry-paused')
+    assert.equal(paused.state, 'retry-paused')
+    assert.equal(attempts, 2)
+    assert.equal(paused.validation?.curlExitCode, 56)
+    assert.deepEqual(f.stored, [])
+    assert.equal(f.closeCount, 0)
+    await assert.rejects(f.logins.finish(view.id, owner), { code: 'source-network-failed' })
+    assert.throws(() => f.logins.retry(view.id, 'other-owner'), { code: 'owner-denied' })
+    recovered = true
+    const resumed = f.logins.retry(view.id, owner)
+    f.logins.retry(view.id, owner)
+    assert.equal((await waitForLogin(f, view.id, 'ready')).state, 'ready')
+    await f.logins.finish(view.id, owner)
+    const summary = { paused: paused.state, pausedAttempt: paused.validation?.attempt, curlExitCode: paused.validation?.curlExitCode, resumed: resumed.state, final: f.logins.status(view.id, owner).state, attempts, credentialWrites: f.stored.length, closedWindows: f.closeCount }
+    assert.deepEqual(summary, JSON.parse(await readFile(new URL('./fixtures/gallery-login-retry.expected.json', import.meta.url), 'utf8')))
+  } finally { await f.logins.dispose() }
+})
+
+test('per-verification deadline retries without consuming the entire login lifetime', { timeout: 10000 }, async () => {
+  let attempts = 0, aborted = false
+  const f = fixture()
+  f.settings.source.unsplash.login.validationTimeoutMs = 10
+  const logins = new GalleryLogins(f.settings, f.lifetime.signal, async () => ({ closed: f.closed.signal, cookie: async () => 'un_sesh=deadline-fixture', close: async () => {} }), async (_cookie, signal) => {
+    if (++attempts > 1) return identity
+    return await new Promise((_, reject) => { signal.addEventListener('abort', () => { aborted = true; reject(signal.reason) }, { once: true }) })
+  }, async () => {})
+  const view = logins.start({ operationId: 'verification-deadline' }, owner)
+  try {
+    const current = await waitForLogin({ ...f, logins }, view.id, 'ready')
+    assert.equal(current.state, 'ready')
+    assert.equal(attempts, 2)
+    assert.equal(aborted, true)
+  } finally { await logins.dispose(); await f.logins.dispose() }
+})
+
+test('cancel drains a paused verification and never restarts it or writes credentials', { timeout: 10000 }, async () => {
+  const f = fixture({ me: async () => { throw new CurlRequestError(7) } })
+  f.settings.source.unsplash.login.maxValidationAttempts = 1
+  const view = f.logins.start({ operationId: 'cancel-paused' }, owner)
+  try {
+    assert.equal((await waitForLogin(f, view.id, 'retry-paused')).state, 'retry-paused')
+    assert.equal((await f.logins.cancel(view.id, owner)).state, 'cancelled')
+    assert.equal(f.logins.retry(view.id, owner).state, 'cancelled')
+    assert.deepEqual(f.stored, [])
+    assert.equal(f.closeCount, 1)
+  } finally { await f.logins.dispose() }
+})
+
+test('certificate failures stop verification instead of retrying an untrusted connection', async () => {
+  let attempts = 0
+  const f = fixture({ me: async () => { attempts++; throw new CurlRequestError(60) } })
+  const view = f.logins.start({ operationId: 'invalid-certificate' }, owner)
+  try {
+    assert.equal((await settled(f, view.id)).errorCode, 'source-tls-failed')
+    assert.equal(attempts, 1)
+    assert.deepEqual(f.stored, [])
+    assert.equal(f.closeCount, 1)
+  } finally { await f.logins.dispose() }
 })
 
 test('captured website session is validated and stored without exposing it in status or finish data', async () => {
@@ -224,6 +325,41 @@ test('workbench website login uses the authenticated Host route and returns only
     assert.ok(history.includes('ready'))
     await assert.rejects(f.service.action({ operation: 'gallery-login-start', args: { revision: configRevision(f.service.config), operationId: 'agent-login' } }, { kind: 'agent', id: 'agent', profileId: f.profileId, sessionId: 'other' }, new AbortController().signal), { code: 'owner-denied' })
     await assert.rejects(f.action('gallery-login-start', { revision: 'old-revision', operationId: 'stale-login' }), { code: 'revision-conflict' })
+  } finally { await f.cleanup() }
+})
+
+test('authenticated retry route resumes a paused login and preserves the identity verification deadline', { timeout: 10000 }, async () => {
+  let recovered = false, writes = 0
+  const deadlines: number[] = []
+  const f = await serviceFixture(undefined, { requestTimeoutMs: 180000 }, {
+    launchGalleryLogin: async () => ({ closed: new AbortController().signal, cookie: async () => 'un_sesh=route-fixture', close: async () => {} }),
+    galleryApi: async () => new UnsplashApi({ request: async (_path, _params, bounds) => {
+      deadlines.push(bounds.timeoutMs)
+      if (!recovered) throw new CurlRequestError(56)
+      return { id: identity.userId, username: identity.username, name: identity.name, total_collections: 1 }
+    } }),
+  }, { unsplash: config().source.unsplash })
+  f.service.config.source.unsplash.login.maxValidationAttempts = 1
+  f.service.config.source.unsplash.login.validationTimeoutMs = 1234
+  f.host.credentials.set = async () => { writes++ }
+  await f.service.initialize()
+  const read = async (operation: string, args: Record<string, import('../src/shared/model.ts').Json>) => {
+    const response = await f.service.gallery(new Request('https://owner.example/api/visual-curator/gallery', { method: 'POST', body: JSON.stringify({ operation, args }) }))
+    return z.object({ ok: z.literal(true), value: z.object({ id: z.string(), state: z.string() }).passthrough() }).parse(await response.json()).value
+  }
+  try {
+    let view = await read('gallery-login-start', { revision: configRevision(f.service.config), operationId: 'route-retry' })
+    while (!['retry-paused', 'failed'].includes(view.state)) { await setImmediate(); view = await read('gallery-login-status', { loginId: view.id }) }
+    assert.equal(view.state, 'retry-paused')
+    assert.equal(writes, 0)
+    recovered = true
+    assert.equal((await read('gallery-login-retry', { loginId: view.id })).state, 'validating')
+    while (view.state !== 'ready') { await setImmediate(); view = await read('gallery-login-status', { loginId: view.id }) }
+    const finished = await f.service.gallery(new Request('https://owner.example/api/visual-curator/gallery', { method: 'POST', body: JSON.stringify({ operation: 'gallery-login-finish', args: { loginId: view.id } }) }))
+    assert.equal(finished.status, 200)
+    assert.equal(writes, 1)
+    assert.deepEqual(deadlines, [1234, 1234])
+    await assert.rejects(f.service.action({ operation: 'gallery-login-retry', args: { loginId: view.id } }, { kind: 'agent', id: 'agent', profileId: f.profileId, sessionId: 'other' }, new AbortController().signal), { code: 'owner-denied' })
   } finally { await f.cleanup() }
 })
 

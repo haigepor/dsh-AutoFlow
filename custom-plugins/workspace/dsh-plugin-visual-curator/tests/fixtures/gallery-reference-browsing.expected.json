@@ -1,0 +1,4 @@
+{
+  "browse": { "calls": [null], "continuation": "second", "photos": ["first"] },
+  "resume": { "calls": ["second", "third", "third"], "continuation": null, "photos": ["first", "second", "third"] }
+}

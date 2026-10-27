@@ -12,6 +12,53 @@ import { UnsplashApi } from '../src/media/unsplash.ts'
 
 const photo = (id: string): GalleryPhoto => ({ id: brandString<GalleryPhotoId>(id), title: id, width: 20, height: 10, thumbnailUrl: 'https://images.unsplash.com/preview', referenceUrl: 'https://images.unsplash.com/ref', pageUrl: '', photographer: '', photographerUrl: '', premium: false })
 
+test('a temporary later-page timeout retries its continuation without losing or republishing earlier selections', async () => {
+  const calls: (string | null)[] = [], snapshots: string[][] = []
+  let failed = false
+  const result = await readCollectionPhotos(async cursor => {
+    calls.push(cursor)
+    if (cursor === 'page-13' && !failed) { failed = true; throw Object.assign(new Error('timeout'), { code: 'source-request-timeout', retryable: true }) }
+    return { items: [photo(cursor === 'page-13' ? 'next' : 'last')], nextCursor: cursor === 'page-13' ? 'page-14' : null }
+  }, { maxFiles: 100, initialPhotos: [photo('retained')], cursor: 'page-13', signal: new AbortController().signal, retry: { attempts: 1, delayMs: 0 }, onPage: photos => snapshots.push(photos.map(item => item.id)) })
+  assert.deepEqual(calls, ['page-13', 'page-13', 'page-14'])
+  assert.deepEqual(snapshots, [['retained', 'next'], ['retained', 'next', 'last']])
+  assert.deepEqual(result.map(item => item.id), ['retained', 'next', 'last'])
+})
+
+test('cancelling a collection retry delay stops immediately without sending another page request', async () => {
+  const controller = new AbortController()
+  let entered = () => {}, calls = 0
+  const started = new Promise<void>(resolve => { entered = resolve })
+  const pending = readCollectionPhotos(async () => { calls++; entered(); throw Object.assign(new Error('timeout'), { code: 'source-request-timeout', retryable: true }) }, { maxFiles: 10, signal: controller.signal, retry: { attempts: 2, delayMs: 10000 } })
+  await started; controller.abort()
+  await assert.rejects(pending, { name: 'AbortError' })
+  assert.equal(calls, 1)
+})
+
+test('browsing a collection reads one page and leaves the remaining pages for an explicit request', async () => {
+  const calls: (string | null)[] = []
+  let continuation: string | null = null
+  const first = await readCollectionPhotos(async cursor => { calls.push(cursor); return { items: [photo(cursor ?? 'first')], nextCursor: cursor ? null : 'second' } }, {
+    maxFiles: 10, signal: new AbortController().signal, stopAfterPage: true,
+    onPage: (_photos, cursor) => { continuation = cursor },
+  })
+  assert.deepEqual({ calls, continuation, photos: first.map(item => item.id) }, JSON.parse(await readFile(new URL('./fixtures/gallery-reference-browsing.expected.json', import.meta.url), 'utf8')).browse)
+})
+
+test('a failed later page resumes from its cursor while preserving the validated prefix', async () => {
+  const calls: (string | null)[] = []
+  let kept = [photo('first')], continuation: string | null = 'second'
+  const observe = (photos: GalleryPhoto[], cursor: string | null) => { kept = photos; continuation = cursor }
+  await assert.rejects(readCollectionPhotos(async cursor => {
+    calls.push(cursor)
+    if (cursor === 'third') throw Object.assign(new Error('timeout'), { code: 'source-request-timeout' })
+    return { items: [photo('second')], nextCursor: 'third' }
+  }, { maxFiles: 10, signal: new AbortController().signal, initialPhotos: kept, cursor: continuation, onPage: observe }), { code: 'source-request-timeout' })
+  assert.deepEqual(kept.map(item => item.id), ['first', 'second'])
+  const complete = await readCollectionPhotos(async cursor => { calls.push(cursor); return { items: [photo('third')], nextCursor: null } }, { maxFiles: 10, signal: new AbortController().signal, initialPhotos: kept, cursor: continuation, onPage: observe })
+  assert.deepEqual({ calls, continuation, photos: complete.map(item => item.id) }, JSON.parse(await readFile(new URL('./fixtures/gallery-reference-browsing.expected.json', import.meta.url), 'utf8')).resume)
+})
+
 test('collection pages publish validated snapshots before later pages finish without changing the final all-photos result', async () => {
   let release = () => {}, announce = () => {}
   const gate = new Promise<void>(resolve => { release = resolve }), entered = new Promise<void>(resolve => { announce = resolve })
@@ -41,7 +88,7 @@ test('collection search includes later pages, matches titles and photographers a
   assert.deepEqual(filterGalleryPhotos(all,'park ALICE').map(item=>item.id),['last'])
   assert.deepEqual(filterGalleryPhotos(all,'missing'),[]); assert.equal(filterGalleryPhotos(all,''),all)
 })
-test('collection enumeration reads all pages, deduplicates photos and defaults selection independently of preview pages', async () => {
+test('explicit collection enumeration reads all pages and deduplicates photos', async () => {
   const cursors: (string | null)[] = [], counts: number[] = []
   const photos = await readCollectionPhotos(async cursor => {
     cursors.push(cursor)

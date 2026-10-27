@@ -11,10 +11,11 @@ test('large workspace reads use the authenticated data route instead of bounded 
   })
   assert.deepEqual(await transport.invoke('snapshot', {}), largeValue)
   assert.deepEqual(await transport.invoke('run-get', { runId: 'run' }), largeValue)
+  assert.deepEqual(await transport.invoke('run-control', { runId: 'run', command: 'pause' }), largeValue)
   assert.deepEqual(await transport.invoke('export-get', { exportId: 'export' }), largeValue)
   assert.deepEqual(await transport.invoke('style-create', {}), { id: 'created' })
   assert.deepEqual(operations, ['style-create'])
-  assert.deepEqual(paths, Array(3).fill('https://owner.example/dsh/api/visual-curator/data'))
+  assert.deepEqual(paths, Array(4).fill('https://owner.example/dsh/api/visual-curator/data'))
 })
 
 test('data read failures retain safe Host errors and never retry through the action route', async () => {
@@ -31,8 +32,8 @@ test('gallery responses and account validation use an authenticated cancellable 
     action: async () => { throw new Error('Gallery data must not use action text') },
     fetch: async (url, options) => { received.push(String(url)); assert.equal(options?.credentials, 'same-origin'); return Response.json({ ok: true, value: { items: [], nextCursor: null } }) },
   })
-  for (const operation of ['gallery-validate', 'gallery-collections', 'gallery-photos', 'gallery-import', 'gallery-login-start', 'gallery-login-status', 'gallery-login-finish', 'gallery-login-cancel']) await transport.invoke(operation, {})
-  assert.deepEqual(received, Array(8).fill('https://owner.example/api/visual-curator/gallery'))
+  for (const operation of ['gallery-validate', 'gallery-collections', 'gallery-photos', 'gallery-import', 'gallery-login-start', 'gallery-login-status', 'gallery-login-retry', 'gallery-login-finish', 'gallery-login-cancel']) await transport.invoke(operation, {})
+  assert.deepEqual(received, Array(9).fill('https://owner.example/api/visual-curator/gallery'))
 })
 
 test('system picker uses the dedicated route and cancels with its page lifetime', async () => {

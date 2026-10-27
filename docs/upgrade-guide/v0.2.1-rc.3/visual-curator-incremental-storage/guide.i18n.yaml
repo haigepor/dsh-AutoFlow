@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.3/visual-curator-incremental-storage/guide.md
+/:
+  en: 5552a3861064d003
+  zh: 8bc518790f1a9511
+/visual-curator-incremental-storage:
+  en: 329f1c407fad5bd5
+  zh: 4b4fa6ff258a64be
+/visual-curator-incremental-storage/change:
+  en: afc34f3e0caa550c
+  zh: 36ecc8b3481759a9
+/visual-curator-incremental-storage/migration:
+  en: a8f3b8dca53e037c
+  zh: 0cccea6a925934de

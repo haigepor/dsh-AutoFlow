@@ -3,9 +3,62 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveConfig } from '../src/host/config.ts'
 import { UnsplashApi, UnsplashSourceProvider, normalizeCookie } from '../src/media/unsplash.ts'
+import { CurlRequestError, retryCurlRead, curlResolveArgument } from '../src/media/unsplash-transport.ts'
 
 const photo = (id: string) => ({ id, width: 1200, height: 800, urls: { small: `https://images.unsplash.com/${id}?w=400`, regular: `https://images.unsplash.com/${id}?w=1200`, raw: `https://images.unsplash.com/${id}` }, alt_description: 'Green park', links: { html: `https://unsplash.com/photos/${id}` }, user: { name: 'Photographer', username: 'artist' }, premium: false })
 const bounds = { maxBytes: 1_000_000, timeoutMs: 10_000, maxRedirects: 2 }
+
+test('each curl connection receives the complete checked address set including IPv6 and rotated fallback order', () => {
+  const addresses = [{ address: '151.101.65.181', family: 4 }, { address: '151.101.1.181', family: 4 }, { address: '2606:4700::1111', family: 6 }]
+  assert.equal(curlResolveArgument('unsplash.com', addresses, 0), 'unsplash.com:443:151.101.65.181,151.101.1.181,[2606:4700::1111]')
+  assert.equal(curlResolveArgument('unsplash.com', addresses, 1), 'unsplash.com:443:151.101.1.181,[2606:4700::1111],151.101.65.181')
+})
+
+test('transient connection failures advance the read attempt within the configured retry budget', async () => {
+  const attempts: number[] = []
+  const result = await retryCurlRead(async attempt => { attempts.push(attempt); if (!attempt) throw new CurlRequestError(28); return { items: ['ready'] } }, 1, new AbortController().signal)
+  assert.deepEqual({ attempts, result }, { attempts: [0, 1], result: { items: ['ready'] } })
+  let exhausted = 0
+  await assert.rejects(retryCurlRead(async () => { exhausted++; throw new CurlRequestError(7) }, 1, new AbortController().signal), { code: 'source-network-failed' })
+  assert.equal(exhausted, 2)
+  let disabled = 0
+  await assert.rejects(retryCurlRead(async () => { disabled++; throw new CurlRequestError(28) }, 0, new AbortController().signal), { code: 'source-request-timeout' })
+  assert.equal(disabled, 1)
+})
+
+test('certificate failures and caller cancellation never trigger another curl read', async () => {
+  let calls = 0
+  await assert.rejects(retryCurlRead(async () => { calls++; throw new CurlRequestError(60) }, 3, new AbortController().signal), { code: 'source-tls-failed' })
+  assert.equal(calls, 1)
+  const controller = new AbortController()
+  await assert.rejects(retryCurlRead(async () => { controller.abort(); throw new CurlRequestError(28) }, 3, controller.signal), { code: 'source-request-timeout' })
+  let cancelledCalls = 0
+  await assert.rejects(retryCurlRead(async () => { cancelledCalls++; return 'unexpected' }, 1, controller.signal), { name: 'AbortError' })
+  assert.equal(cancelledCalls, 0)
+})
+
+test('login verification has independent validated retry and timeout settings', () => {
+  const settings = resolveConfig({ limits: { requestTimeoutMs: 180000 } })
+  assert.equal(settings.source.unsplash.login.validationTimeoutMs, 20000)
+  assert.equal(settings.source.unsplash.login.maxValidationAttempts, 3)
+  assert.equal(settings.source.unsplash.connectTimeoutMs, 5000)
+  assert.equal(settings.source.unsplash.readRetryAttempts, 1)
+  assert.throws(() => resolveConfig({ source: { unsplash: { connectTimeoutMs: 0 } } }))
+  assert.throws(() => resolveConfig({ source: { unsplash: { readRetryAttempts: -1 } } }))
+  assert.throws(() => resolveConfig({ source: { unsplash: { login: { maxValidationAttempts: 0 } } } }))
+  assert.throws(() => resolveConfig({ source: { unsplash: { login: { validationTimeoutMs: -1 } } } }))
+})
+
+test('curl failure classes distinguish timeouts, DNS, partial responses and certificate failures', () => {
+  assert.equal(new CurlRequestError(28).code, 'source-request-timeout')
+  assert.equal(new CurlRequestError(6).code, 'source-dns-failed')
+  assert.equal(new CurlRequestError(18).code, 'source-response-incomplete')
+  assert.equal(new CurlRequestError(56).retryable, true)
+  assert.equal(new CurlRequestError(60).retryable, false)
+  assert.equal(new CurlRequestError(60).code, 'source-tls-failed')
+  assert.equal(new CurlRequestError(null, true).code, 'source-client-unavailable')
+  assert.equal(new CurlRequestError(2).retryable, false)
+})
 
 test('multiple gallery accounts have distinct credentials and a valid explicit search account', () => {
   const accounts = ['a', 'b'].map(id => ({ id, label: id, credentialRef: `UNSPLASH_${id}`, username: id, userId: id, name: id }))

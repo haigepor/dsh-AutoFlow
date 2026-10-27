@@ -4,7 +4,7 @@ import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
 import type { AssetFiles, HttpClient, RequestBounds } from '../media/index.ts'
 import type { UnsplashApi } from '../media/unsplash.ts'
-import { galleryAccountIdSchema } from '../shared/gallery.ts'
+import { galleryAccountIdSchema, galleryPreviewPath } from '../shared/gallery.ts'
 import { jsonSchema, type DomainActor, type Json } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
 import type { CuratorConfig } from './config.ts'
@@ -40,14 +40,16 @@ export class GalleryService {
     try {
     if (operation === 'gallery-collections') {
       const me = await this.verifyAccount(api, listing.accountId, bounds, listing.refreshIdentity)
-      return toJson({ account: me, ...await api.collections(me.username, listing.cursor, listing.pageSize ?? this.config.limits.pageSize, bounds) })
+      const page = await api.collections(me.username, listing.cursor, listing.pageSize ?? this.config.limits.pageSize, bounds)
+      return toJson({ account: me, ...page, items: page.items.map(folder => ({ ...folder, ...(folder.coverUrl && this.config.source.unsplash.previewTransport === 'host' ? { coverPath: galleryPreviewPath(folder.coverUrl) } : {}) })) })
     }
     if (operation === 'gallery-photos') {
       const { scope } = z.object({ scope: photoScope }).parse(args)
       if (scope.kind !== 'search') await this.verifyAccount(api, listing.accountId, bounds, listing.refreshIdentity)
       const page = await api.photos(scope, listing.cursor, listing.pageSize ?? this.config.limits.pageSize, bounds)
+      // 注册缓存保留原始 CDN 描述，展示路径不能进入引用记录或导出资料。
       this.remote.remember(api, listing.accountId, page.items)
-      return toJson(page)
+      return toJson({ ...page, items: page.items.map(photo => ({ ...photo, ...(this.config.source.unsplash.previewTransport === 'host' ? { thumbnailPath: galleryPreviewPath(photo.thumbnailUrl), previewPath: galleryPreviewPath(photo.referenceUrl) } : {}) })) })
     }
     if (operation === 'gallery-import') {
       const mode = z.enum(['with-bytes', 'remote-reference']).default('with-bytes').parse(args.mode)

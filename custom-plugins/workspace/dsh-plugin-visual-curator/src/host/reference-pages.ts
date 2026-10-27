@@ -25,11 +25,14 @@ export function referencePage(domain: CuratorDomain, args: Record<string, Json>,
     const { asset, image } = domain.authorizedImage(reference.imageVersionId, actor)
     return { imageVersionId: image.id, assetId: asset.id, familyId: asset.familyId, width: image.geometry.width, height: image.geometry.height, kind: image.versionKind,
       previewPath: `/api/visual-curator/resource?imageVersionId=${encodeURIComponent(image.id)}`, name: asset.source.description || asset.id, source: asset.source.kind,
+      ...(image.blob.remoteSource ? { thumbnailPath: `/api/visual-curator/resource?imageVersionId=${encodeURIComponent(image.id)}&preview=thumbnail` } : {}),
       ...(actor.kind === 'human' && image.blob.localSource ? { localPath: image.blob.localSource.path } : {}), exportPermission: asset.exportPermission, groupingStatus: asset.groupingStatus,
       referenceId: reference.id, styleId: style.id, role: reference.role, intent: reference.intent.kind, dimensions: reference.intent.kind === 'dimensions' ? reference.intent.dimensions : [] }
   })
   const next = offset + images.length
-  const endPageToken = Buffer.from(JSON.stringify({ v: 1, styleId: style.id, offset: next, prefixDigest: contentDigest(ids.slice(0, next)) })).toString('base64url')
-  return toJson({ styleId: style.id, revision: style.revision, draftRevision: draft.revision, referenceIds: ids, total: ids.length, counts, images, endPageToken,
-    ...(next < ids.length ? { nextPageToken: Buffer.from(JSON.stringify({ v: 1, styleId: style.id, offset: next, prefixDigest: contentDigest(ids.slice(0, next)) })).toString('base64url') } : {}) })
+  const cursor = (position: number) => Buffer.from(JSON.stringify({ v: 1, styleId: style.id, offset: position, prefixDigest: contentDigest(ids.slice(0, position)) })).toString('base64url')
+  const endPageToken = cursor(next)
+  // 尾游标只读取上次已知集合之后的新增引用，不重复请求尚未浏览的旧页。
+  return toJson({ styleId: style.id, revision: style.revision, draftRevision: draft.revision, referenceIds: ids, total: ids.length, counts, images, endPageToken, tailPageToken: cursor(ids.length),
+    ...(next < ids.length ? { nextPageToken: endPageToken } : {}) })
 }

@@ -1,4 +1,4 @@
-/** The model receives eight bounded operations; all human confirmations remain in the workbench. */
+/** The model receives nine bounded operations; all human confirmations remain in the workbench. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ActionArgs } from '../client/contract.ts'
@@ -15,7 +15,7 @@ export const inject = ['tools', 'visualCurator']
 export const Config = z.strictObject({ group: z.enum(['all', 'read', 'curate', 'export']).default('all') }).default({ group: 'all' })
 
 const toolGroups = {
-  read: ['visual_style_list', 'visual_style_get', 'visual_run_get', 'visual_export_get'],
+  read: ['visual_task_prepare', 'visual_style_list', 'visual_style_get', 'visual_run_get', 'visual_export_get'],
   curate: ['visual_search_start', 'visual_crop_start'],
   export: ['visual_feedback_suggest', 'visual_export_start'],
 } satisfies Record<string, string[]>
@@ -38,16 +38,18 @@ interface Declaration {
   required: string[]
 }
 const declarations: Declaration[] = [
+  { name: 'visual_task_prepare', operation: 'task-prepare', kind: 'read', description: 'Prepare a search or crop without jobs or paid requests. Discover saved usages, source ID and limits; report missing inputs or blockers. Use normalizedInput and preparationDigest with the start tool. Humans create missing usages in the workbench.',
+    properties: { usagePageToken: id, usagePageSize: { ...positive, maximum: 100 }, kind: { type: 'string', enum: ['search', 'crop'] }, releaseId: id, usageRevisionId: id, taskBrief: text, sourceId: id, imageVersionId: id, protectedContent: { type: 'array', maxItems: 30, items: text }, targetCount: positive, queries: { type: 'array', items: text }, budgets: { ...budgets, required: [] } }, required: ['kind'] },
   { name: 'visual_style_list', operation: 'style-list', kind: 'read', description: 'List this profile’s saved visual styles and fixed release references. Continue only with the exact pageToken returned by this service; omit it on the first page. No publication or default changes.',
     properties: { pageToken: id, pageSize: { ...positive, maximum: 100 } }, required: [] },
   { name: 'visual_style_get', operation: 'style-get', kind: 'read', description: 'Read one saved style, human rules, immutable releases and its modelProfile with automatically adopted rules and evidence. A fresh modelProfile.id is an executable reference standard; pass that exact ID as releaseId. Drafts are not executable standards. Image resources require this DSH owner and the original Session when present.',
     properties: { styleId: id }, required: ['styleId'] },
   { name: 'visual_search_start', operation: 'search-start', kind: 'search', description: 'Start a background image search with an explicit published release or fresh modelProfile.id as releaseId, immutable usage and configured source. Supply all hard budgets. Returns runId/jobId immediately; launch acknowledgment does not mean images qualified. Only saved actual pixel reviews determine qualified results. Model style groups are alternatives. Never loosen required rules or invent IDs.',
-    properties: { releaseId: id, usageRevisionId: id, sourceId: { ...id, description: 'Use unsplash for the configured Unsplash source; otherwise use the configured generic source ID.' }, queries: { type: 'array', minItems: 1, maxItems: 20, items: text, description: 'Optional concise retrieval keywords. An Unsplash model profile defaults to its saved search hints; taskBrief remains the visual review objective.' }, taskBrief: text, budgets }, required: ['releaseId', 'usageRevisionId', 'sourceId', 'taskBrief', 'budgets'] },
+    properties: { preparationDigest: id, targetCount: positive, protectedContent: { type: 'array', maxItems: 30, items: text }, releaseId: id, usageRevisionId: id, sourceId: { ...id, description: 'Use unsplash for the configured Unsplash source; otherwise use the configured generic source ID.' }, queries: { type: 'array', minItems: 1, maxItems: 20, items: text, description: 'Optional concise retrieval keywords. An Unsplash model profile defaults to its saved search hints; taskBrief remains the visual review objective.' }, taskBrief: text, budgets }, required: ['releaseId', 'usageRevisionId', 'sourceId', 'taskBrief', 'budgets'] },
   { name: 'visual_crop_start', operation: 'crop-start', kind: 'execute', description: 'Start a background crop of an authorized saved image version using an explicit published release and usage. The Host checks exact geometry and reviews the actual rendered crop. Returns runId/jobId, not a completed image. No human crop confirmation is created.',
-    properties: { imageVersionId: id, releaseId: id, usageRevisionId: id, taskBrief: text, protectedContent: { type: 'array', maxItems: 30, items: text }, budgets }, required: ['imageVersionId', 'releaseId', 'usageRevisionId', 'taskBrief', 'protectedContent', 'budgets'] },
-  { name: 'visual_run_get', operation: 'run-get', kind: 'read', description: 'Read a saved run belonging to this original Session, including durable status/stage/outcome, distinct stage counts and authorized result references. Technical failures are not visual rejections. Continue only a returned pageToken. Use job_output for bounded waits; do not poll unchanged reports repeatedly.',
-    properties: { runId: id, pageToken: id, pageSize: { ...positive, maximum: 100 } }, required: ['runId'] },
+    properties: { preparationDigest: id, imageVersionId: id, releaseId: id, usageRevisionId: id, taskBrief: text, protectedContent: { type: 'array', maxItems: 30, items: text }, budgets }, required: ['imageVersionId', 'releaseId', 'usageRevisionId', 'taskBrief', 'protectedContent', 'budgets'] },
+  { name: 'visual_run_get', operation: 'run-get', kind: 'read', description: 'Read a saved run belonging to this original Session, including durable status/stage/outcome, distinct stage counts and authorized result references. Technical failures are not visual rejections. Only selection records are final selections. Use resultFilter selected, review or all, and keep the same filter with a returned pageToken. Use job_output for bounded waits; do not poll unchanged reports repeatedly.',
+    properties: { resultFilter: { type: 'string', enum: ['all', 'selected', 'review'] }, runId: id, pageToken: id, pageSize: { ...positive, maximum: 100 } }, required: ['runId'] },
   { name: 'visual_feedback_suggest', operation: 'feedback-suggest', kind: 'execute', description: 'Save an unconfirmed Agent suggestion with its original authorship. It cannot create a human label, confirm a rule or crop, publish a release, switch a default or confirm a dataset split. A human must review suggestions in the workbench.',
     properties: { text, feedbackIds: { type: 'array', maxItems: 100, items: id } }, required: ['text', 'feedbackIds'] },
   { name: 'visual_export_start', operation: 'export-start', kind: 'execute', description: 'Export a model profile as reference data using its exact modelProfile.id as releaseId, purpose reference, kind style or skill and mode references-only; no split is needed for this package. Human-release supervision exports still require a saved split and eligible labels. Image-byte permission remains separate. Returns an export run handle, not trained weights or installed instructions.',
@@ -59,7 +61,7 @@ const declarations: Declaration[] = [
 
 /** Build all tool definitions against one Host provider, without registering human-only commands.
  * @param service Shared initialized business provider.
- * @returns Eight reversible registry contributions.
+ * @returns Nine reversible registry contributions.
  */
 export function createAgentTools(service: Pick<CuratorService, 'action' | 'profileId'>): ToolDefinition[] {
   return declarations.map(declaration => ({
@@ -87,7 +89,7 @@ export function createAgentTools(service: Pick<CuratorService, 'action' | 'profi
 
 /** Register the approved Agent tools as effects owned by the optional tools row.
  * @param ctx Scoped Cordis context with the shared provider and tools registry.
- * @param config Validated tool selection; direct consumers retain all eight tools.
+ * @param config Validated tool selection; direct consumers retain all nine tools.
  */
 export function apply(ctx: Context, config: z.infer<typeof Config> = { group: 'all' }): void {
   for (const tool of createAgentTools(ctx.visualCurator)) {

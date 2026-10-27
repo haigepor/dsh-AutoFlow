@@ -35,6 +35,14 @@ export function curatorDomainSpecFor(profileId: string) {
 /** Default declaration for consumers whose host already isolates storage by profile. */
 export const curatorDomainSpec = curatorDomainSpecFor('default')
 type StorageHandle = Domain<ReturnType<typeof curatorDomainSpecFor>>
+function incrementalDomainSpecFor(profileId: string) {
+  const base = curatorDomainSpecFor(profileId)
+  return defineDomain({ name: `${base.name}_delta_v1`, version: 1, layout: 'per-record',
+    global: { schema: z.strictObject({ profileId: z.literal(profileId), baseDigest: z.string().nullable() }), initial: { profileId, baseDigest: null as string | null } },
+    tables: base.tables })
+}
+type IncrementalHandle = Domain<ReturnType<typeof incrementalDomainSpecFor>>
+const manifestStorageKey = (id: string) => createHash('sha256').update(id).digest('hex')
 
 /** Adapter grants no bypass around the manifest visibility rule. */
 export interface DomainAdapter {
@@ -51,13 +59,29 @@ export interface DomainAdapter {
 }
 /** Production persistence over ctx.storageDomain. */
 export class StorageDomainAdapter implements DomainAdapter {
-  /** @param domain Opened profile-isolated domain. */
-  constructor(private readonly domain: StorageHandle) {}
-  readRecord(key: string): CuratorRecord | undefined { return this.domain.table('records').get(key) }
-  manifests(): AggregateManifest[] { return [...this.domain.table('manifests').entries()].map(([, m]) => m) }
-  async writeRecord(key: string, record: CuratorRecord): Promise<void> { await this.domain.table('records').put(key, record) }
-  async writeManifest(manifest: AggregateManifest): Promise<void> { await this.domain.table('manifests').put(manifest.aggregateId, manifest) }
-  close(): Promise<void> { return this.domain.close() }
+  /** @param domain Validated base domain. @param incremental Optional authoritative per-record writes over the frozen base. */
+  constructor(private readonly domain: StorageHandle, private readonly incremental?: IncrementalHandle) {
+    for (const [key, manifest] of incremental?.table('manifests').entries() ?? []) if (key !== manifestStorageKey(manifest.aggregateId)) throw new CuratorError('reference-unavailable', 'storage-open', 'An incremental manifest has a mismatched physical key.')
+  }
+  readRecord(key: string): CuratorRecord | undefined { return this.incremental?.table('records').get(key) ?? this.domain.table('records').get(key) }
+  manifests(): AggregateManifest[] {
+    const manifests = new Map(this.domain.table('manifests').entries())
+    for (const [, manifest] of this.incremental?.table('manifests').entries() ?? []) {
+      manifests.set(manifest.aggregateId, manifest)
+    }
+    return [...manifests.values()]
+  }
+  async writeRecord(key: string, record: CuratorRecord): Promise<void> { await (this.incremental ?? this.domain).table('records').put(key, record) }
+  async writeManifest(manifest: AggregateManifest): Promise<void> {
+    // 业务聚合 ID 含冒号，按记录存储的文件名使用固定 SHA-256 编码。
+    if (this.incremental) await this.incremental.table('manifests').put(manifestStorageKey(manifest.aggregateId), manifest)
+    else await this.domain.table('manifests').put(manifest.aggregateId, manifest)
+  }
+  async close(): Promise<void> {
+    const results = await Promise.allSettled([this.incremental?.close(), this.domain.close()])
+    const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map(result => result.reason)
+    if (errors.length) throw new AggregateError(errors, 'Curator storage could not close every domain.')
+  }
 }
 /** Deterministic failure adapter; durable maps can be reused for simulated restarts. */
 export class MemoryDomainAdapter implements DomainAdapter {
@@ -109,8 +133,15 @@ export class DomainRepository {
   }
   /** @param aggregateId Aggregate identity. @returns Cloned current manifest or absence. */
   manifest(aggregateId: string): AggregateManifest | undefined { return structuredClone(this.adapter.manifests().find(m => m.aggregateId === aggregateId)) }
+  /** @param operationId Durable idempotency key. @returns Independent copy of the matching receipt, without copying unrelated history. */
+  receipt(operationId: string): AggregateManifest['receipts'][string] | undefined {
+    for (const manifest of this.adapter.manifests()) if (manifest.receipts[operationId]) return structuredClone(manifest.receipts[operationId])
+    return undefined
+  }
   /** @returns Cloned commit manifests for durable operation recovery. */
   manifests(): AggregateManifest[] { return structuredClone(this.adapter.manifests()) }
+  /** @returns Revision-only cache identity without copying historical requests or responses. */
+  revisionDigest(): string { return contentDigest(this.adapter.manifests().map(manifest => [manifest.aggregateId, manifest.revision])) }
   /** Reuse verified records only during a synchronous read; caller mutations still receive independent clones.
    * @param read Synchronous projection with no writes or external callbacks.
    * @returns Projection result; nested reads share this scope and exceptions release it.
@@ -228,11 +259,23 @@ export async function acquireProfileWriter(lockPath: string): Promise<() => Prom
 /** Acquire the writer before opening a second storage cache. */
 export async function openCuratorRepository(options: { profileId: string; facility: Pick<DomainFacility, 'open'>; lockPath: string }): Promise<{ repository: DomainRepository; close: () => Promise<void> }> {
   const release = await acquireProfileWriter(options.lockPath)
+  let handle: StorageHandle | undefined, incremental: IncrementalHandle | undefined
   try {
-    const handle = await options.facility.open(curatorDomainSpecFor(options.profileId))
-    let repository: DomainRepository
-    try { repository = new DomainRepository(options.profileId, new StorageDomainAdapter(handle)) }
-    catch (error) { await handle.close(); throw error }
+    handle = await options.facility.open(curatorDomainSpecFor(options.profileId))
+    incremental = await options.facility.open(incrementalDomainSpecFor(options.profileId))
+    const baseDigest = contentDigest({ keys: [...handle.table('records').keys()].sort(), manifests: [...handle.table('manifests').entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0) })
+    const marker = incremental.global.get()
+    if (marker.baseDigest !== null && marker.baseDigest !== baseDigest) throw new CuratorError('reference-unavailable', 'storage-open', 'The frozen curator base changed after incremental storage was enabled.', { suggestedAction: 'Restore the matching base and incremental directory from the same backup; do not merge files manually.' })
+    if (marker.baseDigest === null && (incremental.table('records').size || incremental.table('manifests').size)) throw new CuratorError('reference-unavailable', 'storage-open', 'Incremental records have no confirmed base identity.', { suggestedAction: 'Restore a complete curator storage backup.' })
+    // 不搬迁或覆盖旧单文件；新记录仍按“依赖先落盘、清单后可见”的顺序提交。
+    const repository = new DomainRepository(options.profileId, new StorageDomainAdapter(handle, incremental))
+    if (marker.baseDigest === null) await incremental.global.set({ ...marker, baseDigest })
     return { repository, close: async () => { try { await repository.close() } finally { await release() } } }
-  } catch (error) { await release(); throw error }
+  } catch (error) {
+    const results = await Promise.allSettled([incremental?.close(), handle?.close()])
+    await release()
+    const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map(result => result.reason)
+    if (errors.length) throw new AggregateError([error, ...errors], 'Curator storage initialization and cleanup failed.')
+    throw error
+  }
 }

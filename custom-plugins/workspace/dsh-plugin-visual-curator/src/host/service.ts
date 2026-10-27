@@ -1,4 +1,4 @@
-/** Shared business provider for authenticated workbench actions and the eight Agent tools. */
+/** Shared business provider for authenticated workbench actions and the Agent tools. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { ProfileContext } from '@deepseek-ai/dsh-app-boot'
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials'
@@ -22,7 +22,7 @@ import { styleAnalysisOf } from '../shared/style-analysis.ts'
 import { AssetFiles, resolveCrop } from '../media/index.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { analysisRequests, readAnalysisInput } from './analysis-input.ts'
-import { assetSchema, imageVersionSchema, jsonSchema, recipeSchema, feedbackContextSchema, subjectSchema, type DomainActor, type Json, type Rule, type EvaluationRecipe, type CuratorRecord } from '../shared/model.ts'
+import { assetSchema, imageVersionSchema, jsonSchema, recipeSchema, draftSchema, feedbackContextSchema, subjectSchema, type DomainActor, type Json, type Rule, type EvaluationRecipe, type CuratorRecord } from '../shared/model.ts'
 import { agentOperations, type ClientActionInput } from '../client/contract.ts'
 import { resolveConfig, resolveCurrentConfig, configRevision, reviewerRevision, type CuratorConfig } from './config.ts'
 import { RunEngine, executionSchema, dataOf, specOf, toJson, safeFailure, type ExecutionSpec, type Worker } from './runtime.ts'
@@ -30,18 +30,21 @@ import { ProviderFactory, sourceIdentity } from './providers.ts'
 import { GalleryService } from './gallery.ts'
 import { GalleryReferenceTasks } from './gallery-tasks.ts'
 import { galleryTaskIdSchema } from '../shared/gallery-task.ts'
+import { galleryMediaUrlSchema } from '../shared/gallery.ts'
 import { referencePage } from './reference-pages.ts'
 import { GalleryLogins, type GalleryLoginBrowser } from './gallery-login.ts'
 import { launchGalleryLogin } from './gallery-login-browser.ts'
 import type { UnsplashApi } from '../media/unsplash.ts'
-import { SafeHttpClient } from '../media/index.ts'
 import { decodeUpload, importedRecords } from './imports.ts'
 import { listLocalReferences } from './local-references.ts'
 import { pickNativeDirectory, pickNativeImages, pickNativeReferences } from '@deepseek-ai/dsh-host-directory-picker-native'
 import { createCropWorker, createCropProcessor } from './crop-workflow.ts'
 import { createSearchWorker } from './search-workflow.ts'
 import { createDataWorker } from './data-workflows.ts'
-import { projectSnapshot, projectRun, projectConfiguration, projectAnalysisTasks } from './projection.ts'
+import { compileStyleInstructions } from './style-execution.ts'
+import { projectSnapshot, projectStyle, projectRun, projectConfiguration, projectAnalysisTasks } from './projection.ts'
+import { deleteTaskHistory, hiddenTaskIds } from './task-history.ts'
+import { analysisFollowResponse } from './analysis-follow.ts'
 
 const actionSchema = z.strictObject({ operation: z.string().min(1), args: z.record(z.string(), jsonSchema) })
 const startSchema = z.object({ operationId: z.string().min(1), releaseId: z.string().min(1), usageRevisionId: z.string().min(1), taskBrief: z.string().min(1).max(4000), budgets: z.record(z.string(), z.number()).optional(), sourceId: z.string().optional(), imageVersionId: z.string().optional(), imageVersionIds: z.array(z.string()).optional(), queries: z.array(z.string().min(1).max(4096)).optional(), targetCount: z.number().int().positive().optional(), protectedContent: z.array(z.string().min(1)).optional(), rect: z.unknown().optional(), includeInLearning: z.boolean().optional(), allowWarning: z.boolean().optional(), runId: z.string().optional() })
@@ -50,7 +53,7 @@ const uploadSchema = z.strictObject({ operationId: z.string().min(1), styleId: z
 /** Same-process fixture dependencies never come from Client, tool or configuration JSON. */
 export interface CuratorServiceDependencies {
   openDomain?: (files: AssetFiles) => Promise<CuratorDomain>
-  providers?: Pick<ProviderFactory, 'vision' | 'source' | 'media'>
+  providers?: Pick<ProviderFactory, 'vision' | 'source' | 'media'> & Partial<Pick<ProviderFactory, 'dispose'>>
   pickLocalPaths?: (kind: 'file' | 'folder' | 'references', title: string, signal: AbortSignal) => Promise<string[] | null>
   galleryApi?: (config: CuratorConfig, accountId?: string, provisionalRef?: string, provisionalCookie?: string) => Promise<UnsplashApi>
   galleryMedia?: import('../media/index.ts').HttpClient
@@ -58,6 +61,8 @@ export interface CuratorServiceDependencies {
 }
 /** Minimal Host capabilities used by this provider; Cordis owns their actual implementations. */
 export interface CuratorHost {
+  llm?: import('@deepseek-ai/dsh-llm').LlmRuntime
+  attachments?: import('@deepseek-ai/dsh-attachment').AttachmentStore
   fiber?: Pick<Context['fiber'], 'entry'>
   profileContext: Pick<ProfileContext, 'dir'>
   credentials: Pick<CredentialProvider, 'resolve' | 'set'>
@@ -66,6 +71,8 @@ export interface CuratorHost {
   configEditor: Pick<ConfigEditor, 'entries' | 'edit'>
   sessions: Pick<SessionStore, 'get'>
 }
+
+interface ResolvedTask { kind: 'search' | 'crop'; normalized: Record<string, Json>; fixed: Record<string, Json>; config: CuratorConfig }
 
 /** One provider owns one profile writer; it never changes the default bundle composition. */
 export class CuratorService {
@@ -79,7 +86,8 @@ export class CuratorService {
   private galleryValue: GalleryService | undefined
   private galleryTasks: GalleryReferenceTasks | undefined
   private readonly files: AssetFiles
-  private readonly providers: Pick<ProviderFactory, 'vision' | 'source' | 'media'>
+  private readonly providers: Pick<ProviderFactory, 'vision' | 'source' | 'media'> & Partial<Pick<ProviderFactory, 'dispose'>>
+  private galleryProviders: ProviderFactory | undefined
   private stopping = false
   private selectingLocalFiles = false
   private readonly lifetime = new AbortController()
@@ -90,18 +98,19 @@ export class CuratorService {
     this.profileId = createHash('sha256').update(resolve(ctx.profileContext.dir)).digest('hex')
     const l = this.config.limits
     this.files = new AssetFiles(join(ctx.profileContext.dir, 'visual-curator'), { maxFileBytes: l.maxImportBytes, maxPixels: l.maxPixels, maxDimension: l.maxDimension, previewMaxDimension: l.previewMaxDimension, maxStorageBytes: l.maxStorageBytes })
-    this.providers = dependencies.providers ?? new ProviderFactory(ctx.credentials)
+    this.providers = dependencies.providers ?? new ProviderFactory(ctx.credentials, ctx.llm && ctx.attachments ? { llm: ctx.llm, attachments: ctx.attachments } : undefined)
   }
   /** Acquire exclusive persistence before accepting Client or Agent operations. */
   async initialize(): Promise<void> {
     if (this.domainValue || this.stopping) throw new CuratorError('capability-unavailable', 'initialize', 'The provider is already initialized or stopping.')
     this.domainValue = this.dependencies.openDomain ? await this.dependencies.openDomain(this.files) : await openCuratorDomain({ profileId: this.profileId, facility: this.ctx.storageDomain, lockPath: join(this.files.root, 'writer.lock'), verifyImage: async image => { await this.files.verifyReference(image.blob) } })
     const galleryFactory = new ProviderFactory(this.ctx.credentials)
+    this.galleryProviders = galleryFactory
     this.logins = new GalleryLogins(this.config, this.lifetime.signal, signal => (this.dependencies.launchGalleryLogin ?? launchGalleryLogin)(this.config, signal), async (cookie, signal) => {
       const api = await (this.dependencies.galleryApi ?? ((config, accountId, ref, value) => galleryFactory.gallery(config, accountId, ref, value)))(this.config, undefined, 'VISUAL_CURATOR_LOGIN_PENDING', cookie)
-      return api.me({ signal, maxBytes: this.config.limits.maxResponseBytes, timeoutMs: this.config.limits.requestTimeoutMs, maxRedirects: this.config.limits.maxRedirects })
+      return api.me({ signal, maxBytes: this.config.limits.maxResponseBytes, timeoutMs: this.config.source.unsplash.login.validationTimeoutMs, maxRedirects: this.config.limits.maxRedirects })
     }, (ref, value) => this.ctx.credentials.set(credentialRef(ref), value))
-    this.galleryValue = new GalleryService(this.config, this.domainValue, this.files, this.dependencies.galleryApi ?? ((config, accountId, ref, cookie) => galleryFactory.gallery(config, accountId, ref, cookie)), this.dependencies.galleryMedia ?? new SafeHttpClient({ allowedOrigins: ['https://images.unsplash.com', 'https://plus.unsplash.com'] }))
+    this.galleryValue = new GalleryService(this.config, this.domainValue, this.files, this.dependencies.galleryApi ?? ((config, accountId, ref, cookie) => galleryFactory.gallery(config, accountId, ref, cookie)), this.dependencies.galleryMedia ?? galleryFactory.unsplashMedia(this.config))
     this.galleryTasks = new GalleryReferenceTasks(this.config, this.domainValue, this.ctx.jobs, (operation, args, actor, signal) => this.galleryValue!.action(operation, args, actor, signal), (args, actor) => this.galleryValue!.referenceProgress(args, actor), async (styleId, actor) => { await this.action({ operation: 'reference-analyze', args: { operationId: randomUUID(), styleId, buildDataset: true } }, actor, this.lifetime.signal) })
     await this.galleryTasks.initialize()
     this.engineValue = new RunEngine(this.domainValue.repository, this.ctx.jobs, (run) => {
@@ -188,8 +197,14 @@ export class CuratorService {
         }
       }
       switch (operation) {
+        case 'usage-list': return toJson(this.usagePage(args))
+        case 'task-prepare': return await this.prepareTask(args, effectiveActor)
         case 'gallery-reference-start': this.human(effectiveActor); return toJson(await this.galleryTasks!.start(args, effectiveActor))
-        case 'gallery-reference-tasks': this.human(effectiveActor); return toJson({ tasks: this.galleryTasks!.list(effectiveActor), analyses: projectAnalysisTasks(this.domain, this.engine, effectiveActor), workspaceRevision: this.workspaceRevision() })
+        case 'gallery-reference-tasks': {
+          this.human(effectiveActor)
+          const hidden = hiddenTaskIds(this.domain.repository)
+          return toJson({ tasks: this.galleryTasks!.list(effectiveActor), analyses: projectAnalysisTasks(this.domain, this.engine, effectiveActor).filter(task => !hidden.has(task.runId)), workspaceRevision: this.workspaceRevision() })
+        }
         case 'analysis-input': {
           this.human(effectiveActor)
           const { runId, requestId } = z.object({ runId: z.string(), requestId: z.string() }).parse(args)
@@ -223,7 +238,7 @@ export class CuratorService {
         }
         case 'gallery-reference-stop': this.human(effectiveActor); return toJson(await this.galleryTasks!.cancel(galleryTaskIdSchema.parse(args.taskId), effectiveActor))
         case 'references-list': return this.withSessionResources(referencePage(this.domain, args, effectiveActor, this.config.limits.pageSize), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
-        case 'gallery-login-start': case 'gallery-login-status': case 'gallery-login-finish': case 'gallery-login-cancel': {
+        case 'gallery-login-start': case 'gallery-login-status': case 'gallery-login-retry': case 'gallery-login-finish': case 'gallery-login-cancel': {
           this.human(effectiveActor)
           const owner = JSON.stringify([effectiveActor.profileId, effectiveActor.sessionId ?? null, effectiveActor.id])
           if (operation === 'gallery-login-start') {
@@ -237,6 +252,7 @@ export class CuratorService {
             return { cancelled: true }
           }
           const { loginId } = z.object({ loginId: z.string().uuid() }).parse(args)
+          if (operation === 'gallery-login-retry') return toJson(this.logins!.retry(loginId, owner))
           if (operation === 'gallery-login-cancel') return toJson(await this.logins!.cancel(loginId, owner))
           if (operation === 'gallery-login-finish') return toJson(await this.logins!.finish(loginId, owner))
           return toJson(this.logins!.status(loginId, owner))
@@ -253,12 +269,15 @@ export class CuratorService {
         }
         case 'snapshot': {
           const page = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
-          const snapshot = projectSnapshot(this.domain, this.engine, this.config, effectiveActor, await this.credentialStatus())
+          let ids: string[] = [], offset = 0
+          const snapshot = projectSnapshot(this.domain, this.engine, this.config, effectiveActor, await this.credentialStatus(), { includeRunResults: false, imageWindow: imageIds => {
+            ids = imageIds; offset = this.pageOffset(page.pageToken, 'images', ids)
+            return { offset, size: page.pageSize }
+          } })
+          const hidden = hiddenTaskIds(this.domain.repository)
+          snapshot.runs = snapshot.runs.filter(run => !hidden.has(run.runId))
           snapshot.collectionPaging = true
           snapshot.workspaceRevision = this.workspaceRevision()
-          const ids = snapshot.images.map(image => image.imageVersionId), offset = this.pageOffset(page.pageToken, 'images', ids)
-          snapshot.images = snapshot.images.slice(offset, offset + page.pageSize)
-          snapshot.runs = snapshot.runs.map(run => ({ ...run, results: [] }))
           snapshot.exports = snapshot.exports.map(exp => ({ ...exp, ...(exp.preview ? { preview: exp.preview.slice(0, this.config.limits.maxExportPreviewChars) } : {}) }))
           snapshot.evaluations = snapshot.evaluations.map(evaluation => ({ ...evaluation, ...(evaluation.items ? { items: evaluation.items.slice(0, page.pageSize) } : {}) }))
           if (offset + page.pageSize < ids.length) snapshot.nextPageToken = this.pageToken('images', offset + page.pageSize, ids)
@@ -272,19 +291,25 @@ export class CuratorService {
         }
         case 'style-get': {
           const { styleId } = z.object({ styleId: z.string() }).parse(args)
-          const style = projectSnapshot(this.domain, this.engine, this.config, effectiveActor, { source: false, vision: false }).styles.find(item => item.styleId === styleId)
-          if (!style) throw new CuratorError('reference-unavailable', 'style-read', 'The requested style is unavailable.')
-          return toJson(style)
+          return toJson(projectStyle(this.domain, styleId, effectiveActor))
         }
         case 'run-get': {
-          const { runId, pageSize, pageToken } = z.object({ runId: z.string(), pageSize: z.number().int().min(1).max(100).default(20), pageToken: z.string().optional() }).parse(args)
-          const run = projectRun(this.domain, this.engine.get(runId, effectiveActor), effectiveActor), ids = run.results.map(item => item.imageVersionId)
-          const offset = this.pageOffset(pageToken, runId, ids)
-          return this.withSessionResources(toJson({ ...run, results: run.results.slice(offset, offset + pageSize), ...(offset + pageSize < ids.length ? { pageToken: this.pageToken(runId, offset + pageSize, ids) } : {}) }), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+          const { runId, pageSize, pageToken, resultFilter } = z.object({ runId: z.string(), pageSize: z.number().int().min(1).max(100).default(20), pageToken: z.string().optional(), resultFilter: z.enum(['all', 'selected', 'review']).default('all') }).parse(args)
+          const run = projectRun(this.domain, this.engine.get(runId, effectiveActor), effectiveActor)
+          run.resultFilter = resultFilter
+          run.results = run.results.filter(image => resultFilter === 'all' || resultFilter === 'selected' && image.selection?.kind === 'selected' || resultFilter === 'review' && image.verdict === 'needs-review')
+          const ids = run.results.map(item => item.imageVersionId), scope = resultFilter === 'all' ? runId : `${runId}:${resultFilter}`
+          const offset = this.pageOffset(pageToken, scope, ids)
+          return this.withSessionResources(toJson({ ...run, results: run.results.slice(offset, offset + pageSize), ...(offset + pageSize < ids.length ? { pageToken: this.pageToken(scope, offset + pageSize, ids) } : {}) }), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+        }
+        case 'run-delete': {
+          this.human(effectiveActor)
+          const { runId, operationId } = z.strictObject({ runId: z.string().min(1), operationId: z.string().min(1) }).parse(args)
+          return await deleteTaskHistory(this.domain.repository, this.engine.get(runId, effectiveActor), operationId)
         }
         case 'run-control': {
           this.human(actor)
-          const { runId, command } = z.object({ runId: z.string(), command: z.enum(['pause', 'resume', 'cancel']) }).parse(args)
+          const { runId, command, waitForCompletion } = z.object({ runId: z.string(), command: z.enum(['pause', 'resume', 'cancel']), waitForCompletion: z.boolean().default(true) }).parse(args)
           const run = this.engine.get(runId, effectiveActor)
           if (command === 'resume') {
             const fixed = specOf(run)
@@ -293,7 +318,8 @@ export class CuratorService {
             if (fixed.kind === 'search') await this.providers.source(fixed.config)
             for (const reference of this.domain.repository.list('imageVersion').filter(image => image.id === fixed.input.imageVersionId || Array.isArray(fixed.input.imageVersionIds) && fixed.input.imageVersionIds.includes(image.id))) await this.files.read(this.domain.authorizedImage(reference.id, effectiveActor).image.blob)
           }
-          return toJson(projectRun(this.domain, await this.engine.control(runId, command, effectiveActor, this.worker(specOf(run).kind)), effectiveActor))
+          // 页面先显示已持久化的控制状态；默认调用仍可等待模型清理及终态。
+          return toJson(projectRun(this.domain, await this.engine.control(runId, command, effectiveActor, this.worker(specOf(run).kind), waitForCompletion), effectiveActor))
         }
         case 'reference-import': this.human(actor); return await this.importReferences(args, actor, signal)
         case 'local-files-list': {
@@ -335,11 +361,12 @@ export class CuratorService {
           const referenceThreads = new Set(references.flatMap(reference => reference.feedbackThreadIds))
           const feedback = this.domain.snapshot(effectiveActor).feedback.filter(item => item.scope === 'style-candidate' && item.context.styleId === style.id && (referenceThreads.has(item.threadId) || draft.feedbackIds.includes(item.id)))
           const reusable = buildDataset ? this.domain.repository.list('run').filter(run => {
-            if (run.status !== 'failed' || dataOf(run).counts.observed !== references.length || (run.owner.kind === 'session' ? run.owner.sessionId !== effectiveActor.sessionId : !!effectiveActor.sessionId)) return false
+            if (!(run.status === 'failed' || run.status === 'completed' && run.outcome === 'budget-exhausted') || (dataOf(run).counts.observed ?? 0) <= 0 || (run.owner.kind === 'session' ? run.owner.sessionId !== effectiveActor.sessionId : !!effectiveActor.sessionId)) return false
             const spec = specOf(run)
             return spec.kind === 'analyze' && spec.input.styleId === styleId && spec.input.buildDataset === true && reviewerRevision(spec.config) === reviewerRevision(this.config)
+              && contentDigest(draftSchema.parse(spec.fixed.draft).rules) === contentDigest(draft.rules)
               && contentDigest(spec.fixed.references) === contentDigest(references) && contentDigest(spec.fixed.feedback) === contentDigest(feedback)
-          }).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).at(0) : undefined
+          }).sort((a, b) => (dataOf(b).counts.observed ?? 0) - (dataOf(a).counts.observed ?? 0) || b.createdAt.localeCompare(a.createdAt)).at(0) : undefined
           return await this.launch('analyze', { styleId, buildDataset }, { invocationDigest: contentDigest({ operation, args }), draft: toJson(draft), references: toJson(references), feedback: toJson(feedback), recipe: toJson(this.recipe(operationId)), ...(reusable ? { reuseAnalysis: { runId: reusable.id } } : {}), ...(splitId ? { split: toJson(this.domain.require('split', splitId)) } : {}) }, effectiveActor, operationId)
         }
         case 'search-start': case 'crop-start': case 'manual-crop-confirm': return await this.startTask(operation, args, effectiveActor)
@@ -501,6 +528,43 @@ export class CuratorService {
     return await this.domain.action('feedback-confirm', { ...args, context: { ...context, taskBriefDigest: expectedDigest } }, actor)
   }
   private async startTask(operation: string, args: Record<string, Json>, actor: DomainActor): Promise<Json> {
+    const task = await this.resolveTask(operation, args, actor)
+    if (args.preparationDigest !== undefined && args.preparationDigest !== this.taskDigest(task, actor)) throw new CuratorError('revision-conflict', 'task-prepare', 'The checked task changed; prepare it again before starting.')
+    return await this.launch(task.kind, task.normalized, task.fixed, actor, z.string().parse(args.operationId), task.config)
+  }
+  private taskDigest(task: ResolvedTask, actor: DomainActor): string {
+    const release = z.object({ id: z.string(), styleId: z.string() }).parse(task.fixed.release)
+    const usage = z.object({ presetId: z.string() }).parse(task.fixed.usage)
+    const currentUsage = this.domain.repository.manifest(`usage:${usage.presetId}`)?.state ?? null
+    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, currentProfileId: new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
+  }
+  private usagePage(args: Record<string, Json>): { items: import('../shared/model.ts').UsageRevision[]; pageToken?: string } {
+    const input = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
+    const latest = new Map<string, import('../shared/model.ts').UsageRevision>()
+    for (const usage of this.domain.repository.list('usage')) if (!latest.has(usage.presetId) || latest.get(usage.presetId)!.revision < usage.revision) latest.set(usage.presetId, usage)
+    const values = [...latest.values()].sort((a, b) => a.id.localeCompare(b.id, 'en')), ids = values.map(item => item.id)
+    const offset = this.pageOffset(input.pageToken, 'usages', ids)
+    return { items: values.slice(offset, offset + input.pageSize), ...(offset + input.pageSize < ids.length ? { pageToken: this.pageToken('usages', offset + input.pageSize, ids) } : {}) }
+  }
+  private async prepareTask(args: Record<string, Json>, actor: DomainActor): Promise<Json> {
+    const { kind } = z.object({ kind: z.enum(['search', 'crop']) }).parse(args)
+    const options = { usages: this.usagePage({ ...(args.usagePageToken ? { pageToken: args.usagePageToken } : {}), ...(args.usagePageSize ? { pageSize: args.usagePageSize } : {}) }), sourceId: sourceIdentity(this.config).providerId, budgets: this.config.limits }
+    const fields = ['releaseId', 'usageRevisionId', 'taskBrief', ...(kind === 'crop' && !Array.isArray(args.imageVersionIds) ? ['imageVersionId'] : [])]
+    const missingFields = fields.filter(key => typeof args[key] !== 'string' || !String(args[key]).trim())
+    if (missingFields.length) return toJson({ status: 'needs-input', missingFields, options })
+    try {
+      const sourceId = sourceIdentity(this.config).providerId
+      const task = await this.resolveTask(`${kind}-start`, { ...args, operationId: 'prepare', sourceId: args.sourceId ?? sourceId }, actor)
+      const normalizedInput: Record<string, Json> = { ...task.normalized, protectedContent: args.protectedContent ?? [], releaseId: args.releaseId!, usageRevisionId: args.usageRevisionId!, budgets: { targetCount: kind === 'search' ? task.normalized.targetCount ?? 1 : 1, ...Object.fromEntries(['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs'].map(key => [key, Reflect.get(task.config.limits, key)])) }, ...(kind === 'search' ? { sourceId } : {}) }
+      if (kind === 'crop' && Array.isArray(normalizedInput.imageVersionIds) && normalizedInput.imageVersionIds.length === 1) { normalizedInput.imageVersionId = normalizedInput.imageVersionIds[0]!; delete normalizedInput.imageVersionIds }
+      return toJson({ status: 'ready', options, normalizedInput, preparationDigest: this.taskDigest(task, actor), warnings: [], summary: { executionInstructions: task.fixed.executionInstructions ?? null, executionRecipe: task.fixed.executionRecipe ?? null, release: task.fixed.release, usage: task.fixed.usage, budgets: task.config.limits } })
+    } catch (error) {
+      // 私有资源错误保留拒绝语义，准备结果不能代替所有者检查。
+      if (error instanceof CuratorError && error.code === 'owner-denied') throw error
+      return toJson({ status: 'blocked', options, error: safeFailure(error) })
+    }
+  }
+  private async resolveTask(operation: string, args: Record<string, Json>, actor: DomainActor): Promise<ResolvedTask> {
     if (operation === 'manual-crop-confirm') this.human(actor)
     const input = startSchema.parse(operation === 'manual-crop-confirm' ? { ...args, taskBrief: typeof args.taskBrief === 'string' && args.taskBrief ? args.taskBrief : 'Review this manually selected crop against the frozen style and usage.' } : args)
     const release = this.domain.repository.get('modelProfile', input.releaseId) ?? this.domain.require('release', input.releaseId), style = this.domain.require('style', release.styleId)
@@ -527,6 +591,13 @@ export class CuratorService {
       if (rule.check.min !== undefined && value < rule.check.min - rule.check.tolerance || rule.check.max !== undefined && value > rule.check.max + rule.check.tolerance) throw new CuratorError('constraint-conflict', 'resolve', 'The usage output conflicts with a required final rule.')
     }
     const fixed: Record<string, Json> = { invocationDigest: contentDigest({ operation, args }), release: toJson(release), usage: toJson({ ...usage, protectedContent: [...new Set([...usage.protectedContent, ...(input.protectedContent ?? [])])] }) }
+    if (release.kind === 'modelProfile') {
+      const policy = { version: 2, minSatisfiedRatio: config.limits.minStyleMatchRatio }
+      const dimensions = new Set(release.rules.filter(rule => rule.check.kind === 'visual' && rule.strength !== 'reference-only').map(rule => rule.dimension))
+      const weights = Object.fromEntries(Object.entries(release.recipe.preferenceScale.weights).filter(([dimension]) => dimensions.has(dimension as Rule['dimension'])))
+      fixed.executionRecipe = toJson(recipeSchema.parse({ ...release.recipe, id: `recipe-${contentDigest({ recipe: release.recipe, standardDigest: release.contentDigest, policy, weights }).slice(10, 50)}`, preferenceScale: { ...release.recipe.preferenceScale, weights }, promptVersion: 'visual-curator-rules-v2', styleMatching: policy }))
+      fixed.executionInstructions = compileStyleInstructions(release)
+    }
     const kind = operation === 'search-start' ? 'search' : 'crop'
     const normalized: Record<string, Json> = { taskBrief: input.taskBrief }
     if (kind === 'search') {
@@ -534,7 +605,7 @@ export class CuratorService {
       await this.providers.source(config)
       const targetCount = input.budgets?.targetCount ?? input.targetCount ?? 10
       if (!Number.isInteger(targetCount) || targetCount < 1 || targetCount > config.limits.maxCandidates) throw new CuratorError('invalid-input', 'resolve', 'Target count exceeds the candidate budget.')
-      const hints = config.source.provider === 'unsplash' && release.kind === 'modelProfile' ? styleAnalysisOf(this.domain.require('run', release.analysisRunId))?.summary.searchHints : undefined
+      const hints = config.source.provider === 'unsplash' && release.kind === 'modelProfile' && !release.options.some(option => option.selectionSource === 'user') ? styleAnalysisOf(this.domain.require('run', release.analysisRunId))?.summary.searchHints : undefined
       const queries = z.array(z.string().trim().min(1).max(4096)).min(1).parse(input.queries ?? (hints?.length ? hints : [input.taskBrief]))
       Object.assign(normalized, { queries, targetCount })
     } else {
@@ -549,7 +620,7 @@ export class CuratorService {
         fixed.humanConfirmation = { kind: 'authenticated-human', id: actor.id, confirmationMethod: 'client-action', confirmedAt: new Date().toISOString() }
       }
     }
-    return await this.launch(kind, normalized, fixed, actor, input.operationId, config)
+    return { kind, normalized, fixed, config }
   }
   private async saveLibrary(args: Record<string, Json>, actor: DomainActor): Promise<Json> {
     const { imageVersionId, operationId } = z.object({ imageVersionId: z.string(), operationId: z.string() }).parse(args)
@@ -621,6 +692,7 @@ export class CuratorService {
     if (input.revision !== configRevision(this.config)) throw new CuratorError('revision-conflict', 'configuration', 'Configuration changed; refresh before saving.')
     const next = resolveCurrentConfig({ source: { ...this.config.source, ...input.source }, vision: { ...this.config.vision, reasoningEffort: this.config.vision.reasoningEffort ?? null, ...input.vision }, limits: { ...this.config.limits, ...input.limits } })
     if (configRevision(next) === input.revision) return toJson({ saved: true, changed: false, configuration: projectConfiguration(this.config, await this.credentialStatus()) })
+    if (next.vision.backend === 'native' || next.vision.provider) await this.providers.vision(next)
     const ownedEntry = this.ctx.fiber?.entry
     const entry = this.ctx.configEditor.entries().find(row => ownedEntry ? row === ownedEntry : row.options.id === 'visual-curator')
     if (!entry) throw new CuratorError('capability-unavailable', 'configuration', 'The profile configuration entry is unavailable.')
@@ -638,7 +710,7 @@ export class CuratorService {
     this.configValue = next
     return toJson({ saved: true, changed: true, revision: configRevision(next), configuration: projectConfiguration(next, await this.credentialStatus()) })
   }
-  private workspaceRevision(): string { return contentDigest(this.domain.repository.manifests().map(manifest => [manifest.aggregateId, manifest.revision])) }
+  private workspaceRevision(): string { return this.domain.repository.revisionDigest() }
   private pageToken(scope: string, offset: number, ids: string[]): string { return Buffer.from(JSON.stringify({ scope, offset, digest: contentDigest(ids) })).toString('base64url') }
   private pageOffset(token: string | undefined, scope: string, ids: string[]): number {
     if (!token) return 0
@@ -646,8 +718,8 @@ export class CuratorService {
     if (value.offset > ids.length) throw new CuratorError('invalid-input', 'pagination', 'The saved page is unavailable; restart the listing.')
     return value.offset
   }
-  /** Deliver private pixels/exports only after profile authentication and saved owner checks.
-   * @param request Authenticated same-origin connection route request. @returns Verified local bytes, or an authorized redirect to an approved remote-reference CDN.
+  /** Deliver saved images, unsigned gallery previews and exports after profile authentication.
+   * @param request Authenticated same-origin request; gallery URLs accept only the existing public Unsplash policy. @returns Bounded raster bytes, or a deployment-selected CDN redirect.
    */
   resource(request: Request): Promise<Response> { return this.track(this.resourceNow(request)) }
   private async resourceNow(request: Request): Promise<Response> {
@@ -657,18 +729,20 @@ export class CuratorService {
       const url = new URL(request.url)
       const actor = this.scopedHuman({ kind: 'human', id: 'profile-owner', profileId: this.profileId }, { ...(url.searchParams.get('sessionToken') ? { sessionToken: url.searchParams.get('sessionToken')! } : {}) })
       if (url.searchParams.get('sessionId') && actor.sessionId !== url.searchParams.get('sessionId')) throw new CuratorError('owner-denied', 'resource', 'Open the owning Session channel before requesting this resource.')
-      const imageId = url.searchParams.get('imageVersionId'), exportId = url.searchParams.get('exportId')
+      const imageId = url.searchParams.get('imageVersionId'), exportId = url.searchParams.get('exportId'), galleryUrl = url.searchParams.get('galleryUrl')
       const headers = { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox" }
-      if (imageId && !exportId) {
+      if (galleryUrl && !imageId && !exportId) return await this.readPreview(galleryMediaUrlSchema.parse(galleryUrl), headers, resourceSignal, request.method === 'HEAD')
+      if (imageId && !exportId && !galleryUrl) {
         const { image } = this.domain.authorizedImage(imageId, actor)
         if (image.blob.remoteSource) {
           await this.files.verifyReference(image.blob, resourceSignal)
-          return new Response(null, { status: 302, headers: { ...headers, location: image.blob.remoteSource.url, 'referrer-policy': 'no-referrer' } })
+          const location = url.searchParams.get('preview') === 'thumbnail' ? image.blob.remoteSource.thumbnailUrl : image.blob.remoteSource.url
+          return await this.readPreview(location, headers, resourceSignal, request.method === 'HEAD')
         }
         const bytes = await this.files.read(image.blob, resourceSignal)
         return new Response(request.method === 'HEAD' ? null : new Uint8Array(bytes), { headers: { ...headers, 'content-type': image.blob.mime, 'content-length': String(bytes.length) } })
       }
-      if (exportId && !imageId) {
+      if (exportId && !imageId && !galleryUrl) {
         this.exportView(exportId, actor)
         const referencePackage = this.domain.repository.get('profileExport', exportId)
         if (referencePackage) {
@@ -687,35 +761,60 @@ export class CuratorService {
       return new Response(null, { status: 400 })
     } catch (error) { return new Response(JSON.stringify(safeFailure(error)), { status: error instanceof CuratorError && error.code === 'owner-denied' ? 403 : 404, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }) }
   }
+  private async readPreview(location: string, headers: Record<string, string>, signal: AbortSignal, head: boolean): Promise<Response> {
+    if (this.config.source.unsplash.previewTransport === 'redirect') return new Response(null, { status: 302, headers: { ...headers, location, 'referrer-policy': 'no-referrer' } })
+    const media = this.dependencies.galleryMedia ?? this.providers.media({ ...this.config, source: { ...this.config.source, provider: 'unsplash' } })
+    const response = await media.request(location, { signal, method: 'GET', maxBytes: this.config.limits.maxReferenceBytes, timeoutMs: this.config.limits.requestTimeoutMs, maxRedirects: this.config.limits.maxRedirects, headers: { accept: 'image/jpeg,image/png,image/webp' } })
+    const mime = response.headers['content-type']?.split(';')[0]?.trim().toLowerCase()
+    if (!mime || !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(mime)) throw new CuratorError('reference-unavailable', 'resource', 'The image source did not return supported raster bytes.')
+    return new Response(head ? null : new Uint8Array(response.bytes), { headers: { ...headers, 'cache-control': `private, max-age=${Math.floor(this.config.source.unsplash.cache.ttlMs / 1000)}`, 'content-type': mime, 'content-length': String(response.bytes.length), 'referrer-policy': 'no-referrer' } })
+  }
   /** Workspace reads, task controls and configuration saves bypass bounded action-text responses.
    * @param request Authenticated same-origin JSON request. @returns Validated workspace data or a safe command result.
    */
   async data(request: Request): Promise<Response> {
-    return await this.workspaceData(request, ['snapshot', 'run-get', 'export-get', 'local-files-list', 'references-list', 'analysis-detail', 'analysis-input', 'analysis-stop', 'reference-analyze', 'config-read', 'config-save'])
+    return await this.workspaceData(request, ['task-prepare', 'usage-list', 'snapshot', 'run-get', 'run-control', 'run-delete', 'export-get', 'local-files-list', 'references-list', 'analysis-detail', 'analysis-input', 'analysis-stop', 'reference-analyze', 'config-read', 'config-save'])
   }
   /** @param request Authenticated account check, listing or selected-photo import. @returns Bounded JSON without action-text truncation. */
   async gallery(request: Request): Promise<Response> {
-    return this.workspaceData(request, ['gallery-validate', 'gallery-collections', 'gallery-photos', 'gallery-import', 'gallery-import-progress', 'gallery-import-cancel', 'gallery-login-start', 'gallery-login-status', 'gallery-login-finish', 'gallery-login-cancel', 'gallery-reference-start', 'gallery-reference-tasks', 'gallery-reference-stop'])
+    return this.workspaceData(request, ['gallery-validate', 'gallery-collections', 'gallery-photos', 'gallery-import', 'gallery-import-progress', 'gallery-import-cancel', 'gallery-login-start', 'gallery-login-status', 'gallery-login-retry', 'gallery-login-finish', 'gallery-login-cancel', 'gallery-reference-start', 'gallery-reference-tasks', 'gallery-reference-stop'])
   }
   /** Register only authenticated Client-selected local paths through the bounded JSON route.
    * @param request Local-reference mutation envelope. @returns Per-file registration outcomes without copied bytes.
    */
   async localReferenceData(request: Request): Promise<Response> { return await this.workspaceData(request, ['reference-local-import', 'local-reference-pick']) }
+  /** @param request Authenticated, bounded analysis subscription. @returns Native SSE output; closing the response does not stop the task. */
+  async followAnalysis(request: Request): Promise<Response> {
+    try {
+      if (this.stopping) throw new CuratorError('capability-unavailable', 'analysis-follow', 'The plugin is stopping.')
+      const input = await this.requestInput(request)
+      if (input.operation !== 'analysis-follow') throw new CuratorError('owner-denied', 'analysis-follow', 'This route accepts analysis subscriptions only.')
+      const args = z.strictObject({ runId: z.string().min(1), sessionToken: z.string().optional() }).parse(input.args)
+      const actor = this.scopedHuman({ kind: 'human', id: 'profile-owner', profileId: this.profileId }, input.args)
+      const run = this.engine.get(args.runId, actor)
+      const grant = args.sessionToken ? this.sessionGrants.get(args.sessionToken) : undefined
+      const signal = AbortSignal.any([request.signal, this.lifetime.signal, ...(grant ? [AbortSignal.timeout(Math.max(0, grant.expiresAt - Date.now()))] : [])])
+      return analysisFollowResponse(this.engine, run, actor, signal)
+    } catch (error) { return Response.json({ ok: false, error: safeFailure(error) }, { status: 400, headers: { 'cache-control': 'no-store' } }) }
+  }
+  private async requestInput(request: Request): Promise<z.infer<typeof actionSchema>> {
+    const chunks: Uint8Array[] = []; let size = 0
+    const reader = request.body?.getReader()
+    if (!reader) throw new CuratorError('invalid-input', 'data-read', 'A JSON read request is required.')
+    try {
+      for (;;) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        size += chunk.value.byteLength
+        if (size > this.config.limits.maxClientRequestBytes) { await reader.cancel(); throw new CuratorError('invalid-input', 'data-read', 'The read request exceeds the configured byte limit.') }
+        chunks.push(chunk.value)
+      }
+    } finally { reader.releaseLock() }
+    return actionSchema.parse(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))))
+  }
   private async workspaceData(request: Request, operations: readonly string[]): Promise<Response> {
     try {
-      const chunks: Uint8Array[] = []; let size = 0
-      const reader = request.body?.getReader()
-      if (!reader) throw new CuratorError('invalid-input', 'data-read', 'A JSON read request is required.')
-      try {
-        for (;;) {
-          const chunk = await reader.read()
-          if (chunk.done) break
-          size += chunk.value.byteLength
-          if (size > this.config.limits.maxClientRequestBytes) { await reader.cancel(); throw new CuratorError('invalid-input', 'data-read', 'The read request exceeds the configured byte limit.') }
-          chunks.push(chunk.value)
-        }
-      } finally { reader.releaseLock() }
-      const input = actionSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+      const input = await this.requestInput(request)
       if (!operations.includes(input.operation)) throw new CuratorError('owner-denied', 'data-read', 'This route does not accept the requested operation.')
       const value = await this.action(input, { kind: 'human', id: 'profile-owner', profileId: this.profileId }, request.signal)
       return Response.json({ ok: true, value }, { headers: { 'cache-control': 'private, no-store' } })
@@ -725,7 +824,7 @@ export class CuratorService {
   async dispose(): Promise<void> {
     this.stopping = true
     const references = this.galleryTasks?.dispose() ?? Promise.resolve()
-    const jobs = Promise.allSettled([references, this.engineValue?.dispose(), this.logins?.dispose(), references.catch(() => {}).then(() => this.galleryValue?.dispose())])
+    const jobs = Promise.allSettled([references, this.engineValue?.dispose(), this.logins?.dispose(), this.providers.dispose?.(), this.galleryProviders?.dispose(), references.catch(() => {}).then(() => this.galleryValue?.dispose())])
     this.lifetime.abort()
     try {
       await Promise.allSettled([...this.foreground])

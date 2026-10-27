@@ -1,0 +1,110 @@
+/** Read-only real-page QA; history deletion and the active task are intercepted, never persisted. */
+async page => {
+  const assert = (value, message) => { if (!value) throw new Error(message) }
+  const originalDark = await page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))
+  const errors = [], onError = error => errors.push(error.message)
+  let deleted, deleteCalls = 0
+  const fakeId = 'native-layout-active-fixture'
+  const fakeRun = () => ({ runId: fakeId, kind: 'crop', status: 'running', taskBrief: '活动任务验收', counts: { observed: 0 }, results: [], warnings: [] })
+  const data = async route => {
+    const input = route.request().postDataJSON()
+    if (input.operation === 'snapshot') {
+      const response = await route.fetch(), body = await response.json()
+      body.value.runs = [...body.value.runs.filter(run => run.runId !== deleted), fakeRun()]
+      return route.fulfill({ response, json: body })
+    }
+    if (input.operation === 'run-get' && input.args.runId === fakeId) return route.fulfill({ json: { ok: true, value: fakeRun() } })
+    if (input.operation === 'run-delete') {
+      assert(input.args.runId !== fakeId, 'Active task deletion must stay disabled')
+      deleteCalls++; deleted = input.args.runId
+      return route.fulfill({ json: { ok: true, value: { runId: deleted, deleted: true } } })
+    }
+    if (input.operation === 'reference-analyze') throw new Error('Layout QA must not start a model request')
+    return route.continue()
+  }
+  const gallery = async route => {
+    const response = await route.fetch(), body = await response.json()
+    if (body.value?.analyses) body.value.analyses = body.value.analyses.filter(task => task.runId !== deleted)
+    return route.fulfill({ response, json: body })
+  }
+  await page.route('**/api/visual-curator/data', data)
+  await page.route('**/api/visual-curator/gallery', gallery)
+  page.on('pageerror', onError)
+  try {
+    await page.setViewportSize({ width: 1440, height: 960 })
+    await page.reload()
+    await page.getByRole('button', { name: '训练图片工作台', exact: true }).click()
+    await page.locator('.vc-collection-trigger').click()
+    await page.getByRole('menuitem', { name: '111', exact: true }).click()
+    await page.locator('.vc-profile-dock').getByRole('button', { name: '分析过程', exact: true }).click()
+    const modal = page.locator('.vc-analysis-modal'), feed = modal.locator('.vc-chat-feed')
+    await modal.locator('.vc-final-summary').waitFor()
+    await modal.locator('.vc-process-disclosure').getByRole('button', { name: /思考与分析过程/ }).click()
+    await modal.locator('.vc-native-answer h3').first().waitFor()
+    await modal.locator('[class*="userStack"]').first().waitFor()
+    await page.waitForTimeout(350)
+    const box = await modal.boundingBox()
+    assert(box.width >= 1200 && box.height >= 850, 'Dialog should use the enlarged desktop size')
+    assert(await modal.locator('.vc-process-context').isVisible(), 'Wide dialog needs the context rail')
+    assert(await modal.locator('.vc-native-answer li').count() >= 7, 'Saved dimensions should render as native Markdown lists')
+    assert(await modal.locator('.vc-user-stack').getByRole('button', { name: '展开全文', exact: true }).count() > 0, 'Long inputs need compact previews')
+    await modal.locator('.vc-process-context').getByRole('button').filter({ hasText: '风格归纳' }).click()
+    await modal.locator('.vc-final-summary h2').waitFor()
+    await modal.locator('.vc-chat-raw').last().getByText('当前响应内容', { exact: true }).click()
+    assert(await modal.locator('.vc-chat-raw').last().getByRole('button').count() >= 3, 'Original response needs native code controls')
+    await feed.evaluate(element => { element.scrollTop = 300 })
+    await page.waitForTimeout(150)
+    const scroll = await feed.evaluate(element => element.scrollTop)
+    await modal.getByRole('tab', { name: '运行日志', exact: true }).click()
+    await modal.getByRole('tab', { name: '模型对话', exact: true }).click()
+    assert(Math.abs((await feed.evaluate(element => element.scrollTop)) - scroll) < 3, 'Tabs must preserve reading position')
+    await modal.locator('.vc-process-context').getByRole('button').filter({ hasText: '批次 1' }).click()
+    const details = modal.getByRole('button', { name: '输入详情', exact: true }).first()
+    await details.click()
+    const inspector = page.locator('.vc-input-inspector-modal')
+    assert((await inspector.locator('pre').first().innerText()).length > 180, 'Input inspector must retain the full prompt')
+    await page.keyboard.press('Escape')
+    assert(await modal.isVisible(), 'Closing nested input details must retain the process dialog')
+    await modal.screenshot({ path: '.playwright-mcp/analysis-dialog-desktop.png', scale: 'css' })
+    await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', ''))
+    await modal.screenshot({ path: '.playwright-mcp/analysis-dialog-dark.png', scale: 'css' })
+    await page.setViewportSize({ width: 390, height: 844 })
+    assert(!await modal.locator('.vc-process-context').isVisible(), 'Narrow dialog should keep one column')
+    assert(await feed.evaluate(element => element.scrollWidth <= element.clientWidth + 1), 'Narrow native content must not overflow')
+    await modal.screenshot({ path: '.playwright-mcp/analysis-dialog-mobile.png', scale: 'css' })
+    await page.keyboard.press('Escape')
+    await page.setViewportSize({ width: 1440, height: 960 })
+    await page.evaluate(dark => document.body.toggleAttribute('data-ds-dark-theme', dark), originalDark)
+    await page.locator('.vc-task-toggle').click()
+    const handle = page.getByRole('separator', { name: '调整任务记录高度', exact: true })
+    await handle.click()
+    const start = await handle.boundingBox(), panel = page.locator('.vc-task-resizable')
+    const height = (await panel.boundingBox()).height
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2)
+    await page.mouse.down(); await page.mouse.move(start.x + start.width / 2, start.y - 130, { steps: 8 }); await page.mouse.up()
+    assert((await panel.boundingBox()).height > height + 100, 'Dragging upward must enlarge task history')
+    await handle.focus(); await page.keyboard.press('Home')
+    assert(Math.abs((await panel.boundingBox()).height - 160) <= 1, 'Home must set minimum height')
+    await page.keyboard.press('End')
+    assert((await panel.boundingBox()).height <= 720, 'History height must stay bounded')
+    const task = page.locator('.vc-task-detail')
+    assert(Number.parseFloat(await task.locator('.vc-task-actions').evaluate(element => getComputedStyle(element).gap)) >= 8, 'Task action buttons need spacing')
+    await page.locator('.vc-run-item').filter({ hasText: '活动任务验收' }).click()
+    assert(await task.getByRole('button', { name: '删除记录', exact: true }).isDisabled(), 'Active records must not be deletable')
+    const countBeforeDelete = await page.locator('.vc-run-item').count()
+    await page.locator('.vc-run-item').filter({ hasText: '失败' }).first().click()
+    await task.getByRole('button', { name: '删除记录', exact: true }).click()
+    await page.waitForFunction(() => !document.querySelector('.vc-task-actions button[aria-busy="true"]'))
+    assert(await page.locator('.vc-run-item').count() === countBeforeDelete - 1, 'Deleted task should leave the visible list')
+    assert(deleteCalls === 1, 'Deletion should issue one idempotent action')
+    await page.locator('.vc-task-panel').screenshot({ path: '.playwright-mcp/task-history-resized.png', scale: 'css' })
+    assert(errors.length === 0, `Unexpected page errors: ${errors.join('; ')}`)
+    return { enlargedDesktop: true, nativeUserBubble: true, nativeMarkdown: true, nativeCodeControls: true, compactInputs: true, completeInputInspector: true, batchNavigation: true, tabScrollRetained: true, narrowOverflow: false, contextRailResponsive: true, historyDrag: true, historyKeyboard: true, actionSpacing: true, activeDeleteDisabled: true, deleteCalls, realRecordsDeleted: false, pageErrors: errors }
+  } finally {
+    page.off('pageerror', onError)
+    await page.unrouteAll({ behavior: 'wait' })
+    await page.evaluate(dark => document.body.toggleAttribute('data-ds-dark-theme', dark), originalDark)
+    await page.setViewportSize({ width: 1440, height: 960 })
+    await page.reload()
+  }
+}

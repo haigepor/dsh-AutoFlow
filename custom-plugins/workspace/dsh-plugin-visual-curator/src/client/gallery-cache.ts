@@ -13,19 +13,20 @@ interface Dependencies {
   storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
   now?(): number
 }
-const storageKey = 'visual-curator.gallery-cache.v1'
+const storageKey = 'visual-curator.gallery-cache.v2'
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const url = (value: unknown) => typeof value === 'string' && /^https?:\/\//i.test(value)
 const optionalUrl = (value: unknown) => value === '' || url(value)
 const text = (value: unknown) => typeof value === 'string'
+const optionalPath = (value: unknown) => value === undefined || text(value)
 function isPage(value: unknown, operation: string): value is Page {
   if (!record(value) || !Array.isArray(value.items) || !(value.nextCursor === null || text(value.nextCursor))) return false
   if (value.total !== undefined && (!Number.isSafeInteger(value.total) || Number(value.total) < 0)) return false
   return value.items.every((item: unknown) => {
     if (!record(item) || !text(item.id) || !text(item.title)) return false
-    if (operation === 'gallery-collections') return Number.isSafeInteger(item.totalPhotos) && Number(item.totalPhotos) >= 0 && text(item.description) && typeof item.private === 'boolean' && (item.coverUrl === undefined || url(item.coverUrl))
+    if (operation === 'gallery-collections') return Number.isSafeInteger(item.totalPhotos) && Number(item.totalPhotos) >= 0 && text(item.description) && typeof item.private === 'boolean' && (item.coverUrl === undefined || url(item.coverUrl)) && optionalPath(item.coverPath)
     if (operation !== 'gallery-photos') return false
-    return Number.isSafeInteger(item.width) && Number(item.width) > 0 && Number.isSafeInteger(item.height) && Number(item.height) > 0 && url(item.thumbnailUrl) && url(item.referenceUrl) && optionalUrl(item.pageUrl) && text(item.photographer) && optionalUrl(item.photographerUrl) && typeof item.premium === 'boolean' && (item.originalUrl === undefined || url(item.originalUrl))
+    return Number.isSafeInteger(item.width) && Number(item.width) > 0 && Number.isSafeInteger(item.height) && Number(item.height) > 0 && url(item.thumbnailUrl) && url(item.referenceUrl) && optionalUrl(item.pageUrl) && text(item.photographer) && optionalUrl(item.photographerUrl) && typeof item.premium === 'boolean' && (item.originalUrl === undefined || url(item.originalUrl)) && optionalPath(item.thumbnailPath) && optionalPath(item.previewPath)
   })
 }
 
@@ -52,6 +53,8 @@ export function createGalleryCache(dependencies: Dependencies) {
     for (const request of pending.values()) request.controller.abort()
     pending.clear()
     try {
+      // 旧版本只有直连图片地址；丢弃派生缓存以重新获取 Host 预览路径，原图库数据不受影响。
+      dependencies.storage?.removeItem('visual-curator.gallery-cache.v1')
       const source = dependencies.storage?.getItem(storageKey)
       if (!source || new TextEncoder().encode(source).byteLength > context.policy.maxBytes) return
       const saved: unknown = JSON.parse(source)

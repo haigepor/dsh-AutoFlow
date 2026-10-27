@@ -1,0 +1,7 @@
+Use case: stylized-concept.
+Asset type: transparent decorative bitmap overlay for a compact selected tab in a professional photography curation sidebar.
+Primary request: create one refined, extremely subtle pale-blue refracted-light texture, suitable for compositing over both white and charcoal UI surfaces. This is a material texture asset, not a rendered button, not an icon, not a UI screenshot.
+Subject: a thin translucent frosted-glass light film with a few soft photographic highlights and very fine natural grain. Restrained powder-blue and cool silver-blue reflections, softly concentrated at the upper-right edge, fading smoothly into genuine alpha transparency toward the left and lower edge.
+Composition: a wide horizontal 3:1 canvas. Keep the left 65 percent and central text area almost completely transparent. Confine the visible material to the rightmost quarter, with very low visual density. No objects extending outside the canvas.
+Lighting/mood: calm, precise, understated desktop creative-tool material; gentle side lighting; matte and shallow, never glossy plastic or neon.
+Constraints: actual transparent background; no opaque white, black or checkerboard backdrop. No text, letters, digits, labels, logos, watermark, outlines, capsule silhouette, complete button border, shadows around an outer shape, sparkles, stars, ribbons, folded corners, photo icons, thick bevels, or bright bloom. The output must remain unobtrusive when scaled to a 90 by 34 pixel tab. Do not bake the tab's base fill or interactive state into the bitmap.

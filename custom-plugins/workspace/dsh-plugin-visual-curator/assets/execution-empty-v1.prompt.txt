@@ -1,0 +1,25 @@
+生成方式：内置 image_gen；新建插画后进行透明背景清理。
+用途：找图与裁剪的单一空状态插画，装饰元素不含页面文字或按钮。
+页面资源：原 PNG 无损编码为同尺寸 WebP；已逐像素核对透明通道与所有可见 RGB，原 PNG 保留。
+
+初始提示词：
+Use case: stylized-concept
+Asset type: transparent PNG illustration for the empty state of a professional image-search and crop workbench.
+Primary request: create an elegant compact editorial illustration that clearly suggests finding photos and choosing a crop, for an empty state above a real heading and action button. The app uses near-black and white themes, restrained cool blue accents, rounded native components and a photographic welcome illustration. This is ONLY a decorative asset; all interface text and buttons will be real HTML.
+
+Composition: a balanced three-quarter frontal arrangement of exactly two thin landscape photo cards and one small magnifying glass. The front image card is dominant and nearly straight, the rear card offset slightly left and rotated by about -8 degrees, with believable but very shallow depth. The front photo shows a quiet mountain lake and muted evergreen trees in soft daylight. The rear card shows only a small exposed photographic edge. A fine cornflower-blue crop rectangle with four clear L-shaped corner brackets sits over the front photo, with one simple vertical and horizontal crop guide. A small blue magnifying glass rests near the lower-right corner, partly overlapping the front card but leaving the crop frame readable. Its round lens is clear and its handle short, clean and proportional.
+
+Style: polished raster illustration blending real photographic imagery with soft matte dimensional frames. Closely related to premium photo-workspace onboarding artwork. Light porcelain-blue rounded card edges, slender framing, subtle blue edge detail, calm restrained lighting, one extremely soft contact shadow. No chunky toy-like plastic, oversized bevel, thick white Polaroid frame or excessive shine. The shapes should still read clearly at roughly 240 x 160 CSS px.
+
+Color and mood: muted natural greens, blue-gray lake and soft sky within the photo; cool powder blue, #7AAAFF cornflower accents and off-white blue-gray framing. The cool blue crop corners and magnifier connect visually to the app's selected tabs. Calm, inviting, professional, ready to begin; do not imply completed work or a successful search.
+
+Output: one isolated illustration on genuinely transparent RGBA background, landscape 3:2 composition, preferably 1536 x 1024. The complete grouped subject occupies about 88% of canvas width and 82% of height, with even narrow transparent margins. Preserve all edges and the entire magnifier handle. No ground plane, no background panel, no large background halo. It must composite cleanly on #151517 and #FFFFFF without a visible rectangular patch.
+
+Hard constraints: NO words, letters, numbers, labels, logo, watermark, UI screenshot, title, paragraph, button, surrounding app window, presentation sheet, multiple alternatives, checkerboard pattern or solid backdrop. No arrows, stars, sparkles, green checks, badges, trophies, people, hands, scattered objects, scissors, neon glow or strong cast shadow. Only two photo cards, an integrated crop overlay and a single magnifying glass. Keep the illustration compact and coherent.
+
+背景清理提示词：
+Use case: background-extraction
+Input image 1: edit target.
+Remove ALL of the large gray-white-blue haze, glow, mist, halo, vignette and ambient background surrounding the two photo cards and magnifying glass. Make every pixel outside the physical objects genuinely transparent. Keep only a very faint tiny contact shadow immediately under object edges; no broad ambient light or ground plane.
+Preserve the two photo cards, lake and mountain photographs, blue crop brackets, dashed crop guides, magnifying glass, object placement, sizes, colors and composition exactly. Do not redraw the photos or alter the composition. Preserve antialiasing and the existing transparency inside the magnifying glass where appropriate.
+The result is a clean isolated UI illustration cutout to place on solid near-black #151517 and white #ffffff app backgrounds. No rectangular background patch, no checkerboard baked into the bitmap, no new objects, no words, no extra frame, no remaining external fog or glow. Output genuinely transparent RGBA PNG.

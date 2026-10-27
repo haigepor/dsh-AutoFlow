@@ -1,0 +1,11 @@
+{
+  "transport": "native-llm",
+  "provider": "native-fixture",
+  "model": "vision-model",
+  "inputRoles": ["user"],
+  "images": 1,
+  "reasoning": "检查实际图片",
+  "observations": [{"imageVersionId":"image-one","dimensions":[{"dimension":"color","observation":"低饱和绿色","uncertain":false}]}],
+  "usage": {"inputTokens":40,"outputTokens":25,"cacheReadTokens":160,"reasoningTokens":10,"totalTokens":225},
+  "finish": {"kind":"stop"}
+}

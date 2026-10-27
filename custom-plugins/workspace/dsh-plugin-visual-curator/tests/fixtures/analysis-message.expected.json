@@ -1,0 +1,5 @@
+{
+  "structured": true,
+  "markdown": "### Image 01 · Image \\[a\\](unsafe)\n\n- **Color**：Muted \\*\\*green\\*\\*（Uncertain）",
+  "partial": "````json\n{\"observations\":[\"unfinished ```\n````"
+}

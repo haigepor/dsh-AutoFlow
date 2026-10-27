@@ -1,0 +1,8 @@
+Use case: productivity-visual.
+Asset type: small transparent illustration for a real photo curation application's background-import loading indicator, displayed around 72-112 CSS pixels wide.
+Primary request: A refined minimal soft-blue illustration of two overlapping white photo prints sliding into a light-blue image folder, conveying that selected photographs are being added to a collection. One tiny restrained sparkle near the leading print. Clear large simple shapes that remain legible at small sizes.
+Composition: isolated centered object, landscape 4:3 composition, occupies about 80 percent of the canvas, consistent modest perspective, generous transparent padding on all sides.
+Style: crisp polished 2.5D productivity app illustration, gently rounded edges, restrained depth, minimal smooth shading, clean photo print frames. The photos show very simple blue-gray hills and a small pale sun, no real photography.
+Palette: muted cornflower blue, pale cool blue, white frames, modest blue-gray edge definition. Suitable for both white and charcoal app backgrounds.
+Background: genuinely transparent alpha, no colored backdrop, no checkerboard pattern rendered into the artwork, no white rectangular canvas, no ground plane.
+Constraints: exactly one compact illustration, no text, no labels, no numbers, no interface buttons, no progress bar, no multiple views, no watermark, no decorative confetti. This is one static animation key visual; motion and actual progress are supplied separately by application CSS. Avoid fussy micro-details, glossy chrome, loud neon, excessive shadow.

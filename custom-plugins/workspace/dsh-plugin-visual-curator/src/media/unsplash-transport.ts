@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { lookup } from 'node:dns/promises'
+import type { LookupAddress } from 'node:dns'
 import { mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname, basename, resolve } from 'node:path'
@@ -17,11 +18,44 @@ const quote = (value: string) => `"${value.replaceAll('\\', '\\\\').replaceAll('
 const failed = (code = 'source-network-failed', retryable = false) => new MediaError(code, 'gallery', retryable, 'Unable to read the Unsplash gallery.', 'Check the account session and connection, then retry.')
 const challengeSchema = z.object({ challenge: z.object({ id: z.string().min(1).max(256), randomData: z.string().min(1).max(4096), difficulty: z.number().int().min(1).max(8) }) })
 
+/** Curl failures retain only the numeric exit status; stderr may contain private URLs. */
+export class CurlRequestError extends MediaError {
+  /** @param exitCode Process exit status, or null after a signal. @param unavailable The configured executable could not be found. */
+  constructor(readonly exitCode: number | null, unavailable = false) {
+    const code = unavailable ? 'source-client-unavailable' : exitCode === 28 ? 'source-request-timeout' : exitCode === 5 || exitCode === 6 ? 'source-dns-failed'
+      : exitCode !== null && [35, 51, 58, 60, 77, 83, 90, 91].includes(exitCode) ? 'source-tls-failed'
+      : exitCode === 18 ? 'source-response-incomplete' : 'source-network-failed'
+    const retryable = !unavailable && exitCode !== null && [5, 6, 7, 16, 18, 28, 52, 55, 56, 92, 95, 96].includes(exitCode)
+    super(code, 'gallery', retryable, `Unable to read the Unsplash gallery (curl exit ${exitCode ?? 'none'}).`, 'Check the connection and retry; certificate errors require correcting the local trust configuration.')
+  }
+}
+
+/** Retry only transient, read-only curl failures within the caller's lifetime.
+ * @param read One attempt using the indicated validated address index. @param maxRetries Configured extra attempts.
+ * @param signal Shared request deadline and cancellation. @returns The first complete response; terminal failures remain failures.
+ */
+export async function retryCurlRead<T>(read: (attempt: number) => Promise<T>, maxRetries: number, signal: AbortSignal): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    signal.throwIfAborted()
+    try { return await read(attempt) }
+    catch (error) {
+      if (signal.aborted || !(error instanceof CurlRequestError) || !error.retryable || attempt >= maxRetries) throw error
+    }
+  }
+}
+
+/** @param hostname Fixed provider hostname. @param addresses Nonempty public records already checked by the caller. @param offset First candidate for this attempt. @returns curl's pinned address set, retaining native connection fallback and hostname TLS. */
+export function curlResolveArgument(hostname: string, addresses: readonly LookupAddress[], offset: number): string {
+  const ordered = [...addresses.slice(offset), ...addresses.slice(0, offset)]
+  return `${hostname}:443:${ordered.map(item => item.family === 6 ? `[${item.address}]` : item.address).join(',')}`
+}
+
 /** Secret values remain in memory and private temporary files, never subprocess arguments or logs. */
 export class CurlUnsplashTransport implements UnsplashTransport {
   private cookies: string
-  /** @param secret Account Cookie header or Netscape cookie content; absent permits public search. @param options Validated deployment executable and user agent. */
-  constructor(secret: string | undefined, private readonly options: { curlBinary: string; userAgent: string }) {
+  private nextAddress: string | undefined
+  /** @param secret Account Cookie header or Netscape cookie content; absent permits public search. @param options Validated executable, user agent, connection timeout and read retry budget. */
+  constructor(secret: string | undefined, private readonly options: { curlBinary: string; userAgent: string; connectTimeoutMs: number; maxRetryAttempts: number }) {
     this.cookies = secret ? normalizeCookie(secret) : ''
   }
 
@@ -79,24 +113,37 @@ export class CurlUnsplashTransport implements UnsplashTransport {
     for (let redirects = 0; ; redirects++) {
       signal.throwIfAborted()
       if (url.origin !== origin || url.username || url.password || url.hash) throw failed('invalid-input')
-      const addresses = await lookup(url.hostname, { all: true, verbatim: true })
+      let addresses: LookupAddress[]
+      try { addresses = await lookup(url.hostname, { all: true, verbatim: true }) }
+      catch (error) {
+        signal.throwIfAborted()
+        if (error instanceof Error && 'code' in error && ['ENOTFOUND', 'EAI_AGAIN'].includes(String(error.code))) throw failed('source-dns-failed', true)
+        throw error
+      }
       if (!addresses.length || addresses.some(address => !isPublicAddress(address.address))) throw failed('invalid-input')
-      const address = addresses.find(address => address.family === 4) ?? addresses[0]!
+      const candidates = [...addresses.filter(address => address.family === 4), ...addresses.filter(address => address.family !== 4)]
+      const preferred = candidates.findIndex(address => address.address === this.nextAddress)
+      if (preferred > 0) candidates.push(...candidates.splice(0, preferred))
       const bodyPath = join(directory, 'body.bin'), headerPath = join(directory, 'headers.txt')
       const config = [
         `url = ${quote(url.href)}`, `cookie = ${quote(jar)}`, `cookie-jar = ${quote(jar)}`, `output = ${quote(bodyPath)}`, `dump-header = ${quote(headerPath)}`,
         `user-agent = ${quote(this.options.userAgent)}`, 'header = "Accept: application/json, text/plain, */*"', 'header = "accept-language: en-US"', 'header = "Referer: https://unsplash.com/"',
       ].join('\n') + '\n'
-      const args = ['-q', '--silent', '--show-error', '--proto', '=https', '--max-time', String(Math.ceil(bounds.timeoutMs / 1000)), '--max-filesize', String(bounds.maxBytes), '--resolve', `${url.hostname}:443:${address.family === 6 ? `[${address.address}]` : address.address}`, '--config', '-']
-      await new Promise<void>((resolve, reject) => {
-        const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => environmentNames.has(key.toUpperCase())))
-        const child = spawn(this.options.curlBinary, args, { windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'], signal, env })
-        let spawnError: Error | undefined
-        child.on('error', error => { spawnError = error })
-        child.stdin.on('error', error => { /* 提前退出的 curl 会关闭输入管道；最终状态由 close 统一报告。 */ spawnError ??= error })
-        child.on('close', code => { if (spawnError || code !== 0) reject(failed(spawnError && 'code' in spawnError && spawnError.code === 'ENOENT' ? 'source-client-unavailable' : 'source-network-failed')); else resolve() })
-        child.stdin.end(config)
-      })
+      // 连接层接收全部已检查地址；某个节点不可达时由 curl 回退，HTTP 请求只发到胜出的连接。
+      await retryCurlRead(async attempt => {
+        const index = attempt % candidates.length
+        this.nextAddress = candidates[(attempt + 1) % candidates.length]!.address
+        const args = ['-q', '--silent', '--show-error', '--compressed', '--proto', '=https', '--connect-timeout', String(Math.min(this.options.connectTimeoutMs, bounds.timeoutMs) / 1000), '--max-time', String(Math.ceil(bounds.timeoutMs / 1000)), '--max-filesize', String(bounds.maxBytes), '--resolve', curlResolveArgument(url.hostname, candidates, index), '--config', '-']
+        await new Promise<void>((resolve, reject) => {
+          const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => environmentNames.has(key.toUpperCase())))
+          const child = spawn(this.options.curlBinary, args, { windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'], signal, env })
+          let spawnError: Error | undefined
+          child.on('error', error => { spawnError = error })
+          child.stdin.on('error', error => { /* 提前退出的 curl 会关闭输入管道；最终状态由 close 统一报告。 */ spawnError ??= error })
+          child.on('close', code => { if (spawnError || code !== 0) reject(new CurlRequestError(code, !!spawnError && 'code' in spawnError && spawnError.code === 'ENOENT')); else resolve() })
+          child.stdin.end(config)
+        })
+      }, url.pathname.startsWith('/napi/') ? this.options.maxRetryAttempts : 0, signal)
       if ((await stat(bodyPath)).size > bounds.maxBytes || (await stat(headerPath)).size > bounds.maxBytes) throw failed('source-protocol-error')
       const bytes = await readFile(bodyPath), rawHeaders = await readFile(headerPath, 'utf8')
       const blocks = rawHeaders.split(/\r?\n\r?\n/).filter(block => /^HTTP\/\S+\s+\d{3}/.test(block)), block = blocks.at(-1)

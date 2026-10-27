@@ -11,6 +11,7 @@ import { dataOf } from '../src/host/runtime.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { jsonSchema, type Json } from '../src/shared/model.ts'
 import { contentDigest } from '../src/domain/repository.ts'
+import { taskPreparationSchema } from '../src/shared/task-preparation.ts'
 
 function toolResponse(callId: string, name: string, args: Record<string, Json>): StreamChunk[] {
   const id = ToolCallId(callId), argumentsJson = JSON.stringify(args)
@@ -62,8 +63,15 @@ test('a real AgentLoop records fixed-style jobs, technical and crop failures, su
     await toolsFork
     let successfulRunId = '', rejectedRunId = '', failedRunId = ''
     const script: ((request: GenerateOptions) => Promise<StreamChunk[]>)[] = [
+      async () => toolResponse('prepare', 'visual_task_prepare', { kind: 'search', ...searchArgs }),
       async () => toolResponse('style-get', 'visual_style_get', { styleId: style.id }),
-      async () => toolResponse('search-pass', 'visual_search_start', searchArgs),
+      async request => {
+        const result = request.messages.find(message => message.role === 'tool' && message.toolCallId === 'prepare')
+        assert.ok(result)
+        const prepared = taskPreparationSchema.parse(JSON.parse(result.content.flatMap(part => part.type === 'text' ? [part.text] : []).join('\n')))
+        assert.ok(prepared.status === 'ready')
+        return toolResponse('search-pass', 'visual_search_start', { ...prepared.normalizedInput, preparationDigest: prepared.preparationDigest })
+      },
       async () => {
         await f.jobs.drain()
         const run = f.repository.list('run').find(run => run.owner.kind === 'session' && run.owner.sessionId === 'curator-session')!

@@ -9,8 +9,8 @@
   en: 9f134b034ff5b4e5
   zh: 15db384fb6990941
 /dsh-plugin-visual-curator/summary:
-  en: baa71cf4dd85af4a
-  zh: 0dd51c6b4755e5f8
+  en: d3d351b799539964
+  zh: d2c4e9e54762a506
 /dsh-plugin-visual-curator/table-of-contents:
   en: d152484eb41ac6b4
   zh: 91957bb5fa1bd8c5
@@ -21,17 +21,17 @@
   en: 05336ab8a2007528
   zh: 3750a4218f0ff759
 /dsh-plugin-visual-curator/use-this-package/configure-external-services:
-  en: 6912314b55364ad3
-  zh: 906f526ff057306d
+  en: 40e9d4394d0606b7
+  zh: 8d19440fb0236fdd
 /dsh-plugin-visual-curator/use-this-package/establish-a-fixed-style:
-  en: 9e439e98dfeabaf2
-  zh: 0dac4221e9fc14ac
+  en: f058937d11c4e410
+  zh: b24a47d412f6a650
 /dsh-plugin-visual-curator/use-this-package/review-results-and-corrections:
   en: 084831464eafd29d
   zh: 208b157a042340d1
 /dsh-plugin-visual-curator/use-this-package/scope-and-recover-work:
-  en: d39edca45065217e
-  zh: 9009734dd66e48d9
+  en: 9dbf15cd5a73a4ed
+  zh: 1e583d3b400632f5
 /dsh-plugin-visual-curator/use-this-package/split-compare-and-export:
   en: bef602aea876f282
   zh: efa98faa21274d92
@@ -42,11 +42,14 @@
   en: fa88edfac2729df6
   zh: 7ced494d03baa8ab
 /dsh-plugin-visual-curator/model-experience:
-  en: e2c5e0271d2cc34b
-  zh: 037f77c2abf7dda1
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/dsh-plugin-visual-curator/model-experience/prepare-and-review-tasks:
+  en: 429aa2549e9a12c9
+  zh: 960988ec75f18d9f
 /dsh-plugin-visual-curator/known-limitations-and-deferred-work:
-  en: 525d089339c5df88
-  zh: b839fb41df8541c9
+  en: cd7d49459576a59c
+  zh: 127908ef9318a878
 /dsh-plugin-visual-curator/dev-note:
   en: 5de1d6304e00c58f
   zh: e090bc658d949fd3

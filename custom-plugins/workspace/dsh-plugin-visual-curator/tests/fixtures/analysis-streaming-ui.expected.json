@@ -1,0 +1,13 @@
+{
+  "skeletonCount": 2,
+  "reasoningVisible": true,
+  "readableStream": true,
+  "failedImageContained": true,
+  "inlineRetryButtons": 0,
+  "autoCollapse": true,
+  "manualReopen": true,
+  "finalSummaryOnce": true,
+  "narrow": true,
+  "failedProcessRetained": true,
+  "pageErrors": []
+}

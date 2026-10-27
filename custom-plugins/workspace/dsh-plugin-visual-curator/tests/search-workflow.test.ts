@@ -92,7 +92,7 @@ async function setup(pages: SearchFixture['pages'], options: { targetCount?: num
     request: async (kind, _bundle, work) => {
       for (let attempt = 0; ; attempt++) {
         currentSignal.throwIfAborted(); await ledger.reserve(kind)
-        try { return await work(currentSignal) } catch (error) {
+        try { return await work(currentSignal, async () => {}) } catch (error) {
           if (currentSignal.aborted || !(error instanceof MediaError) || !error.retryable || attempt >= config.limits.maxRetryAttempts) throw error
         }
       }

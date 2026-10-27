@@ -7,9 +7,42 @@ import { serviceFixture } from './helpers/service-fixture.ts'
 import { GalleryReferenceTasks } from '../src/host/gallery-tasks.ts'
 import { toJson } from '../src/host/runtime.ts'
 import { readFile } from 'node:fs/promises'
+import { galleryTaskProgress, galleryTaskViewSchema } from '../src/shared/gallery-task.ts'
 
 const taskView = z.object({ id: z.string(), styleId: z.string(), status: z.string(), completed: z.number(), failed: z.number(), total: z.number() })
 const photo = (id: string) => ({ id, width: 400, height: 200, urls: { small: `https://images.unsplash.com/${id}?w=200`, regular: `https://images.unsplash.com/${id}?w=800` } })
+
+test('live progress includes published batch rows and stays unchanged when its batch receipt settles', () => {
+  const task = galleryTaskViewSchema.parse({ id: 'a'.repeat(64), styleId: 'style', status: 'running', phase: 'saving', total: 25, completed: 0, registered: 3, failed: 0, createdAt: '', updatedAt: '' })
+  assert.deepEqual(galleryTaskProgress(task), { referenced: 3, processed: 3, percent: 12 })
+  assert.deepEqual(galleryTaskProgress({ ...task, completed: 3, registered: 0 }), galleryTaskProgress(task))
+  assert.deepEqual(galleryTaskProgress({ ...task, total: 0 }), { referenced: 0, processed: 0, percent: 0 })
+  assert.deepEqual(galleryTaskProgress({ ...task, completed: 24, registered: 3, failed: 2 }), { referenced: 25, processed: 25, percent: 100 })
+})
+
+test('each successful URL reference is visible before the remaining photos finish', async () => {
+  let enter = () => {}, release = () => {}
+  const entered = new Promise<void>(resolve => { enter = resolve }), gate = new Promise<void>(resolve => { release = resolve })
+  const api = new UnsplashApi({ request: async path => {
+    const id = path.split('/').at(-1)!
+    if (id === 'two') { enter(); await gate }
+    return photo(id)
+  } })
+  const f = await serviceFixture(undefined, { maxImportFiles: 3 }, { galleryApi: async () => api, galleryMedia: { request: async () => { throw new Error('URL registration must not fetch image bytes') } } })
+  await f.service.initialize()
+  try {
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'live-style', name: 'Live' }))
+    await f.action('gallery-reference-start', { operationId: 'live-import', styleId, photoIds: ['one', 'two', 'three'] })
+    await entered
+    const page = z.object({ total: z.number(), images: z.array(z.object({ imageVersionId: z.string() })) }).parse(await f.action('references-list', { styleId }))
+    const task = z.object({ tasks: z.array(taskView.extend({ registered: z.number() })) }).parse(await f.action('gallery-reference-tasks')).tasks[0]!
+    assert.deepEqual({ cards: page.images.length, total: page.total, registered: task.registered + task.completed }, { cards: 1, total: 1, registered: 1 })
+    assert.equal(task.status, 'running')
+    release(); await f.jobs.drain()
+    assert.equal(f.domain.require('draft', f.domain.require('style', styleId).draftId).referenceIds.length, 3)
+    assert.equal(f.http.operations.length, 0)
+  } finally { release(); await f.cleanup() }
+})
 
 test('accepted imports outlive the starting request, pin their collection, and expose committed progress', async () => {
   let enter = () => {}, release = () => {}
@@ -104,6 +137,30 @@ test('restart reconstructs a committed batch before marking its unfinished task 
     assert.equal(requests, 2)
     await recovered.dispose()
   } finally { await f.cleanup() }
+})
+
+test('a missing final batch receipt retains published cards and recovers their count without replay', async () => {
+  let requests = 0
+  const api = new UnsplashApi({ request: async path => { requests++; return photo(path.split('/').at(-1)!) } })
+  const f = await serviceFixture(undefined, {}, { galleryApi: async () => api }); await f.service.initialize()
+  const commit = f.repository.commit.bind(f.repository)
+  f.repository.commit = async input => { if (input.aggregateId.startsWith('gallery-reference:')) throw new Error('Interrupted before final batch receipt'); return commit(input) }
+  try {
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'partial-style', name: 'Partial' }))
+    const task = taskView.parse(await f.action('gallery-reference-start', { operationId: 'partial-import', styleId, photoIds: ['one', 'two'] })); await f.jobs.drain()
+    const result = z.object({ tasks: z.array(taskView) }).parse(await f.action('gallery-reference-tasks')).tasks[0]!
+    assert.equal(result.status, 'needs-review'); assert.equal(result.completed, 2)
+    assert.equal(f.domain.require('draft', f.domain.require('style', styleId).draftId).referenceIds.length, 2)
+    f.repository.commit = commit
+    const manifest = f.repository.manifest(`gallery-task:${task.id}`)!, saved = z.record(z.string(), z.json()).parse(manifest.state)
+    await commit({ aggregateId: manifest.aggregateId, expectedRevision: manifest.revision, operationId: 'simulate-before-partial-checkpoint', request: {}, records: [], state: toJson({ ...saved, status: 'running', completed: 0, offset: 0, batch: { operationId: `gallery-task:${task.id}:0`, expectedRevision: 1, photoIds: ['one', 'two'] } }) })
+    const recovered = new GalleryReferenceTasks(f.service.config, f.domain, f.jobs, async () => { throw new Error('Recovery cannot dispatch') }, () => ({ rows: [] }), async () => {})
+    await recovered.initialize()
+    assert.equal(recovered.list(f.actor)[0]!.completed, 2)
+    assert.equal(recovered.list(f.actor)[0]!.status, 'interrupted')
+    assert.equal(requests, 2)
+    await recovered.dispose()
+  } finally { f.repository.commit = commit; await f.cleanup() }
 })
 
 test('an unrecognizable batch receipt stops the task without replay or later dispatch', async () => {

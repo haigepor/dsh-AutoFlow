@@ -1,4 +1,5 @@
 [
+  {"tool":"visual_task_prepare","failed":false},
   {"tool":"visual_style_get","failed":false},
   {"tool":"visual_search_start","failed":false},
   {"tool":"visual_run_get","failed":false},

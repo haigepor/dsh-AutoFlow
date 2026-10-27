@@ -1,10 +1,13 @@
 /** Safe browser projections derive permissions and feedback context from committed records. */
 import type { CuratorDomain } from '../domain/curator.ts'
+import { z } from 'zod'
 import { contentDigest } from '../domain/repository.ts'
 import { analysisReferenceDigest } from '../domain/style-analysis.ts'
 import { styleAnalysisOf, type StyleAnalysis } from '../shared/style-analysis.ts'
 import { ModelProfiles } from '../domain/model-profile.ts'
 import { dimensionSchema, styleStandardSchema, type DomainActor, type HumanFeedback, type ImageVersion, type Reference, type RunRecord, type Rule } from '../shared/model.ts'
+import { executionStandard } from './style-execution.ts'
+import { styleMatchSchema } from '../shared/style-matching.ts'
 import { CuratorError } from '../shared/errors.ts'
 import type { ConfigurationView, CuratorSnapshot, FeedbackView, ImageView, RuleView, RunView, StyleView, StyleAnalysisView } from '../client/contract.ts'
 import { configRevision, type CuratorConfig } from './config.ts'
@@ -15,7 +18,7 @@ import type { AnalysisTask } from '../shared/analysis-process.ts'
 export function projectConfiguration(config: CuratorConfig, credentialStatus: { source: boolean; vision: boolean }): ConfigurationView {
   const { reasoningEffort, ...vision } = config.vision
   return { revision: configRevision(config), sourceConfigured: config.source.provider === 'unsplash' ? credentialStatus.source : !!config.source.endpoint && (!config.source.credentialRef || credentialStatus.source),
-    visionConfigured: !!config.vision.endpoint && !!config.vision.model && config.vision.supportsMultipleImages && config.vision.supportsJson && (!config.vision.credentialRef || credentialStatus.vision),
+    visionConfigured: !!config.vision.model && config.vision.supportsMultipleImages && config.vision.supportsJson && (config.vision.backend === 'native' || config.vision.provider && config.vision.backend !== 'compatible' ? !!config.vision.provider : !!config.vision.endpoint && (!config.vision.credentialRef || credentialStatus.vision)),
     sourceCredentialConfigured: credentialStatus.source, visionCredentialConfigured: credentialStatus.vision, source: config.source, vision: { ...vision, ...(reasoningEffort ? { reasoningEffort } : {}) }, limits: config.limits }
 }
 
@@ -93,6 +96,8 @@ function imageView(domain: CuratorDomain, image: ImageVersion, actor: DomainActo
   const assessments = run ? domain.repository.list('assessment').filter(item => item.runId === run.id && item.imageVersionId === image.id) : []
   const assessment = assessments.findLast(item => item.stage === 'final') ?? assessments.at(-1)
   const crop = run ? domain.repository.list('cropCandidate').findLast(item => item.runId === run.id && item.derivedImageVersionId === image.id) : undefined
+  const match = z.object({ styleMatch: styleMatchSchema }).safeParse(assessment?.data)
+  const selection = run ? domain.repository.list('selection').find(item => item.runId === run.id && item.imageVersionId === image.id) : undefined
   const reviewQueueReasons: NonNullable<ImageView['reviewQueueReasons']> = []
   if (assessment?.technicalStatus === 'failed') reviewQueueReasons.push('technical-failed')
   else if (assessment?.verdict === 'needs-review' || assessment?.ruleResults.some(result => result.result === 'unknown')) reviewQueueReasons.push('unknown')
@@ -111,8 +116,13 @@ function imageView(domain: CuratorDomain, image: ImageVersion, actor: DomainActo
   if (spec && assessment?.technicalStatus === 'completed' && (assessment.verdict === 'pass' || assessment.verdict === 'reject') && sample < spec.config.limits.reviewSampleRate) reviewQueueReasons.push('ordinary-sample')
   const parameters = new URLSearchParams({ imageVersionId: image.id })
   return { imageVersionId: image.id, assetId: asset.id, familyId: asset.familyId,
+    ...(match.success ? { styleMatch: match.data.styleMatch } : {}),
+    selection: selection ? { kind: 'selected', selectionId: selection.id, qualification: selection.qualification, rank: selection.rank, rankScore: 0, warnings: selection.warnings } : { kind: 'not-selected' },
+    ...(assessment ? { reviewStage: assessment.stage } : {}),
+    ...(image.parentImageVersionId ? { sourcePreviewPath: `/api/visual-curator/resource?imageVersionId=${encodeURIComponent(image.parentImageVersionId)}` } : {}),
     width: image.geometry.width, height: image.geometry.height, kind: image.versionKind,
     previewPath: `/api/visual-curator/resource?${parameters}`, name: asset.source.description || asset.id, source: asset.source.kind,
+    ...(image.blob.remoteSource ? { thumbnailPath: `/api/visual-curator/resource?${parameters}&preview=thumbnail` } : {}),
     ...(actor.kind === 'human' && image.blob.localSource ? { localPath: image.blob.localSource.path } : {}),
     exportPermission: asset.exportPermission, groupingStatus: groupingConfirmed ? 'confirmed' : 'unreviewed', reviewQueueReasons,
     ...(reference ? { referenceId: reference.id, styleId: reference.styleId, role: reference.role, intent: reference.intent.kind,
@@ -134,9 +144,10 @@ function imageView(domain: CuratorDomain, image: ImageVersion, actor: DomainActo
  * @param run Saved run.
  * @param actor Host-created caller identity.
  * @param familyStatuses Confirmation statuses reused within one synchronous workspace projection.
+ * @param includeResults Whether this read needs per-image result cards; summaries retain their full counts.
  * @returns Safe run fields and authorized media references.
  */
-export function projectRun(domain: CuratorDomain, run: RunRecord, actor: DomainActor, familyStatuses = domain.familyConfirmationStatuses()): RunView {
+export function projectRun(domain: CuratorDomain, run: RunRecord, actor: DomainActor, familyStatuses = domain.familyConfirmationStatuses(), includeResults = true): RunView {
   if (!canReadRun(domain, run, actor)) throw new CuratorError('owner-denied', 'run-read', 'This task belongs to another owner.')
   const spec = specOf(run), data = dataOf(run)
   const assessments = domain.repository.list('assessment').filter(assessment => assessment.runId === run.id)
@@ -149,7 +160,7 @@ export function projectRun(domain: CuratorDomain, run: RunRecord, actor: DomainA
   for (const selection of selections) imageIds.add(selection.imageVersionId)
   const fixedRelease = spec.fixed.release, fixedUsage = spec.fixed.usage
   // 排序从已保存终审推导；已提交的选择记录保留原样，刷新不写入或调用模型。
-  const standard = fixedRelease === undefined ? undefined : styleStandardSchema.parse(fixedRelease)
+  const standard = fixedRelease === undefined ? undefined : executionStandard(styleStandardSchema.parse(fixedRelease), spec.fixed.executionRecipe)
   const selected = rankedSelections(selections.map(selection => {
     const assessment = assessments.find(item => item.id === selection.assessmentId)
     const score = Object.entries(standard?.recipe.preferenceScale.weights ?? {}).reduce((sum, [dimension, weight]) => sum + (assessment?.preferenceScores[dimensionSchema.parse(dimension)] ?? 0) * weight, 0)
@@ -159,11 +170,23 @@ export function projectRun(domain: CuratorDomain, run: RunRecord, actor: DomainA
   const orderedIds = [...selectedIds, ...[...imageIds].filter(id => !selectedIds.has(id))]
   const releaseId = fixedRelease && typeof fixedRelease === 'object' && !Array.isArray(fixedRelease) && typeof fixedRelease.id === 'string' ? fixedRelease.id : undefined
   const usageRevisionId = fixedUsage && typeof fixedUsage === 'object' && !Array.isArray(fixedUsage) && typeof fixedUsage.id === 'string' ? fixedUsage.id : undefined
-  return { runId: run.id, kind: spec.kind, status: run.status, ...(typeof spec.input.styleId === 'string' ? { styleId: spec.input.styleId } : {}), ...(data.jobId ? { jobId: data.jobId } : {}), ...(run.stage ? { stage: run.stage } : {}),
+  return { runId: run.id, owner: run.owner, kind: spec.kind, status: run.status, ...(standard ? { styleId: standard.styleId } : typeof spec.input.styleId === 'string' ? { styleId: spec.input.styleId } : {}), resultSummary: { selected: selections.length, needsReview: new Set(assessments.filter(item => item.verdict === 'needs-review').map(item => item.imageVersionId)).size, candidates: orderedIds.length, target: typeof spec.input.targetCount === 'number' ? spec.input.targetCount : null }, ...(data.jobId ? { jobId: data.jobId } : {}), ...(run.stage ? { stage: run.stage } : {}),
     ...(run.outcome ? { outcome: run.outcome } : {}), ...(releaseId ? { releaseId } : {}), ...(usageRevisionId ? { usageRevisionId } : {}),
     taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', counts: data.counts, warnings: data.warnings,
-    results: orderedIds.map(id => domain.require('imageVersion', id)).filter(image => readableImage(domain, image, actor)).map(image => imageView(domain, image, actor, undefined, run, familyStatuses)),
+    results: includeResults ? orderedIds.map(id => domain.require('imageVersion', id)).filter(image => readableImage(domain, image, actor)).map(image => {
+      const view = imageView(domain, image, actor, undefined, run, familyStatuses), rank = selected.findIndex(item => item.id === image.id)
+      if (view.selection?.kind === 'selected' && rank >= 0) view.selection = { ...view.selection, rank, rankScore: selected[rank]!.score }
+      return view
+    }) : [],
     ...(data.error ? { error: data.error } : {}) }
+}
+
+/** Select a validated image window before building cards, independently of full task-detail reads. */
+export interface SnapshotProjection {
+  /** @param ids Authorized image identities in stable page order. @returns Requested offset and page size. */
+  imageWindow?(ids: string[]): { offset: number; size: number }
+  /** False for workspace summaries whose task results load separately. */
+  includeRunResults?: boolean
 }
 
 /** Build all four workspaces using authorized records; no storage references or external media URLs leave the Host.
@@ -172,21 +195,25 @@ export function projectRun(domain: CuratorDomain, run: RunRecord, actor: DomainA
  * @param config Resolved non-secret deployment configuration.
  * @param actor Host-created identity.
  * @param credentialStatus Credential presence only.
+ * @param projection Optional validated page selection and task-summary mode; omitted for full domain consumers.
  * @returns Complete browser projection while viewing selections remain Client-owned.
  */
-export function projectSnapshot(domain: CuratorDomain, engine: RunEngine, config: CuratorConfig, actor: DomainActor, credentialStatus: { source: boolean; vision: boolean }): CuratorSnapshot {
-  return domain.repository.readSnapshot(() => snapshotNow(domain, engine, config, actor, credentialStatus))
+export function projectSnapshot(domain: CuratorDomain, engine: RunEngine, config: CuratorConfig, actor: DomainActor, credentialStatus: { source: boolean; vision: boolean }, projection: SnapshotProjection = {}): CuratorSnapshot {
+  return domain.repository.readSnapshot(() => snapshotNow(domain, engine, config, actor, credentialStatus, projection))
 }
 
-function snapshotNow(domain: CuratorDomain, engine: RunEngine, config: CuratorConfig, actor: DomainActor, credentialStatus: { source: boolean; vision: boolean }): CuratorSnapshot {
-  const base = domain.snapshot(actor)
-  const familyStatuses = domain.familyConfirmationStatuses()
-  const runs = domain.repository.list('run').filter(run => canReadRun(domain, run, actor))
-  const modelExports = domain.repository.list('profileExport').filter(record => (record.access.kind !== 'session-run' || record.access.sessionId === actor.sessionId) && record.resources.every(resource => readableImage(domain, domain.require('imageVersion', resource.imageVersionId), actor)))
-  const views = [base]
-  const unique = <T extends { id: string }>(values: T[]) => [...new Map(values.map(item => [item.id, item])).values()]
-  const feedback = unique(views.flatMap(view => view.feedback)), exports = unique(views.flatMap(view => view.exports)), suggestions = unique(views.flatMap(view => view.suggestions)), evaluations = unique(views.flatMap(view => view.evaluations))
-  const styles: StyleView[] = base.styles.map(style => {
+/** @param domain Saved collection service. @param styleId Requested collection. @param actor Authenticated reader. @returns Current collection fields without projecting unrelated image cards or task results. */
+export function projectStyle(domain: CuratorDomain, styleId: string, actor: DomainActor): StyleView {
+  return domain.repository.readSnapshot(() => {
+    const base = domain.snapshot(actor)
+    base.styles = base.styles.filter(style => style.id === styleId)
+    if (!base.styles.length) throw new CuratorError('reference-unavailable', 'style-read', 'The requested style is unavailable.')
+    return styleViews(domain, base, actor, domain.familyConfirmationStatuses(), domain.repository.list('run').filter(run => canReadRun(domain, run, actor)))[0]!
+  })
+}
+
+function styleViews(domain: CuratorDomain, base: ReturnType<CuratorDomain['snapshot']>, actor: DomainActor, familyStatuses: ReadonlyMap<string, boolean>, runs: RunRecord[]): StyleView[] {
+  return base.styles.map(style => {
     const draft = base.drafts.find(item => item.id === style.draftId) ?? domain.require('draft', style.draftId)
     const run = runs.filter(run => { const spec = specOf(run); return spec.kind === 'analyze' && spec.input.buildDataset === true && spec.input.styleId === style.id }).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).at(0)
     let analysis: StyleAnalysisView | undefined
@@ -213,18 +240,34 @@ function snapshotNow(domain: CuratorDomain, engine: RunEngine, config: CuratorCo
       candidates: base.candidates.filter(item => item.styleId === style.id).map(item => ({ id: item.id, label: item.id, contentDigest: item.contentDigest, rules: item.rules.map(ruleView) })),
     }
   })
+}
+
+function snapshotNow(domain: CuratorDomain, engine: RunEngine, config: CuratorConfig, actor: DomainActor, credentialStatus: { source: boolean; vision: boolean }, projection: SnapshotProjection): CuratorSnapshot {
+  const base = domain.snapshot(actor)
+  const familyStatuses = domain.familyConfirmationStatuses()
+  const runs = domain.repository.list('run').filter(run => canReadRun(domain, run, actor))
+  const modelExports = domain.repository.list('profileExport').filter(record => (record.access.kind !== 'session-run' || record.access.sessionId === actor.sessionId) && record.resources.every(resource => readableImage(domain, domain.require('imageVersion', resource.imageVersionId), actor)))
+  const views = [base]
+  const unique = <T extends { id: string }>(values: T[]) => [...new Map(values.map(item => [item.id, item])).values()]
+  const feedback = unique(views.flatMap(view => view.feedback)), exports = unique(views.flatMap(view => view.exports)), suggestions = unique(views.flatMap(view => view.suggestions)), evaluations = unique(views.flatMap(view => view.evaluations))
+  const styles = styleViews(domain, base, actor, familyStatuses, runs)
   const configuration = projectConfiguration(config, credentialStatus)
   const references = unique(views.flatMap(view => view.references))
   const referenced = new Set(references.map(reference => reference.imageVersionId))
-  const images = references.map(reference => imageView(domain, domain.require('imageVersion', reference.imageVersionId), actor, reference, undefined, familyStatuses))
+  const entries: { image: ImageVersion; reference?: Reference }[] = references.map(reference => ({ image: domain.require('imageVersion', reference.imageVersionId), reference }))
   for (const image of domain.repository.list('imageVersion')) {
     if (referenced.has(image.id) || image.versionKind === 'preview' || !readableImage(domain, image, actor)) continue
     const asset = domain.require('asset', image.assetId)
-    if (asset.access.kind === 'profile-library') images.push(imageView(domain, image, actor, undefined, undefined, familyStatuses))
+    if (asset.access.kind === 'profile-library') entries.push({ image })
   }
+  // 游标先在授权后的完整顺序中校验，仅对当前页构建反馈和图片字段。
+  const window = projection.imageWindow?.(entries.map(entry => entry.image.id))
+  const visible = window ? entries.slice(window.offset, window.offset + window.size) : entries
+  const images = visible.map(({ image, reference }) => imageView(domain, image, actor, reference, undefined, familyStatuses))
   // Invocation through engine.get enforces the same task ownership used by control and tool reads.
-  const runViews = runs.map(run => projectRun(domain, engine.get(run.id, actor), actor, familyStatuses))
-  return { styles, images, usages: base.usages.map(usage => ({ usageRevisionId: usage.id, name: usage.name, ...usage.output,
+  const runViews = runs.map(run => projectRun(domain, engine.get(run.id, actor), actor, familyStatuses, projection.includeRunResults))
+  const latestUsages = [...new Map(base.usages.sort((left, right) => left.revision - right.revision).map(usage => [usage.presetId, usage])).values()]
+  return { styles, images, usages: latestUsages.map(usage => ({ usageRevisionId: usage.id, presetId: usage.presetId, revision: usage.revision, name: usage.name, ...usage.output,
     protectedContent: usage.protectedContent, safeRegions: usage.safeRegions.map(region => ({ ...region.rect, strength: region.strength, description: region.interference })) })),
     runs: runViews, splits: base.splits.map(split => ({ splitId: split.id, label: split.id, assignments: split.assignments })),
     evaluations: evaluations.map(report => ({ reportId: report.id, leftId: report.left.id, rightId: report.right.id, splitId: report.splitId,

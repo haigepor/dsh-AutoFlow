@@ -1,0 +1,8 @@
+[
+  { "sequence": 0, "kind": "analysis", "batch": 1, "imageCount": 4, "attempt": 1, "attempts": 2, "state": "failed" },
+  { "sequence": 1, "kind": "analysis", "batch": 1, "imageCount": 4, "attempt": 2, "attempts": 2, "state": "complete" },
+  { "sequence": 2, "kind": "analysis", "batch": 2, "imageCount": 4, "attempt": 1, "attempts": 2, "state": "cancelled" },
+  { "sequence": 3, "kind": "analysis", "batch": 2, "imageCount": 4, "attempt": 2, "attempts": 2, "state": "complete" },
+  { "sequence": 4, "kind": "analysis", "batch": 3, "imageCount": 4, "attempt": 1, "attempts": 1, "state": "complete" },
+  { "sequence": 5, "kind": "summary", "imageCount": 4, "attempt": 1, "attempts": 1, "state": "complete" }
+]

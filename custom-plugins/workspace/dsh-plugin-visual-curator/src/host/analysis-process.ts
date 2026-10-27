@@ -13,7 +13,7 @@ export function updateAnalysisProcess(previous: AnalysisProcess | undefined, upd
   if (update.resetOutput) messages.push({ sequence: (messages.at(-1)?.sequence ?? -1) + 1, kind: update.phase === 'summarizing' ? 'summary' : 'analysis', ...(update.batch !== undefined ? { batch: update.batch } : {}), imageIds: update.imageIds ?? [], content: '', reasoning: '', state: 'streaming', at, updatedAt: at })
   const last = messages.at(-1)
   if (last) {
-    const state = last.state === 'complete' || ['validating', 'saving', 'completed'].includes(update.phase) ? 'complete' : update.phase === 'interrupted' || update.phase === 'cancelled' || update.phase === 'failed' ? update.phase : last.state
+    const state = last.state === 'complete' || ['validating', 'saving', 'completed'].includes(update.phase) ? 'complete' : update.phase === 'retrying' ? 'failed' : update.phase === 'interrupted' || update.phase === 'cancelled' || update.phase === 'failed' ? update.phase : last.state
     messages[messages.length - 1] = { ...last, ...(update.requestId ? { requestId: update.requestId } : {}), content: last.content + (update.content ?? ''), reasoning: last.reasoning + (update.reasoning ?? ''), state, updatedAt: at }
   }
   let remaining = limits.maxProcessTextChars, clipped = events.length > limits.maxProcessEvents || messages.length > limits.maxProcessEvents

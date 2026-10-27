@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-plugin-visual-curator/release/README.md
+/visual-curator-releases:
+  en: 90e16ec5549429e0
+  zh: dbc32caa66513e2e
+/visual-curator-releases/summary:
+  en: cb25d4578527fc91
+  zh: b9d548249c066c35
+/visual-curator-releases/prepare-and-publish:
+  en: 025f63f6727168da
+  zh: f614370e3606858e
+/visual-curator-releases/runtime-updates:
+  en: cfc0b2c59b7f8708
+  zh: 6a77301894aba14b
+/visual-curator-releases/dev-note:
+  en: b75c8458928b72b9
+  zh: 02cbcc6baa338b07

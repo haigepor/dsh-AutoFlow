@@ -1620,9 +1620,15 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
+      eventsource-parser:
+        specifier: ^3.1.0
+        version: 3.1.0
       ipaddr.js:
         specifier: 2.5.0
         version: 2.5.0
+      partial-json:
+        specifier: ^0.1.7
+        version: 0.1.7
       playwright-core:
         specifier: 1.64.1
         version: 1.64.1
@@ -1639,6 +1645,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:~
         version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-agent-loop':
+        specifier: workspace:*
+        version: link:../../../packages/core/agent-loop
       '@deepseek-ai/dsh-agent-loop-testkit':
         specifier: workspace:*
         version: link:../../../packages/test-support/agent-loop-testkit
@@ -1648,6 +1657,9 @@ importers:
       '@deepseek-ai/dsh-atomic-write':
         specifier: workspace:*
         version: link:../../../packages/util/atomic-write
+      '@deepseek-ai/dsh-attachment':
+        specifier: workspace:*
+        version: link:../../../packages/attachment/attachment
       '@deepseek-ai/dsh-brand':
         specifier: workspace:*
         version: link:../../../packages/util/brand
@@ -1666,6 +1678,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:*
         version: link:../../../packages/client/ui-slots
+      '@deepseek-ai/dsh-client-ui-tool':
+        specifier: workspace:*
+        version: link:../../../packages/client/ui-tool
       '@deepseek-ai/dsh-config-editor':
         specifier: workspace:*
         version: link:../../../packages/boot/config-editor
@@ -1690,9 +1705,15 @@ importers:
       '@deepseek-ai/dsh-skill':
         specifier: workspace:*
         version: link:../../../packages/skill/skill
+      '@deepseek-ai/dsh-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage/storage
       '@deepseek-ai/dsh-storage-domain':
         specifier: workspace:*
         version: link:../../../packages/storage/storage-domain
+      '@deepseek-ai/dsh-storage-json':
+        specifier: workspace:*
+        version: link:../../../packages/storage/storage-json
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../../packages/core/tools

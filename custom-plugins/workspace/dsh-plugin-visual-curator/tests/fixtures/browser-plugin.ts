@@ -7,6 +7,7 @@ import { CuratorService } from '../../src/host/service.ts'
 import { resolveConfig, type CuratorConfig } from '../../src/host/config.ts'
 import { CompatibleVisionProvider, SourceHttpProvider } from '../../src/media/index.ts'
 import { FixtureHttp } from '../helpers/service-fixture.ts'
+import { mountExecutionNavigation } from './execution-navigation.ts'
 export const name = 'visual-curator-browser-fixture'
 export const inject = ['profileContext', 'storageDomain', 'credentials', 'jobs', 'pluginManager', 'configEditor', 'sessions']
 /** @param ctx Real profile services. @returns Normal provider, Remote and resource registration. */
@@ -22,5 +23,7 @@ export async function apply(ctx: Context): Promise<void> {
   const config = resolveConfig({ source: { endpoint: 'https://source.example.test/search', credentialRef: '' }, vision: { endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '', vendorVersion: 'fixture-v1' }, limits: { maxRetryAttempts: 0, maxReferenceImages: 4 } })
   const source = new SourceHttpProvider({ endpoint: config.source.endpoint, method: 'GET', request: { query: 'q', cursor: 'cursor', pageSize: 'limit' }, response: { items: '/items', id: '/id', previewUrl: '/previewUrl', originalUrl: '/originalUrl', nextCursor: '/nextCursor' }, maxPageSize: 20 }, http)
   const vision = async (fixed: CuratorConfig) => new CompatibleVisionProvider({ endpoint: fixed.vision.endpoint, model: fixed.vision.model, supportsMultiImage: true, maxImages: fixed.limits.maxReferenceImages + 2, maxImageBytes: fixed.limits.maxReferenceBytes, maxRequestBytes: fixed.limits.maxVisionRequestBytes, maxOutputTokens: fixed.limits.maxVisionOutputTokens, temperature: 0, declaredModelVersion: 'fixture-v1' }, http)
-  await mountCurator(ctx, new CuratorService(ctx, config, { providers: { source: async () => source, vision, media: () => http } }))
+  const service = new CuratorService(ctx, config, { providers: { source: async () => source, vision, media: () => http } })
+  await mountCurator(ctx, service)
+  mountExecutionNavigation(ctx, service)
 }

@@ -18,25 +18,43 @@ export function filterGalleryPhotos(photos: GalleryPhoto[], query: string): Gall
   return terms.length ? photos.filter(photo => { const text = `${photo.title} ${photo.photographer} ${photo.id}`.normalize('NFKC').toLocaleLowerCase(); return terms.every(term => text.includes(term)) }) : photos
 }
 
-/** Read every collection page while publishing validated snapshots for progressive previews.
- * @param read Account-bound photo listing. @param options Selection limit, lifetime, counts and independent per-page preview arrays.
- * @returns Distinct photos in provider order; a failed traversal never returns an incomplete collection.
+/** Read collection pages, optionally stopping after one page or resuming a validated prefix.
+ * @param read Account-bound photo listing. @param options Limits, lifetime, continuation and validated page snapshots. Optional retry settings repeat only transient reads at the same cursor; omission makes one attempt. Cancellation interrupts retry delays.
+ * @returns Distinct photos in provider order; a failed traversal only publishes its validated prefix through onPage.
  */
-export async function readCollectionPhotos(read: (cursor: string | null, signal: AbortSignal) => Promise<GalleryPage<GalleryPhoto>>, options: { maxFiles: number; signal: AbortSignal; onProgress?(count: number): void; onPage?(photos: GalleryPhoto[]): void }): Promise<GalleryPhoto[]> {
-  const photos = new Map<string, GalleryPhoto>(), cursors = new Set<string>()
-  let cursor: string | null = null
+export async function readCollectionPhotos(read: (cursor: string | null, signal: AbortSignal) => Promise<GalleryPage<GalleryPhoto>>, options: { maxFiles: number; signal: AbortSignal; initialPhotos?: GalleryPhoto[]; cursor?: string | null; stopAfterPage?: boolean; retry?: { attempts: number; delayMs: number }; onProgress?(count: number): void; onPage?(photos: GalleryPhoto[], nextCursor: string | null): void }): Promise<GalleryPhoto[]> {
+  let cursor = options.cursor ?? null
+  const photos = new Map<string, GalleryPhoto>((options.initialPhotos ?? []).map(photo => [photo.id, photo])), cursors = new Set<string>(cursor ? [cursor] : [])
   do {
     options.signal.throwIfAborted()
-    const page = await read(cursor, options.signal)
+    const page = await (async () => {
+      for (let attempt = 0; ; attempt++) {
+        options.signal.throwIfAborted()
+        try { return await read(cursor, options.signal) }
+        catch (error) {
+          options.signal.throwIfAborted()
+          const transient = error && typeof error === 'object' && 'code' in error && ['source-request-timeout', 'source-network-failed', 'source-dns-failed', 'source-response-incomplete'].includes(String(error.code)) && !('retryable' in error && error.retryable === false)
+          if (!options.retry || attempt >= options.retry.attempts || !transient) throw error
+          // 只重试当前游标；等待同样属于弹窗期限，关闭或提交时必须立即取消。
+          if (options.retry.delayMs > 0) await new Promise<void>((resolve, reject) => {
+            const abort = () => { clearTimeout(timer); options.signal.removeEventListener('abort', abort); reject(options.signal.reason) }
+            const timer = setTimeout(() => { options.signal.removeEventListener('abort', abort); resolve() }, options.retry!.delayMs)
+            options.signal.addEventListener('abort', abort, { once: true })
+            if (options.signal.aborted) abort()
+          })
+        }
+      }
+    })()
     options.signal.throwIfAborted()
     const before = photos.size
     for (const photo of page.items) photos.set(photo.id, photo)
     if (photos.size > options.maxFiles) throw Object.assign(new Error('gallery-reference-limit'), { code: 'gallery-reference-limit' })
     if (page.nextCursor && (cursors.has(page.nextCursor) || photos.size === before)) throw Object.assign(new Error('source-continuation-invalid'), { code: 'source-continuation-invalid' })
     options.onProgress?.(photos.size)
-    options.onPage?.([...photos.values()])
+    options.onPage?.([...photos.values()], page.nextCursor)
     cursor = page.nextCursor
     if (cursor) cursors.add(cursor)
+    if (options.stopAfterPage) break
   } while (cursor)
   return [...photos.values()]
 }

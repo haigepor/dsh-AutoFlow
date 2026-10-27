@@ -77,7 +77,7 @@ async function setup(mode?: ConstructorParameters<typeof CropFixture>[0], maxVis
       await repository.commit({ aggregateId: 'run:run', expectedRevision: repository.manifest('run:run')?.revision ?? 0, operationId: `save-${++saveCounter}`, request: { next, records }, records: [next, ...records], state: {} })
       afterSave?.(records)
     },
-    request: async (kind, _bundle, work) => { context.signal.throwIfAborted(); await ledger.reserve(kind); return await work(context.signal) },
+    request: async (kind, _bundle, work) => { context.signal.throwIfAborted(); await ledger.reserve(kind); return await work(context.signal, async () => {}) },
   }
   return { directory, files, domain, fixture, provider, context, controller, image, bytes, setAfterSave: (callback: typeof afterSave) => { afterSave = callback }, setSignal: (signal: AbortSignal) => { currentSignal = signal }, cleanup: async () => { await rm(directory, { recursive: true, force: true }) } }
 }

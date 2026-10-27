@@ -12,6 +12,27 @@ import { dataOf } from '../src/host/runtime.ts'
 
 const unsplash = resolveConfig({ source: { unsplash: { accounts: [{ id: 'a', label: 'A', credentialRef: 'COOKIE_A', userId: 'user-a', username: 'owner-a', name: 'A' }] } } }).source.unsplash
 
+test('Unsplash+ public previews can be selected as analysis references with their source label', async () => {
+  const preview = 'https://plus.unsplash.com/premium_photo-example?w=1080'
+  const api = new UnsplashApi({ request: async path => path === '/me' ? { id: 'user-a', username: 'owner-a', name: 'A', total_collections: 1 } : { id: 'plus-photo', premium: true, width: 400, height: 200, urls: { small: 'https://plus.unsplash.com/premium_photo-example?w=200', regular: preview, raw: 'https://plus.unsplash.com/premium_photo-example' }, user: { username: 'artist', name: 'Artist' } } })
+  const f = await serviceFixture(undefined, {}, { galleryApi: async () => api }, { provider: 'unsplash', unsplash })
+  await f.service.initialize()
+  try {
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'plus-style', name: 'Plus preview' }))
+    const receipt = z.object({ results: z.array(z.object({ ok: z.boolean() })) }).parse(await f.action('gallery-import', { operationId: 'plus-reference', transferId: 'plus-transfer', mode: 'remote-reference', accountId: 'a', styleId, expectedRevision: 1, photoIds: ['plus-photo'] }))
+    assert.equal(receipt.results[0]?.ok, true)
+    const image = f.repository.list('imageVersion')[0]!, asset = f.domain.require('asset', image.assetId)
+    assert.equal(image.blob.remoteSource?.url, preview)
+    assert.equal(asset.exportPermission, 'references-only')
+    assert.match(asset.source.description ?? '', /Unsplash\+/)
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'plus-analysis', styleId, buildDataset: true }))
+    await f.jobs.drain()
+    assert.equal(f.domain.require('run', runId).status, 'completed')
+    assert.equal(dataOf(f.domain.require('run', runId)).counts.observed, 1)
+    assert.equal(f.repository.list('observation').flatMap(item => item.measured).length, 0)
+  } finally { await f.cleanup() }
+})
+
 test('link references commit immediately without fetching CDN pixels or per-photo details already in the listing', async () => {
   let downloads = 0, details = 0
   const photo = { id: 'park', width: 400, height: 200, urls: { small: 'https://images.unsplash.com/reference?w=200', regular: 'https://images.unsplash.com/reference?w=1080' }, user: { username: 'artist' } }
@@ -32,13 +53,16 @@ test('link references commit immediately without fetching CDN pixels or per-phot
     assert.equal(details, 0, 'A verified listing already supplies this descriptor')
     assert.equal(f.repository.list('asset')[0]?.originalBlob, undefined)
     assert.equal(f.repository.list('imageVersion')[0]?.versionKind, 'remote-reference')
+    const page = z.object({ images: z.array(z.object({ thumbnailPath: z.string() })) }).parse(await f.action('references-list', { styleId }))
+    assert.ok(page.images[0]?.thumbnailPath.includes('preview=thumbnail'))
     assert.deepEqual(await f.action('gallery-import', input), receipt)
   } finally { await f.cleanup() }
 })
 
 test('URL analysis and reference datasets carry remote locations without claiming measured pixels or writing blobs', async () => {
+  let previewReads = 0
   const api = new UnsplashApi({ request: async path => path === '/me' ? { id: 'user-a', username: 'owner-a', name: 'A', total_collections: 1 } : { id: 'park', width: 400, height: 200, urls: { small: 'https://images.unsplash.com/reference?w=200', regular: 'https://images.unsplash.com/reference?w=1080' } } })
-  const f = await serviceFixture(undefined, {}, { galleryApi: async () => api, galleryMedia: { request: async () => { throw new Error('Reference registration must not download pixels') } } }, { provider: 'unsplash', unsplash })
+  const f = await serviceFixture(undefined, {}, { galleryApi: async () => api, galleryMedia: { request: async () => { previewReads++; return { status: 200, headers: { 'content-type': 'image/png' }, bytes: f.http.image } } } }, { provider: 'unsplash', unsplash })
   const urls: string[] = [], request = f.http.request.bind(f.http)
   f.http.request = async (url, options) => {
     if (url.startsWith('https://vision.example.test')) {
@@ -52,8 +76,15 @@ test('URL analysis and reference datasets carry remote locations without claimin
     const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'url-style', name: 'URL style' }))
     await f.action('gallery-import', { operationId: 'url-reference', transferId: 'url-transfer', mode: 'remote-reference', accountId: 'a', styleId, expectedRevision: 1, photoIds: ['park'] })
     const image = f.repository.list('imageVersion')[0]!
+    assert.equal(previewReads, 0, 'Reference registration must not download pixels')
     const response = await f.service.resource(new Request(`https://owner.example/api/visual-curator/resource?imageVersionId=${image.id}`))
-    assert.equal(response.status, 302); assert.equal(response.headers.get('location'), image.blob.remoteSource?.url)
+    assert.equal(response.status, 200); assert.equal(response.headers.get('location'), null)
+    assert.ok((await response.arrayBuffer()).byteLength > 0)
+    const thumbnail = await f.service.resource(new Request(`https://owner.example/api/visual-curator/resource?imageVersionId=${image.id}&preview=thumbnail`))
+    assert.equal(thumbnail.status, 200)
+    assert.equal(thumbnail.headers.get('location'), null)
+    assert.match(thumbnail.headers.get('cache-control')!, /^private,/)
+    assert.equal(previewReads, 2)
     const { runId } = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'url-analysis', styleId, buildDataset: true }))
     await f.jobs.drain()
     assert.equal(f.domain.require('run', runId).status, 'completed', JSON.stringify(dataOf(f.domain.require('run', runId)).error))

@@ -1,0 +1,14 @@
+{
+  "singleSidebarState": true,
+  "starts": 1,
+  "detailsLoadedAtStart": 0,
+  "animationAdvanced": true,
+  "reducedMotion": true,
+  "narrowOverflow": false,
+  "collapsedBadge": true,
+  "controls": ["pause", "resume", "pause", "cancel"],
+  "cancelWhilePausing": true,
+  "latePauseSuppressed": true,
+  "unrelatedActionsEnabled": true,
+  "realDataWritten": false
+}

@@ -78,7 +78,7 @@ test('a remotely referenced collection completes candidate review and final sele
   } finally { await f.cleanup() }
 })
 
-test('candidate screening, crop planning and final review retain the frozen matching prompt and alternative rule groups', async () => {
+test('candidate screening, crop planning and final review receive compiled current rules and alternative rule groups', async () => {
   const { f, profile, usageRevisionId, prompts } = await analyzed(false, true)
   try {
     const { runId } = taskIdentity.parse(await f.action('search-start', { operationId: 'grouped-search', releaseId: profile.id, usageRevisionId, sourceId: 'images', taskBrief: 'Muted green scenery', queries: ['green'], targetCount: 1 }))
@@ -89,11 +89,11 @@ test('candidate screening, crop planning and final review retain the frozen matc
     assert.ok(candidateRequests.some(prompt => prompt.stage === 'final'))
     assert.ok(candidateRequests.some(prompt => prompt.operation === 'propose-crop'))
     for (const prompt of candidateRequests) {
-      const context = z.object({ matchingPrompt: z.string(), groups: modelProfileSchema.shape.groups, ruleGroups: z.array(z.object({ ruleId: z.string(), groupId: z.string().nullable() })) }).safeParse(JSON.parse(prompt.taskBrief))
+      const context = z.object({ currentStyle: z.object({ rules: z.array(z.object({ ruleId: z.string(), statement: z.string() })), groups: z.array(z.object({ groupId: z.string() })), ruleGroups: z.array(z.object({ ruleId: z.string(), groupId: z.string().nullable() })) }) }).safeParse(JSON.parse(prompt.taskBrief))
       assert.ok(context.success, `${prompt.operation}:${prompt.stage ?? 'planning'} must receive the saved matching prompt and group context`)
-      assert.equal(context.data.matchingPrompt, profile.matchingPrompt)
-      assert.deepEqual(context.data.groups, profile.groups)
-      assert.deepEqual(context.data.ruleGroups, profile.options.filter(option => option.enabled).map(option => ({ ruleId: option.rule.ruleId, groupId: option.groupId })))
+      assert.deepEqual(context.data.currentStyle.rules.map(rule => rule.statement), profile.rules.map(rule => rule.statement))
+      assert.deepEqual(context.data.currentStyle.groups, profile.groups.filter(group => profile.options.some(option => option.enabled && option.groupId === group.groupId)).map(group => ({ groupId: group.groupId })))
+      assert.deepEqual(context.data.currentStyle.ruleGroups, profile.options.filter(option => option.enabled).map(option => ({ ruleId: option.rule.ruleId, groupId: option.groupId })))
     }
   } finally { await f.cleanup() }
 })

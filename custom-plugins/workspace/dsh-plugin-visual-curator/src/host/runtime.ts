@@ -1,5 +1,6 @@
 /** Durable workflow lifecycle and budgets, independent of process-local job identities. */
 import { randomUUID } from 'node:crypto'
+import { setTimeout as waitForRetry } from 'node:timers/promises'
 import { z } from 'zod'
 import type { JobRegistry, JobHandle, JobOutcome } from '@deepseek-ai/dsh-jobs'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -9,7 +10,7 @@ import { CuratorError } from '../shared/errors.ts'
 import { MediaError } from '../media/errors.ts'
 import { jsonSchema, runSchema, requestSchema, type Json, type RunRecord, type DomainActor, type CuratorRecord, type RecordOf } from '../shared/model.ts'
 import { settingsSchema, type Limits } from './config.ts'
-import { analysisProcessSchema, type AnalysisProcess, type ProcessUpdate } from '../shared/analysis-process.ts'
+import { analysisProcessSchema, type AnalysisProcess, type ProcessUpdate, type AnalysisStreamFrame } from '../shared/analysis-process.ts'
 import { updateAnalysisProcess } from './analysis-process.ts'
 
 declare module '@deepseek-ai/dsh-jobs' { interface JobKindMap { visualCurator: 'visual-curator' } }
@@ -90,7 +91,7 @@ export interface WorkContext {
   current(): RunRecord
   report(update: ProcessUpdate): void
   save(stage: NonNullable<RunRecord['stage']>, patch: Partial<RunData>, records?: CuratorRecord[]): Promise<void>
-  request<T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal) => Promise<T>, summarize?: (result: T) => Json): Promise<T>
+  request<T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>) => Promise<T>, summarize?: (result: T) => Json): Promise<T>
 }
 export type Worker = (context: WorkContext) => Promise<NonNullable<RunRecord['outcome']>>
 
@@ -101,6 +102,7 @@ export class RunEngine {
   private readonly queued = new Map<string, Worker>()
   private readonly processes = new Map<string, AnalysisProcess>()
   private readonly processLimits = new Map<string, Limits>()
+  private readonly processListeners = new Map<string, Set<(frame: AnalysisStreamFrame) => void>>()
   private readonly stopIntents = new Set<string>()
   private visionRequests = 0
   private readonly requestWaiters: { signal: AbortSignal; limit: number; resolve: () => void; reject: (error: unknown) => void; abort: () => void }[] = []
@@ -125,6 +127,7 @@ export class RunEngine {
       const updated = transform(current), revision = this.repository.manifest(`run:${id}`)?.revision ?? 0
       const run = runSchema.parse({ ...updated.run, revision: revision + 1 })
       await this.repository.commit({ aggregateId: `run:${id}`, expectedRevision: revision, operationId: randomUUID(), request: run, records: [run, ...(updated.records ?? [])], state: { runId: id } })
+      this.broadcast(run, true)
     })
     this.chains.set(id, next.catch(() => {})); await next
   }
@@ -132,7 +135,7 @@ export class RunEngine {
     for (const run of this.repository.list('run')) {
       if (['created', 'running', 'pausing', 'cancelling'].includes(run.status)) await this.update(run.id, old => {
         const data = dataOf(old)
-        const records = this.repository.list('request').filter(request => request.runId === old.id && request.state === 'reserved').map(request => ({ ...request, state: 'outcome-unknown' as const }))
+        const records = this.repository.list('request').filter(request => request.runId === old.id && request.state === 'reserved').map(request => ({ ...request, state: 'outcome-unknown' as const, data: toJson({ bundle: request.data, error: { code: 'cancelled', outcome: 'unknown' } }) }))
         return { run: { ...old, status: old.status === 'cancelling' ? 'cancelled' : 'interrupted', data: toJson({ ...data, warnings: [...data.warnings, 'Interrupted requests may have incurred charges; reserved quota is retained.'] }) }, records }
       })
     }
@@ -158,10 +161,25 @@ export class RunEngine {
   }
   /** @param run Saved authorized task. @returns Latest bounded output, including uncommitted stream chunks. */
   process(run: RunRecord): AnalysisProcess | undefined { return this.processes.get(run.id) ?? dataOf(run).process }
+  /** @param id Task identity. @param actor Authenticated owner. @param listener Queues bounded frames without performing work in the model callback. @returns Idempotent subscription disposer. */
+  subscribeProcess(id: string, actor: DomainActor, listener: (frame: AnalysisStreamFrame) => void): () => void {
+    const run = this.get(id, actor)
+    if (specOf(run).kind !== 'analyze') throw new CuratorError('invalid-input', 'analysis-follow', 'Choose an analysis task.')
+    const listeners = this.processListeners.get(id) ?? new Set<(frame: AnalysisStreamFrame) => void>()
+    this.processListeners.set(id, listeners); listeners.add(listener)
+    return () => { listeners.delete(listener); if (!listeners.size) this.processListeners.delete(id) }
+  }
+  private broadcast(run: RunRecord, checkpoint: boolean): void {
+    const listeners = this.processListeners.get(run.id)
+    if (!listeners?.size) return
+    const process = this.process(run), frame = { runId: run.id, status: run.status, ...(process ? { process } : {}), checkpoint }
+    for (const listener of listeners) listener(frame)
+  }
   private report(id: string, update: ProcessUpdate): void {
     const run = this.repository.get('run', id)!, limits = this.processLimits.get(id) ?? specOf(run).config.limits
     this.processLimits.set(id, limits)
     this.processes.set(id, updateAnalysisProcess(this.process(run), update, limits, new Date().toISOString()))
+    this.broadcast(run, false)
   }
   private async enqueue(run: RunRecord, worker: Worker): Promise<void> {
     if (specOf(run).kind !== 'analyze') { this.schedule(run, worker); return }
@@ -272,8 +290,17 @@ export class RunEngine {
             return { run: { ...old, stage, data: toJson(data) }, records }
           })
         },
-        request: async <T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal) => Promise<T>, summarize?: (result: T) => Json): Promise<T> => {
-          for (let retry = 0; ; retry++) {
+        request: async <T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>) => Promise<T>, summarize?: (result: T) => Json): Promise<T> => {
+          // 用持久化的失败回执计算余量，服务重启不能重新获得同一批的重试次数。
+          const digest = contentDigest(bundle)
+          const previousFailures = this.repository.list('request').filter(request => request.runId === id && request.requestDigest === digest && request.state === 'outcome-unknown').flatMap(request => {
+            const parsed = z.object({ error: runDataSchema.shape.error.unwrap() }).safeParse(request.data)
+            return parsed.success && parsed.data.error.code !== 'cancelled' ? [parsed.data.error] : []
+          })
+          const prior = previousFailures.at(-1)
+          if (prior && (!prior.retryable || previousFailures.length > spec.config.limits.maxRetryAttempts)) throw new MediaError(prior.code, prior.stage, false, prior.safeMessage, prior.suggestedAction)
+          for (let retry = previousFailures.length; ; retry++) {
+            if (retry > 0) await waitForRetry(spec.config.limits.retryDelayMs * retry, undefined, { signal: executionSignal })
             const release = kind === 'vision' ? await this.acquireVision(this.capacity?.maxConcurrentRequests ?? spec.config.limits.maxConcurrentRequests, executionSignal) : () => {}
             try {
               executionSignal.throwIfAborted(); await ledger.reserve(kind)
@@ -286,22 +313,28 @@ export class RunEngine {
               await ctx.save(ctx.current().stage ?? 'planning', { requestIds: [...dataOf(ctx.current()).requestIds, requestId] }, [request])
               // 使用实际预留记录关联响应，重试和恢复不能按批次数或返回顺序猜测归属。
               if (kind === 'vision' && spec.kind === 'analyze') ctx.report({ phase: this.process(ctx.current())?.phase ?? 'preparing', requestId: request.id })
+              let metadata: Json | undefined
+              const recordMetadata = async (value: Json) => {
+                metadata = value
+                await ctx.save(ctx.current().stage ?? 'planning', {}, [{ ...request, data: toJson({ ...typeof bundle === 'object' && bundle !== null && !Array.isArray(bundle) ? bundle : { bundle }, metadata }) }])
+              }
               try {
                 if (kind === 'vision') this.audit?.(saved, request)
-                const result = await work(executionSignal)
+                const result = await work(executionSignal, recordMetadata)
                 executionSignal.throwIfAborted()
-                const committed = { ...request, state: 'committed' as const, data: toJson({ bundle, output: summarize ? summarize(result) : result }) }
+                const committed = { ...request, state: 'committed' as const, data: toJson({ bundle, output: summarize ? summarize(result) : result, ...(metadata === undefined ? {} : { metadata }) }) }
                 await ctx.save(ctx.current().stage ?? 'planning', {}, [committed])
                 if (kind === 'vision') this.audit?.(saved, committed)
                 return result
               } catch (error) {
                 if (executionSignal.aborted) {
-                  await this.update(id, old => ({ run: old, records: [{ ...request, state: 'outcome-unknown', data: toJson({ bundle, error: { code: 'cancelled', outcome: 'unknown' } }) }] }))
+                  await this.update(id, old => ({ run: old, records: [{ ...request, state: 'outcome-unknown', data: toJson({ bundle, error: { code: 'cancelled', outcome: 'unknown' }, ...(metadata === undefined ? {} : { metadata }) }) }] }))
                   throw error
                 }
                 const failure = safeFailure(error)
                 const diagnostics = error instanceof MediaError && error.diagnostics ? jsonSchema.safeParse(error.diagnostics) : undefined
-                await ctx.save(ctx.current().stage ?? 'planning', {}, [{ ...request, state: 'outcome-unknown', data: toJson({ bundle, error: failure, ...(diagnostics?.success ? { diagnostics: diagnostics.data } : {}) }) }])
+                if (kind === 'vision' && spec.kind === 'analyze' && failure.retryable && retry < spec.config.limits.maxRetryAttempts) ctx.report({ phase: 'retrying' })
+                await ctx.save(ctx.current().stage ?? 'planning', {}, [{ ...request, state: 'outcome-unknown', data: toJson({ bundle, error: failure, ...(metadata === undefined ? {} : { metadata }), ...(diagnostics?.success ? { diagnostics: diagnostics.data } : {}) }) }])
                 if (!failure.retryable || retry >= spec.config.limits.maxRetryAttempts) throw error
               }
             } finally { release() }
@@ -348,9 +381,20 @@ export class RunEngine {
       if (!resumed || this.stopIntents.has(id)) return this.get(id, actor)
       await this.enqueue(this.repository.get('run', id)!, worker)
     } else if (live) {
+      // 取消是终止意图；迟到的暂停不能把它降为可恢复的任务。
+      if (command === 'pause' && (this.stopIntents.has(id) || live.command === 'cancel' || run.status === 'cancelling')) return run
       live.command = command === 'pause' ? 'pause' : 'cancel'
       await this.update(id, old => ({ run: ['completed', 'failed', 'cancelled'].includes(old.status) ? old : { ...old, status: command === 'pause' ? 'pausing' : 'cancelling', data: toJson({ ...dataOf(old), autoResume: false }) } }))
       live.controller.abort(); if (wait) await live.completion
+    } else if (command === 'pause' && run.status === 'created' && this.queued.has(id)) {
+      const queuedWorker = this.queued.get(id)!
+      // 排队任务还没有 AbortController；先移出调度，暂停写入失败时恢复等待项。
+      this.queued.delete(id)
+      try { await this.update(id, old => ({ run: old.status !== 'created' || this.stopIntents.has(id) ? old : { ...old, status: 'paused', data: toJson({ ...dataOf(old), autoResume: false }) } })) }
+      catch (error) {
+        if (!this.closed && !this.stopIntents.has(id) && this.repository.get('run', id)?.status === 'created') { this.queued.set(id, queuedWorker); await this.drain() }
+        throw error
+      }
     } else if (command === 'cancel' && ['paused', 'interrupted', 'created'].includes(run.status)) {
       this.queued.delete(id)
       this.report(id, { phase: 'cancelled' })

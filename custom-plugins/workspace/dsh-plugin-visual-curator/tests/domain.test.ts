@@ -40,6 +40,20 @@ async function published(domain: CuratorDomain) {
 }
 
 describe('aggregate publication', () => {
+  it('operation recovery reads its own receipt without cloning unrelated aggregate history', async () => {
+    const { repository, domain } = setup()
+    repository.manifests = () => { throw new Error('Recovery must not clone the complete history') }
+    const input = { operationId: 'targeted-receipt', name: 'Targeted' }
+    const style = await domain.createStyle(input, human)
+    const receipt = repository.receipt(input.operationId)!
+    receipt.revision = 99
+    assert.equal(repository.receipt(input.operationId)?.revision, 1)
+    const before = repository.revisionDigest()
+    assert.equal((await domain.createStyle(input, human)).id, style.id)
+    assert.equal(repository.revisionDigest(), before)
+    await assert.rejects(domain.createStyle({ ...input, name: 'Changed' }, human), { code: 'operation-conflict' })
+    await repository.close()
+  })
   it('hides dependencies after a failed manifest and retries exactly once', async () => {
     const { adapter, repository } = setup()
     adapter.failNextManifest = true

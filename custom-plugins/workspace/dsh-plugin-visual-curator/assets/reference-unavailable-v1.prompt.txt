@@ -1,0 +1,7 @@
+Use case: productivity-visual.
+Asset type: a tiny decorative illustration for an unavailable photo thumbnail in a professional Chinese image-library application. Displayed at only 64 by 48 CSS pixels inside a 3:2 pale neutral card.
+Primary request: one quiet, minimal empty photo print frame with a simple pale mountain silhouette, a tiny soft cloud partially overlapping its lower-right corner, and one short dotted connection line that gently fades. It should imply an image is temporarily unavailable without any error symbol or alarm.
+Style: restrained flat 2.5D app illustration, precise rounded contours, minimal depth, almost no shadow, clearly legible at icon-like size. Soft desaturated blue gray and off-white, a little medium gray edge detail to remain visible on light and dark surfaces.
+Composition: isolated compact centered object occupying around 75% of a landscape 4:3 canvas, generous transparent padding, no surrounding UI or scene.
+Background: genuinely transparent alpha. No solid rectangle behind the object, no rendered checkerboard.
+Constraints: no text, no numbers, no labels, no buttons, no warning triangles, no exclamation marks, no red or orange, no glossy materials, no dramatic shadows, no busy details, no watermark. Exactly one illustration, not a grid or sprite sheet.

@@ -1,0 +1,19 @@
+{
+  "enlargedDesktop": true,
+  "nativeUserBubble": true,
+  "nativeMarkdown": true,
+  "nativeCodeControls": true,
+  "compactInputs": true,
+  "completeInputInspector": true,
+  "batchNavigation": true,
+  "tabScrollRetained": true,
+  "narrowOverflow": false,
+  "contextRailResponsive": true,
+  "historyDrag": true,
+  "historyKeyboard": true,
+  "actionSpacing": true,
+  "activeDeleteDisabled": true,
+  "deleteCalls": 1,
+  "realRecordsDeleted": false,
+  "pageErrors": []
+}

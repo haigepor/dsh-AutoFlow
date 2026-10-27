@@ -61,7 +61,7 @@ test('a retried upstream request starts another message instead of concatenating
     await jobs.hooks[0]!.done
     const messages = dataOf(engine.get(run.id, actor)).process!.messages!
     assert.deepEqual(messages.map(message => message.content), ['partial response', 'completed response'])
-    assert.deepEqual(messages.map(message => message.state), ['interrupted', 'complete'])
+    assert.deepEqual(messages.map(message => message.state), ['failed', 'complete'])
     const requestIds = dataOf(engine.get(run.id, actor)).requestIds
     assert.deepEqual(messages.map(message => message.requestId), requestIds)
     assert.equal(new Set(requestIds).size, 2)

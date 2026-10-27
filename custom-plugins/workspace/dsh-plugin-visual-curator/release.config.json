@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "repository": "haigepor/dsh-AutoFlow",
+  "tagPrefix": "visual-curator-v",
+  "metadataAsset": "visual-curator-update.json",
+  "channel": "stable",
+  "makeLatest": false
+}

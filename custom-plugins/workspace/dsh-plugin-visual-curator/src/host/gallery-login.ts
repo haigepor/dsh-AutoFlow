@@ -7,6 +7,7 @@ import type { GalleryAccount, GalleryAccountId, GalleryLoginView } from '../shar
 import type { UnsplashApi } from '../media/unsplash.ts'
 import { MediaError } from '../media/errors.ts'
 import { CuratorError } from '../shared/errors.ts'
+import { CurlRequestError } from '../media/unsplash-transport.ts'
 
 /** An isolated, Host-owned login window; only Unsplash's session may be read. */
 export interface GalleryLoginBrowser {
@@ -18,7 +19,7 @@ export interface GalleryLoginBrowser {
 type Identity = Awaited<ReturnType<UnsplashApi['me']>>
 type Flow = {
   view: GalleryLoginView; operationId: string; owner: string; expected?: GalleryAccount; controller: AbortController
-  work: Promise<void>; secret?: string | undefined; saving?: Promise<GalleryAccount> | undefined; cleanup?: (() => Promise<void>) | undefined
+  work: Promise<void>; secret?: string | undefined; saving?: Promise<GalleryAccount> | undefined; cleanup?: (() => Promise<void>) | undefined; resume?: (() => void) | undefined
 }
 const failed = (code: string) => new MediaError(code, 'gallery-login', false, 'The Unsplash sign-in could not finish.', 'Open a new sign-in window and retry.')
 
@@ -49,9 +50,21 @@ export class GalleryLogins {
   /** @param id Opaque active sign-in identity. @param owner Authenticated caller. @returns Safe progress without session material. */
   status(id: string, owner: string): GalleryLoginView { return { ...this.require(id, owner).view } }
 
+  /** @param id Paused, owned sign-in. @param owner Authenticated caller. @returns Current status after resuming the same window; duplicate retries do not start another batch. */
+  retry(id: string, owner: string): GalleryLoginView {
+    const flow = this.require(id, owner)
+    if (flow.view.state === 'retry-paused') {
+      flow.view.state = 'validating'
+      delete flow.view.errorCode
+      flow.resume?.()
+    }
+    return { ...flow.view }
+  }
+
   /** @param id Validated, ready sign-in. @param owner Authenticated caller. @returns Account metadata after an idempotent credential write. */
   async finish(id: string, owner: string): Promise<GalleryAccount> {
     const flow = this.require(id, owner)
+    if (!['ready', 'saving', 'saved'].includes(flow.view.state)) throw failed(flow.view.errorCode ?? 'gallery-login-not-ready')
     await flow.work
     if (flow.view.state === 'saved' && flow.view.account) return flow.view.account
     if (flow.saving) return flow.saving
@@ -110,20 +123,43 @@ export class GalleryLogins {
       const active = AbortSignal.any([signal, browser.closed])
       active.throwIfAborted()
       flow.view.state = 'waiting'
+      let failures = 0
+      const options = this.config.source.unsplash.login
       while (true) {
         active.throwIfAborted()
         const cookie = await browser.cookie()
         if (cookie) {
           flow.view.state = 'validating'
+          const started = performance.now()
+          const validationSignal = AbortSignal.any([active, AbortSignal.timeout(options.validationTimeoutMs)])
+          flow.view.validation = { attempt: failures + 1, limit: options.maxValidationAttempts, elapsedMs: 0 }
           let me: Identity | undefined
-          try { me = await this.identify(cookie, active) }
+          try { me = await this.identify(cookie, validationSignal) }
           catch (error) {
             active.throwIfAborted()
-            if (!(error instanceof MediaError) || !['source-auth-required', 'source-access-check', 'source-access-denied'].includes(error.code)) throw error
-            flow.view.errorCode = error.code
+            const failure = validationSignal.aborted ? new MediaError('source-request-timeout', 'gallery-login', true, 'Gallery identity verification timed out.', 'Retry verification in the open login window.') : error
+            if (!(failure instanceof MediaError)) throw failure
+            flow.view.validation.elapsedMs = Math.round(performance.now() - started)
+            if (failure instanceof CurlRequestError) flow.view.validation.curlExitCode = failure.exitCode
+            flow.view.errorCode = failure.code
+            if (failure.retryable && ['source-network-failed', 'source-request-timeout', 'source-dns-failed', 'source-response-incomplete'].includes(failure.code)) {
+              failures++
+              if (failures >= options.maxValidationAttempts) {
+                // 耗尽自动重试后保留窗口及其 Cookie；仅人工重试重新分配预算，总登录期限保持不变。
+                flow.view.state = 'retry-paused'
+                await this.waitForRetry(flow, active)
+                failures = 0
+              } else {
+                flow.view.state = 'retrying'
+                await setTimeout(options.retryDelayMs * failures, undefined, { signal: active })
+              }
+              continue
+            }
+            if (!['source-auth-required', 'source-access-check', 'source-access-denied'].includes(failure.code)) throw failure
           }
           active.throwIfAborted()
           if (me) {
+            flow.view.validation.elapsedMs = Math.round(performance.now() - started)
             delete flow.view.errorCode
             if (flow.expected && flow.expected.userId !== me.userId) throw failed('gallery-login-account-mismatch')
             // 同一官网身份复用原连接；新登录只更新其会话，不新增重复账号或覆盖备注。
@@ -140,12 +176,22 @@ export class GalleryLogins {
     } catch (error) {
       flow.secret = undefined
       const cancelled = flow.controller.signal.aborted || this.lifetime.aborted || !signal.aborted && browser?.closed.aborted
-      flow.view = { id: flow.view.id, state: cancelled ? 'cancelled' : 'failed', errorCode: signal.aborted && !cancelled ? 'gallery-login-timeout' : browser?.closed.aborted && !flow.controller.signal.aborted ? 'gallery-login-window-closed' : error instanceof MediaError ? error.code : 'gallery-login-failed' }
+      flow.view = { id: flow.view.id, state: cancelled ? 'cancelled' : 'failed', errorCode: signal.aborted && !cancelled ? 'gallery-login-timeout' : browser?.closed.aborted && !flow.controller.signal.aborted ? 'gallery-login-window-closed' : error instanceof MediaError ? error.code : 'gallery-login-failed', ...(flow.view.validation ? { validation: flow.view.validation } : {}) }
     } finally {
       const acquired = browser
       flow.cleanup = acquired ? () => acquired.close() : undefined
       try { await flow.cleanup?.(); flow.cleanup = undefined }
       catch (_error) { flow.secret = undefined; flow.view = { id: flow.view.id, state: 'failed', errorCode: 'gallery-login-close-failed' } }
     }
+  }
+
+  private async waitForRetry(flow: Flow, signal: AbortSignal): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const clear = () => { flow.resume = undefined; signal.removeEventListener('abort', abort) }
+      const abort = () => { clear(); reject(signal.reason) }
+      flow.resume = () => { clear(); resolve() }
+      signal.addEventListener('abort', abort, { once: true })
+      if (signal.aborted) abort()
+    })
   }
 }

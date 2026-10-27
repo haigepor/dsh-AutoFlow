@@ -59,7 +59,7 @@ export interface StyleView {
 export interface ReferencePageView {
   styleId: string; revision: number; draftRevision: number; referenceIds: string[]; total: number
   counts: { all: number; positive: number; negative: number; undecided: number }
-  images: ImageView[]; nextPageToken?: string; endPageToken: string
+  images: ImageView[]; nextPageToken?: string; endPageToken: string; tailPageToken?: string
 }
 
 export type { GalleryTaskView }
@@ -94,6 +94,10 @@ export interface StyleAnalysisView {
 
 /** A visible image version and its authorized association, never an upstream media URL. */
 export interface ImageView {
+  styleMatch?: import('../shared/style-matching.ts').StyleMatch
+  selection?: { kind: 'selected'; selectionId: string; qualification: 'auto-qualified' | 'human-selected'; rank: number; rankScore: number; warnings: string[] } | { kind: 'not-selected' }
+  reviewStage?: 'source' | 'final'
+  sourcePreviewPath?: string
   imageVersionId: string
   assetId: string
   familyId: string
@@ -101,6 +105,7 @@ export interface ImageView {
   height: number
   kind: 'normalized' | 'preview' | 'crop' | 'remote-reference'
   previewPath: string
+  thumbnailPath?: string
   name: string
   source: string
   localPath?: string
@@ -146,6 +151,10 @@ export interface FeedbackView {
 
 /** Immutable output requirements are separate from style preferences. */
 export interface UsageView {
+  allowUpscale?: boolean
+  acceptedFormats?: ('jpeg' | 'png' | 'webp')[]
+  presetId?: string
+  revision?: number
   usageRevisionId: string
   name: string
   aspectP: number
@@ -158,6 +167,9 @@ export interface UsageView {
 
 /** Durable run state is independent of its current process job. */
 export interface RunView {
+  owner?: { kind: 'profile' } | { kind: 'session'; sessionId: string }
+  resultSummary?: { selected: number; needsReview: number; candidates: number; target: number | null }
+  resultFilter?: 'all' | 'selected' | 'review'
   runId: string
   styleId?: string
   jobId?: string
@@ -217,14 +229,14 @@ export interface ConfigurationView {
   visionCredentialConfigured: boolean
   source: {
     provider: 'generic' | 'unsplash'
-    unsplash: { accounts: GalleryAccount[]; defaultAccountId: string | null; curlBinary: string; userAgent: string; cache?: import('../shared/gallery-cache.ts').GalleryCachePolicy; login: { browser: 'auto' | 'msedge' | 'chrome'; executablePath: string; timeoutMs: number; launchTimeoutMs: number; pollIntervalMs: number } }
+    unsplash: { accounts: GalleryAccount[]; defaultAccountId: string | null; curlBinary: string; userAgent: string; readRetryAttempts?: number; readRetryDelayMs?: number; cache?: import('../shared/gallery-cache.ts').GalleryCachePolicy; login: { browser: 'auto' | 'msedge' | 'chrome'; executablePath: string; timeoutMs: number; launchTimeoutMs: number; pollIntervalMs: number } }
     id: string; endpoint: string; method: 'GET' | 'POST'; credentialRef: string
     queryField: string; cursorField: string; pageSizeField: string
     itemsPointer: string; idPointer: string; previewPointer: string; originalPointer: string
     widthPointer: string; heightPointer: string; nextCursorPointer: string
     allowedMediaOrigins: string[]; lookupEndpoint: string
   }
-  vision: { endpoint: string; model: string; credentialRef: string; supportsMultipleImages: boolean; supportsJson: boolean; supportsStreaming?: boolean | undefined; localOrigin: string; vendorVersion: string | null; reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'max' | null | undefined }
+  vision: { backend?: 'native' | 'compatible' | undefined; provider?: string | undefined; endpoint: string; model: string; credentialRef: string; supportsMultipleImages: boolean; supportsJson: boolean; supportsStreaming?: boolean | undefined; localOrigin: string; vendorVersion: string | null; reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'max' | null | undefined }
   limits: { maxVisionCalls: number; maxSearchPages: number; maxCandidates: number; maxDownloadBytes: number; maxCropCandidatesPerImage: number; maxConcurrentRequests: number; maxRetryAttempts: number; requestTimeoutMs: number; maxVisionOutputTokens: number; deadlineMs: number; pollIntervalMs: number; processPollIntervalMs?: number; pageSize: number; maxImportFiles: number; maxImportBytes: number; maxGalleryReferenceFiles: number }
 }
 
@@ -262,6 +274,7 @@ export interface ImportFileInput {
 
 /** Exported so Host transport and UI agree on the eight model-visible capabilities. */
 export const agentOperations = {
+  visual_task_prepare: 'task-prepare',
   visual_style_list: 'style-list', visual_style_get: 'style-get', visual_search_start: 'search-start',
   visual_crop_start: 'crop-start', visual_run_get: 'run-get', visual_feedback_suggest: 'feedback-suggest',
   visual_export_start: 'export-start', visual_export_get: 'export-get',

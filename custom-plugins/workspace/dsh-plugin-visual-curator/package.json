@@ -1,6 +1,7 @@
 {
   "name": "dsh-plugin-visual-curator",
   "version": "0.1.0",
+  "repository": { "type": "git", "url": "git+https://github.com/haigepor/dsh-AutoFlow.git", "directory": "custom-plugins/workspace/dsh-plugin-visual-curator" },
   "description": "Versioned visual styles, human feedback, image search and reviewed crops for DSH",
   "license": "MIT",
   "type": "module",
@@ -27,10 +28,14 @@
     "assets",
     "README.md",
     "README.zh.md",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "release.config.json",
+    "release/README.md",
+    "release/README.zh.md"
   ],
   "dsh": {
     "bundle": {
+      "update": { "provider": "github", "repository": "haigepor/dsh-AutoFlow", "tagPrefix": "visual-curator-v", "metadataAsset": "visual-curator-update.json" },
       "patch": "./cordis.patch.yml",
       "examples": [
         {
@@ -177,8 +182,8 @@
             "zh": "读取风格、任务与导出记录。"
           },
           "details": {
-            "en": "Provides visual_style_list, visual_style_get, visual_run_get and visual_export_get. Disabling removes these four tools without deleting data.",
-            "zh": "提供 visual_style_list、visual_style_get、visual_run_get 和 visual_export_get。关闭后撤销这四项 Agent 工具，不删除已保存的数据。"
+            "en": "Provides visual_task_prepare, visual_style_list, visual_style_get, visual_run_get and visual_export_get. Preparation starts no job or paid request. Disabling removes these five tools without deleting data.",
+            "zh": "提供 visual_task_prepare、visual_style_list、visual_style_get、visual_run_get 和 visual_export_get。任务准备不会启动任务或调用付费接口；关闭后撤销这五项 Agent 工具，不删除已保存的数据。"
           },
           "icon": "./assets/icons/agent-tools.svg"
         },
@@ -294,14 +299,17 @@
     }
   },
   "scripts": {
-    "test": "node --import tsx/esm --test tests/*.test.ts",
+    "test": "node --import tsx/esm --test tests/*.test.ts tests/*.test.mjs",
     "check": "node scripts/check.mjs",
     "build": "node scripts/build.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs",
     "prepack": "pnpm run check && pnpm run build"
   },
   "dependencies": {
     "@deepseek-ai/dsh-host-directory-picker-native": "workspace:*",
+    "eventsource-parser": "^3.1.0",
     "ipaddr.js": "2.5.0",
+    "partial-json": "^0.1.7",
     "playwright-core": "1.64.1",
     "sharp": "0.35.5",
     "zod": "^4.4.3"
@@ -310,11 +318,13 @@
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
     "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-client-connection": "workspace:*",
     "@deepseek-ai/dsh-config-editor": "workspace:*",
     "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/dsh-jobs": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-plugin-manager": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-skill": "workspace:*",
@@ -325,15 +335,18 @@
   "devDependencies": {
     "@cropper/elements": "2.3.1",
     "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-agent-loop": "workspace:*",
     "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
     "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-client-connection": "workspace:*",
     "@deepseek-ai/dsh-client-ui-chat": "workspace:*",
     "@deepseek-ai/dsh-client-ui-conversation": "workspace:*",
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:*",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-tool": "workspace:*",
     "@deepseek-ai/dsh-config-editor": "workspace:*",
     "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/dsh-jobs": "workspace:*",
@@ -342,7 +355,9 @@
     "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-session-persistence": "workspace:*",
     "@deepseek-ai/dsh-skill": "workspace:*",
+    "@deepseek-ai/dsh-storage": "workspace:*",
     "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/dsh-storage-json": "workspace:*",
     "@deepseek-ai/dsh-tools": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
     "@types/node": "^22.20.1",

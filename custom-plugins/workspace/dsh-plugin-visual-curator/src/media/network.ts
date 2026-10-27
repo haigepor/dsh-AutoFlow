@@ -6,11 +6,11 @@ import ipaddr from 'ipaddr.js'
 import { checkCancelled, invalidInput, MediaError } from './errors.ts'
 
 /** Per-attempt bounds, already reserved by the Run owner; this layer never retries. */
-export interface RequestBounds { maxBytes: number; timeoutMs: number; maxRedirects: number; signal?: AbortSignal | undefined }
+export interface RequestBounds { maxBytes: number; timeoutMs: number; maxRedirects: number; signal?: AbortSignal | undefined; connectTimeoutMs?: number | undefined }
 /** Request parameters; authentication is sent only to the initial exact origin. */
 export interface HttpRequest extends RequestBounds { method: 'GET' | 'POST'; headers?: Readonly<Record<string, string>>; body?: Uint8Array | undefined; onChunk?: (chunk: Uint8Array, contentType: string) => void }
 /** Bounded response bytes; upstream URLs and raw failures are not exposed. */
-export interface HttpResponse { status: number; headers: Readonly<Record<string, string>>; bytes: Buffer }
+export interface HttpResponse { status: number; headers: Readonly<Record<string, string>>; bytes: Buffer; remoteAddress?: string }
 /** An injected fixture implements this interface without changing production DNS policy. */
 export interface HttpClient { request(url: string, request: HttpRequest): Promise<HttpResponse> }
 /** Only deployment-approved origins may be contacted; the fixed local exception is vision-only. */
@@ -117,7 +117,8 @@ export class SafeHttpClient implements HttpClient {
       if (input.signal?.aborted) throw new MediaError('cancelled', 'network', false, 'Operation cancelled.', 'Resume the operation explicitly.')
       if (timedOut) throw new MediaError('remote-timeout', 'network', true, 'The remote request timed out.', 'Retry within the remaining request and time budgets.')
       if (error instanceof MediaError) throw error
-      throw new MediaError('remote-request-failed', 'network', true, 'The remote request could not be completed.', 'Check connectivity and retry within the task budget.')
+      const issue = error instanceof Error && 'code' in error && typeof error.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(error.code) ? error.code : 'network-failure'
+      throw new MediaError('remote-request-failed', 'network', true, 'The remote request could not be completed.', 'Check connectivity and retry within the task budget.', { modelOutput: null, issues: [issue] })
     } finally { clearTimeout(timer); input.signal?.removeEventListener('abort', cancel) }
   }
 
@@ -137,16 +138,25 @@ export class SafeHttpClient implements HttpClient {
       ])
     } finally { if (abortDns !== undefined) input.signal?.removeEventListener('abort', abortDns) }
     checkCancelled(input.signal)
-    if (records.length === 0 || (url.origin !== this.policy.localVisionOrigin && records.some(record => !isPublicAddress(record.address)))) throw blocked()
+    if (records.length === 0 || records.some(record => record.family !== 4 && record.family !== 6) || (url.origin !== this.policy.localVisionOrigin && records.some(record => !isPublicAddress(record.address)))) throw blocked()
     const address = records[0]
     if (address === undefined || (address.family !== 4 && address.family !== 6)) throw blocked()
     return await new Promise<HttpResponse>((resolveResponse, reject) => {
+      let responseStarted = false
+      let connectTimer: ReturnType<typeof setTimeout> | undefined
+      const clearConnectTimer = () => { clearTimeout(connectTimer); connectTimer = undefined }
       const request = (url.protocol === 'https:' ? httpsRequest : httpRequest)(url, {
         method: input.method, headers: { ...input.headers, host: url.host }, signal: input.signal,
-        agent: false, family: address.family,
+        agent: false, ...(input.connectTimeoutMs === undefined ? { family: address.family } : { autoSelectFamily: true }),
         // DNS 只解析一次；连接使用已检查地址，TLS 仍校验证书中的原始主机名。
-        lookup: (_host, _options, callback) => callback(null, address.address, address.family),
+        lookup: (_host, options, callback) => {
+          // 原生连接竞速只使用本次已检查的地址，HTTP 正文仍只发送到胜出的单个连接。
+          if (options.all) callback(null, [...records])
+          else callback(null, address.address, address.family)
+        },
       }, response => {
+        responseStarted = true; clearConnectTimer()
+        const remoteAddress = response.socket.remoteAddress
         const headers = headerRecord(response.headers)
         if (headers['content-encoding'] !== undefined && headers['content-encoding'] !== 'identity') { response.destroy(); reject(new MediaError('remote-protocol-error', 'network', false, 'Compressed responses are not supported.', 'Configure the service to return an identity response.')); return }
         const declared = headers['content-length']
@@ -161,9 +171,22 @@ export class SafeHttpClient implements HttpClient {
           catch (error) { response.destroy(); reject(error) }
         })
         response.on('error', reject)
-        response.on('end', () => resolveResponse({ status: response.statusCode ?? 0, headers, bytes: Buffer.concat(chunks, size) }))
+        response.on('end', () => resolveResponse({ status: response.statusCode ?? 0, headers, bytes: Buffer.concat(chunks, size), ...(remoteAddress ? { remoteAddress } : {}) }))
       })
-      request.on('error', reject)
+      if (input.connectTimeoutMs !== undefined) {
+        connectTimer = setTimeout(() => {
+          request.destroy(new MediaError('remote-connect-timeout', 'network', true, 'The remote connection could not be established in time.', 'Retry resolution within the request deadline.', { modelOutput: null, issues: ['before-response', 'connect-timeout'] }))
+        }, input.connectTimeoutMs)
+        request.on('socket', socket => socket.once(url.protocol === 'https:' ? 'secureConnect' : 'connect', clearConnectTimer))
+      }
+      request.on('close', clearConnectTimer)
+      request.on('error', error => {
+        clearConnectTimer()
+        if (error instanceof MediaError) { reject(error); return }
+        const code = 'code' in error && typeof error.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(error.code) ? error.code : 'network-failure'
+        const certificate = /CERT|TLS_CERT|SELF_SIGNED|UNABLE_TO_VERIFY/.test(code)
+        reject(new MediaError(certificate ? 'remote-certificate-error' : 'remote-request-failed', 'network', !certificate, certificate ? 'The image server certificate could not be verified.' : 'The remote connection failed.', certificate ? 'Correct the local trust configuration.' : 'Retry within the request deadline.', { modelOutput: null, issues: [code, ...(responseStarted ? [] : ['before-response'])] }))
+      })
       request.end(input.body)
     })
   }

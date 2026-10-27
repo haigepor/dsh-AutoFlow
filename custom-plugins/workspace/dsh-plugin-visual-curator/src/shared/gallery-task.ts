@@ -19,3 +19,10 @@ export type GalleryTaskView = z.infer<typeof galleryTaskViewSchema>
 
 /** @param status Saved task status. @returns Whether the Host still owns active work. */
 export function galleryTaskActive(status: GalleryTaskView['status']): boolean { return status === 'queued' || status === 'running' || status === 'cancelling' }
+
+/** @param task Durable totals plus published references in the active batch. @returns Clamped live counts shared by the page, dialog and progress bar. */
+export function galleryTaskProgress(task: GalleryTaskView): { referenced: number; processed: number; percent: number } {
+  const referenced = Math.min(task.total, task.completed + (galleryTaskActive(task.status) ? task.registered : 0))
+  const processed = Math.min(task.total, referenced + task.failed)
+  return { referenced, processed, percent: task.total ? processed / task.total * 100 : 0 }
+}

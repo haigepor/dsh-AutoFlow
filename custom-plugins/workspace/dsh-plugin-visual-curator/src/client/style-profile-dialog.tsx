@@ -9,7 +9,7 @@ import { resultId } from './workbench-actions.ts'
 import { safeResourcePath } from './store.ts'
 
 interface Props {
-  open: boolean; onClose(): void; onAnalyze(): void; canAnalyze: boolean
+  open: boolean; onSearch?: (() => void) | undefined; onClose(): void; onAnalyze(): void; canAnalyze: boolean
   style: StyleView; snapshot: CuratorSnapshot; actions: WorkbenchProps['actions']; t: WorkbenchText; busy: boolean
 }
 
@@ -19,7 +19,7 @@ export function createStyleProfileDialog(React: typeof import('react'), ui: type
   const resource = (path: string) => { const safe = safeResourcePath(path); return safe ? new URL(safe.slice(1), document.baseURI).href : '' }
   type Option = ModelProfileView['options'][number]
 
-  return function StyleProfileDialog({ open, onClose, onAnalyze, canAnalyze, style, snapshot, actions, t, busy }: Props) {
+  return function StyleProfileDialog({ open, onSearch, onClose, onAnalyze, canAnalyze, style, snapshot, actions, t, busy }: Props) {
     const [selectedId, setSelectedId] = React.useState(''), [mobileView, setMobileView] = React.useState<'rules' | 'evidence'>('rules')
     const [saving, setSaving] = React.useState(false), [launching, setLaunching] = React.useState(false), [exportRun, setExportRun] = React.useState('')
     const [pending, setPending] = React.useState<{ profileId: string; ruleId: string; enabled: boolean; statement?: string } | null>(null)
@@ -91,7 +91,7 @@ export function createStyleProfileDialog(React: typeof import('react'), ui: type
       return rows.length ? <section className="vc-profile-rule-group" key={group.groupId ?? 'shared'}><h3>{group.name}<small>{rows.length}</small></h3>{rows.map(renderRule)}</section> : null
     })
     return <Modal open={open} onClose={closeDialog} title={t('styleProfile')} description={t('autoProfileHint')} closeLabel={t('close')} className="vc-dataset-modal vc-profile-dialog" contentClassName="vc-dataset-frame"
-      footer={<div className="vc-profile-footer"><div className="vc-profile-save-state" role="status">{saving || preparing ? <StateDot state="ongoing" /> : profile ? <StateDot state={profile.stale || editing ? 'warning' : 'done'} /> : null}<span>{t(saving ? 'profileSaving' : preparing ? 'datasetPreparing' : editing ? 'profileUnsaved' : profile?.stale ? 'needsAnalysis' : profile ? 'autoSaved' : 'profilePending')}</span>{profile && <small>{t('enabledRules')} {active.length} / {options.length}</small>}{latestExport?.downloadPath && <a href={resource(latestExport.downloadPath)} download>{t('downloadDataset')}</a>}</div><div className="vc-dataset-actions"><Button variant="outline" disabled={saving || launching} onClick={closeDialog}>{t('close')}</Button><Button variant="primary" disabled={!ready || disabled || !!editing} onClick={() => { void generate() }}>{t(preparing ? 'datasetPreparing' : 'createDataset')}</Button></div></div>}>
+      footer={<div className="vc-profile-footer"><div className="vc-profile-save-state" role="status">{saving || preparing ? <StateDot state="ongoing" /> : profile ? <StateDot state={profile.stale || editing ? 'warning' : 'done'} /> : null}<span>{t(saving ? 'profileSaving' : preparing ? 'datasetPreparing' : editing ? 'profileUnsaved' : profile?.stale ? 'needsAnalysis' : profile ? 'autoSaved' : 'profilePending')}</span>{profile && <small>{t('enabledRules')} {active.length} / {options.length}</small>}{latestExport?.downloadPath && <a href={resource(latestExport.downloadPath)} download>{t('downloadDataset')}</a>}</div><div className="vc-dataset-actions">{onSearch && <Button variant="primary" disabled={!ready || disabled || !!editing} onClick={onSearch}>{t('newTask')}</Button>}<Button variant="outline" disabled={saving || launching} onClick={closeDialog}>{t('close')}</Button><Button variant="primary" disabled={!ready || disabled || !!editing} onClick={() => { void generate() }}>{t(preparing ? 'datasetPreparing' : 'createDataset')}</Button></div></div>}>
       <div className="vc-profile-workspace" data-mobile-view={mobileView}>
         <SegmentedTabs className="vc-profile-mobile-tabs" label={t('styleProfile')} items={tabs} value={mobileView} onChange={value => { setMobileView(value); setEditing(null) }} />
         {(error || exportState?.error) && <p className="vc-notice" role="alert">{error || t('profileExportError')}</p>}

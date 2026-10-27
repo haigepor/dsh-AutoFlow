@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import sharp from 'sharp'
+import { z } from 'zod'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { analysisDetailSchema } from '../src/shared/analysis-process.ts'
 import { analysisRequests, readAnalysisInput } from '../src/host/analysis-input.ts'
@@ -47,6 +48,11 @@ test('saved analysis inputs match transmitted messages and preserve request iden
     const legacyRun = { ...run, data: toJson({ ...dataOf(run), requestIds: [legacy.id] }) }
     assert.equal(analysisRequests(f.domain, legacyRun)[0]?.available, false)
     assert.throws(() => readAnalysisInput(f.domain, legacyRun, legacy.id, f.actor), /historical|saved input/i)
+    const interrupted = requestSchema.parse({ ...request, id: 'interrupted-input', state: 'outcome-unknown', data: z.object({ bundle: z.json() }).parse(request.data).bundle })
+    await f.repository.commit({ aggregateId: 'interrupted-input-fixture', expectedRevision: 0, operationId: 'interrupted-input-fixture', request: {}, records: [interrupted], state: {} })
+    const interruptedRun = { ...run, data: toJson({ ...dataOf(run), requestIds: [interrupted.id] }) }
+    assert.equal(analysisRequests(f.domain, interruptedRun)[0]?.available, true)
+    assert.equal(readAnalysisInput(f.domain, interruptedRun, interrupted.id, f.actor).images.length, 1)
     const wrongRun = { ...run, id: 'another-run' as typeof run.id, data: toJson({ ...dataOf(run), requestIds: [request.id] }) }
     assert.throws(() => readAnalysisInput(f.domain, wrongRun, request.id, f.actor), /unavailable|task/i)
     await assert.rejects(() => f.action('analysis-input', { runId: started.runId, requestId: 'foreign-request' }), /unavailable|belong|request/i)

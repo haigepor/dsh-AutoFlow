@@ -8,6 +8,20 @@ import type { RequestBounds } from '../src/media/index.ts'
 const bounds: RequestBounds = { maxBytes: 128, maxRedirects: 2, timeoutMs: 5000 }
 const hasCode = (code: string) => (error: unknown) => error instanceof MediaError && error.code === code
 
+test('connection racing uses only validated addresses and sends a POST body once to the winning connection', async () => {
+  let hits = 0, received = ''
+  const server = createServer((request, response) => { hits++; request.on('data', chunk => { received += chunk }); request.on('end', () => response.end('ok')) })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening')
+  const address = server.address(); assert.ok(address && typeof address !== 'string')
+  const origin = `http://vision.test:${address.port}`
+  const http = new SafeHttpClient({ allowedOrigins: [], localVisionOrigin: origin }, async () => [{ address: '203.0.113.1', family: 4 }, { address: '127.0.0.1', family: 4 }])
+  try {
+    const response = await http.request(origin, { ...bounds, connectTimeoutMs: 2000, method: 'POST', body: Buffer.from('one-body') })
+    assert.equal(response.status, 200); assert.equal(response.remoteAddress, '127.0.0.1')
+    assert.equal(hits, 1); assert.equal(received, 'one-body')
+  } finally { server.closeAllConnections(); server.close(); await once(server, 'close') }
+})
+
 test('rejects private, reserved and IPv4-mapped addresses across address families', () => {
   for (const address of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.0.1', '169.254.169.254', '0.0.0.0', '100.64.0.1', '192.0.2.1', '224.0.0.1', '::1', '::', 'fe80::1', 'fd00::1', '::ffff:127.0.0.1', '::ffff:10.0.0.1', '2001:db8::1', 'garbage']) assert.equal(isPublicAddress(address), false, address)
   assert.equal(isPublicAddress('1.1.1.1'), true)

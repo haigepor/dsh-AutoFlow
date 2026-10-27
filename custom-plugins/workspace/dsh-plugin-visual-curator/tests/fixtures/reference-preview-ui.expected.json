@@ -1,0 +1,20 @@
+{
+  "compactHeight": 58,
+  "toolbarGap": 12,
+  "topRefreshRecovered": true,
+  "noCardRetryButtons": true,
+  "appendSkeletonCards": 0,
+  "pendingRecovered": true,
+  "progress": [
+    60,
+    90
+  ],
+  "total": 218,
+  "animation": {
+    "name": "vc-import-float",
+    "loaded": true
+  },
+  "reducedMotion": true,
+  "cancelIntercepted": true,
+  "realDataWritten": false
+}

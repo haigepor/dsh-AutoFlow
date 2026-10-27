@@ -1,0 +1,24 @@
+Visual Curator 图片工作区标签装饰 V1
+生成方式：内置 image_gen；透明 PNG，中央无文字，供页面叠加本地化文案。
+上下文参考：C:/Users/zhuyi/AppData/Local/Temp/codex-clipboard-c5291c10-f993-47a7-a956-ec4ff8c59a9f.png
+
+初始提示词
+
+Use case: ui-mockup.
+Asset type: reusable transparent PNG decorative background for the selected “图片工作区” tab of a professional photo-curation application.
+Input image 1 is a context reference showing the existing understated white and pale-blue UI. It is not an edit target. Generate only one isolated decorative asset, not a screenshot or an application mockup.
+
+Create a very clean horizontal label decoration, approximately 5:1 proportions, shown straight-on. The final UI will display it at about 160×36 CSS pixels, so the design must remain clear at small size.
+A low-profile rounded pale-blue paper label with two subtle offset photo-paper layers and one tiny folded corner. At the far left edge, a restrained overlapping-photo motif suggests image curation; it should occupy at most 18% of the width and never dominate. Keep the central 70% of the label empty and very calm for live HTML text. The right edge has only a delicate folded-paper accent.
+Style: polished restrained raster illustration, soft matte paper, almost flat, faint blue-gray edge shading, crisp silhouette, modest rounded corners, no glossy plastic, no glass, no floating 3D perspective. Use pale blue, cool white and small medium-blue accents that fit the supplied UI. Avoid literal forest photography; this is a reusable workspace-tab decoration across different image collections.
+The area outside the label must be genuinely transparent. Keep the label surface lightly translucent and sufficiently pale to support legible blue or dark text. Very subtle tightly bounded shadow only, with no large halo.
+Composition: the isolated label nearly fills the image with a small transparent margin; no board, no environment, no duplicate labels, no decorative scattered objects.
+Absolutely no text, letters, numbers, logos, watermark, icons implying an additional action, search symbols or navigation arrows. The real interface will overlay its own localized text. No checkerboard pixels baked into the image. Deliver a clean transparent-background cutout.
+
+边缘与构图修订
+
+Edit target: Image 1, the pale-blue blank decorative label.
+Prepare a clean reusable transparent PNG asset. Preserve the overlapping photo-paper decoration at the left, the pale-blue blank writing surface, and the small folded right corner. No text.
+Remove every floating pixel, white fleck, dotted fringe, foggy halo and isolated low-opacity mark outside the label. Remove the external drop shadow entirely. The silhouette must have a crisp, smooth anti-aliased edge against fully transparent pixels.
+Tighten the composition: the label should nearly fill the canvas, with only a small even transparent margin, about 2% of the canvas on all sides. Make the label taller if needed so there is no large transparent empty band above or below. A low rectangular label about 3:1 proportions is acceptable; the central 70% remains calm and blank for live interface text.
+Keep the illustration subtle and almost flat, clear at a small UI size. Do not add scenery, letters, numbers, logos, a background plane or checkerboard pattern. Preserve genuine alpha transparency.

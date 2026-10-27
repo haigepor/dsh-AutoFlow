@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-connection'
 
 export { Config }
 export const name = 'dsh-plugin-visual-curator'
-export const inject = ['profileContext', 'storageDomain', 'credentials', 'jobs', 'pluginManager', 'configEditor', 'sessions']
+export const inject = ['profileContext', 'storageDomain', 'credentials', 'jobs', 'pluginManager', 'configEditor', 'sessions', 'llm', 'attachments']
 
 declare module '@deepseek-ai/cordis' {
   interface Context { visualCurator: CuratorService }
@@ -77,6 +77,9 @@ export async function mountCurator(ctx: Context, service: CuratorService): Promi
   ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
     path: '/api/visual-curator/data', methods: ['POST'], requestBody: 'buffered', fetch: request => service.data(request),
   }), 'Visual Curator paginated workspace data'))
+  ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
+    path: '/api/visual-curator/analysis-stream', methods: ['POST'], requestBody: 'buffered', fetch: request => service.followAnalysis(request),
+  }), 'Visual Curator live analysis output'))
   ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
     path: '/api/visual-curator/gallery', methods: ['POST'], requestBody: 'buffered', fetch: request => service.gallery(request),
   }), 'Visual Curator account galleries'))

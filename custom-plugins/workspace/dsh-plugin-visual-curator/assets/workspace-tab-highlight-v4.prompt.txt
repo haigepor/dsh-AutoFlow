@@ -1,0 +1,17 @@
+Generation mode: built-in image_gen; new transparent asset.
+Design version: v4, browser-style active tab with integrated layered edges.
+Status: generated design asset; not yet referenced by the page.
+
+Use case: ui-mockup
+Asset type: one production transparent PNG selected browser-style tab background, blank and without text.
+Primary request: create a completely new active-tab decorative asset for a refined desktop image workspace. The previous full capsule with an image icon and star has been rejected. The new asset must read as a TAB in a tab bar, with understated decorative material, when reduced to 160 x 32 CSS pixels.
+
+Silhouette: one low, wide browser tab with a flat horizontal lower edge, smooth rounded upper shoulders, almost vertical sides, very small softly squared bottom corners, and a restrained 2px outward eased foot at each bottom end. The dominant silhouette is a softly squared trapezoid, NOT an oval pill, button, ribbon, arrow or folded paper. Target visible width-to-height ratio approximately 5.3:1. Flat frontal orthographic view.
+
+Surface and ornament: sophisticated pale blue layered glass-paper, almost flat in depth, fine blue rim with a quiet satin matte center. Decorate by integrating TWO abstract offset translucent blue image-frame edges into the FAR LEFT border of the tab: open corner arcs and a short cropped rounded rectangular line that merge into the tab's own side and upper edge. They are architectural fragments, NOT standalone icons or pictures. The ornamental fragments occupy at most the left 15%; slightly darker cornflower-blue and periwinkle overlapping edges give the feeling of neatly organized image layers. On the far right edge, a single subtle fine offset curved panel edge echoes the left, smaller and much quieter. Add a delicate, straight, cool blue selection accent along the central 58% of the flat bottom edge, about 1 CSS px at final size, fading delicately at its ends. No star and no sparkle.
+
+Material and color: pale powder-blue center approximately #E1EBFE, cornflower blue accent #77A0F0, muted periwinkle edges #AAC3F4. Center brightness nearly uniform. Extremely restrained smooth texture and at most a tiny soft edge highlight. Minimal optical depth, no bulbous 3D shading or balloon-like shine. Premium calm productivity UI, compatible with both white and near-black application surfaces. The artwork should feel designed as one coherent tab, not a button with stickers.
+
+Composition: exactly one isolated asset, centered on a genuine transparent RGBA canvas of 3:1 overall ratio, preferably 3072 x 1024. Tab silhouette spans 96% of canvas width and approximately 54% of canvas height. Central 72% of the silhouette completely empty, quiet and clear for the app's native text. All ornament remains within the silhouette; no decorations floating in the margins. All outside pixels genuinely transparent, with clean antialiasing and minimal shadows.
+
+Hard constraints: NO text, letters, Chinese characters, numbers, logo, watermark, standalone image icon, photo, mountain pictogram, sun, stars, sparkles, dots, photographic paper stack, folded corner, arrowhead, ribbon tail, thick white borders, pill silhouette, big shadow, glossy 3D plastic, neon glow, full app screenshot, presentation board, multiple variants, checkerboard pattern, black background, white background or extra rectangle. One finished blank decorated active-tab asset only.

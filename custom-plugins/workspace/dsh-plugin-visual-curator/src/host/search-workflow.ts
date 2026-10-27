@@ -1,9 +1,10 @@
 /** Cursor search keeps stable source identities; media URLs live only during an attempt. */
+import { executionStandard } from './style-execution.ts'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { styleStandardSchema, usageSchema, assessmentSchema, type Json, type CuratorRecord } from '../shared/model.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
-import type { AssetFiles, ImageSourceProvider, SourcePage, HttpClient, CompatibleVisionProvider } from '../media/index.ts'
+import type { AssetFiles, ImageSourceProvider, SourcePage, HttpClient, StructuredVisionProvider } from '../media/index.ts'
 import type { CuratorConfig } from './config.ts'
 import { dataOf, toJson, safeFailure, type Worker, type WorkContext } from './runtime.ts'
 import { requestBounds, sourceIdentity } from './providers.ts'
@@ -24,14 +25,14 @@ export interface SearchDependencies {
   files: AssetFiles
   source(config: CuratorConfig): Promise<ImageSourceProvider>
   media(config: CuratorConfig): HttpClient
-  vision(config: CuratorConfig): Promise<CompatibleVisionProvider>
+  vision(config: CuratorConfig): Promise<StructuredVisionProvider>
   crop(ctx: WorkContext, imageVersionIds: string[]): Promise<void>
 }
 
 /** @param deps Shared owner services and crop subflow. @returns Search worker using the parent's quotas and snapshots. */
 export function createSearchWorker(deps: SearchDependencies): Worker {
   return async ctx => {
-    const release = styleStandardSchema.parse(ctx.spec.fixed.release), usage = usageSchema.parse(ctx.spec.fixed.usage)
+    const release = executionStandard(styleStandardSchema.parse(ctx.spec.fixed.release), ctx.spec.fixed.executionRecipe), usage = usageSchema.parse(ctx.spec.fixed.usage)
     const input = z.object({ taskBrief: z.string().min(1), queries: z.array(z.string().min(1).max(4096)).min(1), targetCount: z.number().int().positive() }).parse(ctx.spec.input)
     const source = await deps.source(ctx.spec.config), vision = await deps.vision(ctx.spec.config), media = deps.media(ctx.spec.config), actor = runActor(ctx)
     const sourceOwner = sourceIdentity(ctx.spec.config)

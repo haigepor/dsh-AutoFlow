@@ -5,9 +5,14 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import type { RequestId } from './model.ts'
 
 const requestIdentity = z.string().min(1).transform(value => brandString<RequestId>(value))
+const tokenCount = z.number().int().nonnegative()
+/** Native counts are disjoint; absent cache fields mean unavailable, never a reported zero. */
+export const modelUsageSchema = z.strictObject({ inputTokens: tokenCount, outputTokens: tokenCount, totalTokens: tokenCount.optional(), cacheReadTokens: tokenCount.optional(), cacheWriteTokens: tokenCount.optional(), reasoningTokens: tokenCount.optional() })
+/** Safe native call facts; full admitted inputs remain in the private request record. */
+export const nativeCallFactsSchema = z.object({ transport: z.literal('native-llm'), provider: z.string(), usage: modelUsageSchema.optional(), timing: z.object({ elapsedMs: z.number(), firstOutputMs: z.number().optional(), firstReasoningMs: z.number().optional(), firstTextMs: z.number().optional() }) })
 
 /** Worker phases, including queueing and durable stop states. */
-export const processPhaseSchema = z.enum(['queued', 'preparing', 'analyzing', 'receiving', 'validating', 'summarizing', 'saving', 'completed', 'interrupted', 'cancelled', 'failed'])
+export const processPhaseSchema = z.enum(['queued', 'preparing', 'analyzing', 'receiving', 'validating', 'retrying', 'summarizing', 'saving', 'completed', 'interrupted', 'cancelled', 'failed'])
 /** Ordered phase changes with the exact images admitted to each batch. */
 export const processEventSchema = z.strictObject({ sequence: z.number().int().nonnegative(), at: z.string(), phase: processPhaseSchema, imageIds: z.array(z.string()), batch: z.number().int().nonnegative().optional() })
 /** One retained provider response, distinct from retried or resumed responses. */
@@ -21,11 +26,11 @@ export type AnalysisProcess = z.infer<typeof analysisProcessSchema>
 /** Phase changes and actual upstream text deltas; omitted text leaves the current response untouched. */
 export interface ProcessUpdate { phase: AnalysisProcess['phase']; requestId?: RequestId; imageIds?: string[]; batch?: number; content?: string; reasoning?: string; resetOutput?: boolean }
 /** Lightweight saved attempt index; request text loads only on explicit inspection. */
-export const analysisRequestSchema = z.object({ requestId: requestIdentity, createdAt: z.string(), state: z.enum(['reserved', 'committed', 'outcome-unknown']), operation: z.enum(['analyze', 'summarize']).nullable(), model: z.string().nullable(), imageIds: z.array(z.string()), available: z.boolean() })
+export const analysisRequestSchema = z.object({ requestId: requestIdentity, createdAt: z.string(), state: z.enum(['reserved', 'committed', 'outcome-unknown']), operation: z.enum(['analyze', 'summarize']).nullable(), model: z.string().nullable(), imageIds: z.array(z.string()), available: z.boolean(), native: nativeCallFactsSchema.optional() })
 /** One authorized saved attempt. */
 export type AnalysisRequest = z.infer<typeof analysisRequestSchema>
 /** Exact saved text and ordered resource references, without headers or inline image bytes. */
-export const analysisInputSchema = z.object({ requestId: requestIdentity, instructions: z.string(), inputText: z.string(), images: z.array(z.object({ imageVersionId: z.string(), name: z.string(), digest: z.string(), mime: z.string(), role: z.string(), previewPath: z.string(), sourceKind: z.enum(['local', 'remote']) })) })
+export const analysisInputSchema = z.object({ requestId: requestIdentity, instructions: z.string(), inputText: z.string(), images: z.array(z.object({ imageVersionId: z.string(), name: z.string(), digest: z.string(), mime: z.string(), role: z.string(), previewPath: z.string(), thumbnailPath: z.string().optional(), sourceKind: z.enum(['local', 'remote']) })) })
 /** On-demand input for one saved request. */
 export type AnalysisInput = z.infer<typeof analysisInputSchema>
 /** Authorized lightweight task fields, without media or raw request diagnostics. */
@@ -36,5 +41,9 @@ export type AnalysisTask = z.infer<typeof analysisTaskSchema>
 export const analysisDetailSchema = z.object({ task: analysisTaskSchema, process: analysisProcessSchema.optional(), requests: z.array(analysisRequestSchema).default([]), summary: styleSummarySchema.optional(), images: z.array(z.object({ imageVersionId: z.string(), name: z.string() })).default([]), observations: z.array(z.object({ imageVersionId: z.string(), dimensions: z.array(z.object({ field: z.string(), value: z.unknown(), uncertain: z.boolean() })) })) })
 /** Read-only conversation details for one authorized task. */
 export type AnalysisDetail = z.infer<typeof analysisDetailSchema>
+/** Read-only process frames; checkpoints refresh saved results without invoking a model. */
+export const analysisStreamFrameSchema = z.strictObject({ runId: z.string().min(1), status: analysisTaskSchema.shape.status, process: analysisProcessSchema.optional(), checkpoint: z.boolean() })
+/** Validated live frame shared by the authenticated Host route and Client transport. */
+export type AnalysisStreamFrame = z.infer<typeof analysisStreamFrameSchema>
 /** @param status Durable task state. @returns Whether the task is queued, executing or stopping. */
 export function analysisActive(status: string): boolean { return ['created', 'running', 'pausing', 'cancelling'].includes(status) }

@@ -24,7 +24,7 @@ const candidateCreateSchema = z.strictObject({ ...styleMutation, recipeId: z.str
 const publishSchema = z.strictObject({ ...styleMutation, candidateId: z.string(), evaluationIds: z.array(z.string()).optional(), changeSummary: z.string().optional() })
 const defaultSchema = z.strictObject({ ...styleMutation, releaseId: z.string() })
 const archiveSchema = z.strictObject(styleMutation)
-const usageCreateSchema = z.strictObject({ ...op, presetId: z.string().optional(), name: z.string().min(1), output: usageOutputSchema, safeRegions: z.array(z.strictObject({ rect: normalizedRectSchema, interference: z.string(), strength: z.enum(['required', 'preferred']) })), protectedContent: z.array(z.string()) })
+const usageCreateSchema = z.strictObject({ ...op, presetId: z.string().optional(), expectedCurrentRevisionId: z.string().optional(), name: z.string().min(1), output: usageOutputSchema, safeRegions: z.array(z.strictObject({ rect: normalizedRectSchema, interference: z.string(), strength: z.enum(['required', 'preferred']) })), protectedContent: z.array(z.string()) })
 const feedbackInputSchema = z.strictObject({ ...op, subject: subjectSchema, context: feedbackContextSchema, judgment: judgmentSchema, viewEvidence: viewEvidenceSchema, scope: z.enum(['task-only', 'style-candidate']).optional(), reasonCodes: z.array(z.string()).optional(), comment: z.string().optional(), expectedHead: z.string().nullable() })
 const suggestionInputSchema = z.strictObject({ ...op, text: z.string().min(1), feedbackIds: z.array(z.string()).optional(), context: feedbackContextSchema.optional() })
 const referenceInputSchema = z.strictObject({ ...op, styleId: z.string(), imageVersionId: z.string(), role: z.enum(['positive', 'negative', 'undecided']), intent: z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('overall') }), z.strictObject({ kind: z.literal('dimensions'), dimensions: z.array(z.enum(['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth'])).min(1) })]), context: z.strictObject({ subjects: z.array(z.string()).optional(), usageRevisionId: z.string().optional() }), viewEvidence: viewEvidenceSchema })
@@ -220,6 +220,8 @@ export class CuratorDomain {
     if (replay) return replay
     const presetId = input.presetId ?? this.id('preset', input.operationId)
     const aggregateId = `usage:${presetId}`
+    const current = this.repository.manifest(aggregateId)?.state
+    if (input.expectedCurrentRevisionId !== undefined && (!current || typeof current !== 'object' || Array.isArray(current) || current.currentRevisionId !== input.expectedCurrentRevisionId)) throw new CuratorError('revision-conflict', 'usage-save', 'This usage changed; refresh before saving.')
     const revision = (this.repository.manifest(aggregateId)?.revision ?? 0) + 1
     const usage: UsageRevision = { ...this.base('usage', this.id('usage', input.operationId)), presetId, name: input.name, revision, output: input.output, safeRegions: input.safeRegions, protectedContent: input.protectedContent }
     await this.repository.commit({ aggregateId, expectedRevision: revision - 1, operationId: input.operationId, request: input, records: [usage], state: { currentRevisionId: usage.id, record: toJson(usage) } })
@@ -516,9 +518,8 @@ export class CuratorDomain {
     await this.repository.commit({ aggregateId: `style:${style.id}`, expectedRevision: input.expectedRevision, operationId: input.operationId, request: input, records: [next, ...records], state: { id: typeof id === 'string' ? id : next.id, record: toJson(result ?? next) } })
   }
   private recover<K extends RecordKind>(kind: K, input: { operationId: string }, actor: DomainActor): RecordOf<K> | undefined {
-    for (const manifest of this.repositoryManifests()) {
-      const receipt = manifest.receipts[input.operationId]
-      if (!receipt) continue
+    const receipt = this.repository.receipt(input.operationId)
+    if (receipt) {
       if (receipt.requestDigest !== contentDigest(input)) throw new CuratorError('operation-conflict', 'domain-retry', 'Operation ID was already used for different input.')
       const state = receipt.state
       if (state && !Array.isArray(state) && typeof state === 'object' && 'record' in state) {
@@ -535,7 +536,6 @@ export class CuratorDomain {
     }
     return undefined
   }
-  private repositoryManifests() { return this.repository.manifests() }
   /** @param snapshot Saved export. @param actor Host-created identity. */
   authorizeExport(snapshot: ExportSnapshot, actor: DomainActor): void {
     this.assertActor(actor)

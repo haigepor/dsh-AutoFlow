@@ -6,10 +6,10 @@ import { createAgentTools } from '../src/host/tools.ts'
 import { safeFailure } from '../src/host/plugin.ts'
 import { CuratorError } from '../src/shared/errors.ts'
 
-test('the optional Agent row exposes exactly eight operations and no human confirmation commands', () => {
+test('the optional Agent row exposes one preparation read and eight execution/read operations and no human confirmation commands', () => {
   const tools = createAgentTools({ profileId: 'profile-a', action: async () => { throw new Error('Should not execute while registering') } })
   assert.deepEqual(tools.map(tool => tool.name).sort(), [
-    'visual_style_list', 'visual_style_get', 'visual_search_start', 'visual_crop_start',
+    'visual_task_prepare', 'visual_style_list', 'visual_style_get', 'visual_search_start', 'visual_crop_start',
     'visual_run_get', 'visual_feedback_suggest', 'visual_export_start', 'visual_export_get',
   ].sort())
   for (const tool of tools) {

@@ -70,6 +70,7 @@ export class RemoteGalleryReferences {
     if (this.active.has(input.transferId)) throw new CuratorError('operation-conflict', 'gallery-reference', 'This transfer is already active.')
     const style = this.domain.require('style', input.styleId), draft = this.domain.require('draft', style.draftId)
     if (style.archived || style.revision !== input.expectedRevision) throw new CuratorError('revision-conflict', 'gallery-reference', 'The image collection changed; refresh before referencing.')
+    let expectedRevision = input.expectedRevision
     const work: Active = { owner: owner(actor), accountId, controller: new AbortController(), phase: 'verifying', rows: [] }
     const cancellationKey = `${work.owner}:${accountId}:${input.transferId}`, cancelledUntil = this.cancelled.get(cancellationKey)
     if (cancelledUntil !== undefined && cancelledUntil > Date.now()) work.controller.abort()
@@ -89,10 +90,10 @@ export class RemoteGalleryReferences {
             const key = `${accountId}:${photoId}`, cached = this.photos.get(api)?.get(key)
             const photo = cached && Date.now() - cached.at < this.config.source.unsplash.cache.ttlMs ? cached.photo : await api.photo(photoId, { ...bounds, signal })
             signal.throwIfAborted()
-            if (photo.premium) throw new CuratorError('reference-unavailable', 'gallery-reference', 'This connection cannot reference Unsplash+ images.')
             const blob = remoteReferenceBlob({ providerId: 'unsplash', photoId, accountId, url: photo.referenceUrl, thumbnailUrl: photo.thumbnailUrl })
             const base = { schemaVersion: 1, profileId: actor.profileId, createdAt: new Date().toISOString() }
-            const asset = assetSchema.parse({ ...base, kind: 'asset', id: randomUUID(), familyId: `remote-unsplash:${contentDigest(photoId).slice(10)}`, source: { kind: 'provider', providerId: 'unsplash', providerAssetId: photoId, accountIdentity: accountId, description: `${photo.title} · Unsplash / ${photo.photographer}`, obtainedAt: base.createdAt }, access: { kind: 'profile-library' }, exportPermission: 'references-only', groupingStatus: 'unreviewed' })
+            // Unsplash+ 的公开预览可作为分析引用，品牌标记保留在来源描述中。
+            const asset = assetSchema.parse({ ...base, kind: 'asset', id: randomUUID(), familyId: `remote-unsplash:${contentDigest(photoId).slice(10)}`, source: { kind: 'provider', providerId: 'unsplash', providerAssetId: photoId, accountIdentity: accountId, description: `${photo.title} · ${photo.premium ? 'Unsplash+' : 'Unsplash'} / ${photo.photographer}`, obtainedAt: base.createdAt }, access: { kind: 'profile-library' }, exportPermission: 'references-only', groupingStatus: 'unreviewed' })
             const image = imageVersionSchema.parse({ ...base, kind: 'imageVersion', id: randomUUID(), assetId: asset.id, versionKind: 'remote-reference', blob, geometry: { width: photo.width, height: photo.height, colorSpace: 'unverified', processorVersion: 'unsplash-url-reference-v1' } })
             imageId = image.id
             await this.domain.repository.commit({ aggregateId: imageAggregate, expectedRevision: 0, operationId: fileOp, request: { photoId, accountId }, records: [asset, image], state: { imageId } })
@@ -101,9 +102,13 @@ export class RemoteGalleryReferences {
           const image = this.domain.authorizedImage(imageId, actor).image
           this.domain.assertLearningFamily(this.domain.familyOf(this.domain.require('asset', image.assetId).familyId))
           const reference = z.object({ id: z.string() }).parse(await this.domain.action('reference-confirm', { operationId: `${fileOp}:reference`, styleId: style.id, imageVersionId: image.id, role: input.role, intent: { kind: 'overall' }, context: {}, viewEvidence: [{ imageVersionId: image.id, versionKind: image.versionKind }] }, actor))
+          // 逐张提交素材集关联后才公布成功，关闭或取消窗口不会丢失已显示的前缀。
+          await this.domain.action('draft-save', toJson({ operationId: `${fileOp}:draft`, styleId: style.id, expectedRevision, rules: draft.rules, referenceIds: [...new Set([...draft.referenceIds, ...references, reference.id])], feedbackIds: draft.feedbackIds, conflicts: draft.conflicts }), actor)
+          expectedRevision++
           references.push(reference.id); work.rows.push({ name: photoId, ok: true, imageVersionId: image.id, referenceId: reference.id })
         } catch (error) {
           if (signal.aborted) break
+          if (error instanceof CuratorError && ['storage-commit-failed', 'revision-conflict'].includes(error.code)) throw error
           if (error && typeof error === 'object' && 'code' in error && ['source-auth-required', 'source-access-denied', 'owner-denied'].includes(String(error.code))) { this.photos.delete(api); this.invalidateIdentity(api) }
           work.rows.push({ name: photoId, ok: false, error: toJson(safeFailure(error)) })
         }
@@ -111,9 +116,8 @@ export class RemoteGalleryReferences {
       const cancelled = signal.aborted
       for (const photoId of input.photoIds.slice(work.rows.length)) work.rows.push({ name: photoId, ok: false, error: { code: 'cancelled' } })
       work.phase = 'saving'
-      const draftInput = references.length ? toJson({ operationId: `${aggregateId}:draft`, styleId: style.id, expectedRevision: input.expectedRevision, rules: draft.rules, referenceIds: [...new Set([...draft.referenceIds, ...references])], feedbackIds: draft.feedbackIds, conflicts: draft.conflicts }) : null
-      await this.domain.repository.commit({ aggregateId, expectedRevision: 0, operationId: `${input.operationId}:prepared`, request, records: [], state: toJson({ results: work.rows, draftInput, cancelled }) })
-      if (draftInput) await this.domain.action('draft-save', draftInput, actor)
+      // 保留旧批次回执格式；新引用已逐张写入，不再等待批次结束才保存草稿。
+      await this.domain.repository.commit({ aggregateId, expectedRevision: 0, operationId: `${input.operationId}:prepared`, request, records: [], state: toJson({ results: work.rows, draftInput: null, cancelled }) })
       const state = toJson({ results: work.rows, cancelled })
       await this.domain.repository.commit({ aggregateId, expectedRevision: 1, operationId: input.operationId, request, records: [], state })
       return state

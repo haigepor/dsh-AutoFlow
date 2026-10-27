@@ -16,6 +16,31 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+test('creating a collection reads only its current style and empty page without waiting for a full workspace refresh', async () => {
+  const first: StyleView = { styleId: 'first', name: 'First', archived: false, revision: 1, draftId: 'draft-first', draftRevision: 1, rules: [], conflicts: [], referenceIds: [], releases: [], candidates: [] }
+  const oldRun: RunView = { runId: 'old-run', styleId: first.styleId, kind: 'search', status: 'completed', counts: {}, results: [], taskBrief: '', warnings: [] }
+  let current: CuratorSnapshot = { ...snapshot(), collectionPaging: true, styles: [first], runs: [oldRun] }
+  const reads: string[] = []
+  let snapshotReads = 0
+  const store = createCuratorStore({ invoke: async (operation, args) => {
+    if (operation === 'style-create') { current = { ...current, styles: [...current.styles, { ...first, styleId: 'new', draftId: 'draft-new', name: 'New' }] }; return { id: 'new' } }
+    if (operation === 'snapshot') { snapshotReads++; if (snapshotReads > 1) throw new Error('Creation must not wait for a workspace snapshot'); return current }
+    if (operation === 'style-get') { reads.push('new-style'); return current.styles.find(style => style.styleId === args.styleId) }
+    if (operation === 'run-get') { reads.push('old-task'); return oldRun }
+    if (operation === 'references-list') { reads.push(String(args.styleId)); return { styleId: args.styleId, revision: 1, draftRevision: 1, referenceIds: [], total: 0, counts: { all: 0, positive: 0, negative: 0, undecided: 0 }, images: [], endPageToken: 'end' } }
+    throw new Error(operation)
+  } })
+  try {
+    await store.reload(); reads.length = 0
+    await store.execute('style-create', { operationId: 'create', name: 'New' })
+    assert.deepEqual(reads, ['new-style', 'new'])
+    assert.equal(snapshotReads, 1)
+    assert.equal(store.getSnapshot().snapshot?.styles.at(-1)?.name, 'New')
+    assert.equal(store.getSnapshot().styleId, 'new')
+    assert.equal(store.getSnapshot().runId, '')
+  } finally { store.dispose() }
+})
+
 test('refresh replaces an archived or missing selected collection and leaves no selection after the last removal', async () => {
   const style = (styleId: string, archived = false): StyleView => ({ styleId, name: styleId, archived, revision: 1, draftId: styleId + '-draft', draftRevision: 1, rules: [], conflicts: [], referenceIds: [], releases: [], candidates: [] })
   let current: CuratorSnapshot = { ...snapshot(), styles: [style('first', true), style('second'), style('third')] }
@@ -146,6 +171,21 @@ test('only exact private resource routes become image or download destinations',
     '/api/visual-curator/resource/../../admin', '/api/visual-curator/resource\n?imageVersionId=a', '/api/other?imageVersionId=a']) assert.equal(safeResourcePath(path), '')
 })
 
+test('an expired Session grant withdraws the private snapshot before an old read can republish it', async () => {
+  let expired = false
+  const store = createCuratorStore({ invoke: async operation => {
+    if (operation === 'session-open') return { sessionToken: 'grant', sessionId: 'session' }
+    if (expired) throw { code: 'owner-denied', safeMessage: 'Expired', stage: 'session-channel', suggestedAction: 'Reopen' }
+    return snapshot()
+  } })
+  await store.openSession('session')
+  assert.ok(store.getSnapshot().snapshot)
+  expired = true; await store.reload()
+  assert.equal(store.getSnapshot().snapshot, null); assert.equal(store.getSnapshot().sessionToken, '')
+  assert.equal(store.getSnapshot().error?.code, 'owner-denied')
+  store.dispose()
+})
+
 test('server page tokens load more images and selected run results without polling away loaded pages', async () => {
   const image = (id: string): ImageView => ({ imageVersionId: id, assetId: `asset-${id}`, familyId: `family-${id}`, width: 100, height: 100,
     kind: 'normalized', previewPath: `/api/visual-curator/resource?imageVersionId=${id}`, name: id, source: 'local-import', exportPermission: 'references-only', groupingStatus: 'confirmed' })
@@ -174,6 +214,27 @@ test('server page tokens load more images and selected run results without polli
 test('upload encoding preserves binary bytes', () => {
   const bytes = Uint8Array.from({ length: 20_000 }, (_, index) => index % 256)
   assert.deepEqual(Buffer.from(encodeUpload(bytes), 'base64'), Buffer.from(bytes))
+})
+
+test('changing result filters discards late candidate pages and their errors', async () => {
+  const run: RunView = { runId: 'filtered', kind: 'search', status: 'completed', taskBrief: 'Garden', counts: {}, results: [], warnings: [] }
+  const image: ImageView = { imageVersionId: 'selected', assetId: 'asset', familyId: 'family', width: 100, height: 100, kind: 'crop', previewPath: '/api/visual-curator/resource?imageVersionId=selected', name: 'Selected', source: 'images', exportPermission: 'references-only', groupingStatus: 'confirmed' }
+  let read: Promise<RunView> | undefined
+  const store = createCuratorStore({ invoke: async (operation, args) => operation === 'snapshot' ? { ...snapshot(), runs: [run] } : args.resultFilter === 'selected' ? { ...run, results: [image] } : read ?? run })
+  try {
+    await store.reload()
+    for (const fails of [false, true]) {
+      const late = deferred<RunView>()
+      read = late.promise.then(value => { if (fails) throw new Error('stale transport'); return value })
+      const old = store.loadRun(run.runId, false, 'all')
+      await store.loadRun(run.runId, false, 'selected')
+      late.resolve({ ...run, results: [{ ...image, imageVersionId: 'source' }], pageToken: 'old-all-page' })
+      await old
+      assert.deepEqual(store.getSnapshot().snapshot?.runs[0]?.results.map(item => item.imageVersionId), ['selected'])
+      assert.equal(store.getSnapshot().snapshot?.runs[0]?.pageToken, undefined)
+      assert.equal(store.getSnapshot().runError, null)
+    }
+  } finally { store.dispose() }
 })
 
 test('inline crop refreshes its child job while retaining the source task, selection and loaded results on failure', async () => {

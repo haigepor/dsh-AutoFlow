@@ -44,6 +44,7 @@ export class GalleryReferenceTasks {
         const aggregateId = `gallery-reference:${contentDigest({ profileId: task.profileId, sessionId: task.sessionId ?? null, operationId: task.batch.operationId })}`
         const manifest = this.domain.repository.manifest(aggregateId)
         if (manifest?.receipts[task.batch.operationId]) await this.acceptReceipt(task.id, manifest.state)
+        else await this.update(task.id, { completed: task.completed + this.published(task), registered: 0, batch: undefined })
       }
       await this.update(task.id, { status: 'interrupted', errorCode: 'reference-task-interrupted' })
     }
@@ -57,10 +58,23 @@ export class GalleryReferenceTasks {
     const { profileId, sessionId, inputDigest, ordinal, offset, batch, ...view } = task
     if (galleryTaskActive(task.status) && batch) {
       const progress = z.object({ phase: galleryTaskViewSchema.shape.phase.optional(), rows: z.array(z.object({ ok: z.boolean() })) }).parse(this.galleryProgress(task, actor))
-      view.registered = progress.rows.filter(row => row.ok).length
+      // 批次结束到任务检查点落盘之间，仍以已提交的回执保持进度连续。
+      view.registered = Math.max(progress.rows.filter(row => row.ok).length, this.published(task))
       if (progress.phase) view.phase = progress.phase
     }
     return view
+  }
+  private published(task: SavedTask): number {
+    const batch = task.batch
+    if (!batch) return 0
+    const aggregateId = `gallery-reference:${contentDigest({ profileId: task.profileId, sessionId: task.sessionId ?? null, operationId: batch.operationId })}`
+    const manifest = this.domain.repository.manifest(aggregateId)
+    if (manifest?.receipts[batch.operationId]) {
+      const parsed = receiptSchema.safeParse(manifest.state)
+      if (parsed.success && parsed.data.results.length === batch.photoIds.length && parsed.data.results.every((row, index) => row.name === batch.photoIds[index])) return parsed.data.results.filter(row => row.ok).length
+    }
+    const receipts = this.domain.repository.manifest(`style:${task.styleId}`)?.receipts
+    return batch.photoIds.filter(photoId => receipts?.[`${aggregateId}:${photoId}:draft`]).length
   }
   private galleryProgress(task: SavedTask, actor: DomainActor): Json {
     return this.progress({ transferId: task.id, ...(task.accountId ? { accountId: task.accountId } : {}) }, actor)
@@ -142,7 +156,7 @@ export class GalleryReferenceTasks {
       if (input.analyzeAfter && this.tasks.get(id)!.status === 'completed') await this.analyze(input.styleId, actor)
     } catch (error) {
       const failure = safeFailure(error), task = this.tasks.get(id)!
-      await this.update(id, { status: this.stopping ? 'interrupted' : controller.signal.aborted ? 'cancelled' : task.status === 'completed' ? 'partial' : task.batch ? 'needs-review' : 'failed', errorCode: deadline.aborted ? 'budget-exhausted' : failure.code })
+      await this.update(id, { status: this.stopping ? 'interrupted' : controller.signal.aborted ? 'cancelled' : task.status === 'completed' ? 'partial' : task.batch ? 'needs-review' : 'failed', completed: task.completed + this.published(task), registered: 0, batch: undefined, errorCode: deadline.aborted ? 'budget-exhausted' : failure.code })
     } finally { this.live.delete(id) }
     const task = this.tasks.get(id)!
     return { status: task.status === 'cancelled' ? 'killed' : 'completed', result: JSON.stringify(this.view(task, actor)) }

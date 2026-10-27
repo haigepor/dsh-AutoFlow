@@ -16,20 +16,25 @@ export type GalleryAccount = z.infer<typeof galleryAccountSchema>
 /** Host-owned sign-in status contains no Cookie, browser profile or password. */
 export interface GalleryLoginView {
   id: string
-  state: 'opening' | 'waiting' | 'validating' | 'ready' | 'saving' | 'saved' | 'cancelled' | 'failed'
+  state: 'opening' | 'waiting' | 'validating' | 'retrying' | 'retry-paused' | 'ready' | 'saving' | 'saved' | 'cancelled' | 'failed'
   account?: GalleryAccount
   errorCode?: string
+  validation?: { attempt: number; limit: number; elapsedMs: number; curlExitCode?: number | null }
 }
 
 /** Public display fields exclude private collection share keys and account session values. */
 export interface GalleryCollection {
-  id: GalleryCollectionId; title: string; description: string; private: boolean; totalPhotos: number; coverUrl?: string
+  id: GalleryCollectionId; title: string; description: string; private: boolean; totalPhotos: number; coverUrl?: string; coverPath?: string
 }
 /** Provider previews may become explicit URL references; only byte imports claim verified pixels. */
 export interface GalleryPhoto {
   id: GalleryPhotoId; title: string; width: number; height: number; thumbnailUrl: string; referenceUrl: string
   originalUrl?: string; pageUrl: string; photographer: string; photographerUrl: string; premium: boolean
+  /** Authenticated Host display paths; original provider URLs remain available for registration. */
+  thumbnailPath?: string; previewPath?: string
 }
+/** @param url Unsigned public provider media URL. @returns Stable path through the authenticated, origin-limited Host resource reader. */
+export function galleryPreviewPath(url: string): string { return `/api/visual-curator/resource?galleryUrl=${encodeURIComponent(url)}` }
 /** A continuation pins provider page identity and the offset within a server-sized page. */
 export interface GalleryPage<T> { items: T[]; nextCursor: string | null; total?: number }
 /** Bookmarks are distinct from named collection folders. Search defaults to all Unsplash photos. */
