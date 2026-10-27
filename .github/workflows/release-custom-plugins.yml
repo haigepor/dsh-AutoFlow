@@ -1,0 +1,239 @@
+name: Release Codex subscription or Visual Curator
+
+on:
+  push:
+    tags: ['codex-subscription-v*', 'visual-curator-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing codex-subscription-v or visual-curator-v tag'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: custom-plugin-release-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  select:
+    runs-on: ubuntu-24.04
+    outputs:
+      package: ${{ steps.source.outputs.package }}
+      slug: ${{ steps.source.outputs.slug }}
+      title: ${{ steps.source.outputs.title }}
+      metadata: ${{ steps.source.outputs.metadata }}
+      version: ${{ steps.source.outputs.version }}
+      tag: ${{ steps.source.outputs.tag }}
+      commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+      - name: Validate product tag and source
+        id: source
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import assert from 'node:assert/strict'
+          import { execFileSync } from 'node:child_process'
+          const tag = process.env.RELEASE_TAG
+          const selected = [
+            ['codex-subscription', 'Codex Subscription'],
+            ['visual-curator', 'Visual Curator'],
+          ].find(([slug]) => tag.startsWith(`${slug}-v`))
+          assert(selected, 'Supply an independent custom plugin tag')
+          const [slug, title] = selected, name = `dsh-plugin-${slug}`
+          const directory = `custom-plugins/workspace/${name}`
+          const manifest = JSON.parse(fs.readFileSync(`${directory}/package.json`, 'utf8'))
+          const config = JSON.parse(fs.readFileSync(`${directory}/release.config.json`, 'utf8'))
+          assert.equal(manifest.name, name)
+          assert.match(manifest.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/)
+          assert.equal(tag, `${config.tagPrefix}${manifest.version}`)
+          assert.equal(config.repository, process.env.GITHUB_REPOSITORY)
+          assert.equal(config.makeLatest, false)
+          assert.equal(config.metadataAsset, `${slug}-update.json`)
+          const git = args => execFileSync('git', args, { encoding: 'utf8' }).trim()
+          const commit = git(['rev-parse', 'HEAD'])
+          assert.equal(commit, git(['rev-parse', `refs/tags/${tag}^{commit}`]))
+          for (const [key, value] of Object.entries({package:name, slug, title, metadata:config.metadataAsset, version:manifest.version, tag, commit})) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`, 'utf8')
+          }
+          NODE
+
+  platform-checks:
+    needs: select
+    name: ${{ needs.select.outputs.package }} / ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+          - platform: windows-x64
+            runner: windows-2025
+          - platform: macos-arm64
+            runner: macos-latest
+          - platform: macos-x64
+            runner: macos-15-intel
+    env:
+      PLUGIN_NAME: ${{ needs.select.outputs.package }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.select.outputs.tag }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}-${{ matrix.platform }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Verify native platform and architecture
+        env:
+          PLUGIN_TEST_PLATFORM: ${{ matrix.platform }}
+        run: >-
+          node --input-type=module -e "import assert from 'node:assert/strict';
+          const targets = { 'linux-x64': ['linux', 'x64'], 'windows-x64': ['win32', 'x64'],
+          'macos-arm64': ['darwin', 'arm64'], 'macos-x64': ['darwin', 'x64'] };
+          assert.deepEqual([process.platform, process.arch], targets[process.env.PLUGIN_TEST_PLATFORM]);"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Check package and source consistency
+        shell: bash
+        run: |
+          pnpm --filter "$PLUGIN_NAME" run check
+          git diff --exit-code -- "custom-plugins/workspace/$PLUGIN_NAME"
+      - name: Run native plugin regressions
+        shell: bash
+        run: pnpm --filter "$PLUGIN_NAME" run test
+
+  prepare:
+    needs: select
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PLUGIN_NAME: ${{ needs.select.outputs.package }}
+      RELEASE_TAG: ${{ needs.select.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.select.outputs.tag }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: node --test custom-plugins/release-governance/tests/*.test.mjs
+      - name: Prepare exact-version assets
+        run: pnpm --filter "$PLUGIN_NAME" run release:prepare --tag "$RELEASE_TAG" --out .artifacts/custom-plugin-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: custom-plugin-release-${{ needs.select.outputs.slug }}
+          path: .artifacts/custom-plugin-release/*
+          if-no-files-found: error
+
+  publish:
+    needs: [select, prepare, platform-checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: custom-plugin-release-${{ needs.select.outputs.slug }}
+          path: assets
+      - name: Publish independent plugin assets
+        working-directory: assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.select.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.select.outputs.commit }}
+          RELEASE_TITLE: ${{ needs.select.outputs.title }}
+          RELEASE_VERSION: ${{ needs.select.outputs.version }}
+          PLUGIN_NAME: ${{ needs.select.outputs.package }}
+          PLUGIN_SLUG: ${{ needs.select.outputs.slug }}
+          UPDATE_METADATA: ${{ needs.select.outputs.metadata }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check SHA256SUMS
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import assert from 'node:assert/strict'
+          import { createHash } from 'node:crypto'
+          const metadata = JSON.parse(fs.readFileSync(process.env.UPDATE_METADATA, 'utf8'))
+          assert.equal(metadata.schemaVersion, 1)
+          assert.equal(metadata.sourceDirty, false)
+          assert.equal(metadata.channel, 'stable')
+          assert.equal(metadata.tag, process.env.RELEASE_TAG)
+          assert.equal(metadata.tag, `${process.env.PLUGIN_SLUG}-v${metadata.version}`)
+          assert.equal(metadata.sourceCommit, process.env.RELEASE_COMMIT)
+          assert.equal(metadata.repository, process.env.GH_REPO)
+          assert.equal(metadata.package, process.env.PLUGIN_NAME)
+          assert.equal(metadata.version, process.env.RELEASE_VERSION)
+          assert.equal(metadata.asset.name, `${metadata.package}-${metadata.version}.tgz`)
+          assert.equal(metadata.asset.url, `https://github.com/${metadata.repository}/releases/download/${metadata.tag}/${metadata.asset.name}`)
+          const bytes = fs.readFileSync(metadata.asset.name)
+          assert.equal(metadata.asset.size, bytes.length)
+          assert.equal(metadata.asset.sha256, createHash('sha256').update(bytes).digest('hex'))
+          NODE
+          find_release_id() {
+            gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" |
+              node --input-type=module -e 'import fs from "node:fs"; import assert from "node:assert/strict"; const matches=JSON.parse(fs.readFileSync(0,"utf8")).flat().filter(item=>item.tag_name===process.env.RELEASE_TAG); assert(matches.length<=1,"Ambiguous release tag"); console.log(matches[0]?.id ?? 0);'
+          }
+          wait_for_created_release_id() {
+            local release_id
+            for attempt in 1 2 3 4 5 6 7 8 9 10; do
+              release_id=$(find_release_id) || return 1
+              if test "$release_id" -gt 0; then printf '%s\n' "$release_id"; return 0; fi
+              sleep 2
+            done
+            echo 'Created plugin draft did not become visible in the release list' >&2
+            return 1
+          }
+          release_id=$(find_release_id)
+          if test "$release_id" = 0; then
+            gh release create "$RELEASE_TAG" ./*.tgz SHA256SUMS "$UPDATE_METADATA" --verify-tag --draft --latest=false --title "$RELEASE_TITLE $RELEASE_VERSION" --notes-file release-notes.md
+            release_id=$(wait_for_created_release_id)
+          fi
+          test "$release_id" -gt 0
+          gh api "repos/$GH_REPO/releases/$release_id" > release.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import assert from 'node:assert/strict'
+          import { createHash } from 'node:crypto'
+          const release = JSON.parse(fs.readFileSync('release.json', 'utf8'))
+          const metadata = JSON.parse(fs.readFileSync(process.env.UPDATE_METADATA, 'utf8'))
+          const names = [metadata.asset.name, 'SHA256SUMS', process.env.UPDATE_METADATA]
+          assert.equal(release.tag_name, process.env.RELEASE_TAG)
+          assert.equal(release.assets.length, names.length)
+          for (const name of names) {
+            const asset = release.assets.find(item => item.name === name)
+            assert(asset, `Missing release asset: ${name}`)
+            assert.equal(asset.state, 'uploaded')
+            const bytes = fs.readFileSync(name)
+            assert.equal(asset.size, bytes.length)
+            assert.equal(asset.digest, `sha256:${createHash('sha256').update(bytes).digest('hex')}`)
+          }
+          NODE
+          if test "$(gh api "repos/$GH_REPO/releases/$release_id" --jq '.draft')" = true; then
+            gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -F draft=false -f make_latest=false
+          else
+            echo 'Existing public release matches every asset; nothing was overwritten.'
+          fi

@@ -34,14 +34,16 @@ test('published metadata declares a Host-only bundle without a browser entry or 
   assert.equal(readPluginIcon(manifest.icon, join(directory, 'package.json'))?.contentType, 'image/svg+xml')
 })
 
-test('the bundle patch composes two addressable rows and remains off in default profiles', async () => {
+test('the shipped bundle composes two addressable rows without experimental classification or default activation', async () => {
   const patches = z.array(z.object({ insert: z.array(z.object({ id: z.string(), name: z.string(), disabled: z.boolean().default(false) })) })).parse(JSON.parse(await readFile(join(directory, manifest.dsh.bundle.patch), 'utf8')))
   const rows = composeEntries([patches])
   assert.deepEqual(rows.map(row => ({ id: row.id, name: row.name })), [
     { id: 'codex-subscription', name: manifest.name }, { id: 'codex-subscription-tools', name: `${manifest.name}/tools` },
   ])
   assert.equal(rows.find(row => row.id === 'codex-subscription-tools')?.disabled, false)
-  assert.ok(OPTIONAL_BUNDLES.includes(manifest.name))
+  assert.ok(!OPTIONAL_BUNDLES.includes(manifest.name))
+  const cli = z.object({ dependencies: z.record(z.string(), z.string()) }).parse(JSON.parse(await readFile(new URL('../../../../apps/cli/package.json', import.meta.url), 'utf8')))
+  assert.equal(cli.dependencies[manifest.name], 'workspace:*')
   assert.ok(!DEFAULT_PROFILE_BUNDLES.includes(manifest.name))
   for (const template of Object.values(PROFILE_TEMPLATES)) assert.ok(!template.bundles.includes(manifest.name))
   const scratch = await mkdtemp(join(tmpdir(), 'codex-subscription-profile-'))
