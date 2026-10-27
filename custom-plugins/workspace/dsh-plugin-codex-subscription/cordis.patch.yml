@@ -1,0 +1,8 @@
+[
+  {
+    "insert": [
+      { "id": "codex-subscription", "name": "dsh-plugin-codex-subscription" },
+      { "id": "codex-subscription-tools", "name": "dsh-plugin-codex-subscription/tools", "disabled": false }
+    ]
+  }
+]

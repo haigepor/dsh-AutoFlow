@@ -9,6 +9,7 @@ packages:
   - apps/*
   - custom-plugins/workspace/dsh-plugin-afp
   - custom-plugins/workspace/dsh-plugin-visual-curator
+  - custom-plugins/workspace/dsh-plugin-codex-subscription
   - custom-plugins/workspace/dsh-better-sidebar
   - custom-plugins/workspace/dsh-better-sidebar/updater
   # Private package owning repository-level benchmark dependencies.

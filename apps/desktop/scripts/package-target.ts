@@ -484,6 +484,7 @@ export async function packageTarget(
   for (const pluginDirectory of [
     'custom-plugins/workspace/dsh-plugin-afp',
     'custom-plugins/workspace/dsh-plugin-visual-curator',
+    'custom-plugins/workspace/dsh-plugin-codex-subscription',
     'custom-plugins/workspace/dsh-better-sidebar',
     'custom-plugins/workspace/dsh-better-sidebar/updater',
   ]) {

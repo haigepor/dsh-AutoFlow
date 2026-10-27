@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-plugin-codex-subscription/release/README.md
+/codex-subscription-releases:
+  en: 25214fdcabfa46bd
+  zh: 17d61f35abb532b7
+/codex-subscription-releases/summary:
+  en: e80dbf9697d08254
+  zh: dcf51e6d79e17027
+/codex-subscription-releases/prepare-and-publish:
+  en: 3eb808c1de1d6968
+  zh: a639a69eca232769
+/codex-subscription-releases/runtime-updates:
+  en: f8a09cad68b27e65
+  zh: c6983048984e7009
+/codex-subscription-releases/dev-note:
+  en: b75c8458928b72b9
+  zh: 02cbcc6baa338b07

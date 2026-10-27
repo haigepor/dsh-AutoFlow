@@ -96,8 +96,9 @@ export function buildGates(
     }
     gates.push(pnpmGate('afp', 'AFP bundle', ['run', 'build:afp'], ['client-bundle'], env))
     gates.push(pnpmGate('visual-curator', 'Visual curator bundle', ['run', 'build:visual-curator'], ['client-bundle'], env))
+    gates.push(pnpmGate('codex-subscription', 'Codex subscription bundle', ['run', 'build:codex-subscription'], ['host-bundle'], env))
     gates.push(pnpmGate('sidebar', 'Better Sidebar bundles', ['run', 'build:sidebar'], ['client-bundle'], env))
-    gates.push(pnpmGate('web', 'Web build', ['run', 'build:web'], ['afp', 'sidebar', 'visual-curator'], env))
+    gates.push(pnpmGate('web', 'Web build', ['run', 'build:web'], ['afp', 'sidebar', 'visual-curator', 'codex-subscription'], env))
   }
   if (scope === 'typecheck') {
     for (const step of contractSteps(root, 'all')) gates.push(libraryGate(step, step.needs, env))

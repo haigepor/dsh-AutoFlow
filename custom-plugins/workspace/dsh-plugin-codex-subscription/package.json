@@ -1,0 +1,94 @@
+{
+  "name": "dsh-plugin-codex-subscription",
+  "version": "0.1.0",
+  "repository": { "type": "git", "url": "git+https://github.com/haigepor/dsh-AutoFlow.git", "directory": "custom-plugins/workspace/dsh-plugin-codex-subscription" },
+  "description": "Codex subscription accounts, image tools, MCP and a local OpenAI-compatible relay for AutoFlow",
+  "license": "MIT",
+  "icon": "./icon.svg",
+  "type": "module",
+  "engines": { "node": "^22.19.0 || >=24.0.0" },
+  "exports": {
+    ".": "./index.js",
+    "./tools": "./tools.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": ["index.js", "tools.js", "cordis.patch.yml", "icon.svg", "locale", "README.md", "README.zh.md", "THIRD_PARTY_NOTICES.md", "release.config.json", "release/README.md", "release/README.zh.md"],
+  "dsh": {
+    "bundle": {
+      "update": { "provider": "github", "repository": "haigepor/dsh-AutoFlow", "tagPrefix": "codex-subscription-v", "metadataAsset": "codex-subscription-update.json" },
+      "patch": "./cordis.patch.yml",
+      "features": [
+        { "id": "image-tools", "rowId": "codex-subscription-tools", "kind": "script", "defaultEnabled": true,
+          "title": { "en": "Image tools", "zh": "图片工具" },
+          "description": { "en": "Generate and edit images using the signed-in Codex account.", "zh": "使用已登录的 Codex 账号生成和编辑图片。" } }
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --import tsx/esm --test tests/*.test.ts tests/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs",
+    "prepack": "pnpm run check && pnpm run build"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "1.1.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.2.0",
+    "eventsource-parser": "^3.1.0",
+    "ipaddr.js": "2.5.0",
+    "https-proxy-agent": "9.1.0",
+    "ws": "8.21.3",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-app-boot": "workspace:*",
+    "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
+    "@deepseek-ai/dsh-authorization": "workspace:*",
+    "@deepseek-ai/dsh-brand": "workspace:*",
+    "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/dsh-credentials": "workspace:*",
+    "@deepseek-ai/dsh-jobs": "workspace:*",
+    "@deepseek-ai/dsh-http-proxy": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-llm-pi-ai": "workspace:*",
+    "@deepseek-ai/dsh-plugin-manager": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-settings": "workspace:*",
+    "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-agent-loop": "workspace:*",
+    "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
+    "@deepseek-ai/dsh-app-boot": "workspace:*",
+    "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
+    "@deepseek-ai/dsh-authorization": "workspace:*",
+    "@deepseek-ai/dsh-brand": "workspace:*",
+    "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "@deepseek-ai/dsh-fs": "workspace:*",
+    "@deepseek-ai/dsh-credentials": "workspace:*",
+    "@deepseek-ai/dsh-jobs": "workspace:*",
+    "@deepseek-ai/dsh-http-proxy": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-llm-pi-ai": "workspace:*",
+    "@deepseek-ai/dsh-plugin-manager": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-settings": "workspace:*",
+    "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@types/node": "^22.20.1",
+    "@types/ws": "^8.18.1",
+    "esbuild": "0.28.1",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3"
+  }
+}

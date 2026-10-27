@@ -43,6 +43,7 @@ apps/web/dist/
 /.tmp-codex-ui-analysis/
 .dsh-report/
 .playwright-mcp/
+.playwright-cli
 .orig
 .worktrees/
 worktrees/

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "repository": "haigepor/dsh-AutoFlow",
+  "tagPrefix": "codex-subscription-v",
+  "metadataAsset": "codex-subscription-update.json",
+  "channel": "stable",
+  "makeLatest": false
+}

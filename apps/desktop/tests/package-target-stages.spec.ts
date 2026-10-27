@@ -52,6 +52,7 @@ it('requires one signing preflight before building, then records only the comple
   for (const directory of [
     'custom-plugins/workspace/dsh-plugin-afp',
     'custom-plugins/workspace/dsh-plugin-visual-curator',
+    'custom-plugins/workspace/dsh-plugin-codex-subscription',
     'custom-plugins/workspace/dsh-better-sidebar',
     'custom-plugins/workspace/dsh-better-sidebar/updater',
   ]) {

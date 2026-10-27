@@ -14,8 +14,9 @@ const artifactGraph = {
   'client-bundle': ['client-src'],
   'afp': ['client-bundle'],
   'visual-curator': ['client-bundle'],
+  'codex-subscription': ['host-bundle'],
   'sidebar': ['client-bundle'],
-  'web': ['afp', 'sidebar', 'visual-curator'],
+  'web': ['afp', 'sidebar', 'visual-curator', 'codex-subscription'],
 }
 
 function graph(gates: ReturnType<typeof buildGates>): Record<string, string[] | undefined> {
@@ -62,11 +63,12 @@ describe('repository build CLI', () => {
 })
 
 describe('repository build steps', () => {
-  it('builds custom bundles after Client and waits for them before Web', () => {
+  it('builds Host and Client custom bundles before Web', () => {
     expect(graph(buildGates(root, 'artifacts'))).toEqual(artifactGraph)
     const gates = buildGates(root, 'artifacts')
     expect(gates.find(gate => gate.id === 'afp')?.args.slice(-2)).toEqual(['run', 'build:afp'])
     expect(gates.find(gate => gate.id === 'visual-curator')?.args.slice(-2)).toEqual(['run', 'build:visual-curator'])
+    expect(gates.find(gate => gate.id === 'codex-subscription')?.args.slice(-2)).toEqual(['run', 'build:codex-subscription'])
     expect(gates.find(gate => gate.id === 'sidebar')?.args.slice(-2)).toEqual(['run', 'build:sidebar'])
   })
 
