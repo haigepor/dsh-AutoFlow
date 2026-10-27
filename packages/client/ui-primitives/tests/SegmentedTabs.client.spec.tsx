@@ -13,6 +13,22 @@ const items = [
 ] as const
 
 describe('SegmentedTabs', () => {
+  it('skips unavailable methods and exposes their reason and accessible name', () => {
+    const onChange = vi.fn()
+    render(<SegmentedTabs items={[items[0], { ...items[1], disabled: true, title: 'Unavailable' },
+      { ...items[2], ariaLabel: 'Usage limits' }]} value="details" onChange={onChange} label="Help" />)
+    const disabled = screen.getByRole<HTMLButtonElement>('tab', { name: 'Examples' })
+    expect(disabled.disabled).toBe(true)
+    expect(disabled.title).toBe('Unavailable')
+    fireEvent.click(disabled)
+    expect(onChange).not.toHaveBeenCalled()
+    const first = screen.getByRole('tab', { name: 'Details' })
+    first.focus()
+    fireEvent.keyDown(first, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Usage limits' }))
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('limits')
+  })
+
   it('fits one underline to the selected label and follows selection and resized labels', () => {
     let resized: (() => void) | undefined
     let examplesWidth = 90

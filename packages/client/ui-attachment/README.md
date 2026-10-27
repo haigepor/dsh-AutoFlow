@@ -51,6 +51,8 @@ While a file drag is over the page, the full-viewport overlay announces the drop
 
 The plugin provides the root-scoped `conversation.images.content` Factory. Its official `MessageImages` entries fill `conversation.chat.user.images`, `conversation.chat.message.images`, `conversation.trajectory.images`, and `tool.call.images` at priority 100 through `ctx.slots.inject`. A lower-priority entry replaces only its own position; removing it restores the official entry. All defaults reuse one gallery with explicit image references, authorized loader, layout hints, and optional complete labels. The Factory owns gallery presentation and default copy, not Session state or read authorization. Each domain owns its Slot declaration. The composer attachment rail remains a separate entry, and the package entry exports no components.
 
+Preview sources may provide an authorized `thumbnailUrl`; the thumbnail uses it while the lightbox opens `url`. Preview tiles retain a themed skeleton until the browser decodes the image. Browser image failures use a bounded, localized placeholder for previews and the existing retry control for durable attachments. Preview URL lifetime and any refreshed URL remain owned by the caller.
+
 | File | Role |
 |---|---|
 | [`src/client/ComposerAttachments.tsx`](src/client/ComposerAttachments.tsx) | Ordered image/file rail + drop overlay assembly |

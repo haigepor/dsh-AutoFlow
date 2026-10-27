@@ -10,6 +10,12 @@ export interface SegmentedTab<Value extends string = string> {
   label: ReactNode
   id: string
   panelId: string
+  /** Unavailable tabs stay visible and are skipped by keyboard navigation. */
+  disabled?: boolean
+  /** Optional reason why a tab is unavailable. */
+  title?: string | undefined
+  /** Accessible name when the visible label is abbreviated. */
+  ariaLabel?: string
 }
 
 /**
@@ -56,22 +62,27 @@ export function SegmentedTabs<Value extends string>({ items, value, onChange, la
   }, [items, selectedIndex, variant])
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const available = items.map((item, position) => ({ item, position })).filter(({ item }) => item.disabled !== true)
+    if (available.length === 0) return
+    const current = available.findIndex(item => item.position === index)
     let next: number
     switch (event.key) {
-      case 'ArrowLeft': next = (index + items.length - 1) % items.length; break
-      case 'ArrowRight': next = (index + 1) % items.length; break
+      case 'ArrowLeft':
+      case 'ArrowUp': next = (current + available.length - 1) % available.length; break
+      case 'ArrowRight':
+      case 'ArrowDown': next = (current + 1) % available.length; break
       case 'Home': next = 0; break
-      case 'End': next = items.length - 1; break
+      case 'End': next = available.length - 1; break
       default: return
     }
     event.preventDefault()
     event.stopPropagation()
     const tablist = event.currentTarget.parentElement
-    const nextItem = items[next]
+    const nextItem = available[next]
     /* v8 ignore next -- the event comes from a mounted direct child and next is bounded by non-empty items. */
     if (tablist === null || nextItem === undefined) return
-    tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]').item(next).focus()
-    onChange(nextItem.value)
+    tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]').item(nextItem.position).focus()
+    onChange(nextItem.item.value)
   }
 
   return (
@@ -97,6 +108,9 @@ export function SegmentedTabs<Value extends string>({ items, value, onChange, la
           className={css.tab}
           aria-selected={value === item.value}
           aria-controls={item.panelId}
+          aria-label={item.ariaLabel}
+          disabled={item.disabled}
+          title={item.title}
           tabIndex={value === item.value ? 0 : -1}
           onClick={() => { onChange(item.value) }}
           onKeyDown={(event) => { onKeyDown(event, index) }}

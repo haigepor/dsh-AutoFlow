@@ -92,6 +92,8 @@ export type MessageImageSource =
     readonly preview: {
       /** Browser-owned preview URL (lifecycle stays with the submitter). */
       readonly url: string
+      /** Optional authorized thumbnail URL; opening the lightbox still uses url. */
+      readonly thumbnailUrl?: string
       readonly name?: string
       /** Intrinsic pixel width, when the intake probe has resolved it. */
       readonly width?: number
@@ -131,6 +133,8 @@ export interface MessageImageLabels {
   loading: string
   /** Retry-control label shown when the load fails. */
   loadFailed: string
+  /** Noninteractive preview failure label; omission uses the existing failure copy. */
+  previewFailed?: string
   /** Lightbox strings forwarded to the opened preview. */
   lightbox: ImageLightboxLabels
 }

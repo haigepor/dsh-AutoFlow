@@ -4,6 +4,8 @@ import type { PerformanceUsageMode } from '../../chat-settings.ts'
 import type { ChatPresentationPolicy } from '../presentation-policy.ts'
 import { NS } from '../locale.ts'
 import { AssistantNodeView } from './AssistantNodeView.tsx'
+import { AssistantContent } from './AssistantContent.tsx'
+import { UserPreview } from './UserContent.tsx'
 import { CommandNodeView, ManualCompactionNodeView } from './CommandNodeView.tsx'
 import {
   CompactionNodeView, ContextMessageNodeView, RetryNodeView, TurnErrorNodeView,
@@ -28,6 +30,12 @@ export function registerChatNodeRenderers(
   performanceUsage: ObservableSnapshot<PerformanceUsageMode>,
   presentation: ObservableSnapshot<ChatPresentationPolicy>,
 ): void {
+  ctx.effect(() => ctx.slots.registerFactory({
+    name: 'conversation.chat.assistant.content', scope: 'root', locale: NS,
+  }, AssistantContent))
+  ctx.effect(() => ctx.slots.registerFactory({
+    name: 'conversation.chat.user.preview', scope: 'root', locale: NS,
+  }, UserPreview))
   ctx.effect(() => ctx.slots.registerFactory({
     name: 'conversation.chat.reasoning.content',
     scope: 'root',

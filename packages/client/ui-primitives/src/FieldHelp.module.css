@@ -1,0 +1,54 @@
+.helpButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.helpButton:hover,
+.helpButton[aria-expanded='true'] {
+  color: var(--dsw-alias-label-primary);
+}
+
+.helpButton:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color);
+  outline-offset: 1px;
+}
+
+.helpPanel {
+  position: fixed;
+  z-index: 1100;
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 14px 16px;
+  overflow-y: auto;
+  color: var(--dsw-alias-label-primary);
+  outline: none;
+}
+
+.helpHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.helpPanel p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 21px;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}

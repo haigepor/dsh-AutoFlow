@@ -11,7 +11,7 @@ kind: "package-reference"
 
 ## 概述
 
-为左侧栏、会话 View 标签和右侧栏起始页的“更多”菜单提供插件浏览与可审阅的创造模式草稿。Web 应用默认加载本包。各区域自己画“更多”按钮；本包不保存状态。
+为左侧栏、会话 View 标签和右侧栏起始页的“更多”入口提供插件浏览与可审阅的创造模式草稿。Web 应用默认加载本包。各区域自己画“更多”按钮；本包不保存状态。
 
 ## 目录
 
@@ -28,7 +28,7 @@ kind: "package-reference"
 
 `@deepseek-ai/dsh-web-app` 组合包默认加载本包，无需在插件页开启或由 profile 选择。区域只在其 actions slot 有注册项时显示“更多”按钮，因此卸载本包会移除三个按钮。
 
-打开左侧导航入口下方的**更多**、会话 View 标签之后的**更多会话视图**，或右侧栏起始页卡片之后的**更多工具**。左侧栏和起始页菜单仅提供**浏览更多插件**与**创建你的插件**。会话菜单在这两个操作之前列出收起的 View，并标记当前 View。所有菜单都不提供 Pin 或排序操作。
+打开左侧导航入口下方的**更多**、会话 View 标签之后的**更多会话视图**，或右侧栏起始页卡片之后的**更多工具**。左侧栏和起始页仅提供**浏览更多插件**与**创建你的插件**。会话菜单在这两个操作之前列出收起的 View，并标记当前 View。这些入口都不提供 Pin 或排序操作。
 
 **浏览更多插件**进入插件页主列表，不打开安装弹窗。**创建你的插件**用 Creator 预设打开新 Session 或可复用的空白 Session，并把对应区域的简短本地化插件创建请求加入草稿：空草稿直接以该请求为文字，已有草稿保留其文字、引用和附件，请求另起一段追加在后面。它绝不发送消息。请自行审阅并发送草稿。两项操作始终可用；仅当前面有收起的 View 时，在浏览操作之前显示分隔线。
 
@@ -42,7 +42,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-[`apply`](src/client/index.ts) 通过 `ctx.slots.inject` 以 id `entry-customization` 把 [`EntryMenuContent`](src/client/EntryMenuContent.tsx) 注册到 `sidebar.panellist.actions`、`conversation.session.header.views.actions` 和 `sidebar.right.tab.guide.actions`，每个注册项跟随所在区域声明的生命周期。各区域在自己的 `Menu` 中渲染这些 slot；菜单行先调用 `onDismiss`，再执行浏览或创建操作。仅会话菜单消费 owner 提供的收起入口列表及导航回调；Pin 回调不被消费。
+[`apply`](src/client/index.ts) 通过 `ctx.slots.inject` 以 id `entry-customization` 把 [`EntryMenuContent`](src/client/EntryMenuContent.tsx) 注册到 `sidebar.panellist.actions`、`conversation.session.header.views.actions` 和 `sidebar.right.tab.guide.actions`，每个注册项跟随所在区域声明的生命周期。宽侧边栏在原位渲染操作项；窄栏和其他区域在菜单中渲染。操作行先调用 `onDismiss`，再执行浏览或创建操作。仅会话菜单消费 owner 提供的收起入口列表及导航回调；Pin 回调不被消费。
 
 每个注册项的 `inject` 提供所属区域与两个回调。每个回调先调用 `ctx.get('productAnalytics')?.track('more_menu_item_click', { region, action })`。浏览随后调用 `pluginNavigation.openList()`。创建随后按区域取本地化提示语，调用 `uiWorkspace.startSession(undefined, { agentPreset: 'cordis', prompt, whenDraftExists: 'append' })`；该调用不经过 `ui-agent-preset`，预设标签不播放介绍动画。[`dsh-web-app` bundle patch](../../bundle/web-app/cordis.patch.yml) 挂载浏览器插件。
 

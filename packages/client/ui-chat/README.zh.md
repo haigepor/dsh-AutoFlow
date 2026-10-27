@@ -45,6 +45,8 @@ Chat 在节点列表外通过一个 `MarkdownDelegateProvider` 提供文件及 H
 
 Session 作用域的 `conversation.chat.user.content` Factory 只渲染用户内容区域：文本、额外内容块、按输入顺序排列的图片／文件附件及引用摘要。[`UserContentInput`](src/client/contract/slots.ts) 携带预处理的 `content`、变换 `facts`、显示 props 和显式 `loadImage`；引用动作由节点自己的 Injection 提供。正文调用共享 `conversation.user.text` Factory，图片调用自身拥有的图片 Slot。直接调用需要 Session 绑定，行包装层由调用方提供。
 
+root 范围的 `conversation.chat.user.preview` 在 Session 外复用同一内容区域，展示只读预处理文本和显式授权附件；文本按原文保留，不执行 Session 引用变换。root 范围的 `conversation.chat.assistant.content` 接收 `{ text, streaming, interrupted? }`，与 Chat 使用相同的 `AssistantText` 渲染器和排版，包括本地化 Markdown 与代码控件；不隐式解析本地文件，不提供 Session 操作或模型执行。消息身份、元信息、滚动和任务控制由调用方负责，独立推理正文使用 `conversation.chat.reasoning.content`。
+
 `UserStyleBubble` 和[各来源包装层](<src/client/chat/MessageItem.tsx#L157-L309>) 保留用户行、key、pending／echo 标记、时间、复制控件及其他消息操作。内容 Factory 不读取来源专属模型或私有 Context，也不是全局用户内容替换入口。
 
 独立的 Markdown 图片以内嵌预览显示，点击打开共享图片浮层；本地路径在消息落定后基于当前查看的工作区解析。图片文件链接保持点击打开侧栏，鼠标停留或键盘聚焦时显示缩略图，Esc 关闭缩略图。图片加载失败时保留本地化状态与图片说明；不执行重复图片过滤。

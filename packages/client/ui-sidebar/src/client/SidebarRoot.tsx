@@ -16,10 +16,11 @@
  * scrollbar indirection away while it is elsewhere, so a list the user is not
  * pointing at carries no bar.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 import clsx from 'clsx'
 import {
-  FishLogo, GlideHighlight, IconAppsAddOutlineRegular, IconNewChatOutlineMedium, IconNewChatOutlineRegular,
+  FishLogo, GlideHighlight, IconAppsAddOutlineRegular, IconChevronDownOutlineRegular, IconNewChatOutlineMedium, IconNewChatOutlineRegular,
   IconPanelLeftOutlineRegular, isDarwinDesktop, Menu, ShortcutKeys, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -100,27 +101,60 @@ type PanelMoreMenuProps =
   & Pick<InjectFace<SidebarRootInjected>, 'trackEntryClick'>
   & { readonly label: string }
 
-/** The panel list's More launcher: a panel-row button whose menu rows come from `sidebar.panellist.actions`. */
+/** The panel list's More launcher uses inline rows in the wide sidebar and a menu in the rail. */
 function PanelMoreMenu({ wide, label, entries, onOpen, onPinnedChange, trackEntryClick, renderSlot }: PanelMoreMenuProps) {
   const [open, setOpen] = useState(false)
-  const onDismiss = (): void => { setOpen(false) }
-  return (
-    <Menu open={open} onClose={onDismiss} portal autoFocus className={css.moreAnchor} listClassName={css.moreMenu}
-      anchor={(
-        <Tooltip label={label} delayMs={500} disabled={wide}>
-          <button type="button" data-glide-row className={css.panelRow} aria-label={label} aria-haspopup="menu" aria-expanded={open}
-            onClick={() => {
-              trackEntryClick({ menu_name: 'more', position: 'sidebar' })
-              setOpen(value => !value)
-            }}>
-            <span className={css.panelGlyph} aria-hidden="true"><IconAppsAddOutlineRegular size={18} /></span>
-            {wide && <span className={clsx(css.panelTitle, css.wide)}>{label}</span>}
-          </button>
-        </Tooltip>
-      )}>
-      {renderSlot('sidebar.panellist.actions', { entries, onOpen, onPinnedChange, onDismiss })}
-    </Menu>
+  const panelId = useId()
+  const trigger = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
+  const onDismiss = (): void => {
+    if (panel.current?.contains(document.activeElement) === true) trigger.current?.focus()
+    setOpen(false)
+  }
+  const onPanelKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.defaultPrevented || event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onDismiss()
+      return
+    }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    const rows = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not(:disabled)'))
+      .filter(row => row.closest('[role="menu"]') === event.currentTarget)
+    if (rows.length === 0) return
+    const index = rows.findIndex(row => row === document.activeElement)
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1
+      : index === -1 ? (event.key === 'ArrowDown' ? 0 : rows.length - 1)
+        : (index + (event.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length
+    event.preventDefault()
+    rows[next]?.focus()
+  }
+  const anchor = (
+    <Tooltip label={label} delayMs={500} disabled={wide}>
+      <button ref={trigger} type="button" data-glide-row className={css.panelRow} aria-label={label}
+        aria-haspopup={wide ? undefined : 'menu'} aria-expanded={open} aria-controls={wide ? panelId : undefined}
+        onClick={() => {
+          trackEntryClick({ menu_name: 'more', position: 'sidebar' })
+          setOpen(value => !value)
+        }}>
+        <span className={css.panelGlyph} aria-hidden="true"><IconAppsAddOutlineRegular size={18} /></span>
+        {wide && <>
+          <span className={clsx(css.panelTitle, css.wide)}>{label}</span>
+          <IconChevronDownOutlineRegular className={css.moreChevron} size={14} />
+        </>}
+      </button>
+    </Tooltip>
   )
+  const actions = open && renderSlot('sidebar.panellist.actions', { entries, onOpen, onPinnedChange, onDismiss })
+  if (!wide) {
+    return <Menu open={open} onClose={onDismiss} portal autoFocus className={css.moreAnchor} listClassName={css.moreMenu}
+      anchor={anchor}>{actions}</Menu>
+  }
+  return <div className={css.moreAnchor}>
+    {anchor}
+    <div ref={panel} id={panelId} role="menu" aria-label={label} hidden={!open} className={css.morePanel}
+      onKeyDown={onPanelKeyDown}>{actions}</div>
+  </div>
 }
 
 /**
@@ -354,6 +388,7 @@ export function SidebarRoot({
             ))}
             {hasEntryActions && (
               <PanelMoreMenu
+                key={wide ? 'wide' : 'rail'}
                 wide={wide}
                 label={t('panels.more')}
                 entries={panels.filter(({ id }) => id !== FIXED_PANEL_ID)

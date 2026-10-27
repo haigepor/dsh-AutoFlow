@@ -22,6 +22,8 @@ export type MessageImageSpec =
   | {
     readonly preview: {
       readonly url: string
+      /** Authorized thumbnail URL; absent means the preview URL is also the thumbnail. */
+      readonly thumbnailUrl?: string
       readonly name?: string
       readonly width?: number
       readonly height?: number
@@ -59,7 +61,7 @@ function dimensionsOf(image: MessageImageSpec): { readonly width: number; readon
  * Compact history renderer with retryable loading and click-to-open original
  * preview. A lone image renders at its `singleFit` size; an image among
  * several renders as a fixed 64px square tile. The preview arm displays its
- * local URL directly — no loader round-trip, no failure/retry surface.
+ * URL directly, with a bounded failure placeholder and no loader round-trip.
  * List thumbnails use status icons with localized tooltips and accessible names.
  *
  * @param props.image - the durable reference to load, or the local preview to display.
@@ -79,6 +81,7 @@ export function MessageImage({ image, load, variant, labels }: {
   const [loaded, setLoaded] = useState<string | null>(() =>
     attachment === undefined ? null : (load.peek?.(attachment) ?? null))
   const [error, setError] = useState(false)
+  const [displayedPreview, setDisplayedPreview] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   // Retry re-arms the one load effect below, so every attempt — first load or
   // retry — runs under the same liveness guard and the same reset.
@@ -108,9 +111,12 @@ export function MessageImage({ image, load, variant, labels }: {
   }, [attachment, load, attempt])
 
   const src = preview?.url ?? loaded
+  const thumbnailSrc = preview?.thumbnailUrl ?? src
   const label = ('attachment' in image ? image.label : undefined)
     ?? preview?.name ?? attachment?.name ?? labels.image
   const loadingThumbnail = variant === 'thumbnail' && src === null
+  const previewLoading = preview !== undefined && displayedPreview !== thumbnailSrc
+  if (error && preview) return <span className={css.frame} data-variant={variant} data-state="failed" role="img" aria-label={labels.previewFailed ?? labels.loadFailed} title={labels.previewFailed ?? labels.loadFailed} style={fit === undefined ? undefined : { width: fit.width, height: fit.height }}><IconRefreshOutlineRegular aria-hidden="true" /></span>
   if (error) return (
     <button
       type="button"
@@ -131,10 +137,11 @@ export function MessageImage({ image, load, variant, labels }: {
         type="button"
         className={css.frame}
         data-variant={variant}
+        data-loading={previewLoading || undefined}
         style={fit === undefined ? undefined : { width: fit.width, height: fit.height }}
         title={loadingThumbnail ? labels.loading : labels.open}
         aria-label={loadingThumbnail ? labels.loading : labels.openNamed(label)}
-        aria-busy={loadingThumbnail || undefined}
+        aria-busy={loadingThumbnail || previewLoading || undefined}
         onClick={() => { if (src !== null) setOpen(true) }}
       >
         {src === null
@@ -143,7 +150,7 @@ export function MessageImage({ image, load, variant, labels }: {
               {loadingThumbnail ? <IconLoadingOutlineRegular className={css.spinner} /> : labels.loading}
             </span>
           )
-          : <img src={src} alt={label} style={fit === undefined ? undefined : { objectPosition: fit.objectPosition }} />}
+          : <img src={thumbnailSrc ?? undefined} alt={label} loading="lazy" decoding="async" onLoad={() => { setDisplayedPreview(thumbnailSrc) }} onError={() => { setError(true) }} style={fit === undefined ? undefined : { objectPosition: fit.objectPosition }} />}
       </button>
       {open && src !== null && <ImageLightbox src={src} alt={label} labels={labels.lightbox} onClose={close} />}
     </>

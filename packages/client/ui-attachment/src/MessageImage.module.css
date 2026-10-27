@@ -43,6 +43,23 @@
   object-fit: cover;
 }
 
+.frame[data-state='failed'] {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.frame[data-loading='true'] { position: relative; }
+.frame[data-loading='true'] img { opacity: 0; }
+.frame[data-loading='true']::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: var(--dsw-alias-bg-skeleton);
+  animation: preview-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes preview-pulse { 0%, 80%, 100% { opacity: 1; } 40% { opacity: 0.6; } }
+
 .loading,
 .error {
   color: var(--dsw-alias-label-tertiary);
@@ -98,6 +115,7 @@
   .spinner {
     animation: none;
   }
+  .frame[data-loading='true']::after { animation: none; }
 }
 
 .frame:focus-visible,

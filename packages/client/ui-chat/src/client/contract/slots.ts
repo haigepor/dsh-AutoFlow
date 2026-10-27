@@ -245,6 +245,13 @@ export interface UserContentInput extends Pick<ChatNodeOwnerProps, 'loadImage'>,
   readonly facts: Readonly<Partial<UserTextFacts>>
 }
 
+/** Read-only answer Markdown without Session actions or implicit local-file access. */
+export interface AssistantContentInput {
+  readonly text: string
+  readonly streaming: boolean
+  readonly interrupted?: boolean
+}
+
 /** Shared presentation state for one Turn-process answer generation. */
 export interface TurnProcessOwnerProps {
   /** Process content eligible to share one Turn-level disclosure. */
@@ -374,6 +381,18 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 
   interface SlotFactoryMap {
+    /** Native user bubble and authorized attachments outside a Session. */
+    'conversation.chat.user.preview': {
+      scope: 'root'
+      props: Pick<UserContentInput, 'content' | 'loadImage'>
+      locale: 'chat'
+    }
+    /** Native answer Markdown, streaming code controls, and Chat typography outside a Session. */
+    'conversation.chat.assistant.content': {
+      scope: 'root'
+      props: AssistantContentInput
+      locale: 'chat'
+    }
     /** Prepared user text, attachments, and references inside a caller-owned message row. */
     'conversation.chat.user.content': {
       scope: 'session'

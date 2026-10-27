@@ -196,6 +196,28 @@ describe('MessageImage', () => {
 })
 
 describe('MessageImage preview arm', () => {
+  it('retains a preview loading state until the browser decodes its image', () => {
+    const view = render(<MessageImage image={{ preview: { url: 'https://images.example.test/pending', name: 'Pending' } }} load={vi.fn(async () => '')} variant="tile" labels={labels} />)
+    const frame = view.getByRole('button', { name: 'Pending，点击查看原图' })
+    expect(frame.getAttribute('aria-busy')).toBe('true')
+    fireEvent.load(view.getByAltText('Pending'))
+    expect(frame.getAttribute('aria-busy')).toBeNull()
+  })
+  it('loads a small preview while opening the original URL in the native lightbox', () => {
+    const view = render(<MessageImage image={{ preview: { url: 'https://images.example.test/original', thumbnailUrl: 'https://images.example.test/small', name: 'Photo' } }} load={vi.fn(async () => '')} variant="tile" labels={labels} />)
+    expect(view.getByAltText('Photo').getAttribute('src')).toBe('https://images.example.test/small')
+    fireEvent.click(view.getByRole('button', { name: 'Photo，点击查看原图' }))
+    expect(view.getByRole('dialog', { name: '原图预览' }).querySelector('img')?.getAttribute('src')).toBe('https://images.example.test/original')
+  })
+  it('contains a failed preview without leaking broken-image alternative text', () => {
+    const load = vi.fn()
+    const view = render(<MessageImage image={{ preview: { url: 'https://images.example.test/preview', name: 'Long image description' } }} load={load} variant="tile" labels={labels} />)
+    fireEvent.error(view.getByAltText('Long image description'))
+    expect(view.queryByAltText('Long image description')).toBeNull()
+    expect(view.getByRole('img', { name: labels.loadFailed })).toBeTruthy()
+    expect(load).not.toHaveBeenCalled()
+    expect(view.queryByRole('button', { name: labels.loadFailed })).toBeNull()
+  })
   it('displays a local preview immediately, without the loader, sized by its probed dimensions', () => {
     const load = vi.fn()
     const view = render(
