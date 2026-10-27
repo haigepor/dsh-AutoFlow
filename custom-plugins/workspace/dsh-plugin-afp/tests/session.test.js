@@ -75,7 +75,7 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
     }
     ctx.llm.registerAdapter(['fixture'], new ScriptedAdapter())
     const photo = id => ({ id, guid: id, title: `Photo ${id}`, caption: 'Cat', provider: 'AFP', mockup: [{ href: 'https://signed.example/?token=secret' }] })
-    let collectionReads = 0
+    let collectionReads = 0, visualCalls = 0
     const client = {
       async searchPhotos(request) {
         if (request.variables.input.query === 'caption="fixture-malformed"') return createAfpApiClient({ accessToken: 'fixture-only', retries: 0,
@@ -84,7 +84,8 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
         const category = [...errors.keys()].find(value => request.variables.input.query === `caption="fixture-${value}"`)
         if (category) return createAfpApiClient({ accessToken: 'fixture-only', retries: 0, fetchImpl: async () =>
           new Response(JSON.stringify({ errors: [{ message: 'secret https://signed.example/?token=secret', extensions: { code: errors.get(category) } }] }), { status: 200 }) }).searchPhotos(request)
-        if (request.variables.input.query !== 'caption="cat"') return { docs: [], hasMore: false }
+        if (request.variables.input.query !== 'caption="cat"') return { docs: ['one', 'food-new'].map(id => ({ ...photo(id),
+          caption: 'Fresh homemade meal with roasted food and vegetables on a plate' })), hasMore: false }
         return request.variables.input.cursor ? { docs: [photo('p2')], hasMore: false }
         : { docs: [photo('p1')], hasMore: true, cursor: 'next' } },
       async photosByIds(ids) { return ids.map(photo) },
@@ -95,12 +96,16 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
       async getSelection(id) { collectionReads++; return { docs: id === 'shared' ? ['p1', 'p2', 'p3'] : [`${id}-photo`] } },
     }
     const service = new AfpService({ profileContext: { home, dir: join(home, 'profile') },
-      jobs: { start(spec) { jobs.push(spec.run({ append() {}, updateProgress() {} })); return `afp-fixture-job-${jobs.length}` } } }, resolveConfig({ pageSize: 2, dedupReadMode }),
-      { connection: { async open() { return { client, account: 'fixture-account' } } } })
+      jobs: { start(spec) { jobs.push(spec.run({ append() {}, updateProgress() {} })); return `afp-fixture-job-${jobs.length}` } } },
+      resolveConfig({ pageSize: 2, dedupReadMode, targetPerCategory: 1, searchConcurrency: 1, maxSearchRequests: 2, maxPages: 1 }),
+      { connection: { async open() { return { client, account: 'fixture-account',
+        previewClient: { getPreviewBytes: async () => ({ bytes: new Uint8Array([255, 216, 255]), contentType: 'image/jpeg' }) },
+        visionClient: { classify: async () => { visualCalls++; return { category: 'food', confidence: .99, keep: true, reason: 'Visible food' } } },
+      } } } })
     const disable = await service.enable('read')
     const disableRefresh = await service.enable('refresh')
     await service.store.saveRun({ schema: 1, id: '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f', status: 'paused', stage: 'visual',
-      categories: ['animals'], settings: service.config, pending: null, groups: { animals: { candidates: ['one', 'two', 'three'].map(photo), batches: 1, exhausted: false } }, decisions: [
+      account: 'fixture-account', categories: ['animals'], settings: service.config, pending: null, groups: { animals: { candidates: ['one', 'two', 'three'].map(photo), batches: 1, exhausted: false } }, decisions: [
         { id: 'one', category: 'animals', keep: true, confidence: .99 },
         { id: 'two', category: 'animals', keep: false, reason: 'preview or vision request failed' },
         { id: 'three', category: 'animals', keep: false, reason: 'animal body is cropped or only a partial close-up' },
@@ -119,6 +124,10 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
     const enabled = await turn('afp-enabled')
     assert.equal(jobs.length, 2)
     assert.equal(collectionReads, dedupReadMode === 'candidate' ? 1 : 10)
+    const visualRuns = await Promise.all(jobs.map(async job => service.store.readRun(JSON.parse((await job.done).result).runId)))
+    assert.deepEqual(visualRuns[0].decisions.filter(item => item.keep).map(item => item.id), ['food-new'])
+    assert.deepEqual(visualRuns[1].decisions, [])
+    assert.equal(visualCalls, 1)
     await tools.dispose(); await todoPlugin.dispose(); await disable(); await disableRefresh()
     const disabled = await turn('afp-disabled')
     const offered = foldRequestHeader(enabled).tools

@@ -65,6 +65,22 @@ function alive(pid) {
   catch (error) { return error.code !== 'ESRCH' }
 }
 
+function historyFingerprint(info) {
+  return JSON.stringify([info.dev, info.ino, info.size, info.mtimeMs, info.ctimeMs])
+}
+function historyGuid(value) {
+  return typeof value === 'string' && value.trim() && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value)
+}
+function validateHistory(record, account) {
+  if (record.account !== account || !record.records || typeof record.records !== 'object' || Array.isArray(record.records)) throw new Error('Invalid AFP approved history')
+  for (const [runId, entry] of Object.entries(record.records)) {
+    id(runId)
+    if (!entry || typeof entry.fingerprint !== 'string' || entry.account !== null && typeof entry.account !== 'string'
+      || !Array.isArray(entry.ids) || entry.ids.some(value => typeof value !== 'string' || !value)
+      || !Array.isArray(entry.guids) || entry.guids.some(value => !historyGuid(value))) throw new Error('Invalid AFP approved history')
+  }
+}
+
 /** Profile-isolated JSON records and Home-wide process locks. No credential values are stored here. */
 export class Store {
   constructor(home, profile, maxBytes, config = resolveConfig()) {
@@ -103,8 +119,13 @@ export class Store {
     await this.saveRun(run)
     return run
   }
-  async readRun(runId) {
-    const run = await this.read(join(this.profile, 'runs', `${id(runId)}.json`))
+  /** Read and validate one active report, or its archived copy when explicitly requested.
+   * @param {string} runId Saved report UUID.
+   * @param {object} [options] archived selects the archive; omission reads only active reports.
+   * @returns {Promise<object>} Validated report with resolved settings; missing and invalid reports reject.
+   */
+  async readRun(runId, { archived = false } = {}) {
+    const run = await this.read(join(this.profile, archived ? 'archived-runs' : 'runs', `${id(runId)}.json`))
     if (run.id !== runId || !Array.isArray(run.categories) || !run.categories.length || run.categories.some(item => typeof item !== 'string')
       || !run.groups || typeof run.groups !== 'object' || !Array.isArray(run.decisions)
       || !['created', 'running', 'ready', 'paused', 'cancelled', 'failed'].includes(run.status)
@@ -124,6 +145,82 @@ export class Store {
     return run
   }
   saveRun(run) { return this.write(join(this.profile, 'runs', `${id(run.id)}.json`), run) }
+  /** Read prior completed approvals, including archived and partially completed reports.
+   * @param {string} account Authenticated account; callers hold its existing account lock.
+   * @param {string} currentRunId Current report, whose decisions remain owned by its workflow.
+   * @param {AbortSignal} signal Preparation cancellation and deadline.
+   * @returns {Promise<object>} Independent canonical-ID and GUID sets; incomplete or untrusted history rejects.
+   * The derived index reuses only unchanged source files, and never changes the original reports.
+   */
+  async readApprovedHistory(account, currentRunId, signal) {
+    if (typeof account !== 'string' || !account) throw new Error('Invalid AFP history account')
+    id(currentRunId)
+    signal.throwIfAborted()
+    const file = join(this.profile, 'approved-history', `${digest(account)}.json`)
+    let cached = { schema: 1, account, records: {} }
+    try { cached = await this.read(file) }
+    catch (error) { if (error.code !== 'ENOENT') throw error }
+    validateHistory(cached, account)
+    const sources = new Map()
+    for (const kind of ['runs', 'archived-runs']) {
+      const folder = join(this.profile, kind)
+      await directory(folder)
+      for (const name of await readdir(folder)) if (/^[a-f0-9-]{36}\.json$/.test(name)) sources.set(id(name.slice(0, -5)), kind)
+    }
+    const records = {}, ids = new Set(), guids = new Set()
+    for (const [runId, preferred] of sources) {
+      signal.throwIfAborted()
+      if (runId === currentRunId) {
+        if (cached.records[runId]) records[runId] = cached.records[runId]
+        continue
+      }
+      let entry
+      // 归档是一次原子移动；只为这次位置变化补读另一目录，不能把消失的历史当空集。
+      for (let attempt = 0; attempt < 2; attempt++) {
+        let kind = preferred
+        const alternate = preferred === 'runs' ? 'archived-runs' : 'runs'
+        if (attempt && await stat(join(this.profile, alternate, `${runId}.json`))) kind = alternate
+        const source = join(this.profile, kind, `${runId}.json`)
+        const before = await stat(source)
+        if (!before && attempt === 0) continue
+        if (!before?.isFile() || before.size > this.maxBytes) throw new Error('Unsafe or missing AFP history source')
+        const fingerprint = historyFingerprint(before), previous = cached.records[runId]
+        if (previous?.fingerprint === fingerprint) { entry = previous; break }
+        let run
+        try { run = await this.readRun(runId, { archived: kind === 'archived-runs' }) }
+        catch (error) { if (error.code === 'ENOENT' && attempt === 0) continue; throw error }
+        const after = await stat(source)
+        if (!after || historyFingerprint(after) !== fingerprint) {
+          if (attempt === 0) continue
+          throw new Error('AFP history changed while reading')
+        }
+        entry = { fingerprint, account: run.account ?? null, ids: [], guids: [] }
+        if (run.account === account) {
+          const photos = new Map(Object.values(run.groups).flatMap(group => group.candidates.map(photo => [photo.id, photo])))
+          const keptIds = new Set(), keptGuids = new Set()
+          for (const decision of run.decisions) {
+            if (!decision || typeof decision.id !== 'string' || !decision.id || typeof decision.keep !== 'boolean') throw new Error('Invalid AFP historical decision')
+            if (!decision.keep || decision.reason === 'preview or vision request failed') continue
+            keptIds.add(decision.id)
+            const guid = photos.get(decision.id)?.guid
+            if (historyGuid(guid)) keptGuids.add(guid)
+          }
+          entry.ids = [...keptIds]; entry.guids = [...keptGuids]
+        }
+        break
+      }
+      if (!entry) throw new Error('AFP history could not be verified')
+      records[runId] = entry
+      if (entry.account === account) {
+        for (const value of entry.ids) ids.add(value)
+        for (const value of entry.guids) guids.add(value)
+      }
+    }
+    signal.throwIfAborted()
+    if (JSON.stringify(records) !== JSON.stringify(cached.records)) await this.write(file, { schema: 1, account, records })
+    signal.throwIfAborted()
+    return { ids, guids }
+  }
   /** Archive under the same run lock as refresh; records and their references remain recoverable. */
   async archiveRun(runId) {
     id(runId)

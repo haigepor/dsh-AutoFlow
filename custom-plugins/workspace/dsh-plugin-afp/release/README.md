@@ -74,6 +74,14 @@ Malformed successful responses fail visibly instead of becoming empty results. R
 
 No data migration is required; settings and reports are retained, and restart applies an installed update. Verification includes 501 automated regressions, live membership comparisons, a temporary private-collection add/remove freshness check and browser preview decoding. Naturally expiring signatures were not observed over their full lifetime; withdrawn photos, lost permissions and persistent network failures can still prevent previews.
 
+## AFP 0.1.11
+
+New reports exclude photos already accepted by other reports in the same account and profile before preview reads or visual-model calls. Both full and candidate collection modes include active reports, archived reports and completed approvals from partially finished reports. Rejected photos and request failures remain eligible for another judgment.
+
+The derived history index verifies source-report fingerprints and rereads changed reports. Remote membership checks cannot clear historical approvals, and latest-page search and visual acceptance rules remain unchanged. Unreadable history or index-write failures stop screening visibly. Existing reports require no migration; legacy reports without an identifiable account are not assigned to one.
+
+Verification includes 518 automated regressions, recorded Session replay and two reports using real AFP previews and the configured visual model. The second search returned a previously accepted photo and excluded it before preview and model work; both reports accepted one different photo. Original reports and remote collections were retained. Install the update and restart to load 0.1.11; preview availability still depends on AFP permissions, photo availability and network conditions.
+
 ## Dev Note
 
 None.

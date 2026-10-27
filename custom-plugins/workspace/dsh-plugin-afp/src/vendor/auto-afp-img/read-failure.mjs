@@ -30,7 +30,7 @@ export function readFailure(error, stage) {
 export function savedReadFailure(failure) {
   const codes = ['read-failed', 'authentication-failed', 'access-denied', 'api-schema-rejected', 'query-rejected',
     'rate-limited', 'upstream-unavailable', 'read-timeout', 'network-failed', 'cancelled', 'preview-host-blocked', 'checkpoint-save-failed'];
-  const stages = ['connection', 'collections', 'search', 'preview', 'vision', 'confirmation', 'visual', 'completed',
+  const stages = ['connection', 'collections', 'approved-history', 'search', 'preview', 'vision', 'confirmation', 'visual', 'completed',
     'refresh', 'read', 'write', 'progress-update', 'progress-output', 'checkpoint-save'];
   const code = codes.includes(failure?.code) ? failure.code : 'read-failed';
   const stage = stages.includes(failure?.stage) ? failure.stage : 'unknown';

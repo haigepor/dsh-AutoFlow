@@ -138,22 +138,31 @@ export function reviewedPhotoResults(run) {
  * Search pages persist cursor and queued candidates together; resumes replace failures in place.
  * Optional readReserved refreshes candidate membership before queue consumption and restored visual work;
  * absent means reserved is the caller's complete account exclusion set.
+ * approvedHistory contains other reports' completed approvals and remains independent of remote membership.
  */
 export async function refreshRun({ run, store, config, client, previewClient, visionClient, signal,
-  onProgress = () => {}, primitives = {}, reserved = new Set(), readReserved, diagnostic }) {
+  onProgress = () => {}, primitives = {}, reserved = new Set(), readReserved,
+  approvedHistory = { ids: new Set(), guids: new Set() }, diagnostic }) {
   const measure = (stage, operation) => diagnostic ? diagnostic.measure(stage, operation) : operation()
   const profiles = CATEGORY_PROFILES.filter(profile => run.categories.includes(profile.key))
   run.reviews ??= []
   for (const item of run.decisions.filter(requestFailed)) if (!run.reviews.some(review => review.id === item.id)) {
     run.reviews.push({ id: item.id, category: item.category, attempts: 1, phase: 'failed' })
   }
-  // 恢复的待审批次不会重新搜索，必须在恢复视觉工作前重新查询归属。
-  if (readReserved) await readReserved([...(run.pending?.candidates ?? []), ...Object.values(run.groups).flatMap(group => group.candidates)])
+  const historicalIds = new Set(approvedHistory.ids)
+  const historyCandidates = values => {
+    for (const photo of values) if (approvedHistory.guids.has(photo.guid)) historicalIds.add(photo.id)
+    return values.filter(photo => !historicalIds.has(photo.id))
+  }
+  // 历史通过与远端归属分开维护；反查中的“未收藏”不能清除历史通过记录。
+  const restored = historyCandidates([...(run.pending?.candidates ?? []), ...Object.values(run.groups).flatMap(group => group.candidates)])
+  if (readReserved && restored.length) await readReserved(restored)
   const blocked = new Set()
   // 每批以实时归属和已完成决策重建排除集，移除收藏不会留下旧的归属阻断。
   const updateBlocked = () => {
     blocked.clear()
     for (const id of reserved) blocked.add(id)
+    for (const id of historicalIds) blocked.add(id)
     for (const item of run.decisions) if (!requestFailed(item)) blocked.add(item.id)
   }
   updateBlocked()
@@ -169,7 +178,11 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
     (primitives.session ?? createPhotoSearchSession)({ client, profiles, pageSize: config.pageSize,
     maxPages: config.maxPages, readRetries: 0, searchConcurrency: config.searchConcurrency,
     maxSearchRequests: config.maxSearchRequests, signal, searchState: run.searchState,
-    onCandidates: readReserved ? async values => { await readReserved(values); updateBlocked() } : null,
+    onCandidates: async values => {
+      const fresh = historyCandidates(values)
+      if (readReserved && fresh.length) await readReserved(fresh)
+      updateBlocked()
+    },
     onStateChange: async (state, pending) => {
       await save(() => {
         run.searchState = state
@@ -198,7 +211,7 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
         signal.throwIfAborted()
         if (!run.pending) {
           const failed = run.decisions.filter(item => item.category === profile.key && requestFailed(item)
-            && !attemptedThisStart.has(item.id) && !reserved.has(item.id)
+            && !attemptedThisStart.has(item.id) && !blocked.has(item.id)
             && item.failure?.retryable !== false
             && (run.reviews.find(review => review.id === item.id)?.attempts ?? 1) < config.maxPhotoAttempts)
           const retryIds = new Set(failed.slice(0, config.batchSize).map(item => item.id))
@@ -265,7 +278,7 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
           let kept = 0
           for (const item of run.decisions.filter(item => item.category === profile.key).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))) {
             const visualKeep = item.visualKeep ?? item.keep
-            item.keep = visualKeep && !reserved.has(item.id) && kept < config.targetPerCategory
+            item.keep = visualKeep && !reserved.has(item.id) && !historicalIds.has(item.id) && kept < config.targetPerCategory
             if (item.keep) kept++
             item.reason = visualKeep && !item.keep ? 'duplicate or category target reached' : item.visualReason ?? item.reason
           }

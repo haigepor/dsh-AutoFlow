@@ -149,6 +149,7 @@ export class AfpService {
         // 每次运行固定目标绑定；后续改绑定不能把旧报告解释为新收藏夹的结果。
         current.bindings ??= legacyBindings ? {} : (await this.store.readBindings(services.account)).values
         await prepare('collections')
+        const approvedHistory = await diagnostic.measure('approved-history', () => this.store.readApprovedHistory(services.account, current.id, operationSignal))
         current.dedup ??= { collections: {} }
         const readAll = async ({ fresh = false } = {}) => {
           const dedupInvalidation = this.dedupInvalidation
@@ -185,7 +186,7 @@ export class AfpService {
         } : undefined
         await prepare('visual')
         const result = await diagnostic.measure('workflow', () => refreshRun({ run: current, store: { saveRun: save }, config: current.settings,
-          ...services, reserved, readReserved, signal: taskSignal, diagnostic,
+          ...services, reserved, readReserved, approvedHistory, signal: taskSignal, diagnostic,
           onProgress: event => {
             notify({ ...event, stage: event.stage ?? 'visual', state: 'running', completed: event.reviewed })
             // 已读取预览的 ID 只供认证页面展示，后台文本输出保留计数，避免重复传入模型。
@@ -199,8 +200,9 @@ export class AfpService {
         return summary(result)
       })
       } catch (error) {
-        // 报告保留连接、收藏夹等业务阶段；写入失败单独标明，细分请求位置留在诊断中。
-        const failureStage = diagnostic.errorStage(error, stage) === 'checkpoint-save' ? 'checkpoint-save' : stage
+        // 历史验证与检查点写入失败使用具体步骤，其余错误保留连接、收藏夹等业务阶段。
+        const failureStep = diagnostic.errorStage(error, stage)
+        const failureStage = ['checkpoint-save', 'approved-history'].includes(failureStep) ? failureStep : stage
         const paused = taskSignal.aborted && taskSignal.reason?.name === 'AfpPause'
         const outcome = taskSignal.aborted ? paused ? 'paused' : 'cancelled' : 'failed'
         const failure = taskSignal.aborted ? { code: paused ? 'paused' : 'cancelled', stage, retryable: true }

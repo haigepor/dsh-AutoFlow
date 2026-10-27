@@ -31,6 +31,7 @@
   "diagnosticsPrivacy": "仅导出脱敏诊断，不包含凭据、图片地址或接口响应正文。",
   "diagnosticsStage_connection": "连接与配置",
   "diagnosticsStage_collections": "收藏夹准备",
+  "diagnosticsStage_approved-history": "历史通过图片去重",
   "diagnosticsStage_collection-list": "读取收藏夹目录",
   "diagnosticsStage_collection-read": "读取收藏夹内容",
   "diagnosticsStage_collection-parse": "解析收藏夹内容",

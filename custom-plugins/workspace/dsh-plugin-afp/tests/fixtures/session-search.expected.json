@@ -686,7 +686,7 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000006\",\"runId\":\"4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f\",\"status\":\"paused\",\"stage\":\"visual\",\"categories\":[{\"category\":\"animals\",\"selectionName\":\"AutoFlow_动物\",\"reviewed\":2,\"kept\":1,\"target\":100,\"batches\":1,\"exhausted\":false,\"requestFailures\":1,\"pixelReviewed\":2,\"rejected\":1,\"rejectionReasons\":[{\"code\":\"visual-rule\",\"count\":1}]}],\"pendingBatch\":false,\"items\":[{\"id\":\"one\",\"guid\":\"one\",\"title\":\"Photo one\",\"caption\":\"Cat\",\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=one\"}],\"meta\":{},\"offset\":0,\"totalItems\":1,\"nextOffset\":null}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000006\",\"runId\":\"4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f\",\"status\":\"paused\",\"stage\":\"visual\",\"categories\":[{\"category\":\"animals\",\"selectionName\":\"AutoFlow_动物\",\"reviewed\":2,\"kept\":1,\"target\":1,\"batches\":1,\"exhausted\":false,\"requestFailures\":1,\"pixelReviewed\":2,\"rejected\":1,\"rejectionReasons\":[{\"code\":\"visual-rule\",\"count\":1}]}],\"pendingBatch\":false,\"items\":[{\"id\":\"one\",\"guid\":\"one\",\"title\":\"Photo one\",\"caption\":\"Cat\",\"provider\":\"AFP\",\"previewPath\":\"api/afp/preview?photoId=one\"}],\"meta\":{},\"offset\":0,\"totalItems\":1,\"nextOffset\":null}"
           }
         ],
         "isError": false
@@ -706,7 +706,7 @@
                 "selectionName": "AutoFlow_动物",
                 "reviewed": 2,
                 "kept": 1,
-                "target": 100,
+                "target": 1,
                 "batches": 1,
                 "exhausted": false,
                 "requestFailures": 1,
@@ -896,7 +896,7 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000009\",\"runId\":\"00000000-0000-4000-8000-000000000008\",\"status\":\"paused\",\"stage\":\"search\",\"categories\":[{\"category\":\"food\",\"selectionName\":\"AutoFlow_食物\",\"reviewed\":0,\"kept\":0,\"target\":100,\"batches\":0,\"exhausted\":true,\"requestFailures\":0,\"pixelReviewed\":0,\"rejected\":0,\"rejectionReasons\":[],\"search\":{\"rawRecall\":0,\"metadataRejected\":0,\"duplicateExcluded\":0,\"pagesFetched\":3,\"budgetReached\":false}}],\"pendingBatch\":false,\"preparation\":{\"completed\":9},\"diagnostics\":{\"durationScope\":\"refresh-attempt\",\"outcome\":\"paused\",\"failure\":null,\"errors\":[],\"timings\":[{\"stage\":\"progress-update\",\"count\":34,\"failed\":0},{\"stage\":\"checkpoint-save\",\"count\":20,\"failed\":0},{\"stage\":\"progress-output\",\"count\":16,\"failed\":0},{\"stage\":\"connection\",\"count\":1,\"failed\":0},{\"stage\":\"collection-list\",\"count\":1,\"failed\":0},{\"stage\":\"collection-read\",\"count\":9,\"failed\":0},{\"stage\":\"collection-parse\",\"count\":9,\"failed\":0},{\"stage\":\"collections\",\"count\":1,\"failed\":0},{\"stage\":\"search-initialization\",\"count\":1,\"failed\":0},{\"stage\":\"search\",\"count\":1,\"failed\":0},{\"stage\":\"workflow\",\"count\":1,\"failed\":0}]},\"items\":[],\"meta\":{},\"offset\":0,\"totalItems\":0,\"nextOffset\":null}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000009\",\"runId\":\"00000000-0000-4000-8000-000000000008\",\"status\":\"ready\",\"stage\":\"visual\",\"categories\":[{\"category\":\"food\",\"selectionName\":\"AutoFlow_食物\",\"reviewed\":1,\"kept\":1,\"target\":1,\"batches\":1,\"exhausted\":false,\"requestFailures\":0,\"pixelReviewed\":1,\"rejected\":0,\"rejectionReasons\":[],\"search\":{\"rawRecall\":2,\"metadataRejected\":0,\"duplicateExcluded\":1,\"pagesFetched\":1,\"budgetReached\":false}}],\"pendingBatch\":false,\"preparation\":{\"completed\":9},\"diagnostics\":{\"durationScope\":\"refresh-attempt\",\"outcome\":\"ready\",\"failure\":null,\"errors\":[],\"timings\":[{\"stage\":\"progress-update\",\"count\":42,\"failed\":0},{\"stage\":\"checkpoint-save\",\"count\":22,\"failed\":0},{\"stage\":\"progress-output\",\"count\":20,\"failed\":0},{\"stage\":\"connection\",\"count\":1,\"failed\":0},{\"stage\":\"approved-history\",\"count\":1,\"failed\":0},{\"stage\":\"collection-list\",\"count\":1,\"failed\":0},{\"stage\":\"collection-read\",\"count\":9,\"failed\":0},{\"stage\":\"collection-parse\",\"count\":9,\"failed\":0},{\"stage\":\"collections\",\"count\":1,\"failed\":0},{\"stage\":\"search-initialization\",\"count\":1,\"failed\":0},{\"stage\":\"search\",\"count\":1,\"failed\":0},{\"stage\":\"preview\",\"count\":1,\"failed\":0},{\"stage\":\"vision\",\"count\":1,\"failed\":0},{\"stage\":\"workflow\",\"count\":1,\"failed\":0}]},\"items\":[{\"id\":\"food-new\",\"guid\":\"food-new\",\"title\":\"Photo food-new\",\"caption\":\"Fresh homemade meal with roasted food and vegetables on a plate\",\"provider\":\"\",\"previewPath\":\"api/afp/preview?photoId=food-new\"}],\"meta\":{},\"offset\":0,\"totalItems\":1,\"nextOffset\":null}"
           }
         ],
         "isError": false
@@ -908,26 +908,26 @@
           "result": {
             "resultRef": "00000000-0000-4000-8000-000000000009",
             "runId": "00000000-0000-4000-8000-000000000008",
-            "status": "paused",
-            "stage": "search",
+            "status": "ready",
+            "stage": "visual",
             "categories": [
               {
                 "category": "food",
                 "selectionName": "AutoFlow_食物",
-                "reviewed": 0,
-                "kept": 0,
-                "target": 100,
-                "batches": 0,
-                "exhausted": true,
+                "reviewed": 1,
+                "kept": 1,
+                "target": 1,
+                "batches": 1,
+                "exhausted": false,
                 "requestFailures": 0,
-                "pixelReviewed": 0,
+                "pixelReviewed": 1,
                 "rejected": 0,
                 "rejectionReasons": [],
                 "search": {
-                  "rawRecall": 0,
+                  "rawRecall": 2,
                   "metadataRejected": 0,
-                  "duplicateExcluded": 0,
-                  "pagesFetched": 3,
+                  "duplicateExcluded": 1,
+                  "pagesFetched": 1,
                   "budgetReached": false
                 }
               }
@@ -938,27 +938,32 @@
             },
             "diagnostics": {
               "durationScope": "refresh-attempt",
-              "outcome": "paused",
+              "outcome": "ready",
               "failure": null,
               "errors": [],
               "timings": [
                 {
                   "stage": "progress-update",
-                  "count": 34,
+                  "count": 42,
                   "failed": 0
                 },
                 {
                   "stage": "checkpoint-save",
-                  "count": 20,
+                  "count": 22,
                   "failed": 0
                 },
                 {
                   "stage": "progress-output",
-                  "count": 16,
+                  "count": 20,
                   "failed": 0
                 },
                 {
                   "stage": "connection",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "approved-history",
                   "count": 1,
                   "failed": 0
                 },
@@ -993,16 +998,35 @@
                   "failed": 0
                 },
                 {
+                  "stage": "preview",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "vision",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
                   "stage": "workflow",
                   "count": 1,
                   "failed": 0
                 }
               ]
             },
-            "items": [],
+            "items": [
+              {
+                "id": "food-new",
+                "guid": "food-new",
+                "title": "Photo food-new",
+                "caption": "Fresh homemade meal with roasted food and vegetables on a plate",
+                "provider": "",
+                "previewPath": "api/afp/preview?photoId=food-new"
+              }
+            ],
             "meta": {},
             "offset": 0,
-            "totalItems": 0,
+            "totalItems": 1,
             "nextOffset": null
           }
         }
@@ -1051,7 +1075,7 @@
         "content": [
           {
             "type": "text",
-            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000012\",\"runId\":\"00000000-0000-4000-8000-000000000011\",\"status\":\"paused\",\"stage\":\"search\",\"categories\":[{\"category\":\"food\",\"selectionName\":\"AutoFlow_食物\",\"reviewed\":0,\"kept\":0,\"target\":100,\"batches\":0,\"exhausted\":true,\"requestFailures\":0,\"pixelReviewed\":0,\"rejected\":0,\"rejectionReasons\":[],\"search\":{\"rawRecall\":0,\"metadataRejected\":0,\"duplicateExcluded\":0,\"pagesFetched\":3,\"budgetReached\":false}}],\"pendingBatch\":false,\"preparation\":{\"completed\":9},\"diagnostics\":{\"durationScope\":\"refresh-attempt\",\"outcome\":\"paused\",\"failure\":null,\"errors\":[],\"timings\":[{\"stage\":\"progress-update\",\"count\":34,\"failed\":0},{\"stage\":\"checkpoint-save\",\"count\":12,\"failed\":0},{\"stage\":\"progress-output\",\"count\":16,\"failed\":0},{\"stage\":\"connection\",\"count\":1,\"failed\":0},{\"stage\":\"collection-list\",\"count\":1,\"failed\":0},{\"stage\":\"collections\",\"count\":1,\"failed\":0},{\"stage\":\"search-initialization\",\"count\":1,\"failed\":0},{\"stage\":\"search\",\"count\":1,\"failed\":0},{\"stage\":\"workflow\",\"count\":1,\"failed\":0}]},\"items\":[],\"meta\":{},\"offset\":0,\"totalItems\":0,\"nextOffset\":null}"
+            "text": "{\"resultRef\":\"00000000-0000-4000-8000-000000000012\",\"runId\":\"00000000-0000-4000-8000-000000000011\",\"status\":\"paused\",\"stage\":\"search\",\"categories\":[{\"category\":\"food\",\"selectionName\":\"AutoFlow_食物\",\"reviewed\":0,\"kept\":0,\"target\":1,\"batches\":0,\"exhausted\":false,\"requestFailures\":0,\"pixelReviewed\":0,\"rejected\":0,\"rejectionReasons\":[],\"search\":{\"rawRecall\":4,\"metadataRejected\":0,\"duplicateExcluded\":4,\"pagesFetched\":2,\"budgetReached\":true}}],\"pendingBatch\":false,\"preparation\":{\"completed\":9},\"diagnostics\":{\"durationScope\":\"refresh-attempt\",\"outcome\":\"paused\",\"failure\":null,\"errors\":[],\"timings\":[{\"stage\":\"progress-update\",\"count\":36,\"failed\":0},{\"stage\":\"checkpoint-save\",\"count\":13,\"failed\":0},{\"stage\":\"progress-output\",\"count\":17,\"failed\":0},{\"stage\":\"connection\",\"count\":1,\"failed\":0},{\"stage\":\"approved-history\",\"count\":1,\"failed\":0},{\"stage\":\"collection-list\",\"count\":1,\"failed\":0},{\"stage\":\"collections\",\"count\":1,\"failed\":0},{\"stage\":\"search-initialization\",\"count\":1,\"failed\":0},{\"stage\":\"search\",\"count\":1,\"failed\":0},{\"stage\":\"workflow\",\"count\":1,\"failed\":0}]},\"items\":[],\"meta\":{},\"offset\":0,\"totalItems\":0,\"nextOffset\":null}"
           }
         ],
         "isError": false
@@ -1071,19 +1095,19 @@
                 "selectionName": "AutoFlow_食物",
                 "reviewed": 0,
                 "kept": 0,
-                "target": 100,
+                "target": 1,
                 "batches": 0,
-                "exhausted": true,
+                "exhausted": false,
                 "requestFailures": 0,
                 "pixelReviewed": 0,
                 "rejected": 0,
                 "rejectionReasons": [],
                 "search": {
-                  "rawRecall": 0,
+                  "rawRecall": 4,
                   "metadataRejected": 0,
-                  "duplicateExcluded": 0,
-                  "pagesFetched": 3,
-                  "budgetReached": false
+                  "duplicateExcluded": 4,
+                  "pagesFetched": 2,
+                  "budgetReached": true
                 }
               }
             ],
@@ -1099,21 +1123,26 @@
               "timings": [
                 {
                   "stage": "progress-update",
-                  "count": 34,
+                  "count": 36,
                   "failed": 0
                 },
                 {
                   "stage": "checkpoint-save",
-                  "count": 12,
+                  "count": 13,
                   "failed": 0
                 },
                 {
                   "stage": "progress-output",
-                  "count": 16,
+                  "count": 17,
                   "failed": 0
                 },
                 {
                   "stage": "connection",
+                  "count": 1,
+                  "failed": 0
+                },
+                {
+                  "stage": "approved-history",
                   "count": 1,
                   "failed": 0
                 },
