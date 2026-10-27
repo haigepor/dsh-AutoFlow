@@ -25,6 +25,8 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
+`waitForAbortableDelay` 为恢复流程提供可取消的浏览器等待。调用方传入生命周期信号；完成或取消都会释放定时器与监听器，取消时保留已有的 Error 原因，其他原因以 AbortError 报告。
+
 `MarkdownDelegateProvider.skillMentions` 可提供异步精确名称解析与文件打开回调。引用块中的行内代码只有在所有者识别后才显示为主题色技能按钮，名称继承正文的字号、字重、行高和基线，SVG 独立垂直对齐；共享 Tooltip 在悬停或键盘聚焦时展示介绍。取消与失败保留原始代码，本库不直接访问技能目录或文件。
 
 Modal 遮罩透明并保留共享背景模糊；弹窗使用主题的 `--dsw-shadow-lv3` 阴影区分页面层级。

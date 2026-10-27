@@ -189,6 +189,29 @@ function elevatedRungs(): Set<string> {
 
 const elevatedSurfaces = new Set([...elevatedRungs(), ...MATERIAL_ELEVATED_SURFACES])
 
+/** 固定图标只承载图像或短标记，不能作为表格滚动条所在的背景面。 */
+const ICON_BACKGROUNDS = new Map([
+  ['client/ui-settings-models/src/client/ModelsDirectory.module.css .modelMark', '34px'],
+  ['client/ui-settings-models/src/client/ModelsDirectory.module.css .providerBrand', '44px'],
+])
+
+function isNonScrollingBackground(file: string, rule: CssRule, token: string): boolean {
+  const owner = file.slice(file.indexOf('/packages/') + '/packages/'.length)
+  const key = `${owner} ${rule.selectors.join(', ')}`
+  const size = ICON_BACKGROUNDS.get(key)
+  const declarations = new Map(rule.declarations)
+  if (rule.declarations.some(([property]) => OVERFLOW_PROPERTIES.includes(property))) return false
+  if (token === '--dsw-alias-bg-layer-2' && size !== undefined) {
+    return declarations.get('width') === size && declarations.get('height') === size
+  }
+  // 下拉搜索头和页脚各自覆盖背后的内容；滚动区由 MenuSurface 或页面持有。
+  if (key === 'client/ui-settings-models/src/client/ProviderConnect.module.css .providerSearch') {
+    return token === '--dsw-specific-menu' && declarations.get('position') === 'sticky' && declarations.get('top') === '0'
+  }
+  return key === 'client/ui-settings-models/src/client/ProviderConnect.module.css .page .footer'
+    && token === '--dsw-specific-conversation-fill' && declarations.size === 1
+}
+
 for (const file of packageStylesheets()) {
   const rules = parseRules(readFileSync(file, 'utf8'))
   const surfaces: SheetSurfaces = { elevated: new Set(), scrolls: false, rebindsElevation: false }
@@ -209,7 +232,7 @@ for (const file of packageStylesheets()) {
       }
     }
     for (const token of ruleSurfaces) {
-      if (elevatedSurfaces.has(token)) surfaces.elevated.add(token)
+      if (elevatedSurfaces.has(token) && !isNonScrollingBackground(file, rule, token)) surfaces.elevated.add(token)
     }
     if (rebinds) rebindRules.push({ file, rule })
     if (rebindsElevation) surfaces.rebindsElevation = true
@@ -427,6 +450,27 @@ describe('scrollbar.css rendering paths', () => {
 })
 
 describe('elevated surface rebinds', () => {
+  it('distinguishes exact fixed icons and sticky chrome from growing or scrolling elevated surfaces', () => {
+    const file = fileURLToPath(new URL('../../ui-settings-models/src/client/ModelsDirectory.module.css', import.meta.url)).replaceAll('\\', '/')
+    const rule = (source: string): CssRule => parseRules(source)[0]!
+    const icon = rule('.modelMark { width: 34px; height: 34px; background: var(--dsw-alias-bg-layer-2); }')
+    expect(isNonScrollingBackground(file, icon, '--dsw-alias-bg-layer-2')).toBe(true)
+    expect(isNonScrollingBackground(file, icon, '--dsw-alias-bg-layer-3')).toBe(false)
+    for (const source of [
+      '.modelMark { width: auto; height: 34px; }',
+      '.modelMark { width: 34px; height: 34px; overflow: auto; }',
+      '.tableScroll { width: 34px; height: 34px; }',
+    ]) expect(isNonScrollingBackground(file, rule(source), '--dsw-alias-bg-layer-2')).toBe(false)
+    expect(isNonScrollingBackground(file.replace('ui-settings-models', 'ui-settings-other'), icon, '--dsw-alias-bg-layer-2')).toBe(false)
+    const connect = file.replace('ModelsDirectory', 'ProviderConnect')
+    const header = '.providerSearch { position: sticky; top: 0; background: var(--dsw-specific-menu); }'
+    const footer = '.page .footer { background: var(--dsw-specific-conversation-fill); }'
+    expect(isNonScrollingBackground(connect, rule(header), '--dsw-specific-menu')).toBe(true)
+    expect(isNonScrollingBackground(connect, rule(footer), '--dsw-specific-conversation-fill')).toBe(true)
+    expect(isNonScrollingBackground(connect, rule(header.replace('top: 0;', 'top: 0; overflow: auto;')), '--dsw-specific-menu')).toBe(false)
+    expect(isNonScrollingBackground(connect, rule(footer.replace('background:', 'overflow: auto; background:')), '--dsw-specific-conversation-fill')).toBe(false)
+    expect(isNonScrollingBackground(connect, rule(header.replace('.providerSearch', '.other')), '--dsw-specific-menu')).toBe(false)
+  })
   it('at least one surface rebinds the indirection', () => {
     expect(rebindRules.length).toBeGreaterThan(0)
   })

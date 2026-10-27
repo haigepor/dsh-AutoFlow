@@ -25,6 +25,8 @@ Use `dsh-client-ui-primitives` to build web-client controls and render agent out
 <a id="use-this-package"></a>
 ## Use this package
 
+`waitForAbortableDelay` shares a cancellable browser delay between recovery flows. Callers supply their lifetime signal; completion or cancellation releases the timer and listener, while cancellation preserves an existing Error reason or reports an AbortError.
+
 `MarkdownDelegateProvider.skillMentions` optionally supplies an asynchronous exact-name metadata resolver and source opener. Quoted inline code becomes a theme-accent skill button only after the owner recognizes it; its name inherits the prose size, weight, line height and baseline while its SVG aligns independently; the shared Tooltip displays the supplied description on hover or keyboard focus. Cancellation and failures preserve authored code, and no catalog or file access is owned by this library.
 
 Modal masks are transparent with the shared background blur; dialogs use the theme's `--dsw-shadow-lv3` shadow to separate them from the page.

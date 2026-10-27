@@ -50,7 +50,10 @@ When the host composition includes an HTTP server, the host embeds the `ui-theme
 -----
 
 <a id="understand-the-implementation"></a>
+
 ## Understand the implementation
+
+Owner-local style expectations preserve confirmed AutoFlow borders, radii and inline sidebar navigation; other new declarations remain subject to the shared token rules. The Models page's fixed icons, menu search header and footer do not determine the elevation of adjacent scrolling surfaces.
 
 Shared menus use `--dsw-menu-surface-fill`, blur, and menu-specific elevation through `MenuSurface`; standalone menus use `--dsw-menu-standalone-fill` and the same elevation. Platform code keeps standalone menus nearly opaque on macOS and both menu fills opaque when transparency is reduced or blur is unavailable. Other overlays retain `--dsw-specific-menu`. The enforced source rules are defined in the [styling reference](../../../docs/web-styling.md#component-rules). Modal masks retain their dark translucent fill with the subtle theme-owned background blur.
 

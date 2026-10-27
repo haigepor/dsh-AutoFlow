@@ -105,9 +105,15 @@
     ".content: border-radius: var(--dsh-windows-content-radius, 16px) 0 0 0",
     ".content: border-radius: 16px 16px 0 0"
   ],
+  "ui-settings-mcp/src/client/McpSettings.module.css": [
+    ".row: border-radius: 14px",
+    ".rowMain:focus-visible: border-radius: 6px",
+    ".panel: border-radius: 16px",
+    ".notice: border-radius: 10px",
+    ".empty: border-radius: 16px"
+  ],
   "ui-settings-models/src/client/ModelsSection.module.css": [
-    ".pageIcon: border-radius: 16px",
-    ".providerRail, .detail: border-radius: 16px",
+    ".detail: border-radius: 16px",
     ".rowCard: border-radius: 16px",
     ".addCard, .setupCard: border-radius: 16px",
     ".modelInputChoices .modelChoice input: border-radius: 5px"

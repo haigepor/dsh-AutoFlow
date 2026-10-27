@@ -33,6 +33,22 @@ export class ConfigEditor extends Service {
   /** The profile patch edited by this service. */
   get documentPath(): string { return this.ownerContext.profileContext.patchPath }
 
+  /** 在调用方持有 profile 写锁时读取序列文档，缺失文件按空 patch 处理。 */
+  private async readPatchDocument() {
+    let before: string
+    try { before = await readFile(this.documentPath, 'utf8') }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      before = '[]\n'
+    }
+    const document = parseDocument(before, { customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value }] })
+    if (document.errors[0]) throw document.errors[0]
+    if (!isSeq(document.contents)) throw new Error('Profile patch must be a YAML sequence')
+    const sequence = document.contents
+    sequence.flow = false
+    return { before, document, sequence }
+  }
+
   /** Addressable profile rows; nested Includes have independent configuration ownership.
    * @returns Entries with unique profile patch ids, including disabled rows.
    */
@@ -92,16 +108,7 @@ export class ConfigEditor extends Service {
         const beforePatches = readProfilePatches('dsh', profile)
         validate?.()
         if (flatten(composeEntries([beforePatches])).some(entry => entry.id === row.id)) throw new Error('Configuration entry id is already in use')
-        let before: string
-        try { before = await readFile(this.documentPath, 'utf8') }
-        catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-          before = '[]\n'
-        }
-        const document = parseDocument(before, { customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value }] })
-        if (document.errors[0]) throw document.errors[0]
-        if (!isSeq(document.contents)) throw new Error('Profile patch must be a YAML sequence')
-        document.contents.flow = false
+        const { before, document } = await this.readPatchDocument()
         document.add(document.createNode({ insert: [row] }))
         const loaded = loadProfileDirectory('dsh', profile.dir, profile.installAnchor)
         const patches = readProfilePatches('dsh', profile, { ...loaded, patches: yaml.load(String(document), { schema: entryListSchema }) as PatchOptions[] })
@@ -150,18 +157,9 @@ export class ConfigEditor extends Service {
           const config: unknown = value.config
           return { id: row.id, name: row.name, config: config ?? {} }
         })
-        let before: string
-        try { before = await readFile(this.documentPath, 'utf8') }
-        catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-          before = '[]\n'
-        }
-        const document = parseDocument(before, { customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value }] })
-        if (document.errors[0]) throw document.errors[0]
-        if (!isSeq(document.contents)) throw new Error('Profile patch must be a YAML sequence')
-        document.contents.flow = false
+        const { document, sequence } = await this.readPatchDocument()
         for (const row of retained) {
-          const index = document.contents.items.findLastIndex((item, index) => isMap(item)
+          const index = sequence.items.findLastIndex((item, index) => isMap(item)
             && document.getIn([index, 'id']) === row.id && !item.has('insert')
             && (!item.has('name') || document.getIn([index, 'name']) === row.name))
           if (index < 0) document.add(document.createNode(row))

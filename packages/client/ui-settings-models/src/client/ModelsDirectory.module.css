@@ -60,7 +60,7 @@
 .providerFacts > img { flex: none; object-fit: contain; pointer-events: none; user-select: none; }
 .providerCard .providerModels { margin: 0; color: var(--dsw-alias-label-primary); font-size: 14px; font-weight: 500; line-height: 22px; }
 .providerCard .providerStatus { display: flex; align-items: flex-start; gap: 7px; margin: 8px 0 0; font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
-.providerStatus > span { flex: none; width: 6px; height: 6px; margin-top: 7px; border-radius: 50%; background: var(--dsw-alias-label-tertiary); }
+.providerStatus > span { flex: none; width: 6px; height: 6px; margin-top: 7px; border-radius: 50%; corner-shape: round; background: var(--dsw-alias-label-tertiary); }
 .providerStatus[data-state='configured'] > span { background: var(--dsw-alias-state-success-primary); }
 .providerStatus[data-state='missing'] > span { background: var(--dsw-alias-state-warn-label); }
 .providerActions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; border-top: 1px solid var(--dsw-alias-border-l3); }

@@ -1,4 +1,5 @@
 /** Authenticated Web recovery after the owning launcher replaces its Host. */
+import { waitForAbortableDelay } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Public readiness response contains no process arguments or authentication credentials. */
 export interface UpdateRestartStatus {
@@ -43,16 +44,7 @@ export async function waitForUpdatedWebHost(
       // 旧进程退出与新进程绑定端口之间连接会失败；取消与截止时间由同一个信号控制。
       recovery.throwIfAborted()
     }
-    await new Promise<void>((resolve, reject) => {
-      const abort = (): void => {
-        clearTimeout(timer)
-        const reason: unknown = recovery.reason
-        reject(reason instanceof Error ? reason : new DOMException('Restart recovery cancelled', 'AbortError'))
-      }
-      const timer = setTimeout(() => { recovery.removeEventListener('abort', abort); resolve() }, 1000)
-      recovery.addEventListener('abort', abort, { once: true })
-      if (recovery.aborted) abort()
-    })
+    await waitForAbortableDelay(1000, recovery)
   }
   recovery.throwIfAborted()
 }

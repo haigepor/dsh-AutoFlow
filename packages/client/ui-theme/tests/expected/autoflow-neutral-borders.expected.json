@@ -1,0 +1,49 @@
+{
+  "client/ui-settings-models/src/client/ModelsDirectory.module.css": [
+    ".tabs border-bottom: 1px solid var(--dsw-alias-border-l3)",
+    ".count border: 1px solid var(--dsw-alias-border-l3)",
+    ".catalogSurface border: 1px solid var(--dsw-alias-border-l3)",
+    ".filters border-bottom: 1px solid var(--dsw-alias-border-l3)",
+    ".table th border-bottom: 1px solid var(--dsw-alias-border-l3)",
+    ".table td border-bottom: 1px solid var(--dsw-alias-border-l3)",
+    ".modelMark border: 1px solid var(--dsw-alias-border-l3)",
+    ".editAction border: 1px solid var(--dsw-alias-border-l3)",
+    ".summary border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".empty border-bottom: 1px solid var(--dsw-alias-border-l3)",
+    ".providerCard border: 1px solid var(--dsw-alias-border-l3)",
+    ".providerBrand border: 1px solid var(--dsw-alias-border-l3)",
+    ".providerActions border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".editorIntroduction border-bottom: 1px solid var(--dsw-alias-border-l3)"
+  ],
+  "client/ui-settings-models/src/client/ModelsSection.module.css": [
+    ".providerDialogForm .providerTextInput border: 1px solid var(--dsw-alias-border-l3)",
+    ".providerDialogForm .modelCatalog border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".singleFormSection + .singleFormSection border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".providerFormSection + .providerFormSection border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".modelCatalog[data-connection='true'] .addModelButton border: 1px solid var(--dsw-alias-border-l3)"
+  ],
+  "client/ui-settings-models/src/client/ProviderConnect.module.css": [
+    ".singleMethod border-bottom: 1px solid var(--dsw-alias-border-l3)",
+    ".choices border-bottom: 1px solid var(--dsw-alias-border-l3)",
+    ".layout .servicePicker border: 1px solid var(--dsw-alias-border-l3)",
+    ".providerSearch border-bottom: 1px solid var(--dsw-alias-border-l3)",
+    ".advancedToggle border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".layout .footer border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".page .catalog border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".tableScroll border: 1px solid var(--dsw-alias-border-l3)",
+    ".table td border-top: 1px solid var(--dsw-alias-border-l3)"
+  ],
+  "client/ui-settings-models/src/client/SubscriptionPage.module.css": [
+    ".empty border: 1px solid var(--dsw-alias-border-l3)",
+    ".notice border: 1px solid var(--dsw-alias-border-l3)",
+    ".card border: 1px solid var(--dsw-alias-border-l3)",
+    ".accountMark border: 1px solid var(--dsw-alias-border-l3)",
+    ".compactQuotas border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".creditPanel border: 1px solid var(--dsw-alias-border-l3)",
+    ".creditStats border-bottom: 1px solid var(--dsw-alias-border-l3)",
+    ".cardFooter border-top: 1px solid var(--dsw-alias-border-l3)",
+    ".loginBrand border: 1px solid var(--dsw-alias-border-l3)",
+    ".external border: 1px solid var(--dsw-alias-border-l3)",
+    ".manual border-top: 1px solid var(--dsw-alias-border-l3)"
+  ]
+}

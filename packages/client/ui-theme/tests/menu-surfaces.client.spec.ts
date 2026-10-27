@@ -62,11 +62,13 @@ describe('shared menu material', () => {
     expect(menuViolations('<MenuSurface><div role="listbox" /></MenuSurface>')).toEqual([])
   })
 
-  it('requires shared material outside the schedule-owned menu and clock picker', () => {
+  it('requires shared material outside exact owner-rendered controls and inline navigation', () => {
     expect(sourceFiles().flatMap(file => menuViolations(readFileSync(file, 'utf8'))
       .map(role => `${relative(packages, file).replaceAll('\\', '/')}: ${role}`))).toEqual([
       'client/ui-schedule/src/client/ClockPicker.tsx: listbox',
       'client/ui-schedule/src/client/TaskMenu.tsx: menu',
+      // 宽侧栏中的展开项保持文档流和侧栏底色，窄侧栏的浮层仍由 Menu 提供材质。
+      'client/ui-sidebar/src/client/SidebarRoot.tsx: menu',
     ])
   })
 

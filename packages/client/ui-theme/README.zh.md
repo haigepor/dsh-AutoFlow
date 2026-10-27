@@ -48,7 +48,10 @@ Web 与 Desktop 默认使用蓝灰（`themeSet: official`），未明确选择�
 -----
 
 <a id="understand-the-implementation"></a>
+
 ## 理解实现
+
+样式检查以所属测试目录中的精确记录保留已确认的 AutoFlow 边框、圆角和侧栏内联导航；其他新增声明仍接受共享 token 约束。模型页的固定图标、菜单搜索头和页脚不决定相邻滚动区的色阶。
 
 公共菜单通过 `MenuSurface` 共享 `--dsw-menu-surface-fill`、模糊和菜单专用投影；独立菜单使用 `--dsw-menu-standalone-fill` 和相同投影。平台代码让独立菜单在 macOS 上保持近不透明，并在减少透明度或不支持模糊时让两种菜单填充改为实色。其他浮层保留 `--dsw-specific-menu`。源码约束见[样式参考](../../../docs/web-styling.zh.md#component-rules)。模态遮罩保留深色半透明填充，并使用主题定义的轻微背景模糊。
 

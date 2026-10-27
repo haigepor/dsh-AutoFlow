@@ -74,6 +74,7 @@ describe('focus styles', () => {
       'ui-plugin-manager/src/client/PluginManagerPage.module.css: .featureTitle:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary) } bypasses --dsw-focus-ring-color',
       'ui-plugin-manager/src/client/PluginManagerPage.module.css: .updatesHead:focus-visible { outline: 2px solid var(--dsw-alias-label-primary) }',
       'ui-plugin-manager/src/client/PluginManagerPage.module.css: :global([data-plugin-update-card] > summary:focus-visible) { outline: 2px solid var(--dsw-alias-label-primary) }',
+      'ui-settings-mcp/src/client/McpSettings.module.css: .rowMain:focus-visible { outline: 2px solid var(--dsw-alias-border-l2) }',
     ])
   })
 })

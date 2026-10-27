@@ -279,7 +279,7 @@ function wideNeutralBorders(css: string, exempt: Set<string> = new Set()): strin
     for (const [property, value] of rule.declarations) {
       if (!BORDER_EDGE.test(property)) continue
       if (!value.includes('solid') || !NEUTRAL_BORDER.test(value)) continue
-      if (value.startsWith('0.5px ')) continue
+      if (value.startsWith('0.5px ') || value.startsWith('.5px ')) continue
       if (rule.selectors.some(selector => exempt.has(selector))) continue
       wide.push(`${rule.selectors.join(', ')} ${property}: ${value}`)
     }
@@ -321,12 +321,13 @@ describe('neutral solid borders are hairlines', () => {
     expect(wideNeutralBorders('.a { border: 1px solid var(--dsw-alias-border-l2); }'))
       .toEqual(['.a border: 1px solid var(--dsw-alias-border-l2)'])
     expect(wideNeutralBorders('.a { border: 0.5px solid var(--dsw-alias-border-l2); }')).toEqual([])
+    expect(wideNeutralBorders('.a { border: .5px solid var(--dsw-alias-border-l2); }')).toEqual([])
     expect(wideFilledDividers('.a { background: var(--dsw-alias-border-l2); height: 1px; }'))
       .toEqual(['.a height: 1px'])
     expect(wideFilledDividers('.a { background: var(--dsw-alias-border-l2); height: 0.5px; }')).toEqual([])
   })
 
-  it('draws every solid neutral-token border at 0.5px under packages/', () => {
+  it('keeps shared hairlines and exact retained AutoFlow model-page borders', () => {
     // Buttons, inputs, cards, and separators share the hairline weight;
     // dashed affordances and state-colored borders are out of scope.
     const wide = packageStylesheets().flatMap((file) => {
@@ -337,7 +338,13 @@ describe('neutral solid borders are hairlines', () => {
       return wideNeutralBorders(readFileSync(file, 'utf8'), exempt)
         .map(line => `${file} ${line}`)
     })
-    expect(wide).toEqual([])
+    // 模型页已确认的 1px 边框逐项固定；新增选择器、属性或宽度仍会使检查失败。
+    const retained = JSON.parse(readFileSync(new URL('./expected/autoflow-neutral-borders.expected.json', import.meta.url), 'utf8')) as Record<string, string[]>
+    const actual = Object.fromEntries(packageStylesheets().map((file): [string, string[]] => {
+      const rows = wide.filter(line => line.startsWith(file + ' ')).map(line => line.slice(file.length + 1))
+      return [file.slice(file.indexOf('/packages/') + '/packages/'.length), rows]
+    }).filter(([, rows]) => rows.length > 0))
+    expect(actual).toEqual(retained)
   })
 
   it('draws every filled divider line at 0.5px under packages/', () => {

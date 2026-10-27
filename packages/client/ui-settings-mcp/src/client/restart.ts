@@ -1,5 +1,6 @@
 /** Configuration restart waits for the launcher's replacement Host before reloading the browser. */
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import { waitForAbortableDelay } from '@deepseek-ai/dsh-client-ui-primitives'
 
 type RestartStatus = Extract<Awaited<ReturnType<ClientRemote['pluginManager']['restartStatus']>>, { ok: true }>['value']
 
@@ -31,16 +32,7 @@ export async function waitForConfigurationRestart(
       // 旧进程退出到新进程监听之间允许连接失败；统一截止信号控制重试。
       recovery.throwIfAborted()
     }
-    await new Promise<void>((resolve, reject) => {
-      const abort = (): void => {
-        clearTimeout(timer)
-        const reason: unknown = recovery.reason
-        reject(reason instanceof Error ? reason : new DOMException('Configuration restart cancelled', 'AbortError'))
-      }
-      const timer = setTimeout(() => { recovery.removeEventListener('abort', abort); resolve() }, 1000)
-      recovery.addEventListener('abort', abort, { once: true })
-      if (recovery.aborted) abort()
-    })
+    await waitForAbortableDelay(1000, recovery)
   }
   recovery.throwIfAborted()
 }
