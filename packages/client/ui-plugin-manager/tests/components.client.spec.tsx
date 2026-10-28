@@ -37,6 +37,21 @@ it('keeps update completion outside the panel and leaves a failed restart retrya
   expect(b.actions.dismissUpdateRestart).toHaveBeenCalledOnce()
 })
 
+it('lists each installed version with its package identity and retains names absent from the refreshed inventory', () => {
+  const b = renderTab({ packages: [pkg({ meta: { title: 'Codex subscription', icon: '/codex.svg' }, update: {
+    name: 'dsh-better-sidebar', repository: 'example/plugins', automatic: false, status: 'current', version: '0.1.1', restartRequired: true,
+  } })] })
+  b.set({ updateRestarts: ['dsh-better-sidebar', 'missing-plugin'] })
+  const modal = screen.getByRole('dialog', { name: en.updatesRestartTitle })
+  const list = within(modal).getByRole('list', { name: en.updatesRestartPackages })
+  expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+  expect(within(list).getByRole('listitem', { name: 'Codex subscription · v0.1.1' }).querySelector('img')?.getAttribute('src')).toBe('/codex.svg')
+  expect(within(list).getByRole('listitem', { name: 'missing-plugin' }).textContent).toBe('missing-plugin')
+  expect(within(modal).getByText(en.updatesRestartWorkHint)).toBeDefined()
+  fireEvent.error(within(list).getByRole('listitem', { name: 'Codex subscription · v0.1.1' }).querySelector('img')!)
+  expect(within(list).getByRole('listitem', { name: 'Codex subscription · v0.1.1' }).querySelector('img')).toBeNull()
+})
+
 it('shows indeterminate recovery while restarting and removes it after a retryable failure', async () => {
   const b = renderTab({ packages: [pkg()] })
   b.set({ updateRestarts: ['dsh-better-sidebar'] })
@@ -48,6 +63,8 @@ it('shows indeterminate recovery while restarting and removes it after a retryab
   expect(progress.hasAttribute('aria-valuenow')).toBe(false)
   const button = within(modal).getByRole('button', { name: en.updatesRestartBusyButton })
   expect(button).toHaveProperty('disabled', true)
+  expect(within(modal).getByRole('button', { name: en.close })).toHaveProperty('disabled', true)
+  expect(within(modal).queryByText(en.updatesRestartWorkHint)).toBeNull()
   fireEvent.click(button)
   expect(b.actions.restart).toHaveBeenCalledOnce()
   await act(async () => { result.reject(new Error('Host did not recover')) })

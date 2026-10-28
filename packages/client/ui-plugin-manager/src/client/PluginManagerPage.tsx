@@ -10,6 +10,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { PackageArtwork } from './PackageArtwork.tsx'
 import type { PluginInstallFailureKind, Registry } from '@deepseek-ai/dsh-api-remotes/client'
 import type { DshBundleFeatureKind } from '@deepseek-ai/dsh-package-manifest'
 import {
@@ -244,9 +245,6 @@ const ROW_FILTER_THRESHOLD = 10
 /** The size the 36-viewBox plugin artwork renders at inside a card's 48px frame. */
 const CARD_ARTWORK_SIZE = 36
 
-/** The size the artwork renders at inside a row's 40px frame. */
-const ROW_ARTWORK_SIZE = 30
-
 /** The artwork of the official plugins that registered their configuration, by registration id. */
 const ITEM_ARTWORK = new Map<string, (props: IconProps) => ReactNode>([
   ['shell', PluginArtworkTerminal],
@@ -259,19 +257,6 @@ const ITEM_ARTWORK = new Map<string, (props: IconProps) => ReactNode>([
 function itemArtwork(id: string): ReactNode {
   const Artwork = ITEM_ARTWORK.get(id) ?? PluginArtworkDefault
   return <Artwork size={CARD_ARTWORK_SIZE} />
-}
-
-/** Manifest images remain isolated from the page DOM; a failed decode keeps the position's default artwork. */
-function PackageArtwork({ src, row = false, size = row ? ROW_ARTWORK_SIZE : CARD_ARTWORK_SIZE }: {
-  readonly src: string | undefined
-  readonly row?: boolean
-  readonly size?: number
-}): ReactNode {
-  const [failedSource, setFailedSource] = useState<string>()
-  const Fallback = row ? PluginArtworkSubagent : PluginArtworkDefault
-  return src === undefined || src === failedSource
-    ? <Fallback size={size} />
-    : <img className={css.packageImage} src={src} width={size} height={size} alt="" onError={() => { setFailedSource(src) }} />
 }
 
 /** A bundle's feature preview; a failed decode is reported in place without blocking management. */

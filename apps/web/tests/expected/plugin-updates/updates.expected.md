@@ -36,11 +36,11 @@
 # Restarting
 
 - dialog "插件已更新，需要重启":
+  - button "关闭" [disabled]
   - heading "插件已更新，需要重启" [level=2]
-  - button "关闭"
-  - paragraph: 新版本已安装，配置已保留。当前应用继续使用原版本，重启后生效；请先处理正在运行的任务
-  - list:
-    - listitem: dsh-update-fixture · v1.1.0
+  - paragraph: 配置已保留，重启后即可使用新版本
+  - list "已更新的插件":
+    - listitem "dsh-update-fixture · v1.1.0": dsh-update-fixture v1.1.0
   - status:
     - text: 正在重启，等待应用恢复…
     - progressbar "正在重启，等待应用恢复…"

@@ -1,10 +1,14 @@
 /** Update completion and explicit restart stay visible outside the Plugins panel. */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import clsx from 'clsx'
+import { Button, IconCloseOutlineRegular, IconInfoOutlineRegular, IconRefreshOutlineRegular, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PluginManagerFace } from './manager-store.ts'
 import { packageText } from './presentation.ts'
 import { PluginUpdateActivity } from './PluginUpdateActivity.tsx'
+import { PackageArtwork } from './PackageArtwork.tsx'
+import restartArtwork from './assets/update-restart-whale-maid-v1.webp'
+import css from './PluginUpdateRestartModal.module.css'
 
 /** Shared completion state and carrier-owned restart action. */
 export type PluginUpdateRestartFace = Pick<PluginManagerFace, 'ensure' | 'dismissUpdateRestart' | 'resolveText'> & {
@@ -39,17 +43,38 @@ export function PluginUpdateRestartModal({ usePluginManager, ensure, dismissUpda
       if (!controller.signal.aborted) { setBusy(false); setFailed(true) }
     }
   }
-  return <Modal open={names.length > 0} onClose={close} title={t('updatesRestartTitle')}
-    closeLabel={t('close')} description={t('updatesRestartDetail')}
-    footer={<><Button variant="outline" disabled={busy} onClick={close}>{t('updatesRestartLater')}</Button>
-      <Button variant="primary" disabled={busy} aria-busy={busy} onClick={() => { void apply() }}>{t(busy ? 'updatesRestartBusyButton' : 'updatesRestartNow')}</Button></>}>
-    <ul>{names.map((name) => {
-      const pkg = packages.find(pkg => pkg.name === name)
-      const title = pkg === undefined ? name : packageText(pkg, resolveText).title
-      return <li key={name}>{pkg?.update?.version === undefined ? title
-        : t('updatesRestartPackage', { name: title, version: pkg.update.version })}</li>
-    })}</ul>
-    {failed ? <p role="alert">{t('updatesRestartFailed')}</p> : null}
-    {busy ? <div role="status" aria-live="polite"><PluginUpdateActivity label={t('updatesRestarting')} /></div> : null}
+  return <Modal headless open={names.length > 0} onClose={close} title={t('updatesRestartTitle')} className={clsx(css.dialog)}>
+    <div className={css.content}>
+      <Button variant="ghost" size="sm" className={css.close} aria-label={t('close')} disabled={busy} onClick={close}>
+        <IconCloseOutlineRegular size={14} />
+      </Button>
+      <div className={css.intro}>
+        <img className={css.artwork} src={restartArtwork} width={104} height={116} alt="" />
+        <div className={css.heading}>
+          <h2 className={css.title}>{t('updatesRestartTitle')}</h2>
+          <p className={css.description}>{t('updatesRestartDetail')}</p>
+        </div>
+      </div>
+      <ul className={css.packages} aria-label={t('updatesRestartPackages')}>{names.map((name) => {
+        const pkg = packages.find(pkg => pkg.name === name)
+        const title = pkg === undefined ? name : packageText(pkg, resolveText).title
+        const version = pkg?.update?.version
+        return <li className={css.package} key={name} aria-label={version === undefined ? title : t('updatesRestartPackage', { name: title, version })}>
+          <span className={css.packageIcon} aria-hidden="true"><PackageArtwork src={pkg?.meta?.icon} size={30} /></span>
+          <span className={css.packageName}>{title}</span>
+          {version === undefined ? null : <span className={css.version}>{t('versionTag', { version })}</span>}
+        </li>
+      })}</ul>
+      <div className={css.notice} data-restart-state={busy ? 'restarting' : failed ? 'failed' : 'ready'}>
+        {busy ? <div role="status" aria-live="polite"><PluginUpdateActivity label={t('updatesRestarting')} /></div>
+          : failed ? <p className={css.error} role="alert">{t('updatesRestartFailed')}</p>
+            : <p className={css.hint}><IconInfoOutlineRegular size={16} /><span>{t('updatesRestartWorkHint')}</span></p>}
+      </div>
+    </div>
+    <div className={css.footer}>
+      <Button variant="outline" disabled={busy} onClick={close}>{t('updatesRestartLater')}</Button>
+      <Button variant="primary" disabled={busy} aria-busy={busy} icon={busy ? undefined : <IconRefreshOutlineRegular size={16} />}
+        onClick={() => { void apply() }}>{t(busy ? 'updatesRestartBusyButton' : 'updatesRestartNow')}</Button>
+    </div>
   </Modal>
 }
