@@ -29,6 +29,8 @@ AFP 与桌面端可以使用不同版本号和发布日期。只发布 AFP 不�
 
 Release 标题使用 `AFP <version>`、`Codex Subscription <version>`、`Visual Curator <version>` 或 `Desktop <version>`。正文仅描述该产品；共享源码改动只有影响其产物时才写入。代码里程碑不发布无资产 Release；GitHub 自动生成的源码压缩包不能替代插件包或安装包。预览构建使用 Actions artifact；明确对外分发的预览可以使用带真实资产、标记清晰的 prerelease，并使用独立更新频道。
 
+自定义插件的原生检查将 `TMPDIR`、`TMP` 和 `TEMP` 指向 runner 所属临时目录的规范路径，避免 Windows 短路径和 macOS 目录别名改变测试路径比较。仅修正工作流时可从当前工作流传入已有标签恢复发布；各任务检出和安装包仍来自该标签的冻结源码。
+
 ## 里程碑与标签命名
 
 正式分发使用产品标签 `afp-v<semver>`、`<plugin>-v<semver>` 或 `desktop-v<version>`。源码里程碑统一使用 `milestone/<subject>-<version-or-yyyymmdd>`，不创建 Release。只记录官方集成、视觉基线等需要长期引用的节点，普通功能修改由 Git 提交记录。

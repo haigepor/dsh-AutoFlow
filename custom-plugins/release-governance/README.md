@@ -29,6 +29,8 @@ AFP and Desktop may use different version numbers and release dates. Publishing 
 
 Release titles use `AFP <version>`, `Codex Subscription <version>`, `Visual Curator <version>` or `Desktop <version>`. Notes describe only the selected product; shared-source changes belong only when they affect its artifact. Do not publish an assetless Release for a code milestone, and do not treat GitHub's automatic source archives as plugin packages or installers. Preview builds use Actions artifacts; an explicitly distributed preview may use a clearly marked prerelease with real assets and a separate update channel.
 
+The custom-plugin native checks use the canonical runner-owned temporary directory for `TMPDIR`, `TMP` and `TEMP`, so Windows short paths and macOS directory aliases do not change fixture path comparisons. A workflow-only recovery may dispatch the current workflow with an existing tag; every checkout and prepared asset still uses that tag's frozen source.
+
 ## Milestones and tag names
 
 Formal distributions use product tags `afp-v<semver>`, `<plugin>-v<semver>` or `desktop-v<version>`. Source milestones use `milestone/<subject>-<version-or-yyyymmdd>` and have no Release. Record only long-lived references such as upstream integrations and visual baselines; ordinary feature changes remain Git commits.

@@ -97,6 +97,15 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+      # 避免 Windows 短路径与 macOS 目录别名使临时文件路径断言失真。
+      - name: Use canonical runner temporary storage
+        run: >-
+          node --input-type=module -e "import fs from 'node:fs';
+          import assert from 'node:assert/strict'; import path from 'node:path';
+          const directory = fs.realpathSync(process.env.RUNNER_TEMP);
+          assert(path.isAbsolute(directory) && fs.statSync(directory).isDirectory());
+          for (const key of ['TMPDIR', 'TMP', 'TEMP']) {
+          fs.appendFileSync(process.env.GITHUB_ENV, key + '=' + directory + '\n', 'utf8'); }"
       - name: Verify native platform and architecture
         env:
           PLUGIN_TEST_PLATFORM: ${{ matrix.platform }}
@@ -107,14 +116,12 @@ jobs:
           assert.deepEqual([process.platform, process.arch], targets[process.env.PLUGIN_TEST_PLATFORM]);"
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
-      - name: Check package and source consistency
-        shell: bash
-        run: |
-          pnpm --filter "$PLUGIN_NAME" run check
-          git diff --exit-code -- "custom-plugins/workspace/$PLUGIN_NAME"
+      - name: Check package consistency
+        run: pnpm --filter "${{ needs.select.outputs.package }}" run check
+      - name: Verify unmodified plugin source
+        run: git diff --exit-code -- "custom-plugins/workspace/${{ needs.select.outputs.package }}"
       - name: Run native plugin regressions
-        shell: bash
-        run: pnpm --filter "$PLUGIN_NAME" run test
+        run: pnpm --filter "${{ needs.select.outputs.package }}" run test
 
   prepare:
     needs: select
