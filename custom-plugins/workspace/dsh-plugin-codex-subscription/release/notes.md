@@ -1,8 +1,8 @@
-Codex Subscription 0.1.0
+Codex Subscription 0.1.1
 
-Independent Host bundle for ChatGPT subscription accounts, capability-aware Codex routing, image tools, authenticated HTTP MCP and the local OpenAI-compatible relay. Includes upstream WebSocket transport, bounded fallback, version negotiation, persistent account/quota health and safe management methods. The package supplies no browser module; the subscription page requires the matching AutoFlow build.
+The plugin icon now follows AutoFlow's resolved theme: the original OpenAI mark in light mode and a transparent white mark in dark mode. Manual theme selection and system mode both apply. The matching OpenAI/Codex marks on the Models page ship with the AutoFlow application build; this independent Host package supplies the plugin icon.
 
-独立 Host 插件，提供 ChatGPT 订阅账号、按能力路由的 Codex 调用、生图工具、已鉴权 HTTP MCP 与本地 OpenAI 兼容中转，包含上游 WebSocket、有界降级、版本协商和持久化账号/额度状态。插件包不提供浏览器模块，订阅页需要配套 AutoFlow 构建。
+插件图标现在跟随 AutoFlow 当前解析后的主题：亮色模式保留原来的 OpenAI 标志，暗色模式使用白色透明标志，支持手动选择和跟随系统。模型页对应的 OpenAI/Codex 标志随 AutoFlow 应用构建分发，本独立 Host 包提供插件图标。
 
 Install or update from the plugin detail page, then restart AutoFlow. Existing credentials, tasks, gateway keys, configuration and activation choices remain. Automatic installation is opt-in and never automatically restarts the application. Three public assets contain the exact-version tarball, SHA-256 list and update metadata. Keyless tests do not verify real accounts, paid generation or external-client production behavior.
 
