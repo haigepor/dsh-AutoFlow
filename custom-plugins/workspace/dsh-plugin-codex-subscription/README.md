@@ -26,6 +26,8 @@ AutoFlow ships this bundle as an optional installation dependency. Shipped profi
 
 The Installed plugins section offers independent GitHub updates through the same updater as AFP. Checks use the bundle's declared stable source; automatic installation requires explicit opt-in, and updates take effect after restart while retaining account data and configuration. See the [release guide](release/README.md) for the source, assets and verification limits. The Models page remains part of the AutoFlow application.
 
+The plugin icon follows the application's resolved color scheme: light mode keeps the original OpenAI mark, and dark mode uses the generated transparent white mark. System mode follows the operating-system preference.
+
 The registered model provider is `autoflow-codex`. It advertises account-discovered models, including new IDs whose server entries declare context and input capabilities. Installed native capabilities fill omitted fields for known IDs. No provider page or sign-in button is contributed by this bundle.
 
 The local relay defaults to disabled at `127.0.0.1:3426`. It requires a separately revocable gateway key, even on loopback. The key is returned once by `gateway-create`; account OAuth tokens never cross management responses.

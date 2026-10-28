@@ -19,7 +19,7 @@ import metaColor from './assets/providers/meta-color.svg'
 import minimaxColor from './assets/providers/minimax-color.svg'
 import mistralColor from './assets/providers/mistral-color.svg'
 import moonshot from './assets/providers/moonshot.svg'
-import openai from './assets/providers/openai.svg'
+import openai from './assets/providers/openai-themed.svg'
 import openrouter from './assets/providers/openrouter.svg'
 import vercel from './assets/providers/vercel.svg'
 import xai from './assets/providers/xai.svg'
@@ -53,7 +53,7 @@ const artwork = {
   'minimax-color': { src: minimaxColor, monochrome: false },
   'mistral-color': { src: mistralColor, monochrome: false },
   'moonshot': { src: moonshot, monochrome: true },
-  'openai': { src: openai, monochrome: true },
+  'openai': { src: openai, monochrome: false },
   'openrouter': { src: openrouter, monochrome: true },
   'vercel': { src: vercel, monochrome: true },
   'xai': { src: xai, monochrome: true },

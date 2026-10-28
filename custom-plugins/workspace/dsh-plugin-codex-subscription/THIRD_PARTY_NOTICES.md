@@ -30,7 +30,7 @@ SOFTWARE.
 
 ## OpenAI brand icon
 
-icon.svg is copied unchanged from packages/client/ui-settings-models/src/client/assets/providers/openai.svg. The asset is attributed to Magpie and LobeHub Icons (Copyright (c) 2023 LobeHub); their complete MIT notices remain in icon.svg.
+icon.svg preserves the light-mode artwork from packages/client/ui-settings-models/src/client/assets/providers/openai.svg. The asset is attributed to Magpie and LobeHub Icons (Copyright (c) 2023 LobeHub); their complete MIT notices remain in icon.svg. Its dark-mode variant embeds a compact copy of the transparent white mark generated with OpenAI image_gen for AutoFlow. The matching model-page asset is openai-themed.svg; the generated original is retained as openai-dark.png in the same provider asset directory.
 
 ## DeepSeek Harness
 
