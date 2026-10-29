@@ -645,7 +645,7 @@
     },
     {
       "name": "visual_run_get",
-      "description": "Read a saved run belonging to this original Session, including durable status/stage/outcome, distinct stage counts and authorized result references. Technical failures are not visual rejections. Only selection records are final selections. Use resultFilter selected, review or all, and keep the same filter with a returned pageToken. Use job_output for bounded waits; do not poll unchanged reports repeatedly.",
+      "description": "Read a saved run belonging to this original Session, including durable status/stage/outcome, distinct stage counts and authorized result references. Technical failures are not visual rejections. Only selection records are final selections. Use resultFilter selected, review, rejected, failed, processing, pending, source or all, and keep the same filter with a returned pageToken. Use job_output for bounded waits; do not poll unchanged reports repeatedly.",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -655,7 +655,12 @@
             "enum": [
               "all",
               "selected",
-              "review"
+              "review",
+              "rejected",
+              "failed",
+              "processing",
+              "pending",
+              "source"
             ]
           },
           "runId": {

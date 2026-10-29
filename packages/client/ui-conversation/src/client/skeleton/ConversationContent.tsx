@@ -224,6 +224,7 @@ export function ConversationContent(props: ConversationContentProps) {
         {sessionId === undefined ? null : <Views />}
         {composerSeat}
       </div>
+      {sessionId !== undefined && <div className={css.bodyOverlay} data-conversation-body-overlay="">{renderSlot('conversation.body.overlay', {})}</div>}
       <WidthControls container={body} phase={phase} />
     </div>
   )

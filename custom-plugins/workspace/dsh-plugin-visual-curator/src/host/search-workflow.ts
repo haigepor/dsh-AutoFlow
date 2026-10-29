@@ -13,6 +13,7 @@ import { importedRecords } from './imports.ts'
 import { reviewImage, runActor } from './review.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { searchOutputSchema } from '../shared/search-launch.ts'
+import { searchIssueSchema, type SearchIssue } from '../shared/search-feedback.ts'
 
 const searchStateSchema = z.strictObject({
   queryIndex: z.number().int().nonnegative(), cursor: z.string().nullable(), seenCursors: z.array(z.string()),
@@ -20,6 +21,7 @@ const searchStateSchema = z.strictObject({
   nextCursor: z.string().nullable(), pageLoaded: z.boolean(), failedQueries: z.number().int().nonnegative(), successfulPages: z.number().int().nonnegative(),
   importedImages: z.record(z.string(), z.string()),
   duplicateIds: z.array(z.string()),
+  issues: z.array(searchIssueSchema).default([]), pageRestrictedIds: z.array(z.string()).default([]),
 })
 const initialState = { queryIndex: 0, cursor: null, seenCursors: [], seenIds: [], seenDigests: [], pageIds: [], pageDone: [], nextCursor: null, pageLoaded: false, failedQueries: 0, successfulPages: 0, importedImages: {}, duplicateIds: [] }
 export interface SearchDependencies {
@@ -47,7 +49,7 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
     const selections = () => deps.domain.repository.list('selection').filter(item => item.runId === ctx.runId && item.qualification === 'auto-qualified')
     const save = async (records: CuratorRecord[] = []) => {
       const current = dataOf(ctx.current())
-      await ctx.save('retrieving', { checkpoint: { ...current.checkpoint, search: toJson(state) }, counts: { ...current.counts, candidates: state.seenIds.length, distinct: state.seenDigests.length, qualified: selections().length, failedQueries: state.failedQueries }, warnings }, records)
+      await ctx.save('retrieving', { checkpoint: { ...current.checkpoint, search: toJson(state) }, counts: { ...current.counts, candidates: state.seenIds.length, distinct: state.seenDigests.length, qualified: selections().length, failedQueries: state.failedQueries, unavailable: state.issues.filter(issue => issue.category === 'unavailable').length, technicalFailed: state.issues.filter(issue => issue.category === 'technical').length }, warnings }, records)
     }
     const qualify = async (imageId: string) => {
       const { image, asset } = deps.domain.authorizedImage(imageId, actor)
@@ -75,10 +77,11 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
       let page: SourcePage
       try {
         if (state.pageLoaded) {
-          page = { items: state.pageIds.map(providerAssetId => ({ providerAssetId, previewUrl: '' })), nextCursor: state.nextCursor }
+          page = { items: state.pageIds.map(providerAssetId => ({ providerAssetId, previewUrl: '', ...(state.pageRestrictedIds.includes(providerAssetId) ? { originalUnavailable: 'restricted' as const } : {}) })), nextCursor: state.nextCursor }
         } else {
           page = await ctx.request('search', toJson({ query, cursor: state.cursor, providerId: sourceOwner.providerId }), signal => source.search({ query, pageSize: ctx.spec.config.limits.pageSize }, state.cursor, { ...requestBounds(ctx.spec.config, ctx), signal, seenCursors: state.seenCursors }), pageSummary)
           state.pageLoaded = true; state.pageIds = page.items.map(item => item.providerAssetId); state.pageDone = []; state.nextCursor = page.nextCursor; state.successfulPages++
+          state.pageRestrictedIds = page.items.filter(item => item.originalUnavailable === 'restricted').map(item => item.providerAssetId)
           await save()
         }
       } catch (error) {
@@ -97,11 +100,16 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
         } else if (!state.seenIds.includes(identity)) {
           if (state.seenIds.length >= ctx.spec.config.limits.maxCandidates) return 'budget-exhausted'
           state.seenIds.push(identity)
+          let failedStage: SearchIssue['stage'] = 'lookup', unavailable: string | undefined, httpStatus: number | undefined
           try {
             // 未提供原图时保留明确失败，缩略图不能作为可交付的原图。
             let location = item
-            if (!location.originalUrl && source.config.lookup) location = { ...item, ...await ctx.request('search', toJson({ providerAssetId: item.providerAssetId, operation: 'lookup' }), signal => source.lookup(item.providerAssetId, { ...requestBounds(ctx.spec.config, ctx), signal }), () => ({ refreshed: true })) }
-            if (!location.originalUrl) throw new CuratorError('reference-unavailable', 'download', 'The source did not provide an original image.')
+            if (!location.originalUrl && !location.originalUnavailable && source.config.lookup) location = { ...item, ...await ctx.request('search', toJson({ providerAssetId: item.providerAssetId, operation: 'lookup' }), signal => source.lookup(item.providerAssetId, { ...requestBounds(ctx.spec.config, ctx), signal }), result => ({ refreshed: true, originalAvailable: !!result.originalUrl, ...(result.originalUnavailable ? { originalUnavailable: result.originalUnavailable } : {}) })) }
+            if (location.originalUnavailable || !location.originalUrl) {
+              unavailable = location.originalUnavailable === 'restricted' ? 'source-original-restricted' : 'source-original-unavailable'
+              throw new CuratorError('reference-unavailable', 'download', 'The source did not provide a deliverable original.')
+            }
+            failedStage = 'download'
             const response = await ctx.request('download', toJson({ providerAssetId: item.providerAssetId }), async signal => {
               const reserved = Math.min(ctx.spec.config.limits.maxImportBytes, ctx.ledger.remainingBytes())
               if (reserved < 1) throw new CuratorError('budget-exhausted', 'download', 'The image byte budget is exhausted.')
@@ -111,7 +119,8 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
               ctx.ledger.settleDownload(reserved, result.bytes.length)
               return result
             }, result => ({ status: result.status, byteLength: result.bytes.length }))
-            if (response.status < 200 || response.status >= 300) throw new CuratorError('reference-unavailable', 'download', 'The original image is unavailable.')
+            if (response.status < 200 || response.status >= 300) { httpStatus = response.status; throw new CuratorError('reference-unavailable', 'download', 'The original image download returned an unsuccessful status.') }
+            failedStage = 'import'
             const imported = await deps.files.importBytes(response.bytes, response.headers['content-type'], ctx.signal)
             const duplicate = state.seenDigests.includes(imported.normalized.blob.digest)
             const created = importedRecords(actor.profileId, actor, imported, { kind: 'provider', providerId: sourceOwner.providerId, providerAssetId: item.providerAssetId, accountIdentity: sourceOwner.accountIdentity, description: item.providerAssetId, obtainedAt: new Date().toISOString() })
@@ -126,12 +135,15 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
               } catch (error) {
                 if (ctx.signal.aborted || error instanceof CuratorError && error.code === 'budget-exhausted') throw error
                 const assessment = assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: randomUUID(), createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: created.image.id, runId: ctx.runId, stage: original && ctx.current().stage === 'reviewing' ? 'final' : 'source', releaseId: release.id, recipeId: release.recipe.id, reviewBundleId: randomUUID(), technicalStatus: 'failed', ruleResults: [], cropPotential: 'unknown', preferenceScores: Object.fromEntries(Object.keys(release.recipe.preferenceScale.weights).map(key => [key, 0])), data: toJson({ error: safeFailure(error), reviewQueueReasons: ['technical-failure'] }) })
+                state.issues.push({ candidateId: item.providerAssetId, stage: assessment.stage === 'final' ? 'final' : 'source', category: 'technical', code: safeFailure(error).code, imageVersionId: created.image.id })
                 await save([assessment]); warnings.push(`Candidate review failed: ${safeFailure(error).code}.`)
               }
             }
           } catch (error) {
             if (ctx.signal.aborted || error instanceof CuratorError && error.code === 'budget-exhausted') throw error
-            warnings.push(`Candidate ${item.providerAssetId}: ${safeFailure(error).code}.`)
+            const code = unavailable ?? (httpStatus ? 'source-download-http' : safeFailure(error).code)
+            state.issues.push({ candidateId: item.providerAssetId, stage: failedStage, category: unavailable ? 'unavailable' : 'technical', code, ...(httpStatus ? { httpStatus } : {}) })
+            warnings.push(`Candidate ${item.providerAssetId} (${failedStage}): ${code}.`)
           }
         }
         state.pageDone.push(item.providerAssetId); await save()
@@ -142,6 +154,7 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
       state.pageLoaded = false; state.pageIds = []; state.pageDone = []; state.nextCursor = null; await save()
     }
     if (state.successfulPages === 0 && state.failedQueries > 0) throw new CuratorError('capability-unavailable', 'retrieving', 'All source queries failed. Saved results remain available.')
-    return selections().length >= input.targetCount ? 'target-met' : state.failedQueries > 0 ? 'partial-failure' : 'source-exhausted'
+    const technicalFailure = state.issues.some(issue => issue.category === 'technical') || deps.domain.repository.list('assessment').some(item => item.runId === ctx.runId && item.technicalStatus === 'failed')
+    return selections().length >= input.targetCount ? 'target-met' : state.failedQueries > 0 || technicalFailure ? 'partial-failure' : 'source-exhausted'
   }
 }

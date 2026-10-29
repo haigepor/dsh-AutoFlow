@@ -130,6 +130,8 @@ Feedback defaults to task-only. Opt into the current style candidate before a co
 
 Review-queue fields identify uncertain judgments, technical failures, human/model disagreements and new source groups awaiting human review. `limits.reviewSampleRate` also selects ordinary passed or rejected images reproducibly from their image digests. Each task fixes its sampling rate at launch. Queue membership changes no feedback or release, and a new source group does not imply a newly detected semantic category.
 
+Search feedback separates source originals that cannot be provided, download/import failures, technical review failures, uncertain decisions and visual rejections. Imported images appear while review is pending; only saved selections count as final. Task filters retain whole-run counts. Localized conversation cards observe an authorized Session/Run without changing workbench selection; closing the card cancels its reads, terminal tasks stop polling, and reconnect ignores obsolete replies while retaining confirmed counts. Cards and the workbench keep raw diagnostics expandable. Output directories are reported only from committed delivery receipts; zero qualified results create no directory.
+
 ### Scope and recover work
 
 Client-created profile tasks and Agent-created Session tasks have distinct owners. Authorized owner actions must open the owning Session channel before reading its tasks, pixels or exports. Saving a Session result to the profile library creates an independent association and leaves the original Session ownership intact.

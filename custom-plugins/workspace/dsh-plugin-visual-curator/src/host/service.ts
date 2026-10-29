@@ -1,3 +1,4 @@
+import { runResultFilterSchema } from '../shared/search-feedback.ts'
 /** Shared business provider for authenticated workbench actions and the Agent tools. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { ProfileContext } from '@deepseek-ai/dsh-app-boot'
@@ -293,8 +294,9 @@ export class CuratorService {
           const { sessionId } = z.strictObject({ sessionId: z.string().min(1), operationId: z.string().optional() }).parse(args)
           if (!this.ctx.sessions.get(brandString<SessionId>(sessionId))) throw new CuratorError('owner-denied', 'session-channel', 'The Session is unavailable in this profile.')
           const token = randomUUID()
-          this.sessionGrants.set(token, { sessionId, expiresAt: Date.now() + this.config.limits.sessionGrantTtlMs })
-          return { sessionToken: token, sessionId }
+          const expiresAt = Date.now() + this.config.limits.sessionGrantTtlMs
+          this.sessionGrants.set(token, { sessionId, expiresAt })
+          return { sessionToken: token, sessionId, expiresAt, pollIntervalMs: this.config.limits.pollIntervalMs }
         }
         case 'snapshot': {
           const page = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
@@ -323,10 +325,10 @@ export class CuratorService {
           return toJson(projectStyle(this.domain, styleId, effectiveActor))
         }
         case 'run-get': {
-          const { runId, pageSize, pageToken, resultFilter } = z.object({ runId: z.string(), pageSize: z.number().int().min(1).max(100).default(20), pageToken: z.string().optional(), resultFilter: z.enum(['all', 'selected', 'review']).default('all') }).parse(args)
+          const { runId, pageSize, pageToken, resultFilter } = z.object({ runId: z.string(), pageSize: z.number().int().min(1).max(100).default(20), pageToken: z.string().optional(), resultFilter: runResultFilterSchema.default('all') }).parse(args)
           const run = projectRun(this.domain, this.engine.get(runId, effectiveActor), effectiveActor)
           run.resultFilter = resultFilter
-          run.results = run.results.filter(image => resultFilter === 'all' || resultFilter === 'selected' && image.selection?.kind === 'selected' || resultFilter === 'review' && image.verdict === 'needs-review')
+          run.results = run.results.filter(image => resultFilter === 'all' || image.resultCategory === resultFilter)
           const ids = run.results.map(item => item.imageVersionId), scope = resultFilter === 'all' ? runId : `${runId}:${resultFilter}`
           const offset = this.pageOffset(pageToken, scope, ids)
           return this.withSessionResources(toJson({ ...run, results: run.results.slice(offset, offset + pageSize), ...(offset + pageSize < ids.length ? { pageToken: this.pageToken(scope, offset + pageSize, ids) } : {}) }), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)

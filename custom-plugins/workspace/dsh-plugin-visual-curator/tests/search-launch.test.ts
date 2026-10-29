@@ -61,6 +61,24 @@ async function setup() {
   return { f, native, profile, styleId, input, settled }
 }
 
+test('zero qualified results expose a pending receipt without claiming or creating an output directory', async () => {
+  const { f, input, settled } = await setup()
+  try {
+    await f.action('search-launch-start', input)
+    const launch = await settled(), actor = { kind: 'agent' as const, id: launch.sessionId, sessionId: launch.sessionId, profileId: f.profileId }
+    const original = f.http.request.bind(f.http)
+    f.http.request = async (url, request) => url.startsWith('https://source.example.test')
+      ? { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ items: [{ id: 'no-original', previewUrl: 'https://images.example.test/preview' }], nextCursor: null })) }
+      : original(url, request)
+    const checked = z.object({ normalizedInput: z.record(z.string(), z.json()), preparationDigest: z.string() }).parse(await f.service.action({ operation: 'task-prepare', args: { kind: 'search', releaseId: input.modelProfileId, taskBrief: input.taskBrief, targetCount: 1, output: { kind: 'original' } } }, actor, new AbortController().signal))
+    const run = z.object({ runId: z.string() }).parse(await f.service.action({ operation: 'search-start', args: { ...checked.normalizedInput, operationId: 'empty-search', preparationDigest: checked.preparationDigest } }, actor, new AbortController().signal))
+    await f.jobs.drain()
+    const report = z.object({ delivery: z.object({ status: z.literal('pending'), directory: z.string().optional(), files: z.literal(0) }), resultSummary: z.object({ selected: z.literal(0), unavailable: z.literal(1) }) }).parse(await f.service.action({ operation: 'run-get', args: { runId: run.runId } }, actor, new AbortController().signal))
+    assert.equal(report.delivery.directory, undefined)
+    await assert.rejects(stat(join(f.root, '.visual-curator', input.operationId)), { code: 'ENOENT' })
+  } finally { await f.cleanup() }
+})
+
 test('owner launch creates one native Session, attaches exact package and submits a recoverable frozen search', async () => {
   const { f, native, input, profile, settled } = await setup()
   try {
@@ -71,6 +89,8 @@ test('owner launch creates one native Session, attaches exact package and submit
     const message = native.messages[0]!, dataset = f.domain.require('profileExport', launch.datasetId!)
     assert.deepEqual(JSON.parse(Buffer.from(message.bytes).toString('utf8')), { formatVersion: 2, export: dataset.id, files: dataset.files, resources: [] })
     assert.ok(message.text.includes(profile.id)); assert.ok(message.text.includes('visual_search_start')); assert.ok(message.text.includes('不需要安装'))
+    assert.ok(message.text.includes('零张合格结果时不会创建目录'))
+    assert.ok(message.text.includes('delivery'))
     await assert.rejects(f.action('search-launch-start', { ...input, targetCount: 2 }), /different/)
     const actor = { kind: 'agent' as const, id: launch.sessionId, sessionId: launch.sessionId, profileId: f.profileId }
     const checked = z.object({ status: z.literal('ready'), normalizedInput: z.record(z.string(), z.unknown()), preparationDigest: z.string() }).parse(await f.service.action({ operation: 'task-prepare', args: { kind: 'search', releaseId: profile.id, taskBrief: input.taskBrief, targetCount: 1, output: { kind: 'original' } } }, actor, new AbortController().signal))

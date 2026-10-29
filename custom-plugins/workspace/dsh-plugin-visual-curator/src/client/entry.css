@@ -1050,8 +1050,30 @@ body:has([role='dialog'][aria-modal='true']) .vc-analysis-complete::before { ani
 .vc-task-review-section li + li { margin-top: 6px; }
 .vc-region-preview { position: relative; width: 100%; border: 1px solid var(--dsw-alias-border-main); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-base); overflow: hidden; }
 .vc-region-box { position: absolute; border: 1px solid var(--dsw-alias-border-main); background: var(--dsw-alias-interactive-bg-hover); display: grid; place-items: center; }
-.vc-task-tool { min-width: 0; }
-.vc-task-tool pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.vc-task-tool { min-width: 0; max-width: 560px; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l1); border-radius: var(--dsw-radius-lg); color: var(--dsw-alias-label-primary); font-size: 13px; background: var(--dsw-alias-bg-base); }
+.vc-task-tool-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 500; }
+.vc-task-tool-state { margin-left: auto; color: var(--dsw-alias-label-secondary); font-size: 12px; font-weight: 400; }
+.vc-task-tool-metrics { display: flex; gap: 10px 20px; flex-wrap: wrap; margin: 12px 0; }
+.vc-task-tool-metrics > div { display: flex; align-items: baseline; gap: 6px; }
+.vc-task-tool-metrics dt { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.vc-task-tool-metrics dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 500; }
+.vc-task-tool-previews { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.vc-task-tool-previews a { min-width: 0; color: inherit; text-decoration: none; font-size: 12px; }
+.vc-task-tool-previews img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--dsw-radius-md); }
+.vc-task-tool-previews span { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+.vc-task-tool-actions { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-top: 8px; }
+.vc-task-tool-actions details { flex: 1; min-width: 0; }
+.vc-task-tool summary, .vc-task-diagnostics summary { cursor: pointer; color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.vc-task-tool pre { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.vc-task-feedback-note { color: var(--dsw-alias-label-secondary); font-size: 12px; margin: 10px 0; overflow-wrap: anywhere; }
+.vc-task-directory { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+.vc-task-filters { display: flex; gap: 6px; flex-wrap: wrap; padding-block: 10px; border-block: 1px solid var(--dsw-alias-border-l1); margin-block: 12px; }
+.vc-task-diagnostics { margin-block: 12px; padding: 10px 12px; border: 1px solid var(--dsw-alias-border-l1); border-radius: var(--dsw-radius-md); }
+.vc-task-diagnostics ul { max-height: 200px; overflow: auto; margin: 8px 0 0; padding-left: 16px; }
+.vc-task-diagnostics li { padding: 4px 0; overflow-wrap: anywhere; font-size: 12px; }
+.vc-task-diagnostics li > * + * { margin-left: 8px; }
+.vc-task-diagnostics small { color: var(--dsw-alias-label-secondary); }
+@media (max-width: 480px) { .vc-task-tool { padding: 10px; } .vc-task-tool-state { width: 100%; margin-left: 22px; } .vc-task-tool-previews { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container vc-frame (max-width: 680px) {
   .vc-execution-nav { padding-inline: 16px; gap: 4px 12px; }
   .vc-execution-nav .vc-workspace-tabs [role='tab'] { height: 40px; }

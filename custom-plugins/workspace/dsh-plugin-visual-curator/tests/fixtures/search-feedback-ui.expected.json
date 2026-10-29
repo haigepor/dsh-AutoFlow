@@ -1,0 +1,14 @@
+{
+  "capsuleInsideBody": true,
+  "keyboard": true,
+  "narrowBodyHidden": true,
+  "narrowViewportHidden": true,
+  "sessionIsolated": true,
+  "retainedOnDisconnect": true,
+  "recovered": true,
+  "scopedNavigation": true,
+  "workbenchFilters": true,
+  "sourceDiagnostic": true,
+  "narrowOverflow": false,
+  "errors": []
+}

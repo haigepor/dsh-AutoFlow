@@ -13,6 +13,7 @@ import type { ConfigurationView, CuratorSnapshot, FeedbackView, ImageView, RuleV
 import { configRevision, type CuratorConfig } from './config.ts'
 import { dataOf, rankedSelections, specOf, type RunEngine } from './runtime.ts'
 import type { AnalysisTask } from '../shared/analysis-process.ts'
+import { resultCategory, searchIssueSchema } from '../shared/search-feedback.ts'
 
 /** @param config Current defaults. @param credentialStatus Presence only, never secret values. @returns Lightweight settings projection. */
 export function projectConfiguration(config: CuratorConfig, credentialStatus: { source: boolean; vision: boolean }): ConfigurationView {
@@ -115,7 +116,9 @@ function imageView(domain: CuratorDomain, image: ImageVersion, actor: DomainActo
   const sample = Number.parseInt(contentDigest(image.blob.digest).slice(10, 18), 16) / 0x1_0000_0000
   if (spec && assessment?.technicalStatus === 'completed' && (assessment.verdict === 'pass' || assessment.verdict === 'reject') && sample < spec.config.limits.reviewSampleRate) reviewQueueReasons.push('ordinary-sample')
   const parameters = new URLSearchParams({ imageVersionId: image.id })
+  const failure = z.object({ error: z.object({ code: z.string() }) }).safeParse(assessment?.data)
   return { imageVersionId: image.id, assetId: asset.id, familyId: asset.familyId,
+    ...(run ? { resultCategory: resultCategory({ selected: !!selection, technicalFailed: assessment?.technicalStatus === 'failed', verdict: assessment?.verdict, settled: !['created', 'running', 'pausing', 'cancelling'].includes(run.status), source: domain.repository.list('cropCandidate').some(item => item.runId === run.id && item.parentImageVersionId === image.id && !!item.derivedImageVersionId) }) } : {}),
     ...(match.success ? { styleMatch: match.data.styleMatch } : {}),
     selection: selection ? { kind: 'selected', selectionId: selection.id, qualification: selection.qualification, rank: selection.rank, rankScore: 0, warnings: selection.warnings } : { kind: 'not-selected' },
     ...(assessment ? { reviewStage: assessment.stage } : {}),
@@ -131,7 +134,7 @@ function imageView(domain: CuratorDomain, image: ImageVersion, actor: DomainActo
     ...(image.parentImageVersionId ? { parentImageVersionId: image.parentImageVersionId } : {}),
     ...(crop?.effectivePixelRect ? { candidateId: crop.id, effectivePixelRect: crop.effectivePixelRect } : {}),
     ...(assessment?.verdict ? { verdict: assessment.verdict } : {}),
-    ...(assessment?.technicalStatus === 'failed' ? { technicalFailure: 'vision-invalid-output' } : {}),
+    ...(assessment?.technicalStatus === 'failed' ? { technicalFailure: failure.success ? failure.data.error.code : 'vision-invalid-output' } : {}),
     ...(assessment ? { reason: assessment.ruleResults.map(item => item.reason).filter(Boolean).join(' · ') } : {}),
     ...(context ? { feedbackContext: context } : {}),
     feedbackHeads: Object.fromEntries(current.map(item => [item.judgment.kind + (item.judgment.kind === 'dimension-verdict' ? `:${item.judgment.dimension}` : ''), item.id])),
@@ -152,6 +155,8 @@ export function projectRun(domain: CuratorDomain, run: RunRecord, actor: DomainA
   const spec = specOf(run), data = dataOf(run)
   const assessments = domain.repository.list('assessment').filter(assessment => assessment.runId === run.id)
   const imageIds = new Set(assessments.map(assessment => assessment.imageVersionId))
+  const search = z.object({ importedImages: z.record(z.string(), z.string()), issues: z.array(searchIssueSchema).default([]) }).safeParse(data.checkpoint.search)
+  if (search.success) for (const id of Object.values(search.data.importedImages)) imageIds.add(id)
   for (const crop of domain.repository.list('cropCandidate').filter(item => item.runId === run.id)) {
     imageIds.add(crop.parentImageVersionId)
     if (crop.derivedImageVersionId) imageIds.add(crop.derivedImageVersionId)
@@ -167,12 +172,20 @@ export function projectRun(domain: CuratorDomain, run: RunRecord, actor: DomainA
     return { id: selection.imageVersionId, score }
   }))
   const selectedIds = new Set(selected.map(item => item.id))
-  const orderedIds = [...selectedIds, ...[...imageIds].filter(id => !selectedIds.has(id))]
+  // 未入选项按图像身份排序，翻页不依赖 assessment 的摘要顺序。
+  const orderedIds = [...selectedIds, ...[...imageIds].filter(id => !selectedIds.has(id)).sort()]
   const releaseId = fixedRelease && typeof fixedRelease === 'object' && !Array.isArray(fixedRelease) && typeof fixedRelease.id === 'string' ? fixedRelease.id : undefined
   const usageRevisionId = fixedUsage && typeof fixedUsage === 'object' && !Array.isArray(fixedUsage) && typeof fixedUsage.id === 'string' ? fixedUsage.id : undefined
-  return { runId: run.id, owner: run.owner, kind: spec.kind, status: run.status, ...(standard ? { styleId: standard.styleId } : typeof spec.input.styleId === 'string' ? { styleId: spec.input.styleId } : {}), resultSummary: { selected: selections.length, needsReview: new Set(assessments.filter(item => item.verdict === 'needs-review').map(item => item.imageVersionId)).size, candidates: orderedIds.length, target: typeof spec.input.targetCount === 'number' ? spec.input.targetCount : null }, ...(data.jobId ? { jobId: data.jobId } : {}), ...(run.stage ? { stage: run.stage } : {}),
+  const categories = orderedIds.map(id => {
+    const rows = assessments.filter(item => item.imageVersionId === id), latest = rows.findLast(item => item.stage === 'final') ?? rows.at(-1)
+    return resultCategory({ selected: selections.some(item => item.imageVersionId === id), technicalFailed: latest?.technicalStatus === 'failed', verdict: latest?.verdict, settled: !['created', 'running', 'pausing', 'cancelling'].includes(run.status), source: domain.repository.list('cropCandidate').some(item => item.runId === run.id && item.parentImageVersionId === id && !!item.derivedImageVersionId) })
+  })
+  const issues = search.success ? search.data.issues : []
+  const deliveryManifest = typeof spec.fixed.searchLaunchId === 'string' ? domain.repository.manifest(`search-delivery:${spec.fixed.searchLaunchId}:${run.id}`) : undefined
+  const delivery = deliveryManifest ? z.object({ directory: z.string(), files: z.array(z.json()) }).parse(deliveryManifest.state) : undefined
+  return { runId: run.id, owner: run.owner, kind: spec.kind, status: run.status, ...(standard ? { styleId: standard.styleId } : typeof spec.input.styleId === 'string' ? { styleId: spec.input.styleId } : {}), issues, ...(typeof spec.fixed.searchLaunchId === 'string' ? { delivery: delivery ? { status: 'delivered' as const, directory: delivery.directory, files: delivery.files.length } : { status: 'pending' as const, files: 0 } } : {}), resultSummary: { selected: categories.filter(value => value === 'selected').length, needsReview: categories.filter(value => value === 'review').length, rejected: categories.filter(value => value === 'rejected').length, failedImages: categories.filter(value => value === 'failed').length, technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, processing: categories.filter(value => value === 'processing').length, pending: categories.filter(value => value === 'pending').length, sourceImages: categories.filter(value => value === 'source').length, unavailable: issues.filter(issue => issue.category === 'unavailable').length, candidates: orderedIds.length, target: typeof spec.input.targetCount === 'number' ? spec.input.targetCount : null }, ...(data.jobId ? { jobId: data.jobId } : {}), ...(run.stage ? { stage: run.stage } : {}),
     ...(run.outcome ? { outcome: run.outcome } : {}), ...(releaseId ? { releaseId } : {}), ...(usageRevisionId ? { usageRevisionId } : {}),
-    taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', counts: data.counts, warnings: data.warnings,
+    taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', counts: spec.kind === 'search' || spec.kind === 'crop' ? { ...data.counts, technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, unavailable: issues.filter(issue => issue.category === 'unavailable').length } : data.counts, warnings: data.warnings,
     results: includeResults ? orderedIds.map(id => domain.require('imageVersion', id)).filter(image => readableImage(domain, image, actor)).map(image => {
       const view = imageView(domain, image, actor, undefined, run, familyStatuses), rank = selected.findIndex(item => item.id === image.id)
       if (view.selection?.kind === 'selected' && rank >= 0) view.selection = { ...view.selection, rank, rankScore: selected[rank]!.score }

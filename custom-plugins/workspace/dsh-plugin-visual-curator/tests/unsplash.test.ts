@@ -8,6 +8,13 @@ import { CurlRequestError, retryCurlRead, curlResolveArgument } from '../src/med
 const photo = (id: string) => ({ id, width: 1200, height: 800, urls: { small: `https://images.unsplash.com/${id}?w=400`, regular: `https://images.unsplash.com/${id}?w=1200`, raw: `https://images.unsplash.com/${id}` }, alt_description: 'Green park', links: { html: `https://unsplash.com/photos/${id}` }, user: { name: 'Photographer', username: 'artist' }, premium: false })
 const bounds = { maxBytes: 1_000_000, timeoutMs: 10_000, maxRedirects: 2 }
 
+test('restricted Unsplash originals remain explicit instead of becoming missing reference images', async () => {
+  const api = new UnsplashApi({ request: async () => ({ total: 1, total_pages: 1, results: [{ ...photo('restricted'), premium: true }] }) })
+  const page = await new UnsplashSourceProvider(api).search({ query: 'car', pageSize: 20 }, null, bounds)
+  assert.equal(page.items[0]?.originalUrl, undefined)
+  assert.equal(page.items[0]?.originalUnavailable, 'restricted')
+})
+
 test('each curl connection receives the complete checked address set including IPv6 and rotated fallback order', () => {
   const addresses = [{ address: '151.101.65.181', family: 4 }, { address: '151.101.1.181', family: 4 }, { address: '2606:4700::1111', family: 6 }]
   assert.equal(curlResolveArgument('unsplash.com', addresses, 0), 'unsplash.com:443:151.101.65.181,151.101.1.181,[2606:4700::1111]')

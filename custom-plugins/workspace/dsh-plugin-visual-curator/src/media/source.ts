@@ -14,7 +14,7 @@ export interface SourceQuery { query: string; pageSize: number; language?: strin
 /** Ephemeral locations must never be written into durable business records or logs. */
 export interface SourceLocation { previewUrl: string; originalUrl?: string }
 /** Stable identity and optional provider-declared dimensions; dimensions are not pixel proof. */
-export interface SourceItem extends SourceLocation { providerAssetId: string; width?: number; height?: number }
+export interface SourceItem extends SourceLocation { providerAssetId: string; width?: number; height?: number; originalUnavailable?: 'restricted' }
 /** One real source page; null means normal exhaustion. */
 export interface SourcePage { items: SourceItem[]; nextCursor: string | null }
 

@@ -128,5 +128,5 @@ export class UnsplashSourceProvider implements ImageSourceProvider {
   }
   /** @param id Stable photo identity. @param bounds Request limits. @returns Refreshed original and preview locations. */
   async lookup(id: string, bounds: RequestBounds): Promise<SourceItem> { return this.item(await this.api.photo(id, bounds)) }
-  private item(photo: GalleryPhoto): SourceItem { return { providerAssetId: photo.id, previewUrl: photo.thumbnailUrl, ...(photo.originalUrl ? { originalUrl: photo.originalUrl } : {}), width: photo.width, height: photo.height } }
+  private item(photo: GalleryPhoto): SourceItem { return { providerAssetId: photo.id, previewUrl: photo.thumbnailUrl, ...(photo.originalUrl ? { originalUrl: photo.originalUrl } : {}), ...(photo.premium ? { originalUnavailable: 'restricted' as const } : {}), width: photo.width, height: photo.height } }
 }

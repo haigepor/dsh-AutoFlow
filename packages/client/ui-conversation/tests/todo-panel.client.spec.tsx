@@ -102,6 +102,15 @@ describe('TodoPanel', () => {
     expect(screen.getByText('1 已完成')).toBeTruthy()
     expect(screen.queryByText(/进行中|待处理/)).toBeNull()
   })
+
+  it('Escape closes expanded details and restores focus to the capsule control', () => {
+    render(<TodoPanel todos={LIST} t={t} />)
+    const header = screen.getByRole('button', { expanded: false })
+    fireEvent.click(header)
+    fireEvent.keyDown(screen.getByTestId('todo-panel'), { key: 'Escape' })
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(header)
+  })
 })
 
 /** Dock props stub: the adapter reads the 'todos' projection only; the rest of the owner share is unused. */
@@ -124,13 +133,13 @@ describe('TodoDock', () => {
     expect(screen.queryByTestId('todo-panel')).toBeNull()
   })
 
-  it('registers before the goal and queue entries', () => {
+  it('registers in the Session body overlay', () => {
     expect(todoDockEntry.name).toBe('conversation-todo-dock')
     expect(todoDockEntry.inject).toEqual(['slots'])
     const register = vi.fn(() => () => undefined)
     const inject = vi.fn((_name: string, callback: () => () => void) => callback())
     todoDockEntry.apply({ slots: { inject, register } } as never)
-    expect(inject).toHaveBeenCalledWith('conversation.input.dock', expect.any(Function))
-    expect(register).toHaveBeenCalledWith({ name: 'conversation.input.dock', id: 'todo', order: 0, locale: NS }, TodoDock)
+    expect(inject).toHaveBeenCalledWith('conversation.body.overlay', expect.any(Function))
+    expect(register).toHaveBeenCalledWith({ name: 'conversation.body.overlay', id: 'todo', order: 0, locale: NS }, TodoDock)
   })
 })

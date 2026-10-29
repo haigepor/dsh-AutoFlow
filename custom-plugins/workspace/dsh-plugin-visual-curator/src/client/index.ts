@@ -1,3 +1,4 @@
+import { createConversationFeedback } from './conversation-feedback.ts'
 /** Optional native page entries; the plugin detail itself stays entirely owned by Plugin Manager. */
 import type { ComponentType } from 'react'
 import css from './entry.css'
@@ -75,6 +76,8 @@ window.__ModuleLoader__.load({
           },
         })
         const store = createCuratorStore(transport)
+        const feedback = createConversationFeedback(transport)
+        ctx.effect(() => () => feedback.dispose(), 'Visual Curator conversation feedback')
         const launches = createSearchLaunchStore({ invoke: store.invoke, context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '', pollMs: store.getSnapshot().snapshot?.configuration.limits.pollIntervalMs ?? 2000 }), openSession(id) {
           const navigation = ctx.get?.('uiWorkspace')
           if (!navigation) throw new Error('native-navigation-unavailable')
@@ -84,7 +87,7 @@ window.__ModuleLoader__.load({
           const follow = store.subscribe(() => launches.sync()); launches.sync()
           return () => { follow(); launches.dispose() }
         }, 'Visual Curator native search launches')
-        for (const toolName of ['visual_search_start', 'visual_crop_start', 'visual_run_get']) ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({ name: 'tool.call.toolview', key: toolName, locale: namespace, inject: (sessionId: string) => ({ t, async openTask(runId: string) { if (!registrations.has('panel')) throw new Error('panel-disabled'); await store.openSession(sessionId); store.selectWorkspace('tasks'); store.selectRun(runId); ctx.layout.selectPanel(panel) } }) }, TaskToolView))
+        for (const toolName of ['visual_search_start', 'visual_crop_start', 'visual_run_get']) ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({ name: 'tool.call.toolview', key: toolName, locale: namespace, inject: (sessionId: string) => ({ t, hooks: { feedback: feedback.source(sessionId) }, watch: (runId: string) => feedback.watch(sessionId, runId), refresh: (runId: string) => feedback.refresh(sessionId, runId), async openTask(runId: string) { if (!registrations.has('panel')) throw new Error('panel-disabled'); await store.openSession(sessionId); store.selectWorkspace('tasks'); store.selectRun(runId); ctx.layout.selectPanel(panel) } }) }, TaskToolView))
         let sessionCache: Storage | undefined
         try { sessionCache = window.sessionStorage } catch (error) { /* 浏览器禁用本地存储时，仅使用内存缓存。 */ }
         const gallery = createGalleryCache({ ...(sessionCache ? { storage: sessionCache } : {}), context: () => {
@@ -156,7 +159,7 @@ window.__ModuleLoader__.load({
         ctx.effect(() => {
           const changed = ctx.remote.$on('plugin-manager/changed', () => { void sync() })
           const reset = ctx.on('connection/reset', () => {
-            ++sequence; store.reset()
+            ++sequence; feedback.reset(); store.reset()
             for (const page of [...registrations.keys()]) remove(page)
             void sync()
           })

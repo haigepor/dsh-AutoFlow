@@ -83,7 +83,7 @@ export function createCuratorStore(transport: ClientTransport) {
   let refreshing: Promise<void> | undefined
   let scopeSequence = 0
   const runReads = new Map<string, Promise<void>>()
-  const runFilters = new Map<string, 'all' | 'selected' | 'review'>()
+  const runFilters = new Map<string, import('../shared/search-feedback.ts').RunResultFilter>()
   const runVersions = new Map<string, number>()
   const runFirstCursors = new Map<string, string | undefined>()
   let imagesFirstCursor: string | undefined

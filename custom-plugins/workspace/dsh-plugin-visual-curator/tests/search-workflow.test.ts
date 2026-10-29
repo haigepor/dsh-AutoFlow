@@ -9,13 +9,14 @@ import { CuratorDomain } from '../src/domain/curator.ts'
 import { contentDigest, DomainRepository, MemoryDomainAdapter } from '../src/domain/repository.ts'
 import { createCropProcessor } from '../src/host/crop-workflow.ts'
 import { createSearchWorker } from '../src/host/search-workflow.ts'
+import { projectRun } from '../src/host/projection.ts'
 import { resolveConfig } from '../src/host/config.ts'
 import { BudgetLedger, dataOf, specOf, RunEngine, toJson } from '../src/host/runtime.ts'
 import { FixtureJobs } from './helpers/service-fixture.ts'
 import type { ExecutionSpec, WorkContext } from '../src/host/runtime.ts'
 import { AssetFiles, CompatibleVisionProvider, MediaError, SourceHttpProvider } from '../src/media/index.ts'
 import type { HttpClient, HttpRequest, HttpResponse } from '../src/media/index.ts'
-import { recipeSchema, releaseSchema, requestSchema as persistedRequestSchema, runSchema, usageSchema } from '../src/shared/model.ts'
+import { draftSchema, styleSchema, recipeSchema, releaseSchema, requestSchema as persistedRequestSchema, runSchema, usageSchema } from '../src/shared/model.ts'
 
 const base = { schemaVersion: 1, profileId: 'p', createdAt: '2026-10-23T00:00:00.000Z' }
 const human = { kind: 'authenticated-human', id: 'human', confirmationMethod: 'client-action', confirmedAt: base.createdAt }
@@ -36,6 +37,7 @@ class SearchFixture implements HttpClient {
   rejectFinal = false
   unknownFinal = false
   failDownloadAttempts = 0
+  downloadStatus = 200
   constructor(readonly bytes: Buffer, readonly pages: (query: string, cursor: string | null) => SourceResult | Error) {}
   async request(url: string, input: HttpRequest): Promise<HttpResponse> {
     const parsed = new URL(url)
@@ -51,7 +53,7 @@ class SearchFixture implements HttpClient {
       assert.equal(input.headers?.authorization, undefined, 'source credentials must not reach media CDN')
       assert.equal(input.headers?.['x-api-key'], undefined)
       if (this.failDownloadAttempts-- > 0) throw new MediaError('remote-timeout', 'network', true, 'The request timed out.', 'Retry within budgets.')
-      return { status: 200, headers: { 'content-type': 'image/png' }, bytes: this.images.get(parsed.pathname) ?? this.bytes }
+      return { status: this.downloadStatus, headers: { 'content-type': 'image/png' }, bytes: this.images.get(parsed.pathname) ?? this.bytes }
     } else {
       const body = requestSchema.parse(JSON.parse(Buffer.from(input.body ?? []).toString('utf8')))
       const content = body.messages.find(message => message.role === 'user')?.content
@@ -76,7 +78,9 @@ async function setup(pages: SearchFixture['pages'], options: { original?: boolea
   const spec: ExecutionSpec = { kind: 'search', config, input: { queries: options.queries ?? ['cats'], taskBrief: 'Clear subjects.', targetCount: options.targetCount ?? 10 }, fixed: { release: toJson(release), ...(options.original ? { output: { kind: 'original' } } : { usage: toJson(usage) }) }, specDigest: 'fixed-spec' }
   const ledger = new BudgetLedger(config.limits)
   const run = runSchema.parse({ ...base, id: 'run', kind: 'run', owner: { kind: 'profile' }, revision: 1, status: 'running', stage: 'retrieving', spec: toJson(spec), data: { attemptId: 'attempt', attempts: 1, budget: ledger.snapshot(), checkpoint: {}, counts: {}, warnings: [], resultIds: [], requestIds: [] } })
-  await repository.commit({ aggregateId: 'run:run', expectedRevision: 0, operationId: 'initial', request: {}, records: [recipe, release, usage, run], state: {} })
+  const style = styleSchema.parse({ ...base, id: 'style', kind: 'style', name: 'Test style', archived: false, draftId: 'draft', revision: 1, committedReleaseIds: [release.id], defaultReleaseId: release.id, nextReleaseNumber: 2 })
+  const draft = draftSchema.parse({ ...base, id: 'draft', kind: 'draft', styleId: 'style', revision: 1, status: 'editing', rules: release.rules, referenceIds: [], feedbackIds: [], conflicts: [] })
+  await repository.commit({ aggregateId: 'run:run', expectedRevision: 0, operationId: 'initial', request: {}, records: [style, draft, recipe, release, usage, run], state: {} })
   const controller = new AbortController()
   let currentSignal = controller.signal
   let saveCount = 0
@@ -103,13 +107,60 @@ async function setup(pages: SearchFixture['pages'], options: { original?: boolea
   const vision = new CompatibleVisionProvider({ endpoint: 'https://vision.example.test', model: 'fixture', supportsMultiImage: true, maxImages: 10, maxImageBytes: 1000000, maxRequestBytes: 1000000, maxOutputTokens: 2000, temperature: 0 }, fixture)
   const crop = createCropProcessor({ domain, files, vision: async () => vision })
   const worker = createSearchWorker({ domain, files, source: async () => source, media: () => fixture, vision: async () => vision, crop: async (ctx, ids) => { for (const id of ids) await crop(ctx, id, release, usage) } })
-  return { worker, context, fixture, domain, files, controller, bytes, setSignal: (signal: AbortSignal) => { currentSignal = signal }, setAfterSave: (callback: typeof afterSave) => { afterSave = callback }, cleanup: async () => { await rm(directory, { recursive: true, force: true }) } }
+  return { worker, context, fixture, domain, files, controller, bytes, source, setSignal: (signal: AbortSignal) => { currentSignal = signal }, setAfterSave: (callback: typeof afterSave) => { afterSave = callback }, cleanup: async () => { await rm(directory, { recursive: true, force: true }) } }
 }
+
+test('missing source originals retain candidate diagnostics without becoming reference or visual failures', async () => {
+  const fixture = await setup(() => ({ items: [item('preview-only', false)], next: null }), { original: true, targetCount: 1 })
+  try {
+    assert.equal(await fixture.worker(fixture.context), 'source-exhausted')
+    const data = dataOf(fixture.context.current())
+    assert.equal(data.counts.unavailable, 1)
+    assert.deepEqual(z.object({ issues: z.array(z.object({ candidateId: z.string(), stage: z.string(), category: z.string(), code: z.string() })) }).parse(data.checkpoint.search).issues,
+      [{ candidateId: 'preview-only', stage: 'lookup', category: 'unavailable', code: 'source-original-unavailable' }])
+    assert.equal(fixture.fixture.downloads.length, 0)
+    assert.equal(fixture.fixture.visionOperations.length, 0)
+    assert.equal(fixture.domain.repository.list('assessment').length, 0)
+    assert.ok(data.warnings.every(warning => !warning.includes('reference-unavailable')))
+  } finally { await fixture.cleanup() }
+})
+
+test('known restricted originals skip lookup and HTTP download failures retain their actual stage', async () => {
+  const restricted = await setup(() => ({ items: [], next: null }), { original: true })
+  try {
+    let lookups = 0
+    restricted.source.config.lookup = { endpoint: 'https://source.example.test/lookup', method: 'GET', idField: 'id', response: { id: '/id', previewUrl: '/preview' } }
+    restricted.source.search = async () => ({ items: [{ providerAssetId: 'premium', previewUrl: '', originalUnavailable: 'restricted' }], nextCursor: null })
+    restricted.source.lookup = async () => { lookups++; return { providerAssetId: 'premium', previewUrl: '' } }
+    assert.equal(await restricted.worker(restricted.context), 'source-exhausted')
+    assert.equal(lookups, 0); assert.equal(restricted.fixture.downloads.length, 0)
+    assert.equal(dataOf(restricted.context.current()).counts.unavailable, 1)
+  } finally { await restricted.cleanup() }
+  const failed = await setup(() => ({ items: [item('denied')], next: null }), { original: true })
+  try {
+    failed.fixture.downloadStatus = 503
+    assert.equal(await failed.worker(failed.context), 'partial-failure')
+    const data = dataOf(failed.context.current())
+    assert.equal(data.counts.technicalFailed, 1)
+    assert.deepEqual(z.object({ issues: z.array(z.json()) }).parse(data.checkpoint.search).issues,
+      [{ candidateId: 'denied', stage: 'download', category: 'technical', code: 'source-download-http', httpStatus: 503 }])
+    assert.equal(failed.domain.repository.list('assessment').length, 0)
+  } finally { await failed.cleanup() }
+})
 
 test('original search qualifies source and final pixels without a usage or crop and preserves source bytes', async () => {
   const fixture = await setup(() => ({ items: [item('original')], next: null }), { original: true, targetCount: 1 })
   try {
+    let sawProcessing = false
+    fixture.setAfterSave(records => {
+      if (!records.some(record => record.kind === 'imageVersion')) return
+      const view = projectRun(fixture.domain, fixture.context.current(), { kind: 'human', id: 'owner', profileId: 'p' })
+      assert.equal(view.results[0]?.resultCategory, 'processing')
+      assert.equal(view.resultSummary?.selected, 0)
+      sawProcessing = true
+    })
     assert.equal(await fixture.worker(fixture.context), 'target-met')
+    assert.equal(sawProcessing, true)
     assert.deepEqual(fixture.fixture.visionOperations, ['review:source', 'review:final'])
     const [selection] = fixture.domain.repository.list('selection')
     assert.ok(selection)
@@ -118,6 +169,9 @@ test('original search qualifies source and final pixels without a usage or crop 
     assert.ok(asset.originalBlob)
     assert.deepEqual(await fixture.files.read(asset.originalBlob), fixture.bytes)
     assert.equal(fixture.domain.repository.list('cropCandidate').length, 0)
+    const view = projectRun(fixture.domain, fixture.context.current(), { kind: 'human', id: 'owner', profileId: 'p' })
+    assert.equal(view.resultSummary?.selected, 1)
+    assert.equal(view.resultSummary?.needsReview, 0)
   } finally { await fixture.cleanup() }
 })
 
@@ -127,7 +181,24 @@ for (const verdict of ['rejectFinal', 'unknownFinal'] as const) test(`original s
     fixture.fixture[verdict] = true
     assert.equal(await fixture.worker(fixture.context), 'source-exhausted')
     assert.equal(fixture.domain.repository.list('selection').length, 0)
+    const view = projectRun(fixture.domain, fixture.context.current(), { kind: 'human', id: 'owner', profileId: 'p' })
+    assert.equal(view.resultSummary?.selected, 0)
+    assert.equal(view.results[0]?.resultCategory, verdict === 'unknownFinal' ? 'review' : 'rejected')
   } finally { await fixture.cleanup() }
+})
+
+test('unselected result pagination is independent of repository enumeration order', async () => {
+  const fixture = await setup(() => ({ items: [item('rejected')], next: null }))
+  const list = fixture.domain.repository.list.bind(fixture.domain.repository)
+  try {
+    fixture.fixture.rejectFinal = true
+    await fixture.worker(fixture.context)
+    const actor = { kind: 'human' as const, id: 'owner', profileId: 'p' }
+    const before = projectRun(fixture.domain, fixture.context.current(), actor).results.map(image => image.imageVersionId)
+    assert.ok(before.length > 1)
+    fixture.domain.repository.list = kind => list(kind).toReversed()
+    assert.deepEqual(projectRun(fixture.domain, fixture.context.current(), actor).results.map(image => image.imageVersionId), before)
+  } finally { fixture.domain.repository.list = list; await fixture.cleanup() }
 })
 
 test('search uses real pagination, deduplicates bytes without losing independent source associations and reports shortfall', async () => {

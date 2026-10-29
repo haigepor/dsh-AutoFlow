@@ -94,6 +94,7 @@ export interface StyleAnalysisView {
 
 /** A visible image version and its authorized association, never an upstream media URL. */
 export interface ImageView {
+  resultCategory?: Exclude<import('../shared/search-feedback.ts').RunResultFilter, 'all'>
   styleMatch?: import('../shared/style-matching.ts').StyleMatch
   selection?: { kind: 'selected'; selectionId: string; qualification: 'auto-qualified' | 'human-selected'; rank: number; rankScore: number; warnings: string[] } | { kind: 'not-selected' }
   reviewStage?: 'source' | 'final'
@@ -168,9 +169,11 @@ export interface UsageView {
 
 /** Durable run state is independent of its current process job. */
 export interface RunView {
+  issues?: import('../shared/search-feedback.ts').SearchIssue[]
+  delivery?: { status: 'pending' | 'delivered'; directory?: string; files: number }
   owner?: { kind: 'profile' } | { kind: 'session'; sessionId: string }
-  resultSummary?: { selected: number; needsReview: number; candidates: number; target: number | null }
-  resultFilter?: 'all' | 'selected' | 'review'
+  resultSummary?: { selected: number; needsReview: number; candidates: number; target: number | null; rejected?: number; failedImages?: number; technicalFailed?: number; processing?: number; pending?: number; sourceImages?: number; unavailable?: number }
+  resultFilter?: import('../shared/search-feedback.ts').RunResultFilter
   runId: string
   styleId?: string
   jobId?: string

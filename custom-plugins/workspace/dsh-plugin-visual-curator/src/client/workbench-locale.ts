@@ -1,6 +1,8 @@
+import { feedbackEn, feedbackZh } from './search-feedback-locale.ts'
 /** Workbench copy is owned by the plugin locale, including native control labels. */
 import { executionEn, executionZh } from './execution-locale.ts'
 export const en = {
+  ...feedbackEn,
   searchLaunchTitle: 'Find images from this profile', searchLaunchWorkspace: 'Workspace', searchLaunchNoWorkspace: 'Choose an existing native Workspace to create the conversation.',
   searchLaunchDefaultBrief: 'Find images matching the current style profile: {name}.', searchLaunchOutput: 'Output', searchLaunchOriginal: 'Keep original images', searchLaunchSized: 'Use a size preset',
   searchLaunchDatasetAuto: 'The current profile and matching dataset are prepared automatically', searchLaunchAutoHint: 'Start creates a new conversation, attaches the dataset and sends the task. You can close this dialog while preparation continues.',
@@ -267,6 +269,7 @@ export const en = {
 }
 /** Chinese text has exactly the same keys as the English dictionary. */
 export const zh: typeof en = {
+  ...feedbackZh,
   searchLaunchTitle: '按此画像找图', searchLaunchWorkspace: '工作区', searchLaunchNoWorkspace: '请选择已有原生工作区，新会话将在其中创建。',
   searchLaunchDefaultBrief: '寻找符合「{name}」当前风格画像的图片。', searchLaunchOutput: '输出方式', searchLaunchOriginal: '保留原图', searchLaunchSized: '按用途预设尺寸',
   searchLaunchDatasetAuto: '自动准备当前画像与匹配的数据集', searchLaunchAutoHint: '开始后会新建会话、带入数据集并发送任务。准备期间可以关闭弹窗，后台会继续运行。',

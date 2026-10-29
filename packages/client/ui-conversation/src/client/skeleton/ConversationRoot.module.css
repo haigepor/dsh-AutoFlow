@@ -459,6 +459,16 @@ button.crumb:hover {
   --dsh-composer-dock-inset: 8px;
 }
 
+/* 仅使用正文外侧空白；自定义正文变宽时，胶囊随可用容器宽度隐藏。 */
+.bodyOverlay {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 8;
+  width: min(300px, max(0px, calc((100% - var(--dsh-chat-content-width)) / 2 - 24px)));
+  container-type: inline-size;
+}
+
 .scrollBody {
   display: flex;
   flex: 1;

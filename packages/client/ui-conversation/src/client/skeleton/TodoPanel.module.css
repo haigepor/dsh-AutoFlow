@@ -1,27 +1,13 @@
 .root {
+  display: none;
   box-sizing: border-box;
   flex: none;
   overflow: hidden;
   margin: 0 auto;
-  width: calc(
-    100% -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset)
-  );
-  max-width: calc(
-    var(--dsh-composer-card-max-width) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset)
-  );
+  width: 100%;
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-lg);
+  border-radius: 24px;
   background: var(--dsw-specific-menu);
   backdrop-filter: var(--dsw-menu-backdrop-filter);
   box-shadow: var(--dsw-elevation-panel);
@@ -31,6 +17,12 @@
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
+
+@container (min-width: 280px) {
+  .root { display: block; }
+}
+
+.root[data-expanded] { border-radius: var(--dsw-radius-lg); }
 
 .body {
   display: flex;
@@ -74,7 +66,7 @@
   font-weight: 400;
   color: var(--dsw-alias-label-tertiary);
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .chevron {
@@ -94,13 +86,13 @@
   margin: 0;
   padding: 8px 0 2px;
   list-style: none;
-  max-height: 180px;
+  max-height: min(320px, 60vh);
   overflow-y: auto;
 }
 
 .item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   min-width: 0;
   font-size: 13px;
@@ -116,12 +108,10 @@
   height: 16px;
 }
 
-/* Figma strip is single-line; long items ellipsize with no inline expand. */
 .content {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 @media (prefers-reduced-motion: reduce) {

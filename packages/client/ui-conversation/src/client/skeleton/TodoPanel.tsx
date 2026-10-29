@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // The domain's client-namespace pure-type outlet: one import edge delivers
@@ -64,15 +64,18 @@ function progressLabel(todos: readonly TodoItem[], t: TodoPanelProps['t']): stri
 
 export function TodoPanel({ todos, t }: TodoPanelProps) {
   const [collapsed, setCollapsed] = useState(true)
+  const listId = useId(), header = useRef<HTMLButtonElement>(null)
   if (todos.length === 0) return null
 
   return (
-    <section className={css.root} data-testid="todo-panel" aria-label={t('todo.title')}>
+    <section className={css.root} data-testid="todo-panel" data-expanded={!collapsed || undefined} aria-label={t('todo.title')} onKeyDown={(event) => { if (event.key === 'Escape' && !collapsed) { event.stopPropagation(); setCollapsed(true); header.current?.focus() } }}>
       <div className={css.body}>
         <button
           type="button"
+          ref={header}
           className={css.header}
           aria-expanded={!collapsed}
+          aria-controls={listId}
           onClick={() => { setCollapsed(v => !v) }}
         >
           <span className={css.lead} aria-hidden><IconChecklistOutlineRegular /></span>
@@ -82,7 +85,7 @@ export function TodoPanel({ todos, t }: TodoPanelProps) {
             <IconChevronDownOutlineRegular />
           </span>
         </button>
-        <AnimatedCollapse open={!collapsed}>
+        <AnimatedCollapse id={listId} open={!collapsed}>
           <ul className={css.list}>
             {todos.map(item => (
               <li key={item.content} className={css.item} data-status={item.status}>
@@ -100,12 +103,12 @@ export function TodoPanel({ todos, t }: TodoPanelProps) {
 }
 
 /** Props for the projected todo dock. */
-export type TodoDockProps = PropsRuntime<'conversation.input.dock'> & PropsLocale<'conversation'>
+export type TodoDockProps = PropsRuntime<'conversation.body.overlay'> & PropsLocale<'conversation'>
 
 /** Renders the current todo projection, or nothing when it is absent. */
-export function TodoDock({ useProjection, t }: TodoDockProps) {
+export function TodoDock({ useProjection, t, sessionId }: TodoDockProps) {
   const todos = useProjection('todos')
-  return <TodoPanel todos={todos ?? []} t={t} />
+  return <TodoPanel key={sessionId} todos={todos ?? []} t={t} />
 }
 
 /** Registers the projected todo dock. */
@@ -113,7 +116,7 @@ export const todoDockEntry = {
   name: 'conversation-todo-dock',
   inject: ['slots'],
   apply(ctx: Context): void {
-    ctx.slots.inject('conversation.input.dock', () =>
-      ctx.slots.register({ name: 'conversation.input.dock', id: 'todo', order: 0, locale: NS }, TodoDock))
+    ctx.slots.inject('conversation.body.overlay', () =>
+      ctx.slots.register({ name: 'conversation.body.overlay', id: 'todo', order: 0, locale: NS }, TodoDock))
   },
 }
