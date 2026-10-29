@@ -115,9 +115,14 @@ export class CuratorDomain {
     if (release.styleId !== styleId || !style.committedReleaseIds.includes(release.id)) throw new CuratorError('owner-denied', 'resolve', 'The release belongs to another style.')
     return release
   }
-  /** @param release Fixed standard. @param actor Host-created identity. @returns Completion after every reference byte is verified. */
-  async verifyRelease(release: StyleStandard, actor: DomainActor): Promise<void> {
-    if (release.kind === 'modelProfile') new ModelProfiles(this).assertFresh(release, actor)
+  /** @param release Fixed standard. @param actor Host-created identity. @param options Owning cancellation and accepted search identity. @returns Completion after every reference is verified. */
+  async verifyRelease(release: StyleStandard, actor: DomainActor, options: { signal?: AbortSignal; acceptedLaunchId?: string } = {}): Promise<void> {
+    options.signal?.throwIfAborted()
+    if (release.kind === 'modelProfile') {
+      const profiles = new ModelProfiles(this)
+      if (options.acceptedLaunchId) profiles.authorizeAccepted(release, actor, options.acceptedLaunchId)
+      else profiles.assertFresh(release, actor)
+    }
     for (const ref of release.references) {
       const { image } = this.authorizedImage(ref.reference.imageVersionId, actor)
       if (image.blob.digest !== ref.imageDigest) throw new CuratorError('reference-unavailable', 'resolve', 'A fixed reference digest does not match.')

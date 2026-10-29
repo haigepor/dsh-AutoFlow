@@ -2,7 +2,8 @@
 import { executionStandard } from './style-execution.ts'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { styleStandardSchema, usageSchema, assessmentSchema, type Json, type CuratorRecord } from '../shared/model.ts'
+import { styleStandardSchema, usageSchema, assessmentSchema, selectionSchema, type Json, type CuratorRecord } from '../shared/model.ts'
+import { contentDigest } from '../domain/repository.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
 import type { AssetFiles, ImageSourceProvider, SourcePage, HttpClient, StructuredVisionProvider } from '../media/index.ts'
 import type { CuratorConfig } from './config.ts'
@@ -11,6 +12,7 @@ import { requestBounds, sourceIdentity } from './providers.ts'
 import { importedRecords } from './imports.ts'
 import { reviewImage, runActor } from './review.ts'
 import { CuratorError } from '../shared/errors.ts'
+import { searchOutputSchema } from '../shared/search-launch.ts'
 
 const searchStateSchema = z.strictObject({
   queryIndex: z.number().int().nonnegative(), cursor: z.string().nullable(), seenCursors: z.array(z.string()),
@@ -32,7 +34,10 @@ export interface SearchDependencies {
 /** @param deps Shared owner services and crop subflow. @returns Search worker using the parent's quotas and snapshots. */
 export function createSearchWorker(deps: SearchDependencies): Worker {
   return async ctx => {
-    const release = executionStandard(styleStandardSchema.parse(ctx.spec.fixed.release), ctx.spec.fixed.executionRecipe), usage = usageSchema.parse(ctx.spec.fixed.usage)
+    const release = executionStandard(styleStandardSchema.parse(ctx.spec.fixed.release), ctx.spec.fixed.executionRecipe)
+    const output = ctx.spec.fixed.output === undefined ? undefined : searchOutputSchema.parse(ctx.spec.fixed.output), original = output?.kind === 'original'
+    // 未声明输出的新旧任务仍必须携带原有用途，不能隐式切换交付方式。
+    if (!original) usageSchema.parse(ctx.spec.fixed.usage)
     const input = z.object({ taskBrief: z.string().min(1), queries: z.array(z.string().min(1).max(4096)).min(1), targetCount: z.number().int().positive() }).parse(ctx.spec.input)
     const source = await deps.source(ctx.spec.config), vision = await deps.vision(ctx.spec.config), media = deps.media(ctx.spec.config), actor = runActor(ctx)
     const sourceOwner = sourceIdentity(ctx.spec.config)
@@ -43,6 +48,23 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
     const save = async (records: CuratorRecord[] = []) => {
       const current = dataOf(ctx.current())
       await ctx.save('retrieving', { checkpoint: { ...current.checkpoint, search: toJson(state) }, counts: { ...current.counts, candidates: state.seenIds.length, distinct: state.seenDigests.length, qualified: selections().length, failedQueries: state.failedQueries }, warnings }, records)
+    }
+    const qualify = async (imageId: string) => {
+      const { image, asset } = deps.domain.authorizedImage(imageId, actor)
+      if (original && !asset.originalBlob) throw new CuratorError('reference-unavailable', 'reviewing', 'The verified source original is unavailable.')
+      const subject = original ? { ...image, blob: asset.originalBlob! } : image
+      const previous = deps.domain.repository.list('assessment').find(a => a.runId === ctx.runId && a.imageVersionId === imageId && a.stage === 'source')
+      const sourceAssessment = previous ?? (await reviewImage({ domain: deps.domain, files: deps.files, vision }, ctx, subject, release, 'source')).assessment
+      if (!previous) await save([sourceAssessment])
+      if (sourceAssessment.technicalStatus !== 'completed' || sourceAssessment.verdict !== 'pass') return
+      if (!original) { if (sourceAssessment.cropPotential !== 'infeasible') await deps.crop(ctx, [imageId]); return }
+      if (selections().some(selection => selection.imageVersionId === imageId)) return
+      await ctx.save('reviewing', {})
+      const final = deps.domain.repository.list('assessment').find(a => a.runId === ctx.runId && a.imageVersionId === imageId && a.stage === 'final')
+        ?? (await reviewImage({ domain: deps.domain, files: deps.files, vision }, ctx, subject, release, 'final')).assessment
+      const records: CuratorRecord[] = [final]
+      if (final.technicalStatus === 'completed' && final.verdict === 'pass') records.push(selectionSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: `selection-${contentDigest({ runId: ctx.runId, imageId, output: 'original' }).slice(10, 50)}`, createdAt: new Date().toISOString(), kind: 'selection', runId: ctx.runId, imageVersionId: imageId, assessmentId: final.id, qualification: 'auto-qualified', rank: selections().length, warnings: [] }))
+      await save(records)
     }
     const pageSummary = (page: SourcePage): Json => toJson({ providerAssetIds: page.items.map(item => item.providerAssetId), nextCursor: page.nextCursor })
     while (state.queryIndex < input.queries.length) {
@@ -71,10 +93,7 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
         const identity = `${sourceOwner.providerId}:${sourceOwner.accountIdentity}:${item.providerAssetId}`
         const previouslyImported = state.importedImages[identity]
         if (previouslyImported && !state.duplicateIds.includes(identity)) {
-          const old = deps.domain.repository.list('assessment').find(a => a.runId === ctx.runId && a.imageVersionId === previouslyImported && a.stage === 'source')
-          const assessment = old ?? (await reviewImage({ domain: deps.domain, files: deps.files, vision }, ctx, deps.domain.authorizedImage(previouslyImported, actor).image, release, 'source')).assessment
-          if (!old) await save([assessment])
-          if (assessment.verdict === 'pass' && assessment.cropPotential !== 'infeasible') await deps.crop(ctx, [previouslyImported])
+          await qualify(previouslyImported)
         } else if (!state.seenIds.includes(identity)) {
           if (state.seenIds.length >= ctx.spec.config.limits.maxCandidates) return 'budget-exhausted'
           state.seenIds.push(identity)
@@ -103,12 +122,10 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
             if (!duplicate) {
               try {
                 await ctx.save('screening', {})
-                const { assessment } = await reviewImage({ domain: deps.domain, files: deps.files, vision }, ctx, created.image, release, 'source')
-                await save([assessment])
-                if (assessment.verdict === 'pass' && assessment.cropPotential !== 'infeasible') await deps.crop(ctx, [created.image.id])
+                await qualify(created.image.id)
               } catch (error) {
                 if (ctx.signal.aborted || error instanceof CuratorError && error.code === 'budget-exhausted') throw error
-                const assessment = assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: randomUUID(), createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: created.image.id, runId: ctx.runId, stage: 'source', releaseId: release.id, recipeId: release.recipe.id, reviewBundleId: randomUUID(), technicalStatus: 'failed', ruleResults: [], cropPotential: 'unknown', preferenceScores: Object.fromEntries(Object.keys(release.recipe.preferenceScale.weights).map(key => [key, 0])), data: toJson({ error: safeFailure(error), reviewQueueReasons: ['technical-failure'] }) })
+                const assessment = assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: randomUUID(), createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: created.image.id, runId: ctx.runId, stage: original && ctx.current().stage === 'reviewing' ? 'final' : 'source', releaseId: release.id, recipeId: release.recipe.id, reviewBundleId: randomUUID(), technicalStatus: 'failed', ruleResults: [], cropPotential: 'unknown', preferenceScores: Object.fromEntries(Object.keys(release.recipe.preferenceScale.weights).map(key => [key, 0])), data: toJson({ error: safeFailure(error), reviewQueueReasons: ['technical-failure'] }) })
                 await save([assessment]); warnings.push(`Candidate review failed: ${safeFailure(error).code}.`)
               }
             }

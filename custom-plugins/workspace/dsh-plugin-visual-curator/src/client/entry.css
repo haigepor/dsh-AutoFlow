@@ -1124,3 +1124,19 @@ body:has([role='dialog'][aria-modal='true']) .vc-analysis-complete::before { ani
 .vc-chat-loading-answer > span:first-child { width: 38%; height: 20px; }
 .vc-chat-loading-answer > span:last-child { width: 72%; }
 @container vc-process (max-width: 1040px) { .vc-process-context { display: none; } .vc-process-mobile-nav { display: block; } }
+.vc-search-launch-modal { width: min(600px, 100%); max-height: 100%; color: var(--dsw-alias-label-primary); }
+.vc-search-launch-modal :is(strong, label) { font-weight: 500; }
+.vc-search-launch-content { display: grid; gap: 20px; min-width: 0; padding-block: 4px; }
+.vc-search-launch-form { display: grid; gap: 16px; min-width: 0; }
+.vc-search-launch-summary { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent); border-radius: 12px; background: var(--dsw-alias-bg-layer-2); }
+.vc-search-launch-summary > div { flex: 1; min-width: 0; display: grid; gap: 5px; overflow-wrap: anywhere; }
+.vc-search-launch-summary small, .vc-search-launch-field small, .vc-search-launch-hint { font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); font-weight: 400; overflow-wrap: anywhere; }
+.vc-search-launch-grid { display: grid; grid-template-columns: minmax(88px, 0.65fr) minmax(0, 1.35fr); gap: 16px; }
+.vc-search-launch-field { display: grid; gap: 8px; min-width: 0; font-size: 13px; }
+.vc-search-launch-field .vc-select, .vc-search-launch-field .vc-select-trigger { width: 100%; min-width: 0; }
+.vc-search-launch-field .vc-select-trigger { height: 36px; justify-content: space-between; }
+.vc-search-launch-hint { margin: 0; }
+.vc-search-launch-directory { display: block; overflow-wrap: anywhere; }
+.vc-search-launch-skeleton { display: block; height: 36px; border-radius: 8px; }
+.vc-search-launch-card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+@media (max-width: 480px) { .vc-search-launch-grid { gap: 12px; } .vc-search-launch-summary { padding: 12px; } .vc-search-launch-card-actions { grid-column: 1 / -1; justify-content: flex-start; } }

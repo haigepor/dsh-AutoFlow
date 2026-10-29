@@ -20,6 +20,8 @@ import { createReferencePreview } from './reference-preview.tsx'
 import { analysisActive } from '../shared/analysis-process.ts'
 import { createAnalysisDialog } from './analysis-dialog.tsx'
 import { createTaskDialog } from './task-dialog.tsx'
+import { createSearchLaunchUI } from './search-launch-dialog.tsx'
+import type { SearchLaunchState, SearchLaunchStore } from './search-launch-store.ts'
 import { createSelectField } from './select-field.tsx'
 import { createTaskHistory } from './task-history.tsx'
 import { createWorkbenchSelector } from './workbench-state.ts'
@@ -31,10 +33,12 @@ import profileTabHighlight from '../../assets/profile-dimension-highlight-v1.web
 /** Narrow callbacks and an injected read hook keep Cordis outside the component tree. */
 export interface WorkbenchProps extends PropsRenderFactories {
   useWorkbench<T>(select: (state: ClientState) => T): T
+  useLaunches<T>(select: (state: SearchLaunchState) => T): T
   t: WorkbenchText
   welcomeImage: string
   logoImage: string
   actions: Pick<CuratorStore, 'selectWorkspace' | 'openSession' | 'closeSession' | 'prepareTask' | 'execute' | 'reload' | 'getSnapshot' | 'selectStyle' | 'selectRun' | 'loadMoreImages' | 'loadRun' | 'loadReferences' | 'startGalleryReferences' | 'stopGalleryReferences' | 'startAnalysis' | 'stopAnalysis' | 'openAnalysis' | 'closeAnalysis' | 'refreshAnalysisDetail' | 'loadAnalysisInput' | 'saveConfiguration'> & {
+    launches: Pick<SearchLaunchStore, 'start' | 'retry' | 'stop' | 'refresh' | 'loadOptions' | 'openSession'>
     publish(style: StyleView): Promise<string>
     saveCredential(ref: string, value: string): Promise<void>
     pickLocalReferences(kind: 'file' | 'folder' | 'references', signal: AbortSignal): Promise<unknown>
@@ -62,6 +66,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
   }
   const TaskHistory = createTaskHistory(React, ui)
   const TaskDialog = createTaskDialog(React, ui)
+  const SearchLaunch = createSearchLaunchUI(React, ui)
 
   const SelectField = createSelectField(React, ui)
 
@@ -329,7 +334,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     </div>
   }
 
-  function Workbench({ useWorkbench, actions, t, welcomeImage, logoImage, renderFactorySlot }: WorkbenchProps) {
+  function Workbench({ useWorkbench, useLaunches, actions, t, welcomeImage, logoImage, renderFactorySlot }: WorkbenchProps) {
     const [previewRefresh, setPreviewRefresh] = React.useState(0)
     const selectWorkbench = React.useMemo(createWorkbenchSelector, [])
     const state = useWorkbench(selectWorkbench), snapshot = state.snapshot
@@ -417,6 +422,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
       {state.scopeSessionId && <div className="vc-execution-nav vc-session-scope"><span>{t('taskSession')}</span><Button size="sm" variant="outline" onClick={actions.closeSession}>{t('taskLibrary')}</Button></div>}
       <main className={`vc-main${style && tab === 'workbench' ? ' vc-main-workspace' : ''}`}>
         {(error || state.error) && <div className="vc-notice" role="alert">{error || `${t('error')} (${state.error?.code})`}<Button size="sm" onClick={() => report(actions.reload)}>{t('retry')}</Button></div>}
+        {style && tab === 'workbench' && <SearchLaunch.Background useLaunches={useLaunches} actions={actions.launches} t={t} />}
         {state.galleryTaskError && <div className="vc-notice" role="alert">{t('galleryConnectionError')}</div>}
         {!snapshot && <div className="vc-empty">{state.loading ? <StateDot state="ongoing" /> : <Button onClick={() => report(actions.reload)}>{t('retry')}</Button>}</div>}
         {/* 参考区保留草稿和筛选；任务折叠区按 Tab 重建，避免退出动画保留另一页内容。 */}
@@ -428,7 +434,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
           <div id={`${viewId}-settings`} role="tabpanel" aria-labelledby={`${viewId}-settings-tab`} hidden={tab !== 'settings'}>{tab === 'settings' && <Configuration saving={state.configSaving} saveError={state.configError} config={snapshot.configuration} actions={actions} t={t} report={report} styles={styles} selectedStyleId={state.styleId} initialPanel={settingsPanel} openWorkbench={styleId => { actions.selectStyle(styleId); setTab('workbench') }} />}</div>
         </>}
       </main>
-      {taskForm && style && snapshot && <TaskDialog open={tab === 'workbench'} key={`${style.styleId}:${state.scopeSessionId}:${taskForm.serial}`} style={style} snapshot={snapshot} actions={actions} t={t} imageVersionId={taskForm.imageVersionId} onClose={() => setTaskForm(null)} onSettings={() => setTab('settings')} onStarted={runId => { setTaskForm(null); actions.selectRun(runId); setExecutionView(true) }} />}
+      {taskForm && style && snapshot && (taskForm.imageVersionId ? <TaskDialog open={tab === 'workbench'} key={`${style.styleId}:${state.scopeSessionId}:${taskForm.serial}`} style={style} snapshot={snapshot} actions={actions} t={t} imageVersionId={taskForm.imageVersionId} onClose={() => setTaskForm(null)} onSettings={() => setTab('settings')} onStarted={runId => { setTaskForm(null); actions.selectRun(runId); setExecutionView(true) }} /> : <SearchLaunch.Dialog open={tab === 'workbench'} key={`${style.styleId}:${state.scopeSessionId}:${taskForm.serial}`} style={style} snapshot={snapshot} actions={actions.launches} useLaunches={useLaunches} t={t} onClose={() => setTaskForm(null)} />)}
       <AnalysisDialogRegion useWorkbench={useWorkbench} actions={actions} t={t} renderFactorySlot={renderFactorySlot} />
       <Modal open={createOpen} onClose={() => { if (!working) setCreateOpen(false) }} title={t('create')} closeLabel={t('close')} className="vc-create-modal"><CreateCollection name={name} onName={setName} onSubmit={createCollection} busy={working} error={error} t={t} /></Modal>
       <Modal open={!!deleteTarget} onClose={() => { if (!working) setDeleteTarget(null) }} title={t(deleteTarget?.kind === 'all' ? 'deleteAllCollections' : 'deleteCollection')} closeLabel={t('close')} className="vc-delete-modal"

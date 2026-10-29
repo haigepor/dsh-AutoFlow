@@ -105,6 +105,7 @@ export interface ImageView {
   height: number
   kind: 'normalized' | 'preview' | 'crop' | 'remote-reference'
   previewPath: string
+  originalDownloadPath?: string
   thumbnailPath?: string
   name: string
   source: string

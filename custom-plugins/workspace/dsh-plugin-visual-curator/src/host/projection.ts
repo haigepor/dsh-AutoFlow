@@ -176,6 +176,7 @@ export function projectRun(domain: CuratorDomain, run: RunRecord, actor: DomainA
     results: includeResults ? orderedIds.map(id => domain.require('imageVersion', id)).filter(image => readableImage(domain, image, actor)).map(image => {
       const view = imageView(domain, image, actor, undefined, run, familyStatuses), rank = selected.findIndex(item => item.id === image.id)
       if (view.selection?.kind === 'selected' && rank >= 0) view.selection = { ...view.selection, rank, rankScore: selected[rank]!.score }
+      if (view.selection?.kind === 'selected' && view.selection.qualification === 'auto-qualified' && typeof spec.fixed.searchLaunchId === 'string' && z.object({ kind: z.literal('original') }).safeParse(spec.fixed.output).success) view.originalDownloadPath = `/api/visual-curator/resource?selectionId=${encodeURIComponent(view.selection.selectionId)}&sessionId=${encodeURIComponent(actor.sessionId ?? '')}`
       return view
     }) : [],
     ...(data.error ? { error: data.error } : {}) }

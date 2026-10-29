@@ -406,6 +406,7 @@ export function createCuratorStore(transport: ClientTransport) {
 
   return {
     getSnapshot: () => state,
+    getScopeId: () => scopeSequence,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
     reload, execute,
     async ensureLoaded(): Promise<void> { if (!state.snapshot || state.error) await reload() },

@@ -34,6 +34,7 @@ class SearchFixture implements HttpClient {
   readonly downloads: string[] = []
   readonly visionOperations: string[] = []
   rejectFinal = false
+  unknownFinal = false
   failDownloadAttempts = 0
   constructor(readonly bytes: Buffer, readonly pages: (query: string, cursor: string | null) => SourceResult | Error) {}
   async request(url: string, input: HttpRequest): Promise<HttpResponse> {
@@ -57,14 +58,14 @@ class SearchFixture implements HttpClient {
       assert.ok(Array.isArray(content))
       const prompt = promptSchema.parse(JSON.parse(content[0]?.text ?? '{}')).input
       this.visionOperations.push(`${prompt.operation}:${prompt.stage ?? ''}`)
-      const output = prompt.operation === 'propose-crop' ? { feasibility: 'feasible', reason: 'Full square can retain the subject.', candidates: [{ requestedRect: { x: 0, y: 0, width: 1, height: 1 }, reason: 'Full image.', protectedContent: 'preserved' }] } : { ruleResults: prompt.rules.filter(rule => rule.stage === prompt.stage).map(rule => ({ ruleId: rule.ruleId, status: this.rejectFinal && prompt.stage === 'final' ? 'violated' : 'satisfied', source: 'inferred', reason: 'Visible image evidence.', evidenceImageVersionIds: [prompt.images[0]?.imageVersionId] })), cropPotential: 'crop-candidate', preferenceScores: [{ dimension: 'color', score: 0.8 }], taskRelevance: 'relevant' }
+      const output = prompt.operation === 'propose-crop' ? { feasibility: 'feasible', reason: 'Full square can retain the subject.', candidates: [{ requestedRect: { x: 0, y: 0, width: 1, height: 1 }, reason: 'Full image.', protectedContent: 'preserved' }] } : { ruleResults: prompt.rules.filter(rule => rule.stage === prompt.stage).map(rule => ({ ruleId: rule.ruleId, status: this.unknownFinal && prompt.stage === 'final' ? 'unknown' : this.rejectFinal && prompt.stage === 'final' ? 'violated' : 'satisfied', source: 'inferred', reason: 'Visible image evidence.', evidenceImageVersionIds: [prompt.images[0]?.imageVersionId] })), cropPotential: 'crop-candidate', preferenceScores: [{ dimension: 'color', score: 0.8 }], taskRelevance: 'relevant' }
       result = { choices: [{ message: { content: JSON.stringify(output) }, finish_reason: 'stop' }] }
     }
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify(result)) }
   }
 }
 
-async function setup(pages: SearchFixture['pages'], options: { targetCount?: number; queries?: string[]; maxDownloadBytes?: number; maxImportBytes?: number; maxCandidates?: number; maxVisionCalls?: number } = {}) {
+async function setup(pages: SearchFixture['pages'], options: { original?: boolean; targetCount?: number; queries?: string[]; maxDownloadBytes?: number; maxImportBytes?: number; maxCandidates?: number; maxVisionCalls?: number } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'visual-search-'))
   const bytes = await sharp({ create: { width: 100, height: 100, channels: 3, background: 'red' } }).png().toBuffer()
   const fixture = new SearchFixture(bytes, pages)
@@ -72,7 +73,7 @@ async function setup(pages: SearchFixture['pages'], options: { targetCount?: num
   const files = new AssetFiles(directory, { maxFileBytes: config.limits.maxImportBytes, maxPixels: 1000000, maxDimension: 1000, previewMaxDimension: 32, maxStorageBytes: 10000000 })
   const repository = new DomainRepository('p', new MemoryDomainAdapter())
   const domain = new CuratorDomain('p', repository, { verifyImage: async image => { await files.read(image.blob) } })
-  const spec: ExecutionSpec = { kind: 'search', config, input: { queries: options.queries ?? ['cats'], taskBrief: 'Clear subjects.', targetCount: options.targetCount ?? 10 }, fixed: { release: toJson(release), usage: toJson(usage) }, specDigest: 'fixed-spec' }
+  const spec: ExecutionSpec = { kind: 'search', config, input: { queries: options.queries ?? ['cats'], taskBrief: 'Clear subjects.', targetCount: options.targetCount ?? 10 }, fixed: { release: toJson(release), ...(options.original ? { output: { kind: 'original' } } : { usage: toJson(usage) }) }, specDigest: 'fixed-spec' }
   const ledger = new BudgetLedger(config.limits)
   const run = runSchema.parse({ ...base, id: 'run', kind: 'run', owner: { kind: 'profile' }, revision: 1, status: 'running', stage: 'retrieving', spec: toJson(spec), data: { attemptId: 'attempt', attempts: 1, budget: ledger.snapshot(), checkpoint: {}, counts: {}, warnings: [], resultIds: [], requestIds: [] } })
   await repository.commit({ aggregateId: 'run:run', expectedRevision: 0, operationId: 'initial', request: {}, records: [recipe, release, usage, run], state: {} })
@@ -102,8 +103,32 @@ async function setup(pages: SearchFixture['pages'], options: { targetCount?: num
   const vision = new CompatibleVisionProvider({ endpoint: 'https://vision.example.test', model: 'fixture', supportsMultiImage: true, maxImages: 10, maxImageBytes: 1000000, maxRequestBytes: 1000000, maxOutputTokens: 2000, temperature: 0 }, fixture)
   const crop = createCropProcessor({ domain, files, vision: async () => vision })
   const worker = createSearchWorker({ domain, files, source: async () => source, media: () => fixture, vision: async () => vision, crop: async (ctx, ids) => { for (const id of ids) await crop(ctx, id, release, usage) } })
-  return { worker, context, fixture, domain, controller, bytes, setSignal: (signal: AbortSignal) => { currentSignal = signal }, setAfterSave: (callback: typeof afterSave) => { afterSave = callback }, cleanup: async () => { await rm(directory, { recursive: true, force: true }) } }
+  return { worker, context, fixture, domain, files, controller, bytes, setSignal: (signal: AbortSignal) => { currentSignal = signal }, setAfterSave: (callback: typeof afterSave) => { afterSave = callback }, cleanup: async () => { await rm(directory, { recursive: true, force: true }) } }
 }
+
+test('original search qualifies source and final pixels without a usage or crop and preserves source bytes', async () => {
+  const fixture = await setup(() => ({ items: [item('original')], next: null }), { original: true, targetCount: 1 })
+  try {
+    assert.equal(await fixture.worker(fixture.context), 'target-met')
+    assert.deepEqual(fixture.fixture.visionOperations, ['review:source', 'review:final'])
+    const [selection] = fixture.domain.repository.list('selection')
+    assert.ok(selection)
+    const { asset, image } = fixture.domain.authorizedImage(selection.imageVersionId, { kind: 'human', id: 'owner', profileId: 'p' })
+    assert.equal(image.versionKind, 'normalized')
+    assert.ok(asset.originalBlob)
+    assert.deepEqual(await fixture.files.read(asset.originalBlob), fixture.bytes)
+    assert.equal(fixture.domain.repository.list('cropCandidate').length, 0)
+  } finally { await fixture.cleanup() }
+})
+
+for (const verdict of ['rejectFinal', 'unknownFinal'] as const) test(`original search does not count ${verdict} evidence`, async () => {
+  const fixture = await setup(() => ({ items: [item('original')], next: null }), { original: true, targetCount: 1 })
+  try {
+    fixture.fixture[verdict] = true
+    assert.equal(await fixture.worker(fixture.context), 'source-exhausted')
+    assert.equal(fixture.domain.repository.list('selection').length, 0)
+  } finally { await fixture.cleanup() }
+})
 
 test('search uses real pagination, deduplicates bytes without losing independent source associations and reports shortfall', async () => {
   const fixture = await setup((_query, cursor) => ({ items: [item(cursor === null ? 'one' : 'two')], next: cursor === null ? 'page-2' : null }))

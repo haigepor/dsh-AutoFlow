@@ -58,7 +58,7 @@ export class FixtureHttp implements HttpClient {
 }
 
 /** @param directory Optional already-private dsh profile path for browser fixtures. @param limits Validated deployment limits for the scenario. @param selection Same-process external adapter fixtures. @param sourceSettings Source settings for account and provider cases. @returns Real service, inspectable records and safe teardown. */
-export async function serviceFixture(directory?: string, limits: Partial<Limits> = {}, selection: Pick<CuratorServiceDependencies, 'pickLocalPaths' | 'galleryApi' | 'galleryMedia' | 'launchGalleryLogin'> = {}, sourceSettings: Partial<CuratorConfig['source']> = {}) {
+export async function serviceFixture(directory?: string, limits: Partial<Limits> = {}, selection: Pick<CuratorServiceDependencies, 'nativeSessions' | 'pickLocalPaths' | 'galleryApi' | 'galleryMedia' | 'launchGalleryLogin'> = {}, sourceSettings: Partial<CuratorConfig['source']> = {}) {
   const root = directory ?? await mkdtemp(join(tmpdir(), 'visual-service-'))
   const profileId = createHash('sha256').update(resolve(root)).digest('hex')
   const repository = new DomainRepository(profileId, new MemoryDomainAdapter()), jobs = new FixtureJobs(), http = new FixtureHttp()

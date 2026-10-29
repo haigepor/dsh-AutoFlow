@@ -22,7 +22,7 @@ test('the optional Agent row exposes one preparation read and eight execution/re
   }
   const search = tools.find(tool => tool.name === 'visual_search_start')!
   const parameters = JSON.parse(JSON.stringify(search.parameters))
-  assert.deepEqual(parameters.required, ['releaseId', 'usageRevisionId', 'sourceId', 'taskBrief', 'budgets'])
+  assert.deepEqual(parameters.required, ['releaseId', 'sourceId', 'taskBrief', 'budgets'])
   assert.ok(parameters.properties.budgets.required.includes('maxRetryAttempts'))
 })
 

@@ -45,13 +45,18 @@ import { compileStyleInstructions } from './style-execution.ts'
 import { projectSnapshot, projectStyle, projectRun, projectConfiguration, projectAnalysisTasks } from './projection.ts'
 import { deleteTaskHistory, hiddenTaskIds } from './task-history.ts'
 import { analysisFollowResponse } from './analysis-follow.ts'
+import { searchOutputSchema } from '../shared/search-launch.ts'
+import { SearchLaunches } from './search-launch.ts'
+import { nativeSearchSessions, type NativeSearchSessions } from './native-search-session.ts'
+import { originalSearchResult } from './search-results.ts'
 
 const actionSchema = z.strictObject({ operation: z.string().min(1), args: z.record(z.string(), jsonSchema) })
-const startSchema = z.object({ operationId: z.string().min(1), releaseId: z.string().min(1), usageRevisionId: z.string().min(1), taskBrief: z.string().min(1).max(4000), budgets: z.record(z.string(), z.number()).optional(), sourceId: z.string().optional(), imageVersionId: z.string().optional(), imageVersionIds: z.array(z.string()).optional(), queries: z.array(z.string().min(1).max(4096)).optional(), targetCount: z.number().int().positive().optional(), protectedContent: z.array(z.string().min(1)).optional(), rect: z.unknown().optional(), includeInLearning: z.boolean().optional(), allowWarning: z.boolean().optional(), runId: z.string().optional() })
+const startSchema = z.object({ operationId: z.string().min(1), releaseId: z.string().min(1), usageRevisionId: z.string().min(1).optional(), output: searchOutputSchema.optional(), taskBrief: z.string().min(1).max(4000), budgets: z.record(z.string(), z.number()).optional(), sourceId: z.string().optional(), imageVersionId: z.string().optional(), imageVersionIds: z.array(z.string()).optional(), queries: z.array(z.string().min(1).max(4096)).optional(), targetCount: z.number().int().positive().optional(), protectedContent: z.array(z.string().min(1)).optional(), rect: z.unknown().optional(), includeInLearning: z.boolean().optional(), allowWarning: z.boolean().optional(), runId: z.string().optional() })
 const uploadSchema = z.strictObject({ operationId: z.string().min(1), styleId: z.string().min(1), expectedRevision: z.number().int().positive(), bytesAllowed: z.boolean().default(false), files: z.array(z.strictObject({ name: z.string().min(1).max(1024), mime: z.string(), base64: z.string(), role: z.enum(['positive', 'negative', 'undecided']), intent: z.enum(['overall', 'dimensions']), dimensions: z.array(z.enum(['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth'])) })).min(1) })
 
 /** Same-process fixture dependencies never come from Client, tool or configuration JSON. */
 export interface CuratorServiceDependencies {
+  nativeSessions?: NativeSearchSessions
   openDomain?: (files: AssetFiles) => Promise<CuratorDomain>
   providers?: Pick<ProviderFactory, 'vision' | 'source' | 'media'> & Partial<Pick<ProviderFactory, 'dispose'>>
   pickLocalPaths?: (kind: 'file' | 'folder' | 'references', title: string, signal: AbortSignal) => Promise<string[] | null>
@@ -61,6 +66,7 @@ export interface CuratorServiceDependencies {
 }
 /** Minimal Host capabilities used by this provider; Cordis owns their actual implementations. */
 export interface CuratorHost {
+  get?: Context['get']
   llm?: import('@deepseek-ai/dsh-llm').LlmRuntime
   attachments?: import('@deepseek-ai/dsh-attachment').AttachmentStore
   fiber?: Pick<Context['fiber'], 'entry'>
@@ -82,6 +88,7 @@ export class CuratorService {
   get config(): CuratorConfig { return this.configValue }
   private domainValue: CuratorDomain | undefined
   private engineValue: RunEngine | undefined
+  private launchesValue: SearchLaunches | undefined
   private logins: GalleryLogins | undefined
   private galleryValue: GalleryService | undefined
   private galleryTasks: GalleryReferenceTasks | undefined
@@ -120,6 +127,12 @@ export class CuratorService {
       // 完整请求已提交到 run 的持久化日志；Session 通过工具结果中的 runId 关联，独立插件不写实验事件。
     }, this.config.limits)
     await this.engineValue.recover()
+    this.launchesValue = new SearchLaunches({ domain: this.domain, files: this.files, engine: this.engine, signal: this.lifetime.signal,
+      native: () => this.dependencies.nativeSessions ?? (this.ctx.get ? nativeSearchSessions({ get: this.ctx.get.bind(this.ctx) }) : undefined),
+      freeze: async (input, actor) => {
+        const task = await this.resolveTask('search-start', toJson({ operationId: input.operationId, releaseId: input.modelProfileId, output: input.output, ...(input.output.kind === 'usage' ? { usageRevisionId: input.output.usageRevisionId } : {}), taskBrief: input.taskBrief, targetCount: input.targetCount, sourceId: sourceIdentity(this.config).providerId }) as Record<string, Json>, actor)
+        return this.spec(task.kind, task.normalized, task.fixed, task.config)
+      } })
     // 旧的完整分析只补充模型档案，不重放模型请求，也不改写人工规则。
     const newest = new Set<string>()
     for (const run of this.domain.repository.list('run').sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
@@ -129,11 +142,14 @@ export class CuratorService {
       await new ModelProfiles(this.domain).adopt(run, { kind: 'human', id: 'profile-owner', profileId: this.profileId })
     }
     await this.engine.resumeAnalyses(this.worker('analyze'))
+    this.launchesValue.recover()
   }
   /** Update volatile vision defaults. Every accepted task continues reading its detached saved spec.
    * @param input Validated current deployment fields supplied by the owning Cordis reference.
    */
   updateConfiguration(input: unknown): void { this.configValue = resolveCurrentConfig(input) }
+  /** Restore accepted native admission when optional GUI services become available after provider startup. */
+  restoreSearchLaunches(): void { if (!this.stopping) this.launchesValue?.recover() }
   private get domain(): CuratorDomain { if (!this.domainValue) throw new CuratorError('capability-unavailable', 'service', 'The provider is unavailable.'); return this.domainValue }
   private get engine(): RunEngine { if (!this.engineValue) throw new CuratorError('capability-unavailable', 'service', 'The task controller is unavailable.'); return this.engineValue }
   private human(actor: DomainActor): void { if (actor.kind !== 'human') throw new CuratorError('owner-denied', 'confirmation', 'This operation requires the authenticated workbench owner.') }
@@ -149,11 +165,12 @@ export class CuratorService {
     if (kind === 'crop') return createCropWorker(dependencies)
     if (kind === 'search') {
       const crop = createCropProcessor(dependencies)
-      return createSearchWorker({ ...dependencies, source: config => this.providers.source(config), media: config => this.providers.media(config), crop: async (ctx, ids) => {
+      const search = createSearchWorker({ ...dependencies, source: config => this.providers.source(config), media: config => this.providers.media(config), crop: async (ctx, ids) => {
         const { styleStandardSchema, usageSchema } = await import('../shared/model.ts')
         const release = styleStandardSchema.parse(ctx.spec.fixed.release), usage = usageSchema.parse(ctx.spec.fixed.usage)
         for (const id of ids) if (await crop(ctx, id, release, usage) === 'budget-exhausted') throw new CuratorError('budget-exhausted', 'cropping', 'The shared crop budget is exhausted.')
       } })
+      return async ctx => { const outcome = await search(ctx); await this.launchesValue?.deliver(ctx.runId); return outcome }
     }
     return createDataWorker(dependencies)
   }
@@ -185,6 +202,18 @@ export class CuratorService {
       const parsed = actionSchema.parse(input), operation = parsed.operation
       const effectiveActor = this.scopedHuman(actor, parsed.args)
       const { sessionToken, ...args } = parsed.args
+      if (operation.startsWith('search-launch-')) {
+        this.human(effectiveActor)
+        const launches = this.launchesValue!
+        if (operation === 'search-launch-options') {
+          const input = z.object({ usagePageToken: z.string().optional() }).parse(args), page = this.usagePage(input.usagePageToken ? { pageToken: input.usagePageToken } : {})
+          return toJson({ ...launches.options(), usages: page.items.map(usage => ({ usageRevisionId: usage.id, name: usage.name, targetWidth: usage.output.targetWidth, targetHeight: usage.output.targetHeight })), ...(page.pageToken ? { usagePageToken: page.pageToken } : {}), defaultTargetCount: Math.min(10, this.config.limits.maxCandidates), maxTargetCount: this.config.limits.maxCandidates })
+        }
+        if (operation === 'search-launch-list') return toJson(launches.list(z.object({ styleId: z.string().optional() }).parse(args).styleId, this.config.limits.pageSize))
+        if (operation === 'search-launch-start') return toJson(await launches.start(args))
+        if (operation === 'search-launch-stop') return toJson(await launches.stop(z.object({ id: z.string().uuid() }).parse(args).id))
+        throw new CuratorError('invalid-input', 'search-launch', 'Unknown search launch operation.')
+      }
       if (['style-archive', 'reference-analyze', 'reference-import', 'reference-local-import', 'gallery-import', 'draft-save'].includes(operation) && typeof args.styleId === 'string' && this.galleryTasks?.busy(args.styleId)) throw new CuratorError('constraint-conflict', 'gallery-task', 'Wait for this collection reference task to finish or stop it first.')
       if (actor.kind === 'agent' && !Object.values(agentOperations).includes(operation as (typeof agentOperations)[keyof typeof agentOperations])) throw new CuratorError('owner-denied', 'tool', 'This operation is unavailable to Agent tools.')
       if (['search-start', 'crop-start', 'manual-crop-confirm', 'reference-analyze', 'evaluate-start', 'export-start'].includes(operation) && typeof args.operationId === 'string') {
@@ -530,13 +559,14 @@ export class CuratorService {
   private async startTask(operation: string, args: Record<string, Json>, actor: DomainActor): Promise<Json> {
     const task = await this.resolveTask(operation, args, actor)
     if (args.preparationDigest !== undefined && args.preparationDigest !== this.taskDigest(task, actor)) throw new CuratorError('revision-conflict', 'task-prepare', 'The checked task changed; prepare it again before starting.')
-    return await this.launch(task.kind, task.normalized, task.fixed, actor, z.string().parse(args.operationId), task.config)
+    const launch = () => this.launch(task.kind, task.normalized, task.fixed, actor, z.string().parse(args.operationId), task.config)
+    return typeof task.fixed.searchLaunchId === 'string' ? await this.launchesValue!.admit(task.fixed.searchLaunchId, launch) : await launch()
   }
   private taskDigest(task: ResolvedTask, actor: DomainActor): string {
     const release = z.object({ id: z.string(), styleId: z.string() }).parse(task.fixed.release)
-    const usage = z.object({ presetId: z.string() }).parse(task.fixed.usage)
-    const currentUsage = this.domain.repository.manifest(`usage:${usage.presetId}`)?.state ?? null
-    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, currentProfileId: new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
+    const usage = task.fixed.usage ? z.object({ presetId: z.string() }).parse(task.fixed.usage) : undefined
+    const currentUsage = usage && !task.fixed.searchLaunchId ? this.domain.repository.manifest(`usage:${usage.presetId}`)?.state ?? null : null
+    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage ?? null, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, currentProfileId: task.fixed.searchLaunchId ? null : new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
   }
   private usagePage(args: Record<string, Json>): { items: import('../shared/model.ts').UsageRevision[]; pageToken?: string } {
     const input = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
@@ -548,16 +578,18 @@ export class CuratorService {
   }
   private async prepareTask(args: Record<string, Json>, actor: DomainActor): Promise<Json> {
     const { kind } = z.object({ kind: z.enum(['search', 'crop']) }).parse(args)
-    const options = { usages: this.usagePage({ ...(args.usagePageToken ? { pageToken: args.usagePageToken } : {}), ...(args.usagePageSize ? { pageSize: args.usagePageSize } : {}) }), sourceId: sourceIdentity(this.config).providerId, budgets: this.config.limits }
-    const fields = ['releaseId', 'usageRevisionId', 'taskBrief', ...(kind === 'crop' && !Array.isArray(args.imageVersionIds) ? ['imageVersionId'] : [])]
+    const launchConfig = kind === 'search' ? this.launchesValue?.task(actor)?.config : undefined, config = launchConfig ?? this.config
+    const options = { usages: this.usagePage({ ...(args.usagePageToken ? { pageToken: args.usagePageToken } : {}), ...(args.usagePageSize ? { pageSize: args.usagePageSize } : {}) }), sourceId: sourceIdentity(config).providerId, budgets: config.limits }
+    const original = kind === 'search' && z.object({ kind: z.literal('original') }).safeParse(args.output).success
+    const fields = ['releaseId', ...(original ? [] : ['usageRevisionId']), 'taskBrief', ...(kind === 'crop' && !Array.isArray(args.imageVersionIds) ? ['imageVersionId'] : [])]
     const missingFields = fields.filter(key => typeof args[key] !== 'string' || !String(args[key]).trim())
     if (missingFields.length) return toJson({ status: 'needs-input', missingFields, options })
     try {
-      const sourceId = sourceIdentity(this.config).providerId
+      const sourceId = sourceIdentity(config).providerId
       const task = await this.resolveTask(`${kind}-start`, { ...args, operationId: 'prepare', sourceId: args.sourceId ?? sourceId }, actor)
-      const normalizedInput: Record<string, Json> = { ...task.normalized, protectedContent: args.protectedContent ?? [], releaseId: args.releaseId!, usageRevisionId: args.usageRevisionId!, budgets: { targetCount: kind === 'search' ? task.normalized.targetCount ?? 1 : 1, ...Object.fromEntries(['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs'].map(key => [key, Reflect.get(task.config.limits, key)])) }, ...(kind === 'search' ? { sourceId } : {}) }
+      const normalizedInput: Record<string, Json> = { ...task.normalized, protectedContent: args.protectedContent ?? [], releaseId: args.releaseId!, ...(args.usageRevisionId ? { usageRevisionId: args.usageRevisionId } : {}), budgets: { targetCount: kind === 'search' ? task.normalized.targetCount ?? 1 : 1, ...Object.fromEntries(['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs'].map(key => [key, Reflect.get(task.config.limits, key)])) }, ...(kind === 'search' ? { sourceId } : {}) }
       if (kind === 'crop' && Array.isArray(normalizedInput.imageVersionIds) && normalizedInput.imageVersionIds.length === 1) { normalizedInput.imageVersionId = normalizedInput.imageVersionIds[0]!; delete normalizedInput.imageVersionIds }
-      return toJson({ status: 'ready', options, normalizedInput, preparationDigest: this.taskDigest(task, actor), warnings: [], summary: { executionInstructions: task.fixed.executionInstructions ?? null, executionRecipe: task.fixed.executionRecipe ?? null, release: task.fixed.release, usage: task.fixed.usage, budgets: task.config.limits } })
+      return toJson({ status: 'ready', options, normalizedInput, preparationDigest: this.taskDigest(task, actor), warnings: [], summary: { executionInstructions: task.fixed.executionInstructions ?? null, executionRecipe: task.fixed.executionRecipe ?? null, release: task.fixed.release, usage: task.fixed.usage ?? null, budgets: task.config.limits } })
     } catch (error) {
       // 私有资源错误保留拒绝语义，准备结果不能代替所有者检查。
       if (error instanceof CuratorError && error.code === 'owner-denied') throw error
@@ -567,11 +599,20 @@ export class CuratorService {
   private async resolveTask(operation: string, args: Record<string, Json>, actor: DomainActor): Promise<ResolvedTask> {
     if (operation === 'manual-crop-confirm') this.human(actor)
     const input = startSchema.parse(operation === 'manual-crop-confirm' ? { ...args, taskBrief: typeof args.taskBrief === 'string' && args.taskBrief ? args.taskBrief : 'Review this manually selected crop against the frozen style and usage.' } : args)
+    const launched = operation === 'search-start' ? this.launchesValue?.task(actor) : undefined
+    if (launched) {
+      const profile = z.object({ id: z.string() }).parse(launched.fixed.release)
+      if (input.releaseId !== profile.id || input.taskBrief !== launched.input.taskBrief || (input.targetCount !== undefined && input.targetCount !== launched.input.targetCount) || (input.output !== undefined && contentDigest(input.output) !== contentDigest(launched.fixed.output))) throw new CuratorError('constraint-conflict', 'search-launch', 'Use this conversation launch’s frozen profile, task, quantity and output.')
+      launched.fixed.invocationDigest = contentDigest({ operation, args })
+      return { kind: 'search', normalized: launched.input, fixed: launched.fixed, config: launched.config }
+    }
     const release = this.domain.repository.get('modelProfile', input.releaseId) ?? this.domain.require('release', input.releaseId), style = this.domain.require('style', release.styleId)
     if (release.kind === 'modelProfile' && !release.rules.length) throw new CuratorError('constraint-conflict', 'resolve', 'Enable at least one style rule before starting a model-profile task.')
     this.domain.resolveRelease(style.id, release.id)
     await this.domain.verifyRelease(release, actor)
-    const usage = this.domain.require('usage', input.usageRevisionId)
+    const output = input.output ?? (input.usageRevisionId ? { kind: 'usage' as const, usageRevisionId: input.usageRevisionId } : undefined)
+    if (!output || operation !== 'search-start' && output.kind !== 'usage') throw new CuratorError('invalid-input', 'resolve', 'A fixed usage is required for legacy searches and crops; original output must be explicit.')
+    const usage = output.kind === 'usage' ? this.domain.require('usage', output.usageRevisionId) : undefined
     const limits = { ...this.config.limits }
     const hardBudgets = ['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs']
     for (const [key, value] of Object.entries(input.budgets ?? {})) {
@@ -584,13 +625,13 @@ export class CuratorService {
     const config = resolveConfig({ ...this.config, limits })
     if (release.recipe.visionRevision !== reviewerRevision(config) || release.recipe.preprocessingVersion !== this.files.processorVersion) throw new CuratorError('constraint-conflict', 'resolve', 'The saved review recipe differs from this deployment. Publish a new reviewed version.')
     const vision = await this.providers.vision(config)
-    vision.assertCapabilities(Math.min(release.references.length, release.recipe.referenceStrategy.maxImages) + 2)
+    vision.assertCapabilities(Math.min(release.references.length, release.recipe.referenceStrategy.maxImages) + (output.kind === 'original' ? 1 : 2))
     for (const rule of release.rules.filter(rule => rule.strength === 'required' && rule.stage === 'final' && rule.check.kind === 'measured')) {
-      if (rule.check.kind !== 'measured' || rule.check.field === 'byteLength') continue
+      if (!usage || rule.check.kind !== 'measured' || rule.check.field === 'byteLength') continue
       const value = rule.check.field === 'width' ? usage.output.targetWidth : rule.check.field === 'height' ? usage.output.targetHeight : usage.output.aspectP / usage.output.aspectQ
       if (rule.check.min !== undefined && value < rule.check.min - rule.check.tolerance || rule.check.max !== undefined && value > rule.check.max + rule.check.tolerance) throw new CuratorError('constraint-conflict', 'resolve', 'The usage output conflicts with a required final rule.')
     }
-    const fixed: Record<string, Json> = { invocationDigest: contentDigest({ operation, args }), release: toJson(release), usage: toJson({ ...usage, protectedContent: [...new Set([...usage.protectedContent, ...(input.protectedContent ?? [])])] }) }
+    const fixed: Record<string, Json> = { invocationDigest: contentDigest({ operation, args }), release: toJson(release), output: toJson(output), ...(usage ? { usage: toJson({ ...usage, protectedContent: [...new Set([...usage.protectedContent, ...(input.protectedContent ?? [])])] }) } : {}) }
     if (release.kind === 'modelProfile') {
       const policy = { version: 2, minSatisfiedRatio: config.limits.minStyleMatchRatio }
       const dimensions = new Set(release.rules.filter(rule => rule.check.kind === 'visual' && rule.strength !== 'reference-only').map(rule => rule.dimension))
@@ -599,7 +640,7 @@ export class CuratorService {
       fixed.executionInstructions = compileStyleInstructions(release)
     }
     const kind = operation === 'search-start' ? 'search' : 'crop'
-    const normalized: Record<string, Json> = { taskBrief: input.taskBrief }
+    const normalized: Record<string, Json> = { taskBrief: input.taskBrief, ...(input.output ? { output: toJson(output) } : {}) }
     if (kind === 'search') {
       if (input.sourceId !== sourceIdentity(config).providerId) throw new CuratorError('invalid-input', 'resolve', 'The requested source is not configured.')
       await this.providers.source(config)
@@ -616,7 +657,7 @@ export class CuratorService {
       if (operation === 'manual-crop-confirm') {
         const { normalizedRectSchema } = await import('../shared/model.ts')
         normalized.manualRect = toJson(normalizedRectSchema.parse(input.rect)); normalized.allowWarning = input.allowWarning ?? false; normalized.includeInLearning = input.includeInLearning ?? false
-        for (const id of ids) resolveCrop(normalizedRectSchema.parse(input.rect), this.domain.authorizedImage(id, actor).image.geometry, usage.output)
+        for (const id of ids) resolveCrop(normalizedRectSchema.parse(input.rect), this.domain.authorizedImage(id, actor).image.geometry, usage!.output)
         fixed.humanConfirmation = { kind: 'authenticated-human', id: actor.id, confirmationMethod: 'client-action', confirmedAt: new Date().toISOString() }
       }
     }
@@ -729,8 +770,13 @@ export class CuratorService {
       const url = new URL(request.url)
       const actor = this.scopedHuman({ kind: 'human', id: 'profile-owner', profileId: this.profileId }, { ...(url.searchParams.get('sessionToken') ? { sessionToken: url.searchParams.get('sessionToken')! } : {}) })
       if (url.searchParams.get('sessionId') && actor.sessionId !== url.searchParams.get('sessionId')) throw new CuratorError('owner-denied', 'resource', 'Open the owning Session channel before requesting this resource.')
-      const imageId = url.searchParams.get('imageVersionId'), exportId = url.searchParams.get('exportId'), galleryUrl = url.searchParams.get('galleryUrl')
+      const imageId = url.searchParams.get('imageVersionId'), exportId = url.searchParams.get('exportId'), galleryUrl = url.searchParams.get('galleryUrl'), selectionId = url.searchParams.get('selectionId')
       const headers = { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox" }
+      if (selectionId) {
+        if (imageId || exportId || galleryUrl) return new Response(null, { status: 400 })
+        const resource = await originalSearchResult(this.domain, this.files, selectionId, actor)
+        return new Response(request.method === 'HEAD' ? null : new Uint8Array(resource.bytes), { headers: { ...headers, 'content-type': resource.mime, 'content-length': String(resource.bytes.length), 'content-disposition': `attachment; filename="visual-curator-${encodeURIComponent(selectionId)}.${resource.mime === 'image/jpeg' ? 'jpg' : resource.mime === 'image/webp' ? 'webp' : 'png'}"` } })
+      }
       if (galleryUrl && !imageId && !exportId) return await this.readPreview(galleryMediaUrlSchema.parse(galleryUrl), headers, resourceSignal, request.method === 'HEAD')
       if (imageId && !exportId && !galleryUrl) {
         const { image } = this.domain.authorizedImage(imageId, actor)
@@ -773,7 +819,7 @@ export class CuratorService {
    * @param request Authenticated same-origin JSON request. @returns Validated workspace data or a safe command result.
    */
   async data(request: Request): Promise<Response> {
-    return await this.workspaceData(request, ['task-prepare', 'usage-list', 'snapshot', 'run-get', 'run-control', 'run-delete', 'export-get', 'local-files-list', 'references-list', 'analysis-detail', 'analysis-input', 'analysis-stop', 'reference-analyze', 'config-read', 'config-save'])
+    return await this.workspaceData(request, ['search-launch-options', 'search-launch-list', 'search-launch-start', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'run-get', 'run-control', 'run-delete', 'export-get', 'local-files-list', 'references-list', 'analysis-detail', 'analysis-input', 'analysis-stop', 'reference-analyze', 'config-read', 'config-save'])
   }
   /** @param request Authenticated account check, listing or selected-photo import. @returns Bounded JSON without action-text truncation. */
   async gallery(request: Request): Promise<Response> {
@@ -824,7 +870,7 @@ export class CuratorService {
   async dispose(): Promise<void> {
     this.stopping = true
     const references = this.galleryTasks?.dispose() ?? Promise.resolve()
-    const jobs = Promise.allSettled([references, this.engineValue?.dispose(), this.logins?.dispose(), this.providers.dispose?.(), this.galleryProviders?.dispose(), references.catch(() => {}).then(() => this.galleryValue?.dispose())])
+    const jobs = Promise.allSettled([references, this.engineValue?.dispose(), this.launchesValue?.drain(), this.logins?.dispose(), this.providers.dispose?.(), this.galleryProviders?.dispose(), references.catch(() => {}).then(() => this.galleryValue?.dispose())])
     this.lifetime.abort()
     try {
       await Promise.allSettled([...this.foreground])

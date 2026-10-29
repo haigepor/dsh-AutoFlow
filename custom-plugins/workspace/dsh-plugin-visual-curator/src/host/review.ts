@@ -1,6 +1,6 @@
 /** Required-rule decisions are computed locally from measured and inferred checks. */
 import { z } from 'zod'
-import { compileStyleInstructions } from './style-execution.ts'
+import { compileStyleInstructions, matchStyle } from './style-execution.ts'
 import { assessmentSchema, jsonSchema, type Assessment, type ImageVersion, type Rule, type StyleRelease, type StyleStandard, type StyleCandidate, type DomainActor } from '../shared/model.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
@@ -60,11 +60,11 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
   const actor = runActor(ctx), refs = await referenceImages(dependencies.domain, dependencies.files, release, actor, ctx.signal)
   const subject = { imageVersionId: image.id, digest: image.blob.digest, mime: image.blob.mime, bytes: await dependencies.files.read(image.blob, ctx.signal), role: 'subject' }
   const images = [subject, ...refs.filter(ref => ref.imageVersionId !== image.id)]
-  const rules = release.rules.filter(rule => rule.stage === stage)
+  const rules = release.rules.filter(rule => rule.stage === stage || stage === 'final' && release.recipe.styleMatching && rule.strength === 'preferred' && rule.check.kind === 'visual')
   const identity = contentDigest({ runId: ctx.runId, imageVersionId: image.id, standardDigest: release.contentDigest, stage }).slice(10)
   const brief = typeof ctx.spec.input.taskBrief === 'string' ? ctx.spec.input.taskBrief : 'Review supplied image against the frozen visual standard.'
   const taskBrief = styleReviewBrief(release, brief)
-  const requestId = `review-${identity}`, input = { ...(release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId, taskBrief, rules: rules.filter(rule => rule.check.kind === 'visual'), stage, images, ...(ctx.spec.fixed.usage ? { usage: ctx.spec.fixed.usage } : {}) }
+  const requestId = `review-${identity}`, input = { ...(release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId, taskBrief, rules: rules.filter(rule => rule.check.kind === 'visual').map(rule => ({ ...rule, stage })), stage, images, ...(ctx.spec.fixed.usage ? { usage: ctx.spec.fixed.usage } : {}) }
   const descriptor = dependencies.vision.describeRequest(input, 'review')
   const bundle = toJson(descriptor), requestDigest = contentDigest(bundle)
   const saved = dependencies.domain.repository.list('request').find(request => request.runId === ctx.runId && request.state === 'committed' && request.requestDigest === requestDigest)
@@ -85,6 +85,9 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
   if (output.taskRelevance === 'irrelevant') verdict = 'reject'
   if (output.taskRelevance === 'unknown' && verdict === 'pass') verdict = 'needs-review'
   if (Object.entries(release.recipe.preferenceScale.weights).some(([dimension, weight]) => weight > 0 && !output.preferenceScores.some(score => score.dimension === dimension)) && verdict === 'pass') verdict = 'needs-review'
+  const styleMatch = stage === 'final' && release.kind === 'modelProfile' && release.recipe.styleMatching ? matchStyle(release, results, release.recipe.styleMatching.minSatisfiedRatio) : undefined
+  if (styleMatch?.verdict === 'not-matched') verdict = 'reject'
+  else if (styleMatch?.verdict === 'unknown' && verdict === 'pass') verdict = 'needs-review'
   const weights = release.recipe.preferenceScale.weights, scores = Object.fromEntries(Object.keys(weights).map(key => [key, output.preferenceScores.find(score => score.dimension === key)?.score ?? 0]))
   const score = Object.entries(weights).reduce((sum, [key, weight]) => sum + weight * (scores[key] ?? 0), 0)
   const sampled = Number.parseInt(image.blob.digest.slice(0, 8), 16) / 0xffffffff < ctx.spec.config.limits.reviewSampleRate

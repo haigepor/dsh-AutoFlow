@@ -12,6 +12,9 @@ export const profileSaveSchema = z.strictObject({ operationId: z.string().min(1)
 type Option = ModelProfile['options'][number]
 const identity = (kind: string, value: unknown) => `${kind}-${contentDigest(value).slice(10, 50)}`
 
+/** Export cancellation and authorization belong to the accepted search. */
+export interface ProfileExportOptions { signal?: AbortSignal; acceptedLaunchId?: string }
+
 /** Profile selection has its own revision; analysis and human drafts are never rewritten. */
 export class ModelProfiles {
   /** @param domain Owning profile's serialized, authorized record provider. */
@@ -33,6 +36,16 @@ export class ModelProfiles {
   /** @param profile Frozen selection. @param actor Authenticated reader. @returns Completion only for current, complete reference evidence. */
   assertFresh(profile: ModelProfile, actor: DomainActor): void {
     if (!this.isFresh(profile, actor)) throw new CuratorError('revision-conflict', 'model-profile', 'The reference images or judgments changed; analyze the current collection again.')
+  }
+
+  /** Verify an accepted search against its immutable profile rather than a newer draft.
+   * @param profile Exact accepted profile. @param actor Its execution Session. @param launchId Durable owner-authorized launch.
+   * @returns Completion only when the saved Session and entire profile agree; private references remain checked.
+   */
+  authorizeAccepted(profile: ModelProfile, actor: DomainActor, launchId: string): void {
+    const pinned = z.object({ version: z.literal(1), sessionId: z.string(), input: z.object({ operationId: z.string(), modelProfileId: z.string() }), spec: z.object({ fixed: z.object({ release: modelProfileSchema }) }) }).safeParse(this.domain.repository.manifest(`search-launch:${launchId}`)?.state)
+    if (!pinned.success || actor.kind !== 'agent' || pinned.data.sessionId !== actor.sessionId || pinned.data.input.operationId !== launchId || pinned.data.input.modelProfileId !== profile.id || contentDigest(pinned.data.spec.fixed.release) !== contentDigest(profile)) throw new CuratorError('owner-denied', 'model-profile', 'The frozen profile is not authorized by this Session’s accepted search.')
+    this.authorize(profile, actor)
   }
 
   /** @param profile Frozen selection. @param actor Authenticated reader. @returns Whether the original complete analysis still matches current references. */
@@ -127,8 +140,9 @@ export class ModelProfiles {
     return await this.commit({ ...current, options }, current, input.operationId, input, current.access)
   }
 
-  /** @param profile Frozen selection. @param operationId Accepted export identity. @param actor Authenticated exporter. @returns Checksummed, references-only package without synthetic supervision. */
-  async export(profile: ModelProfile, operationId: string, actor: DomainActor): Promise<ProfileExport> {
+  /** @param profile Frozen selection. @param operationId Accepted export identity. @param actor Authenticated exporter. @param options Accepted search cancellation and authorization. @returns Checksummed, references-only package without synthetic supervision. */
+  async export(profile: ModelProfile, operationId: string, actor: DomainActor, options: ProfileExportOptions = {}): Promise<ProfileExport> {
+    options.signal?.throwIfAborted()
     const id = identity('profile-export', operationId), existing = this.domain.repository.get('profileExport', id)
     if (existing) {
       this.authorize(profile, actor)
@@ -136,10 +150,11 @@ export class ModelProfiles {
       if (existing.modelProfileId !== profile.id) throw new CuratorError('operation-conflict', 'profile-export', 'The export identity already describes another profile.')
       return existing
     }
-    this.assertFresh(profile, actor)
+    if (options.acceptedLaunchId) this.authorizeAccepted(profile, actor, options.acceptedLaunchId)
+    else this.assertFresh(profile, actor)
     if (!profile.rules.length) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one evidence-backed style rule before exporting.')
     if (actor.kind === 'agent' && !actor.sessionId) throw new CuratorError('owner-denied', 'profile-export', 'An Agent export requires an owning Session.')
-    await this.domain.verifyRelease(profile, actor)
+    await this.domain.verifyRelease(profile, actor, { ...(options.signal ? { signal: options.signal } : {}), ...(options.acceptedLaunchId ? { acceptedLaunchId: options.acceptedLaunchId } : {}) })
     const analysis = styleAnalysisOf(this.domain.require('run', profile.analysisRunId))!
     const resources = profile.references.map(ref => ({ imageVersionId: ref.reference.imageVersionId, digest: ref.imageDigest, familyId: ref.familyId }))
     const portableResources = resources.map(resource => { const source = this.domain.authorizedImage(resource.imageVersionId, actor).image.blob.remoteSource; return source ? { ...resource, digestKind: 'remote-url-v1', remoteSource: source, pixelDigest: null } : resource })

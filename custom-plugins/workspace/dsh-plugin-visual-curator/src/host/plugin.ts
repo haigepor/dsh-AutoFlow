@@ -44,6 +44,7 @@ export async function apply(ctx: Context, input: unknown = {}): Promise<void> {
   const service = new CuratorService(ctx, read())
   ctx.on('loader/volatile-update', () => service.updateConfiguration(read()))
   await mountCurator(ctx, service)
+  ctx.inject(['sessionController', 'workspaceRegistry', 'fileUploads', 'sessionTitle', 'tools'], () => service.restoreSearchLaunches())
 }
 
 /** Mount an existing provider through the production registration path.

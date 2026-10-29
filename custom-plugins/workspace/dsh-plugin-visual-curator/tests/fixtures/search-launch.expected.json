@@ -1,0 +1,12 @@
+{
+  "status": "accepted",
+  "createdSessions": 1,
+  "submittedMessages": 1,
+  "attachedFormat": 2,
+  "output": "original",
+  "linkedRuns": 1,
+  "qualified": 1,
+  "cropCandidates": 0,
+  "foreignRead": "denied",
+  "existingFile": "preserved"
+}

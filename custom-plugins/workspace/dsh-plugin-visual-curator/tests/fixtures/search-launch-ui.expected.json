@@ -1,0 +1,15 @@
+{
+  "prefilled": true,
+  "defaultQuantity": "10",
+  "original": "保留原图",
+  "presetVisible": true,
+  "narrowOverflow": false,
+  "footerVisible": true,
+  "reopenedReadOnly": true,
+  "retrySameIdentity": true,
+  "workspace": "archive",
+  "exactSession": true,
+  "hasRealCounts": true,
+  "escapeCloses": true,
+  "errors": []
+}

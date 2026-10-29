@@ -1,6 +1,13 @@
 /** Workbench copy is owned by the plugin locale, including native control labels. */
 import { executionEn, executionZh } from './execution-locale.ts'
 export const en = {
+  searchLaunchTitle: 'Find images from this profile', searchLaunchWorkspace: 'Workspace', searchLaunchNoWorkspace: 'Choose an existing native Workspace to create the conversation.',
+  searchLaunchDefaultBrief: 'Find images matching the current style profile: {name}.', searchLaunchOutput: 'Output', searchLaunchOriginal: 'Keep original images', searchLaunchSized: 'Use a size preset',
+  searchLaunchDatasetAuto: 'The current profile and matching dataset are prepared automatically', searchLaunchAutoHint: 'Start creates a new conversation, attaches the dataset and sends the task. You can close this dialog while preparation continues.',
+  searchLaunchPreparing: 'Preparing image search…', searchLaunchPlanning: 'Conversation accepted · no search started', searchLaunchExecuting: 'Image search', searchLaunchCompleted: 'Image search completed', searchLaunchPartial: 'Search ended · fewer matches', searchLaunchStopping: 'Stopping this search…', searchLaunchStopFailed: 'Search stop needs attention', searchLaunchFailed: 'Image search needs attention', searchLaunchStopped: 'Image search stopped',
+  searchLaunchRecovery: 'Check the settings or continue the same launch', searchLaunchBackground: 'Preparation continues in the background. Image counts appear after a search actually starts.', searchLaunchProgress: 'Image search progress',
+  searchLaunchOpen: 'Open conversation', searchLaunchContinue: 'Continue launch', searchLaunchStop: 'Stop this search', searchLaunchQualified: 'Qualified',
+
   analysisUsage: 'Model usage', analysisExecutions: 'Run attempts', analysisRequestAttempt: 'Attempt', analysisNavigationHint: 'Select a response to view its analysis.',
   modelInputTokens: 'Input tokens', modelOutputTokens: 'Output tokens', modelCacheRead: 'Cache read', modelCacheUnknown: 'Not reported',
   modelBackend: 'Model backend', nativeLlm: 'Native LLM', compatibleLlm: 'Compatible HTTP interface', nativeProvider: 'Native provider route', nativeLlmHint: 'Use a provider route and image-capable model already configured in the project model settings. Credentials, streaming and image normalization use the native services.',
@@ -260,6 +267,13 @@ export const en = {
 }
 /** Chinese text has exactly the same keys as the English dictionary. */
 export const zh: typeof en = {
+  searchLaunchTitle: '按此画像找图', searchLaunchWorkspace: '工作区', searchLaunchNoWorkspace: '请选择已有原生工作区，新会话将在其中创建。',
+  searchLaunchDefaultBrief: '寻找符合「{name}」当前风格画像的图片。', searchLaunchOutput: '输出方式', searchLaunchOriginal: '保留原图', searchLaunchSized: '按用途预设尺寸',
+  searchLaunchDatasetAuto: '自动准备当前画像与匹配的数据集', searchLaunchAutoHint: '开始后会新建会话、带入数据集并发送任务。准备期间可以关闭弹窗，后台会继续运行。',
+  searchLaunchPreparing: '正在准备找图任务…', searchLaunchPlanning: '会话已受理 · 尚未开始找图', searchLaunchExecuting: '正在找图', searchLaunchCompleted: '找图已完成', searchLaunchPartial: '找图已结束 · 结果不足', searchLaunchStopping: '正在停止本次找图…', searchLaunchStopFailed: '停止找图需要处理', searchLaunchFailed: '找图任务需要处理', searchLaunchStopped: '找图任务已停止',
+  searchLaunchRecovery: '请检查配置，或继续原启动操作', searchLaunchBackground: '准备工作会在后台继续；实际开始检索后显示图片进度。', searchLaunchProgress: '找图进度',
+  searchLaunchOpen: '打开会话', searchLaunchContinue: '继续启动', searchLaunchStop: '停止本次找图', searchLaunchQualified: '已合格',
+
   analysisUsage: '模型用量', analysisExecutions: '运行轮次', analysisRequestAttempt: '尝试', analysisNavigationHint: '选择批次，定位对应的模型分析',
   modelInputTokens: '输入 token', modelOutputTokens: '输出 token', modelCacheRead: '缓存读取', modelCacheUnknown: '服务未返回',
   modelBackend: '模型调用方式', nativeLlm: '原生 LLM', compatibleLlm: '兼容 HTTP 接口', nativeProvider: '原生供应商标识', nativeLlmHint: '填写项目模型设置中已有的供应商标识，并选择支持图片的模型。凭据、流式输出和图片处理复用原生服务。',

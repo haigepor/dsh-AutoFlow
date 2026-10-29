@@ -14,6 +14,7 @@ import { publishStyle } from './workbench-actions.ts'
 import { en, zh } from './workbench-locale.ts'
 import { analysisActive } from '../shared/analysis-process.ts'
 import { galleryTaskActive } from '../shared/gallery-task.ts'
+import { createSearchLaunchStore } from './search-launch-store.ts'
 
 type Page = 'settings' | 'panel' | 'conversation'
 type Result<T> = { ok: true; value: T } | { ok: false; error: object }
@@ -26,6 +27,7 @@ interface Bundle {
 interface Row { entryId: string; enabled: boolean; fiberPhase?: string }
 interface SlotOptions { name: string; id?: string; key?: string; order?: number; label?: () => string; locale: string; inject?: ((sessionId: string) => object) | (() => object) }
 interface EntryContext {
+  get?(name: 'uiWorkspace'): { openSession(id: string): void } | undefined
   effect(callback: () => (() => void), label: string): void
   on(event: 'connection/reset', callback: () => void): () => void
   plugin(plugin: { name: string; apply(ctx: EntryContext): void }): { dispose(): Promise<void> }
@@ -73,6 +75,15 @@ window.__ModuleLoader__.load({
           },
         })
         const store = createCuratorStore(transport)
+        const launches = createSearchLaunchStore({ invoke: store.invoke, context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '', pollMs: store.getSnapshot().snapshot?.configuration.limits.pollIntervalMs ?? 2000 }), openSession(id) {
+          const navigation = ctx.get?.('uiWorkspace')
+          if (!navigation) throw new Error('native-navigation-unavailable')
+          navigation.openSession(id)
+        } })
+        ctx.effect(() => {
+          const follow = store.subscribe(() => launches.sync()); launches.sync()
+          return () => { follow(); launches.dispose() }
+        }, 'Visual Curator native search launches')
         for (const toolName of ['visual_search_start', 'visual_crop_start', 'visual_run_get']) ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({ name: 'tool.call.toolview', key: toolName, locale: namespace, inject: (sessionId: string) => ({ t, async openTask(runId: string) { if (!registrations.has('panel')) throw new Error('panel-disabled'); await store.openSession(sessionId); store.selectWorkspace('tasks'); store.selectRun(runId); ctx.layout.selectPanel(panel) } }) }, TaskToolView))
         let sessionCache: Storage | undefined
         try { sessionCache = window.sessionStorage } catch (error) { /* 浏览器禁用本地存储时，仅使用内存缓存。 */ }
@@ -84,13 +95,14 @@ window.__ModuleLoader__.load({
         ctx.effect(() => () => gallery.dispose(), 'Visual Curator gallery cache')
         const actions: WorkbenchProps['actions'] = { selectWorkspace: store.selectWorkspace, openSession: store.openSession, closeSession: store.closeSession, prepareTask: store.prepareTask, startAnalysis: store.startAnalysis, stopAnalysis: store.stopAnalysis, openAnalysis: store.openAnalysis, closeAnalysis: store.closeAnalysis, refreshAnalysisDetail: store.refreshAnalysisDetail, loadAnalysisInput: store.loadAnalysisInput, saveConfiguration: store.saveConfiguration, execute: store.execute, reload: store.reload, getSnapshot: store.getSnapshot,
           selectStyle: store.selectStyle, selectRun: store.selectRun, loadMoreImages: store.loadMoreImages, loadRun: store.loadRun, loadReferences: store.loadReferences, startGalleryReferences: store.startGalleryReferences, stopGalleryReferences: store.stopGalleryReferences,
+          launches,
           publish: style => publishStyle(store, style),
           pickLocalReferences: (kind, signal) => transport.invoke('local-reference-pick', { kind, title: t(kind === 'file' ? 'upload' : kind === 'folder' ? 'uploadFolder' : 'referenceLocal'), ...(kind === 'references' ? { folderLabel: t('referenceCurrentFolder'), imagesLabel: t('upload') } : {}) }, signal),
           listLocalReferences: (path, kind, signal) => transport.invoke('local-files-list', { path, kind }, signal),
           galleryRead: gallery.read,
           async saveCredential(ref, value) { const response = await ctx.remote.credentials.set(ref, value); if (!response.ok) throw response.error },
         }
-        const face = () => ({ t, actions, welcomeImage, logoImage, hooks: { workbench: { getSnapshot: store.getSnapshot, subscribe: store.subscribe } } })
+        const face = () => ({ t, actions, welcomeImage, logoImage, hooks: { workbench: { getSnapshot: store.getSnapshot, subscribe: store.subscribe }, launches: { getSnapshot: launches.getSnapshot, subscribe: launches.subscribe } } })
         function EntryIcon() { return React.createElement(IconPanelLeftOutlineRegular, { size: 18 }) }
         const registrations = new Map<Page, () => void>()
         let stopped = false, sequence = 0

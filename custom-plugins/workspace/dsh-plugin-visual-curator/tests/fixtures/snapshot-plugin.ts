@@ -50,7 +50,7 @@ async function mount(ctx: Context): Promise<void> {
   ctx.effect(() => () => service.dispose(), 'Snapshot provider drain')
   const actor: DomainActor = { kind: 'human', id: 'fixture-human', profileId: service.profileId }
   const style = await domain.createStyle({ operationId: 'seed-style', name: 'Recorded muted green' }, actor)
-  const recipe = { schemaVersion: 1 as const, kind: 'recipe' as const, id: 'snapshot-recipe', profileId: service.profileId, createdAt: new Date().toISOString(), visionRevision: reviewerRevision(config), model: config.vision.model, vendorVersion: config.vision.vendorVersion, promptVersion: 'visual-curator-v1', outputSchemaVersion: '1', preprocessingVersion: processorVersion, referenceStrategy: { maxImages: config.limits.maxReferenceImages, maxBytes: config.limits.maxReferenceBytes }, preferenceScale: { min: 0, max: 1, weights: { color: 1 } }, unknownPolicy: 'needs-review' as const, tieBreak: 'stable-id' as const }
+  const recipe = { schemaVersion: 1 as const, kind: 'recipe' as const, id: 'snapshot-recipe', profileId: service.profileId, createdAt: new Date().toISOString(), visionRevision: reviewerRevision(service.config), model: config.vision.model, vendorVersion: config.vision.vendorVersion, promptVersion: 'visual-curator-v1', outputSchemaVersion: '1', preprocessingVersion: processorVersion, referenceStrategy: { maxImages: config.limits.maxReferenceImages, maxBytes: config.limits.maxReferenceBytes }, preferenceScale: { min: 0, max: 1, weights: { color: 1 } }, unknownPolicy: 'needs-review' as const, tieBreak: 'stable-id' as const }
   const parsedRecipe = recipeSchema.parse(recipe)
   await domain.saveDraft({ operationId: 'seed-draft', styleId: style.id, expectedRevision: 1, rules: [{ ruleId: 'final-color', dimension: 'color', statement: 'Preserve muted green in final pixels', condition: {}, exceptions: [], supportRefs: [], counterRefs: [], strength: 'required', stage: 'final', check: { kind: 'visual', criterion: 'Muted green colors' }, confirmation: { status: 'confirmed', actor: { kind: 'authenticated-human', id: actor.id, confirmationMethod: 'client-action', confirmedAt: new Date().toISOString() } } }], referenceIds: [], feedbackIds: [], conflicts: [], recipe: parsedRecipe }, actor)
   const candidate = await domain.createCandidate({ operationId: 'seed-candidate', styleId: style.id, expectedRevision: 2 }, actor)
@@ -77,7 +77,8 @@ async function mount(ctx: Context): Promise<void> {
       const id = call.data.callId
       if (id === 'search-pass' || id === 'search-rejected' || id === 'search-invalid') {
         const runId = contentDigest({ profileId: service.profileId, sessionId, operationId: id }).slice(10)
-        const run = domain.require('run', runId)
+        const run = repository.get('run', runId)
+        assert.ok(run, `Search admission failed: ${JSON.stringify(agent.session.snapshotEvents().findLast(event => event.type === 'tool/result'))}`)
         if (id === 'search-pass') assert.equal(run.outcome, 'target-met')
         if (id === 'search-rejected') assert.ok(repository.list('assessment').some(a => a.runId === run.id && a.stage === 'final' && a.verdict === 'reject'))
         if (id === 'search-invalid') assert.ok(repository.list('assessment').filter(a => a.runId === run.id).every(a => a.technicalStatus === 'failed' && a.verdict === undefined))
