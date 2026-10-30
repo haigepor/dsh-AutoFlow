@@ -451,7 +451,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const referenceTask = state.galleryTasks.find(task => task.styleId === state.styleId)
     const referencing = !!referenceTask && galleryTaskActive(referenceTask.status)
     const headerAnalysis = state.analysisTasks.find(task => task.styleId === state.styleId && analysisActive(task.status)) ?? (style?.analysis && analysisActive(style.analysis.status) ? style.analysis : undefined)
-    const headerAnalysisPhase = headerAnalysis && analysisPhaseLabel(t, headerAnalysis.phase)
+    const headerAnalysisPhase = headerAnalysis && (headerAnalysis.status === 'pausing' ? t('pausing') : headerAnalysis.status === 'cancelling' ? t('cancelling') : 'phase' in headerAnalysis ? analysisPhaseLabel(t, headerAnalysis.phase) : t('busy'))
     const currentAnalysisRun = snapshot?.runs.find(run => run.runId === style?.analysis?.runId)
     // 任务面板默认跟随当前素材集，手动选择仅在该素材集内保留。
     const selectedRun = executionView ? snapshot?.runs.find(run => run.runId === state.runId && (run.kind === 'search' || run.kind === 'crop')) : snapshot?.runs.find(run => run.runId === (taskSelection.styleId === state.styleId ? taskSelection.runId : '')) ?? currentAnalysisRun ?? snapshot?.runs.find(run => run.runId === state.runId && (run.kind !== 'analyze' || run.styleId === state.styleId))

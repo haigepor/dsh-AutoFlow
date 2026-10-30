@@ -10,6 +10,8 @@
   "sameTaskAndCheckpoint": true,
   "singleContinuation": true,
   "expiredBudgetExplained": true,
+  "legacyFailureExplainsLostCause": true,
+  "legacyFailureRetainsCheckpointWithoutBlindRetry": true,
   "narrowLayoutFits": true,
   "narrowContinuationFits": true,
   "nativeLightTheme": true,

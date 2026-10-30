@@ -40,6 +40,7 @@ describe('AutoFlow main CI', () => {
     }
     for (const job of [client, workflow.jobs.windows]) {
       expect(job?.steps).toContainEqual(expect.objectContaining({ run: "pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 run test" }))
+      expect(job?.steps.some(step => step.run?.includes('scripts/prepare-ci-bubblewrap.spec.ts'))).toBe(true)
     }
     expect(commands).toContain("pnpm run test:snapshot snapshots/session/headless.snapshot.ts -t 'text-turn|tool-call-turn'")
     expect(workflow.jobs.windows?.steps).toContainEqual(expect.objectContaining({ run: 'pnpm run verify-cordis-config' }))

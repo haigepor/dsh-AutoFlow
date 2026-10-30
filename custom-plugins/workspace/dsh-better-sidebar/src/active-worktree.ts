@@ -22,8 +22,8 @@
  * (#952). Outside the workspace any linked worktree is adopted, which is PR
  * #802's cross-repository case. The highest-scoring adoptable worktree of the
  * newest event that has one wins, but only evidence after the last committed
- * working-directory/change is eligible. When there is no evidence the cwd is
- * kept (lifted to the repository top level for subdirectory sessions).
+ * working-directory/change is eligible. Without worktree evidence, a live
+ * subdirectory keeps its original path while repository roots are canonical.
  *
  * Resolutions are cached process-wide ({@link ACTIVE_ROOT_TTL_MS}), concurrent
  * callers share one in-flight resolution AND one in-flight base probe, and
@@ -33,7 +33,7 @@
  * answered with its base (the workspace address) and never folds the stored
  * log — see {@link activeWorktreeRootOf}.
  */
-import { stat } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, sep } from 'node:path'
 import type { Context, SidebarSessionEvent } from './context-types.ts'
 import { requireAbsolute } from './fs-tree.ts'
@@ -526,8 +526,11 @@ async function resolveActiveWorktreeRoot(ctx: Context, sessionId: string, base: 
     return base
   }
   const canonicalTop = requireAbsolute(top)
-  const effectiveBase = pathUnderOf(canonicalTop, base) ? base : canonicalTop
-  const active = await activeRootFromEvents(await sessionEventsOf(ctx, sessionId), effectiveBase)
+  // Git 会展开 Windows 8.3 路径和目录别名；比较使用真实路径，子目录仍保留用户路径。
+  const canonicalBase = requireAbsolute(await realpath(base))
+  const keepsSubdirectory = pathKeyOf(canonicalBase) !== pathKeyOf(canonicalTop) && pathUnderOf(canonicalTop, canonicalBase)
+  const effectiveBase = keepsSubdirectory ? base : canonicalTop
+  const active = await activeRootFromEvents(await sessionEventsOf(ctx, sessionId), keepsSubdirectory ? canonicalBase : canonicalTop)
   const root = active ?? effectiveBase
   cachePut(activeWorktreeRootCache, sessionId, { root, base, directoryEpoch, eventSeq, gitResolved: true, expires: Date.now() + ACTIVE_ROOT_TTL_MS }, ACTIVE_ROOT_CACHE_MAX)
   return root

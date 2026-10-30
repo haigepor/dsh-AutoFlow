@@ -7,7 +7,7 @@ import { contentDigest, DomainRepository, MemoryDomainAdapter } from '../src/dom
 import { CuratorService } from '../src/host/service.ts'
 import { analysisDetailSchema, analysisInputSchema } from '../src/shared/analysis-process.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
-import type { RecordKind, RecordOf } from '../src/shared/model.ts'
+import { runSchema, type RecordKind, type RecordOf } from '../src/shared/model.ts'
 
 class ObservedAdapter extends MemoryDomainAdapter {
   manifestReads = 0
@@ -34,7 +34,7 @@ async function savedAnalysis(addPreviousRun = false) {
   const records = kinds.flatMap(kind => f.repository.list(kind))
   if (addPreviousRun) {
     const savedRun = f.repository.list('run')[0]!
-    records.push({ ...savedRun, id: `${savedRun.id}-previous` })
+    records.push(runSchema.parse({ ...savedRun, id: `${savedRun.id}-previous` }))
   }
   const pointers = records.map(record => {
     const digest = contentDigest(record), key = `${record.kind}-${digest.slice(10)}`

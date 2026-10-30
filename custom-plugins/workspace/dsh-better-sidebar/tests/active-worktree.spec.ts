@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activeWorktreeRootOf } from '../src/active-worktree.ts'
@@ -188,6 +188,25 @@ describe('active worktree root', () => {
       const cwd = join(repo, 'nested')
       mkdirSync(cwd)
       await expect(activeWorktreeRootOf(sessionCtx(cwd, []), 'local-nested-cwd', cwd)).resolves.toBe(cwd)
+    } finally {
+      removeTree(root)
+    }
+  })
+
+  it('keeps an aliased subdirectory without adopting another nested repository', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-active-alias-'))
+    try {
+      const repo = join(root, 'repo'), alias = join(root, 'alias')
+      initRepo(repo, 'a.txt')
+      mkdirSync(join(repo, 'nested'))
+      symlinkSync(repo, alias, process.platform === 'win32' ? 'junction' : 'dir')
+      const cwd = join(alias, 'nested')
+      await expect(activeWorktreeRootOf(sessionCtx(cwd, []), 'alias-empty-cwd', cwd)).resolves.toBe(cwd)
+      const other = join(repo, 'nested', 'other'), worktree = join(repo, 'nested', 'other-worktree')
+      initRepo(other, 'b.txt')
+      git(other, ['worktree', 'add', '-q', '-b', 'nested-agent', worktree])
+      const calls = [{ cwd: join(cwd, 'other-worktree'), path: join(cwd, 'other-worktree', 'b.txt') }]
+      await expect(activeWorktreeRootOf(sessionCtx(cwd, calls), 'alias-nested-repo', cwd)).resolves.toBe(cwd)
     } finally {
       removeTree(root)
     }

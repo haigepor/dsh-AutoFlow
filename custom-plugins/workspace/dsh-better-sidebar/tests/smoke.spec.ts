@@ -312,9 +312,9 @@ describe('host plugin smoke', () => {
 
 /**
  * Scratch-repository harness shared by the git tests. The fixture's commit
- * identity comes from the GIT_AUTHOR / GIT_COMMITTER environment variables,
- * confined to the fixture process: no git config is touched anywhere (the
- * plugin never sets an identity, and neither does its test fixture).
+ * initialization uses an explicit identity. Scratch repositories also own a
+ * local identity for commits made through the production Git API; the user's
+ * global configuration is never changed.
  */
 const FIXTURE_IDENTITY = {
   GIT_AUTHOR_NAME: 'dsh-better-sidebar-test',
@@ -374,6 +374,8 @@ describe('git destructive operations (scratch repository)', () => {
     // assertions below. The destructive-op behavior under test is orthogonal
     // to the machine's eol policy.
     gitRun(dir, ['config', 'core.autocrlf', 'false'])
+    gitRun(dir, ['config', '--local', 'user.name', FIXTURE_IDENTITY.GIT_AUTHOR_NAME])
+    gitRun(dir, ['config', '--local', 'user.email', FIXTURE_IDENTITY.GIT_AUTHOR_EMAIL])
     gitRun(dir, ['checkout', '-q', '-b', 'main'])
     writeFileSync(join(dir, 'a.txt'), 'one\ntwo\nthree\n')
     gitRun(dir, ['add', '-A'])

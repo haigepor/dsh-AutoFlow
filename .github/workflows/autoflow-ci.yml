@@ -67,6 +67,7 @@ jobs:
         run: >-
           pnpm exec vitest run
           scripts/ci-workflow.spec.ts scripts/autoflow-ci-workflow.spec.ts
+          scripts/prepare-ci-bubblewrap.spec.ts
           scripts/rescope-vendor.spec.ts scripts/cordis-config-files.spec.ts
           scripts/verify-cordis-config.spec.ts scripts/build.spec.ts
           scripts/gen-cli-help.spec.ts
@@ -105,6 +106,7 @@ jobs:
         run: >-
           pnpm exec vitest run
           scripts/autoflow-ci-workflow.spec.ts scripts/rescope-vendor.spec.ts
+          scripts/prepare-ci-bubblewrap.spec.ts
           scripts/cordis-config-files.spec.ts scripts/verify-cordis-config.spec.ts
           scripts/build.spec.ts packages/boot/app-boot/tests/package-meta.spec.ts
           scripts/gen-cli-help.spec.ts

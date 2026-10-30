@@ -48,7 +48,7 @@ export function planReferenceAnalysis(domain: CuratorDomain, styleId: string, ac
   const reused = new Map<string, z.infer<typeof reusedObservationSchema>>(), seen = new Set<string>()
   const runs = domain.repository.list('run').filter(run => run.owner.kind === 'session' ? run.owner.sessionId === actor.sessionId : !actor.sessionId).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
   const sources = runs.map(run => ({ run, spec: specOf(run) })).filter(({ spec }) => spec.kind === 'analyze' && spec.input.styleId === styleId)
-  const runIds = new Set(sources.map(({ run }) => run.id)), committedRequests = new Map<string, Set<string>>()
+  const runIds = new Set<string>(sources.map(({ run }) => run.id)), committedRequests = new Map<string, Set<string>>()
   // 同一次预检只复制并校验一次请求表；观察仍只能使用所属任务已提交的请求。
   if (sources.length) for (const request of domain.repository.list('request')) {
     if (request.state !== 'committed' || !runIds.has(request.runId)) continue
