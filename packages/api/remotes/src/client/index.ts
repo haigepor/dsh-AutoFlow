@@ -15,6 +15,9 @@ import llmRemote from '@deepseek-ai/dsh-llm/remote'
 import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
 import pluginManagerRemote from '@deepseek-ai/dsh-plugin-manager/remote'
 import mcpSettingsRemote from '@deepseek-ai/dsh-mcp-manager/remote'
+import skillManagementRemote from '@deepseek-ai/dsh-skill-manager/remote'
+export type {} from '@deepseek-ai/dsh-skill-manager/remote'
+export type {} from '@deepseek-ai/dsh-skill'
 import toolResultsRemote from '@deepseek-ai/dsh-client-ui-trajectory/remote'
 import pluginRegistryProbeRemote from '@deepseek-ai/dsh-client-ui-plugin-manager/remote'
 import pluginMarketRemote from '@deepseek-ai/dsh-plugin-market/remote'
@@ -196,7 +199,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
       productAnalyticsRemote, agentPresetsRemote, commandsRemote, settingsControllerRemote, accountRemote,
       goalsRemote, llmRemote, dynamicRemote, scheduleRemote,
       pluginInventoryRemote, pluginManagerRemote, pluginMarketRemote, pluginRegistryProbeRemote,
-      mcpSettingsRemote, toolResultsRemote,
+      mcpSettingsRemote, skillManagementRemote, toolResultsRemote,
       messageFeedbackRemote, sessionFeedbackRemote,
       fileUploadsRemote, sessionReferencesRemote,
       permissionPresetsRemote, subagentsRemote, sessionRemote, jobRemote, workspaceRemote, workspaceFilesRemote, terminalRemote,

@@ -1225,6 +1225,7 @@
     {
       "path": "./apps/desktop/tsconfig.host.json"
     },
+    { "path": "./packages/skill/skill-manager" },
     {
       "path": "./packages/mcp/mcp-manager"
     }

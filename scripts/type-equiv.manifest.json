@@ -2896,6 +2896,16 @@
       "doc": "docs/subsystems/forge.md",
       "symbol": "ForgeLocalChanges",
       "source": "packages/experimental/client-ui-forge/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/skills.md",
+      "symbol": "SkillDirectory",
+      "source": "packages/skill/skill/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/skills.md",
+      "symbol": "SkillManagementPolicy",
+      "source": "packages/skill/skill/src/index.ts"
     }
   ]
 }

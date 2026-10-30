@@ -3492,10 +3492,143 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'skillManagement',
+    summary: 'Trusted local management; skill execution remains owned by the existing consumers.',
+    description: 'Trusted local management; skill execution remains owned by the existing consumers.',
+    methods: [
+      {
+        signature: '@Remote async list(workspace: string): Promise<SkillManagementSnapshot>',
+        description: 'List all concrete and runtime copies for a registered local workspace.',
+        parameters: [{ name: 'workspace', description: 'registered workspace path, or empty for global sources.' }],
+        returns: 'inventory retaining invalid, restricted and shadowed skills.',
+      },
+      {
+        signature: '@Remote async detail(id: ManagedSkillId, workspace: string): Promise<ManagedSkillDetail>',
+        description: 'Read an exact copy without redirecting a shadowed row to its same-name winner.',
+        parameters: [{ name: 'id', description: 'inventory copy identity.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'complete Markdown and current metadata.',
+      },
+      {
+        signature: '@Remote async setEnabled(id: string, enabled: boolean, workspace: string): Promise<SkillOperationResult>',
+        description: 'Set a copy or source restriction without rewriting skill frontmatter.',
+        parameters: [{ name: 'id', description: 'copy or source identity.' }, { name: 'enabled', description: 'desired permission.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async save(id: ManagedSkillId, document: string, revision: string, workspace: string): Promise<SkillOperationResult>',
+        description: 'Save an existing writable document using its opened revision.',
+        parameters: [{ name: 'id', description: 'copy identity.' }, { name: 'document', description: 'complete Markdown.' }, { name: 'revision', description: 'opened digest.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async importFiles( directoryId: SkillDirectoryId, files: SkillImportFile[], overwrite: boolean, workspace: string, ): Promise<SkillOperationResult>',
+        description: 'Create or import a complete skill bundle into an explicit writable root.',
+        parameters: [{ name: 'directoryId', description: 'selected destination.' }, { name: 'files', description: 'browser-selected relative members.' }, { name: 'overwrite', description: 'explicit conflict acceptance.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async trash(id: ManagedSkillId, workspace: string): Promise<SkillOperationResult>',
+        description: 'Move a writable skill to recoverable storage.',
+        parameters: [{ name: 'id', description: 'copy identity.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async backups(): Promise<SkillBackup[]>',
+        description: 'Read recoverable deletions and replacements.',
+        parameters: [],
+        returns: 'retained backups.',
+      },
+      {
+        signature: '@Remote async restore(id: SkillBackupId, remove: boolean, workspace: string): Promise<SkillOperationResult>',
+        description: 'Restore a retained copy or permanently remove its private backup.',
+        parameters: [{ name: 'id', description: 'backup identity.' }, { name: 'remove', description: 'permanent removal.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'committed outcome; an occupied original destination is never overwritten.',
+      },
+      {
+        signature: '@Remote async source(path: string, remove: boolean): Promise<SkillOperationResult>',
+        description: 'Register or forget an external read-only directory.',
+        parameters: [{ name: 'path', description: 'existing local directory.' }, { name: 'remove', description: 'remove its registration, retaining all files.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async arrange(id: ManagedSkillId, category: string, order: number, workspace: string): Promise<SkillOperationResult>',
+        description: 'Assign a display-only category and ordering to an exact copy.',
+        parameters: [{ name: 'id', description: 'copy identity.' }, { name: 'category', description: 'display category, empty clears it.' }, { name: 'order', description: 'display order.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async discover(repository: string, ref: string): Promise<RepositorySkill[]>',
+        description: 'Inspect a public repository without installing or executing its files.',
+        parameters: [{ name: 'repository', description: 'GitHub URL or owner/repository.' }, { name: 'ref', description: 'branch, tag or commit.' }],
+        returns: 'immutable install candidates.',
+      },
+      {
+        signature: '@Remote async repositories(): Promise<{ repository: string; ref: string }[]>',
+        description: 'Read registered public repository subscriptions.',
+        parameters: [],
+        returns: 'stored repository/ref pairs.',
+      },
+      {
+        signature: '@Remote async subscribe(repository: string, ref: string, remove: boolean): Promise<SkillOperationResult>',
+        description: 'Save or remove a repository subscription without installing files.',
+        parameters: [{ name: 'repository', description: 'owner/repository.' }, { name: 'ref', description: 'branch or commit.' }, { name: 'remove', description: 'remove registration.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async marketplace(catalog: MarketplaceSkill[\'catalog\'], query: string): Promise<MarketplaceSkill[]>',
+        description: 'Query a fixed public catalog.',
+        parameters: [{ name: 'catalog', description: 'marketplace.' }, { name: 'query', description: 'search text.' }],
+        returns: 'validated candidates.',
+      },
+      {
+        signature: '@Remote async installMarketplace( skill: MarketplaceSkill, directory: SkillDirectoryId, overwrite: boolean, workspace: string, ): Promise<SkillOperationResult>',
+        description: 'Import an explicitly selected public marketplace skill.',
+        parameters: [{ name: 'skill', description: 'marketplace identity.' }, { name: 'directory', description: 'writable destination.' }, { name: 'overwrite', description: 'accepted conflict.' }, { name: 'workspace', description: 'registered workspace.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async setCategoryEnabled(category: string, enabled: boolean, workspace: string): Promise<SkillOperationResult>',
+        description: 'Apply a category-wide restriction without modifying any source file.',
+        parameters: [{ name: 'category', description: 'category name.' }, { name: 'enabled', description: 'desired permission.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async installSkill( candidate: RepositorySkill, directoryId: SkillDirectoryId, overwrite: boolean, workspace: string, ): Promise<SkillOperationResult>',
+        description: 'Install an explicitly selected immutable repository candidate.',
+        parameters: [{ name: 'candidate', description: 'discovered identity.' }, { name: 'directoryId', description: 'destination.' }, { name: 'overwrite', description: 'accepted conflict.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'committed outcome.',
+      },
+      {
+        signature: '@Remote async preview(id: ManagedSkillId, ref: string, workspace: string): Promise<SkillUpdatePreview>',
+        description: 'Preview current upstream changes while preserving local modifications.',
+        parameters: [{ name: 'id', description: 'installed copy.' }, { name: 'ref', description: 'upstream branch/tag/commit.' }, { name: 'workspace', description: 'selected workspace.' }],
+        returns: 'a bounded preview token required for replacement.',
+      },
+      {
+        signature: '@Remote async update(token: string, overwrite: boolean): Promise<SkillOperationResult>',
+        description: 'Apply the exact preview after checking all local file digests again.',
+        parameters: [{ name: 'token', description: 'current preview token.' }, { name: 'overwrite', description: 'explicit acceptance of local modifications.' }],
+        returns: 'committed outcome and a retained previous-version backup.',
+      },
+    ],
+  },
+  {
     key: 'skills',
     summary: 'Layered registry of skill providers, the host+per-scope shape the tools registry established.',
     description: 'Layered registry of skill providers, the host+per-scope shape the tools registry established. A registration files into the layer of its calling context\'s scope (scopeOf): host rows and repository plugins land in the global layer, while a plugin mounted by an agent preset\'s standing composition lands in that preset\'s layer. A read merges the global layer with the viewing scope\'s chain — the nearest layer\'s entry wins a duplicate name outright, and the rank order decides duplicates only within one layer. It exposes sorted invocation-neutral summaries and loads full skill bodies on demand.',
     methods: [
+      {
+        signature: 'registerManagementPolicy(policy: SkillManagementPolicy): { dispose: () => Promise<void>; invalidate: () => void }',
+        description: 'Register an additional invocation restriction; excluded copies allow the next candidate to win.',
+        parameters: [{ name: 'policy', description: 'synchronous policy over a candidate and its lookup context.' }],
+        returns: 'disposal and invalidation for the exact registration.',
+      },
+      {
+        signature: 'async inspect(options: SkillViewOptions = {}): Promise<{ candidates: SkillCandidate[] directories: SkillDirectory[] complete: boolean }>',
+        description: 'Inspect every provider candidate before same-name resolution and management restrictions.',
+        parameters: [{ name: 'options', description: 'workspace and viewing scope.' }],
+        returns: 'raw candidates and their provider-owned directories; never loads bodies.',
+      },
       {
         signature: 'registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void',
         description: 'Register a borrowed same-process provider synchronously during plugin apply, into the calling context\'s layer: a scoped context (an agent preset\'s standing mount) registers for that scope alone, an unscoped context registers globally. Duplicate names within one layer and reserved names throw; remote initialization belongs in `list()`. Fiber disposal unregisters the provider and invalidates catalog caches.',
@@ -5299,6 +5432,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'One profile entry\'s form values, availability, or page policy changed.',
     description: 'One profile entry\'s form values, availability, or page policy changed. Form clients re-read its schema, resolved values, and revision.',
     parameters: [{ name: 'ns', description: 'Profile entry id.' }, { name: 'revision', description: 'The entry\'s new revision.' }],
+  },
+  {
+    name: 'skill-management/changed',
+    mode: 'emit',
+    signature: '\'skill-management/changed\'(): void',
+    summary: 'Skill files or management policy committed; readers refetch their own scope.',
+    description: 'Skill files or management policy committed; readers refetch their own scope.',
+    parameters: [],
   },
   {
     name: 'skills/change',
@@ -7157,8 +7298,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface LspRange {\n    readonly start: LspPosition;\n    readonly end: LspPosition;\n}',
   },
   {
-    name: 'ManagementError',
-    declaration: 'export interface ManagementError {\n    code: ReadOnlyReason | \'unknown-plugin\' | \'invalid-spec\' | \'already-installed\' | \'ambiguous-install\' | \'not-bundle\' | \'not-removable\' | \'stop-profile\' | \'bundle-in-use\' | \'stale-approval\' | \'incompatible-version\' | \'unsupported-platform\' | \'operation-error\';\n    diagnostic?: string;\n    incompatible?: IncompatiblePlugin[];\n}',
+    name: 'ManagedDirectory',
+    declaration: 'export interface ManagedDirectory {\n    id: SkillDirectoryId;\n    path: string;\n    source: string;\n    writable: boolean;\n    enabled: boolean;\n    external: boolean;\n}',
+  },
+  {
+    name: 'ManagedSkill',
+    declaration: 'export interface ManagedSkill {\n    id: ManagedSkillId;\n    directoryId: SkillDirectoryId;\n    name: string;\n    description: string;\n    path: string;\n    revision: string;\n    enabled: boolean;\n    modelInvocable: boolean;\n    userInvocable: boolean;\n    writable: boolean;\n    valid: boolean;\n    diagnostics: string[];\n    effective: boolean;\n    category: string;\n    order: number;\n    repository?: string;\n    commit?: string;\n}',
+  },
+  {
+    name: 'ManagedSkillDetail',
+    declaration: 'export interface ManagedSkillDetail {\n    skill: ManagedSkill;\n    document: string;\n    tree: {\n        entries: SkillFileEntry[];\n        complete: boolean;\n    };\n}',
+  },
+  {
+    name: 'ManagedSkillId',
+    declaration: 'export type ManagedSkillId = Branded<\'ManagedSkillId\'>;',
   },
   {
     name: 'ManualCompactAgentContext',
@@ -7203,6 +7356,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'MarketListingVersion',
     declaration: 'export interface MarketListingVersion extends MarketVersion {\n    readonly install: MarketInstallTarget;\n    readonly compatibility: MarketCompatibility;\n}',
+  },
+  {
+    name: 'MarketplaceSkill',
+    declaration: 'export interface MarketplaceSkill {\n    catalog: \'skills.sh\' | \'clawhub\';\n    owner: string;\n    slug: string;\n    name: string;\n    description: string;\n    repository: string;\n}',
   },
   {
     name: 'MarketPlugin',
@@ -8047,6 +8204,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ReplayEnvelope',
     declaration: 'export interface ReplayEnvelope {\n    response: unknown;\n    blocks?: readonly unknown[];\n}',
+  },
+  {
+    name: 'RepositorySkill',
+    declaration: 'export interface RepositorySkill {\n    repository: string;\n    commit: string;\n    path: string;\n    name: string;\n    description: string;\n}',
   },
   {
     name: 'RequestContext',
@@ -9057,6 +9218,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SignInErrorCode = \'no-response\' | \'network\' | \'protocol\' | \'expired\' | \'storage\';',
   },
   {
+    name: 'SkillBackup',
+    declaration: 'export interface SkillBackup {\n    id: SkillBackupId;\n    name: string;\n    target: string;\n    time: string;\n    kind: \'trash\' | \'update\';\n}',
+  },
+  {
+    name: 'SkillBackupId',
+    declaration: 'export type SkillBackupId = Branded<\'SkillBackupId\'>;',
+  },
+  {
     name: 'SkillCandidate',
     declaration: 'export interface SkillCandidate extends SkillSummary {\n    readonly rank: number;\n    readonly locator: unknown;\n    readonly metadata?: Readonly<Record<string, unknown>>;\n}',
   },
@@ -9069,8 +9238,24 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SkillDefinition extends SkillSummary {\n    readonly content: string;\n    readonly metadata?: Readonly<Record<string, unknown>>;\n}',
   },
   {
+    name: 'SkillDirectory',
+    declaration: 'export interface SkillDirectory {\n    readonly path: string;\n    readonly source: SkillSource;\n    readonly writable: boolean;\n}',
+  },
+  {
+    name: 'SkillDirectoryId',
+    declaration: 'export type SkillDirectoryId = Branded<\'SkillDirectoryId\'>;',
+  },
+  {
     name: 'SkillEntry',
     declaration: 'export interface SkillEntry {\n    readonly path?: string;\n    readonly name: string;\n    readonly description: string;\n    readonly whenToUse?: string;\n    readonly modelInvocable: boolean;\n}',
+  },
+  {
+    name: 'SkillFileEntry',
+    declaration: 'export interface SkillFileEntry {\n    path: string;\n    kind: \'file\' | \'directory\' | \'link\';\n}',
+  },
+  {
+    name: 'SkillImportFile',
+    declaration: 'export interface SkillImportFile {\n    path: string;\n    base64: string;\n}',
   },
   {
     name: 'SkillInvocationPolicy',
@@ -9089,8 +9274,24 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SkillLookupOptions {\n    readonly cwd?: string | undefined;\n    readonly signal?: AbortSignal | undefined;\n}',
   },
   {
+    name: 'SkillManagementError',
+    declaration: 'export type SkillManagementError = \'invalid\' | \'not-found\' | \'read-only\' | \'conflict\' | \'unsafe-path\' | \'too-large\' | \'network\' | \'storage\';',
+  },
+  {
+    name: 'SkillManagementPolicy',
+    declaration: 'export type SkillManagementPolicy = (candidate: SkillCandidate, options: SkillLookupOptions) => SkillInvocationPolicy | false | undefined;',
+  },
+  {
+    name: 'SkillManagementSnapshot',
+    declaration: 'export interface SkillManagementSnapshot {\n    directories: ManagedDirectory[];\n    skills: ManagedSkill[];\n    workspaces: string[];\n    categories: string[];\n    complete: boolean;\n    limits: {\n        maxBytes: number;\n        maxFiles: number;\n    };\n}',
+  },
+  {
+    name: 'SkillOperationResult',
+    declaration: 'export type SkillOperationResult = {\n    status: \'saved\';\n} | {\n    status: \'rejected\';\n    code: SkillManagementError;\n};',
+  },
+  {
     name: 'SkillProvider',
-    declaration: 'export interface SkillProvider {\n    readonly name: string;\n    readonly list: (options: SkillLookupOptions) => Promise<readonly SkillCandidate[] | SkillProviderObservation>;\n    readonly get: (candidate: SkillCandidate, options: SkillLookupOptions) => Promise<SkillDefinition | undefined>;\n}',
+    declaration: 'export interface SkillProvider {\n    readonly directories?: (options: SkillLookupOptions) => Promise<readonly SkillDirectory[]>;\n    readonly name: string;\n    readonly list: (options: SkillLookupOptions) => Promise<readonly SkillCandidate[] | SkillProviderObservation>;\n    readonly get: (candidate: SkillCandidate, options: SkillLookupOptions) => Promise<SkillDefinition | undefined>;\n}',
   },
   {
     name: 'SkillProviderControl',
@@ -9115,6 +9316,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SkillSummary',
     declaration: 'export interface SkillSummary {\n    readonly path?: string;\n    readonly name: string;\n    readonly description: string;\n    readonly whenToUse?: string;\n    readonly invocation: SkillInvocationPolicy;\n    readonly source: SkillSource;\n    readonly provider: string;\n    readonly resourceBase?: SkillResourceBase;\n}',
+  },
+  {
+    name: 'SkillUpdatePreview',
+    declaration: 'export interface SkillUpdatePreview {\n    id: ManagedSkillId;\n    token: string;\n    commit: string;\n    localModified: boolean;\n    changes: {\n        path: string;\n        kind: \'added\' | \'modified\' | \'removed\';\n    }[];\n}',
   },
   {
     name: 'SkillViewOptions',

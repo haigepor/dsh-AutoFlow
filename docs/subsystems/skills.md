@@ -27,8 +27,24 @@ interface SkillProviderObservation {
 ```
 
 ```ts type-equiv
+/** Local skill directory advertised by a provider for trusted management clients. */
+interface SkillDirectory {
+  readonly path: string
+  readonly source: SkillSource
+  readonly writable: boolean
+}
+```
+
+```ts type-equiv
+/** Additional management restriction; false omits this copy without widening declared permissions. */
+type SkillManagementPolicy = (candidate: SkillCandidate, options: SkillLookupOptions) => SkillInvocationPolicy | false | undefined
+```
+
+```ts type-equiv
 /** Provider interface for one source of skills, such as local directories or a remote registry. */
 interface SkillProvider {
+  /** Optional local directory inventory, including roots without valid candidates. */
+  readonly directories?: (options: SkillLookupOptions) => Promise<readonly SkillDirectory[]>
   /** Unique provider name in the `ctx.skills` registry. */
   readonly name: string
   /**
@@ -263,6 +279,207 @@ Host service backing `ctx.remote.skills` without activating a cold Agent.
 
 Source: [`packages/api/session-controller/src/skill-catalog.ts`](../../packages/api/session-controller/src/skill-catalog.ts)
 
+<a id="ctxskillmanagement--skillmanagement"></a>
+
+### `ctx.skillManagement` — `SkillManagement`
+
+Trusted local management; skill execution remains owned by the existing consumers.
+
+```ts cordis-catalog
+/** List all concrete and runtime copies for a registered local workspace.
+ *
+ * @param workspace - registered workspace path, or empty for global sources.
+ *
+ * @returns inventory retaining invalid, restricted and shadowed skills.
+
+ */
+@Remote async list(workspace: string): Promise<SkillManagementSnapshot>
+
+/** Read an exact copy without redirecting a shadowed row to its same-name winner.
+ *
+ * @param id - inventory copy identity.
+ * @param workspace - selected workspace.
+ *
+ * @returns complete Markdown and current metadata.
+
+ */
+@Remote async detail(id: ManagedSkillId, workspace: string): Promise<ManagedSkillDetail>
+
+/** Set a copy or source restriction without rewriting skill frontmatter.
+ *
+ * @param id - copy or source identity.
+ * @param enabled - desired permission.
+ * @param workspace - selected workspace.
+ *
+ * @returns committed outcome.
+
+ */
+@Remote async setEnabled(id: string, enabled: boolean, workspace: string): Promise<SkillOperationResult>
+
+/** Save an existing writable document using its opened revision.
+ *
+ * @param id - copy identity.
+ * @param document - complete Markdown.
+ * @param revision - opened digest.
+ * @param workspace - selected workspace.
+ *
+ * @returns committed outcome.
+
+ */
+@Remote async save(id: ManagedSkillId, document: string, revision: string, workspace: string): Promise<SkillOperationResult>
+
+/** Create or import a complete skill bundle into an explicit writable root.
+ *
+ * @param directoryId - selected destination.
+ * @param files - browser-selected relative members.
+ *
+ * @param overwrite - explicit conflict acceptance.
+ * @param workspace - selected workspace.
+ *
+ * @returns committed outcome.
+
+ */
+@Remote async importFiles( directoryId: SkillDirectoryId, files: SkillImportFile[], overwrite: boolean, workspace: string, ): Promise<SkillOperationResult>
+
+/** Move a writable skill to recoverable storage.
+ *
+ * @param id - copy identity.
+ * @param workspace - selected workspace.
+ * @returns committed outcome.
+
+ */
+@Remote async trash(id: ManagedSkillId, workspace: string): Promise<SkillOperationResult>
+
+/** Read recoverable deletions and replacements.
+ * @returns retained backups.
+ */
+@Remote async backups(): Promise<SkillBackup[]>
+
+/** Restore a retained copy or permanently remove its private backup.
+ *
+ * @param id - backup identity.
+ * @param remove - permanent removal.
+ * @param workspace - selected workspace.
+ *
+ * @returns committed outcome; an occupied original destination is never overwritten.
+
+ */
+@Remote async restore(id: SkillBackupId, remove: boolean, workspace: string): Promise<SkillOperationResult>
+
+/** Register or forget an external read-only directory.
+ *
+ * @param path - existing local directory.
+ * @param remove - remove its registration, retaining all files.
+ *
+ * @returns committed outcome.
+
+ */
+@Remote async source(path: string, remove: boolean): Promise<SkillOperationResult>
+
+/** Assign a display-only category and ordering to an exact copy.
+ *
+ * @param id - copy identity.
+ * @param category - display category, empty clears it.
+ * @param order - display order.
+ * @param workspace - selected workspace.
+ *
+ * @returns committed outcome.
+
+ */
+@Remote async arrange(id: ManagedSkillId, category: string, order: number, workspace: string): Promise<SkillOperationResult>
+
+/** Inspect a public repository without installing or executing its files.
+ *
+ * @param repository - GitHub URL or owner/repository.
+ * @param ref - branch, tag or commit.
+ *
+ * @returns immutable install candidates.
+
+ */
+@Remote async discover(repository: string, ref: string): Promise<RepositorySkill[]>
+
+/** Read registered public repository subscriptions.
+ * @returns stored repository/ref pairs.
+ */
+@Remote async repositories(): Promise<{ repository: string; ref: string }[]>
+
+/** Save or remove a repository subscription without installing files.
+ *
+ * @param repository - owner/repository.
+ * @param ref - branch or commit.
+ * @param remove - remove registration.
+ *
+ * @returns committed outcome.
+
+ */
+@Remote async subscribe(repository: string, ref: string, remove: boolean): Promise<SkillOperationResult>
+
+/** Query a fixed public catalog.
+ * @param catalog - marketplace.
+ * @param query - search text.
+ * @returns validated candidates.
+ */
+@Remote async marketplace(catalog: MarketplaceSkill['catalog'], query: string): Promise<MarketplaceSkill[]>
+
+/** Import an explicitly selected public marketplace skill.
+ *
+ * @param skill - marketplace identity.
+ * @param directory - writable destination.
+ * @param overwrite - accepted conflict.
+ * @param workspace - registered workspace.
+ *
+ * @returns committed outcome.
+
+ */
+@Remote async installMarketplace( skill: MarketplaceSkill, directory: SkillDirectoryId, overwrite: boolean, workspace: string, ): Promise<SkillOperationResult>
+
+/** Apply a category-wide restriction without modifying any source file.
+ *
+ * @param category - category name.
+ * @param enabled - desired permission.
+ * @param workspace - selected workspace.
+ *
+ * @returns committed outcome.
+
+ */
+@Remote async setCategoryEnabled(category: string, enabled: boolean, workspace: string): Promise<SkillOperationResult>
+
+/** Install an explicitly selected immutable repository candidate.
+ *
+ * @param candidate - discovered identity.
+ * @param directoryId - destination.
+ * @param overwrite - accepted conflict.
+ * @param workspace - selected workspace.
+ *
+ * @returns committed outcome.
+
+ */
+@Remote async installSkill( candidate: RepositorySkill, directoryId: SkillDirectoryId, overwrite: boolean, workspace: string, ): Promise<SkillOperationResult>
+
+/** Preview current upstream changes while preserving local modifications.
+ *
+ * @param id - installed copy.
+ * @param ref - upstream branch/tag/commit.
+ * @param workspace - selected workspace.
+ *
+ * @returns a bounded preview token required for replacement.
+
+ */
+@Remote async preview(id: ManagedSkillId, ref: string, workspace: string): Promise<SkillUpdatePreview>
+
+/** Apply the exact preview after checking all local file digests again.
+ *
+ * @param token - current preview token.
+ * @param overwrite - explicit acceptance of local modifications.
+ *
+ * @returns committed outcome and a retained previous-version backup.
+
+ */
+@Remote async update(token: string, overwrite: boolean): Promise<SkillOperationResult>
+```
+
+Source: [`packages/skill/skill-manager/src/index.ts`](../../packages/skill/skill-manager/src/index.ts)
+
 <a id="ctxskills--skillregistry"></a>
 
 ### `ctx.skills` — `SkillRegistry`
@@ -270,6 +487,18 @@ Source: [`packages/api/session-controller/src/skill-catalog.ts`](../../packages/
 Layered registry of skill providers, the host+per-scope shape the tools registry established. A registration files into the layer of its calling context's scope (scopeOf): host rows and repository plugins land in the global layer, while a plugin mounted by an agent preset's standing composition lands in that preset's layer. A read merges the global layer with the viewing scope's chain — the nearest layer's entry wins a duplicate name outright, and the rank order decides duplicates only within one layer. It exposes sorted invocation-neutral summaries and loads full skill bodies on demand.
 
 ```ts cordis-catalog
+/** Register an additional invocation restriction; excluded copies allow the next candidate to win.
+ * @param policy - synchronous policy over a candidate and its lookup context.
+ * @returns disposal and invalidation for the exact registration.
+ */
+registerManagementPolicy(policy: SkillManagementPolicy): { dispose: () => Promise<void>; invalidate: () => void }
+
+/** Inspect every provider candidate before same-name resolution and management restrictions.
+ * @param options - workspace and viewing scope.
+ * @returns raw candidates and their provider-owned directories; never loads bodies.
+ */
+async inspect(options: SkillViewOptions = {}): Promise<{ candidates: SkillCandidate[] directories: SkillDirectory[] complete: boolean }>
+
 /**
  * Register a borrowed same-process provider synchronously during plugin
  * apply, into the calling context's layer: a scoped context (an agent
@@ -327,6 +556,26 @@ async get(name: string, options: SkillViewOptions = {}): Promise<SkillDefinition
 
 Source: [`packages/skill/skill/src/index.ts`](../../packages/skill/skill/src/index.ts)
 
+<a id="skill-management-events"></a>
+
+### `skill-management/*` events
+
+<a id="skill-managementchanged--emit"></a>
+
+#### `skill-management/changed` — emit
+
+Skill files or management policy committed; readers refetch their own scope.
+
+```ts cordis-catalog
+/** Skill files or management policy committed; readers refetch their own scope.
+ * @mode emit
+
+ */
+'skill-management/changed'(): void
+```
+
+Source: [`packages/skill/skill-manager/src/types.ts`](../../packages/skill/skill-manager/src/types.ts)
+
 <a id="skills-events"></a>
 
 ### `skills/*` events
@@ -350,3 +599,7 @@ A skill provider, runtime contribution, or provider-backed catalog may have chan
 
 Source: [`packages/skill/skill/src/index.ts`](../../packages/skill/skill/src/index.ts)
 <!-- END GENERATED cordis-surface -->
+
+## Native management
+
+The [skill-manager](../../packages/skill/skill-manager/README.md) provides trusted profile management. `SkillRegistry.inspect()` retains raw candidates and provider directory records; `registerManagementPolicy()` registers reversible invocation restrictions before same-name selection and rechecks them after body loading. Providers may expose `directories()` for local administration, including empty roots. The filesystem provider exposes `parseSkillDocument()` so trusted editors and discovery share validation. `skills/change` invalidates browser menus and management resources. [Skill settings](../../packages/client/ui-settings-skills/README.md) own the page and operation feedback.

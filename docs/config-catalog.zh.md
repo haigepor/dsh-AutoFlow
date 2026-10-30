@@ -3339,7 +3339,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-skill`
 
-- `source`: [`packages/skill/skill/src/index.ts:278`](../packages/skill/skill/src/index.ts)
+- `source`: [`packages/skill/skill/src/index.ts:290`](../packages/skill/skill/src/index.ts)
 
 ```ts config-catalog
 /** Skill registry configuration. */
@@ -3356,7 +3356,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-skill-filesystem`
 
 - `inject`: `skills`
-- `source`: [`packages/skill/skill-filesystem/src/index.ts:48`](../packages/skill/skill-filesystem/src/index.ts)
+- `source`: [`packages/skill/skill-filesystem/src/index.ts:49`](../packages/skill/skill-filesystem/src/index.ts)
 
 ```ts config-catalog
 /** Local filesystem skill provider configuration. */
@@ -3388,6 +3388,27 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-skill-filesystem -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-skill-manager -->
+<a id="deepseek-aidsh-skill-manager"></a>
+
+## `@deepseek-ai/dsh-skill-manager`
+
+- `inject`: `skills` · `profileContext` · `workspaceRegistry`
+- `source`: [`packages/skill/skill-manager/src/index.ts:47`](../packages/skill/skill-manager/src/index.ts)
+
+```ts config-catalog
+/** Deployment limits for local imports and public downloads. */
+export interface Config {
+  /** Maximum compressed and expanded bytes admitted for one skill bundle. */
+  maxBytes?: number
+  /** Maximum file members admitted for one skill bundle. */
+  maxFiles?: number
+  /** Deadline in milliseconds for one public repository or marketplace request. */
+  requestTimeoutMs?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-skill-manager -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-skill-office -->
 <a id="deepseek-aidsh-skill-office"></a>
@@ -4911,6 +4932,7 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-settings-plugins` | — | [`packages/client/ui-settings-plugins/src/index.ts`](../packages/client/ui-settings-plugins/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-session-log` | — | [`packages/client/ui-settings-session-log/src/index.ts`](../packages/client/ui-settings-session-log/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-shell` | — | [`packages/client/ui-settings-shell/src/index.ts`](../packages/client/ui-settings-shell/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-settings-skills` | — | [`packages/client/ui-settings-skills/src/index.ts`](../packages/client/ui-settings-skills/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-subagent` | — | [`packages/client/ui-settings-subagent/src/index.ts`](../packages/client/ui-settings-subagent/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-web-search` | — | [`packages/client/ui-settings-web-search/src/index.ts`](../packages/client/ui-settings-web-search/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-shortcuts` | — | [`packages/client/ui-shortcuts/src/index.ts`](../packages/client/ui-shortcuts/src/index.ts) |

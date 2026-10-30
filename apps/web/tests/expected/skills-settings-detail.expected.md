@@ -1,0 +1,23 @@
+- dialog "web-directory":
+  - banner:
+    - heading "web-directory" [level=2]
+    - paragraph: 浏览器验收技能
+    - button "关闭"
+  - term: 状态
+  - definition: 当前生效
+  - term: 调用方式
+  - definition: 用户与模型均可调用
+  - term: 文件权限
+  - definition: 可编辑
+  - tablist "技能信息":
+    - tab "技能指令" [selected]
+    - tab "目录结构"
+    - tab "来源信息"
+  - button "复制正文"
+  - button "编辑"
+  - tabpanel "技能指令":
+    - heading "浏览器技能" [level=1]
+    - paragraph: 读取输入并报告检查结果。
+  - contentinfo:
+    - button "移入回收站"
+    - button "关闭"

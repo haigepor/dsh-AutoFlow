@@ -12,6 +12,8 @@
   ],
   "references": [
     { "path": "../../mcp/mcp-manager" },
+    { "path": "../../skill/skill-manager" },
+    { "path": "../../skill/skill" },
     {
       "path": "../../../vendor/cordis"
     },

@@ -1,9 +1,10 @@
-.section { display: flex; flex-direction: column; gap: 24px; min-width: 0; color: var(--dsw-alias-label-primary); }
+.section { display: flex; flex-direction: column; gap: 16px; min-width: 0; color: var(--dsw-alias-label-primary); }
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .header > div { min-width: 0; }
-.header h1 { margin: 0; font-size: 26px; line-height: 36px; font-weight: 500; }
+.section .header[data-settings-page-header] { margin-bottom: 0; }
+.section .header[data-settings-page-header] h1 { margin: 0; font-size: 26px; line-height: 36px; font-weight: 500; }
 .introduction { display: flex; align-items: center; gap: 16px; min-width: 0; }
-.introduction > img { display: block; flex: none; width: 104px; height: 78px; object-fit: contain; user-select: none; pointer-events: none; }
+.introduction > img { display: block; flex: none; width: 88px; height: 66px; object-fit: contain; user-select: none; pointer-events: none; }
 .introduction > div { min-width: 0; }
 .introTitle { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .introTitle h2 { margin: 0; font-size: 14px; font-weight: 500; line-height: 22px; }
@@ -75,7 +76,7 @@
   .panel { padding: 20px 16px; }
   .row { gap: 8px; padding-inline: 14px 8px; }
   .introduction { gap: 12px; }
-  .introduction > img { width: 80px; height: 60px; }
+  .introduction > img { width: 72px; height: 54px; }
   .secretRow { grid-template-columns: minmax(0, 1fr) auto; }
   .secretRow > span:first-child { grid-column: 1 / -1; }
 }

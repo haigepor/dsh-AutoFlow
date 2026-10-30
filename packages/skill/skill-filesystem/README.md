@@ -39,6 +39,8 @@ A skill is either a directory bundle `<name>/SKILL.md` or a flat file `<name>.md
 
 Catalog entries and loaded skills expose the resolved instruction-file path, so symlinked directories and flat files can open as regular-file previews. Reload locators and resource bases retain the discovered paths, including symlinks.
 
+`directories()` exposes configured roots, including missing directories, for management consumers. Only native project and user roots are writable; custom and bundled roots remain read-only. `parseSkillDocument()` applies the same frontmatter rules to uploaded or edited Markdown as filesystem discovery.
+
 The catalog and the body have separate lifecycles: discovery parses frontmatter into the catalog entry, and every load re-reads the current file, so editing a skill body needs no versioning or cache invalidation.
 
 ### Roots and priority

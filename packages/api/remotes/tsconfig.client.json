@@ -12,6 +12,8 @@
   ],
   "references": [
     { "path": "../../mcp/mcp-manager" },
+    { "path": "../../skill/skill-manager" },
+    { "path": "../../skill/skill" },
     { "path": "../../client/product-analytics/tsconfig.client.json" },
     {
       "path": "../../../vendor/cordis"

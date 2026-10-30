@@ -254,6 +254,7 @@
     "tests/sidebar-navigation.e2e.ts",
     "tests/models-page-layout.e2e.ts",
     "tests/mcp-settings.e2e.ts",
+    "tests/skills-settings.e2e.ts",
     "tests/plugin-inventory-polish.e2e.ts"
   ],
   "references": [

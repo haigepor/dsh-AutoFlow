@@ -1,0 +1,37 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    { "path": "../../preset/agent-preset-registry" },
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../boot/app-boot"
+    },
+    {
+      "path": "../skill"
+    },
+    {
+      "path": "../skill-filesystem"
+    },
+    {
+      "path": "../../workspace/workspace"
+    },
+    {
+      "path": "../../util/brand"
+    },
+    {
+      "path": "../../typert/protocol"
+    }
+  ]
+}

@@ -67,6 +67,8 @@ kind: "package-reference"
 
 Skill 摘要保留胜出提供方可选的指令文件 `path`，供提供文件预览的发现消费者使用。列举仍不读取 skill 正文；面向模型的目录继续仅选择其负责的路由字段。
 
+管理消费者使用 `inspect()` 获取同名去重前的候选项及提供方负责的目录。`registerManagementPolicy()` 可排除候选项或减少其调用权限，不能授予提供方未声明的权限。排除胜出副本后，下一个符合条件的副本可以胜出。策略失效通过现有变更事件刷新原生消费者。
+
 -----
 
 <a id="understand-the-implementation"></a>

@@ -429,6 +429,7 @@
       "@deepseek-ai/dsh-native-command/types": ["./packages/util/native-command/src/types.ts"],
       "@deepseek-ai/dsh-message-quotes/client": ["./packages/session/message-quotes/src/client/index.ts"],
       "@deepseek-ai/dsh-ptc-runtime-node/configuration": ["./packages/ptc-runtime/ptc-runtime-node/src/configuration.ts"],
+      "@deepseek-ai/dsh-client-ui-settings-skills": ["./packages/client/ui-settings-skills/src"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
       "@deepseek-ai/dsh-acp": ["./packages/acp/acp/src"],
       "@deepseek-ai/dsh-acp-app": ["./packages/bundle/acp-app/src"],
@@ -561,6 +562,7 @@
       "@deepseek-ai/dsh-skill": ["./packages/skill/skill/src"],
       "@deepseek-ai/dsh-skill-badge": ["./packages/experimental/skill-badge/src"],
       "@deepseek-ai/dsh-skill-filesystem": ["./packages/skill/skill-filesystem/src"],
+      "@deepseek-ai/dsh-skill-manager": ["./packages/skill/skill-manager/src"],
       "@deepseek-ai/dsh-skill-office": ["./packages/skill/skill-office/src"],
       "@deepseek-ai/dsh-spill": ["./packages/spill/spill/src"],
       "@deepseek-ai/dsh-spill-local": ["./packages/spill/spill-local/src"],

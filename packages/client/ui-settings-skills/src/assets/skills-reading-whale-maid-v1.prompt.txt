@@ -1,0 +1,9 @@
+Generated with the built-in image_gen tool on 2026-10-30.
+Reference: ui-settings-mcp/src/client/assets/mcp-connection-whale-maid-v2.webp.
+
+Use case: stylized-concept
+Asset type: compact settings-page illustration, companion asset to the existing MCP settings mascot.
+Input image: reference image showing the project's existing whale-maid mascot; use it for character identity, illustration technique, proportions and blue/white palette.
+Primary request: Draw the same cute blue-and-white chibi whale-maid character seated and happily holding one open book with both hands, reading it. Preserve the distinctive whale-themed maid hood, blue hair, small white apron, rounded silhouette, expressive eyes, clean soft shading and polished 2D sticker illustration style of the reference.
+Composition: one centered full-body character with a clearly visible book, compact landscape composition, generous clear edge padding so it works at small size in a settings introduction. Exactly two arms, two hands and two legs, shoes visible. No cables, connectors or additional equipment.
+Background: genuinely transparent alpha, no white rectangle, no checkerboard texture. No text, logo or watermark.

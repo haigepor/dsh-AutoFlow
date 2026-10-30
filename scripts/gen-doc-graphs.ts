@@ -690,6 +690,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Merges provider skill catalogs; tool-skill renders the session-prefix catalog and loads complete skill bodies.',
   },
   {
+    key: 'skillManagement',
+    pkg: 'skill-manager',
+    title: 'Skill copy management',
+    mode: 'service',
+    consumers: ['ui-settings-skills'],
+    note: 'Manages stored skill copies, registration state, marketplace subscriptions and retained backups; the Web bundle mounts it beside the native skills registry and the settings UI drives it through the Remote namespace.',
+  },
+  {
     key: 'agents',
     pkg: 'agent',
     title: 'Agent service',

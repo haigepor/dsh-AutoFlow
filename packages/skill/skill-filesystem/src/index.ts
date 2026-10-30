@@ -24,6 +24,7 @@ import {
   isSkillName,
   type SkillCandidate,
   type SkillDefinition,
+  type SkillDirectory,
   type SkillInvocationPolicy,
   type SkillLookupOptions,
   type SkillProvider,
@@ -147,6 +148,14 @@ export function apply(ctx: Context, config: Config = {}): void {
 
 /** Provider that maps local project/user skill roots into `ctx.skills`. */
 export class FileSystemSkillProvider implements SkillProvider {
+  /** Advertise the configured roots without guessing host defaults in management consumers.
+   * @param options - cwd selecting the project roots.
+   * @returns directories owned by this provider; bundled and custom roots remain read-only.
+   */
+  async directories(options: SkillLookupOptions): Promise<SkillDirectory[]> {
+    return (await this.roots(options.cwd)).map(root => ({ path: root.path, source: root.source,
+      writable: ['project-dsh', 'project-agents', 'user-dsh', 'user-agents'].includes(root.source) }))
+  }
   readonly name: string
   private readonly includeDefaultRoots: boolean
   private readonly dshHome: string
@@ -406,7 +415,6 @@ class SkillWatchManager {
       const current = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
       // A child unlink can publish an empty catalog before root unlinkDir arrives.
       // Discovery therefore revalidates the retained handle independently.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- watcher callbacks can mark unhealthy while the probe awaits
       if (!state.unhealthy && sameWatchMode(watcher.mode, current)) return
     }
     await this.replaceWatcher(state)
@@ -423,7 +431,6 @@ class SkillWatchManager {
       /* v8 ignore next -- The loop returns no handle only when teardown wins between awaited probes. */
       if (watcher === undefined) return
       /* v8 ignore start -- Post-open teardown is timing-dependent; the disposal race has an explicit integration test. */
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- teardown can race awaited watcher startup
       if (this.closing || state.owners.size === 0) {
         await this.closeWatcher(watcher)
         return
@@ -432,7 +439,6 @@ class SkillWatchManager {
       state.watcher = watcher
       state.unhealthy = false
     } catch (error) {
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- teardown can race awaited watcher startup
       if (!this.closing) {
         state.unhealthy = true
         this.ctx.logger.warn(`skill-filesystem: failed to watch ${state.root.path}: ${errorMessage(error)}`)
@@ -814,43 +820,28 @@ async function parseSkillFile(path: string, ctx: Context, signal?: AbortSignal, 
   if (raw === undefined) {
     return undefined
   }
-  let parsed
   try {
-    parsed = parseFrontmatter(raw.content)
+    return { ...parseSkillDocument(raw.content), path: raw.path }
   } catch (error) {
-    ctx.logger.warn(`skill file ${path} ignored: invalid YAML frontmatter: ${errorMessage(error)}`)
+    ctx.logger.warn(`skill file ${path} ignored: ${errorMessage(error)}`)
     return undefined
   }
-  if (!parsed) {
-    ctx.logger.warn(`skill file ${path} ignored: missing YAML frontmatter`)
-    return undefined
-  }
+}
+
+/** Parse a local skill with the same rules used by discovery and trusted editors.
+ * @param text - complete UTF-8 Markdown, including YAML frontmatter.
+ * @returns validated metadata, declared invocation controls and instruction body.
+ * @throws Error when the document cannot be loaded as a skill.
+ */
+export function parseSkillDocument(text: string): Omit<ParsedSkill, 'path'> {
+  const parsed = parseFrontmatter(text)
+  if (parsed === undefined) throw new Error('missing YAML frontmatter')
   const name = stringField(parsed.data, 'name')
   const description = stringField(parsed.data, 'description')
-  if (name === undefined || description === undefined) {
-    ctx.logger.warn(`skill file ${path} ignored: frontmatter requires name and description`)
-    return undefined
-  }
-  if (!isSkillName(name)) {
-    ctx.logger.warn(`skill file ${path} ignored: invalid skill name "${name}"`)
-    return undefined
-  }
-  let invocation
-  try {
-    invocation = parseInvocationPolicy(parsed.data)
-  } catch (error) {
-    ctx.logger.warn(`skill file ${path} ignored: invalid invocation frontmatter: ${errorMessage(error)}`)
-    return undefined
-  }
-  return {
-    name,
-    description,
-    ...optionalString(parsed.data, 'whenToUse'),
-    invocation,
-    ...optionalMetadata(parsed.data),
-    path: raw.path,
-    content: parsed.body.trim(),
-  }
+  if (name === undefined || description === undefined) throw new Error('frontmatter requires name and description')
+  if (!isSkillName(name)) throw new Error(`invalid skill name "${name}"`)
+  return { name, description, ...optionalString(parsed.data, 'whenToUse'),
+    invocation: parseInvocationPolicy(parsed.data), ...optionalMetadata(parsed.data), content: parsed.body.trim() }
 }
 
 function optionalFileSystem(ctx: Context): FileSystem | undefined {

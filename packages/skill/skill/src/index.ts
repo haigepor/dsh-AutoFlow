@@ -107,6 +107,16 @@ export interface SkillLookupOptions {
   readonly signal?: AbortSignal | undefined
 }
 
+/** Local skill directory advertised by a provider for trusted management clients. */
+export interface SkillDirectory {
+  readonly path: string
+  readonly source: SkillSource
+  readonly writable: boolean
+}
+
+/** Additional management restriction; false omits this copy without widening declared permissions. */
+export type SkillManagementPolicy = (candidate: SkillCandidate, options: SkillLookupOptions) => SkillInvocationPolicy | false | undefined
+
 /**
  * Registry read options: provider lookup context plus the viewing scope.
  * The registry consumes `scope` to select layers; providers receive the same
@@ -245,6 +255,8 @@ export interface SkillProviderObservation {
 
 /** Provider interface for one source of skills, such as local directories or a remote registry. */
 export interface SkillProvider {
+  /** Optional local directory inventory, including roots without valid candidates. */
+  readonly directories?: (options: SkillLookupOptions) => Promise<readonly SkillDirectory[]>
   /** Unique provider name in the `ctx.skills` registry. */
   readonly name: string
   /**
@@ -354,6 +366,7 @@ class SkillLayer implements ScopeLayer {
  * on demand.
  */
 export class SkillRegistry extends Service {
+  private readonly managementPolicies = new Set<SkillManagementPolicy>()
   static Config: Schema<Config> = z.object({
     collectCacheMaxEntries: z.number().default(DEFAULT_COLLECT_CACHE_ENTRIES),
   })
@@ -374,6 +387,51 @@ export class SkillRegistry extends Service {
     super(ctx, 'skills')
     this.collectCacheMaxEntries = config.collectCacheMaxEntries ?? DEFAULT_COLLECT_CACHE_ENTRIES
     assertPositiveInteger('collectCacheMaxEntries', this.collectCacheMaxEntries)
+  }
+
+  /** Register an additional invocation restriction; excluded copies allow the next candidate to win.
+   * @param policy - synchronous policy over a candidate and its lookup context.
+   * @returns disposal and invalidation for the exact registration.
+   */
+  registerManagementPolicy(policy: SkillManagementPolicy): { dispose: () => Promise<void>; invalidate: () => void } {
+    const dispose = this.ctx.effect(() => {
+      this.managementPolicies.add(policy)
+      this.invalidateCache()
+      return () => { if (this.managementPolicies.delete(policy)) this.invalidateCache() }
+    }, 'skills: management policy')
+    return {
+      dispose,
+      invalidate: () => { if (this.managementPolicies.has(policy)) this.invalidateCache() },
+    }
+  }
+
+  /** Inspect every provider candidate before same-name resolution and management restrictions.
+   * @param options - workspace and viewing scope.
+   * @returns raw candidates and their provider-owned directories; never loads bodies.
+   */
+  async inspect(options: SkillViewOptions = {}): Promise<{
+    candidates: SkillCandidate[]
+    directories: SkillDirectory[]
+    complete: boolean
+  }> {
+    const candidates: SkillCandidate[] = []
+    const directories: SkillDirectory[] = []
+    let complete = true
+    for (const layer of [this.layers.global, ...this.layers.chainLayers(options.scope)]) {
+      const observed = await this.listLayerCandidates(layer, options)
+      candidates.push(...observed.entries.map(entry => entry.candidate))
+      complete &&= observed.cacheable
+      for (const { provider } of layer.providers.values()) {
+        if (provider.directories === undefined) continue
+        try { directories.push(...await provider.directories(options)) }
+        catch (error) {
+          options.signal?.throwIfAborted()
+          complete = false
+          this.ctx.logger.warn(`skill provider "${provider.name}" directories unavailable: ${errorMessage(error)}`)
+        }
+      }
+    }
+    return { candidates, directories, complete }
   }
 
   /**
@@ -513,7 +571,21 @@ export class SkillRegistry extends Service {
       this.invalidateEntry(match)
       return undefined
     }
-    return definition
+    const invocation = {
+      modelInvocable: definition.invocation.modelInvocable && match.candidate.invocation.modelInvocable,
+      userInvocable: definition.invocation.userInvocable && match.candidate.invocation.userInvocable,
+    }
+    for (const policy of this.managementPolicies) {
+      const restriction = policy(match.candidate, options)
+      if (restriction === false) return undefined
+      if (restriction !== undefined) {
+        invocation.modelInvocable &&= restriction.modelInvocable
+        invocation.userInvocable &&= restriction.userInvocable
+      }
+    }
+    return invocation.modelInvocable === definition.invocation.modelInvocable
+      && invocation.userInvocable === definition.invocation.userInvocable
+      ? definition : { ...definition, invocation }
   }
 
   private async collect(options: SkillViewOptions): Promise<CollectResult> {
@@ -570,13 +642,23 @@ export class SkillRegistry extends Service {
     const seen = new Set<string>()
     const result: IndexedCandidate[] = []
     for (const entry of collected.entries) {
-      const skill = entry.candidate
+      let skill = entry.candidate
+      let excluded = false
+      for (const policy of this.managementPolicies) {
+        const restriction = policy(skill, options)
+        if (restriction === false) { excluded = true; break }
+        if (restriction !== undefined) skill = { ...skill, invocation: {
+          modelInvocable: skill.invocation.modelInvocable && restriction.modelInvocable,
+          userInvocable: skill.invocation.userInvocable && restriction.userInvocable,
+        } }
+      }
+      if (excluded) continue
       if (seen.has(skill.name)) {
         this.ctx.logger.warn(`skill "${skill.name}" from ${skill.source} ignored because a higher-priority skill already exists`)
         continue
       }
       seen.add(skill.name)
-      result.push(entry)
+      result.push({ ...entry, candidate: skill })
     }
     return { entries: result, cacheable: collected.cacheable }
   }

@@ -149,6 +149,25 @@ export const VIEWER_ENDPOINT_CLASSES = {
   'pluginManager/updateBundleRelease': 'owner-only', // owner release installation
   'mcpSettings/create': 'owner-only', // owner MCP configuration
   'mcpSettings/detail': 'owner-only', // owner MCP configuration
+  'skillManagement/arrange': 'owner-only',
+  'skillManagement/backups': 'owner-only',
+  'skillManagement/detail': 'owner-only',
+  'skillManagement/discover': 'owner-only',
+  'skillManagement/importFiles': 'owner-only',
+  'skillManagement/installSkill': 'owner-only',
+  'skillManagement/installMarketplace': 'owner-only',
+  'skillManagement/list': 'owner-only',
+  'skillManagement/marketplace': 'owner-only',
+  'skillManagement/preview': 'owner-only',
+  'skillManagement/repositories': 'owner-only',
+  'skillManagement/restore': 'owner-only',
+  'skillManagement/save': 'owner-only',
+  'skillManagement/setCategoryEnabled': 'owner-only',
+  'skillManagement/setEnabled': 'owner-only',
+  'skillManagement/source': 'owner-only',
+  'skillManagement/subscribe': 'owner-only',
+  'skillManagement/trash': 'owner-only',
+  'skillManagement/update': 'owner-only',
   'mcpSettings/list': 'owner-only', // owner MCP configuration
   'mcpSettings/restart': 'owner-only', // owner MCP process control
   'mcpSettings/setEnabled': 'owner-only', // owner MCP activation

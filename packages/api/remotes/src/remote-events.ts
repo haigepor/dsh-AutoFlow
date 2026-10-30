@@ -13,6 +13,8 @@ import type {} from '@deepseek-ai/dsh-permission-presets/types'
 import type {} from '@deepseek-ai/dsh-plugin-manager/types'
 import type {} from '@deepseek-ai/dsh-plugin-market/types'
 import type {} from '@deepseek-ai/dsh-mcp-manager/types'
+import type {} from '@deepseek-ai/dsh-skill-manager/types'
+import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-schedule/client'
 import type { TypertForwardableEventEntry } from '@deepseek-ai/dsh-typert-protocol'
 
@@ -53,6 +55,8 @@ export const API_REMOTE_FORWARDED_EVENTS = [
   { event: 'plugin-manager/update-state', mode: 'emit' },
   { event: 'plugin-market/changed', mode: 'emit' },
   { event: 'mcp-settings/changed', mode: 'emit' },
+  { event: 'skill-management/changed', mode: 'emit' },
+  { event: 'skills/change', mode: 'emit' },
   { event: 'settings/document-updated', mode: 'emit' },
   { event: 'schedule/changed', mode: 'emit' },
   { event: 'user-questions/request', mode: 'waterfall' },

@@ -67,6 +67,8 @@ A skill that any provider reports appears in the merged catalog, and loading it 
 
 Skill summaries retain the winning provider’s optional instruction-file `path` for discovery consumers that offer file previews. Listing still reads no skill body, and model-facing catalogs continue to select only their owned routing fields.
 
+Management consumers use `inspect()` to retain candidates before duplicate-name resolution and discover provider-owned directories. `registerManagementPolicy()` can exclude a candidate or reduce its invocation permissions; it never grants permissions absent from the provider. Excluding a winning copy allows the next eligible copy to win. Policy invalidation refreshes native consumers through the existing change event.
+
 -----
 
 <a id="understand-the-implementation"></a>

@@ -310,6 +310,12 @@
     - id: mcp-connections
       name: '@deepseek-ai/dsh-mcp-client/connections'
 
+    - id: skill-manager
+      name: '@deepseek-ai/dsh-skill-manager'
+
+    - id: ui-settings-skills
+      name: '@deepseek-ai/dsh-client-ui-settings-skills'
+
     - id: mcp-manager
       name: '@deepseek-ai/dsh-mcp-manager'
 
