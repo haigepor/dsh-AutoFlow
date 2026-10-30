@@ -1,6 +1,6 @@
 /** Keyless integration fixture: production business workflows with explicit in-process HTTP responses. */
 import { createHash } from 'node:crypto'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import sharp from 'sharp'
@@ -59,7 +59,8 @@ export class FixtureHttp implements HttpClient {
 
 /** @param directory Optional already-private dsh profile path for browser fixtures. @param limits Validated deployment limits for the scenario. @param selection Same-process external adapter fixtures. @param sourceSettings Source settings for account and provider cases. @returns Real service, inspectable records and safe teardown. */
 export async function serviceFixture(directory?: string, limits: Partial<Limits> = {}, selection: Pick<CuratorServiceDependencies, 'nativeSessions' | 'pickLocalPaths' | 'galleryApi' | 'galleryMedia' | 'launchGalleryLogin'> = {}, sourceSettings: Partial<CuratorConfig['source']> = {}) {
-  const root = directory ?? await mkdtemp(join(tmpdir(), 'visual-service-'))
+  // Windows 临时目录可能使用 8.3 别名；夹具与生产预检使用相同的真实路径。
+  const root = directory ?? await realpath(await mkdtemp(join(tmpdir(), 'visual-service-')))
   const profileId = createHash('sha256').update(resolve(root)).digest('hex')
   const repository = new DomainRepository(profileId, new MemoryDomainAdapter()), jobs = new FixtureJobs(), http = new FixtureHttp()
   http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#536f53' } }).png().toBuffer()

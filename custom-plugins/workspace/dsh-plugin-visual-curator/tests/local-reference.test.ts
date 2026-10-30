@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, writeFile, mkdir, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, realpath, writeFile, mkdir, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import sharp from 'sharp'
@@ -15,7 +15,7 @@ import type { CommitInput } from '../src/domain/repository.ts'
 import type { Json } from '../src/shared/model.ts'
 
 test('one native selection accepts an individual image and an entire folder while retaining original paths', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'curator-combined-reference-'))
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'curator-combined-reference-')))
   let selection: string[] = []
   const f = await serviceFixture(undefined, {}, { pickLocalPaths: async (kind) => { assert.equal(kind, 'references'); return selection } })
   await f.service.initialize()
@@ -38,7 +38,7 @@ test('one native selection accepts an individual image and an entire folder whil
 })
 
 test('local references retain original paths without writing image copies and reject changed sources', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'curator-path-reference-'))
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'curator-path-reference-')))
   try {
     const input = join(root, 'original.JPG'), mediaRoot = join(root, 'media')
     const original = await sharp({ create: { width: 600, height: 400, channels: 3, background: '#759881' } }).withMetadata({ orientation: 6 }).jpeg().toBuffer()

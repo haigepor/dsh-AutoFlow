@@ -212,7 +212,9 @@ test('every WebSocket turn reauthenticates after key revocation and shutdown abo
       keys.length = 0
       client.ws.send(JSON.stringify({ type: 'response.create', model: 'x', input: [] }))
       assert.equal(((await client.next()).error as { code: string }).code, 'invalid_api_key'); assert.equal(calls, 1)
-      await relay.close(); await aborted.promise
+      // 服务端关闭完成不代表客户端已收到断开事件；先监听，再等待实际连接关闭。
+      const disconnected = once(client.ws, 'close', { signal: AbortSignal.timeout(config.requestTimeoutMs) })
+      await Promise.all([relay.close(), aborted.promise, disconnected])
       assert.equal(client.ws.readyState, WebSocket.CLOSED)
     } finally { await client.close() }
   } finally { await relay.close() }
