@@ -39,7 +39,10 @@
 
 .plugin .icon { width: 1em; height: 1em; }
 
+@media (hover: hover) {
+
 .chip.plugin:hover { background: transparent; }
+}
 
 .invalid {
   color: var(--dsw-alias-state-error-primary);

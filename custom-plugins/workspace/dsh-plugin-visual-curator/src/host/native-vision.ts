@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { BlockAssembler, LlmError, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, LlmFailure, LlmRuntime, PreparedLlmCall, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore, ImageAttachmentRef, ImageMediaType, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
+import { isAttachmentError } from '@deepseek-ai/dsh-attachment'
 import { StructuredVisionProvider } from '../media/vision.ts'
 import type { VisionBounds, VisionInput, VisionRequestDescriptor } from '../media/vision.ts'
 import type { HttpClient } from '../media/network.ts'
@@ -74,7 +75,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
     bounds.onPhase?.('preparing')
     const deadline = AbortSignal.timeout(bounds.timeoutMs)
     const signal = bounds.signal ? AbortSignal.any([bounds.signal, deadline]) : deadline
-    let firstOutputMs: number | undefined, firstReasoningMs: number | undefined, firstTextMs: number | undefined, usage: TokenUsage | undefined, terminal = false
+    let firstOutputMs: number | undefined, firstReasoningMs: number | undefined, firstTextMs: number | undefined, usage: TokenUsage | undefined, terminal = false, streamStarted = false
     const assembler = new BlockAssembler()
     try {
       const prepared = await this.prepare(signal), inputs: SaveImageAttachment[] = [], sources: { imageVersionId: string; sourceDigest: string; byteDigest: string }[] = []
@@ -132,6 +133,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       await bounds.onMetadata?.(metadata())
       bounds.onPhase?.('analyzing')
       let outputBytes = 0
+      streamStarted = true
       for await (const chunk of prepared.stream(options)) {
         if (chunk.type === 'reasoning-delta' || chunk.type === 'text-delta') {
           outputBytes += Buffer.byteLength(chunk.text)
@@ -163,6 +165,11 @@ export class NativeVisionProvider extends StructuredVisionProvider {
     } catch (error) {
       if (bounds.signal?.aborted) throw new MediaError('cancelled', 'reviewing', false, 'Operation cancelled.', 'Resume explicitly when needed.')
       if (deadline.aborted) throw new MediaError('request-timeout', 'reviewing', true, 'The native model request timed out.', 'Continue within the saved task budget.')
+      if (isAttachmentError(error)) {
+        // 接纳采用按内容发布的原子写入；仅在进入模型流之前允许重试写入失败。
+        const retryable = error.code === 'ATTACHMENT_WRITE_FAILED' && !streamStarted
+        throw new MediaError(error.code, 'vision-images', retryable, 'An image attachment could not be prepared for analysis.', retryable ? 'Check attachment storage and continue within the saved task budget.' : 'Check image format, size and attachment integrity before starting an incremental analysis.', { modelOutput: null, issues: [error.code] })
+      }
       throw error
     }
   }

@@ -5,7 +5,7 @@ import { pluginMentionSource } from '../src/client/plugin-mention.ts'
 import { en } from '../src/client/locales.ts'
 
 const enabled: BundleInfo = {
-  name: '@example/notes', enabled: true, installed: true, optional: false,
+  name: '@example/notes', enabled: true, installed: true, updatable: false, optional: false,
   official: false, availability: 'profile',
   removable: true, rows: [], overrides: [],
   meta: { title: { en: 'Notes', zh: '笔记' }, description: { en: 'Notes helper', zh: '笔记助手' }, icon: 'data:image/svg+xml;base64,PHN2Zy8+' },

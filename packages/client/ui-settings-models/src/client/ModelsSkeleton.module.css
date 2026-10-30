@@ -21,7 +21,8 @@
 .filterControl { width: 160px; height: 36px; }
 .columnLabel { width: 64px; height: 10px; }
 .table th:last-child .bar { margin-left: auto; width: 32px; }
-.table tbody tr:hover { background: transparent; }
+@media (hover: hover) {
+.table tbody tr:hover { background: transparent; } }
 .modelMark { width: 34px; height: 34px; border-radius: var(--dsw-radius-md); }
 .modelCopy { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .modelName { width: 168px; height: 14px; }

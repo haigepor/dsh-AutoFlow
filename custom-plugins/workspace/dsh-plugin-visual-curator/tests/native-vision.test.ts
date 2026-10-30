@@ -10,12 +10,14 @@ import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import LocalAttachmentStore from '../../../../packages/attachment/attachment-local/src/index.ts'
+import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import { NativeVisionProvider } from '../src/host/native-vision.ts'
 import { resolveConfig, resolveCurrentConfig, reviewerRevision } from '../src/host/config.ts'
 import type { VisionImage } from '../src/media/vision.ts'
 import type { HttpClient } from '../src/media/network.ts'
 import { remoteReferenceDigest } from '../src/media/remote-reference.ts'
 import type { Json } from '../src/shared/model.ts'
+import { safeFailure } from '../src/host/runtime.ts'
 
 class Adapter extends LlmAdapter {
   readonly started = Promise.withResolvers<void>()
@@ -47,6 +49,51 @@ it('defaults new work to native LLM while preserving frozen legacy and explicit 
   assert.equal(reviewerRevision(current), reviewerRevision(resolveConfig(JSON.parse(JSON.stringify(current)))))
   assert.equal(resolveConfig({ vision: { model: 'legacy' } }).vision.backend, undefined)
   assert.equal(resolveCurrentConfig({ vision: { backend: 'compatible', model: 'backup' } }).vision.backend, 'compatible')
+})
+
+it('retains an image admission failure without misreporting model configuration or exposing raw errors', async () => {
+  const f = await fixture()
+  f.attachments.saveImages = async () => { throw new AttachmentError('private-path-and-response', 'IMAGE_TYPE_MISMATCH') }
+  try {
+    await assert.rejects(f.provider.analyze(f.input, f.bounds), error => {
+      const saved = safeFailure(error)
+      assert.equal(saved.code, 'IMAGE_TYPE_MISMATCH')
+      assert.equal(saved.stage, 'vision-images')
+      assert.equal(saved.retryable, false)
+      assert.ok(!JSON.stringify(saved).includes('private-path-and-response'))
+      return true
+    })
+    assert.equal(f.adapter.calls.length, 0)
+    assert.equal(f.metadata.length, 0)
+  } finally { await f.cleanup() }
+})
+
+it('admits a bounded retry for an atomic attachment write failure before model dispatch', async () => {
+  const f = await fixture()
+  f.attachments.saveImages = async () => { throw new AttachmentError('private-storage-details', 'ATTACHMENT_WRITE_FAILED') }
+  try {
+    await assert.rejects(f.provider.analyze(f.input, f.bounds), error => {
+      const saved = safeFailure(error)
+      assert.equal(saved.code, 'ATTACHMENT_WRITE_FAILED')
+      assert.equal(saved.stage, 'vision-images')
+      assert.equal(saved.retryable, true)
+      assert.ok(!JSON.stringify(saved).includes('private-storage-details'))
+      return true
+    })
+    assert.equal(f.adapter.calls.length, 0)
+  } finally { await f.cleanup() }
+})
+
+it('does not turn an attachment error after model dispatch into an automatic write retry', async () => {
+  const f = await fixture()
+  try {
+    await assert.rejects(f.provider.analyze(f.input, { ...f.bounds, onOutput: () => { throw new AttachmentError('private-storage-details', 'ATTACHMENT_WRITE_FAILED') } }), error => {
+      assert.equal(safeFailure(error).code, 'ATTACHMENT_WRITE_FAILED')
+      assert.equal(safeFailure(error).retryable, false)
+      return true
+    })
+    assert.equal(f.adapter.calls.length, 1)
+  } finally { await f.cleanup() }
 })
 
 async function fixture(managed = false) {

@@ -20,6 +20,7 @@ import { RenderBoundary } from './RenderBoundary.tsx'
 import { createNativeTabRecords } from './native/tab-adapter.tsx'
 import { registerNativeSurface } from './native/index.ts'
 import { registerBottomToggle } from './sidebar/bottom-toggle.tsx'
+import { ContextDiagnosticsHost, createContextDiagnosticsHost, registerContextDiagnosticsUI } from './context-diagnostics-ui.tsx'
 import { createNativeSurface } from './native/surface.ts'
 import { isTargetAvailable, openInterceptedLink, registerLinkInterception, shouldTakeOverLink } from './link-intercept.ts'
 import { registerImeGuard } from './ime-guard.ts'
@@ -176,9 +177,17 @@ export function apply(ctx: Context): void {
   const nativeRecords = createNativeTabRecords()
   const nativeSurface = createNativeSurface(ctx, nativeRecords)
   service.setSurface(nativeSurface)
+  // The optional dsh-context diagnostics: ONE controller per activation. It
+  // re-proves the optional runtime faces itself, so the plugin needs no new
+  // inject entry; it is threaded explicitly into the three consumers (the two
+  // host slots by closure, the plugin's own React tree through the provider,
+  // and the native tab bodies through the native surface's deps). On a
+  // deployment without dsh-context it reports `available: false` and every
+  // entry point stays absent.
+  const diagnostics = createContextDiagnosticsHost(ctx)
   ctx.effect(
     () => registerNativeSurface({
-      ctx, store: sidebarStore, service, records: nativeRecords,
+      ctx, store: sidebarStore, service, records: nativeRecords, diagnostics,
       reportFailure: (phase, error) => { fail(`native ${phase}`, error) },
     }),
     'dsh-better-sidebar: native right-Sidebar registrations',
@@ -193,6 +202,14 @@ export function apply(ctx: Context): void {
     () => () => { nativeSurface.dispose(); service.setSurface(undefined) },
     'dsh-better-sidebar: native right-Sidebar surface',
   )
+  ctx.effect(
+    () => registerContextDiagnosticsUI(ctx, diagnostics),
+    'dsh-better-sidebar: context diagnostics surfaces',
+  )
+  // The controller holds a child fiber (its runtime-face integration) and a
+  // pending-open timer; releasing both is what keeps a disabled plugin — and a
+  // hot reload that activates a fresh one — from leaving the old one behind.
+  ctx.effect(() => () => { diagnostics.dispose() }, 'dsh-better-sidebar: context diagnostics controller')
   // Register the plugin's own built-in tabs and viewers through the same
   // service (eating our own dogfood). The disposer unregisters them on
   // fiber disposal (HMR-safe).
@@ -212,11 +229,18 @@ export function apply(ctx: Context): void {
     void revalidateChunksOnReactivate()
     ctx.effect(() => {
       let disposed = false
+      let syncGeneration = 0
+      let mountDeadline: number | undefined
       let root: Root | undefined
       let host: HTMLDivElement | undefined
       let mounted = false
       let bodyObserver: MutationObserver | undefined
       let hostCheckFrame: number | null = null
+      const clearMountDeadline = (): void => {
+        if (mountDeadline === undefined) return
+        window.clearTimeout(mountDeadline)
+        mountDeadline = undefined
+      }
       const unmount = (): void => {
         if (!mounted) return
         mounted = false
@@ -297,7 +321,15 @@ export function apply(ctx: Context): void {
           host.setAttribute('data-dsh-better-sidebar', '')
           document.body.appendChild(host)
           root = createRoot(host)
-          root.render(createElement(RenderBoundary, { className: css.boundaryError }, createElement(Sidebar, { ctx, store: sidebarStore })))
+          root.render(createElement(
+            RenderBoundary,
+            { className: css.boundaryError },
+            createElement(
+              ContextDiagnosticsHost,
+              { controller: diagnostics },
+              createElement(Sidebar, { ctx, store: sidebarStore }),
+            ),
+          ))
           mounted = true
           guardAnchor()
           scheduleHostCheck()
@@ -307,27 +339,28 @@ export function apply(ctx: Context): void {
       }
       const sync = async (): Promise<void> => {
         if (disposed) return
-        // Resolve the user's side card prefs and the external-disable flag
-        // from ONE settings fetch BEFORE the first session seeds, so a
-        // brand-new conversation opens (or stays closed) at the chosen width
-        // from first paint. A settings route failure falls back to the schema
-        // defaults; the sidebar still mounts (a stalled wire gives up after
-        // the timeout and mounts on the defaults — the external-disable check
-        // rides the same fetch, so one round trip covers both decisions).
-        const decision = await Promise.race([
-          loadBootDecision(api),
-          new Promise<null>(resolve => { window.setTimeout(() => resolve(null), 2000) }),
-        ])
-        if (disposed) return
-        if (decision !== null) {
+        const myGeneration = ++syncGeneration
+        // 首屏最多等待两秒；兜底挂载不丢弃晚到偏好，也不解除已确认的暂停状态。
+        // 刷新共用在途挂载期限，避免连续设置更新不断推迟首屏。
+        mountDeadline ??= window.setTimeout(() => {
+          if (disposed) return
+          mountDeadline = undefined
+          if (!sidebarStore.getSuspended()) mount()
+        }, 2000)
+        try {
+          const decision = await loadBootDecision(api)
+          // 后发刷新与卸载都会撤销旧响应的写入权限。
+          if (disposed || myGeneration !== syncGeneration) return
           sidebarStore.setPrefs(decision.prefs)
           // Mutual exclusion with the dsh-web-ui family right panel: while the
           // aionui-panel provider is selected, the sidebar must not mount at
           // all. Re-evaluated on every settings-document update (live switch).
           sidebarStore.setSuspended(decision.suspended)
+          if (decision.suspended) unmount()
+          else mount()
+        } finally {
+          if (myGeneration === syncGeneration) clearMountDeadline()
         }
-        if (decision?.suspended) unmount()
-        else mount()
       }
       // setPrefs and mount() run inside sync(); a rejection there would leave
       // the sidebar unmounted with a dead toggle as its only symptom.
@@ -340,6 +373,8 @@ export function apply(ctx: Context): void {
       const offRemote = remote?.$on?.('settings/document-updated', () => { void sync().catch((error) => { fail('sync', error) }) })
       return () => {
         disposed = true
+        syncGeneration += 1
+        clearMountDeadline()
         offRemote?.()
         unmount()
       }

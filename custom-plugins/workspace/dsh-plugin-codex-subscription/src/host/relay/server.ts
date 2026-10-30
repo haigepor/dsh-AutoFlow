@@ -1,19 +1,24 @@
 /** Loopback-only OpenAI-compatible relay and image MCP listener. */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { createParser } from 'eventsource-parser'
 import { createImageMcpHandler } from '../mcp-http/index.ts'
 import { chatRequest, chatResponse, ChatStream } from './chat.ts'
-import { authenticate, jsonBody, object, readBody, RelayError, sendError, sendJson, sseEvents, write } from './http.ts'
+import { authenticate, decodeBody, jsonBody, object, readBody, RelayError, sendError, sendJson, sseEvents, write } from './http.ts'
 import { parseImageRequest, waitImage } from './images.ts'
 import { completedResponse } from './transport.ts'
 import { codexResponseHeaders } from '../upstream.ts'
 import type { RelayConfig, RelayDependencies, RelayServer } from './types.ts'
 import type { ImageOwner } from '../images/types.ts'
+import { relayContext } from './context.ts'
+import type { RelayRequestContext } from './types.ts'
+import { ResponsesSockets } from './sockets.ts'
 
 function validateConfig(config: RelayConfig): void {
   if (config.host !== '127.0.0.1' && config.host !== '::1') throw new Error('Relay host must be a loopback IP')
   if (!Number.isInteger(config.port) || config.port < 0 || config.port > 65535) throw new Error('Relay port must be an integer in 0..65535')
-  for (const field of ['maxRequestBytes', 'maxResponseBytes', 'requestTimeoutMs', 'imageWaitMs', 'assetUrlTtlMs', 'maxConcurrentRequests'] as const) if (!Number.isSafeInteger(config[field]) || config[field] <= 0) throw new Error(`Relay ${field} must be a positive safe integer`)
+  for (const field of ['maxRequestBytes', 'maxResponseBytes', 'requestTimeoutMs', 'imageWaitMs', 'assetUrlTtlMs', 'maxConcurrentRequests', 'maxSocketConnections', 'maxSocketHistoryBytes'] as const) if (!Number.isSafeInteger(config[field]) || config[field] <= 0) throw new Error(`Relay ${field} must be a positive safe integer`)
+  if (!Number.isSafeInteger(config.maxSocketQueuedTurns) || config.maxSocketQueuedTurns < 0) throw new Error('Relay maxSocketQueuedTurns must be a nonnegative safe integer')
   if (config.gatewayKeys.length === 0 || new Set(config.gatewayKeys.map(key => key.id)).size !== config.gatewayKeys.length) throw new Error('Relay needs uniquely identified gateway keys')
   for (const key of config.gatewayKeys) if (key.id.trim() === '' || key.secret.length < 16) throw new Error('Relay gateway keys need an id and at least 16 characters')
   for (const origin of config.allowedOrigins) if (new URL(origin).origin !== origin) throw new Error('Relay allowedOrigins must contain exact origins')
@@ -41,6 +46,15 @@ async function pipeRaw(upstream: Response, response: ServerResponse, signal: Abo
   signal.addEventListener('abort', cancel, { once: true })
   response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache, no-transform', 'x-accel-buffering': 'no', 'x-content-type-options': 'nosniff' })
   let total = 0
+  let terminal = false
+  const decoder = new TextDecoder()
+  const parser = createParser({ maxBufferSize: limit, onEvent: event => {
+    try {
+      const value: unknown = JSON.parse(event.data)
+      if (value !== null && typeof value === 'object' && 'type' in value
+        && ['response.completed', 'response.done', 'response.failed', 'response.incomplete', 'error'].includes(String(value.type))) terminal = true
+    } catch (_error) { /* 原始字节仍透传；无有效终态时以 incomplete_response 结束。 */ }
+  } })
   try {
     while (true) {
       signal.throwIfAborted()
@@ -48,9 +62,13 @@ async function pipeRaw(upstream: Response, response: ServerResponse, signal: Abo
       if (next.done) break
       total += next.value.byteLength
       if (total > limit) throw new RelayError(502, 'response_too_large', 'The upstream response exceeds the configured size limit.')
+      parser.feed(decoder.decode(next.value, { stream: true }))
       await write(response, next.value, signal)
     }
     signal.throwIfAborted()
+    parser.feed(`${decoder.decode()}\n\n`)
+    // HTTP 头已发送，使用协议错误帧保留部分输出，绝不重放已开始的生成。
+    if (!terminal) await write(response, '\n\nevent: error\ndata: {"type":"error","error":{"code":"incomplete_response","message":"The upstream stream ended without a terminal response."}}\n\n', signal)
     response.end()
   } finally {
     signal.removeEventListener('abort', cancel)
@@ -59,8 +77,8 @@ async function pipeRaw(upstream: Response, response: ServerResponse, signal: Abo
   }
 }
 
-async function responses(body: Record<string, unknown>, response: ServerResponse, signal: AbortSignal, config: RelayConfig, dependencies: RelayDependencies, chat: boolean): Promise<void> {
-  const upstream = await dependencies.requestResponses(chat ? chatRequest(body) : body, signal)
+async function responses(body: Record<string, unknown>, response: ServerResponse, signal: AbortSignal, config: RelayConfig, dependencies: RelayDependencies, chat: boolean, context: RelayRequestContext): Promise<void> {
+  const upstream = await dependencies.requestResponses(chat ? chatRequest(body) : body, signal, context)
   for (const [key, value] of codexResponseHeaders(upstream.headers)) if (key !== 'content-type') response.setHeader(key, value)
   if (!upstream.ok) { await upstream.body?.cancel(); throw new RelayError(upstream.status, 'subscription_upstream_error', `The subscription upstream returned HTTP ${upstream.status}.`) }
   if (body.stream === true && !chat) { await pipeRaw(upstream, response, signal, config.maxResponseBytes); return }
@@ -114,7 +132,7 @@ export async function startRelay(config: RelayConfig, dependencies: RelayDepende
     if (closing !== undefined) throw new RelayError(503, 'relay_closed', 'The relay is stopping.')
     if (request.method === 'OPTIONS') {
       if (request.headers.origin === undefined) throw new RelayError(403, 'invalid_origin', 'A preflight Origin is required.')
-      response.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, MCP-Protocol-Version, MCP-Session-Id', 'Access-Control-Max-Age': '0' }).end()
+      response.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, Content-Encoding, MCP-Protocol-Version, MCP-Session-Id, X-Codex-Turn-State, X-Codex-Turn-Metadata, X-Codex-Window-Id, X-Client-Request-Id', 'Access-Control-Max-Age': '0' }).end()
       return
     }
     const url = new URL(request.url ?? '/', origin)
@@ -146,7 +164,7 @@ export async function startRelay(config: RelayConfig, dependencies: RelayDepende
     if (request.method !== 'POST') throw new RelayError(404, 'not_found', 'This gateway route is not available.')
     const paths = ['/v1/responses', '/v1/chat/completions', '/v1/images/generations', '/v1/images/edits']
     if (!paths.includes(url.pathname)) throw new RelayError(404, 'not_found', 'This gateway route is not available.')
-    const bytes = await readBody(request, config.maxRequestBytes)
+    const bytes = await decodeBody(await readBody(request, config.maxRequestBytes), request.headers['content-encoding'], config.maxRequestBytes, controller.signal)
     controller.signal.throwIfAborted()
     const contentType = request.headers['content-type'] ?? ''
     if (url.pathname.startsWith('/v1/images/')) {
@@ -170,10 +188,10 @@ export async function startRelay(config: RelayConfig, dependencies: RelayDepende
     if (!contentType.startsWith('application/json')) throw new RelayError(415, 'unsupported_media_type', 'Use application/json.')
     const body = jsonBody(bytes)
     if (body.stream !== undefined && typeof body.stream !== 'boolean') throw new RelayError(400, 'invalid_request', 'stream must be a boolean.')
-    await responses(object(body), response, controller.signal, config, dependencies, url.pathname === '/v1/chat/completions')
+    await responses(object(body), response, controller.signal, config, dependencies, url.pathname === '/v1/chat/completions', relayContext(request, keyId))
   }
   const server = createServer((request, response) => {
-    if (active.size >= config.maxConcurrentRequests) { sendError(response, new RelayError(429, 'gateway_busy', 'The gateway concurrency limit has been reached.')); request.resume(); return }
+    if (active.size + sockets.activeTurns >= config.maxConcurrentRequests) { sendError(response, new RelayError(429, 'gateway_busy', 'The gateway concurrency limit has been reached.')); request.resume(); return }
     const controller = new AbortController()
     controllers.add(controller)
     const disconnected = (): void => { if (!response.writableFinished) controller.abort(new Error('Gateway client disconnected')) }
@@ -186,13 +204,18 @@ export async function startRelay(config: RelayConfig, dependencies: RelayDepende
     })
     active.add(operation)
   })
+  const sockets: ResponsesSockets = new ResponsesSockets(server, config, dependencies, (request, response) => {
+    admitOrigin(request, response, config, port)
+    if (closing !== undefined) throw new RelayError(503, 'relay_closed', 'The relay is stopping.')
+    return authenticate(request.headers.authorization, config.gatewayKeys)
+  }, () => active.size + sockets.activeTurns >= config.maxConcurrentRequests)
   server.requestTimeout = config.requestTimeoutMs
   server.headersTimeout = config.requestTimeoutMs
   try {
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(config.port, config.host, () => { server.off('error', reject); resolve() }) })
-  } catch (error) { await mcp.close(); throw error }
+  } catch (error) { await sockets.close(); await mcp.close(); throw error }
   const address = server.address()
-  if (address === null || typeof address === 'string') { await mcp.close(); server.close(); throw new Error('Relay listener has no TCP address') }
+  if (address === null || typeof address === 'string') { await sockets.close(); await mcp.close(); server.close(); throw new Error('Relay listener has no TCP address') }
   port = address.port
   origin = `http://${config.host === '::1' ? '[::1]' : config.host}:${port}`
   return {
@@ -200,6 +223,7 @@ export async function startRelay(config: RelayConfig, dependencies: RelayDepende
     close: async () => {
       closing ??= (async () => {
         for (const controller of controllers) controller.abort(new Error('Gateway stopping'))
+        await sockets.close()
         await mcp.close()
         const closed = new Promise<void>((resolve, reject) => { server.close(error => { if (error === undefined) resolve(); else reject(error) }) })
         server.closeAllConnections()

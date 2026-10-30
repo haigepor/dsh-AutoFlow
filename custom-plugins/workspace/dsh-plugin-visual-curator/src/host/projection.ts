@@ -26,9 +26,10 @@ export function projectConfiguration(config: CuratorConfig, credentialStatus: { 
 
 /** @param domain Saved collections. @param engine Task owner. @param actor Authenticated reader. @returns Authorized task summaries without image projection. */
 export function projectAnalysisTasks(domain: CuratorDomain, engine: RunEngine, actor: DomainActor): AnalysisTask[] {
-  return domain.repository.list('run').filter(run => canReadRun(domain, run, actor) && specOf(run).kind === 'analyze').map(run => {
-    const spec = specOf(run), data = dataOf(run), styleId = String(spec.input.styleId), process = engine.process(run)
-    return { runId: run.id, styleId, name: domain.require('style', styleId).name, status: run.status, observed: data.counts.observed ?? 0, continuation: analysisContinuation(run),
+  return domain.repository.list('run').filter(run => canReadRun(domain, run, actor)).map(run => ({ run, spec: specOf(run) })).filter(({ spec }) => spec.kind === 'analyze').map(({ run, spec }) => {
+    // 复用同一次授权读取中已校验的字段，避免轮询反复解析完整固定输入和历史输出。
+    const data = dataOf(run), styleId = String(spec.input.styleId), process = engine.process(run, data)
+    return { runId: run.id, styleId, name: domain.require('style', styleId).name, status: run.status, observed: data.counts.observed ?? 0, continuation: analysisContinuation(run, { spec, data }),
       total: Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0, model: spec.config.vision.model, reasoningEffort: spec.config.vision.reasoningEffort ?? null,
       attempts: data.attempts, startedAt: run.createdAt, phase: process?.phase ?? (['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status) ? run.status as 'completed' | 'failed' | 'cancelled' | 'interrupted' : 'queued'), autoResume: data.autoResume === true, ...(run.outcome ? { outcome: run.outcome } : {}), ...(data.error ? { error: data.error } : {}) }
   }).sort((a, b) => b.startedAt.localeCompare(a.startedAt))

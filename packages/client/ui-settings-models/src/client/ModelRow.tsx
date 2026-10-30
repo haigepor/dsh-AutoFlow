@@ -5,7 +5,7 @@ import { useId, useRef, useState } from 'react'
 import {
   Button, IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconEditOutlineRegular,
   IconCodeOutlineRegular, IconContextInjectionOutlineRegular, IconSendOutlineRegular, Input,
-  IconTrashOutlineRegular, Menu, Tag, Tooltip,
+  IconTrashOutlineRegular, Menu, Tag, Tooltip, useRowDragPreview,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import type { ModelsKey } from './locales.ts'
@@ -16,6 +16,7 @@ import { ModelReasoningCapabilities, ModelReasoningDefault } from './ModelReason
 import { ModelReasoningEfforts } from './ModelReasoningEfforts.tsx'
 import { modelReasoningLevels, type ModelReasoningOptions } from './model-reasoning.ts'
 import type { LlmModelReasoningInfo } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelRowOrder } from './useModelRows.ts'
 import styles from './ModelsSection.module.css'
 import connectStyles from './ProviderConnect.module.css'
 import directoryStyles from './ModelsDirectory.module.css'
@@ -41,7 +42,7 @@ interface ModelRowProps {
   /** Summary row whose model fields open in a separate draft dialog. */
   compact?: boolean
   single?: boolean
-  model: DeepSeekModelDraft
+  row: { model: DeepSeekModelDraft; key: number; order: ModelRowOrder }
   position: number
   total: number
   inputField: 'inputModalities' | 'input'
@@ -64,13 +65,11 @@ interface ModelRowProps {
   onChange: (model: DeepSeekModelDraft) => void
   onToggle: () => void
   onRemove: () => void
-  dragging: boolean
-  dropTarget: boolean
-  onDragStart: (event: DragEvent<HTMLButtonElement>) => void
-  onDragOver: (event: DragEvent<HTMLElement>) => void
-  onDrop: (event: DragEvent<HTMLElement>) => void
-  onDragEnd: () => void
-  onMove: (to: number) => void
+}
+
+function rowHalf(event: DragEvent<HTMLElement>): 'before' | 'after' {
+  const rect = event.currentTarget.getBoundingClientRect()
+  return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
 }
 
 /**
@@ -79,11 +78,30 @@ interface ModelRowProps {
  * @returns one model entry in its owning editor.
  */
 export function ModelRow(props: ModelRowProps): ReactNode {
-  const { model, position, t, disabled } = props
+  const { position, t, disabled } = props
+  const { model, key, order } = props.row
+  const preview = useRowDragPreview(styles['modelDragPreview'] as string)
   const entryRef = useRef<HTMLDivElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
   const panelId = useId()
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
+  const dragProps = {
+    'data-row-key': key,
+    'data-dragging': order.dragging || undefined,
+    'data-drop-target': order.dragging ? undefined : order.target,
+    onDragOver: (event: DragEvent<HTMLElement>): void => {
+      if (!order.canDrop) return
+      event.preventDefault(); event.dataTransfer.dropEffect = 'move'; order.onOver(rowHalf(event))
+    },
+    onDragLeave: (event: DragEvent<HTMLElement>): void => {
+      if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
+      order.onLeave()
+    },
+    onDrop: (event: DragEvent<HTMLElement>): void => {
+      if (!order.canDrop) return
+      event.preventDefault(); order.onDrop(rowHalf(event))
+    },
+  }
   const detailed = props.single === true || props.compact === true
   const Field = detailed ? 'div' : 'label'
   const reasoningProps = {
@@ -177,16 +195,18 @@ export function ModelRow(props: ModelRowProps): ReactNode {
       <button type="button" className={styles['modelDragHandle']} disabled={disabled || props.total < 2}
         draggable={!disabled && props.total > 1} data-model-order-position={position}
         aria-label={`${t('reorderModel')} ${String(position)}`} title={t('reorderModel')}
-        onDragStart={props.onDragStart} onDragEnd={props.onDragEnd}
+        aria-keyshortcuts="ArrowUp ArrowDown" aria-description={t('reorderModelHelp')}
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = 'move'
+          event.dataTransfer.setData('application/x-dsh-model-order', String(position))
+          order.onStart()
+          preview.start(event, event.currentTarget.closest('[data-row-key]') as HTMLElement)
+        }}
+        onDragEnd={() => { if (preview.clear()) order.onEnd() }}
         onKeyDown={(event) => {
-          const to = event.key === 'ArrowUp' ? position - 1 : event.key === 'ArrowDown' ? position + 1 : position
-          if (to === position || to < 1 || to > props.total) return
-          event.preventDefault()
-          const list = event.currentTarget.closest('[data-model-list]')
-          props.onMove(to - 1)
-          requestAnimationFrame(() => {
-            list?.querySelector<HTMLButtonElement>(`[data-model-order-position="${String(to)}"]`)?.focus()
-          })
+          if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+          event.preventDefault(); event.stopPropagation()
+          order.onMove(event.key === 'ArrowUp' ? -1 : 1)
         }}>
         <span className={styles['modelGrip']} aria-hidden="true" />
       </button>
@@ -221,8 +241,8 @@ export function ModelRow(props: ModelRowProps): ReactNode {
     const modalities = Array.isArray(declaredInput) && declaredInput.length > 0 ? declaredInput : props.inputFallback ?? ['text']
     const reasoning = modelReasoningLevels(model, props.reasoningOptions ?? { levels: [], formats: [] }, props.reasoningInherited,
       props.inputField === 'inputModalities').some(level => level !== 'off')
-    return <tr className={`${props.dragging ? styles['modelDragging'] : ''} ${props.dropTarget ? styles['modelDropTarget'] : ''}`}
-      onDragOver={props.onDragOver} onDrop={props.onDrop}>
+    return <tr className={`${order.dragging ? styles['modelDragging'] : ''} ${order.target ? styles['modelDropTarget'] : ''}`}
+      {...dragProps}>
       <td><div className={connectStyles['tableIdentity']}>
         {orderControl}<div className={connectStyles['previewIdentity']} id={`${panelId}-identity`}>
           <span>{name}</span>{id !== name && id.length > 0 && <code>{id}</code>}
@@ -259,8 +279,8 @@ export function ModelRow(props: ModelRowProps): ReactNode {
   }
 
   return (
-    <div ref={entryRef} className={`${styles['modelEntry']} ${props.dragging ? styles['modelDragging'] : ''} ${props.dropTarget ? styles['modelDropTarget'] : ''}`}
-      onDragOver={props.onDragOver} onDrop={props.onDrop}>
+    <div ref={entryRef} className={`${styles['modelEntry']} ${order.dragging ? styles['modelDragging'] : ''} ${order.target ? styles['modelDropTarget'] : ''}`}
+      {...dragProps}>
       <div className={styles['modelRow']}>
         {orderControl}
         {identityFields}

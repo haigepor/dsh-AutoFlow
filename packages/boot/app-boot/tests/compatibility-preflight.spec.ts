@@ -270,7 +270,7 @@ describe('manifest resolution', () => {
     expect(warn.mock.calls.flat().map(String).join(' ')).toContain('absent')
   })
 
-  it.each([
+  it.for([
     ['an unreadable manifest', (f: ReturnType<typeof fixture>) => {
       f.plugin('denied-plugin')
       rmSync(join(f.dir, 'node_modules', 'denied-plugin', 'package.json'))
@@ -280,9 +280,18 @@ describe('manifest resolution', () => {
       f.plugin('denied-plugin')
       symlinkSync('loop.mjs', join(f.dir, 'node_modules', 'denied-plugin', 'loop.mjs'))
     }],
-  ])('refuses a row whose %s cannot be read', (_label, prepare) => {
+  ] as const)('refuses a row whose %s cannot be read', ([_label, prepare], test) => {
     const f = fixture()
-    prepare(f)
+    try { prepare(f) }
+    catch (error) {
+      // 普通 Windows 账号可能没有创建文件符号链接的权限；有权限的 CI 仍执行环形路径检查。
+      if (process.platform === 'win32' && _label === 'a module path that loops'
+        && error instanceof Error && 'code' in error && error.code === 'EPERM') {
+        test.skip('Windows account cannot create file symbolic links')
+        return
+      }
+      throw error
+    }
     const name = _label === 'a module path that loops'
       ? './node_modules/denied-plugin/loop.mjs' : './node_modules/denied-plugin/index.mjs'
     const rows = prepareProfileEntries(context(f), [{ id: 'row', name }], pathToFileURL(f.dir).href + '/')

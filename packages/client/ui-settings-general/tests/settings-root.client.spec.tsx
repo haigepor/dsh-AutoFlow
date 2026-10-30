@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { ShortcutCatalogEntry, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, useState } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createSettingsShellStore } from '../src/client/shell-store.ts'
@@ -17,8 +17,19 @@ import type { DesktopUpdateView } from '../src/types.ts'
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
+const scrollIntoView = vi.fn()
+let scrollIntoViewDescriptor: PropertyDescriptor | undefined
+
+beforeEach(() => {
+  scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView')
+  Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+  scrollIntoView.mockClear()
+})
+
 afterEach(() => {
   cleanup()
+  if (scrollIntoViewDescriptor === undefined) Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+  else Object.defineProperty(Element.prototype, 'scrollIntoView', scrollIntoViewDescriptor)
   vi.useRealTimers()
 })
 
@@ -288,6 +299,7 @@ describe('SettingsRoot onboarding', () => {
     act(() => { (first?.[1] as { complete: () => void }).complete() })
     const second = renderSlot.mock.calls.filter(call => call[0] === 'settings.onboarding').at(-1)
     expect(second?.[1]).toMatchObject({ stepId: 'credential' })
+    expect(second?.[2]).toEqual({ only: 'credential' })
     act(() => { (second?.[1] as { openSection: (id: string) => void }).openSection('models') })
     expect(screen.getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page')
     expect(screen.queryByRole('dialog')).toBeNull()

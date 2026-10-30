@@ -35,9 +35,12 @@
   border-radius: 3px;
 }
 
+@media (hover: hover) {
+
 .iconButton:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .iconButton:focus-visible {
@@ -76,9 +79,12 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .chip:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .chip:disabled {
@@ -89,11 +95,17 @@
 /* Rest / hover / selected are three different pictures: the selected chip
    keeps a filled accent-tinted surface AND the accent edge, so a hovered
    neighbour never reads as selected. */
-.chipActive,
+.chipActive {
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+  border-color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary);
+}
+@media (hover: hover) {
 .chipActive:hover {
   background: var(--dsw-alias-interactive-bg-hover-accent);
   border-color: var(--dsw-alias-state-business-primary);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .chipLabel {

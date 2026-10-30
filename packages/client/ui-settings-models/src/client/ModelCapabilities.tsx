@@ -29,7 +29,7 @@ export function ModelCapabilities({ model, api, reported, disabled, t, onChange 
     </span></h3>
     <div className={styles['modelInputChoices']}>
       <Checkbox className={styles['modelChoice']} label={t('nativeWebSearch')} checked={checked}
-        disabled={disabled || !supported} onChange={value => { onChange({ ...model, nativeWebSearch: value }) }} />
+        disabled={disabled || !supported} onChange={(value) => { onChange({ ...model, nativeWebSearch: value }) }} />
       {configured !== undefined && <Button size="sm" variant="ghost" disabled={disabled} onClick={() => {
         const next = { ...model }; Reflect.deleteProperty(next, 'nativeWebSearch'); onChange(next)
       }}>{t('modelCapabilityAuto')}</Button>}

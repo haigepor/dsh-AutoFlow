@@ -5,7 +5,8 @@
 .better-sidebar-updater-version dt { color: var(--dsw-alias-label-secondary); }
 .better-sidebar-updater-version dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .better-sidebar-updater-release { width: fit-content; flex: none; color: var(--dsw-alias-label-secondary); font: var(--dsw-font-xs-13); text-decoration: none; }
-.better-sidebar-updater-release:hover { color: var(--dsw-alias-state-business-primary); }
+@media (hover: hover) {
+.better-sidebar-updater-release:hover { color: var(--dsw-alias-state-business-primary); } }
 .better-sidebar-updater-release:focus-visible { outline: 2px solid var(--dsw-alias-label-primary); outline-offset: 2px; border-radius: var(--dsw-radius-sm); }
 
 /* 实测几何只作用于启用定制 CSS 的变动控件，原按钮继续处理输入和焦点。 */
@@ -42,8 +43,9 @@
   transition: none;
 }
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"] > button[aria-pressed] { position: relative; z-index: 1; }
-:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"][data-dsh-changes-motion-ready] > button[type="button"][aria-pressed="true"],
-:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"][data-dsh-changes-motion-ready] > button[type="button"][aria-pressed="true"]:hover { background: transparent; }
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"][data-dsh-changes-motion-ready] > button[type="button"][aria-pressed="true"] { background: transparent; }
+@media (hover: hover) {
+:where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"][data-dsh-changes-motion-ready] > button[type="button"][aria-pressed="true"]:hover { background: transparent; } }
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="tablist"][data-dsh-changes-motion="tabs"][data-dsh-changes-motion-ready] > span[aria-hidden="true"],
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar]) [role="group"][data-dsh-changes-motion="filters"][data-dsh-changes-motion-ready]::before {
   transition: transform 240ms cubic-bezier(.22, 1, .36, 1), width 240ms cubic-bezier(.22, 1, .36, 1);

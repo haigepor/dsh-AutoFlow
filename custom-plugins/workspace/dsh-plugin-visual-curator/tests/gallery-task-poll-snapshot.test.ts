@@ -8,6 +8,7 @@ import { CuratorService } from '../src/host/service.ts'
 import { analysisTaskSchema } from '../src/shared/analysis-process.ts'
 import { runSchema } from '../src/shared/model.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
+import { executionSchema } from '../src/host/runtime.ts'
 
 class PollAdapter extends MemoryDomainAdapter {
   manifestReads = 0
@@ -43,7 +44,11 @@ test('task polling keeps hidden and Session ownership filters while reading one 
     repository.manifests = prefix => { const rows = readManifests(prefix); clonedPointers += rows.reduce((count, row) => count + row.records.length, 0); return rows }
     const poll = async () => z.object({ tasks: z.array(z.json()), analyses: z.array(analysisTaskSchema), workspaceRevision: z.string() }).parse(await activeService.action({ operation: 'gallery-reference-tasks', args: {} }, f.actor, new AbortController().signal))
     adapter.reset()
-    const result = await poll()
+    let specParses = 0
+    const parseSpec = executionSchema.parse
+    executionSchema.parse = (value, params) => { specParses++; return parseSpec(value, params) }
+    const result = await poll().finally(() => { executionSchema.parse = parseSpec })
+    assert.equal(specParses, 2, 'each authorized task spec is parsed once, including the hidden task')
     assert.deepEqual(result.tasks, [])
     assert.deepEqual(result.analyses.map(task => task.runId), [started.runId])
     assert.equal(result.analyses[0]?.observed, 1)

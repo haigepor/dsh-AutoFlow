@@ -179,8 +179,11 @@
 .fontSample[data-font='inter'] { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 .fontSample[data-font='noto-sans-sc'] { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
+@media (hover: hover) {
+
 .modeCard:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 .modeCard[aria-pressed='true'] {
@@ -188,9 +191,12 @@
   color: var(--dsw-alias-state-business-primary);
 }
 
+@media (hover: hover) {
+
 .selector:hover,
 .resetButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 .selector:focus-visible,

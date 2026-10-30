@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import { IconLoadingOutlineRegular, IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
-import { ImageLightbox } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconLoadingOutlineRegular, IconRefreshOutlineRegular, DraggableImage, ImageLightbox, type FileDragActions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MessageImageLabels } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import css from './MessageImage.module.css'
 
 export type { MessageImageLabels } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
-/** Loads a session-authorized durable image URL and may expose a cached URL synchronously. */
+/** Loads a Gateway-authorized durable image URL and may expose a cached URL synchronously. */
 export type ImageLoader = ((attachment: ImageAttachmentRef) => Promise<string>) & {
   peek?: (attachment: ImageAttachmentRef) => string | undefined
 }
@@ -65,15 +64,16 @@ function dimensionsOf(image: MessageImageSpec): { readonly width: number; readon
  * List thumbnails use status icons with localized tooltips and accessible names.
  *
  * @param props.image - the durable reference to load, or the local preview to display.
- * @param props.load - session-authorized URL loader for the durable arm.
+ * @param props.load - Gateway-authorized URL loader for the durable arm.
  * @param props.variant - lone image, cropped gallery tile, or uncropped list thumbnail.
  * @param props.labels - resolved strings (tooltip, loading, retry, lightbox).
  * @returns the bounded thumbnail button, or the retry control on failure.
  */
-export function MessageImage({ image, load, variant, labels }: {
+export function MessageImage({ image, load, variant, labels, fileDrag }: {
   image: MessageImageSpec
   load: ImageLoader
   variant: 'single' | 'tile' | 'thumbnail'
+  fileDrag: FileDragActions
   labels: MessageImageLabels
 }) {
   const preview = 'preview' in image ? image.preview : undefined
@@ -150,7 +150,9 @@ export function MessageImage({ image, load, variant, labels }: {
               {loadingThumbnail ? <IconLoadingOutlineRegular className={css.spinner} /> : labels.loading}
             </span>
           )
-          : <img src={thumbnailSrc ?? undefined} alt={label} loading="lazy" decoding="async" onLoad={() => { setDisplayedPreview(thumbnailSrc) }} onError={() => { setError(true) }} style={fit === undefined ? undefined : { objectPosition: fit.objectPosition }} />}
+          : <DraggableImage fileDrag={fileDrag} src={thumbnailSrc ?? src} resourceAddress={src} alt={label} name={preview?.name ?? attachment?.name ?? 'image'}
+            loading="lazy" decoding="async" onLoad={() => { setDisplayedPreview(thumbnailSrc) }} onError={() => { setError(true) }}
+            style={fit === undefined ? undefined : { objectPosition: fit.objectPosition }} />}
       </button>
       {open && src !== null && <ImageLightbox src={src} alt={label} labels={labels.lightbox} onClose={close} />}
     </>
@@ -159,12 +161,13 @@ export function MessageImage({ image, load, variant, labels }: {
 
 /** Wrapping image group shared by user and assistant history: a lone image
  * renders large unless its owner requests compact tiles or contained list thumbnails. */
-export function ImageGallery({ images, load, align, compact = false, thumbnail = false, labels }: {
+export function ImageGallery({ images, load, align, compact = false, thumbnail = false, labels, fileDrag }: {
   images: readonly MessageImageSpec[]
   load: ImageLoader
   align: 'start' | 'end'
   compact?: boolean
   thumbnail?: boolean
+  fileDrag: FileDragActions
   labels: MessageImageLabels
 }) {
   if (images.length === 0) return null
@@ -177,6 +180,7 @@ export function ImageGallery({ images, load, align, compact = false, thumbnail =
           image={image}
           load={load}
           variant={variant}
+          fileDrag={fileDrag}
           labels={labels}
         />
       ))}

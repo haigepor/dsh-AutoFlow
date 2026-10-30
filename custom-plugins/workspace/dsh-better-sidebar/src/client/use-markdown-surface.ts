@@ -28,6 +28,7 @@ import { useCallback, useRef } from 'react'
 import type { Context } from '../context-types.ts'
 import {
   jumpToFragment,
+  lineOfHostFragment,
   markdownAnchorTarget,
   prepareMarkdownAnchors,
   rememberMarkdownAnchor,
@@ -102,13 +103,22 @@ export function useMarkdownSurface(opts: MarkdownSurfaceOptions): MarkdownSurfac
       if (container !== null) jumpToFragment(container, target.fragment)
       return
     }
-    // `#L24` arrives as the host's own line option (never as an anchor); a
-    // heading fragment parks a jump for the document about to open.
-    if (options?.line === undefined && target.fragment !== '') {
+    // `#L24` is a LINE, not an anchor: the host hands the number over as
+    // `options.line` (and leaves the destination untouched), the fragment is
+    // the same grammar for a caller that only has the destination. Either way
+    // the line has to travel WITH the open — a line reference asks for source,
+    // so the editor lands on it (and leaves preview, which renders no lines).
+    // Only a heading fragment parks a jump for the document about to open.
+    const line = options?.line ?? lineOfHostFragment(target.fragment)
+    if (line === undefined && target.fragment !== '') {
       rememberMarkdownAnchor(sessionId, resolveCwd(), target.path, target.fragment)
     }
     try {
-      openSidebarFile(ctx, sessionId, target.path)
+      // The live root rides along: a destination that resolved to a RELATIVE
+      // path (neither the document's directory nor a cwd was known) must land
+      // on the same workspace the surrounding tree and routes use, not on the
+      // session's frozen header cwd (#950).
+      openSidebarFile(ctx, sessionId, target.path, { line, cwd: resolveCwd() })
     } catch (error) {
       // A failed open leaves the reader where they are (the link was claimed);
       // the parked fragment expires on its own.

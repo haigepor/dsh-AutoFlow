@@ -14,11 +14,12 @@
  * present on disk but not listed, both look fine in the source tree).
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { removeTree } from './temp-tree.ts'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 
@@ -59,12 +60,13 @@ describe('DSH plugin presentation metadata', () => {
     // `files` is npm's allow-list: an entry missing here never reaches the
     // tarball, and DSH's gate rejects a declared-but-unpublished icon.
     expect(pkg.files!).toContain(ICON)
-    expect(pkg.files!).toContain(`${LOCALE_DIR}/*.json`)
+    expect(pkg.files!).toContain(LOCALE_DIR)
   })
 
-  it('exposes the locale documents and the manifest through exports', () => {
-    // `${name}/locale/<file>` is how readPluginMeta resolves a translation,
-    // and `${name}/package.json` is how it reads the icon declaration.
+  it('exposes the icon, locale documents and manifest through exports', () => {
+    // DSH 通过 `${name}/locale/<file>` 读取翻译，并通过 `${name}/package.json` 读取图标声明。
+    // 其他消费者可以通过 `${name}/icon` 获取插件图标。
+    expect(pkg.exports?.['./icon'], 'exports["./icon"]').toBe('./icon.svg')
     expect(pkg.exports?.['./locale/*.json'], 'exports["./locale/*.json"]').toBe('./locale/*.json')
     expect(pkg.exports?.['./package.json'], 'exports["./package.json"]').toBe('./package.json')
   })
@@ -88,19 +90,15 @@ describe('DSH plugin presentation metadata', () => {
     }
   })
 
-  it('keeps the icon in the built-in house style', () => {
+  it('keeps the AutoFlow split-window artwork', () => {
     const svg = readFileSync(iconPath(), 'utf8')
-    // Every icon DSH ships for this feature is a 36x36, fill-only geometric
-    // mark (see packages/experimental/*/icon.svg and the artwork in
-    // ui-primitives/src/plugin-artwork.tsx). Pinning the frame keeps a later
-    // redraw from silently changing how the mark scales in the list.
-    expect(svg).toMatch(/viewBox="0 0 36 36"/u)
+    // 本地图标沿用 32 单位画布和 36px 展示尺寸，不用上游图标覆盖。
+    expect(svg).toMatch(/viewBox="0 0 32 32"/u)
     expect(svg).toMatch(/width="36"/u)
     expect(svg).toMatch(/height="36"/u)
     expect(svg, 'the root must not paint a background').toMatch(/fill="none"/u)
-    // No glyph outlines and no text: the built-ins are pure filled shapes, and
-    // a <text> node would also render in whatever font the browser picks.
-    expect(svg, 'no stroked outlines in the built-in style').not.toMatch(/stroke=/u)
+    expect(svg).toMatch(/id="sidebar-window"/u)
+    expect(svg).toMatch(/id="sidebar-panel"/u)
     expect(svg, 'no <text> in an icon').not.toMatch(/<text[\s>]/u)
     // The built-ins "carry their own brand colors and gradients instead of
     // riding currentColor" (their file header), and each is genuinely
@@ -120,13 +118,13 @@ describe('DSH plugin presentation metadata', () => {
     try {
       execFileSync('pnpm', ['pack', '--pack-destination', dir], { cwd: ROOT, stdio: 'pipe', shell: process.platform === 'win32' })
       const contents = execFileSync('tar', ['-tzf', `${pkg.name}-${pkg.version}.tgz`], { cwd: dir, encoding: 'utf8' })
-      const files = contents.split('\n')
+      const files = contents.split(/\r?\n/u)
       expect(files, `${ICON} must be published`).toContain(`package/${ICON}`)
       for (const [name] of locales()) {
         expect(files, `${LOCALE_DIR}/${name} must be published`).toContain(`package/${LOCALE_DIR}/${name}`)
       }
     } finally {
-      rmSync(dir, { recursive: true, force: true })
+      removeTree(dir)
     }
   }, 120_000)
 })

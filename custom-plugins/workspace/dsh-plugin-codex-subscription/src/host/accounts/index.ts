@@ -6,6 +6,7 @@ import { credentialKey } from '@deepseek-ai/dsh-credentials'
 import type { AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import { AccountError, AccountRejected, accountErrorCause, credentialTag, readCredential, readGrant, type StoredAccount, type AccountsGrant } from './record.ts'
 import { accountRefusal, failureDetails } from './failures.ts'
+import { preflightResponse } from './preflight.ts'
 import { parseAccountUsage, quotaBlocks, resetCreditExpiry } from './quota.ts'
 import { createOAuthAttempt, exchangeTokens, tokenMetadata, type OAuthAttempt } from './oauth.ts'
 import type { AccountsFacade, AccountsOptions, AccountView, LoginView, AccountLease, AccountRequest, AccountOperation, CodexModelView, CodexModelRouteView, AccountUsage, AccountReadOptions } from './types.ts'
@@ -26,7 +27,7 @@ const operations: readonly AccountOperation[] = ['text', 'image', 'models', 'usa
 interface LoginState { view: LoginView; attempt?: OAuthAttempt; abort: AbortController; settled: Promise<void> }
 interface NativeAccount { provider: Provider<'openai-codex-responses'>; credentials: CredentialStore; authContext: AuthContext; models: ReturnType<typeof createModels>
   providerWithRefusal(onRefusal: (failure: AccountRejected) => void): Provider<'openai-codex-responses'> }
-interface ModelCache { at: number; lastGoodAt?: number; status: 'ready' | 'error'; models: readonly CodexModelView[]; snapshot: CodexModelSnapshot; version: string; settingsRevision: number }
+interface ModelCache { at: number; lastGoodAt?: number; status: 'ready' | 'error'; models: readonly CodexModelView[]; snapshot: CodexModelSnapshot; version: string; settingsRevision: number; etag?: string }
 
 function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   let cancel: () => void = () => {}
@@ -47,6 +48,8 @@ export class CodexAccounts implements AccountsFacade {
   private readonly affinity = new Map<string, string>()
   private readonly cooldowns = new Map<string, Partial<Record<AccountOperation, number>>>()
   private readonly cooldownStatuses = new Map<string, Partial<Record<AccountOperation, number>>>()
+  private readonly modelCooldowns = new Map<string, { until: number; status: number }>()
+  private readonly modelEtags = new Map<string, string>()
   private readonly refreshing = new Set<string>()
   private readonly modelCache = new Map<string, ModelCache>()
   private readonly modelPending = new Map<string, Promise<void>>()
@@ -107,7 +110,7 @@ export class CodexAccounts implements AccountsFacade {
       // 已启动的 refresh 可能已轮换上游 token，必须等待持久化，不能随消费者取消丢弃。
       while (this.writes.size) await Promise.allSettled([...this.writes])
       this.affinity.clear(); this.native.clear(); this.modelCache.clear(); this.usageCache.clear(); this.liveUsageRevision.clear(); this.logins.clear()
-      this.cooldowns.clear(); this.cooldownStatuses.clear(); this.refreshing.clear(); this.inflight.clear()
+      this.cooldowns.clear(); this.cooldownStatuses.clear(); this.modelCooldowns.clear(); this.modelEtags.clear(); this.refreshing.clear(); this.inflight.clear()
     })()
     return this.disposal
   }
@@ -290,7 +293,7 @@ export class CodexAccounts implements AccountsFacade {
         ...(tokens.workspace === undefined ? {} : { workspace: tokens.workspace }), ...(tokens.userId === undefined ? {} : { userId: tokens.userId }),
         ...(tokens.subscriptionUntil === undefined ? {} : { subscriptionUntil: tokens.subscriptionUntil }),
         ...(previous?.lastUsage === undefined ? {} : { lastUsage: previous.lastUsage }), lastRefreshAt: now, credential: readCredential(tokens) }
-      this.cooldowns.delete(accountKey); this.cooldownStatuses.delete(accountKey); this.modelCache.delete(accountKey); this.usageCache.delete(accountKey)
+      this.cooldowns.delete(accountKey); this.cooldownStatuses.delete(accountKey); this.modelCache.delete(accountKey); this.usageCache.delete(accountKey); this.clearModelFailures(accountKey)
       return true
     })
   }
@@ -322,6 +325,7 @@ export class CodexAccounts implements AccountsFacade {
       delete grant.accounts[accountKey]; return true
     })
     this.native.delete(accountKey); this.modelCache.delete(accountKey); this.usageCache.delete(accountKey); this.cooldowns.delete(accountKey); this.cooldownStatuses.delete(accountKey); this.liveUsageRevision.delete(accountKey)
+    this.clearModelFailures(accountKey)
     for (const [key, value] of this.affinity) if (value === accountKey) this.affinity.delete(key)
   }
 
@@ -371,7 +375,8 @@ export class CodexAccounts implements AccountsFacade {
     const native = openaiCodexProvider(), oauth = native.auth.oauth
     if (!oauth) throw new AccountError('安装的 Codex provider 不支持 OAuth。', 'INVALID_PROVIDER')
     const requestOptions = <T extends StreamOptions>(options: T | undefined, onRefusal?: (failure: AccountRejected) => void) => {
-      let cacheIdentity: string | undefined
+      let cacheIdentity: string | undefined, requestedModel: string | undefined
+      let requestedVariant: Pick<AccountRequest, 'reasoningEffort' | 'serviceTier'> = {}
       const headers = new Headers()
       for (const [key, value] of Object.entries(options?.headers ?? {})) if (value !== null) headers.set(key, value)
       headers.set('originator', 'codex_cli_rs'); headers.set('version', this.options.clientVersion)
@@ -380,11 +385,14 @@ export class CodexAccounts implements AccountsFacade {
       return Object.assign({}, options, { fetch: async (input: string | URL | Request, init?: RequestInit) => {
         const outgoing = new Headers(init?.headers)
         codexSessionHeaders(outgoing, cacheIdentity)
-        const response = this.observeResponse(accountKey, await this.options.fetch(input, { ...init, headers: outgoing }), outgoing.get('authorization')?.replace(/^Bearer /i, ''))
+        const signal = init?.signal ?? new AbortController().signal
+        const response = this.observeResponse(accountKey, await preflightResponse(await this.options.fetch(input, { ...init, headers: outgoing }), signal), outgoing.get('authorization')?.replace(/^Bearer /i, ''))
         // pi-ai 会把 429 改写成无状态码的说明；在其 JSON 解码前保留可分类的安全错误。
-        if ([401, 402, 403, 429].includes(response.status)) {
-          const failure = await accountRefusal(response, this.clock(), init?.signal ?? new AbortController().signal)
-          await this.noteFailure(accountKey, 'text', failure, outgoing.get('authorization')?.replace(/^Bearer /i, ''))
+        if ([401, 402, 403, 404, 429].includes(response.status)) {
+          const details = await failureDetails(response, this.clock(), signal)
+          if (response.status === 404 && details.scope !== 'model') throw new AccountError('模型请求返回 HTTP 404。', 'UPSTREAM_NOT_FOUND', 404, details)
+          const failure = new AccountRejected(response.status as 401 | 402 | 403 | 404 | 429, details)
+          await this.noteFailure(accountKey, 'text', failure, outgoing.get('authorization')?.replace(/^Bearer /i, ''), requestedModel, requestedVariant)
           onRefusal?.(failure)
           throw failure
         }
@@ -393,6 +401,10 @@ export class CodexAccounts implements AccountsFacade {
         onPayload: async (payload: unknown, model: Model<Api>) => {
           const body = adaptCodexBody(await options?.onPayload?.(payload, model) ?? payload)
           cacheIdentity = typeof body.prompt_cache_key === 'string' ? body.prompt_cache_key : undefined
+          requestedModel = typeof body.model === 'string' ? body.model : model.id
+          const reasoning = body.reasoning
+          requestedVariant = { ...(reasoning !== null && typeof reasoning === 'object' && 'effort' in reasoning && typeof reasoning.effort === 'string' ? { reasoningEffort: reasoning.effort } : {}),
+            ...(typeof body.service_tier === 'string' ? { serviceTier: body.service_tier } : {}) }
           return body
         } })
     }
@@ -450,6 +462,7 @@ export class CodexAccounts implements AccountsFacade {
       // 图片接口未提供可验证的“仅用订阅”选项；禁止积分的账号不派发生图，不能拿文字额度代替图片额度。
       && (request.kind !== 'image' || account.allowCredits)
       && (this.cooldowns.get(account.accountKey)?.[request.kind] ?? 0) <= now
+      && (this.modelWait(account.accountKey, request, wireModel ?? request.model)?.until ?? 0) <= now
       && !(request.kind === 'text' && quotaBlocks(this.usageCache.get(account.accountKey), account.allowCredits, now)))
     const affinityKey = request.sessionId === undefined ? undefined : `${request.kind}:${request.model ?? ''}:${request.sessionId}`
     const sticky = affinityKey === undefined ? undefined : this.affinity.get(affinityKey)
@@ -464,8 +477,12 @@ export class CodexAccounts implements AccountsFacade {
       }
       const waiting = Object.values(grant.accounts).filter(account => account.enabled && this.authFailure(account) === undefined
         && (allowed === undefined || allowed.has(account.accountKey)) && (request.accountKey === undefined || request.accountKey === account.accountKey)
-        && (this.cooldowns.get(account.accountKey)?.[request.kind] ?? 0) > now)
-        .map(account => ({ at: this.cooldowns.get(account.accountKey)![request.kind]!, status: this.cooldownStatuses.get(account.accountKey)?.[request.kind] ?? 429 }))
+        && Math.max(this.cooldowns.get(account.accountKey)?.[request.kind] ?? 0, this.modelWait(account.accountKey, request, wireModel ?? request.model)?.until ?? 0) > now)
+        .map(account => {
+          const model = this.modelWait(account.accountKey, request, wireModel ?? request.model)
+          const at = this.cooldowns.get(account.accountKey)?.[request.kind] ?? 0
+          return (model?.until ?? 0) > at ? { at: model!.until, status: model!.status } : { at, status: this.cooldownStatuses.get(account.accountKey)?.[request.kind] ?? 429 }
+        })
         .sort((a, b) => a.at - b.at)[0]
       throw new AccountError('没有可用的订阅账号，请登录、启用账号或等待额度恢复。', 'NO_AVAILABLE_ACCOUNT', waiting?.status,
         waiting === undefined ? {} : { retryAt: waiting.at })
@@ -493,9 +510,10 @@ export class CodexAccounts implements AccountsFacade {
       // 凭据刷新发生在发送业务请求之前；终止型刷新拒绝也可转到另一个已捕获账号。
       const cause = accountErrorCause(error)
       if (usedAccess === undefined && cause?.details.authCode !== undefined && request.accountKey === undefined) error = new AccountRejected(401, cause.details)
-      if (error instanceof Error && 'status' in error && typeof error.status === 'number' && [401, 402, 403, 429].includes(error.status)) {
+      if (error instanceof Error && 'status' in error && typeof error.status === 'number' && ([401, 402, 403, 429].includes(error.status)
+        || error instanceof AccountError && error.status === 404 && error.details.scope === 'model')) {
         const renewed = error.status === 401 && usedAccess !== undefined && await this.renewRejectedCredential(account.accountKey, usedAccess)
-        if (!renewed) await this.noteFailure(account.accountKey, request.kind, error instanceof AccountError ? error : new AccountError('账号请求被拒绝。', 'ACCOUNT_REJECTED', error.status), usedAccess)
+        if (!renewed) await this.noteFailure(account.accountKey, request.kind, error instanceof AccountError ? error : new AccountError('账号请求被拒绝。', 'ACCOUNT_REJECTED', error.status), usedAccess, wireModel ?? request.model, request)
         else this.clearAuthCooldowns(account.accountKey)
       }
       if (error instanceof AccountRejected && request.accountKey === undefined) rejected = error
@@ -511,9 +529,30 @@ export class CodexAccounts implements AccountsFacade {
     for (const kind of operations) if (statuses?.[kind] === 401) { delete cooldown?.[kind]; delete statuses[kind] }
   }
 
-  private async noteFailure(accountKey: string, kind: AccountOperation, failure: AccountError, usedAccess?: string): Promise<void> {
+  private clearModelFailures(accountKey: string): void {
+    const prefix = JSON.stringify([accountKey]).slice(0, -1) + ','
+    for (const key of this.modelCooldowns.keys()) if (key.startsWith(prefix)) this.modelCooldowns.delete(key)
+    this.modelEtags.delete(accountKey)
+  }
+
+  private modelWait(accountKey: string, request: AccountRequest, model?: string): { until: number; status: number } | undefined {
+    const prefix = [accountKey, request.kind, model]
+    return [this.modelCooldowns.get(JSON.stringify(prefix)),
+      this.modelCooldowns.get(JSON.stringify([...prefix, 'reasoning', request.reasoningEffort])),
+      this.modelCooldowns.get(JSON.stringify([...prefix, 'serviceTier', request.serviceTier]))]
+      .filter((value): value is { until: number; status: number } => value !== undefined).sort((a, b) => b.until - a.until)[0]
+  }
+
+  private async noteFailure(accountKey: string, kind: AccountOperation, failure: AccountError, usedAccess?: string, model?: string, variant: Pick<AccountRequest, 'reasoningEffort' | 'serviceTier'> = {}): Promise<void> {
     const cooldown = { ...this.cooldowns.get(accountKey) }, statuses = { ...this.cooldownStatuses.get(accountKey) }
     const until = Math.max(this.clock() + this.options.cooldownMs, failure.details.retryAt ?? 0)
+    if (failure.details.scope === 'model' && model !== undefined && failure.status !== 401) {
+      for (const [key, item] of this.modelCooldowns) if (item.until <= this.clock()) this.modelCooldowns.delete(key)
+      const key = JSON.stringify([accountKey, kind, model, ...(failure.details.variant === undefined ? [] : [failure.details.variant, failure.details.variant === 'reasoning' ? variant.reasoningEffort : variant.serviceTier])]), previous = this.modelCooldowns.get(key)
+      this.modelCooldowns.delete(key); this.modelCooldowns.set(key, { until: Math.max(until, previous?.until ?? 0), status: failure.status ?? 403 })
+      while (this.modelCooldowns.size > this.options.modelCooldownLimit) { const oldest = this.modelCooldowns.keys().next().value; if (oldest !== undefined) this.modelCooldowns.delete(oldest) }
+      return
+    }
     for (const operation of failure.status === 401 ? operations : [kind]) if (until > (cooldown[operation] ?? 0)
       || until === cooldown[operation] && failure.status !== 401) {
       cooldown[operation] = until; statuses[operation] = failure.status ?? 0
@@ -545,6 +584,8 @@ export class CodexAccounts implements AccountsFacade {
   }
 
   private observeResponse(accountKey: string, response: Response, usedAccess?: string): Response {
+    const etag = response.headers.get('x-models-etag')
+    if (response.ok && etag !== null && etag.length > 0 && etag.length <= 512) this.modelEtags.set(accountKey, etag)
     return observeCodexQuota(response, this.clock(), windows => {
       const previous = this.usageCache.get(accountKey)
       this.liveUsageRevision.set(accountKey, (this.liveUsageRevision.get(accountKey) ?? 0) + 1)
@@ -572,19 +613,22 @@ export class CodexAccounts implements AccountsFacade {
   private async refreshModels(accountKey: string, force = false): Promise<void> {
     const version = await (this.options.resolveClientVersion?.() ?? Promise.resolve(this.options.clientVersion))
     const cached = this.modelCache.get(accountKey)
-    if (!force && cached && cached.version === version && cached.settingsRevision === this.modelSettingsRevision && this.clock() - cached.at < this.options.discoveryTtlMs) return
+    if (!force && cached && cached.version === version && cached.settingsRevision === this.modelSettingsRevision && cached.etag === this.modelEtags.get(accountKey) && this.clock() - cached.at < this.options.discoveryTtlMs) return
     const pending = this.modelPending.get(accountKey)
     if (pending) { await pending; return this.refreshModels(accountKey, force) }
-    const settings = this.modelSettings, settingsRevision = this.modelSettingsRevision
+    const settings = this.modelSettings, settingsRevision = this.modelSettingsRevision, observedEtag = this.modelEtags.get(accountKey)
     const task = this.withAccount({ kind: 'models', accountKey }, async lease => {
       const response = await this.options.fetch(`${this.endpoint('codex/models')}?client_version=${encodeURIComponent(version)}`, {
         headers: { ...lease.headers, originator: 'codex_cli_rs', version, 'User-Agent': codexUserAgent(version), 'OpenAI-Beta': 'responses=experimental' }, signal: AbortSignal.any([lease.signal, AbortSignal.timeout(this.options.tokenTimeoutMs)]), redirect: 'error' })
       if (!response.ok) throw new AccountError('模型目录读取失败。', 'MODEL_DISCOVERY_FAILED', response.status, await failureDetails(response, this.clock(), lease.signal))
       const snapshot = resolveCodexModels(await readBoundedJson(response, 1_048_576, lease.signal), this.nativeFor(accountKey).provider.getModels(), settings, this.endpoint('codex'))
       if ((await this.grant()).accounts[accountKey]?.credential.access !== lease.accessToken) return
-      this.modelCache.set(accountKey, { status: 'ready', at: this.clock(), lastGoodAt: this.clock(), models: snapshot.views, snapshot, version, settingsRevision })
+      const returnedEtag = response.headers.get('x-models-etag')
+      const etag = returnedEtag !== null && returnedEtag.length > 0 && returnedEtag.length <= 512 ? returnedEtag : observedEtag
+      if (this.modelEtags.get(accountKey) === observedEtag && etag !== undefined) this.modelEtags.set(accountKey, etag)
+      this.modelCache.set(accountKey, { status: 'ready', at: this.clock(), lastGoodAt: this.clock(), models: snapshot.views, snapshot, version, settingsRevision, ...(etag === undefined ? {} : { etag }) })
     }).catch(() => { if (!this.disposed) this.modelCache.set(accountKey, { status: 'error', at: this.clock(), ...(cached?.lastGoodAt === undefined ? {} : { lastGoodAt: cached.lastGoodAt }), models: cached?.models ?? [],
-      snapshot: cached?.snapshot ?? { models: [], views: [], defaults: new Map() }, version, settingsRevision }) })
+      snapshot: cached?.snapshot ?? { models: [], views: [], defaults: new Map() }, version, settingsRevision, ...(observedEtag === undefined ? {} : { etag: observedEtag }) }) })
       .finally(() => { this.modelPending.delete(accountKey) })
     this.modelPending.set(accountKey, task); return task
   }

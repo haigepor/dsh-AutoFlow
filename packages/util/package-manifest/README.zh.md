@@ -47,7 +47,9 @@ const manifest: DshPackageManifest = {
 }
 ```
 
-`DshPackageManifest` 描述 DSH 使用的 package.json 字段，其中 `name` 和 `version` 必填；它不是完整的 npm schema（模式）。本地 profile 读取方使用 `Partial<DshPackageManifest>`，因为 profile 无需发布版本。`DshManifest` 仅描述 `dsh` 下的公共作者字段。`DshBundleManifest.patch` 是一个 patch 文件路径，或一个有序的路径列表，均相对于包根目录；launcher 按列表顺序把它们作为同一个组合包层应用。TypeScript 检查示例并删除 `import type`；这些接口不解析 JSON，也不写入文件。
+`DshPackageManifest` 描述 DSH 使用的 package.json 字段，其中 `name` 和 `version` 必填；它包含普通依赖、peer 依赖及可选依赖声明，未覆盖 npm 的所有字段。本地 profile 读取方使用 `Partial<DshPackageManifest>`，因为 profile 无需发布版本。`DshManifest` 仅描述 `dsh` 下的公共作者字段。`DshBundleManifest.patch` 是一个 patch 文件路径，或一个有序的路径列表，均相对于包根目录；launcher 按列表顺序把它们作为同一个组合包层应用。TypeScript 检查示例并删除 `import type`；这些接口不解析 JSON，也不写入文件。
+
+`DshBundleManifest.listedByDefault` 为可选布尔值，默认为 true。false 使随安装提供的组合包在 profile 启用或安装它之前不出现在默认 GUI 列表中；管理清单仍保持完整。[插件管理页](../../client/ui-plugin-manager/README.zh.md#use-this-package)管理展示与显式启用入口。
 
 `DshBundleManifest.features` 可选声明按 profile 选择的 Cordis 行。每个 `DshBundleFeature` 包含唯一 `id` 与 `rowId`、本地化 `title` 与 `description`，以及 `defaultEnabled`；可选本地化 `details` 提供展开后的详细说明。可选 `kind` 为 `prompt`、`skill`、`script`、`ui` 或 `other`，已分类的功能会在组合包页分组显示。插件管理器保存选择前，会按组合包 patch 校验这些字段。`DshBundleManifest.examples` 可选声明本地化示例提示词，在组合包详情页显示，并可填入新会话的未发送草稿。`DshBundleManifest.featureConfig` 可选指定包内 JSON 模板，以初始化 profile 自有的功能选择；未声明时继续使用 patch 配置。安装与运行语义见[自定义组合包架构](../../../custom-plugins/architecture.md)。
 
@@ -56,6 +58,7 @@ const manifest: DshPackageManifest = {
 | 字段 | 含义 |
 |---|---|
 | `dsh.manifestVersion` | manifest（元数据清单）格式标识；声明的格式为 `1`，独立于 npm 包版本和 Session 格式版本。 |
+| `dsh.bundle.platforms` | 可选的非空 Node Host 平台名称列表，例如 `["darwin"]`；省略时允许所有操作系统。启动器和插件管理器在组合或选择该组合包前检查此字段。 |
 | `engines.dsh` | 作者声明的兼容 DSH 版本，使用 SemVer 范围，也可填写精确的预发布版本。此字段与 `engines.node`、`engines.npm` 并列；engines 对象可省略 `dsh`。 |
 
 `LocalizedText` 携带字面文本或带必需英文回退值的语言映射。`PluginLocalizedMeta` 携带已安装插件的可选展示标题、描述、从包根 `package.json.icon` 或导出的 `<标识>/icon` 解析的图片 data URL，以及元信息诊断。[App boot](../../boot/app-boot/README.zh.md) 读取这些值；本包只提供其类型。

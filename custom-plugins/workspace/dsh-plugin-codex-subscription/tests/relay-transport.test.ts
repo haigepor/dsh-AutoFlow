@@ -82,7 +82,7 @@ test('raw transport keeps its scheduler lease until the body finishes and sends 
       try { return await run({ accountKey: 'a', accountId: 'account-id', accessToken: 'private-token', headers: {}, signal: new AbortController().signal }) }
       finally { released = true }
     } },
-    endpoint: 'https://chatgpt.com/backend-api/codex/responses', originator: 'autoflow', userAgent: 'autoflow-test', clientVersion: 'test-version',
+    endpoint: 'https://chatgpt.com/backend-api/codex/responses', originator: 'autoflow', userAgent: 'autoflow-test', clientVersion: 'test-version', sessionStateLimit: 8,
     fetch: async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
       calls++
       const headers = new Headers(init?.headers)
@@ -114,7 +114,7 @@ test('abandoning a body releases the account without fetching a replacement', as
   let calls = 0
   let released = false
   const transport = new CodexResponsesTransport({
-    endpoint: 'https://chatgpt.com/backend-api/codex/responses', originator: 'autoflow', userAgent: 'test', clientVersion: 'test',
+    endpoint: 'https://chatgpt.com/backend-api/codex/responses', originator: 'autoflow', userAgent: 'test', clientVersion: 'test', sessionStateLimit: 8,
     accounts: { withAccount: async (_request, run) => { try { return await run({ accountKey: 'a', accountId: 'a', accessToken: 'secret', headers: {}, signal: new AbortController().signal }) } finally { released = true } } },
     fetch: async () => { calls++; return new Response(new ReadableStream({ pull() { /* Upstream has not delivered another event. */ } })) },
   })

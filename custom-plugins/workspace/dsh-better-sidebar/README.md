@@ -9,13 +9,15 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This workspace contains the upstream Better Sidebar source snapshot and the independently loaded [updater](updater/README.md). It contributes file editing, Git changes, tasks and side chat through the existing right-sidebar registration API, and owns a bottom workbench. The application supplies authentication for `/sidebar` HTTP and WebSocket requests independently of either bundle.
+This workspace contains the upstream Better Sidebar v0.28.2 source snapshot and the independently loaded [updater](updater/README.md). It contributes file editing, Git changes, tasks and side chat through the existing right-sidebar registration API, and owns a bottom workbench. The application supplies authentication for `/sidebar` HTTP and WebSocket requests independently of either bundle.
 
 ## Use this package
 
-Run `pnpm run build:sidebar` at the repository root. Web and Desktop ship both packages and enable them for new profiles, like AFP. Existing profiles retain their bundle selections and saved plugin activation settings; enable **dsh-better-sidebar** and **dsh-plugin-better-sidebar-updater** on the Plugins page if needed. Desktop recovery disables both bundles and backs up the profile patch while retaining installed packages. Theme preferences are retained. Disable the sidebar to restore the native file and viewer registrations.
+Run `pnpm run build:sidebar` at the repository root. Source and packaged launches both serve built client scripts from `lib/`. Web and Desktop ship both packages and enable them for new profiles, like AFP. Existing profiles retain their bundle selections and saved plugin activation settings; enable **dsh-better-sidebar** and **dsh-plugin-better-sidebar-updater** on the Plugins page if needed. Desktop recovery disables both bundles and backs up the profile patch while retaining installed packages. Theme preferences are retained. Disable the sidebar to restore the native file and viewer registrations.
 
 The plugin takes over the native `files` kind and editable text resources. The existing shell, splitter and theme remain owned by AutoFlow. PDF, images, Office and spreadsheet previews continue through the native providers. The bottom workbench is plugin-owned and starts collapsed.
+
+Git includes a commit graph and details. JSONL has record previews; text above 5 MiB uses a paged read-only viewer. Bottom terminals have separate instances. Task folding has four independent switches. Side Chat uses live updates and archives its child session on tab close when the workspace service is available. Detached sessions resolve their directory from stored headers without reading the full log; attached sessions follow the current working directory while retaining a repository subdirectory. Configuration and extension changes are listed in the [upgrade guide](../../../docs/upgrade-guide/v0.2.1-rc.3/better-sidebar-v0282/guide.md).
 
 The local bundle applies [file-changes.css](customizations/file-changes.css) through the sidebar's `customCss` setting: compact underline lens tabs and quiet file-operation filters. The local updater Client measures selected buttons so a shared underline and filter background slide over 240ms and match their widths. Resize and count changes realign them; reduced-motion preferences remove transitions. Without the updater Client, ordinary selection transitions remain available. Your saved customCss takes precedence; clear that field to use the upstream appearance. The updater persists the current field into the profile before an active sidebar update. The CSS uses semantic IDs and roles rather than hashed module names; upstream markup changes can still require adaptation.
 
@@ -29,13 +31,15 @@ Runtime updates do not rewrite this workspace or the packaged application. They 
 
 The local settings presentation is supplied by the independent companion Client; see [its settings behavior and update compatibility](updater/README.md).
 
+Side Chat model changes use the Host Agent's durable model-selection API. Switch notices are installed in the Agent setup scope before publication, so fresh and resumed threads apply the selected route on the next step.
+
 ## Model Experience
 
 The updater contributes no model prompt or tool. Sidebar side chats create independent agents that can call tools and incur model usage. The optional upstream `sidebar_open` tool follows the sidebar's configuration.
 
 ## Known Limitations and Deferred Work
 
-The upstream filesystem routes use Host user permissions and can address paths outside the workspace. The imported release has known cross-session draft-guard and native-tab rename/delete reconciliation limitations; direct official upgrades do not promise to preserve local fixes. This integration keeps the upstream implementation separate from the application's authentication policy.
+The upstream filesystem routes use Host user permissions and can address paths outside the workspace. Archive downloads require a system `zip` or `tar` executable and use its corresponding extension. Direct official upgrades do not promise to preserve local fixes. This integration keeps the upstream implementation separate from the application's authentication policy.
 
 ## Dev Note
 

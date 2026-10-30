@@ -63,7 +63,8 @@ function Quota({ value, label, t, compact = false }: { value: SubscriptionWindow
  * @returns Account list, feature activation and owned edit/login dialogs.
  */
 export function SubscriptionPage(props: InjectFace<SubscriptionInjected>): ReactNode {
-  const { useSubscription, ensure, activate, startLogin, completeLogin, cancelLogin, update, remove, refresh, loadCatalog, saveCatalog, t } = props
+  const { useSubscription, ensure, activate, startLogin, completeLogin, cancelLogin,
+    update, remove, refresh, loadCatalog, saveCatalog, t } = props
   const state = useSubscription(value => value)
   const [callback, setCallback] = useState(''), [editing, setEditing] = useState<SubscriptionAccount | null>(null), [removing, setRemoving] = useState<SubscriptionAccount | null>(null)
   const [name, setName] = useState(''), [priority, setPriority] = useState('0')
@@ -79,14 +80,17 @@ export function SubscriptionPage(props: InjectFace<SubscriptionInjected>): React
       popup.opener = null
       const policy = popup.document.createElement('meta'); policy.name = 'referrer'; policy.content = 'no-referrer'; popup.document.head.append(policy)
     }
-    void startLogin().then(url => { if (url === undefined) popup?.close(); else if (popup !== null && !popup.closed) popup.location.replace(url) }, () => { popup?.close() })
+    void startLogin().then((url) => {
+      if (url === undefined) popup?.close()
+      else if (popup !== null && !popup.closed) popup.location.replace(url)
+    }, () => { popup?.close() })
   }
   const edit = (account: SubscriptionAccount): void => {
     setEditing(account); setName(account.label); setPriority(String(account.priority))
   }
   const toggleAccount = (accountKey: string): void => {
     // 首次操作时按稳定账号键保留所有卡片状态，后台刷新不重新折叠用户已展开的账号。
-    setAccountExpansion(current => Object.fromEntries(state.accounts.map(account => {
+    setAccountExpansion(current => Object.fromEntries(state.accounts.map((account) => {
       const expanded = current[account.accountKey] ?? false
       return [account.accountKey, account.accountKey === accountKey ? !expanded : expanded]
     })))
@@ -115,7 +119,7 @@ export function SubscriptionPage(props: InjectFace<SubscriptionInjected>): React
         {state.availability !== 'disabled' && <Button variant="outline" disabled={busy} onClick={() => { void ensure() }}>{t('retry')}</Button>}</section>
         : state.accounts.length === 0 ? <section className={css['empty']}><div className={css['brand']}><ProviderBrandIcon provider="openai" size={32} /></div>
           <h3>{t('subscriptionEmpty')}</h3><p>{t('subscriptionEmptyHint')}</p><small>{t('subscriptionPrivate')}</small></section>
-          : <div className={css['accounts']}>{state.accounts.map(account => {
+          : <div className={css['accounts']}>{state.accounts.map((account) => {
             const expanded = accountExpansion[account.accountKey] ?? false
             const detailsId = `${id}-${encodeURIComponent(account.accountKey)}-details`, headingId = `${detailsId}-heading`
             return <article className={css['card']} key={account.accountKey} data-enabled={account.enabled} data-expanded={expanded}>
@@ -160,7 +164,8 @@ export function SubscriptionPage(props: InjectFace<SubscriptionInjected>): React
                     <Tooltip label={t('subscriptionRemove')}><Button variant="ghost" size="sm" disabled={busy} aria-label={t('subscriptionRemove')} icon={<IconTrashOutlineRegular size={16} />} onClick={() => { setRemoving(account) }} /></Tooltip></div></footer>
               </div></AnimatedCollapse></article>
           })}</div>}
-    {modelsOpen && <SubscriptionModels catalog={state.catalog} catalogStatus={state.catalogStatus} catalogError={state.catalogError} busy={busy}
+    {modelsOpen && <SubscriptionModels catalog={state.catalog} catalogStatus={state.catalogStatus} catalogError={state.catalogError}
+      busy={busy}
       loadCatalog={loadCatalog} saveCatalog={saveCatalog} onClose={() => { setModelsOpen(false) }} t={t} />}
     <Modal open={state.login !== null} onClose={() => { if (!busy) void cancelLogin() }} title={t('subscriptionLoginTitle')} closeLabel={t('close')} closeOnBackdropClick={false} className={css['dialog'] as string}>
       <div className={css['loginBrand']}><ProviderBrandIcon provider="openai" size={30} /></div><p className={css['bodyCopy']}>{t('subscriptionLoginHint')}</p>

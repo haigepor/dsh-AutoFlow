@@ -1,4 +1,5 @@
 /** Register the Chat Conversation target, renderers, stats, and details surface. */
+import type {} from '@deepseek-ai/dsh-client-ui-file-drag/client'
 import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
@@ -12,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-browser/client'
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 // The `file` entry of `SidebarRightResourceParamsMap`, which types `{ params: { line } }` below.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
-import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
+import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 // Type-only service and declaration merges used by the apply world.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -21,6 +22,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {
   ChatFlowDataInjected, ChatFlowInjected, ChatNodeInjected, ChatScrollPosition, ChatViewInjected,
   QuotaNoticeInjected, QuotaNoticeState, TurnTailOwnerProps,
@@ -32,11 +34,11 @@ import { ChatView } from './chat/ChatView.tsx'
 import { ChatFlow } from './chat/ChatFlow.tsx'
 import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
 import { UserContent } from './chat/UserContent.tsx'
-import { LONG_MESSAGE_ID, LONG_MESSAGE_KIND, LongMessageReader, LongMessageReaderTitle } from './chat/LongMessageReader.tsx'
+import { LONG_READER_ID, LONG_MESSAGE_KIND, LongMessageReader, LongMessageReaderTitle } from './chat/LongMessageReader.tsx'
 import { ActivityPill, UsagePill } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { QuotaNoticeHost } from './chat/QuotaNoticeHost.tsx'
-import { en, NS, zh } from './locale.ts'
+import { en, ja, es, fr, de, ru, pt, NS, zh } from './locale.ts'
 import { TranscriptViewRow, type TranscriptViewRowInjected } from './settings/TranscriptViewRow.tsx'
 import { createChatStore } from './stores.ts'
 import { TranscriptViewPolicy } from './transcript-view.ts'
@@ -75,7 +77,8 @@ export const CHAT_NODE_INJECT: ChatNodeInjected = {
 /** Services required by the Chat target and its presentation registrations. */
 export const inject = [
   'slots', 'sessions', 'uiWorkspace', 'uiSession', 'uiConversation', 'locale',
-  'configForms', 'remote', 'remote.session', 'sidebarRight', 'sidebarRightTabs',
+  'configForms', 'remote', 'remote.session', 'sidebarRight',
+  'connection', 'fileDrag',
 ]
 
 /**
@@ -133,7 +136,7 @@ export function apply(ctx: Context): void {
     resolve: binding => ({ hooks: { chat: chatSource(binding) } }),
   })
 
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-chat: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-chat: dictionaries')
   const t = ctx.locale.bind(NS)
   const chatStore = createChatStore()
   const chatScrollPositions = new Map<SessionId, ChatScrollPosition>()
@@ -167,7 +170,7 @@ export function apply(ctx: Context): void {
     }, LinkOpeningRow))
   })
   const transcriptView = new TranscriptViewPolicy(chatSettings, 'dshDesktop' in globalThis ? 'standard' : DEFAULT_TRANSCRIPT_VIEW_MODE)
-  const presentation = derivePresentationPolicy(transcriptView.mode, transcriptView.collapseTiming)
+  const presentation = derivePresentationPolicy(transcriptView.mode, transcriptView.collapseTiming, transcriptView.foldedReplies)
   const performancePolicy = new PerformanceUsagePolicy(chatSettings)
   ctx.effect(() => () => { transcriptView.dispose(); performancePolicy.dispose() })
   const performanceUsage = performancePolicy.mode
@@ -175,19 +178,19 @@ export function apply(ctx: Context): void {
   ctx.slots.registerFactory({
     name: 'conversation.chat.user.content', scope: 'session', locale: NS,
     children: { 'conversation.chat.user.images': { kind: 'single', scope: 'session' } },
-    inject: () => ({
-      openLongText: (text: string) => ctx.sidebarRight.openTab(LONG_MESSAGE_KIND, { params: { messageText: text } }),
+    inject: () => ctx.get('sidebarRightTabs') === undefined ? {} : ({
+      openLongText: (text: string) =>{  ctx.sidebarRight.openTab(LONG_MESSAGE_KIND, { params: { messageText: text } }) },
     }),
   }, UserContent)
-  ctx.effect(() => ctx.sidebarRightTabs.register({
-    id: LONG_MESSAGE_ID, kind: LONG_MESSAGE_KIND, priority: 'builtin',
+  ctx.inject(['sidebarRightTabs'], scope => scope.effect(() => scope.sidebarRightTabs.register({
+    id: LONG_READER_ID, kind: LONG_MESSAGE_KIND, priority: 'builtin',
     title: () => t('message.longText.title'),
-  }), 'ui-chat: long-message reader')
+  }), 'ui-chat: long-message reader'))
   ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
-    name: 'sidebar.right.pane.tab', key: LONG_MESSAGE_ID, locale: NS,
+    name: 'sidebar.right.pane.tab', key: LONG_READER_ID, locale: NS,
   }, LongMessageReader))
   ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({
-    name: 'sidebar.right.pane.tab.title', key: LONG_MESSAGE_ID, locale: NS,
+    name: 'sidebar.right.pane.tab.title', key: LONG_READER_ID, locale: NS,
   }, LongMessageReaderTitle))
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
@@ -209,12 +212,18 @@ export function apply(ctx: Context): void {
     order: 12,
     locale: NS,
     inject: (): TranscriptViewRowInjected => ({
-      hooks: { transcriptView: transcriptView.mode, collapseTiming: transcriptView.collapseTiming },
+      hooks: {
+        transcriptView: transcriptView.mode,
+        collapseTiming: transcriptView.collapseTiming,
+        foldedReplies: transcriptView.foldedReplies,
+      },
       setTranscriptView: (mode) => { transcriptView.setMode(mode) },
       setCollapseTiming: (timing) => { transcriptView.setCollapseTiming(timing) },
+      setFoldedReplies: (replies) => { transcriptView.setFoldedReplies(replies) },
     }),
   }, TranscriptViewRow))
 
+  const connectionState = (ctx.get('connection') as ConnectionHandle).state
   const processStatusSources = new Map<string, ObservableSnapshot<boolean>>()
   const processStatusSource = (toolName: string): ObservableSnapshot<boolean> => {
     let source = processStatusSources.get(toolName)
@@ -228,11 +237,10 @@ export function apply(ctx: Context): void {
     return source
   }
 
-  const nodeSources = (binding: SessionBinding): ChatFlowDataInjected => {
+  const nodeSources = (binding: SessionBinding): Pick<ChatViewInjected, 'keyedHooks'> => {
     const chat = chatSource(binding)
     const conversation = ctx.uiConversation.binding(binding)
     return {
-      hooks: { presentation },
       keyedHooks: {
         chatNode: key => chat.getSnapshot().nodes.source(key),
         chatNodeBottom: key => chat.getSnapshot().nodes.bottomSource(key),
@@ -252,7 +260,7 @@ export function apply(ctx: Context): void {
     inject: (sessionId: SessionId): ChatFlowDataInjected => {
       const binding = ctx.sessions.binding(sessionId)
       if (binding === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
-      return nodeSources(binding)
+      return { ...nodeSources(binding), hooks: { presentation, connectionState } }
     },
   }, ChatFlow))
 
@@ -265,6 +273,7 @@ export function apply(ctx: Context): void {
       locale: NS,
       children: {
         'conversation.chat.flow': { kind: 'single', scope: 'session', inject: CHAT_FLOW_INJECT },
+        'conversation.chat.text-interaction': { kind: 'keyed', scope: 'session' },
       },
       store: chatStore,
       inject: (sessionId: SessionId): ChatViewInjected => {
@@ -274,22 +283,28 @@ export function apply(ctx: Context): void {
         const chat = chatSource(binding)
         return {
           ...nodeSources(binding),
+          fileDrag: ctx.fileDrag.actions,
+          hooks: { presentation, interactionIds: ctx.uiConversation.interactions },
+          dispatchInteraction: gesture => ctx.uiConversation.interactions.dispatch(sessionId, gesture),
           fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner, sessionId),
           // Files open in the right Sidebar, not in a desktop application: the
           // content stays in the product, beside the conversation that produced
-          // it. A relative path, or an absolute one inside the session's
-          // workspace, is addressed under this session's scope,
-          // `dsh-resource://file/session/<id>/<path>`; an absolute path
-          // elsewhere keeps its absolute spelling in the same Session's address.
-          // Which tab type claims the
-          // address is the Sidebar's decision, not this call site's.
+          // it. A relative path resolves from the Session's working directory
+          // at click time, which a directory change can move away from the
+          // workspace root; links from earlier Turns follow later changes. A
+          // path inside the workspace is addressed under this
+          // session's scope, `dsh-resource://file/session/<id>/<path>`; an
+          // absolute path elsewhere keeps its absolute spelling in the same
+          // Session's address. Which tab type claims the address is the
+          // Sidebar's decision, not this call site's.
           // A line travels as a navigation parameter, not as part of the
           // address: the file is one piece of content whether it is opened at
           // its top or at line 400, so the same tab is revealed and told where
           // to land.
           openFile: async (path, options) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
-            const url = fileAddressFor(sessionId, cwd, path)
+            const current = session.projections.faceOf('workingDirectory').getSnapshot() as string | null | undefined
+            const url = fileAddressFor(sessionId, cwd, resolveWorkspacePath(current ?? undefined, path))
             if (options?.line === undefined) ctx.sidebarRight.openResource(url)
             else ctx.sidebarRight.openResource(url, { params: { line: options.line } })
             await Promise.resolve()

@@ -5,16 +5,17 @@
  * override; reset removes that override instead of copying defaults into it.
  */
 
-import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Button, IconPlusOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { AnimatedRows, Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { en } from './locales.ts'
 import { ModelRow } from './ModelRow.tsx'
+import { AddModelButton } from './AddModelButton.tsx'
 import { ProviderModelTable } from './ProviderModelTable.tsx'
 import { validateModelReasoning } from './model-reasoning.ts'
 import type { ModelReasoningOptions } from './model-reasoning.ts'
 import { ModelCatalogHeading } from './ModelCatalogHeading.tsx'
-import { useModelReorder } from './useModelReorder.ts'
+import { useModelRows } from './useModelRows.ts'
+import type { CapacityField } from './useModelRows.ts'
 import styles from './ModelsSection.module.css'
 import connectStyles from './ProviderConnect.module.css'
 
@@ -23,14 +24,6 @@ export type DeepSeekModelDraft = Record<string, unknown>
 
 /** The catalog fields this editor writes. */
 type CatalogField = 'id' | 'name' | 'contextWindow' | 'maxTokens'
-
-/** The two token counts edited as K/M-suffixed text behind a row's disclosure. */
-type CapacityField = 'contextWindow' | 'maxTokens'
-
-/** Row index encoded in an editing-buffer key. */
-function rowOf(key: string): number {
-  return Number(key.slice(0, key.indexOf(':')))
-}
 
 /** Accepted capacity spellings: a decimal count with an optional K/M suffix. */
 const CAPACITY_PATTERN = /^(\d+(?:\.\d+)?)([km])?$/i
@@ -163,20 +156,7 @@ export interface DeepSeekModelsEditorProps {
  * @returns the catalog editor.
  */
 export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNode {
-  // Capacities are edited as text, so a field's keystrokes are held here
-  // rather than re-derived from the parsed count on every change, which would
-  // rewrite `1000` to `1K` mid-word. Unreadable text is kept past blur so the
-  // save-time rejection names a row the user can still see — which is why
-  // this is one entry PER FIELD: a single active buffer would be displaced by
-  // editing any other field, and the abandoned one would fall back to
-  // rendering its stored NaN as the literal `NaN`.
-  //
-  // Keys carry the row index, so the two operations that move indexes maintain
-  // them: `remove` re-keys around the dropped row, and reset clears them all
-  // because the rows they annotated are gone.
-  const [editing, setEditing] = useState<ReadonlyMap<string, string>>(() => new Map())
-  const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set())
-  const order = useModelReorder({ models: props.models, onChange: props.onChange, setEditing, setExpanded, disabled: props.disabled })
+  const rowState = useModelRows(props.models, props.onChange, props.disabled)
 
   const update = (index: number, key: CatalogField, value: unknown): void => {
     const next = props.models.map((model, at) => {
@@ -190,62 +170,31 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
   }
 
   const remove = (index: number): void => {
-    setEditing((current) => {
-      const next = new Map<string, string>()
-      for (const [key, text] of current) {
-        const at = rowOf(key)
-        if (at === index) continue
-        // Only the row number moves; the field half of the key is untouched.
-        next.set(at > index ? key.replace(/^\d+/, String(at - 1)) : key, text)
-      }
-      return next
-    })
-    setExpanded((current) => {
-      const next = new Set<number>()
-      for (const at of current) {
-        if (at === index) continue
-        next.add(at > index ? at - 1 : at)
-      }
-      return next
-    })
+    rowState.forget(new Set([index]))
     props.onChange(props.models.filter((_model, at) => at !== index).map(model => ({ ...model })))
   }
 
   const reset = (): void => {
-    setEditing(new Map())
-    setExpanded(new Set())
+    rowState.reset()
     props.onReset()
-  }
-
-  const toggle = (index: number): void => {
-    setExpanded((current) => {
-      const next = new Set(current)
-      if (!next.delete(index)) next.add(index)
-      return next
-    })
   }
 
   /** The field's text: its live keystrokes, else the stored count spelled short. */
   const capacityText = (model: DeepSeekModelDraft, index: number, field: CapacityField): string => {
-    const typed = editing.get(`${String(index)}:${field}`)
+    const typed = rowState.rows[index]?.editing.get(field)
     if (typed !== undefined) return typed
     const value = model[field]
     return typeof value === 'number' ? formatCapacity(value) : ''
   }
 
   const settleCapacity = (index: number, field: CapacityField): void => {
-    const key = `${String(index)}:${field}`
-    const typed = editing.get(key)
+    const typed = rowState.rows[index]?.editing.get(field)
     if (typed === undefined) return
     // Unreadable text stays on screen: the save-time rejection names a row the
     // user can still see and correct.
     const parsed = parseCapacity(typed)
     if (parsed !== undefined && Number.isNaN(parsed)) return
-    setEditing((current) => {
-      const next = new Map(current)
-      next.delete(key)
-      return next
-    })
+    rowState.edit(index, field, undefined)
   }
 
   const capacityInput = (model: DeepSeekModelDraft, index: number, field: CapacityField, fallback: number | undefined) => ({
@@ -254,61 +203,49 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
       ? props.t(field === 'contextWindow' ? 'contextWindowPlaceholder' : 'maxTokensPlaceholder')
       : formatCapacity(fallback),
     onChange: (text: string) => {
-      setEditing(current => new Map(current).set(`${String(index)}:${field}`, text))
+      rowState.edit(index, field, text)
       update(index, field, parseCapacity(text))
     },
     onPreset: (text: string) => {
-      setEditing((current) => {
-        const next = new Map(current)
-        next.delete(`${String(index)}:${field}`)
-        return next
-      })
+      rowState.edit(index, field, undefined)
       update(index, field, parseCapacity(text))
     },
     onBlur: () => { settleCapacity(index, field) },
   })
 
-  const modelRows = props.models.map((model, index) => props.onlyIndex !== undefined && index !== props.onlyIndex ? null : (
-    <ModelRow
+  const modelRows = rowState.rows.map(({ model, key, expanded, order }, index) => {
+    if (props.onlyIndex !== undefined && index !== props.onlyIndex) return null
+    const capacities = {
+      contextWindow: capacityInput(model, index, 'contextWindow', props.defaultContextWindow),
+      maxTokens: capacityInput(model, index, 'maxTokens', props.defaultMaxTokens),
+    }
+    return <ModelRow
+      key={key}
+      row={{ model, key, order }}
       compact={props.connecting === true}
-      key={index}
-      model={model}
       position={index + 1}
       total={props.models.length}
-      {...order.rowProps(index)}
       inputField="inputModalities"
       reasoningOptions={props.reasoningOptions}
-      expanded={props.onlyIndex !== undefined || expanded.has(index)}
+      expanded={props.onlyIndex !== undefined || expanded}
       single={props.onlyIndex !== undefined}
       disabled={props.disabled}
       t={props.t}
-      contextWindow={capacityInput(model, index, 'contextWindow', props.defaultContextWindow)}
-      maxTokens={capacityInput(model, index, 'maxTokens', props.defaultMaxTokens)}
+      {...capacities}
       onFieldChange={(field, value) => { update(index, field, value) }}
       onIdBlur={(value) => {
         const trimmed = value.trim()
         if (trimmed !== value) update(index, 'id', trimmed)
       }}
       onChange={(next) => { props.onChange(props.models.map((row, at) => at === index ? next : row)) }}
-      onToggle={() => { toggle(index) }}
+      onToggle={() => { rowState.toggle(index) }}
       onRemove={() => { remove(index) }}
     />
-  ))
+  })
 
-  const addAction = props.onlyIndex === undefined ? <Button
-    type="button"
-    variant={props.connecting === true ? 'outline' : 'ghost'}
-    size={props.connecting === true ? 'md' : 'sm'}
-    className={props.connecting === true ? undefined : styles['addModelButton']}
-    disabled={props.disabled}
-    onClick={() => {
-      if (props.connecting === true) setExpanded(current => new Set([...current, props.models.length]))
-      props.onChange([...props.models.map(model => ({ ...model })), { id: '' }])
-    }}
-  >
-    <IconPlusOutlineRegular size={16} />
-    {props.t('addModel')}
-  </Button> : null
+  const addAction = props.onlyIndex === undefined ? <AddModelButton
+    connecting={props.connecting === true} disabled={props.disabled} t={props.t}
+    onAdd={() => { rowState.append({ id: '' }, props.connecting === true) }} /> : null
 
   const catalogActions = <>
     {props.overridden && <Button variant={props.connecting === true ? 'outline' : 'ghost'} size={props.connecting === true ? 'md' : 'sm'}
@@ -327,20 +264,17 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
       {props.connecting === true ? <ProviderModelTable t={props.t}>
         {props.models.length > 0 ? modelRows : <tr><td colSpan={4} className={connectStyles['tableEmpty']}>{props.t('modelsEmpty')}</td></tr>}
       </ProviderModelTable> : <>
-        {props.models.length === 0
-          ? <p className={styles['modelEmpty']}>{props.t('modelsEmpty')}</p>
-          : (
-            <div className={styles['modelList']} data-model-list>
-              {props.onlyIndex === undefined && <div className={styles['modelTableHead']} aria-hidden="true">
-                <span>{props.t('modelOrder')}</span>
-                <span>{props.t('modelId')}</span>
-                <span>{props.t('modelName')}</span>
-                <span>{props.t('modelReasoning')}</span>
-                <span>{props.t('modelActions')}</span>
-              </div>}
-              {modelRows}
-            </div>
-          )}
+        <AnimatedRows className={styles['modelList'] as string} rowKeys={rowState.rows.map(row => String(row.key))} ready resetKey="" data-model-list>
+          {props.models.length === 0 && <p className={styles['modelEmpty']}>{props.t('modelsEmpty')}</p>}
+          {props.onlyIndex === undefined && <div className={styles['modelTableHead']} aria-hidden="true">
+            <span>{props.t('modelOrder')}</span>
+            <span>{props.t('modelId')}</span>
+            <span>{props.t('modelName')}</span>
+            <span>{props.t('modelReasoning')}</span>
+            <span>{props.t('modelActions')}</span>
+          </div>}
+          {modelRows}
+        </AnimatedRows>
       </>}
       {props.connecting === true ? null : addAction}
     </section>

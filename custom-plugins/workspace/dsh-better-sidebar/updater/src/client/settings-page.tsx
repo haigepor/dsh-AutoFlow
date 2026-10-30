@@ -106,7 +106,7 @@ export function SidebarSettingsPage({ store, service, t }: SideCardSectionProps 
       <div className="bs-settings-feature-copy"><span className="bs-settings-title">{name}</span><span className="bs-settings-description">{desc}</span></div>
       <div className="bs-settings-feature-actions">
         {kind === 'tab' && 'hidden' in item && item.hidden && <small className="bs-settings-on-demand">{t('settingsOnDemand')}</small>}
-        {configured(item) && <Button variant="outline" className="bs-settings-outline bs-settings-configure" aria-label={`${name} ${t('settingsConfigure')}`} onClick={() => setSettingsFor({ kind, id: item.id })}>{t('settingsConfigure')}</Button>}
+        {configured(item) && <Button variant="outline" className="bs-settings-outline bs-settings-configure" disabled={!view.ready} aria-label={`${name} ${t('settingsConfigure')}`} onClick={() => setSettingsFor({ kind, id: item.id })}>{t('settingsConfigure')}</Button>}
         <Toggle label={name} checked={enabled} disabled={!view.ready} onChange={next => { void write(current => ({ [map]: { ...current[map], [item.id]: next } })) }} />
       </div>
     </div>

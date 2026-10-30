@@ -4,7 +4,7 @@ import { AccountRejected, type AccountFailureDetails } from './record.ts'
 import { readBoundedJson } from './json.ts'
 import type { AuthFailureCode } from '../../shared/accounts.ts'
 
-const errorSchema = z.object({ error: z.union([z.string(), z.object({ code: z.string().optional(), type: z.string().optional(), message: z.string().optional() })]).optional(), error_description: z.string().optional() })
+const errorSchema = z.object({ error: z.union([z.string(), z.object({ code: z.string().optional(), type: z.string().optional(), param: z.string().nullable().optional(), message: z.string().optional() })]).optional(), error_description: z.string().optional() })
 
 /** Parse the vendor's seconds or HTTP-date hint without allowing an invalid/unbounded date.
  * @param value Retry-After header, when present.
@@ -35,7 +35,9 @@ function authCodeOf(code: string, message: string): AuthFailureCode | undefined 
  */
 export async function failureDetails(response: Response, now: number, signal: AbortSignal): Promise<AccountFailureDetails> {
   const details: AccountFailureDetails = {}
-  const retryAt = retryAtOf(response.headers.get('retry-after'), now)
+  const ms = response.headers.get('retry-after-ms')
+  const msAt = ms !== null && /^\d+(?:\.\d+)?$/.test(ms) && ms.length <= 32 ? now + Number(ms) : NaN
+  const retryAt = Number.isSafeInteger(Math.ceil(msAt)) && msAt > now ? msAt : retryAtOf(response.headers.get('retry-after'), now)
   if (retryAt !== undefined) details.retryAt = retryAt
   const requestId = response.headers.get('x-request-id')
   if (requestId !== null && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId)) details.requestId = requestId
@@ -50,18 +52,25 @@ export async function failureDetails(response: Response, now: number, signal: Ab
     const authCode = authCodeOf(code, message)
     if (authCode !== undefined) details.authCode = authCode
   }
-  if (/^(rate_limit_exceeded|usage_limit_reached|insufficient_quota|permission_denied|model_not_found|token_expired)$/.test(code)) details.upstreamCode = code
+  if (/^(rate_limit_exceeded|usage_limit_reached|insufficient_quota|permission_denied|model_not_found|model_not_supported|model_access_denied|token_expired)$/.test(code)) details.upstreamCode = code
+  if (details.authCode === undefined && response.status !== 401 && (['model_not_found', 'model_not_supported', 'model_access_denied'].includes(code)
+    || typeof error === 'object' && ['model', 'reasoning.effort', 'service_tier'].includes(error?.param ?? '') && ['permission_denied', 'rate_limit_exceeded', 'usage_limit_reached'].includes(code))) {
+    details.scope = 'model'
+    if (typeof error === 'object' && error?.param === 'reasoning.effort') details.variant = 'reasoning'
+    if (typeof error === 'object' && error?.param === 'service_tier') details.variant = 'serviceTier'
+  }
   return details
 }
 
 /** Classify a complete pre-output refusal consistently across native text, raw Responses and images.
- * @param response Explicit 401/402/403/429 reply.
+ * @param response Explicit account refusal, or a 404 identifying an unavailable model.
  * @param now Receiving clock in milliseconds.
  * @param signal Request deadline and cancellation.
  * @returns A typed account refusal with no raw provider text.
  */
 export async function accountRefusal(response: Response, now: number, signal: AbortSignal): Promise<AccountRejected> {
   const status = response.status
-  if (status !== 401 && status !== 402 && status !== 403 && status !== 429) throw new Error('Only explicit account refusals can be classified for account fallback.')
-  return new AccountRejected(status, await failureDetails(response, now, signal))
+  const details = await failureDetails(response, now, signal)
+  if (status !== 401 && status !== 402 && status !== 403 && status !== 429 && !(status === 404 && details.scope === 'model')) throw new Error('Only explicit account refusals can be classified for account fallback.')
+  return new AccountRejected(status, details)
 }

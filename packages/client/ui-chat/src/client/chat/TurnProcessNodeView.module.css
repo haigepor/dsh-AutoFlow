@@ -19,8 +19,10 @@
   cursor: default;
 }
 
-.root:not(:disabled):hover {
-  color: var(--dsw-alias-label-primary);
+@media (hover: hover) {
+  .root:hover:not(:disabled) {
+    color: var(--dsw-alias-label-secondary);
+  }
 }
 
 .chevron {
@@ -28,8 +30,8 @@
   width: 14px;
   height: 14px;
   margin-left: 4px;
-  color: var(--dsw-alias-label-caption);
   transition: transform 100ms ease;
+  color: var(--dsw-alias-label-caption);
 }
 
 .root[data-open] .chevron {
@@ -39,10 +41,10 @@
 .label {
   min-width: 0;
   overflow: hidden;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -50,4 +52,11 @@
   .chevron {
     transition: none;
   }
+}
+
+@media (hover: hover) {
+
+.root:not(:disabled):hover {
+  color: var(--dsw-alias-label-primary);
+}
 }

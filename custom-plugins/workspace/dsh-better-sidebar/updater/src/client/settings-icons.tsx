@@ -12,7 +12,7 @@ import code from '../../assets/icons/code.svg'
 const sources: Record<string, string> = {
   'tab:editor': files, 'tab:git': changes, 'tab:subagent': tasks,
   'tab:sidechat': chat, 'tab:terminal-bottom': terminal, 'tab:diff': diff,
-  'viewer:markdown': markdown, 'viewer:html': html, 'viewer:code': code,
+  'viewer:markdown': markdown, 'viewer:html': html, 'viewer:jsonl': code, 'viewer:code': code,
 }
 const urls = Object.fromEntries(Object.entries(sources).map(([key, svg]) => [key, `data:image/svg+xml,${encodeURIComponent(svg)}`]))
 

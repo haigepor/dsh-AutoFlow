@@ -37,7 +37,6 @@
   bottom: 0;
   display: flex;
   flex-direction: column;
-  padding-top: var(--dsh-frame-content-top-gap);
   min-width: 0;
   /* Hidden docked items sit past the frame's right edge. Unclipped, they widen
      the frame's scrollable overflow, and a caret reveal (PageUp in a text field
@@ -46,37 +45,22 @@
      not clip fixed floating children, whose containing block is the viewport. */
   overflow: clip;
   pointer-events: none;
+  padding-top: var(--dsh-frame-content-top-gap);
 }
 
-/* The exposed top band travels with the docked pane. */
-.panel::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: var(--dsh-frame-content-top-gap);
-  background: var(--dsw-specific-sidebar-fill);
-}
+/* Only docked Grid items slide. Their common ancestor remains untransformed
+   and without a stacking context, so fixed floating children escape. */
 
-/* Docked Grid items and their top band slide together. Their common ancestor
-   remains untransformed and unclipped so fixed floating children escape. */
-.panel :global([data-dockkit-host='dock']),
-.panel :global([data-dockkit-empty]),
-.panel :global([data-dockkit-divider]),
-.panel::before {
-  transform: translateX(var(--dsh-sidebar-width));
-  visibility: hidden;
-  transition:
-    transform var(--dsh-sidebar-transition-duration, 500ms) var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1)),
-    visibility 0s linear var(--dsh-sidebar-transition-duration, 500ms);
-}
-
-.panel[data-sidebar-right-open] :global([data-dockkit-host='dock']),
-.panel[data-sidebar-right-open] :global([data-dockkit-empty]),
-.panel[data-sidebar-right-open] :global([data-dockkit-divider]),
-.panel[data-sidebar-right-open]::before {
-  transform: none;
-  visibility: visible;
-  transition: transform var(--dsh-sidebar-transition-duration, 500ms) var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1));
+/* An item mounted by the opening has no closed style to slide from; it starts
+   at the closed position like the items already mounted. Only an opening
+   marks the panel, so items that mount while it stays open, or that a
+   Session switch shows, appear in place. */
+@starting-style {
+  .panel[data-sidebar-right-opening] :global([data-dockkit-host='dock']),
+  .panel[data-sidebar-right-opening] :global([data-dockkit-empty]),
+  .panel[data-sidebar-right-opening] :global([data-dockkit-divider]) {
+    transform: translateX(var(--dsh-sidebar-width));
+  }
 }
 
 .panel[data-sidebar-right-panel='fullscreen'] {
@@ -123,6 +107,14 @@
   .panel :global([data-dockkit-host='dock']),
   .panel :global([data-dockkit-empty]),
   .panel :global([data-dockkit-divider]),
+  .panel[data-sidebar-right-open] :global([data-dockkit-host='dock']),
+  .panel[data-sidebar-right-open] :global([data-dockkit-empty]),
+  .panel[data-sidebar-right-open] :global([data-dockkit-divider]) {
+    transition: none;
+  }
+  .panel :global([data-dockkit-host='dock']),
+  .panel :global([data-dockkit-empty]),
+  .panel :global([data-dockkit-divider]),
   .panel::before {
     transition: none;
   }
@@ -151,8 +143,10 @@
   height: 15px;
 }
 
-.iconButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+@media (hover: hover) {
+  .iconButton:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 /* The expand button's glyph, so collapse and expand share one affordance. */
@@ -185,4 +179,30 @@
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--dsh-frame-content-top-gap);
+  background: var(--dsw-specific-sidebar-fill);
+}
+.panel :global([data-dockkit-host='dock']),
+.panel :global([data-dockkit-empty]),
+.panel :global([data-dockkit-divider]),
+.panel::before {
+  transform: translateX(var(--dsh-sidebar-width));
+  visibility: hidden;
+  transition:
+    transform var(--dsh-sidebar-transition-duration, 500ms) var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    visibility 0s linear var(--dsh-sidebar-transition-duration, 500ms);
+}
+
+.panel[data-sidebar-right-open] :global([data-dockkit-host='dock']),
+.panel[data-sidebar-right-open] :global([data-dockkit-empty]),
+.panel[data-sidebar-right-open] :global([data-dockkit-divider]),
+.panel[data-sidebar-right-open]::before {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--dsh-sidebar-transition-duration, 500ms) var(--dsh-sidebar-transition-easing, cubic-bezier(0.16, 1, 0.3, 1));
 }

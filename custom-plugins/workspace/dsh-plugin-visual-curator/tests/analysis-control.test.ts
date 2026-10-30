@@ -53,6 +53,37 @@ test('a failed summary exposes its cause and continues the same task without rep
   } finally { await f.cleanup() }
 })
 
+test('continuing a failed image batch keeps earlier observations and saves later checkpoints', async () => {
+  const f = await serviceFixture(undefined, { maxReferenceImages: 1, maxRetryAttempts: 0 }), send = f.http.request.bind(f.http)
+  const analyzed: string[] = []
+  let fail = true
+  f.http.request = async (url, input) => {
+    if (url.includes('vision') && input.body) {
+      const body = JSON.parse(Buffer.from(input.body).toString('utf8')), prompt = JSON.parse(body.messages[1].content[0].text).input
+      if (prompt.operation === 'analyze') { analyzed.push(prompt.images[0].imageVersionId); if (analyzed.length === 2 && fail) throw new MediaError('request-timeout', 'reviewing', true, 'Timed out', 'Continue analysis') }
+    }
+    return send(url, input)
+  }
+  try {
+    await f.service.initialize()
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'partial-failure-style', name: 'Partial recovery' }))
+    const files = await Promise.all(['red', 'blue'].map(async color => ({ name: `${color}.png`, mime: 'image/png', base64: (await sharp({ create: { width: 16, height: 16, channels: 3, background: color } }).png().toBuffer()).toString('base64'), role: 'positive', intent: 'overall', dimensions: [] })))
+    await f.action('reference-import', { operationId: 'partial-failure-images', styleId, expectedRevision: 1, files })
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'partial-failure-run', styleId, buildDataset: true }))
+    await f.jobs.drain()
+    const before = dataOf(f.domain.require('run', runId)), saved = f.repository.list('observation')[0]!
+    assert.equal(before.counts.observed, 1)
+    fail = false
+    await f.action('analysis-resume', { runId }); await f.jobs.drain()
+    const result = f.domain.require('run', runId), after = dataOf(result)
+    assert.equal(result.status, 'completed'); assert.equal(after.counts.observed, 2)
+    assert.equal(analyzed.filter(imageId => imageId === saved.imageVersionId).length, 1)
+    assert.ok(f.repository.list('observation').some(observation => observation.id === saved.id))
+    assert.equal(after.checkpoint.analysisRetryAfterRequestId, before.requestIds.at(-1))
+    assert.equal(after.budget.deadlineAt, before.budget.deadlineAt)
+  } finally { await f.cleanup() }
+})
+
 test('cancel returns its accepted state while provider cleanup is still pending', { timeout: 10_000 }, async () => {
   const command = 'cancel'
   const fixture = await serviceFixture(), entered = deferred(), aborted = deferred(), release = deferred()

@@ -74,11 +74,18 @@
   margin-right: -3px;
 }
 
-.markdown a:hover,
 .markdown a:focus {
   outline: none;
   text-decoration: underline dotted var(--dsw-alias-link);
   text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .markdown a:hover {
+    outline: none;
+    text-decoration: underline dotted var(--dsw-alias-link);
+    text-underline-offset: 3px;
+  }
 }
 
 .markdown a:focus-visible,
@@ -190,18 +197,40 @@
 }
 
 .tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
   box-sizing: border-box;
   min-width: 0;
   width: 100%;
-  max-width: 100%;
   margin-inline: auto;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
 }
 
-/* Keep touch and keyboard scrolling available without requiring hover. */
-.tableScroll:global(.md-table-wide) {
-  overflow-x: auto;
+/* Hover-capable inputs reveal a wide table's bar on hover or keyboard focus.
+   Other inputs keep native horizontal scrolling. Chromium never repaints state-conditioned
+   scrollbar STYLES (neither hover-conditioned `::-webkit-scrollbar*` rules
+   nor a :hover `scrollbar-color` change reaches the painted bar), so the
+   toggle is `overflow-x` itself — a layout change repaints reliably. The
+   resting padding matches the themed bar's height on the WebKit scrollbar
+   path. There, `scroll` reserves that height even when the table fits.
+   Other engines and overlay scrollbars may reserve a different height.
+   Wheel and trackpad scrolling need the pointer over the table, which is
+   already the hover that re-enables scrolling. */
+.tableScroll:global(.md-table-wide):focus-visible {
+  overflow-x: scroll;
+  padding-bottom: 0;
+}
+
+@media (hover: hover) {
+  .tableScroll:global(.md-table-wide) {
+    overflow-x: hidden;
+    padding-bottom: var(--dsh-scrollbar-width, 5px);
+  }
+
+  .tableScroll:global(.md-table-wide):hover {
+    overflow-x: scroll;
+    padding-bottom: 0;
+  }
 }
 
 /* Chromium keyboard-focuses scrollable containers by default; the ring uses
@@ -211,7 +240,9 @@
   box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
 }
 
-/* Cells wrap within the text column; a many-column floor scrolls internally. */
+/* Many-column tables (the renderer's `md-table-wide` hook) keep their
+   natural width and scroll inside the wrapper; a hosting layout may widen
+   the wrapper through the hook (deepsuite chat TableWrapper parity). */
 .tableScroll table {
   border-collapse: collapse;
   width: 100%;
@@ -230,22 +261,22 @@
 
 .tableScroll th {
   text-align: start;
-  padding: 10px 12px;
   border-bottom: 0.5px solid var(--dsw-alias-border-l3);
   border-top: none;
   font: var(--dsw-font-markdown-table-head);
   max-width: 320px;
   max-width: min(30vw, 320px);
+  padding: 10px 12px;
   min-width: 64px;
   overflow-wrap: anywhere;
 }
 
 .tableScroll td {
-  padding: 10px 12px;
   border-bottom: 0.5px solid var(--dsw-alias-border-l2);
   font: var(--dsw-font-markdown-table);
   max-width: 320px;
   max-width: min(30vw, 320px);
+  padding: 10px 12px;
   min-width: 64px;
   overflow-wrap: anywhere;
 }
@@ -265,10 +296,6 @@
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-
-@media (max-width: 600px) {
-  .tableScroll:global(.md-table-wide) > table { min-width: 600px; }
 }
 
 .markdown > *:first-child,
@@ -318,11 +345,18 @@
   text-align: inherit;
 }
 
-.fileMention:hover,
 .fileMention:focus {
   outline: none;
   text-decoration: underline dotted var(--dsw-alias-link);
   text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .fileMention:hover {
+    outline: none;
+    text-decoration: underline dotted var(--dsw-alias-link);
+    text-underline-offset: 3px;
+  }
 }
 
 .compact {
@@ -371,11 +405,16 @@
   text-decoration: underline dotted;
 }
 
-.compact a:hover,
 .compact a:focus,
-.compact .fileMention:hover,
 .compact .fileMention:focus {
   text-decoration-color: currentColor;
+}
+
+@media (hover: hover) {
+  .compact a:hover,
+  .compact .fileMention:hover {
+    text-decoration-color: currentColor;
+  }
 }
 
 .compact :not(pre) > code {
@@ -462,10 +501,14 @@
   font-size: 12px;
   line-height: 18px;
 }
+.tableScroll:global(.md-table-wide) {
+  overflow-x: auto;
+}
 
-/* Catalog-backed skill references keep the surrounding prose size and theme accent. */
+@media (max-width: 600px) {
+  .tableScroll:global(.md-table-wide) > table { min-width: 600px; }
+}
 .markdown .skillMention {
-  /* 技能文字继承正文的字号、字重和行高，SVG 独立对齐而不改变文字基线。 */
   display: inline-block;
   vertical-align: baseline;
   padding: 0;
@@ -486,5 +529,7 @@
   margin-right: 5px;
   vertical-align: -0.125em;
 }
+@media (hover: hover) {
 .skillMention:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
 .skillMention:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 3px; }

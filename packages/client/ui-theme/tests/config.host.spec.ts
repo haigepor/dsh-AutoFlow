@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
-import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
+import type { IndexInjection, WebServer } from '@deepseek-ai/dsh-host-webserver'
 import * as HostPlugin from '../src/index.ts'
 import { liveConfig, omitsGeneratedPage } from '../../../settings/settings/tests/live-config.ts'
 import { plainConfig } from '../../../settings/settings/src/schema.ts'
@@ -8,11 +8,14 @@ import {
   DEFAULT_PREFERENCE, Config, apply,
 } from '@deepseek-ai/dsh-client-ui-theme'
 
+/** The Peer an index render speaks for; this listener reads no field of it. */
+const PAGE_PEER = { principal: { kind: 'owner' } } as Parameters<WebServer['renderIndex']>[1]
+
 
 /** Collect the injection table the way an index render or boot payload does. */
 function collect(ctx: Context): IndexInjection[] {
   const table: IndexInjection[] = []
-  ctx.emit('webserver/index-inject', table)
+  ctx.emit('webserver/index-inject', table, PAGE_PEER)
   return table
 }
 
@@ -27,15 +30,15 @@ describe('ui-theme host', () => {
     const ctx = new Context()
     const configuration = await liveConfig(ctx, { Config, apply })
     const { fiber } = configuration
-    expect(plainConfig(configuration.fiber.config)).toEqual({
+    expect(plainConfig(configuration.fiber.effectiveConfig)).toEqual({
       codeFontSize: 11, terminalFontSize: 13, textFontFamily: '', codeFontFamily: '', terminalFontFamily: '', preference: DEFAULT_PREFERENCE, fontSize: 14, accent: 'iris', themeSet: 'official', glideDuration: 220, fontFamily: 'system', corners: 'standard',
     })
     await configuration.update({ codeFontSize: 11, terminalFontSize: 13, textFontFamily: '', codeFontFamily: '', terminalFontFamily: '', preference: 'dark', fontSize: 10, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft' })
-    expect(plainConfig(configuration.fiber.config)).toEqual({
+    expect(plainConfig(configuration.fiber.effectiveConfig)).toEqual({
       codeFontSize: 11, terminalFontSize: 13, textFontFamily: '', codeFontFamily: '', terminalFontFamily: '', preference: 'dark', fontSize: 10, accent: 'ocean', themeSet: 'current', glideDuration: 300, fontFamily: 'inter', corners: 'soft',
     })
     await configuration.update({ fontSize: 22 })
-    expect(plainConfig(configuration.fiber.config)).toMatchObject({ fontSize: 22 })
+    expect(plainConfig(configuration.fiber.effectiveConfig)).toMatchObject({ fontSize: 22 })
     await expect(configuration.update({ preference: 'sepia' })).rejects.toThrow()
     await expect(configuration.update({ fontSize: 9 })).rejects.toThrow()
     await expect(configuration.update({ fontSize: 23 })).rejects.toThrow()

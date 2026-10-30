@@ -1,5 +1,5 @@
 /* Account settings extend the existing Models page's semantic palette and scale. */
-.page { min-width: 0; }
+.page { min-width: 0; --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2); --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2); }
 /* 账号由卡片操作管理，订阅页不展示全局配置文件入口。 */
 :global([data-settings-section='models']):has(.page) > footer { display: none; }
 .intro { display: flex; align-items: center; gap: 20px; padding: 20px 0; }
@@ -71,7 +71,8 @@
 .loginBrand { display: grid; place-items: center; width: 56px; height: 56px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); color: var(--dsw-alias-label-primary); }
 .loginState { display: flex; align-items: center; gap: 10px; margin-block: 20px 12px; font-size: 13px; line-height: 22px; }
 .external { display: inline-flex; align-items: center; min-height: 36px; padding: 4px 12px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); font-size: 13px; line-height: 22px; color: var(--dsw-alias-label-primary); text-decoration: none; }
-.external:hover { background: var(--dsw-alias-interactive-bg-hover); }
+@media (hover: hover) {
+.external:hover { background: var(--dsw-alias-interactive-bg-hover); } }
 .external:focus-visible, .manual summary:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 3px; }
 .manual { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--dsw-alias-border-l3); }
 .manual summary { cursor: pointer; font-size: 13px; line-height: 22px; color: var(--dsw-alias-label-primary); }

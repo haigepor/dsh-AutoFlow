@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP 服务管理",
+    "description": "持久保存 profile 中的 MCP 条目并报告脱敏连接状态。"
+  }
+}

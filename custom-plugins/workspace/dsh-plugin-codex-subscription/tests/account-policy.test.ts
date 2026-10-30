@@ -143,3 +143,13 @@ test('Retry-After accepts seconds and HTTP dates, rejects invalid hints, and nev
   const malformed = await accountRefusal(new Response('not JSON', { status: 402, headers: { 'retry-after': '30' } }), now, new AbortController().signal)
   assert.equal(malformed.status, 402); assert.equal(malformed.details.retryAt, now + 30000)
 })
+
+test('Retry-After-Ms takes precedence and model refusals retain their limited scope', async () => {
+  const signal = new AbortController().signal, now = 1800000000000
+  const details = await failureDetails(Response.json({ error: { code: 'model_not_found', param: 'model', message: 'private' } }, { status: 404,
+    headers: { 'retry-after': '60', 'retry-after-ms': '1500' } }), now, signal)
+  assert.deepEqual(details, { retryAt: now + 1500, upstreamCode: 'model_not_found', scope: 'model' })
+  assert.equal((await accountRefusal(Response.json({ error: { code: 'model_not_found' } }, { status: 404 }), now, signal))?.status, 404)
+  assert.equal((await failureDetails(Response.json({ error: { code: 'permission_denied' } }, { status: 403 }), now, signal)).scope, undefined)
+  assert.equal((await failureDetails(new Response(null, { status: 429, headers: { 'retry-after-ms': 'NaN', 'retry-after': '3' } }), now, signal)).retryAt, now + 3000)
+})

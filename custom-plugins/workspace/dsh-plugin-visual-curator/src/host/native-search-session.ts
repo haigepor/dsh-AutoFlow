@@ -51,9 +51,9 @@ export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSes
       const sessionId = brandString<import('@deepseek-ai/dsh-session').SessionId>(id), value = workspace(target.id)
       if (resolve(await realpath(value.path)) !== resolve(target.path)) throw new CuratorError('owner-denied', 'search-launch', 'The selected Workspace directory changed.')
       const listed = await controller.list({}, signal)
-      if (listed.items.some(item => item.sessionId === sessionId)) {
-        const inspection = await controller.inspect(sessionId, signal)
-        if (!inspection.meta.cwd || resolve(await realpath(inspection.meta.cwd)) !== resolve(target.path)) throw new CuratorError('owner-denied', 'search-launch', 'The saved conversation belongs to another directory.')
+      const existing = listed.items.find(item => item.sessionId === sessionId)
+      if (existing) {
+        if (!existing.cwd || resolve(await realpath(existing.cwd)) !== resolve(target.path)) throw new CuratorError('owner-denied', 'search-launch', 'The saved conversation belongs to another directory.')
         // 创建后的归属写入可能单独失败；恢复只补归属，不能再调用会另建会话的 create。
         if (!value.sessionIds.includes(sessionId)) await value.attachSession(sessionId)
         return
@@ -62,11 +62,10 @@ export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSes
       if (created.sessionId !== sessionId) throw new CuratorError('operation-conflict', 'search-launch', 'The reserved conversation identity was not created. Inspect the saved launch before retrying.')
     },
     async accepted(id, requestId) {
-      const inspection = await controller.inspect(brandString<SessionId>(id))
       const matches = (message: import('@deepseek-ai/dsh-session').UserMessage) => message.source.kind === 'user' && 'rpcId' in message.source && message.source.rpcId === requestId
-      if (inspection.events.some(event => event.type === 'user/message' && matches(event.data))) return true
       const resolved = await controller.resolveAgent(brandString<SessionId>(id))
       if ('error' in resolved) throw resolved.error
+      if (resolved.agent.session.snapshotEvents().some(event => event.type === 'user/message' && matches(event.data))) return true
       return resolved.agent.inbox.nextTurn.some(matches) || resolved.agent.inbox.nextStep.some(matches)
     },
     async name(id, title) { await controller.rename({ sessionId: brandString<SessionId>(id), title }) },

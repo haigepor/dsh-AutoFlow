@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createParser } from 'eventsource-parser'
 import type { GatewayKey } from './types.ts'
 import type { AccountFailureDetails } from '../accounts/record.ts'
+import { constants, createGunzip, createZstdDecompress } from 'node:zlib'
 
 /** A public gateway failure with a safe, fixed message. */
 export class RelayError extends Error {
@@ -63,6 +64,42 @@ export async function readBody(request: IncomingMessage, limit: number): Promise
     chunks.push(bytes)
   }
   return Buffer.concat(chunks, size)
+}
+
+/** Decode a bounded wire body with a second bound on expanded bytes and decoder memory.
+ * @param body Already bounded compressed bytes.
+ * @param encoding Content-Encoding; absent or identity leaves bytes unchanged.
+ * @param limit Maximum decoded bytes; also bounds the zstd window.
+ * @param signal Existing request deadline and client cancellation.
+ * @returns Decoded bytes, or a sanitized encoding/size failure.
+ */
+export async function decodeBody(body: Buffer, encoding: string | undefined, limit: number, signal: AbortSignal): Promise<Buffer> {
+  signal.throwIfAborted()
+  if (encoding === undefined || encoding.trim().toLowerCase() === 'identity') return body
+  const name = encoding.trim().toLowerCase()
+  if (name !== 'gzip' && name !== 'zstd') throw new RelayError(415, 'unsupported_content_encoding', 'Use identity, gzip or zstd Content-Encoding.')
+  const decoder = name === 'gzip' ? createGunzip() : createZstdDecompress({ params: { [constants.ZSTD_d_windowLogMax]: Math.max(10, Math.ceil(Math.log2(limit))) } })
+  const abort = (): void => { decoder.destroy(signal.reason instanceof Error ? signal.reason : new Error('Request aborted')) }
+  signal.addEventListener('abort', abort, { once: true })
+  if (signal.aborted) abort()
+  const chunks: Buffer[] = []
+  let size = 0
+  try {
+    decoder.end(body)
+    for await (const raw of decoder) {
+      const chunk = Buffer.isBuffer(raw) ? raw : Buffer.from(raw)
+      signal.throwIfAborted(); size += chunk.byteLength
+      if (size > limit) throw new RelayError(413, 'request_too_large', 'The decoded request exceeds the configured size limit.')
+      chunks.push(chunk)
+    }
+    signal.throwIfAborted()
+    return Buffer.concat(chunks, size)
+  } catch (error) {
+    signal.throwIfAborted()
+    if (error instanceof RelayError) throw error
+    if (error instanceof Error && 'code' in error && error.code === 'ZSTD_error_frameParameter_windowTooLarge') throw new RelayError(413, 'request_too_large', 'The zstd window exceeds the configured size limit.')
+    throw new RelayError(400, 'invalid_compressed_body', 'The compressed request is invalid.')
+  } finally { signal.removeEventListener('abort', abort); decoder.destroy() }
 }
 
 /** Decode one JSON request.

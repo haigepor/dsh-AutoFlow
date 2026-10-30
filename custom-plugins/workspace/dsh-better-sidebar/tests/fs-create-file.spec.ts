@@ -1,4 +1,3 @@
-import { testConnection } from './connection-fixture.ts'
 /**
  * The host's "new file" mutation (`fs.createFile` route → createWorkspaceFile):
  * the happy path against a real temporary filesystem, the shared
@@ -144,7 +143,7 @@ describe('createWorkspaceFile', () => {
  * editor reads.
  */
 interface FakeContext {
-  connection: ReturnType<typeof testConnection>
+  connection: { requestRejection: () => undefined }
   webServer: {
     register: (route: SidebarWebRoute) => () => void
     registerUpgrade: () => () => void
@@ -161,7 +160,7 @@ interface FakeContext {
 function mountApi(workspace: string): SidebarWebRoute {
   const routes: SidebarWebRoute[] = []
   const ctx: FakeContext = {
-    connection: testConnection(),
+    connection: { requestRejection: () => undefined },
     webServer: { register: (route) => { routes.push(route); return () => {} }, registerUpgrade: () => () => {} },
     sessions: { get: () => ({ header: { cwd: workspace } }) },
     tools: { register: () => () => {} },

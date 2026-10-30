@@ -27,7 +27,7 @@ import { WelcomeNoticeStore } from './welcome-store.ts'
 import { ModelsSettingsStore } from './store.ts'
 import { createModelsOperations } from './operations.ts'
 import { createSettingsSchemaOperations } from './schema-operations.ts'
-import { en, zh, type ModelsKey } from './locales.ts'
+import { en, ja, es, fr, de, ru, pt, zh, type ModelsKey } from './locales.ts'
 import { WELCOME_NOTICE_SETTINGS_NAMESPACE } from '../onboarding-copy.ts'
 import { Config, ONBOARDING_CONFIG_GLOBAL } from '../onboarding-config.ts'
 import { SubscriptionController } from './subscription-controller.ts'
@@ -84,7 +84,7 @@ export function apply(ctx: ClientContext): void {
   const payload = page[ONBOARDING_CONFIG_GLOBAL]
   const configured = Config(payload === undefined ? {} : payload)
   const credentialOnboarding = configured.credentialOnboarding && !('dshDesktop' in globalThis)
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-models: copy dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-settings-models: copy dictionaries')
 
   const schema = createSettingsSchemaOperations(ctx.settingsSchema)
   // Bound once here, where the Remote namespaces are declared in this plugin's
@@ -107,7 +107,8 @@ export function apply(ctx: ClientContext): void {
     hooks: { subscription: subscription.store }, t,
     ensure: () => subscription.ensure(), activate: () => subscription.activate(), startLogin: () => subscription.startLogin(),
     completeLogin: url => subscription.completeLogin(url), cancelLogin: () => subscription.cancelLogin(),
-    loadCatalog: () => subscription.loadCatalog(), saveCatalog: (entries, defaultImageModel) => subscription.saveCatalog(entries, defaultImageModel),
+    loadCatalog: () => subscription.loadCatalog(),
+    saveCatalog: (entries, defaultImageModel) => subscription.saveCatalog(entries, defaultImageModel),
     update: (account, patch) => subscription.update(account, patch), remove: account => subscription.remove(account),
     refresh: () => subscription.refresh(), dismissNotice: () => { subscription.dismissNotice() },
   })

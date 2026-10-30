@@ -11,7 +11,8 @@ function isNativeSearchAudit(value: unknown): value is { type: 'web/native-searc
 
 it('preserves native-search audit events separately from the main SDK response', async () => {
   const expected = JSON.parse(await readFile(new URL('./expected/native-web-search-projection.json', import.meta.url), 'utf8')) as {
-    finalResponse: string; auditEvents: readonly unknown[]
+    finalResponse: string
+    auditEvents: readonly unknown[]
   }
   const harness = createProcessDeepSeekHarness({ command: process.execPath,
     args: [fileURLToPath(new URL('./fake-runtime.ts', import.meta.url))],
@@ -23,7 +24,7 @@ it('preserves native-search audit events separately from the main SDK response',
       finalResponse: result.finalResponse,
       auditEvents: result.events.filter(isNativeSearchAudit),
       auditNotifications: result.notifications.filter(notification => notification.method === 'session.event'
-        && isNativeSearchAudit(notification.params.event)).map(notification => {
+        && isNativeSearchAudit(notification.params.event)).map((notification) => {
         if (notification.method !== 'session.event') throw new Error('Expected a Session event notification')
         expect(notification.params.sessionId).toBe(result.sessionId)
         return { method: notification.method, event: notification.params.event }

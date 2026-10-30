@@ -13,9 +13,15 @@
   cursor: pointer;
 }
 
-.helpButton:hover,
 .helpButton[aria-expanded='true'] {
   color: var(--dsw-alias-label-primary);
+}
+
+@media (hover: hover) {
+
+.helpButton:hover {
+  color: var(--dsw-alias-label-primary);
+}
 }
 
 .helpButton:focus-visible {

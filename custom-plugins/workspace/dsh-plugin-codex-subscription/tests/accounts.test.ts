@@ -40,7 +40,7 @@ async function fixture(network?: typeof fetch, now?: () => number) {
     fetch: network ?? (async input => String(input).includes('/codex/models') ? Response.json({ models: [{ slug: 'gpt-6.1-sol', display_name: 'GPT fixture' }, { slug: 'unknown-future-model' }] })
       : Response.json({ plan_type: 'plus', rate_limit: { primary_window: { used_percent: 12, reset_at: 2000000000 } } })),
     clientId: 'fixture-client', authorizeUrl: 'https://auth.fixture.invalid/oauth/authorize', tokenUrl: 'https://auth.fixture.invalid/oauth/token',
-    callbackPorts: [0], loginTimeoutMs: 5000, tokenTimeoutMs: 1000, sessionAffinityLimit: 8, cooldownMs: 1000,
+    callbackPorts: [0], loginTimeoutMs: 5000, tokenTimeoutMs: 1000, sessionAffinityLimit: 8, modelCooldownLimit: 8, cooldownMs: 1000,
     baseUrl: 'https://chatgpt.fixture.invalid/backend-api', clientVersion: 'fixture', discoveryTtlMs: 1, ...(now === undefined ? {} : { now }) }
   const accounts = new CodexAccounts(options), unmount = accounts.mount()
   const seed = async (ids: string[], expired = false) => {
@@ -63,6 +63,47 @@ test('images skip accounts forbidding credits without treating text allowance as
     await f.accounts.update(keyFor('b'), { revision: 1, allowCredits: false })
     await assert.rejects(f.accounts.withAccount({ kind: 'image' }, async () => true), { code: 'IMAGE_CREDITS_DISABLED' })
     assert.equal(await f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol' }, async () => true), true)
+  } finally { await f.close() }
+})
+
+test('a model rejection switches accounts without blocking other models on the first account', async () => {
+  const f = await fixture(async input => String(input).includes('/codex/models')
+    ? Response.json({ models: [{ slug: 'gpt-6.1-sol' }, { slug: 'gpt-6-sol' }] }) : Response.json({ rate_limit: {} }))
+  try {
+    await f.seed(['a', 'b']); await f.accounts.update(keyFor('a'), { revision: 1, priority: 100 })
+    const chosen = await f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol' }, async lease => {
+      if (lease.accountKey === keyFor('a')) throw new AccountRejected(403, { scope: 'model', upstreamCode: 'model_not_found' })
+      return lease.accountKey
+    })
+    assert.equal(chosen, keyFor('b'))
+    assert.equal(await f.accounts.withAccount({ kind: 'text', model: 'gpt-6-sol' }, async lease => lease.accountKey), keyFor('a'))
+    assert.equal(await f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol' }, async lease => lease.accountKey), keyFor('b'))
+  } finally { await f.close() }
+})
+
+test('models ETag invalidates discovery inside the TTL without editing the selected model catalog', async () => {
+  let calls = 0
+  const f = await fixture(async input => String(input).includes('/codex/models')
+    ? (calls++, Response.json({ models: [{ slug: calls === 1 ? 'gpt-6.1-sol' : 'gpt-6-sol' }] }, { headers: { 'x-models-etag': calls === 1 ? 'v1' : 'v2' } }))
+    : Response.json({ rate_limit: {} }))
+  f.options.discoveryTtlMs = 60000
+  try {
+    await f.seed(['a']); assert.equal((await f.accounts.models())[0]?.id, 'gpt-6.1-sol')
+    await f.accounts.withAccount({ kind: 'image' }, async lease => { await lease.observeResponse?.(new Response(null, { headers: { 'x-models-etag': 'v2' } })).body?.cancel() })
+    assert.equal((await f.accounts.models())[0]?.id, 'gpt-6-sol'); assert.equal(calls, 2)
+  } finally { await f.close() }
+})
+
+test('effort-specific refusal preserves other efforts and retains its retry hint when every candidate is blocked', async () => {
+  const f = await fixture()
+  try {
+    await f.seed(['a'])
+    const at = Date.now() + 60000
+    await assert.rejects(f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol', reasoningEffort: 'high' }, async () => {
+      throw new AccountRejected(429, { scope: 'model', variant: 'reasoning', retryAt: at })
+    }), { status: 429 })
+    assert.equal(await f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol', reasoningEffort: 'low' }, async () => true), true)
+    await assert.rejects(f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol', reasoningEffort: 'high' }, async () => true), (error: unknown) => error instanceof AccountError && error.status === 429 && error.details.retryAt === at)
   } finally { await f.close() }
 })
 
@@ -288,7 +329,7 @@ test('raw Responses switches on 402 before output and never dispatches an ordina
     const id = new Headers(init?.headers).get('chatgpt-account-id')!; calls.push(id)
     return id === 'a' ? Response.json({ error: { code: 'insufficient_quota', message: 'private body' } }, { status }) : new Response('data: {}\n\n')
   }, () => now)
-  const transport = new CodexResponsesTransport({ accounts: f.accounts, fetch: f.options.fetch, endpoint: f.options.baseUrl + '/codex/responses', originator: 'codex_cli_rs', userAgent: 'fixture', clientVersion: 'fixture' })
+  const transport = new CodexResponsesTransport({ accounts: f.accounts, fetch: f.options.fetch, endpoint: f.options.baseUrl + '/codex/responses', originator: 'codex_cli_rs', userAgent: 'fixture', clientVersion: 'fixture', sessionStateLimit: 8 })
   try {
     await f.seed(['a', 'b']); await (await transport.request({ model: 'gpt-6.1-sol', input: 'fixture' }, new AbortController().signal)).text()
     assert.deepEqual(calls, ['a', 'b'])
@@ -308,8 +349,8 @@ test('Retry-After survives raw HTTP and local relay errors and delays that accou
     upstreamCalls++
     return Response.json({ error: { code: 'rate_limit_exceeded', message: 'private upstream details' } }, { status: 429, headers: { 'retry-after': '120', 'x-request-id': 'req_fixture' } })
   }, () => now)
-  const transport = new CodexResponsesTransport({ accounts: f.accounts, fetch: f.options.fetch, endpoint: f.options.baseUrl + '/codex/responses', originator: 'codex_cli_rs', userAgent: 'fixture', clientVersion: 'fixture' })
-  const relay = await startRelay({ host: '127.0.0.1', port: 0, gatewayKeys: [{ id: 'fixture', secret: 'test-gateway-key-1234567890' }], allowedOrigins: [], maxRequestBytes: 1024, maxResponseBytes: 65536, requestTimeoutMs: 5000, imageWaitMs: 10, assetUrlTtlMs: 60000, maxConcurrentRequests: 1 }, {
+  const transport = new CodexResponsesTransport({ accounts: f.accounts, fetch: f.options.fetch, endpoint: f.options.baseUrl + '/codex/responses', originator: 'codex_cli_rs', userAgent: 'fixture', clientVersion: 'fixture', sessionStateLimit: 8 })
+  const relay = await startRelay({ host: '127.0.0.1', port: 0, gatewayKeys: [{ id: 'fixture', secret: 'test-gateway-key-1234567890' }], allowedOrigins: [], maxRequestBytes: 1024, maxResponseBytes: 65536, requestTimeoutMs: 5000, imageWaitMs: 10, assetUrlTtlMs: 60000, maxConcurrentRequests: 1, maxSocketConnections: 4, maxSocketQueuedTurns: 2, maxSocketHistoryBytes: 1048576 }, {
     requestResponses: (body, signal) => transport.request(body, signal), listModels: () => f.accounts.models(),
     images: { submit: async () => { throw new Error('unused') }, getResult: async () => { throw new Error('unused') } }, readAsset: async () => { throw new Error('unused') },
   })

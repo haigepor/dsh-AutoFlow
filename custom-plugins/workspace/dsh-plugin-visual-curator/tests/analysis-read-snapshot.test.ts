@@ -22,7 +22,7 @@ class ObservedRepository extends DomainRepository {
   override list<K extends RecordKind>(kind: K): RecordOf<K>[] { this.listReads.set(kind, (this.listReads.get(kind) ?? 0) + 1); return super.list(kind) }
 }
 
-async function savedAnalysis() {
+async function savedAnalysis(addPreviousRun = false) {
   const f = await serviceFixture()
   await f.service.initialize()
   const style = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'read-style', name: 'Read fixture' }))
@@ -32,6 +32,10 @@ async function savedAnalysis() {
   const adapter = new ObservedAdapter()
   const kinds = ['style', 'draft', 'run', 'asset', 'imageVersion', 'reference', 'observation', 'request'] as const
   const records = kinds.flatMap(kind => f.repository.list(kind))
+  if (addPreviousRun) {
+    const savedRun = f.repository.list('run')[0]!
+    records.push({ ...savedRun, id: `${savedRun.id}-previous` })
+  }
   const pointers = records.map(record => {
     const digest = contentDigest(record), key = `${record.kind}-${digest.slice(10)}`
     adapter.records.set(key, record)
@@ -53,6 +57,17 @@ test('analysis preflight verifies one snapshot and reads feedback without assemb
     assert.equal(plan.total, 1)
     assert.equal(f.adapter.manifestReads, 1)
     for (const kind of ['style', 'usage', 'split', 'evaluation', 'export', 'suggestion']) assert.equal(f.repository.listReads.get(kind) ?? 0, 0, `${kind} is unrelated to analysis preflight`)
+  } finally { await f.cleanup() }
+})
+
+test('analysis preflight groups committed requests once across historical runs', async () => {
+  const f = await savedAnalysis(true)
+  try {
+    f.repository.listReads.clear()
+    const plan = z.object({ total: z.number(), digest: z.string() }).parse(await f.action('reference-state', { styleId: f.styleId }))
+    assert.equal(plan.total, 1)
+    assert.equal(f.repository.listReads.get('request'), 1)
+    assert.equal(z.object({ digest: z.string() }).parse(await f.action('reference-state', { styleId: f.styleId })).digest, plan.digest)
   } finally { await f.cleanup() }
 })
 

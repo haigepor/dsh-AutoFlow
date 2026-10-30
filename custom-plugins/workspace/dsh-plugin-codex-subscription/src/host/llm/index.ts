@@ -21,6 +21,10 @@ class UnstartedRefusal extends Error {
   constructor(readonly accountKey: string, readonly finish: Extract<StreamChunk, { type: 'finish' }>) { super('The account refused before model output.') }
 }
 
+class NativeRefusal extends Error {
+  constructor(readonly refusal: AccountRejected, readonly finish: Extract<StreamChunk, { type: 'finish' }>) { super(refusal.message) }
+}
+
 /** Describe only capabilities available on every account captured for this request. */
 export function commonCapabilities(models: readonly LlmResolvedModelInfo[], provider: string): LlmResolvedModelInfo {
   const reference = models[0]
@@ -136,10 +140,12 @@ export class CodexPoolAdapter extends LlmAdapter {
     // 每次消费独立持有拒绝信息，避免 SDK 的字符串错误投影丢掉 402，也避免并发请求互串状态。
     const prepared = await this.inner(accountKey, snapshot, baseModelId, failure => { refusal = failure }).prepareCall('openai-codex', model, options.signal)
     for await (const chunk of prepared.stream(options)) {
-      yield chunk.type === 'finish' && chunk.reason.kind === 'error' && refusal !== undefined
-        ? { ...chunk, reason: { kind: 'error', failure: { message: refusal.message, code: 'ACCOUNT_REJECTED', status: refusal.status!,
+      if (chunk.type === 'finish' && chunk.reason.kind === 'error' && refusal !== undefined) {
+        throw new NativeRefusal(refusal, { ...chunk, reason: { kind: 'error', failure: { message: refusal.message, code: 'ACCOUNT_REJECTED', status: refusal.status!,
           ...(refusal.details.retryAt === undefined ? {} : { providerRetryAfterMs: Math.max(0, refusal.details.retryAt - Date.now()) }),
-          ...(refusal.details.requestId === undefined ? {} : { requestId: brandString<ProviderRequestId>(refusal.details.requestId) }) } } } : chunk
+          ...(refusal.details.requestId === undefined ? {} : { requestId: brandString<ProviderRequestId>(refusal.details.requestId) }) } } })
+      }
+      yield chunk
     }
   }
 
@@ -161,6 +167,7 @@ export class CodexPoolAdapter extends LlmAdapter {
     let acquired = false
     // 持有账号直到消费者完成或 return；仅拿到 HTTP headers 不代表请求已结束。
     const holding = this.accounts.withCandidates({ kind: 'text', model: options.model,
+      ...(options.reasoningEffort === undefined ? {} : { reasoningEffort: options.reasoningEffort }),
       ...(options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) }),
       ...(options.signal === undefined ? {} : { signal: options.signal }) }, new Set(calls.keys()), async lease => {
       acquired = true; ready.resolve(lease); await completed.promise
@@ -171,20 +178,25 @@ export class CodexPoolAdapter extends LlmAdapter {
       const prepared = calls.get(lease.accountKey)
       if (!prepared) throw new LlmError('选中账号不属于本次已准备请求。', 'NO_ADAPTER')
       let emitted = false, pendingUsage: Extract<StreamChunk, { type: 'usage' }> | undefined
-      for await (const chunk of prepared.stream(nativeRequest({ ...options, signal: lease.signal }, lease.accountKey, this.config.provider))) {
+      try { for await (const chunk of prepared.stream(nativeRequest({ ...options, signal: lease.signal }, lease.accountKey, this.config.provider))) {
         if (chunk.type === 'usage' && !emitted && Object.values(chunk.usage).every(value => value === undefined || value === 0)) { pendingUsage = chunk; continue }
         if (chunk.type === 'finish' && chunk.reason.kind === 'error') {
           const failure = chunk.reason.failure
           const status = failure.status ?? (failure.code === 'AUTH' ? 401 : failure.code === 'RATE_LIMIT' || failure.code === 'QUOTA_EXCEEDED' ? 429 : undefined)
           if (status !== undefined) {
             completed.reject(new AccountError(failure.message, failure.code, status))
-            if (!emitted && [401, 402, 403, 429].includes(status)) throw new UnstartedRefusal(lease.accountKey, chunk)
           }
         }
         if (pendingUsage !== undefined) { yield pendingUsage; pendingUsage = undefined }
         emitted = true
         yield chunk.type === 'finish' && chunk.replayState !== undefined
           ? { ...chunk, replayState: wrapReplay(chunk.replayState, lease.accountKey, this.config.provider) } : chunk
+      } } catch (error) {
+        if (!(error instanceof NativeRefusal)) throw error
+        // 原始拒绝保留模型范围；调度器记录冷却，外层只在尚无输出时切换已捕获账号。
+        completed.reject(new AccountError(error.refusal.message, error.refusal.code, error.refusal.status, error.refusal.details))
+        if (!emitted) throw new UnstartedRefusal(lease.accountKey, error.finish)
+        yield error.finish; return
       }
       completed.resolve()
     } catch (error) { if (acquired) completed.reject(error); else completed.resolve(); throw error }

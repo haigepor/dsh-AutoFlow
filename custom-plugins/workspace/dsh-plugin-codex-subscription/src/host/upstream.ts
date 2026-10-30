@@ -58,7 +58,8 @@ class SocketSession {
     this.closed = this.ended.promise
     try {
       this.socket = new WebSocket(wsUrl, { headers: Object.fromEntries(headers), handshakeTimeout: settings.connectTimeoutMs,
-        maxPayload: settings.maxMessageBytes, followRedirects: false,
+        // 逐帧交还控制权，使 pause() 能在同一 TCP 块中的后续消息分发前生效。
+        maxPayload: settings.maxMessageBytes, followRedirects: false, allowSynchronousEvents: false,
         perMessageDeflate: { clientNoContextTakeover: true, serverNoContextTakeover: true }, ...(agent === undefined ? {} : { agent }) })
     } catch (error) { agent?.destroy(); throw error }
     this.abort = () => { this.failure = signal.reason instanceof Error ? signal.reason : new Error('Codex request aborted.'); this.wake.resolve(); this.socket.terminate() }
@@ -143,7 +144,7 @@ export function codexResponseHeaders(source: Headers): Headers {
 }
 
 function responseHeader(key: string): boolean {
-  return key.startsWith('x-codex-') || key === 'retry-after' || key === 'x-request-id'
+  return key.startsWith('x-codex-') || ['retry-after', 'retry-after-ms', 'x-request-id', 'x-models-etag', 'openai-model', 'x-reasoning-included'].includes(key)
     || /^x-[a-z0-9-]{1,128}-(primary|secondary)-(used-percent|window-minutes|reset-at|reset-after-seconds)$/.test(key)
 }
 
@@ -206,6 +207,7 @@ export class CodexUpstream {
   private disposal: Promise<void> | undefined
   private websocketRequests = 0
   private httpFallbacks = 0
+  private lastRequest: { transport: 'http' | 'websocket'; reason: string; at: number; requestId?: string; failure?: string } | undefined
 
   constructor(private readonly options: CodexUpstreamOptions) {
     this.settings = { ...options.settings }; this.now = options.now ?? Date.now; this.origin = new URL(options.endpoint)
@@ -226,33 +228,38 @@ export class CodexUpstream {
     if (this.closed) throw new Error('Codex upstream is stopping.')
     const url = new URL(input instanceof Request ? input.url : String(input))
     const settings = { ...this.settings }
-    if (url.origin !== this.origin.origin || url.pathname !== this.origin.pathname || (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase() !== 'POST'
-      || settings.mode === 'sse' || this.shunnedUntil > this.now()) return this.options.fetch(input, init)
+    if (url.origin !== this.origin.origin || url.pathname !== this.origin.pathname || (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase() !== 'POST') return this.options.fetch(input, init)
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+    const rawId = headers.get('x-client-request-id'), requestId = rawId !== null && /^[a-zA-Z0-9_-]{1,128}$/.test(rawId) ? rawId : undefined
+    const trace = (transport: 'http' | 'websocket', reason: string, failure?: string): void => {
+      this.lastRequest = { transport, reason, at: this.now(), ...(requestId === undefined ? {} : { requestId }), ...(failure === undefined ? {} : { failure }) }
+    }
+    const http = (reason: string): Promise<Response> => { trace('http', reason); return this.options.fetch(input, init) }
+    if (settings.mode === 'sse' || this.shunnedUntil > this.now()) return http(settings.mode === 'sse' ? 'configured_sse' : 'handshake_cooldown')
     const raw = init?.body
-    if (typeof raw !== 'string' && !(raw instanceof Uint8Array)) return this.options.fetch(input, init)
+    if (typeof raw !== 'string' && !(raw instanceof Uint8Array)) return http('non_replayable_body')
     let payload: Record<string, unknown>
     try {
       const bytes = typeof raw === 'string' ? Buffer.from(raw) : Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
-      if (bytes.byteLength > settings.maxRequestBytes) return this.options.fetch(input, init)
+      if (bytes.byteLength > settings.maxRequestBytes) return http('request_size_limit')
       const encoding = headers.get('content-encoding')
-      if (encoding !== null && encoding !== 'zstd') return this.options.fetch(input, init)
+      if (encoding !== null && encoding !== 'zstd') return http('unsupported_encoding')
       const plain = encoding === 'zstd' ? zstdDecompressSync(bytes, { maxOutputLength: settings.maxRequestBytes }) : bytes
       payload = record.parse(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plain)))
-    } catch (_error) { return this.options.fetch(input, init) /* Non-replayable/non-JSON input keeps its original HTTP semantics. */ }
-    if (payload.stream !== true || payload.type !== undefined) return this.options.fetch(input, init)
+    } catch (_error) { return http('unreadable_body') /* Non-replayable/non-JSON input keeps its original HTTP semantics. */ }
+    if (payload.stream !== true || payload.type !== undefined) return http('ineligible_request')
     const meta = record.safeParse(payload.client_metadata)
     const extra: Record<string, string> = {}
     const turn = headers.get('x-codex-turn-state')
     if (turn !== null) extra['x-codex-turn-state'] = turn
     if (headers.get('x-openai-internal-codex-responses-lite')?.toLowerCase() === 'true') extra.ws_request_header_x_openai_internal_codex_responses_lite = 'true'
     if (Object.keys(extra).length) {
-      if (payload.client_metadata !== undefined && payload.client_metadata !== null && !meta.success) return this.options.fetch(input, init)
+      if (payload.client_metadata !== undefined && payload.client_metadata !== null && !meta.success) return http('invalid_metadata')
       payload.client_metadata = { ...extra, ...(meta.success ? meta.data : {}) }
     }
     const message = JSON.stringify({ type: 'response.create', ...payload })
     const messageBytes = Buffer.byteLength(message)
-    if (this.tooBig !== undefined && this.tooBig.until > this.now() && messageBytes >= this.tooBig.bytes) return this.options.fetch(input, init)
+    if (this.tooBig !== undefined && this.tooBig.until > this.now() && messageBytes >= this.tooBig.bytes) return http('remembered_size_limit')
     const signal = AbortSignal.any([this.lifetime.signal, ...(init?.signal ? [init.signal] : input instanceof Request ? [input.signal] : [])])
     signal.throwIfAborted()
     const handshake = new Headers()
@@ -262,6 +269,7 @@ export class CodexUpstream {
     const proxy = this.options.resolveProxy?.(url) ?? (route?.proxied ? route.proxy : undefined)
     const session = new SocketSession(url, handshake, signal, settings, proxy)
     this.sessions.add(session); this.websocketRequests++
+    trace('websocket', 'selected')
     void session.closed.then(() => this.sessions.delete(session))
     const responseHeaders = new Headers({ 'content-type': 'text/event-stream' })
     const pending: Record<string, unknown>[] = []
@@ -276,7 +284,7 @@ export class CodexUpstream {
         if (event.type === 'error') {
           const error = record.safeParse(event.error)
           if ((error.success ? error.data.code : undefined) === 'websocket_connection_limit_reached') {
-            session.stop(true); this.httpFallbacks++; return this.options.fetch(input, init)
+            session.stop(true); this.httpFallbacks++; return http('connection_limit')
           }
           const status = event.status ?? event.status_code
           if (typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599) {
@@ -294,10 +302,10 @@ export class CodexUpstream {
     } catch (error) {
       session.stop(true)
       signal.throwIfAborted()
-      if (!(error instanceof CodexSocketError) || !['SOCKET_HANDSHAKE', 'SOCKET_CLOSED'].includes(error.code)) throw error
+      if (!(error instanceof CodexSocketError) || !['SOCKET_HANDSHAKE', 'SOCKET_CLOSED'].includes(error.code)) { trace('websocket', 'prepublication_failure', error instanceof CodexSocketError ? error.code : 'TRANSPORT_ERROR'); throw error }
       if (error.closeCode === 1009) this.tooBig = { bytes: this.tooBig === undefined || this.tooBig.until <= this.now() ? messageBytes : Math.min(messageBytes, this.tooBig.bytes), until: this.now() + settings.cooldownMs }
       if (error.code === 'SOCKET_HANDSHAKE' && error.status !== 401 && error.status !== 429 && (error.status ?? 0) < 500) this.shunnedUntil = this.now() + settings.cooldownMs
-      this.httpFallbacks++; return this.options.fetch(input, init)
+      this.httpFallbacks++; return http(error.closeCode === 1009 ? 'upstream_size_limit' : error.code === 'SOCKET_HANDSHAKE' ? 'handshake_failed' : 'closed_before_response')
     }
     // 发布响应即提交传输选择；后续断线只向当前消费者报错，绝不从 HTTP 重新开始。
     const body = new ReadableStream<Uint8Array>({
@@ -313,7 +321,7 @@ export class CodexUpstream {
             if (terminal.has(String(event.type))) { done = true; session.stop() }
             return
           }
-        } catch (error) { session.stop(true); output.error(error) }
+        } catch (error) { trace('websocket', 'published_stream_failure', error instanceof CodexSocketError ? error.code : signal.aborted ? 'ABORTED' : 'TRANSPORT_ERROR'); session.stop(true); output.error(error) }
       },
       cancel: async () => { session.stop(true); await session.closed },
     })
@@ -324,7 +332,7 @@ export class CodexUpstream {
    * @returns Current mode, active socket count and fallback memory.
    */
   status() { return { mode: this.settings.mode, activeSockets: this.sessions.size, websocketRequests: this.websocketRequests, httpFallbacks: this.httpFallbacks,
-    shunnedUntil: this.shunnedUntil, ...(this.tooBig === undefined ? {} : { largeMessageThreshold: this.tooBig.bytes, largeMessageUntil: this.tooBig.until }) } }
+    shunnedUntil: this.shunnedUntil, ...(this.lastRequest === undefined ? {} : { lastRequest: { ...this.lastRequest } }), ...(this.tooBig === undefined ? {} : { largeMessageThreshold: this.tooBig.bytes, largeMessageUntil: this.tooBig.until }) } }
 
   /** Abort all sockets and wait for their close handlers and agents to release resources.
    * @returns The same draining promise for concurrent disposal callers.

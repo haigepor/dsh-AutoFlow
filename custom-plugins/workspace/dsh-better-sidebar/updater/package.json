@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-better-sidebar-updater",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Official Better Sidebar version checks and profile-owned npm updates",

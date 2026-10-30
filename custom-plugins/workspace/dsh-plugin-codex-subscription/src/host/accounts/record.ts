@@ -28,6 +28,10 @@ export interface AccountFailureDetails {
   requestId?: string
   authCode?: AuthFailureCode
   upstreamCode?: string
+  /** Only explicitly model-scoped refusals may quarantine one model instead of the account. */
+  scope?: 'model'
+  /** Present only when the vendor identifies an effort/tier-specific refusal. */
+  variant?: 'reasoning' | 'serviceTier'
 }
 
 /** Digest identifies one credential generation without exposing its values.
@@ -45,7 +49,7 @@ export class AccountError extends Error {
 
 /** A complete upstream refusal before output; only this error permits another account attempt. */
 export class AccountRejected extends AccountError {
-  constructor(status: 401 | 402 | 403 | 429, details: AccountFailureDetails = {}) { super(`HTTP ${status}: The subscription account rejected this request. Check access or quota.`, 'ACCOUNT_REJECTED', status, details) }
+  constructor(status: 401 | 402 | 403 | 404 | 429, details: AccountFailureDetails = {}) { super(`HTTP ${status}: The subscription account rejected this request. Check access or quota.`, 'ACCOUNT_REJECTED', status, details) }
 }
 
 /** Recover the original typed failure when the native OAuth resolver wraps it as an Error cause.

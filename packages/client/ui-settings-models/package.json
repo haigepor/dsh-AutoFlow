@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-settings-models",
   "description": "Models settings and shared product-onboarding dialogs over existing settings and credential joins",
-  "version": "0.2.1-rc.4",
+  "version": "0.2.2-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -24,7 +24,8 @@
     },
     "./src/*": "./src/*",
     "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json"
+    "./locale/*.json": "./locale/*.json",
+    "./assets/*": "./lib/assets/*"
   },
   "dsh": {
     "client": {
@@ -60,16 +61,17 @@
     "@deepseek-ai/dsh-util-values": "workspace:*",
     "@deepseek-ai/dsh-remote-mock": "workspace:*",
     "react": "^18.2.0",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "@deepseek-ai/dsh-llm": "workspace:*"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~"
   },
   "files": [
     "locale/*.json",
     "lib/index.js",
     "lib/client.js",
+    "lib/assets",
     "lib/types/**/*.d.ts"
   ]
 }

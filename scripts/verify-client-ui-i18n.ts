@@ -4,7 +4,8 @@
  * Locale dictionaries are the only source files allowed to own translated
  * text. Presentation code receives copy through its typed `t` seat or through
  * an already-localized prop. This check covers JSX text and copy-bearing
- * attributes, plus the common data/helper forms that feed them.
+ * attributes, plus the common data/helper forms that feed them. Package-qualified
+ * registration IDs in identifier declarations are metadata, not translated copy.
  */
 
 import { globSync, readFileSync } from 'node:fs'
@@ -99,6 +100,13 @@ function compactText(text: string): string {
 function looksLikeNaturalText(text: string): boolean {
   const normalized = text.replace(/\s+/g, ' ').trim()
   return /\s|[\u3400-\u9fff]/u.test(normalized) || /^[A-Z]/.test(normalized)
+}
+
+/** Package-qualified registration IDs do not supply human-readable labels. */
+function registrationIdentifier(name: string, value: ts.Expression): boolean {
+  return /(?:_ID|Id)$/.test(name)
+    && (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value))
+    && /^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*(?:\/[a-zA-Z0-9][a-zA-Z0-9._-]*)+$/.test(value.text)
 }
 
 /**
@@ -277,7 +285,8 @@ export function findUiI18nViolations(file: string, sourceText: string): UiI18nVi
 
     if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
       const name = propertyName(node.name)
-      if (name !== undefined && (COPY_NAME.test(name) || COPY_SUFFIX.test(name))) {
+      if (name !== undefined && (COPY_NAME.test(name) || COPY_SUFFIX.test(name))
+        && !registrationIdentifier(name, node.initializer)) {
         collectExpression(node.initializer, `${name} value`)
       }
     }

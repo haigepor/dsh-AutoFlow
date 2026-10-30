@@ -8,6 +8,7 @@ import { dataOf, specOf } from './runtime.ts'
 
 const inputsSchema = z.object({ draft: draftSchema, references: z.array(referenceSchema), feedback: z.array(feedbackSchema), recipe: recipeSchema, analysisOutput: z.literal('observations-only') })
 const checkpointSchema = z.object({ analysisDoneImageIds: z.array(z.string()).default([]), analysisResultIds: z.array(z.string()).default([]) })
+const committedRequestSchema = z.object({ bundle: z.object({ requestId: z.string() }) })
 type Inputs = z.infer<typeof inputsSchema>
 
 function recipeIdentity(recipe: EvaluationRecipe) {
@@ -46,15 +47,21 @@ export function planReferenceAnalysis(domain: CuratorDomain, styleId: string, ac
   const inputs: Inputs = { ...current, recipe, analysisOutput: 'observations-only' }
   const reused = new Map<string, z.infer<typeof reusedObservationSchema>>(), seen = new Set<string>()
   const runs = domain.repository.list('run').filter(run => run.owner.kind === 'session' ? run.owner.sessionId === actor.sessionId : !actor.sessionId).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
-  for (const run of runs) {
-    const spec = specOf(run)
-    if (spec.kind !== 'analyze' || spec.input.styleId !== styleId) continue
+  const sources = runs.map(run => ({ run, spec: specOf(run) })).filter(({ spec }) => spec.kind === 'analyze' && spec.input.styleId === styleId)
+  const runIds = new Set(sources.map(({ run }) => run.id)), committedRequests = new Map<string, Set<string>>()
+  // 同一次预检只复制并校验一次请求表；观察仍只能使用所属任务已提交的请求。
+  if (sources.length) for (const request of domain.repository.list('request')) {
+    if (request.state !== 'committed' || !runIds.has(request.runId)) continue
+    const saved = committedRequestSchema.safeParse(request.data)
+    if (!saved.success) continue
+    let requests = committedRequests.get(request.runId)
+    if (!requests) committedRequests.set(request.runId, requests = new Set())
+    requests.add(saved.data.bundle.requestId)
+  }
+  for (const { run, spec } of sources) {
     const source = inputsSchema.safeParse(spec.fixed)
     const checkpoint = checkpointSchema.parse(dataOf(run).checkpoint)
-    const requests = new Set(domain.repository.list('request').filter(request => request.runId === run.id && request.state === 'committed').flatMap(request => {
-      const saved = z.object({ bundle: z.object({ requestId: z.string() }) }).safeParse(request.data)
-      return saved.success ? [saved.data.bundle.requestId] : []
-    }))
+    const requests = committedRequests.get(run.id)
     for (const observationId of checkpoint.analysisResultIds) {
       const observation = domain.repository.get('observation', observationId)
       if (!observation || !checkpoint.analysisDoneImageIds.includes(observation.imageVersionId)) continue
@@ -63,7 +70,7 @@ export function planReferenceAnalysis(domain: CuratorDomain, styleId: string, ac
       seen.add(imageId)
       if (!source.success || spec.input.buildDataset !== true || reused.has(imageId) || contentDigest(imageInputs(source.data, imageId)) !== contentDigest(imageInputs(inputs, imageId))) continue
       // 旧 Run 复用的观察仍指向原请求；输出及其图片必须已经持久化，不能复用在途响应。
-      if (!observation.inferred.length || !observation.inferred.every(field => requests.has(field.requestId))) continue
+      if (!observation.inferred.length || !observation.inferred.every(field => requests?.has(field.requestId))) continue
       reused.set(imageId, { runId: run.id, observationId: observation.id, imageVersionId: domain.require('imageVersion', imageId).id })
     }
   }

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { analysisDetailSchema } from '../src/shared/analysis-process.ts'
-import { analysisIssues, analysisCanContinue, analysisContinuationHint } from '../src/client/analysis-diagnostics.tsx'
+import { analysisIssues, analysisCanContinue, analysisContinuationHint, analysisFailureSummary } from '../src/client/analysis-diagnostics.tsx'
 import { zh } from '../src/client/workbench-locale.ts'
 
 function detail() {
@@ -28,4 +28,15 @@ test('failed continuation uses Host eligibility and preserves legacy paused cont
   const { continuation, ...legacy } = task
   assert.equal(analysisCanContinue({ ...legacy, status: 'paused' }), true)
   assert.equal(analysisCanContinue({ ...legacy, status: 'failed' }), false)
+})
+
+test('localized failure summaries distinguish missing causes, image preparation and remote failures', () => {
+  const t = (key: keyof typeof zh) => zh[key]
+  assert.equal(analysisFailureSummary({ code: 'capability-unavailable', stage: 'workflow', safeMessage: 'The operation failed.' }, t), zh.analysisFailureUnknownCause)
+  assert.equal(analysisFailureSummary({ code: 'capability-unavailable', stage: 'vision-preflight' }, t), zh.analysisFailureCapability)
+  assert.equal(analysisFailureSummary({ code: 'IMAGE_TYPE_MISMATCH', stage: 'vision-images' }, t), zh.analysisFailureImage)
+  assert.equal(analysisFailureSummary({ code: 'IMAGE_TOO_MANY_PIXELS', stage: 'vision-images' }, t), zh.analysisFailureImageLimit)
+  assert.equal(analysisFailureSummary({ code: 'ATTACHMENT_WRITE_FAILED', stage: 'vision-images' }, t), zh.analysisFailureAttachmentStore)
+  assert.equal(analysisFailureSummary({ code: 'remote-request-failed', stage: 'network' }, t), zh.analysisFailureNetwork)
+  assert.ok(!zh.analysisContextUpdating.includes('进行中'))
 })

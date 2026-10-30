@@ -1,6 +1,6 @@
 {
   "name": "dsh-better-sidebar",
-  "version": "0.25.0",
+  "version": "0.28.2",
   "description": "Better Sidebar for DSH — file tree, editor, changes, tasks and side chat in one column, separate for every conversation. Also exposes a service other plugins use to register sidebar tabs and file viewers.",
   "type": "module",
   "repository": {
@@ -31,7 +31,8 @@
     },
     "./src/*": "./src/*",
     "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json"
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
   },
   "engines": {
     "node": ">=20"
@@ -137,12 +138,14 @@
     "react-icons": "5.7.0",
     "rxjs": "^7.8.2",
     "ws": "^8.18.0",
-    "yaml": "^2.9.1"
+    "yaml": "^2.9.1",
+    "@formkit/auto-animate": "^0.10.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/cordis-plugin-group": "workspace:~",
     "@deepseek-ai/cordis-plugin-include": "workspace:~",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
     "@deepseek-ai/dsh-agent": "workspace:*",
     "@deepseek-ai/dsh-agent-loop": "workspace:*",
     "@deepseek-ai/dsh-attachment": "workspace:*",
@@ -165,6 +168,7 @@
     "@deepseek-ai/dsh-settings": "workspace:*",
     "@deepseek-ai/dsh-subagent": "workspace:*",
     "@deepseek-ai/dsh-system-prompt": "workspace:*",
+    "@deepseek-ai/dsh-tool-executor-ptc": "workspace:*",
     "@deepseek-ai/dsh-tools": "workspace:*",
     "@deepseek-ai/dsh-user-approval": "workspace:*",
     "@deepseek-ai/dsh-util-code-language": "workspace:*",
@@ -209,9 +213,9 @@
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.69.0",
     "unrun": "^0.2.39",
+    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.8",
-    "zustand": "~4.4.7",
-    "@deepseek-ai/cordis-plugin-loader": "workspace:~"
+    "zustand": "~4.4.7"
   },
   "icon": "./icon.svg",
   "private": true

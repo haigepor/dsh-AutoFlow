@@ -93,11 +93,11 @@ export class SubscriptionController {
    */
   loadCatalog(): Promise<void> {
     return this.track((async () => {
-      this.patch(state => { state.catalogStatus = 'loading'; state.catalogError = null })
+      this.patch((state) => { state.catalogStatus = 'loading'; state.catalogError = null })
       try {
         const catalog = subscriptionCatalog(await this.invoke('model-catalog'))
-        this.patch(state => { state.catalog = catalog; state.catalogStatus = 'ready' })
-      } catch (error) { this.patch(state => { state.catalogStatus = 'error'; state.catalogError = this.code(error) === 'INVALID_INPUT' ? 'CATALOG_UPDATE_REQUIRED' : this.code(error) }) }
+        this.patch((state) => { state.catalog = catalog; state.catalogStatus = 'ready' })
+      } catch (error) { this.patch((state) => { state.catalogStatus = 'error'; state.catalogError = this.code(error) === 'INVALID_INPUT' ? 'CATALOG_UPDATE_REQUIRED' : this.code(error) }) }
     })())
   }
 
@@ -114,7 +114,7 @@ export class SubscriptionController {
       try { saved = await this.invoke('model-catalog-save', { revision: current.revision, entries, ...(defaultImageModel === undefined ? {} : { defaultImageModel }) }) }
       catch (error) { if (this.code(error) === 'REVISION_CONFLICT') await this.loadCatalog(); throw error }
       const catalog = subscriptionCatalog(saved)
-      this.patch(state => { state.catalog = catalog; state.catalogStatus = 'ready'; state.catalogError = null })
+      this.patch((state) => { state.catalog = catalog; state.catalogStatus = 'ready'; state.catalogError = null })
       await this.refreshDirectories()
     }, 'MODELS_SAVED'))
   }

@@ -1,3 +1,5 @@
+/// <reference lib="esnext.disposable" preserve="true" />
+
 /**
  * Structural types for the cordis services this plugin consumes, plus the
  * Context face both halves share.
@@ -43,11 +45,23 @@ export interface SidebarHttpRequest {
 }
 
 /** The response face route handlers write to (structural subset of node's
- *  ServerResponse: the status/header/body writes the routes use). */
+ *  ServerResponse: the status/header/body writes the routes use).
+ *
+ *  `write` / `headersSent` / `destroy` exist for the raw byte routes
+ *  (`/sidebar/file`, `/sidebar/html`, `/sidebar/archive`), which stream a file
+ *  instead of buffering it. They stay plain structural members on purpose —
+ *  see the module header on why node types cannot appear here. */
 export interface SidebarHttpResponse {
   statusCode: number
+  /** True once a status line went out; a late failure can no longer become a
+   *  JSON envelope, so callers destroy the response instead. */
+  headersSent?: boolean
   writeHead(status: number, headers?: Record<string, string>): void
+  /** Append one body chunk; false means "wait for drain". */
+  write(chunk: string | Uint8Array): boolean
   end(body?: string | Uint8Array): void
+  /** Tear the connection down (mid-stream failure, client abort). */
+  destroy?(error?: Error): void
 }
 
 /** The upgrade socket face (structural subset: the destroy the fences use). */
@@ -78,7 +92,7 @@ export interface SidebarWebServer {
   registerUpgrade(route: SidebarWebUpgradeRoute): () => void
 }
 
-/** A published session's header slice the sidebar reads (authoritative cwd). */
+/** A published session's immutable original-project metadata. */
 export interface SidebarSessionHeader {
   cwd?: string
 }
@@ -87,6 +101,9 @@ export interface SidebarSessionHeader {
 export interface SidebarSessionStore {
   get(id: string): {
     header: SidebarSessionHeader
+    /** Live cursor and indexed reads avoid copying the whole log for cache identity. */
+    readonly seq?: number
+    eventAt?(seq: number): SidebarSessionEvent | undefined
     /**
      * The live session's append-only event log as an immutable snapshot.
      * Read-only access — the jobs.output route replays `job_output`
@@ -97,10 +114,17 @@ export interface SidebarSessionStore {
   } | undefined
 }
 
-/** Host Connection admission shared with HTTP and WebSocket routes. */
-export interface SidebarConnection {
-  /** Apply the Host's live browser authority and credential policy. */
-  requestRejection(request: Pick<SidebarHttpRequest, 'headers'>): 401 | 403 | undefined
+/**
+ * Host request admission plus the client transport recovery face.
+ */
+export interface SidebarConnectionService {
+  /** Public Host/Origin and authentication policy (DSH 0.2.0-rc.2+). */
+  requestRejection(request: { headers: Record<string, string | string[] | undefined> }): 401 | 403 | undefined
+  state: {
+    getSnapshot(): 'connected' | 'disconnected' | 'connecting' | undefined
+    subscribe(listener: () => void): () => void
+  }
+  reconnect(): void
 }
 
 /** Registration options the sidebar passes to `ctx.slots.register` (subset of the real options). */
@@ -477,6 +501,20 @@ export interface SidebarSessionTitleService {
  */
 export interface SidebarSessionPersistenceService {
   open(sessionId: string, access: 'read' | 'write'): Promise<SidebarSessionHandle>
+  /**
+   * Header-only snapshot of ONE stored session (revision + immutable header).
+   * The cold cwd resolver reads the stored header through this: it is the one
+   * persistence call that never decodes the log. Absent on a host without it —
+   * every caller must degrade to a client hint.
+   */
+  stat?(sessionId: string): Promise<{
+    /** Immutable stored header (cwd / agentPreset live here). */
+    header: { cwd?: string; agentPreset?: string } & Record<string, unknown>
+    /** Opaque change token of the stored artifact. */
+    revision?: unknown
+    /** Physical artifact size in bytes, when the backend can provide it. */
+    sizeBytes?: number
+  } | undefined>
 }
 
 /** One open channel onto a stored session (the fields this plugin reads). */
@@ -521,9 +559,41 @@ export interface SidebarProjectionSnapshot {
     subagentCatalog?: readonly SidebarSubagentCatalogEntry[]
     /** The Lead Session's team board (only the team's Lead carries one). */
     agentTeam?: SidebarTeamProjection
+    /** Provider-reported token usage, accumulated over the session's log. */
+    tokenUsage?: SidebarTokenUsage
+    /** Turn timing of a descriptor-backed CHILD session (see ./session-metrics.ts). */
+    subagentTiming?: SidebarSubagentTiming
   }
   state: 'idle' | 'loading' | 'ready' | 'error'
   error: { code?: string; message?: string } | null
+}
+
+/**
+ * The host's `tokenUsage` projection: provider-reported usage accumulated over
+ * the session's whole durable log, in four DISJOINT buckets (`uncachedInputTokens`
+ * is what the provider billed at full price; reasoning tokens are already inside
+ * `outputTokens`). It is a SESSION total, not a per-turn figure.
+ */
+export interface SidebarTokenUsage {
+  uncachedInputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+}
+
+/**
+ * The host's `subagentTiming` projection: how long a descriptor-backed child
+ * session actually worked.
+ *
+ * Neither half is a session AGE. `settledMs` sums CLOSED turn durations and is
+ * 0 until the child's first `turn/end`; `active` exists only while an open turn
+ * is running, and a session with no `subagent/descriptor` — the topology ROOT,
+ * any ordinary session — never gets one at all.
+ */
+export interface SidebarSubagentTiming {
+  settledMs: number
+  /** The open turn: `since` = its `turn/start` time, `through` = the newest folded event. */
+  active?: { since: number; through: number }
 }
 
 /** One direct-child row of the host's `subagentCatalog` projection. */
@@ -604,14 +674,75 @@ export interface SidebarLocaleService {
   register(ns: string, locale: string, dict: Record<string, string>): () => void
 }
 
+/**
+ * One reference chip's footprint in the draft, in clipboard-projection
+ * coordinates: the chip covers `[offset, offset + length)`. Read straight off
+ * the host's published `InputState.occurrences`.
+ */
+export interface SidebarSessionOccurrence {
+  /** Start offset in the clipboard projection (the same plane as `draft`). */
+  offset: number
+  /** Length in the clipboard projection (the chip's whole `clipboardText`). */
+  length: number
+}
+
+/** One structured reference chip's insertion payload (mirror of the host's
+ *  `ReferenceInsert`). */
+export interface SidebarReferenceInsert {
+  /** Trigger source id; `'reference'` for a programmatic insert. */
+  source: string
+  /** What the model receives on send — the chip's full serialized form. */
+  ref: string
+  /** What the composer shows in place of `ref`. */
+  label: string
+  /** Chip icon family; the host picks its own default when omitted. */
+  appearance?: 'session' | 'file' | 'folder'
+  /** The text this chip occupies in the draft projection. */
+  clipboardText: string
+}
+
 /** The composer draft face the sidebar reaches through `ctx.conversation.input`. */
 export interface SidebarSessionInput {
   /** The live input store (draft read for append). `draftRev` is the machine's
-   *  span-CAS revision — required to mint a structured file-reference chip. */
+   *  span-CAS revision — required to mint a structured reference chip. */
   state: {
-    getSnapshot(): { draft: string; draftRev?: number }
+    getSnapshot(): {
+      draft: string
+      draftRev?: number
+      /**
+       * The editor's reference chips as footprints in `draft` coordinates:
+       * `[offset, offset + length)` per chip, sorted by offset. The host's
+       * insert/replace spans live in the *editor* projection instead (one
+       * placeholder character per chip), so a span derived from a `draft`
+       * offset must fold through these first (`foldClipboardOffset`).
+       * Absent on hosts without the chip channel.
+       */
+      occurrences?: readonly SidebarSessionOccurrence[]
+      /**
+       * Admission phase. `claimed` means a command chip (`/goal`) heads the
+       * draft; `adjudicating`/`submitting` freeze every write. A command chip
+       * is NOT in `occurrences` (the host only collects reference chips), yet
+       * it still collapses to one character in the detect projection — so a
+       * span derived from `draft` is wrong whenever `phase === 'claimed'`.
+       */
+      phase?: 'plain' | 'adjudicating' | 'claimed' | 'submitting'
+      /**
+       * The claimed command's spelling with its trailing separator (`/goal `),
+       * present exactly while `phase` is `claimed`/`submitting`. The host
+       * treats it as one chip covering this exact draft prefix.
+       */
+      claim?: { readonly token: string }
+    }
   }
-  /** Replace the draft text (the input machine's single public write path). */
+  /**
+   * Replace the trigger span with one reference chip (span-CAS'd). Absent on
+   * hosts without the chip channel.
+   */
+  insertReference?(
+    ref: SidebarReferenceInsert,
+    span: { start: number; end: number; draftRev: number },
+  ): boolean
+  /** Replace the draft text — flattens every existing chip into its text. */
   setDraft(text: string): void
 }
 
@@ -737,6 +868,13 @@ export interface SidebarContextShape {
   webServer: SidebarWebServer
   /** The session store (host `.get`) and the client list feed (`.list`) faces. */
   sessions: SidebarSessionStore & SidebarSessionsService
+  /** Committed current execution directory; the header keeps the original project. */
+  workingDirectory: {
+    readonly defaultDirectory?: string
+    get(session: { header: SidebarSessionHeader }): string
+  }
+  /** Native host request admission and client transport recovery. */
+  connection: SidebarConnectionService
   /** The client slot registry (register/inject). */
   slots: SidebarSlotsService
   /** The settings service face (prefs persistence + namespace reads). */
@@ -773,19 +911,6 @@ export interface SidebarContextShape {
   sessionTitle: SidebarSessionTitleService
   /** The host session-persistence service (optional; side chat cold resume). */
   sessionPersistence: SidebarSessionPersistenceService
-  /**
-   * The client connection lifecycle (DSH 0.1.2-alpha.2+; optional so older
-   * hosts and test fakes simply hide the disconnect banner): the observable
-   * recovery state of the Remote transport (`undefined` before the first
-   * connection outcome) and an immediate-reconnect request.
-   */
-  connection?: {
-    state: {
-      getSnapshot(): 'connected' | 'disconnected' | 'connecting' | undefined
-      subscribe(listener: () => void): () => void
-    }
-    reconnect(): void
-  }
   /** The composer draft face (client ui-conversation, lazy `ctx.get` probe). */
   conversation: SidebarConversation
   /** Host-authoritative workspace membership; resolved lazily at reference insertion. */

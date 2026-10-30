@@ -12,7 +12,8 @@ export const snapshotSchema = z.object({
     maxTokens: z.number().optional(), input: z.array(z.enum(['text', 'image'])).optional(), reasoningEfforts: z.array(z.string()).optional(),
     defaultReasoningEffort: z.string().optional(), serviceTiers: z.array(z.string()).optional() })),
   protocol: z.object({ upstream: z.object({ mode: z.enum(['auto', 'sse']), activeSockets: z.number(), websocketRequests: z.number(), httpFallbacks: z.number(),
-    shunnedUntil: z.number(), largeMessageThreshold: z.number().optional(), largeMessageUntil: z.number().optional() }),
+    shunnedUntil: z.number(), largeMessageThreshold: z.number().optional(), largeMessageUntil: z.number().optional(),
+    lastRequest: z.object({ transport: z.enum(['http', 'websocket']), reason: z.string(), at: z.number(), requestId: z.string().optional(), failure: z.string().optional() }).optional() }),
     version: z.object({ effective: z.string(), configured: z.string(), installed: z.string().optional(), cached: z.string().optional(), client: z.string().optional() }) }),
   tasks: z.array(z.object({
     id: z.string(), state: z.enum(['queued', 'sent', 'succeeded', 'failed', 'cancelled', 'outcome-unknown']), prompt: z.string(), model: z.string(), createdAt: z.number(),

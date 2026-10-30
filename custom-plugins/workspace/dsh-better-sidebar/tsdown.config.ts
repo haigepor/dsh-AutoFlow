@@ -1,6 +1,5 @@
 /**
- * tsdown build for dsh-better-sidebar: the host-half lib (lib/index.js,
- * ESM node) plus the two browser client
+ * tsdown build for dsh-better-sidebar: the host-half lib (lib/index.js, ESM node) plus the two browser client
  * bundles (lib/client.js and lib/client-registry.js, CJS closure factory) —
  * one per install channel:
  *

@@ -20,12 +20,25 @@ export interface RelayConfig {
   readonly imageWaitMs: number
   readonly assetUrlTtlMs: number
   readonly maxConcurrentRequests: number
+  readonly maxSocketConnections: number
+  readonly maxSocketQueuedTurns: number
+  readonly maxSocketHistoryBytes: number
 }
 
 /** Models exposed by this subscription transport. */
 export interface RelayModel {
   readonly id: string
   readonly name?: string
+}
+
+/** Authenticated local client identity; optional contexts leave internal call cache identity unchanged. */
+export interface RelayRequestContext {
+  readonly keyId: string
+  readonly headers: Headers
+  /** Host-owned continuation metadata; absent for stateless HTTP requests. */
+  readonly replayAccountKey?: string
+  /** Receives the successful selected account for connection-local replay; absent callers need no replay bookkeeping. */
+  readonly onAccount?: (accountKey: string) => void
 }
 
 /** Image operations retain ownership in the durable image service. */
@@ -44,7 +57,7 @@ export interface RelayAsset {
 export interface RelayDependencies {
   /** Called only after gateway authentication; hints may raise the Codex compatibility version. */
   observeClient?(headers: Headers): void
-  requestResponses(body: Record<string, unknown>, signal: AbortSignal): Promise<Response>
+  requestResponses(body: Record<string, unknown>, signal: AbortSignal, context?: RelayRequestContext): Promise<Response>
   listModels(signal: AbortSignal): Promise<readonly RelayModel[]>
   readonly images: RelayImages
   readAsset(taskId: string, assetId: string, owner: ImageOwner): Promise<RelayAsset>

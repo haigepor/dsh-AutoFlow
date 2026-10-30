@@ -40,12 +40,15 @@ The local relay defaults to disabled at `127.0.0.1:3426`. It requires a separate
 |---|---|
 | `GET /v1/models` | Selected, currently routable text models |
 | `POST /v1/responses` | Raw Responses SSE or aggregated terminal JSON |
+| `GET /v1/responses` or `/responses` with WebSocket upgrade | Serialized `response.create` turns and connection-local continuation |
 | `POST /v1/chat/completions` | Text/image inputs, function tools, streaming |
 | `POST /v1/images/generations` | Generate images |
 | `POST /v1/images/edits` | JSON/multipart references and optional mask |
 | `POST /mcp/image` | Streamable HTTP `generate_image` / `generation_result` |
 
 External clients use `Authorization: Bearer <gateway-key>`. Image results may contain inline originals or short-lived, task-bound signed download URLs. The server does not accept arbitrary server-local file paths.
+
+OpenAI-compatible POST routes accept identity, gzip and zstd bodies with separate compressed and expanded byte limits. Responses WebSockets recheck Bearer/Host/Origin for every turn, share the HTTP concurrency limit and support `response.cancel`. Only the last completed response is retained on its connection; `previous_response_id` restores that input and output before appending new input. Unknown, evicted or cross-connection IDs fail explicitly. Continuation requires the same model; fresh connections send full history. `generate:false` performs a local zero-usage warmup. Account changes discard restored encrypted reasoning while retaining ordinary messages and tool exchanges.
 
 MCP also accepts `/mcp/magpie/image`, Magpie's `reference_images` and `generation_result({id})`, and the existing `referenceImages`/`task_id` spellings. Pending/file metadata uses `usemagpie.ai/pending` and `usemagpie.ai/files` for compatible consumers. Images that exceed the inline budget retain signed download URLs. Image input supports size ratios and `outputFormat` (`output_format` on HTTP/MCP).
 
@@ -79,7 +82,7 @@ Host plugins inject `codexSubscription` and use `accounts.getAccountStatus(accou
 
 Plus, Pro and Business share OAuth and dynamic discovery; plan names never imply fixed allowances or image permission. Nullable fields preserve valid windows. Business workspace overage requires known remaining organization capacity without spending/owner limits; Team and `self_serve_business_prolite` retain reserve rules. `credits.usable` mirrors Magpie's continuation hint: unlimited, or reported holdings with positive/unknown balance. A known nonpositive balance clears that hint; upstream held state and the owner's `allowCredits` remain independent. HTTP, timeout and payload failures have distinct `errorCode` values and an optional HTTP `errorStatus`, without raw provider messages.
 
-`account-update` accepts revision-checked `allowCredits`, defaulting to `true` as in Magpie. Setting it to `false` holds text requests on known spent, unreset windows through failed/partial polls and restarts. Usage polls and live HTTP/WS observations persist through the Home credential provider; writes drain on shutdown. Upstream held/workspace-overage rules also participate in text scheduling. `Retry-After` seconds and HTTP dates extend operation cooldowns without shortening existing waits; safe retry/request metadata survives native errors, image task storage and local HTTP errors.
+`account-update` accepts revision-checked `allowCredits`, defaulting to `true` as in Magpie. Setting it to `false` holds text requests on known spent, unreset windows through failed/partial polls and restarts. Usage polls and live HTTP/WS observations persist through the Home credential provider; writes drain on shutdown. Upstream held/workspace-overage rules also participate in text scheduling. Valid `Retry-After-Ms` takes precedence over `Retry-After` seconds or HTTP dates and extends operation cooldowns without shortening existing waits; safe retry/request metadata survives native errors, image task storage and local HTTP errors.
 
 The shared request schema is owned by [management.ts](src/shared/management.ts). Raw access, refresh and ID tokens remain in Host credentials. Model-visible native image tools do not expose account or gateway administration.
 
@@ -96,6 +99,8 @@ Defaults and accepted limits are defined in [config.ts](src/host/config.ts). Ima
 
 `options.upstream.mode` defaults to `auto`; `sse` forces HTTP. WebSocket connection timeout defaults to 30 seconds, unsupported-host and 1009-size memory to ten minutes, message limit to 16 MiB and queued bytes to 32 MiB. Each socket retains its admission settings. `options.models.fallbackMaxTokens` defaults to 8192 when a new model has no server output limit. `options.version` controls local metadata discovery, its ten-minute probe interval and bounded cache reads.
 
+`options.relay.maxSocketConnections` defaults to 8, `maxSocketQueuedTurns` to 2 per connection and `maxSocketHistoryBytes` to 32 MiB per connection. Restored requests must also fit `maxRequestBytes`. `modelCooldownLimit` bounds remembered account/model failures (default 512); explicitly identified effort/tier failures affect only that variant. `protocol-status` reports a safe last-request transport/reason/request-id record, without account identities, bodies or credentials.
+
 <a id="implementation"></a>
 ## Implementation
 
@@ -110,7 +115,9 @@ WebSocket handshakes use `responses_websockets=2026-02-06` and send `response.cr
 
 [version.ts](src/host/version.ts) selects the newer numeric version among `clientVersion`, installed Codex package metadata, `models_cache.json.client_version` and authenticated gateway clients' version/User-Agent hints. It never lowers the selected version, executes a discovered CLI or reads `auth.json`. Discovery refreshes after version changes, and the shared fetch applies the selected version to model-list queries, version headers and Codex User-Agent values. Local discovery can be disabled without disabling authenticated client hints.
 
-[codex-request.ts](src/host/codex-request.ts) shares stateless history conversion, cache identity, reasoning and service-tier rules. Caller instructions and explicit tool choice remain intact. The configured version baseline defaults to `0.159.0`. Complete 401/402/403/429 refusals before output can advance once through eligible accounts; terminal pre-dispatch refresh refusals can also advance. Ordinary server failures, network uncertainty and partial output never replay. A 401 can renew the rejected credential under the shared lock without repeating the rejected operation.
+[codex-request.ts](src/host/codex-request.ts) shares stateless history conversion, cache identity, reasoning and service-tier rules. Caller instructions and explicit tool choice remain intact. The configured version baseline defaults to `0.159.0`. Complete HTTP 401/402/403/429 refusals, recognized model-specific 404s and typed first-event SSE refusals can advance once through eligible accounts; terminal pre-dispatch refresh refusals can also advance. A normal SSE progress event commits that response: later errors, ordinary server failures, network uncertainty and partial output never authorize replay. A 401 can renew the rejected credential under the shared lock without repeating the rejected operation.
+
+Authenticated gateway metadata uses a bounded header allowlist. Cache identities are isolated by gateway key, and turn-state is reused only with its recorded account and credential generation. Response metadata preserves models ETag, model, reasoning, retry and request identifiers. An ETag change invalidates only that account's discovered capability cache, with single-flight refresh; selected catalog entries and defaults are unchanged. Raw SSE preserves received bytes and appends an explicit `incomplete_response` error when EOF has no terminal event.
 
 Tasks are isolated by profile and hold a cross-process writer lease through recovery and shutdown. Each received original and normalized preview is committed separately. A partial result keeps saved images with `image-partial-result`; interrupted tasks with saved assets remain readable after restart. Dispatch without a confirmed result records `outcome-unknown`; paid requests are never automatically repeated. Account credentials are independently persisted in the Home credential provider.
 
@@ -130,7 +137,7 @@ Image requests use only accounts with `allowCredits` enabled: the image backend 
 
 Codex subscription authorization is separate from OpenAI Platform API keys. Model/image access depends on account/workspace entitlements, and Codex-specific endpoints can change. Catalogs remain instance-local: failed first discovery after restart returns an empty directory. Known quota persists; accounts without successful observations remain unknown. Older plugin writers may discard new optional health/quota fields; avoid running older and newer versions against one Home. Previously overwritten credentials cannot be recovered by the identity fix.
 
-Remote image downloads currently require public IPv4 destinations and standard HTTP(S) ports. Local paths, private destinations, IPv6-only destinations and credential-bearing URLs are rejected. Text streams are never spliced across accounts after output begins. Stateful Responses continuation and unsupported Chat options are explicitly refused.
+Remote image downloads currently require public IPv4 destinations and standard HTTP(S) ports. Local paths, private destinations, IPv6-only destinations and credential-bearing URLs are rejected. Text streams are never spliced across accounts after output begins. HTTP `previous_response_id` and unsupported Chat options are explicitly refused; connection-local continuation is available only over Responses WebSocket.
 
 The bundle has no application executable or stdio server. Its browser module contributes image-tool cards and a Session gallery. OpenAI's external login page remains part of OAuth; model-page login presentation is owned by the application's model settings consumer.
 

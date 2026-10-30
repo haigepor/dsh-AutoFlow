@@ -1,24 +1,29 @@
 .root {
-  --dsh-conversation-surface-fill: var(--dsw-specific-conversation-fill);
   position: relative; /* positioning context for slot-owned absolute chrome */
   display: flex;
   flex-direction: column;
   height: 100%;
   min-width: 0;
+  --dsh-conversation-surface-fill: var(--dsw-specific-conversation-fill);
   background: var(--dsh-conversation-surface-fill);
   border-radius: var(--dsw-radius-lg) 0 0 0;
   corner-shape: round;
 }
 
-/* 展开时保持约 76px 页头；由标题行和标签行撑高，收起时不保留空白。 */
+/* 76px with its rule: the height of the Sidebar's tab strip and header row
+   (ui-dockkit `.tabStrip` 38px + the pane header's 38px), so the two rules
+   meet at the column edge. The rows add up to it — 10px top inset, the 30px
+   title row, the tab strip's 10px margin, and a 25px view row. When the views
+   and the More launcher do not fit on one row, the row wraps and the header
+   grows past 76px. */
 .header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   flex: none;
   box-sizing: border-box;
-  min-height: 0;
   padding: 10px 28px 0 20px;
   border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  min-height: 0;
 }
 
 /* Blank Sessions retain navigation controls without conversation title or tabs. */
@@ -30,10 +35,6 @@
 
 .headerBlank .headerCorner {
   margin-left: auto;
-}
-
-.headerBlank .titleRow {
-  padding-bottom: 0;
 }
 
 /* Only the macOS titlebar needs reserved drag space before a Session exists. */
@@ -71,20 +72,37 @@
   align-items: center;
   gap: 0;
   min-height: 30px;
-  padding-bottom: 10px;
   /* Clears the frame's window-chrome band (traffic lights + shell.leading
      controls, ui-layout AppFrame) when it is published; the header already
      pads 20px of it. Zero everywhere else (the fallback makes the max
      negative). */
   padding-inline-start: max(0px, calc(var(--dsh-frame-leading-clearance, 0px) - 20px));
+  padding-bottom: 10px;
 }
 
+/* Header actions do not shrink, so on a narrow row they overflow the cluster.
+   The cluster clips them, hit testing included, so the next control keeps
+   every click. The trailing padding spans the gap before that control and
+   holds the fade: content that fits ends before it, and only overflowing
+   content reaches it. The 4px block and start padding, offset by negative
+   margins, keeps focus rings inside the clip. `clip` rather than `hidden`
+   keeps the cluster from becoming a scroll container that focus could scroll. */
 .titleCluster {
   display: flex;
   flex: 1;
   align-items: center;
   gap: 10px;
   min-width: 0;
+  --title-cluster-fade: 20px;
+  margin: -4px calc(-1 * var(--title-cluster-fade)) -4px -4px;
+  padding: 4px var(--title-cluster-fade) 4px 4px;
+  overflow: clip;
+  mask-image: linear-gradient(to left, transparent calc(0.3 * var(--title-cluster-fade)), #000 var(--title-cluster-fade));
+}
+
+/* Without utilities the corner's 8px margin is the gap the fade spans. */
+.titleCluster:has(+ .headerUtilities:empty) {
+  --title-cluster-fade: 8px;
 }
 
 /* The auto grid column collapses with an empty or CSS-hidden occupant.
@@ -142,8 +160,10 @@
   line-height: 18px;
 }
 
-button.crumb:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+@media (hover: hover) {
+  button.crumb:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .crumbCurrent {
@@ -187,36 +207,7 @@ button.crumb:hover {
   display: none;
 }
 
-.tabsDisclosure {
-  grid-column: 1 / -1;
-  position: relative;
-  z-index: 1;
-}
-
-.tabsToggle {
-  flex: none;
-  width: 28px;
-  padding: 0;
-  color: var(--dsw-alias-label-tertiary);
-  transition: background-color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.tabsChevron {
-  display: inline-flex;
-  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
-}
-
-.tabsChevron[data-expanded] {
-  transform: rotate(180deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tabsToggle,
-  .tabsChevron {
-    transition: none;
-  }
-}
-
+/* The tab row sits above the header paint so the active bar covers its rule. */
 .tabs {
   display: flex;
   gap: 16px 20px;
@@ -231,16 +222,25 @@ button.crumb:hover {
 .viewTabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 36px;
   min-width: 0;
   min-height: 25px;
+  gap: 36px;
 }
 
-/* 下划线保留在标签盒内，避免折叠时裁切。 */
+/* The 16px text line retains 9px below it. The press target extends 10px
+   above the text into the strip's top margin and 10px to each side, matching
+   the inline padding of the Sidebar tab chips (ui-dockkit `.tab`); negative
+   margins keep the layout box at its 25px row and text width. The active bar
+   spans the text and reaches 1px past the tab box to sit over the header
+   rule. */
 .tab {
+  --dsh-tab-hit-inline: 10px;
+
   position: relative;
-  min-height: 25px;
-  padding: 0 0 9px;
+  box-sizing: border-box;
+  min-height: 35px;
+  margin: -10px calc(-1 * var(--dsh-tab-hit-inline)) 0;
+  padding: 10px var(--dsh-tab-hit-inline) 9px;
   border: none;
   background: transparent;
   font-size: 13px;
@@ -253,12 +253,12 @@ button.crumb:hover {
 .tab::after {
   content: '';
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  right: var(--dsh-tab-hit-inline);
+  left: var(--dsh-tab-hit-inline);
   height: 2px;
   border-radius: 2px;
   background: transparent;
+  bottom: 0;
 }
 
 /* Selected tab is blue, not ink: brand-primary resolves to neutral black in
@@ -373,9 +373,14 @@ button.crumb:hover {
   left: 4px;
 }
 
-.widthHandle:hover::after,
 .widthHandle[data-dragging]::after {
   opacity: 1;
+}
+
+@media (hover: hover) {
+  .widthHandle:hover::after {
+    opacity: 1;
+  }
 }
 
 /* A drag starts above the composer band. Pointer capture keeps it active when
@@ -459,41 +464,6 @@ button.crumb:hover {
   --dsh-composer-dock-inset: 8px;
 }
 
-/* 仅使用正文外侧空白；自定义正文变宽时，胶囊随可用容器宽度隐藏。 */
-.bodyOverlay {
-  position: absolute;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  top: 12px;
-  right: 16px;
-  z-index: 8;
-  width: min(300px, max(0px, calc((100% - var(--dsh-chat-content-width)) / 2 - 24px)));
-  height: calc(100% - 24px);
-  pointer-events: none;
-  container-type: inline-size;
-}
-
-/* 外层负责侧边空白的显示条件，内部贡献者可独立向左扩宽。 */
-.bodyOverlayStack {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  width: max-content;
-  max-width: calc(100vw - 32px);
-  height: 100%;
-  min-height: 0;
-  max-height: 100%;
-  overflow-y: auto;
-  pointer-events: none;
-}
-
-.bodyOverlayStack > * {
-  pointer-events: auto;
-}
-
 .scrollBody {
   display: flex;
   flex: 1;
@@ -538,8 +508,9 @@ button.crumb:hover {
   /* Input mask (figma 1205:27463): transcript fades out under a FIXED 36px
      band at the seat's top (the figma 24% of the resting ~150px composer),
      solid below — px stops, not %, so a growing draft only widens the solid
-     region and the fade band never stretches. The 0px stop uses the enclosing
-     surface fill at zero alpha, so embedded content keeps its base fill. */
+     region and the fade band never stretches. The 0px stop is bg-base at
+     zero alpha (not white, which the figma export hardcodes) so both themes
+     fade from their own base. */
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--dsh-conversation-surface-fill, var(--dsw-alias-bg-base)) 0%, transparent) 0px,
@@ -595,72 +566,45 @@ button.crumb:hover {
   left: 0;
 }
 
-/* Hero phase: the composer stack stretches over the column — the hero chrome
-   flexes against the input card pinned at the column floor (the workspace row
-   rides just above it); composer phase docks the stack at the bottom. Flex,
+/* Hero phase: the composer stack (hero chrome + workspace row + card) is
+   flex-centered in the column; composer phase docks it at the bottom. Flex,
    NOT absolute+transform: a transform would make this box the containing
    block for position:fixed descendants (pickers/modals), shrinking them. */
 .composerHero {
   align-self: center;
-  /* Fill the hero seat so the hero chrome absorbs the spare column height. */
+  /* figma 75:8208 drew 12 between all three rows; the workspace row now sits
+     8 above the card (its margin-top restores 12 under the hero chrome). */
+  /* Foot inside the centered box floats the stack a bit above true center. */
+  padding-bottom: 32px;
+  /* Card cap + both clearances: the hero input card lands at exactly the same
+     width as the docked composer at every viewport. */
+  z-index: 1;
   flex: 1;
   gap: 0;
-  /* Foot inside the stretched seat floats the card 32px above the column
-     floor (the reference hero keeps the same foot). */
-  padding-bottom: 32px;
-  /* 建议网格使用整列空间；InputBar 自身仍限制输入卡片宽度。 */
   width: 100%;
-  z-index: 1;
-}
-
-/* Hero seat stretches over the scroll body (the composer phase keeps it at
-   its content height, sticky to the floor): the hero chrome centers in the
-   spare space instead of the whole stack centering as one block. */
-.root[data-phase='hero'] .composerSeat,
-.embeddedBody[data-content-phase='hero'] .composerSeat {
-  flex: 1 0 auto;
-  min-height: 100%;
 }
 
 .heroWorkspaceRow {
-  box-sizing: border-box;
-  flex: none;
   display: flex;
   align-items: center;
+  min-width: 0;
+  /* figma drew px 8; left nudged +12 so the chip's folder glyph lines up
+     closer to the card's inner controls below; right keeps the trailing
+     preset seat off the card edge. */
+  box-sizing: border-box;
+  flex: none;
   align-self: center;
   flex-wrap: wrap;
   gap: 8px;
-  min-width: 0;
   width: calc(100% - 56px);
   max-width: calc(var(--dsh-composer-card-max-width) - 24px);
   min-height: 48px;
-  /* 选项底板叠入输入卡片 10px，保持原有控件和菜单定位。 */
   margin: 0 28px -10px;
   padding: 6px 12px 16px;
   border-radius: calc(var(--dsw-radius-lg) + 2px) calc(var(--dsw-radius-lg) + 2px) 0 0;
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, var(--dsw-alias-bg-base));
 }
 
-/* One attached surface survives the renderer's display:contents slot anchor. */
-.composerContext {
-  box-sizing: border-box;
-  flex: none;
-  align-self: center;
-  min-width: 0;
-  width: calc(100% - 2 * var(--dsh-composer-side-clearance) - 3 * var(--dsh-composer-dock-inset));
-  max-width: calc(var(--dsh-composer-card-max-width) - 24px);
-  margin: 0 auto calc(-10px - var(--dsh-composer-stack-gap));
-  border-radius: calc(var(--dsw-radius-lg) + 2px) calc(var(--dsw-radius-lg) + 2px) 0 0;
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, var(--dsw-alias-bg-base));
-}
-
-.composerContext:empty,
-.composerContext:has(> [data-slot='conversation.input.context']:empty) { display: none; }
-.composerHero .composerContext { margin-bottom: -10px; }
-.composerContext [data-queue-dock] + [data-goal-bar] {
-  border-top: 0.5px solid var(--dsw-alias-border-l1);
-}
-.composerContext [data-queue-dock]:last-child { padding-bottom: 10px; }
 /* Plugin options share the row, pushed to its right edge. */
 .heroOptions {
   display: flex;
@@ -689,3 +633,92 @@ button.crumb:hover {
 .embeddedBody[data-content-phase='settling'] .composerSeat {
   visibility: hidden;
 }
+
+.headerBlank .titleRow {
+  padding-bottom: 0;
+}
+
+.tabsDisclosure {
+  grid-column: 1 / -1;
+  position: relative;
+  z-index: 1;
+}
+
+.tabsToggle {
+  flex: none;
+  width: 28px;
+  padding: 0;
+  color: var(--dsw-alias-label-tertiary);
+  transition: background-color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.tabsChevron {
+  display: inline-flex;
+  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.tabsChevron[data-expanded] {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabsToggle,
+  .tabsChevron {
+    transition: none;
+  }
+}
+.bodyOverlay {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  top: 12px;
+  right: 16px;
+  z-index: 8;
+  width: min(300px, max(0px, calc((100% - var(--dsh-chat-content-width)) / 2 - 24px)));
+  height: calc(100% - 24px);
+  pointer-events: none;
+  container-type: inline-size;
+}
+.bodyOverlayStack {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.bodyOverlayStack > * {
+  pointer-events: auto;
+}
+.root[data-phase='hero'] .composerSeat,
+.embeddedBody[data-content-phase='hero'] .composerSeat {
+  flex: 1 0 auto;
+  min-height: 100%;
+}
+.composerContext {
+  box-sizing: border-box;
+  flex: none;
+  align-self: center;
+  min-width: 0;
+  width: calc(100% - 2 * var(--dsh-composer-side-clearance) - 3 * var(--dsh-composer-dock-inset));
+  max-width: calc(var(--dsh-composer-card-max-width) - 24px);
+  margin: 0 auto calc(-10px - var(--dsh-composer-stack-gap));
+  border-radius: calc(var(--dsw-radius-lg) + 2px) calc(var(--dsw-radius-lg) + 2px) 0 0;
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, var(--dsw-alias-bg-base));
+}
+
+.composerContext:empty,
+.composerContext:has(> [data-slot='conversation.input.context']:empty) { display: none; }
+.composerHero .composerContext { margin-bottom: -10px; }
+.composerContext [data-queue-dock] + [data-goal-bar] {
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+}
+.composerContext [data-queue-dock]:last-child { padding-bottom: 10px; }

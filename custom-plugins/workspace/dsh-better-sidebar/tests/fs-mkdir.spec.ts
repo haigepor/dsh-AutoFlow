@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdirWorkspaceEntry } from '../src/fs-operations.ts'
+import { canCreateSymbolicLink } from './symlink-support.ts'
 
 let root: string
 
@@ -73,10 +74,10 @@ describe('mkdirWorkspaceEntry', () => {
     }
   })
 
-  it('creates INSIDE a symlink that points outside the workspace', async () => {
+  it.runIf(canCreateSymbolicLink('dir'))('creates INSIDE a symlink that points outside the workspace', async () => {
     const outside = await mkdtemp(join(tmpdir(), 'dsh-link-'))
     try {
-      await symlink(outside, join(root, 'escape'))
+      await symlink(outside, join(root, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
       // The link is followed like any directory (no realpath guard).
       const result = await mkdirWorkspaceEntry({ cwd: root, path: join(root, 'escape'), name: 'inside-link' })
       expect(result.path).toBe(join(root, 'escape', 'inside-link'))

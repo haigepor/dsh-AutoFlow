@@ -4,7 +4,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  width: calc(100% + 4px);
+  width: 100%;
   margin: 0 -2px 8px;
 }
 
@@ -18,31 +18,35 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--dsh-sidebar-label-gap);
   width: auto;
-  height: 32px;
   margin: 0;
-  padding: 0 10px 0 8px;
+  padding: 0 calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset));
   box-sizing: border-box;
   border: none;
-  border-radius: var(--dsw-radius-sm);
   background: transparent;
+  border-inline: var(--dsh-sidebar-paint-inset) solid transparent;
+  background-clip: padding-box;
   cursor: pointer;
   overflow: hidden;
-  color: var(--dsw-alias-label-secondary);
   font-family: inherit;
   font-size: 14px;
+  height: 32px;
+  border-radius: var(--dsw-radius-sm);
+  color: var(--dsw-alias-label-secondary);
   font-weight: 500;
   line-height: 20px;
   transition: background-color 150ms var(--ds-ease-in-out), color 150ms var(--ds-ease-in-out);
 }
 
-.trigger:hover {
-  background: var(--dsw-specific-sidebar-nav-item-hover);
-  color: var(--dsw-alias-label-primary);
+@media (hover: hover) {
+  .trigger:hover {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
-/* Rail trigger keeps its 36px target with the expanded navigation radius. */
+/* Rail trigger: the same 36x36 box and 12px rounding as the other rail
+   controls. */
 .trigger.rail {
   flex: none;
   width: 36px;
@@ -51,12 +55,63 @@
   justify-content: center;
   gap: 0;
   padding: 0;
+  border-inline: 0;
+  background-clip: border-box;
   border-radius: var(--dsw-radius-sm);
 }
 
 .triggerLabel {
   overflow: hidden;
   white-space: nowrap;
+}
+
+/* Full-viewport layer (figma Mask 501:29946 #000@24%): mask tokens match the
+   Modal primitive (--dsw-alias-bg-mask-1 + --dsw-mask-blur). */
+
+/* The full-viewport overlay blocks background clicks above the painted mask too. */
+
+/* Settings uses a shared 800×800 panel; longer sections scroll
+   inside the options column; the navigation scrolls independently. One height for
+   every section, taken from the viewport rather than the content, because a
+   content-sized panel would resize under the pointer on every nav click.
+   The viewport height leaves 24px of air above and below, widened to the
+   frame's published overlay inset on both sides, so the panel sits centered
+   and clear of the strip.
+   The four shell seats are direct children placed by area: the rail's title
+   and the content header share the first row, the rail's cells and the active
+   section the second. Narrow browser windows use a full-viewport panel and
+   rearrange these areas into a horizontal layout. */
+
+/* Nav rail (figma .Setting-nav 501:29958): the 188px track's cells, pad
+   (12,0), no own fill — the panel white shows through. */
+
+/* Title row (figma 501:29959): 16/500 lh24, at the rail's 24px text inset.
+   Its 54px row aligns with the content header; the nav adds the remaining
+   10px before the first cell. */
+
+/* Cell stack (figma 501:29961): gap 4. */
+
+/* Nav cell (figma .Setting-nav-cell 501:29962): 164x40, r12, pad
+   (12,9,16,9), gap 8; label 14/400 lh22; selected fill #EBEEF2. */
+
+/* Header (figma .Header 501:29981): h54, pad (10,20,14,8), close right. */
+
+/* Compact close control. */
+
+/* Options area (figma Options 501:29983): pad (24,0,24,24), scrolls. */
+
+/* Browsers below 768px use the full-viewport panel and horizontal navigation.
+   Windows custom captions and macOS native titlebars retain the desktop rail;
+   their independent root markers exclude both window-chrome layouts. Linux
+   follows the browser layout. The selected cell receives initial focus and
+   scrolls into view when the panel opens. */
+
+@media (hover: hover) {
+
+.trigger:hover {
+  background: var(--dsw-specific-sidebar-nav-item-hover);
+  color: var(--dsw-alias-label-primary);
+}
 }
 
 @media (prefers-reduced-motion: reduce) {

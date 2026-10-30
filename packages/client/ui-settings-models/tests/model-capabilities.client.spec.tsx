@@ -16,30 +16,32 @@ function Editor({ id = 'gpt-6.1-sol', api = 'openai-responses' }: { id?: string;
 describe('model capabilities', () => {
   it('automatically checks a matched model and preserves a manual opt-out in the model draft', () => {
     render(<Editor />)
-    expect((screen.getByRole('checkbox', { name: en.nativeWebSearch }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: en.nativeWebSearch }).checked).toBe(true)
     fireEvent.click(screen.getByRole('checkbox', { name: en.nativeWebSearch }))
     expect(JSON.parse(screen.getByTestId('draft').textContent ?? '')).toEqual({ id: 'gpt-6.1-sol', hidden: 'preserved', nativeWebSearch: false })
     fireEvent.click(screen.getByRole('button', { name: en.modelCapabilityAuto }))
-    expect((screen.getByRole('checkbox', { name: en.nativeWebSearch }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: en.nativeWebSearch }).checked).toBe(true)
     expect(JSON.parse(screen.getByTestId('draft').textContent ?? '')).not.toHaveProperty('nativeWebSearch')
   })
   it('leaves an unknown model unchecked and permits an explicit declaration', () => {
     render(<Editor id="private-model" />)
-    const checkbox = screen.getByRole('checkbox', { name: en.nativeWebSearch })
-    expect((checkbox as HTMLInputElement).checked).toBe(false); fireEvent.click(checkbox); expect((checkbox as HTMLInputElement).checked).toBe(true)
+    const checkbox = screen.getByRole<HTMLInputElement>('checkbox', { name: en.nativeWebSearch })
+    expect(checkbox.checked).toBe(false)
+    fireEvent.click(checkbox)
+    expect(checkbox.checked).toBe(true)
   })
   it('disables unsupported protocols', () => {
     render(<Editor api="bedrock-converse-stream" />)
-    expect((screen.getByRole('checkbox', { name: en.nativeWebSearch }) as HTMLInputElement).disabled).toBe(true)
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: en.nativeWebSearch }).disabled).toBe(true)
   })
 })
 
 it('restores a captured provider default without turning it into a manual override', () => {
   let draft: DeepSeekModelDraft = { id: 'private-model', nativeWebSearchDefault: true, nativeWebSearch: false }
   const { rerender } = render(<ModelCapabilities model={draft} api="openai-responses" disabled={false} t={key => en[key]}
-    onChange={next => { draft = next }} />)
+    onChange={(next) => { draft = next }} />)
   fireEvent.click(screen.getByRole('button', { name: en.modelCapabilityAuto }))
   rerender(<ModelCapabilities model={draft} api="openai-responses" disabled={false} t={key => en[key]} onChange={() => {}} />)
-  expect((screen.getByRole('checkbox', { name: en.nativeWebSearch }) as HTMLInputElement).checked).toBe(true)
+  expect(screen.getByRole<HTMLInputElement>('checkbox', { name: en.nativeWebSearch }).checked).toBe(true)
   expect(draft).toEqual({ id: 'private-model', nativeWebSearchDefault: true })
 })

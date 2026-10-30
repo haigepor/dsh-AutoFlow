@@ -1,167 +1,25 @@
 {
   "formatVersion": 2,
   "roots": [
-    {
-      "key": "event:session/title-llm-attempt",
-      "kind": "event",
-      "event": "session/title-llm-attempt",
-      "surface": false,
-      "digest": "e5ae9f18f9da222773c06af817e9d4694cf85f213a03f4e462af4e4071686ed7",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "data",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "ignorable",
-                "type": 14,
-                "optional": true
-              },
-              {
-                "name": "seq",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "type",
-                "type": 15,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "attempt",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "durationMs",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "failureCode",
-                "type": 3,
-                "optional": true
-              },
-              {
-                "name": "reasoning",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "route",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "status",
-                "type": 9,
-                "optional": false
-              },
-              {
-                "name": "titleProvider",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "union",
-            "types": [
-              5,
-              6,
-              7
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "disabled"
-          },
-          {
-            "kind": "literal",
-            "value": "provider-default"
-          },
-          {
-            "kind": "literal",
-            "value": "lowest-declared"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "model",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "provider",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              10,
-              11,
-              12,
-              13
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "cancelled"
-          },
-          {
-            "kind": "literal",
-            "value": "started"
-          },
-          {
-            "kind": "literal",
-            "value": "succeeded"
-          },
-          {
-            "kind": "literal",
-            "value": "failed"
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "literal",
-            "value": "session/title-llm-attempt"
-          }
-        ]
-      }
-    }
+    {"key":"event:session/title-llm-attempt","kind":"event","event":"session/title-llm-attempt","surface":false,"digest":"e5ae9f18f9da222773c06af817e9d4694cf85f213a03f4e462af4e4071686ed7"}
   ],
-  "types": []
+  "types": [],
+  "nodes": {
+    "0657d3ca5ac4e7bf": {"kind":"primitive","type":"number"},
+    "07e1a58c58b593f5": {"kind":"object","properties":[{"name":"model","type":"4cd48f3e5108bd6e","optional":false},{"name":"provider","type":"4cd48f3e5108bd6e","optional":false}],"indices":[]},
+    "0b9b8facbe2c1977": {"kind":"literal","value":"disabled"},
+    "2064a7f619467af2": {"kind":"literal","value":"session/title-llm-attempt"},
+    "2142e391b9ccb60d": {"kind":"literal","value":"cancelled"},
+    "22a27edfec73fa49": {"kind":"union","types":["0b9b8facbe2c1977","e144a82dc8eaf3b6","ff7ddb4af18039cb"]},
+    "4cd48f3e5108bd6e": {"kind":"primitive","type":"string"},
+    "b57a2889408de36e": {"kind":"literal","value":"failed"},
+    "c1e1622166f57c10": {"kind":"literal","value":"started"},
+    "cd8b8fe344f6f4ea": {"kind":"union","types":["2142e391b9ccb60d","b57a2889408de36e","c1e1622166f57c10","fd76feed4d7a307f"]},
+    "dacf3d5f3e4ff619": {"kind":"literal","value":true},
+    "df4c7c890157191b": {"kind":"object","properties":[{"name":"attempt","type":"0657d3ca5ac4e7bf","optional":false},{"name":"durationMs","type":"0657d3ca5ac4e7bf","optional":false},{"name":"failureCode","type":"4cd48f3e5108bd6e","optional":true},{"name":"reasoning","type":"22a27edfec73fa49","optional":false},{"name":"route","type":"07e1a58c58b593f5","optional":false},{"name":"status","type":"cd8b8fe344f6f4ea","optional":false},{"name":"titleProvider","type":"4cd48f3e5108bd6e","optional":false}],"indices":[]},
+    "e144a82dc8eaf3b6": {"kind":"literal","value":"provider-default"},
+    "e5ae9f18f9da2227": {"kind":"object","properties":[{"name":"data","type":"df4c7c890157191b","optional":false},{"name":"ignorable","type":"dacf3d5f3e4ff619","optional":true},{"name":"seq","type":"0657d3ca5ac4e7bf","optional":false},{"name":"time","type":"0657d3ca5ac4e7bf","optional":false},{"name":"type","type":"2064a7f619467af2","optional":false}],"indices":[]},
+    "fd76feed4d7a307f": {"kind":"literal","value":"succeeded"},
+    "ff7ddb4af18039cb": {"kind":"literal","value":"lowest-declared"}
+  }
 }

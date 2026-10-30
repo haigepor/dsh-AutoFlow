@@ -171,7 +171,8 @@ describe('ui-permission browser plugin', () => {
     expect(c.name).toBe('permission')
     expect(c.ui.kind).toBe('popupSelect')
     const row = b.permissionRow()!
-    expect(row.options).toEqual({ id: 'permission', order: -20 })
+    expect(row.options).toMatchObject({ id: 'permission', order: -20 })
+    expect(typeof row.options.label).toBe('function')
     const injected = row.inject?.() as PermissionRowInjected | undefined
     expect(injected?.hooks.permission).toBeDefined()
     expect(typeof injected?.load).toBe('function')

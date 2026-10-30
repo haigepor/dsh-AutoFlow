@@ -2,7 +2,26 @@
 
 [English](autoflow-upstream-integration.md) | 中文
 
-本文记录 AutoFlow 的官方集成决定。当前目标为 `dsh-v0.2.1-rc.3`；下方早期版本章节保留历史背景。[文件清单](autoflow-local-change-manifest.json)保存当前比较基点及历史路径清单；[维护对照地图](cookbook/maintaining-autoflow-fork.zh.md)定位需要保护的定制实现。
+本文记录 AutoFlow 的官方集成决定。当前目标为 `dsh-v0.2.2-alpha.2`；下方早期版本章节保留历史背景。[文件清单](autoflow-local-change-manifest.json)保存当前比较基点及历史路径清单；[维护对照地图](cookbook/maintaining-autoflow-fork.zh.md)定位需要保护的定制实现。
+
+## `dsh-v0.2.2-alpha.2` 集成（2026-10-30）
+
+官方目标固定为 `dsh-v0.2.2-alpha.2`，经 rc.4 检查点分阶段集成。`backup/local-before-alpha2-20261030` 保存本地工作树；`backup/main-before-alpha2-20261030` 与 `backup/mirror-before-alpha2-20261030` 保留原分支头。实现和验证在隔离的 `codex/integrate-alpha2-20261030` 检出中进行。本地快照包含待提交改动；私有 profile 文件备份在 Git 外。
+
+| 区域 | 集成决定 |
+| --- | --- |
+| 外观与导航 | 保留本地亮暗 token 值、紧凑导航、品牌插画、悬浮文字、材质、间距、全窗口设置与搜索。为官方新控件增加必要样式，限制仅指针设备的悬浮规则。 |
+| 会话与工作区 | 接入官方文本手势、引用、文件拖入、队列权限与模型行排序；保留技能引用、长文本卡片、动画折叠、输入历史与批量归档。归档操作遵循新的工作区权限。 |
+| 设置与账号 | 保留直接设置入口和双栏模型编辑器。接入 Web 账号、远程访问限制、提供商诊断与官方模型能力，保留本地原生搜索和推理控件。 |
+| 插件与桌面 | 保留 AFP、Better Sidebar、Visual Curator、Style Prompt、Codex Subscription 及独立更新器。默认组合声明迁至官方 official-bundles 归属；Codex Subscription 仍需显式启用。在新产物准备流程中保留本地桌面打包。 |
+| 更新 | 独立 GitHub Release 安装使用 `updateBundleRelease(name)`，与官方注册表 `updateBundle(name, version, options)` 并存。两者保留安装诊断及显式重启处理。见[升级指南](upgrade-guide/v0.2.2-alpha.2/autoflow-release-updates/guide.zh.md)。 |
+| 持久化 | 仅将两份本地确认快照转换为规范节点表，根指纹保持不变。保留已接受的官方记录、Session 代际与写入版本。从合并源码重新生成目录。 |
+
+模型原生搜索独立于外部搜索凭证准入，并在请求发送前记录脱敏的辅助输入；聚焦回归已通过。持久化验证报告 67 个根与 21 份记录匹配。最终构建、UI 和 CI 证据归属集成提交及准确的 main 发布版本；旧版本的通过记录不能证明本次集成通过。
+
+随应用交付的[增强侧栏](../custom-plugins/workspace/dsh-better-sidebar/README.zh.md)跟随其独立上游 v0.28.2。来源记录维护本地目录、构建和 UI 适配；伴随包与侧栏一起构建，保留应用主题 token 和现有设置页外观。
+
+追加本地快照 `backup/latest-local-before-main-20261030` 保存 Better Sidebar 0.28.2 及同时进行的自定义插件工作；`backup/alpha2-before-latest-local-20261030` 保留应用该增量前的 alpha.2 集成结果。Side Chat 改用 `agent.model.select()` 记录选择，并在 Agent 初始化时安装切换提示；Visual Curator 通过 `resolveAgent()` 和 Agent Session 检查搜索消息是否已接收。CI 在 Ubuntu 和 Windows 调用每个自定义工作区包自己的测试脚本。14 个源码模块旁意外生成的编译产物保留在备份中，不纳入集成提交；这 56 个 JavaScript、声明与 source-map 文件只通过正常产物构建生成。
 
 ## `dsh-v0.2.1-rc.3` 集成（2026-10-26）
 

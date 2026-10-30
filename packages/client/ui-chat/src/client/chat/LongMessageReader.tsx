@@ -5,7 +5,7 @@ import { MessageIconActions } from './MessageIconActions.tsx'
 import css from './LongMessageReader.module.css'
 
 /** Identity used by the sidebar type and its keyed body/title registrations. */
-export const LONG_MESSAGE_ID = '@deepseek-ai/dsh-client-ui-chat/long-message'
+export const LONG_READER_ID = '@deepseek-ai/dsh-client-ui-chat/long-message'
 
 /** One replaceable reader page per Session pane. */
 export const LONG_MESSAGE_KIND = 'chat-long-message'

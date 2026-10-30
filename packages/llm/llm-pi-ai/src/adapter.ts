@@ -378,7 +378,7 @@ export class PiAiAdapter extends LlmAdapter {
       if (chunk.type === 'block-end' && chunk.block.type === 'text') textBlocks.set(chunk.index, chunk.block.text)
       if (chunk.type === 'finish' && chunk.reason.kind === 'error') {
         const failure = chunk.reason.failure
-        throw new LlmError(failure.message, failure.code ?? 'NATIVE_SEARCH_FAILED', failure)
+        throw new LlmError(failure.message, failure.code, failure)
       }
       if (chunk.type === 'finish' && chunk.reason.kind === 'aborted') throw new LlmError('Native search was cancelled', 'ABORTED')
     }
@@ -436,7 +436,7 @@ export class PiAiAdapter extends LlmAdapter {
         this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
       }
       const context = attachments === undefined
-        ? toPiContext(request, undefined, onReplayDegrade)
+        ? toPiContext(request, undefined, onReplayDegrade, updates.systemPromptUpdate === 'in-history')
         : await toPiContext({ ...request, signal: watchdog.signal }, {
           attachments,
           resolveImageAccess: ref => this.config.resolveImageAccess?.(attachments, ref),
@@ -445,10 +445,12 @@ export class PiAiAdapter extends LlmAdapter {
             maxPixels: profile.requestImagePixelBudget,
             maxBytes: profile.requestImageMaxBytes,
           },
-        }, onReplayDegrade)
+        }, onReplayDegrade, updates.systemPromptUpdate === 'in-history')
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
-        ...nativeSearch === undefined ? {} : { onPayload: nativeSearch.onPayload, onProviderStreamEvent: nativeSearch.onProviderStreamEvent },
+        ...nativeSearch === undefined ? {} : {
+          onPayload: nativeSearch.onPayload, onProviderStreamEvent: nativeSearch.onProviderStreamEvent,
+        },
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },

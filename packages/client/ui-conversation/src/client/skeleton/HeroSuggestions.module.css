@@ -41,10 +41,17 @@
   transition: background-color 150ms, border-color 150ms;
 }
 
-.card:hover,
 .card[aria-pressed='true'] {
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
   border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 20%, transparent);
+}
+
+@media (hover: hover) {
+
+.card:hover {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
+  border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 20%, transparent);
+}
 }
 
 .cardIcon {
@@ -93,8 +100,11 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .task:hover:not(:disabled) {
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent);
+}
 }
 
 .hint {

@@ -7,7 +7,7 @@ import { startRelay } from '../src/host/relay/server.ts'
 import type { RelayConfig } from '../src/host/relay/types.ts'
 import type { ImageTask } from '../src/host/images/types.ts'
 
-const config: RelayConfig = { host: '127.0.0.1', port: 0, gatewayKeys: [{ id: 'first', secret: 'gateway-key-first-12345' }, { id: 'second', secret: 'gateway-key-second-12345' }], allowedOrigins: [], maxRequestBytes: 4096, maxResponseBytes: 1024 * 1024, requestTimeoutMs: 5000, imageWaitMs: 50, assetUrlTtlMs: 60000, maxConcurrentRequests: 8 }
+const config: RelayConfig = { host: '127.0.0.1', port: 0, gatewayKeys: [{ id: 'first', secret: 'gateway-key-first-12345' }, { id: 'second', secret: 'gateway-key-second-12345' }], allowedOrigins: [], maxRequestBytes: 4096, maxResponseBytes: 1024 * 1024, requestTimeoutMs: 5000, imageWaitMs: 50, assetUrlTtlMs: 60000, maxConcurrentRequests: 8, maxSocketConnections: 4, maxSocketQueuedTurns: 2, maxSocketHistoryBytes: 1048576 }
 
 const resultSchema = z.object({ result: z.object({ tools: z.array(z.object({ name: z.string() })).default([]), content: z.array(z.object({ type: z.string(), text: z.string().optional(), data: z.string().optional(), mimeType: z.string().optional() })).default([]), isError: z.boolean().optional(), _meta: z.record(z.string(), z.unknown()).optional() }) })
 

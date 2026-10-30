@@ -3,10 +3,10 @@
   container: plugin-inventory / inline-size;
   display: flex;
   flex-direction: column;
-  gap: 12px;
   width: 100%;
-  min-width: 0;
   color: var(--dsw-alias-label-primary);
+  gap: 12px;
+  min-width: 0;
 }
 
 .status,
@@ -50,15 +50,6 @@
   gap: 12px;
 }
 
-.toolbar { display: flex; align-items: center; gap: 12px; }
-.toolbar > .search { flex: 1; min-width: 0; }
-.toolbar > :last-child { flex: none; }
-.categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
-.category { border: 0.5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); padding: 4px 10px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 20px; cursor: pointer; }
-.category[aria-pressed='true'] { color: var(--dsw-alias-state-business-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, var(--dsw-alias-border-l2)); background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 7%, var(--dsw-alias-bg-layer-1)); }
-.category:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color); outline-offset: 2px; }
-.category:hover { background: var(--dsw-alias-interactive-bg-hover); }
-
 .search {
   position: relative;
   display: flex;
@@ -76,7 +67,6 @@
 .search input {
   width: 100%;
   height: 36px;
-  box-sizing: border-box;
   border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: var(--dsw-radius-md);
   padding: 0 34px 0 36px;
@@ -85,6 +75,7 @@
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 13px;
+  box-sizing: border-box;
 }
 
 .search input::placeholder {
@@ -98,15 +89,17 @@
 
 .cards {
   display: grid;
-  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
+  align-items: start;
 }
 
-/* Each card keeps its own height when its grid neighbor expands. */
+/* Cards stretch to their grid row's height. The button fills a stretched card:
+   the title row and description stay at the top, in line with the other card's,
+   and the spare height sits above the entry id chip or at the bottom. */
 .card {
   display: flex;
   flex-direction: column;
@@ -122,31 +115,43 @@
   border-color: var(--dsw-alias-border-l3);
 }
 
+/* The other card in an expanded card's row keeps its own height instead of
+   stretching alongside the details. The selectors assume the two columns
+   `.cards` declares, where each row starts at an odd position, and must change
+   with that count; in one column the matched card sits alone in its row. */
+
 .cardContent {
   box-sizing: border-box;
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
   flex: 1 1 auto;
-  align-items: center;
-  gap: 12px;
   width: 100%;
-  height: 64px;
   border: 0;
-  padding: 10px 14px;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  height: 64px;
+  padding: 10px 14px;
 }
 
-.cardArtwork { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); }
-.cardArtwork > svg { width: 32px; height: 32px; }
-.cardCopy { display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 3px; }
-
-.cardContent:hover,
 .card[data-open='true'] > .cardContent {
   background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Hover stays behind @media (hover: hover) so a tap cannot latch it; the press
+   state carries the feedback a touch client would otherwise lose. */
+.cardContent:active {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+@media (hover: hover) {
+  .cardContent:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .cardContent:focus-visible {
@@ -155,36 +160,31 @@
 }
 
 .cardTitle {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cardTitle {
-  flex: 0 1 auto;
   min-width: 0;
-  font-size: 13px;
   line-height: 20px;
   font-weight: 500;
+  flex: 0 1 auto;
+  font-size: 13px;
 }
 
-/* A compact summary stays one line; details show the complete description. */
+/* Two lines at most while collapsed; the expanded card shows the full text. */
 .cardDescription {
   display: -webkit-box;
   overflow: hidden;
-  color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 18px;
   text-wrap: pretty;
   -webkit-box-orient: vertical;
+  color: var(--dsw-alias-label-secondary);
   -webkit-line-clamp: 1;
 }
 
-.entryValue {
-  font-family: var(--ds-font-family-code);
-  font-size: 11px;
-  line-height: 18px;
-}
+/* The entry id is metadata, not prose: a code chip in the card's bottom-left
+   corner whose left edge lines up with the title. */
+
+/* The Loader entry id keeps one size in the card chip and the row it expands into;
+   the collapsed chip stays on the quieter label tier, while the expanded row carries
+   the card's primary value. */
 
 .cardTrailing {
   display: inline-flex;
@@ -255,8 +255,8 @@
 .groupTitle {
   font-size: 14px;
   line-height: 22px;
-  font-weight: 600;
   color: var(--dsw-alias-label-primary);
+  font-weight: 600;
 }
 
 .groupSub {
@@ -268,17 +268,6 @@
   font-size: 12px;
   line-height: 18px;
   font-variant-numeric: tabular-nums;
-}
-
-/* A middle dot with equal space on both sides separates the subtitle's parts. */
-.groupSub > * + *::before {
-  content: '·';
-  padding: 0 6px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.failedCount {
-  color: var(--dsw-alias-state-error-primary);
 }
 
 /* The preset switcher trigger mirrors the General-settings selector pill. */
@@ -300,8 +289,14 @@
   cursor: pointer;
 }
 
-.switcher:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+.switcher:active {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+@media (hover: hover) {
+  .switcher:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .switcher:focus-visible {
@@ -360,55 +355,38 @@
   cursor: pointer;
 }
 
-/* 骨架条沿用模型目录的低对比底色与扫光，卡片保留真实内容的尺寸。 */
+/* Loading placeholder in the cards grid, sized like a card with one description
+   line; its bars pulse through the shared skeleton token as the input-trigger
+   menu's pending rows do. */
 .skeletonCard {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  padding: 15px 14px;
   justify-content: center;
   box-sizing: border-box;
   min-width: 0;
   min-height: 64px;
-  gap: 8px;
   border: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: var(--dsw-radius-lg);
-  padding: 15px 14px;
   background: var(--dsw-alias-bg-layer-1);
 }
 
 .skeletonBar {
+  height: 14px;
   display: block;
   position: relative;
   flex: none;
   width: 168px;
   max-width: 100%;
-  height: 14px;
   overflow: hidden;
   border-radius: var(--dsw-radius-sm);
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent);
 }
 
-.skeletonBar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent) 50%, transparent 75%);
-  transform: translateX(-100%);
-  animation: skeleton-sheen 1.8s ease-in-out infinite;
-}
-
 .skeletonBar + .skeletonBar {
   width: 120px;
   height: 10px;
-}
-
-.skeletonCard:nth-of-type(even) .skeletonBar { width: 132px; }
-.skeletonCard:nth-of-type(even) .skeletonBar + .skeletonBar { width: 96px; }
-
-.enabledIn {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
 }
 
 .card[data-failed='true'] {
@@ -429,11 +407,6 @@
   padding: 10px 14px 12px;
   background: var(--dsw-alias-bg-module-platform);
 }
-.detailDescription { margin: 0 0 10px; font-size: 12px; line-height: 19px; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
-
-.disclosure { display: grid; grid-template-rows: 0fr; opacity: 0; }
-.disclosure[data-open='true'] { grid-template-rows: 1fr; opacity: 1; }
-.disclosureClip { min-height: 0; overflow: hidden; }
 
 .entryValue {
   display: block;
@@ -485,16 +458,74 @@
   .disclosure { transition: grid-template-rows 250ms var(--ds-ease-in-out), opacity 200ms ease; }
 }
 
+@keyframes plugin-inventory-skeleton {
+}
+
+@container plugin-inventory (max-width: 520px) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .toolbar { align-items: stretch; flex-direction: column; }
+  .toolbar > :last-child { align-self: flex-start; }
+}
+
+/* iOS Safari zooms the visual viewport for a focused field under 16px. */
+@media (pointer: coarse) {
+  .search input {
+    font-size: 16px;
+  }
+}
+
+.toolbar { display: flex; align-items: center; gap: 12px; }
+.toolbar > .search { flex: 1; min-width: 0; }
+.toolbar > :last-child { flex: none; }
+.categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.category { border: 0.5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); padding: 4px 10px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 20px; cursor: pointer; }
+.category[aria-pressed='true'] { color: var(--dsw-alias-state-business-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, var(--dsw-alias-border-l2)); background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 7%, var(--dsw-alias-bg-layer-1)); }
+.category:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color); outline-offset: 2px; }
+@media (hover: hover) {
+.category:hover { background: var(--dsw-alias-interactive-bg-hover); }
+}
+
+.cardArtwork { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-module-platform); }
+.cardArtwork > svg { width: 32px; height: 32px; }
+.cardCopy { display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 3px; }
+.groupSub > * + *::before {
+  content: '·';
+  padding: 0 6px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.failedCount {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.skeletonBar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent) 50%, transparent 75%);
+  transform: translateX(-100%);
+  animation: skeleton-sheen 1.8s ease-in-out infinite;
+}
+
+.skeletonCard:nth-of-type(even) .skeletonBar { width: 132px; }
+.skeletonCard:nth-of-type(even) .skeletonBar + .skeletonBar { width: 96px; }
+
+.enabledIn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.detailDescription { margin: 0 0 10px; font-size: 12px; line-height: 19px; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+
+.disclosure { display: grid; grid-template-rows: 0fr; opacity: 0; }
+.disclosure[data-open='true'] { grid-template-rows: 1fr; opacity: 1; }
+.disclosureClip { min-height: 0; overflow: hidden; }
+
 @keyframes skeleton-sheen { to { transform: translateX(100%); } }
 
 @media (prefers-reduced-motion: reduce) {
   .skeletonBar::after { animation: none; display: none; }
-}
-
-@container plugin-inventory (max-width: 520px) {
-  .toolbar { align-items: stretch; flex-direction: column; }
-  .toolbar > :last-child { align-self: flex-start; }
-  .cards {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

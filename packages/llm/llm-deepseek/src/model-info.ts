@@ -1,6 +1,6 @@
 /** Protocol-independent model capabilities and reasoning choices. */
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import type { LlmModelInfo, LlmResolvedModelInfo, LlmModelReasoningInfo } from '@deepseek-ai/dsh-llm'
+import type { LlmModelBadge, LlmModelInfo, LlmResolvedModelInfo, LlmModelReasoningInfo } from '@deepseek-ai/dsh-llm'
 import type { DeepSeekCatalogModel, DeepSeekConnectionOptions } from './types.ts'
 import { nativeWebSearchEnabled } from '@deepseek-ai/dsh-llm/native-web-search'
 
@@ -61,15 +61,17 @@ export function resolveModelReasoning(connection: DeepSeekConnectionOptions, mod
 /** Advertise one catalog entry.
  * @param provider - registered provider id.
  * @param model - advisory catalog entry.
+ * @param badge - selector badge a model listing declares for the entry.
  * @returns selector metadata.
  */
-export function catalogModelInfo(provider: string, model: DeepSeekCatalogModel): LlmModelInfo {
+export function catalogModelInfo(provider: string, model: DeepSeekCatalogModel, badge?: LlmModelBadge): LlmModelInfo {
   return {
     provider,
     id: model.id,
     name: model.name ?? model.id,
     ...model.description === undefined ? {} : { description: model.description },
     inputModalities: model.inputModalities ?? ['text'],
+    ...badge === undefined ? {} : { badge },
   }
 }
 

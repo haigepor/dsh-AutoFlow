@@ -13,13 +13,15 @@ type ContentProps = FactoryComponentPropsOf<'conversation.chat.assistant.content
  * @param props - answer text, streaming state, locale, and optional caller-authorized file rendering.
  * @returns the shared answer body; local paths are inactive without an explicit resolver.
  */
-export const AssistantText = memo(function AssistantText({ text, streaming, t, mentions, pathImages }:
+export const AssistantText = memo(function AssistantText({ text, streaming, t, mentions, pathImages, textInteractionSource = false }:
 Pick<ContentProps, 'text' | 'streaming' | 't'> & {
   mentions?: MarkdownFileMentions | undefined
   pathImages?: MarkdownPathImages | undefined
+  textInteractionSource?: boolean
 }) {
   const labels = useMemo(() => markdownLabels(t), [t])
-  return <MarkdownText text={text} streaming={streaming} labels={labels} fileMentions={mentions} pathImages={pathImages} />
+  return <MarkdownText text={text} streaming={streaming} labels={labels} fileMentions={mentions} pathImages={pathImages}
+    textInteractionSource={textInteractionSource} />
 })
 
 /**

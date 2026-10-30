@@ -1,34 +1,19 @@
 .section {
   display: flex;
   flex-direction: column;
+  color: var(--dsw-alias-label-primary);
   --dsh-settings-section-gap: 12px;
   gap: var(--dsh-settings-section-gap);
   width: 100%;
   min-width: 0;
   container: preset-settings / inline-size;
-  color: var(--dsw-alias-label-primary);
 }
-
-.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.loadError { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.skeletonCard { pointer-events: none; }
-.skeletonArt { background: var(--dsw-alias-bg-layer-2); }
-.skeleton { display: block; flex: none; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-module-platform); animation: preset-skeleton-pulse 1600ms ease-in-out infinite; }
-.skeletonBadge { width: 64px; height: 20px; }
-.skeletonIllustration { width: 88px; height: 88px; border-radius: var(--dsw-radius-lg); }
-.skeletonName { width: 45%; height: 22px; }
-.skeletonLine { width: 100%; height: 16px; }
-.skeletonShort { width: 70%; height: 16px; }
-.skeletonFoot { min-height: 28px; }
-.skeletonActions { margin-right: auto; width: 110px; height: 16px; }
-@keyframes preset-skeleton-pulse { 50% { opacity: .55; } }
-@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
 
 .title {
   margin: 0;
+  font-weight: 600;
   font-size: 26px;
   line-height: 36px;
-  font-weight: 600;
   color: var(--dsw-alias-label-primary);
 }
 
@@ -37,30 +22,6 @@
   max-width: 64ch;
   font-size: 14px;
   line-height: 22px;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.pageHeader {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.pageHeader > div {
-  min-width: 0;
-}
-
-.pageIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 52px;
-  height: 52px;
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 16px;
-  background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -92,81 +53,51 @@
   margin: 0;
   padding: 0;
   display: grid;
+  /* Match neighboring cards within a row, without stretching shorter rows. */
   grid-template-columns: repeat(4, minmax(0, 1fr));
   width: 100%;
   max-width: 1280px;
-  /* Match neighboring cards within a row, without stretching shorter rows. */
   gap: 16px;
 }
 
 .card {
+  display: flex;
+  flex-direction: column;
   position: relative;
   isolation: isolate;
   z-index: 0;
   border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-lg);
-  display: flex;
-  flex-direction: column;
   background: transparent;
   transition: border-color 160ms ease;
 }
 
-.card::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--dsw-alias-bg-layer-1);
-  content: '';
-  pointer-events: none;
-  transition: background .16s;
+
+@media (hover: hover) {
+  .card:hover:not(.cardActive) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
-.card:hover,
-.card:focus-within {
-  z-index: 1;
-}
-
-.card:hover:not(.cardActive):not(.cardSelectionDisabled)::before {
-  background: var(--dsw-alias-bg-layer-1);
-}
-
-.card:hover:not(.cardSelectionDisabled), .card:focus-within { border-color: var(--dsw-alias-border-l3); }
-
-/* 默认预设只强调轮廓，保留与主题一致的卡片材质。 */
+/* The default preset reads as selected exactly like the Appearance cubes:
+   platform fill + the bluish-400 border (static token — the bluish-400 step
+   has no alias-layer name). */
 .cardActive {
   border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, var(--dsw-alias-border-l2));
 }
 
-.cardActive::before { background: var(--dsw-alias-bg-layer-1); }
-.cardActive:hover, .cardActive:focus-within { border-color: var(--dsw-alias-state-business-primary); }
-.card:not(.cardActive):not(.cardBroken) {
-  border-color: transparent;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
-  box-shadow: var(--dsw-elevation-soft);
-}
-.card.cardPending {
-  border-color: var(--dsw-alias-state-business-primary);
-}
-
 /* Mode selection is off, not the preset itself: mute only the selectable
    body while the independent view/copy/location actions stay fully usable. */
-.cardSelectionDisabled {
-  background: transparent;
-}
-
-.cardSelectionDisabled .cardMain {
-  opacity: 0.48;
-}
-
 /* A broken preset reads as damaged before anything else: the card cannot be
    picked, so its border carries the warning the disabled body cannot. */
 .cardBroken {
   border-color: var(--dsw-alias-state-error-primary);
 }
 
-.cardBroken:hover {
-  border-color: var(--dsw-alias-state-error-primary);
+@media (hover: hover) {
+  .cardBroken:hover {
+    border-color: var(--dsw-alias-state-error-primary);
+  }
 }
 
 .brokenBadge {
@@ -211,9 +142,14 @@
 /* Focusing the card reveals it too: a broken card keeps its place in the tab
    order (`aria-disabled`, not `disabled`), so this is the keyboard path to a
    reason the card face no longer shows. */
-.brokenBadge:hover .brokenTip,
 .cardMain:focus-visible .brokenTip {
   opacity: 1;
+}
+
+@media (hover: hover) {
+  .brokenBadge:hover .brokenTip {
+    opacity: 1;
+  }
 }
 
 .cardMain[aria-disabled='true'] {
@@ -239,6 +175,18 @@
   white-space: nowrap;
 }
 
+@media (hover: none) {
+  .cardBrokenReason {
+    position: static;
+    display: block;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
+
 /* The card body is the control that picks the preset. */
 .cardMain {
   flex: 1;
@@ -258,34 +206,6 @@
   border-radius: var(--dsw-radius-lg) var(--dsw-radius-lg) 0 0;
 }
 
-.cardArt {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 144px;
-  flex: none;
-  border-radius: var(--dsw-radius-lg) var(--dsw-radius-lg) 0 0;
-  --dsh-preset-stage-color: var(--dsw-alias-state-business-primary);
-  background: color-mix(in srgb, var(--dsh-preset-stage-color) 6%, var(--dsw-alias-bg-layer-2));
-}
-.cardArt:has([data-preset-art='ptc']) { --dsh-preset-stage-color: var(--dsw-alias-state-success-primary); }
-.cardArt:has([data-preset-art='minimal']) { --dsh-preset-stage-color: var(--dsw-alias-label-secondary); }
-.cardArt:has([data-preset-art='cordis']) { --dsh-preset-stage-color: var(--dsw-alias-state-warn-primary); }
-.cardBadge { position: absolute; top: 10px; left: 10px; }
-.cardCopy { display: flex; flex-direction: column; flex: 1; gap: 10px; min-width: 0; width: 100%; box-sizing: border-box; padding: 18px 18px 10px; min-height: 148px; }
-.illustration { display: block; width: 112px; height: 112px; object-fit: contain; pointer-events: none; }
-.card:is(:hover, :focus-within) .illustration { animation: preset-illustration-float 1600ms ease-in-out infinite; }
-.card:is(:hover, :focus-within) .illustration[data-preset-art='ptc'] { animation-name: preset-illustration-float-tools; }
-.card:is(:hover, :focus-within) .illustration[data-preset-art='minimal'] { animation-name: preset-illustration-float-think; }
-.card:is(:hover, :focus-within) .illustration[data-preset-art='cordis'] { animation-name: preset-illustration-float-build; }
-@keyframes preset-illustration-float { 35% { transform: translateY(-4px) rotate(-3deg) scale(1.04); } 65% { transform: translateY(-4px) rotate(2deg) scale(1.04); } }
-@keyframes preset-illustration-float-tools { 30%, 70% { transform: translateY(-5px) scale(1.04); } 50% { transform: translateY(-2px) scale(1.02); } }
-@keyframes preset-illustration-float-think { 50% { transform: translateY(-3px) rotate(3deg) scale(1.03); } }
-@keyframes preset-illustration-float-build { 35% { transform: translateY(-4px) rotate(-3deg) scale(1.04); } 70% { transform: translateY(-2px) rotate(3deg) scale(1.02); } }
-/* 说明层打开时暂停背后卡片，避免与弹窗合成同时执行。 */
-:global(body:has([data-preset-guide])) .card:is(:hover, :focus-within) .illustration { animation: none; }
-
 .cardMain:disabled {
   cursor: default;
 }
@@ -297,7 +217,6 @@
 
 .cardHead {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
   /* Anchors the broken badge's tooltip: the badge itself stays unpositioned so
@@ -305,31 +224,36 @@
      badge that sits partway across it. A tooltip grown from the badge would
      run past the card, and past the section for a card in the last column. */
   position: relative;
+  flex-wrap: wrap;
 }
 
 .cardIdentity {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .cardName {
   min-width: 0;
-  font-size: 16px;
   font-weight: 600;
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 16px;
 }
 
-/* Long custom descriptions keep their full accessible text and truncation
-   tooltip without stretching the compact illustration row. */
+/* Bounded to four lines. A preset publishes its own description, so one long
+   one would otherwise stretch every card in its grid row. Clamping is CSS
+   alone: the whole text stays in the DOM for assistive
+   tech, and the card offers it on hover when it is actually cut off. The
+   description does not grow to fill the card — `-webkit-line-clamp` on a
+   flex-stretched box leaves the clamp height and the box height disagreeing,
+   so auto margins center the text between the header and footer instead. */
 .cardDesc {
-  margin: 0;
   font-size: 13px;
   line-height: 1.55;
   color: var(--dsw-alias-label-secondary);
@@ -339,12 +263,16 @@
   overflow: hidden;
   /* A user-authored description may carry an unbreakable path or URL. */
   overflow-wrap: anywhere;
+  margin: 0;
+}
+
+@media (pointer: coarse) {
+  .cardDesc {
+    -webkit-line-clamp: unset;
+  }
 }
 
 .cardId {
-  position: absolute;
-  bottom: 10px;
-  right: 14px;
   flex-shrink: 0;
   max-width: 35%;
   font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
@@ -354,6 +282,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  position: absolute;
+  bottom: 10px;
+  right: 14px;
 }
 
 .cardFoot {
@@ -380,9 +311,14 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.helpButton:hover,
 .helpButton:focus-visible {
   color: var(--dsw-alias-label-primary);
+}
+
+@media (hover: hover) {
+  .helpButton:hover {
+    color: var(--dsw-alias-label-primary);
+  }
 }
 
 /* Icon-only actions: the label rides `data-tip` so the row stays quiet until
@@ -400,9 +336,11 @@
   align-items: center;
 }
 
-.iconButton:hover {
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
+@media (hover: hover) {
+  .iconButton:hover {
+    background: var(--dsw-alias-bg-layer-1);
+    color: var(--dsw-alias-label-primary);
+  }
 }
 
 .iconButton:focus-visible {
@@ -428,9 +366,14 @@
   transition: opacity .12s;
 }
 
-.iconButton:hover::after,
 .iconButton:focus-visible::after {
   opacity: 1;
+}
+
+@media (hover: hover) {
+  .iconButton:hover::after {
+    opacity: 1;
+  }
 }
 
 .dialog {
@@ -483,13 +426,152 @@
   cursor: pointer;
 }
 
-.creatorButton:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
+@media (hover: hover) {
+  .creatorButton:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .creatorButton:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.loadError { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.skeletonCard { pointer-events: none; }
+.skeletonArt { background: var(--dsw-alias-bg-layer-2); }
+.skeleton { display: block; flex: none; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-module-platform); animation: preset-skeleton-pulse 1600ms ease-in-out infinite; }
+.skeletonBadge { width: 64px; height: 20px; }
+.skeletonIllustration { width: 88px; height: 88px; border-radius: var(--dsw-radius-lg); }
+.skeletonName { width: 45%; height: 22px; }
+.skeletonLine { width: 100%; height: 16px; }
+.skeletonShort { width: 70%; height: 16px; }
+.skeletonFoot { min-height: 28px; }
+.skeletonActions { margin-right: auto; width: 110px; height: 16px; }
+@keyframes preset-skeleton-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; }
+  .card, .card::before { transition: none; }
+  @media (hover: hover) {
+  .card:is(:hover, :focus-within) .illustration[data-preset-art] { animation: none; }
+  } }
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.pageHeader > div {
+  min-width: 0;
+}
+
+.pageIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.card::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dsw-alias-bg-layer-1);
+  content: '';
+  pointer-events: none;
+  transition: background .16s;
+}
+
+.card:focus-within {
+  z-index: 1;
+}
+
+@media (hover: hover) {
+
+.card:hover {
+  z-index: 1;
+}
+}
+
+@media (hover: hover) {
+
+.card:hover:not(.cardActive):not(.cardSelectionDisabled)::before {
+  background: var(--dsw-alias-bg-layer-1);
+}
+}
+
+.card:focus-within { border-color: var(--dsw-alias-border-l3); }
+
+@media (hover: hover) {
+
+.card:hover:not(.cardSelectionDisabled) { border-color: var(--dsw-alias-border-l3); }
+}
+
+.cardActive::before { background: var(--dsw-alias-bg-layer-1); }
+.cardActive:focus-within { border-color: var(--dsw-alias-state-business-primary); }
+@media (hover: hover) {
+.cardActive:hover { border-color: var(--dsw-alias-state-business-primary); }
+}
+.card:not(.cardActive):not(.cardBroken) {
+  border-color: transparent;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+  box-shadow: var(--dsw-elevation-soft);
+}
+.card.cardPending {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+.cardSelectionDisabled {
+  background: transparent;
+}
+
+.cardSelectionDisabled .cardMain {
+  opacity: 0.48;
+}
+
+.cardArt {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 144px;
+  flex: none;
+  border-radius: var(--dsw-radius-lg) var(--dsw-radius-lg) 0 0;
+  --dsh-preset-stage-color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsh-preset-stage-color) 6%, var(--dsw-alias-bg-layer-2));
+}
+.cardArt:has([data-preset-art='ptc']) { --dsh-preset-stage-color: var(--dsw-alias-state-success-primary); }
+.cardArt:has([data-preset-art='minimal']) { --dsh-preset-stage-color: var(--dsw-alias-label-secondary); }
+.cardArt:has([data-preset-art='cordis']) { --dsh-preset-stage-color: var(--dsw-alias-state-warn-primary); }
+.cardBadge { position: absolute; top: 10px; left: 10px; }
+.cardCopy { display: flex; flex-direction: column; flex: 1; gap: 10px; min-width: 0; width: 100%; box-sizing: border-box; padding: 18px 18px 10px; min-height: 148px; }
+.illustration { display: block; width: 112px; height: 112px; object-fit: contain; pointer-events: none; }
+@media (hover: hover) {
+.card:is(:hover, :focus-within) .illustration { animation: preset-illustration-float 1600ms ease-in-out infinite; }
+}
+@media (hover: hover) {
+.card:is(:hover, :focus-within) .illustration[data-preset-art='ptc'] { animation-name: preset-illustration-float-tools; }
+}
+@media (hover: hover) {
+.card:is(:hover, :focus-within) .illustration[data-preset-art='minimal'] { animation-name: preset-illustration-float-think; }
+}
+@media (hover: hover) {
+.card:is(:hover, :focus-within) .illustration[data-preset-art='cordis'] { animation-name: preset-illustration-float-build; }
+}
+@keyframes preset-illustration-float { 35% { transform: translateY(-4px) rotate(-3deg) scale(1.04); } 65% { transform: translateY(-4px) rotate(2deg) scale(1.04); } }
+@keyframes preset-illustration-float-tools { 30%, 70% { transform: translateY(-5px) scale(1.04); } 50% { transform: translateY(-2px) scale(1.02); } }
+@keyframes preset-illustration-float-think { 50% { transform: translateY(-3px) rotate(3deg) scale(1.03); } }
+@keyframes preset-illustration-float-build { 35% { transform: translateY(-4px) rotate(-3deg) scale(1.04); } 70% { transform: translateY(-2px) rotate(3deg) scale(1.02); } }
+@media (hover: hover) {
+:global(body:has([data-preset-guide])) .card:is(:hover, :focus-within) .illustration { animation: none; }
 }
 
 @container preset-settings (max-width: 1040px) {
@@ -499,9 +581,4 @@
 @container preset-settings (max-width: 560px) {
   .cards { grid-template-columns: minmax(0, 1fr); max-width: 400px; }
   .cardCopy { min-height: 124px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .card, .card::before { transition: none; }
-  .card:is(:hover, :focus-within) .illustration[data-preset-art] { animation: none; }
 }

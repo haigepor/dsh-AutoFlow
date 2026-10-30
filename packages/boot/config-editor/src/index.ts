@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
-import { Context, FiberState, Service, resolveConfig } from '@deepseek-ai/cordis'
+import { Context, FiberState, Service } from '@deepseek-ai/cordis'
 import { entryListSchema, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import yaml from 'js-yaml'
 import type { Entry, EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
@@ -203,8 +203,7 @@ export class ConfigEditor extends Service {
         const next = change(structuredClone(current), inherited)
         const fiber = entry.fiber
         if (fiber?.state === FiberState.ACTIVE) {
-          const resolved: unknown = fiber.ctx.waterfall(fiber, 'internal/config', next, () => next)
-          resolveConfig(fiber.runtime as NonNullable<typeof fiber.runtime>, resolved)
+          fiber.resolveConfig(next)
         } else if (options.validate !== undefined) {
           options.validate(next)
         } else if (!options.retainOverride || !isDeepStrictEqual(next, current)) {

@@ -90,7 +90,9 @@ const GroupMembers = memo(function GroupMembers({ members, ...props }: SeatProps
     {...member.groupPart === undefined ? {} : { groupPart: member.groupPart }} />)
 })
 
-const ProcessGroupHeader = memo(function ProcessGroupHeader({ groupKey, useChatGroup, usePresentation, renderSlot, t, open, bodyId, toggle }: {
+const ProcessGroupHeader = memo(function ProcessGroupHeader({
+  groupKey, useChatGroup, usePresentation, renderSlot, t, open, bodyId, toggle,
+}: {
   readonly groupKey: GroupKey
   readonly useChatGroup: ChatFlowSlotProps['useChatGroup']
   readonly usePresentation: ChatFlowSlotProps['usePresentation']
@@ -115,19 +117,19 @@ const ProcessGroupHeader = memo(function ProcessGroupHeader({ groupKey, useChatG
   const title = detail === '' ? label : `${label}${t('message.turnProcess.separator')}${detail}`
   const activity = data.closed ? data.summary.counts[0]?.kind ?? 'thinking' : live.activity
   const renderLeadingIcon = (icon: ReactNode) => (
-      <span className={css.leading} aria-hidden="true">
-        <span className={css.activityIcon} data-step-process-icon>{icon}</span>
-        <span className={css.chevron} data-step-process-chevron>
-          {open ? <IconChevronUpOutlineRegular /> : <IconChevronDownOutlineRegular />}
-        </span>
+    <span className={css.leading} aria-hidden="true">
+      <span className={css.activityIcon} data-step-process-icon>{icon}</span>
+      <span className={css.chevron} data-step-process-chevron>
+        {open ? <IconChevronUpOutlineRegular /> : <IconChevronDownOutlineRegular />}
       </span>
+    </span>
   )
   const fallback = <>
-      {renderLeadingIcon(PROCESS_ICONS[activity])}
-      <TextShimmer active={!data.closed}>
-        <TextShimmer className={css.label}>{title}</TextShimmer>
-      </TextShimmer>
-    </>
+    {renderLeadingIcon(PROCESS_ICONS[activity])}
+    <TextShimmer active={!data.closed}>
+      <TextShimmer className={css.label}>{title}</TextShimmer>
+    </TextShimmer>
+  </>
   const tool = data.lastTool
   const toolName = tool === undefined ? undefined : 'phase' in tool ? tool.name : tool.call?.name ?? tool.name
   return (
@@ -145,7 +147,7 @@ export const ChatGroupSeat = memo(function ChatGroupSeat({ groupKey, useChatGrou
   const members = useChatGroup(groupKey, group => group?.members)
   const turn = useChatGroup(groupKey, group => group?.data.turn)
   const closed = useChatGroup(groupKey, group => group?.data.closed)
-  const toolName = useChatGroup(groupKey, group => {
+  const toolName = useChatGroup(groupKey, (group) => {
     const tool = group?.data.lastTool
     return tool === undefined ? undefined : 'phase' in tool ? tool.name : tool.call?.name ?? tool.name
   })
@@ -194,10 +196,14 @@ export const ChatGroupSeat = memo(function ChatGroupSeat({ groupKey, useChatGrou
     if (!open) initialize(closed === false ? 'bottom' : 'top')
     setOpen(!open)
   }, [closed, initialize, open, setOpen])
+  // With next-input timing the height cap applies only to a group the reader opened. A closing body keeps
+  // the cap it was last shown with, so the transition starts from what is on screen: a reader-opened group
+  // closes from its cap, and a flat latest Turn becoming historical closes from its flat height.
+  const shownCap = !grouped ? false : open ? true : undefined
+  const [closingCap, setClosingCap] = useState(shownCap ?? true)
+  if (shownCap !== undefined && shownCap !== closingCap) setClosingCap(shownCap)
   if (members === undefined) return null
-  // The height cap applies only to a group the reader opened; a body that is closing keeps its flat
-  // height so the transition starts from what is on screen instead of snapping to the cap first.
-  const capped = grouped && (!deferCompletedTurns || open)
+  const capped = grouped && (!deferCompletedTurns || (shownCap ?? closingCap))
   const classes = [css.body, !capped ? css.expandedBody : '',
     capped && edges.canScrollUp ? css.fadeTop : '', capped && edges.canScrollDown ? css.fadeBottom : '']
   return (

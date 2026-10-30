@@ -21,7 +21,7 @@ import { startRelay } from './relay/server.ts'
 import { codexUserAgent } from './codex-request.ts'
 import { CodexUpstream } from './upstream.ts'
 import { CodexVersion } from './version.ts'
-import type { GatewayKey, RelayServer } from './relay/types.ts'
+import type { GatewayKey, RelayServer, RelayRequestContext } from './relay/types.ts'
 import { resolveOptions, type Config, type SubscriptionOptions } from './config.ts'
 import { configureSchema, managementSchema, snapshotSchema, type ManagementSnapshot } from '../shared/management.ts'
 import { saveModelCatalogSchema, type ModelCatalog } from '../shared/model-catalog.ts'
@@ -98,10 +98,10 @@ export class CodexSubscriptionService {
     this.accounts = new CodexAccounts({ credentials: ctx.credentials, authorization: ctx.authorization, fetch: this.fetch,
       clientId: 'app_EMoamEEZ73f0CkXaXp7hrann', authorizeUrl: 'https://auth.openai.com/oauth/authorize', tokenUrl: 'https://auth.openai.com/oauth/token',
       callbackPorts: [1455, 1457], loginTimeoutMs: boot.loginTimeoutMs, tokenTimeoutMs: boot.tokenTimeoutMs,
-      sessionAffinityLimit: boot.sessionAffinityLimit, cooldownMs: boot.cooldownMs, baseUrl: 'https://chatgpt.com/backend-api',
+      sessionAffinityLimit: boot.sessionAffinityLimit, modelCooldownLimit: boot.modelCooldownLimit, cooldownMs: boot.cooldownMs, baseUrl: 'https://chatgpt.com/backend-api',
       clientVersion: boot.clientVersion, discoveryTtlMs: boot.discoveryTtlMs, modelSettings: this.options.models, resolveClientVersion: () => this.versions.current() })
     this.transport = new CodexResponsesTransport({ accounts: this.accounts, fetch: this.fetch, endpoint: `${BASE}/responses`,
-      originator: 'codex_cli_rs', userAgent: codexUserAgent(boot.clientVersion), clientVersion: boot.clientVersion })
+      originator: 'codex_cli_rs', userAgent: codexUserAgent(boot.clientVersion), clientVersion: boot.clientVersion, sessionStateLimit: boot.sessionAffinityLimit })
   }
 
   /** Current tool wait policy; accepted image tasks keep their own deadline. */
@@ -146,11 +146,12 @@ export class CodexSubscriptionService {
   /** Send Responses fields using the shared account scheduler and negotiated transport.
    * @param body Complete stateless Responses input; the caller owns body consumption.
    * @param signal Caller cancellation, combined with profile shutdown.
+   * @param context Authenticated gateway metadata; omitted for internal method calls.
    * @returns An SSE response whose body must be consumed or cancelled.
    */
-  requestResponses(body: Record<string, unknown>, signal: AbortSignal): Promise<Response> {
+  requestResponses(body: Record<string, unknown>, signal: AbortSignal, context?: RelayRequestContext): Promise<Response> {
     if (this.stopped) return Promise.reject(new ManagementError('STOPPING'))
-    return this.transport.request(body, AbortSignal.any([signal, this.lifetime.signal]))
+    return this.transport.request(body, AbortSignal.any([signal, this.lifetime.signal]), context)
   }
 
   /** Open durable tasks before exposing any Client, Agent or HTTP operation. */
@@ -217,7 +218,7 @@ export class CodexSubscriptionService {
       try {
         if (this.stopped) throw new ManagementError('STOPPING')
         const listener = await (this.dependencies.startRelay ?? startRelay)({ ...next.relay, gatewayKeys: keys, imageWaitMs: Math.min(next.relay.requestTimeoutMs, next.images.timeoutMs) }, {
-          requestResponses: (body, signal) => this.requestResponses(body, signal),
+          requestResponses: (body, signal, context) => this.requestResponses(body, signal, context),
           observeClient: headers => { this.versions.observeClient(headers) },
           listModels: async signal => { signal.throwIfAborted(); return this.catalogModels() },
           images: this.images,

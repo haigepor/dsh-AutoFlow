@@ -20,6 +20,7 @@ import * as Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import Credentials from '@deepseek-ai/dsh-credentials-local'
 import * as Connection from '@deepseek-ai/dsh-client-connection'
 import Typert from '@deepseek-ai/dsh-typert-registry'
+import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway'
 import Commands from '@deepseek-ai/dsh-commands'
 import FileUploads from '@deepseek-ai/dsh-client-file-upload'
 import Attachments from '@deepseek-ai/dsh-attachment-local'
@@ -40,7 +41,7 @@ import { CompatibleVisionProvider, SourceHttpProvider } from '../src/media/index
 
 test('Loader launch logs a native file prompt, creates a Workspace member, executes owned tools and unloads contributions', { timeout: 30000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'curator-native-launch-')), ctx = new Context(), external = await serviceFixture()
-  let service: CuratorService | undefined, toolOwner: Awaited<ReturnType<Context['plugin']>> | undefined, searchArgs: Record<string, unknown> = {}, step = 0, assemblyError: unknown
+  let service: CuratorService | undefined, toolOwner: Awaited<ReturnType<Context['plugin']>> | undefined, searchArgs: Record<string, unknown> = {}, step = 0, assemblyError: unknown, nativeFailure: unknown
   class Adapter extends LlmAdapter {
     override async resolveModel(provider: string, id: string) { return { provider, id, name: id, context: { contextWindow: 1000000 } } }
     override async listModels(provider: string) { return [await this.resolveModel(provider, 'fixture')] }
@@ -79,6 +80,7 @@ test('Loader launch logs a native file prompt, creates a Workspace member, execu
       await owner.plugin(SessionQuery, { path: ':memory:', openAt: 'never' })
       await owner.plugin(SessionTitle, { fallbackMaxWords: 8, fallbackMaxBytes: 100, maxTitleBytes: 1024 })
       await owner.plugin(RemoteAccess)
+      await owner.plugin(TypertGatewayService)
       await owner.plugin(Jobs)
       await owner.plugin(ConfigEditor)
       await owner.inject(['llm'], adapterScope => { adapterScope.effect(() => adapterScope.llm.registerAdapter(['fixture'], new Adapter()), 'Native launch external model fixture') })
@@ -90,7 +92,10 @@ test('Loader launch logs a native file prompt, creates a Workspace member, execu
       const source = new SourceHttpProvider({ endpoint: config.source.endpoint, method: 'GET', request: { query: 'q', cursor: 'cursor', pageSize: 'limit' }, response: { items: '/items', id: '/id', previewUrl: '/previewUrl', originalUrl: '/originalUrl', nextCursor: '/nextCursor' }, maxPageSize: 20 }, http)
       const native = nativeSearchSessions(owner)!
       let losePromptAck = true
-      const observed: NativeSearchSessions = { ...native, async submit(...args) { await native.submit(...args); if (losePromptAck) { losePromptAck = false; throw new Error('The accepted prompt acknowledgement was lost') } } }
+      const observed: NativeSearchSessions = { ...native,
+        async ensure(...args) { try { await native.ensure(...args) } catch (error) { nativeFailure = error; throw error } },
+        async accepted(...args) { try { return await native.accepted(...args) } catch (error) { nativeFailure = error; throw error } },
+        async submit(...args) { await native.submit(...args); if (losePromptAck) { losePromptAck = false; throw new Error('The accepted prompt acknowledgement was lost') } } }
       service = new CuratorService(owner, config, { nativeSessions: observed, providers: { source: async () => source, vision: async () => vision, media: () => http } })
       owner.effect(() => owner.jobs.attachController('visual-curator'), 'Native launch jobs')
       owner.effect(() => () => service!.dispose(), 'Native launch provider drain')
@@ -105,7 +110,8 @@ test('Loader launch logs a native file prompt, creates a Workspace member, execu
     const { id: styleId } = z.object({ id: z.string() }).parse(await invoke('style-create', { operationId: 'style', name: 'Loader photos' }))
     await invoke('reference-import', { operationId: 'refs', styleId, expectedRevision: 1, files: [{ name: 'ref.png', mime: 'image/png', base64: external.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
     const analysis = z.object({ runId: z.string() }).parse(await invoke('reference-analyze', { operationId: 'analysis', styleId, buildDataset: true }))
-    const wait = async (read: () => Promise<boolean>) => { for (let i = 0; i < 1000; i++) { if (await read()) return; await new Promise(resolve => setTimeout(resolve, 5)) } throw new Error('Native launch did not settle') }
+    let lastLaunch: unknown
+    const wait = async (read: () => Promise<boolean>) => { for (let i = 0; i < 1000; i++) { if (await read()) return; await new Promise(resolve => setTimeout(resolve, 5)) } throw new Error('Native launch did not settle: ' + JSON.stringify(lastLaunch), { cause: nativeFailure }) }
     let modelProfileId = ''
     await wait(async () => {
       const value = z.object({ styles: z.array(z.object({ modelProfile: z.object({ id: z.string() }).optional() })) }).parse(await invoke('snapshot'))
@@ -115,15 +121,25 @@ test('Loader launch logs a native file prompt, creates a Workspace member, execu
       return true
     })
     assert.ok(modelProfileId)
-    const workspace = await ctx.workspaceRegistry.create(root, 'Photos'), input = { operationId: randomUUID(), workspaceId: workspace.id, modelProfileId: modelProfileId, taskBrief: 'Muted green landscape.', targetCount: 1, output: { kind: 'original' } }
+    await wait(async () => z.object({ status: z.string() }).parse(await invoke('run-get', { runId: analysis.runId })).status === 'completed')
+    await invoke('export-start', { operationId: 'selected-dataset', kind: 'style', purpose: 'reference', releaseId: modelProfileId, mode: 'references-only' })
+    let datasetId = ''
+    await wait(async () => {
+      const page = z.object({ entries: z.array(z.object({ exportId: z.string().optional(), status: z.string() })) }).parse(await invoke('datasets-list', { styleId }))
+      datasetId = page.entries.find(entry => entry.status === 'completed')?.exportId ?? ''
+      return datasetId.length > 0
+    })
+    const workspace = await ctx.workspaceRegistry.create(root, 'Photos'), input = { operationId: randomUUID(), workspaceId: workspace.id, modelProfileId, datasetId, taskBrief: 'Muted green landscape.', targetCount: 1, output: { kind: 'original' } }
     searchArgs = { releaseId: modelProfileId, taskBrief: input.taskBrief, targetCount: 1, output: input.output, sourceId: 'images', budgets: { targetCount: 1, ...Object.fromEntries(['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs'].map(key => [key, Reflect.get(service!.config.limits, key)])) } }
     const defaultSelection = ctx.agentDefaultModel.currentSelection()
     const receipt = searchLaunchViewSchema.parse(await invoke('search-launch-start', input))
     await wait(async () => z.array(searchLaunchViewSchema).parse(await invoke('search-launch-list'))[0]?.status === 'failed')
     await invoke('search-launch-start', input)
-    await wait(async () => { const rows = z.array(searchLaunchViewSchema).parse(await invoke('search-launch-list')); return rows[0]?.status === 'accepted' && rows[0]?.runStatus === 'completed' })
+    await wait(async () => { const rows = z.array(searchLaunchViewSchema).parse(await invoke('search-launch-list')); lastLaunch = rows[0]; return rows[0]?.status === 'accepted' && rows[0]?.runStatus === 'completed' })
     const launch = z.array(searchLaunchViewSchema).parse(await invoke('search-launch-list'))[0]!
-    const inspection = await ctx.sessionController.inspect(importSessionId(receipt.sessionId)), prompt = inspection.events.find(event => event.type === 'user/message' && event.data.source.kind === 'user')
+    const resolved = await ctx.sessionController.resolveAgent(importSessionId(receipt.sessionId))
+    if ('error' in resolved) throw resolved.error
+    const inspection = { events: resolved.agent.session.snapshotEvents() }, prompt = inspection.events.find(event => event.type === 'user/message' && event.data.source.kind === 'user')
     assert.equal(inspection.events.filter(event => event.type === 'user/message' && event.data.source.kind === 'user').length, 1)
     assert.ok(prompt?.type === 'user/message'); assert.ok(prompt.data.content.some(part => part.type === 'file'))
     assert.ok(workspace.sessionIds.includes(importSessionId(receipt.sessionId)))

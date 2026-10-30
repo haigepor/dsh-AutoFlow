@@ -67,7 +67,7 @@
   width: 36px;
   height: 36px;
   border: 0.5px solid var(--dsw-alias-border-l2-darkmode-thin);
-  border-radius: 999px;
+  border-radius: 999px; corner-shape: round;
   corner-shape: round;
   background: var(--dsw-specific-input-major);
   color: var(--dsw-alias-label-primary);
@@ -78,5 +78,5 @@
 .navigationControl { top: 50%; transform: translateY(-50%); padding: 0; }
 .previous { left: 20px; }
 .next { right: 20px; }
-.position { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: var(--dsw-radius-full); background: var(--dsw-specific-input-major); color: var(--dsw-alias-label-primary); font-size: 13px; font-variant-numeric: tabular-nums; }
+.position { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px; corner-shape: round; background: var(--dsw-specific-input-major); color: var(--dsw-alias-label-primary); font-size: 13px; font-variant-numeric: tabular-nums; }
 .close:focus-visible, .navigationControl:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 3px; }

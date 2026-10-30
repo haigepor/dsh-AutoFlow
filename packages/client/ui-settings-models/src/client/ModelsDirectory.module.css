@@ -21,7 +21,9 @@
 .table { width: 100%; min-width: 960px; border-collapse: collapse; text-align: left; font-size: 13px; line-height: 22px; }
 .table th { color: var(--dsw-alias-label-secondary); font-size: 12px; font-weight: 400; padding: 12px 16px; white-space: nowrap; border-bottom: 1px solid var(--dsw-alias-border-l3); }
 .table td { height: 74px; box-sizing: border-box; padding: 14px 16px; border-bottom: 1px solid var(--dsw-alias-border-l3); vertical-align: middle; }
-.table tbody tr:hover, .table tbody tr:focus-within { background: var(--dsw-alias-interactive-bg-hover); }
+.table tbody tr:focus-within { background: var(--dsw-alias-interactive-bg-hover); }
+@media (hover: hover) {
+.table tbody tr:hover { background: var(--dsw-alias-interactive-bg-hover); } }
 .table tbody tr:last-child td { border-bottom: none; }
 .table th:first-child { width: 30%; }
 .table th:nth-child(2) { width: 16%; }
@@ -63,7 +65,8 @@
 .providerStatus[data-state='configured'] > span { background: var(--dsw-alias-state-success-primary); }
 .providerStatus[data-state='missing'] > span { background: var(--dsw-alias-state-warn-label); }
 .providerActions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; border-top: 1px solid var(--dsw-alias-border-l3); }
-.providerRemove:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary); background: var(--dsw-alias-interactive-bg-hover-danger); }
+@media (hover: hover) {
+.providerRemove:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary); background: var(--dsw-alias-interactive-bg-hover-danger); } }
 .editorDialog { width: min(800px, 100%); max-height: 100%; min-height: 0; overflow: hidden; }
 .providerDialog .editorIntroduction h2 { font-size: 16px; line-height: 24px; }
 .providerDialog .editorIntroduction { padding-bottom: 20px; }

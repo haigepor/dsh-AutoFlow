@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP server management",
+    "description": "Persist profile MCP entries and report redacted connection status."
+  }
+}

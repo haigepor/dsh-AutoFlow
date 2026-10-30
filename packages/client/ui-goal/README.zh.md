@@ -81,6 +81,7 @@ Web GUI 的 goal 界面同时显示持久 goal 状态及当前的进程本地激
 这些限制界定了当前 goal 界面。它们是当前包约束，不是 goal 领域对比或任务积压。
 
 - **Host 状态与 preset 无关**——把活跃会话切换到 `minimal` 后，Host 拥有的 goal 仍会保留。`/goal` 与 goal 工具会消失，但该条带仍可编辑、暂停、恢复或清除 goal。
+- **无轮次预算控制**——该条带无法提高 `maxGoalRounds`。恢复已用完全部轮次的 goal（例如因轮次上限而受阻的 goal）会失败，并显示行内错误；需先请 agent 提高该 goal 的轮次上限。
 
 <a id="dev-note"></a>
 ### 开发备注

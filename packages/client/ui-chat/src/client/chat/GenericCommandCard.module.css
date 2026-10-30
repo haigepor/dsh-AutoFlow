@@ -37,9 +37,12 @@
   transition: color 100ms ease;
 }
 
+@media (hover: hover) {
+
 .row:hover .title,
 .row:hover .summary:not([data-error]) {
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .summary[data-error],

@@ -2,7 +2,26 @@
 
 English | [中文](autoflow-upstream-integration.zh.md)
 
-This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.1-rc.3`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) stores current comparison references and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.2-alpha.2`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) stores current comparison references and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+
+## `dsh-v0.2.2-alpha.2` integration (2026-10-30)
+
+The official target is `dsh-v0.2.2-alpha.2`, integrated through an rc.4 checkpoint. The saved local tree is `backup/local-before-alpha2-20261030`; `backup/main-before-alpha2-20261030` and `backup/mirror-before-alpha2-20261030` retain the original branch heads. An isolated `codex/integrate-alpha2-20261030` checkout owns implementation and validation. The local snapshot includes pending edits; private profile files are backed up outside Git.
+
+| Area | Integration decision |
+| --- | --- |
+| Appearance and navigation | Retain local light/dark token values, compact navigation, brand artwork, hover text, materials, spacing, full-page Settings and search. Add functional styles for new official controls and fence pointer-only hover rules. |
+| Conversation and workspace | Adopt official text gestures, quotes, file dragging, queue permissions and model-row ordering; retain skill mentions, long-text cards, animated collapse, input history and bulk archive. Archive actions follow the new workspace permission. |
+| Settings and accounts | Keep the direct Settings launcher and two-column model editor. Adopt Web account access, remote-access restrictions, provider diagnostics and official model capabilities without removing local native-search and reasoning controls. |
+| Plugins and desktop | Keep AFP, Better Sidebar, Visual Curator, Style Prompt, Codex Subscription and independent updater support. Move default bundle declarations to the official-bundles owner; Codex Subscription remains opt-in. Preserve local desktop packaging alongside the new artifact preparation. |
+| Updates | Keep independent GitHub release installation as `updateBundleRelease(name)` alongside the official registry `updateBundle(name, version, options)`. Both retain installation diagnostics and explicit restart handling. See the [upgrade guide](upgrade-guide/v0.2.2-alpha.2/autoflow-release-updates/guide.md). |
+| Persistence | Convert only the two local acknowledgement snapshots to canonical node tables, preserving their root fingerprints. Preserve accepted official records, Session generations and the writer version. Regenerate catalogs from the combined source tree. |
+
+Native model search is admitted independently of external search credentials and logs its sanitized auxiliary request before dispatch. Its focused regression passes. Persistence verification reports 67 roots matching 21 records. Final build, UI and CI evidence belongs to the integration commit and the exact published main revision; a previous revision's green run is not evidence for this integration.
+
+The bundled [Better Sidebar](../custom-plugins/workspace/dsh-better-sidebar/README.md) follows its independent upstream v0.28.2. Its source record owns local directory, build and UI adaptations; its companion is built together with the sidebar while retaining the application's theme tokens and existing settings presentation.
+
+The additional local snapshot `backup/latest-local-before-main-20261030` preserves Better Sidebar 0.28.2 and the concurrent custom-plugin work. `backup/alpha2-before-latest-local-20261030` retains the alpha.2 candidate before applying that delta. Side Chat now records choices through `agent.model.select()` and installs switch notices during Agent setup; Visual Curator observes accepted search messages through `resolveAgent()` and the Agent Session. CI invokes each custom workspace package's own test script on Ubuntu and Windows. Compiler output accidentally emitted beside 14 source modules is retained in the backup and excluded from the integration; the 56 JavaScript, declaration, and source-map files are regenerated only through the normal artifact build.
 
 ## `dsh-v0.2.1-rc.3` integration (2026-10-26)
 

@@ -1,7 +1,42 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { fileURLToPath } from 'node:url'
+import { runInNewContext } from 'node:vm'
+import { build } from 'esbuild'
 import { createPreferences } from '../src/client/preferences.js'
 import { installSettingsPage } from '../src/client/settings-slot.js'
+
+test('keeps task-folding preferences through acknowledged loads and later saves', async t => {
+  const result = await build({ entryPoints: [fileURLToPath(new URL('../../src/client/prefs.ts', import.meta.url))], outfile: 'prefs.js', bundle: true, write: false, format: 'cjs', platform: 'node' })
+  const module = { exports: {} }
+  runInNewContext(result.outputFiles.find(file => file.path.endsWith('.js')).text, { module, exports: module.exports })
+  const { parsePrefs } = module.exports
+  const expected = { tasksAutoFoldSettled: true, tasksAutoFoldBranches: false, tasksAutoFoldIdle: true, jobsAutoCollapse: false }
+  let saved = { ...expected, customCss: '' }, revision = 1, stored, view
+  const controller = createPreferences({
+    settingsGet: async () => ({ value: saved, revision }),
+    settingsUpdate: async patch => { saved = { ...saved, ...patch }; revision++; return { value: saved, revision } },
+  }, {
+    getPrefs: () => parsePrefs(saved),
+    setPrefs: value => { stored = value },
+  }, parsePrefs, next => { view = next })
+  t.after(() => controller.dispose())
+  const check = () => {
+    for (const prefs of [stored, view.prefs]) {
+      assert.deepEqual(Object.fromEntries(Object.keys(expected).map(key => [key, prefs[key]])), expected)
+    }
+  }
+
+  await controller.load()
+  check()
+  assert.equal(await controller.write(() => ({ tasksAutoFoldSettled: false })), true)
+  expected.tasksAutoFoldSettled = false
+  check()
+  const customCss = '.sidebar { color: var(--dsw-alias-label-primary); }'
+  assert.equal(await controller.write(() => ({ customCss })), true)
+  check()
+  assert.equal(stored.customCss, customCss)
+})
 
 test('queued toggles merge acknowledged maps and do not carry a rejected change into the next save', async () => {
   let saved = { tabsEnabled: { git: true, diff: true } }, revision = 1, release

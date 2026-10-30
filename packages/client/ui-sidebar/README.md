@@ -78,6 +78,10 @@ On Desktop, the official navigation controls report `sidebar_menu_click` with `m
 
 The shell is pure composition: `SidebarRootComponentProps` composes the layout owner share, the global `useSessions` and `useWorkspaces` hooks, the declared brand, the `sidebar.workspaces` and `sidebar.settings` child slots, and injected navigation callbacks. The sidebar owns `sidebar.panellist` and renders each panel's registered icon directly. Panel metadata is derived from list registrations and locale changes; selection belongs to the layout store. The injected `trackEntryClick(attributes)` forwards to `ctx.get('productAnalytics')?.track('sidebar_menu_click', attributes)`, and `selectPanel` only selects, so each control supplies its own entry and position.
 
+Expanded navigation retains local 32px rows and 18px icons. New Session content aligns left, with 2px side and bottom margins. The 34px logo row uses 3px vertical padding and a -6px top margin; its label alignment follows the shared content inset. Collapsed and native-caption geometry remain independently defined.
+
+The sidebar root supplies inherited CSS properties to `sidebar.workspaces` and `sidebar.settings`: `--dsh-sidebar-inline-padding: 8px`, `--dsh-sidebar-row-padding: 12px`, `--dsh-sidebar-label-gap: 6px`, and `--dsh-sidebar-paint-inset: 3px`. Occupants consume these values for expanded row alignment; standalone compositions must provide them on an ancestor. The paint inset reduces the fill without moving content: rows subtract it from their inline padding and use it as a transparent border.
+
 ### Slot discipline
 
 Declaration-aware `slots.inject()` lets a replacing package activate before or after the sidebar. The foot is the `sidebar.settings` seat: the sidebar renders only the bottom-pinned layout slot and shares its column state (`wide`). The `/client` exports are the plugin body (`apply`/`inject`) plus the contract types only; SidebarRoot, the row components, and the tree derivation remain package-internal behind the slot registration.
@@ -118,6 +122,7 @@ These limits define what the shell owns versus what its occupants own; they are 
 - **Session state-dot rendering is owned by ui-workspace** — no done/error notification sources are available to this shell.
 - **Workspace browser behavior is composition-owned** — grouping, ordering, search, and row state belong to ui-workspace, not this shell.
 - **"New task completed" unread marking is local viewing state** — completion-time > last-seen never reaches the host.
+- **Copying the local-build version is mouse-only** — keyboard activation of the brand starts a session.
 
 <a id="dev-note"></a>
 ### Dev Note

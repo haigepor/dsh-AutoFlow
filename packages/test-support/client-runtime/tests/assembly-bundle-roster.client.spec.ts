@@ -88,6 +88,17 @@ describe('bundleRoster on a scratch installation', () => {
     expect(linked.roster(['@t/self'])).toEqual(['@t/self'])
   })
 
+  it('resolves an anchor bundle and its browser entry before a same-named dependency', () => {
+    const anchored = new Scratch()
+    onTestFinished(() => { rmSync(anchored.root, { recursive: true, force: true }) })
+    writeFileSync(anchored.anchor, JSON.stringify({
+      name: '@t/self', dsh: { bundle: { patch: './cordis.patch.yml' }, client: { platform: 'web' } },
+    }))
+    writeFileSync(join(anchored.root, 'app', 'cordis.patch.yml'), "- insert:\n    - name: '@t/self'\n")
+    anchored.bundle('@t/self', '- insert: []\n')
+    expect(anchored.roster(['@t/self'])).toEqual(['@t/self'])
+  })
+
   it('resolves a linked bundle dependency before an unrelated ancestor package', () => {
     const linked = new Scratch()
     onTestFinished(() => { rmSync(linked.root, { recursive: true, force: true }) })

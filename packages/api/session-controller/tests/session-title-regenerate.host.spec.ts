@@ -23,7 +23,7 @@ async function composed() {
   session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
   await ctx.agents.register({ id: session.id, session, status: 'idle', ctx } as Agent)
   ctx.sessionTitle.rename(session, 'User title')
-  const remote = createSessionTestRemote(ctx, {
+  const remote = await createSessionTestRemote(ctx, {
     defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp',
   })
   return { ctx, session, remote }

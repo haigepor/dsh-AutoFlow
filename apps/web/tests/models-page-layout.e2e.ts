@@ -117,7 +117,7 @@ describe('web e2e: Models workspace layout and reset', () => {
       for (const size of [{ width: 1680, height: 520 }, { width: 390, height: 640 }]) {
         await page.setViewportSize(size)
         const section = models()
-        await section.evaluate(el => { el.scrollTop = 0 })
+        await section.evaluate((el) => { el.scrollTop = 0 })
         await expect.poll(() => section.evaluate(el => el.scrollHeight - el.clientHeight)).toBeGreaterThan(100)
         const box = await section.boundingBox()
         if (box === null) throw new Error('Models settings are not visible')
@@ -130,7 +130,7 @@ describe('web e2e: Models workspace layout and reset', () => {
       }
     } finally {
       if (viewport !== null) await page.setViewportSize(viewport)
-      await models().evaluate(el => { el.scrollTop = 0 })
+      await models().evaluate((el) => { el.scrollTop = 0 })
     }
   })
 

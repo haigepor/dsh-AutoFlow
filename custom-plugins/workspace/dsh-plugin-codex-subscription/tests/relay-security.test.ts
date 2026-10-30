@@ -6,7 +6,7 @@ import { startRelay } from '../src/host/relay/server.ts'
 import type { RelayConfig, RelayDependencies } from '../src/host/relay/types.ts'
 import { CodexVersion } from '../src/host/version.ts'
 
-const config: RelayConfig = { host: '127.0.0.1', port: 0, gatewayKeys: [{ id: 'first', secret: 'test-gateway-key-1234567890' }], allowedOrigins: [], maxRequestBytes: 1024, maxResponseBytes: 1024 * 1024, requestTimeoutMs: 5000, imageWaitMs: 50, assetUrlTtlMs: 60000, maxConcurrentRequests: 4 }
+const config: RelayConfig = { host: '127.0.0.1', port: 0, gatewayKeys: [{ id: 'first', secret: 'test-gateway-key-1234567890' }], allowedOrigins: [], maxRequestBytes: 1024, maxResponseBytes: 1024 * 1024, requestTimeoutMs: 5000, imageWaitMs: 50, assetUrlTtlMs: 60000, maxConcurrentRequests: 4, maxSocketConnections: 4, maxSocketQueuedTurns: 2, maxSocketHistoryBytes: 1048576 }
 const dependencies: RelayDependencies = {
   requestResponses: async () => new Response('data: {"type":"response.completed","response":{"id":"r","output":[]}}\n\n', { headers: { 'content-type': 'text/event-stream' } }),
   listModels: async () => [{ id: 'codex-model' }],

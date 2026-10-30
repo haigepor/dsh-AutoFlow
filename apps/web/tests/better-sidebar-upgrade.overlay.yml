@@ -1,0 +1,4 @@
+# Keep the assembled upgrade scenario offline while mounting both real bundles.
+- id: better-sidebar-updater
+  config:
+    checkIntervalMs: 0

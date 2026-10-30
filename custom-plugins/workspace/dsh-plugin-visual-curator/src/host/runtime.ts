@@ -63,7 +63,6 @@ const runDataSchema = z.strictObject({
   budget: countersSchema, checkpoint: z.record(z.string(), jsonSchema), counts: z.record(z.string(), z.number()),
   warnings: z.array(z.string()), resultIds: z.array(z.string()), requestIds: z.array(z.string()),
   autoResume: z.boolean().optional(), process: analysisProcessSchema.optional(),
-  retryAfterRequestId: requestSchema.shape.id.optional(),
   error: z.strictObject({ code: z.string(), stage: z.string(), retryable: z.boolean(), safeMessage: z.string(), suggestedAction: z.string() }).optional(),
 })
 export type RunData = z.infer<typeof runDataSchema>
@@ -81,9 +80,9 @@ export function safeFailure(error: unknown) {
 }
 export function dataOf(run: RunRecord): RunData { return runDataSchema.parse(run.data) }
 export function specOf(run: RunRecord): ExecutionSpec { return executionSchema.parse(run.spec) }
-/** @param run Authorized saved analysis. @returns Explicit continuation eligibility under its original budget and terminal state. */
-export function analysisContinuation(run: RunRecord): AnalysisContinuation {
-  const spec = specOf(run), data = dataOf(run)
+/** @param run Authorized saved analysis. @param prepared Spec and data already validated from this record during the same read. @returns Explicit continuation eligibility under its original budget and terminal state. */
+export function analysisContinuation(run: RunRecord, prepared?: { spec: ExecutionSpec; data: RunData }): AnalysisContinuation {
+  const spec = prepared?.spec ?? specOf(run), data = prepared?.data ?? dataOf(run)
   const denied = (reason: AnalysisContinuation['reason']): AnalysisContinuation => ({ allowed: false, reason })
   if (spec.kind !== 'analyze') return denied('unavailable')
   if (['created', 'running', 'pausing', 'cancelling'].includes(run.status)) return denied('active')
@@ -178,8 +177,8 @@ export class RunEngine {
     this.admissions = task.then(() => {}, () => {})
     await task
   }
-  /** @param run Saved authorized task. @returns Latest bounded output, including uncommitted stream chunks. */
-  process(run: RunRecord): AnalysisProcess | undefined { return this.processes.get(run.id) ?? dataOf(run).process }
+  /** @param run Saved authorized task. @param saved Data already validated from this record during the same read. @returns Latest bounded output, including uncommitted stream chunks. */
+  process(run: RunRecord, saved?: RunData): AnalysisProcess | undefined { return this.processes.get(run.id) ?? (saved ?? dataOf(run)).process }
   /** @param id Task identity. @param actor Authenticated owner. @param listener Queues bounded frames without performing work in the model callback. @returns Idempotent subscription disposer. */
   subscribeProcess(id: string, actor: DomainActor, listener: (frame: AnalysisStreamFrame) => void): () => void {
     const run = this.get(id, actor)
@@ -321,7 +320,9 @@ export class RunEngine {
           checkAdmission()
           // 用持久化的失败回执计算余量，服务重启不能重新获得同一批的重试次数。
           const digest = contentDigest(bundle)
-          const currentData = dataOf(ctx.current()), marker = currentData.retryAfterRequestId
+          const currentData = dataOf(ctx.current()), savedMarker = requestSchema.shape.id.optional().safeParse(currentData.checkpoint.analysisRetryAfterRequestId)
+          if (!savedMarker.success) throw new CuratorError('reference-unavailable', 'analysis-resume', 'The saved continuation request is invalid.')
+          const marker = savedMarker.data
           const markerIndex = marker === undefined ? -1 : currentData.requestIds.indexOf(marker)
           if (marker !== undefined && markerIndex < 0) throw new CuratorError('reference-unavailable', 'analysis-resume', 'The saved continuation request is unavailable.')
           const retryIds = marker === undefined ? undefined : new Set(currentData.requestIds.slice(markerIndex + 1))
@@ -417,7 +418,7 @@ export class RunEngine {
         const { error: previousError, ...data } = dataOf(old)
         // 显式重试失败分析可获得新的单批重试窗口；原总额度、期限与回执均保留。
         const retryAfterRequestId = old.status === 'failed' ? data.requestIds.at(-1) : undefined
-        return { run: { ...old, status: 'created', data: toJson({ ...data, ...(spec.kind === 'analyze' ? { autoResume: true, ...(retryAfterRequestId ? { retryAfterRequestId } : {}) } : previousError ? { error: previousError } : {}), attempts: data.attempts + 1, attemptId: randomUUID() }) } }
+        return { run: { ...old, status: 'created', data: toJson({ ...data, ...(spec.kind === 'analyze' ? { autoResume: true, ...(retryAfterRequestId ? { checkpoint: { ...data.checkpoint, analysisRetryAfterRequestId: retryAfterRequestId } } : {}) } : previousError ? { error: previousError } : {}), attempts: data.attempts + 1, attemptId: randomUUID() }) } }
       })
       if (!resumed || this.stopIntents.has(id)) return this.get(id, actor)
       await this.enqueue(this.repository.get('run', id)!, worker)

@@ -6,7 +6,7 @@ import type { McpServerRow } from '../types.ts'
 import { McpEditor } from './McpEditor.tsx'
 import { McpSkeleton } from './McpSkeleton.tsx'
 import { McpJsonDialog } from './McpJsonDialog.tsx'
-import connectionArtwork from '../assets/mcp-connection-whale-maid-v2.webp'
+import connectionArtwork from './assets/mcp-connection-whale-maid-v2.webp'
 import css from './McpSettings.module.css'
 
 /** @param props - registered callbacks, resources, locale and operation state. @returns list, new editor or server detail. */

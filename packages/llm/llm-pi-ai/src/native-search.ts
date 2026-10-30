@@ -2,7 +2,7 @@
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { NativeWebSearchRequest, NativeWebSearchResult } from '@deepseek-ai/dsh-llm'
 import { nativeWebSearchMode } from '@deepseek-ai/dsh-llm/native-web-search'
-import { snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
+import { snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
@@ -11,8 +11,8 @@ function array(value: unknown): unknown[] { return Array.isArray(value) ? value 
 
 /** Hooks retain raw provider sources before the SDK projects ordinary assistant text. */
 interface NativeSearchCapture {
-  onPayload(value: unknown): unknown
-  onProviderStreamEvent(event: unknown): void
+  onPayload(this: void, value: unknown): unknown
+  onProviderStreamEvent(this: void, event: unknown): void
   result(content: string): NativeWebSearchResult
 }
 
@@ -85,7 +85,7 @@ export function nativeSearchCapture(api: string, request: NativeWebSearchRequest
       if (mode === 'google') {
         const config = { ...object(body.config) }; delete config.httpOptions; recorded.config = config
       }
-      const json = snapshotJsonValue(JSON.parse(JSON.stringify(recorded)))
+      const json = snapshotJsonValue(JSON.parse(JSON.stringify(recorded)) as JsonValue)
       if (json === undefined) throw new LlmError('Native search request is not JSON serializable', 'INVALID_REQUEST')
       request.recordRequest({ api, body: json })
       return body
@@ -113,7 +113,8 @@ export function nativeSearchCapture(api: string, request: NativeWebSearchRequest
       const all = [...sources.values()]
       // 无来源不能证明服务端实际执行过搜索，不把模型凭记忆写的答案当作搜索结果。
       if (all.length === 0 && !searched) throw new LlmError('The provider returned no native-search sources; check model and endpoint support', 'NATIVE_SEARCH_NO_SOURCES')
-      return { ...content.length === 0 ? {} : { content }, sources: all.slice(0, request.maxResults), truncated: all.length > request.maxResults }
+      return { ...content.length === 0 ? {} : { content },
+        sources: all.slice(0, request.maxResults), truncated: all.length > request.maxResults }
     },
   }
 }

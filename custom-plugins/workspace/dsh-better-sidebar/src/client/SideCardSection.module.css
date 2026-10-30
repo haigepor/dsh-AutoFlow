@@ -111,9 +111,11 @@
 }
 
 /* Hover affordance on disabled cards only (enabled cards are already lit). */
+@media (hover: hover) {
 .card:not(.cardOn):hover {
   background: var(--dsw-alias-interactive-bg-hover);
   border-color: var(--dsw-alias-label-dimmed);
+}
 }
 
 /* Enabled = highlighted: a SOFTENED brand border (color-mix, the icon-chip
@@ -256,19 +258,28 @@
   text-align: left;
 }
 
+@media (hover: hover) {
+
 .addCard:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   border-color: var(--dsw-alias-interactive-bg-hover-accent);
   color: var(--dsw-alias-label-primary);
 }
+}
+
+@media (hover: hover) {
 
 .addCard:hover .cardTitle {
   color: var(--dsw-alias-label-primary);
 }
+}
+
+@media (hover: hover) {
 
 .addCard:hover .cardIconChip {
   border-color: color-mix(in srgb, var(--dsw-alias-button-primary-fill) 35%, transparent);
   color: var(--dsw-alias-button-primary-fill);
+}
 }
 
 .addCard:focus-visible {
@@ -308,9 +319,12 @@
   border-top-color: color-mix(in srgb, var(--dsw-alias-button-primary-fill) 18%, transparent);
 }
 
+@media (hover: hover) {
+
 .cardSettings:hover {
   background: var(--dsw-alias-interactive-bg-hover-accent);
   color: var(--dsw-alias-brand-primary);
+}
 }
 
 /* Settings-row recipe (the DSH General section rows): title/desc left,
@@ -386,8 +400,11 @@
   transition: transform 0.15s ease, background 0.15s ease;
 }
 
+@media (hover: hover) {
+
 .switch:hover .switchTrack {
   border-color: var(--dsw-alias-label-dimmed);
+}
 }
 
 .switchInput:checked + .switchTrack {
@@ -445,8 +462,11 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .selectAnchor:hover {
   border-color: var(--dsw-alias-label-dimmed);
+}
 }
 
 .selectAnchorIcon {
@@ -548,8 +568,11 @@
   background: var(--dsw-alias-scrollbar-bg-l2, var(--dsw-alias-border-l2));
 }
 
+@media (hover: hover) {
+
 .popupRows::-webkit-scrollbar-thumb:hover {
   background: var(--dsw-alias-scrollbar-hover-l2, var(--dsw-alias-label-dimmed));
+}
 }
 
 .popupRow {
@@ -566,8 +589,11 @@
   transition: border-color 0.16s, background 0.16s;
 }
 
+@media (hover: hover) {
+
 .popupRow:hover {
   border-color: var(--dsw-alias-label-dimmed);
+}
 }
 
 /* The popup's Done button: the settings primary-button recipe
@@ -638,9 +664,12 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .patternsChipRemove:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .patternsAdd {
@@ -693,10 +722,13 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .pluginTopicBtn:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   border-color: var(--dsw-alias-interactive-bg-hover-accent);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .pluginTopicBtn:focus-visible {
@@ -755,10 +787,13 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+@media (hover: hover) {
+
 .pluginJumpBtn:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   border-color: var(--dsw-alias-interactive-bg-hover-accent);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .pluginJumpBtn:focus-visible {
@@ -788,9 +823,12 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .pluginName:hover {
   text-decoration: underline;
   color: var(--dsw-alias-button-primary-fill);
+}
 }
 
 .pluginDesc {
@@ -829,8 +867,11 @@
   color: var(--dsw-alias-bg-layer-3);
 }
 
+@media (hover: hover) {
+
 .pluginCopyBtn:hover {
   background: var(--dsw-alias-button-primary-hover);
+}
 }
 
 .pluginCopyBtn:focus-visible {
@@ -984,9 +1025,12 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .openWithRemove:hover {
   color: var(--dsw-alias-state-error-primary);
   background: var(--dsw-alias-bg-layer-2);
+}
 }
 
 .openWithHint {

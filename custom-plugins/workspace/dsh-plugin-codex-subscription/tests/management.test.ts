@@ -65,7 +65,7 @@ async function fixture(options: { enabled?: boolean; noKey?: boolean; failNext?:
       return { origin: 'http://127.0.0.1:3426', port: 3426, close: async () => { closed.push(id) } }
     },
   }
-  const boot: Config = { clientVersion: '0.159.0', loginTimeoutMs: 1000, tokenTimeoutMs: 1000, discoveryTtlMs: 1000, cooldownMs: 1000, sessionAffinityLimit: 8, streamIdleTimeoutMs: 1000, requestTimeoutMs: 1000, maxRequestImageBytes: 1024, requestImagePixelBudget: 1000, requestImageMaxBytes: 1024, options: { get: () => settings } }
+  const boot: Config = { clientVersion: '0.159.0', loginTimeoutMs: 1000, tokenTimeoutMs: 1000, discoveryTtlMs: 1000, cooldownMs: 1000, sessionAffinityLimit: 8, modelCooldownLimit: 8, streamIdleTimeoutMs: 1000, requestTimeoutMs: 1000, maxRequestImageBytes: 1024, requestImagePixelBudget: 1000, requestImageMaxBytes: 1024, options: { get: () => settings } }
   const service = new CodexSubscriptionService(host, 'codex-subscription', boot, settings, dependencies)
   return { service, initialize: () => service.initialize(), records, started, relayOperations, closed, settings: () => settings, settingsWrites: () => settingsWrites, repositoryClosed: () => repositoryClosed }
 }

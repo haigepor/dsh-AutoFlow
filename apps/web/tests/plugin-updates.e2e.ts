@@ -12,7 +12,7 @@ it('checks remote plugin updates, requires explicit automatic permission and rep
   const browser = await chromium.launch()
   const name = 'dsh-update-fixture'
   let update: BundleUpdateInfo = { name, repository: 'example/plugins', automatic: false, status: 'unchecked', restartRequired: false }
-  const fixture = (): BundleInfo => ({ name, version: '1.0.0', installed: true, removable: false, optional: false,
+  const fixture = (): BundleInfo => ({ name, version: '1.0.0', installed: true, updatable: false, removable: false, optional: false,
     official: false, availability: 'profile',
     enabled: true, rows: [], overrides: [], update })
   const original = scaffold.ctx.pluginManager.listBundles.bind(scaffold.ctx.pluginManager)
@@ -24,8 +24,8 @@ it('checks remote plugin updates, requires explicit automatic permission and rep
   const automatic = vi.spyOn(scaffold.ctx.pluginManager, 'setBundleAutoUpdate').mockImplementation(async (_name, enabled) => {
     update = { ...update, automatic: enabled }
   })
-  const installation = Promise.withResolvers<Awaited<ReturnType<typeof scaffold.ctx.pluginManager.updateBundle>>>()
-  const install = vi.spyOn(scaffold.ctx.pluginManager, 'updateBundle').mockImplementation(async () => installation.promise)
+  const installation = Promise.withResolvers<Awaited<ReturnType<typeof scaffold.ctx.pluginManager.updateBundleRelease>>>()
+  const install = vi.spyOn(scaffold.ctx.pluginManager, 'updateBundleRelease').mockImplementation(async () => installation.promise)
   const restartStatus = scaffold.ctx.pluginManager.restartStatus()
   const readiness = vi.spyOn(scaffold.ctx.pluginManager, 'restartStatus').mockReturnValue({ ...restartStatus, supported: true })
   const restart = vi.spyOn(scaffold.ctx.pluginManager, 'restartAfterUpdate').mockReturnValue(true)

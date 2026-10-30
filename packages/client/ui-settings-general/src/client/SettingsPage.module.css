@@ -71,8 +71,11 @@
   transition: background-color 150ms var(--ds-ease-in-out);
 }
 
+@media (hover: hover) {
+
 .back:hover {
   background: var(--dsw-specific-sidebar-nav-item-hover);
+}
 }
 
 .backLabel,
@@ -100,8 +103,11 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .toggle:hover {
   background: var(--dsw-specific-sidebar-nav-item-hover);
+}
 }
 
 .back:focus-visible,
@@ -156,9 +162,15 @@
   transition: background-color 150ms var(--ds-ease-in-out);
 }
 
-.navCell:hover,
 .navCell.active {
   background: var(--dsw-specific-sidebar-nav-item-hover);
+}
+
+@media (hover: hover) {
+
+.navCell:hover {
+  background: var(--dsw-specific-sidebar-nav-item-hover);
+}
 }
 
 .navGlyph {
@@ -273,7 +285,10 @@
 .searchBox input::-webkit-search-cancel-button { display: none; }
 .searchBox button, .searchRail { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: inherit; cursor: pointer; }
 .searchRail { width: 36px; height: 36px; margin: 0 0 10px; color: var(--dsw-alias-label-secondary); }
-.searchBox button:hover, .searchRail:hover { background: var(--dsw-specific-sidebar-nav-item-hover); }
+@media (hover: hover) {
+.searchBox button:hover,
+.searchRail:hover { background: var(--dsw-specific-sidebar-nav-item-hover); }
+}
 .searchBox button:focus-visible, .searchRail:focus-visible, .result:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: -2px; }
 .navGroup { display: flex; flex-direction: column; flex: none; gap: 4px; margin-bottom: 12px; }
 .groupTitle { display: flex; align-items: center; gap: 6px; min-height: 24px; margin: 0; padding: 0 10px; color: var(--dsw-alias-label-secondary); font-size: 12px; font-weight: 400; line-height: 18px; }
@@ -282,7 +297,9 @@
 .searchResults { display: flex; flex-direction: column; gap: 4px; }
 .searchStatus { margin: 0; padding: 6px 10px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
 .result { display: flex; flex-direction: column; gap: 2px; width: calc(100% - 4px); margin-inline: 2px; padding: 8px 10px; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; line-height: 20px; text-align: left; cursor: pointer; }
+@media (hover: hover) {
 .result:hover { background: var(--dsw-specific-sidebar-nav-item-hover); }
+}
 .result small { color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
 
 /* slide-left 参数来自 art-design-pro；退场结束后才更换表单。 */

@@ -10,13 +10,13 @@
  * same note): a destination with an ESCAPED parenthesis (`[x](./a\(1\).md)`) or
  * a single-quoted title (`[x](./a.md 'title')`) does not match the link grammar
  * and is therefore never claimed — it keeps rendering as plain text, exactly as
- * it did before this feature. A `#L24` line destination belongs to the host and
- * is not turned into a line jump.
+ * it did before this feature.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   githubHeadingSlug,
   isHostLineFragment,
+  lineOfHostFragment,
   markdownAnchorTarget,
   rememberMarkdownAnchor,
   rewriteLocalMarkdownLinks,
@@ -64,6 +64,20 @@ describe('isHostLineFragment', () => {
     expect(isHostLineFragment('l24')).toBe(false)
     expect(isHostLineFragment('L0')).toBe(false)
     expect(isHostLineFragment('标题')).toBe(false)
+  })
+})
+
+describe('lineOfHostFragment', () => {
+  it('reads the first line of the host line grammar, and nothing else', () => {
+    expect(lineOfHostFragment('L24')).toBe(24)
+    expect(lineOfHostFragment('L24-L30')).toBe(24)
+    // A heading anchor is not a line — it rides the parked-fragment table.
+    expect(lineOfHostFragment('小节')).toBeUndefined()
+    expect(lineOfHostFragment('')).toBeUndefined()
+    // The grammar already rejected these, but the parser must not invent a
+    // number from them either.
+    expect(lineOfHostFragment('L0')).toBeUndefined()
+    expect(lineOfHostFragment('l24')).toBeUndefined()
   })
 })
 
@@ -162,6 +176,30 @@ describe('rewriteLocalMarkdownLinks', () => {
     expect(fileTarget('./other.md%23a%3Fb').fragment).toBe('a?b')
     expect(rewriteLocalMarkdownLinks('[x](./other.md#L24)', DOC, CWD)).toBe('[x](./other.md#L24)')
     expect(rewriteLocalMarkdownLinks('[x](./other.md)', DOC, CWD)).toBe('[x](./other.md)')
+  })
+
+  it('normalizes Windows backslashes so markdown cannot eat a separator (#1037)', () => {
+    // `\_` is a markdown escape: a link to `C:\ws\_analysis\r.md` used to reach
+    // the host as `C:\ws_analysis\r.md`, one separator short, and the open
+    // failed with ENOENT. Forward slashes survive the parse and Windows accepts
+    // them for the real open.
+    expect(rewriteLocalMarkdownLinks('[x](C:\\ws\\_analysis\\r.md)', DOC, CWD))
+      .toBe('[x](C:/ws/_analysis/r.md)')
+    expect(rewriteLocalMarkdownLinks('[x](C:\\ws\\_a\\r.md#标题)', DOC, CWD))
+      .toBe('[x](C:/ws/_a/r.md%23标题)')
+    // A line fragment keeps the host grammar; only the path is normalized.
+    expect(rewriteLocalMarkdownLinks('[x](C:\\ws\\_a\\r.md#L10)', DOC, CWD))
+      .toBe('[x](C:/ws/_a/r.md#L10)')
+    // Relative Windows spellings are normalized the same way.
+    expect(rewriteLocalMarkdownLinks('[x](../src\\_a\\b.md)', DOC, CWD))
+      .toBe('[x](../src/_a/b.md)')
+    // Remote links stay byte-identical, and a UNC prefix keeps its `\\` (it must
+    // not become the scheme-relative `//host/share`).
+    expect(rewriteLocalMarkdownLinks('[x](https://e.com/a_b)', DOC, CWD)).toBe('[x](https://e.com/a_b)')
+    expect(rewriteLocalMarkdownLinks('[x](\\\\srv\\share\\a_b.md)', DOC, CWD)).toBe('[x](\\\\srv\\share\\a_b.md)')
+    // Idempotent: an already-normalized destination survives another pass.
+    const once = rewriteLocalMarkdownLinks('[x](C:\\ws\\_a\\r.md)', DOC, CWD)
+    expect(rewriteLocalMarkdownLinks(once, DOC, CWD)).toBe(once)
   })
 
   it('keeps every destination the plugin does not claim inert', () => {

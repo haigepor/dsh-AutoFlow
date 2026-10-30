@@ -79,6 +79,7 @@ export interface AccountsOptions {
   loginTimeoutMs: number
   tokenTimeoutMs: number
   sessionAffinityLimit: number
+  modelCooldownLimit: number
   cooldownMs: number
   baseUrl: string
   clientVersion: string

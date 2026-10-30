@@ -40,12 +40,15 @@ AutoFlow 将本包作为可选安装依赖分发，各默认 profile 均不启�
 |---|---|
 | `GET /v1/models` | 已选择且当前可路由的文字模型 |
 | `POST /v1/responses` | 原始 Responses SSE 或最终 JSON |
+| `GET /v1/responses` 或 `/responses` 升级 WebSocket | 顺序执行 `response.create`，支持当前连接内续接 |
 | `POST /v1/chat/completions` | 文本和图片输入、函数工具及流式响应 |
 | `POST /v1/images/generations` | 生成图片 |
 | `POST /v1/images/edits` | JSON／multipart 参考图及可选蒙版 |
 | `POST /mcp/image` | Streamable HTTP 的 `generate_image`／`generation_result` |
 
 外部客户端使用 `Authorization: Bearer <gateway-key>`。图片结果可包含内联原图或限定任务的短时签名下载地址。服务不接受任意服务器本地文件路径。
+
+OpenAI 兼容 POST 路由支持 identity、gzip 和 zstd 请求体，分别限制压缩与解压后的字节数。Responses WebSocket 每个 turn 都重新检查 Bearer、Host 和 Origin，与 HTTP 共用并发限制，并支持 `response.cancel`。连接仅保留最后一个完整响应；`previous_response_id` 恢复此前输入与输出，再追加新输入。未知、已淘汰或其他连接的 ID 明确报错。续接使用同一模型，新连接发送完整历史。`generate:false` 在本地执行零用量预热。换账号时移除恢复历史中的加密推理，保留普通消息及工具往返。
 
 MCP 同时接受 `/mcp/magpie/image`、Magpie 的 `reference_images` 和 `generation_result({id})`，并保留 `referenceImages`／`task_id` 写法。等待及文件元数据使用 `usemagpie.ai/pending` 和 `usemagpie.ai/files` 供兼容消费方读取。超过内联预算的图片保留签名下载地址。图片输入支持尺寸比例及 `outputFormat`（HTTP／MCP 使用 `output_format`）。
 
@@ -79,7 +82,7 @@ Host 插件注入 `codexSubscription` 后，可调用 `accounts.getAccountStatus
 
 Plus、Pro 和 Business 共用 OAuth 和动态发现，套餐名不代表固定额度或生图权限。可空字段保留有效窗口。Business 工作区超额使用必须明确尚有组织额度，且没有消费／所有者限制；Team 与 `self_serve_business_prolite` 保留 reserve 规则。`credits.usable` 对齐 Magpie 的积分续用提示：不限额，或报告有积分且余额为正／未知。明确的非正余额取消提示；上游 held 状态与用户 `allowCredits` 保持独立。HTTP、超时和响应解析失败使用不同 `errorCode` 和可选 HTTP `errorStatus`，不返回原始上游消息。
 
-`account-update` 通过 revision 修改 `allowCredits`，默认值为 `true`，与 Magpie 一致。设为 `false` 时，已知耗尽且未重置的窗口会阻止文本派发，轮询失败、字段缺失和重启均保留保护。额度轮询及 HTTP／WS 实时观察通过 Home credential provider 持久保存，关闭时等待写入完成。上游 held／工作区超额规则也参与文本调度。`Retry-After` 秒数及 HTTP 日期可延长分操作冷却，不缩短已有等待；安全重试／请求信息贯穿原生错误、图片任务存储及本地 HTTP 错误。
+`account-update` 通过 revision 修改 `allowCredits`，默认值为 `true`，与 Magpie 一致。设为 `false` 时，已知耗尽且未重置的窗口会阻止文本派发，轮询失败、字段缺失和重启均保留保护。额度轮询及 HTTP／WS 实时观察通过 Home credential provider 持久保存，关闭时等待写入完成。上游 held／工作区超额规则也参与文本调度。有效 `Retry-After-Ms` 优先于 `Retry-After` 秒数及 HTTP 日期，可延长分操作冷却，不缩短已有等待；安全重试／请求信息贯穿原生错误、图片任务存储及本地 HTTP 错误。
 
 共享请求定义由 [management.ts](src/shared/management.ts) 管理。access、refresh 和 ID token 仅保存在 Host credentials；模型可见的原生图片工具不提供账号或网关管理能力。
 
@@ -96,6 +99,8 @@ Plus、Pro 和 Business 共用 OAuth 和动态发现，套餐名不代表固定�
 
 `options.upstream.mode` 默认为 `auto`，设为 `sse` 可强制使用 HTTP。WebSocket 连接超时默认三十秒，不支持的主机及 1009 大小记忆默认十分钟，单消息限制为 16 MiB，队列字节限制为 32 MiB。每个连接保留接收时的配置。`options.models.fallbackMaxTokens` 默认为 8192，用于服务端未声明输出限制的新模型。`options.version` 控制本地元数据发现、默认十分钟的探测间隔及缓存读取上限。
 
+`options.relay.maxSocketConnections` 默认 8，`maxSocketQueuedTurns` 默认每连接 2 个排队 turn，`maxSocketHistoryBytes` 默认每连接 32 MiB。恢复后的请求也必须符合 `maxRequestBytes`。`modelCooldownLimit` 限制记忆的账号／模型故障数量，默认 512；明确指向 reasoning 档位或 service tier 的拒绝只影响对应组合。`protocol-status` 返回最近一次请求的安全传输方式、原因和请求标识，不含账号身份、正文或凭据。
+
 <a id="implementation"></a>
 ## 实现
 
@@ -110,7 +115,9 @@ WebSocket 使用 `responses_websockets=2026-02-06` 握手并发送 `response.cre
 
 [version.ts](src/host/version.ts) 从 `clientVersion`、本地 Codex 包元数据、`models_cache.json.client_version` 和已认证网关客户端的 version／User-Agent 提示中选择较新的数字版本。选中版本不会降低，不执行探测到的 CLI，也不读取 `auth.json`。版本变化会刷新目录，共享 fetch 将选中版本应用到模型列表查询、version 请求头及 Codex User-Agent。本地发现可单独关闭，不影响已认证客户端提示。
 
-[codex-request.ts](src/host/codex-request.ts) 统一无状态历史转换、缓存标识、reasoning 和 service tier 规则，保留调用方指令及显式工具选择。配置的版本基线默认为 `0.159.0`。输出前完整的 401／402／403／429 拒绝可逐个尝试符合条件的账号，派发前终止型刷新拒绝也可换号。普通服务端失败、网络结果未知和已有部分输出均不重放。401 可在共享锁内更新被拒的凭据，同时保留原请求失败结果。
+[codex-request.ts](src/host/codex-request.ts) 统一无状态历史转换、缓存标识、reasoning 和 service tier 规则，保留调用方指令及显式工具选择。配置的版本基线默认为 `0.159.0`。完整 HTTP 401／402／403／429 拒绝、已识别的模型专属 404 和首个 SSE 事件中的明确拒绝可逐个尝试符合条件的账号，派发前终止型刷新拒绝也可换号。收到普通 SSE 进度事件后即提交当前响应：后续错误、普通服务端失败、网络结果未知和已有部分输出均不授权重放。401 可在共享锁内更新被拒的凭据，同时保留原请求失败结果。
+
+已认证网关元数据使用有界请求头允许列表。缓存标识按网关密钥隔离，turn-state 仅在记录的账号与凭据代际一致时复用。响应元数据保留模型 ETag、模型、reasoning、重试及请求标识。ETag 改变只使对应账号的候选能力缓存失效，通过 single-flight 刷新；已选择模型和默认值均不改变。原始 SSE 保留已收到的字节，EOF 没有终态事件时追加明确的 `incomplete_response` 错误。
 
 任务按 profile 隔离，在恢复至卸载期间持有跨进程写锁。每张原图与规范化预览分别提交。部分成功保留已保存图片并标记 `image-partial-result`；已有附件的中断任务在重启后仍可读取。已发送但未确认结果的任务记录为 `outcome-unknown`，不会自动重复付费请求。账号凭据由 Home 的 credential provider 独立持久保存。
 
@@ -130,7 +137,7 @@ WebSocket 使用 `responses_websockets=2026-02-06` 握手并发送 `response.cre
 
 Codex 订阅授权与 OpenAI Platform API key 分开，模型及图片访问以账号和工作区权益为准，Codex 专用接口可能变化。模型目录仍保存在实例内，重启后首次发现失败会返回空目录。已知额度持久保存，从未成功观察额度的账号仍为未知。旧版本写入可能丢弃新增可选健康／额度字段，避免新旧版本同时操作同一 Home。身份修复无法恢复此前已被覆盖的凭据。
 
-远程图片下载当前要求公有 IPv4 目的地址及标准 HTTP(S) 端口，本地路径、私网、仅 IPv6 的目的地址和内嵌凭据 URL 会被拒绝。文本输出开始后不会拼接另一个账号的输出；有状态 Responses continuation 及未支持的 Chat 参数会明确拒绝。
+远程图片下载当前要求公有 IPv4 目的地址及标准 HTTP(S) 端口，本地路径、私网、仅 IPv6 的目的地址和内嵌凭据 URL 会被拒绝。文本输出开始后不会拼接另一个账号的输出；HTTP 的 `previous_response_id` 及未支持的 Chat 参数会明确拒绝，当前连接内的历史续接仅通过 Responses WebSocket 提供。
 
 本包不提供独立可执行程序或 stdio server。浏览器模块提供图片工具卡片与 Session 图库；OAuth 仍使用 OpenAI 的外部登录页面，模型页面的登录展示由应用的模型设置消费方负责。
 

@@ -53,7 +53,7 @@ function fixture(reply?: (headers: Headers) => Response, directory?: (headers: H
       requests.push({ headers, payload: JSON.parse(body), ...(init?.signal === undefined ? {} : { signal: init.signal }) })
       return responseFetch === undefined ? reply?.(headers) ?? response() : responseFetch(input, init)
     }, clientId: 'fixture', authorizeUrl: 'https://auth.fixture.invalid/authorize', tokenUrl: 'https://auth.fixture.invalid/token', callbackPorts: [0],
-    loginTimeoutMs: 1000, tokenTimeoutMs: 1000, sessionAffinityLimit: 8, cooldownMs: 1000, baseUrl: 'https://chatgpt.fixture.invalid/backend-api', clientVersion: 'fixture', discoveryTtlMs: 5000 }
+    loginTimeoutMs: 1000, tokenTimeoutMs: 1000, sessionAffinityLimit: 8, modelCooldownLimit: 8, cooldownMs: 1000, baseUrl: 'https://chatgpt.fixture.invalid/backend-api', clientVersion: 'fixture', discoveryTtlMs: 5000 }
   const accounts = new CodexAccounts(options)
   const poolOptions: PoolAdapterOptions = { provider, displayName: 'Fixture subscription', baseUrl: options.baseUrl, timeoutMs: 1000, streamIdleTimeoutMs: 1000,
     maxRequestImageBytes: 1000000, requestImagePixelBudget: 1000000, requestImageMaxBytes: 1000000 }
@@ -218,6 +218,26 @@ for (const status of [402, 429]) test(`native text switches accounts after a com
     const answer = await collect(f.adapter.stream(request()))
     assert.equal(answer.finish?.kind, 'tool-calls', JSON.stringify(answer.finish))
     assert.deepEqual(f.requests.map(request => request.headers.get('chatgpt-account-id')), ['a', 'b'])
+  } finally { await f.accounts.dispose() }
+})
+
+for (const code of ['model_not_found', 'rate_limit_exceeded']) test(`native text classifies early SSE ${code} before account output`, async () => {
+  const f = fixture(headers => headers.get('chatgpt-account-id') === 'a'
+    ? new Response(`data: ${JSON.stringify({ type: 'error', error: { code, message: 'private-token', param: 'model' } })}\n\n`, { headers: { 'content-type': 'text/event-stream' } }) : response())
+  try {
+    await f.seed(['a', 'b'])
+    assert.equal((await collect(f.adapter.stream(request()))).finish?.kind, 'tool-calls')
+    assert.deepEqual(f.requests.map(item => item.headers.get('chatgpt-account-id')), ['a', 'b'])
+    assert.equal(await f.accounts.withAccount({ kind: 'usage', accountKey: accountKey('a') }, async lease => lease.accountId), 'a')
+  } finally { await f.accounts.dispose() }
+})
+
+test('native stream does not infer account replay from an error after response.created', async () => {
+  const f = fixture(() => new Response('data: {"type":"response.created","response":{"id":"committed"}}\n\ndata: {"type":"error","code":"rate_limit_exceeded","message":"rate limit exceeded"}\n\n', { headers: { 'content-type': 'text/event-stream' } }))
+  try {
+    await f.seed(['a', 'b'])
+    assert.equal((await collect(f.adapter.stream(request()))).finish?.kind, 'error')
+    assert.equal(f.requests.length, 1)
   } finally { await f.accounts.dispose() }
 })
 

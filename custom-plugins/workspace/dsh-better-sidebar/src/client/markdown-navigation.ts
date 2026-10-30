@@ -43,8 +43,10 @@
  *   below, so {@link rewriteLocalMarkdownLinks} never claims it. It keeps
  *   rendering as plain text — exactly what it did before this feature existed,
  *   i.e. no regression, but also no jump.
- * - A `#L24` line destination is left to the host (it rides `options.line`), so
- *   nothing scrolls the opened file to line 24.
+ * - A `#L24` line destination belongs to the host's own grammar: the renderer
+ *   leaves the destination alone and hands the number over as `options.line`,
+ *   so the surface forwards it as the open's landing line (see
+ *   {@link lineOfHostFragment}) — it is NOT a heading anchor and never parks.
  */
 import { maskCodeRegions } from './markdown-code.ts'
 import { normalizeLocalPath } from './markdown-images.ts'
@@ -93,6 +95,21 @@ const HOST_LINE_FRAGMENT_RE = /^L[1-9]\d*(?:-L[1-9]\d*)?$/
 /** Whether a fragment is the host's line destination rather than an anchor. */
 export function isHostLineFragment(fragment: string): boolean {
   return HOST_LINE_FRAGMENT_RE.test(fragment)
+}
+
+/**
+ * The FIRST line a host line fragment names (`L24` → 24, `L24-L30` → 24), or
+ * undefined when the fragment is a heading anchor.
+ *
+ * The host hands the same number over as `MarkdownDelegate.openFile`'s
+ * `options.line`, so this is the fallback for a caller that only has the
+ * destination (and the single place that knows the grammar — the editor has
+ * one caret, so a range contributes its start).
+ */
+export function lineOfHostFragment(fragment: string): number | undefined {
+  if (!isHostLineFragment(fragment)) return undefined
+  const line = Number.parseInt(fragment.slice(1).split('-', 1)[0] ?? '', 10)
+  return Number.isSafeInteger(line) && line > 0 ? line : undefined
 }
 
 /** Percent-decode one URL piece, tolerating a malformed escape (a literal `%`). */
@@ -285,6 +302,19 @@ function isLocalDestination(pathPart: string): boolean {
 }
 
 /**
+ * A local path as a MARKDOWN destination. Markdown treats a backslash before
+ * ASCII punctuation as an escape, so `C:\ws\_analysis\r.md` parses to
+ * `C:\ws_analysis\r.md` — one separator gone, and the file cannot be found
+ * (issue #1037). Emitting forward slashes keeps every separator, and Windows
+ * accepts both spellings for the real open. A UNC prefix stays untouched:
+ * `\\server\share` must not become the scheme-relative `//server/share`.
+ */
+function markdownPathOf(path: string): string {
+  if (path.startsWith('\\\\')) return path
+  return path.replace(/\\/g, '/')
+}
+
+/**
  * Rewrite ONE destination for the host renderer (see the module comment).
  * Idempotent: an already-rewritten `%23` destination, a line destination and a
  * fragment-less link all come back untouched.
@@ -299,16 +329,18 @@ function rewriteDestination(destination: string, docPath: string | undefined, cw
     // so the surface's delegate never offers an action it would not serve.
     if (!isLocalDestination(pathPart)) return destination
     const rest = separator === null ? '' : destination.slice(separator.at)
-    return `${pathPart}?${rest}`
+    return `${markdownPathOf(pathPart)}?${rest}`
   }
-  // Claimed. Nothing to carry without a fragment, `%23` is already ours, and a
-  // line destination belongs to the host's own grammar.
-  if (separator === null || separator.length === ENCODED_HASH.length) return destination
-  if (isHostLineFragment(fragment)) return destination
+  // Claimed. Nothing to carry without a fragment; `%23` is already ours.
+  if (separator === null) return markdownPathOf(pathPart)
+  if (separator.length === ENCODED_HASH.length) return destination
+  // A line destination belongs to the host's own grammar, but its PATH still
+  // needs the slash normalization (#1037).
+  if (isHostLineFragment(fragment)) return `${markdownPathOf(pathPart)}${destination.slice(separator.at)}`
   // A `?` inside the fragment must be encoded too: the host refuses a
   // destination that carries a query (it looks for the `?` before decoding),
   // so an unencoded one would turn the link back into plain text.
-  return `${pathPart}${ENCODED_HASH}${fragment.replace(/\?/g, '%3F')}`
+  return `${markdownPathOf(pathPart)}${ENCODED_HASH}${fragment.replace(/\?/g, '%3F')}`
 }
 
 /**
@@ -456,6 +488,28 @@ function anchorKey(sessionId: string, cwd: string | undefined, path: string): st
 }
 
 /**
+ * Drop every parked fragment whose TTL ran out.
+ *
+ * The TTL is already honoured when a fragment is TAKEN, but a fragment parked
+ * for a document the reader never opens is never taken — it would sit in the
+ * map for the page's lifetime (since v0.25 every visited native tab body stays
+ * mounted, and every cross-file link click parks one entry). Sweeping on WRITE
+ * is what bounds it: a write is the only event that can add an entry.
+ *
+ * @returns how many expired entries were dropped.
+ */
+export function sweepPendingAnchors(): number {
+  const now = Date.now()
+  let dropped = 0
+  for (const [key, entry] of pendingAnchors) {
+    if (now - entry.at <= PENDING_TTL_MS) continue
+    pendingAnchors.delete(key)
+    dropped += 1
+  }
+  return dropped
+}
+
+/**
  * Park the fragment a cross-file link wants to land on, for the target
  * document's own surface to take once it mounts.
  * @param sessionId - the session both documents live in.
@@ -470,6 +524,7 @@ export function rememberMarkdownAnchor(
   fragment: string,
 ): void {
   if (fragment === '') return
+  sweepPendingAnchors()
   pendingAnchors.set(anchorKey(sessionId, cwd, path), { fragment, at: Date.now() })
 }
 

@@ -43,7 +43,12 @@ export interface SubscriptionModel { id: string; name: string; nativeWebSearch?:
 /** Profile-level choices share the account pool; image entries use the image tools and MCP. */
 export interface SubscriptionCatalogEntry extends SubscriptionModel { kind: 'text' | 'image' }
 /** Explicit model configuration with its compare-and-swap settings revision. */
-export interface SubscriptionCatalog { revision: number; entries: readonly SubscriptionCatalogEntry[]; candidates: readonly SubscriptionModel[]; defaultImageModel: string }
+export interface SubscriptionCatalog {
+  revision: number
+  entries: readonly SubscriptionCatalogEntry[]
+  candidates: readonly SubscriptionModel[]
+  defaultImageModel: string
+}
 /** The subscription feature can be present while its optional Host bundle is disabled. */
 export type SubscriptionAvailability = 'active' | 'disabled' | 'missing' | 'restart-required'
 /** Narrow Host callbacks; components do not receive a Remote or context. */
@@ -133,7 +138,7 @@ export function subscriptionModels(value: unknown): SubscriptionModel[] {
 export function subscriptionCatalog(value: unknown): SubscriptionCatalog {
   const record = object(value)
   return { revision: number(record['revision']), defaultImageModel: text(record['defaultImageModel']), candidates: subscriptionModels(record['candidates']),
-    entries: list(record['entries']).map(item => { const entry = object(item); return { id: text(entry['id']), name: text(entry['name']), kind: choice(entry['kind'], ['text', 'image']),
+    entries: list(record['entries']).map((item) => { const entry = object(item); return { id: text(entry['id']), name: text(entry['name']), kind: choice(entry['kind'], ['text', 'image']),
       ...entry['nativeWebSearch'] === undefined ? {} : { nativeWebSearch: boolean(entry['nativeWebSearch']) } } }) }
 }
 

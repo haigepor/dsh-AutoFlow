@@ -18,6 +18,8 @@ export interface DshPackageManifest {
   private?: boolean
   /** Packages installed alongside this package. */
   dependencies?: Record<string, string>
+  /** Packages that may be absent when installation or platform checks skip them. */
+  optionalDependencies?: Record<string, string>
   /** Compatible versions of packages supplied by the consuming project. */
   peerDependencies?: Record<string, string>
   /** Runtime requirements; DSH compatibility is declarative until a reader enforces it. */
@@ -69,10 +71,14 @@ export interface DshEnginesManifest {
 
 /** The configuration layer exported by a bundle package. */
 export interface DshBundleManifest {
+  /** Supported Node Host platform names; omission allows every operating system. */
+  platforms?: string[]
   /** Independent updater package permitted to install profile-owned successors of this bundle. */
   updateManager?: string
   /** Independent custom bundle updates; official runtime bundles cannot opt in. */
   update?: DshBundleUpdateSource
+  /** Show the bundle in GUI lists before activation; omission means true. */
+  listedByDefault?: boolean
   /** One patch file path, or an ordered list applied in sequence, each relative to the declaring package root. */
   patch: string | string[]
   /** Optional package-relative JSON template for profile-owned feature selections. */

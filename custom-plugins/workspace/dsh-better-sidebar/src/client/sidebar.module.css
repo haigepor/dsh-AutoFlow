@@ -109,6 +109,20 @@
   -webkit-app-region: no-drag;
 }
 
+/* The host float window's resize grip (`data-dockkit-float-resize`, the
+   20×20 bottom-right corner) is the float's LAST child but sits at
+   `z-index: auto`. Tab content we do not control the stacking of may paint
+   above it at z-index 1 — the Git footer and the explorer's multi-select bar
+   both do — which made the grip invisible AND un-hittable: a floating Git tab
+   could not be resized by pointer at all, while the file tab's float (no
+   stacking bottom bar) resized normally. Raise the host's own hook above that
+   class of content; this is the half that also covers third-party tab
+   content we do not own (the content-side cleanup is .gitFooter dropping its
+   own z-index in changes.module.css). */
+:global([data-dockkit-float-resize]) {
+  z-index: 2;
+}
+
 :global([data-dsh-panel-host][data-dsh-panel-host-degraded]) {
   position: absolute;
   top: 0;
@@ -146,9 +160,12 @@
     color var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
+@media (hover: hover) {
+
 .toggleButton:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .toggleButton:disabled,
@@ -264,9 +281,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   flex: none;
 }
 
+@media (hover: hover) {
+
 .bottomClose:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 /* The bottom panel's tab strips reserve the close control's width at their
@@ -307,9 +327,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   flex: none;
 }
 
+@media (hover: hover) {
+
 .iconButton:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .iconButton:disabled {
@@ -392,9 +415,15 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   transform: translateY(-50%);
 }
 
-.divider:hover::after,
 .dividerActive::after {
   background: var(--dsw-alias-interactive-bg-hover-accent);
+}
+
+@media (hover: hover) {
+
+.divider:hover::after {
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+}
 }
 
 .pane {
@@ -566,9 +595,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   color: var(--dsw-alias-label-secondary);
 }
 
+@media (hover: hover) {
+
 .paneCard:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
   border-color: var(--dsw-alias-border-l4);
+}
 }
 
 .paneCard:disabled {
@@ -620,8 +652,11 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   user-select: none;
 }
 
+@media (hover: hover) {
+
 .tab:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 .tabActive {
@@ -668,9 +703,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   flex: none;
 }
 
+@media (hover: hover) {
+
 .tabClose:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .tabBarPlus {
@@ -694,9 +732,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .tabBarPlus:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 /* The active tab's right-aligned action area: sits at the tab strip's right
@@ -782,8 +823,11 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   animation: dsh-row-in 150ms var(--ds-ease-in-out);
 }
 
+@media (hover: hover) {
+
 .explorerRow:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 /* A multi-selected row: the native selected fill plus the design's 2px
@@ -1004,14 +1048,23 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .explorerRef:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
 }
+}
 
-.explorerRow:hover .explorerRef,
 .explorerRow:focus-within .explorerRef {
   display: inline-flex;
+}
+
+@media (hover: hover) {
+
+.explorerRow:hover .explorerRef {
+  display: inline-flex;
+}
 }
 
 .explorerCopied {
@@ -1244,9 +1297,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .uploadOverlayCancel:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
   border-color: var(--dsw-alias-border-l2);
+}
 }
 
 .uploadOverlayCancel:disabled {
@@ -1347,8 +1403,11 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   z-index: 3;
 }
 
+@media (hover: hover) {
+
 .editorTreeResize:hover {
   background: var(--dsw-alias-border-l2);
+}
 }
 
 .editorTreePanel {
@@ -1430,8 +1489,11 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   white-space: nowrap;
 }
 
+@media (hover: hover) {
+
 .editorSearchResult:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 .editorStatus {
@@ -1506,9 +1568,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
     border-color var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
+@media (hover: hover) {
+
 .editorDownloadLink:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   border-color: var(--dsw-alias-border-l2);
+}
 }
 
 .editorError {
@@ -1641,8 +1706,11 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .sandboxAction:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 /* The HTML preview iframe: fills the editor body. Route-src (never srcdoc)
@@ -1761,8 +1829,11 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .browserBlockedButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 .editorCm {
@@ -1814,8 +1885,11 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .editorModeButton:hover {
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .editorModeActive {
@@ -1889,9 +1963,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .mermaidCopy:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .mermaidBody {
@@ -1981,8 +2058,11 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   justify-content: center;
 }
 
+@media (hover: hover) {
+
 .mermaidModalButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 .mermaidModalStage {
@@ -2046,8 +2126,11 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .selectionPopup:hover {
   background: var(--dsw-alias-interactive-bg-hover-solid);
+}
 }
 
 .editorPdf {
@@ -2141,9 +2224,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .terminalRetry:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 /* The PER-TAB error strip: fills one tab's content area (unlike
@@ -2342,9 +2428,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .openWithPin:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .openWithPinActive {
@@ -2413,9 +2502,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .tocButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 /* The outline popover, anchored under the button (the bar is the containing
@@ -2452,9 +2544,12 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .tocItem:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 /* Indent by heading level (h2 = one step, h3 = two steps…). */
@@ -2489,4 +2584,180 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
 .tocFlash {
   animation: dsh-toc-flash 1.2s ease-out;
   border-radius: 4px;
+}
+
+/* ── Read-only paged preview (files above the editable threshold) ────────
+   The editor answers "too big to edit" with a windowed reader rather than a
+   refusal. Two row shapes share the chrome: the JSONL record list (one
+   expandable record per row) and the log-style line list (monospace, no
+   wrapping, horizontal scroll). Every ink is a theme token. */
+.largeFile {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.largeFileNotice {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 8px;
+  font: var(--dsw-font-xxxs-11);
+  color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-tertiary);
+}
+
+.largeFileDownload {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* The notice's own "load all" action. It rides the notice's warn ink (the bar
+   is a warning surface, not a toolbar) and sits flush right, with the download
+   link beside it. `margin-left: auto` is what pins the PAIR to the far edge. */
+.largeFileNoticeAction {
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.largeFileNoticeAction:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.largeFileBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.largeFileRecords {
+  padding: 4px 0;
+}
+
+/* The record list is an <ol> whose `start` attribute is the first record's
+   absolute number: the marker itself is suppressed, since the number column
+   is rendered explicitly and must stay aligned with the summary row. */
+.largeFileList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.largeFileRecord {
+  display: flex;
+  gap: 8px;
+  padding: 2px 8px;
+}
+
+.largeFileRecordExpanded {
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.largeFileRecordInvalid {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.largeFileRecordNo {
+  flex: none;
+  min-width: 4ch;
+  text-align: right;
+  font: var(--dsw-font-xxxs-11);
+  color: var(--dsw-alias-label-tertiary);
+  user-select: none;
+}
+
+.largeFileRecordBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.largeFileRecordSummary {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: var(--ds-font-family-code);
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.largeFileRecordSummary:disabled {
+  cursor: default;
+}
+
+.largeFileRecordRaw {
+  margin: 2px 0 0;
+  font: var(--ds-font-family-code);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.largeFileRecordTree {
+  margin-top: 2px;
+  font: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+.largeFileLines {
+  padding: 4px 0;
+  font: var(--ds-font-family-code);
+  font-size: 12px;
+  white-space: pre;
+}
+
+.largeFileLine {
+  display: flex;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.largeFileLineNo {
+  flex: none;
+  min-width: 5ch;
+  text-align: right;
+  color: var(--dsw-alias-label-tertiary);
+  user-select: none;
+}
+
+.largeFileLineText {
+  flex: none;
+  color: var(--dsw-alias-label-primary);
+}
+
+.largeFilePager {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.largeFilePageLabel {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font: var(--dsw-font-xxxs-11);
+  color: var(--dsw-alias-label-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

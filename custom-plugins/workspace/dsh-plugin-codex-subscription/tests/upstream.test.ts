@@ -59,7 +59,7 @@ test('WebSocket uses Codex handshake and response.create, projecting metadata as
     assert.equal(request.headers['content-type'], undefined)
     assert.equal(request.headers['x-codex-turn-state'], undefined)
     seen = true
-    socket.send(JSON.stringify({ type: 'codex.response.metadata', headers: { 'x-codex-turn-state': 'turn-fixture', 'set-cookie': 'private' } }))
+    socket.send(JSON.stringify({ type: 'codex.response.metadata', headers: { 'x-codex-turn-state': 'turn-fixture', 'x-models-etag': 'v2', 'openai-model': 'fixture', 'x-reasoning-included': 'true', 'retry-after-ms': '1500', 'set-cookie': 'private' } }))
     socket.send(JSON.stringify({ type: 'codex.rate_limits', plan_type: 'plus', credits: { has_credits: true, unlimited: false, balance: '1.25' },
       rate_limits: { primary: { used_percent: 12, window_minutes: 300, reset_at: 2000000000 } } }))
     socket.send(JSON.stringify(complete))
@@ -67,6 +67,7 @@ test('WebSocket uses Codex handshake and response.create, projecting metadata as
   try {
     const response = await f.upstream.fetch(f.endpoint, { method: 'POST', headers: { ...headers, 'x-codex-turn-state': 'original', 'x-openai-internal-codex-responses-lite': 'true' }, body: JSON.stringify(requestBody) })
     assert.equal(response.headers.get('x-codex-turn-state'), 'turn-fixture')
+    for (const [key, value] of Object.entries({ 'x-models-etag': 'v2', 'openai-model': 'fixture', 'x-reasoning-included': 'true', 'retry-after-ms': '1500' })) assert.equal(response.headers.get(key), value)
     assert.equal(response.headers.get('x-codex-primary-used-percent'), '12')
     assert.equal(response.headers.get('x-codex-plan-type'), 'plus')
     assert.equal(response.headers.get('x-codex-credits-balance'), '1.25')
@@ -77,6 +78,7 @@ test('WebSocket uses Codex handshake and response.create, projecting metadata as
     assert.equal(f.messages[0]?.type, 'response.create')
     assert.deepEqual(f.messages[0]?.client_metadata, { 'x-codex-turn-state': 'original', ws_request_header_x_openai_internal_codex_responses_lite: 'true' })
     assert.equal(f.httpCalls(), 0)
+    assert.equal(f.upstream.status().lastRequest?.transport, 'websocket')
   } finally { await f.close() }
 })
 
@@ -87,9 +89,24 @@ test('a refused handshake falls back to HTTP and remembers the host until cooldo
     assert.match(await (await f.send()).text(), /response.completed/)
     await (await f.send()).text()
     assert.equal(f.upgrades(), 1); assert.equal(f.httpCalls(), 2)
+    assert.equal(f.upstream.status().lastRequest?.reason, 'handshake_cooldown')
     now = 600001
     await (await f.send()).text()
     assert.equal(f.upgrades(), 2)
+  } finally { await f.close() }
+})
+
+test('default WebSocket buffering drains a coalesced burst without replaying the request', async () => {
+  const f = await fixture({ onSocket(socket) {
+    socket.send(JSON.stringify({ type: 'response.created', response: { id: 'burst' } }))
+    for (let i = 0; i < 256; i++) socket.send(JSON.stringify({ type: 'response.output_text.delta', delta: String(i) }))
+    socket.send(JSON.stringify(complete))
+  } })
+  try {
+    const text = await (await f.send()).text()
+    assert.equal((text.match(/"type":"response.output_text.delta"/g) ?? []).length, 256)
+    assert.match(text, /response.completed/)
+    assert.equal(f.httpCalls(), 0)
   } finally { await f.close() }
 })
 
@@ -160,16 +177,30 @@ test('malformed frames and local buffer limits fail explicitly without HTTP repl
     const f = await fixture({ onSocket(socket) { socket.send(message) } })
     try { await assert.rejects(f.send(), { code: 'SOCKET_PROTOCOL' }); assert.equal(f.httpCalls(), 0) } finally { await f.close() }
   }
-  for (const settings of [{ maxMessageBytes: 128 }, { maxBufferedBytes: 128 }, { maxBufferedFrames: 1 }]) {
+  for (const settings of [{ maxMessageBytes: 128 }, { maxBufferedBytes: 128 }]) {
     const f = await fixture({ settings, onSocket(socket) {
-      if ('maxBufferedFrames' in settings) for (let i = 0; i < 10; i++) socket.send(JSON.stringify({ type: 'codex.response.metadata', headers: {} }))
-      else socket.send(JSON.stringify({ type: 'response.completed', data: 'x'.repeat(1000) }))
+      socket.send(JSON.stringify({ type: 'response.completed', data: 'x'.repeat(1000) }))
     } })
     try {
       await assert.rejects(async () => (await f.send()).text(), { code: 'SOCKET_BUFFER_LIMIT' })
       assert.equal(f.httpCalls(), 0)
     } finally { await f.close() }
   }
+})
+
+test('a stalled WebSocket consumer retains the frame cap and cancels without replay', async () => {
+  const closed = Promise.withResolvers<void>()
+  const f = await fixture({ settings: { maxBufferedFrames: 1 }, onSocket(socket) {
+    socket.once('close', () => closed.resolve())
+    socket.send(JSON.stringify({ type: 'response.created', response: { id: 'stalled' } }))
+    for (let i = 0; i < 64; i++) socket.send(JSON.stringify({ type: 'response.output_text.delta', delta: 'x' }))
+  } })
+  try {
+    const response = await f.send()
+    await closed.promise
+    await assert.rejects(response.text(), { code: 'SOCKET_BUFFER_LIMIT' })
+    assert.equal(f.httpCalls(), 0)
+  } finally { await f.close() }
 })
 
 test('SSE mode, nonstream input and request-size limits keep their original HTTP semantics', async () => {

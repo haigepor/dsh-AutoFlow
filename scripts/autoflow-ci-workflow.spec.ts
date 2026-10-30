@@ -35,8 +35,11 @@ describe('AutoFlow main CI', () => {
     expect(client?.steps).toContainEqual(expect.objectContaining({ run: 'pnpm run hygiene' }))
     expect(client?.steps).toContainEqual(expect.objectContaining({ run: 'pnpm run check:ci:lint:contracts-ready' }))
     const commands = client?.steps.map(step => step.run).join('\n') ?? ''
-    for (const owner of ['ui-theme/tests', 'ui-settings-general/tests', 'ui-settings-models/tests', 'ui-plugin-manager/tests', 'dsh-plugin-afp/tests', 'dsh-better-sidebar/tests']) {
+    for (const owner of ['ui-theme/tests', 'ui-settings-general/tests', 'ui-settings-models/tests', 'ui-plugin-manager/tests']) {
       expect(commands).toContain(owner)
+    }
+    for (const job of [client, workflow.jobs.windows]) {
+      expect(job?.steps).toContainEqual(expect.objectContaining({ run: "pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 run test" }))
     }
     expect(commands).toContain("pnpm run test:snapshot snapshots/session/headless.snapshot.ts -t 'text-turn|tool-call-turn'")
     expect(workflow.jobs.windows?.steps).toContainEqual(expect.objectContaining({ run: 'pnpm run verify-cordis-config' }))

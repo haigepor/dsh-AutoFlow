@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP-Serververwaltung",
+    "description": "Speichert MCP-Einträge des Profils und meldet den Verbindungsstatus ohne vertrauliche Daten."
+  }
+}

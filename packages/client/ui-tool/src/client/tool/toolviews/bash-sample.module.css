@@ -97,6 +97,15 @@
   min-width: 0;
 }
 
+@media (hover: hover) {
+  .root:hover {
+    color: var(--dsw-alias-label-secondary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+}
+
 .leading {
   position: relative; /* .chevronHover overlay anchor */
   flex: none;
@@ -140,12 +149,14 @@
   transition: opacity 100ms ease;
 }
 
-.root:hover .iconIdle {
-  opacity: 0;
-}
+@media (hover: hover) {
+  .root:hover .iconIdle {
+    opacity: 0;
+  }
 
-.root:hover .chevronHover {
-  opacity: 1;
+  .root:hover .chevronHover {
+    opacity: 1;
+  }
 }
 
 .title {
@@ -175,11 +186,6 @@
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-tertiary);
   transition: color 100ms ease;
-}
-
-.root:hover .title,
-.root:hover .summary:not(.errorSummary):not(.stoppedSummary) {
-  color: var(--dsw-alias-label-primary);
 }
 
 /* Error row's collapsed summary: the failure's first line in the error color. */
@@ -220,16 +226,23 @@
   transition: opacity 100ms ease;
 }
 
-.card:hover .inspectButton,
 .inspectButton:focus-visible {
   opacity: 1;
 }
 
+@media (hover: hover) {
+  .card:hover .inspectButton {
+    opacity: 1;
+  }
+}
+
 /* Solid hover fill: the pill floats over terminal output, so a translucent
    hover token would let the text underneath bleed through. */
-.inspectButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover-solid);
-  color: var(--dsw-alias-label-primary);
+@media (hover: hover) {
+  .inspectButton:hover {
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+    color: var(--dsw-alias-label-primary);
+  }
 }
 
 
@@ -240,4 +253,16 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+@media (hover: none) {
+  .inspectButton { opacity: 1; }
+}
+
+@media (hover: hover) {
+
+.root:hover .title,
+.root:hover .summary:not(.errorSummary):not(.stoppedSummary) {
+  color: var(--dsw-alias-label-primary);
+}
 }

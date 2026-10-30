@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 // (CodeMirror's UA probe).
 import './browser-globals.ts'
 import { CHUNK_EXTERNALS } from '../src/client/chunk-loader.ts'
-import { CHUNK_NAMES } from '../src/bundle-route.ts'
+import { CHUNK_NAMES, createBundleRouteHandler } from '../src/bundle-route.ts'
 
 const g = globalThis as Record<string, unknown>
 
@@ -34,6 +34,27 @@ if (!chunksBuilt) {
 }
 
 describe.skipIf(!chunksBuilt)('built chunk artifacts', () => {
+  it('serves built chunks by default when the host runs from workspace source', async () => {
+    const handler = createBundleRouteHandler(() => true)
+    for (const name of CHUNKS) {
+      let status = 0
+      let headers: Record<string, string> = {}
+      let body: string | Uint8Array | undefined
+      await handler({
+        method: 'HEAD', url: `/sidebar/bundle/${name}.js`, headers: {},
+        async *[Symbol.asyncIterator]() {},
+      }, {
+        statusCode: 0,
+        writeHead(code, values = {}) { status = code; headers = values },
+        write() { throw new Error('HEAD must not stream a body') },
+        end(value) { body = value },
+      })
+      expect(status, name).toBe(200)
+      expect(Number(headers['content-length']), name).toBeGreaterThan(0)
+      expect(body, name).toBeUndefined()
+    }
+  })
+
   it('each chunk assigns its global registry slot when executed as a script', () => {
     g.window = g // classic-script globals
     // mermaid's core hooks window.addEventListener('load') at module scope
@@ -51,7 +72,18 @@ describe.skipIf(!chunksBuilt)('built chunk artifacts', () => {
 
   it('each chunk factory materializes through a require over the platform externals', () => {
     const registry = g.__dshChunks__ as Record<string, unknown>
-    const table = new Map<string, unknown>(CHUNK_EXTERNALS.map(spec => [spec, { spec }]))
+    /**
+     * Externals whose members are CALLED while a chunk module is evaluated, so
+     * a bare marker object is not enough. The editor chunk memoizes its JSONL
+     * record row at module scope, which means `react.memo` has to be callable
+     * the moment the factory runs. Everything else stays a marker: the point of
+     * this case is that the REQUIRES resolve, not that a stub behaves like
+     * React.
+     */
+    const callable: Record<string, unknown> = {
+      react: { memo: (component: unknown) => component },
+    }
+    const table = new Map<string, unknown>(CHUNK_EXTERNALS.map(spec => [spec, callable[spec] ?? { spec }]))
     for (const name of CHUNKS) {
       const factory = registry[name] as (require: (spec: string) => unknown) => Record<string, unknown>
       expect(() => factory((spec) => {

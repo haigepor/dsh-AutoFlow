@@ -107,6 +107,7 @@ test('failed cross-image organization retains private diagnostics and retries on
   try {
     const { styleId } = await recognized(f)
     const original = f.repository.list('modelProfile')[0]!
+    const observationIds = f.repository.list('observation').map(row => row.id)
     f.http.mode = 'foreign-summary-evidence'
     const failed = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { styleId, operationId: 'failed-organization', buildDataset: true }))
     await f.jobs.drain()
@@ -123,7 +124,7 @@ test('failed cross-image organization retains private diagnostics and retries on
     await f.jobs.drain()
     assert.equal(f.domain.require('run', resumed.runId).status, 'completed', JSON.stringify(dataOf(f.domain.require('run', resumed.runId)).error))
     assert.deepEqual(f.http.operations.slice(previousCalls), ['summarize:'])
-    assert.equal(f.repository.list('observation').length, 2)
+    assert.deepEqual(f.repository.list('observation').map(row => row.id), observationIds)
     assert.equal(f.repository.list('modelProfile').length, 2)
   } finally { await f.cleanup() }
 })

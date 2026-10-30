@@ -1,124 +1,20 @@
 {
   "formatVersion": 2,
   "roots": [
-    {
-      "key": "event:web/native-search-llm-request",
-      "kind": "event",
-      "event": "web/native-search-llm-request",
-      "surface": false,
-      "digest": "7195fba1ffaa67e485ea93f1d2231fbda86babc0d7c5ea72ae8b26c70a869b58",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "data",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "ignorable",
-                "type": 9,
-                "optional": true
-              },
-              {
-                "name": "seq",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "type",
-                "type": 10,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "api",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "body",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "provider",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "union",
-            "types": [
-              2,
-              4,
-              5,
-              6,
-              7,
-              8
-            ]
-          },
-          {
-            "kind": "array",
-            "element": 3
-          },
-          {
-            "kind": "object",
-            "properties": [],
-            "indices": [
-              {
-                "key": 2,
-                "value": 3
-              }
-            ]
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          },
-          {
-            "kind": "primitive",
-            "type": "null"
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "literal",
-            "value": "web/native-search-llm-request"
-          }
-        ]
-      }
-    }
+    {"key":"event:web/native-search-llm-request","kind":"event","event":"web/native-search-llm-request","surface":false,"digest":"7195fba1ffaa67e485ea93f1d2231fbda86babc0d7c5ea72ae8b26c70a869b58"}
   ],
-  "types": []
+  "types": [],
+  "nodes": {
+    "0657d3ca5ac4e7bf": {"kind":"primitive","type":"number"},
+    "4cd48f3e5108bd6e": {"kind":"primitive","type":"string"},
+    "529e0ccd0e34079a": {"kind":"object","properties":[],"indices":[{"key":"4cd48f3e5108bd6e","value":"c592ce75aab73fca"}]},
+    "5da6fd65259407c5": {"kind":"object","properties":[{"name":"api","type":"4cd48f3e5108bd6e","optional":false},{"name":"body","type":"c592ce75aab73fca","optional":false},{"name":"model","type":"4cd48f3e5108bd6e","optional":false},{"name":"provider","type":"4cd48f3e5108bd6e","optional":false}],"indices":[]},
+    "689ec7438133f377": {"kind":"literal","value":"web/native-search-llm-request"},
+    "7195fba1ffaa67e4": {"kind":"object","properties":[{"name":"data","type":"5da6fd65259407c5","optional":false},{"name":"ignorable","type":"dacf3d5f3e4ff619","optional":true},{"name":"seq","type":"0657d3ca5ac4e7bf","optional":false},{"name":"time","type":"0657d3ca5ac4e7bf","optional":false},{"name":"type","type":"689ec7438133f377","optional":false}],"indices":[]},
+    "72ec79127a9c0d02": {"kind":"array","element":"c592ce75aab73fca"},
+    "938f7c7357bc403e": {"kind":"primitive","type":"null"},
+    "aa93010d0e521ad7": {"kind":"primitive","type":"boolean"},
+    "c592ce75aab73fca": {"kind":"union","types":["0657d3ca5ac4e7bf","4cd48f3e5108bd6e","529e0ccd0e34079a","72ec79127a9c0d02","938f7c7357bc403e","aa93010d0e521ad7"]},
+    "dacf3d5f3e4ff619": {"kind":"literal","value":true}
+  }
 }

@@ -30,6 +30,8 @@ export const remoteDefaultResponses: RemoteTable = {
     'dynamicCordisRunner/syncInspectManifest': ok(null),
     // ui-cordis inventory at apply and on `connection/reset`.
     'dynamicCordisRunner/inventory': ok([]),
+    // The full-page settings search reads the plugin inventory at startup and reconnect.
+    'pluginInventory/list': ok({ entries: [] }),
     // ui-settings-plugins web-search card `readCredential()` when the settings mirror first publishes.
     'credentials/describe': ok({}),
     // ui-permission-presets `PermissionCatalogDirectory` on its first read for a connection generation.

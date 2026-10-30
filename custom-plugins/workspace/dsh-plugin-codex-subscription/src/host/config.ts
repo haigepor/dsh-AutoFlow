@@ -27,6 +27,9 @@ const relay = z.strictObject({
   maxResponseBytes: positive.max(256 * 1024 * 1024).default(64 * 1024 * 1024),
   requestTimeoutMs: positive.max(3_600_000).default(3_600_000),
   maxConcurrentRequests: positive.max(64).default(8),
+  maxSocketConnections: positive.max(64).default(8),
+  maxSocketQueuedTurns: z.number().int().min(0).max(16).default(2),
+  maxSocketHistoryBytes: positive.max(128 * 1024 * 1024).default(32 * 1024 * 1024),
   assetUrlTtlMs: positive.max(3_600_000).default(60_000),
 })
 const options = z.strictObject({
@@ -56,6 +59,7 @@ export interface Config {
   discoveryTtlMs: number
   cooldownMs: number
   sessionAffinityLimit: number
+  modelCooldownLimit: number
   streamIdleTimeoutMs: number
   requestTimeoutMs: number
   maxRequestImageBytes: number
@@ -72,6 +76,7 @@ export const Config = Schema.object({
   discoveryTtlMs: Schema.natural().min(1000).default(60_000),
   cooldownMs: Schema.natural().min(1000).default(60_000),
   sessionAffinityLimit: Schema.natural().min(1).max(10_000).default(512),
+  modelCooldownLimit: Schema.natural().min(1).max(10_000).default(512),
   streamIdleTimeoutMs: Schema.natural().min(1000).default(120_000),
   requestTimeoutMs: Schema.natural().min(1000).max(3_600_000).default(3_600_000),
   maxRequestImageBytes: Schema.natural().min(1).default(32 * 1024 * 1024),

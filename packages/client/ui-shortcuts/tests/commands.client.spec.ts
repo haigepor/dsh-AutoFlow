@@ -81,8 +81,7 @@ describe('assembled shortcut command owners', () => {
       const settingsState = useSyncExternalStore(listener => settings.subscribe(listener), () => settings.getSnapshot())
       const referenceState = useSyncExternalStore(listener => reference.subscribe(listener), () => reference.getSnapshot())
       return createElement(Fragment, null,
-        createElement(Modal, { open: settingsState.open, title: 'Settings', closeLabel: 'Close settings',
-          shortcutModal: 'settings', onClose: settings.actions.close }),
+        createElement('section', { hidden: !settingsState.open, 'aria-label': 'Settings' }),
         createElement(Modal, { open: referenceState.open, title: 'Shortcuts', closeLabel: 'Close shortcuts',
           shortcutModal: 'shortcuts', onClose: reference.actions.close }))
     }

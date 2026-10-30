@@ -45,7 +45,6 @@
 .card {
   box-sizing: border-box;
   position: relative; /* overlay anchor positioning context */
-  isolation: isolate;
   display: flex;
   flex-direction: column;
   /* figma Input 75:8208: 12px between the text area and the button row; the
@@ -54,49 +53,33 @@
   width: 100%;
   max-width: var(--dsh-composer-card-max-width);
   padding-top: 8px;
-  /* The light neutral (l2) rebinds the shared elevation hairline without
-     consuming layout; the frosted fill is painted on the isolated layer below. */
+  /* Input stroke: the light neutral (l2, one step above the menus' l1),
+     drawn as the elevation hairline so it costs no layout; the shadow is the
+     soft elevation tier. Fill: the input surface token (elevated in dark). */
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
-  border-radius: 22px;
-  background: transparent;
   /* The draft text follows the Settings font-size preference (the textarea,
      mirror, and backdrop all inherit from here, so the three layers stay in
      step); the line height keeps the default 10px leading via the shared px
      delta. */
   font-size: var(--dsh-content-font-size, 14px);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
-  /* The draft scrollport scrolls once the composer hits its height cap, so
-     the thumb takes the l2
+  /* Elevated surface in dark, same as the menus: the draft scrollport inside
+     scrolls once the composer hits its height cap, so the thumb takes the l2
      pair. Declared on the card because the elevation belongs to the surface,
      and the custom properties inherit down to the box that actually scrolls
      (see ui-theme styles/scrollbar.css for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  isolation: isolate;
+  border-radius: 22px;
+  background: transparent;
 }
 
-.card::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsw-menu-backdrop-filter);
-  box-shadow: var(--dsw-elevation-soft);
-  content: '';
-  pointer-events: none;
-}
-
-/* The centered light-theme composer sits on the same near-white page as its
-   previous translucent fill. Give it one quiet layer step and the standard
-   panel rim so the writing area remains legible without changing dark mode. */
-:global(body:not([data-ds-dark-theme])) .card {
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
-}
-
-:global(body:not([data-ds-dark-theme])) .card::before {
-  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 42%, var(--dsw-alias-bg-layer-2));
-  box-shadow: var(--dsw-elevation-panel);
+@media (pointer: coarse) {
+  .card {
+    font-size: max(16px, var(--dsh-content-font-size, 14px));
+  }
 }
 
 /* No-workspace trigger state: an inset 1px dashed outline marks the card as a
@@ -126,8 +109,10 @@
   pointer-events: none;
 }
 
-.cardWorkspaceTrigger:hover::after {
-  color: var(--dsw-alias-state-business-primary);
+@media (hover: hover) {
+  .cardWorkspaceTrigger:hover::after {
+    color: var(--dsw-alias-state-business-primary);
+  }
 }
 
 .accessory {
@@ -249,30 +234,6 @@
   user-select: none;
 }
 
-/* The ↑↓ history hint sits at the placeholder's right edge; the reserved
-   padding keeps long placeholder text ellipsizing before it. */
-.placeholderWithHint {
-  padding-right: 84px;
-}
-
-.historyHint {
-  position: absolute;
-  top: 0;
-  right: 0;
-  font-size: 12px;
-  line-height: inherit;
-}
-
-@media (max-width: 640px) {
-  .placeholderWithHint {
-    padding-right: 0;
-  }
-
-  .historyHint {
-    display: none;
-  }
-}
-
 .inputDisabled {
   color: var(--dsw-alias-label-tertiary);
   cursor: not-allowed;
@@ -377,8 +338,10 @@
   cursor: pointer;
 }
 
-.add:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover-solid);
+@media (hover: hover) {
+  .add:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+  }
 }
 
 .add:disabled {
@@ -409,8 +372,10 @@
   appearance: none;
 }
 
-.select:hover:not(:disabled) {
-  background-color: var(--dsw-alias-interactive-bg-hover);
+@media (hover: hover) {
+  .select:hover:not(:disabled) {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .select:disabled {
@@ -418,8 +383,9 @@
   cursor: default;
 }
 
-/* Primary send uses the theme's info fill with its matching foreground.
-   Empty text reduces the whole control to 0.4 opacity. */
+/* Primary send (figma IconButton 34:10465): 34px circle, #3964FE light /
+   #679EFE dark — the info-fill pair (500→400), NOT button-primary (ink);
+   white glyph; empty text = 0.4 opacity. */
 .primary {
   display: grid;
   place-items: center;
@@ -430,22 +396,47 @@
   border-radius: 999px;
   corner-shape: round;
   background: var(--dsw-alias-button-info-fill);
-  color: var(--dsw-alias-label-primary-foreground);
+  /* Static white, not the foreground token: the arrow stays white on the blue
+     fill in both themes (design 34:10465). */
   cursor: pointer;
   transition: background-color 100ms ease;
   /* Opts out of the row's 2px downward shift (.row top pad): the send circle
      keeps its original seat while the smaller chips sit lower. Transform, not
      margin, so flex centering math is untouched. */
   transform: translateY(-2px);
+  color: var(--dsw-alias-label-primary-foreground);
 }
 
-.primary:hover:not(:disabled) {
-  background: var(--dsw-alias-button-info-hover);
+@media (hover: hover) {
+  .primary:hover:not(:disabled) {
+    background: var(--dsw-alias-button-info-hover);
+  }
 }
 
 .primary:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* Sending: the message waits for the Host to accept it. The circle keeps its
+   full fill rather than the disabled fade, and an arc turns where the arrow was. */
+.primary[data-sending]:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.sendingSpinner {
+  animation: input-sending 800ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sendingSpinner {
+    animation-duration: 2400ms;
+  }
+}
+
+@keyframes input-sending {
+  to { transform: rotate(360deg); }
 }
 
 .retry {
@@ -465,3 +456,44 @@
 .activity { display: flex; align-items: center; flex: none; }
 .activity:empty { display: none; }
 .activityExpanded { flex: 1; min-width: 0; }
+
+.card::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  box-shadow: var(--dsw-elevation-soft);
+  content: '';
+  pointer-events: none;
+}
+:global(body:not([data-ds-dark-theme])) .card {
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
+}
+
+:global(body:not([data-ds-dark-theme])) .card::before {
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 42%, var(--dsw-alias-bg-layer-2));
+  box-shadow: var(--dsw-elevation-panel);
+}
+.placeholderWithHint {
+  padding-right: 84px;
+}
+
+.historyHint {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 12px;
+  line-height: inherit;
+}
+
+@media (max-width: 640px) {
+  .placeholderWithHint {
+    padding-right: 0;
+  }
+
+  .historyHint {
+    display: none;
+  }
+}

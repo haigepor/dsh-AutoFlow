@@ -51,11 +51,13 @@ describe('model-native web search', () => {
     try {
       await ctx.plugin(LlmRuntime)
       await ctx.plugin(PiAi, { providers: { fixture: { api: 'openai-responses', baseURL: `${server.url}/v1`, apiKeyEnv: 'NATIVE_SEARCH_TEST_KEY', models: [{ id: 'gpt-6.1-sol' }] } } })
-      await expect(ctx.llm.searchNative(request())).rejects.toMatchObject({ failure: { code: 'AUTH', message: expect.stringContaining('401') } })
+      const result = ctx.llm.searchNative(request())
+      await expect(result).rejects.toHaveProperty('failure.code', 'AUTH')
+      await expect(result).rejects.toHaveProperty('failure.message', expect.stringContaining('401'))
     } finally { await ctx.fiber.dispose() }
   })
 
-  it.each(['anthropic-messages', 'google-generative-ai', 'openai-completions'])('completes a real %s SDK request with native sources', async api => {
+  it.each(['anthropic-messages', 'google-generative-ai', 'openai-completions'])('completes a real %s SDK request with native sources', async (api) => {
     const model = api === 'anthropic-messages' ? 'claude-sonnet-4-6' : api === 'google-generative-ai' ? 'gemini-2.5-flash' : 'gpt-5-search-api'
     const source = { url: 'https://example.com/current', title: 'Current source' }
     const events = api === 'anthropic-messages' ? [anthropicMessageStart,
@@ -104,7 +106,7 @@ describe('model-native web search', () => {
     } finally { await ctx.fiber.dispose() }
   })
 
-  it.each(['anthropic-messages', 'google-generative-ai', 'openai-completions'])('uses the %s native declaration and its source format', api => {
+  it.each(['anthropic-messages', 'google-generative-ai', 'openai-completions'])('uses the %s native declaration and its source format', (api) => {
     const input = request(), capture = nativeSearchCapture(api, input)
     const body = capture.onPayload({ model: input.model, config: {} })
     if (api === 'anthropic-messages') {

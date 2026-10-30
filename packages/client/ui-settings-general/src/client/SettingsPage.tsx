@@ -171,6 +171,7 @@ export function SettingsPage({
                 {groupRows.map(row => (
                   <Tooltip key={row.id} label={row.label} side="right" disabled={!collapsed}>
                     <button ref={row.id === active?.id ? selectedRef : undefined}
+                      onFocus={(event) => { event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }}
                       data-settings-nav-row
                       type="button" className={clsx(css.navCell, row.id === active?.id && css.active)}
                       aria-label={row.label}

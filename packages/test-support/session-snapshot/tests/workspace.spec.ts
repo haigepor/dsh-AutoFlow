@@ -21,17 +21,34 @@ describe('workspace snapshots', () => {
     await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
   })
 
-  it('captures readable text, binary bytes, links, and empty directories in path order', async () => {
+  it('captures readable text, binary bytes, and empty directories in path order', async () => {
     const directory = await root()
     await writeFile(join(directory, 'a.txt'), 'hello\n')
     await writeFile(join(directory, 'b.bin'), Buffer.from([0xff, 0x01]))
     await mkdir(join(directory, 'empty'))
-    await symlink('a.txt', join(directory, 'link'))
 
     expect(await captureWorkspaceSnapshot(directory)).toEqual([
       { path: 'a.txt', kind: 'text', content: 'hello\n' },
       { path: 'b.bin', kind: 'binary', base64: '/wE=' },
       { path: 'empty', kind: 'empty-directory' },
+    ])
+  })
+
+  it('captures a file symlink without following its target', async ({ skip }) => {
+    const directory = await root()
+    await writeFile(join(directory, 'a.txt'), 'hello\n')
+    try {
+      await symlink('a.txt', join(directory, 'link'))
+    } catch (error) {
+      // Windows 未授予文件符号链接权限时，仅跳过链接断言，普通文件仍单独验证。
+      if (process.platform === 'win32' && error instanceof Error && 'code' in error && error.code === 'EPERM') {
+        skip('Windows file symlinks require permission')
+        return
+      }
+      throw error
+    }
+    expect(await captureWorkspaceSnapshot(directory)).toEqual([
+      { path: 'a.txt', kind: 'text', content: 'hello\n' },
       { path: 'link', kind: 'symlink', target: 'a.txt' },
     ])
   })

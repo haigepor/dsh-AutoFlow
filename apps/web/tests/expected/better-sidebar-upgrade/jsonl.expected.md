@@ -1,0 +1,10 @@
+- list:
+  - listitem:
+    - 'button "{status: \"ready\", count: 1}" [expanded]'
+    - text: "{"
+    - tree "#1":
+      - treeitem "status:\"ready\","
+      - treeitem "count:1"
+    - text: "}"
+  - listitem:
+    - 'button "{status: \"done\", count: 2}"'

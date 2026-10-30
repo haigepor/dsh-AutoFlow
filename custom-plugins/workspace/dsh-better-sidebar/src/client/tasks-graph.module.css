@@ -136,11 +136,21 @@
    instead of a hole under it (the box size itself is fixed — the edges and the
    phase frames are placed from it, so a card can never be content-sized). */
 /* The two-segment node card. The segments own their padding because each one
-   paints its own surface: the TOP segment carries the identity (kind badge,
-   name, meta, task line) over the level's faint tint, the BOTTOM bar carries
-   the state and the merged activity. The layout in tasks-graph-layout.ts
-   reserves both rows, so the box handed to a card is exactly its height. */
+   paints its own surface: the TOP segment carries the identity (kind badge +
+   mode chip, name, task line — a workflow run adds its mono meta line) over
+   the level's faint tint, the BOTTOM bar carries the state and the merged
+   activity. The layout in tasks-graph-layout.ts reserves those rows, so the
+   box handed to a card is exactly its height. */
 .node {
+  /* Cards ARRIVE with a real entrance — a rise, a scale-up and a fade, with a
+     slight overshoot so the arrival reads as motion rather than a repaint. The
+     per-card `animation-delay` the graph sets inline staggers a group that
+     reveals several cards at once; `backwards` keeps a staggered card invisible
+     during its wait instead of popping and then animating. Mount-only, so the
+     page's poll never re-plays it. Position changes are NOT animated here: the
+     graph tweens the layout coordinates instead (tasks-layout-tween.ts), which
+     is the only space the fit's scale cannot distort. */
+  animation: dsh-card-in 300ms cubic-bezier(0.2, 0.9, 0.25, 1.06) backwards;
   position: absolute;
   box-sizing: border-box;
   display: flex;
@@ -157,8 +167,11 @@
   overflow: hidden;
 }
 
+@media (hover: hover) {
+
 .node:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 /* The current session: a THICKER accent edge (the reader's ask was "边框加粗
@@ -239,6 +252,19 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* The identity chip (the node's mode word) rides the badge row: it is the same
+   word on every card of its kind, so a line of its own only repeated itself.
+   Plain ink, no border — the kind badge beside it owns the box. */
+.kindChip {
+  flex: none;
+  max-width: 46%;
+  font: var(--dsw-font-xxxs-11);
+  color: var(--dsw-alias-label-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* The workflow phase badge: the SECOND grouping axis. It takes the ink family
    (the level edge owns the accent family) so the two never read as one. */
 .phaseBadge {
@@ -288,6 +314,20 @@
 .cardNamePlain {
   -webkit-line-clamp: 1;
   font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* The newest assistant text under the name: the card's smallest voice, clamped
+   to the line count the LAYOUT reserved for it (inline `-webkit-line-clamp`, so
+   the render can never be taller than the box the row gutter was sized for). */
+.cardText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.3;
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -370,15 +410,17 @@
 }
 
 /* The merged activity: the main agent's own wording for the node's newest
-   range. It deliberately keeps the BAR's font — no mono family. The state word
-   beside it is UI copy, and the two stacks do not share metrics: measured at
-   11px, the sans stack reports ascent/descent 11/2 against the mono stack's
-   10/3, so a mono activity line sits 1px LOWER than the state word it follows
-   (the reader reported exactly that misalignment). The mono face bought
-   nothing here either: every CJK glyph in this line comes from the same
-   fallback family, so only the Latin fragments changed face — half a sentence
-   in mono, one pixel off. Machine text keeps its mono voice where it belongs
-   (the meta row above, the job rows, the terminal well). */
+   range, and the bar's primary content — it takes the state word's place for a
+   running node's native status and a settled node's summary. It deliberately
+   keeps the BAR's font — no mono family. Where the state word DOES stay beside
+   it (`空闲` / `出错`) the two stacks do not share metrics: measured at 11px,
+   the sans stack reports ascent/descent 11/2 against the mono stack's 10/3, so
+   a mono activity line sits 1px LOWER than the state word it follows (the
+   reader reported exactly that misalignment). The mono face bought nothing here
+   either: every CJK glyph in this line comes from the same fallback family, so
+   only the Latin fragments changed face — half a sentence in mono, one pixel
+   off. Machine text keeps its mono voice where it belongs (the meta row above,
+   the job rows, the terminal well). */
 .barActivity {
   flex: 1;
   min-width: 0;
@@ -386,6 +428,32 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The aggregate's bar is the ACTION row: the group's glyph, the word naming
+   what a click does, and the chevron. The count lives on the badge above, so
+   the bar carries the action instead — a lone chevron in an empty strip read
+   as a broken card. The failure tail keeps the error ink, because it is the
+   one fact the ✓ badge cannot say. */
+.barFoldGlyph {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.barAction {
+  flex: 1;
+  min-width: 0;
+  color: var(--dsw-alias-state-business-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barError {
+  flex: none;
+  color: var(--dsw-alias-state-error-primary);
 }
 
 .barFold {
@@ -404,9 +472,12 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .barFold:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 /* The fold aggregate mirrors the tree's dashed fold row (`treeFoldRow`). */
@@ -415,8 +486,11 @@
   background: var(--dsw-alias-bg-base);
 }
 
+@media (hover: hover) {
+
 .nodeFold:hover {
   border-color: var(--dsw-alias-label-primary);
+}
 }
 
 .nodeHeader {
@@ -499,8 +573,11 @@
   color: var(--dsw-alias-state-business-primary);
 }
 
+@media (hover: hover) {
+
 .taskLine:hover .taskSubject {
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .taskLine:focus-visible {
@@ -623,12 +700,38 @@
   border-left: 1px solid var(--dsw-alias-border-l2);
 }
 
+@media (hover: hover) {
+
 .controlBtn:hover {
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .controlBtnActive {
   color: var(--dsw-alias-state-business-primary);
+}
+
+/* A WORDED cell of the cluster (the tree's collapse/expand-all pair): the same
+   28px control shape as the glyph cells, sized by its label. Words rather than
+   more chevrons, because the settled-leaf switch beside them already wears that
+   vocabulary. */
+.controlText {
+  box-sizing: border-box;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: none;
+  background: none;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xxxs-11);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.controlText:hover {
+  color: var(--dsw-alias-label-primary);
 }
 
 /* The zoom readout is the cluster's one non-button cell: same 28px height,
@@ -671,8 +774,11 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .treeRow:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 .treeRow:focus-visible {
@@ -704,11 +810,74 @@
   opacity: 0.62;
 }
 
-/* Children hang on a hairline thread, never a box. */
+/* Children hang on a hairline thread, never a box. The indent is what the
+   CHILD rows measure their elbow against (see .treeChild): the thread runs down
+   the parent's marker column (8px row padding + half the 6px dot), so the line
+   drops out of the row it belongs to instead of floating beside it. */
 .treeKids {
-  margin-left: 15px;
-  padding-left: 10px;
-  border-left: 1px solid var(--dsw-alias-border-l1);
+  margin-left: 11px;
+  padding-left: 14px;
+}
+
+/* The row's own disclosure control: at the row's END, the same 16px cell and
+   the same chevron the canvas card's bar wears — one tree, one place to look for
+   "open / close this node's children". A leaf renders none. */
+.treeDisclosure {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  width: 16px;
+  height: 16px;
+  margin: 8px 0 0 auto;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.treeDisclosure:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* One child wrapper: the elbow that ties it to its parent's thread. The segment
+   spans the whole subtree of a middle sibling (so the thread stays continuous)
+   and stops at the row's own marker for the LAST one, so a group's thread ends
+   at the group's last row instead of dangling past it. */
+.treeChild {
+  position: relative;
+}
+
+.treeChild::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--dsw-alias-border-l1);
+}
+
+.treeChildLast::before {
+  bottom: auto;
+  /* The 32px row rhythm's midline: the thread meets the marker it belongs to. */
+  height: 16px;
+}
+
+/* The mode chip on a tree row: same word, same place as a canvas card's chip
+   (next to the name), in the row's own stack. */
+.treeChip {
+  flex: none;
+  max-width: 46%;
+  font: var(--dsw-font-xxxs-11);
+  color: var(--dsw-alias-label-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .treeContent {
@@ -756,6 +925,7 @@
    values and the body (secondary), the keys, group headers and hints
    (tertiary). A card never paints a fourth rung. */
 .popCard {
+  animation: dsh-pop-in 140ms cubic-bezier(0.2, 0.8, 0.3, 1);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -768,6 +938,25 @@
   font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-label-primary);
   box-sizing: border-box;
+}
+
+@keyframes dsh-card-in {
+  0% { opacity: 0; transform: translateY(10px) scale(0.88); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes dsh-pop-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Motion is decoration: the card is fully usable without it. */
+@media (prefers-reduced-motion: reduce) {
+  .popCard,
+  .node {
+    animation: none;
+  }
 }
 
 /* The head band. It is exactly one control tall (28px, the host's `sm`), so a
@@ -885,11 +1074,17 @@
 /* The armed (first-click) confirm of the popover's kill: the same danger chip
    the drawer's terminate button arms into, so one destructive action reads the
    same in both places. */
-.jobPopKillArmed,
+.jobPopKillArmed {
+  border: 1px solid var(--dsw-alias-state-error-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
+  color: var(--dsw-alias-state-error-primary);
+}
+@media (hover: hover) {
 .jobPopKillArmed:hover {
   border: 1px solid var(--dsw-alias-state-error-primary);
   background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
   color: var(--dsw-alias-state-error-primary);
+}
 }
 
 /* The title row every card opens with: [glyph][name], the glyph being the same
@@ -998,8 +1193,11 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+
 .popList .popListRow:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 .popListLabel {
@@ -1010,6 +1208,79 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The node's merged activity, set under the title instead of in the key/value
+   grid: it says what the node is DOING (a subtitle), and the grid's
+   right-aligned value column ellipsised it at the popover's 280px while its
+   "最近活动" key spent a third of the width naming the position. */
+.popActivityBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.popActivity {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--dsw-alias-state-business-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The jump split of the detail card: the primary action keeps the row and the
+   caret beside it opens the main-window alternative — the same split the host's
+   own subagent jump control wears. The menu is positioned from the caret (the
+   card is the portal's content root, so nothing clips it) and dismisses on an
+   outside pointerdown via the host's own hook. */
+.popFoot > .jumpMore {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  width: 28px;
+}
+
+.jumpMoreButton {
+  width: 100%;
+  padding: 0;
+}
+
+/* A footer control that is a GLYPH, not a word: it keeps the host Button's own
+   28px box instead of taking a share of the row, so a long jump label and the
+   diagnostics control still fit the 280px card (the footer's `> *` rule hands
+   every other child the row). */
+.popFoot > .popActionIcon {
+  flex: none;
+  width: 28px;
+  padding: 0;
+}
+
+.jumpMenu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 4;
+  min-width: 152px;
+  padding: 4px;
+}
+
+.jumpMenuItem {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* The streamed text tail under it keeps the card's smallest voice, clamped to
+   three lines — the same budget the canvas card gives the same text, so the two
+   surfaces show the same amount of it. The tail is capped at 400 characters
+   upstream, which would otherwise push the state rows out of the card. */
+.popActivityBlock .popHint {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 /* The card's smallest voice (the empty-description line, the drag hint, the
@@ -1038,7 +1309,7 @@
  * margins are literals in the host sheet, so those few rules do need to
  * out-specify `.MarkdownText_markdown h1` (0,1,1): the doubled container class
  * makes them (0,2,1) DETERMINISTICALLY, because the plugin's global
- * `<style data-plugin>` has no guaranteed order against the host's sheet and a
+ * `\3c style data-plugin>` has no guaranteed order against the host's sheet and a
  * specificity tie would be a coin flip.
  *
  * The well is the page's one scroll-well height (160px), like the member /
@@ -1256,9 +1527,12 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+@media (hover: hover) {
+
 .taskOwnerRow .taskOwnerPill:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .taskOwnerRow .taskOwnerPillActive {
@@ -1268,8 +1542,11 @@
   color: var(--dsw-alias-label-primary);
 }
 
+@media (hover: hover) {
+
 .taskOwnerRow .taskOwnerPillActive:hover {
   background: var(--dsw-alias-button-ghost-active-hover);
+}
 }
 
 /* The card's action grading: exactly one primary action per card (the
@@ -1283,19 +1560,28 @@
   border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 40%, transparent);
 }
 
+@media (hover: hover) {
+
 .jobPopActions .taskDanger:hover {
   background: var(--dsw-alias-interactive-bg-hover-danger);
   border-color: var(--dsw-alias-state-error-primary);
+}
 }
 
 /* Armed (the second press is the one that deletes): the filled confirm chip,
    one rung louder than the resting danger ink. (0,3,0) also keeps it above the
    shared `.jobPopKillArmed` chip the jobs popover arms into. */
-.jobPopActions .taskDanger.taskDangerArmed,
+.jobPopActions .taskDanger.taskDangerArmed {
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
+  border-color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-state-error-primary);
+}
+@media (hover: hover) {
 .jobPopActions .taskDanger.taskDangerArmed:hover {
   background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
   border-color: var(--dsw-alias-state-error-primary);
   color: var(--dsw-alias-state-error-primary);
+}
 }
 
 /* ── Team board (always-visible strip under the header) ────────────────── */
@@ -1327,8 +1613,11 @@
   text-align: left;
 }
 
+@media (hover: hover) {
+
 .teamBoardBar:hover {
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .teamBoardCount {
@@ -1423,8 +1712,11 @@
   min-width: 0;
 }
 
+@media (hover: hover) {
+
 .teamTask:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 .teamTaskSubject {
@@ -1490,8 +1782,11 @@
   text-align: left;
 }
 
+@media (hover: hover) {
+
 .jobsDrawerBar:hover {
   color: var(--dsw-alias-label-primary);
+}
 }
 
 .jobsDrawerBar:focus-visible {
@@ -1584,15 +1879,22 @@
   text-align: left;
 }
 
+@media (hover: hover) {
+
 .jobsRow:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
 }
 
 /* The row whose output popover is open (declared after the hover fill so the
    open state wins): the reader always knows which job the floating card reads. */
-.jobsRow[data-open='true'],
+.jobsRow[data-open='true'] {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+@media (hover: hover) {
 .jobsRow[data-open='true']:hover {
   background: var(--dsw-alias-interactive-bg-active);
+}
 }
 
 .jobsRowMain:focus-visible {
@@ -1658,15 +1960,22 @@
 
 /* The kill action is an affordance, not a standing loud element: the pointer
    over the row, or any focus inside it, summons it at the same box as always. */
-.jobsRow:hover .jobsKill,
 .jobsRow:focus-within .jobsKill,
 .jobsKill:focus-visible {
   opacity: 1;
 }
+@media (hover: hover) {
+.jobsRow:hover .jobsKill {
+  opacity: 1;
+}
+}
+
+@media (hover: hover) {
 
 .jobsKill:hover {
   border-color: var(--dsw-alias-label-primary);
   color: var(--dsw-alias-label-primary);
+}
 }
 
 /* Armed (first click): the confirm wording replaces the icon in place — the
@@ -1677,7 +1986,16 @@
    this surface while the pointer is still on the chip that was just clicked.
    The chip is 28px wide only while it holds an ICON; the armed rules below
    give it back its natural width. */
-.jobsKill.jobsKill[data-armed='true'],
+.jobsKill.jobsKill[data-armed='true'] {
+  width: auto;
+  padding: 0 7px;
+  border-color: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-state-error-primary);
+  opacity: 1;
+  white-space: nowrap;
+}
+@media (hover: hover) {
 .jobsKill.jobsKill[data-armed='true']:hover {
   width: auto;
   padding: 0 7px;
@@ -1686,6 +2004,7 @@
   color: var(--dsw-alias-state-error-primary);
   opacity: 1;
   white-space: nowrap;
+}
 }
 
 /* …but while armed the chip stops being an OVERLAY. The confirmation is far

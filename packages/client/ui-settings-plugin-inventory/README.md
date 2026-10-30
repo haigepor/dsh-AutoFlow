@@ -35,6 +35,8 @@ Reviewed built-in modules use a concise bilingual inventory dictionary, includin
 
 Small enablement tags mark disabled, conditional, preset-provided and failed rows; plainly enabled rows carry no tag. Live root-fiber phases use dots: pending is idle, loading and unloading are ongoing, while settled active and failed phases have no dot. Compact headers omit entry-id tags. Distinct entry ids remain in accessible card names, search and expanded details, which also show the full module specifier, full description, source preset, configuration and runtime state, and any disable condition. Preset-provided global entries name their enabling presets and offer a jump to that group. Shipped preset names follow the current locale through the shared presetDisplayText resolver; user-authored presets retain their metadata.
 
+A card paints its hover surface only where the pointer can hover: a tap answers with the pressed fill, and an expanded card keeps its open surface on every device. The search field takes a 16px face under a coarse pointer, so iOS Safari does not zoom the page for a focused field.
+
 ### The preset switcher
 
 The switcher is the same selector-pill-plus-menu control the General settings rows use. It lists every roster preset — the default suffixed as such, broken ones marked — and changes only what the list shows: it writes no settings, and selecting a broken preset shows the discovery-reported reason in place of rows. Choosing the default preset or a session's preset stays where it was: the Agent presets section and the new-session screen.

@@ -198,6 +198,30 @@ it.each([en, zh])('shows a direct Settings row while signed out', async (copy) =
   expect(openSettings).toHaveBeenCalledOnce()
 })
 
+it.each([true, false])('keeps the Settings launcher stable through sign-in changes with wide=%s', async (wide) => {
+  const { AccountMenu } = await import('../src/client/AccountMenu.tsx')
+  let operations = operationsOf({ status: 'signed-out', attempt: null })
+  const props: AccountMenuProps = {
+    ...({} as GlobalStandardProps), ...operations, wide, settingsOpen: false,
+    useAccount: selector => selector(operations.hooks.account.getSnapshot()),
+    useTheme: selector => selector(operations.hooks.theme.getSnapshot()),
+    openSettings: vi.fn(), openOnboarding: vi.fn(), t: key => en[key as AccountKey],
+  }
+  const view = render(<AccountMenu {...props} />)
+  const root = view.container.firstElementChild
+  const trigger = screen.getByRole('button', { name: en.settings })
+  trigger.focus()
+  expect(root?.getAttribute('data-inset')).toBeNull()
+  operations = operationsOf({ status: 'credential-stored', attempt: null })
+  view.rerender(<AccountMenu {...props} />)
+  expect(root?.getAttribute('data-inset')).toBeNull()
+  expect(screen.getByRole('button', { name: en.settings })).toBe(trigger)
+  expect(document.activeElement).toBe(trigger)
+  operations = operationsOf({ status: 'signed-out', attempt: null })
+  view.rerender(<AccountMenu {...props} />)
+  expect(root?.getAttribute('data-inset')).toBeNull()
+})
+
 it('reports a failed start in the login dialog, not as a sidebar alert', async () => {
   const operations = mount({ status: 'signed-out', attempt: null })
   cleanup()

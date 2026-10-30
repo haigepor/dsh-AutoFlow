@@ -82,14 +82,14 @@ button[role="tab"][id^="changes-lens-"]:focus-visible {
 
 /* 只匹配切换栏之后的文件操作筛选组，不改变 Git 行操作或其他面板。 */
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
-div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]:has(> button[aria-pressed]) {
+:is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]):has(> button[aria-pressed]) {
   --dsh-changes-motion-enabled: 1;
   gap: 4px;
   padding: 8px 12px;
 }
 
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
-div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed] {
+:is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]) > button[aria-pressed] {
   height: 24px;
   gap: 6px;
   padding: 0 8px;
@@ -102,30 +102,30 @@ div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]
 }
 
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
-div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed]:active:not(:disabled) {
+:is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]) > button[aria-pressed]:active:not(:disabled) {
   transform: scale(.96);
 }
 
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
-div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed]:hover:not(:disabled) {
+:is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]) > button[aria-pressed]:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
 }
 
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
-div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed="true"] {
+:is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]) > button[aria-pressed="true"] {
   background: var(--dsw-alias-interactive-bg-hover-accent);
   color: var(--dsw-alias-label-primary);
 }
 
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
-div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed] > span:last-child {
+:is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]) > button[aria-pressed] > span:last-child {
   color: var(--dsw-alias-label-secondary);
   font-variant-numeric: tabular-nums;
 }
 
 :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
-div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed]:focus-visible {
+:is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]) > button[aria-pressed]:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
@@ -136,12 +136,12 @@ div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]
   :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
   button[role="tab"][id^="changes-lens-"]::after,
   :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
-  div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed] {
+  :is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]) > button[aria-pressed] {
     transition: none;
   }
 
   :where([data-dsh-native-tab-host], [data-dsh-better-sidebar])
-  div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"] > button[aria-pressed]:active:not(:disabled) {
+  :is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]) > button[aria-pressed]:active:not(:disabled) {
     transform: none;
   }
 }

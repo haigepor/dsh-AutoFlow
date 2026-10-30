@@ -27,15 +27,17 @@ export interface SegmentedTab<Value extends string = string> {
  * @param props.label - localized accessible name for the tab list.
  * @param props.className - layout placement; panels remain caller-owned.
  * @param props.variant - equal-width segments by default, or content-width tabs with an underline.
+ * @param props.size - `sm` draws 30px tabs with a 2px inset (34px tall); the default `md` draws 34px tabs with a 4px inset (42px tall).
  * @returns the tab list, without its panels.
  */
-export function SegmentedTabs<Value extends string>({ items, value, onChange, label, className, variant = 'segmented' }: {
+export function SegmentedTabs<Value extends string>({ items, value, onChange, label, className, variant = 'segmented', size = 'md' }: {
   items: readonly [SegmentedTab<Value>, ...SegmentedTab<Value>[]]
   value: Value
   onChange: (value: Value) => void
   label: string
   className?: string | undefined
   variant?: 'segmented' | 'underline' | undefined
+  size?: 'sm' | 'md' | undefined
 }): ReactNode {
   const selectedIndex = items.findIndex(item => item.value === value)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -89,6 +91,7 @@ export function SegmentedTabs<Value extends string>({ items, value, onChange, la
     <div
       ref={rootRef}
       role="tablist"
+      data-size={size}
       aria-label={label}
       className={clsx(css.tabs, variant === 'underline' && css.underline, className)}
       style={variant === 'segmented' ? { gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` } : undefined}
@@ -98,7 +101,7 @@ export function SegmentedTabs<Value extends string>({ items, value, onChange, la
         aria-hidden="true"
         style={variant === 'underline' && underline !== null
           ? { width: `${underline.width}px`, transform: `translateX(${underline.left}px)` }
-          : { width: `calc((100% - 8px) / ${items.length})`, transform: `translateX(${selectedIndex * 100}%)` }}
+          : { width: `calc((100% - 2 * var(--segmented-tabs-inset)) / ${items.length})`, transform: `translateX(${selectedIndex * 100}%)` }}
       />}
       {items.map((item, index) => (
         <Pill

@@ -14,6 +14,9 @@
   "ui-conversation/src/client/skeleton/InputBar.module.css": [
     ".card: border-radius: 22px"
   ],
+  "ui-conversation/src/client/skeleton/TodoPanel.module.css": [
+    ".root: border-radius: 24px"
+  ],
   "ui-deliverables/src/client/ChangedFiles.module.css": [
     ".card: border-radius: 18px"
   ],
@@ -69,7 +72,7 @@
     ".leading: border-radius: 10px"
   ],
   "ui-schedule/src/client/TaskManagerPage.module.css": [
-    ".newButton: border-radius: 16px",
+    ".headerAction: border-radius: 16px",
     ".filterTab: border-radius: 14px",
     ".searchField: border-radius: 12px",
     ".row: border-radius: 12px",
@@ -113,7 +116,6 @@
     ".empty: border-radius: 16px"
   ],
   "ui-settings-models/src/client/ModelsSection.module.css": [
-    ".detail: border-radius: 16px",
     ".rowCard: border-radius: 16px",
     ".addCard, .setupCard: border-radius: 16px",
     ".modelInputChoices .modelChoice input: border-radius: 5px"
@@ -128,9 +130,6 @@
     ".keyBadge: border-radius: 10px",
     ".unbound: border-radius: 10px",
     ".recorder: border-radius: 10px"
-  ],
-  "ui-sidebar-documentpreview/src/client/zoom/ZoomControls.module.css": [
-    ".panel: border-radius: 12px"
   ],
   "ui-sidebar-right/src/client/tabs/guide/GuideBody.module.css": [
     ".entry: border-radius: 24px"

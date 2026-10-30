@@ -7,7 +7,7 @@ import { chatRequest, ChatStream } from '../src/host/relay/chat.ts'
 import type { RelayConfig, RelayDependencies } from '../src/host/relay/types.ts'
 import type { ImageInput, ImageOwner, ImageTask } from '../src/host/images/types.ts'
 
-const config: RelayConfig = { host: '127.0.0.1', port: 0, gatewayKeys: [{ id: 'one', secret: 'gateway-key-one-123456' }, { id: 'two', secret: 'gateway-key-two-123456' }], allowedOrigins: [], maxRequestBytes: 1024 * 1024, maxResponseBytes: 1024 * 1024, requestTimeoutMs: 5000, imageWaitMs: 50, assetUrlTtlMs: 60000, maxConcurrentRequests: 8 }
+const config: RelayConfig = { host: '127.0.0.1', port: 0, gatewayKeys: [{ id: 'one', secret: 'gateway-key-one-123456' }, { id: 'two', secret: 'gateway-key-two-123456' }], allowedOrigins: [], maxRequestBytes: 1024 * 1024, maxResponseBytes: 1024 * 1024, requestTimeoutMs: 5000, imageWaitMs: 50, assetUrlTtlMs: 60000, maxConcurrentRequests: 8, maxSocketConnections: 4, maxSocketQueuedTurns: 2, maxSocketHistoryBytes: 1048576 }
 const authorization = { Authorization: `Bearer ${config.gatewayKeys[0]?.secret}`, 'Content-Type': 'application/json' }
 const terminal = { id: 'resp-a', model: 'codex-test', created_at: 1000, output: [{ type: 'message', content: [{ type: 'output_text', text: 'Hello' }] }, { type: 'function_call', id: 'fc-a', call_id: 'call-a', name: 'lookup', arguments: '{"q":"x"}' }], usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 } }
 const events = [{ type: 'response.created', response: { id: 'resp-a', model: 'codex-test' } }, { type: 'response.output_text.delta', delta: 'Hello' }, { type: 'response.output_item.added', item: { type: 'function_call', id: 'fc-a', call_id: 'call-a', name: 'lookup', arguments: '' } }, { type: 'response.function_call_arguments.delta', item_id: 'fc-a', delta: '{"q":"x"}' }, { type: 'response.completed', response: terminal }]
@@ -41,6 +41,21 @@ test('nonstream clients receive an explicit error when SSE ends without a termin
     const response = await fetch(`${relay.origin}/v1/responses`, { method: 'POST', headers: authorization, body: JSON.stringify({ model: 'x', input: [] }) })
     assert.equal(response.status, 502)
     assert.equal((await response.json()).error.code, 'incomplete_response')
+  } finally { await relay.close() }
+})
+
+test('raw streaming preserves partial bytes and marks EOF without completion as a failure', async () => {
+  const partial = 'event: response.output_text.delta\r\ndata: {"type":"response.output_text.delta","delta":"partial"}\r\n\r\n'
+  let calls = 0
+  const relay = await startRelay(config, { requestResponses: async () => { calls++; return new Response(partial) }, listModels: async () => [], images: unusedImages, readAsset: async () => { throw new Error('unused') } })
+  try {
+    const response = await fetch(`${relay.origin}/v1/responses`, { method: 'POST', headers: authorization, body: JSON.stringify({ model: 'x', input: [], stream: true }) })
+    const text = await response.text()
+    assert.ok(text.startsWith(partial))
+    assert.match(text, /"type":"error"/)
+    assert.match(text, /incomplete_response/)
+    assert.doesNotMatch(text, /response.completed/)
+    assert.equal(calls, 1)
   } finally { await relay.close() }
 })
 

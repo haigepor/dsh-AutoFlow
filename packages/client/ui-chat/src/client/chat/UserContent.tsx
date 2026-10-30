@@ -1,7 +1,7 @@
 /** Reusable user contents inside a caller-owned message row. */
 import { Fragment } from 'react'
 import type { FactoryComponentPropsOf } from '@deepseek-ai/dsh-client-ui-slots'
-import { Button, fileExtension, FileTypeIcon, fileSizeText, JsonBlock, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, fileExtension, FileTypeIcon, fileSizeText, JsonBlock, Tooltip, UserMessageBubble } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './MessageItem.module.css'
 
 const EMPTY_LABELS: readonly string[] = []
@@ -66,20 +66,20 @@ function renderContent(props: FactoryComponentPropsOf<'conversation.chat.user.co
         </div>
       )}
       {compactText && <Tooltip label={t('message.longText.open')} side="top">
-        <Button className={css.longTextCard} aria-label={t('message.longText.open')} onClick={() => openLongText(text)}>
+        <Button className={css.longTextCard} aria-label={t('message.longText.open')} onClick={() =>{  openLongText(text) }}>
           <FileTypeIcon path="message.txt" size={16} className={css.longTextCardIcon} />
           <span className={css.longTextCardLabel}>{text.trimStart().slice(0, 240).replace(/\s+/gu, ' ') || t('message.longText.title')}</span>
           <span className={css.longTextCardAction}>{t('message.longText.read')}</span>
         </Button>
       </Tooltip>}
-      {showBubble && <div className={css.bubble}>
-        {!compactText && (sessionImages && 'facts' in props
+      {showBubble && <UserMessageBubble className={css.bubble} data-message-bubble="" data-text-interaction-source="">
+        {!compactText && ('facts' in props
           ? renderFactorySlot('conversation.user.text', { text, facts: props.facts, interactive: props.interactive ?? false, ellipsis: props.ellipsis ?? false })
           : text)}
         {extraBlocks.map((block, index) => (
           <JsonBlock key={index} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />
         ))}
-      </div>}
+      </UserMessageBubble>}
       {referenceLabels.length > 0 && (
         <div className={css.referenceSummary}>
           {t('message.referenceSummary', { labels: referenceLabels.join(t('message.referenceSeparator')) })}

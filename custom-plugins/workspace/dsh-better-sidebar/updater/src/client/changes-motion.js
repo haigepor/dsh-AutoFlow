@@ -1,7 +1,7 @@
 /** Follow the existing file-change selection without changing its input handlers or layout. */
 const scope = ':where([data-dsh-native-tab-host], [data-dsh-better-sidebar])'
 const tabs = `${scope} [role="tablist"]:has(> button[id^="changes-lens-"])`
-const filters = `${scope} div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]:has(> button[aria-pressed])`
+const filters = `${scope} :is([data-dsh-changes-filters], div:has(> [role="tablist"] > button[id^="changes-lens-"]) + div > [role="group"]):has(> button[aria-pressed])`
 const properties = ['--dsh-changes-x', '--dsh-changes-y', '--dsh-changes-width', '--dsh-changes-height']
 
 /** Install measured selection indicators on containers opted in by customCss.

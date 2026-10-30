@@ -6,7 +6,8 @@ import { join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { runInNewContext } from 'node:vm'
-import { DEFAULT_PROFILE_BUNDLES, OPTIONAL_BUNDLES, PROFILE_TEMPLATES, composeEntries, initProfile, readPluginIcon, readProfileManifest } from '@deepseek-ai/dsh-app-boot'
+import { DEFAULT_PROFILE_BUNDLES, OPTIONAL_BUNDLES, PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles'
+import { composeEntries, initProfile, readPluginIcon, readProfileManifest } from '@deepseek-ai/dsh-app-boot'
 
 const directory = fileURLToPath(new URL('../', import.meta.url))
 const manifestSchema = z.object({

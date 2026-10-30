@@ -52,7 +52,8 @@ export class DeepSeekAdapter<C extends Connection = Connection> extends LlmAdapt
       throw new LlmError('Native web search is disabled for this model', 'UNSUPPORTED_OPTION')
     }
     const auth = await this.dependencies.resolveAuth(connection)
-    const body = { model: request.model, max_tokens: connection.models.find(model => model.id === request.model)?.maxTokens ?? connection.maxTokens,
+    const body = { model: request.model,
+      max_tokens: connection.models.find(model => model.id === request.model)?.maxTokens ?? connection.maxTokens,
       messages: [{ role: 'user', content: [{ type: 'text', text: `Perform a web search for the query: ${request.query}` }] }],
       tools: [{ type: 'web_search_20250305', name: 'web_search' }], thinking: { type: 'disabled' } }
     request.recordRequest({ api: 'deepseek-messages', body })

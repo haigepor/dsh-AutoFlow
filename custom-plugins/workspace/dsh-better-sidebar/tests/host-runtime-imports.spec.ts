@@ -61,7 +61,7 @@ describe('host runtime imports', () => {
 
   it('still imports the branded type it needs', () => {
     const source = readFileSync(resolve(SRC, 'sidechat-routes.ts'), 'utf8')
-    expect(source).toContain(`import type { SessionEvent, SessionId, SessionLogOffset } from '${TYPE_ONLY_PACKAGE}'`)
+    expect(source).toMatch(/import type \{[^}]*\bSessionLogOffset\b[^}]*\} from ['"]@deepseek-ai\/dsh-session['"]/u)
     // The cast carries the brand; the runtime stamp is what the host surface lacks.
     expect(source).toContain('inheritedEventCount: seed.length as SessionLogOffset')
   })

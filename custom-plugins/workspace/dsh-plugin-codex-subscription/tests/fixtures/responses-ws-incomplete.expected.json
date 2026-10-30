@@ -1,0 +1,4 @@
+[
+  { "type": "response.output_text.delta", "delta": "partial" },
+  { "type": "error", "status": 502, "error": { "type": "incomplete_response", "code": "incomplete_response", "message": "The upstream stream ended without a terminal response." } }
+]

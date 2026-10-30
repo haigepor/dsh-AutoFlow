@@ -11,9 +11,18 @@
  * outside `node_modules` and are transformed by default.
  */
 import { defineConfig } from 'vitest/config'
+import { fileURLToPath } from 'node:url'
+import tsconfigPaths from 'vite-tsconfig-paths'
+import { standardDecoratorPlugin } from '../../../vitest.shared.ts'
 
 export default defineConfig({
+  plugins: [
+    tsconfigPaths({ projects: [fileURLToPath(new URL('../../../tsconfig.base.json', import.meta.url))] }),
+    standardDecoratorPlugin(),
+  ],
   test: {
+    include: ['tests/**/*.spec.{ts,tsx}'],
+    maxWorkers: 2,
     // Bridge Node's `localStorage` accessor to jsdom's store (see the file).
     setupFiles: ['tests/setup.ts'],
     server: {
@@ -30,7 +39,15 @@ export default defineConfig({
     // pathological untracked set) — three different files, one cause. Raise
     // the default to cover them; the pty and PowerShell suites still declare
     // their own 30 s budgets, and a genuinely hung test still fails.
-    testTimeout: 15_000,
+    // 2026-10-12: raised 15s → 30s. The ubuntu `ci` lane runs the whole suite in
+    // parallel and a starved worker can burn the clock without hanging: three
+    // runs that day lost `tests/editor-host.spec.tsx` to its own 10s render
+    // budget, and a local run under heap pressure lost `tests/fs-watch.spec.ts`
+    // to THIS clock at exactly 15000ms (a real `fs.watch` + 150 ms debounce
+    // that takes ~1s idle). Both specs still fail on their own assertions when
+    // the behaviour is really broken — the extra runway only covers a stalled
+    // worker. A genuinely hung test still fails, 15s later than before.
+    testTimeout: 30_000,
     // The Playwright headless-render lane lives in tests/e2e (specs named
     // *.e2e.ts). Keep vitest from ever collecting it, both by naming (the
     // default include only matches *.test.* / *.spec.*) and by an explicit
@@ -38,9 +55,16 @@ export default defineConfig({
     // node_modules/dist/etc. excludes must be restated here.
     exclude: [
       'tests/e2e/**',
+      // 伴随包使用自己的 node:test 脚本，不由父包 Vitest 收集。
+      'updater/**',
       // Local dev worktrees (pnpm/DSH-style task branches) may carry stale
       // code against this checkout's node_modules — never collect them.
       '**/.worktrees/**',
+      // Same hazard, different directory: the DSH worktree lanes keep their
+      // checkouts under `.delta/`, which `.git/info/exclude` ignores but this
+      // list is the only thing vitest reads. Left out, `pnpm test` collects
+      // those stale copies and reports THEIR failures as ours.
+      '**/.delta/**',
       '**/node_modules/**',
       '**/dist/**',
       '**/cypress/**',

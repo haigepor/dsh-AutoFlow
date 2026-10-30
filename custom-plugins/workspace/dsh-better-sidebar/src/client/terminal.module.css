@@ -87,6 +87,9 @@
   background: var(--dsw-alias-bg-layer-1);
 }
 
+@media (hover: hover) {
+
 .action:hover {
   background: var(--dsw-alias-bg-l2);
+}
 }

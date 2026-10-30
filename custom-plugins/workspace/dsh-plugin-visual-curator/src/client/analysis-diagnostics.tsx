@@ -31,6 +31,12 @@ export function analysisContinuationHint(task: AnalysisTask, t: WorkbenchText): 
 
 /** @param failure Saved safe error fields. @param t Current locale. @returns Localized known failures, preserving only the Host's safe fallback. */
 export function analysisFailureSummary(failure: NonNullable<AnalysisRequest['error']>, t: WorkbenchText): string {
+  if (failure.code === 'capability-unavailable' && failure.stage === 'workflow') return t('analysisFailureUnknownCause')
+  if (failure.code === 'capability-unavailable') return t('analysisFailureCapability')
+  if (failure.code === 'remote-request-failed' || failure.code === 'remote-timeout') return t('analysisFailureNetwork')
+  if (failure.code === 'ATTACHMENT_WRITE_FAILED' || failure.code === 'ATTACHMENT_READ_FAILED') return t('analysisFailureAttachmentStore')
+  if (['TOO_MANY_IMAGES', 'IMAGES_TOO_LARGE', 'IMAGE_TOO_LARGE', 'IMAGE_TOO_MANY_PIXELS', 'IMAGE_DIMENSION_TOO_LARGE'].includes(failure.code)) return t('analysisFailureImageLimit')
+  if (failure.code.startsWith('ATTACHMENT_') || ['INVALID_IMAGE', 'INVALID_IMAGE_BASE64', 'IMAGE_TYPE_MISMATCH', 'UNSUPPORTED_IMAGE_TYPE', 'INVALID_ATTACHMENT_REF'].includes(failure.code)) return t('analysisFailureImage')
   return failure.code === 'request-timeout' ? t('analysisFailureTimeout') : failure.code === 'cancelled' ? t('analysisFailureInterrupted') : failure.code === 'vision-output-truncated' ? t('analysisTruncated') : failure.code === 'vision-invalid-output' ? t('analysisInvalidOutput') : failure.code === 'vision-context-compaction-failed' ? t('analysisCompactionFailed') : failure.safeMessage || t('analysisFailureUnknown')
 }
 

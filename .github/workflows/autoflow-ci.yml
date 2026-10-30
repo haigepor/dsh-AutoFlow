@@ -76,9 +76,9 @@ jobs:
           packages/client/ui-workspace/tests
           packages/client/ui-theme/tests packages/client/ui-settings-general/tests
           packages/client/ui-settings-models/tests packages/client/ui-plugin-manager/tests
-          custom-plugins/workspace/dsh-plugin-afp/tests
-          custom-plugins/workspace/dsh-better-sidebar/tests
           --maxWorkers=2
+      - name: Custom plugin regressions
+        run: pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 run test
       # These recorded Bash scenarios belong to the Linux/macOS lane.
       - name: Keyless text, tool call and retained format replay
         env:
@@ -113,3 +113,5 @@ jobs:
           packages/client/ui-theme/tests packages/client/ui-settings-general/tests
           --maxWorkers=2
       - run: pnpm run verify-cordis-config
+      - name: Custom plugin regressions
+        run: pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 run test

@@ -76,7 +76,9 @@
 .advancedToggle > svg { flex: none; }
 .advancedToggle > svg:last-child { margin-left: auto; }
 .advancedToggle[aria-expanded='true'] > svg:last-child { transform: rotate(90deg); }
-.page .layout .advancedToggle:hover, .page .layout .advancedToggle:active { background: transparent; color: var(--dsw-alias-label-primary); }
+.page .layout .advancedToggle:active { background: transparent; color: var(--dsw-alias-label-primary); }
+@media (hover: hover) {
+.page .layout .advancedToggle:hover { background: transparent; color: var(--dsw-alias-label-primary); } }
 .advancedMeta { margin-left: auto; color: var(--dsw-alias-label-secondary); font-size: 12px; text-align: right; }
 .advancedBody { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; }
 /* 操作栏随表单滚动保持可见，实色背景遮住经过下方的字段。 */
@@ -91,7 +93,7 @@
 .catalogActions > button { flex: none; }
 .catalogHeading { flex-wrap: wrap; }
 .compactTags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.tableScroll { min-width: 0; overflow-x: auto; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
+.tableScroll { min-width: 0; overflow-x: auto; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2); --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2); }
 .table { width: 100%; min-width: 680px; border-collapse: collapse; table-layout: fixed; color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 20px; text-align: left; }
 .table th { padding: 11px 16px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); font-size: 12px; font-weight: 400; white-space: nowrap; }
 .table th:first-child { width: 40%; }

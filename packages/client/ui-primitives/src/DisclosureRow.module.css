@@ -41,6 +41,12 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+  .row:hover {
+    color: var(--dsw-alias-label-secondary);
+  }
+}
+
 .leading {
   position: relative;
   flex: none;
@@ -83,12 +89,14 @@ button.leading {
   transition: opacity 100ms ease;
 }
 
-.row:hover .iconIdle {
-  opacity: 0;
-}
+@media (hover: hover) {
+  .row:hover .iconIdle {
+    opacity: 0;
+  }
 
-.row:hover .chevronHover {
-  opacity: 1;
+  .row:hover .chevronHover {
+    opacity: 1;
+  }
 }
 
 .title {
@@ -96,4 +104,7 @@ button.leading {
   font-size: var(--dsh-content-font-size-secondary, 13px);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
 }

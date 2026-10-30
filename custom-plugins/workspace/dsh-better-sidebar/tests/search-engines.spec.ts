@@ -11,7 +11,7 @@ import { fromAny } from '@total-typescript/shoehorn'
  * are what the dispatch depends on.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import type { ChildProcess } from 'node:child_process'
 import { PassThrough } from 'node:stream'
@@ -33,6 +33,7 @@ import {
   usableEngines,
 } from '../src/search-engines.ts'
 import type { EngineProbe } from '../src/search-engines.ts'
+import { removeTree } from './temp-tree.ts'
 
 const fdProbe: EngineProbe = { engine: 'fd', binary: '/fake/fd' }
 const rgProbe: EngineProbe = { engine: 'rg', binary: '/fake/rg' }
@@ -518,7 +519,7 @@ describe('real engines (only when installed)', () => {
       const literal = await searchFiles(dir, meta.query)
       expect(literal.matches).toEqual([meta.file])
     } finally {
-      rmSync(dir, { recursive: true, force: true })
+      removeTree(dir)
     }
   })
 })

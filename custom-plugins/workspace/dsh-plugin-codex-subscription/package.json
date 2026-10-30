@@ -1,12 +1,18 @@
 {
   "name": "dsh-plugin-codex-subscription",
   "version": "0.1.1",
-  "repository": { "type": "git", "url": "git+https://github.com/haigepor/dsh-AutoFlow.git", "directory": "custom-plugins/workspace/dsh-plugin-codex-subscription" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haigepor/dsh-AutoFlow.git",
+    "directory": "custom-plugins/workspace/dsh-plugin-codex-subscription"
+  },
   "description": "Codex subscription accounts, image tools, MCP and a local OpenAI-compatible relay for AutoFlow",
   "license": "MIT",
   "icon": "./icon.svg",
   "type": "module",
-  "engines": { "node": "^22.19.0 || >=24.0.0" },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
   "exports": {
     ".": "./index.js",
     "./tools": "./tools.js",
@@ -14,16 +20,54 @@
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
   },
-  "files": ["index.js", "tools.js", "client.js", "cordis.patch.yml", "icon.svg", "locale", "README.md", "README.zh.md", "THIRD_PARTY_NOTICES.md", "release.config.json", "release/README.md", "release/README.zh.md"],
+  "files": [
+    "index.js",
+    "tools.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale",
+    "README.md",
+    "README.zh.md",
+    "THIRD_PARTY_NOTICES.md",
+    "release.config.json",
+    "release/README.md",
+    "release/README.zh.md"
+  ],
   "dsh": {
-    "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-tool", "@deepseek-ai/dsh-client-ui-chat", "@deepseek-ai/dsh-client-ui-conversation", "@deepseek-ai/dsh-client-resources", "@deepseek-ai/dsh-client-locale"] },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-tool",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-resources",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    },
     "bundle": {
-      "update": { "provider": "github", "repository": "haigepor/dsh-AutoFlow", "tagPrefix": "codex-subscription-v", "metadataAsset": "codex-subscription-update.json" },
+      "update": {
+        "provider": "github",
+        "repository": "haigepor/dsh-AutoFlow",
+        "tagPrefix": "codex-subscription-v",
+        "metadataAsset": "codex-subscription-update.json"
+      },
       "patch": "./cordis.patch.yml",
       "features": [
-        { "id": "image-tools", "rowId": "codex-subscription-tools", "kind": "script", "defaultEnabled": true,
-          "title": { "en": "Image tools", "zh": "图片工具" },
-          "description": { "en": "Generate and edit images using the signed-in Codex account.", "zh": "使用已登录的 Codex 账号生成和编辑图片。" } }
+        {
+          "id": "image-tools",
+          "rowId": "codex-subscription-tools",
+          "kind": "script",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Image tools",
+            "zh": "图片工具"
+          },
+          "description": {
+            "en": "Generate and edit images using the signed-in Codex account.",
+            "zh": "使用已登录的 Codex 账号生成和编辑图片。"
+          }
+        }
       ]
     }
   },
@@ -108,6 +152,7 @@
     "@types/ws": "^8.18.1",
     "esbuild": "0.28.1",
     "tsx": "^4.23.13",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "@deepseek-ai/dsh-official-bundles": "workspace:*"
   }
 }

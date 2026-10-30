@@ -11,10 +11,11 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
-  /* Legacy fallback, then a row-relative cap that grants long names more
-     room without letting this trailing control consume the composer. */
-  max-width: 220px;
-  max-width: min(360px, 45cqw);
+  /* Preferred width: the composer measures this expanded seat against the
+     space the other controls leave, so the cap must not shrink with the row.
+     A row-relative cap would let the measured demand fall with the available
+     width, and the expanded text would then always fit. */
+  max-width: 360px;
   height: 28px;
   padding: 0 4px 0 8px;
   border: none;
@@ -29,8 +30,10 @@
   cursor: pointer;
 }
 
-.trigger:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
+@media (hover: hover) {
+  .trigger:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .trigger:focus-visible:not([data-selection-focus]) {
@@ -101,17 +104,10 @@
   max-height: min(360px, calc(100vh - 96px));
   overflow: hidden;
   padding: 4px;
-  /* MenuSurface supplies the shared material and elevation. */
+  /* Surface tokens match the Menu primitive card (ui-primitives
+   * Menu.module.css) so every dropdown reads as the same material. */
   border: 0;
   color: var(--dsw-alias-label-primary);
-  /* The model picker floats over the composer, so it uses a lighter variant
-     of the shared menu material.  Keeping this override local preserves the
-     denser surface used by command and context menus. */
-  --dsh-model-menu-surface: color-mix(in srgb, var(--dsw-alias-bg-layer-3) 62%, transparent);
-  --dsw-menu-surface-fill: var(--dsh-model-menu-surface);
-  --dsw-specific-menu: var(--dsh-model-menu-surface);
-  --dsh-model-option-selected: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, var(--dsh-model-menu-surface));
-  --dsh-model-option-selected-hover: color-mix(in srgb, var(--dsw-alias-state-business-primary) 20%, var(--dsh-model-menu-surface));
   /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens.
      Declared here rather than on the scrolling `.groups` child so the
      elevation choice sits with the surface; the custom properties inherit
@@ -119,20 +115,11 @@
      styles/scrollbar.css for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-}
-
-/* 分组背景铺满菜单；仅模型按钮保留两侧留白，避免标题扩宽滚动区域。 */
-.modelMenu {
-  box-sizing: border-box;
-  width: min(320px, calc(100vw - 32px));
-  padding-inline: 0;
-}
-
-.modelMenu > .status,
-.modelMenu > .empty,
-.modelMenu > .error,
-.modelMenu > .warning {
-  margin-inline: 4px;
+  --dsh-model-menu-surface: color-mix(in srgb, var(--dsw-alias-bg-layer-3) 62%, transparent);
+  --dsw-menu-surface-fill: var(--dsh-model-menu-surface);
+  --dsw-specific-menu: var(--dsh-model-menu-surface);
+  --dsh-model-option-selected: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, var(--dsh-model-menu-surface));
+  --dsh-model-option-selected-hover: color-mix(in srgb, var(--dsw-alias-state-business-primary) 20%, var(--dsh-model-menu-surface));
 }
 
 .status,
@@ -174,190 +161,6 @@
   cursor: pointer;
 }
 
-.groups {
-  box-sizing: border-box;
-  flex: 1 1 auto;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow-x: clip;
-  overflow-y: auto;
-}
-
-.groups > [data-menu-group] {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  gap: 4px;
-}
-
-.groups > [data-menu-group] + [data-menu-group] {
-  margin-top: 8px;
-}
-
-.groups [data-menu-group-heading] {
-  box-sizing: border-box;
-  position: sticky;
-  width: 100%;
-  top: 0;
-  z-index: 1;
-  padding: 4px 11px 2px;
-  overflow: hidden;
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.option {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-  min-width: 100%;
-  min-height: 34px;
-  padding: 5px 7px;
-  border: none;
-  border-radius: var(--dsw-radius-md);
-  outline: none;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.groups > [data-menu-group] > .option {
-  min-width: 0;
-  margin-inline: 4px;
-}
-
-.option:not(.modelOption):hover:not(:disabled),
-.option:focus-visible,
-.optionActive:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-/* Keep the selected value visible while the pointer or keyboard focus moves. */
-.option.selected {
-  background: var(--dsh-model-option-selected);
-}
-
-.option.selected:hover:not(:disabled),
-.option.selected:focus-visible {
-  background: var(--dsh-model-option-selected-hover);
-}
-
-/* Effort choices are direct children of the menu rather than a provider group. */
-.menu > .option + .option {
-  margin-top: 4px;
-}
-
-.selected .modelName,
-.selected .check {
-  color: var(--dsw-alias-state-business-primary);
-}
-
-.option:disabled {
-  color: var(--dsw-alias-label-dimmed);
-  cursor: default;
-}
-
-.optionCopy {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.modelName {
-  overflow: hidden;
-  color: inherit;
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.check {
-  display: grid;
-  place-items: center;
-  flex: 0 0 14px;
-  color: var(--dsw-alias-label-primary);
-}
-
-.check svg {
-  width: 14px;
-  height: 14px;
-}
-
-/* Two-level root cells use the same compact rhythm as the model rows. */
-.cell {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-  min-width: 100%;
-  height: 34px;
-  padding: 0 8px;
-  border: none;
-  border-radius: var(--dsw-radius-md);
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.cell:hover,
-.cell:focus-visible {
-  background: var(--dsw-alias-interactive-bg-hover);
-  outline: none;
-}
-
-.cellLabel {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.cellValue {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: right;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.cellChevron {
-  flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
-  color: var(--dsw-alias-menu-icon);
-}
-
-:global(body[data-ds-dark-theme]) .menu {
-  --dsh-model-option-selected: color-mix(in srgb, var(--dsw-alias-state-business-primary) 21%, var(--dsh-model-menu-surface));
-  --dsh-model-option-selected-hover: color-mix(in srgb, var(--dsw-alias-state-business-primary) 28%, var(--dsh-model-menu-surface));
-}
-
-/* Reduced-transparency browsers keep the same hierarchy with an opaque fill. */
-@supports not (backdrop-filter: blur(1px)) {
-  .menu {
-    --dsh-model-menu-surface: var(--dsw-alias-bg-layer-3);
-  }
-}
-
 .searchRow {
   position: relative;
   flex-shrink: 0;
@@ -396,10 +199,16 @@
   cursor: pointer;
 }
 
-.searchClear:hover,
 .searchClear:focus-visible {
   outline: none;
   background: var(--dsw-alias-interactive-bg-hover);
+}
+
+@media (hover: hover) {
+  .searchClear:hover {
+    outline: none;
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
 }
 
 .searchRow .search:focus-within {
@@ -414,6 +223,248 @@
 
 .searchRow .search input::placeholder {
   color: var(--dsw-alias-label-caption);
+}
+
+.groups {
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.option {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 100%;
+  min-height: 34px;
+  padding: 5px 7px;
+  border: none;
+  border-radius: var(--dsw-radius-md);
+  outline: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option:focus-visible,
+.optionActive:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.modelOption {
+  max-width: 100%;
+}
+
+@media (hover: hover) {
+  .option:not(.modelOption):hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+/* Selection marker is the trailing check, not a fill — matches the Menu
+ * primitive's selected treatment. */
+
+.option:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+
+.optionCopy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.modelName {
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.badgedName {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 4px;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.badgedNameText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  flex: none;
+}
+
+.check {
+  display: grid;
+  place-items: center;
+  flex: 0 0 14px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.check svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Two-level root cells use the same compact rhythm as the model rows. */
+.cell {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cell:focus-visible {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+@media (hover: hover) {
+  .cell:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.cellLabel {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.cellValue {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.cellChevron {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  color: var(--dsw-alias-menu-icon);
+}
+.modelMenu {
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 32px));
+  padding-inline: 0;
+}
+
+.modelMenu > .status,
+.modelMenu > .empty,
+.modelMenu > .error,
+.modelMenu > .warning {
+  margin-inline: 4px;
+}
+
+.groups > [data-menu-group] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+}
+
+.groups > [data-menu-group] + [data-menu-group] {
+  margin-top: 8px;
+}
+
+.groups [data-menu-group-heading] {
+  box-sizing: border-box;
+  position: sticky;
+  width: 100%;
+  top: 0;
+  z-index: 1;
+  padding: 4px 11px 2px;
+  overflow: hidden;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groups > [data-menu-group] > .option {
+  min-width: 0;
+  margin-inline: 4px;
+}
+.option.selected {
+  background: var(--dsh-model-option-selected);
+}
+
+.option.selected:focus-visible {
+  background: var(--dsh-model-option-selected-hover);
+}
+
+@media (hover: hover) {
+
+.option.selected:hover:not(:disabled) {
+  background: var(--dsh-model-option-selected-hover);
+}
+}
+.menu > .option + .option {
+  margin-top: 4px;
+}
+
+.selected .modelName,
+.selected .check {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.cell:focus-visible {
+  outline: none;
+}
+
+@media (hover: hover) {
+
+.cell:hover {
+  outline: none;
+}
+}
+
+:global(body[data-ds-dark-theme]) .menu {
+  --dsh-model-option-selected: color-mix(in srgb, var(--dsw-alias-state-business-primary) 21%, var(--dsh-model-menu-surface));
+  --dsh-model-option-selected-hover: color-mix(in srgb, var(--dsw-alias-state-business-primary) 28%, var(--dsh-model-menu-surface));
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .menu {
+    --dsh-model-menu-surface: var(--dsw-alias-bg-layer-3);
+  }
 }
 
 .groups [data-menu-group-heading][data-stuck] {

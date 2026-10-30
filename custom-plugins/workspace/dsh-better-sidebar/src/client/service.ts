@@ -313,9 +313,26 @@ export interface FileViewerProps {
    *  positions the reader there once, on arrival; every other viewer ignores
    *  it. Absent on an ordinary open. */
   line?: number
-  /** fsRead text content (fetchStrategy='fsRead'). */
+  /** The viewer reports that it has APPLIED the `line` it was handed (or that
+   *  the line does not apply to it), and the host stops handing it out: the
+   *  line is one navigation, not a mode of the file. The host has to own that
+   *  memory — a reload remounts the viewer, so a viewer that only remembers
+   *  the line inside itself would receive it again after every refresh (for
+   *  markdown/html that means re-forcing the editor open, and the reader could
+   *  never return to preview). Optional: absent means "keep handing it out". */
+  onLineConsumed?: () => void
+  /** fsRead text content (fetchStrategy='fsRead'). Absent when the file is
+   *  above the editable threshold — see {@link largeFile}. */
   content?: string
-  truncated?: boolean
+  /** The file's size in bytes, as the host measured it for this read. */
+  size?: number
+  /**
+   * Present when the host refused to hand the document over because the file
+   * exceeds the editable threshold. The viewer renders a read-only paged
+   * preview instead of an editor: CodeMirror has to hold the whole document in
+   * the browser, which is exactly what a file this size makes impossible.
+   */
+  largeFile?: { size: number }
   /** Last-modified time (ms) of the loaded bytes — the built-in text editor's
    *  save baseline (a file that changed on disk since refuses the write).
    *  Absent for viewers/loads that carry no baseline. */
@@ -329,6 +346,10 @@ export interface FileViewerProps {
    *  fed through the two callbacks below. Viewers that ignore these fields
    *  render exactly as before. */
   toolbar?: 'self' | 'host'
+  /** Internal: whether this tab is the ACTIVE one with its panel open. Native
+   *  tabs stay mounted while parked, so an over-limit preview must know to
+   *  stop reading pages for a tab nobody is looking at. Absent = visible. */
+  visible?: boolean
   /** Internal: the viewer reports its toolbar state (mode/dirty/save). */
   onToolbarState?: (state: EditorToolbarState) => void
   /** Internal: the viewer registers its toolbar commands on mount (null on
@@ -340,16 +361,17 @@ export interface FileViewerProps {
 
 /** The toolbar state a text editor reports to the host's merged-mode header. */
 export interface EditorToolbarState {
-  /** Whether the preview/edit mode toggle applies (markdown/html). */
+  /** Whether the preview/edit mode toggle applies (markdown / html / jsonl). */
   modes: boolean
   mode: 'preview' | 'edit'
   dirty: boolean
-  /** Whether saving applies (text content loaded). */
+  /** Whether saving applies (an editable document was loaded). */
   editable: boolean
-  /** Whether the loaded text was truncated at readLimit — the editor is
-   *  read-only and saving is disabled (issue #732: saving partial content
-   *  would overwrite and destroy the tail of the file). */
-  truncated?: boolean
+  /** Whether the viewer is showing the read-only paged preview for an
+   *  over-limit file. Nothing can be edited or saved in that state, so the
+   *  header drops the save button and the viewer's own notice carries the
+   *  size and the download escape hatch. */
+  largeFile?: boolean
   saveState: 'idle' | 'saving' | 'saved' | 'failed'
 }
 
@@ -459,6 +481,17 @@ export interface OpenTabSeed {
   path?: string
   /** A diff reference (the diff tab's content seed). */
   diff?: SidebarTab['diff']
+  /**
+   * The 1-based line a file reference named, for the `editor` kind (`#826`).
+   * Transient like the record's own `line`: it rides the open as a navigation
+   * the editor applies once (leaving preview, which renders no source lines)
+   * and the record forgets it right after.
+   *
+   * It is applied on a CREATE and on a native re-navigation; a store-branch
+   * FOCUS of an already-open tab (a host with no native surface) keeps the tab
+   * as it is — the same limitation the `diff` seed has.
+   */
+  line?: SidebarTab['line']
   /** Explicit tab id (defaults to the type). */
   id?: string
   /** A URL the tab navigates to on mount (the browser tab's seed). */
@@ -509,6 +542,33 @@ export interface NativeTabParams {
 }
 
 /**
+ * One native tab that carries a file path, as {@link SidebarSurface.pathTabs}
+ * reports it. The right column's records live in the native adapter and are
+ * invisible to the store, so this is the only handle on its open files.
+ */
+export interface NativePathTab {
+  /** The SEAT session the tab is drawn in (native tab ids restart per session,
+   *  so this is what tells two same-numbered tabs apart). */
+  sessionId: string
+  /** The session the tab's CONTENT belongs to — the `scope.sessionId` its
+   *  editor runs with. */
+  scopeSessionId: string
+  /** That session's workspace root, for resolving `path` when the address
+   *  stored it workspace-relative (a chat link does). */
+  cwd: string | undefined
+  /** The native tab id. */
+  id: string
+  /** The path the tab is bound to — a file path, or a browser tab's address
+   *  (a url seed is stored on the same field). */
+  path: string
+  /** The chip's current title. The rename reconciliation reads it to tell a
+   *  title the tree DERIVED from the file name (the basename it wrote on open)
+   *  from one its author chose — a model-driven open names its own title, and
+   *  that is not the tree's to rewrite. */
+  title: string
+}
+
+/**
  * The plugin's write face over DSH's native right Sidebar.
  *
  * Installed by the client half ({@link ./native/surface.ts}) so the service —
@@ -532,6 +592,13 @@ export interface SidebarSurface {
    * itself, and a tab id is not a type.
    */
   tabTypeOf?(sessionId: string, tabId: string): string | undefined
+  /**
+   * Every native tab bound to a path. The file tree's rename/delete
+   * reconciliation walks BOTH tab spaces — the bottom workbench's splits come
+   * from the store, and the right column exists only here. A surface that
+   * cannot enumerate them omits this.
+   */
+  pathTabs?(): NativePathTab[]
   /** Close one native tab; the closed record's type/title/meta, or undefined when the id is not native. */
   close(sessionId: string, tabId: string): { type: string; title: string; meta?: unknown } | undefined
   /**
@@ -642,6 +709,11 @@ export interface BetterSidebarService {
    * strict no-op (no state churn, no callbacks). `scope` (v0.12.0+) rides
    * to the callback (its optional cwd included); absent, the callback gets
    * `{ sessionId }` of the active session.
+   *
+   * v0.26.0+: a scope naming a session that is **not the one on screen** closes
+   * the row in THAT session's layout through the targeted channel (no publish,
+   * no notify), which is how the file tree's delete reconciliation reaches a
+   * background conversation's pages. Without a scope nothing changes.
    */
   closeTab(tabId: string, scope?: SessionScope): void
   /** Subscribe to registry changes (register/dispose). */
@@ -664,11 +736,22 @@ export interface BetterSidebarService {
   /** Subscribe to snapshot changes (session switch, state changes, prefs changes). Returns the disposer. */
   subscribeState(listener: () => void): () => void
   /**
-   * Update an open tab's display fields (title / path / meta); a missing tab id
-   * is a no-op. `sessionId` names the seat session the tab lives in — native
-   * ids restart per session and several sessions' tabs stay mounted at once,
-   * so a component that knows its scope should pass it; omitted, a native id
-   * resolves against the mounted seat.
+   * Update the display fields of one open tab (title / path / meta) without
+   * re-opening it; a missing tab id is a no-op. `sessionId` names the seat
+   * session the tab lives in — native ids restart per session and several
+   * sessions' tabs stay mounted at once, so a component that knows its scope
+   * should pass it; omitted, a native id resolves against the mounted seat.
+   * A **path change is a new open**: the transient landing line a reference
+   * carried (#826) is dropped with it, because that line belongs to the
+   * navigation that delivered the file — an in-place switch or a rename that
+   * kept it would send the next file to the previous file's line.
+   *
+   * v0.26.0+: a `sessionId` that is **not the session on screen** patches that
+   * session's own layout through the targeted channel (no publish, no notify —
+   * the same route a targeted `openTab(seed, scope)` takes), so the file tree's
+   * rename reconciliation reaches a background conversation's pages instead of
+   * resolving them against the active session. The active session keeps the
+   * publishing path, and an omitted `sessionId` behaves exactly as before.
    */
   updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }, sessionId?: string): void
   /**
@@ -707,6 +790,13 @@ export interface BetterSidebarService {
    * @internal Called once by the client half; not part of the consumer API.
    */
   setSurface(surface: SidebarSurface | undefined): void
+  /**
+   * Every native tab bound to a path (empty when no native surface is
+   * installed).
+   * @internal The file tree's rename/delete reconciliation; not part of the
+   * consumer API.
+   */
+  nativePathTabs(): NativePathTab[]
 }
 
 /** The file name of a path (both separators). */
@@ -746,7 +836,7 @@ export function matchUrlTarget(tabs: readonly TabDescriptor[], url: URL): TabDes
  * The plugin version this service instance reports. Keep in lockstep with
  * `package.json`'s version — `tests/service.spec.ts` asserts the pair.
  */
-export const SIDEBAR_SERVICE_VERSION = '0.25.0'
+export const SIDEBAR_SERVICE_VERSION = '0.28.2'
 
 /**
  * Monotonic capability list consumers use to gate new API usage (features
@@ -1071,6 +1161,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
         title,
         ...(componentPath === undefined ? {} : { path: componentPath }),
         ...(seed.diff === undefined ? {} : { diff: seed.diff }),
+        ...(seed.line === undefined ? {} : { line: seed.line }),
         ...(seed.meta === undefined && minted?.tab.meta === undefined ? {} : { meta: seed.meta ?? minted?.tab.meta }),
       }
       if (seed.type === 'editor') {
@@ -1086,6 +1177,9 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
             sessionId: targetSessionId,
             address: surface.fileAddress(targetSessionId, scope?.cwd, seed.path),
             revealIfOpened: reveal,
+            // The reference's landing line, when the open came from one
+            // (`a.c#L131` — #826). Transient: the record spends it on arrival.
+            ...(seed.line === undefined ? {} : { line: seed.line }),
             ...(side ? { preferNewPane: true } : {}),
           })
         } else {
@@ -1147,6 +1241,9 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
           title: seed.title ?? (typeof descriptor.title === 'function' ? descriptor.title() : descriptor.title),
           ...(seed.path !== undefined ? { path: seed.path } : {}),
           ...(seed.diff !== undefined ? { diff: seed.diff } : {}),
+          // The landing line, when this open came from a file reference
+          // (`a.c#L131` — #826); the editor spends it on arrival.
+          ...(seed.line !== undefined ? { line: seed.line } : {}),
           ...(seed.meta !== undefined ? { meta: seed.meta } : {}),
         }
         next = applyDedupe(state, tab, descriptor, land)
@@ -1210,6 +1307,23 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
     else if (activated !== undefined) safeCall(() => descriptor.onActivate?.(activated!, callbackScope))
   }
 
+  /**
+   * Apply a store mutation in the session it names.
+   *
+   * A session that is not on screen takes the TARGETED channel (`reduceFor`),
+   * the same one a targeted `openTab(seed, scope)` uses: it writes that
+   * session's own state and persists it without touching the published
+   * snapshot. The publishing channel cannot stand in for it — the row is not in
+   * the ACTIVE session's tree, so the reduce is a silent no-op at best, and
+   * patching a same-numbered row of the active session is the other possible
+   * outcome. The active session keeps the publishing path so the shell
+   * re-renders with the new title/path.
+   */
+  const reduceInSession = (sessionId: string, reducer: (state: SidebarState) => SidebarState): void => {
+    if (sessionId === store.getSnapshot().sessionId) store.reduce(reducer)
+    else store.reduceFor(sessionId, reducer)
+  }
+
   const closeTab = (tabId: string, scope?: SessionScope): void => {
     const sessionId = scope?.sessionId ?? store.getSnapshot().sessionId
     if (surface !== undefined && sessionId !== undefined) {
@@ -1231,7 +1345,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
       }
     }
     let closed: SidebarTab | undefined
-    store.reduce((state) => {
+    const closeOne = (state: SidebarState): SidebarState => {
       // Unknown tab ids are a strict no-op: no state churn, no notify, no
       // pointless localStorage rewrite (mirrors updateTab's short-circuit).
       if (!tabOpenIn(state, tabId)) return state
@@ -1239,7 +1353,11 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
       const leaf = leafWithTab(state.bottomSplits, tabId)
       closed = leaf?.tabs.find(tab => tab.id === tabId)
       return closeTabReducer(state, paneId, tabId)
-    })
+    }
+    // The row lives in ITS session's tree: an explicit scope that is not on
+    // screen has to close it there (see `reduceInSession`).
+    if (sessionId === undefined) store.reduce(closeOne)
+    else reduceInSession(sessionId, closeOne)
     if (closed !== undefined) {
       const sessionId = scope?.sessionId ?? store.getSnapshot().sessionId
       if (sessionId !== undefined) {
@@ -1263,11 +1381,17 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
     sessionId?: string,
   ): void => {
     if (surface?.update(tabId, patch, sessionId) === true) return
-    store.reduce((state) => patchTab(state, tabId, {
+    const patchOne = (state: SidebarState): SidebarState => patchTab(state, tabId, {
       ...(patch.title !== undefined ? { title: patch.title } : {}),
       ...(patch.path !== undefined ? { path: patch.path } : {}),
       ...(patch.meta !== undefined ? { meta: patch.meta } : {}),
-    }))
+    })
+    // A named session that is not on screen is patched in ITS own state (a
+    // background conversation's file page under a rename — see
+    // `reduceInSession`); without one the current session keeps the publishing
+    // path it always had.
+    if (sessionId === undefined) store.reduce(patchOne)
+    else reduceInSession(sessionId, patchOne)
   }
 
   /** Activate an open tab (the tab-bar activation path; fires onActivate). */
@@ -1347,6 +1471,7 @@ export function createBetterSidebarService(store: SidebarStore): BetterSidebarSe
     openFile,
     hostRouteUrl: (path: string): string => resolveHostRoute(path).href,
     setSurface: (next: SidebarSurface | undefined) => { surface = next },
+    nativePathTabs: () => surface?.pathTabs?.() ?? [],
     clearUnread: clearUnreadFor,
   }
 }

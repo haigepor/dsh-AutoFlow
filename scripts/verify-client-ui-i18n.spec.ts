@@ -56,6 +56,17 @@ describe('Client UI i18n source check', () => {
     `)).toEqual([])
   })
 
+  it('accepts package-qualified registration identifiers without exempting visible copy', () => {
+    expect(messages(`
+      export const LONG_MESSAGE_ID = '@deepseek-ai/dsh-client-ui-chat/long-message'
+      const statusMessageId = '@example/plugin/status'
+      const TEMPLATE_MESSAGE_ID = ` + '`@example/plugin/template`' + `
+      const LONG_MESSAGE_LABEL = 'Read full message'
+      const OTHER_MESSAGE_ID = 'Read another message'
+      const View = () => <div title="@example/plugin/title">@example/plugin/content</div>
+    `)).toEqual(['Read full message', 'Read another message', '@example/plugin/title', '@example/plugin/content'])
+  })
+
   it('does not inspect locale dictionary owners', () => {
     expect(findUiI18nViolations(
       'packages/client/ui-example/src/client/locales.ts',
