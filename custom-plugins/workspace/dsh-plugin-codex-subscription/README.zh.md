@@ -107,7 +107,7 @@ Plus、Pro 和 Business 共用 OAuth 和动态发现，套餐名不代表固定�
 <details>
 <summary>实现细节</summary>
 
-[plugin.ts](src/host/plugin.ts) 注册账号、模型、发现和已认证管理能力。内部模型调用复用 `PiAiAdapter`，其 SSE 消费方与外部 Responses 共用 [upstream.ts](src/host/upstream.ts)。仅发往固定 Codex Responses 地址的流式 POST 使用 WebSocket，图片 REST 和 OAuth 调用保留 HTTP。[ImageService](src/host/images/service.ts) 为原生工具、MCP 和 Images 路由提供统一持久任务服务。
+[plugin.ts](src/host/plugin.ts) 注册账号、模型、发现和已认证管理能力。内部模型调用复用 `PiAiAdapter`，其 SSE 消费方与外部 Responses 共用 [upstream.ts](src/host/upstream.ts)。pi-ai 依赖必须与 Harness 适配器使用同一版本，二者共享流实例与会话类型。仅发往固定 Codex Responses 地址的流式 POST 使用 WebSocket，图片 REST 和 OAuth 调用保留 HTTP。[ImageService](src/host/images/service.ts) 为原生工具、MCP 和 Images 路由提供统一持久任务服务。
 
 WebSocket 使用 `responses_websockets=2026-02-06` 握手并发送 `response.create`。turn-state／Lite 请求头进入 `client_metadata`，前导 metadata 和额度事件转换成安全响应头。握手被拒、连接数限制及响应发布前断线会降级为原始 HTTP 请求体。不支持的主机和 1009 消息大小分别记忆；握手的 401、429 或服务端错误不禁用下一次 WS 尝试。发布响应后的流错误不会触发 HTTP 重放。取消及卸载关闭连接、定时器和自有代理 agent，代理路由沿用 Host 启动器的策略。
 

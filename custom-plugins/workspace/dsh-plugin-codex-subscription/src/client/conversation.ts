@@ -1,7 +1,7 @@
 /** Logged image calls receive an independent Chat node outside process folding. */
 import type { ConversationMatch, ConversationNodeContext, ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatNode } from '@deepseek-ai/dsh-client-ui-chat/client'
-import type {} from '@deepseek-ai/dsh-tools/types'
+import type {} from '@deepseek-ai/dsh-tool-executor-ptc/types'
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import { z } from 'zod'
 import type { ImageViewTask } from '../shared/image-view.ts'
