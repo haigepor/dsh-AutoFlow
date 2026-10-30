@@ -107,6 +107,8 @@ describe('read-only Git graph', () => {
       ...Array.from({ length: 5001 }, (_, i) => `create refs/tags/release-${String(i).padStart(4, '0')} ${head}`),
     ].join('\n') + '\n'
     execFileSync('git', ['-C', dir, 'update-ref', '--stdin'], { input: refs, env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1' } })
+    // 大容量夹具使用 Git 的 packed refs，避免 Windows 清理数千个小文件超出钩子预算。
+    git(dir, 'pack-refs', '--all', '--prune')
     const graph = await gitGraph(dir)
     expect(graph.branches).toHaveLength(1000)
     const decorations = graph.entries[0]!.refs
