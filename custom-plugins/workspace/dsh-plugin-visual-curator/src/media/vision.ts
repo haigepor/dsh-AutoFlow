@@ -25,13 +25,15 @@ export const visionAnalysisSchema = analysisSchema
 const analysisResponseSchema = analysisSchema.extend({ observations: z.array(analysisSchema.shape.observations.element.extend({
   dimensions: z.array(analysisSchema.shape.observations.element.shape.dimensions.element.extend({ uncertain: z.boolean().default(true) })).min(1).refine(rows => new Set(rows.map(row => row.dimension)).size === rows.length),
 })) })
+// 检查点沿用原字段；本阶段没有请求规则，空列表不表示模型生成过规则。
+const observationResponseSchema = analysisResponseSchema.pick({ observations: true }).transform(result => ({ ...result, suggestedRules: [] }))
 
 /** Validate a response against the exact requested images; omitted uncertainty remains explicit uncertainty.
- * @param raw Complete model JSON. @param imageIds Exact admitted image identities. @returns Canonical observations with validated evidence.
+ * @param raw Complete model JSON. @param imageIds Exact admitted image identities. @param analysisOutput Observation-only profile stage, absent for legacy or standalone analysis. @returns Canonical observations with validated evidence and no proposed rules for the observation-only stage.
  */
-export function decodeVisionAnalysis(raw: unknown, imageIds: readonly string[]): VisionAnalysis {
+export function decodeVisionAnalysis(raw: unknown, imageIds: readonly string[], analysisOutput?: VisionInput['analysisOutput']): VisionAnalysis {
   const rejected = (issues: string[], retryable = true) => new MediaError('vision-invalid-output', 'reviewing', retryable, 'The vision service returned invalid or incomplete structured output.', 'Continue from saved observations after checking the response fields.', { modelOutput: raw, issues })
-  const parsed = analysisResponseSchema.safeParse(raw)
+  const parsed = (analysisOutput === 'observations-only' ? observationResponseSchema : analysisResponseSchema).safeParse(raw)
   if (!parsed.success) throw rejected(parsed.error.issues.map(issue => `${issue.code}:${issue.path.join('.')}`))
   const result = parsed.data, images = new Set(imageIds)
   if (result.observations.length !== images.size || new Set(result.observations.map(row => row.imageVersionId)).size !== images.size
@@ -66,7 +68,7 @@ export type VisionImage = { imageVersionId: string; digest: string; mime: string
 /** Fields read by the visual reviewer; all other rule data remains part of the textual snapshot. */
 export interface VisionRule { ruleId: string; statement: string; dimension: string; strength: 'required' | 'preferred' | 'reference-only'; stage: 'source' | 'final' }
 /** Snapshot input; optional usage/protectedContent are omitted when that operation does not use them. */
-export interface VisionInput { promptVersion?: 'visual-curator-rules-v2' | 'visual-curator-reference-v2'; requestId: string; taskBrief: string; rules: readonly VisionRule[]; images: readonly VisionImage[]; stage?: 'source' | 'final'; usage?: unknown; protectedContent?: readonly string[]; maxCropCandidates?: number }
+export interface VisionInput { promptVersion?: 'visual-curator-rules-v2' | 'visual-curator-reference-v2'; analysisOutput?: 'observations-only'; requestId: string; taskBrief: string; rules: readonly VisionRule[]; images: readonly VisionImage[]; stage?: 'source' | 'final'; usage?: unknown; protectedContent?: readonly string[]; maxCropCandidates?: number }
 /** Exact textual messages and saved image identities, sufficient to rebuild the transmitted body. */
 export interface VisionRequestDescriptor {
   requestId: string
@@ -125,8 +127,8 @@ export abstract class StructuredVisionProvider {
     if (operation === 'review' && input.stage === undefined) throw invalidInput('A review must declare source or final stage.')
     if (operation === 'propose-crop' && (!Number.isSafeInteger(input.maxCropCandidates) || input.maxCropCandidates === undefined || input.maxCropCandidates <= 0)) throw invalidInput('Crop proposals require an explicit positive candidate limit.')
     const images = input.images.map(({ imageVersionId, digest, mime, role, remoteSource }) => ({ imageVersionId, digest, mime, role, ...(remoteSource ? { remoteUrl: remoteSource.url } : {}) }))
-    const payload = { operation, taskBrief: input.taskBrief, stage: input.stage, rules: input.rules, usage: input.usage, protectedContent: input.protectedContent, maxCropCandidates: input.maxCropCandidates, images, requestId: input.requestId }
-    const schema = operation === 'review' ? reviewSchema : operation === 'analyze' ? analysisSchema : operation === 'summarize' ? styleSummarySchema : cropSchema
+    const payload = { operation, taskBrief: input.taskBrief, stage: input.stage, rules: input.rules, usage: input.usage, protectedContent: input.protectedContent, maxCropCandidates: input.maxCropCandidates, ...(input.analysisOutput ? { analysisOutput: input.analysisOutput } : {}), images, requestId: input.requestId }
+    const schema = operation === 'review' ? reviewSchema : operation === 'analyze' ? input.analysisOutput === 'observations-only' ? analysisSchema.pick({ observations: true }) : analysisSchema : operation === 'summarize' ? styleSummarySchema : cropSchema
     return {
       requestId: input.requestId, operation, model: this.config.model, declaredModelVersion: this.config.declaredModelVersion ?? null,
       replayLimitation: [this.config.declaredModelVersion === undefined ? 'The provider has not declared a fixed model version; deterministic model replay is unavailable.' : '', input.images.some(image => image.remoteSource) ? 'Remote URLs identify provider references, not verified pixel bytes; their content and vendor-side download cost cannot be pinned or measured by this Host.' : ''].filter(Boolean).join(' ') || null,
@@ -137,13 +139,13 @@ export abstract class StructuredVisionProvider {
     }
   }
 
-  /** Analyze actual reference images and propose unconfirmed rules.
+  /** Analyze actual reference images; profile observation stages defer rule proposals to summarization.
    * @param input Saved draft/reference snapshot with actual pixels.
    * @param bounds Reserved single-attempt limits and cancellation.
    * @returns Strict observations and suggestions, never measured facts or confirmed rules.
    */
   async analyze(input: VisionInput, bounds: VisionBounds): Promise<VisionAnalysis> {
-    return decodeVisionAnalysis(await this.invoke(input, 'analyze', bounds), input.images.map(image => image.imageVersionId))
+    return decodeVisionAnalysis(await this.invoke(input, 'analyze', bounds), input.images.map(image => image.imageVersionId), input.analysisOutput)
   }
 
   /** Aggregate the complete observation matrix with bounded reference pixels, without inventing human labels.

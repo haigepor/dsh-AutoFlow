@@ -80,10 +80,15 @@ export class CuratorDomain {
       throw error
     }
   }
+  /** @param actor Host-created identity. @returns Authorized current feedback heads without projecting unrelated workspace records. */
+  currentFeedback(actor: DomainActor): HumanFeedback[] {
+    this.assertActor(actor)
+    return this.repository.list('feedbackThread').map(thread => this.require('feedback', thread.headFeedbackId)).filter(feedback => this.canReadFeedback(feedback, actor))
+  }
   /** @param actor Host-created identity. @returns Only authorized committed records. */
   snapshot(actor: DomainActor): CuratorSnapshot {
     this.assertActor(actor)
-    const feedback = this.repository.list('feedbackThread').map(thread => this.require('feedback', thread.headFeedbackId)).filter(f => this.canReadFeedback(f, actor))
+    const feedback = this.currentFeedback(actor)
     return { styles: this.repository.list('style'), drafts: this.repository.list('draft'), references: this.repository.list('reference').filter(r => this.canReadImage(r.imageVersionId, actor)), usages: this.repository.list('usage'), feedback, candidates: this.repository.list('candidate'), releases: this.repository.list('release'), suggestions: this.repository.list('suggestion').filter(s => (s.access?.kind !== 'session-run' || s.access.sessionId === actor.sessionId) && (s.context?.runId === undefined || this.canReadRun(s.context.runId, actor))), splits: this.repository.list('split'), evaluations: this.repository.list('evaluation').filter(e => e.items.every(i => this.canReadImage(i.imageVersionId, actor))), exports: this.repository.list('export').filter(e => (e.access.kind !== 'session-run' || e.access.sessionId === actor.sessionId) && e.resources.every(r => this.canReadImage(r.imageVersionId, actor))), recipes: this.repository.list('recipe') }
   }
   /** @param kind Record tag. @param id Committed ID. @returns Record or a safe missing-reference error. */
@@ -115,18 +120,22 @@ export class CuratorDomain {
     if (release.styleId !== styleId || !style.committedReleaseIds.includes(release.id)) throw new CuratorError('owner-denied', 'resolve', 'The release belongs to another style.')
     return release
   }
-  /** @param release Fixed standard. @param actor Host-created identity. @param options Owning cancellation and accepted search identity. @returns Completion after every reference is verified. */
-  async verifyRelease(release: StyleStandard, actor: DomainActor, options: { signal?: AbortSignal; acceptedLaunchId?: string } = {}): Promise<void> {
+  /** @param release Fixed standard. @param actor Host-created identity. @param options Owning cancellation and completed-reference observer. @returns Completion after every reference is verified. */
+  async verifyRelease(release: StyleStandard, actor: DomainActor, options: { signal?: AbortSignal; acceptedLaunchId?: string; verified?(completed: number, total: number): Promise<void> } = {}): Promise<void> {
     options.signal?.throwIfAborted()
     if (release.kind === 'modelProfile') {
       const profiles = new ModelProfiles(this)
       if (options.acceptedLaunchId) profiles.authorizeAccepted(release, actor, options.acceptedLaunchId)
       else profiles.assertFresh(release, actor)
     }
+    let completed = 0
     for (const ref of release.references) {
+      options.signal?.throwIfAborted()
       const { image } = this.authorizedImage(ref.reference.imageVersionId, actor)
       if (image.blob.digest !== ref.imageDigest) throw new CuratorError('reference-unavailable', 'resolve', 'A fixed reference digest does not match.')
       await this.verifyImage(image)
+      options.signal?.throwIfAborted()
+      await options.verified?.(++completed, release.references.length)
     }
   }
   async createStyle(input: z.infer<typeof styleCreateSchema>, actor: DomainActor): Promise<Style> {

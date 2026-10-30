@@ -288,6 +288,7 @@ describe('client build environment', () => {
 
     for (const artifact of [
       'custom-plugins/workspace/dsh-plugin-afp/client.js',
+      'custom-plugins/workspace/dsh-plugin-style-prompt/client.js',
       'custom-plugins/workspace/dsh-better-sidebar/lib/client.js',
       'custom-plugins/workspace/dsh-better-sidebar/lib/client-editor.js',
       'custom-plugins/workspace/dsh-better-sidebar/lib/client-editor.js.map',

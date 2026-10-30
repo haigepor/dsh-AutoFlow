@@ -132,3 +132,53 @@ test('absence in an empty read scope does not hide a record published before the
     assert.equal(repository.get('suggestion', 'suggestion-one')?.text, 'Saved content')
   } finally { await repository.close() }
 })
+
+test('revision reads reuse the current snapshot without another manifest enumeration', async () => {
+  const { adapter, repository, commit } = setup()
+  try {
+    await commit(0, 'initial')
+    const expected = repository.revisionDigest()
+    adapter.resetReads()
+    repository.readSnapshot(() => {
+      assert.equal(repository.revisionDigest(), expected)
+      assert.equal(repository.readSnapshot(() => repository.revisionDigest()), expected)
+      assert.equal(adapter.manifestReads, 1)
+    })
+    assert.equal(repository.revisionDigest(), expected)
+    assert.equal(adapter.manifestReads, 2, 'the revision identity is retained only inside its synchronous read')
+  } finally { await repository.close() }
+})
+
+test('snapshot exit and exceptions release revision identities before the next commit is observed', async () => {
+  const { adapter, repository, commit } = setup()
+  try {
+    await commit(0, 'initial')
+    const initial = repository.readSnapshot(() => repository.revisionDigest()), failure = new Error('Failed revision read')
+    assert.throws(() => repository.readSnapshot(() => { assert.equal(repository.revisionDigest(), initial); throw failure }), error => error === failure)
+    await commit(1, 'next-revision', 'Updated content')
+    const expected = repository.revisionDigest()
+    assert.notEqual(expected, initial)
+    adapter.resetReads()
+    repository.readSnapshot(() => {
+      assert.equal(repository.revisionDigest(), expected)
+      assert.equal(repository.get('suggestion', 'suggestion-one')?.text, 'Updated content')
+      assert.equal(adapter.manifestReads, 1)
+    })
+  } finally { await repository.close() }
+})
+
+test('filtered manifest reads clone only matching aggregates and keep unfiltered reads complete', async context => {
+  const { adapter, repository, commit } = setup()
+  try {
+    await commit(0, 'initial')
+    adapter.commits.set('task-history-hidden:example', { schemaVersion: 1, profileId: 'snapshot-profile', aggregateId: 'task-history-hidden:example', revision: 1, records: [], state: { runId: 'example', hidden: true }, receipts: {} })
+    const originalClone = structuredClone, clonedArrays: number[] = []
+    context.mock.method(globalThis, 'structuredClone', <T>(value: T): T => { if (Array.isArray(value)) clonedArrays.push(value.length); return originalClone(value) })
+    const filtered = repository.manifests('task-history-hidden:')
+    assert.deepEqual(clonedArrays, [1], 'unrelated record pointers and request receipts must be filtered before cloning')
+    assert.deepEqual(filtered.map(row => row.aggregateId), ['task-history-hidden:example'])
+    filtered[0]!.state = {}
+    assert.deepEqual(repository.manifest('task-history-hidden:example')?.state, { runId: 'example', hidden: true })
+    assert.equal(repository.manifests().length, 2)
+  } finally { await repository.close() }
+})

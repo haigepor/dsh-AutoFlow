@@ -1,1 +1,1 @@
-{"extends":"./tsconfig.base.json","include":["src/host/**/*.ts","src/shared/**/*.ts"]}
+{"files":[],"references":[{"path":"./tsconfig.host.json"},{"path":"./tsconfig.client.json"},{"path":"./tsconfig.tests.json"}]}

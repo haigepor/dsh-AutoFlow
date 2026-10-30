@@ -37,7 +37,7 @@ export type ConfigureInput = z.infer<typeof configureSchema>
 /** Only known operations can reach the authenticated management surface. */
 export const managementSchema = z.strictObject({
   operation: z.enum(['snapshot', 'account-list', 'account-status', 'account-quota', 'account-refresh', 'model-list', 'model-routes', 'protocol-status', 'login-start', 'login-status', 'login-complete', 'login-cancel', 'account-update', 'account-remove',
-    'configure', 'gateway-create', 'gateway-revoke', 'relay-test', 'image-submit', 'image-result', 'image-cancel', 'history-prune']),
+    'configure', 'model-catalog', 'model-catalog-save', 'gateway-create', 'gateway-revoke', 'relay-test', 'image-submit', 'image-result', 'image-cancel', 'image-session-view', 'history-prune']),
   args: z.record(z.string(), z.unknown()).default({}),
 })
 export type ManagementOperation = z.infer<typeof managementSchema>['operation']

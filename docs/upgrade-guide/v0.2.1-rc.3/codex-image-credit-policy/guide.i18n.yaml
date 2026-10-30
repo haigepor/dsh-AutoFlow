@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.3/codex-image-credit-policy/guide.md
+/:
+  en: 390675f082de752f
+  zh: 2fab9e1e5ca8485b
+/codex-image-spending-policy:
+  en: a83af682e0d56e69
+  zh: 65c0194b13619ed2
+/codex-image-spending-policy/change:
+  en: 6f4bca22fadb08a7
+  zh: af92ecb751b33f75
+/codex-image-spending-policy/migration:
+  en: 955ae201cf65e77f
+  zh: a1ca3b217cdbaee0

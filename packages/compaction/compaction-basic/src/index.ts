@@ -7,7 +7,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { CompactionEngine, ManualCompactionError } from '@deepseek-ai/dsh-compaction'
-import type { CompactionResult, CompactionTrigger } from '@deepseek-ai/dsh-compaction'
+import type { CompactionResult, CompactionTrigger, InputCompactionRequest, InputCompactionRunner, InputCompactionResult } from '@deepseek-ai/dsh-compaction'
 import type { Session, SessionSeq } from '@deepseek-ai/dsh-session'
 import { CONTEXT_WINDOW_EXCEEDED_CODE } from '@deepseek-ai/dsh-llm'
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
@@ -28,6 +28,7 @@ import {
   selectCompactableRange,
 } from './region.ts'
 import { summarizeWithLlm } from './summarizer.ts'
+import { compactInputWithLlm } from './input.ts'
 import type { SummarizationInput, SummaryResult } from './summarizer.ts'
 import type {
   BasicCompactionConfig,
@@ -129,6 +130,14 @@ export class BasicCompactionEngine extends CompactionEngine {
 
   /** Resolved and validated compaction configuration. */
   readonly config: ResolvedConfig
+
+  override compactInput(
+    input: InputCompactionRequest,
+    run: InputCompactionRunner,
+    signal: AbortSignal,
+  ): Promise<InputCompactionResult | null> {
+    return compactInputWithLlm(this.ctx, this.config, input, run, signal)
+  }
 
   private readonly warnedPressureConfigTargets = new Set<string>()
   private readonly overflowRetries = new WeakMap<Agent, number>()

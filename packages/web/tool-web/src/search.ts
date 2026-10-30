@@ -1,8 +1,8 @@
 /**
  * The model-facing `web_search` tool: discover current information on the web.
- * Execution goes through `ctx.web` — this module owns only the model-facing
- * schema, argument validation, the result-count bound, and result formatting,
- * never provider selection or network access.
+ * Uses the initiating model's native search when enabled, otherwise `ctx.web`.
+ * Owns the model-facing schema, argument validation, result-count bound, and
+ * result formatting; provider adapters own network access.
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -10,7 +10,16 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolResult, WebSearchResultView, WebSource } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { WebSearchResult, WebSearchSource } from '@deepseek-ai/dsh-web'
+import type {} from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-session'
 import { EXTERNAL_WEB_CONTENT_NOTICE } from './trust.ts'
+
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    /** Secret-free auxiliary native-search input recorded before provider dispatch. */
+    'web/native-search-llm-request': { provider: string; model: string; api: string; body: JsonValue }
+  }
+}
 
 /**
  * Default upper bound on returned sources (the `searchMaxResults` config).
@@ -226,6 +235,7 @@ export function presentSearchResult(args: WebSearchArgs, result: ToolResult): We
  * @param queries - validated non-empty queries.
  * @param maxResults - the deployment's source cap for the combined result.
  * @param signal - cancellation signal forwarded to every search.
+ * @param nativeSearch - selected model search; omission uses the web service.
  * @returns the combined search result.
  */
 async function runSearchQueries(
@@ -233,9 +243,11 @@ async function runSearchQueries(
   queries: string[],
   maxResults: number,
   signal: AbortSignal,
+  nativeSearch?: (query: string, signal: AbortSignal) => Promise<WebSearchResult>,
 ): Promise<WebSearchResult> {
+  const search = nativeSearch ?? ((query: string, signal: AbortSignal) => ctx.web.search({ query, maxResults }, signal))
   if (queries.length === 1) {
-    return ctx.web.search({ query: queries[0] as string, maxResults }, signal)
+    return search(queries[0] as string, signal)
   }
   const controller = new AbortController()
   const batchSignal = AbortSignal.any([signal, controller.signal])
@@ -243,7 +255,7 @@ async function runSearchQueries(
   const results: WebSearchResult[] = []
   const searches = queries.map(async (query, index) => {
     try {
-      results[index] = await ctx.web.search({ query, maxResults }, batchSignal)
+      results[index] = await search(query, batchSignal)
     } catch (error) {
       if (firstFailure === undefined) firstFailure = { error }
       controller.abort(error)
@@ -364,7 +376,16 @@ export function applyWebSearchTool(
     isConcurrencySafe: () => true,
     async execute(args, exec) {
       const queries = parseSearchArgs(args, maxQueries)
-      const result = await runSearchQueries(ctx, queries, maxResults, exec.signal)
+      const session = exec.agent?.session
+      const context = session?.requestContext()
+      const llm = ctx.get('llm')
+      const model = context === undefined || llm === undefined ? undefined
+        : await llm.resolveModelInfo(context.provider, context.model, exec.signal)
+      const nativeSearch = model?.nativeWebSearch !== true || session === undefined || context === undefined || llm === undefined ? undefined
+        : (query: string, signal: AbortSignal) => llm.searchNative({ provider: context.provider, model: context.model, query, maxResults, signal,
+          recordRequest: request => { session.append('web/native-search-llm-request', { provider: context.provider, model: context.model, ...request }) },
+        })
+      const result = await runSearchQueries(ctx, queries, maxResults, exec.signal, nativeSearch)
       return {
         ...result.content !== undefined ? { content: result.content } : {},
         sources: result.sources.map(projectSource),

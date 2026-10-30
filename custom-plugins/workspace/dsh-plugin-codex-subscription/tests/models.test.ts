@@ -53,6 +53,27 @@ test('settings discovery retains account capabilities while omitting account ide
   const [view] = resolveCodexModels({ models: [{ slug: 'known', context_window: 8192, input_modalities: ['text', 'image'],
     supported_reasoning_levels: [{ effort: 'high' }], default_reasoning_level: 'high', max_output_tokens: 2048 }] }, [known], resolveModelSettings(), 'https://fixture.invalid').views
   assert.ok(view)
-  assert.deepEqual(codexDiscoveryView(view), { id: 'known', name: 'Known', contextWindow: 8192, maxTokens: 2048, inputModalities: ['text', 'image'],
+  assert.deepEqual(codexDiscoveryView(view), { id: 'known', name: 'Known', api: 'openai-codex-responses', nativeWebSearch: false, contextWindow: 8192, maxTokens: 2048, inputModalities: ['text', 'image'],
     reasoning: { efforts: [{ id: 'high', name: 'high' }], defaultEffort: 'high' } })
+})
+
+test('native-search routes exclude fallback accounts that explicitly deny search support', () => {
+  const accounts = [true, false].map((supports_search_tool, index) => ({ accountKey: `fixture-${index}`,
+    snapshot: resolveCodexModels({ models: [{ slug: 'known', supports_search_tool }] }, [known], resolveModelSettings(), 'https://fixture.invalid') }))
+  const routes = buildModelRoutes(accounts)
+  assert.equal(routes.length, 2)
+  const search = routes.find(route => route.view.nativeWebSearch === true)
+  const ordinary = routes.find(route => route.view.nativeWebSearch === false)
+  assert.deepEqual(search?.view.accountKeys, ['fixture-0'])
+  assert.deepEqual(ordinary?.view.accountKeys, ['fixture-0', 'fixture-1'])
+  assert.deepEqual(buildModelRoutes(accounts.slice().reverse()), routes)
+  const previous = buildModelRoutes([accounts[1]!])[0]!
+  assert.equal(ordinary?.view.capabilityId, previous.view.capabilityId)
+  assert.equal(selectModelRoute(buildModelRoutes([accounts[1]!]), search!.view.capabilityId), undefined)
+})
+
+test('server search declarations override known-model matching and disclose private-model support', () => {
+  const snapshot = resolveCodexModels({ models: [{ slug: 'gpt-6.1-sol', supports_search_tool: false, context_window: 4096, input_modalities: ['text'] },
+    { slug: 'private-model', supports_search_tool: true, context_window: 4096, input_modalities: ['text'] }] }, [], resolveModelSettings(), 'https://fixture.invalid')
+  assert.deepEqual(snapshot.views.map(model => [model.id, model.nativeWebSearch]), [['gpt-6.1-sol', false], ['private-model', true]])
 })

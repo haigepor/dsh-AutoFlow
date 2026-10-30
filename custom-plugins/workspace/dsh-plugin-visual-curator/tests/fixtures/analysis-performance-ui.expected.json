@@ -1,0 +1,17 @@
+{
+  "immediateStartSkeleton": true,
+  "planningCanCancel": true,
+  "opaqueStartSurface": true,
+  "startButtonBusy": true,
+  "acceptedOnce": true,
+  "inactiveEligibilityNotFetched": true,
+  "reportedContextRetained": true,
+  "pendingContextDoesNotBlank": true,
+  "pausingFeedback": true,
+  "continueAvailable": true,
+  "sameRunContinues": true,
+  "savedMatchesDuringAnalysis": true,
+  "thumbnailCards": true,
+  "largerPreviewOnDemand": true,
+  "errors": []
+}

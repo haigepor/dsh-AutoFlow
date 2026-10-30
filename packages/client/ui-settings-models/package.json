@@ -63,6 +63,7 @@
     "react-dom": "^18.3.1"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~"
   },
   "files": [

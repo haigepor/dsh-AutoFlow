@@ -1,0 +1,18 @@
+{
+  "compactDesktopHeader": true,
+  "singleProgress": true,
+  "secondaryMetricsDisclosed": true,
+  "uniqueWarningsRetained": true,
+  "detailsEscape": true,
+  "previewAction": true,
+  "noCropAction": true,
+  "noOriginalDelivery": true,
+  "mobileMenuInside": true,
+  "batchesAllByDefault": true,
+  "batchFilter": true,
+  "batchPreview": true,
+  "batchDetailsRetained": true,
+  "batchNarrow": true,
+  "horizontalOverflow": false,
+  "errors": []
+}

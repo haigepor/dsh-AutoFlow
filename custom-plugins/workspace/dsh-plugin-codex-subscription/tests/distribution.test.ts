@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
+import { runInNewContext } from 'node:vm'
 import { DEFAULT_PROFILE_BUNDLES, OPTIONAL_BUNDLES, PROFILE_TEMPLATES, composeEntries, initProfile, readPluginIcon, readProfileManifest } from '@deepseek-ai/dsh-app-boot'
 
 const directory = fileURLToPath(new URL('../', import.meta.url))
@@ -12,16 +13,16 @@ const manifestSchema = z.object({
   name: z.literal('dsh-plugin-codex-subscription'), version: z.string().min(1), license: z.literal('MIT'),
   type: z.literal('module'), icon: z.string(), files: z.array(z.string()), exports: z.record(z.string(), z.string()), bin: z.never().optional(),
   dsh: z.object({ bundle: z.object({ patch: z.string(), features: z.array(z.object({ id: z.string(), rowId: z.string(), kind: z.literal('script'), defaultEnabled: z.boolean() })) }),
-    client: z.never().optional() }),
+    client: z.object({ platform: z.literal('web'), inject: z.array(z.string()), immediately: z.never().optional() }) }),
 })
 const manifest = manifestSchema.parse(JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')))
 
-test('published metadata declares a Host-only bundle without a browser entry or application executable', async () => {
-  assert.deepEqual(Object.keys(manifest.exports).sort(), ['.', './locale/*.json', './package.json', './tools'])
-  assert.deepEqual(manifest.exports, { '.': './index.js', './tools': './tools.js', './package.json': './package.json', './locale/*.json': './locale/*.json' })
-  for (const file of ['index.js', 'tools.js', 'cordis.patch.yml', 'icon.svg', 'locale', 'README.md', 'README.zh.md', 'THIRD_PARTY_NOTICES.md']) assert.ok(manifest.files.includes(file), `${file} must be shipped`)
-  assert.equal(manifest.dsh.client, undefined)
-  assert.ok(!manifest.files.includes('client.js'))
+test('published metadata pairs image cards with Host tools without an application executable', async () => {
+  assert.deepEqual(Object.keys(manifest.exports).sort(), ['.', './client', './locale/*.json', './package.json', './tools'])
+  assert.deepEqual(manifest.exports, { '.': './index.js', './tools': './tools.js', './client': './client.js', './package.json': './package.json', './locale/*.json': './locale/*.json' })
+  for (const file of ['index.js', 'tools.js', 'client.js', 'cordis.patch.yml', 'icon.svg', 'locale', 'README.md', 'README.zh.md', 'THIRD_PARTY_NOTICES.md']) assert.ok(manifest.files.includes(file), `${file} must be shipped`)
+  assert.equal(manifest.dsh.client.platform, 'web')
+  assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-tool'))
   assert.equal(manifest.bin, undefined)
   assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')
   assert.deepEqual(manifest.dsh.bundle.features.map(feature => ({ id: feature.id, rowId: feature.rowId, kind: feature.kind, enabled: feature.defaultEnabled })), [
@@ -71,7 +72,7 @@ test('paired user documentation and legal notices ship with fixed protocol attri
 
 // Artifact checks are opt-in so source tests also run on a clean checkout. Build before setting this flag.
 test('built distribution resolves its declared entry files and exports only Loader members', { skip: process.env.DSH_CODEX_VERIFY_BUILT !== '1' }, async () => {
-  for (const file of ['index.js', 'tools.js']) {
+  for (const file of ['index.js', 'tools.js', 'client.js']) {
     await access(join(directory, file))
     assert.ok((await readFile(join(directory, file), 'utf8')).length > 0)
   }
@@ -79,7 +80,14 @@ test('built distribution resolves its declared entry files and exports only Load
     const module: object = await import(new URL(`../${entry}`, import.meta.url).href)
     assert.deepEqual(Object.keys(module).sort(), ['Config', 'apply', 'inject', 'name'])
   }
-  for (const exported of ['dsh-plugin-codex-subscription', 'dsh-plugin-codex-subscription/tools', 'dsh-plugin-codex-subscription/locale/en.json', 'dsh-plugin-codex-subscription/locale/zh.json']) {
+  for (const exported of ['dsh-plugin-codex-subscription', 'dsh-plugin-codex-subscription/tools', 'dsh-plugin-codex-subscription/client', 'dsh-plugin-codex-subscription/locale/en.json', 'dsh-plugin-codex-subscription/locale/zh.json']) {
     await access(fileURLToPath(import.meta.resolve(exported)))
   }
+  const registrations: unknown[] = []
+  runInNewContext(await readFile(join(directory, 'client.js'), 'utf8'), { window: { __ModuleLoader__: { load: (value: unknown) => registrations.push(value) } } }, { timeout: 3000 })
+  assert.equal(registrations.length, 1)
+  const registration = z.object({ id: z.literal(manifest.name), factory: z.custom<(require: (name: string) => object) => Record<string, unknown>>(value => typeof value === 'function') }).parse(registrations[0])
+  const module = registration.factory(() => ({}))
+  assert.deepEqual(Object.keys(module).sort(), ['apply', 'inject'])
+  assert.ok(Array.isArray(module.inject) && module.inject.includes('resources'))
 })

@@ -7,6 +7,101 @@ import type { CuratorSnapshot } from '../src/client/contract.ts'
 function snapshot(): CuratorSnapshot {
   return { collectionPaging: true, workspaceRevision: 'initial', styles: [], images: [], runs: [], usages: [], splits: [], evaluations: [], exports: [], suggestions: [], configuration: { ...resolveCurrentConfig({}), revision: 'one', sourceConfigured: false, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false } }
 }
+
+test('analysis acceptance returns before the follow-up task list finishes loading', async () => {
+  let finish!: (value: unknown) => void, accepted = false
+  const gate = new Promise(resolve => { finish = resolve })
+  const store = createCuratorStore({ invoke: async operation => operation === 'snapshot' ? snapshot() : operation === 'reference-analyze' ? { runId: 'accepted' } : gate })
+  try {
+    await store.reload()
+    const start = store.startAnalysis({ styleId: 's' }).then(() => { accepted = true })
+    await new Promise<void>(resolve => setImmediate(resolve))
+    assert.equal(accepted, true)
+    finish({ tasks: [], analyses: [] }); await start
+  } finally { finish({ tasks: [], analyses: [] }); store.dispose() }
+})
+
+test('returning from a Session detail restores the owner view without changing owner cache identity', async () => {
+  let scoped = false, hold = false
+  const owner = { ...snapshot(), workspaceRevision: 'owner' }
+  const store = createCuratorStore({ invoke: async operation => {
+    if (operation === 'session-open') { scoped = true; return { sessionToken: 'fixture-scope' } }
+    if (operation === 'snapshot') {
+      if (hold) return new Promise(() => {})
+      return scoped ? { ...snapshot(), workspaceRevision: 'session' } : owner
+    }
+    return { tasks: [], analyses: [] }
+  } })
+  try {
+    await store.reload()
+    const view = store.getSnapshot().snapshot, ownerScope = store.getOwnerScopeId(), sessionScope = store.getScopeId()
+    await store.openSession('session')
+    assert.equal(store.getOwnerScopeId(), ownerScope)
+    assert.notEqual(store.getScopeId(), sessionScope)
+    hold = true; store.closeSession()
+    assert.equal(store.getSnapshot().snapshot, view)
+    assert.equal(store.getSnapshot().sessionToken, '')
+    store.reset()
+    assert.notEqual(store.getOwnerScopeId(), ownerScope)
+    assert.equal(store.getSnapshot().snapshot, null)
+  } finally { store.dispose() }
+})
+
+test('a rejected or malformed Session opening restores the owner view and ends its skeleton', async () => {
+  for (const malformed of [false, true]) {
+    const store = createCuratorStore({ invoke: async operation => {
+      if (operation === 'snapshot') return snapshot()
+      if (malformed) return { unexpected: true }
+      throw new Error('offline')
+    } })
+    try {
+      await store.reload(); const before = store.getSnapshot().snapshot
+      await assert.rejects(store.openSession('unavailable'))
+      assert.equal(store.getSnapshot().snapshot, before)
+      assert.equal(store.getSnapshot().loading, false)
+      assert.equal(store.getSnapshot().sessionToken, '')
+      assert.ok(store.getSnapshot().error)
+    } finally { store.dispose() }
+  }
+})
+
+test('returning from an owner-only task detail does not reload or clear the workspace', async () => {
+  let reads = 0
+  const store = createCuratorStore({ invoke: async () => { reads++; return snapshot() } })
+  try {
+    await store.reload(); const view = store.getSnapshot().snapshot, scope = store.getOwnerScopeId(), requestScope = store.getScopeId()
+    store.closeSession()
+    assert.equal(store.getSnapshot().snapshot, view)
+    assert.equal(store.getOwnerScopeId(), scope)
+    assert.ok(store.getScopeId() > requestScope, 'leaving detail invalidates its late asynchronous responses')
+    assert.equal(reads, 1)
+  } finally { store.dispose() }
+})
+
+test('analysis pause and continuation keep observations while late pause cannot overwrite cancellation', async () => {
+  const task = { runId: 'analysis', styleId: 's', name: 'Fixture', status: 'running', observed: 4, total: 8, model: 'fixture', reasoningEffort: null, attempts: 1, startedAt: 'now', phase: 'receiving', autoResume: true }
+  let hold = false, release!: (value: unknown) => void, status = 'running'
+  const store = createCuratorStore({ invoke: async operation => {
+    if (operation === 'snapshot') return snapshot()
+    if (operation === 'analysis-detail') return { task: { ...task, status }, observations: [{ imageVersionId: 'committed', dimensions: [] }] }
+    if (operation === 'analysis-pause') { if (hold) return new Promise(resolve => { release = resolve }); status = 'paused'; return { ...task, status, phase: 'paused', autoResume: false } }
+    if (operation === 'analysis-resume') { status = 'running'; return task }
+    if (operation === 'analysis-stop') { status = 'cancelled'; return { ...task, status, phase: 'cancelled' } }
+    return { tasks: [], analyses: [{ ...task, status }] }
+  } })
+  try {
+    await store.reload(); store.openAnalysis('analysis'); await store.refreshAnalysisDetail()
+    await store.pauseAnalysis('analysis')
+    assert.equal(store.getSnapshot().analysisDetail?.task.status, 'paused')
+    assert.equal(store.getSnapshot().analysisDetail?.observations[0]?.imageVersionId, 'committed')
+    await store.resumeAnalysis('analysis')
+    assert.equal(store.getSnapshot().analysisDetail?.task.status, 'running')
+    hold = true; const pause = store.pauseAnalysis('analysis'); await store.stopAnalysis('analysis')
+    release({ ...task, status: 'pausing' }); await pause
+    assert.equal(store.getSnapshot().analysisDetail?.task.status, 'cancelled')
+    assert.deepEqual(store.getSnapshot().pending, [])
+  } finally { store.dispose() }
+})
 test('cancellation reaches the Host even when a pause request for that run is still pending', async () => {
   const commands: string[] = []
   let snapshots = 0

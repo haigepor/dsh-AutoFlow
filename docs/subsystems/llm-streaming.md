@@ -586,6 +586,8 @@ interface LlmModelReasoningInfo {
 ```ts type-equiv
 /** Exact-route model metadata resolved by its owning adapter. */
 interface LlmResolvedModelInfo extends LlmModelInfo {
+  /** Effective model-native search selection, including an explicit user override. */
+  nativeWebSearch?: boolean
   /** Provider-owned context capacity when known. */
   context?: LlmModelContext
   /** Adapter-configured per-request output cap materialized when callers omit one. */
@@ -745,6 +747,10 @@ interface LlmModelDiscoveryRequest {
 interface LlmDiscoveredModel {
   /** Model id the endpoint accepts. */
   id: string
+  /** Wire protocol when the catalog discloses it. */
+  api?: string
+  /** Native web-search support reported by this provider, independent of function calling. */
+  nativeWebSearch?: boolean
   /** Human-readable name when the endpoint supplies one. */
   name?: string
   /** Maximum combined request and response context, when disclosed. */
@@ -866,6 +872,12 @@ interface PreparedLlmCall {
  * DeepSeek and library-backed pi-ai adapters meet this contract through different internals.
  */
 declare abstract class LlmAdapter {
+  /**
+   * Search through a model-native provider operation; ordinary adapters expose none.
+   * @param _request Current model, query, cancellation and durable request recorder.
+   * @returns Structured search results, or an unsupported-operation failure.
+   */
+  searchNative(_request: NativeWebSearchRequest): Promise<NativeWebSearchResult>;
   /**
    * Describe one provider route owned by this adapter.
    * @param provider - a route passed to `registerAdapter()` for this instance.
@@ -1104,6 +1116,13 @@ async listModels(provider: string): Promise<LlmModelInfo[]>
  * @returns exact model identity plus available context and reasoning metadata.
  */
 async resolveModelInfo( provider: string, model: string, signal?: AbortSignal, ): Promise<LlmResolvedModelInfo>
+
+/**
+ * Execute native search only when the exact model enables it.
+ * @param request Provider/model identity, query and operation-local ownership.
+ * @returns Results from the selected model's credentials and endpoint.
+ */
+async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult>
 
 /**
  * Validate a conversation call config against its exact model capability and

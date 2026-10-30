@@ -33,7 +33,7 @@ export function createGalleryMedia(React: typeof import('react'), ui: typeof imp
     }, [hasMore, loading, disabled, version])
     return <div ref={sentinel} className="vc-gallery-load-more" aria-busy={loading}>{loading && showSkeleton && <GallerySkeleton kind={kind} count={2} label={label} />}</div>
   }
-  function GalleryPhotoPreview({ photo, selected, disabled, onToggle, t }: { photo: GalleryPhoto; selected: boolean; disabled: boolean; onToggle(): void; t: WorkbenchText }) {
+  function GalleryPhotoPreview({ photo, selected, disabled, imported = false, onToggle, t }: { photo: GalleryPhoto; selected: boolean; disabled: boolean; imported?: boolean; onToggle(): void; t: WorkbenchText }) {
     const [preview, setPreview] = React.useState(false)
     const trigger = React.useRef<HTMLButtonElement>(null)
     const frame = React.useRef<HTMLDivElement>(null)
@@ -43,6 +43,7 @@ export function createGalleryMedia(React: typeof import('react'), ui: typeof imp
       if (event.key === 'ContextMenu' || event.key === 'F10' && event.shiftKey) { event.preventDefault(); openPreview() }
     }}>
       <ui.Button ref={trigger} variant="ghost" className="vc-gallery-preview" aria-label={`${t('gallerySelectPhoto')}: ${photo.title}`} aria-pressed={selected} disabled={disabled} onClick={onToggle}><img src={galleryImageSource(photo.thumbnailPath, photo.thumbnailUrl)} alt={photo.title} loading="lazy" decoding="async" referrerPolicy="no-referrer" /></ui.Button>
+      {imported && <ui.Tooltip label={t('galleryAlreadyImported')} side="left" portal><span className="vc-gallery-imported-icon" role="img" aria-label={t('galleryAlreadyImported')} tabIndex={0}><ui.IconArchiveCheckOutlineRegular size={16} /></span></ui.Tooltip>}
       {preview && <ui.ImageLightbox src={galleryImageSource(photo.previewPath, photo.referenceUrl)} alt={photo.title} labels={{ dialog: t('galleryPreview'), close: t('close') }} loadingLabels={{ loading: t('galleryPreviewLoading'), error: t('galleryPreviewError'), retry: t('retry') }} loadingImageSrc={loadingArtwork} onClose={closePreview} />}
     </div>
   }

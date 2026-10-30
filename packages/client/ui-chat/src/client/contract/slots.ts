@@ -1,5 +1,5 @@
 /** Chat-owned Slot declarations and composed component props. */
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -25,7 +25,7 @@ import type { FlowMotionRows } from '../chat/flow-motion.ts'
 import type { ToolCallId } from './store.ts'
 import type { ChatConversationViewNode, ChatNode, ChatNodeKind } from './chat-nodes.ts'
 import type {
-  ChatNodeProcessSource, ChatNodeSource, ChatSnapshot, ChatTurnProcessPresentation,
+  ChatNodeProcessSource, ChatNodeSource, ChatSnapshot, ChatTurnProcessPresentation, ToolCallBlock,
 } from './snapshot.ts'
 import type { TurnProcessSpec } from './turn-process.ts'
 import type { PerformanceUsageMode } from '../../chat-settings.ts'
@@ -245,6 +245,12 @@ export interface UserContentInput extends Pick<ChatNodeOwnerProps, 'loadImage'>,
   readonly facts: Readonly<Partial<UserTextFacts>>
 }
 
+/** Optional full-text reader supplied by the Session content registration. */
+export interface UserContentInjected {
+  /** Open the unchanged message in the existing right sidebar. */
+  openLongText?: (text: string) => void
+}
+
 /** Read-only answer Markdown without Session actions or implicit local-file access. */
 export interface AssistantContentInput {
   readonly text: string
@@ -316,6 +322,8 @@ export interface ChatViewInjected {
     chatNodeProcess: (key: string) => ChatNodeProcessSource
     /** Resolve one optional group without subscribing the root View to its data. */
     chatGroup: (key: string) => ObservableSnapshot<GroupSnapshot<ConversationGroupData<'chat'>> | undefined> | undefined
+    /** Whether this tool has a live feature-owned process status and disclosure. */
+    chatProcessStatus: (toolName: string) => ObservableSnapshot<boolean>
   }
   /** Open the current source file of a skill referenced by a sent message. */
   openSkill: (name: string) => void
@@ -351,11 +359,21 @@ export interface ChatFlowOwnerProps extends Pick<ChatNodeOwnerProps,
 /** Full props of the Chat-owned flow renderer. */
 export type ChatFlowSlotProps =
   PropsRuntime<'conversation.chat.flow'>
-  & PropsRenderSlots<'conversation.chat.node'>
+  & PropsRenderSlots<'conversation.chat.node' | 'conversation.chat.process.status'>
   & PropsRenderFactories
   & PropsStore<ChatStore>
   & InjectFace<ChatFlowDataInjected>
   & PropsLocale<'chat'>
+
+/** Inline process status; the surrounding button retains disclosure and keyboard ownership. */
+export interface ChatProcessStatusOwnerProps {
+  readonly turn: number
+  readonly tool: ToolCallBlock
+  readonly closed: boolean
+  readonly fallback: ReactNode
+  /** @param icon - feature-owned activity icon. @returns the shared icon and disclosure chevron seat. */
+  renderLeadingIcon(icon: ReactNode): ReactNode
+}
 
 /** Full Chat view props. */
 export type ChatViewSlotProps =
@@ -398,6 +416,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
       scope: 'session'
       props: UserContentInput
       locale: 'chat'
+      inject: UserContentInjected
       children: { 'conversation.chat.user.images': { kind: 'single'; scope: 'session' } }
     }
     /** Session-independent reasoning Markdown with Chat labels and compact typography. */
@@ -409,6 +428,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 
   interface SlotMap {
+    /** Inline process label keyed by the latest tool name; original rows remain in the disclosure. */
+    'conversation.chat.process.status': { kind: 'keyed'; scope: 'session'; owner: ChatProcessStatusOwnerProps }
     /** Ordered Chat rows and local echoes with viewport-bound visibility hooks. */
     'conversation.chat.flow': {
       kind: 'single'

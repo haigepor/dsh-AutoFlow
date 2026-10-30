@@ -7,7 +7,7 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { IconPlusOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { en } from './locales.ts'
 import { ModelRow } from './ModelRow.tsx'
 import { ProviderModelTable } from './ProviderModelTable.tsx'
@@ -295,36 +295,34 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
     />
   ))
 
-  const addAction = props.onlyIndex === undefined ? <button
+  const addAction = props.onlyIndex === undefined ? <Button
     type="button"
-    className={styles['addModelButton']}
+    variant={props.connecting === true ? 'outline' : 'ghost'}
+    size={props.connecting === true ? 'md' : 'sm'}
+    className={props.connecting === true ? undefined : styles['addModelButton']}
     disabled={props.disabled}
     onClick={() => {
       if (props.connecting === true) setExpanded(current => new Set([...current, props.models.length]))
       props.onChange([...props.models.map(model => ({ ...model })), { id: '' }])
     }}
   >
-    <IconPlusOutlineRegular size={14} />
+    <IconPlusOutlineRegular size={16} />
     {props.t('addModel')}
-  </button> : null
+  </Button> : null
+
+  const catalogActions = <>
+    {props.overridden && <Button variant={props.connecting === true ? 'outline' : 'ghost'} size={props.connecting === true ? 'md' : 'sm'}
+      className={props.connecting === true ? undefined : styles['linkButton']} disabled={props.disabled} onClick={reset}>
+      {props.t('resetModels')}
+    </Button>}
+    {props.connecting === true ? addAction : null}
+  </>
 
   return (
     <section className={`${styles['modelCatalog']} ${props.connecting === true ? connectStyles['catalog'] : ''}`} data-connection={props.connecting === true} aria-label={props.t('models')}>
       {props.onlyIndex === undefined && <div className={`${styles['modelListHead']} ${props.connecting === true ? connectStyles['catalogHeading'] : ''}`}>
         <ModelCatalogHeading t={props.t} overridden={props.overridden} />
-        {props.overridden
-          ? (
-            <button
-              type="button"
-              className={styles['linkButton']}
-              disabled={props.disabled}
-              onClick={reset}
-            >
-              {props.t('resetModels')}
-            </button>
-          )
-          : null}
-        {props.connecting === true ? addAction : null}
+        {props.connecting === true ? <div className={connectStyles['catalogActions']}>{catalogActions}</div> : catalogActions}
       </div>}
       {props.connecting === true ? <ProviderModelTable t={props.t}>
         {props.models.length > 0 ? modelRows : <tr><td colSpan={4} className={connectStyles['tableEmpty']}>{props.t('modelsEmpty')}</td></tr>}

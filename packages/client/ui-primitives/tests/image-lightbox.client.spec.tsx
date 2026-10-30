@@ -9,6 +9,30 @@ afterEach(cleanup)
 const labels = { dialog: '原图预览', close: '关闭原图预览' }
 
 describe('ImageLightbox', () => {
+  it('navigates by buttons and arrow keys without moving focus or using stale callbacks', () => {
+    const next = vi.fn(), previous = vi.fn(), replacement = vi.fn(), onClose = vi.fn()
+    const view = render(<ImageLightbox src="blob:first" alt="第一张" labels={labels} onClose={onClose}
+      navigation={{ positionLabel: '1 / 3', previousLabel: '上一张', nextLabel: '下一张', onNext: next }} />)
+    expect(view.getByRole('button', { name: '上一张' }).hasAttribute('disabled')).toBe(true)
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(next).toHaveBeenCalledOnce()
+    const nextButton = view.getByRole('button', { name: '下一张' })
+    nextButton.focus()
+    fireEvent.click(nextButton)
+    expect(next).toHaveBeenCalledTimes(2)
+    view.rerender(<ImageLightbox src="blob:second" alt="第二张" labels={labels} onClose={onClose}
+      navigation={{ positionLabel: '2 / 3', previousLabel: '上一张', nextLabel: '下一张', onPrevious: previous, onNext: replacement }} />)
+    expect(view.getByText('2 / 3').textContent).toMatchInlineSnapshot('"2 / 3"')
+    expect(document.activeElement).toBe(nextButton)
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expect(replacement).toHaveBeenCalledOnce()
+    expect(previous).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledTimes(2)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('shows progress until the image loads and resets progress for a different URL', () => {
     const loadingLabels = { loading: '正在加载大图', error: '图片加载失败', retry: '重试图片' }
     const view = render(<ImageLightbox src="https://example.com/a.png" alt="原图" labels={labels} loadingLabels={loadingLabels}

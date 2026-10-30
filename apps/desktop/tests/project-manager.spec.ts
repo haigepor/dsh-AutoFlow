@@ -53,6 +53,7 @@ describe('desktop external plugin profile', () => {
     expect(manifest.dsh.profile.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
       'dsh-plugin-visual-curator',
+      'dsh-plugin-style-prompt',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
     ])
     expect(manifest.dependencies).toEqual({})
@@ -62,6 +63,7 @@ describe('desktop external plugin profile', () => {
     { selected: [] }, { selected: ['dsh-better-sidebar'] }, { selected: ['dsh-plugin-better-sidebar-updater'] },
     { selected: ['dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater'] },
     { selected: ['dsh-plugin-visual-curator'] },
+    { selected: ['dsh-plugin-style-prompt'] },
   ])('retains existing Desktop bundle choices $selected across application launches', async ({ selected }) => {
     const { manager } = setup()
     await manager.applyRelease()
@@ -104,7 +106,7 @@ describe('desktop external plugin profile', () => {
     await manager.applyRelease()
     const restored = JSON.parse(readFileSync(path, 'utf8')) as typeof manifest
     expect(restored.dsh.profile.bundles).toEqual([
-      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp', 'dsh-plugin-visual-curator',
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp', 'dsh-plugin-visual-curator', 'dsh-plugin-style-prompt',
     ])
     for (const name of sidebars) {
       expect(restored.dependencies[name]).toBe('1.0.0')

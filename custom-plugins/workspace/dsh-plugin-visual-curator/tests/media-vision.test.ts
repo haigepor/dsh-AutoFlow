@@ -90,6 +90,25 @@ test('analysis separates uncertain observations from unconfirmed rules with fixe
   assert.equal('confirmedBy' in (result.suggestedRules[0] ?? {}), false)
 })
 
+test('observation-only analysis requests no rule fields and keeps the canonical checkpoint result', async () => {
+  const input = { ...await bundle(), analysisOutput: 'observations-only' as const }
+  const observations = input.images.map(image => ({ imageVersionId: image.imageVersionId, dimensions: [{ dimension: 'color', observation: 'Muted colors are visible.', uncertain: false }] }))
+  const provider = new CompatibleVisionProvider(config, new VisionFixture({ observations }))
+  const descriptor = provider.describeRequest(input, 'analyze')
+  const payload = JSON.parse(descriptor.inputText)
+  assert.deepEqual(Object.keys(payload.outputSchema.properties), ['observations'])
+  assert.equal(payload.input.analysisOutput, 'observations-only')
+  assert.deepEqual(await provider.analyze(input, bounds), { observations, suggestedRules: [] })
+})
+
+test('observation-only responses still reject missing images and unexpected rule output', async () => {
+  const input = { ...await bundle(), analysisOutput: 'observations-only' as const }
+  const observations = input.images.map(image => ({ imageVersionId: image.imageVersionId, dimensions: [{ dimension: 'color', observation: 'Visible colors.', uncertain: false }] }))
+  for (const content of [{ observations: observations.slice(1) }, { observations, suggestedRules: [] }]) {
+    await assert.rejects(new CompatibleVisionProvider(config, new VisionFixture(content)).analyze(input, bounds), hasCode('vision-invalid-output'))
+  }
+})
+
 test('a token-limited response reports truncation even when its content is valid JSON', async () => {
   const input = await bundle()
   for (const fixture of [new VisionFixture({ observations: [], suggestedRules: [] }, false, 'length'), new VisionFixture('', true, 'length')]) await assert.rejects(new CompatibleVisionProvider(config, fixture).analyze(input, bounds), error => {

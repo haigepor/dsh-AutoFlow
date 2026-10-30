@@ -198,13 +198,13 @@ description: "Chat 过程分组与活动摘要的明细业务规则。"
 
 一组收集同一轮次内相邻的过程内容，仅 Step 编号变化不会拆组。四档模式使用同一分组结果。组的 `closed` 表示这段内容已经结束，不表示 UI 开合控件处于收起状态。
 
-分组读取每个 Node 由其 Definition 设定的[分组树位置](../contract/group-tree.ts)，而不是它的 kind。
+分组读取每个 Node 由其 Definition 设定的[分组树位置](../contract/group-tree.ts)，而不是它的 kind。每组保留最近一次工具，供按工具名索引的 `conversation.chat.process.status` Slot 使用。功能插件可以替换行内图标和文案，共享按钮仍负责展开、焦点及原有思考与工具记录。已注册状态在所有展示模式中保留这个展开入口，包括默认平铺的详细与全部详情模式；没有注册或已经卸载的 key 沿用普通展示策略。整轮折叠仍然生效。
 
 | 输入 | 归属与切分 |
 |---|---|
 | 非空白 Assistant 推理 | 将该 Assistant 的一个 `reasoning` 引用加入当前组，必要时创建组。 |
 | Assistant 回复 | 结束前面的组，输出独立的 `response` 引用。同一 Node 含有推理时，先将推理加入组，再结束该组。 |
-| 位于 `process` 或更外层位置的 Node：`model-retry`、轮次输入、`turn-error`、`turn-max-tokens`、`turn-tail` 及 `turn-process` 控件 | 结束前面的组，Node 作为独立根引用保留。 |
+| 位于 `process` 或更外层位置的 Node：`model-retry`、轮次输入、`turn-error`、`turn-max-tokens`、`turn-tail` 及 `turn-process` 控件 | Node 作为独立根引用保留，并切分前面的组。`turn` 输出可能在任务仍运行时出现，因此不会将该组标记为已完成；轮次结束仍会关闭它。其他位置结束前面的组。 |
 | 轮次内没有位置的其他可见 Node，包括工具 | 将整个 Node 加入当前组，必要时创建组。 |
 | 另一轮次或没有轮次归属的 Node | 截断同轮次序列。无轮次 Node 保持独立，Assistant 也不拆分。 |
 | 隐藏 Node、系统提示词、普通 Context 注入及 `permission` 命令 | 不进入分组输入，既不入组，也不截断组。 |

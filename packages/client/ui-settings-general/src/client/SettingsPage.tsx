@@ -192,7 +192,7 @@ export function SettingsPage({
           <div key={shown?.id} ref={bodyRef} className={clsx(css.optionBody, leaving && css.leaving)}>
             {shown !== undefined && renderSlot('settings.section', { close: () => { closeSettings(false) } }, { only: shown.id })}
           </div>
-          {shown?.id !== 'mcp' && <footer className={css.actions}>{renderSlot('settings.action', {})}</footer>}
+          {shown?.id !== 'mcp' && shown?.id !== 'models' && <footer className={css.actions}>{renderSlot('settings.action', {})}</footer>}
         </div>
       </section>
     </div>

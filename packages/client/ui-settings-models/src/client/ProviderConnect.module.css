@@ -3,8 +3,6 @@
 .overview[hidden] { display: none; }
 /* 窄屏设置正文为 block，显式继承其高度才能让添加页独立滚动。 */
 .setup { height: 100%; }
-/* 添加页的提交操作在页头，设置文档操作只保留在目录页。 */
-:global([data-settings-section='models']):has(.setup) > footer { display: none; }
 .page { box-sizing: border-box; flex: 1; min-height: 0; min-width: 0; width: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline: 0; }
 .page > section { overflow: visible; padding: 0; background: transparent; box-shadow: none; border: 0; border-radius: 0; }
 .layout { display: flex; flex-direction: column; gap: 18px; width: 100%; min-width: 0; padding: 0; }
@@ -89,9 +87,7 @@
 .page .catalog { box-sizing: border-box; min-width: 0; padding: 24px 0 0; border: 0; border-top: 1px solid var(--dsw-alias-border-l3); border-radius: 0; background: transparent; gap: 16px; }
 .catalog [data-model-list] { gap: 8px; border: 0; border-radius: 0; background: transparent; overflow: visible; }
 .catalog [data-model-list]:empty { display: none; }
-.catalog .fetch { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 4px 0; border: 0; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-state-business-primary); }
-.catalog .fetch:disabled { color: var(--dsw-alias-label-secondary); }
-.catalogActions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.catalogActions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; margin-left: auto; }
 .catalogActions > button { flex: none; }
 .catalogHeading { flex-wrap: wrap; }
 .compactTags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }

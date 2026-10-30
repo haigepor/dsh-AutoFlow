@@ -25,6 +25,8 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
+Independent operations can call `compactInput` to condense text under native model policy without creating or changing a Session. The caller owns fixed input, budgets, cancellation and durable request records; backends without this operation reject it explicitly. The [Basic backend](../compaction-basic/README.md) provides the implementation.
+
 Decide first what you need. The shipped backend plus the `/compact` command give you automatic and on-demand condensation with no code; this package only matters when you extend or reimplement the feature. The sections below describe what condensation does, how to turn it on, and how to write a backend.
 
 ### When to choose it

@@ -31,7 +31,7 @@ export class AfpService {
     this.store = dependencies.store ?? new Store(ctx.profileContext.home, ctx.profileContext.dir, config.maxStateBytes, config)
     this.diagnostics = new AfpDiagnostics(this.store, config)
     this.conversationRecords = new ConversationRecords(this.store, config)
-    this.connection = dependencies.connection ?? new Connection(ctx.credentials, config)
+    this.connection = dependencies.connection ?? new Connection(ctx.credentials, config, globalThis.fetch, { llm: ctx.llm, attachments: ctx.attachments })
     this.workbench = dependencies.workbench ?? new WorkbenchData({ ctx, config, store: this.store, connection: this.connection })
     this.dedupSnapshot = null
     this.dedupInvalidation = null; this.dedupWriters = 0

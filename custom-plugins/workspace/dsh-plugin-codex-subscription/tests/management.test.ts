@@ -10,12 +10,18 @@ import type { RelayConfig, RelayDependencies } from '../src/host/relay/types.ts'
 import { ACCOUNTS_KEY } from '../src/host/accounts/index.ts'
 import { createHash } from 'node:crypto'
 import { accountViewSchema, accountUsageSchema } from '../src/shared/accounts.ts'
+import { modelCatalogSchema } from '../src/shared/model-catalog.ts'
+import { imageSessionViewSchema } from '../src/shared/image-view.ts'
+import { parseImageTaskId } from '../src/host/images/ids.ts'
+import type { ImageTaskRecord } from '../src/host/images/types.ts'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 
 const keySchema = z.object({ id: z.string(), secret: z.string(), relayError: z.string().optional() })
 const gatewayKey = credentialKey('codex-subscription', 'gateway')
 const signal = (): AbortSignal => new AbortController().signal
 
-async function fixture(options: { enabled?: boolean; noKey?: boolean; failNext?: boolean; closeGate?: Promise<void>; repositoryGate?: Promise<void>; network?: typeof fetch } = {}) {
+async function fixture(options: { enabled?: boolean; noKey?: boolean; failNext?: boolean; closeGate?: Promise<void>; repositoryGate?: Promise<void>; network?: typeof fetch; afterSettingsWrite?: () => Promise<void>; repository?: ImageTaskRepository } = {}) {
   let settings: SubscriptionOptions = resolveOptions({ relay: { enabled: options.enabled ?? false }, version: { discoverLocal: false }, upstream: { mode: 'sse' } })
   const records = new Map<CredentialKey, CredentialRecord>()
   if (options.enabled && !options.noKey) records.set(gatewayKey, { kind: 'grant', payload: { version: 1, id: 'seed', secret: 'initial-gateway-secret-1234567890123456', createdAt: 1 } })
@@ -25,7 +31,8 @@ async function fixture(options: { enabled?: boolean; noKey?: boolean; failNext?:
   const closed: string[] = []
   let repositoryClosed = 0
   let settingsWrites = 0
-  const repository: ImageTaskRepository = { get: async () => undefined, list: async () => [], put: async () => {}, delete: async () => {}, close: async () => { repositoryClosed++; await options.closeGate } }
+  let settingsRevision = 0
+  const repository: ImageTaskRepository = options.repository ?? { get: async () => undefined, list: async () => [], put: async () => {}, delete: async () => {}, close: async () => { repositoryClosed++; await options.closeGate } }
   const host: SubscriptionHost = {
     profileContext: { dir: process.cwd() },
     credentials: {
@@ -38,7 +45,11 @@ async function fixture(options: { enabled?: boolean; noKey?: boolean; failNext?:
       deleteRecord: async key => { records.delete(key) },
     },
     authorization: { registerFlow: () => () => {}, begin: async () => { throw new Error('No real browser is used by this fixture') }, cancel: () => {} },
-    settings: { describe: () => [], update: async (_ns, patch) => { settingsWrites++; settings = resolveOptions(z.object({ options: z.unknown() }).parse(patch).options) } },
+    settings: { describe: () => [{ ns: brandString<SettingsNamespace>('codex-subscription'), revision: settingsRevision, autoGenerate: false, schema: {}, value: { options: settings }, applies: 'live' }], update: async (_ns, patch, revision) => {
+      if (revision !== undefined && revision !== settingsRevision) throw Object.assign(new Error('Settings changed'), { code: 'REVISION_CONFLICT' })
+      settingsWrites++; settingsRevision++; settings = resolveOptions(z.object({ options: z.unknown() }).parse(patch).options)
+      await options.afterSettingsWrite?.()
+    } },
     storageDomain: { open: async () => { throw new Error('The injected repository owns these records') } },
     attachments: { validateImage: async () => { throw new Error('unused') }, saveFile: async () => { throw new Error('unused') }, saveImage: async () => { throw new Error('unused') }, readFileStream: async function* () { throw new Error('unused') }, readImage: async () => { throw new Error('unused') } },
     logger: { error: () => {} },
@@ -58,6 +69,63 @@ async function fixture(options: { enabled?: boolean; noKey?: boolean; failNext?:
   const service = new CodexSubscriptionService(host, 'codex-subscription', boot, settings, dependencies)
   return { service, initialize: () => service.initialize(), records, started, relayOperations, closed, settings: () => settings, settingsWrites: () => settingsWrites, repositoryClosed: () => repositoryClosed }
 }
+
+test('image card actions and media routes keep the explicit Session scope', async () => {
+  const first = parseImageTaskId('10000000-0000-4000-8000-000000000001'), second = parseImageTaskId('10000000-0000-4000-8000-000000000002')
+  const now = Date.now()
+  const tasks: ImageTaskRecord[] = [first, second].map((id, i) => ({ id, owner: { kind: 'session', sessionId: i ? 'other-session' : 'current-session', toolCallId: `call-${i}` },
+    state: 'failed', prompt: 'private image prompt', model: 'gpt-image-2', accountKey: 'private-account', createdAt: now, updatedAt: now, deadlineAt: now + 300000, assets: [] }))
+  const repository: ImageTaskRepository = { get: async id => tasks.find(task => task.id === id), list: async () => tasks,
+    put: async () => {}, delete: async () => {}, close: async () => {} }
+  const f = await fixture({ repository }); await f.initialize()
+  try {
+    const data = imageSessionViewSchema.parse(await f.service.action({ operation: 'image-session-view', args: { sessionId: 'current-session' } }, signal()))
+    assert.equal(data.tasks.length, 1); assert.equal(data.tasks[0]?.taskId, first); assert.equal(data.tasks[0]?.callId, 'call-0')
+    assert.doesNotMatch(JSON.stringify(data), /private-account|private image prompt|other-session/)
+    const media = await f.service.handle(new Request(`http://fixture/api/codex-subscription/media?task=${second}&session=current-session&asset=not-found`))
+    assert.equal(media.status, 404)
+    await assert.rejects(f.service.action({ operation: 'image-session-view', args: { sessionId: 'current-session', accountKey: 'not-accepted' } }, signal()))
+  } finally { await f.service.dispose() }
+})
+
+test('catalog revision and entries come from the same committed settings snapshot during publication', async () => {
+  const committed = Promise.withResolvers<void>(), release = Promise.withResolvers<void>()
+  const f = await fixture({ afterSettingsWrite: async () => { committed.resolve(); await release.promise } })
+  await f.initialize()
+  const entries = [{ kind: 'image', id: 'new-image', name: 'New image' }]
+  const saving = f.service.action({ operation: 'model-catalog-save', args: { revision: 0, entries } }, signal())
+  try {
+    await committed.promise
+    const concurrent = modelCatalogSchema.parse(await f.service.action({ operation: 'model-catalog' }, signal()))
+    assert.equal(concurrent.revision, 1)
+    assert.deepEqual(concurrent.entries, entries)
+  } finally { release.resolve(); await saving; await f.service.dispose() }
+})
+
+test('discovered accounts do not publish models until the owner explicitly saves a shared catalog', async () => {
+  const f = await fixture({ network: async input => String(input).endsWith('/wham/usage') ? Response.json({ rate_limit: {} })
+    : Response.json({ models: [{ slug: 'gpt-6.1-sol', context_window: 8192, input_modalities: ['text'] }] }) })
+  const now = Date.now(), accountId = 'catalog-owner', accountKey = `acct-${createHash('sha256').update(accountId).digest('hex').slice(0, 24)}`
+  const access = `e30.${Buffer.from(JSON.stringify({ sub: 'owner', 'https://api.openai.com/auth': { chatgpt_account_id: accountId } })).toString('base64url')}.fixture`
+  f.records.set(ACCOUNTS_KEY, { kind: 'grant', payload: { version: 1, revision: 1, accounts: { [accountKey]: { accountKey, accountId, label: 'Owner', enabled: true, priority: 0,
+    revision: 1, createdAt: now, updatedAt: now, credential: { type: 'oauth', access, refresh: 'private-refresh', expires: now + 3600000, accountId } } } } })
+  await f.initialize()
+  try {
+    const initial = modelCatalogSchema.parse(await f.service.action({ operation: 'model-catalog' }, signal()))
+    assert.equal(initial.candidates[0]?.id, 'gpt-6.1-sol'); assert.deepEqual(initial.entries, [])
+    assert.deepEqual(await f.service.catalogModels(), [])
+    const entries = [{ kind: 'text', id: 'gpt-6.1-sol', name: 'My GPT' }, { kind: 'image', id: 'gpt-image-2', name: 'My images' }]
+    await f.service.action({ operation: 'model-catalog-save', args: { revision: initial.revision, entries } }, signal())
+    assert.equal((await f.service.catalogModels())[0]?.name, 'My GPT')
+    assert.equal((await f.service.catalogModels()).length, 1)
+    assert.equal(f.settings().images.defaultModel, 'gpt-image-2')
+    await assert.rejects(f.service.action({ operation: 'model-catalog-save', args: { revision: initial.revision, entries: [] } }, signal()), { code: 'REVISION_CONFLICT' })
+    const current = modelCatalogSchema.parse(await f.service.action({ operation: 'model-catalog' }, signal()))
+    await assert.rejects(f.service.action({ operation: 'model-catalog-save', args: { revision: current.revision, entries: [{ kind: 'text', id: 'unsupported', name: 'Bad' }] } }, signal()), { code: 'MODEL_NOT_AVAILABLE' })
+    assert.equal(f.settingsWrites(), 1)
+    assert.equal(JSON.stringify(current).includes('private-refresh'), false)
+  } finally { await f.service.dispose() }
+})
 
 test('Host account queries and owner actions share full safe projections and explicit refresh bypasses the TTL', async () => {
   const requests: string[] = []

@@ -5,9 +5,9 @@ import type { AccountUsage } from '../../shared/accounts.ts'
 const windowSchema = z.object({ used_percent: z.number().finite(), reset_at: z.number().finite().optional(),
   reset_after_seconds: z.number().finite().nonnegative().optional(), limit_window_seconds: z.number().positive().optional() })
 const usageSchema = z.object({ plan_type: z.string().max(128).optional(),
-  rate_limit: z.object({ allowed: z.boolean().optional(), primary_window: windowSchema.nullable().optional(), secondary_window: windowSchema.nullable().optional() }).optional(),
-  credits: z.object({ has_credits: z.boolean().optional(), unlimited: z.boolean().optional(), balance: z.union([z.string().max(128), z.number().finite()]).optional(), overage_limit_reached: z.boolean().optional() }).optional(),
-  spend_control: z.object({ reached: z.boolean().optional() }).optional(), rate_limit_reached_type: z.object({ type: z.string().max(128).optional() }).nullable().optional(),
+  rate_limit: z.object({ allowed: z.boolean().nullish(), primary_window: windowSchema.nullable().optional(), secondary_window: windowSchema.nullable().optional() }).optional(),
+  credits: z.object({ has_credits: z.boolean().optional(), unlimited: z.boolean().optional(), balance: z.union([z.string().max(128), z.number().finite()]).nullish(), overage_limit_reached: z.boolean().nullish() }).nullish(),
+  spend_control: z.object({ reached: z.boolean().optional() }).nullish(), rate_limit_reached_type: z.object({ type: z.string().max(128).nullish() }).nullish(),
   rate_limit_reset_credits: z.object({ available_count: z.number().int().nonnegative() }).nullable().optional() })
 const resetSchema = z.object({ credits: z.array(z.object({ status: z.string(), expires_at: z.string().nullable().optional() })).max(4096) })
 // Magpie 的 workspace/reserve 列表仅参与已知额度结果的 composer 状态，不从套餐名推断模型或生图权限。
@@ -29,18 +29,23 @@ export function parseAccountUsage(raw: unknown, now: number): AccountUsage {
       : item.reset_after_seconds === undefined ? {} : { resetAt: now + item.reset_after_seconds * 1000 }),
     ...(item.limit_window_seconds === undefined ? {} : { windowSeconds: item.limit_window_seconds }) }
   const primary = window(value.rate_limit?.primary_window), secondary = window(value.rate_limit?.secondary_window)
-  const credits = value.credits === undefined ? undefined : {
+  const rawBalance = value.credits?.balance
+  const amount = typeof rawBalance === 'number' ? rawBalance : typeof rawBalance === 'string' && rawBalance.trim() !== '' ? Number(rawBalance) : NaN
+  const credits = value.credits == null ? undefined : {
     ...(value.credits.has_credits === undefined ? {} : { hasCredits: value.credits.has_credits }),
     ...(value.credits.unlimited === undefined ? {} : { unlimited: value.credits.unlimited }),
-    ...(value.credits.balance === undefined ? {} : { balance: String(value.credits.balance) }),
-    ...(value.credits.overage_limit_reached === undefined ? {} : { overageLimitReached: value.credits.overage_limit_reached }) }
-  const limitReason = value.rate_limit_reached_type?.type, plan = value.plan_type?.toLowerCase()
+    // Team 套餐可返回 null；未知积分不等于零，也不能让整份额度响应失效。
+    ...(value.credits.balance == null ? {} : { balance: String(value.credits.balance) }),
+    ...(value.credits.overage_limit_reached == null ? {} : { overageLimitReached: value.credits.overage_limit_reached }),
+    // 余额未报告时保留上游 has_credits；明确的零余额只取消续用提示，不改写 composer 的 allowed 状态。
+    usable: value.credits.unlimited === true || value.credits.has_credits === true && (!Number.isFinite(amount) || amount > 0) }
+  const limitReason = value.rate_limit_reached_type?.type ?? undefined, plan = value.plan_type?.toLowerCase()
   const workspaceOverage = plan !== undefined && workspaces.has(plan) && !reserves.has(plan) && credits?.overageLimitReached === false
     && value.spend_control?.reached !== true && (limitReason === undefined || limitReason === 'rate_limit_reached')
   const held = value.rate_limit?.allowed === false && credits?.hasCredits !== true && credits?.unlimited !== true && !workspaceOverage
   return { status: 'ready', freshness: 'fresh', fetchedAt: now, attemptedAt: now, lastSuccessfulAt: now,
     ...(value.plan_type === undefined ? {} : { plan: value.plan_type }), ...(primary === undefined ? {} : { primary }), ...(secondary === undefined ? {} : { secondary }),
-    ...(value.rate_limit?.allowed === undefined ? {} : { allowed: value.rate_limit.allowed }), ...(credits === undefined ? {} : { credits }),
+    ...(value.rate_limit?.allowed == null ? {} : { allowed: value.rate_limit.allowed }), ...(credits === undefined ? {} : { credits }),
     ...(value.spend_control?.reached === undefined ? {} : { spendControlReached: value.spend_control.reached }), ...(limitReason === undefined ? {} : { limitReason }),
     ...(value.rate_limit_reset_credits == null ? {} : { resetCredits: { availableCount: value.rate_limit_reset_credits.available_count } }),
     held, ...(held ? { heldReason: value.spend_control?.reached === true || credits?.overageLimitReached === true ? 'spending-limit'

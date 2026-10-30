@@ -43,11 +43,11 @@ function fixture(acquireError) {
   return { render, input, toggle, click, tick, calls, writes, effects, release: () => release(), fail: () => { failing = true } }
 }
 
-test('stored password, token and key reveal on demand without becoming credential edits', async () => {
+test('stored AFP password and token reveal on demand without exposing a separate vision key', async () => {
   const f = fixture()
   f.render(); f.effects[0]()
   await f.tick()
-  for (const key of ['passwordRef', 'accessTokenRef', 'visionKeyRef']) {
+  for (const key of ['passwordRef', 'accessTokenRef']) {
     assert.ok(f.input(key).props.className.includes('afp-secret-masked'))
     assert.equal(f.input(key).props.value, '')
     assert.equal(f.input(key).props.placeholder, 'maskedCredential')
@@ -63,7 +63,8 @@ test('stored password, token and key reveal on demand without becoming credentia
   }
   f.render().props.onSubmit({ preventDefault() {} }); await f.tick()
   assert.deepEqual(f.writes, [])
-  assert.deepEqual(f.calls.filter(call => call.operation === 'reveal-credential').map(call => call.key), ['passwordRef', 'accessTokenRef', 'visionKeyRef'])
+  assert.deepEqual(f.calls.filter(call => call.operation === 'reveal-credential').map(call => call.key), ['passwordRef', 'accessTokenRef'])
+  assert.equal(f.input('visionKeyRef'), undefined)
   f.input('passwordRef').props.onChange({ target: { value: '' } })
   f.click('passwordRef'); f.release(); await f.tick()
   assert.equal(f.input('passwordRef').props.value, 'fixture-passwordRef', 'An empty draft still allows revealing the saved value')

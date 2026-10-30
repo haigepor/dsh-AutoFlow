@@ -4,7 +4,7 @@ import type { CuratorDomain } from '../domain/curator.ts'
 import type { DomainActor, RecordOf, RunRecord } from '../shared/model.ts'
 import type { AnalysisInput, AnalysisRequest } from '../shared/analysis-process.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { nativeCallFactsSchema } from '../shared/analysis-process.ts'
+import { nativeCallFactsSchema, analysisRequestSchema } from '../shared/analysis-process.ts'
 import { dataOf } from './runtime.ts'
 
 const descriptorSchema = z.object({ operation: z.enum(['analyze', 'summarize']), model: z.string(), instructions: z.string(), inputText: z.string(), images: z.array(z.object({ imageVersionId: z.string(), digest: z.string(), mime: z.string(), role: z.string(), remoteUrl: z.string().optional() })) })
@@ -25,7 +25,8 @@ export function analysisRequests(domain: CuratorDomain, run: RunRecord): Analysi
     if (!request || request.runId !== run.id) return []
     const parsed = descriptor(request)
     const native = nativeCallFactsSchema.safeParse(request.data && typeof request.data === 'object' && !Array.isArray(request.data) ? request.data.metadata : undefined)
-    return [{ requestId: request.id, createdAt: request.createdAt, state: request.state, operation: parsed.success ? parsed.data.operation : null, model: parsed.success ? parsed.data.model : null, imageIds: parsed.success ? parsed.data.images.map(image => image.imageVersionId) : [], available: parsed.success, ...(native.success ? { native: native.data } : {}) }]
+    const error = analysisRequestSchema.shape.error.unwrap().safeParse(request.data && typeof request.data === 'object' && !Array.isArray(request.data) ? request.data.error : undefined)
+    return [{ requestId: request.id, createdAt: request.createdAt, state: request.state, operation: parsed.success ? parsed.data.operation : null, model: parsed.success ? parsed.data.model : null, imageIds: parsed.success ? parsed.data.images.map(image => image.imageVersionId) : [], available: parsed.success, ...(native.success ? { native: native.data } : {}), ...(error.success ? { error: error.data } : {}) }]
   })
 }
 

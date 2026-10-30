@@ -168,6 +168,7 @@ function adopt(candidate: LlmDiscoveredModel): ModelDraft {
     ...candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow },
     ...candidate.maxTokens === undefined ? {} : { maxTokens: candidate.maxTokens },
     ...candidate.inputModalities === undefined ? {} : { input: [...candidate.inputModalities] },
+    ...candidate.nativeWebSearch === undefined ? {} : { nativeWebSearchDefault: candidate.nativeWebSearch },
   }
 }
 
@@ -362,6 +363,8 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
       total={models.length}
       {...order.rowProps(index)}
       inputField="input"
+      nativeSearchApi={probe.api ?? catalog?.find(entry => entry.id === textOf(model, 'id'))?.api}
+      nativeSearchReported={catalog?.find(entry => entry.id === textOf(model, 'id'))?.nativeWebSearch}
       inputFallback={inputDefaults.get(textOf(model, 'id')) ?? props.defaultInput}
       inputLoading={catalogProvider !== undefined && catalog === undefined}
       reasoningOptions={props.reasoningOptions === undefined ? undefined : {
@@ -406,48 +409,43 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
 
   // A route the adapter already describes answers without an endpoint; only a
   // draft with neither has nothing to ask about.
-  const addAction = props.onlyIndex === undefined ? <button
+  const addAction = props.onlyIndex === undefined ? <Button
     type="button"
-    className={styles['addModelButton']}
+    variant={props.connecting === true ? 'outline' : 'ghost'}
+    size={props.connecting === true ? 'md' : 'sm'}
+    className={props.connecting === true ? undefined : styles['addModelButton']}
     disabled={disabled}
     onClick={() => {
       if (props.connecting === true) setExpanded(current => new Set([...current, models.length]))
       onChange([...models, newModel('')])
     }}
   >
-    <IconPlusOutlineRegular size={14} />
+    <IconPlusOutlineRegular size={16} />
     {t('addModel')}
-  </button> : null
+  </Button> : null
 
   const askable = probe.provider !== undefined || (probe.baseURL !== undefined && probe.baseURL.length > 0)
+  const catalogActions = <>
+    {props.overridden === true && props.onReset !== undefined && <Button
+      variant={props.connecting === true ? 'outline' : 'ghost'} size={props.connecting === true ? 'md' : 'sm'}
+      className={props.connecting === true ? undefined : styles['linkButton']} disabled={disabled} onClick={props.onReset}>
+      {t('resetModels')}
+    </Button>}
+    <Button variant={props.connecting === true ? 'outline' : 'ghost'} size={props.connecting === true ? 'md' : 'sm'}
+      className={props.connecting === true ? undefined : styles['linkButton']}
+      disabled={disabled || busy || !askable || props.probeBlocked !== undefined}
+      title={props.probeBlocked !== undefined ? t(props.probeBlocked) : askable ? undefined : t('fetchNeedsBaseUrl')}
+      icon={props.connecting === true ? <IconRefreshOutlineRegular size={16} /> : undefined}
+      onClick={() => { void fetchModels() }}>
+      {busy ? t('fetching') : t('fetchModels')}
+    </Button>
+    {props.connecting === true ? addAction : null}
+  </>
   return (
     <section className={`${styles['modelCatalog']} ${props.connecting === true ? connectStyles['catalog'] : ''}`} data-connection={props.connecting === true} aria-label={t('models')}>
       {props.onlyIndex === undefined && <div className={`${styles['modelListHead']} ${props.connecting === true ? connectStyles['catalogHeading'] : ''}`}>
         <ModelCatalogHeading t={t} overridden={props.overridden} />
-        {props.overridden === true && props.onReset !== undefined
-          ? (
-            <button
-              type="button"
-              className={styles['linkButton']}
-              disabled={disabled}
-              onClick={props.onReset}
-            >
-              {t('resetModels')}
-            </button>
-          )
-          : null}
-        <button
-          type="button"
-          className={`${styles['linkButton']} ${props.connecting === true ? connectStyles['fetch'] : ''}`}
-          disabled={disabled || busy || !askable || props.probeBlocked !== undefined}
-          title={props.probeBlocked !== undefined
-            ? t(props.probeBlocked)
-            : askable ? undefined : t('fetchNeedsBaseUrl')}
-          onClick={() => { void fetchModels() }}
-        >
-          {props.connecting === true && <IconRefreshOutlineRegular size={14} />}{busy ? t('fetching') : t('fetchModels')}
-        </button>
-        {props.connecting === true ? addAction : null}
+        {props.connecting === true ? <div className={connectStyles['catalogActions']}>{catalogActions}</div> : catalogActions}
       </div>}
       {props.connecting === true ? <>
         {models.length === 0 && props.overridden === false && <div className={connectStyles['defaultCatalog']}>

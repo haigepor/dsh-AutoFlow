@@ -5,6 +5,43 @@ import sharp from 'sharp'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { dataOf, specOf } from '../src/host/runtime.ts'
 import { MediaError } from '../src/media/errors.ts'
+import { readFile } from 'node:fs/promises'
+import { z } from 'zod'
+
+test('profile analysis commits observations before inducing rules once while ordinary analysis retains suggestions', async () => {
+  const f = await serviceFixture(undefined, { maxReferenceImages: 2 })
+  try {
+    await f.service.initialize()
+    const created = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'staged-style', name: 'Staged' }))
+    const files = await Promise.all(['red', 'green', 'blue', 'white', 'black'].map(async color => ({ name: `${color}.png`, mime: 'image/png', base64: (await sharp({ create: { width: 16, height: 16, channels: 3, background: color } }).png().toBuffer()).toString('base64'), role: 'positive', intent: 'overall', dimensions: [] })))
+    await f.action('reference-import', { operationId: 'staged-images', styleId: created.id, expectedRevision: 1, files })
+    const requestSchema = z.object({ outputSchema: z.object({ properties: z.record(z.string(), z.unknown()) }), input: z.object({ operation: z.string(), images: z.array(z.unknown()) }) })
+    const send = f.http.request.bind(f.http), batches: number[] = [], fields: string[][] = []
+    let observedBeforeSummary = 0, rulesBeforeSummary = 0, collecting = true
+    f.http.request = async (url, request) => {
+      const body = z.object({ messages: z.array(z.object({ content: z.union([z.string(), z.array(z.object({ text: z.string().optional() }))]) })) }).parse(JSON.parse(Buffer.from(request.body!).toString('utf8')))
+      const content = body.messages[1]!.content
+      assert.ok(Array.isArray(content))
+      const input = requestSchema.parse(JSON.parse(content[0]!.text!))
+      if (collecting && input.input.operation === 'analyze') { batches.push(input.input.images.length); fields.push(Object.keys(input.outputSchema.properties)) }
+      if (input.input.operation === 'summarize') { observedBeforeSummary = f.repository.list('observation').length; rulesBeforeSummary = f.repository.list('suggestion').length }
+      return send(url, request)
+    }
+    const started = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'staged-profile', styleId: created.id, buildDataset: true }))
+    await f.jobs.drain()
+    const run = f.domain.require('run', started.runId)
+    assert.equal(run.status, 'completed')
+    const summary = z.object({ checkpoint: z.object({ styleAnalysis: z.object({ summary: z.object({ suggestedRules: z.array(z.unknown()) }) }) }) }).parse(run.data)
+    const responses = f.repository.list('request').filter(request => request.runId === run.id).map(request => z.object({ bundle: z.object({ operation: z.string() }), output: z.object({ suggestedRules: z.array(z.unknown()) }) }).parse(request.data))
+    collecting = false
+    const ordinary = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'staged-ordinary', styleId: created.id, buildDataset: false }))
+    await f.jobs.drain()
+    assert.equal(f.domain.require('run', ordinary.runId).status, 'completed')
+    const ordinaryRules = f.repository.list('request').filter(request => request.runId === ordinary.runId).map(request => z.object({ output: z.object({ suggestedRules: z.array(z.unknown()) }) }).parse(request.data).output.suggestedRules.length)
+    const actual = { mode: specOf(run).fixed.analysisOutput, observationBatches: batches, observationFields: fields, observedBeforeSummary, rulesBeforeSummary, observed: dataOf(run).counts.observed, finalRules: summary.checkpoint.styleAnalysis.summary.suggestedRules.length, normalizedBatchRules: responses.filter(response => response.bundle.operation === 'analyze').map(response => response.output.suggestedRules.length), summaryCalls: responses.filter(response => response.bundle.operation === 'summarize').length, ordinaryRules }
+    assert.deepEqual(actual, JSON.parse(await readFile(new URL('./fixtures/observation-stages.expected.json', import.meta.url), 'utf8')))
+  } finally { await f.cleanup() }
+})
 
 test('each observation batch receives only its human judgments while summary keeps all feedback', async () => {
   const f = await serviceFixture(undefined, { maxReferenceImages: 1 })
@@ -91,7 +128,11 @@ test('a new analysis automatically reuses a matching partial failed checkpoint',
     assert.equal(ids.length, 3)
     assert.notEqual(ids[0], ids[2])
     assert.equal(ids[1], ids[2])
-    assert.deepEqual(specOf(run).fixed.reuseAnalysis, { runId: first.runId })
+    const reused = z.array(z.object({ runId: z.string(), imageVersionId: z.string(), observationId: z.string() })).parse(specOf(run).fixed.reuseObservations)
+    assert.equal(reused.length, 1)
+    assert.equal(reused[0]!.runId, first.runId)
+    assert.equal(reused[0]!.imageVersionId, ids[0])
+    assert.equal(f.domain.require('observation', reused[0]!.observationId).imageVersionId, ids[0])
     assert.equal(f.repository.list('observation').length, 2)
   } finally { await f.cleanup() }
 })

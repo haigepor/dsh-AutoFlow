@@ -1,0 +1,61 @@
+{
+  "name": "dsh-plugin-style-prompt",
+  "version": "0.1.1",
+  "description": "Analyze image styles with configured vision APIs and export differentiated generation prompts and reference plans",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": "^22.19.0 || >=24.0.0" },
+  "exports": { ".": "./index.js", "./client": "./client.js", "./package.json": "./package.json", "./locale/*.json": "./locale/*.json" },
+  "files": ["index.js", "client.js", "cordis.patch.yml", "README.md", "README.zh.md", "locale", "assets/*.webp", "assets/*.prompt.txt"],
+  "icon": "./assets/reference-import-v1.webp",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml",
+      "features": [{
+        "id": "workbench", "rowId": "style-prompt", "kind": "ui", "defaultEnabled": true,
+        "title": { "en": "Style Prompt workbench", "zh": "风格提示词工作台" },
+        "description": { "en": "Analyze image styles, create differentiated prompts and export reference plans.", "zh": "分析图片风格，生成差异化提示词并导出参考图配置。" },
+        "details": { "en": "Uses the project's configured vision API. Turning this feature off stops its active tasks and keeps saved history.", "zh": "复用项目已配置的视觉 API。关闭此功能会停止插件中的进行中任务，保留已保存的历史记录。" }
+      }]
+    },
+    "client": { "platform": "web", "immediately": true, "inject": ["slots", "locale", "remote", "remote.pluginManager", "layout"] }
+  },
+  "scripts": {
+    "test": "node --import tsx/esm --test tests/*.test.ts",
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs",
+    "prepack": "pnpm run check && pnpm run build"
+  },
+  "dependencies": { "zod": "^4.4.3" },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@deepseek-ai/dsh-app-boot": "workspace:*",
+    "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
+    "@deepseek-ai/dsh-brand": "workspace:*",
+    "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-plugin-manager": "workspace:*",
+    "@deepseek-ai/dsh-storage-domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@deepseek-ai/dsh-app-boot": "workspace:*",
+    "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
+    "@deepseek-ai/dsh-brand": "workspace:*",
+    "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-primitives": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-plugin-manager": "workspace:*",
+    "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@types/node": "^22.20.1",
+    "@types/react": "~18.3.1",
+    "esbuild": "0.28.1",
+    "react": "~18.3.1",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3"
+  }
+}

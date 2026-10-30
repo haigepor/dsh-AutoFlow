@@ -3,6 +3,7 @@ import type { StyleSummary } from '../shared/style-analysis.ts'
 import type { ModelProfile } from '../shared/model.ts'
 import type { GalleryAccount } from '../shared/gallery.ts'
 import type { GalleryTaskView } from '../shared/gallery-task.ts'
+import type { AnalysisContinuation } from '../shared/analysis-process.ts'
 export type Dimension = 'color' | 'lighting' | 'texture' | 'subject' | 'composition' | 'density' | 'depth'
 export type Workspace = 'styles' | 'samples' | 'tasks' | 'data'
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
@@ -89,11 +90,13 @@ export interface StyleAnalysisView {
   model: string
   summary?: StyleSummary
   error?: SafeFailure
+  continuation?: AnalysisContinuation
   samples: { referenceId: string; imageVersionId: string; familyId: string; digest: string; role: 'positive' | 'negative' | 'undecided'; intent: 'overall' | 'dimensions'; dimensions: Dimension[]; image?: ImageView; observations: { dimension: string; description: string; uncertain: boolean; requestId: string }[] }[]
 }
 
-/** A visible image version and its authorized association, never an upstream media URL. */
+/** A visible image and its authorized resources; preview searches may expose an unsigned public preview URL. */
 export interface ImageView {
+  previewUrl?: string
   resultCategory?: Exclude<import('../shared/search-feedback.ts').RunResultFilter, 'all'>
   styleMatch?: import('../shared/style-matching.ts').StyleMatch
   selection?: { kind: 'selected'; selectionId: string; qualification: 'auto-qualified' | 'human-selected'; rank: number; rankScore: number; warnings: string[] } | { kind: 'not-selected' }
@@ -169,6 +172,9 @@ export interface UsageView {
 
 /** Durable run state is independent of its current process job. */
 export interface RunView {
+  revision?: number
+  outputKind?: import('../shared/search-launch.ts').SearchLaunchInput['output']['kind']
+  launchId?: import('../shared/search-launch.ts').SearchLaunchView['id']
   issues?: import('../shared/search-feedback.ts').SearchIssue[]
   delivery?: { status: 'pending' | 'delivered'; directory?: string; files: number }
   owner?: { kind: 'profile' } | { kind: 'session'; sessionId: string }
@@ -240,8 +246,8 @@ export interface ConfigurationView {
     widthPointer: string; heightPointer: string; nextCursorPointer: string
     allowedMediaOrigins: string[]; lookupEndpoint: string
   }
-  vision: { backend?: 'native' | 'compatible' | undefined; provider?: string | undefined; endpoint: string; model: string; credentialRef: string; supportsMultipleImages: boolean; supportsJson: boolean; supportsStreaming?: boolean | undefined; localOrigin: string; vendorVersion: string | null; reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'max' | null | undefined }
-  limits: { maxVisionCalls: number; maxSearchPages: number; maxCandidates: number; maxDownloadBytes: number; maxCropCandidatesPerImage: number; maxConcurrentRequests: number; maxRetryAttempts: number; requestTimeoutMs: number; maxVisionOutputTokens: number; deadlineMs: number; pollIntervalMs: number; processPollIntervalMs?: number; pageSize: number; maxImportFiles: number; maxImportBytes: number; maxGalleryReferenceFiles: number }
+  vision: { backend?: 'native' | 'compatible' | undefined; useModelDefaults?: boolean | undefined; provider?: string | undefined; endpoint: string; model: string; credentialRef: string; supportsMultipleImages: boolean; supportsJson: boolean; supportsStreaming?: boolean | undefined; localOrigin: string; vendorVersion: string | null; reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'max' | null | undefined }
+  limits: { maxVisionCalls: number; maxSearchPages: number; maxCandidates: number; maxDownloadBytes: number; maxCropCandidatesPerImage: number; maxConcurrentRequests: number; maxRetryAttempts: number; requestTimeoutMs: number; maxVisionOutputTokens: number; deadlineMs: number; pollIntervalMs: number; processPollIntervalMs?: number; analysisCacheTtlMs?: number; batchCacheTtlMs?: number; batchCacheMaxViews?: number; sessionGrantTtlMs?: number; pageSize: number; maxImportFiles: number; maxImportBytes: number; maxGalleryReferenceFiles: number }
 }
 
 /** Complete profile projection; polling refreshes data while viewing state stays in the Client store. */

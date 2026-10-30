@@ -462,11 +462,36 @@ button.crumb:hover {
 /* 仅使用正文外侧空白；自定义正文变宽时，胶囊随可用容器宽度隐藏。 */
 .bodyOverlay {
   position: absolute;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
   top: 12px;
   right: 16px;
   z-index: 8;
   width: min(300px, max(0px, calc((100% - var(--dsh-chat-content-width)) / 2 - 24px)));
+  height: calc(100% - 24px);
+  pointer-events: none;
   container-type: inline-size;
+}
+
+/* 外层负责侧边空白的显示条件，内部贡献者可独立向左扩宽。 */
+.bodyOverlayStack {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.bodyOverlayStack > * {
+  pointer-events: auto;
 }
 
 .scrollBody {

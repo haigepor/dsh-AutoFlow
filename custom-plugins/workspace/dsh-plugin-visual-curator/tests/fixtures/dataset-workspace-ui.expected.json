@@ -1,0 +1,27 @@
+{
+  "mode": "native-production-components",
+  "modelSettingsTable": true,
+  "horizontalFilters": [
+    "desktop",
+    "390px"
+  ],
+  "bodyOnlyMask": true,
+  "closeBeforeAcknowledgement": true,
+  "sameTaskOnReopen": true,
+  "phaseProgress": "3/10",
+  "readOnlyRules": 7,
+  "candidateRules": 14,
+  "samples": 10,
+  "files": 5,
+  "themes": [
+    "dark",
+    "light"
+  ],
+  "narrowOverflow": false,
+  "retainedOnReadFailure": true,
+  "noDuplicateCard": true,
+  "reducedMotion": true,
+  "interceptedStarts": 1,
+  "productionWrites": 0,
+  "pageErrors": []
+}

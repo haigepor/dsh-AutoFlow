@@ -27,6 +27,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+模型目录条目接受 `nativeWebSearch`：省略时自动匹配已知的 DeepSeek Messages 模型，显式布尔值覆盖匹配结果。原生搜索使用当前模型、Messages 端点和本次捕获的会话鉴权，包括账号登录，无需额外的搜索 API 密钥。调用选路见[网页工具](../../web/tool-web/README.zh.md)。
+
 本包导出传输库；provider 插件向 harness LLM 服务注册路由。它在每次操作开始时从 Config 引用捕获连接选项。
 
 适配器接受 LLM 服务的[仅供请求使用的 user 输入](../llm/README.zh.md#use-this-package)，并可将其与持久历史混用；省略请求输入的身份与来源不会改变提供方内容。
@@ -196,9 +198,7 @@ loop 保留的响应块会追加到下一个请求，并保留其更早的可复
 
 ## 已知限制与延期工作
 
-
 <a id="known-limitations-and-deferred-work"></a>
-
 
 这些限制说明适配器在哪里停止、由未来工作接续。它们是当前包约束，不是通用 DeepSeek 对比或任务积压。
 

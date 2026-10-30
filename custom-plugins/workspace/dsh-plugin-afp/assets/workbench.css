@@ -32,6 +32,11 @@
 .afp-configuration[data-vision='true'] .afp-config-columns { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
 .afp-config-section { min-width: 0; }
 .afp-form-heading { margin: 0 0 14px; color: var(--dsw-alias-label-primary); font-size: 13px; font-weight: 500; }
+.afp-model-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.afp-configuration .afp-model-heading .afp-form-heading { margin: 0; }
+.afp-model-refresh { flex: none; color: var(--dsw-alias-label-secondary); }
+.afp-model-selection { gap: 10px; }
+.afp-model-selection .afp-model-help { margin: 0; color: var(--dsw-alias-label-secondary); line-height: 1.6; }
 .afp-form-field { display: grid; gap: 6px; min-width: 0; }
 .afp-form-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .afp-configuration .afp-form-label > label { display: block; flex: none; }

@@ -5,12 +5,14 @@ import { CuratorService } from './service.ts'
 import { Config } from './config.ts'
 import type { ClientActionInput } from '../client/contract.ts'
 import { CuratorError } from '../shared/errors.ts'
+import BasicCompactionEngine from '@deepseek-ai/dsh-compaction-basic'
+import type { BasicCompactionConfig } from '@deepseek-ai/dsh-compaction-basic'
 import type {} from '@deepseek-ai/dsh-plugin-manager'
 import type {} from '@deepseek-ai/dsh-client-connection'
 
 export { Config }
 export const name = 'dsh-plugin-visual-curator'
-export const inject = ['profileContext', 'storageDomain', 'credentials', 'jobs', 'pluginManager', 'configEditor', 'sessions', 'llm', 'attachments']
+export const inject = ['profileContext', 'storageDomain', 'credentials', 'jobs', 'pluginManager', 'configEditor', 'sessions', 'llm', 'attachments', 'tokenMeter']
 
 declare module '@deepseek-ai/cordis' {
   interface Context { visualCurator: CuratorService }
@@ -37,14 +39,31 @@ export function safeFailure(error: unknown) {
  * @returns Settles after the durable repository and registrations are available.
  */
 export async function apply(ctx: Context, input: unknown = {}): Promise<void> {
+  const { compaction } = z.object({ compaction: z.record(z.string(), z.unknown()).optional() }).parse(input)
+  const scope = await nativeContextScope(ctx, compaction)
   const read = () => {
-    const { vision, ...rest } = z.object({ vision: z.unknown().optional() }).passthrough().parse(input)
+    const { vision, compaction: _compaction, ...rest } = z.object({ vision: z.unknown().optional(), compaction: z.unknown().optional() }).passthrough().parse(input)
     return { ...rest, vision: vision && typeof vision === 'object' && 'get' in vision && typeof vision.get === 'function' ? vision.get() : vision }
   }
-  const service = new CuratorService(ctx, read())
+  const service = new CuratorService(scope, read())
   ctx.on('loader/volatile-update', () => service.updateConfiguration(read()))
-  await mountCurator(ctx, service)
+  await mountCurator(scope, service)
   ctx.inject(['sessionController', 'workspaceRegistry', 'fileUploads', 'sessionTitle', 'tools'], () => service.restoreSearchLaunches())
+}
+
+/**
+ * Reuse a profile backend or mount native input-only compaction in this plugin's private scope.
+ * @param ctx Owner fiber with native LLM, token meter and Session storage.
+ * @param config Optional native Basic policy; specifying it selects a private backend.
+ * @returns Context whose compaction service is available until its owner fiber is disposed.
+ */
+export async function nativeContextScope(ctx: Context, config?: BasicCompactionConfig): Promise<Context> {
+  if (config === undefined && ctx.get('compaction')) return ctx
+  const scope = ctx.isolate('compaction')
+  // 工作台没有 Agent turn；该实例仅供任务输入压缩，不能注册自动会话压缩监听。
+  await scope.plugin(BasicCompactionEngine, { ...config, auto: false })
+  if (!scope.get('compaction')) throw new CuratorError('capability-unavailable', 'context-compaction', 'The native input compaction backend did not load.')
+  return scope
 }
 
 /** Mount an existing provider through the production registration path.

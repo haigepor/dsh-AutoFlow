@@ -6,6 +6,10 @@ The compaction seam — a [capability seam](../../.agents/notes/implemented/arch
 
 Source: [`packages/compaction/compaction/src/types.ts`](../../packages/compaction/compaction/src/types.ts)
 
+## Operation-owned text inputs
+
+`compactInput` accepts text chunks and the capacity of a prepared native model call without accessing a Session. The Basic backend applies its existing exact-model policy and token meter; the operation retains fixed input and owns each auxiliary request through a budgeted, recorded, replayable runner. Below pressure the result is null. Successful results contain shorter text and estimated chunk prices; unsafe, unsupported or non-converging compression rejects without changing the original input. See the [service types](../../packages/compaction/compaction/src/types.ts) and [Basic backend](../../packages/compaction/compaction-basic/README.md) for the caller obligations and policy.
+
 ## The `compaction/*` session events
 
 Compaction extends [`SessionEventMap`](session.md) with three event types via declaration merging. All three are **log-only** — they record the lock, summary, selected range, shadowed event seqs, token count, and model call without joining the surface. `SurfaceEventType` is deliberately NOT extended (only message-producing events reach the model), so the summary itself rides on a separate `user/message` with `surfaceOp: { op: 'replace', startSeq, endSeq }` — the only surface mutation performed by summary compaction. The [historical Agent Note](../../.agents/notes/archived/feature/2026-06-18-compaction-capability-seam.md) records the rationale for reusing `user/message`.
@@ -147,6 +151,15 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 Abstract compaction service. Implementations own trigger policy, retention, and summarization, and may consume a separate measurement service. A successful run replaces the selected surface span with one summary node and prevents concurrent compaction of the same session. The replacement user message uses compactCheckpointSource with the transaction identity so consumers recognize and correlate it independently of the backend. Load one implementation per context as `ctx.compaction`.
 
 ```ts cordis-catalog
+/**
+ * Compact operation-owned text under routed model policy without creating or modifying a Session.
+ * @param input - prepared model capacity, fixed-input price and compressible text chunks.
+ * @param run - owner callback that reserves, records and optionally replays each auxiliary call.
+ * @param signal - operation cancellation, also forwarded to model preparation and dispatch.
+ * @returns shorter text, or null below pressure; rejects unsupported backends and unsafe compression.
+ */
+compactInput( input: InputCompactionRequest, run: InputCompactionRunner, signal: AbortSignal, ): Promise<InputCompactionResult | null>
+
 /**
  * Consider automatic compaction for one explicit trigger. Pressure policy
  * uses the latest durable routed request, while context-overflow policy may

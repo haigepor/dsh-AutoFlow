@@ -1,13 +1,14 @@
 /** Reusable user contents inside a caller-owned message row. */
 import { Fragment } from 'react'
 import type { FactoryComponentPropsOf } from '@deepseek-ai/dsh-client-ui-slots'
-import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, fileExtension, FileTypeIcon, fileSizeText, JsonBlock, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './MessageItem.module.css'
 
 const EMPTY_LABELS: readonly string[] = []
 
 /**
  * Render prepared text, ordered attachments, and references without message chrome.
+ * Long text uses a compact card when the Session supplies a sidebar reader.
  * The caller owns row identity, pending/echo state, time, and message actions.
  * @param props - prepared content, facts, authorized image loader, and framework Factory/locale seats.
  * @returns the content stack using the existing user-message layout.
@@ -31,7 +32,9 @@ function renderContent(props: FactoryComponentPropsOf<'conversation.chat.user.co
   const { text, attachments, extraBlocks, referenceLabels = EMPTY_LABELS } = content
   const compactImages = attachments.length > 1
   const truncated = (total: number): string => t('json.truncated', { total })
-  const showBubble = text !== '' || extraBlocks.length > 0
+  const openLongText = 'openLongText' in props ? props.openLongText : undefined
+  const compactText = openLongText !== undefined && (text.length > 1000 || text.split(/\r\n|\r|\n/u, 13).length > 12)
+  const showBubble = !compactText && text !== '' || extraBlocks.length > 0
   return (
     <div className={css.userStack}>
       {attachments.length > 0 && (
@@ -62,10 +65,17 @@ function renderContent(props: FactoryComponentPropsOf<'conversation.chat.user.co
             ))}
         </div>
       )}
+      {compactText && <Tooltip label={t('message.longText.open')} side="top">
+        <Button className={css.longTextCard} aria-label={t('message.longText.open')} onClick={() => openLongText(text)}>
+          <FileTypeIcon path="message.txt" size={16} className={css.longTextCardIcon} />
+          <span className={css.longTextCardLabel}>{text.trimStart().slice(0, 240).replace(/\s+/gu, ' ') || t('message.longText.title')}</span>
+          <span className={css.longTextCardAction}>{t('message.longText.read')}</span>
+        </Button>
+      </Tooltip>}
       {showBubble && <div className={css.bubble}>
-        {sessionImages && 'facts' in props
+        {!compactText && (sessionImages && 'facts' in props
           ? renderFactorySlot('conversation.user.text', { text, facts: props.facts, interactive: props.interactive ?? false, ellipsis: props.ellipsis ?? false })
-          : text}
+          : text)}
         {extraBlocks.map((block, index) => (
           <JsonBlock key={index} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />
         ))}

@@ -102,10 +102,11 @@ test('explicit credential reveal accepts only AFP secret fields and the current 
   }, config)
   const ctx = { configEditor: { entries: () => [entry] } }, service = { connection }
   const revision = digest(JSON.stringify(config))
-  for (const [key, value] of [['passwordRef', refs.AFP_PASSWORD], ['visionKeyRef', refs.VISION_API_KEY]]) {
+  for (const [key, value] of [['passwordRef', refs.AFP_PASSWORD]]) {
     assert.deepEqual(JSON.parse(await configurationAction(ctx, { operation: 'reveal-credential', key, revision }, service)), { value })
   }
   for (const input of [
+    { operation: 'reveal-credential', key: 'visionKeyRef', revision },
     { operation: 'reveal-credential', key: 'OTHER_SECRET', revision },
     { operation: 'reveal-credential', key: 'usernameRef', revision },
     { operation: 'reveal-credential', key: 'passwordRef', revision: 'stale' },

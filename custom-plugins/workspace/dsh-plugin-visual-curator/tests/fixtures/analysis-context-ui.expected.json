@@ -1,0 +1,20 @@
+{
+  "latestRequestOnly": true,
+  "usedTokens": 40000,
+  "capacity": 1000000,
+  "percent": 4,
+  "pendingToReported": true,
+  "historicalUnavailable": true,
+  "measuredZero": true,
+  "overflowBounded": true,
+  "compactContextVisible": true,
+  "narrowOverflow": false,
+  "focusRestored": true,
+  "profileThemeSurface": true,
+  "profileTextContrast": true,
+  "stickyHeaders": true,
+  "profileMobileEvidence": true,
+  "modelRequestsUnchanged": true,
+  "dataWritten": false,
+  "pageErrors": []
+}

@@ -72,6 +72,38 @@ const request = (sessionId = 'fixture-session'): GenerateOptions => ({ provider,
   tools: [{ name: 'lookup', description: 'fixture lookup', parameters: { type: 'object', properties: { index: { type: 'number' } } } }] })
 async function collect(stream: AsyncIterable<StreamChunk>) { const assembler = new BlockAssembler(); for await (const chunk of stream) assembler.push(chunk); return assembler }
 
+test('native search uses a scheduled Codex account and exposes source URLs without a DeepSeek credential', async () => {
+  const search = { type: 'web_search_call', id: 'ws_native_fixture', status: 'completed', action: { type: 'search', sources: [{ type: 'url', url: 'https://github.com/trending' }] } }
+  const answer = { type: 'message', id: 'msg_native_fixture', role: 'assistant', content: [{ type: 'output_text', text: 'Current projects', annotations: [] }] }
+  const events = [{ type: 'response.created', response: { id: 'resp_native_fixture' } },
+    ...[search, answer].flatMap((item, output_index) => [{ type: 'response.output_item.added', output_index, item }, { type: 'response.output_item.done', output_index, item }]),
+    { type: 'response.completed', response: { id: 'resp_native_fixture', status: 'completed', output: [search, answer], usage: { input_tokens: 2, output_tokens: 2 } } }]
+  const f = fixture(() => new Response(events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } }))
+  try {
+    await f.seed(['a'])
+    const recorded: unknown[] = []
+    const result = await f.adapter.searchNative({ provider, model, query: 'current projects', maxResults: 2, signal: new AbortController().signal,
+      recordRequest: input => { recorded.push(input) } })
+    assert.deepEqual(result.sources, [{ url: 'https://github.com/trending' }])
+    assert.deepEqual(f.requests[0]?.payload.tools, [{ type: 'web_search' }])
+    assert.equal(f.requests[0]?.headers.get('authorization'), `Bearer ${token('a')}`)
+    assert.equal(recorded.length, 1)
+    assert.equal(await f.accounts.withAccount({ kind: 'usage', accountKey: accountKey('a') }, async lease => lease.accountId), 'a')
+  } finally { await f.accounts.dispose() }
+})
+
+test('a manual native-search opt-out prevents a Codex search request', async () => {
+  const f = fixture()
+  try {
+    await f.seed(['a'])
+    const optedOut = new CodexPoolAdapter(f.accounts, { ...f.poolOptions,
+      listModels: async () => (await f.accounts.models()).map(model => ({ ...model, nativeWebSearch: false })) })
+    await assert.rejects(optedOut.searchNative({ provider, model, query: 'current projects', maxResults: 2,
+      signal: new AbortController().signal, recordRequest: () => {} }), /disabled/)
+    assert.equal(f.requests.length, 0)
+  } finally { await f.accounts.dispose() }
+})
+
 test('native Codex emits reasoning, parallel tool IDs, usage and account-wrapped replay while preserving AutoFlow instructions', async () => {
   const f = fixture(); await f.seed(['a', 'b'])
   const first = await collect(f.adapter.stream(request())), wire = f.requests[0]

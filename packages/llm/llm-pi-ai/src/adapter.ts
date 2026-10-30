@@ -55,6 +55,8 @@ import type {
   ResolvedRetryPolicy,
   StreamChunk,
   ToolSchema,
+  NativeWebSearchRequest,
+  NativeWebSearchResult,
 } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
@@ -62,6 +64,8 @@ import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { requestImageTarget, toPiContext } from './context.ts'
 import { conversationUpdates, createModels, getSupportedThinkingLevels } from './models.ts'
 import { toStreamChunks } from './stream.ts'
+import { nativeWebSearchEnabled } from '@deepseek-ai/dsh-llm/native-web-search'
+import { nativeSearchCapture } from './native-search.ts'
 
 /**
  * Initially active declaration added to an Anthropic request whose projected
@@ -332,6 +336,7 @@ export class PiAiAdapter extends LlmAdapter {
     return {
       provider,
       id: model,
+      nativeWebSearch: nativeWebSearchEnabled(model, resolvedModel.api, profile.configuredNativeWebSearch?.get(model)),
       name: resolvedModel.name,
       inputModalities: [...resolvedModel.input],
       context: { contextWindow: resolvedModel.contextWindow },
@@ -353,9 +358,37 @@ export class PiAiAdapter extends LlmAdapter {
     return this.streamWithSnapshot(options, this.current())
   }
 
+  /**
+   * Run one native search with the selected model's own authentication and transport.
+   * @param request Search input and the parent tool's cancellation and request recorder.
+   * @returns The model answer and structured, bounded source URLs.
+   */
+  override async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult> {
+    const snapshot = this.current(), profile = this.profileOf(snapshot, request.provider)
+    const model = this.modelOf(snapshot, request.provider, request.model)
+    if (!nativeWebSearchEnabled(model.id, model.api, profile.configuredNativeWebSearch?.get(model.id))) {
+      throw new LlmError('Native web search is disabled for this model', 'UNSUPPORTED_OPTION')
+    }
+    const capture = nativeSearchCapture(model.api, request)
+    const textBlocks = new Map<number, string>()
+    for await (const chunk of this.streamWithSnapshot({ provider: request.provider, model: request.model,
+      system: 'Search the web for the user query using native search. Cite the source URLs. Do not answer from memory.',
+      messages: [{ role: 'user', content: [{ type: 'text', text: request.query }] }], signal: request.signal,
+    }, snapshot, capture)) {
+      if (chunk.type === 'block-end' && chunk.block.type === 'text') textBlocks.set(chunk.index, chunk.block.text)
+      if (chunk.type === 'finish' && chunk.reason.kind === 'error') {
+        const failure = chunk.reason.failure
+        throw new LlmError(failure.message, failure.code ?? 'NATIVE_SEARCH_FAILED', failure)
+      }
+      if (chunk.type === 'finish' && chunk.reason.kind === 'aborted') throw new LlmError('Native search was cancelled', 'ABORTED')
+    }
+    return capture.result([...textBlocks].sort(([a], [b]) => a - b).map(([, text]) => text).join('\n'))
+  }
+
   private async * streamWithSnapshot(
     options: GenerateOptions,
     snapshot: PiAiSnapshot,
+    nativeSearch?: ReturnType<typeof nativeSearchCapture>,
   ): AsyncIterable<StreamChunk> {
     if (options.stop !== undefined) {
       throw new LlmError('llm-pi-ai does not support GenerateOptions.stop', 'UNSUPPORTED_OPTION')
@@ -415,6 +448,7 @@ export class PiAiAdapter extends LlmAdapter {
         }, onReplayDegrade)
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
+        ...nativeSearch === undefined ? {} : { onPayload: nativeSearch.onPayload, onProviderStreamEvent: nativeSearch.onProviderStreamEvent },
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },

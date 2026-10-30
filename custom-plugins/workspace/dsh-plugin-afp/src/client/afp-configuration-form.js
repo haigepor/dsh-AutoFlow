@@ -1,6 +1,9 @@
-/** Saved secrets are masked and revealed on demand; viewing never makes a credential draft dirty. */
-export function createConfigurationForm(React, { Input, Button, Switch, StateDot, Tag, Toast, Tooltip, Chevron }, ctx, t) {
+import { createAfpSelector } from './afp-selector.js'
+
+/** AFP credentials stay masked; vision selection references models managed by the profile Settings page. */
+export function createConfigurationForm(React, { Input, Button, Menu, Switch, StateDot, Tag, Toast, Tooltip, Chevron, RefreshIcon }, ctx, t) {
   const h = React.createElement
+  const Selector = createAfpSelector(React, { Menu, Button }, Chevron)
   return function ConfigurationForm({ view, featureId, onSaved, className = '', section, sectionId }) {
     const [loaded, setLoaded] = React.useState(null), [text, setText] = React.useState(''), [secrets, setSecrets] = React.useState({})
     const [message, setMessage] = React.useState(''), [busy, setBusy] = React.useState(false), [acquiringToken, setAcquiringToken] = React.useState(false)
@@ -9,6 +12,7 @@ export function createConfigurationForm(React, { Input, Button, Switch, StateDot
     const [visibleCredentials, setVisibleCredentials] = React.useState({})
     const [advancedOpen, setAdvancedOpen] = React.useState(true)
     const [revealedCredentials, setRevealedCredentials] = React.useState({}), [readingCredentials, setReadingCredentials] = React.useState({})
+    const [refreshingModels, setRefreshingModels] = React.useState(false)
     const credentialReads = React.useRef({ active: true, requests: {} })
     const formId = React.useId()
     function clearCredentialViews() {
@@ -23,7 +27,12 @@ export function createConfigurationForm(React, { Input, Button, Switch, StateDot
       clearCredentialViews()
       setLoaded(value)
       if (!preserveDraft) {
-        setDraft(value.config); setText(JSON.stringify(value.config, null, 2))
+        // 旧的独立视觉连接字段不再出现在普通表单或高级 JSON 中，保存后由模型设置统一管理。
+        const { visionBaseUrl, visionKeyRef, reasoningModel, reasoningEffort, ...editable } = value.config
+        const next = { ...editable, ...(value.vision?.selected ? {
+          visionProvider: value.vision.selected.provider, visionModel: value.vision.selected.model,
+        } : {}) }
+        setDraft(next); setText(JSON.stringify(next, null, 2))
         setSecrets(current => { const { usernameRef, ...rest } = current; return rest })
       }
     }
@@ -80,10 +89,10 @@ export function createConfigurationForm(React, { Input, Button, Switch, StateDot
       try {
         const next = JSON.parse(text)
         if (JSON.stringify(next) !== JSON.stringify(loaded.config)
-          && ['accessTokenRef', 'usernameRef', 'passwordRef', 'visionKeyRef'].some(key => next[key] !== loaded.config[key] && secrets[key])) {
+          && ['accessTokenRef', 'usernameRef', 'passwordRef'].some(key => next[key] !== loaded.config[key] && secrets[key])) {
           setMessage(t('referenceChangeRequired')); return
         }
-        await saveSecrets(['accessTokenRef', 'usernameRef', 'passwordRef', 'visionKeyRef'])
+        await saveSecrets(['accessTokenRef', 'usernameRef', 'passwordRef'])
         if (JSON.stringify(next) !== JSON.stringify(loaded.config)) {
           const result = await ctx.remote.pluginManager.invokeAction('dsh-plugin-afp', 'configuration', { operation: 'save', config: text, revision: loaded.revision })
           if (!result.ok) throw new Error()
@@ -166,11 +175,33 @@ export function createConfigurationForm(React, { Input, Button, Switch, StateDot
     const token = loaded?.token
     const tokenExpired = token?.expiresAt != null && token.expiresAt <= Date.now()
     const loading = !loaded && !message
-    const visionFields = ['visionBaseUrl', 'visionKeyRef', 'visionModel']
-    const budgetFields = ['targetPerCategory', 'batchSize', 'maxBatches', 'concurrency', 'threshold']
-    const panelProps = value => sectionId ? { role: 'tabpanel', id: `${sectionId}-${value}-panel`, 'aria-labelledby': `${sectionId}-${value}`, hidden: section !== value } : {}
     const skeletonField = key => h('div', { key, className: 'afp-form-field', 'aria-hidden': true },
       h('span', { className: 'afp-skeleton afp-skeleton-label' }), h('span', { className: 'afp-skeleton afp-skeleton-input' }))
+    const modelOptions = (loaded?.vision?.models ?? []).map(model => ({ value: JSON.stringify([model.provider, model.id]),
+      label: `${model.name === model.id ? model.id : `${model.name} (${model.id})`} · ${model.providerName}` }))
+    const modelValue = JSON.stringify([draft.visionProvider ?? '', draft.visionModel ?? ''])
+    const modelAvailable = modelOptions.some(option => option.value === modelValue)
+    const refreshModels = loading ? null : h(Button, { type: 'button', variant: 'ghost', size: 'sm', className: 'afp-model-refresh',
+      'aria-label': t('visionReloadModels'), 'aria-busy': refreshingModels, disabled: busy || refreshingModels,
+      icon: refreshingModels && StateDot ? h(StateDot, { state: 'ongoing', size: 14 }) : RefreshIcon ? h(RefreshIcon, { size: 16 }) : null,
+      onClick: async () => {
+        setRefreshingModels(true); setMessage('')
+        try { await read(true, () => credentialReads.current.active) } catch (error) { if (credentialReads.current.active) setMessage(t('configUnavailable')) }
+        finally { if (credentialReads.current.active) setRefreshingModels(false) }
+      } }, RefreshIcon ? null : t('visionReloadModels'))
+    const modelSelector = loading ? skeletonField('visionModel') : h('div', { className: 'afp-form-field afp-model-selection' },
+      h(Selector, { value: modelValue, options: modelOptions, label: t('visionModel'), disabled: busy || !modelOptions.length,
+        displayValue: modelAvailable ? undefined : t('visionSelectModel'),
+        onChange: value => {
+          const [visionProvider, visionModel] = JSON.parse(value)
+          const next = { ...draft, visionProvider, visionModel }
+          setDraft(next); setText(JSON.stringify(next, null, 2))
+        } }),
+      h('p', { className: 'afp-muted afp-model-help' }, t('visionManagedHelp')),
+      !modelAvailable ? h('p', { className: 'afp-muted', role: 'status' }, t(modelOptions.length ? 'visionSelectionRequired' : 'visionNoModels')) : null,
+      loaded?.vision?.unavailableProviders?.length ? h('p', { className: 'afp-muted', role: 'status' }, t('visionCatalogPartial')) : null)
+    const budgetFields = ['targetPerCategory', 'batchSize', 'maxBatches', 'concurrency', 'threshold']
+    const panelProps = value => sectionId ? { role: 'tabpanel', id: `${sectionId}-${value}-panel`, 'aria-labelledby': `${sectionId}-${value}`, hidden: section !== value } : {}
     // 加载和完成状态共用尺寸与列结构，避免请求完成时弹窗跳动。
     const columns = loaded || loading ? h('div', { className: 'afp-config-columns', ...(loading ? { role: 'status', 'aria-label': t('loading') } : {}) },
           h('section', { className: 'afp-config-section', ...panelProps('credentials') },
@@ -187,9 +218,9 @@ export function createConfigurationForm(React, { Input, Button, Switch, StateDot
             token?.configured ? h('p', { className: 'afp-muted' }, token.expiresAt == null ? t('tokenExpiryUnknown')
               : t('tokenExpiry') + ': ' + new Date(token.expiresAt).toLocaleString()) : null),
           showVision ? h('section', { className: 'afp-config-section', ...panelProps('vision') },
-            h('h4', { className: 'afp-form-heading' }, t('vision')),
-            h('div', { className: 'afp-config-fields' }, ...(sectionId ? visionFields : [...visionFields, ...budgetFields]).map(loading ? skeletonField
-              : key => key === 'visionKeyRef' ? credentialField(key) : field(key))),
+            h('div', { className: 'afp-model-heading' }, h('h4', { className: 'afp-form-heading' }, t('vision')),
+              refreshModels && Tooltip ? h(Tooltip, { label: t('visionReloadModels'), side: 'top', portal: true }, refreshModels) : refreshModels),
+            h('div', { className: 'afp-config-fields' }, modelSelector, ...(sectionId ? [] : budgetFields).map(loading ? skeletonField : field)),
             sectionId ? h('details', { className: 'afp-wb-budget' }, h('summary', null, t('screeningBudget')),
               h('div', { className: 'afp-config-fields afp-budget-fields' }, ...budgetFields.map(loading ? skeletonField : field)))
               : null) : null) : sectionId ? h('div', null, ...['credentials', 'vision'].map(value =>
@@ -203,7 +234,7 @@ export function createConfigurationForm(React, { Input, Button, Switch, StateDot
     const error = message ? h('p', { className: 'afp-error', role: 'alert' }, message) : null
     const footer = h('div', { className: 'afp-config-footer' }, loading
         ? h('span', { className: 'afp-skeleton afp-skeleton-button', 'aria-hidden': true })
-        : h(Button, { variant: 'primary', size: 'sm', type: 'submit', disabled: busy || !loaded, 'aria-busy': busy,
+        : h(Button, { variant: 'primary', size: 'sm', type: 'submit', disabled: busy || refreshingModels || !loaded, 'aria-busy': busy,
           icon: busy ? h(StateDot, { state: 'ongoing', size: 14 }) : null }, t('saveConfig')))
     const debug = loaded ? h('div', { className: 'afp-debug-setting' },
       h('div', { className: 'afp-debug-setting-heading' }, h('span', null, t('debugLabel')),
@@ -224,7 +255,7 @@ export function createConfigurationForm(React, { Input, Button, Switch, StateDot
         debug, editor) : null
     return h('form', { className: `afp-configuration${className ? ` ${className}` : ''}`, 'data-vision': showVision,
       'data-sectioned': Boolean(sectionId), 'data-section': sectionId ? section : undefined, hidden: section === 'features', 'aria-busy': loading,
-      onSubmit: event => { event.preventDefault(); if (!busy && loaded) void save() } },
+      onSubmit: event => { event.preventDefault(); if (!busy && !refreshingModels && loaded) void save() } },
       h('div', { className: 'afp-config-scroll' }, sectionId
         ? h('div', { className: 'afp-config-layout' }, h('div', { className: 'afp-config-primary' }, columns, error, footer), advanced)
         : h(React.Fragment, null, columns, advanced, error)),

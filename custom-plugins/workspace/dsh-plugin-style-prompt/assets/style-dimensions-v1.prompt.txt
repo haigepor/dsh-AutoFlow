@@ -1,0 +1,16 @@
+Tool: built-in image_gen with transparent_background enabled.
+Runtime asset: style-dimensions-v1.webp, 480px wide, generated alpha preserved.
+Source artwork: style-dimensions-v1.png.
+Purpose: small material-swatch decoration beside the analysis-dimensions heading.
+
+Generation prompt:
+Use case: stylized-concept.
+Asset type: a very small transparent decorative illustration for the analysis-dimensions header in a professional desktop image-style workbench, displayed about 64 px wide beside real UI text.
+Primary request: an elegant compact still life of three overlapping ivory art-material sample tiles, fanned slightly apart. The front tile shows one broad matte sage-green gouache brush stroke and a small warm ochre stroke. A second tile shows fine tactile off-white paper grain with a few understated graphite hatching marks. The rear tile is a simple gently folded ivory paper sample that catches light, suggesting shape, texture and lighting. These are physical blank material swatches, not UI controls or icons.
+Style/medium: refined softly realistic 3D paper illustration, restrained desktop creative-tool artwork, warm neutral ivory, sage and ochre, matte surfaces, clean natural edges. Gentle three-quarter top view, compact centered silhouette, all tiles fully visible, enough transparent margin to prevent clipping. Readable at tiny size, broad simple details, no extra props.
+Lighting/mood: soft neutral daylight, very subtle neutral contact shading only where tiles overlap.
+Text: no text, no labels, no letters, no numbers, no watermark, no logo.
+Constraints: genuinely transparent background with clean alpha. No background panel, no backdrop, no checkerboard, no border or frame surrounding the whole group. No purple, violet or blue glow, no luminous outline, no colored rim, no tinted shadow, no diffuse halo, no large drop shadow. No buttons, no pills, no interface, no gradients behind the object, no sparkle. This asset must composite cleanly on both white and near-black surfaces.
+
+Refinement prompt:
+Edit the provided artwork only. Preserve the three existing ivory paper material tiles exactly: their arrangement, silhouette, paper grain, sage and ochre paint strokes, graphite hatching, fold, neutral daylight and colors. Remove the entire diffuse gray-white shadow/glow/cloud behind and around the group. Everything outside the physical outer silhouette of the three tiles must be fully transparent alpha zero right up to the clean natural paper edges, with no surrounding haze and no cast shadow. Keep only the real shading on the paper surfaces and the tiny internal contact shading between overlapping tiles. Do not add a backdrop, checkerboard, border, text or new objects. No purple, blue or colored fringe. This is a clean transparent cutout for both white and near-black UI backgrounds.

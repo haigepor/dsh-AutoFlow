@@ -23,4 +23,3 @@
     - paragraph: 由提供商管理认证
     - button "编辑 Fixture Gateway (fixture-gateway)": 提供商配置
     - button "删除 Fixture Gateway (fixture-gateway)"
-- button "打开配置文件"

@@ -14,6 +14,8 @@ export const limitsSchema = z.object({
   retryDelayMs: z.number().int().min(0).max(60_000).default(1000),
   maxProcessEvents: positive.max(2000).default(200), maxProcessTextChars: positive.max(200_000).default(12_000),
   processPollIntervalMs: positive.min(100).max(5000).default(500),
+  analysisCacheTtlMs: z.number().int().nonnegative().default(60_000),
+  batchCacheTtlMs: z.number().int().min(0).max(3_600_000).default(60_000), batchCacheMaxViews: z.number().int().min(0).max(64).default(8),
   deadlineMs: positive.default(600_000), pollIntervalMs: positive.min(500).default(2000), pageSize: positive.max(100).default(20),
   maxImportFiles: positive.default(30), maxImportBytes: positive.default(20 * 1024 * 1024),
   maxLocalReferenceFiles: positive.default(10_000),
@@ -58,6 +60,7 @@ export const sourceSettingsSchema = z.strictObject({
 })
 export const visionSettingsSchema = z.strictObject({
   backend: z.enum(['native', 'compatible']).optional(),
+  useModelDefaults: z.boolean().optional(),
   provider: z.string().trim().optional(),
   endpoint: z.string().default(''), model: z.string().default(''),
   credentialRef: z.string().regex(/^$|^[A-Za-z_][A-Za-z0-9_]*$/).default('VISUAL_CURATOR_VISION_KEY'),
@@ -70,7 +73,7 @@ export const settingsSchema = z.strictObject({ source: sourceSettingsSchema.defa
 export type CuratorConfig = z.infer<typeof settingsSchema>
 
 /** Cordis validates the envelope; the owning parser validates nested deployment settings. */
-export const Config = Schema.object({ source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any() })
+export const Config = Schema.object({ source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), compaction: Schema.any() })
 /** @param input Saved deployment fields. @returns Complete validated settings. */
 export function resolveConfig(input: unknown): CuratorConfig {
   const config = settingsSchema.parse(input)
@@ -97,14 +100,16 @@ export function resolveConfig(input: unknown): CuratorConfig {
   }
   return config
 }
-/** New deployments default to high; frozen legacy specs retain their original omitted parameters.
+/** New native deployments inherit model defaults; frozen legacy specs retain their original parameters.
  * @param input Current deployment settings, with null selecting the provider default.
  * @returns Validated settings for new tasks only.
  */
 export function resolveCurrentConfig(input: unknown): CuratorConfig {
   const saved = settingsSchema.parse(input), config = resolveConfig(input)
   config.vision.backend ??= 'native'
-  if (saved.vision.reasoningEffort === undefined) config.vision.reasoningEffort = 'high'
+  if (config.vision.backend === 'native') config.vision.useModelDefaults ??= true
+  if (config.vision.useModelDefaults === true) delete config.vision.reasoningEffort
+  else if (saved.vision.reasoningEffort === undefined) config.vision.reasoningEffort = 'high'
   if (saved.vision.supportsStreaming === undefined) config.vision.supportsStreaming = true
   // 新补全字段重新按解析器顺序排列，持久化后再次读取不能改变 reviewer 摘要。
   return resolveConfig(config)

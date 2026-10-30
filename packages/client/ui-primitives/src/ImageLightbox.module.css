@@ -59,10 +59,8 @@
 @keyframes image-lightbox-float { 0%, 100% { transform: translateY(2px); } 50% { transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .image { transition: none; } .artwork { animation: none; } }
 
-.close {
+.close, .navigationControl {
   position: absolute;
-  top: 20px;
-  right: 20px;
   z-index: 2;
   display: grid;
   place-items: center;
@@ -76,4 +74,9 @@
   cursor: pointer;
 }
 
-.close:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 3px; }
+.close { top: 20px; right: 20px; }
+.navigationControl { top: 50%; transform: translateY(-50%); padding: 0; }
+.previous { left: 20px; }
+.next { right: 20px; }
+.position { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: var(--dsw-radius-full); background: var(--dsw-specific-input-major); color: var(--dsw-alias-label-primary); font-size: 13px; font-variant-numeric: tabular-nums; }
+.close:focus-visible, .navigationControl:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 3px; }

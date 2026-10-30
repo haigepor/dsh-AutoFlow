@@ -1,0 +1,45 @@
+/* 加载态沿用真实目录的列宽和留白，装饰占位不提供虚假的可操作控件。 */
+.skeleton { min-width: 0; }
+.bar { display: block; flex: none; max-width: 100%; border-radius: var(--dsw-radius-sm); background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent); position: relative; overflow: hidden; }
+.bar::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--dsw-alias-label-primary) 5%, transparent) 50%, transparent 75%); transform: translateX(-100%); animation: skeleton-sheen 1.8s ease-in-out infinite; }
+.tabs { display: flex; align-items: center; gap: 24px; height: 40px; padding-inline: 4px; border-bottom: 0.5px solid var(--dsw-alias-border-l3); }
+.tab, .tabShort, .tabWide { height: 12px; }
+.tab { width: 64px; }
+.tabShort { width: 48px; }
+.tabWide { width: 92px; }
+.introCopy { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.titleLine { display: flex; align-items: center; gap: 10px; }
+.title { width: 112px; height: 20px; }
+.count { width: 24px; height: 24px; }
+.description { width: 280px; height: 12px; }
+.button { width: 96px; height: 36px; }
+.search { display: flex; align-items: center; gap: 10px; box-sizing: border-box; width: min(380px, 100%); height: 36px; padding-inline: 12px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
+.searchIcon { width: 16px; height: 16px; }
+.searchText { width: 160px; height: 12px; }
+.filter { display: flex; align-items: center; gap: 12px; }
+.filterLabel { width: 40px; height: 12px; }
+.filterControl { width: 160px; height: 36px; }
+.columnLabel { width: 64px; height: 10px; }
+.table th:last-child .bar { margin-left: auto; width: 32px; }
+.table tbody tr:hover { background: transparent; }
+.modelMark { width: 34px; height: 34px; border-radius: var(--dsw-radius-md); }
+.modelCopy { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.modelName { width: 168px; height: 14px; }
+.modelId { width: 120px; height: 10px; }
+.table tr:nth-child(even) .modelName { width: 132px; }
+.table tr:nth-child(even) .modelId { width: 96px; }
+.provider { width: 88px; height: 20px; }
+.capability { width: 36px; height: 20px; }
+.capacity { width: 48px; height: 14px; }
+.capacityDetail { width: 88px; height: 10px; }
+.rowAction { width: 58px; height: 28px; margin-left: auto; }
+@keyframes skeleton-sheen { to { transform: translateX(100%); } }
+@media (max-width: 640px) {
+  .introCopy { flex: 1; }
+  .description { width: 180px; }
+  .search { width: 100%; }
+  .filter { justify-content: space-between; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar::after { animation: none; display: none; }
+}

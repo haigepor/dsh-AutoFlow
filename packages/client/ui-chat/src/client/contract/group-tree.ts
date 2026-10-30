@@ -8,7 +8,8 @@ import type { ChatConversationViewNode } from './chat-nodes.ts'
  * - `input`: the Node is an input of its Turn. An input before the Turn's
  *   process is the Turn's opening input; a later one is interleaved and keeps
  *   the whole Turn open.
- * - `turn`: the Node stays in its Turn outside the Turn's process disclosure.
+ * - `turn`: the Node stays in its Turn outside the Turn's process disclosure;
+ *   displaying it does not finish the preceding live process group.
  * - `process`: the Node stays in the process disclosure outside step runs.
  * - absent: the Node joins the step run around it.
  *

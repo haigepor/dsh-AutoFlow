@@ -27,6 +27,8 @@ Desktop product events use the optional [product analytics service](../product-a
 <a id="use-this-package"></a>
 ## Use this package
 
+Model configuration includes a Native web search checkbox under Model capabilities. It displays automatic matching without creating an override; manual changes persist per model, and Use automatic matching removes that override. Unsupported protocols disable the checkbox. Subscription text-model editing exposes the same control; image entries do not.
+
 Provider refreshes retain an open draft after a transport failure and expose retry without treating stale data as a fresh save baseline. Credential references are read in batches of at most 64; native environment or OAuth authentication stays distinct from a named page-managed key. The account provider exposes its directory read-only, since account model selection is managed by that adapter rather than this API-key form.
 
 The page uses shared `SegmentedTabs`, `Input`, `Menu`, `Button`, and `Modal` primitives with semantic theme, radius, and elevation tokens. The 26px title uses weight 500; the layout follows the active light or dark theme.
@@ -39,9 +41,21 @@ Open Models from Settings to browse model names and IDs, providers, input and re
 
 The Providers tab shares the model catalog's illustrated heading, typography, and spacing. Cards group a bundled provider mark and route identity above the model count and credential facts, with configuration/removal actions in a separate footer. A transparent connection-block illustration decorates each card. Credential state does not claim network connectivity. The account catalog is read-only. OpenAI and Codex marks retain the original artwork in light mode and use the generated transparent white mark in dark mode; both follow the application's resolved color scheme, including system mode.
 
-The ChatGPT subscription tab manages the optional [Codex subscription plugin](../../../custom-plugins/workspace/dsh-plugin-codex-subscription/README.md) through its Host actions. OpenAI handles browser login; the page accepts a complete callback URL when automatic completion is unavailable. Account cards show authorization, quota freshness, reset times, token expiry, and subscription expiry separately, with revision-checked enable, priority, credit-use, and removal controls. Successful account changes refresh both the model catalog and Providers tab before success feedback. The page holds safe account metadata only; credentials remain on the Host. A missing or disabled bundle offers its current availability and an explicit activation action when supported.
+The ChatGPT subscription tab manages the optional [Codex subscription plugin](../../../custom-plugins/workspace/dsh-plugin-codex-subscription/README.md) through its Host actions. OpenAI handles browser login; the callback closes after authorization and storage succeed, with manual completion available. Account cards show authorization, quota freshness and safe failures, reset times, token expiry and subscription expiry separately. Account controls check revisions. Add model manages profile-level text/image choices across the shared account pool; sign-in does not populate the catalog or change defaults. Selected text models refresh the model catalog and Providers tab; image defaults change explicitly. The page holds safe metadata only; credentials remain on the Host. Missing or disabled bundles show availability and supported activation actions.
 
-The directory skeleton reserves tabs, filters, and model rows during initial loading. A background refresh retains open drafts; errors offer Retry. The shared modal manages focus and Escape, and refuses dismissal during writes. Existing provider editors keep their scrolling form and pinned actions; narrow windows keep table overflow local.
+Account cards start collapsed and use up to three columns, wrapping to two or one according to the content width. Each card expands independently without stretching its neighbours; refreshes preserve the expanded account keys. Narrow cards wrap identity and controls and stack their compact quota windows.
+
+Provider catalog actions share the neutral outlined Button treatment and wrap together at narrow widths. Editor title marks stay within 20px independently of the decorative illustration. ChatGPT model management uses an 820×720px dialog capped by the overlay's available space, with a fixed title and footer and independently scrolling body. The model menu caps its height at 360px or the available viewport, scrolls options internally and pins its actions in one row. Desktop options align model names and 12px monospace IDs side by side; narrow screens stack them. Text models support multiple selections and select-all; image models can be queued consecutively. Pending and configured models use tables with name/ID, type and actions columns; pending names are editable and removals stay local. Save all submits the batch once and retains it on failure. Image defaults change only when explicitly selected. The 42px fields stack on narrow screens and tables scroll horizontally. The introduction uses the existing illustration at 56px, or 44px on narrow screens, with 20px gaps between body sections and no divider below the image-default switch.
+
+Model tables reuse the directory's green text-model and blue image-model tags. Editable names blend into the row until hover or focus, while invalid fields retain their error outline. Names and monospace IDs share a left edge, type tags wrap together, and the compact action column stays aligned at the right.
+
+Each quota window uses its displayed remaining percentage: above 50% is green, 20–50% is amber, and below 20% is red. Unknown allowance stays neutral. Stale values keep their level and the existing freshness notice; reduced motion disables progress transitions.
+
+The model catalog places a Model protocol column after Provider. Native DeepSeek routes show DeepSeek Messages and Codex subscription routes show OpenAI Responses; pi-ai routes use their explicit profile protocol. Installed routes whose current metadata omits the protocol show Not reported instead of guessing from model names. Protocol labels use the existing theme tags, and narrow layouts keep all six columns inside the table's horizontal scroller.
+
+The settings shell owns vertical scrolling across the model catalog, Providers and subscription tabs at every width. Its scrollbar stays at the page's right edge while content retains its padding. The content layer allows wheel scrolling to reach that shell; the provider setup form keeps its own scroller.
+
+The initial directory skeleton follows the catalog's tabs, illustrated introduction, filters and six-column model rows, using small theme-aware placeholders and reduced-motion-aware shimmer. A background refresh retains open drafts; errors offer Retry. The shared modal manages focus and Escape, and refuses dismissal during writes. Existing provider editors keep their scrolling form and pinned actions; narrow windows keep table overflow local.
 
 A provider with a stored catalog error remains visible with its diagnostic and edit/delete actions. Add actions are offered only for registered settings namespaces, so an unavailable namespace cannot leave a button that opens no editor. A rejected save leaves the editor open and displays the Host diagnostic.
 
@@ -148,7 +162,6 @@ None; this package neither assembles nor sends a provider request.
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
-
 
 These limits define the editor's field coverage and the page's reach; they are current package constraints, not a settings roadmap.
 

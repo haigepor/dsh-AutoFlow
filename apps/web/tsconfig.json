@@ -109,6 +109,8 @@
     "tests/caption-overlays.e2e.ts",
     "tests/settings-appearance.e2e.ts",
     "tests/settings-navigation.e2e.ts",
+    "tests/settings-skeleton-style.e2e.ts",
+    "tests/sidebar-navigation.e2e.ts",
     "tests/menu-material.e2e.ts",
     "tests/desktop-locale.e2e.ts",
     "tests/settings-import.e2e.ts",

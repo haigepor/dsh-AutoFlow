@@ -39,8 +39,8 @@ class NativeFixture implements NativeSearchSessions {
   async cancel(id: string) { if (this.fail === 'cancel') { this.fail = undefined; throw new Error('Cancel was not acknowledged') } this.cancelled.push(id) }
 }
 
-async function setup() {
-  const native = new NativeFixture(), f = await serviceFixture(undefined, {}, { nativeSessions: native })
+async function setup(previewSource = false) {
+  const native = new NativeFixture(), f = await serviceFixture(undefined, {}, { nativeSessions: native }, previewSource ? { provider: 'unsplash' } : {})
   native.path = f.root
   f.host.sessions.get = id => native.sessions.get(id)
   await f.service.initialize()
@@ -49,7 +49,8 @@ async function setup() {
   await f.action('reference-analyze', { operationId: 'analysis', styleId, buildDataset: true }); await f.jobs.drain()
   const profile = f.repository.list('modelProfile')[0]!
   assert.ok(profile)
-  const input = { operationId: randomUUID(), workspaceId: 'workspace', modelProfileId: profile.id, taskBrief: 'Find muted green landscapes.', targetCount: 1, output: { kind: 'original' } }
+  const datasetId = (await new ModelProfiles(f.domain).export(profile, 'selected-dataset', f.actor)).id
+  const input = { operationId: randomUUID(), workspaceId: 'workspace', modelProfileId: profile.id, datasetId, taskBrief: 'Find muted green landscapes.', targetCount: 1, output: { kind: 'original' } }
   const settled = async () => {
     for (let i = 0; i < 100; i++) {
       const values = z.array(searchLaunchViewSchema).parse(await f.action('search-launch-list'))
@@ -60,6 +61,24 @@ async function setup() {
   }
   return { f, native, profile, styleId, input, settled }
 }
+
+test('native preview launch requests a subject-and-style query plan and preparation preserves it', async () => {
+  const { f, native, input, settled } = await setup(true)
+  try {
+    await f.action('search-launch-start', { ...input, output: { kind: 'preview' } })
+    const launch = await settled()
+    assert.equal(launch.status, 'accepted')
+    assert.match(native.messages[0]!.text, /英文 queries/)
+    assert.match(native.messages[0]!.text, /不下载原图/)
+    const actor = { kind: 'agent' as const, id: launch.sessionId, sessionId: launch.sessionId, profileId: f.profileId }
+    const args = { kind: 'search', releaseId: input.modelProfileId, taskBrief: input.taskBrief, targetCount: 1, output: { kind: 'preview' }, queries: ['muted green forest soft light', 'misty landscape natural light'] }
+    const result = z.object({ status: z.literal('ready'), normalizedInput: z.object({ queries: z.array(z.string()), output: z.object({ kind: z.literal('preview') }) }), preparationDigest: z.string() }).parse(await f.service.action({ operation: 'task-prepare', args }, actor, new AbortController().signal))
+    assert.deepEqual(result.normalizedInput.queries, args.queries)
+    assert.equal(result.normalizedInput.output.kind, 'preview')
+    await f.action('search-launch-stop', { id: launch.id })
+    await assert.rejects(f.service.action({ operation: 'task-prepare', args }, actor, new AbortController().signal), /stopped/)
+  } finally { await f.cleanup() }
+})
 
 test('zero qualified results expose a pending receipt without claiming or creating an output directory', async () => {
   const { f, input, settled } = await setup()

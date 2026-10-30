@@ -36,7 +36,7 @@ The Host [MCP manager](../../mcp/mcp-manager/README.md) owns validated `mcpSetti
 
 The MCP section omits the shared configuration-file footer. Its introduction places the existing whale maid identity beside configuration guidance and an accessible help control. The generation prompt is retained beside the transparent WebP asset; the image is decorative and absent from the accessibility tree.
 
-Help uses the same click-open speech bubble and menu material as Models. Transport selection uses the shared Menu, advanced fields use AnimatedCollapse, and loading states reserve list-row or editor geometry with the theme skeleton color and reduced-motion support.
+Help uses the same click-open speech bubble and menu material as Models. Transport selection uses the shared Menu and advanced fields use AnimatedCollapse. List and editor loading placeholders retain their geometry and match Models with a 7% primary-ink fill, shared small corners, and a subtle 1.8-second sheen; reduced motion keeps the placeholders static.
 
 The JSON action opens the current redacted `mcpServers` document in the shared Shiki-highlighted CodeEditor. Imports merge named stdio or HTTP declarations; omitted servers remain configured, `disabled` controls enablement, and null secret values retain existing keys. Editing retains editor-open revisions and untouched expressions. Each server uses the existing management operations; a failed batch stops and reports partial progress for explicit reload and review.
 

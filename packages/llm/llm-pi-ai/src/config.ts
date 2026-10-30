@@ -218,6 +218,8 @@ export interface ResolvedPiAiProviderProfile
   configuredMaxTokens: ReadonlyMap<string, number>
   /** Explicit model effort defaults, validated against the resolved capabilities. */
   configuredReasoningEfforts: ReadonlyMap<string, ModelThinkingLevel>
+  /** Explicit native-search choices by model ID; absence retains automatic matching. */
+  configuredNativeWebSearch?: ReadonlyMap<string, boolean>
 }
 
 /** Plugin configuration: the provider routes this instance owns. */
@@ -303,6 +305,8 @@ const reasoningEfforts = z.dict(
 
 /** The fields a `models` entry and a `modelOverrides` value share; only the id's home differs. */
 const modelFields = {
+  nativeWebSearch: z.boolean(),
+  nativeWebSearchDefault: z.boolean(),
   name: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
@@ -505,6 +509,12 @@ export function resolveProfiles(
       ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
       configuredMaxTokens: catalog?.configuredMaxTokens ?? new Map(),
       configuredReasoningEfforts: catalog?.configuredReasoningEfforts ?? new Map(),
+      configuredNativeWebSearch: new Map((source.models?.length ? source.models
+        : Object.entries(source.modelOverrides ?? {}).map(([id, fields]) => ({ id, ...fields })))
+        .flatMap(model => {
+          const enabled = model.nativeWebSearch ?? model.nativeWebSearchDefault
+          return enabled === undefined ? [] : [[model.id, enabled] as const]
+        })),
       modelErrors: catalog?.modelErrors ?? new Map(),
       ...piProvider === undefined ? {} : { piProvider },
       ...catalogError === undefined ? {} : { catalogError },

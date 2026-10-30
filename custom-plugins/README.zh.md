@@ -11,7 +11,7 @@ kind: "package-group"
 
 ## Summary
 
-在 `workspace/` 下开发长期维护的插件组合包，各 npm 包独立版本。AFP、增强侧栏和嵌套更新器显式纳入仓库 pnpm 工作区，并随 Web/Desktop 内置分发；两个侧栏包为可选组合包。本目录组织插件源码，本身不是待发布的包。修改组件行或文件归属前，先阅读[架构文档](architecture.md)。
+在 `workspace/` 下开发长期维护的插件组合包，各 npm 包独立版本。随应用提供的组合包由 [CLI 生产依赖](../apps/cli/package.json)声明，并打包到 Desktop 运行时；各 profile 自行保存启用选择。本目录组织插件源码，本身不是待发布的包。修改组件行或文件归属前，先阅读[架构文档](architecture.md)。
 
 ## Table of Contents
 
@@ -27,6 +27,7 @@ kind: "package-group"
 - [AFP 图片策展](workspace/dsh-plugin-afp/README.zh.md)：图片搜索、视觉策展与本地安装步骤。
 - [AFP 版本发布](workspace/dsh-plugin-afp/release/README.zh.md)：有版本的 GitHub 产物和可复用发布流程。
 - [视觉策展](workspace/dsh-plugin-visual-curator/README.zh.md)：随应用提供的风格版本、人工反馈、搜图和裁后复核。
+- [风格提示词](workspace/dsh-plugin-style-prompt/README.zh.md)：随应用提供，通过已配置的 API 分析参考风格，导出供手动生图使用的差异化提示词。
 - [架构文档](architecture.md)：包目录、功能声明、UI 位置、文件生命周期与分发规则。
 
 ## Structure

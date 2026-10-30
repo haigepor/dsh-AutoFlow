@@ -15,7 +15,7 @@ test('live output reaches an authenticated reader before completion; reconnectin
     const input = JSON.parse(body.messages[1].content[0].text).input
     if (input.operation !== 'analyze') return send(url, request)
     calls++
-    const output = '```json\n' + JSON.stringify({ observations: input.images.map((image: { imageVersionId: string }) => ({ imageVersionId: image.imageVersionId, dimensions: [{ dimension: 'color', observation: '柔和绿色', uncertain: false }] })), suggestedRules: [] }) + '\n```'
+    const output = '```json\n' + JSON.stringify({ observations: input.images.map((image: { imageVersionId: string }) => ({ imageVersionId: image.imageVersionId, dimensions: [{ dimension: 'color', observation: '柔和绿色', uncertain: false }] })), ...(input.analysisOutput === 'observations-only' ? {} : { suggestedRules: [] }) }) + '\n```'
     const first = `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: '观察画面', content: output.slice(0, 30) } }] })}\n\n`
     request.onChunk?.(Buffer.from(first), 'text/event-stream'); entered()
     await done

@@ -10,7 +10,7 @@ import { CuratorError } from '../shared/errors.ts'
 import { MediaError } from '../media/errors.ts'
 import { jsonSchema, runSchema, requestSchema, type Json, type RunRecord, type DomainActor, type CuratorRecord, type RecordOf } from '../shared/model.ts'
 import { settingsSchema, type Limits } from './config.ts'
-import { analysisProcessSchema, type AnalysisProcess, type ProcessUpdate, type AnalysisStreamFrame } from '../shared/analysis-process.ts'
+import { analysisProcessSchema, type AnalysisProcess, type ProcessUpdate, type AnalysisStreamFrame, type AnalysisContinuation } from '../shared/analysis-process.ts'
 import { updateAnalysisProcess } from './analysis-process.ts'
 
 declare module '@deepseek-ai/dsh-jobs' { interface JobKindMap { visualCurator: 'visual-curator' } }
@@ -63,6 +63,7 @@ const runDataSchema = z.strictObject({
   budget: countersSchema, checkpoint: z.record(z.string(), jsonSchema), counts: z.record(z.string(), z.number()),
   warnings: z.array(z.string()), resultIds: z.array(z.string()), requestIds: z.array(z.string()),
   autoResume: z.boolean().optional(), process: analysisProcessSchema.optional(),
+  retryAfterRequestId: requestSchema.shape.id.optional(),
   error: z.strictObject({ code: z.string(), stage: z.string(), retryable: z.boolean(), safeMessage: z.string(), suggestedAction: z.string() }).optional(),
 })
 export type RunData = z.infer<typeof runDataSchema>
@@ -80,7 +81,22 @@ export function safeFailure(error: unknown) {
 }
 export function dataOf(run: RunRecord): RunData { return runDataSchema.parse(run.data) }
 export function specOf(run: RunRecord): ExecutionSpec { return executionSchema.parse(run.spec) }
-interface LiveRun { controller: AbortController; completion: Promise<JobOutcome>; command: 'pause' | 'cancel' | 'interrupt' | undefined }
+/** @param run Authorized saved analysis. @returns Explicit continuation eligibility under its original budget and terminal state. */
+export function analysisContinuation(run: RunRecord): AnalysisContinuation {
+  const spec = specOf(run), data = dataOf(run)
+  const denied = (reason: AnalysisContinuation['reason']): AnalysisContinuation => ({ allowed: false, reason })
+  if (spec.kind !== 'analyze') return denied('unavailable')
+  if (['created', 'running', 'pausing', 'cancelling'].includes(run.status)) return denied('active')
+  if (run.status === 'completed') return denied('completed')
+  if (run.status === 'cancelled') return denied('cancelled')
+  if (run.status === 'failed' && !data.error?.retryable) return denied('not-retryable')
+  if (!['paused', 'interrupted', 'failed'].includes(run.status)) return denied('unavailable')
+  if (Date.now() >= data.budget.deadlineAt) return denied('deadline')
+  const needsVision = (data.counts.observed ?? 0) < (Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0) || spec.input.buildDataset === true && data.checkpoint.styleAnalysis === undefined
+  if (needsVision && data.budget.vision >= spec.config.limits.maxVisionCalls) return denied('vision-limit')
+  return { allowed: true, reason: 'ready' }
+}
+interface LiveRun { run: RunRecord; controller: AbortController; pauseAdmissions: AbortController; completion: Promise<JobOutcome>; command: 'pause' | 'cancel' | 'interrupt' | undefined }
 
 /** Workers expose committed checkpoints and bounded live provider output. */
 export interface WorkContext {
@@ -127,6 +143,8 @@ export class RunEngine {
       const updated = transform(current), revision = this.repository.manifest(`run:${id}`)?.revision ?? 0
       const run = runSchema.parse({ ...updated.run, revision: revision + 1 })
       await this.repository.commit({ aggregateId: `run:${id}`, expectedRevision: revision, operationId: randomUUID(), request: run, records: [run, ...(updated.records ?? [])], state: { runId: id } })
+      const live = this.live.get(id)
+      if (live) live.run = run
       this.broadcast(run, true)
     })
     this.chains.set(id, next.catch(() => {})); await next
@@ -136,7 +154,8 @@ export class RunEngine {
       if (['created', 'running', 'pausing', 'cancelling'].includes(run.status)) await this.update(run.id, old => {
         const data = dataOf(old)
         const records = this.repository.list('request').filter(request => request.runId === old.id && request.state === 'reserved').map(request => ({ ...request, state: 'outcome-unknown' as const, data: toJson({ bundle: request.data, error: { code: 'cancelled', outcome: 'unknown' } }) }))
-        return { run: { ...old, status: old.status === 'cancelling' ? 'cancelled' : 'interrupted', data: toJson({ ...data, warnings: [...data.warnings, 'Interrupted requests may have incurred charges; reserved quota is retained.'] }) }, records }
+        const paused = old.status === 'pausing' && specOf(old).kind === 'analyze'
+        return { run: { ...old, status: old.status === 'cancelling' ? 'cancelled' : paused ? 'paused' : 'interrupted', data: toJson({ ...data, ...(paused ? { autoResume: false, process: updateAnalysisProcess(data.process, { phase: 'paused' }, specOf(old).config.limits, new Date().toISOString()) } : {}), warnings: [...data.warnings, 'Interrupted requests may have incurred charges; reserved quota is retained.'] }) }, records }
       })
     }
   }
@@ -176,7 +195,8 @@ export class RunEngine {
     for (const listener of listeners) listener(frame)
   }
   private report(id: string, update: ProcessUpdate): void {
-    const run = this.repository.get('run', id)!, limits = this.processLimits.get(id) ?? specOf(run).config.limits
+    // 执行者只在提交成功后更新此副本；逐 token 展示不重复读取和校验完整任务。
+    const run = this.live.get(id)?.run ?? this.repository.get('run', id)!, limits = this.processLimits.get(id) ?? specOf(run).config.limits
     this.processLimits.set(id, limits)
     this.processes.set(id, updateAnalysisProcess(this.process(run), update, limits, new Date().toISOString()))
     this.broadcast(run, false)
@@ -262,7 +282,7 @@ export class RunEngine {
   }
   private schedule(saved: RunRecord, worker: Worker): void {
     const controller = new AbortController(), spec = specOf(saved)
-    const live: LiveRun = { controller, command: undefined, completion: Promise.resolve({ status: 'completed' }) }
+    const live: LiveRun = { run: saved, controller, pauseAdmissions: new AbortController(), command: undefined, completion: Promise.resolve({ status: 'completed' }) }
     this.live.set(saved.id, live)
     try {
       this.jobs.start({ kind: 'visual-curator', label: `Visual curator: ${spec.kind}`, ...(saved.owner.kind === 'session' ? { owner: brandString<SessionId>(saved.owner.sessionId) } : {}), outputLimitBytes: 16_384,
@@ -278,39 +298,55 @@ export class RunEngine {
       await this.update(id, old => ({ run: { ...old, status: 'running', data: toJson({ ...dataOf(old), jobId: handle.id }) } }))
       const saved = this.repository.get('run', id)!, spec = specOf(saved), ledger = new BudgetLedger(spec.config.limits, dataOf(saved).budget)
       const executionSignal = AbortSignal.any([live.controller.signal, AbortSignal.timeout(Math.max(1, ledger.snapshot().deadlineAt - Date.now()))])
+      // 暂停只撤回尚未受理的请求；已持久化预留的请求及其检查点继续使用执行信号。
+      const admissionSignal = AbortSignal.any([executionSignal, live.pauseAdmissions.signal])
+      const checkAdmission = () => {
+        if (spec.kind === 'analyze' && this.repository.get('run', id)!.status === 'pausing') live.pauseAdmissions.abort()
+        admissionSignal.throwIfAborted()
+      }
+      const save = async (stage: NonNullable<RunRecord['stage']>, patch: Partial<RunData>, records: CuratorRecord[] = [], beforeSave?: () => void) => {
+        executionSignal.throwIfAborted(); beforeSave?.()
+        await this.update(id, old => {
+          executionSignal.throwIfAborted(); beforeSave?.()
+          const data = { ...dataOf(old), ...patch, budget: ledger.snapshot(), ...(this.process(old) ? { process: this.process(old) } : {}) }
+          handle.updateProgress(JSON.stringify({ runId: id, stage, counts: data.counts }))
+          return { run: { ...old, stage, data: toJson(data) }, records }
+        })
+      }
       const ctx: WorkContext = {
         runId: id, signal: executionSignal, spec, ledger,
         current: () => this.repository.get('run', id)!, report: update => this.report(id, update),
-        save: async (stage, patch, records = []) => {
-          executionSignal.throwIfAborted()
-          await this.update(id, old => {
-            executionSignal.throwIfAborted()
-            const data = { ...dataOf(old), ...patch, budget: ledger.snapshot(), ...(this.process(old) ? { process: this.process(old) } : {}) }
-            handle.updateProgress(JSON.stringify({ runId: id, stage, counts: data.counts }))
-            return { run: { ...old, stage, data: toJson(data) }, records }
-          })
-        },
+        save,
         request: async <T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>) => Promise<T>, summarize?: (result: T) => Json): Promise<T> => {
+          checkAdmission()
           // 用持久化的失败回执计算余量，服务重启不能重新获得同一批的重试次数。
           const digest = contentDigest(bundle)
-          const previousFailures = this.repository.list('request').filter(request => request.runId === id && request.requestDigest === digest && request.state === 'outcome-unknown').flatMap(request => {
+          const currentData = dataOf(ctx.current()), marker = currentData.retryAfterRequestId
+          const markerIndex = marker === undefined ? -1 : currentData.requestIds.indexOf(marker)
+          if (marker !== undefined && markerIndex < 0) throw new CuratorError('reference-unavailable', 'analysis-resume', 'The saved continuation request is unavailable.')
+          const retryIds = marker === undefined ? undefined : new Set(currentData.requestIds.slice(markerIndex + 1))
+          const previousFailures = this.repository.list('request').filter(request => request.runId === id && (!retryIds || retryIds.has(request.id)) && request.requestDigest === digest && request.state === 'outcome-unknown').flatMap(request => {
             const parsed = z.object({ error: runDataSchema.shape.error.unwrap() }).safeParse(request.data)
             return parsed.success && parsed.data.error.code !== 'cancelled' ? [parsed.data.error] : []
           })
           const prior = previousFailures.at(-1)
-          if (prior && (!prior.retryable || previousFailures.length > spec.config.limits.maxRetryAttempts)) throw new MediaError(prior.code, prior.stage, false, prior.safeMessage, prior.suggestedAction)
+          if (prior && (!prior.retryable || previousFailures.length > spec.config.limits.maxRetryAttempts)) throw new MediaError(prior.code, prior.stage, prior.retryable, prior.safeMessage, prior.suggestedAction)
           for (let retry = previousFailures.length; ; retry++) {
-            if (retry > 0) await waitForRetry(spec.config.limits.retryDelayMs * retry, undefined, { signal: executionSignal })
-            const release = kind === 'vision' ? await this.acquireVision(this.capacity?.maxConcurrentRequests ?? spec.config.limits.maxConcurrentRequests, executionSignal) : () => {}
+            checkAdmission()
+            if (retry > 0) {
+              try { await waitForRetry(spec.config.limits.retryDelayMs * retry, undefined, { signal: admissionSignal }) }
+              catch (error) { admissionSignal.throwIfAborted(); throw error }
+            }
+            const release = kind === 'vision' ? await this.acquireVision(this.capacity?.maxConcurrentRequests ?? spec.config.limits.maxConcurrentRequests, admissionSignal) : () => {}
             try {
-              executionSignal.throwIfAborted(); await ledger.reserve(kind)
+              checkAdmission(); await ledger.reserve(kind)
               if (retry > 0 && kind === 'vision' && spec.kind === 'analyze') {
                 const previous = this.process(ctx.current())?.messages?.at(-1)
                 ctx.report({ phase: previous?.kind === 'summary' ? 'summarizing' : 'analyzing', resetOutput: true, ...(previous ? { imageIds: previous.imageIds, ...(previous.batch !== undefined ? { batch: previous.batch } : {}) } : {}) })
               }
               const requestId = randomUUID(), stamp = new Date().toISOString()
               const request = requestSchema.parse({ schemaVersion: 1, profileId: saved.profileId, id: requestId, createdAt: stamp, kind: 'request', runId: id, state: 'reserved', requestDigest: contentDigest(bundle), data: bundle })
-              await ctx.save(ctx.current().stage ?? 'planning', { requestIds: [...dataOf(ctx.current()).requestIds, requestId] }, [request])
+              await save(ctx.current().stage ?? 'planning', { requestIds: [...dataOf(ctx.current()).requestIds, requestId] }, [request], checkAdmission)
               // 使用实际预留记录关联响应，重试和恢复不能按批次数或返回顺序猜测归属。
               if (kind === 'vision' && spec.kind === 'analyze') ctx.report({ phase: this.process(ctx.current())?.phase ?? 'preparing', requestId: request.id })
               let metadata: Json | undefined
@@ -347,13 +383,13 @@ export class RunEngine {
       await this.update(id, old => ({ run: { ...old, status: 'completed', stage: 'finalizing', outcome, data: toJson({ ...dataOf(old), ...(this.process(old) ? { process: this.process(old) } : {}) }) } }))
       return { status: 'completed', result: JSON.stringify({ runId: id, outcome }) }
     } catch (error) {
-      const cancelled = live.controller.signal.aborted
+      const cancelled = live.controller.signal.aborted || live.pauseAdmissions.signal.aborted && error === live.pauseAdmissions.signal.reason
       if (!cancelled && (error instanceof CuratorError && error.code === 'budget-exhausted' || Date.now() >= dataOf(this.repository.get('run', id)!).budget.deadlineAt)) {
         if (specOf(this.repository.get('run', id)!).kind === 'analyze') this.report(id, { phase: 'failed' })
         await this.update(id, old => ({ run: { ...old, status: 'completed', outcome: 'budget-exhausted', data: toJson({ ...dataOf(old), ...(this.process(old) ? { process: this.process(old) } : {}), warnings: [...dataOf(old).warnings, 'Task budget exhausted; committed results remain available.'] }) } }))
         return { status: 'completed', result: JSON.stringify({ runId: id, outcome: 'budget-exhausted' }) }
       }
-      this.report(id, { phase: cancelled ? live.command === 'interrupt' ? 'interrupted' : 'cancelled' : 'failed' })
+      this.report(id, { phase: cancelled ? live.command === 'pause' ? 'paused' : live.command === 'interrupt' ? 'interrupted' : 'cancelled' : 'failed' })
       await this.update(id, old => ({ run: { ...old, status: cancelled ? live.command === 'pause' ? 'paused' : live.command === 'interrupt' ? 'interrupted' : 'cancelled' : 'failed', data: toJson({ ...dataOf(old), ...(live.command === 'cancel' ? { autoResume: false } : {}), process: this.process(old), ...(cancelled ? {} : { error: safeFailure(error) }) }) } }))
       return { status: cancelled ? 'killed' : 'failed', detail: cancelled ? live.command ?? 'cancelled' : safeFailure(error).code }
     } finally { this.live.delete(id); this.processes.delete(id); this.processLimits.delete(id); this.stopIntents.delete(id); await this.drain() }
@@ -371,21 +407,30 @@ export class RunEngine {
     if (command === 'resume') {
       const spec = specOf(run)
       if (spec.kind === 'analyze' && this.repository.list('run').some(other => other.id !== id && specOf(other).kind === 'analyze' && specOf(other).input.styleId === spec.input.styleId && ['created', 'running', 'pausing', 'cancelling'].includes(other.status))) throw new CuratorError('constraint-conflict', 'resume', 'This collection already has an active analysis.')
-      if (!worker || !['paused', 'interrupted'].includes(run.status) || this.closed || this.stopIntents.has(id)) throw new CuratorError('invalid-input', 'resume', 'Only a paused or interrupted task can resume.')
+      const continuation = spec.kind === 'analyze' ? analysisContinuation(run) : undefined
+      if (continuation && !continuation.allowed) throw new CuratorError(['deadline', 'vision-limit'].includes(continuation.reason) ? 'budget-exhausted' : 'invalid-input', 'analysis-resume', 'This analysis cannot continue under its saved task state or budget.')
+      if (!worker || !(spec.kind === 'analyze' ? continuation?.allowed : ['paused', 'interrupted'].includes(run.status)) || this.closed || this.stopIntents.has(id)) throw new CuratorError('invalid-input', 'resume', 'Only an unfinished recoverable task can resume.')
       let resumed = false
       await this.update(id, old => {
-        if (!['paused', 'interrupted'].includes(old.status) || this.stopIntents.has(id)) return { run: old }
+        if (!(spec.kind === 'analyze' ? analysisContinuation(old).allowed : ['paused', 'interrupted'].includes(old.status)) || this.stopIntents.has(id)) return { run: old }
         resumed = true
-        return { run: { ...old, status: 'created', data: toJson({ ...dataOf(old), ...(specOf(old).kind === 'analyze' ? { autoResume: true } : {}), attempts: dataOf(old).attempts + 1, attemptId: randomUUID() }) } }
+        const { error: previousError, ...data } = dataOf(old)
+        // 显式重试失败分析可获得新的单批重试窗口；原总额度、期限与回执均保留。
+        const retryAfterRequestId = old.status === 'failed' ? data.requestIds.at(-1) : undefined
+        return { run: { ...old, status: 'created', data: toJson({ ...data, ...(spec.kind === 'analyze' ? { autoResume: true, ...(retryAfterRequestId ? { retryAfterRequestId } : {}) } : previousError ? { error: previousError } : {}), attempts: data.attempts + 1, attemptId: randomUUID() }) } }
       })
       if (!resumed || this.stopIntents.has(id)) return this.get(id, actor)
       await this.enqueue(this.repository.get('run', id)!, worker)
     } else if (live) {
       // 取消是终止意图；迟到的暂停不能把它降为可恢复的任务。
       if (command === 'pause' && (this.stopIntents.has(id) || live.command === 'cancel' || run.status === 'cancelling')) return run
-      live.command = command === 'pause' ? 'pause' : 'cancel'
-      await this.update(id, old => ({ run: ['completed', 'failed', 'cancelled'].includes(old.status) ? old : { ...old, status: command === 'pause' ? 'pausing' : 'cancelling', data: toJson({ ...dataOf(old), autoResume: false }) } }))
-      live.controller.abort(); if (wait) await live.completion
+      const previousCommand = live.command
+      live.command = command
+      try { await this.update(id, old => ({ run: ['completed', 'failed', 'cancelled'].includes(old.status) ? old : { ...old, status: command === 'pause' ? 'pausing' : 'cancelling', data: toJson({ ...dataOf(old), autoResume: false }) } })) }
+      catch (error) { if (live.command === command) live.command = previousCommand; throw error }
+      if (command === 'pause' && specOf(run).kind === 'analyze') live.pauseAdmissions.abort()
+      else live.controller.abort()
+      if (wait) await live.completion
     } else if (command === 'pause' && run.status === 'created' && this.queued.has(id)) {
       const queuedWorker = this.queued.get(id)!
       // 排队任务还没有 AbortController；先移出调度，暂停写入失败时恢复等待项。
@@ -414,7 +459,7 @@ export class RunEngine {
     for (const id of this.queued.keys()) await this.update(id, old => ({ run: { ...old, status: 'interrupted', data: toJson({ ...dataOf(old), process: this.process(old) }) } }))
     this.queued.clear()
     const live = [...this.live.entries()]
-    for (const [id, task] of live) { if (task.command !== 'cancel') task.command = specOf(this.repository.get('run', id)!).kind === 'analyze' ? 'interrupt' : 'cancel'; task.controller.abort() }
+    for (const [id, task] of live) { if (task.command !== 'cancel' && task.command !== 'pause') task.command = specOf(this.repository.get('run', id)!).kind === 'analyze' ? 'interrupt' : 'cancel'; task.controller.abort() }
     const settled = await Promise.allSettled(live.map(([, task]) => task.completion))
     const rejected = settled.filter((item): item is PromiseRejectedResult => item.status === 'rejected')
     if (rejected.length) throw new AggregateError(rejected.map(item => item.reason), 'Task shutdown could not persist every terminal state.')

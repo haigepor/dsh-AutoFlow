@@ -1,6 +1,6 @@
 /** OAuth PKCE and an owned loopback callback; browser cookies never enter this module. */
 import { createHash, randomBytes } from 'node:crypto'
-import { createServer, type Server } from 'node:http'
+import { createServer, type Server, type ServerResponse } from 'node:http'
 import { z } from 'zod'
 import type { OAuthCredential } from '@earendil-works/pi-ai'
 import { AccountError } from './record.ts'
@@ -31,6 +31,8 @@ export interface OAuthAttempt {
   state: string
   code: Promise<string>
   accept(value: string): void
+  /** Acknowledge the authorization outcome after the credential transaction has settled. */
+  finish(authorized: boolean): void
   close(): void
 }
 
@@ -100,6 +102,10 @@ export async function createOAuthAttempt(options: AccountsOptions): Promise<OAut
   const state = randomBytes(32).toString('base64url'), verifier = randomBytes(48).toString('base64url')
   let resolveCode: (code: string) => void = () => {}
   const code = new Promise<string>(resolve => { resolveCode = resolve })
+  let resolveOutcome: (authorized: boolean) => void = () => {}, finished = false
+  const outcome = new Promise<boolean>(resolve => { resolveOutcome = resolve })
+  const finish = (authorized: boolean): void => { if (!finished) { finished = true; resolveOutcome(authorized) } }
+  let callbackResponse: ServerResponse | undefined
   let redirectUri = '', accepted = false
   const accept = (value: string) => {
     if (accepted) throw new AccountError('登录回调已经处理。', 'LOGIN_ALREADY_COMPLETED')
@@ -116,12 +122,19 @@ export async function createOAuthAttempt(options: AccountsOptions): Promise<OAut
   }
   let listening: Server | undefined
   for (const port of options.callbackPorts) {
-    const server = createServer((request, response) => {
+    const server = createServer(async (request, response) => {
       response.setHeader('cache-control', 'no-store'); response.setHeader('content-type', 'text/plain; charset=utf-8')
+      response.setHeader('referrer-policy', 'no-referrer'); response.setHeader('x-content-type-options', 'nosniff')
       try {
         if (request.method !== 'GET' || (request.url?.length ?? 0) > 16_384) throw new AccountError('无效回调请求。', 'INVALID_CALLBACK')
         accept(new URL(request.url ?? '/', redirectUri).toString())
-        response.writeHead(200); response.end('登录成功，可以关闭此窗口。')
+        callbackResponse = response
+        // 收到 code 仅代表回调有效；兑换和持久化都成功后才关闭浏览器窗口。
+        const authorized = await outcome, nonce = randomBytes(16).toString('base64')
+        response.setHeader('content-type', 'text/html; charset=utf-8')
+        response.setHeader('content-security-policy', `default-src 'none'; script-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`)
+        response.writeHead(authorized ? 200 : 400)
+        response.end(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AutoFlow · ChatGPT</title><body><h1>${authorized ? '登录成功' : '登录失败'}</h1><p>${authorized ? '账号已保存，正在关闭此窗口；如果窗口仍然显示，请手动关闭。' : '授权未完成，请返回 AutoFlow 重试。'}</p><script nonce="${nonce}">history.replaceState(null,'','/auth/callback');${authorized ? 'window.close();' : ''}</script></body></html>`)
       } catch { response.writeHead(400); response.end('登录回调无效，请返回 AutoFlow 重试。') }
     })
     try {
@@ -140,5 +153,15 @@ export async function createOAuthAttempt(options: AccountsOptions): Promise<OAut
   authorize.search = new URLSearchParams({ response_type: 'code', client_id: options.clientId, redirect_uri: redirectUri,
     scope: 'openid profile email offline_access', state, code_challenge: createHash('sha256').update(verifier).digest('base64url'),
     code_challenge_method: 'S256', id_token_add_organizations: 'true', codex_cli_simplified_flow: 'true', originator: 'codex_cli_rs' }).toString()
-  return { authorizationUrl: authorize.toString(), redirectUri, verifier, state, code, accept, close: () => { if (listening) closeServer(listening) } }
+  return { authorizationUrl: authorize.toString(), redirectUri, verifier, state, code, accept, finish, close: () => {
+    finish(false)
+    if (listening === undefined) return
+    const server = listening
+    server.close(); server.closeIdleConnections()
+    // 等待有效回调写完 HTML；直接销毁连接会吞掉成功页面与关闭脚本。
+    if (callbackResponse !== undefined && !callbackResponse.writableFinished && !callbackResponse.destroyed) {
+      callbackResponse.once('finish', () => { server.closeAllConnections() })
+      callbackResponse.once('close', () => { server.closeAllConnections() })
+    } else server.closeAllConnections()
+  } }
 }

@@ -40,6 +40,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     })
   })
   const adapter = new CodexPoolAdapter(service.accounts, { provider: 'autoflow-codex', displayName: 'ChatGPT / Codex',
+    listModels: () => service.catalogModels(),
     baseUrl: 'https://chatgpt.com/backend-api/codex', streamIdleTimeoutMs: config.streamIdleTimeoutMs, timeoutMs: config.requestTimeoutMs,
     maxRequestImageBytes: config.maxRequestImageBytes, requestImagePixelBudget: config.requestImagePixelBudget, requestImageMaxBytes: config.requestImageMaxBytes,
     resolveAttachments: () => ctx.attachments,
@@ -50,7 +51,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     nativeAuth: { env: [], oauth: true } }]), 'Codex subscription model directory')
   ctx.effect(() => ctx.llm.registerModelDiscovery(settingsNs, async (_request, signal) => {
     signal?.throwIfAborted()
-    return (await service.accounts.models()).map(codexDiscoveryView)
+    return (await service.catalogModels()).map(codexDiscoveryView)
   }), 'Codex subscription discovery')
   ctx.effect(() => ctx.pluginManager.registerAction(name, 'manage', async (input, signal) => {
     try {

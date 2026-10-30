@@ -1,7 +1,11 @@
 {
   "name": "dsh-plugin-visual-curator",
   "version": "0.1.0",
-  "repository": { "type": "git", "url": "git+https://github.com/haigepor/dsh-AutoFlow.git", "directory": "custom-plugins/workspace/dsh-plugin-visual-curator" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haigepor/dsh-AutoFlow.git",
+    "directory": "custom-plugins/workspace/dsh-plugin-visual-curator"
+  },
   "description": "Versioned visual styles, human feedback, image search and reviewed crops for DSH",
   "license": "MIT",
   "type": "module",
@@ -35,7 +39,12 @@
   ],
   "dsh": {
     "bundle": {
-      "update": { "provider": "github", "repository": "haigepor/dsh-AutoFlow", "tagPrefix": "visual-curator-v", "metadataAsset": "visual-curator-update.json" },
+      "update": {
+        "provider": "github",
+        "repository": "haigepor/dsh-AutoFlow",
+        "tagPrefix": "visual-curator-v",
+        "metadataAsset": "visual-curator-update.json"
+      },
       "patch": "./cordis.patch.yml",
       "examples": [
         {
@@ -315,6 +324,9 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
+    "@deepseek-ai/dsh-compaction-basic": "workspace:*",
+    "@deepseek-ai/dsh-compaction": "workspace:*",
+    "@deepseek-ai/dsh-token-meter": "workspace:*",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
@@ -337,6 +349,12 @@
     "@deepseek-ai/dsh-session-title": "workspace:*"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "@deepseek-ai/cordis-plugin-include": "workspace:~",
+    "@deepseek-ai/dsh-compaction-basic": "workspace:*",
+    "@deepseek-ai/dsh-session-projection": "workspace:*",
+    "@deepseek-ai/dsh-compaction": "workspace:*",
+    "@deepseek-ai/dsh-token-meter": "workspace:*",
     "@cropper/elements": "2.3.1",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-agent-loop": "workspace:*",
@@ -383,9 +401,7 @@
     "@deepseek-ai/dsh-commands": "workspace:*",
     "@deepseek-ai/dsh-jobs-local": "workspace:*",
     "@deepseek-ai/dsh-session-title": "workspace:*",
-    "@deepseek-ai/dsh-session-query-sqlite": "workspace:*",
-    "@deepseek-ai/cordis-plugin-include": "workspace:~",
-    "@deepseek-ai/cordis-plugin-loader": "workspace:~"
+    "@deepseek-ai/dsh-session-query-sqlite": "workspace:*"
   },
   "icon": "./assets/visual-curator-logo-v1.png"
 }

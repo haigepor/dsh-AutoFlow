@@ -6,6 +6,23 @@ import { randomUUID } from 'node:crypto'
 const draft = () => ({ operationId: randomUUID(), workspaceId: 'photos', modelProfileId: 'profile', taskBrief: 'Muted green photos.', targetCount: 10, output: { kind: 'original' as const } })
 const view = (input: ReturnType<typeof draft>) => ({ id: input.operationId, input, sessionId: 'native-session', status: 'accepted', stage: 'accepted', createdAt: '2026-10-29T00:00:00Z', updatedAt: '2026-10-29T00:00:00Z', runIds: [], qualified: 0 })
 
+test('preview launches check Host support before sending any launch mutation', async () => {
+  for (const capability of [undefined, false, true]) {
+    const input = { ...draft(), datasetId: 'profile-export-preview', output: { kind: 'preview' as const } }, calls: string[] = []
+    const store = createSearchLaunchStore({ context: () => ({ scope: 1, styleId: 'style', pollMs: 60000 }), openSession: () => {}, invoke: async operation => {
+      calls.push(operation)
+      if (operation === 'search-launch-options') return { workspaces: [], usages: [], datasetSelection: 'required', ...(capability === undefined ? {} : { previewSearch: capability }), defaultTargetCount: 10, maxTargetCount: 200 }
+      return { ...view(draft()), id: input.operationId, input }
+    } })
+    try {
+      await store.start(input)
+      assert.equal(calls.includes('search-launch-start'), capability === true)
+      if (capability !== true) assert.equal(store.getSnapshot().submission?.error, capability === undefined ? 'launch-update-required' : 'preview-source-unsupported')
+      else assert.equal(store.getSnapshot().entries[0]?.input.output.kind, 'preview')
+    } finally { store.dispose() }
+  }
+})
+
 test('a lost acknowledgement retains launch input and retry identity without navigating to an unsent draft', async () => {
   const input = draft(), ids: unknown[] = [], opened: string[] = []
   let fail = true

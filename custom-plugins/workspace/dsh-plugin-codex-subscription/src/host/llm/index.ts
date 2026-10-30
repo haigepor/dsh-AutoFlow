@@ -1,5 +1,5 @@
 /** Public LLM route backed by per-account native Codex adapters and the shared account pool. */
-import { LlmAdapter, LlmError, resolveRetryPolicy, type GenerateOptions, type LlmModelInfo, type LlmResolvedModelInfo, type PreparedAdapterCall, type StreamChunk, type ProviderRequestId } from '@deepseek-ai/dsh-llm'
+import { LlmAdapter, LlmError, resolveRetryPolicy, type GenerateOptions, type LlmModelInfo, type LlmResolvedModelInfo, type PreparedAdapterCall, type StreamChunk, type ProviderRequestId, type NativeWebSearchRequest, type NativeWebSearchResult } from '@deepseek-ai/dsh-llm'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { PiAiAdapter, type ResolvedPiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
 import type { CodexAccounts } from '../accounts/index.ts'
@@ -33,7 +33,7 @@ export function commonCapabilities(models: readonly LlmResolvedModelInfo[], prov
   const defaultEffort = reference.reasoning?.defaultEffort
   const reasoning = efforts?.length ? { efforts, ...(defaultEffort !== undefined && efforts.some(effort => effort.id === defaultEffort)
     && models.every(model => model.reasoning?.defaultEffort === defaultEffort) ? { defaultEffort } : {}) } : undefined
-  return { provider, id: reference.id, name: reference.name,
+  return { provider, id: reference.id, name: reference.name, nativeWebSearch: models.every(model => model.nativeWebSearch === true),
     ...(modalities === undefined ? {} : { inputModalities: modalities }), ...(context === undefined ? {} : { context }),
     ...(maxTokens === undefined ? {} : { defaultMaxTokens: maxTokens }), ...(reasoning === undefined ? {} : { reasoning }),
     ...(models.every(model => model.systemPromptUpdate === 'in-history') ? { systemPromptUpdate: 'in-history' } : {}),
@@ -58,7 +58,7 @@ export class CodexPoolAdapter extends LlmAdapter {
     if (provider !== this.config.provider) throw new LlmError('订阅适配器不拥有该 provider。', 'NO_ADAPTER')
   }
 
-  private inner(accountKey: string, snapshot: CodexModelSnapshot, baseModelId: string, onRefusal?: (failure: AccountRejected) => void): PiAiAdapter {
+  private inner(accountKey: string, snapshot: CodexModelSnapshot, baseModelId: string, onRefusal?: (failure: AccountRejected) => void, nativeSearch = false): PiAiAdapter {
     const native = this.accounts.nativeFor(accountKey)
     const upstream = onRefusal === undefined ? native.provider : native.providerWithRefusal(onRefusal)
     const models = snapshot.models.map(model => Object.freeze({ ...model, baseUrl: this.config.baseUrl }))
@@ -74,7 +74,9 @@ export class CodexPoolAdapter extends LlmAdapter {
       headers: { originator: 'codex_cli_rs', 'User-Agent': `codex_cli_rs/${this.accounts.options.clientVersion}` },
       maxRequestImageBytes: this.config.maxRequestImageBytes, requestImagePixelBudget: this.config.requestImagePixelBudget,
       requestImageMaxBytes: this.config.requestImageMaxBytes, retryPolicy: this.retryPolicy,
-      modelErrors: new Map(), configuredMaxTokens: new Map(), configuredReasoningEfforts: snapshot.defaults }
+      modelErrors: new Map(), configuredMaxTokens: new Map(), configuredReasoningEfforts: snapshot.defaults,
+      configuredNativeWebSearch: new Map(snapshot.views.flatMap(view => nativeSearch || view.nativeWebSearch !== undefined
+        ? [[view.id, nativeSearch || view.nativeWebSearch === true] as const] : [])) }
     const profiles = new Map([['openai-codex', profile]])
     const adapter = new PiAiAdapter({ profiles: () => profiles, resolveApiKey: async () => undefined,
       auth: { credentials: native.credentials, authContext: native.authContext },
@@ -83,10 +85,10 @@ export class CodexPoolAdapter extends LlmAdapter {
     return adapter
   }
 
-  /** Account discovery advertises only server-listed IDs with known native capabilities. */
+  /** The configured directory advertises only selected, currently routable text models. */
   override async listModels(provider: string): Promise<readonly LlmModelInfo[]> {
     this.check(provider)
-    return (await this.accounts.models()).map(model => ({ provider, id: model.id, name: model.name, inputModalities: [...model.input] }))
+    return (await (this.config.listModels?.() ?? this.accounts.models())).map(model => ({ provider, id: model.id, name: model.name, inputModalities: [...model.input] }))
   }
 
   override async resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo> {
@@ -104,7 +106,24 @@ export class CodexPoolAdapter extends LlmAdapter {
       const prepared = await this.inner(accountKey, snapshot, baseModelId).prepareCall('openai-codex', model, signal)
       return [accountKey, { model: prepared.model, stream: options => this.nativeStream(accountKey, snapshot, baseModelId, model, options) } satisfies PreparedAdapterCall] as const
     })))
-    return { model: commonCapabilities([...calls.values()].map(call => call.model), provider), stream: options => this.streamPrepared(options, calls) }
+    const configured = (await this.config.listModels?.())?.find(item => item.id === model)?.nativeWebSearch
+    return { model: { ...commonCapabilities([...calls.values()].map(call => call.model), provider),
+      ...configured === undefined ? {} : { nativeWebSearch: configured } }, stream: options => this.streamPrepared(options, calls) }
+  }
+
+  /**
+   * Use the selected subscription account for one isolated, native search request.
+   * @param request Exact public model route and the parent search tool's ownership.
+   * @returns Structured sources through the same account scheduler and proxy transport.
+   */
+  override async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult> {
+    if ((await this.prepareCall(request.provider, request.model, request.signal)).model.nativeWebSearch !== true) {
+      throw new LlmError('Native web search is disabled for this model', 'UNSUPPORTED_OPTION')
+    }
+    const route = await this.accounts.captureModelRoute(request.model)
+    if (route === undefined) throw new LlmError('The subscription model is unavailable', 'UNKNOWN_MODEL')
+    return this.accounts.withCandidates({ kind: 'text', model: request.model, signal: request.signal }, new Set(route.view.accountKeys), lease =>
+      this.inner(lease.accountKey, route.snapshot, route.view.baseModelId, undefined, true).searchNative({ ...request, provider: 'openai-codex', signal: lease.signal }))
   }
 
   override async *stream(options: GenerateOptions): AsyncGenerator<StreamChunk> {

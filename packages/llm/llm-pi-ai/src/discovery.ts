@@ -71,6 +71,10 @@ interface ListingTopProvider {
 
 /** One entry of a supported `GET /models` reply. */
 interface ListingEntry {
+  supports_web_search?: unknown
+  supports_search_tool?: unknown
+  nativeWebSearch?: unknown
+  capabilities?: { web_search?: { supported?: unknown } | boolean } | null
   id?: unknown
   /** Common gateway extensions; absent from the official listings. */
   name?: unknown
@@ -223,6 +227,11 @@ function readListing(body: unknown): LlmDiscoveredModel[] {
     models.push({
       id,
       name,
+      ...typeof entry?.supports_web_search === 'boolean' ? { nativeWebSearch: entry.supports_web_search }
+        : typeof entry?.supports_search_tool === 'boolean' ? { nativeWebSearch: entry.supports_search_tool }
+          : typeof entry?.nativeWebSearch === 'boolean' ? { nativeWebSearch: entry.nativeWebSearch }
+            : typeof entry?.capabilities?.web_search === 'boolean' ? { nativeWebSearch: entry.capabilities.web_search }
+              : typeof entry?.capabilities?.web_search?.supported === 'boolean' ? { nativeWebSearch: entry.capabilities.web_search.supported } : {},
       ...contextWindow === undefined ? {} : { contextWindow },
       ...maxTokens === undefined ? {} : { maxTokens },
     })
@@ -278,6 +287,8 @@ export async function discoverModels(
     if (installed.size > 0) {
       return [...installed.values()].map(model => ({
         id: model.id,
+        api: request.api ?? model.api,
+        // 静态规则由当前版本匹配，不固化成远端报告的默认值。
         name: model.name,
         contextWindow: model.contextWindow,
         maxTokens: model.maxTokens,

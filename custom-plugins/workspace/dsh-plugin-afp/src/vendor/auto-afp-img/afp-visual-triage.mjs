@@ -500,6 +500,7 @@ export async function triageCandidates({
   signal,
   reviewStates = [],
   onReviewState = async () => {},
+  onVisionRequest = async () => {},
   onResult = async () => {},
 } = {}) {
   if (!Array.isArray(candidateManifest?.categories)) throw new Error('candidate manifest categories are required');
@@ -532,6 +533,7 @@ export async function triageCandidates({
         prompt: buildVisionPrompt(category),
         bytes: preview.bytes,
         contentType: preview.contentType,
+        onRequest: request => onVisionRequest({ id: candidate.id, category, phase: 'vision', attempts, request }),
       }));
       const appliedThreshold = effectiveThreshold(category, threshold);
       let normalized = normalizeVisionDecision(raw, category, appliedThreshold);
@@ -553,6 +555,7 @@ export async function triageCandidates({
           prompt: buildVisionPrompt(category, { confirmation: true }),
           bytes: preview.bytes,
           contentType: preview.contentType,
+          onRequest: request => onVisionRequest({ id: candidate.id, category, phase: 'confirmation', attempts, request }),
         }));
         normalized = normalizeVisionDecision(confirmationRaw, category, appliedThreshold);
         composition = validateLandscapeWallpaperComposition(normalized);
@@ -643,6 +646,7 @@ export async function triageCandidates({
       };
     } catch (error) {
       signal?.throwIfAborted();
+      if (error?.afpRequestCheckpoint) throw error;
       if (error?.code === 'preview-host-blocked') blockedPreview = error;
       // 请求或响应解析失败不算完成视觉判断，不能与规则淘汰混为一谈。
       requestFailures++;

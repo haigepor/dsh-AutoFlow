@@ -23,6 +23,7 @@ type SeatProps = Omit<ComponentProps<typeof ChatNodeSeat>, 'nodeKey' | 'groupPar
 type ChatGroupSeatProps = SeatProps & {
   readonly groupKey: GroupKey
   readonly useChatGroup: ChatFlowSlotProps['useChatGroup']
+  readonly useChatProcessStatus: ChatFlowSlotProps['useChatProcessStatus']
   readonly useGroupHeaderAction: ChatFlowSlotProps['useGroupHeaderAction']
 }
 const PROCESS_TITLE_MINIMUM_MS = 150
@@ -89,10 +90,11 @@ const GroupMembers = memo(function GroupMembers({ members, ...props }: SeatProps
     {...member.groupPart === undefined ? {} : { groupPart: member.groupPart }} />)
 })
 
-const ProcessGroupHeader = memo(function ProcessGroupHeader({ groupKey, useChatGroup, usePresentation, t, open, bodyId, toggle }: {
+const ProcessGroupHeader = memo(function ProcessGroupHeader({ groupKey, useChatGroup, usePresentation, renderSlot, t, open, bodyId, toggle }: {
   readonly groupKey: GroupKey
   readonly useChatGroup: ChatFlowSlotProps['useChatGroup']
   readonly usePresentation: ChatFlowSlotProps['usePresentation']
+  readonly renderSlot: ChatFlowSlotProps['renderSlot']
   readonly t: ChatFlowSlotProps['t']
   readonly open: boolean
   readonly bodyId: string
@@ -112,18 +114,28 @@ const ProcessGroupHeader = memo(function ProcessGroupHeader({ groupKey, useChatG
   const detail = detailed && !data.closed ? live.detail : ''
   const title = detail === '' ? label : `${label}${t('message.turnProcess.separator')}${detail}`
   const activity = data.closed ? data.summary.counts[0]?.kind ?? 'thinking' : live.activity
-  return (
-    <button type="button" className={css.title} aria-expanded={open} aria-controls={bodyId}
-      data-process-activity={activity} onClick={(event) => { event.currentTarget.focus(); toggle() }}>
+  const renderLeadingIcon = (icon: ReactNode) => (
       <span className={css.leading} aria-hidden="true">
-        <span className={css.activityIcon} data-step-process-icon>{PROCESS_ICONS[activity]}</span>
+        <span className={css.activityIcon} data-step-process-icon>{icon}</span>
         <span className={css.chevron} data-step-process-chevron>
           {open ? <IconChevronUpOutlineRegular /> : <IconChevronDownOutlineRegular />}
         </span>
       </span>
+  )
+  const fallback = <>
+      {renderLeadingIcon(PROCESS_ICONS[activity])}
       <TextShimmer active={!data.closed}>
         <TextShimmer className={css.label}>{title}</TextShimmer>
       </TextShimmer>
+    </>
+  const tool = data.lastTool
+  const toolName = tool === undefined ? undefined : 'phase' in tool ? tool.name : tool.call?.name ?? tool.name
+  return (
+    <button type="button" className={css.title} aria-expanded={open} aria-controls={bodyId}
+      data-process-activity={activity} onClick={(event) => { event.currentTarget.focus(); toggle() }}>
+      {tool !== undefined && toolName != null ? renderSlot('conversation.chat.process.status', {
+        turn: data.turn, tool, closed: data.closed, fallback, renderLeadingIcon,
+      }, { entryKey: toolName, fallback }) : fallback}
     </button>
   )
 })
@@ -133,6 +145,11 @@ export const ChatGroupSeat = memo(function ChatGroupSeat({ groupKey, useChatGrou
   const members = useChatGroup(groupKey, group => group?.members)
   const turn = useChatGroup(groupKey, group => group?.data.turn)
   const closed = useChatGroup(groupKey, group => group?.data.closed)
+  const toolName = useChatGroup(groupKey, group => {
+    const tool = group?.data.lastTool
+    return tool === undefined ? undefined : 'phase' in tool ? tool.name : tool.call?.name ?? tool.name
+  })
+  const featureStatus = props.useChatProcessStatus(toolName ?? '') && toolName !== undefined
   const foldCompleted = props.usePresentation(policy => policy.foldCompletedTurns)
   const { expanded: open, setExpanded: setOpen } = useDisclosure()
   const firstKey = members?.[0]?.key ?? ''
@@ -144,7 +161,8 @@ export const ChatGroupSeat = memo(function ChatGroupSeat({ groupKey, useChatGrou
     return location?.kind === 'turn' || location?.kind === 'step' ? location.turn : undefined
   })
   // Detailed keeps the latest completed Turn flat, like a running one, until the next input.
-  const grouped = props.usePresentation(policy => policy.stepGrouping === 'collapsed'
+  // 生图等功能摘要在平铺模式也保留入口，真实过程仍由同一个分组展开。
+  const grouped = props.usePresentation(policy => featureStatus || policy.stepGrouping === 'collapsed'
     || (policy.stepGrouping === 'history' && turnLocation?.status !== 'open' && !deferCollapse))
   const reason = turnLocation?.end?.data.reason.kind
   const alwaysOpen = presentation?.turnClosed === false || presentation?.hasInterleavedInput === true
@@ -189,7 +207,7 @@ export const ChatGroupSeat = memo(function ChatGroupSeat({ groupKey, useChatGrou
       data-step-process data-group-expanded-mode={!grouped || undefined}>
       <div ref={headerRef}>
         <ProcessGroupHeader groupKey={groupKey} useChatGroup={useChatGroup}
-          usePresentation={props.usePresentation} t={props.t} open={open} bodyId={bodyId} toggle={toggle} />
+          usePresentation={props.usePresentation} renderSlot={props.renderSlot} t={props.t} open={open} bodyId={bodyId} toggle={toggle} />
       </div>
       <div ref={bodyRef} id={bodyId} className={classes.join(' ')} data-step-process-body
         data-scroll-up={edges.canScrollUp || undefined} data-scroll-down={edges.canScrollDown || undefined}

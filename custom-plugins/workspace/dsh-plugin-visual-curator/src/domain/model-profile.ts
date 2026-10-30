@@ -6,14 +6,19 @@ import { analysisReferenceDigest } from './style-analysis.ts'
 import { styleAnalysisOf, type StyleAnalysis } from '../shared/style-analysis.ts'
 import { modelProfileSchema, profileExportSchema, recipeSchema, type DomainActor, type ModelProfile, type ProfileExport, type Rule, type RunRecord } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { DatasetProgress } from '../shared/datasets.ts'
 
 /** Only selection and optional wording changes cross the Client wire; evidence stays Host-owned. */
 export const profileSaveSchema = z.strictObject({ operationId: z.string().min(1), styleId: z.string(), analysisRunId: z.string(), expectedProfileId: z.string(), changes: z.array(z.strictObject({ ruleId: z.string(), enabled: z.boolean(), statement: z.string().trim().min(1).max(4096).optional() })) })
 type Option = ModelProfile['options'][number]
 const identity = (kind: string, value: unknown) => `${kind}-${contentDigest(value).slice(10, 50)}`
 
-/** Export cancellation and authorization belong to the accepted search. */
-export interface ProfileExportOptions { signal?: AbortSignal; acceptedLaunchId?: string }
+/** @param operationId Accepted export operation. @returns Its existing deterministic package identity. */
+export function profileExportIdentity(operationId: string): ProfileExport['id'] { return brandString<ProfileExport['id']>(identity('profile-export', operationId)) }
+
+/** Export cancellation and progress belong to the caller; observer failures stop dependent work. */
+export interface ProfileExportOptions { signal?: AbortSignal; progress?(value: DatasetProgress): Promise<void>; acceptedLaunchId?: string }
 
 /** Profile selection has its own revision; analysis and human drafts are never rewritten. */
 export class ModelProfiles {
@@ -140,10 +145,11 @@ export class ModelProfiles {
     return await this.commit({ ...current, options }, current, input.operationId, input, current.access)
   }
 
-  /** @param profile Frozen selection. @param operationId Accepted export identity. @param actor Authenticated exporter. @param options Accepted search cancellation and authorization. @returns Checksummed, references-only package without synthetic supervision. */
+  /** @param profile Frozen selection. @param operationId Accepted export identity. @param actor Authenticated exporter. @param options Owning cancellation and real work observer. @returns Committed, checksummed reference package; an existing receipt is reused. */
   async export(profile: ModelProfile, operationId: string, actor: DomainActor, options: ProfileExportOptions = {}): Promise<ProfileExport> {
     options.signal?.throwIfAborted()
-    const id = identity('profile-export', operationId), existing = this.domain.repository.get('profileExport', id)
+    const report = async (phase: DatasetProgress['phase'], completed: number, total: number, unit: DatasetProgress['unit']) => { options.signal?.throwIfAborted(); await options.progress?.({ phase, completed, total, unit }); options.signal?.throwIfAborted() }
+    const id = profileExportIdentity(operationId), existing = this.domain.repository.get('profileExport', id)
     if (existing) {
       this.authorize(profile, actor)
       if (existing.access.kind === 'session-run' && existing.access.sessionId !== actor.sessionId) throw new CuratorError('owner-denied', 'profile-export', 'The export belongs to another Session.')
@@ -154,8 +160,16 @@ export class ModelProfiles {
     else this.assertFresh(profile, actor)
     if (!profile.rules.length) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one evidence-backed style rule before exporting.')
     if (actor.kind === 'agent' && !actor.sessionId) throw new CuratorError('owner-denied', 'profile-export', 'An Agent export requires an owning Session.')
-    await this.domain.verifyRelease(profile, actor, { ...(options.signal ? { signal: options.signal } : {}), ...(options.acceptedLaunchId ? { acceptedLaunchId: options.acceptedLaunchId } : {}) })
+    await report('verifying', 0, profile.references.length, 'references')
+    await this.domain.verifyRelease(profile, actor, { ...(options.signal ? { signal: options.signal } : {}), ...(options.acceptedLaunchId ? { acceptedLaunchId: options.acceptedLaunchId } : {}), verified: (completed, total) => report('verifying', completed, total, 'references') })
     const analysis = styleAnalysisOf(this.domain.require('run', profile.analysisRunId))!
+    const sampleLines: string[] = []
+    await report('samples', 0, analysis.samples.length, 'samples')
+    for (const sample of analysis.samples) {
+      const observation = this.domain.require('observation', sample.observationId)
+      sampleLines.push(JSON.stringify({ formatVersion: 2, source: 'vision-api-observation', referenceId: sample.reference.id, imageVersionId: sample.reference.imageVersionId, imageDigest: sample.imageDigest, importIntent: { role: sample.reference.role, intent: sample.reference.intent }, measured: observation.measured, inferred: observation.inferred, requestIds: [...new Set(observation.inferred.map(row => row.requestId))] }))
+      await report('samples', sampleLines.length, analysis.samples.length, 'samples')
+    }
     const resources = profile.references.map(ref => ({ imageVersionId: ref.reference.imageVersionId, digest: ref.imageDigest, familyId: ref.familyId }))
     const portableResources = resources.map(resource => { const source = this.domain.authorizedImage(resource.imageVersionId, actor).image.blob.remoteSource; return source ? { ...resource, digestKind: 'remote-url-v1', remoteSource: source, pixelDigest: null } : resource })
     const profileData = { formatVersion: 2, purpose: 'api-style-reference', modelProfileId: profile.id, analysisRunId: profile.analysisRunId, contentDigest: profile.contentDigest, ruleSource: 'model-adopted', model: profile.model,
@@ -163,15 +177,20 @@ export class ModelProfiles {
       matchingPolicy: 'Apply shared rules and match any one applicable style group. Model-adopted preferences are not human-confirmed labels. Retrieve candidates using search hints, then compare actual authorized candidate and reference pixels. Preserve unknown results and evidence.' }
     const files = [
       { name: 'style-profile.json', content: JSON.stringify(profileData, null, 2) + '\n' },
-      { name: 'samples.jsonl', content: analysis.samples.map(sample => { const observation = this.domain.require('observation', sample.observationId); return JSON.stringify({ formatVersion: 2, source: 'vision-api-observation', referenceId: sample.reference.id, imageVersionId: sample.reference.imageVersionId, imageDigest: sample.imageDigest, importIntent: { role: sample.reference.role, intent: sample.reference.intent }, measured: observation.measured, inferred: observation.inferred, requestIds: [...new Set(observation.inferred.map(row => row.requestId))] }) }).join('\n') + '\n' },
+      { name: 'samples.jsonl', content: sampleLines.join('\n') + '\n' },
       { name: 'references.json', content: JSON.stringify({ formatVersion: 2, resources: portableResources, references: profile.references }, null, 2) + '\n' },
       { name: 'SKILL.md', content: `# Visual reference profile\n\nProfile: ${profile.id}\nAnalysis: ${profile.analysisRunId}\n\nRead style-profile.json and samples.jsonl as reference data. Use adopted activeRules with their groups and conditions. Obtain separately authorized reference and candidate pixels and verify their saved digests before comparison. Shared rules apply across groups; group-specific rules describe alternative styles. Inspect actual candidate pixels with the configured vision API. Report the matching group, satisfied or conflicting traits, and unknown evidence. Preserve the model origin of rules and observations. This package has no trained weights and installs no instructions.\n` },
     ]
     if (portableResources.some(resource => 'remoteSource' in resource)) files.find(file => file.name === 'SKILL.md')!.content += '\nRemote references use the approved remoteSource.url with the vision API. A remote-url-v1 digest pins its URL descriptor, not image bytes; pixelDigest is unavailable. Remote content can change, and remote fetch costs are controlled by the model provider. Do not claim byte-level reproduction or measured dimensions for these references.\n'
-    const checksummed = files.map(file => ({ ...file, checksum: fileChecksum(file.content) }))
+    const checksummed: ProfileExport['files'] = []
+    await report('files', 0, files.length + 1, 'files')
+    for (const file of files) { checksummed.push({ ...file, checksum: fileChecksum(file.content) }); await report('files', checksummed.length, files.length + 1, 'files') }
     const manifest = JSON.stringify({ formatVersion: 2, modelProfileId: profile.id, analysisRunId: profile.analysisRunId, mode: 'references-only', files: checksummed.map(({ name, checksum }) => ({ name, checksum })) }, null, 2) + '\n'
+    checksummed.push({ name: 'manifest.json', content: manifest, checksum: fileChecksum(manifest) })
+    await report('files', checksummed.length, checksummed.length, 'files')
     const access: ProfileExport['access'] = actor.sessionId ? { kind: 'session-run', sessionId: actor.sessionId } : profile.access
-    const record = profileExportSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id, kind: 'profileExport', createdAt: new Date().toISOString(), access, formatVersion: 2, modelProfileId: profile.id, analysisRunId: profile.analysisRunId, resources, files: [...checksummed, { name: 'manifest.json', content: manifest, checksum: fileChecksum(manifest) }] })
+    const record = profileExportSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id, kind: 'profileExport', createdAt: new Date().toISOString(), access, formatVersion: 2, modelProfileId: profile.id, analysisRunId: profile.analysisRunId, resources, files: checksummed })
+    await report('saving', 0, 0, 'items')
     await this.domain.repository.commit({ aggregateId: `profile-export:${id}`, expectedRevision: 0, operationId, request: { profileId: profile.id, operationId }, records: [record], state: { id: record.id } })
     return this.domain.require('profileExport', record.id)
   }

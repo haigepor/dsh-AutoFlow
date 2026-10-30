@@ -8,7 +8,7 @@ import { JobRegistry } from '@deepseek-ai/dsh-jobs'
 import type { JobHooks, JobId, JobSpec } from '@deepseek-ai/dsh-jobs'
 import { DomainRepository, MemoryDomainAdapter, contentDigest } from '../src/domain/index.ts'
 import type { AggregateManifest } from '../src/domain/repository.ts'
-import { RunEngine, dataOf, specOf, type ExecutionSpec, type Worker } from '../src/host/runtime.ts'
+import { RunEngine, dataOf, specOf, toJson, type ExecutionSpec, type Worker } from '../src/host/runtime.ts'
 import * as configuration from '../src/host/config.ts'
 import { createDataWorker } from '../src/host/data-workflows.ts'
 import { mountCurator } from '../src/host/plugin.ts'
@@ -56,6 +56,68 @@ function analysisSpec(styleId = 'style-a', config = configuration.resolveConfig(
 }
 
 describe('background analysis lifecycle', () => {
+  it('explicit failed continuations retain the global model-call limit despite new retry windows', async t => {
+    const fixture = setup(), config = configuration.resolveConfig({ limits: { maxVisionCalls: 3, maxRetryAttempts: 0 } })
+    t.after(() => fixture.engine.dispose())
+    let calls = 0
+    const worker: Worker = async work => {
+      await work.request('vision', { operation: 'summarize' }, async () => { calls++; throw new MediaError('request-timeout', 'reviewing', true, 'Timed out', 'Continue from the checkpoint') })
+      return 'target-met'
+    }
+    const run = await fixture.engine.create(analysisSpec('explicit-retries', config), owner, worker)
+    await fixture.jobs.hooks[0]!.done
+    const deadline = dataOf(fixture.engine.get(run.id, owner)).budget.deadlineAt
+    for (const attempt of [1, 2]) { await fixture.engine.control(run.id, 'resume', owner, worker); await fixture.jobs.hooks[attempt]!.done }
+    const last = fixture.engine.get(run.id, owner)
+    assert.equal(last.status, 'failed'); assert.equal(calls, 3)
+    assert.equal(dataOf(last).budget.vision, 3)
+    assert.equal(dataOf(last).budget.deadlineAt, deadline)
+    await assert.rejects(fixture.engine.control(run.id, 'resume', owner, worker), { code: 'budget-exhausted' })
+    assert.equal(fixture.jobs.hooks.length, 3)
+    const expired = { ...last, revision: last.revision + 1, data: toJson({ ...dataOf(last), budget: { ...dataOf(last).budget, deadlineAt: Date.now() - 1 } }) }
+    await fixture.repository.commit({ aggregateId: `run:${last.id}`, expectedRevision: last.revision, operationId: 'expired-continuation', request: {}, records: [expired], state: {} })
+    await assert.rejects(fixture.engine.control(run.id, 'resume', owner, worker), { code: 'budget-exhausted' })
+    assert.equal(fixture.jobs.hooks.length, 3)
+  })
+
+  it('non-retryable failures cannot be continued as another model request', async t => {
+    const fixture = setup()
+    t.after(() => fixture.engine.dispose())
+    const worker: Worker = async () => { throw new MediaError('configuration-required', 'reviewing', false, 'Check configuration', 'Review the configured model') }
+    const run = await fixture.engine.create(analysisSpec('not-retryable'), owner, worker)
+    await fixture.jobs.hooks[0]!.done
+    await assert.rejects(fixture.engine.control(run.id, 'resume', owner, worker), { code: 'invalid-input' })
+    assert.equal(fixture.jobs.hooks.length, 1)
+  })
+
+  it('streamed output does not reread the durable Run for each token while public reads stay verified', async t => {
+    class StreamAdapter extends MemoryDomainAdapter {
+      runReads = 0
+      override readRecord(key: string) { if (key.startsWith('run-')) this.runReads++; return super.readRecord(key) }
+    }
+    const adapter = new StreamAdapter(), fixture = setup(new DomainRepository(owner.profileId, adapter)), entered = deferred(), begin = deferred()
+    let streamReads = -1, streamedFrames = 0
+    t.after(() => fixture.engine.dispose())
+    const run = await fixture.engine.create(analysisSpec('streaming-cost'), owner, async work => {
+      entered.resolve(); await begin.promise
+      const before = adapter.runReads
+      work.report({ phase: 'analyzing', resetOutput: true, imageIds: [] })
+      for (let index = 0; index < 1000; index++) work.report({ phase: 'receiving', content: 'x' })
+      streamReads = adapter.runReads - before
+      await work.save('reviewing', { counts: { observed: 1 } })
+      return 'target-met'
+    })
+    await entered.promise
+    const unsubscribe = fixture.engine.subscribeProcess(run.id, owner, frame => { if (frame.process?.phase === 'receiving') { assert.equal(frame.status, 'running'); streamedFrames++ } })
+    begin.resolve(); await fixture.jobs.hooks[0]!.done; unsubscribe()
+    assert.equal(streamReads, 0, 'live presentation uses the execution owner\'s last committed Run')
+    assert.ok(streamedFrames >= 1000)
+    const reads = adapter.runReads, complete = fixture.engine.get(run.id, owner)
+    assert.ok(adapter.runReads > reads, 'public reads continue verifying the persisted record')
+    assert.equal(complete.status, 'completed')
+    assert.equal(dataOf(complete).process?.content, 'x'.repeat(1000))
+  })
+
   it('records admitted native input before dispatch and retains usage beside the settled request', async t => {
     const fixture = setup()
     t.after(() => fixture.engine.dispose())
@@ -113,6 +175,131 @@ describe('background analysis lifecycle', () => {
     assert.equal(dataOf(fixture.engine.get(run.id, owner)).autoResume, false)
     assert.equal(calls, 1)
   })
+  it('pauses a retry wait without waiting for another attempt or spending its quota', { timeout: 10_000 }, async t => {
+    const fixture = setup(), entered = deferred(), begin = deferred()
+    const config = configuration.resolveConfig({ limits: { maxRetryAttempts: 2, retryDelayMs: 60_000 } })
+    let calls = 0
+    t.after(() => fixture.engine.dispose())
+    const run = await fixture.engine.create(analysisSpec('pause-retry', config), owner, async work => {
+      await begin.promise
+      await work.request('vision', { batch: 'pause-one' }, async () => { calls++; throw new MediaError('remote-request-failed', 'reviewing', true, 'Unavailable.', 'Retry pending batch.') })
+      return 'target-met'
+    })
+    const off = fixture.engine.subscribeProcess(run.id, owner, frame => { if (frame.checkpoint && frame.process?.phase === 'retrying') entered.resolve() })
+    t.after(off)
+    begin.resolve(); await entered.promise
+    const paused = await fixture.engine.control(run.id, 'pause', owner)
+    assert.equal(paused.status, 'paused')
+    assert.equal(dataOf(paused).autoResume, false)
+    assert.equal(dataOf(paused).budget.vision, 1)
+    assert.equal(calls, 1)
+  })
+  it('pauses a request-slot waiter without interrupting the collection that owns the slot', { timeout: 10_000 }, async t => {
+    const fixture = setup(undefined, { maxConcurrentAnalyses: 2, maxConcurrentRequests: 1 }), entered = deferred(), waiting = deferred(), release = deferred()
+    t.after(async () => { release.resolve(); await fixture.engine.dispose() })
+    const active = await fixture.engine.create(analysisSpec('pause-slot-active'), owner, async work => {
+      await work.request('vision', { batch: 'active' }, async signal => { entered.resolve(); await waitForRelease(signal, release); return 'active-output' })
+      return 'target-met'
+    })
+    await entered.promise
+    const waiter = await fixture.engine.create(analysisSpec('pause-slot-waiter'), owner, async work => {
+      waiting.resolve()
+      await work.request('vision', { batch: 'waiting' }, async () => { assert.fail('A paused waiter cannot dispatch a paid request') })
+      return 'target-met'
+    })
+    await waiting.promise
+    const paused = await fixture.engine.control(waiter.id, 'pause', owner)
+    assert.equal(paused.status, 'paused')
+    assert.equal(dataOf(paused).budget.vision, 0)
+    assert.equal(fixture.repository.list('request').filter(request => request.runId === waiter.id).length, 0)
+    assert.equal(fixture.engine.get(active.id, owner).status, 'running')
+    release.resolve(); await fixture.jobs.hooks[0]!.done
+    assert.equal(fixture.engine.get(active.id, owner).status, 'completed')
+  })
+  it('does not spend a reservation that had not become durable before pause was accepted', { timeout: 10_000 }, async t => {
+    const fixture = setup(), reserved = deferred(), release = deferred()
+    t.after(async () => { release.resolve(); await fixture.engine.dispose() })
+    const run = await fixture.engine.create(analysisSpec('pause-before-reservation'), owner, async work => {
+      const reserve = work.ledger.reserve.bind(work.ledger)
+      work.ledger.reserve = async (kind, bytes) => { const value = await reserve(kind, bytes); reserved.resolve(); await release.promise; return value }
+      await work.request('vision', { batch: 'not-admitted' }, async () => { assert.fail('Pausing before durable admission must prevent dispatch') })
+      return 'target-met'
+    })
+    await reserved.promise
+    assert.equal((await fixture.engine.control(run.id, 'pause', owner, undefined, false)).status, 'pausing')
+    release.resolve(); await fixture.jobs.hooks[0]!.done
+    const paused = fixture.engine.get(run.id, owner)
+    assert.equal(paused.status, 'paused')
+    assert.equal(dataOf(paused).budget.vision, 0)
+    assert.equal(fixture.repository.list('request').length, 0)
+  })
+  it('keeps a resumed attempt controllable when continuation is requested from the durable paused frame', { timeout: 10_000 }, async t => {
+    const fixture = setup(), entered = deferred(), release = deferred(), continued = deferred(), finish = deferred()
+    t.after(async () => { release.resolve(); finish.resolve(); await fixture.engine.dispose() })
+    const worker: Worker = async work => {
+      if (dataOf(work.current()).attempts > 1) {
+        continued.resolve()
+        await waitForRelease(work.signal, finish)
+        return 'target-met'
+      }
+      await work.request('vision', { batch: 'first' }, async () => { entered.resolve(); await release.promise; return 'first-output' })
+      await work.save('reviewing', { checkpoint: { saved: true } })
+      await work.request('vision', { batch: 'second' }, async () => { assert.fail('The next request must wait for explicit continuation') })
+      return 'target-met'
+    }
+    const run = await fixture.engine.create(analysisSpec('immediate-resume'), owner, worker)
+    await entered.promise
+    let resuming: Promise<unknown> | undefined
+    const off = fixture.engine.subscribeProcess(run.id, owner, frame => {
+      if (frame.checkpoint && frame.status === 'paused' && !resuming) resuming = fixture.engine.control(run.id, 'resume', owner, worker)
+    })
+    t.after(off)
+    await fixture.engine.control(run.id, 'pause', owner, undefined, false)
+    release.resolve()
+    await continued.promise
+    await resuming
+    const cancelled = await fixture.engine.control(run.id, 'cancel', owner)
+    assert.equal(cancelled.status, 'cancelled')
+    assert.equal(dataOf(cancelled).attempts, 2)
+  })
+  it('retains an accepted pause through shutdown and never automatically continues it after restart', { timeout: 10_000 }, async t => {
+    const first = setup(), entered = deferred(), release = deferred()
+    t.after(async () => { release.resolve(); await first.engine.dispose() })
+    const run = await first.engine.create(analysisSpec('pause-shutdown'), owner, async work => {
+      await work.save('reviewing', { checkpoint: { analysisDoneImageIds: ['saved-image'] }, counts: { observed: 1 } })
+      await work.request('vision', { batch: 'in-flight' }, async signal => { entered.resolve(); await waitForRelease(signal, release); return 'pending-output' })
+      return 'target-met'
+    })
+    await entered.promise
+    assert.equal((await first.engine.control(run.id, 'pause', owner, undefined, false)).status, 'pausing')
+    await first.engine.dispose()
+    const paused = first.engine.get(run.id, owner)
+    assert.equal(paused.status, 'paused')
+    assert.equal(dataOf(paused).autoResume, false)
+    assert.deepEqual(dataOf(paused).checkpoint, { analysisDoneImageIds: ['saved-image'] })
+    assert.equal(first.repository.list('request')[0]?.state, 'outcome-unknown')
+    const restarted = setup(first.repository)
+    t.after(() => restarted.engine.dispose())
+    await restarted.engine.recover()
+    await restarted.engine.resumeAnalyses(async () => { assert.fail('A user pause must survive recovery without automatic dispatch') })
+    assert.equal(restarted.engine.get(run.id, owner).status, 'paused')
+    assert.equal(restarted.jobs.hooks.length, 0)
+  })
+  it('recovers a durably accepted pause as paused when a process ended before acknowledgement', { timeout: 10_000 }, async t => {
+    const first = setup()
+    const run = await first.engine.create(analysisSpec('pause-crash'), owner, async () => 'target-met')
+    await first.jobs.hooks[0]!.done
+    const saved = first.engine.get(run.id, owner), pausedIntent = { ...saved, status: 'pausing' as const, data: toJson({ ...dataOf(saved), autoResume: false }) }
+    await first.repository.commit({ aggregateId: `run:${saved.id}`, expectedRevision: saved.revision, operationId: 'crash-after-pause-intent', request: {}, records: [pausedIntent], state: {} })
+    const restarted = setup(first.repository)
+    t.after(async () => { await restarted.engine.dispose(); await first.engine.dispose() })
+    await restarted.engine.recover()
+    await restarted.engine.resumeAnalyses(async () => { assert.fail('Recovery must not override an explicitly accepted pause') })
+    const paused = restarted.engine.get(run.id, owner)
+    assert.equal(paused.status, 'paused')
+    assert.equal(dataOf(paused).process?.phase, 'paused')
+    assert.equal(restarted.jobs.hooks.length, 0)
+  })
   it('does not reset the failed-batch retry allowance on restart', async t => {
     const fixture = setup(), config = configuration.resolveConfig({ limits: { maxRetryAttempts: 1, retryDelayMs: 0 } })
     let calls = 0
@@ -130,6 +317,9 @@ describe('background analysis lifecycle', () => {
     assert.equal(calls, 2)
     assert.equal(dataOf(fixture.engine.get(old.id, owner)).budget.vision, 2)
     assert.equal(fixture.engine.get(old.id, owner).status, 'failed')
+    assert.equal(dataOf(fixture.engine.get(old.id, owner)).error?.retryable, true)
+    await fixture.engine.control(old.id, 'resume', owner, worker); await fixture.jobs.hooks[2]!.done
+    assert.equal(calls, 4, 'Only an explicit continuation opens a new bounded retry window')
   })
   it('restores queued dispatch if persisting its pause fails', async t => {
     const adapter = new MemoryDomainAdapter(), fixture = setup(new DomainRepository(owner.profileId, adapter), { maxConcurrentAnalyses: 1, maxConcurrentRequests: 1 })
@@ -294,7 +484,7 @@ describe('background analysis lifecycle', () => {
     assert.ok(fixture.repository.list('run').every(run => run.status === 'completed'))
   })
 
-  it('defaults new tasks to high without adding reasoningEffort to a legacy frozen execution spec', async t => {
+  it('inherits native defaults without changing a legacy frozen execution spec', async t => {
     const fixture = setup()
     t.after(() => fixture.engine.dispose())
     const legacyConfig = configuration.resolveConfig({})
@@ -307,9 +497,10 @@ describe('background analysis lifecycle', () => {
     assert.equal(fixed.specDigest, legacy.specDigest)
 
     const current = configuration.resolveCurrentConfig({})
-    assert.equal(current.vision.reasoningEffort, 'high')
+    assert.equal(current.vision.reasoningEffort, undefined)
+    assert.equal(current.vision.useModelDefaults, true)
     assert.equal(current.limits.maxConcurrentAnalyses, 2)
-    assert.equal(configuration.resolveCurrentConfig({ vision: { reasoningEffort: 'low' } }).vision.reasoningEffort, 'low')
+    assert.equal(configuration.resolveCurrentConfig({ vision: { backend: 'compatible', reasoningEffort: 'low' } }).vision.reasoningEffort, 'low')
     assert.equal(Object.hasOwn(configuration.resolveCurrentConfig({ vision: { reasoningEffort: null } }).vision, 'reasoningEffort'), false)
     assert.equal(Object.hasOwn(specOf(fixture.engine.get(oldRun.id, owner)).config.vision, 'reasoningEffort'), false)
   })

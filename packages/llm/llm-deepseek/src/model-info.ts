@@ -2,6 +2,7 @@
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { LlmModelInfo, LlmResolvedModelInfo, LlmModelReasoningInfo } from '@deepseek-ai/dsh-llm'
 import type { DeepSeekCatalogModel, DeepSeekConnectionOptions } from './types.ts'
+import { nativeWebSearchEnabled } from '@deepseek-ai/dsh-llm/native-web-search'
 
 const OFF_REASONING_EFFORT = ReasoningEffortId('off')
 const LOW_REASONING_EFFORT = ReasoningEffortId('low')
@@ -94,6 +95,7 @@ export function modelInfo(
       ? { provider, id: model, name: model, inputModalities: ['text' as const] }
       : catalogModelInfo(provider, configured),
     context: { contextWindow },
+    nativeWebSearch: nativeWebSearchEnabled(model, 'deepseek-messages', configured?.nativeWebSearch),
     defaultMaxTokens: configured?.maxTokens ?? connection.maxTokens,
     ...configured?.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: configured.systemPromptUpdate },
     ...configured?.toolUpdate === undefined ? {} : { toolUpdate: configured.toolUpdate },

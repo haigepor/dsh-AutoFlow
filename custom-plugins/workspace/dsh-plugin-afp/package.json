@@ -103,8 +103,8 @@
           "defaultEnabled": true,
           "kind": "script",
           "details": {
-            "en": "Find candidates for selected categories, screen them with a vision model, and generate a report. Interrupted runs can resume from saved progress.\n\nRequires AFP credentials and a vision model with an API key. Results stay local and are not automatically written to collections.",
-            "zh": "按选定分类检索候选图片，通过视觉模型筛选并生成报告。任务中断后可从已保存的进度继续。\n\n需配置 AFP 账号、视觉模型及密钥；筛选结果仅保存在本地，不会自动写入收藏夹。"
+            "en": "Find candidates for selected categories, screen them with a vision model, and generate a report. Interrupted runs can resume from saved progress.\n\nRequires AFP credentials and an image-capable model configured in Settings. The plugin reuses its provider connection and authentication. Results stay local and are not automatically written to collections.",
+            "zh": "按选定分类检索候选图片，通过视觉模型筛选并生成报告。任务中断后可从已保存的进度继续。\n\n需配置 AFP 账号，并选择设置页已配置的图片模型，复用其接口与认证；筛选结果仅保存在本地，不会自动写入收藏夹。"
           },
           "icon": "./assets/icons/visual-refresh.svg"
         },

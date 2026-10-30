@@ -4,6 +4,7 @@ import { selectionDocIds } from '../vendor/auto-afp-img/afp-collection-run.mjs'
 import { boundedWork } from '../vendor/auto-afp-img/bounded-work.mjs'
 import { savedReadFailure } from '../vendor/auto-afp-img/read-failure.mjs'
 import { resolveConfig } from '../../config-schema.js'
+import { digest } from './afp-state-store.js'
 
 /** Supported curation categories; original policies stay in the upstream modules. */
 export const categories = Object.freeze(CATEGORY_PROFILES.map(profile => profile.key))
@@ -286,6 +287,22 @@ export async function refreshRun({ run, store, config, client, previewClient, vi
         })
         const decisions = await (primitives.triage ?? triageCandidates)({ candidateManifest, previewClient, visionClient,
           threshold: config.threshold, concurrency: config.concurrency, signal, reviewStates: run.reviews,
+          onVisionRequest: async ({ request, ...review }) => {
+            try {
+              await save(() => {
+                const promptId = digest(request.prompt)
+                run.visionPrompts ??= {}
+                run.visionPrompts[promptId] = request.prompt
+                run.visionRequests ??= []
+                run.visionRequests.push({ ...review, promptId, config: request.config, attachment: request.attachment })
+              })
+            } catch (error) {
+              // 请求记录未提交时禁止发出模型请求，不能将存储失败写成图片判断失败。
+              const failure = new Error('AFP vision request checkpoint failed', { cause: error })
+              failure.afpRequestCheckpoint = true
+              throw failure
+            }
+          },
           onReviewState: review => save(() => {
             checkpointed.add(review.id)
             const index = run.reviews.findIndex(item => item.id === review.id)

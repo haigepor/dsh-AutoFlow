@@ -8,6 +8,7 @@ import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { MessageId, ToolCallId, ProviderRequestId, ReasoningEffortId } from './brand.ts'
 import type { Message, UserMessage } from './message.ts'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
@@ -334,6 +335,10 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 export interface LlmDiscoveredModel {
   /** Model id the endpoint accepts. */
   id: string
+  /** Wire protocol when the catalog discloses it. */
+  api?: string
+  /** Native web-search support reported by this provider, independent of function calling. */
+  nativeWebSearch?: boolean
   /** Human-readable name when the endpoint supplies one. */
   name?: string
   /** Maximum combined request and response context, when disclosed. */
@@ -430,6 +435,8 @@ export type ToolUpdate = 'in-history' | 'addition-only'
 
 /** Exact-route model metadata resolved by its owning adapter. */
 export interface LlmResolvedModelInfo extends LlmModelInfo {
+  /** Effective model-native search selection, including an explicit user override. */
+  nativeWebSearch?: boolean
   /** Provider-owned context capacity when known. */
   context?: LlmModelContext
   /** Adapter-configured per-request output cap materialized when callers omit one. */
@@ -440,6 +447,32 @@ export interface LlmResolvedModelInfo extends LlmModelInfo {
   systemPromptUpdate?: SystemPromptUpdate
   /** Declared mid-conversation tool declaration handling; absent means every request declares the complete tool list. */
   toolUpdate?: ToolUpdate
+}
+
+/** One search performed by the current model's own provider and credentials. */
+export interface NativeWebSearchRequest {
+  /** Registered provider route. */
+  provider: string
+  /** Exact model ID. */
+  model: string
+  /** Search query; unrelated conversation history is excluded. */
+  query: string
+  /** Upper bound on returned sources. */
+  maxResults: number
+  /** Cancellation from the owning tool call. */
+  signal: AbortSignal
+  /** Record secret-free provider input before dispatch; failure prevents dispatch. */
+  recordRequest: (request: { api: string; body: JsonValue }) => void
+}
+
+/** Model-native search output consumed by the ordinary web-search presentation. */
+export interface NativeWebSearchResult {
+  /** Provider-generated answer, when present. */
+  content?: string
+  /** Structured sources with optional excerpts and titles. */
+  sources: { url: string; title?: string; snippet?: string }[]
+  /** Whether the source cap removed provider results. */
+  truncated: boolean
 }
 
 /**

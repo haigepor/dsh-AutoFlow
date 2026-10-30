@@ -2,7 +2,7 @@
 import test, { mock } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { createServer, Server } from 'node:http'
+import { createServer, Server, ServerResponse } from 'node:http'
 import { Context } from '@deepseek-ai/cordis'
 import { CredentialProvider, type CredentialKey, type CredentialRecord, type CredentialRef } from '@deepseek-ai/dsh-credentials'
 import AuthorizationService from '@deepseek-ai/dsh-authorization'
@@ -53,6 +53,19 @@ async function fixture(network?: typeof fetch, now?: () => number) {
   return { ctx, options, accounts, seed, close: async () => { await unmount(); await ctx.fiber.dispose() } }
 }
 
+test('images skip accounts forbidding credits without treating text allowance as image allowance', async () => {
+  const f = await fixture()
+  try {
+    await f.seed(['a', 'b'])
+    await f.accounts.update(keyFor('a'), { revision: 1, allowCredits: false, priority: 100 })
+    const chosen = await f.accounts.withAccount({ kind: 'image' }, async lease => lease.accountKey)
+    assert.equal(chosen, keyFor('b'))
+    await f.accounts.update(keyFor('b'), { revision: 1, allowCredits: false })
+    await assert.rejects(f.accounts.withAccount({ kind: 'image' }, async () => true), { code: 'IMAGE_CREDITS_DISABLED' })
+    assert.equal(await f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol' }, async () => true), true)
+  } finally { await f.close() }
+})
+
 test('different members of one workspace remain distinct and signing in again preserves that member key', async () => {
   let email = 'alice@fixture.invalid'
   const access = () => `e30.${Buffer.from(JSON.stringify({ email, sub: email, 'https://api.openai.com/auth': { chatgpt_account_id: 'same-team', chatgpt_plan_type: 'team' } })).toString('base64url')}.fixture`
@@ -93,6 +106,34 @@ test('a failed quota poll retains an unreset exhausted window when credits spend
     await assert.rejects(f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol' }, async () => true), { code: 'NO_AVAILABLE_ACCOUNT' })
     const view = (await f.accounts.list())[0]!
     assert.equal(view.usage?.primary?.usedPercent, 100)
+  } finally { await f.close() }
+})
+
+test('quota failures expose safe HTTP or response classifications and retain the last successful windows', async () => {
+  let mode: 'ready' | 'http' | 'json' | 'schema' = 'ready', now = Date.now()
+  const privateDetails = 'fixture-private-quota-body-and-message'
+  const f = await fixture(async input => {
+    if (String(input).includes('/codex/models')) return Response.json({ models: [{ slug: 'gpt-6.1-sol' }] })
+    if (mode === 'http') return Response.json({ error: { message: privateDetails } }, { status: 503 })
+    if (mode === 'json') return new Response(privateDetails)
+    if (mode === 'schema') return Response.json({ rate_limit: { primary_window: { used_percent: privateDetails } } })
+    return Response.json({ rate_limit: { primary_window: { used_percent: 25, reset_after_seconds: 3600 }, secondary_window: { used_percent: 75, reset_after_seconds: 7200 } } })
+  }, () => now)
+  f.options.discoveryTtlMs = 60000
+  try {
+    await f.seed(['a'])
+    const good = (await f.accounts.list())[0]!.usage!
+    for (const failure of ['http', 'json', 'schema'] as const) {
+      mode = failure; now += 1000
+      const usage = (await f.accounts.refreshAccount(keyFor('a'))).usage!
+      assert.equal(usage.status, 'error'); assert.equal(usage.freshness, 'stale')
+      assert.equal(usage.errorCode, failure === 'http' ? 'USAGE_HTTP_FAILED' : 'USAGE_INVALID_RESPONSE')
+      assert.equal(usage.errorStatus, failure === 'http' ? 503 : undefined)
+      assert.deepEqual(usage.primary, good.primary); assert.deepEqual(usage.secondary, good.secondary)
+      assert.equal(usage.lastSuccessfulAt, good.lastSuccessfulAt)
+      assert.equal(JSON.stringify(usage).includes(privateDetails), false)
+      assert.equal(JSON.stringify(usage).includes('fixture-refresh'), false)
+    }
   } finally { await f.close() }
 })
 
@@ -344,13 +385,81 @@ test('PKCE callback, manual paste and complete identity commit share one authori
   } finally { await f.close() }
 })
 
+test('loopback callback sends auto-closing success HTML only after token exchange and credential persistence authorize the account', async () => {
+  const tokenStarted = Promise.withResolvers<void>(), releaseToken = Promise.withResolvers<void>()
+  const writeStarted = Promise.withResolvers<void>(), releaseWrite = Promise.withResolvers<void>()
+  const access = jwt('callback-browser'), idToken = jwt('callback-browser', { chatgpt_workspace_id: 'callback-workspace' })
+  const refresh = 'fixture-callback-refresh', code = 'fixture-sensitive-callback-code'
+  const f = await fixture(async () => {
+    tokenStarted.resolve(); await releaseToken.promise
+    return Response.json({ access_token: access, id_token: idToken, refresh_token: refresh, expires_in: 3600 })
+  })
+  const modifyRecord = f.ctx.credentials.modifyRecord.bind(f.ctx.credentials)
+  const persistence = mock.method(f.ctx.credentials, 'modifyRecord', async (key: CredentialKey, mutate: (current: CredentialRecord | undefined) => Promise<CredentialRecord | undefined>) => {
+    writeStarted.resolve(); await releaseWrite.promise
+    return modifyRecord(key, mutate)
+  })
+  let callback: Promise<Response> | undefined, responseState: string | undefined
+  let restoreResponseEnd: (() => void) | undefined
+  try {
+    const login = await f.accounts.beginLogin(), authorize = new URL(login.authorizationUrl), state = authorize.searchParams.get('state')!
+    const url = new URL(`${login.redirectUri.replace('localhost', '127.0.0.1')}?code=${code}&state=${state}`)
+    const end = ServerResponse.prototype.end
+    // 在 HTTP 实际写出时观察授权状态，避免用定时等待推测是否提前成功。
+    const responseEnd = mock.method(ServerResponse.prototype, 'end', function (this: ServerResponse, ...args: Parameters<ServerResponse['end']>): ServerResponse {
+      if (this.req.url === url.pathname + url.search) responseState = f.accounts.loginStatus(login.loginId).state
+      return Reflect.apply(end, this, args)
+    })
+    restoreResponseEnd = () => responseEnd.mock.restore()
+    callback = fetch(url)
+    await tokenStarted.promise
+    assert.equal(f.accounts.loginStatus(login.loginId).state, 'exchanging')
+    assert.equal(await f.ctx.credentials.readRecord(ACCOUNTS_KEY), undefined)
+    releaseToken.resolve(); await writeStarted.promise
+    assert.equal(f.accounts.loginStatus(login.loginId).state, 'exchanging')
+    assert.equal(await f.ctx.credentials.readRecord(ACCOUNTS_KEY), undefined)
+    releaseWrite.resolve()
+    const response = await callback, html = await response.text()
+    assert.equal(responseState, 'authorized')
+    assert.equal(f.accounts.loginStatus(login.loginId).state, 'authorized')
+    assert.equal(response.status, 200); assert.match(response.headers.get('content-type') ?? '', /^text\/html(?:;|$)/i)
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.match(html, /<html[\s>]/i); assert.match(html, /window\.close\s*\(/)
+    assert.match(html, /手动.*关闭|关闭此.*窗口|close.*(?:tab|window)/i)
+    for (const secret of [code, state, access, idToken, refresh]) assert.equal(html.includes(secret), false)
+    const stored = Object.values(readGrant(await f.ctx.credentials.readRecord(ACCOUNTS_KEY)).accounts)
+    assert.equal(stored.length, 1); assert.equal(stored[0]?.credential.refresh, refresh)
+  } finally {
+    releaseToken.resolve(); releaseWrite.resolve()
+    if (callback) await Promise.allSettled([callback])
+    restoreResponseEnd?.(); persistence.mock.restore(); await f.close()
+  }
+})
+
+for (const failure of ['token exchange', 'credential persistence'] as const) test(`loopback callback reports ${failure} failure without success or automatic closing`, async () => {
+  const privateDetails = 'fixture-private-login-failure', code = 'fixture-sensitive-rejected-code'
+  const f = await fixture(async () => failure === 'token exchange'
+    ? Response.json({ error: { message: privateDetails } }, { status: 503 })
+    : Response.json({ access_token: jwt('rejected-browser'), refresh_token: 'fixture-rejected-refresh', expires_in: 3600 }))
+  const persistence = failure === 'credential persistence' ? mock.method(f.ctx.credentials, 'modifyRecord', async () => { throw new Error(privateDetails) }) : undefined
+  try {
+    const login = await f.accounts.beginLogin(), state = new URL(login.authorizationUrl).searchParams.get('state')!
+    const response = await fetch(`${login.redirectUri.replace('localhost', '127.0.0.1')}?code=${code}&state=${state}`), html = await response.text()
+    assert.ok(response.status >= 400)
+    assert.equal(f.accounts.loginStatus(login.loginId).state, 'failed')
+    assert.doesNotMatch(html, /window\.close\s*\(|登录成功|授权成功|successfully|login succeeded/i)
+    assert.match(html, /失败|重试|failed|retry/i)
+    for (const secret of [privateDetails, code, state, 'fixture-rejected-refresh']) assert.equal(html.includes(secret), false)
+    assert.equal(await f.ctx.credentials.readRecord(ACCOUNTS_KEY), undefined)
+  } finally { persistence?.mock.restore(); await f.close() }
+})
+
 test('loopback callback rejects wrong state without poisoning the legitimate login and closes on cancellation', async () => {
   const f = await fixture(async () => Response.json({ access_token: jwt('callback'), refresh_token: 'fixture-refresh', expires_in: 3600 }))
   try {
     const login = await f.accounts.beginLogin(), url = new URL(login.authorizationUrl), callback = login.redirectUri.replace('localhost', '127.0.0.1')
     assert.equal((await fetch(`${callback}?code=bad&state=wrong`)).status, 400)
     assert.equal((await fetch(`${callback}?code=fixture-code&state=${url.searchParams.get('state')}`)).status, 200)
-    for (let n = 0; n < 30 && f.accounts.loginStatus(login.loginId).state !== 'authorized'; n++) await new Promise(resolve => setTimeout(resolve, 5))
     assert.equal(f.accounts.loginStatus(login.loginId).state, 'authorized')
     const next = await f.accounts.beginLogin(); await f.accounts.cancelLogin(next.loginId)
     assert.equal(f.accounts.loginStatus(next.loginId).state, 'cancelled')

@@ -25,6 +25,8 @@ This package keeps long agent conversations working near the model's context lim
 <a id="use-this-package"></a>
 ## Use this package
 
+Independent operations use `compactInput` with their prepared model capacity, fixed-input estimate and text chunks. It applies the same exact-model policy and token meter, reserves output and headroom, and makes no call below pressure. The owner callback records and budgets each bounded native request and can replay committed responses. Truncated, incomplete, empty or non-shrinking summaries fail; no Session is created or changed. Input pricing uses the native text heuristic, not exact tokenization; fixed visual inputs still require the adapter image checks.
+
 Mount this package to get automatic conversation condensation in a composition that already provides an LLM, session storage, and token measurement. The shipped `dsh` base enables it by default; mount it explicitly to control when condensation starts.
 
 ### What you get

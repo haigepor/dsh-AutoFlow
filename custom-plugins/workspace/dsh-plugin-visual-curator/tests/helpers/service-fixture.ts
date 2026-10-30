@@ -24,7 +24,7 @@ export class FixtureJobs implements Pick<JobRegistry, 'start'> {
   async drain(): Promise<void> { await Promise.all(this.hooks.map(hook => hook.done)) }
 }
 const envelope = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ type: z.string(), text: z.string().optional() }))]) })) })
-const promptSchema = z.object({ input: z.object({ operation: z.string(), taskBrief: z.string(), stage: z.string().optional(), images: z.array(z.object({ imageVersionId: z.string() })), rules: z.array(z.object({ ruleId: z.string() })) }) })
+const promptSchema = z.object({ input: z.object({ operation: z.string(), taskBrief: z.string(), stage: z.string().optional(), analysisOutput: z.literal('observations-only').optional(), images: z.array(z.object({ imageVersionId: z.string() })), rules: z.array(z.object({ ruleId: z.string() })) }) })
 
 /** Actual adapter input is parsed, so fixtures exercise messages, image bytes and strict output schemas. */
 export class FixtureHttp implements HttpClient {
@@ -43,7 +43,7 @@ export class FixtureHttp implements HttpClient {
     this.operations.push(`${prompt.operation}:${prompt.stage ?? ''}`)
     const dimensions = ['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth']
     let result: Json
-    if (prompt.operation === 'analyze') result = { observations: prompt.images.map(image => ({ imageVersionId: image.imageVersionId, dimensions: [{ dimension: 'color', observation: 'A muted green palette is visible.', uncertain: false }] })), suggestedRules: [{ statement: 'Use muted green colors.', dimension: 'color', strength: 'preferred', stage: 'source', supportImageVersionIds: prompt.images.map(image => image.imageVersionId), counterImageVersionIds: [], condition: '', exceptions: [] }] }
+    if (prompt.operation === 'analyze') result = { observations: prompt.images.map(image => ({ imageVersionId: image.imageVersionId, dimensions: [{ dimension: 'color', observation: 'A muted green palette is visible.', uncertain: false }] })), ...(prompt.analysisOutput === 'observations-only' ? {} : { suggestedRules: [{ statement: 'Use muted green colors.', dimension: 'color', strength: 'preferred', stage: 'source', supportImageVersionIds: prompt.images.map(image => image.imageVersionId), counterImageVersionIds: [], condition: '', exceptions: [] }] }) }
     else if (prompt.operation === 'summarize') {
       this.summaryInputs.push(prompt.taskBrief)
       const samples = z.object({ samples: z.array(z.object({ imageVersionId: z.string() })) }).parse(JSON.parse(prompt.taskBrief)).samples
@@ -52,7 +52,7 @@ export class FixtureHttp implements HttpClient {
     }
     else if (prompt.operation === 'propose-crop') result = { feasibility: 'feasible', reason: 'Central subject fits the requested output.', candidates: [{ requestedRect: { x: 0.25, y: 0, width: 0.5, height: 1 }, reason: 'Retains the subject.', protectedContent: 'preserved' }] }
     else result = { ruleResults: prompt.rules.map(rule => ({ ruleId: rule.ruleId, status: this.mode === 'reject-final' && prompt.stage === 'final' ? 'violated' : 'satisfied', source: 'inferred', reason: 'Fixture result from supplied actual pixels.', evidenceImageVersionIds: [prompt.images[0]?.imageVersionId ?? 'missing'] })), cropPotential: 'crop-candidate', preferenceScores: dimensions.map(dimension => ({ dimension, score: 0.8 })), taskRelevance: 'relevant' }
-    if (this.mode === 'incomplete-analysis' && prompt.operation === 'analyze') result = { observations: [], suggestedRules: [] }
+    if (this.mode === 'incomplete-analysis' && prompt.operation === 'analyze') result = { observations: [], ...(prompt.analysisOutput === 'observations-only' ? {} : { suggestedRules: [] }) }
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: this.mode === 'bad-json' ? 'invalid JSON' : JSON.stringify(result) }, finish_reason: 'stop' }] })) }
   }
 }
@@ -63,7 +63,7 @@ export async function serviceFixture(directory?: string, limits: Partial<Limits>
   const profileId = createHash('sha256').update(resolve(root)).digest('hex')
   const repository = new DomainRepository(profileId, new MemoryDomainAdapter()), jobs = new FixtureJobs(), http = new FixtureHttp()
   http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#536f53' } }).png().toBuffer()
-  const config = resolveConfig({ source: { endpoint: 'https://source.example.test/search', credentialRef: '', ...sourceSettings }, vision: { endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '', vendorVersion: 'fixture-v1' }, limits: { maxRetryAttempts: 0, maxImportBytes: 1_000_000, maxReferenceBytes: 1_000_000, maxVisionCalls: 40, maxSearchPages: 4, maxCropCandidatesPerImage: 2, ...limits } })
+  const config = resolveConfig({ source: { endpoint: 'https://source.example.test/search', credentialRef: '', ...sourceSettings }, vision: { backend: 'compatible', endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '', vendorVersion: 'fixture-v1' }, limits: { maxRetryAttempts: 0, maxImportBytes: 1_000_000, maxReferenceBytes: 1_000_000, maxVisionCalls: 40, maxSearchPages: 4, maxCropCandidatesPerImage: 2, ...limits } })
   const provider = new CompatibleVisionProvider({ endpoint: config.vision.endpoint, model: config.vision.model, supportsMultiImage: true, maxImages: 10, maxImageBytes: 1_000_000, maxRequestBytes: 10_000_000, maxOutputTokens: 4000, temperature: 0, declaredModelVersion: 'fixture-v1' }, http)
   const source = new SourceHttpProvider({ endpoint: config.source.endpoint, method: 'GET', request: { query: 'q', cursor: 'cursor', pageSize: 'limit' }, response: { items: '/items', id: '/id', previewUrl: '/previewUrl', originalUrl: '/originalUrl', nextCursor: '/nextCursor' }, maxPageSize: 20 }, http)
   const host: CuratorHost = { profileContext: { dir: root }, jobs, sessions: { get: () => undefined }, credentials: { resolve: async () => undefined, set: async () => { throw new Error('Fixture credential writes require an explicit observer') } }, storageDomain: { open: async () => { throw new Error('Fixture uses an explicit memory domain') } }, configEditor: { entries: () => [], edit: async () => { throw new Error('Profile editing is unavailable in this isolated fixture') } } }

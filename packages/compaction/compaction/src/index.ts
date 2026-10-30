@@ -10,10 +10,10 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Session, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { CommandId } from '@deepseek-ai/dsh-commands/brand'
-import type { CompactionResult } from './types.ts'
+import type { CompactionResult, InputCompactionRequest, InputCompactionRunner, InputCompactionResult } from './types.ts'
 import type { CompactionCheckpointSource } from './checkpoint.ts'
 
-export type { CompactionResult } from './types.ts'
+export type { CompactionResult, InputCompactionRequest, InputCompactionRunner, InputCompactionResult, InputCompactionCall, InputCompactionMetadata, InputCompactionOutput } from './types.ts'
 export { CompactionId } from './brand.ts'
 export { toolPairingBalancedAfter, toolPairingBalancedBefore } from './tool-pairing.ts'
 // The checkpoint source constructor and predicate are declared on the cordis-free
@@ -119,6 +119,27 @@ declare module '@deepseek-ai/cordis' {
 export abstract class CompactionEngine extends Service {
   constructor(ctx: Context) {
     super(ctx, 'compaction')
+  }
+
+  /**
+   * Compact operation-owned text under routed model policy without creating or modifying a Session.
+   * @param input - prepared model capacity, fixed-input price and compressible text chunks.
+   * @param run - owner callback that reserves, records and optionally replays each auxiliary call.
+   * @param signal - operation cancellation, also forwarded to model preparation and dispatch.
+   * @returns shorter text, or null below pressure; rejects unsupported backends and unsafe compression.
+   */
+  compactInput(
+    input: InputCompactionRequest,
+    run: InputCompactionRunner,
+    signal: AbortSignal,
+  ): Promise<InputCompactionResult | null> {
+    void input
+    void run
+    if (signal.aborted) {
+      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- Preserve the caller's exact AbortSignal reason.
+      return Promise.reject(signal.reason)
+    }
+    return Promise.reject(new Error('This compaction backend does not support operation-owned text inputs.'))
   }
 
   /**

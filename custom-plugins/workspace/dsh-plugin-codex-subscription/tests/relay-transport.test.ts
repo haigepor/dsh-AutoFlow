@@ -61,6 +61,7 @@ test('Codex cache follows the first user turn while reasoning and service tiers 
   assert.equal(a.service_tier, undefined)
   for (const service_tier of ['priority', 'ultrafast']) assert.equal(codexRequest({ model: 'x', input: [], service_tier }).service_tier, service_tier)
   assert.equal(codexRequest({ model: 'x', input: [], reasoning: { effort: 'none' } }).include, undefined)
+  assert.deepEqual(codexRequest({ model: 'x', input: [], reasoning: { effort: 'none' }, include: ['reasoning.encrypted_content', 'web_search_call.action.sources'] }).include, ['web_search_call.action.sources'])
   const searched = codexRequest({ model: 'x', input: [{ type: 'web_search_call', id: 'search' }] })
   assert.deepEqual(searched.tools, [{ type: 'web_search', external_web_access: false }])
   assert.equal(searched.tool_choice, 'none')

@@ -3,11 +3,13 @@ import { z } from 'zod'
 import type { Model, ModelThinkingLevel, ThinkingLevelMap } from '@earendil-works/pi-ai'
 import type { CodexModelView } from './accounts/types.ts'
 import { ReasoningEffortId, type LlmDiscoveredModel } from '@deepseek-ai/dsh-llm'
+import { nativeWebSearchEnabled } from '@deepseek-ai/dsh-llm/native-web-search'
 
 const positive = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 const entrySchema = z.object({ slug: z.string().min(1).max(256).optional(), id: z.string().min(1).max(256).optional(),
   display_name: z.string().max(512).optional(), visibility: z.string().optional(), priority: z.number().finite().optional(),
   context_window: positive.optional(), max_context_window: positive.optional(), max_output_tokens: positive.optional(), max_tokens: positive.optional(),
+  supports_search_tool: z.boolean().optional(), supports_web_search: z.boolean().optional(),
   input_modalities: z.array(z.string()).optional(), supported_reasoning_levels: z.array(z.object({ effort: z.string() })).optional(),
   default_reasoning_level: z.string().optional(), service_tiers: z.array(z.object({ id: z.string().min(1).max(128) })).optional() })
 const directorySchema = z.object({ models: z.array(z.unknown()).max(4096) })
@@ -36,7 +38,7 @@ export function resolveModelSettings(input?: unknown): ModelSettings { return se
  */
 export function codexDiscoveryView(model: CodexModelView): LlmDiscoveredModel {
   const efforts = model.reasoningEfforts ?? []
-  return { id: model.id, name: model.name, contextWindow: model.contextWindow, maxTokens: model.maxTokens, inputModalities: [...model.input],
+  return { id: model.id, name: model.name, api: 'openai-codex-responses', ...model.nativeWebSearch === undefined ? {} : { nativeWebSearch: model.nativeWebSearch }, contextWindow: model.contextWindow, maxTokens: model.maxTokens, inputModalities: [...model.input],
     ...(efforts.some(effort => effort !== 'off') ? { reasoning: { efforts: efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effort })),
       ...(model.defaultReasoningEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(model.defaultReasoningEffort) }) } } : {}) }
 }
@@ -87,7 +89,7 @@ export function resolveCodexModels(value: unknown, native: readonly Model<'opena
     if (defaultLevel !== undefined && reasoning && (declared === undefined || declared.includes(defaultLevel))) defaults.set(id, defaultLevel)
     const reasoningEfforts = declared === undefined ? !model.reasoning ? []
       : levels.filter(level => model.thinkingLevelMap?.[level] !== null && (model.thinkingLevelMap?.[level] !== undefined || !['xhigh', 'max'].includes(level))) : [...new Set(declared)]
-    views.push({ id, name: model.name, input: [...model.input], contextWindow, maxTokens,
+    views.push({ id, name: model.name, nativeWebSearch: nativeWebSearchEnabled(id, 'openai-codex-responses', undefined, entry.supports_search_tool ?? entry.supports_web_search), input: [...model.input], contextWindow, maxTokens,
       ...(entry.max_context_window === undefined ? {} : { maxContextWindow: Math.max(contextWindow, entry.max_context_window) }),
       ...(reasoningEfforts === undefined ? {} : { reasoningEfforts }), ...(defaults.get(id) === undefined ? {} : { defaultReasoningEffort: defaults.get(id)! }),
       ...(entry.service_tiers === undefined ? {} : { serviceTiers: [...new Set(entry.service_tiers.map(tier => tier.id))] }) })

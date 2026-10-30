@@ -73,6 +73,7 @@ export function plainOptions(config: Config): Options {
  * provider's per-model overrides.
  */
 export const catalogModelFields = {
+  nativeWebSearch: z.boolean(),
   name: z.string(),
   description: z.string(),
   contextWindow: z.number().step(1).min(1),
@@ -201,6 +202,7 @@ function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): Dee
     seen.add(model.id)
     return {
       id: model.id,
+      ...model.nativeWebSearch === undefined ? {} : { nativeWebSearch: model.nativeWebSearch },
       ...model.name === undefined ? {} : { name: model.name },
       ...model.description === undefined ? {} : { description: model.description },
       ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },

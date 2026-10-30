@@ -27,14 +27,23 @@ export interface SubscriptionAccount {
     secondary?: SubscriptionWindow
     held?: boolean
     credits?: string
+    unlimitedCredits?: boolean
+    usableCredits?: boolean
+    heldReason?: 'usage-limit' | 'workspace-limit' | 'spending-limit'
     resetCount?: number
     fetchedAt: number
+    errorCode?: string
+    errorStatus?: number
   }
 }
 /** Progress contains an authorization challenge, never a verifier or token. */
 export interface SubscriptionLogin { loginId: string; state: 'waiting' | 'exchanging' | 'authorized' | 'cancelled' | 'failed'; authorizationUrl: string; expiresAt: number }
 /** Model membership shown as a count; the model directory owns its full capability rendering. */
-export interface SubscriptionModel { id: string; name: string }
+export interface SubscriptionModel { id: string; name: string; nativeWebSearch?: boolean }
+/** Profile-level choices share the account pool; image entries use the image tools and MCP. */
+export interface SubscriptionCatalogEntry extends SubscriptionModel { kind: 'text' | 'image' }
+/** Explicit model configuration with its compare-and-swap settings revision. */
+export interface SubscriptionCatalog { revision: number; entries: readonly SubscriptionCatalogEntry[]; candidates: readonly SubscriptionModel[]; defaultImageModel: string }
 /** The subscription feature can be present while its optional Host bundle is disabled. */
 export type SubscriptionAvailability = 'active' | 'disabled' | 'missing' | 'restart-required'
 /** Narrow Host callbacks; components do not receive a Remote or context. */
@@ -85,8 +94,13 @@ export function subscriptionAccounts(value: unknown): SubscriptionAccount[] {
       modelsStatus: choice(record['modelsStatus'], ['unfetched', 'ready', 'error']),
       ...usage === undefined ? {} : { usage: { status: choice(usage['status'], ['ready', 'error']), freshness: choice(usage['freshness'], ['fresh', 'stale', 'unknown']),
         fetchedAt: number(usage['fetchedAt']), ...usage['primary'] === undefined ? {} : { primary: window(usage['primary']) },
+        ...usage['errorCode'] === undefined ? {} : { errorCode: choice(usage['errorCode'], ['USAGE_POLL_FAILED', 'USAGE_STORAGE_FAILED', 'USAGE_HTTP_FAILED', 'USAGE_TIMEOUT', 'USAGE_INVALID_RESPONSE']) },
+        ...usage['errorStatus'] === undefined ? {} : { errorStatus: number(usage['errorStatus']) },
         ...usage['secondary'] === undefined ? {} : { secondary: window(usage['secondary']) },
         ...usage['held'] === undefined ? {} : { held: boolean(usage['held']) }, ...credits?.['balance'] === undefined ? {} : { credits: text(credits['balance']) },
+        ...usage['heldReason'] === undefined ? {} : { heldReason: choice(usage['heldReason'], ['usage-limit', 'workspace-limit', 'spending-limit']) },
+        ...credits?.['unlimited'] === undefined ? {} : { unlimitedCredits: boolean(credits['unlimited']) },
+        ...credits?.['usable'] === undefined ? {} : { usableCredits: boolean(credits['usable']) },
         ...resets?.['availableCount'] === undefined ? {} : { resetCount: number(resets['availableCount']) } } },
     }
   })
@@ -108,7 +122,19 @@ export function subscriptionLogin(value: unknown): SubscriptionLogin {
  * @returns Detached model names and IDs.
  */
 export function subscriptionModels(value: unknown): SubscriptionModel[] {
-  return list(value).map((item) => { const record = object(item); return { id: text(record['id']), name: text(record['name']) } })
+  return list(value).map((item) => { const record = object(item); return { id: text(record['id']), name: text(record['name']),
+    ...record['nativeWebSearch'] === undefined ? {} : { nativeWebSearch: boolean(record['nativeWebSearch']) } } })
+}
+
+/** Validate the optional plugin's manual catalog before rendering or replacing its entries.
+ * @param value Untrusted owner-action result.
+ * @returns Detached choices without credential or account references.
+ */
+export function subscriptionCatalog(value: unknown): SubscriptionCatalog {
+  const record = object(value)
+  return { revision: number(record['revision']), defaultImageModel: text(record['defaultImageModel']), candidates: subscriptionModels(record['candidates']),
+    entries: list(record['entries']).map(item => { const entry = object(item); return { id: text(entry['id']), name: text(entry['name']), kind: choice(entry['kind'], ['text', 'image']),
+      ...entry['nativeWebSearch'] === undefined ? {} : { nativeWebSearch: boolean(entry['nativeWebSearch']) } } }) }
 }
 
 /** Bind the optional bundle through the existing generated Remote, without a browser dependency on its Host code.

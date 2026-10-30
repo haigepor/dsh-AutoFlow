@@ -191,6 +191,7 @@ describe('Definition-owned Chat process groups', () => {
     h.commit()
     expect(source.getSnapshot()?.data).toEqual({
       turn: 1, closed: true,
+      lastTool: preparing.data.root,
       summary: { counts: [{ kind: 'write', count: 1 }], running: undefined, runningDetail: '' },
     })
   })
@@ -236,6 +237,43 @@ describe('Definition-owned Chat process groups', () => {
   it.each(['process', 'turn', 'input'] as const)('ends the group at a Node declared at %s, whatever its kind', (position) => {
     const h = harness([tool('before', 4), { ...tool('standalone', 5), groupTree: position }, tool('after', 8)])
     expect(h.store.entries.map(entry => entry.kind === 'group' ? 'group' : entry.key)).toEqual(['group', 'standalone', 'group'])
+  })
+
+  it('keeps live tool and reasoning detail before a Turn-level output until the Turn ends', () => {
+    const image = { ...tool('image-output', 4), groupTree: 'turn' as const }
+    const h = harness([assistant('Preparing the image'), tool('generate', 3, 'codex_image_generate'), image])
+    const first = h.store.entries[0]!
+    if (first.kind !== 'group') throw new Error('expected process before image output')
+    const source = h.store.groupSource(first.key)
+    expect(source.getSnapshot()?.data.closed).toBe(false)
+    expect(source.getSnapshot()?.data.summary.running).toBe('tools')
+    expect(source.getSnapshot()?.members.map(member => member.key)).toEqual(['assistant', 'generate'])
+    h.builder.apply({ upserts: [{ ...image, anchorSeq: 6 }, tool('result', 5, 'codex_image_result')], timeline })
+    h.commit()
+    expect(source.getSnapshot()?.data.closed).toBe(false)
+    expect(source.getSnapshot()?.members.map(member => member.key)).toEqual(['assistant', 'generate', 'result'])
+    const ended: TurnLocation = { ...turn, status: 'closed',
+      end: { type: 'turn/end', seq: SessionSeq(7), time: 7, data: { turn: 1, reason: { kind: 'completed' } } } }
+    h.builder.apply({ upserts: [], timeline: { turnOrder: [1], turns: new Map([[1, ended]]) }, changedTurns: [1] })
+    h.commit()
+    expect(source.getSnapshot()?.data.closed).toBe(true)
+    expect(source.getSnapshot()?.data.summary.running).toBeUndefined()
+  })
+
+  it('retains the latest tool for a feature-owned process status while reasoning continues', () => {
+    const image = tool('image', 3, 'codex_image_generate')
+    const h = harness([assistant('prepare'), image])
+    const entry = h.store.entries[0]!
+    if (entry.kind !== 'group') throw new Error('expected group')
+    const source = h.store.groupSource(entry.key)
+    expect(source.getSnapshot()?.data.lastTool).toBe(image.data.root)
+    h.builder.apply({ upserts: [{ ...assistant('waiting for image'), key: 'later', id: 'later', anchorSeq: 4 }], timeline })
+    h.commit()
+    expect(source.getSnapshot()?.data.lastTool).toBe(image.data.root)
+    const query = tool('query', 5, 'codex_image_result')
+    h.builder.apply({ upserts: [query], timeline })
+    h.commit()
+    expect(source.getSnapshot()?.data.lastTool).toBe(query.data.root)
   })
 
   it('regroups when a Node changes its position without changing its kind', () => {

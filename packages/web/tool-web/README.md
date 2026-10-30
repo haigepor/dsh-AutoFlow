@@ -25,6 +25,8 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
+When the initiating Session’s exact model enables native search, `web_search` calls that adapter with the current model and credentials; otherwise it uses the configured `ctx.web` search provider. Each query runs an auxiliary model call containing only the query and search instructions. Its secret-free input is recorded as `web/native-search-llm-request` before dispatch, and structured sources use the existing persisted result cards. Native failures remain visible and never silently switch credentials or providers. Native search adds a model turn per query, with its latency and token costs.
+
 Load the package in a composition that already mounts the web service and at least one search or fetch backend; it adds `web_search` and `web_fetch` to the model's toolset and their guidance to the system prompt.
 
 ### When to choose it
@@ -243,7 +245,6 @@ Append-only; newly visible content follows the reusable request prefix and does 
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
-
 
 These limits define when the tools are incomplete or need deployment cooperation. They are current package constraints.
 

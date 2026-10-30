@@ -9,7 +9,7 @@
   "vision": {
     "formHidden": false,
     "panel": "settings-vision",
-    "fields": ["visionBaseUrl", "visionKeyRef", "visionModel"],
+    "fields": ["visionModel"],
     "collapsedGroups": ["screeningBudget"],
     "advanced": { "expanded": true }
   },

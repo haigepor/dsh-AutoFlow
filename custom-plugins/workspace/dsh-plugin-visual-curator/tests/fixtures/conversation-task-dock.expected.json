@@ -1,0 +1,14 @@
+{
+  "singleDock": true,
+  "outsideProcess": true,
+  "fillsRemainingHeight": true,
+  "todoReflowsHeight": true,
+  "innerScroll": true,
+  "controlsRemainVisible": true,
+  "resizingRetained": true,
+  "collapseFocus": true,
+  "narrowHidden": true,
+  "sessionIsolated": true,
+  "horizontalOverflow": false,
+  "errors": []
+}

@@ -100,7 +100,7 @@ Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染
 
 宽度拖拽条的指示线只在已捕获指针的拖拽期间跟随指针，普通悬停不改变其位置。
 
-任务清单胶囊通过 `conversation.body.overlay` 位于当前 Session 的 body 内，在正文滚动区域之外。宽度取决于右侧空白；该容器不足 280px 时隐藏，包括宽窗口中的窄嵌入会话。展开后保留完整任务文本并限制滚动高度；Escape 收起并恢复按钮焦点。切换 Session 会重置胶囊的本地展开状态。
+任务清单胶囊通过 `conversation.body.overlay` 位于当前 Session 的 body 内，在正文滚动区域之外。宽度取决于右侧空白；该容器不足 280px 时隐藏，包括宽窗口中的窄嵌入会话。展开后保留完整任务文本并限制滚动高度；Escape 收起并恢复按钮焦点。切换 Session 会重置胶囊的本地展开状态。 外层侧边空白容器决定显示条件；内部靠右的纵向列占满可用 body 高度，各贡献者可分配剩余高度并保留独立宽度。任务胶囊最大保持 300px，纵向列的空白区域不拦截指针操作。
 
 `conversation.input.dock` 保留插件条目。`conversation.input.context` 提供输入框上方的共享实色顶栏：QueueDock 的 order 为 0，GoalBar 为 100，目标始终在队列下方。容器复用首页工作区栏的内缩宽度、顶部圆角与背景，抵消 active composer 的堆栈间距并叠入卡片上沿 10px；空槽不占高度。队列正文限高 180px 并独立滚动，目标位于滚动区之外。展开和收起复用 `AnimatedCollapse` 的高度、透明度及箭头过渡，收起立即设置 `inert` 和 `aria-hidden`，退出完成后卸载正文；快速反转保留内容，减少动态效果时取消过渡。
 

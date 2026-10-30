@@ -1,0 +1,19 @@
+[
+  {
+    "type": "web/native-search-llm-request",
+    "data": {
+      "provider": "fixture",
+      "model": "native-model",
+      "api": "openai-responses",
+      "body": {
+        "model": "native-model",
+        "input": "current projects",
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      }
+    }
+  }
+]

@@ -25,6 +25,8 @@ Use `@deepseek-ai/dsh-llm` to stream model calls through configured provider ada
 <a id="use-this-package"></a>
 ## Use this package
 
+Adapters may implement `searchNative()` for a model-owned web search. The request recorder receives secret-free model input before dispatch; results contain bounded source URLs and optional answer text. The browser-safe `./native-web-search` entry matches explicit user choices, provider metadata and a pinned [LiteLLM catalog](https://github.com/BerriAI/litellm/blob/1176e608b199c4a6572c22490839147a9f134ece/model_prices_and_context_window.json), with protocol-specific restrictions. Unknown models stay disabled until explicitly enabled.
+
 `listModels` describes models offered by catalog-driven interfaces. Core resolution and streaming can still accept unlisted ids. The GUI requires catalog membership for selection and submission; adapters intended for GUI use must implement `listModels` and advertise their available models. The base implementation returns an empty list and therefore offers no GUI models.
 
 Any composition that calls a model provider — an agent loop, a session-title generator, a compaction summarizer — streams its requests through this service. Mount it together with at least one provider adapter; the service itself has no configuration and no provider wire code.
@@ -169,7 +171,6 @@ Reasoning-effort materialization preserves the assembled request prefix. Image i
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
-
 
 These limits define where this service stops and other packages or future work begin. They are current package constraints, not a task backlog.
 

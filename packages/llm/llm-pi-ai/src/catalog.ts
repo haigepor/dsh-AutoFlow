@@ -13,6 +13,7 @@
  */
 
 import { builtinProviders, getAllBuiltinModels, getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
+import { nativeWebSearchMode } from '@deepseek-ai/dsh-llm/native-web-search'
 import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'
 import type {
   AnthropicMessagesCompat,
@@ -603,6 +604,10 @@ function assertOfferedCompatFields(
 export interface PiAiModelProfile {
   /** Model id sent to the provider and accepted by {@link GenerateOptions.model}. */
   id: string
+  /** Native search override; omitted uses provider metadata and known model rules. */
+  nativeWebSearch?: boolean
+  /** Provider-reported search default captured by discovery; an explicit override wins. */
+  nativeWebSearchDefault?: boolean
   /** Display name for selectors; defaults to the catalog name, then the id. */
   name?: string
   /** Maximum combined request and response context in tokens. */
@@ -925,6 +930,9 @@ export function resolveRouteModels(
         + ' route\'s api to the wire protocol its endpoint speaks')
     }
     const baseUrl = request.baseURL ?? base?.baseUrl ?? providerBaseUrl
+    if (entry.nativeWebSearch === true && nativeWebSearchMode(api) === undefined) {
+      invalid(provider, `model "${entry.id}" enables nativeWebSearch, but protocol "${api}" has no native-search integration`)
+    }
     if (baseUrl === undefined) {
       invalid(provider, `model "${entry.id}" needs a baseURL; the installed catalog does not describe this route`)
     }

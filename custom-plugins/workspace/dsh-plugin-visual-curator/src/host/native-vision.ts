@@ -33,6 +33,7 @@ function mediaType(value: string | undefined): ImageMediaType {
 /** Uses the registered route and the same attachment normalization as ordinary AI conversations. */
 export class NativeVisionProvider extends StructuredVisionProvider {
   private readonly provider: string
+  private readonly useModelDefaults: boolean
   private readonly imageCache = new Map<string, { byteDigest: string; attachment: ImageAttachmentRef }>()
   private readonly cacheLimit: number
   constructor(config: CuratorConfig, private readonly dependencies: NativeVisionDependencies) {
@@ -43,6 +44,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       ...(config.vision.vendorVersion ? { declaredModelVersion: config.vision.vendorVersion } : {}) })
     if (!config.vision.provider) throw invalidInput('Select a registered native model provider.')
     this.provider = config.vision.provider
+    this.useModelDefaults = config.vision.useModelDefaults === true
     this.cacheLimit = Math.max(config.limits.maxGalleryReferenceFiles, config.limits.maxLocalReferenceFiles)
   }
 
@@ -56,8 +58,8 @@ export class NativeVisionProvider extends StructuredVisionProvider {
   private async prepare(signal?: AbortSignal): Promise<PreparedLlmCall> {
     try {
       const prepared = await this.dependencies.llm.prepareCall({ provider: this.provider, model: this.config.model,
-        temperature: this.config.temperature, maxTokens: this.config.maxOutputTokens,
-        ...(this.config.reasoningEffort ? { reasoningEffort: ReasoningEffortId(this.config.reasoningEffort) } : {}) }, signal)
+        ...(this.useModelDefaults ? {} : { temperature: this.config.temperature, maxTokens: this.config.maxOutputTokens,
+          ...(this.config.reasoningEffort ? { reasoningEffort: ReasoningEffortId(this.config.reasoningEffort) } : {}) }) }, signal)
       if (!prepared.inputModalities?.includes('image')) throw new MediaError('capability-unavailable', 'vision-preflight', false, 'The native model route does not declare image input.', 'Select an image-capable model in the project model settings.')
       return prepared
     } catch (error) {
@@ -124,7 +126,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
         content.push({ type: 'text', text: JSON.stringify({ imageVersionId: image.imageVersionId, digest: image.digest, role: image.role }) }, { type: 'image', attachment })
       }
       const options: GenerateOptions = { ...prepared.config, system: descriptor.instructions, messages: [{ role: 'user', content }], signal }
-      const base = { transport: 'native-llm', provider: this.provider, model: this.config.model, request: { config: prepared.config, system: options.system, messages: options.messages }, images: sources.map((source, index) => ({ ...source, attachment: refs[index] })) }
+      const base = { transport: 'native-llm', provider: this.provider, model: this.config.model, ...(prepared.context ? { context: prepared.context } : {}), request: { config: prepared.config, system: options.system, messages: options.messages }, images: sources.map((source, index) => ({ ...source, attachment: refs[index] })) }
       const metadata = () => toJson({ ...base, ...(usage ? { usage } : {}), timing: { startedAt: new Date(startedAt).toISOString(), elapsedMs: Date.now() - startedAt, firstOutputMs, firstReasoningMs, firstTextMs }, ...(terminal ? { finish: assembler.finish } : {}) })
       // 原生附件与实际参数先落盘，之后才允许发送模型请求。
       await bounds.onMetadata?.(metadata())

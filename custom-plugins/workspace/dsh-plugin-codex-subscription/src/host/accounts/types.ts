@@ -22,6 +22,8 @@ export interface LoginView {
 
 /** Account-scoped capabilities from the server, with explicit installed/local fallbacks. */
 export interface CodexModelView {
+  /** Server-reported or catalog-matched native-search capability for this route. */
+  nativeWebSearch?: boolean
   id: string
   name: string
   input: readonly ('text' | 'image')[]
@@ -108,6 +110,8 @@ export interface AccountReadOptions { fresh?: boolean; signal?: AbortSignal }
 
 /** Adapter integration keeps image attachment resolution in the established DSH seam. */
 export interface PoolAdapterOptions {
+  /** Profile-owned directory; internal account discovery remains available for prepared requests. */
+  listModels?: () => Promise<readonly CodexModelView[]>
   provider: string
   displayName: string
   baseUrl: string

@@ -13,6 +13,7 @@ import { buildModelRoutes, selectModelRoute, type CodexModelRoute } from './rout
 import { readBoundedJson } from './json.ts'
 import { adaptCodexBody, codexSessionHeaders, codexUserAgent } from '../codex-request.ts'
 import { observeCodexQuota } from '../codex-quota.ts'
+import { ZodError } from 'zod'
 import { resolveCodexModels, resolveModelSettings, type CodexModelSnapshot, type ModelSettings } from '../models.ts'
 export { AccountError } from './record.ts'
 export type * from './types.ts'
@@ -223,9 +224,10 @@ export class CodexAccounts implements AccountsFacade {
       for (const [key, login] of this.logins) { if (this.logins.size <= 20) break; if (login !== this.active) this.logins.delete(key) }
       state.settled = this.options.authorization.begin({ key: ACCOUNTS_KEY, method: 'browser', signal: abort.signal,
         interaction: { notify() {}, prompt: async () => { throw new AccountError('请通过授权管理接口提交完整回调地址。', 'PASTE_REQUIRED') } },
-      }).then(outcome => { state.view.state = outcome.status }, error => {
+      }).then(outcome => { state.view.state = outcome.status; attempt.finish(outcome.status === 'authorized') }, error => {
         state.view.state = abort.signal.aborted ? 'cancelled' : 'failed'
         state.view.error = error instanceof AccountError ? error.message : '登录失败，请重试。'
+        attempt.finish(false)
       }).finally(() => { attempt.close(); delete state.attempt; if (this.active === state) this.active = undefined })
       return { ...view }
     } finally { this.starting = false }
@@ -445,6 +447,8 @@ export class CodexAccounts implements AccountsFacade {
     const eligible = Object.values(grant.accounts).filter(account => account.enabled && (allowed === undefined || allowed.has(account.accountKey))
       && this.authFailure(account) === undefined
       && (request.accountKey === undefined || request.accountKey === account.accountKey)
+      // 图片接口未提供可验证的“仅用订阅”选项；禁止积分的账号不派发生图，不能拿文字额度代替图片额度。
+      && (request.kind !== 'image' || account.allowCredits)
       && (this.cooldowns.get(account.accountKey)?.[request.kind] ?? 0) <= now
       && !(request.kind === 'text' && quotaBlocks(this.usageCache.get(account.accountKey), account.allowCredits, now)))
     const affinityKey = request.sessionId === undefined ? undefined : `${request.kind}:${request.model ?? ''}:${request.sessionId}`
@@ -453,6 +457,11 @@ export class CodexAccounts implements AccountsFacade {
       || ((this.usageCache.get(a.accountKey)?.primary?.usedPercent ?? 0) - (this.usageCache.get(b.accountKey)?.primary?.usedPercent ?? 0)))
     const account = eligible.find(account => account.accountKey === sticky) ?? eligible[0]
     if (!account) {
+      const imageAccounts = request.kind === 'image' ? Object.values(grant.accounts).filter(account => account.enabled && this.authFailure(account) === undefined
+        && (allowed === undefined || allowed.has(account.accountKey)) && (request.accountKey === undefined || request.accountKey === account.accountKey)) : []
+      if (imageAccounts.length > 0 && imageAccounts.every(account => !account.allowCredits)) {
+        throw new AccountError('图片接口无法保证仅消耗订阅额度。请为用于生图的账号开启允许额外积分，或使用其他图片提供商。', 'IMAGE_CREDITS_DISABLED')
+      }
       const waiting = Object.values(grant.accounts).filter(account => account.enabled && this.authFailure(account) === undefined
         && (allowed === undefined || allowed.has(account.accountKey)) && (request.accountKey === undefined || request.accountKey === account.accountKey)
         && (this.cooldowns.get(account.accountKey)?.[request.kind] ?? 0) > now)
@@ -624,9 +633,16 @@ export class CodexAccounts implements AccountsFacade {
         return
       }
       if (accepted) this.usageCache.set(accountKey, next)
-    }).catch(() => { if (!this.disposed && (this.liveUsageRevision.get(accountKey) ?? 0) === liveRevision) {
+    }).catch((error: unknown) => { if (!this.disposed && (this.liveUsageRevision.get(accountKey) ?? 0) === liveRevision) {
       const kept = this.usageCache.get(accountKey) ?? cached
-      this.usageCache.set(accountKey, { ...kept, status: 'error', errorCode: 'USAGE_POLL_FAILED', freshness: kept?.lastSuccessfulAt === undefined ? 'unknown' : 'stale', fetchedAt: kept?.fetchedAt ?? this.clock(), attemptedAt: this.clock() })
+      const failure = accountErrorCause(error)
+      const errorStatus = failure?.status !== undefined && failure.status >= 400 && failure.status <= 599 ? failure.status : undefined
+      const errorCode = errorStatus !== undefined ? 'USAGE_HTTP_FAILED' : error instanceof ZodError || error instanceof SyntaxError || failure?.code === 'INVALID_RESPONSE' || failure?.code === 'RESPONSE_TOO_LARGE' ? 'USAGE_INVALID_RESPONSE'
+        : error instanceof Error && error.name === 'TimeoutError' ? 'USAGE_TIMEOUT' : 'USAGE_POLL_FAILED'
+      // 只投影稳定分类和 HTTP 状态；异常消息可能包含请求、令牌或上游正文。
+      const { errorStatus: _previousStatus, ...previous } = kept ?? {}
+      this.usageCache.set(accountKey, { ...previous, status: 'error', errorCode, ...(errorStatus === undefined ? {} : { errorStatus }),
+        freshness: kept?.lastSuccessfulAt === undefined ? 'unknown' : 'stale', fetchedAt: kept?.fetchedAt ?? this.clock(), attemptedAt: this.clock() })
     } })
       .finally(() => { this.usagePending.delete(accountKey) })
     this.usagePending.set(accountKey, task); return task

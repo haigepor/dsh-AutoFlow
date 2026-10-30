@@ -1,0 +1,13 @@
+{
+  "initialCards": 3,
+  "unknownCounts": true,
+  "columns": [3, 2, 1],
+  "noOverflow": true,
+  "retainedOnRefresh": true,
+  "retainedOnFailure": true,
+  "errorWithoutFalseZero": true,
+  "emptyHasRealZero": true,
+  "reducedMotion": true,
+  "lightTheme": true,
+  "errors": []
+}

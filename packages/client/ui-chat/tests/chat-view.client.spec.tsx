@@ -9,7 +9,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { useEffect, useMemo } from 'react'
 import type {
   AssistantMessageNode, ChatFlowHookContext, ChatFlowOwnerProps, ChatFlowSlotProps,
-  ChatNode, ChatNodeHookContext, ChatNodeOwnerProps, ChatSnapshot,
+  ChatNode, ChatNodeHookContext, ChatNodeOwnerProps, ChatProcessStatusOwnerProps, ChatSnapshot,
   ChatViewSlotProps, CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
   LegacyConversationSlice, ModelRetryNode, StartedToolCall, SteeringMessageNode,
   ToolCallBlock, ToolResultNode, TurnErrorNode, TurnMaxTokensNode,
@@ -441,11 +441,13 @@ function makeHarness(
     fallback?: React.ReactNode
     hookContext?: unknown
   }) => {
+    if (key === 'conversation.chat.process.status') return processStatus?.(owner as ChatProcessStatusOwnerProps) ?? opts?.fallback ?? null
     if (key === 'conversation.chat.node') {
       return renderNodeSlot(key, owner as RoutedChatNodeOwner, opts as Parameters<NodeRenderer>[2])
     }
     throw new Error(`Undeclared flow child: ${key}`)
   }
+  let processStatus: ((owner: ChatProcessStatusOwnerProps) => React.ReactNode) | undefined
   const renderFactorySlot: PropsRenderFactories['renderFactorySlot'] = (name, owner) => {
     if (name !== 'conversation.chat.user.content') throw new Error(`Unexpected Chat Factory: ${name}`)
     return renderUserContent(owner as UserContentInput, renderImages, props.t)
@@ -498,6 +500,7 @@ function makeHarness(
     useStore: bindSnapshotSelector(chat),
     actions: chat.actions,
     usePresentation: bindSnapshotSelector(derivePresentationPolicy(transcriptView, collapseTiming)),
+    useChatProcessStatus: () => processStatus !== undefined,
     // The fixture implements the concrete flow dispatch behind the generic slot signature.
     renderSlot: renderSlot as ChatViewSlotProps['renderSlot'],
     SessionProvider: SessionProviderStub,
@@ -549,6 +552,7 @@ function makeHarness(
     setTranscriptView: (mode: TranscriptViewMode) => { transcriptView.set(mode) },
     setCollapseTiming: (timing: CollapseTiming) => { collapseTiming.set(timing) },
     setNodeRenderer: (renderer: NodeRenderer) => { nodeSlotOverride = renderer },
+    setProcessStatus: (renderer: (owner: ChatProcessStatusOwnerProps) => React.ReactNode) => { processStatus = renderer },
     setImageRenderer: (renderer: ImageRenderer) => { imageSlotOverride = renderer },
   }
 }
@@ -812,6 +816,57 @@ describe('ChatView', () => {
     expect(view.queryByRole('textbox', { name: inside.key })).toBeNull()
     act(() => { h.setGrouped(groupStore) })
     expect(view.queryByRole('textbox', { name: outside.key })).toBeNull()
+  })
+
+  it.each(['compact', 'standard', 'detailed', 'verbose'] as const)('keeps the feature-owned status visible with expandable real details in %s mode', mode => {
+    const builder = new ChatSnapshotBuilder(), state = new ProcessState(), groups = new ConversationGroupStore<ProcessGroupData>()
+    const source = chatSnapshotFixture({
+      nodes: [userInTurn(1, 'generate an image', 1), reasoningAssistant(2, '真实思考原文', 1, 1)],
+      runningCalls: [{ ...runningCall('image', 'codex_image_generate'), turn: 1 }],
+      turnTimings: new Map([[1, { startTime: 1000 }]]),
+    })
+    const h = makeHarness({ chat: installGroupedSnapshot(builder, state, groups, source), running: true })
+    h.setGrouped(groups)
+    h.setTranscriptView(mode)
+    h.setProcessStatus(owner => <>{owner.renderLeadingIcon(<svg data-image-status-icon />)}<span>图片生成中 · 正在描绘你的想象</span></>)
+    const view = render(<h.ChatView {...h.props} />)
+    const header = view.getByRole('button', { name: '图片生成中 · 正在描绘你的想象' })
+    const body = view.container.querySelector('[data-step-process-body]')!
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(body.hasAttribute('hidden')).toBe(true)
+    expect(view.container.querySelectorAll('[data-image-status-icon]')).toHaveLength(1)
+    fireEvent.click(header)
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    expect(body.hasAttribute('hidden')).toBe(false)
+    expect(body.textContent).toContain('真实思考原文')
+    expect(body.textContent).toContain('codex_image_generate:image')
+    fireEvent.click(header)
+    expect(body.hasAttribute('hidden')).toBe(true)
+  })
+
+  it.each(['compact', 'standard', 'detailed', 'verbose'] as const)('keeps a public composition above the image status without inventing reasoning in %s mode', mode => {
+    const builder = new ChatSnapshotBuilder(), state = new ProcessState(), groups = new ConversationGroupStore<ProcessGroupData>()
+    const source = chatSnapshotFixture({
+      nodes: [userInTurn(1, 'generate an image', 1), assistant(2, '公开的画面构图说明', 1, 1)],
+      runningCalls: [{ ...runningCall('image', 'codex_image_generate'), turn: 1 }],
+      turnTimings: new Map([[1, { startTime: 1000 }]]),
+    })
+    const h = makeHarness({ chat: installGroupedSnapshot(builder, state, groups, source), running: true })
+    h.setGrouped(groups)
+    h.setTranscriptView(mode)
+    h.setProcessStatus(owner => <>{owner.renderLeadingIcon(<svg data-image-status-icon />)}<span>图片生成中 · 正在描绘你的想象</span></>)
+    const view = render(<h.ChatView {...h.props} />)
+    const composition = view.getByText('公开的画面构图说明')
+    const header = view.getByRole('button', { name: '图片生成中 · 正在描绘你的想象' })
+    expect(composition.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(view.container.querySelectorAll('[data-image-status-icon]')).toHaveLength(1)
+    expect(view.queryByRole('button', { name: /^思考/ })).toBeNull()
+    fireEvent.click(header)
+    expect(view.getByTestId('tool-seat-image').textContent).toBe('codex_image_generate:image')
+    const body = view.container.querySelector('[data-step-process-body]')
+    act(() => { h.setTranscriptView(mode === 'standard' ? 'detailed' : 'standard') })
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    expect(view.container.querySelector('[data-step-process-body]')).toBe(body)
   })
 
   it('expands only the running Turn groups when switching work-details modes', () => {

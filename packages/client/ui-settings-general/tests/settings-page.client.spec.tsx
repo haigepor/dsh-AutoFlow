@@ -43,9 +43,9 @@ function mount(rows: readonly SettingsSectionRow[] = [
 }
 
 describe('SettingsPage', () => {
-  it('omits the configuration-file action in MCP settings', () => {
-    mount([{ id: 'mcp', order: 30, label: 'MCP servers' }])
-    expect(screen.getByTestId('section-mcp')).toBeTruthy()
+  it.each(['mcp', 'models'])('omits the configuration-file action in %s settings', (id) => {
+    mount([{ id, order: 30, label: id }])
+    expect(screen.getByTestId(`section-${id}`)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Open configuration file' })).toBeNull()
     expect(document.querySelector('[data-settings-page] footer')).toBeNull()
   })

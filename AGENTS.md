@@ -164,6 +164,10 @@ Real-API tests/demos read `DEEPSEEK_API_KEY`, optional `DEEPSEEK_BASE_URL`, and 
 - TODO markers: `FIXME`/`TODO`/`XXX` by urgency ([semantics](docs/development.md)).
 - Files end with exactly one trailing newline; `git diff --cached --check` (pre-commit) gates it.
 
+## Image inspection
+
+Keep original images on disk and inspect bounded previews or crops. Use the installed Codex image guard at `$CODEX_HOME/image-guard/image_guard.py preview <path>` (`~/.codex` when unset); its `policy.json` owns limits. Respect image Hook denials, avoid duplicate image output and Base64 dumps, and continue oversized chats through a text-only handoff in an independent chat rather than a fork.
+
 ## Defensive patterns
 
 Read [docs/defensive-patterns/README.md](docs/defensive-patterns/README.md) before changing a package surface, remote service, client component or state, conversation or Session behavior, or lifecycle, concurrency, subprocess, and teardown code. Its [review principles](docs/defensive-patterns/README.md#why-these-rules) apply per artifact.

@@ -69,11 +69,12 @@ class ProcessGroup {
     const previous = this.snapshot.data
     const activity = unchanged && previous.closed === closed ? previous.summary : processActivity(nodes)
     const summary = closed ? { counts: activity.counts, running: undefined, runningDetail: '' } : activity
+    const lastTool = nodes.findLast(node => node.kind === 'tool-call')?.data.root
     this.nodes = nodes
-    if (previous.closed !== closed || !sameSummary(previous.summary, summary)) {
+    if (previous.closed !== closed || previous.lastTool !== lastTool || !sameSummary(previous.summary, summary)) {
       this.snapshot = {
         key: this.key, members: this.members,
-        data: { turn: this.turn, closed, summary },
+        data: { turn: this.turn, closed, summary, ...lastTool === undefined ? {} : { lastTool } },
       }
     }
   }
@@ -151,7 +152,9 @@ class TurnGroups {
       followed = position.next !== undefined
       const node = readNode(input, key)
       if (isAtOrOutside(node, 'process')) {
-        flush(true)
+        // Turn-owned outputs can appear while their tools are still running.
+        // Input and process separators close the preceding work; a Turn output does not.
+        flush(node.groupTree !== 'turn')
         emit(key, { kind: 'node', key })
       } else if (node.kind === 'assistant-step') {
         // One Node, two rows: reasoning joins the step run, a reply stands outside it.

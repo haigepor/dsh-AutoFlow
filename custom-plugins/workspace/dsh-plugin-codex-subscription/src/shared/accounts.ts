@@ -10,9 +10,10 @@ const quotaWindow = z.object({ usedPercent: z.number().finite(), resetAt: z.numb
 /** Last successful quota values retain independent attempt and freshness metadata. */
 export const accountUsageSchema = z.object({
   status: z.enum(['ready', 'error']), freshness: z.enum(['fresh', 'stale', 'unknown']), fetchedAt: z.number(), attemptedAt: z.number().optional(), lastSuccessfulAt: z.number().optional(),
-  errorCode: z.enum(['USAGE_POLL_FAILED', 'USAGE_STORAGE_FAILED']).optional(),
+  errorCode: z.enum(['USAGE_POLL_FAILED', 'USAGE_STORAGE_FAILED', 'USAGE_HTTP_FAILED', 'USAGE_TIMEOUT', 'USAGE_INVALID_RESPONSE']).optional(),
+  errorStatus: z.number().int().min(400).max(599).optional(),
   plan: z.string().optional(), primary: quotaWindow.optional(), secondary: quotaWindow.optional(), allowed: z.boolean().optional(),
-  credits: z.object({ hasCredits: z.boolean().optional(), unlimited: z.boolean().optional(), balance: z.string().optional(), overageLimitReached: z.boolean().optional() }).optional(),
+  credits: z.object({ hasCredits: z.boolean().optional(), unlimited: z.boolean().optional(), balance: z.string().optional(), overageLimitReached: z.boolean().optional(), usable: z.boolean().optional() }).optional(),
   spendControlReached: z.boolean().optional(), limitReason: z.string().optional(),
   resetCredits: z.object({ availableCount: z.number().int().nonnegative(), earliestExpiresAt: z.number().optional() }).optional(),
   held: z.boolean().optional(), heldReason: z.enum(['usage-limit', 'workspace-limit', 'spending-limit']).optional(),

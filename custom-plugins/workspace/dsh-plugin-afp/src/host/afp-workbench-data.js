@@ -161,8 +161,8 @@ export class WorkbenchData {
       const dir = this.ctx.profileContext.dir
       return { username: maskUsername(username?.value), credentials: info.credentials, token: info.token,
         references: { accessTokenRef: this.config.accessTokenRef, usernameRef: this.config.usernameRef,
-          passwordRef: this.config.passwordRef, visionKeyRef: this.config.visionKeyRef },
-        visionConfigured: Boolean(this.connection.config.visionModel && this.connection.config.visionBaseUrl),
+          passwordRef: this.config.passwordRef },
+        visionConfigured: (await this.connection.visionInformation()).state === 'ready',
         profile: this.ctx.profileContext.name || basename(dir),
         settings: { language: this.config.language, pageSize: this.config.pageSize,
           targetPerCategory: this.config.targetPerCategory, threshold: this.config.threshold } }

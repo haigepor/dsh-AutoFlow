@@ -219,7 +219,7 @@ export function createAfpTaskPanels(React, UI, t, store, gallery, Selector, icon
     const credentials = state.account?.credentials ?? {}
     const credentialsReady = Boolean(credentials.accessTokenRef?.configured
       || credentials.usernameRef?.configured && credentials.passwordRef?.configured)
-    const visionReady = Boolean(state.account?.visionConfigured && credentials.visionKeyRef?.configured)
+    const visionReady = Boolean(state.account?.visionConfigured)
     const ready = active && credentialsReady && visionReady
     const validNumbers = Number.isInteger(state.targetPerCategory) && state.targetPerCategory >= 1 && state.targetPerCategory <= 1000
       && Number.isFinite(state.threshold) && state.threshold >= .8 && state.threshold <= 1

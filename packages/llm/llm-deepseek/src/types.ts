@@ -12,6 +12,8 @@ export type DeepSeekReasoningEffort = 'off' | 'low' | 'high' | 'max'
 export interface DeepSeekCatalogModel {
   /** Wire model id accepted by the configured endpoint. */
   id: string
+  /** Native search override; omission uses the documented model rules. */
+  nativeWebSearch?: boolean
   /** Selector label; defaults to {@link id}. */
   name?: string
   /** Optional selector detail for deployments with similar model variants. */

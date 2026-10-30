@@ -8,6 +8,7 @@
     "src"
   ],
   "references": [
+    { "path": "../../web/web-search-deepseek" },
     {
       "path": "../../../vendor/cosmokit"
     },

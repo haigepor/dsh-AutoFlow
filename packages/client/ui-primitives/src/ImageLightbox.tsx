@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from './Button.tsx'
 import { StateDot } from './StateDot.tsx'
-import { IconCloseOutlineRegular } from './icons/index.tsx'
+import { IconCloseOutlineRegular, IconChevronLeftOutlineRegular, IconChevronRightOutlineRegular } from './icons/index.tsx'
 import css from './ImageLightbox.module.css'
 
 /** Lightbox strings the owner resolves from its own locale namespace. */
@@ -21,6 +21,20 @@ export interface ImageLightboxLoadingLabels {
   error: string
   /** Label of the explicit retry control. */
   retry: string
+}
+
+/** Owner-localized gallery position and navigation; missing callbacks disable their direction. */
+export interface ImageLightboxNavigation {
+  /** Current position within the owner's image sequence. */
+  positionLabel: string
+  /** Accessible name of the previous-image control. */
+  previousLabel: string
+  /** Accessible name of the next-image control. */
+  nextLabel: string
+  /** Select the previous image; omitted at the start of the sequence. */
+  onPrevious?: (() => void) | undefined
+  /** Select the next image; omitted at the end of the sequence. */
+  onNext?: (() => void) | undefined
 }
 
 function LightboxImage({ src, alt, labels, loadingImageSrc, onRetry }: {
@@ -57,26 +71,36 @@ function LightboxImage({ src, alt, labels, loadingImageSrc, onRetry }: {
  * @param props.labels - dialog and close-control strings.
  * @param props.loadingLabels - optional localized loading, failure and retry controls; omitted callers retain the plain image presentation.
  * @param props.loadingImageSrc - optional decorative artwork displayed above the loading caption.
+ * @param props.navigation - optional gallery controls and arrow-key actions; changes retain the current focus.
  * @param props.onClose - dismiss callback owned by the opener.
  * @returns the modal preview dialog.
  */
-export function ImageLightbox({ src, alt, labels, loadingLabels, loadingImageSrc, onClose }: {
+export function ImageLightbox({ src, alt, labels, loadingLabels, loadingImageSrc, navigation, onClose }: {
   src: string
   alt: string
   labels: ImageLightboxLabels
   loadingLabels?: ImageLightboxLoadingLabels | undefined
   loadingImageSrc?: string | undefined
+  navigation?: ImageLightboxNavigation | undefined
   onClose: () => void
 }) {
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const restoreRef = useRef<HTMLElement | null>(null)
+  const navigationRef = useRef(navigation)
+  useLayoutEffect(() => { navigationRef.current = navigation }, [navigation])
 
   useEffect(() => {
     restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     closeRef.current?.focus()
     const onKeyDown = (event: globalThis.KeyboardEvent): void => {
       if (event.key === 'Escape') { event.stopPropagation(); onClose() }
+      const currentNavigation = navigationRef.current
+      if (currentNavigation && !event.altKey && !event.ctrlKey && !event.metaKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+        event.preventDefault(); event.stopPropagation()
+        if (event.key === 'ArrowLeft') currentNavigation.onPrevious?.()
+        else currentNavigation.onNext?.()
+      }
       if (event.key === 'Tab') {
         event.preventDefault()
         const controls = Array.from(stageRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
@@ -102,6 +126,11 @@ export function ImageLightbox({ src, alt, labels, loadingLabels, loadingImageSrc
         <div className={css.mask} aria-hidden="true" onMouseDown={onClose} />
         <LightboxImage key={src} src={src} alt={alt} labels={loadingLabels} loadingImageSrc={loadingImageSrc}
           onRetry={() => { closeRef.current?.focus() }} />
+        {navigation && <>
+          <Button type="button" className={`${css.navigationControl} ${css.previous}`} aria-label={navigation.previousLabel} disabled={!navigation.onPrevious} onClick={navigation.onPrevious}><IconChevronLeftOutlineRegular size={20} /></Button>
+          <Button type="button" className={`${css.navigationControl} ${css.next}`} aria-label={navigation.nextLabel} disabled={!navigation.onNext} onClick={navigation.onNext}><IconChevronRightOutlineRegular size={20} /></Button>
+          <span className={css.position} aria-live="polite">{navigation.positionLabel}</span>
+        </>}
         <button ref={closeRef} type="button" className={css.close} aria-label={labels.close} onClick={onClose}>
           <IconCloseOutlineRegular size={16} />
         </button>

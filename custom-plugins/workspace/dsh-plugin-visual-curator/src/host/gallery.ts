@@ -12,6 +12,7 @@ import { importedRecords } from './imports.ts'
 import { safeFailure, toJson } from './runtime.ts'
 import { GalleryIdentityVerifier } from './gallery-identity.ts'
 import { RemoteGalleryReferences } from './gallery-references.ts'
+import { importedGalleryReference } from './reference-state.ts'
 
 const photoScope = z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('search'), query: z.string().trim().min(1).max(4096) }), z.strictObject({ kind: z.literal('bookmarks') }), z.strictObject({ kind: z.literal('collection'), collectionId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/) })])
 const listingSchema = z.object({ accountId: galleryAccountIdSchema.optional(), cursor: z.string().max(8192).nullable().default(null), pageSize: z.number().int().positive().max(100).optional(), refreshIdentity: z.boolean().optional() })
@@ -21,6 +22,7 @@ type ApiFactory = (config: CuratorConfig, accountId?: string, provisionalRef?: s
 export class GalleryService {
   private readonly identities: GalleryIdentityVerifier
   private readonly remote: RemoteGalleryReferences
+  private readonly importingStyles = new Set<string>()
   /** @param config Validated profile settings. @param domain Authorized record owner. @param files Private pixel storage. @param api Account-isolated API factory. @param media Approved image transport. */
   constructor(private readonly config: CuratorConfig, private readonly domain: CuratorDomain, private readonly files: AssetFiles, private readonly api: ApiFactory, private readonly media: HttpClient) {
     this.identities = new GalleryIdentityVerifier(config.source.unsplash.identityCacheTtlMs)
@@ -53,9 +55,15 @@ export class GalleryService {
     }
     if (operation === 'gallery-import') {
       const mode = z.enum(['with-bytes', 'remote-reference']).default('with-bytes').parse(args.mode)
+      const { styleId } = z.object({ styleId: z.string() }).parse(args)
+      // 两种引入方式共用素材集锁；并行请求不能在关联提交前各自创建同一图片。
+      if (this.importingStyles.has(styleId)) throw new CuratorError('constraint-conflict', 'gallery-import', 'An import into this collection is already active; wait before retrying.')
+      this.importingStyles.add(styleId)
+      try {
       if (mode === 'remote-reference') return await this.remote.import(args, api, actor, bounds, async signal => { if (listing.accountId) await this.verifyAccount(api, listing.accountId, { ...bounds, signal }) })
       if (listing.accountId) await this.verifyAccount(api, listing.accountId, bounds, true)
       return await this.import(args, actor, api, listing.accountId, bounds)
+      } finally { this.importingStyles.delete(styleId) }
     }
     throw new CuratorError('invalid-input', 'gallery', 'The gallery operation is unavailable.')
     } catch (error) {
@@ -97,6 +105,8 @@ export class GalleryService {
     for (const photoId of input.photoIds) {
       bounds.signal?.throwIfAborted()
       try {
+        const existing = importedGalleryReference(this.domain, style.id, photoId, actor)
+        if (existing) { results.push({ name: photoId, ok: true, skipped: 'already-imported', imageVersionId: existing.imageVersionId, referenceId: existing.id }); continue }
         const fileOp = `${aggregateId}:${photoId}`, imageAggregate = `gallery-image:${fileOp}`, saved = this.domain.repository.manifest(imageAggregate)?.state
         let imageId: string
         if (saved && typeof saved === 'object' && !Array.isArray(saved) && typeof saved.imageId === 'string') imageId = saved.imageId

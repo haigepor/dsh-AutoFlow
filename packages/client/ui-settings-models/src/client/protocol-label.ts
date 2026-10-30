@@ -1,5 +1,5 @@
 /**
- * Product names for the wire protocols a pi-ai route may speak. The pickers
+ * Product names for wire protocols shown in the catalog and route pickers. The pickers
  * show these instead of the schema identifiers (`openai-completions`), which
  * are what `settings.yaml` carries and what the option values stay.
  */
@@ -10,7 +10,10 @@ import type { ModelsKey } from './locales.ts'
 const PROTOCOL_LABEL_KEYS: Readonly<Record<string, ModelsKey>> = {
   'openai-completions': 'protocolOpenAiCompletions',
   'openai-responses': 'protocolOpenAiResponses',
+  'openai-codex-responses': 'protocolOpenAiResponses',
+  'azure-openai-responses': 'protocolOpenAiResponses',
   'anthropic-messages': 'protocolAnthropicMessages',
+  'deepseek-messages': 'protocolDeepSeekMessages',
 }
 
 /**

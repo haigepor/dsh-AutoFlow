@@ -1,4 +1,3 @@
 - heading "模型与连接" [level=1]
 - paragraph: 管理提供商、认证方式与模型目录。
 - status: 正在加载模型设置…
-- button "打开配置文件"

@@ -1,0 +1,16 @@
+{
+  "loadingDisablesSave": true,
+  "manualConnectionInputs": 0,
+  "options": 2,
+  "selectedModel": "vision-b",
+  "tabSwitchReusesCatalog": true,
+  "removedModelDisablesSave": true,
+  "nativeBackend": "native",
+  "duplicateCredentials": false,
+  "centralReasoningDefaults": true,
+  "narrowOverflow": false,
+  "settingsNavigation": true,
+  "dataWritten": false,
+  "paidCalls": 0,
+  "pageErrors": []
+}

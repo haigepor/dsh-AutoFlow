@@ -1,6 +1,7 @@
 /** Collection references register public links; pixel imports retain their separate implementation. */
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
+import { importedGalleryReference } from './reference-state.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
 import { remoteReferenceBlob } from '../media/remote-reference.ts'
@@ -12,7 +13,7 @@ import { CuratorError } from '../shared/errors.ts'
 import type { CuratorConfig } from './config.ts'
 import { safeFailure, toJson } from './runtime.ts'
 
-interface Row { name: string; ok: boolean; imageVersionId?: string; referenceId?: string; error?: Json }
+interface Row { name: string; ok: boolean; imageVersionId?: string; referenceId?: string; skipped?: 'already-imported'; error?: Json }
 interface Active { owner: string; accountId: string; controller: AbortController; phase: 'verifying' | 'referencing' | 'saving'; rows: Row[] }
 const owner = (actor: DomainActor) => contentDigest({ profileId: actor.profileId, sessionId: actor.sessionId ?? null })
 const transferSchema = z.object({ transferId: z.string().min(1).max(128), accountId: z.string().optional() })
@@ -83,6 +84,8 @@ export class RemoteGalleryReferences {
       for (const photoId of input.photoIds) {
         if (signal.aborted) break
         try {
+          const existing = importedGalleryReference(this.domain, style.id, photoId, actor)
+          if (existing) { work.rows.push({ name: photoId, ok: true, skipped: 'already-imported', imageVersionId: existing.imageVersionId, referenceId: existing.id }); continue }
           const fileOp = `${aggregateId}:${photoId}`, imageAggregate = `gallery-url:${fileOp}`, savedImage = this.domain.repository.manifest(imageAggregate)?.state
           let imageId: string
           if (savedImage && typeof savedImage === 'object' && !Array.isArray(savedImage) && typeof savedImage.imageId === 'string') imageId = savedImage.imageId

@@ -10,6 +10,7 @@ import {
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import type { ModelsKey } from './locales.ts'
 import { ModelInputTypes } from './ModelInputTypes.tsx'
+import { ModelCapabilities } from './ModelCapabilities.tsx'
 import { AnimatedDisclosure } from './AnimatedDisclosure.tsx'
 import { ModelReasoningCapabilities, ModelReasoningDefault } from './ModelReasoningCapabilities.tsx'
 import { ModelReasoningEfforts } from './ModelReasoningEfforts.tsx'
@@ -46,6 +47,9 @@ interface ModelRowProps {
   inputField: 'inputModalities' | 'input'
   inputFallback?: readonly string[] | undefined
   inputLoading?: boolean
+  /** Selected wire protocol and server-reported native-search capability. */
+  nativeSearchApi?: string | undefined
+  nativeSearchReported?: boolean | undefined
   reasoningOptions?: ModelReasoningOptions | undefined
   reasoningInherited?: LlmModelReasoningInfo | undefined
   /** Levels the row's `reasoningEfforts` may declare; absent or empty shows no reasoning control. */
@@ -199,6 +203,8 @@ export function ModelRow(props: ModelRowProps): ReactNode {
       <div className={styles['singleFormGrid']}>{capacityFields}</div>
       {inputTypes}
     </section>
+    <ModelCapabilities model={model} api={props.nativeSearchApi ?? (props.inputField === 'inputModalities' ? 'deepseek-messages' : undefined)}
+      reported={props.nativeSearchReported} disabled={disabled} t={t} onChange={props.onChange} />
     <section className={styles['singleFormSection']} aria-label={t('modelReasoningSection')}>
       <h3>{t('modelReasoningSection')}</h3>
       {defaultReasoning}

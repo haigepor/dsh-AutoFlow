@@ -13,6 +13,7 @@ test('restricted Unsplash originals remain explicit instead of becoming missing 
   const page = await new UnsplashSourceProvider(api).search({ query: 'car', pageSize: 20 }, null, bounds)
   assert.equal(page.items[0]?.originalUrl, undefined)
   assert.equal(page.items[0]?.originalUnavailable, 'restricted')
+  assert.equal(page.items[0]?.previewUrl, 'https://images.unsplash.com/restricted?w=1200')
 })
 
 test('each curl connection receives the complete checked address set including IPv6 and rotated fallback order', () => {

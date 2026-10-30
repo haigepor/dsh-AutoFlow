@@ -1,0 +1,21 @@
+{
+  "coldConversationSkeleton": true,
+  "coldContextSkeleton": true,
+  "coldNavigationRows": 4,
+  "settingsStyleParity": true,
+  "reducedMotion": true,
+  "compactSkeleton": true,
+  "missingCapacityNotShownWhileLoading": true,
+  "coldDetailReads": 1,
+  "warmDetailReads": 0,
+  "warmInputReads": 0,
+  "manualRefreshInvalidates": true,
+  "fourNavigationRowsVisible": true,
+  "modelFactsScrollIndependently": true,
+  "shortWindowActionVisible": true,
+  "tallerDialog": true,
+  "narrowOverflow": false,
+  "modelRequestsUnchanged": true,
+  "dataWritten": false,
+  "pageErrors": []
+}

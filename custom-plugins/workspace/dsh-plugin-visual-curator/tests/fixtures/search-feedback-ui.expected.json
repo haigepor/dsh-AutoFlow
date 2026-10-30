@@ -9,6 +9,10 @@
   "scopedNavigation": true,
   "workbenchFilters": true,
   "sourceDiagnostic": true,
+  "detailModal": true,
+  "multiTaskAndInterrupted": true,
+  "narrowContainerAndMobile": true,
+  "liveRefreshStable": true,
   "narrowOverflow": false,
   "errors": []
 }

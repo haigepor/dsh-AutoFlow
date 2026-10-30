@@ -3,7 +3,8 @@ import { useId, useRef, useState, type ReactNode } from 'react'
 import { focusWithoutRing } from '@deepseek-ai/dsh-client-ui-primitives'
 import { Button, Input, Menu, SegmentedTabs, Tag, Tooltip, IconChevronDownOutlineRegular, IconEditOutlineRegular, IconPlusOutlineRegular, IconSearchOutlineRegular, IconTrashOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
-import { modelDirectory, type ModelDirectoryGroup } from './model-directory.ts'
+import { directoryProtocol, modelDirectory, type ModelDirectoryGroup } from './model-directory.ts'
+import { protocolLabel } from './protocol-label.ts'
 import type { ModelsSettingsState, ProviderRow } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type { ModelsKey } from './locales.ts'
@@ -115,10 +116,11 @@ export function ModelsDirectory({
           <Button variant="ghost" size="sm" disabled={state.status === 'loading'} onClick={onRetry}>{t('retry')}</Button></div>)}
         <div className={styles['tableScroll']}>
           <table className={styles['table']} aria-label={t('modelDirectory')}>
-            <thead><tr><th scope="col">{t('directoryModel')}</th><th scope="col">{t('provider')}</th><th scope="col">{t('directoryCapabilities')}</th><th scope="col">{t('contextWindow')}</th><th scope="col">{t('modelActions')}</th></tr></thead>
+            <thead><tr><th scope="col">{t('directoryModel')}</th><th scope="col">{t('provider')}</th><th scope="col">{t('directoryProtocol')}</th><th scope="col">{t('directoryCapabilities')}</th><th scope="col">{t('contextWindow')}</th><th scope="col">{t('modelActions')}</th></tr></thead>
             <tbody>{visible.map(({ group, model, index }, position) => {
               const modelId = typeof model['id'] === 'string' ? model['id'] : ''
               const metadata = group.metadata.get(modelId)
+              const protocol = directoryProtocol(group, schema)
               const input = model['inputModalities'] ?? model['input'] ?? metadata?.inputModalities ?? schema.getPath(group.profile, ['defaultInput'])
               const modalities = Array.isArray(input) ? input : []
               const reasoning = modelReasoningLevels(model, group.reasoning, metadata?.reasoning,
@@ -131,6 +133,8 @@ export function ModelsDirectory({
                     <code>{modelId}</code></div>
                 </div></td>
                 <td><Tag tone="info" className={styles['providerTag']}>{group.row.entry.displayName}</Tag></td>
+                <td>{protocol === undefined ? <span className={styles['hint']}>{t('directoryProtocolUnknown')}</span>
+                  : <Tag tone="info" className={styles['providerTag']}>{protocolLabel(t, protocol)}</Tag>}</td>
                 <td><div className={styles['capabilities']}>
                   {modalities.includes('image') && <Tag tone="info">{t('modelInputImage')}</Tag>}
                   {modalities.includes('text') && <Tag tone="success">{t('modelInputText')}</Tag>}
@@ -165,7 +169,7 @@ export function ModelsDirectory({
       </div>
       <div className={styles['providerGrid']}>{groups.map((group) => {
         const { row } = group
-        const status = row.entry.provider === 'autoflow-codex' ? row.accountAvailable === true ? 'accountSignedIn' : 'subscriptionNeedsLogin'
+        const status = row.entry.provider === 'autoflow-codex' ? row.accountAvailable === true ? 'accountSignedIn' : row.accountAvailable === false ? 'subscriptionNeedsLogin' : 'directoryAuthManaged'
           : row.entry.provider === 'deepseek-account' ? 'accountSignedIn' : row.credential?.configured === true ? 'credentialConfigured'
             : row.credential?.configured === false && row.apiKeyEnv !== undefined ? 'credentialMissing'
               : row.apiKeyEnv !== undefined ? 'keyFallbackUnchecked' : 'directoryAuthManaged'

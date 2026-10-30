@@ -1,0 +1,7 @@
+{
+  "state": "completed",
+  "counts": { "references": 1, "rules": 1, "candidates": 1, "groups": 0, "enabledGroups": 0, "files": 5 },
+  "ruleSelections": [{ "enabled": true, "confirmed": false, "source": "model" }],
+  "files": ["style-profile.json", "samples.jsonl", "references.json", "SKILL.md", "manifest.json"],
+  "resources": { "remote": 0, "total": 1, "pixelDigests": 0, "humanAccepts": 1 }
+}

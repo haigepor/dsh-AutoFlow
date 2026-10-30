@@ -2,6 +2,15 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveConfig, reviewerRevision } from '../src/host/config.ts'
 
+test('batch view cache limits have validated deployment defaults and support disabling', () => {
+  assert.equal(resolveConfig({}).limits.batchCacheTtlMs, 60000)
+  assert.equal(resolveConfig({}).limits.batchCacheMaxViews, 8)
+  const disabled = resolveConfig({ limits: { batchCacheTtlMs: 0, batchCacheMaxViews: 0 } })
+  assert.equal(disabled.limits.batchCacheTtlMs, 0)
+  assert.equal(disabled.limits.batchCacheMaxViews, 0)
+  for (const limits of [{ batchCacheTtlMs: -1 }, { batchCacheTtlMs: 1.5 }, { batchCacheMaxViews: -1 }, { batchCacheMaxViews: 65 }]) assert.throws(() => resolveConfig({ limits }))
+})
+
 test('gallery identity freshness has a deployment default and can disable stored success', () => {
   assert.equal(resolveConfig({}).source.unsplash.identityCacheTtlMs, 180000)
   assert.equal(resolveConfig({ source: { unsplash: { identityCacheTtlMs: 0 } } }).source.unsplash.identityCacheTtlMs, 0)

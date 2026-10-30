@@ -1,12 +1,14 @@
 /** Validated request limits and editable profile fields; authentication never lives in Config. */
 import Schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
+import { catalogEntriesSchema } from '../shared/model-catalog.ts'
 
 const positive = z.number().int().positive()
 const images = z.strictObject({
   defaultModel: z.string().min(1).max(128).default('gpt-image-2'),
   timeoutMs: positive.min(1000).max(3_600_000).default(300_000),
   quickWaitMs: z.number().int().min(0).max(20_000).default(20_000),
+  uiPollIntervalMs: positive.min(250).max(30_000).default(1000),
   maxConcurrent: positive.max(16).default(2),
   maxQueued: z.number().int().min(0).max(100).default(16),
   maxHistoryTasks: positive.max(10_000).default(500),
@@ -28,6 +30,7 @@ const relay = z.strictObject({
   assetUrlTtlMs: positive.max(3_600_000).default(60_000),
 })
 const options = z.strictObject({
+  catalog: catalogEntriesSchema.default([]),
   images: images.default(() => images.parse({})),
   relay: relay.default(() => relay.parse({})),
   upstream: z.strictObject({ mode: z.enum(['auto', 'sse']).default('auto'), connectTimeoutMs: positive.max(120_000).default(30_000),

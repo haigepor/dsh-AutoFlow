@@ -1,0 +1,51 @@
+{
+  "finalResponse": "MAIN_RESPONSE",
+  "auditEvents": [
+    {
+      "type": "web/native-search-llm-request",
+      "seq": 3,
+      "time": 0,
+      "data": {
+        "provider": "fixture",
+        "model": "native-model",
+        "api": "openai-responses",
+        "body": {
+          "model": "native-model",
+          "input": "current projects",
+          "tools": [
+            {
+              "type": "web_search"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "auditNotifications": [
+    {
+      "method": "session.event",
+      "event": {
+        "type": "web/native-search-llm-request",
+        "seq": 3,
+        "time": 0,
+        "data": {
+          "provider": "fixture",
+          "model": "native-model",
+          "api": "openai-responses",
+          "body": {
+            "model": "native-model",
+            "input": "current projects",
+            "tools": [
+              {
+                "type": "web_search"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "assistantTexts": [
+    "MAIN_RESPONSE"
+  ]
+}

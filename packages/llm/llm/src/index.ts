@@ -26,6 +26,8 @@ import type {
   SystemPromptUpdate,
   ToolSchema,
   ToolUpdate,
+  NativeWebSearchRequest,
+  NativeWebSearchResult,
 } from './types.ts'
 import { freezeMessage } from './message.ts'
 import { resolveRetryPolicy } from './retry-policy.ts'
@@ -206,6 +208,14 @@ export interface PreparedAdapterCall {
  * DeepSeek and library-backed pi-ai adapters meet this contract through different internals.
  */
 export abstract class LlmAdapter {
+  /**
+   * Search through a model-native provider operation; ordinary adapters expose none.
+   * @param _request Current model, query, cancellation and durable request recorder.
+   * @returns Structured search results, or an unsupported-operation failure.
+   */
+  searchNative(_request: NativeWebSearchRequest): Promise<NativeWebSearchResult> {
+    return Promise.reject(new LlmError('This model adapter does not support native web search', 'UNSUPPORTED_OPTION'))
+  }
   /**
    * Describe one provider route owned by this adapter.
    * @param provider - a route passed to `registerAdapter()` for this instance.
@@ -622,6 +632,8 @@ export class LlmRuntime extends TypertRemoteService {
       seen.add(model.id)
       models.push({
         id: model.id,
+        ...model.api === undefined ? {} : { api: model.api },
+        ...model.nativeWebSearch === undefined ? {} : { nativeWebSearch: model.nativeWebSearch },
         ...model.name === undefined ? {} : { name: model.name },
         ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
         ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
@@ -766,6 +778,18 @@ export class LlmRuntime extends TypertRemoteService {
     return this.resolveModelInfoFor(this.registration(provider), model, signal)
   }
 
+  /**
+   * Execute native search only when the exact model enables it.
+   * @param request Provider/model identity, query and operation-local ownership.
+   * @returns Results from the selected model's credentials and endpoint.
+   */
+  async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult> {
+    const registration = this.registration(request.provider)
+    const model = await this.resolveModelInfoFor(registration, request.model, request.signal)
+    if (model.nativeWebSearch !== true) throw new LlmError('Native web search is disabled for this model', 'UNSUPPORTED_OPTION')
+    return registration.adapter.searchNative(request)
+  }
+
   private async resolveModelInfoFor(
     registration: AdapterRegistration,
     model: string,
@@ -840,6 +864,7 @@ export class LlmRuntime extends TypertRemoteService {
       ...defaultMaxTokens === undefined ? {} : { defaultMaxTokens },
       ...resolved.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: resolved.systemPromptUpdate },
       ...resolved.toolUpdate === undefined ? {} : { toolUpdate: resolved.toolUpdate },
+      ...resolved.nativeWebSearch === undefined ? {} : { nativeWebSearch: resolved.nativeWebSearch },
     }
     const reasoning = resolved.reasoning
     if (reasoning === undefined) return info

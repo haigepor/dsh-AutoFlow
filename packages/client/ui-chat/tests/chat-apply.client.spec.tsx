@@ -22,7 +22,7 @@ import {
   apply as applyChat, EMPTY_CHAT_SNAPSHOT, inject as injectChat,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {
-  ChatFlowInjected, ChatNodeInjected, ChatSnapshot, TranscriptViewRowInjected, UseChatNodeTurnData, UseDisclosure,
+  ChatFlowDataInjected, ChatFlowInjected, ChatNodeInjected, ChatSnapshot, TranscriptViewRowInjected, UseChatNodeTurnData, UseDisclosure,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { QuotaNoticeInjected } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { PerformanceUsageRowInjected } from '../src/client/settings/PerformanceUsageRow.tsx'
@@ -189,6 +189,36 @@ describe('Chat apply wiring', () => {
     expect(winners()).toEqual({ activity: PluginActivity, usage: UsagePill })
     dispose()
     expect(winners()).toEqual({ activity: ActivityPill, usage: UsagePill })
+  })
+
+  it('tracks process-status availability through registration and unload without changing ordinary tools', async () => {
+    const b = await bench()
+    onTestFinished(() => b.runtime.dispose())
+    await b.runtime.sessions.add({ id: SID })
+    using reference = b.runtime.sessions.retain(SID)
+    b.runtime.renderRoot()
+    const flow = b.runtime.slots.entries('conversation.chat.flow')[0]
+    if (flow?.inject === undefined) throw new Error('Chat flow injection is missing')
+    const face = flow.inject(reference.binding.sessionId as never)
+    const hooks = face.keyedHooks as ChatFlowDataInjected['keyedHooks']
+    const status = hooks.chatProcessStatus('codex_image_generate')
+    expect(hooks.chatProcessStatus('codex_image_generate')).toBe(status)
+    expect(status.getSnapshot()).toBe(false)
+    const changed = vi.fn()
+    const off = status.subscribe(changed)
+    const dispose = b.runtime.ctx.slots.register({ name: 'conversation.chat.process.status', key: 'codex_image_generate' }, () => null)
+    await Promise.resolve()
+    expect(changed).toHaveBeenCalled()
+    expect(status.getSnapshot()).toBe(true)
+    expect(hooks.chatProcessStatus('bash').getSnapshot()).toBe(false)
+    dispose()
+    await Promise.resolve()
+    expect(status.getSnapshot()).toBe(false)
+    off()
+    const notifications = changed.mock.calls.length
+    b.runtime.ctx.slots.register({ name: 'conversation.chat.process.status', key: 'codex_image_generate' }, () => null)
+    await Promise.resolve()
+    expect(changed).toHaveBeenCalledTimes(notifications)
   })
 
   it.each([

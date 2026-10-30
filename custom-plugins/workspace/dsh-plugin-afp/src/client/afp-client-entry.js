@@ -21,7 +21,8 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
     const namespace = 'afpWorkbench', panel = 'afp-workbench'
     ctx.effect(() => ctx.locale.register(namespace, { en, zh }), 'AFP locale')
     const t = ctx.locale.bind(namespace), store = createAfpClientStore(ctx)
-    const ConfigurationForm = createConfigurationForm(React, { Input, Button, Switch, StateDot, Tag, Toast, Tooltip, Chevron: icons.IconChevronDownOutlineRegular }, ctx, t)
+    const ConfigurationForm = createConfigurationForm(React, { Input, Button, Menu, Switch, StateDot, Tag, Toast, Tooltip,
+      Chevron: icons.IconChevronDownOutlineRegular, RefreshIcon: icons.IconRefreshOutlineRegular }, ctx, t)
     const Workbench = createWorkbench(React, { Switch, Input, Button, StateDot, Tag, Checkbox, Toast, Menu, MenuSurface, createPortal, useDismissOnOutsidePointer, SegmentedControl, Tooltip, Modal, GlideHighlight }, ctx, t, store, ConfigurationForm, icons)
     const ConversationPhotos = createAfpConversationPhotos(React, { Button, Tag, Modal, Tooltip, DisclosureRow, AnimatedCollapse }, icons, t, store)
     registerAfpProgress(ctx, createAfpToolRow(React, { DisclosureRow, TextShimmer, Button, Tag, Modal, ToolIcon: icons.IconCodeOutlineRegular, ChevronIcon: icons.IconChevronDownOutlineRegular }, t, store), namespace)
@@ -73,6 +74,7 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
       const unsubscribe = store.subscribe(sync)
       const changed = ctx.remote.$on('plugin-manager/changed', () => { void store.reload() })
       const credentialChanges = ctx.remote.$on('credentials/reference-updated', ref => { void store.credentialReferenceUpdated(typeof ref === 'string' ? ref : ref?.ref) })
+      const modelChanges = ctx.remote.$on('llm/adapters-updated', () => { void store.loadAccount() })
       const reset = ctx.on('connection/reset', () => { void store.resetAndReload() })
       let timer, stopped = false
       const poll = async () => {
@@ -84,7 +86,7 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
       }
       void store.loadAccount()
       void poll()
-      return () => { stopped = true; clearTimeout(timer); unsubscribe(); changed(); credentialChanges(); reset(); for (const remove of registrations.values()) remove(); registrations.clear() }
+      return () => { stopped = true; clearTimeout(timer); unsubscribe(); changed(); credentialChanges(); modelChanges(); reset(); for (const remove of registrations.values()) remove(); registrations.clear() }
     }, 'AFP entry lifecycle')
   } }
 } })

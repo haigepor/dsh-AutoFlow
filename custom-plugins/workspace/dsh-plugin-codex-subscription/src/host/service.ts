@@ -13,6 +13,7 @@ import { z } from 'zod'
 import { CodexAccounts } from './accounts/index.ts'
 import { ImageService } from './images/service.ts'
 import { imageAttachmentAdapter } from './images/attachments.ts'
+import { projectImageSession } from './images/view.ts'
 import type { ImageTaskRepository, ImageServiceSettings } from './images/types.ts'
 import { openImageTaskRepository } from './tasks/repository.ts'
 import { CodexResponsesTransport } from './relay/transport.ts'
@@ -23,6 +24,8 @@ import { CodexVersion } from './version.ts'
 import type { GatewayKey, RelayServer } from './relay/types.ts'
 import { resolveOptions, type Config, type SubscriptionOptions } from './config.ts'
 import { configureSchema, managementSchema, snapshotSchema, type ManagementSnapshot } from '../shared/management.ts'
+import { saveModelCatalogSchema, type ModelCatalog } from '../shared/model-catalog.ts'
+import type { CodexModelView } from './accounts/types.ts'
 
 /** Independent Home-scoped gateway credential; all active profiles observe its revocation. */
 export const GATEWAY_KEY = credentialKey('codex-subscription', 'gateway')
@@ -109,6 +112,37 @@ export class CodexSubscriptionService {
    */
   protocolStatus() { return { upstream: this.upstream.status(), version: this.versions.status() } }
 
+  /** List explicitly selected text models with current shared-account capabilities.
+   * @returns Routable conversational models; image models remain on the image API.
+   */
+  async catalogModels(): Promise<readonly CodexModelView[]> {
+    const configured = new Map(this.options.catalog.filter(entry => entry.kind === 'text').map(entry => [entry.id, entry]))
+    return (await this.accounts.models()).flatMap(model => {
+      const entry = configured.get(model.id)
+      return entry === undefined ? [] : [{ ...model, name: entry.name,
+        ...entry.nativeWebSearch === undefined ? {} : { nativeWebSearch: entry.nativeWebSearch } }]
+    })
+  }
+
+  /** Read explicit choices and upstream candidates without changing any default model.
+   * @returns Safe model configuration and its profile settings revision.
+   */
+  async modelCatalog(): Promise<ModelCatalog> {
+    const candidates = await this.accounts.models()
+    const { revision, options } = this.catalogConfiguration()
+    return { revision, entries: structuredClone(options.catalog), defaultImageModel: options.images.defaultModel,
+      candidates: candidates.map(model => ({ id: model.id, name: model.name, contextWindow: model.contextWindow, maxTokens: model.maxTokens, input: [...model.input],
+        ...model.nativeWebSearch === undefined ? {} : { nativeWebSearch: model.nativeWebSearch } })) }
+  }
+
+  private catalogConfiguration(): { revision: number; options: SubscriptionOptions } {
+    const descriptor = this.ctx.settings.describe().find(item => item.ns === this.settingsNs)
+    if (descriptor === undefined) return { revision: 0, options: this.options }
+    // revision 与值必须来自同一次读取；运行时 listener 更新可能仍在等待，不能用其旧 options 作保存基线。
+    const value = z.object({ options: z.unknown().optional() }).parse(descriptor.value)
+    return { revision: descriptor.revision, options: resolveOptions(value.options ?? {}) }
+  }
+
   /** Send Responses fields using the shared account scheduler and negotiated transport.
    * @param body Complete stateless Responses input; the caller owns body consumption.
    * @param signal Caller cancellation, combined with profile shutdown.
@@ -148,8 +182,13 @@ export class CodexSubscriptionService {
   refreshGateway(): Promise<void> { return this.reconfigure(this.options) }
 
   private imageSettings(options: SubscriptionOptions): ImageServiceSettings {
-    const { quickWaitMs: _quickWait, ...images } = options.images
+    const { quickWaitMs: _quickWait, uiPollIntervalMs: _uiPoll, ...images } = options.images
     return { ...images, baseUrl: BASE }
+  }
+
+  /** Current bounds for resolving Session attachments before task admission. */
+  get imageReferenceLimits(): { maxImageBytes: number; maxReferenceImages: number } {
+    return { maxImageBytes: this.options.images.maxImageBytes, maxReferenceImages: this.options.images.maxReferenceImages }
   }
 
   /** Apply new defaults without replacing in-flight task or account instances.
@@ -180,7 +219,7 @@ export class CodexSubscriptionService {
         const listener = await (this.dependencies.startRelay ?? startRelay)({ ...next.relay, gatewayKeys: keys, imageWaitMs: Math.min(next.relay.requestTimeoutMs, next.images.timeoutMs) }, {
           requestResponses: (body, signal) => this.requestResponses(body, signal),
           observeClient: headers => { this.versions.observeClient(headers) },
-          listModels: async signal => { signal.throwIfAborted(); return this.accounts.models() },
+          listModels: async signal => { signal.throwIfAborted(); return this.catalogModels() },
           images: this.images,
           readAsset: (taskId, assetId, owner) => this.images.readAsset(taskId, assetId, owner),
         })
@@ -240,7 +279,7 @@ export class CodexSubscriptionService {
     if (this.stopped) throw new ManagementError('STOPPING')
     signal.throwIfAborted()
     const command = managementSchema.parse(input)
-    if (['gateway-create', 'gateway-revoke', 'configure'].includes(command.operation)) {
+    if (['gateway-create', 'gateway-revoke', 'configure', 'model-catalog-save'].includes(command.operation)) {
       const result = this.controls.catch((_error: unknown) => { /* The failed mutation has already been reported to its caller. */ }).then(async () => {
         signal.throwIfAborted()
         if (this.stopped) throw new ManagementError('STOPPING')
@@ -267,6 +306,22 @@ export class CodexSubscriptionService {
       }
       case 'account-refresh': return this.accounts.refreshAccount(z.strictObject({ accountKey: identifier }).parse(args).accountKey, signal)
       case 'model-list': return this.accounts.models()
+      case 'model-catalog': return this.modelCatalog()
+      case 'model-catalog-save': {
+        const value = saveModelCatalogSchema.parse(args)
+        const { revision, options } = this.catalogConfiguration()
+        if (revision !== value.revision) throw new ManagementError('REVISION_CONFLICT')
+        const candidates = new Set((await this.accounts.models()).map(model => model.id))
+        const previous = new Set(options.catalog.filter(entry => entry.kind === 'text').map(entry => entry.id))
+        if (value.entries.some(entry => entry.kind === 'text' && !candidates.has(entry.id) && !previous.has(entry.id))) throw new ManagementError('MODEL_NOT_AVAILABLE')
+        if (value.defaultImageModel !== undefined && !value.entries.some(entry => entry.kind === 'image' && entry.id === value.defaultImageModel)) throw new ManagementError('INVALID_IMAGE_MODEL')
+        const next = resolveOptions({ ...options, catalog: value.entries, images: { ...options.images,
+          ...(value.defaultImageModel === undefined ? {} : { defaultModel: value.defaultImageModel }) } })
+        signal.throwIfAborted()
+        await this.ctx.settings.update(this.settingsNs, { options: next }, value.revision)
+        await this.reconfigure(next)
+        return this.modelCatalog()
+      }
       case 'model-routes': return this.accounts.modelRoutes()
       case 'protocol-status': return this.protocolStatus()
       case 'login-start': return this.accounts.beginLogin()
@@ -323,6 +378,10 @@ export class CodexSubscriptionService {
         return { responding: true }
       }
       case 'image-submit': return this.images.submit(imageInput.parse(args), { kind: 'gateway', keyId: 'profile-owner' })
+      case 'image-session-view': {
+        const { sessionId } = z.strictObject({ sessionId: identifier }).parse(args)
+        return projectImageSession(sessionId, await this.images.list({ kind: 'session', sessionId }), this.options.images.uiPollIntervalMs)
+      }
       case 'image-result': {
         const task = await this.images.getTaskForOwnerUI(identifier.parse(args.taskId))
         const waitMs = z.number().int().min(0).max(20_000).default(0).parse(args.waitMs)
@@ -353,6 +412,8 @@ export class CodexSubscriptionService {
       const url = new URL(request.url)
       if (url.pathname.endsWith('/media')) {
         const task = await this.images.getTaskForOwnerUI(identifier.parse(url.searchParams.get('task')))
+        const sessionId = url.searchParams.get('session')
+        if (sessionId !== null && (task.owner.kind !== 'session' || task.owner.sessionId !== identifier.parse(sessionId))) throw new ManagementError('IMAGE_NOT_FOUND')
         const asset = task.assets.find(item => item.id === url.searchParams.get('asset'))
         if (!asset) throw new ManagementError('IMAGE_NOT_FOUND')
         const original = url.searchParams.get('original') === '1'
@@ -360,7 +421,7 @@ export class CodexSubscriptionService {
           : await this.ctx.attachments.readImage(asset.preview, signal)
         return new Response(request.method === 'HEAD' ? null : new Uint8Array(image.data), { headers: {
           'content-type': original ? asset.mimeType : asset.preview.mediaType, 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff',
-          'content-disposition': `${original ? 'attachment' : 'inline'}; filename="codex-${asset.id}.${asset.mimeType === 'image/jpeg' ? 'jpg' : asset.mimeType.slice(6)}"`,
+          'content-disposition': `${original && url.searchParams.get('view') !== '1' ? 'attachment' : 'inline'}; filename="codex-${asset.id}.${asset.mimeType === 'image/jpeg' ? 'jpg' : asset.mimeType.slice(6)}"`,
         } })
       }
       const reader = request.body?.getReader(), chunks: Uint8Array[] = []

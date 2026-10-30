@@ -15,11 +15,12 @@
 .brand { display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 8px; border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
 .loading { display: grid; place-items: center; min-height: 220px; }
 .notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); color: var(--dsw-alias-state-error-primary); font-size: 13px; line-height: 22px; overflow-wrap: anywhere; }
-.accounts { display: flex; flex-direction: column; gap: 12px; }
-.card { min-width: 0; padding: 22px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-1); }
+/* 保留空列让单个账号也只占一格；320px 最小列宽触发换行，按三等分计算下限以限制最多三列。 */
+.accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(320px, calc((100% - 32px) / 3))), 1fr)); align-items: start; gap: 16px; }
+.card { container-type: inline-size; min-width: 0; padding: 20px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-1); }
 .card[data-enabled='false'] { background: var(--dsw-alias-bg-layer-2); }
 .cardHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.cardTools { display: flex; align-items: center; flex: none; gap: 8px; }
+.cardTools { display: flex; align-items: center; flex-wrap: wrap; flex: none; gap: 8px; min-width: 0; max-width: 100%; }
 .expandButton { color: var(--dsw-alias-label-secondary); }
 .expandButton svg { transition: transform var(--ds-transition-duration-slow, 0.3s) var(--ds-ease-in-out, ease); }
 .expandButton[aria-expanded='true'] svg { transform: rotate(180deg); }
@@ -32,16 +33,22 @@
 .accountMark { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); color: var(--dsw-alias-label-primary); }
 .statusRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; min-height: 28px; margin: 14px 0; }
 .accountStatus, .enabledControl { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.enabledControl { flex-wrap: nowrap; flex: none; }
 .accountStatus > span, .enabledControl > span { font-size: 12px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
 .compactQuotas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding-top: 14px; border-top: 1px solid var(--dsw-alias-border-l3); }
 .compactQuotas .quotaLabel { flex-wrap: wrap; gap: 2px 8px; margin-bottom: 6px; }
 .compactQuotas .quotaTrack { height: 4px; }
 .quotas { display: grid; gap: 16px; padding-block: 16px; border-block: 1px solid var(--dsw-alias-border-l3); }
+.quota { --quota-fill: var(--dsw-alias-state-success-primary); }
+.quota[data-quota-level='warning'] { --quota-fill: var(--dsw-alias-state-warn-primary); }
+.quota[data-quota-level='critical'] { --quota-fill: var(--dsw-alias-state-error-primary); }
+.quota[data-quota-level='unknown'] { --quota-fill: var(--dsw-alias-bg-layer-2); }
 .quotaLabel { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
 .quotaLabel > span:last-child { color: var(--dsw-alias-label-primary); font-variant-numeric: tabular-nums; }
+.quota[data-quota-level='warning'] .quotaLabel > span:last-child { color: var(--dsw-alias-state-warn-label); }
+.quota[data-quota-level='critical'] .quotaLabel > span:last-child { color: var(--dsw-alias-state-error-primary); }
 .quotaTrack { height: 5px; border-radius: var(--dsw-radius-sm); overflow: hidden; background: var(--dsw-alias-bg-layer-2); }
-.quotaTrack > span { display: block; height: 100%; border-radius: inherit; background: var(--dsw-alias-state-success-primary); }
-.quotaTrack[data-low='true'] > span { background: var(--dsw-alias-state-warn-primary); }
+.quotaTrack > span { display: block; height: 100%; border-radius: inherit; background: var(--quota-fill); transition: width var(--ds-transition-duration-slow, 0.3s) var(--ds-ease-in-out, ease), background-color var(--ds-transition-duration-slow, 0.3s) var(--ds-ease-in-out, ease); }
 .quota small { display: block; margin-top: 6px; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 18px; }
 .details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; margin: 20px 0; }
 .details > div, .creditStats > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -60,7 +67,6 @@
 .cardFooter, .cardFooter > div { display: flex; align-items: center; gap: 8px; }
 .cardFooter { justify-content: space-between; padding-top: 16px; border-top: 1px solid var(--dsw-alias-border-l3); }
 .cardFooter span { font-size: 12px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
-.footnote { margin-top: 16px; }
 .dialog { width: min(480px, 100%); }
 .loginBrand { display: grid; place-items: center; width: 56px; height: 56px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); color: var(--dsw-alias-label-primary); }
 .loginState { display: flex; align-items: center; gap: 10px; margin-block: 20px 12px; font-size: 13px; line-height: 22px; }
@@ -75,18 +81,101 @@
 .dialogActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
 .editForm { display: grid; gap: 12px; }
 .editForm > label { font-size: 13px; line-height: 22px; color: var(--dsw-alias-label-primary); }
+.modelDialog { width: min(820px, 100%); height: 720px; max-height: 100%; min-height: 0; gap: 20px; padding-bottom: 24px; }
+.modelDialogContent { display: flex; flex: 1; flex-direction: column; gap: 0; min-height: 0; overflow: hidden; }
+.modelDialogContent > div:first-child { flex: none; }
+/* Modal 的 content 同时包含标题和 body；滚动与分区间距只由正文拥有。 */
+.modelDialogContent > div:has(> .modelDialogBody) { flex: 1; min-height: 0; margin-top: 0; overflow-y: auto; overscroll-behavior: contain; }
+.modelDialogBody { display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; min-height: 100%; padding-block: 6px 4px; }
+.modelDialogBody > * { flex-shrink: 0; }
+.modelIntro { min-width: 0; }
+.modelDialog .modelIntro > div { padding-bottom: 0; border-bottom: 0; }
+.modelIntro > div > div { min-width: 0; }
+.modelIntro > div > img { width: 56px; height: 56px; }
+.modelDialog .modelIntro p { font: var(--dsw-font-xs-13); line-height: 22px; }
+.modelForm { display: grid; gap: 18px; min-width: 0; }
+.modelKindRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; min-width: 0; min-height: 32px; }
+.modelKindTabs { flex: none; max-width: 100%; }
+.modelFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-items: start; gap: 16px; min-width: 0; min-height: 184px; }
+.modelBatchFields { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+.modelField { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.modelField > label, .modelLabel { color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 22px; }
+.modelField .modelSelect { justify-content: space-between; gap: 10px; width: 100%; height: 42px; min-width: 0; padding-inline: 12px; background: var(--dsw-alias-bg-layer-1); font-size: 14px; line-height: 22px; text-align: left; }
+.modelSelection { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
+.modelSelection > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modelSelect > svg, .modelSelection > svg { flex: none; color: var(--dsw-alias-label-tertiary); }
+.modelField .modelInput { box-sizing: border-box; width: 100%; height: 42px; min-width: 0; gap: 8px; padding-inline: 12px; border-color: var(--dsw-alias-border-l3); }
+.modelField .modelInput:focus-within { border-color: var(--dsw-alias-state-business-primary); }
+.modelInput:has(input:disabled) { opacity: 0.4; cursor: not-allowed; }
+.modelInput input { font-size: 14px; line-height: 22px; }
+.modelIdPreview { color: var(--dsw-alias-label-secondary); font-family: var(--ds-font-family-code); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
+.fieldHint { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+.modelDefault { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-2); font-size: 13px; line-height: 22px; }
+.modelDefault > button { flex: none; }
+.modelQueueActions { display: flex; grid-column: 1 / -1; justify-content: flex-end; }
+.modelPickerMenu[role='menu'] { max-width: calc(100vw - 24px); max-height: min(360px, calc(100dvh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)))); }
+.modelPickerMenu [role='menuitem'] { min-height: 40px; padding: 8px 12px; font: var(--dsw-font-xs-13); }
+.modelPickerMenu [role='menuitem'] > span { white-space: normal; }
+.modelPickerMenu > [role='presentation']:first-child { overscroll-behavior: contain; }
+.modelPickerMenu > [role='presentation']:last-child:not(:first-child) { display: grid; grid-template-columns: 1fr 1fr auto; gap: 4px; margin-top: 6px; padding-top: 6px; }
+.modelPickerMenu > [role='presentation']:last-child:not(:first-child) [role='menuitem'] { min-height: 32px; padding: 6px 8px; font: var(--dsw-font-xxs-12); }
+.modelPickerLabel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 12px; min-width: 0; }
+.modelPickerLabel strong { font: var(--dsw-font-xs-strong-13); overflow-wrap: anywhere; }
+.modelPickerLabel code { color: var(--dsw-alias-label-secondary); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; text-align: right; }
+.modelDialogFooter { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; width: 100%; }
+.modelBatchCount { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.modelFooterActions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.modelFooterActions > button { min-width: 88px; }
+.modelList { padding-top: 0; border-top: 0; }
+.modelListHeading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; }
+.modelList h3 { display: flex; align-items: center; flex: none; gap: 8px; margin: 0; font-size: 13px; line-height: 22px; font-weight: 500; }
+.modelCount { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding-inline: 6px; box-sizing: border-box; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.modelTableScroll { min-width: 0; overflow-x: auto; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
+.modelTable { width: 100%; min-width: 480px; border-collapse: collapse; table-layout: fixed; text-align: left; font-size: 13px; line-height: 20px; }
+.modelTable th { padding: 10px 16px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font: var(--dsw-font-xxs-12); }
+.modelTable th:nth-child(2) { width: 136px; }
+.modelTable th:last-child { width: 80px; }
+.modelTable td { padding: 12px 16px; border-top: 0.5px solid var(--dsw-alias-border-l3); vertical-align: middle; }
+.modelTable th:last-child, .modelTable td:last-child { text-align: right; }
+.modelTableIdentity { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.modelTableIdentity strong { color: var(--dsw-alias-label-primary); font: var(--dsw-font-xs-strong-13); overflow-wrap: anywhere; }
+.modelTableIdentity code { color: var(--dsw-alias-label-secondary); font-family: var(--ds-font-family-code); font-size: 12px; font-weight: 400; line-height: 18px; overflow-wrap: anywhere; }
+.modelPendingInput { box-sizing: border-box; width: calc(100% + 8px); min-width: 0; height: 32px; margin-inline-start: -8px; border-color: transparent; background: transparent; }
+.modelPendingInput input { font: var(--dsw-font-xs-strong-13); }
+@media (hover: hover) {
+  .modelTableRow:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .modelPendingInput:hover { border-color: var(--dsw-alias-border-l3); background: var(--dsw-alias-bg-layer-1); }
+}
+.modelPendingInput:focus-within { border-color: var(--dsw-alias-state-business-primary); background: var(--dsw-alias-bg-layer-1); }
+.modelPendingInput:has(input[aria-invalid='true']) { border-color: var(--dsw-alias-state-error-primary); }
+.modelTableTags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.modelTools { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.modelTable .modelTableEmpty { padding: 20px 16px; color: var(--dsw-alias-label-secondary); text-align: center; }
+.modelTableEmpty > span { display: inline-flex; align-items: center; gap: 10px; }
+.editForm > button { justify-content: space-between; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.editForm > button svg { flex: none; }
 .danger { color: var(--dsw-alias-state-error-primary); }
+@container (max-width: 420px) {
+  .cardHeading { flex-direction: column; }
+  .accountIdentity, .cardTools { width: 100%; }
+  .cardTools { justify-content: space-between; }
+  .compactQuotas { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .details { gap: 14px 16px; }
+}
 @media (max-width: 900px) { .intro { flex-wrap: wrap; } .actions { width: 100%; } }
 @media (max-width: 640px) {
+  .modelFields { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .modelIntro > div > img { width: 44px; height: 44px; }
+  .modelPickerLabel { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .modelPickerLabel code { text-align: left; }
   .intro { gap: 12px; }
   .intro > img { width: 80px; height: 80px; }
   .introCopy { flex-basis: calc(100% - 92px); }
   .card { padding: 18px; }
-  .cardTools { flex-direction: column; align-items: flex-end; gap: 4px; }
   .compactQuotas { gap: 16px; }
   .details { gap: 14px 16px; }
   .creditPanel { padding: 14px; }
   .actions > button { flex: 1; }
   .empty { padding: 32px 20px; }
 }
-@media (prefers-reduced-motion: reduce) { .expandButton svg, .detailDisclosure > div { transition: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .expandButton svg, .detailDisclosure > div { transition: none; transform: none; } .quotaTrack > span { transition: none; } }

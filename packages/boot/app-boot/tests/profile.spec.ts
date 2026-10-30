@@ -371,6 +371,7 @@ describe('loadProfile', () => {
     expect(PROFILE_TEMPLATES.web?.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
       'dsh-plugin-visual-curator',
+      'dsh-plugin-style-prompt',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
     ])
     expect(PROFILE_TEMPLATES.acp).toEqual({
@@ -391,9 +392,11 @@ describe('loadProfile', () => {
     { selected: [] }, { selected: ['dsh-better-sidebar'] }, { selected: ['dsh-plugin-better-sidebar-updater'] },
     { selected: ['dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater'] },
     { selected: ['dsh-plugin-visual-curator'] },
+    { selected: ['dsh-plugin-style-prompt'] },
   ])('preserves existing Web bundle selections $selected when defaults change', ({ selected }) => {
     const names = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
       'dsh-plugin-visual-curator',
+      'dsh-plugin-style-prompt',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater']
     const anchor = stageInstallation(Object.fromEntries(names.map(name => [name, { patch: '[]\n' }])))
     const home = tmp()

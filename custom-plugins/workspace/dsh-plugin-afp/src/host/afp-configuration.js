@@ -1,6 +1,7 @@
 import { resolveConfig } from '../../config-schema.js'
 import { digest } from './afp-state-store.js'
 import { agentError } from './afp-agent-errors.js'
+import { nativeVisionInformation } from './afp-native-vision.js'
 
 /** Non-secret deployment edits use the profile editor's validation, lock and rollback. */
 export async function configurationAction(ctx, input, service, signal) {
@@ -9,11 +10,12 @@ export async function configurationAction(ctx, input, service, signal) {
   const config = resolveConfig(entry.fiber.config)
   if (input.operation === 'read' && Object.keys(input).length === 1) {
     if (!service) throw new Error('AFP configuration service unavailable')
-    return JSON.stringify({ config, revision: digest(JSON.stringify(config)), ...(await service.connection.configurationInfo()) })
+    return JSON.stringify({ config, revision: digest(JSON.stringify(config)), ...(await service.connection.configurationInfo()),
+      vision: await nativeVisionInformation(ctx.llm, config) })
   }
   if (input.operation === 'reveal-credential') {
     if (Object.keys(input).some(key => !['operation', 'key', 'revision'].includes(key))
-      || !['passwordRef', 'accessTokenRef', 'visionKeyRef'].includes(input.key)) throw new Error('Invalid AFP credential field')
+      || !['passwordRef', 'accessTokenRef'].includes(input.key)) throw new Error('Invalid AFP credential field')
     if (input.revision !== digest(JSON.stringify(config))) throw new Error('AFP configuration changed; reopen the editor')
     if (!service) throw new Error('AFP configuration service unavailable')
     const details = await service.connection.configurationInfo(input.key)
@@ -35,6 +37,7 @@ export async function configurationAction(ctx, input, service, signal) {
   }
   if (input.operation !== 'save' || Object.keys(input).some(key => !['operation', 'config', 'revision'].includes(key))) throw new Error('Invalid AFP configuration operation')
   const next = resolveConfig(JSON.parse(input.config))
+  if (next.visionProvider && (await nativeVisionInformation(ctx.llm, next)).state !== 'ready') throw new Error('Select an available image model in Settings')
   await ctx.configEditor.edit(entry, current => {
     if (digest(JSON.stringify(resolveConfig(current))) !== input.revision) throw new Error('AFP configuration changed; reopen the editor')
     return next

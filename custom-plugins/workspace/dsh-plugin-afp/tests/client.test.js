@@ -25,7 +25,7 @@ function visibleElements(node, match) {
 
 test('account sections keep unsaved credential and model values while exposing only the selected fields', () => {
   const Input = Symbol('Input'), Button = Symbol('Button')
-  const config = { usernameRef: 'AFP_USERNAME', passwordRef: 'AFP_PASSWORD', visionModel: 'original', targetPerCategory: 70 }
+  const config = { usernameRef: 'AFP_USERNAME', passwordRef: 'AFP_PASSWORD', visionProvider: 'configured', visionModel: 'original', targetPerCategory: 70 }
   const states = [{ config }, JSON.stringify(config), {}, '', false, false, config]
   let cursor = 0
   const React = { createElement: element, useEffect() {}, useId: () => 'form-test', useRef: initial => ({ current: initial }), useState(initial) {
@@ -39,17 +39,17 @@ test('account sections keep unsaved credential and model values while exposing o
   let tree = render('credentials')
   input(tree, 'passwordRef').props.onChange({ target: { value: 'unsaved-password' } })
   tree = render('vision')
-  input(tree, 'visionModel').props.onChange({ target: { value: 'edited-model' } })
+  findElement(tree, node => node.props.label === 'visionModel').props.onChange(JSON.stringify(['configured', 'edited-model']))
   assert.equal(render('features').props.hidden, true)
   assert.equal(input(render('credentials'), 'passwordRef').props.value, 'unsaved-password')
-  assert.equal(input(render('vision'), 'visionModel').props.value, 'edited-model')
+  assert.equal(findElement(render('vision'), node => node.props.label === 'visionModel').props.value, JSON.stringify(['configured', 'edited-model']))
   assert.equal(JSON.parse(states[1]).targetPerCategory, 70, 'Editing the model preserves other deployment values')
   const output = Object.fromEntries(['credentials', 'vision', 'features'].map(section => {
     const form = render(section)
     const panel = findElement(form, node => node.props?.role === 'tabpanel' && !node.props.hidden)
     return [section, { formHidden: form.props.hidden,
       panel: panel?.props['aria-labelledby'] ?? null,
-      fields: form.props.hidden ? [] : panel ? visibleElements(panel, node => node.type === Input).map(node => node.props['aria-label']) : [],
+      fields: form.props.hidden ? [] : panel ? visibleElements(panel, node => node.type === Input || node.props.label === 'visionModel').map(node => node.props['aria-label'] ?? node.props.label) : [],
       collapsedGroups: visibleElements(form, node => node.type === 'details').map(node => node.props.children[0].props.children[0]),
       advanced: visibleElements(form, node => node.props?.className === 'afp-advanced-toggle').map(node => ({ expanded: node.props['aria-expanded'] }))[0] ?? null,
     }]
@@ -59,7 +59,7 @@ test('account sections keep unsaved credential and model values while exposing o
 
 test('workbench advanced editing shares the model draft and survives collapsing and switching sections', async () => {
   const Input = Symbol('Input'), Button = Symbol('Button'), StateDot = Symbol('StateDot')
-  const config = { visionModel: 'original', visionBaseUrl: 'https://vision.test', targetPerCategory: 70 }
+  const config = { visionProvider: 'configured', visionModel: 'original', targetPerCategory: 70 }
   const states = [{ config, revision: 'current' }, JSON.stringify(config), {}]
   let cursor = 0, releaseSave, saved = 0
   const calls = []
@@ -80,7 +80,7 @@ test('workbench advanced editing shares the model draft and survives collapsing 
   const render = (section = 'vision') => { cursor = 0; return Form({ view: 'page', section, sectionId: 'settings', className: 'afp-wb-config-form', onSaved: () => { saved++ } }) }
   const editor = tree => findElement(tree, node => node.type === 'textarea')
   const toggle = tree => findElement(tree, node => node.props?.className === 'afp-advanced-toggle')
-  const field = tree => findElement(tree, node => node.type === Input && node.props['aria-label'] === 'visionModel')
+  const field = tree => findElement(tree, node => node.props.label === 'visionModel')
   const tick = () => new Promise(resolve => setImmediate(resolve))
   let tree = render()
   const primary = findElement(tree, node => node.props?.className === 'afp-config-primary')
@@ -89,7 +89,7 @@ test('workbench advanced editing shares the model draft and survives collapsing 
   assert.equal(toggle(tree).props['aria-expanded'], true)
   assert.equal(toggle(tree).props['aria-controls'], 'advanced-test-advanced-content')
   editor(tree).props.onChange({ target: { value: JSON.stringify({ ...config, visionModel: 'from-json' }) } })
-  assert.equal(field(render()).props.value, 'from-json')
+  assert.equal(field(render()).props.value, JSON.stringify(['configured', 'from-json']))
   toggle(render()).props.onClick()
   tree = render()
   assert.equal(toggle(tree).props['aria-expanded'], false)
@@ -100,7 +100,7 @@ test('workbench advanced editing shares the model draft and survives collapsing 
   tree = render()
   assert.equal(toggle(tree).props['aria-expanded'], false)
   toggle(tree).props.onClick()
-  field(render()).props.onChange({ target: { value: 'from-field' } })
+  field(render()).props.onChange(JSON.stringify(['configured', 'from-field']))
   assert.equal(JSON.parse(editor(render()).props.value).visionModel, 'from-field')
   assert.equal(JSON.parse(editor(render()).props.value).targetPerCategory, 70)
   editor(render()).props.onChange({ target: { value: '{unfinished' } })
@@ -123,6 +123,36 @@ test('workbench advanced editing shares the model draft and survives collapsing 
   assert.equal(calls[0].revision, 'current')
   assert.equal(saved, 1)
   assert.equal(findElement(render(), node => node.type === Button && node.props.type === 'submit').props.disabled, false)
+})
+
+test('vision selection has one visible title and a compact accessible refresh that preserves editing', async () => {
+  const Input = Symbol('Input'), Button = Symbol('Button'), RefreshIcon = Symbol('RefreshIcon')
+  const config = { visionProvider: 'saved', visionModel: 'vision', targetPerCategory: 70 }
+  const metadata = { config, vision: { models: [{ provider: 'saved', providerName: 'Saved', id: 'vision', name: 'Vision' }] } }
+  const states = [metadata, JSON.stringify(config), {}, '', false, false, config]
+  let cursor = 0, release
+  const React = { createElement: element, useEffect() {}, useId: () => 'compact-model', useRef: initial => ({ current: initial }), useState(initial) {
+    const index = cursor++
+    if (states[index] === undefined) states[index] = initial
+    return [states[index], update => { states[index] = typeof update === 'function' ? update(states[index]) : update }]
+  } }
+  const ctx = { remote: { pluginManager: { invokeAction: () => new Promise(resolve => { release = () => resolve({ ok: true, value: { output: JSON.stringify(metadata) } }) }) } } }
+  const Form = createConfigurationForm(React, { Input, Button, RefreshIcon }, ctx, key => ['vision', 'visionModel'].includes(key) ? '视觉模型' : key)
+  const render = () => { cursor = 0; return Form({ view: 'page', section: 'vision', sectionId: 'settings' }) }
+  const refresh = tree => findElement(tree, node => node.type === Button && node.props['aria-label'] === 'visionReloadModels')
+  const titleNodes = visibleElements(render(), node => node.props.children?.includes('视觉模型'))
+  assert.equal(titleNodes.length, 1)
+  assert.equal(titleNodes[0].type, 'h4')
+  assert.equal(refresh(render()).props.icon.type, RefreshIcon)
+  assert.equal(refresh(render()).props.children[0], null, 'Refresh uses its accessible name without repeating a wide text button')
+  const pending = refresh(render()).props.onClick()
+  assert.equal(refresh(render()).props['aria-busy'], true)
+  const selector = findElement(render(), node => node.props.label === '视觉模型')
+  assert.equal(selector.props.disabled, false, 'The existing selection stays usable during discovery')
+  selector.props.onChange(JSON.stringify(['saved', 'edited']))
+  release(); await pending
+  assert.equal(JSON.parse(states[1]).visionModel, 'edited', 'Refreshing choices cannot replace the draft')
+  assert.equal(refresh(render()).props['aria-busy'], false)
 })
 
 test('queued feature switches preserve unrelated selections and distinguish actual runtime state', async () => {
@@ -254,8 +284,9 @@ test('configuration starts with form-sized skeleton columns and replaces them wi
   assert.equal(ready.props['aria-busy'], false)
   assert.equal(findElement(ready, node => node.props?.className === 'afp-config-advanced-card'), undefined, 'Standalone configuration keeps its original disclosure')
   assert.equal(findElement(ready, node => node.type === 'details' && node.props.className === 'afp-advanced').props.open, undefined)
-  assert.equal(findElement(ready, node => node.props?.role === 'status'), undefined)
-  assert.ok(findElement(ready, node => node.type === Input && node.props['aria-label'] === 'visionBaseUrl'))
+  assert.equal(findElement(ready, node => node.props?.role === 'status' && node.props['aria-label'] === 'loading'), undefined)
+  assert.equal(findElement(ready, node => node.type === Input && node.props['aria-label'] === 'visionBaseUrl'), undefined)
+  assert.equal(findElement(ready, node => node.props.label === 'visionModel').props.disabled, true)
   assert.equal(findElement(ready, node => node.type === Button && node.props.type === 'submit').props.disabled, false)
   dispose()
 })
@@ -281,12 +312,12 @@ test('credential fields show saved usernames, toggle independent drafts and hide
   const input = (tree, key) => findElement(tree, node => node.type === Input && node.props['aria-label'] === key)
   const toggle = (tree, key) => findElement(tree, node => node.type === Button && node.props['aria-controls'] === input(tree, key).props.id)
   const initial = render()
-  const snapshot = Object.fromEntries(['usernameRef', 'passwordRef', 'accessTokenRef', 'visionKeyRef'].map(key => {
+  const snapshot = Object.fromEntries(['usernameRef', 'passwordRef', 'accessTokenRef'].map(key => {
     const field = input(initial, key)
     return [key, { type: field.props.type, masked: field.props.className.includes('afp-secret-masked'), autoComplete: field.props.autoComplete, value: field.props.value, placeholder: field.props.placeholder, visible: key === 'usernameRef' || toggle(initial, key).props['aria-pressed'] }]
   }))
   assert.deepEqual(snapshot, JSON.parse(readFileSync(new URL('./fixtures/credential-fields.json', import.meta.url), 'utf8')))
-  for (const key of ['passwordRef', 'accessTokenRef', 'visionKeyRef']) {
+  for (const key of ['passwordRef', 'accessTokenRef']) {
     const tree = render()
     assert.equal(toggle(tree, key).props.disabled, key !== 'passwordRef')
     input(tree, key).props.onChange({ target: { value: `draft-${key}` } })
@@ -300,9 +331,9 @@ test('credential fields show saved usernames, toggle independent drafts and hide
   toggle(render(), 'passwordRef').props.onClick({ currentTarget: { closest: () => null } })
   render().props.onSubmit({ preventDefault() {} })
   await new Promise(resolve => setImmediate(resolve))
-  assert.equal(writes.length, 3, 'Unchanged displayed username is not rewritten')
+  assert.equal(writes.length, 2, 'Unchanged displayed username is not rewritten; AFP has no separate vision key')
   assert.equal(input(render(), 'usernameRef').props.value, 'saved-account')
-  for (const key of ['passwordRef', 'accessTokenRef', 'visionKeyRef']) {
+  for (const key of ['passwordRef', 'accessTokenRef']) {
     assert.equal(input(render(), key).props.value, '')
     assert.ok(input(render(), key).props.className.includes('afp-secret-masked'))
   }

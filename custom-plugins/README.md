@@ -11,7 +11,7 @@ Independent product versions, formal Release assets and historical tag retention
 
 ## Summary
 
-Develop maintained plugin bundles under `workspace/`, with independently versioned npm packages. AFP, Better Sidebar and its nested updater are explicitly included in the repository pnpm workspace and supplied to Web/Desktop; the sidebar packages are optional. This directory organizes plugin sources and is not a package to publish. Read the [architecture guide](architecture.md) before changing rows or file ownership.
+Develop maintained plugin bundles under `workspace/`, with independently versioned npm packages. Installation-supplied bundles are declared in the [CLI production dependencies](../apps/cli/package.json) and packed into Desktop's runtime; profiles select their own enabled bundles. This directory organizes plugin sources and is not a package to publish. Read the [architecture guide](architecture.md) before changing rows or file ownership.
 
 ## Table of Contents
 
@@ -27,6 +27,7 @@ Develop maintained plugin bundles under `workspace/`, with independently version
 - [AFP curation](workspace/dsh-plugin-afp/README.md): photo search, visual curation, and local installation steps.
 - [AFP releases](workspace/dsh-plugin-afp/release/README.md): versioned GitHub artifacts and the reusable release procedure.
 - [Visual Curator](workspace/dsh-plugin-visual-curator/README.md): versioned styles, human feedback, image search and reviewed crops, carried with the application.
+- [Style Prompt](workspace/dsh-plugin-style-prompt/README.md): installation-supplied reference-style analysis through configured APIs and differentiated prompts for manual image generation.
 - [Architecture](architecture.md): package layout, feature declarations, UI placement, file lifecycle, and distribution rules.
 
 ## Structure

@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+独立任务可通过 `compactInput` 按原生模型策略压缩文本，无需创建或修改 Session。调用方负责固定输入、预算、取消和持久请求记录；不支持该操作的后端明确拒绝。[Basic 后端](../compaction-basic/README.zh.md)提供实现。
+
 先确定你需要什么。随附后端加 `/compact` 命令即可零代码获得自动与按需压缩；只有在你扩展或重实现该功能时才需要本包。以下各节说明压缩做什么、如何启用，以及如何编写后端。
 
 ### 何时选择

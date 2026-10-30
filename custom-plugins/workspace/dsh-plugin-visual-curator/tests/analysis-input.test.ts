@@ -48,6 +48,11 @@ test('saved analysis inputs match transmitted messages and preserve request iden
     const legacyRun = { ...run, data: toJson({ ...dataOf(run), requestIds: [legacy.id] }) }
     assert.equal(analysisRequests(f.domain, legacyRun)[0]?.available, false)
     assert.throws(() => readAnalysisInput(f.domain, legacyRun, legacy.id, f.actor), /historical|saved input/i)
+    const failedRequest = requestSchema.parse({ ...request, id: 'safe-failure-facts', state: 'outcome-unknown', data: { bundle: z.object({ bundle: z.json() }).parse(request.data).bundle, error: { code: 'request-timeout', stage: 'reviewing', retryable: true, safeMessage: 'The model request timed out.', suggestedAction: 'Continue analysis.', headers: { authorization: 'fixture-private-value' } }, rawResponse: 'fixture-private-value' } })
+    await f.repository.commit({ aggregateId: 'safe-failure-fixture', expectedRevision: 0, operationId: 'safe-failure-fixture', request: {}, records: [failedRequest], state: {} })
+    const failedFacts = analysisRequests(f.domain, { ...run, data: toJson({ ...dataOf(run), requestIds: [failedRequest.id] }) })
+    assert.equal(failedFacts[0]?.error?.code, 'request-timeout')
+    assert.equal(JSON.stringify(failedFacts).includes('fixture-private-value'), false)
     const interrupted = requestSchema.parse({ ...request, id: 'interrupted-input', state: 'outcome-unknown', data: z.object({ bundle: z.json() }).parse(request.data).bundle })
     await f.repository.commit({ aggregateId: 'interrupted-input-fixture', expectedRevision: 0, operationId: 'interrupted-input-fixture', request: {}, records: [interrupted], state: {} })
     const interruptedRun = { ...run, data: toJson({ ...dataOf(run), requestIds: [interrupted.id] }) }

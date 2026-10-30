@@ -7,12 +7,44 @@
  * @module @deepseek-ai/dsh-compaction/types
  */
 
-import type { ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, TokenUsage, LlmCallConfig, Message, FinishReason } from '@deepseek-ai/dsh-llm'
 import type { CommandId } from '@deepseek-ai/dsh-commands/brand'
 import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { CompactionId } from './brand.ts'
 
 export type { CompactionId }
+
+/** Text owned by a non-Session operation; fixed instructions and evidence stay outside the compressed chunks. */
+export interface InputCompactionRequest {
+  /** Actual routed controls and capacity from one prepared native call. */
+  config: LlmCallConfig
+  contextWindow: number
+  /** Estimated tokens for all fixed input, excluding chunks and reserved output. */
+  retainedTokens: number
+  chunks: readonly string[]
+  /** Domain-specific facts the summary must preserve; supplied by the trusted consumer. */
+  instruction: string
+  /** Byte limit for the complete streamed summary, including reasoning. */
+  maxOutputBytes: number
+}
+
+/** Exact auxiliary input recorded by the operation before dispatch. */
+export interface InputCompactionCall { config: LlmCallConfig; messages: Message[] }
+
+/** Auxiliary call facts retained on success and terminal failure. */
+export interface InputCompactionMetadata { usage?: TokenUsage; finish?: FinishReason }
+
+/** Validated complete textual response; the owner can replay this saved value. */
+export interface InputCompactionOutput { text: string }
+
+/** Owner-provided budget, persistence, replay and cancellation for each auxiliary call. */
+export type InputCompactionRunner = (
+  call: InputCompactionCall,
+  work: (signal: AbortSignal, record: (metadata: InputCompactionMetadata) => Promise<void>) => Promise<InputCompactionOutput>,
+) => Promise<InputCompactionOutput>
+
+/** Compacted text and fixed-heuristic chunk prices, excluding retained input. */
+export interface InputCompactionResult extends InputCompactionOutput { inputTokens: number; outputTokens: number }
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {

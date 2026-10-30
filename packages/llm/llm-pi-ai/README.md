@@ -25,6 +25,8 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
+Each `models` entry or `modelOverrides` value accepts `nativeWebSearch`; omit it for automatic capability matching, set `true` to declare support, or set `false` to opt out. The UI retains discovered provider defaults in `nativeWebSearchDefault`, separately from manual overrides. Native search supports OpenAI Responses, Codex Responses, Anthropic Messages, Gemini grounding and search-specific OpenAI Chat Completions models. A gateway must serve the selected protocol; ordinary function calling alone does not establish native search support. See [web-tool routing](../../web/tool-web/README.md).
+
 Mount this plugin when a composition routes model requests through pi-ai's provider catalogs or through gateways that pi-ai's installed catalog does not describe. The `providers` dictionary is the whole configuration surface: each key is the provider route name a request selects with `GenerateOptions.provider`.
 
 The adapter accepts the LLM service's [request-only user inputs](../llm/README.md#use-this-package) alongside durable history. User identity and attribution do not enter pi-ai content; assistant replay metadata and tool-call correlation remain attached to durable messages.
@@ -236,7 +238,6 @@ Recorded response content appends to the next request and does not invalidate it
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
-
 
 These limits define where the adapter stops and future work begins. They are current package constraints, not a general pi-ai comparison or a task backlog.
 

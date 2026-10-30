@@ -22,6 +22,10 @@
       "types": "./lib/types/types.d.ts",
       "default": "./lib/types/types.js"
     },
+    "./native-web-search": {
+      "types": "./lib/types/native-web-search.d.ts",
+      "default": "./lib/types/native-web-search.js"
+    },
     "./brand": {
       "types": "./lib/types/brand.d.ts",
       "default": "./lib/types/brand.js"

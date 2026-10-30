@@ -1,7 +1,8 @@
 /** Direct Messages transport with one cancellable lifecycle per model request. */
 
 import { attributionHeaders, LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
-import type { GenerateOptions, ImageAttachmentAccessResolver, PreparedAdapterCall, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, ImageAttachmentAccessResolver, PreparedAdapterCall, StreamChunk, NativeWebSearchRequest, NativeWebSearchResult } from '@deepseek-ai/dsh-llm'
+import { mapAnthropicResponse } from '@deepseek-ai/dsh-web-search-deepseek'
 import type { DeepSeekLlmApiJson } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { modelInfo } from './model-info.ts'
@@ -38,6 +39,40 @@ export class DeepSeekAdapter<C extends Connection = Connection> extends LlmAdapt
   }
   override async resolveModel(provider: string, model: string, signal?: AbortSignal) {
     return modelInfo(await this.connection(signal), provider, model)
+  }
+  /**
+   * Search with this exact model and the connection's own account or API key.
+   * @param request Query, cancellation and durable model-input recorder.
+   * @returns Structured Messages search results using the existing source parser.
+   */
+  override async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult> {
+    const connection = await this.connection(request.signal)
+    this.dependencies.admit?.(connection, request.model)
+    if (modelInfo(connection, request.provider, request.model).nativeWebSearch !== true) {
+      throw new LlmError('Native web search is disabled for this model', 'UNSUPPORTED_OPTION')
+    }
+    const auth = await this.dependencies.resolveAuth(connection)
+    const body = { model: request.model, max_tokens: connection.models.find(model => model.id === request.model)?.maxTokens ?? connection.maxTokens,
+      messages: [{ role: 'user', content: [{ type: 'text', text: `Perform a web search for the query: ${request.query}` }] }],
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }], thinking: { type: 'disabled' } }
+    request.recordRequest({ api: 'deepseek-messages', body })
+    try {
+      const response = await fetch(`${messagesApiRoot(connection.baseURL)}/messages`, { method: 'POST', redirect: 'error',
+        headers: { ...auth.headers, ...attributionHeaders(), 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify(body), signal: AbortSignal.any([request.signal, AbortSignal.timeout(connection.streamIdleTimeoutMs)]) })
+      if (!response.ok) {
+        let detail: unknown
+        try { detail = await response.json() } catch (_invalidProviderErrorJson) { /* HTTP 状态保留为主要错误。 */ }
+        throw providerError(detail, response.status, response.headers)
+      }
+      const payload: unknown = await response.json()
+      if (payload === null || typeof payload !== 'object' || !('content' in payload) || !Array.isArray(payload.content)) {
+        throw new LlmError('The native-search endpoint returned invalid Messages content', 'MALFORMED_RESPONSE')
+      }
+      const result = mapAnthropicResponse(payload as Parameters<typeof mapAnthropicResponse>[0])
+      return { ...result.content === undefined ? {} : { content: result.content }, sources: result.sources.slice(0, request.maxResults),
+        truncated: result.truncated || result.sources.length > request.maxResults }
+    } catch (error) { throw await auth.onRequestError?.(error) ?? error }
   }
   override imageRequestPricing(_provider: string, model: string) {
     return imagePricing(this.dependencies.options(), model, this.imageAccess)

@@ -16,8 +16,10 @@ function supported(model: NativeModel): readonly ModelThinkingLevel[] {
 }
 
 function capabilities(entry: Entry): string {
+  // 仅新增搜索能力参与新分组，未声明搜索的旧能力 ID 保持稳定。
   return JSON.stringify([entry.model.contextWindow, entry.model.maxTokens, [...entry.model.input].sort(), supported(entry.model),
-    levels.map(level => entry.model.thinkingLevelMap?.[level]), entry.defaultEffort, entry.view.serviceTiers?.slice().sort(), entry.model.compat])
+    levels.map(level => entry.model.thinkingLevelMap?.[level]), entry.defaultEffort, entry.view.serviceTiers?.slice().sort(), entry.model.compat,
+    ...entry.view.nativeWebSearch === true ? ['native-web-search'] : []])
 }
 
 function supports(have: Entry, need: Entry): boolean {
@@ -26,6 +28,7 @@ function supports(have: Entry, need: Entry): boolean {
     && supported(need.model).every(level => supported(have.model).includes(level)
       && have.model.thinkingLevelMap?.[level] === need.model.thinkingLevelMap?.[level])
     && (need.view.serviceTiers === undefined || need.view.serviceTiers.every(tier => have.view.serviceTiers?.includes(tier)))
+    && (need.view.nativeWebSearch !== true || have.view.nativeWebSearch === true)
     && JSON.stringify(have.model.compat) === JSON.stringify(need.model.compat)
 }
 
@@ -46,7 +49,8 @@ export function buildModelRoutes(accounts: readonly { accountKey: string; snapsh
     const groups = [...new Map(entries.slice().sort((a, b) => a.accountKey.localeCompare(b.accountKey)).map(entry => [capabilities(entry), entry])).entries()]
       .sort(([aKey, a], [bKey, b]) => b.model.contextWindow - a.model.contextWindow
         || Math.max(...supported(b.model).map(level => levels.indexOf(level))) - Math.max(...supported(a.model).map(level => levels.indexOf(level)))
-        || b.model.input.length - a.model.input.length || b.model.maxTokens - a.model.maxTokens || aKey.localeCompare(bKey))
+        || b.model.input.length - a.model.input.length || b.model.maxTokens - a.model.maxTokens
+        || Number(b.view.nativeWebSearch === true) - Number(a.view.nativeWebSearch === true) || aKey.localeCompare(bKey))
     for (const [index, [key, entry]] of groups.entries()) {
       const capabilityId = `dsh-cap:${createHash('sha256').update(baseModelId).update('\0').update(key).digest('hex').slice(0, 32)}`
       if (byModel.has(capabilityId)) throw new Error('The upstream catalog collides with a reserved capability route ID.')

@@ -5,7 +5,9 @@ const defaults = Object.freeze({
   allowWrites: false, autoRefreshToken: true,
   debugEnabled: false, debugMaxBytes: 262144, debugMaxEvents: 1000, debugMaxRuns: 20, debugRetentionDays: 7, debugFlushIntervalMs: 1000,
   accessTokenRef: 'AFP_ACCESS_TOKEN', usernameRef: 'AFP_USERNAME', passwordRef: 'AFP_PASSWORD',
-  visionKeyRef: 'VISION_API_KEY', visionModel: '', visionBaseUrl: '', reasoningModel: '', reasoningEffort: '',
+  visionProvider: '', visionModel: '',
+  // 旧字段仅供已发布配置和报告读取；运行时不再使用独立接口与密钥。
+  visionKeyRef: 'VISION_API_KEY', visionBaseUrl: '', reasoningModel: '', reasoningEffort: '',
   language: 'en', farEndpoint: 'https://far-api-news.app.afp.com/',
   selectionsEndpoint: 'https://slt-api-news.app.afp.com',
   loginEndpoint: 'https://hub-api-news.app.afp.com/search',
@@ -56,7 +58,7 @@ export function resolveConfig(input = {}) {
   for (const key of ['accessTokenRef', 'usernameRef', 'passwordRef', 'visionKeyRef']) {
     if (typeof config[key] !== 'string' || !/^[A-Z_][A-Z0-9_]*$/.test(config[key])) throw new Error(`Invalid ${key}`)
   }
-  for (const key of ['visionModel', 'reasoningModel', 'reasoningEffort', 'language']) {
+  for (const key of ['visionProvider', 'visionModel', 'reasoningModel', 'reasoningEffort', 'language']) {
     if (typeof config[key] !== 'string' || config[key].length > 200) throw new Error(`Invalid ${key}`)
   }
   if (!['', 'low', 'medium', 'high'].includes(config.reasoningEffort)) throw new Error('Invalid reasoningEffort')

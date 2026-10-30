@@ -9,6 +9,10 @@ import { createImageTools, imageToolValue, renderImageToolValue } from '../src/h
 import type { ImageOwner, ImagesFacade, ImageTask } from '../src/host/images/types.ts'
 import { ImageServiceError } from '../src/host/images/errors.ts'
 import * as loader from '../src/host/tools.ts'
+import { ConversationNodeAssembler } from '@deepseek-ai/dsh-client-ui-conversation/src/client/conversation/assembler.ts'
+import type { ConversationViewDefinition, ConversationViewNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { imageConversationDefinition, imageTurnDefinition } from '../src/client/conversation.ts'
+import { z } from 'zod'
 
 const task: ImageTask = { id: 'recorded-image-task', state: 'succeeded', owner: { kind: 'session', sessionId: 'image-session', toolCallId: 'generate' },
   prompt: 'A green square', model: 'gpt-image-2', createdAt: 1, updatedAt: 2, deadlineAt: 300001, accountKey: 'never-expose-account',
@@ -47,12 +51,22 @@ class RecordedAdapter extends LlmAdapter {
   }
 }
 
+function imageProjectionView(): ConversationViewDefinition {
+  return { target: 'chat', create() {
+    let current: readonly ConversationViewNode[] = []
+    return { empty: current, replace: ({ nodes }) => { current = nodes; return current }, apply: ({ upserts }) => {
+      const nodes = new Map(current.map(node => [node.key, node])); for (const node of upserts) nodes.set(node.key, node)
+      current = [...nodes.values()]; return current
+    } }
+  } }
+}
+
 test('real AgentLoop records image tools, canonical metadata, owner refusal, validation and reversible unload', async () => {
   const ctx = new Context()
   let submittedOwner: ImageOwner | undefined
   let waited = -1
   const images: ImagesFacade = {
-    submit: (_input, owner) => { submittedOwner = owner; verifyOwner(owner); return Promise.resolve(task) },
+    submit: (input, owner) => { submittedOwner = owner; verifyOwner(owner); assert.deepEqual(input.referenceImages, ['data:image/png;base64,fixture']); assert.equal('referenceAttachmentIds' in input, false); return Promise.resolve(task) },
     getResult: (id, owner, options) => { verifyOwner(owner); waited = options?.waitMs ?? 0; if (id !== task.id) return Promise.reject(new ImageServiceError('image-task-not-found', 'The image task is unavailable to this caller.')); return Promise.resolve(task) },
     cancel: (_id, owner) => { verifyOwner(owner); return Promise.resolve({ ...task, state: 'cancelled' }) },
     list: owner => { verifyOwner(owner); return Promise.resolve([task]) },
@@ -62,11 +76,13 @@ test('real AgentLoop records image tools, canonical metadata, owner refusal, val
     await mountAgentLoopTestDependencies(ctx)
     const harness = await mountAgentLoopTestHarness(ctx)
     const tools = ctx.plugin({ name: 'recorded-image-tools', inject: ['tools'], apply(child) {
-      for (const tool of createImageTools(images, { quickWaitMs: () => 37, admitImages: () => Promise.resolve(false) })) child.effect(() => child.tools.register(tool), `recorded ${tool.name}`)
+      for (const tool of createImageTools(images, { quickWaitMs: () => 37, admitImages: () => Promise.resolve(false),
+        resolveAttachments: async (ids, exec) => { assert.deepEqual(ids, ['latest']); assert.equal(exec.agent?.session.id, 'image-session'); return ['data:image/png;base64,fixture'] },
+      })) child.effect(() => child.tools.register(tool), `recorded ${tool.name}`)
     } })
     await tools
     const script: ((request: GenerateOptions) => Promise<StreamChunk[]>)[] = [
-      async () => call('generate', 'codex_image_generate', { prompt: 'A green square' }),
+      async () => call('generate', 'codex_image_generate', { prompt: 'A green square', referenceAttachmentIds: ['latest'] }),
       async request => {
         const result = request.messages.find(message => message.role === 'tool' && message.toolCallId === 'generate')
         assert.ok(result)
@@ -103,7 +119,41 @@ test('real AgentLoop records image tools, canonical metadata, owner refusal, val
     assert.ok(logged.includes('codexImage'))
     assert.ok(logged.includes('preview-image'))
     assert.ok(logged.includes('original-image'))
+    assert.ok(logged.includes('latest'))
+    assert.ok(!logged.includes('base64,fixture'))
     assert.ok(!logged.includes('never-expose-account'))
+    const projection = new ConversationNodeAssembler(
+      { entries: () => [imageTurnDefinition, imageConversationDefinition], fallbackEntry: () => undefined },
+      { entries: () => [imageProjectionView()] },
+    )
+    const displayedImages = () => z.array(z.object({ kind: z.string(), groupTree: z.string(), visibility: z.string(), anchorSeq: z.number(), data: z.unknown() }))
+      .parse(projection.snapshot('chat')).filter(node => node.kind === 'codex-image')
+    const generation = events.find(event => event.type === 'tool/call' && event.data.name === 'codex_image_generate')
+    assert.ok(generation)
+    projection.replaceWindow(events.filter(event => event.seq <= generation.seq).map(event => ({ type: 'event' as const, event })), false)
+    projection.activateTarget('chat')
+    const pendingImage = displayedImages()[0]
+    assert.equal(pendingImage?.groupTree, 'turn')
+    assert.equal(pendingImage?.visibility, 'visible')
+    assert.deepEqual(pendingImage?.data, { callId: 'generate', settled: false, failed: false, saved: undefined, live: true })
+    projection.replaceWindow(events.map(event => ({ type: 'event' as const, event })), false)
+    projection.flush()
+    const displayed = displayedImages()
+    assert.equal(displayed.length, 1, 'result queries must not create duplicate image rows')
+    assert.equal(displayed[0]?.groupTree, 'turn', 'images must remain outside completed process folding')
+    assert.ok((displayed[0]?.anchorSeq ?? 0) > (results.at(-1)?.seq ?? 0), 'the entire tool process must precede the image')
+    const oldGeneration = events.map(event => event.type === 'tool/result' && event === results[0]
+      ? { ...event, data: { ...event.data, meta: { codexImage: { version: 1, operation: 'generate', ...imageToolValue({ ...task, state: 'sent', assets: [] }, false) } } } } : event)
+    projection.replaceWindow(oldGeneration.map(event => ({ type: 'event' as const, event })), false)
+    projection.flush()
+    const replayed = z.object({ live: z.literal(false), saved: z.object({ state: z.literal('succeeded'), assets: z.array(z.unknown()).length(1) }) }).parse(displayedImages()[0]?.data)
+    assert.equal(replayed.saved.state, 'succeeded', 'a later recorded result restores the image before the live resource read')
+    const resultOnly = results[0]
+    assert.ok(resultOnly)
+    projection.replaceWindow([{ type: 'event', event: resultOnly }], true)
+    projection.flush()
+    assert.equal(displayedImages().length, 1,
+      'recorded generation metadata restores its image even when the call start is outside the loaded window')
     assert.equal(ctx.tools.schemas().some(tool => tool.name.startsWith('codex_image_')), false)
   } finally { await ctx.fiber.dispose() }
 })

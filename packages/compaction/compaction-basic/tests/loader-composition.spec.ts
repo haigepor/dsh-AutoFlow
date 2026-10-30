@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
-import LlmRuntime from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { LlmAdapter } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
@@ -56,6 +57,35 @@ async function loadYaml(lines: readonly string[]): Promise<Context> {
 }
 
 describe('real Loader composition', () => {
+  it('compresses operation text through the mounted native backend and owner runner', async () => {
+    const loaded = await loadYaml([
+      "- name: '@deepseek-ai/dsh-llm'",
+      "- name: '@deepseek-ai/dsh-session'",
+      "- name: '@deepseek-ai/dsh-session-projection'",
+      "- name: '@deepseek-ai/dsh-token-meter'",
+      "- name: '@deepseek-ai/dsh-compaction-basic'",
+      '  config:', '    auto: false', '    headroomTokens: 100', '    retainTokens: 0', '    maxTokens: 100',
+    ])
+    class ReplyAdapter extends LlmAdapter {
+      override async resolveModel(provider: string, id: string) { return { provider, id, name: id, context: { contextWindow: 2000 } } }
+      async *stream(options: GenerateOptions): AsyncGenerator<StreamChunk> {
+        expect(options.purpose).toBe('compaction')
+        yield { type: 'text-delta', index: 0, text: 'Green palette with uncertain lighting.' }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }
+    const remove = loaded.llm.registerAdapter(['operation'], new ReplyAdapter())
+    try {
+      let recorded = 0
+      const result = await loaded.compaction.compactInput({ config: { provider: 'operation', model: 'vision', maxTokens: 100 }, contextWindow: 2000, retainedTokens: 200, chunks: ['A'.repeat(3000), 'B'.repeat(3000), 'C'.repeat(3000)], instruction: 'Preserve visual evidence.', maxOutputBytes: 1000 }, async (_call, work) => {
+        recorded++
+        return work(new AbortController().signal, async () => {})
+      }, new AbortController().signal)
+      expect(result?.text).toContain('Green palette')
+      expect(recorded).toBeGreaterThan(0)
+    } finally { remove() }
+  })
+
   it('loads the shipped token-meter, pruning, and compaction-basic YAML order', async () => {
     const loaded = await loadYaml([
       "- name: '@deepseek-ai/dsh-llm'",

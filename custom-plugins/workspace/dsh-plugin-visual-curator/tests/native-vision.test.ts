@@ -49,13 +49,13 @@ it('defaults new work to native LLM while preserving frozen legacy and explicit 
   assert.equal(resolveCurrentConfig({ vision: { backend: 'compatible', model: 'backup' } }).vision.backend, 'compatible')
 })
 
-async function fixture() {
+async function fixture(managed = false) {
   const root = await mkdtemp(join(tmpdir(), 'curator-native-'))
   const ctx = new Context(), llm = new LlmRuntime(ctx), attachments = new LocalAttachmentStore(ctx, { dshHome: root }), adapter = new Adapter()
   const registration = llm.registerAdapter(['native-fixture'], adapter)
   const pixels = await sharp({ create: { width: 80, height: 60, channels: 3, background: '#426143' } }).png().toBuffer()
   const image: VisionImage = { imageVersionId: 'image-one', digest: createHash('sha256').update(pixels).digest('hex'), mime: 'image/png', role: 'positive', bytes: pixels }
-  const config = resolveConfig({ vision: { provider: 'native-fixture', model: 'vision-model', credentialRef: '' } })
+  const config = (managed ? resolveCurrentConfig : resolveConfig)({ vision: { provider: 'native-fixture', model: 'vision-model', credentialRef: '' } })
   let downloads = 0
   const media: HttpClient = { request: async () => { downloads++; return { status: 200, headers: { 'content-type': 'image/png' }, bytes: pixels } } }
   const provider = new NativeVisionProvider(config, { llm, attachments, media })
@@ -64,6 +64,17 @@ async function fixture() {
   const input = { requestId: 'request-one', taskBrief: 'Observe supplied pixels.', rules: [], images: [image] }
   return { provider, adapter, attachments, media, metadata, deltas, bounds, input, pixels, get downloads() { return downloads }, cleanup: async () => { registration(); await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }) } }
 }
+
+it('inherits the registered output and reasoning defaults and records its context capacity', async () => {
+  const f = await fixture(true)
+  f.adapter.resolveModel = async () => ({ provider: 'native-fixture', id: 'vision-model', name: 'Vision fixture', inputModalities: ['text', 'image'], context: { contextWindow: 1_000_000 }, defaultMaxTokens: 65_536 })
+  try {
+    await f.provider.analyze(f.input, f.bounds)
+    assert.equal(f.adapter.calls[0]!.maxTokens, 65_536)
+    assert.equal(f.adapter.calls[0]!.reasoningEffort, undefined)
+    assert.equal(JSON.parse(JSON.stringify(f.metadata.at(-1))).context.contextWindow, 1_000_000)
+  } finally { await f.cleanup() }
+})
 
 it('streams through the native LLM with admitted pixels and records disjoint usage before committing output', async () => {
   const f = await fixture()
@@ -83,6 +94,25 @@ it('streams through the native LLM with admitted pixels and records disjoint usa
     assert.ok(!JSON.stringify(saved).includes('base64'))
     const expected = JSON.parse(await readFile(new URL('./fixtures/native-llm-call.expected.json', import.meta.url), 'utf8'))
     assert.deepEqual({ transport: saved.transport, provider: saved.provider, model: saved.model, inputRoles: f.adapter.calls[0]!.messages.map(message => message.role), images: f.adapter.calls[0]!.messages.flatMap(message => message.content).filter(block => block.type === 'image').length, reasoning: f.deltas.map(delta => delta.reasoning ?? '').join(''), observations: result.observations, usage: saved.usage, finish: saved.finish }, expected)
+  } finally { await f.cleanup() }
+})
+
+it('native profile observation calls omit rule generation and normalize the saved result', async () => {
+  const f = await fixture()
+  const observations = [{ imageVersionId: 'image-one', dimensions: [{ dimension: 'color', observation: '低饱和绿色', uncertain: false }] }]
+  f.adapter.stream = async function* (options: GenerateOptions): AsyncGenerator<StreamChunk> {
+    f.adapter.calls.push(options)
+    yield { type: 'text-delta', index: 0, text: JSON.stringify({ observations }) }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+  try {
+    const result = await f.provider.analyze({ ...f.input, analysisOutput: 'observations-only' }, f.bounds)
+    assert.deepEqual(result, { observations, suggestedRules: [] })
+    assert.equal(f.adapter.calls.length, 1)
+    const sent = f.adapter.calls[0]!.messages[0]!.content[0]!
+    assert.equal(sent.type, 'text')
+    if (sent.type === 'text') assert.deepEqual(Object.keys(JSON.parse(sent.text).outputSchema.properties), ['observations'])
+    assert.equal(f.metadata.length, 2)
   } finally { await f.cleanup() }
 })
 

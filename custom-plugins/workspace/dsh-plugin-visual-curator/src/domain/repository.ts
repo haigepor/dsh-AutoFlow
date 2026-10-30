@@ -117,7 +117,7 @@ export interface CommitResult { revision: number; state: Json }
 export class DomainRepository {
   private chain: Promise<void> = Promise.resolve()
   private closed = false
-  private readScope: { pointers: Map<string, AggregateManifest['records'][number]>; records: Map<string, CuratorRecord | undefined> } | undefined
+  private readScope: { pointers: Map<string, AggregateManifest['records'][number]>; records: Map<string, CuratorRecord | undefined>; revisionDigest: string } | undefined
   /** @param profileId Owning profile. @param adapter Storage-domain or deterministic fixture. */
   constructor(readonly profileId: string, private readonly adapter: DomainAdapter) {
     for (const manifest of adapter.manifests()) {
@@ -138,10 +138,13 @@ export class DomainRepository {
     for (const manifest of this.adapter.manifests()) if (manifest.receipts[operationId]) return structuredClone(manifest.receipts[operationId])
     return undefined
   }
-  /** @returns Cloned commit manifests for durable operation recovery. */
-  manifests(): AggregateManifest[] { return structuredClone(this.adapter.manifests()) }
+  /** @param prefix Optional aggregate-ID prefix applied before cloning private receipts. @returns Independent matching commit manifests, or all manifests when no prefix is supplied. */
+  manifests(prefix?: string): AggregateManifest[] {
+    const manifests = this.adapter.manifests()
+    return structuredClone(prefix === undefined ? manifests : manifests.filter(manifest => manifest.aggregateId.startsWith(prefix)))
+  }
   /** @returns Revision-only cache identity without copying historical requests or responses. */
-  revisionDigest(): string { return contentDigest(this.adapter.manifests().map(manifest => [manifest.aggregateId, manifest.revision])) }
+  revisionDigest(): string { return this.readScope?.revisionDigest ?? contentDigest(this.adapter.manifests().map(manifest => [manifest.aggregateId, manifest.revision])) }
   /** Reuse verified records only during a synchronous read; caller mutations still receive independent clones.
    * @param read Synchronous projection with no writes or external callbacks.
    * @returns Projection result; nested reads share this scope and exceptions release it.
@@ -149,11 +152,16 @@ export class DomainRepository {
   readSnapshot<T>(read: () => T): T {
     if (this.readScope) return read()
     const pointers = new Map<string, AggregateManifest['records'][number]>()
-    for (const manifest of this.adapter.manifests()) for (const pointer of manifest.records) {
-      const identity = `${pointer.kind}:${pointer.id}`
-      if (!pointers.has(identity)) pointers.set(identity, pointer)
+    const revisions: [string, number][] = []
+    for (const manifest of this.adapter.manifests()) {
+      revisions.push([manifest.aggregateId, manifest.revision])
+      for (const pointer of manifest.records) {
+        const identity = `${pointer.kind}:${pointer.id}`
+        if (!pointers.has(identity)) pointers.set(identity, pointer)
+      }
     }
-    this.readScope = { pointers, records: new Map() }
+    // 修订身份与指针来自同一次读取；离开同步作用域后不保留历史内容或信任结果。
+    this.readScope = { pointers, records: new Map(), revisionDigest: contentDigest(revisions) }
     try { return read() } finally { this.readScope = undefined }
   }
   /** @param kind Record tag. @param id Logical record ID. @returns Only committed records. */

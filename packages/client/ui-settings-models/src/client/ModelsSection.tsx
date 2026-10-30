@@ -600,7 +600,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
 
   return (
     <div ref={subpageRoot} className={`${styles['section']} ${addOpen ? connectStyles['setup'] : ''}`} aria-busy={state.status === 'loading'} aria-hidden={!addOpen && editing !== undefined || deleteTarget !== undefined ? true : undefined}>
-      <div className={`${connectStyles['overview']} ${directoryTab === 'subscription' ? directoryStyles['subscriptionOverview'] : ''}`} hidden={addOpen} data-models-subpage data-settings-subpage={pageTransition.active} data-leaving={pageTransition.leaving}>
+      <div className={connectStyles['overview']} hidden={addOpen} data-models-subpage data-settings-subpage={pageTransition.active} data-leaving={pageTransition.leaving}>
         <div className={directoryStyles['pageHeading']}>
           {pageHeader}
           {directoryTab !== 'subscription' && (catalogOffered || customOffered) && <Button ref={addTriggerRef} variant="primary" icon={<IconPlusOutlineRegular size={16} />}

@@ -14,48 +14,52 @@
   - button "筛选提供商": 全部提供商
   - table "模型目录":
     - rowgroup:
-      - row "模型 / ID 提供商 输入与推理 上下文窗口 操作":
+      - row "模型 / ID 提供商 模型协议 输入与推理 上下文窗口 操作":
         - columnheader "模型 / ID"
         - columnheader "提供商"
+        - columnheader "模型协议"
         - columnheader "输入与推理"
         - columnheader "上下文窗口"
         - columnheader "操作"
     - rowgroup:
-      - row "DeepSeek-V4.1-Flash deepseek-flash DeepSeek 图片 文本 推理 1M 1,048,576 tokens 编辑 deepseek-flash":
+      - row "DeepSeek-V4.1-Flash deepseek-flash DeepSeek DeepSeek Messages 图片 文本 推理 1M 1,048,576 tokens 编辑 deepseek-flash":
         - cell "DeepSeek-V4.1-Flash deepseek-flash":
           - text: DeepSeek-V4.1-Flash
           - code: deepseek-flash
         - cell "DeepSeek"
+        - cell "DeepSeek Messages"
         - cell "图片 文本 推理"
         - cell "1M 1,048,576 tokens"
         - cell "编辑 deepseek-flash":
           - button "编辑 deepseek-flash": 编辑
-      - row "DeepSeek-V4-Pro deepseek-v4-pro DeepSeek 文本 推理 1M 1,048,576 tokens 编辑 deepseek-v4-pro":
+      - row "DeepSeek-V4-Pro deepseek-v4-pro DeepSeek DeepSeek Messages 文本 推理 1M 1,048,576 tokens 编辑 deepseek-v4-pro":
         - cell "DeepSeek-V4-Pro deepseek-v4-pro":
           - text: DeepSeek-V4-Pro
           - code: deepseek-v4-pro
         - cell "DeepSeek"
+        - cell "DeepSeek Messages"
         - cell "文本 推理"
         - cell "1M 1,048,576 tokens"
         - cell "编辑 deepseek-v4-pro":
           - button "编辑 deepseek-v4-pro": 编辑
-      - row "Alpha model-alpha Fixture Gateway 继承 262.1K 262,144 tokens 编辑 model-alpha":
+      - row "Alpha model-alpha Fixture Gateway Anthropic Messages 继承 262.1K 262,144 tokens 编辑 model-alpha":
         - cell "Alpha model-alpha":
           - text: Alpha
           - code: model-alpha
         - cell "Fixture Gateway"
+        - cell "Anthropic Messages"
         - cell "继承"
         - cell "262.1K 262,144 tokens"
         - cell "编辑 model-alpha":
           - button "编辑 model-alpha": 编辑
-      - row "Beta model-beta Fixture Gateway 继承 262.1K 262,144 tokens 编辑 model-beta":
+      - row "Beta model-beta Fixture Gateway Anthropic Messages 继承 262.1K 262,144 tokens 编辑 model-beta":
         - cell "Beta model-beta":
           - text: Beta
           - code: model-beta
         - cell "Fixture Gateway"
+        - cell "Anthropic Messages"
         - cell "继承"
         - cell "262.1K 262,144 tokens"
         - cell "编辑 model-beta":
           - button "编辑 model-beta": 编辑
   - status: 显示 4 / 4 个模型
-- button "打开配置文件"

@@ -111,6 +111,29 @@ describe('web e2e: Models workspace layout and reset', () => {
       '[data-settings-section="models"]', scaffold.workspaceCwd), webSnapshotMode())
   })
 
+  it('keeps wheel scrolling at the page edge across desktop and narrow settings', async () => {
+    const viewport = page.viewportSize()
+    try {
+      for (const size of [{ width: 1680, height: 520 }, { width: 390, height: 640 }]) {
+        await page.setViewportSize(size)
+        const section = models()
+        await section.evaluate(el => { el.scrollTop = 0 })
+        await expect.poll(() => section.evaluate(el => el.scrollHeight - el.clientHeight)).toBeGreaterThan(100)
+        const box = await section.boundingBox()
+        if (box === null) throw new Error('Models settings are not visible')
+        expect(Math.abs(box.x + box.width - size.width)).toBeLessThan(1)
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height - 60)
+        await page.mouse.wheel(0, 300)
+        await expect.poll(() => section.evaluate(el => el.scrollTop), { timeout: 3000 }).toBeGreaterThan(50)
+        await page.mouse.wheel(0, -300)
+        await expect.poll(() => section.evaluate(el => el.scrollTop), { timeout: 3000 }).toBeLessThan(1)
+      }
+    } finally {
+      if (viewport !== null) await page.setViewportSize(viewport)
+      await models().evaluate(el => { el.scrollTop = 0 })
+    }
+  })
+
   it('filters by name and provider and saves one model without removing siblings', async () => {
     const search = models().getByRole('searchbox', { name: '搜索模型名称或 ID' })
     await search.fill('alpha')

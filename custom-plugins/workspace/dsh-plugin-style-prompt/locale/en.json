@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Style Prompt",
+    "description": "Analyze reference-image styles with your configured vision API and export differentiated prompts for manual image generation."
+  }
+}

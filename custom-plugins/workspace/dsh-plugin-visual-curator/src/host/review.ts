@@ -58,9 +58,11 @@ export function measuredRule(rule: Rule, image: ImageVersion): Assessment['ruleR
 /** @param dependencies Domain, private files and resolved vision adapter. @param ctx Current run. @param image Authorized target. @param release Frozen release. @param stage Rule stage. @returns Persistable assessment and fixed preference score. */
 export async function reviewImage(dependencies: { domain: CuratorDomain; files: AssetFiles; vision: StructuredVisionProvider }, ctx: WorkContext, image: ImageVersion, release: StyleStandard | StyleCandidate, stage: 'source' | 'final'): Promise<{ assessment: Assessment; score: number }> {
   const actor = runActor(ctx), refs = await referenceImages(dependencies.domain, dependencies.files, release, actor, ctx.signal)
-  const subject = { imageVersionId: image.id, digest: image.blob.digest, mime: image.blob.mime, bytes: await dependencies.files.read(image.blob, ctx.signal), role: 'subject' }
+  const subject = await visionImageInput(image, dependencies.files, 'subject', ctx.signal)
   const images = [subject, ...refs.filter(ref => ref.imageVersionId !== image.id)]
-  const rules = release.rules.filter(rule => rule.stage === stage || stage === 'final' && release.recipe.styleMatching && rule.strength === 'preferred' && rule.check.kind === 'visual')
+  const outputChoice = ctx.spec.fixed.output
+  const preview = !!outputChoice && typeof outputChoice === 'object' && !Array.isArray(outputChoice) && outputChoice.kind === 'preview'
+  const rules = release.rules.filter(rule => rule.stage === stage || stage === 'final' && (preview || release.recipe.styleMatching && rule.strength === 'preferred' && rule.check.kind === 'visual'))
   const identity = contentDigest({ runId: ctx.runId, imageVersionId: image.id, standardDigest: release.contentDigest, stage }).slice(10)
   const brief = typeof ctx.spec.input.taskBrief === 'string' ? ctx.spec.input.taskBrief : 'Review supplied image against the frozen visual standard.'
   const taskBrief = styleReviewBrief(release, brief)

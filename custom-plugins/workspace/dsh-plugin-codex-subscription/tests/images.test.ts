@@ -46,7 +46,7 @@ test('Codex generations use JSON image headers, preserve original assets, and ne
     const task = await f.service.submit({ prompt: 'A green square', n: 2, size: '1024x1024', quality: 'high', background: 'transparent' }, owner)
     const done = await f.service.getResult(task.id, owner, { waitMs: 1000 })
     assert.equal(done.state, 'succeeded')
-    assert.deepEqual(f.writes.map(item => item.state), ['queued', 'sent', 'succeeded'])
+    assert.deepEqual(f.writes.map(item => item.state), ['queued', 'sent', 'sent', 'succeeded'])
     assert.equal(f.requests[0]?.url, 'https://chatgpt.com/backend-api/codex/images/generations')
     assert.deepEqual(JSON.parse(String(f.requests[0]?.init?.body)), { prompt: 'A green square', n: 2, size: '1024x1024', quality: 'high', background: 'transparent', model: 'gpt-image-2' })
     const headers = new Headers(f.requests[0]?.init?.headers)
@@ -275,6 +275,44 @@ test('failed durable dispatch prevents the paid request', async () => {
   try {
     const started = await f.service.submit({ prompt: 'Persist before sending' }, owner)
     assert.equal((await f.service.getResult(started.id, owner, { waitMs: 1000 })).state, 'failed')
+    assert.equal(f.requests.length, 0)
+  } finally { await f.service.dispose() }
+})
+
+test('one invalid output preserves the other paid image and its durable download after restart', async () => {
+  const f = await fixture({ fetch: async () => Response.json({ data: [{ b64_json: png.toString('base64') }, { b64_json: 'invalid' }] }) })
+  try {
+    const queued = await f.service.submit({ prompt: 'Keep the useful image', n: 2 }, owner)
+    const done = await f.service.getResult(queued.id, owner, { waitMs: 1000 })
+    assert.equal(done.state, 'succeeded')
+    assert.equal(done.error?.code, 'image-partial-result')
+    assert.equal(done.assets.length, 1)
+    const restarted = await fixture({}, [done])
+    try { assert.deepEqual((await restarted.service.readAsset(done.id, 'asset-one', owner)).data, png); assert.equal(restarted.requests.length, 0) }
+    finally { await restarted.service.dispose() }
+  } finally { await f.service.dispose() }
+})
+
+test('a later attachment write failure preserves images saved earlier without regenerating', async () => {
+  let saves = 0
+  const f = await fixture({ fetch: async () => Response.json({ data: [{ b64_json: png.toString('base64') }, { b64_json: png.toString('base64') }] }),
+    saveAssets: async () => { if (++saves === 2) throw new Error('private disk detail'); return [asset] } })
+  try {
+    const queued = await f.service.submit({ prompt: 'Save separately', n: 2 }, owner)
+    const done = await f.service.getResult(queued.id, owner, { waitMs: 1000 })
+    assert.equal(saves, 2); assert.equal(done.state, 'succeeded'); assert.equal(done.assets.length, 1)
+    assert.equal(done.error?.code, 'image-partial-result'); assert.equal(f.requests.length, 0)
+    assert.equal(JSON.stringify(done).includes('private disk'), false)
+    assert.ok(f.writes.some(task => task.state === 'sent' && task.assets.length === 1))
+  } finally { await f.service.dispose() }
+})
+
+test('restart preserves already persisted images from an interrupted multi-image response', async () => {
+  const f = await fixture({}, [{ id: 'interrupted-images', owner, state: 'sent', prompt: 'Partial saved result', model: 'gpt-image-2', createdAt: 1, updatedAt: 2, deadlineAt: 3, assets: [asset] }])
+  try {
+    const done = await f.service.getResult('interrupted-images', owner)
+    assert.equal(done.state, 'succeeded'); assert.equal(done.error?.code, 'image-partial-result')
+    assert.deepEqual((await f.service.readAsset(done.id, 'asset-one', owner)).data, png)
     assert.equal(f.requests.length, 0)
   } finally { await f.service.dispose() }
 })

@@ -3,7 +3,7 @@ import { digest } from './afp-state-store.js'
 import { ensureAfpToken, decodeJwtExpiry, isTokenFresh } from '../vendor/auto-afp-img/ensure-afp-token.mjs'
 import { createAfpApiClient, isAfpAuthenticationError } from '../vendor/auto-afp-img/afp-api-client.mjs'
 import { createAfpPreviewClient } from '../vendor/auto-afp-img/afp-preview-client.mjs'
-import { createOpenAiCompatibleVisionClient } from '../vendor/auto-afp-img/openai-compatible-vision.mjs'
+import { createNativeVisionClient, nativeVisionInformation } from './afp-native-vision.js'
 import { createAccountProfileReader } from './afp-account-profile.js'
 
 // 认证恢复只重放明确的读取；写入、购买及交付字节请求不在此列表内。
@@ -26,8 +26,9 @@ export function transport(signal, fetchImpl = globalThis.fetch) {
 
 /** Only resolve configured references; token cache uses the DSH credentials provider, never run files. */
 export class Connection {
-  constructor(credentials, config, fetchImpl = globalThis.fetch) {
+  constructor(credentials, config, fetchImpl = globalThis.fetch, modelServices = {}) {
     this.credentials = credentials; this.config = config; this.fetchImpl = fetchImpl
+    this.modelServices = modelServices
     this.authentications = new Map(); this.verifiedGrant = null
   }
   /** Share authentication work while each caller retains independent cancellation.
@@ -115,14 +116,16 @@ export class Connection {
   }
   async status() {
     const config = this.config
-    const entries = await Promise.all(['accessTokenRef', 'usernameRef', 'passwordRef', 'visionKeyRef'].map(async key => [key, (await this.credentials.describe(config[key])).configured]))
-    return { credentials: Object.fromEntries(entries), visionConfigured: Boolean(config.visionModel && config.visionBaseUrl), writesEnabled: config.allowWrites }
+    const entries = await Promise.all(['accessTokenRef', 'usernameRef', 'passwordRef'].map(async key => [key, (await this.credentials.describe(config[key])).configured]))
+    return { credentials: Object.fromEntries(entries), visionConfigured: (await this.visionInformation()).state === 'ready', writesEnabled: config.allowWrites }
   }
+  /** Read fresh model choices from the profile without resolving or returning provider credentials. */
+  visionInformation() { return nativeVisionInformation(this.modelServices.llm, this.config) }
   /** Return credential metadata; an explicit allowed reveal key adds only that secret for the authenticated editor. */
   async configurationInfo(revealKey) {
-    if (revealKey !== undefined && !['passwordRef', 'accessTokenRef', 'visionKeyRef'].includes(revealKey)) throw new Error('Invalid AFP credential field')
+    if (revealKey !== undefined && !['passwordRef', 'accessTokenRef'].includes(revealKey)) throw new Error('Invalid AFP credential field')
     const config = this.config
-    const keys = ['accessTokenRef', 'usernameRef', 'passwordRef', 'visionKeyRef']
+    const keys = ['accessTokenRef', 'usernameRef', 'passwordRef']
     const entries = await Promise.all(keys.map(async key => [key, await this.credentials.describe(config[key])]))
     const values = await Promise.all(['accessTokenRef', 'usernameRef', 'passwordRef'].map(async key =>
       (await this.credentials.resolve(config[key]))?.value ?? ''))
@@ -135,8 +138,7 @@ export class Connection {
     const token = payload?.token || accessToken
     const credentials = Object.fromEntries(entries)
     credentials.accessTokenRef = { ...credentials.accessTokenRef, configured: Boolean(token) }
-    const revealed = revealKey === 'passwordRef' ? password : revealKey === 'accessTokenRef' ? token
-      : revealKey === 'visionKeyRef' ? (await this.credentials.resolve(config.visionKeyRef))?.value ?? '' : undefined
+    const revealed = revealKey === 'passwordRef' ? password : revealKey === 'accessTokenRef' ? token : undefined
     return { username, credentials, ...(revealKey === undefined ? {} : { value: revealed }), token: {
       configured: Boolean(payload?.token || accessToken),
       expiresAt: payload?.token ? decodeJwtExpiry(payload.token) : accessToken ? decodeJwtExpiry(accessToken) : null,
@@ -145,6 +147,7 @@ export class Connection {
   }
   async open(signal, write = false, vision = false, preview = false, onProgress) {
     const config = this.config
+    const visionClient = vision ? await createNativeVisionClient({ ...this.modelServices, config, signal }) : undefined
     const value = async name => (await this.credentials.resolve(name))?.value ?? ''
     const [accessToken, username, password] = await Promise.all([value(config.accessTokenRef), value(config.usernameRef), value(config.passwordRef)])
     if (!accessToken && (!username || !password)) throw new Error('AFP credentials are missing')
@@ -193,12 +196,7 @@ export class Connection {
       allowedCdnHosts: config.previewCdnHosts, autoDiscoverCdnHosts: config.previewAutoCdnHosts,
       maxRedirects: config.maxRedirects, maxResponseBytes: config.maxPreviewBytes }).getPreviewBytes(id, options)) }
     if (!vision) return services
-    if (!config.visionModel || !config.visionBaseUrl) throw new Error('Configure visionModel and visionBaseUrl in the AFP plugin config')
-    const apiKey = await value(config.visionKeyRef)
-    if (!apiKey) throw new Error('Vision credentials are missing')
-    services.visionClient = createOpenAiCompatibleVisionClient({ baseUrl: config.visionBaseUrl, apiKey,
-        model: config.visionModel, reasoningModel: config.reasoningModel || null, reasoningEffort: config.reasoningEffort || null,
-        fetchImpl, sleep, requestTimeoutMs: config.requestTimeoutMs, retries: config.readRetries, maxResponseBytes: config.maxResponseBytes })
+    services.visionClient = visionClient
     return services
   }
 }

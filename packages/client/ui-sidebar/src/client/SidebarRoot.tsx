@@ -20,8 +20,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import clsx from 'clsx'
 import {
-  FishLogo, GlideHighlight, IconAppsAddOutlineRegular, IconChevronDownOutlineRegular, IconNewChatOutlineMedium, IconNewChatOutlineRegular,
-  IconPanelLeftOutlineRegular, isDarwinDesktop, Menu, ShortcutKeys, Tooltip,
+  AnimatedCollapse, FishLogo, GlideHighlight, IconAppsAddOutlineRegular, IconChevronDownOutlineRegular,
+  IconNewChatOutlineMedium, IconNewChatOutlineRegular, IconPanelLeftOutlineRegular, isDarwinDesktop, Menu, ShortcutKeys, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
@@ -152,8 +152,10 @@ function PanelMoreMenu({ wide, label, entries, onOpen, onPinnedChange, trackEntr
   }
   return <div className={css.moreAnchor}>
     {anchor}
-    <div ref={panel} id={panelId} role="menu" aria-label={label} hidden={!open} className={css.morePanel}
-      onKeyDown={onPanelKeyDown}>{actions}</div>
+    <AnimatedCollapse open={open}>
+      <div ref={panel} id={panelId} role="menu" aria-label={label} className={css.morePanel}
+        onKeyDown={onPanelKeyDown}>{actions}</div>
+    </AnimatedCollapse>
   </div>
 }
 

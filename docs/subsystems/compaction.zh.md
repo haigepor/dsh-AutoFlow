@@ -6,6 +6,10 @@
 
 源码：[`packages/compaction/compaction/src/types.ts`](../../packages/compaction/compaction/src/types.ts)
 
+## 任务持有的文本输入
+
+`compactInput` 接收文本块和已准备的原生模型调用容量，不访问 Session。Basic 后端采用既有的精确模型策略与 token 计量；任务保留固定输入，并通过有预算、可记录和重放的执行器持有每次辅助请求。未达到压力阈值时返回 null。成功结果包含更短文本与估算的文本块用量；不安全、不受支持或不能收敛的压缩会拒绝执行，原输入不变。调用义务与策略见[服务类型](../../packages/compaction/compaction/src/types.ts)和 [Basic 后端](../../packages/compaction/compaction-basic/README.zh.md)。
+
 ## `compaction/*` 会话事件
 
 压缩通过声明合并为 [`SessionEventMap`](session.zh.md) 扩展三种事件类型。三者都**仅写入日志**——它们记录锁、摘要、选中范围、被遮蔽事件 seq、token 数以及模型调用，绝不进入 surface。这里有意不扩展 `SurfaceEventType`（只有产生消息的事件才到达模型），因此摘要本身承载在另一条带有 `surfaceOp: { op: 'replace', startSeq, endSeq }` 的 `user/message` 上——这是摘要压缩执行的唯一 surface 变更。[历史Agent Note](../../.agents/notes/archived/feature/2026-06-18-compaction-capability-seam.md) 负责复用 `user/message` 的决策依据。
@@ -147,6 +151,15 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 Abstract compaction service. Implementations own trigger policy, retention, and summarization, and may consume a separate measurement service. A successful run replaces the selected surface span with one summary node and prevents concurrent compaction of the same session. The replacement user message uses compactCheckpointSource with the transaction identity so consumers recognize and correlate it independently of the backend. Load one implementation per context as `ctx.compaction`.
 
 ```ts cordis-catalog
+/**
+ * Compact operation-owned text under routed model policy without creating or modifying a Session.
+ * @param input - prepared model capacity, fixed-input price and compressible text chunks.
+ * @param run - owner callback that reserves, records and optionally replays each auxiliary call.
+ * @param signal - operation cancellation, also forwarded to model preparation and dispatch.
+ * @returns shorter text, or null below pressure; rejects unsupported backends and unsafe compression.
+ */
+compactInput( input: InputCompactionRequest, run: InputCompactionRunner, signal: AbortSignal, ): Promise<InputCompactionResult | null>
+
 /**
  * Consider automatic compaction for one explicit trigger. Pressure policy
  * uses the latest durable routed request, while context-overflow policy may

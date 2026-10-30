@@ -1,0 +1,17 @@
+{
+  "fourTabs": true,
+  "recoveredHistoryIsDistinct": true,
+  "savedFailureCauses": true,
+  "completedDoesNotReplay": true,
+  "allRequestsRemainVisible": true,
+  "locateAttemptOutput": true,
+  "currentFailureExplained": true,
+  "continuationBusyFeedback": true,
+  "sameTaskAndCheckpoint": true,
+  "singleContinuation": true,
+  "expiredBudgetExplained": true,
+  "narrowLayoutFits": true,
+  "narrowContinuationFits": true,
+  "nativeLightTheme": true,
+  "errors": []
+}

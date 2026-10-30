@@ -9,7 +9,7 @@ const stateSchema = z.strictObject({ runId: z.string().min(1), hidden: z.literal
 
 /** @param repository Authorized profile repository. @returns Hidden run IDs used only by history listings. */
 export function hiddenTaskIds(repository: DomainRepository): ReadonlySet<string> {
-  return new Set(repository.manifests().filter(manifest => manifest.aggregateId.startsWith(prefix)).map(manifest => stateSchema.parse(manifest.state).runId))
+  return new Set(repository.manifests(prefix).map(manifest => stateSchema.parse(manifest.state).runId))
 }
 
 /** @param repository Owning profile. @param run Already-authorized run. @param operationId Idempotent human action. @returns Durable deletion receipt; saved results remain addressable. */

@@ -259,7 +259,11 @@ export class ModelsSettingsStore {
         const result = await this.ctx.remote.llm.discoverModels(row.entry.settingsNs, { provider: row.entry.provider })
         if (result.ok) {
           row.catalogModels = result.value
-          if (row.entry.provider === 'autoflow-codex') row.accountAvailable = result.value.length > 0
+          // 手动目录为空不代表账号未登录；尚未添加模型时认证状态由订阅页展示。
+          if (row.entry.provider === 'autoflow-codex') {
+            if (result.value.length > 0) row.accountAvailable = true
+            else delete row.accountAvailable
+          }
         }
         else row.catalogError = result.error.message
       } catch (error: unknown) {

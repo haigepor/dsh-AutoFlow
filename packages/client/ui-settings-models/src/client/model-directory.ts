@@ -16,6 +16,28 @@ export interface ModelDirectoryGroup {
 }
 
 /**
+ * Read the protocol fixed by a native adapter or explicitly selected on a pi-ai route.
+ * @param group - provider route and its effective settings profile.
+ * @param schema - settings path reader.
+ * @returns known wire protocol, or undefined when the catalog does not report it.
+ */
+export function directoryProtocol(group: ModelDirectoryGroup, schema: SettingsSchemaOperations): string | undefined {
+  // 原生适配器不读取路线 api 字段；pi-ai 的内置模型可分别继承不同协议，缺少元数据时不按名称猜测。
+  switch (group.row.entry.settingsNs) {
+    case 'llm-deepseek':
+    case 'llm-deepseek-account':
+    case 'llm-deepseek-api-key': return 'deepseek-messages'
+    case 'codex-subscription': return 'openai-codex-responses'
+    case 'llm-pi-ai': {
+      const api = schema.getPath(group.profile, ['api'])
+      return typeof api === 'string' && api !== '' ? api : undefined
+    }
+    // 其他适配器没有在当前目录接口声明协议。
+    default: return undefined
+  }
+}
+
+/**
  * Resolve configured arrays before installed defaults without flattening hidden model fields.
  * @param rows - joined provider rows.
  * @param namespaces - current settings layers.

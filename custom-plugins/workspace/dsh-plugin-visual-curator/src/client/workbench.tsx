@@ -1,3 +1,6 @@
+import { createImageGallery } from './image-gallery.tsx'
+import { createReferenceStateHook } from './reference-state.ts'
+import type { ReferenceState } from '../shared/reference-state.ts'
 /** @jsxRuntime classic */
 /** @jsx React.createElement */
 /** @jsxFrag React.Fragment */
@@ -13,8 +16,13 @@ import { createStyleProfileDialog } from './style-profile-dialog.tsx'
 import { createGallerySettings } from './gallery-settings.tsx'
 import { createGalleryReferenceDialog } from './gallery-reference-dialog.tsx'
 import type { WorkbenchText } from './workbench-locale.ts'
+import { createSearchBatchResults, createSearchBatchSkeleton } from './search-batch-results.tsx'
+import type { SearchBatchesState, SearchBatchesStore } from './search-batches-store.ts'
 import { galleryTaskActive, galleryTaskProgress, type GalleryTaskView } from '../shared/gallery-task.ts'
 import { createGalleryTaskStatus } from './gallery-task-status.tsx'
+import type { DatasetClientState, DatasetStore } from './dataset-store.ts'
+import { createDatasetProgress, datasetNotice } from './dataset-progress.tsx'
+import { createDatasetWorkspace } from './dataset-workspace.tsx'
 import { createGalleryMedia } from './gallery-media.tsx'
 import { createReferencePreview } from './reference-preview.tsx'
 import { analysisActive } from '../shared/analysis-process.ts'
@@ -29,18 +37,27 @@ import referenceEmptyArtwork from '../../assets/reference-collection-empty-v1.we
 import analysisAnimation from '../../assets/analysis-status-animation-v2.webp'
 import analysisPoster from '../../assets/analysis-status-poster-v2.webp'
 import profileTabHighlight from '../../assets/profile-dimension-highlight-v1.webp'
+import { managedVision, visionModelKey, type VisionModelState } from './vision-models.ts'
 
 /** Narrow callbacks and an injected read hook keep Cordis outside the component tree. */
 export interface WorkbenchProps extends PropsRenderFactories {
   useWorkbench<T>(select: (state: ClientState) => T): T
+  useVisionModels<T>(select: (state: VisionModelState) => T): T
+  useDatasets<T>(select: (state: DatasetClientState) => T): T
   useLaunches<T>(select: (state: SearchLaunchState) => T): T
+  useSearchBatches?<T>(select: (state: SearchBatchesState) => T): T
   t: WorkbenchText
   welcomeImage: string
   logoImage: string
-  actions: Pick<CuratorStore, 'selectWorkspace' | 'openSession' | 'closeSession' | 'prepareTask' | 'execute' | 'reload' | 'getSnapshot' | 'selectStyle' | 'selectRun' | 'loadMoreImages' | 'loadRun' | 'loadReferences' | 'startGalleryReferences' | 'stopGalleryReferences' | 'startAnalysis' | 'stopAnalysis' | 'openAnalysis' | 'closeAnalysis' | 'refreshAnalysisDetail' | 'loadAnalysisInput' | 'saveConfiguration'> & {
-    launches: Pick<SearchLaunchStore, 'start' | 'retry' | 'stop' | 'refresh' | 'loadOptions' | 'openSession'>
+  actions: Pick<CuratorStore, 'selectWorkspace' | 'openSession' | 'closeSession' | 'prepareTask' | 'execute' | 'reload' | 'getSnapshot' | 'selectStyle' | 'selectRun' | 'loadMoreImages' | 'loadRun' | 'loadReferences' | 'startGalleryReferences' | 'stopGalleryReferences' | 'startAnalysis' | 'referenceState' | 'stopAnalysis' | 'pauseAnalysis' | 'resumeAnalysis' | 'openAnalysis' | 'closeAnalysis' | 'refreshAnalysisDetail' | 'loadAnalysisInput' | 'saveConfiguration'> & {
+    datasets: Pick<DatasetStore, 'start' | 'refresh' | 'loadMore' | 'filter' | 'open' | 'moreSamples' | 'closeDetail' | 'dismiss'>
+    batches?: Pick<SearchBatchesStore, 'watch' | 'select' | 'refresh' | 'more' | 'moreImages' | 'remove'>
+    launches: Pick<SearchLaunchStore, 'start' | 'retry' | 'stop' | 'refresh' | 'loadOptions' | 'loadDatasets' | 'openSession'>
     publish(style: StyleView): Promise<string>
     saveCredential(ref: string, value: string): Promise<void>
+    loadVisionModels(): Promise<void>
+    reloadVisionModels(): void
+    openModelSettings(): void
     pickLocalReferences(kind: 'file' | 'folder' | 'references', signal: AbortSignal): Promise<unknown>
     listLocalReferences(path: string, kind: 'file' | 'folder', signal: AbortSignal): Promise<unknown>
     galleryRead(operation: string, args: import('./contract.ts').ActionArgs, signal: AbortSignal, options?: { refresh?: boolean }): Promise<unknown>
@@ -57,14 +74,21 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
   const resource = (path: string) => { const safe = safeResourcePath(path); return safe ? new URL(safe.slice(1), document.baseURI).href : '' }
   const GallerySettings = createGallerySettings(React, ui)
   const GalleryTaskStatus = createGalleryTaskStatus(React, ui)
-  const ReferencePreview = createReferencePreview(React)
+  const DatasetProgress = createDatasetProgress(React, ui)
+  const DatasetWorkspace = createDatasetWorkspace(React, ui)
+  function DatasetBackground({ useDatasets, style, actions, t, onOpen, onView }: Pick<WorkbenchProps, 'useDatasets' | 'actions' | 't'> & { style: StyleView; onOpen(): void; onView(): void }) {
+    const state = useDatasets(value => value), notice = datasetNotice(state, style.styleId)
+    return <DatasetProgress {...notice} t={t} readError={state.error} onRefresh={() => { void actions.datasets.refresh() }} onOpen={onOpen} onView={onView} onRetry={() => { if (notice.submission) void actions.datasets.start({ id: notice.submission.profileId, styleId: style.styleId }) }} onDismiss={() => { if (notice.entry) actions.datasets.dismiss(notice.entry.id) }} />
+  }
+  const ReferencePreview = createReferencePreview(React, ui), ImageGallery = createImageGallery(React, ui)
   const { GalleryLoadMore, GallerySkeleton } = createGalleryMedia(React, ui)
   const AnalysisDialog = createAnalysisDialog(React, ui)
   function AnalysisDialogRegion({ useWorkbench, actions, t, renderFactorySlot }: Pick<WorkbenchProps, 'useWorkbench' | 'actions' | 't' | 'renderFactorySlot'>) {
     const state = useWorkbench(value => value)
-    return <AnalysisDialog state={state} t={t} renderFactorySlot={renderFactorySlot} onReadInput={requestId => void actions.loadAnalysisInput(requestId)} onClose={actions.closeAnalysis} onStop={runId => void actions.stopAnalysis(runId)} onRetry={() => void actions.refreshAnalysisDetail()} />
+    return <AnalysisDialog state={state} t={t} renderFactorySlot={renderFactorySlot} onReadInput={requestId => void actions.loadAnalysisInput(requestId)} onClose={actions.closeAnalysis} onStop={runId => void actions.stopAnalysis(runId)} onPause={runId => void actions.pauseAnalysis(runId)} onResume={runId => void actions.resumeAnalysis(runId)} onRetry={() => void actions.refreshAnalysisDetail()} />
   }
   const TaskHistory = createTaskHistory(React, ui)
+  const SearchBatchResults = createSearchBatchResults(React, ui), BatchSkeleton = createSearchBatchSkeleton(React)
   const TaskDialog = createTaskDialog(React, ui)
   const SearchLaunch = createSearchLaunchUI(React, ui)
 
@@ -79,24 +103,26 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     </form>
   }
 
-  function Configuration({ config, actions, t, report, styles, selectedStyleId, openWorkbench, initialPanel, saving, saveError }: { config: ConfigurationView; actions: WorkbenchProps['actions']; t: WorkbenchText; report(work: () => Promise<unknown>): void; styles: StyleView[]; selectedStyleId: string; openWorkbench(styleId: string): void; initialPanel: 'vision' | 'source'; saving: boolean; saveError: ClientState['configError'] }) {
+  function Configuration({ config, actions, t, report, styles, selectedStyleId, openWorkbench, initialPanel, saving, saveError, useVisionModels }: { config: ConfigurationView; actions: WorkbenchProps['actions']; t: WorkbenchText; report(work: () => Promise<unknown>): void; styles: StyleView[]; selectedStyleId: string; openWorkbench(styleId: string): void; initialPanel: 'vision' | 'source'; saving: boolean; saveError: ClientState['configError']; useVisionModels: WorkbenchProps['useVisionModels'] }) {
     const [vision, setVision] = React.useState(config.vision)
-    const [nativeModel, setNativeModel] = React.useState(config.vision.backend !== 'compatible')
+    const catalog = useVisionModels(state => state)
+    const selectedKey = visionModelKey({ provider: vision.provider ?? '', id: vision.model })
+    const selectedModel = catalog.value?.models.find(model => visionModelKey(model) === selectedKey)
+    const savedModelAvailable = catalog.status === 'ready' && config.vision.backend === 'native' && catalog.value?.models.some(model => model.provider === config.vision.provider && model.id === config.vision.model)
     const [source, setSource] = React.useState(config.source)
     const [requestTimeoutMs, setRequestTimeoutMs] = React.useState(config.limits.requestTimeoutMs)
     const [maxRetryAttempts, setMaxRetryAttempts] = React.useState(config.limits.maxRetryAttempts)
     const [deadlineMs, setDeadlineMs] = React.useState(config.limits.deadlineMs)
-    const [maxVisionOutputTokens, setMaxVisionOutputTokens] = React.useState(config.limits.maxVisionOutputTokens)
-    const [reasoningEffort, setReasoningEffort] = React.useState(config.vision.reasoningEffort ?? '')
-    const [visionKey, setVisionKey] = React.useState(''), [sourceKey, setSourceKey] = React.useState('')
+    const [sourceKey, setSourceKey] = React.useState('')
     const [panel, setPanel] = React.useState<'vision' | 'source'>(initialPanel)
     const [connectionOpen, setConnectionOpen] = React.useState(false), [advancedOpen, setAdvancedOpen] = React.useState(false)
     const settingsId = React.useId()
+    React.useEffect(() => { if (panel === 'vision' && catalog.status === 'idle') void actions.loadVisionModels() }, [panel, catalog.status, actions])
     React.useEffect(() => { setSource(config.source) }, [config.revision])
     const save = async (kind: 'vision' | 'source' = 'vision') => {
       try {
-        await actions.saveConfiguration({ revision: config.revision, vision: kind === 'vision' ? { ...vision, backend: nativeModel ? 'native' : 'compatible', provider: nativeModel ? vision.provider ?? '' : '', supportsStreaming: vision.supportsStreaming !== false, reasoningEffort: reasoningEffort || null } : {}, source: kind === 'source' ? { ...source } : {}, limits: kind === 'vision' ? { requestTimeoutMs, maxRetryAttempts, maxVisionOutputTokens, deadlineMs } : {} }, async () => {
-          if (kind === 'vision' && !nativeModel && visionKey) { await actions.saveCredential(vision.credentialRef, visionKey); setVisionKey('') }
+        if (kind === 'vision' && (catalog.status !== 'ready' || !catalog.value || !selectedModel)) return
+        await actions.saveConfiguration({ revision: config.revision, vision: kind === 'vision' ? { ...managedVision(vision, selectedKey, catalog.value!) } : {}, source: kind === 'source' ? { ...source } : {}, limits: kind === 'vision' ? { requestTimeoutMs, maxRetryAttempts, deadlineMs } : {} }, async () => {
           if (kind === 'source' && sourceKey) { await actions.saveCredential(source.credentialRef, sourceKey); setSourceKey('') }
         })
         const saved = actions.getSnapshot().snapshot?.configuration; if (saved) { setVision(saved.vision); setSource(saved.source) }; if (kind === 'source') setAdvancedOpen(false)
@@ -104,28 +130,21 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     }
     return <><form className="vc-settings" onSubmit={event => { event.preventDefault(); save() }}>
       <SegmentedTabs className="vc-settings-tabs" label={t('settings')} value={panel} onChange={setPanel} items={[
-        { value: 'vision', label: <span className="vc-settings-tab-label"><ui.IconSparkleRegular size={16} />{t('vision')}<StateDot state={config.visionConfigured ? 'done' : 'idle'} /></span>, id: `${settingsId}-vision-tab`, panelId: `${settingsId}-vision` },
+        { value: 'vision', label: <span className="vc-settings-tab-label"><ui.IconSparkleRegular size={16} />{t('vision')}<StateDot state={savedModelAvailable ? 'done' : 'idle'} /></span>, id: `${settingsId}-vision-tab`, panelId: `${settingsId}-vision` },
         { value: 'source', label: <span className="vc-settings-tab-label"><ui.IconFolderOpenOutlineRegular size={16} />{t('gallery')}<StateDot state={config.sourceConfigured ? 'done' : 'idle'} /></span>, id: `${settingsId}-source-tab`, panelId: `${settingsId}-source` },
       ]} />
       {(['vision', 'source'] as const).map(value => <div key={value} id={`${settingsId}-${value}`} role="tabpanel" aria-labelledby={`${settingsId}-${value}-tab`} hidden={panel !== value}>{panel === value && <fieldset data-panel={value} className="vc-settings-panel vc-stack" disabled={saving}>
       {value === 'vision' ? <>
-        <div className="vc-row"><h3>{t('vision')}</h3><Tag tone={config.visionConfigured ? 'success' : 'neutral'}>{t(config.visionConfigured ? 'configured' : 'unconfigured')}</Tag></div>
-        <p>{t('visionHint')}</p>
-        <label>{t('modelBackend')}<SelectField label={t('modelBackend')} value={nativeModel ? 'native' : 'compatible'} options={[{ value: 'native', label: t('nativeLlm') }, { value: 'compatible', label: t('compatibleLlm') }]} onChange={value => setNativeModel(value === 'native')} /></label>
-        {nativeModel ? <label>{t('nativeProvider')}<Input required value={vision.provider ?? ''} onChange={event => setVision({ ...vision, provider: event.target.value })} /><small>{t('nativeLlmHint')}</small></label> : <label>{t('endpoint')}<Input type="url" placeholder="https://api.example.com/v1/chat/completions" value={vision.endpoint} onChange={event => setVision({ ...vision, endpoint: event.target.value })} /></label>}
-        <div className="vc-settings-fields">
-          <label>{t('model')}<Input value={vision.model} onChange={event => setVision({ ...vision, model: event.target.value })} /></label>
-          {!nativeModel && <label>{t('apiKey')}<Input type="password" autoComplete="new-password" value={visionKey} disabled={!vision.credentialRef} placeholder={t('keyHint')} onChange={event => setVisionKey(event.target.value)} /><small>{t(config.visionCredentialConfigured ? 'keySaved' : 'keyMissing')}</small></label>}
-        </div>
-        <DisclosureRow className="vc-settings-advanced" icon={<ui.IconChevronDownOutlineRegular size={14} />} title={t('connectionOptions')} open={connectionOpen} expandable expandOnRowClick onToggle={() => setConnectionOpen(value => !value)}><div className="vc-settings-fields">
-          {!nativeModel && <><label>{t('credentialRef')}<Input value={vision.credentialRef} pattern="[A-Za-z_][A-Za-z0-9_]*|" onChange={event => setVision({ ...vision, credentialRef: event.target.value })} /></label>
-          <label>{t('localOrigin')}<Input type="url" value={vision.localOrigin} onChange={event => setVision({ ...vision, localOrigin: event.target.value })} /></label></>}
+        <div className="vc-row"><h3>{t('vision')}</h3><Tag tone={savedModelAvailable ? 'success' : 'neutral'}>{t(savedModelAvailable ? 'configured' : 'unconfigured')}</Tag></div>
+        <p>{t('managedModelsHint')}</p>
+        <label>{t('configuredModel')}<SelectField label={t('configuredModel')} value={selectedKey} disabled={catalog.status !== 'ready' || !catalog.value?.models.length} options={(catalog.value?.models ?? []).map(model => ({ value: visionModelKey(model), label: `${model.name} · ${model.providerName}` }))} onChange={key => { const model = catalog.value?.models.find(item => visionModelKey(item) === key); if (model) setVision({ ...vision, backend: 'native', provider: model.provider, model: model.id }) }} /></label>
+        <div className="vc-row"><small role="status">{catalog.status === 'loading' ? <StateDot state="ongoing" /> : catalog.status === 'error' ? t('modelsLoadError') : !catalog.value?.models.length ? t('modelsEmpty') : vision.model && !selectedModel ? t('modelUnavailable') : catalog.value.unavailable.length > 0 ? t('modelsPartial') : t('managedModelsShared')}</small><div className="vc-dataset-actions"><Button variant="ghost" disabled={catalog.status === 'loading'} onClick={actions.reloadVisionModels}>{t('refresh')}</Button><Button variant="outline" onClick={actions.openModelSettings}>{t('manageModels')}<ui.IconChevronRightOutlineRegular size={12} /></Button></div></div>
+        <DisclosureRow className="vc-settings-advanced" icon={<ui.IconChevronDownOutlineRegular size={14} />} title={t('visionOptions')} open={connectionOpen} expandable expandOnRowClick onToggle={() => setConnectionOpen(value => !value)}><div className="vc-settings-fields">
           <label>{t('requestTimeout')}<Input required type="number" min={1} step={1} value={requestTimeoutMs / 1000} onChange={event => setRequestTimeoutMs(Number(event.target.value) * 1000)} /></label>
           <label>{t('maxRetryAttempts')}<Input required type="number" min={0} max={5} step={1} value={maxRetryAttempts} onChange={event => setMaxRetryAttempts(Number(event.target.value))} /></label>
           <label>{t('analysisDeadline')}<Input required type="number" min={1} step={1} value={deadlineMs / 60_000} onChange={event => setDeadlineMs(Number(event.target.value) * 60_000)} /></label>
-          <label>{t('maxVisionOutputTokens')}<Input required type="number" min={1} step={1} value={maxVisionOutputTokens} onChange={event => setMaxVisionOutputTokens(Number(event.target.value))} /></label>
-          <label>{t('reasoningEffort')}<SelectField label={t('reasoningEffort')} value={reasoningEffort} options={[{ value: '', label: t('providerDefault') }, ...['none', 'low', 'medium', 'high', 'max'].map(value => ({ value, label: value }))]} onChange={setReasoningEffort} /><small>{t('reasoningHint')}</small></label>
-          {!nativeModel && <div className="vc-stack"><Checkbox label={t('supportsStreaming')} checked={vision.supportsStreaming !== false} onChange={checked => setVision({ ...vision, supportsStreaming: checked })} /><small>{t('streamingHint')}</small></div>}
+          <label>{t('modelContextWindow')}<Input readOnly value={selectedModel?.contextWindow?.toLocaleString() ?? t('providerDefault')} /></label>
+          <label>{t('modelOutputDefault')}<Input readOnly value={selectedModel?.maxOutputTokens?.toLocaleString() ?? t('providerDefault')} /></label>
           <p>{t('requestLimitsHint')}</p>
         </div></DisclosureRow>
       </> : <>
@@ -137,7 +156,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
       </>}
       </fieldset>}</div>)}
       {saveError && <p role="alert">{t('error')} · {saveError.safeMessage || saveError.code}</p>}
-      {panel === 'vision' && <footer className="vc-settings-footer"><small>{t('configHint')}</small><Button variant="primary" className="vc-primary-action" type="submit" disabled={saving} aria-busy={saving}>{saving && <StateDot state="ongoing" />}{t(saving ? 'busy' : 'saveConfig')}</Button></footer>}
+      {panel === 'vision' && <footer className="vc-settings-footer"><small>{t('configHint')}</small><Button variant="primary" className="vc-primary-action" type="submit" disabled={saving || catalog.status !== 'ready' || !selectedModel} aria-busy={saving}>{saving && <StateDot state="ongoing" />}{t(saving ? 'busy' : 'saveConfig')}</Button></footer>}
     </form>
     <Modal open={advancedOpen} onClose={() => { if (!saving) { setAdvancedOpen(false); setSource(config.source); setSourceKey('') } }} title={t('galleryCustomSource')} closeLabel={t('close')} className="vc-custom-source-modal" contentClassName="vc-custom-source-scroll" footer={<div className="vc-dataset-actions"><Button variant="outline" disabled={saving} onClick={() => { setAdvancedOpen(false); setSource(config.source); setSourceKey('') }}>{t('cancel')}</Button><Button variant="primary" type="submit" form={settingsId + '-source-form'} disabled={saving}>{t(saving ? 'busy' : 'saveConfig')}</Button></div>}>
       <form id={settingsId + '-source-form'} onSubmit={event => { event.preventDefault(); save('source') }}><fieldset className="vc-settings-modal-fields" disabled={saving}><div className="vc-stack">
@@ -173,7 +192,10 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     </section>
   }
 
-  function StyleEditor({ onSearch, canSearch, searchTrigger, style, snapshot, actions, t, report, busy, query, onQuery, clearQuery, openGallerySettings, task, referencePage, pendingStart, previewRefresh, executionView, onViewChange, viewId }: { onSearch(): void; canSearch: boolean; searchTrigger: React.RefObject<HTMLButtonElement>; pendingStart: boolean; previewRefresh: number; style: StyleView; snapshot: CuratorSnapshot; actions: WorkbenchProps['actions']; t: WorkbenchText; report(work: () => Promise<unknown>): void; busy: boolean; query: string; onQuery(value: string): void; clearQuery(): void; openGallerySettings(): void; task: GalleryTaskView | undefined; referencePage: ClientState['referencePages'][string] | undefined; executionView: boolean; onViewChange(value: 'references' | 'execution'): void; viewId: string }) {
+  const useReferenceState = createReferenceStateHook(React)
+
+  function StyleEditor({ onSearch, canSearch, hasRecoverableRun, scopeSessionId, onCloseSession, searchTrigger, style, snapshot, actions, t, report, busy, query, onQuery, clearQuery, openGallerySettings, task, referencePage, pendingStart, previewRefresh, workspaceView, onViewChange, viewId, useDatasets }: { onSearch(): void; canSearch: boolean; hasRecoverableRun?: boolean | undefined; scopeSessionId?: string | undefined; onCloseSession?: (() => void) | undefined; searchTrigger: React.RefObject<HTMLButtonElement>; pendingStart: boolean; previewRefresh: number; style: StyleView; snapshot: CuratorSnapshot; actions: WorkbenchProps['actions']; t: WorkbenchText; report(work: () => Promise<unknown>): void; busy: boolean; query: string; onQuery(value: string): void; clearQuery(): void; openGallerySettings(): void; task: GalleryTaskView | undefined; referencePage: ClientState['referencePages'][string] | undefined; workspaceView: 'references' | 'execution' | 'datasets'; onViewChange(value: 'references' | 'execution' | 'datasets'): void; viewId: string; useDatasets: WorkbenchProps['useDatasets'] }) {
+    const referencesView = workspaceView === 'references'
     const referencing = !!task && galleryTaskActive(task.status)
     const rules = style.modelProfile ? style.modelProfile.options.filter(option => option.enabled).map(option => option.rule) : style.rules
     const [role, setRole] = React.useState<'positive' | 'negative'>('positive')
@@ -183,7 +205,13 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const [inspectorModalOpen, setInspectorModalOpen] = React.useState(false)
     const [datasetOpen, setDatasetOpen] = React.useState(false)
     const [galleryOpen, setGalleryOpen] = React.useState(false)
+    const [previewId, setPreviewId] = React.useState<string | null>(null)
+    const closePreview = React.useCallback(() => setPreviewId(null), [])
     const [analysisStarting, setAnalysisStarting] = React.useState(false)
+    const [analysisStartMode, setAnalysisStartMode] = React.useState<'planning' | 'pending' | 'all' | null>(null)
+    const [analysisPlan, setAnalysisPlan] = React.useState<ReferenceState | null>(null)
+    const referenceState = useReferenceState(actions.referenceState, style.styleId, style.revision, `${style.analysis?.runId ?? ''}:${style.analysis?.status ?? ''}:${style.analysis?.observed ?? 0}:${snapshot.configuration.revision}`, scopeSessionId, referencesView)
+    const referenceStates = React.useMemo(() => new Map<string, ReferenceState['entries'][number]['state']>(referenceState.displayPlan?.entries.map(entry => [entry.imageVersionId, entry.state]) ?? []), [referenceState.displayPlan])
     const [expandedGroups, setExpandedGroups] = React.useState<string[]>([])
     const inspectorId = React.useId()
     const inspectorToggle = React.useRef<HTMLButtonElement>(null)
@@ -191,31 +219,51 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const [imports, setImports] = React.useState<ImportRow[]>([]), [importMenuOpen, setImportMenuOpen] = React.useState(false), [importPage, setImportPage] = React.useState(0)
     const [pickerError, setPickerError] = React.useState('')
     const [pathOpen, setPathOpen] = React.useState(false), [sourcePath, setSourcePath] = React.useState(''), [pathKind, setPathKind] = React.useState<'file' | 'folder'>('folder'), [pathError, setPathError] = React.useState('')
-    const importLifetime = React.useRef(new AbortController())
-    React.useEffect(() => () => { importLifetime.current.abort() }, [])
+    const importLifetime = React.useRef(new AbortController()), analysisPlanning = React.useRef<AbortController | null>(null)
+    React.useEffect(() => () => { importLifetime.current.abort(); analysisPlanning.current?.abort() }, [])
     const refs = filterReferences(snapshot.images, style, '', 'all')
     const roleCount = (value: typeof filter) => referencePage?.counts[value] ?? (value === 'all' ? refs.length : refs.filter(image => (image.role ?? 'undecided') === value).length)
     const visibleRefs = filterReferences(snapshot.images, style, query, filter)
     const importing = snapshot.configuration.limits
-    const analysisDisabled = busy || referencing || !style.referenceIds.length || !snapshot.configuration.visionConfigured || snapshot.runs.some(run => run.kind === 'analyze' && run.styleId === style.styleId && analysisActive(run.status))
+    const analysisDisabled = busy || referencing || !style.referenceIds.length || !snapshot.configuration.visionConfigured || snapshot.runs.some(run => run.kind === 'analyze' && run.styleId === style.styleId && ['created', 'running', 'pausing', 'paused', 'interrupted', 'cancelling'].includes(run.status))
     const analysis = style.analysis
+    const analysisPaused = analysis?.status === 'paused'
+    const analysisRecoverable = !!analysis && ['paused', 'interrupted', 'failed'].includes(analysis.status) && (analysis.continuation?.allowed ?? analysis.status !== 'failed')
     const analyzing = !!analysis && ['created', 'running', 'pausing', 'cancelling'].includes(analysis.status)
     const analysisBusy = analysisStarting || pendingStart || analyzing
-    const profileReady = !referencing && !analysisBusy && (!!style.modelProfile && !style.modelProfile.stale || !!analysis?.summary && analysis.status === 'completed' && !analysis.stale)
+    const profileReady = !referencing && !analysisBusy && !analysisPaused && (!!style.modelProfile && !style.modelProfile.stale || !!analysis?.summary && analysis.status === 'completed' && !analysis.stale)
     const needsModel = !snapshot.configuration.visionConfigured && !profileReady
     const analysisState = analysisBusy ? 'ongoing' : needsModel || analysis?.stale ? 'warning' : analysis?.status === 'failed' ? 'error' : analysis?.summary ? 'done' : 'idle'
     const analysisTransition = analysis?.status === 'pausing' || analysis?.status === 'cancelling'
     const analysisLabel = analysisBusy ? analysisTransition ? t(analysis.status) : t(!analysisStarting && analysis && analysis.observed === analysis.total && analysis.total > 0 ? 'summarizingStyle' : 'analyzingImages') : needsModel ? t('modelNeeded') : analysis?.stale ? t('needsAnalysis')
       : analysis?.status === 'completed' && analysis.summary ? t('analysisFinished') : analysis ? t(analysis.outcome === 'budget-exhausted' ? 'budgetExhausted' : analysis.status) : refs.length ? t('analysisReady') : ''
-    const startAnalysis = async () => {
-      setAnalysisStarting(true)
+    const launchAnalysis = async (plan: ReferenceState, analysisMode: 'pending' | 'all') => {
+      analysisPlanning.current = null; setAnalysisStarting(true); setAnalysisStartMode(analysisMode); setPickerError('')
       try {
-        const result = await actions.startAnalysis({ operationId: id(), styleId: style.styleId, buildDataset: true })
+        const result = await actions.startAnalysis({ operationId: id(), styleId: style.styleId, buildDataset: true, analysisMode, planDigest: plan.digest })
         // 切换素材集后不回写旧界面，已启动的任务仍由 Host 管理。
-        if (!importLifetime.current.signal.aborted) { setInspectorOpen(true); actions.selectRun(resultId(result, 'runId')) }
-      } finally { if (!importLifetime.current.signal.aborted) setAnalysisStarting(false) }
+        if (!importLifetime.current.signal.aborted) { setAnalysisPlan(null); setInspectorOpen(true); actions.selectRun(resultId(result, 'runId')) }
+      } catch (error) { if (!importLifetime.current.signal.aborted) { setAnalysisPlan(null); setPickerError(t('analysisPlanChanged')); referenceState.retry() } }
+      finally { if (!importLifetime.current.signal.aborted) { setAnalysisStarting(false); setAnalysisStartMode(null) } }
     }
-    const analyze = () => { if (!analysisDisabled && !analysisBusy) void startAnalysis().catch(error => { /* 共享任务状态负责显示启动失败。 */ }) }
+    const startAnalysis = async () => {
+      const controller = new AbortController()
+      analysisPlanning.current?.abort(); analysisPlanning.current = controller
+      setAnalysisStarting(true); setAnalysisStartMode('planning'); setPickerError('')
+      try {
+        const plan = await actions.referenceState(style.styleId, AbortSignal.any([importLifetime.current.signal, controller.signal]))
+        if (controller.signal.aborted || importLifetime.current.signal.aborted) return
+        if (plan.reusable || plan.changed) setAnalysisPlan(plan)
+        else await launchAnalysis(plan, 'pending')
+      } catch (error) { if (!controller.signal.aborted && !importLifetime.current.signal.aborted) setPickerError(t('referenceStateError')) }
+      finally { if (analysisPlanning.current === controller && !importLifetime.current.signal.aborted) { analysisPlanning.current = null; setAnalysisStarting(false); setAnalysisStartMode(null) } }
+    }
+    const cancelAnalysisStart = () => {
+      // 只允许撤回范围预检；任务提交后的未知回执不通过关闭弹窗假装取消。
+      if (analysisPlanning.current) { analysisPlanning.current.abort(); analysisPlanning.current = null; setAnalysisStarting(false); setAnalysisStartMode(null); setAnalysisPlan(null) }
+      else if (!analysisStarting) setAnalysisPlan(null)
+    }
+    const analyze = () => { if (!analysisDisabled && !analysisBusy) void startAnalysis() }
     const openPaths = () => report(async () => {
       setPickerError('')
       try { await importPickedReferences(actions, { styleId: style.styleId, role, limits: importing }, () => actions.pickLocalReferences('references', importLifetime.current.signal), rows => { setImports(rows); setImportPage(0) }, importLifetime.current.signal) }
@@ -257,12 +305,13 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
       <footer className="vc-profile-actions">
         <Button variant="outline" disabled={!summary} onClick={() => setDatasetOpen(true)}>{t('openProfile')}<ui.IconChevronRightOutlineRegular size={14} /></Button>
         <Button variant="ghost" disabled={!analysis} onClick={() => { if (analysis) actions.openAnalysis(analysis.runId) }}><ui.IconListPenOutlineRegular size={16} />{t('analysisProcess')}</Button>
-        {!profileReady && <Button variant="outline" disabled={analysisDisabled || analysisBusy} aria-busy={analysisBusy || undefined} onClick={analyze}><ui.IconSparkleRegular size={16} />{t(analysisBusy ? 'analysisBusy' : 'analyze')}</Button>}
+        {!profileReady && !analysisPaused && !analysisRecoverable && <Button variant="outline" disabled={analysisDisabled || analysisBusy} aria-busy={analysisBusy || undefined} onClick={analyze}>{analysisBusy ? <StateDot state="ongoing" /> : <ui.IconSparkleRegular size={16} />}{t(analysisBusy ? 'analysisBusy' : 'analyze')}</Button>}{analysisRecoverable && analysis && <Button variant="outline" disabled={busy || referencing || !snapshot.configuration.visionConfigured} aria-busy={busy || undefined} onClick={() => report(() => actions.resumeAnalysis(analysis.runId))}>{busy && <StateDot state="ongoing" />}{t('resumeAnalysis')}</Button>}
       </footer>
     </>
-    return <div className="vc-image-workspace" data-inspector-open={inspectorOpen && !executionView} data-view={executionView ? 'execution' : 'references'}>
-      <div className="vc-execution-nav"><SegmentedTabs className="vc-workspace-tabs vc-execution-tabs" variant="underline" label={t('workbench')} value={executionView ? 'execution' : 'references'} onChange={onViewChange} items={[{ value: 'references', label: t('referencesView'), id: `${viewId}-references-tab`, panelId: `${viewId}-references` }, { value: 'execution', label: t('execution'), id: `${viewId}-execution-tab`, panelId: `${viewId}-execution` }]} />
-        <div className="vc-reference-actions">{!executionView && <>
+    const secondaryCreate = workspaceView === 'execution' && !!hasRecoverableRun
+    return <div className="vc-image-workspace" data-inspector-open={inspectorOpen && referencesView} data-view={workspaceView}>
+      <div className="vc-execution-nav"><SegmentedTabs className="vc-workspace-tabs vc-execution-tabs" variant="underline" label={t('workbench')} value={workspaceView} onChange={onViewChange} items={[{ value: 'references', label: t('referencesView'), id: `${viewId}-references-tab`, panelId: `${viewId}-references` }, { value: 'execution', label: t('execution'), id: `${viewId}-execution-tab`, panelId: `${viewId}-execution` }, { value: 'datasets', label: t('datasets'), id: `${viewId}-datasets-tab`, panelId: `${viewId}-datasets` }]} />
+        <div className="vc-reference-actions">{scopeSessionId && onCloseSession && <span className="vc-session-badge"><Tag tone="info">{t('taskSession')}</Tag><Button size="sm" variant="ghost" onClick={onCloseSession}>{t('taskLibrary')}</Button></span>}{referencesView && <>
           <Button ref={inspectorToggle} className="vc-profile-dock-toggle" variant="ghost" aria-label={t('profileInspector')} aria-expanded={inspectorOpen} aria-controls={inspectorId} onClick={() => setInspectorOpen(value => !value)}><ui.IconListPenOutlineRegular size={16} />{t('profileInspector')}{analysisBusy && !inspectorOpen && <Tag tone="info" aria-hidden="true">{t('analysisBusy')}</Tag>}</Button>
           <Button className="vc-profile-modal-toggle" variant="ghost" aria-label={t('profileInspector')} aria-haspopup="dialog" aria-expanded={inspectorModalOpen} onClick={() => setInspectorModalOpen(true)}><ui.IconListPenOutlineRegular size={16} />{t('profileInspector')}{analysisBusy && !inspectorModalOpen && <Tag tone="info" aria-hidden="true">{t('analysisBusy')}</Tag>}</Button>
           <Menu className="vc-import-picker" open={importMenuOpen} onClose={() => setImportMenuOpen(false)} portal compact autoFocus selectedId={`role:${role}`} items={[
@@ -273,10 +322,11 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
           ]} onSelect={value => { if (value === 'role:positive' || value === 'role:negative') { setRole(value === 'role:positive' ? 'positive' : 'negative'); return }; setImportMenuOpen(false); if (value === 'path') { importTrigger.current?.focus({ preventScroll: true }); setPathError(''); setPathOpen(true) } else if (value === 'gallery') openGalleryFromMenu(); else if (value === 'local') openPaths() }}
             anchor={<Button ref={importTrigger} variant="outline" className="vc-add-reference" disabled={busy} aria-haspopup="menu" aria-expanded={importMenuOpen} onClick={() => setImportMenuOpen(value => !value)}><ui.IconPlusOutlineRegular size={16} />{t('importMaterials')}<ui.IconChevronDownOutlineRegular size={12} /></Button>} />
         </>}
-          <Button ref={searchTrigger} variant="primary" className="vc-primary-action vc-find-action" disabled={!canSearch} onClick={onSearch}><ui.IconSearchOutlineRegular size={16} />{t('newTask')}</Button>
+          <Button ref={searchTrigger} variant={secondaryCreate ? 'outline' : 'primary'} className={secondaryCreate ? 'vc-find-action' : 'vc-primary-action vc-find-action'} disabled={!canSearch} onClick={onSearch}><ui.IconSearchOutlineRegular size={16} />{t('newTask')}</Button>
         </div>
       </div>
-      <div className="vc-reference-panel" id={`${viewId}-references`} role="tabpanel" aria-labelledby={`${viewId}-references-tab`} hidden={executionView}><div className="vc-library-pane">
+      <div className="vc-reference-panel" id={`${viewId}-references`} role="tabpanel" aria-labelledby={`${viewId}-references-tab`} hidden={!referencesView}><div className="vc-library-pane">
+      <DatasetBackground useDatasets={useDatasets} actions={actions} style={style} t={t} onOpen={() => setDatasetOpen(true)} onView={() => onViewChange('datasets')} />
       {task && (task.status !== 'completed' || task.failed > 0) && <GalleryTaskStatus task={task} t={t} onStop={() => report(() => actions.stopGalleryReferences(task.id))} />}
       <div className="vc-reference-toolbar"><h2>{t('references')} <span className="vc-count">{style.referenceIds.length}</span></h2>
         <div className="vc-reference-filter"><SelectField label={t('filterRole')} value={filter} options={(['all', 'positive', 'negative', 'undecided'] as const).filter(value => value !== 'undecided' || roleCount(value) || filter === value).map(value => ({ value, label: `${t(value === 'all' ? 'allReferenceTypes' : value)} · ${roleCount(value)}` }))} onChange={value => setFilter(value as typeof filter)} /></div>
@@ -294,10 +344,13 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
           setImports([{ id: 0, name: t('droppedSelection'), size: 0, status: 'failed', reason: 'localPathRequired' }])
         }}>
         {dragging && !busy && <div className="vc-drop-indicator">{t('dropHint')}</div>}
-        {visibleRefs.length ? <div className={`vc-image-grid vc-reference-grid${view === 'list' ? ' vc-image-list' : ''}`}>{visibleRefs.map(image => <figure key={image.referenceId} style={{ '--vc-image-ratio': image.width / image.height } as React.CSSProperties}>
-          <ReferencePreview src={resource(image.thumbnailPath ?? image.previewPath)} href={resource(image.previewPath)} alt={image.name} width={image.width} height={image.height} refreshKey={previewRefresh} t={t} />
-          <figcaption><span className="vc-image-name" title={image.localPath ?? image.name}>{image.source === 'provider' ? image.name : image.name.split(/[\\/]/).at(-1)}</span><small>{image.width} × {image.height}</small><Tag tone={image.role === 'positive' ? 'info' : image.role === 'negative' ? 'danger' : 'neutral'}>{t(image.role === 'positive' ? 'positive' : image.role === 'negative' ? 'negative' : 'undecided')}</Tag></figcaption>
-        </figure>)}</div>
+        {visibleRefs.length ? <div className={`vc-image-grid vc-reference-grid${view === 'list' ? ' vc-image-list' : ''}`}>{visibleRefs.map(image => {
+          const status = referenceStates.get(image.imageVersionId)
+          return <figure key={image.referenceId} style={{ '--vc-image-ratio': image.width / image.height } as React.CSSProperties}>
+            <div className="vc-reference-media"><ReferencePreview src={resource(image.thumbnailPath ?? image.previewPath)} href={resource(image.previewPath)} alt={image.name} width={image.width} height={image.height} refreshKey={previewRefresh} t={t} onPreview={() => setPreviewId(image.referenceId ?? image.imageVersionId)} />{status && <Tag className="vc-reference-status" tone={status === 'analyzed' ? 'success' : status === 'needs-update' ? 'warning' : 'neutral'}>{t(status === 'analyzed' ? 'referenceAnalyzed' : status === 'needs-update' ? 'referenceNeedsUpdate' : 'referencePending')}</Tag>}</div>
+            <figcaption><span className="vc-image-name" title={image.localPath ?? image.name}>{image.source === 'provider' ? image.name : image.name.split(/[\\/]/).at(-1)}</span><small>{image.width} × {image.height}</small><Tag tone={image.role === 'positive' ? 'info' : image.role === 'negative' ? 'danger' : 'neutral'}>{t(image.role === 'positive' ? 'positive' : image.role === 'negative' ? 'negative' : 'undecided')}</Tag></figcaption>
+          </figure>
+        })}</div>
           : refs.length ? <div className="vc-empty vc-filter-empty"><ui.IconSearchOutlineRegular size={28} /><h3>{t('noMatches')}</h3><Button variant="outline" onClick={() => { clearQuery(); setFilter('all') }}>{t('resetFilters')}</Button></div>
           : referencing || referencePage?.loading || !referencePage && style.referenceIds.length > 0 ? null : <div className="vc-empty vc-import-empty"><img className="vc-reference-empty-art" src={referenceEmptyArtwork} alt="" width={168} height={126} decoding="async" /><div className="vc-reference-empty-copy"><h3>{t('referenceEmptyTitle')}</h3><p>{t('referenceEmptyHint')}</p><div className="vc-reference-empty-actions"><Button variant="primary" className="vc-primary-action" disabled={busy} onClick={() => setGalleryOpen(true)}><ui.IconFolderOpenOutlineRegular size={16} />{t('galleryReference')}</Button><Button variant="outline" disabled={busy || referencing} onClick={openPaths}><ui.IconPlusOutlineRegular size={16} />{t('referenceLocal')}</Button></div><small>{t('acceptedFormats')}</small></div></div>}
         {(referencing || referencePage?.loading || !referencePage && style.referenceIds.length > 0) && !refs.length && <GallerySkeleton referenceGrid kind="photos" count={Math.min(snapshot.configuration.limits.pageSize, referencing ? task.total : snapshot.configuration.limits.pageSize)} label={t('galleryLoading')} />}
@@ -316,13 +369,18 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
       {!!refs.length && <p className="vc-reference-purpose"><ui.IconInfoOutlineRegular size={14} />{t('referencePurpose')}</p>}
       </div>
       </div>
-      <aside id={inspectorId} className="vc-profile-dock" hidden={!inspectorOpen || executionView} aria-label={t('profileInspector')} onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); closeInspector() } }}>
+      {workspaceView === 'datasets' && <div className="vc-datasets-panel" id={`${viewId}-datasets`} role="tabpanel" aria-labelledby={`${viewId}-datasets-tab`}><DatasetWorkspace useDatasets={useDatasets} actions={actions} t={t} canGenerate={!!style.modelProfile && !style.modelProfile.stale} onGenerate={() => setDatasetOpen(true)} /></div>}
+      <aside id={inspectorId} className="vc-profile-dock" hidden={!inspectorOpen || !referencesView} aria-label={t('profileInspector')} onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); closeInspector() } }}>
         <header className="vc-profile-header"><h2>{t('profileInspector')}</h2><Button size="sm" variant="ghost" onClick={closeInspector}>{t('collapse')}<ui.IconChevronRightOutlineRegular size={14} /></Button></header>
         <div className="vc-profile-content">{profileContent}</div>
       </aside>
-      <Modal open={inspectorModalOpen && !executionView} onClose={() => setInspectorModalOpen(false)} title={t('profileInspector')} closeLabel={t('close')} className="vc-profile-modal" contentClassName="vc-profile-modal-scroll"><div className="vc-profile-content">{profileContent}</div></Modal>
-      <DatasetDialog onSearch={() => { setDatasetOpen(false); setInspectorModalOpen(false); onSearch() }} open={datasetOpen} onClose={() => setDatasetOpen(false)} onAnalyze={() => { setDatasetOpen(false); analyze() }} canAnalyze={!analysisDisabled && !analysisBusy} style={style} snapshot={snapshot} actions={actions} t={t} busy={busy} />
-      {galleryOpen && <GalleryReferenceDialog task={task} config={snapshot.configuration} style={style} role={role} actions={actions} t={t} onClose={() => setGalleryOpen(false)} onManageAccounts={() => { setGalleryOpen(false); openGallerySettings() }} />}
+      <ImageGallery key={scopeSessionId ?? ''} images={visibleRefs.flatMap(image => { const path = resource(image.previewPath); return path ? [{ id: image.referenceId ?? image.imageVersionId, path, name: image.name }] : [] })} selectedId={referencesView ? previewId : null} onSelect={setPreviewId} onClose={closePreview} t={t} />
+      <Modal open={inspectorModalOpen && referencesView} onClose={() => setInspectorModalOpen(false)} title={t('profileInspector')} closeLabel={t('close')} className="vc-profile-modal" contentClassName="vc-profile-modal-scroll"><div className="vc-profile-content">{profileContent}</div></Modal>
+      <DatasetDialog useDatasets={useDatasets} onSearch={() => { setDatasetOpen(false); setInspectorModalOpen(false); onSearch() }} open={datasetOpen} onClose={() => setDatasetOpen(false)} onAnalyze={() => { setDatasetOpen(false); analyze() }} canAnalyze={!analysisDisabled && !analysisBusy} style={style} snapshot={snapshot} actions={actions} t={t} busy={busy} />
+      <Modal open={!!analysisPlan || analysisStarting} onClose={cancelAnalysisStart} closeOnBackdropClick={false} title={t('analysisSelectionTitle')} closeLabel={t('close')} className="vc-create-modal vc-analysis-start-modal" footer={<div className="vc-task-footer"><Button variant="outline" disabled={analysisStarting && analysisStartMode !== 'planning'} onClick={cancelAnalysisStart}>{t('cancel')}</Button><Button variant="outline" disabled={!analysisPlan || analysisStarting || analysisDisabled} aria-busy={analysisStartMode === 'all' || undefined} onClick={() => { if (analysisPlan) void launchAnalysis(analysisPlan, 'all') }}>{analysisStartMode === 'all' && <StateDot state="ongoing" />}{t('analysisAllAgain')} {analysisPlan?.total}</Button><Button variant="primary" disabled={!analysisPlan || analysisStarting || analysisDisabled} aria-busy={analysisStartMode === 'pending' || undefined} onClick={() => { if (analysisPlan) void launchAnalysis(analysisPlan, 'pending') }}>{analysisStartMode === 'pending' && <StateDot state="ongoing" />}{t(analysisPlan?.pending ? 'analysisPendingOnly' : 'analysisReuseSummary')} {!!analysisPlan?.pending && analysisPlan.pending}</Button></div>}>
+        {!analysisPlan && analysisStarting && <div className="vc-analysis-plan-loading" role="status" aria-label={t('analysisPreparing')}><span className="vc-skeleton-fill vc-skeleton-title" /><span className="vc-skeleton-fill" /><span className="vc-skeleton-fill" /></div>}{analysisPlan && <div className="vc-create-form"><div className="vc-row"><Tag tone="success">{t('referenceAnalyzed')} {analysisPlan.reusable}</Tag><Tag tone="info">{t('referencePending')} {analysisPlan.pending - analysisPlan.changed}</Tag>{analysisPlan.changed > 0 && <Tag tone="warning">{t('referenceNeedsUpdate')} {analysisPlan.changed}</Tag>}</div><p>{t('analysisReuseHint')}</p>{analysisPlan.changed > 0 && <p>{t('analysisChangedHint')}</p>}</div>}
+      </Modal>
+      {galleryOpen && <GalleryReferenceDialog scopeSessionId={scopeSessionId} task={task} config={snapshot.configuration} style={style} role={role} actions={actions} t={t} onClose={() => setGalleryOpen(false)} onManageAccounts={() => { setGalleryOpen(false); openGallerySettings() }} />}
       <Modal open={pathOpen} onClose={() => { if (!busy) setPathOpen(false) }} title={t('referenceByPath')} closeLabel={t('close')} className="vc-create-modal vc-path-modal">
         <form className="vc-create-form" onSubmit={event => { event.preventDefault(); addPath(false) }}>
           <label>{t('pathKind')}<SelectField label={t('pathKind')} value={pathKind} disabled={busy} options={[{ value: 'folder', label: t('folderPath') }, { value: 'file', label: t('imagePath') }]} onChange={value => setPathKind(value as 'file' | 'folder')} /></label>
@@ -334,13 +392,16 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     </div>
   }
 
-  function Workbench({ useWorkbench, useLaunches, actions, t, welcomeImage, logoImage, renderFactorySlot }: WorkbenchProps) {
+  function Workbench({ useWorkbench, useVisionModels, useDatasets, useLaunches, useSearchBatches, actions, t, welcomeImage, logoImage, renderFactorySlot }: WorkbenchProps) {
     const [previewRefresh, setPreviewRefresh] = React.useState(0)
     const selectWorkbench = React.useMemo(createWorkbenchSelector, [])
     const state = useWorkbench(selectWorkbench), snapshot = state.snapshot
     const executionView = state.workspace === 'tasks'
     const setExecutionView = (value: boolean) => actions.selectWorkspace(value ? 'tasks' : 'styles')
-    const [taskForm, setTaskForm] = React.useState<{ serial: number; imageVersionId?: string } | null>(null)
+    const [libraryView, setLibraryView] = React.useState<'references' | 'datasets'>('references')
+    const workspaceView = executionView ? 'execution' : libraryView
+    const setWorkspaceView = (value: 'references' | 'execution' | 'datasets') => { if (value !== 'execution') setLibraryView(value); setExecutionView(value === 'execution') }
+    const [taskForm, setTaskForm] = React.useState<{ serial: number; imageVersionId?: string; browsingDatasets?: boolean } | null>(null)
     const searchTrigger = React.useRef<HTMLButtonElement>(null)
     const [tab, setTab] = React.useState<'workbench' | 'settings'>('workbench')
     const [settingsPanel, setSettingsPanel] = React.useState<'vision' | 'source'>('vision')
@@ -352,6 +413,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const [collectionOpen, setCollectionOpen] = React.useState(false)
     const [tasksOpen, setTasksOpen] = React.useState(false)
     const [taskSelection, setTaskSelection] = React.useState({ styleId: state.styleId, runId: '' })
+    const [batchDetail, setBatchDetail] = React.useState({ styleId: '', runId: '' })
     const [imageSearch, setImageSearch] = React.useState({ styleId: state.styleId, value: '' })
     // 顶部搜索归属当前素材集，切换时先屏蔽旧条件，再清空本地输入。
     const query = imageSearch.styleId === state.styleId ? imageSearch.value : ''
@@ -377,9 +439,9 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const historyRuns = snapshot?.runs.filter(run => run.kind !== 'analyze' || run.styleId === state.styleId || run.runId === style?.analysis?.runId).slice().reverse() ?? []
     const orderedRuns = currentAnalysisRun ? [currentAnalysisRun, ...historyRuns.filter(run => run.runId !== currentAnalysisRun.runId)] : historyRuns
     const displayedRuns = executionView ? orderedRuns.filter(run => (run.kind === 'search' || run.kind === 'crop') && (run.runId === state.runId || !run.styleId || run.styleId === state.styleId)) : orderedRuns
-    const startSearch = () => { searchTrigger.current?.focus({ preventScroll: true }); setTaskForm({ serial: Date.now() }) }
+    const startSearch = () => { searchTrigger.current?.focus({ preventScroll: true }); setTaskForm(current => current?.browsingDatasets ? { ...current, browsingDatasets: false } : { serial: Date.now() }) }
     // 引导按钮会随页面切换卸载；先将焦点交回仍保留的参考标签。
-    const showReferences = () => { document.getElementById(`${viewId}-references-tab`)?.focus({ preventScroll: true }); setExecutionView(false) }
+    const showReferences = () => { document.getElementById(`${viewId}-references-tab`)?.focus({ preventScroll: true }); setWorkspaceView('references') }
     const loadedReferences = style && snapshot ? filterReferences(snapshot.images, style, '', 'all').length : 0
     const activeTasks = snapshot?.runs.filter(run => ['created', 'running', 'pausing', 'cancelling'].includes(run.status)).length ?? 0
     const createCollection = () => report(async () => {
@@ -415,26 +477,28 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
           onClick={() => setCollectionOpen(value => !value)} onKeyDown={event => { if (!collectionOpen && event.key === 'ArrowDown') { event.preventDefault(); setCollectionOpen(true) } }}>
           <img className={collectionPreview ? 'vc-collection-preview' : 'vc-collection-logo'} src={collectionPreview ? resource(collectionPreview.thumbnailPath ?? collectionPreview.previewPath) : logoImage} onError={event => { if (event.currentTarget.src !== logoImage) event.currentTarget.src = logoImage }} alt="" width={32} height={32} draggable={false} /><span className="vc-collection-copy"><span className="vc-collection-name">{style?.name ?? t('styles')}</span>{style?.modelProfile && <span className="vc-collection-meta">v{style.modelProfile.revision}</span>}</span><ui.IconChevronDownOutlineRegular size={12} />
         </Button>} />
-        {style?.releases.length ? <div className="vc-context-meta"><Tag>{style.releases.at(-1)?.label}</Tag></div> : null}</div>
+        {style?.releases.length ? <div className="vc-context-meta"><Tag>{style.releases.at(-1)?.label}</Tag></div> : null}
+        {style && tab === 'workbench' && <SearchLaunch.Background inline useLaunches={useLaunches} actions={actions.launches} t={t} />}</div>
         {snapshot && <><SegmentedTabs className="vc-primary-tabs" label={t('title')} value={tab} onChange={setTab}
           items={[{ value: 'workbench', label: t('workbench'), id: `${viewId}-workbench-tab`, panelId: `${viewId}-workbench` }, { value: 'settings', label: t('modelSettings'), id: `${viewId}-settings-tab`, panelId: `${viewId}-settings` }]} /><div className="vc-command-actions"><span className="vc-model-state"><StateDot state={snapshot.configuration.visionConfigured ? 'done' : 'idle'} />{t('vision')} · {t(snapshot.configuration.visionConfigured ? 'configured' : 'unconfigured')}</span><Button variant="ghost" disabled={working} onClick={() => { setPreviewRefresh(value => value + 1); report(actions.reload) }}><ui.IconRefreshOutlineRegular size={16} />{t('refresh')}</Button></div></>}
       </header>
-      {state.scopeSessionId && <div className="vc-execution-nav vc-session-scope"><span>{t('taskSession')}</span><Button size="sm" variant="outline" onClick={actions.closeSession}>{t('taskLibrary')}</Button></div>}
+      {state.scopeSessionId && (!style || tab !== 'workbench') && <div className="vc-execution-nav vc-session-scope"><span>{t('taskSession')}</span><Button size="sm" variant="outline" onClick={actions.closeSession}>{t('taskLibrary')}</Button></div>}
       <main className={`vc-main${style && tab === 'workbench' ? ' vc-main-workspace' : ''}`}>
         {(error || state.error) && <div className="vc-notice" role="alert">{error || `${t('error')} (${state.error?.code})`}<Button size="sm" onClick={() => report(actions.reload)}>{t('retry')}</Button></div>}
-        {style && tab === 'workbench' && <SearchLaunch.Background useLaunches={useLaunches} actions={actions.launches} t={t} />}
         {state.galleryTaskError && <div className="vc-notice" role="alert">{t('galleryConnectionError')}</div>}
-        {!snapshot && <div className="vc-empty">{state.loading ? <StateDot state="ongoing" /> : <Button onClick={() => report(actions.reload)}>{t('retry')}</Button>}</div>}
+        {!snapshot && (state.loading && executionView ? <div className="vc-search-batches" aria-busy="true"><div className="vc-search-batches-scroll"><BatchSkeleton label={t('taskBatchLoading')} /></div></div> : <div className="vc-empty">{state.loading ? <StateDot state="ongoing" /> : <Button onClick={() => report(actions.reload)}>{t('retry')}</Button>}</div>)}
         {/* 参考区保留草稿和筛选；任务折叠区按 Tab 重建，避免退出动画保留另一页内容。 */}
         {snapshot && <>
-          <div className={style ? 'vc-workbench-panel' : undefined} id={`${viewId}-workbench`} role="tabpanel" aria-labelledby={`${viewId}-workbench-tab`} hidden={tab !== 'workbench'}>{style ? <StyleEditor onSearch={startSearch} canSearch={canSearch} searchTrigger={searchTrigger} pendingStart={state.pending.includes(`analysis:${style.styleId}`)} key={style.styleId} task={referenceTask} referencePage={state.referencePages[style.styleId]} previewRefresh={previewRefresh} style={style} snapshot={snapshot} actions={actions} t={t} report={report} busy={working} query={query} onQuery={value => setImageSearch({ styleId: state.styleId, value })} clearQuery={() => setImageSearch({ styleId: state.styleId, value: '' })} openGallerySettings={() => { setSettingsPanel('source'); setTab('settings') }} executionView={executionView} viewId={viewId} onViewChange={value => { setExecutionView(value === 'execution'); if (value === 'execution') { const run = orderedRuns.find(item => (item.kind === 'search' || item.kind === 'crop') && item.styleId === state.styleId); if (run) actions.selectRun(run.runId) } }} />
+          <div className={style ? 'vc-workbench-panel' : undefined} id={`${viewId}-workbench`} role="tabpanel" aria-labelledby={`${viewId}-workbench-tab`} hidden={tab !== 'workbench'}>{style ? <StyleEditor useDatasets={useDatasets} onSearch={startSearch} canSearch={canSearch} hasRecoverableRun={!!selectedRun && ['created', 'running', 'pausing', 'paused', 'interrupted'].includes(selectedRun.status)} scopeSessionId={state.scopeSessionId} onCloseSession={actions.closeSession} searchTrigger={searchTrigger} pendingStart={state.pending.includes(`analysis:${style.styleId}`)} key={style.styleId} task={referenceTask} referencePage={state.referencePages[style.styleId]} previewRefresh={previewRefresh} style={style} snapshot={snapshot} actions={actions} t={t} report={report} busy={working} query={query} onQuery={value => setImageSearch({ styleId: state.styleId, value })} clearQuery={() => setImageSearch({ styleId: state.styleId, value: '' })} openGallerySettings={() => { setSettingsPanel('source'); setTab('settings') }} workspaceView={workspaceView} viewId={viewId} onViewChange={value => { setWorkspaceView(value); if (value === 'execution') { const run = orderedRuns.find(item => (item.kind === 'search' || item.kind === 'crop') && item.styleId === state.styleId); if (run) actions.selectRun(run.runId) } }} />
             : <section className="vc-welcome"><img className="vc-welcome-art" src={welcomeImage} alt="" width={558} height={242} decoding="async" /><h2>{t('welcomeTitle')}</h2><p>{t('welcomeHint')}</p><Button variant="primary" className="vc-primary-action vc-welcome-create" disabled={working} onClick={() => { setError(''); setCreateOpen(true) }}><ui.IconPlusOutlineRegular size={18} />{t('createCollectionAction')}</Button><small>{t('welcomeFormats')}</small></section>}
-        {(snapshot.runs.length > 0 || !!style?.referenceIds.length || executionView) && <div className="vc-history-region" data-execution={executionView} id={`${viewId}-execution`} role={executionView ? 'tabpanel' : undefined} aria-labelledby={executionView ? `${viewId}-execution-tab` : undefined}><DisclosureRow key={executionView ? 'execution' : 'history'} className={executionView ? 'vc-task-section vc-execution-section' : 'vc-task-section'} rowClassName="vc-task-toggle" leadingClassName="vc-task-chevron" previewChevron={false} icon={<ui.IconChevronDownOutlineRegular size={14} />} title={t('taskHistory')} open={tasksOpen || executionView} expandable={!executionView} expandOnRowClick={!executionView} onToggle={() => setTasksOpen(value => !value)} headerAccessory={<span className="vc-task-meta"><span className="vc-task-count">{displayedRuns.length}</span>{activeTasks > 0 && <small><StateDot state="ongoing" />{t('running')} · {activeTasks}</small>}</span>}><div className="vc-task-panel"><TaskHistory onStart={executionView && canSearch ? startSearch : undefined} onReferences={executionView ? showReferences : undefined} onCrop={imageVersionId => setTaskForm({ serial: Date.now(), imageVersionId })} runs={displayedRuns} selected={selectedRun} snapshot={snapshot} t={t} loading={state.runLoading} pending={state.pending} errorCode={state.runError?.code} actions={actions} onSelect={runId => { setTaskSelection({ styleId: state.styleId, runId }); actions.selectRun(runId) }} report={report} />{style && !executionView && <div className="vc-task-notes" role="note"><div className="vc-library-caption"><span>{t('loadedImages')} {loadedReferences} / {style.referenceIds.length}</span><span>{t('previewHint')}</span></div><p className="vc-task-analysis-note"><ui.IconSparkleRegular size={14} />{t('modelNotes')}</p></div>}</div></DisclosureRow></div>}
+        {workspaceView !== 'datasets' && (snapshot.runs.length > 0 || !!style?.referenceIds.length || executionView) && (executionView
+          ? <div className="vc-history-region" data-execution="true" id={`${viewId}-execution`} role="tabpanel" aria-labelledby={`${viewId}-execution-tab`}><div className="vc-task-panel vc-execution-panel">{useSearchBatches && actions.batches && style && !(batchDetail.styleId === style.styleId && batchDetail.runId) ? <SearchBatchResults styleId={style.styleId} t={t} useBatches={useSearchBatches} actions={actions.batches} onOpen={async (runId, sessionId) => { if (sessionId) await actions.openSession(sessionId); actions.selectRun(runId); setBatchDetail({ styleId: style.styleId, runId }) }} /> : <div className="vc-search-batch-detail">{useSearchBatches && <Button size="sm" variant="ghost" onClick={() => { setBatchDetail({ styleId: '', runId: '' }); actions.closeSession(); actions.batches?.select('') }}>{t('taskAllBatches')}</Button>}<TaskHistory onStart={canSearch ? startSearch : undefined} onReferences={showReferences} onCrop={imageVersionId => setTaskForm({ serial: Date.now(), imageVersionId })} runs={displayedRuns} selected={selectedRun} snapshot={snapshot} t={t} loading={state.runLoading} pending={state.pending} errorCode={state.runError?.code} actions={actions} onSelect={runId => { setTaskSelection({ styleId: state.styleId, runId }); actions.selectRun(runId) }} report={report} /></div>}</div></div>
+          : <div className="vc-history-region" data-execution="false"><DisclosureRow key="history" className="vc-task-section" rowClassName="vc-task-toggle" leadingClassName="vc-task-chevron" previewChevron={false} icon={<ui.IconChevronDownOutlineRegular size={14} />} title={t('taskHistory')} open={tasksOpen} expandable expandOnRowClick onToggle={() => setTasksOpen(value => !value)} headerAccessory={<span className="vc-task-meta"><span className="vc-task-count">{displayedRuns.length}</span>{activeTasks > 0 && <small><StateDot state="ongoing" />{t('running')} · {activeTasks}</small>}</span>}><div className="vc-task-panel"><TaskHistory onCrop={imageVersionId => setTaskForm({ serial: Date.now(), imageVersionId })} runs={displayedRuns} selected={selectedRun} snapshot={snapshot} t={t} loading={state.runLoading} pending={state.pending} errorCode={state.runError?.code} actions={actions} onSelect={runId => { setTaskSelection({ styleId: state.styleId, runId }); actions.selectRun(runId) }} report={report} />{style && <div className="vc-task-notes" role="note"><div className="vc-library-caption"><span>{t('loadedImages')} {loadedReferences} / {style.referenceIds.length}</span><span>{t('previewHint')}</span></div><p className="vc-task-analysis-note"><ui.IconSparkleRegular size={14} />{t('modelNotes')}</p></div>}</div></DisclosureRow></div>)}
           </div>
-          <div id={`${viewId}-settings`} role="tabpanel" aria-labelledby={`${viewId}-settings-tab`} hidden={tab !== 'settings'}>{tab === 'settings' && <Configuration saving={state.configSaving} saveError={state.configError} config={snapshot.configuration} actions={actions} t={t} report={report} styles={styles} selectedStyleId={state.styleId} initialPanel={settingsPanel} openWorkbench={styleId => { actions.selectStyle(styleId); setTab('workbench') }} />}</div>
+          <div id={`${viewId}-settings`} role="tabpanel" aria-labelledby={`${viewId}-settings-tab`} hidden={tab !== 'settings'}>{tab === 'settings' && <Configuration useVisionModels={useVisionModels} saving={state.configSaving} saveError={state.configError} config={snapshot.configuration} actions={actions} t={t} report={report} styles={styles} selectedStyleId={state.styleId} initialPanel={settingsPanel} openWorkbench={styleId => { actions.selectStyle(styleId); setTab('workbench') }} />}</div>
         </>}
       </main>
-      {taskForm && style && snapshot && (taskForm.imageVersionId ? <TaskDialog open={tab === 'workbench'} key={`${style.styleId}:${state.scopeSessionId}:${taskForm.serial}`} style={style} snapshot={snapshot} actions={actions} t={t} imageVersionId={taskForm.imageVersionId} onClose={() => setTaskForm(null)} onSettings={() => setTab('settings')} onStarted={runId => { setTaskForm(null); actions.selectRun(runId); setExecutionView(true) }} /> : <SearchLaunch.Dialog open={tab === 'workbench'} key={`${style.styleId}:${state.scopeSessionId}:${taskForm.serial}`} style={style} snapshot={snapshot} actions={actions.launches} useLaunches={useLaunches} t={t} onClose={() => setTaskForm(null)} />)}
+      {taskForm && style && snapshot && (taskForm.imageVersionId ? <TaskDialog open={tab === 'workbench'} key={`${style.styleId}:${state.scopeSessionId}:${taskForm.serial}`} style={style} snapshot={snapshot} actions={actions} t={t} imageVersionId={taskForm.imageVersionId} onClose={() => setTaskForm(null)} onSettings={() => setTab('settings')} onStarted={runId => { setTaskForm(null); actions.selectRun(runId); setExecutionView(true) }} /> : <SearchLaunch.Dialog open={tab === 'workbench' && !taskForm.browsingDatasets} key={`${style.styleId}:${state.scopeSessionId}:${taskForm.serial}`} style={style} snapshot={snapshot} actions={actions.launches} useLaunches={useLaunches} t={t} onClose={() => setTaskForm(null)} onDatasets={datasetId => { setTaskForm(current => current ? { ...current, browsingDatasets: true } : null); setWorkspaceView('datasets'); if (datasetId) void actions.datasets.open(datasetId) }} />)}
       <AnalysisDialogRegion useWorkbench={useWorkbench} actions={actions} t={t} renderFactorySlot={renderFactorySlot} />
       <Modal open={createOpen} onClose={() => { if (!working) setCreateOpen(false) }} title={t('create')} closeLabel={t('close')} className="vc-create-modal"><CreateCollection name={name} onName={setName} onSubmit={createCollection} busy={working} error={error} t={t} /></Modal>
       <Modal open={!!deleteTarget} onClose={() => { if (!working) setDeleteTarget(null) }} title={t(deleteTarget?.kind === 'all' ? 'deleteAllCollections' : 'deleteCollection')} closeLabel={t('close')} className="vc-delete-modal"

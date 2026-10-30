@@ -113,7 +113,11 @@ export function adaptCodexBody(value: unknown): Record<string, unknown> {
     if (reasoning.data.effort !== 'none') reasoning.data.summary ??= 'auto'
     body.reasoning = reasoning.data
   }
-  if (reasoning.success && reasoning.data.effort === 'none') delete body.include
+  if (reasoning.success && reasoning.data.effort === 'none') {
+    const include = Array.isArray(body.include) ? body.include.filter(item => item !== 'reasoning.encrypted_content') : []
+    if (include.length === 0) delete body.include
+    else body.include = include
+  }
   else {
     const include = Array.isArray(body.include) ? body.include : []
     body.include = include.includes('reasoning.encrypted_content') ? include : [...include, 'reasoning.encrypted_content']

@@ -1,0 +1,7 @@
+- navigation "Global panels":
+  - button "Plugins"
+  - button "Automation tasks"
+  - button "More" [expanded]
+  - menu "More":
+    - menuitem "Browse other plugins"
+    - menuitem "Create your plugin"

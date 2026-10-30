@@ -14,9 +14,10 @@ const artifactGraph = {
   'client-bundle': ['client-src'],
   'afp': ['client-bundle'],
   'visual-curator': ['client-bundle'],
+  'style-prompt': ['client-bundle'],
   'codex-subscription': ['host-bundle'],
   'sidebar': ['client-bundle'],
-  'web': ['afp', 'sidebar', 'visual-curator', 'codex-subscription'],
+  'web': ['afp', 'sidebar', 'visual-curator', 'style-prompt', 'codex-subscription'],
 }
 
 function graph(gates: ReturnType<typeof buildGates>): Record<string, string[] | undefined> {
@@ -68,6 +69,7 @@ describe('repository build steps', () => {
     const gates = buildGates(root, 'artifacts')
     expect(gates.find(gate => gate.id === 'afp')?.args.slice(-2)).toEqual(['run', 'build:afp'])
     expect(gates.find(gate => gate.id === 'visual-curator')?.args.slice(-2)).toEqual(['run', 'build:visual-curator'])
+    expect(gates.find(gate => gate.id === 'style-prompt')?.args.slice(-2)).toEqual(['run', 'build:style-prompt'])
     expect(gates.find(gate => gate.id === 'codex-subscription')?.args.slice(-2)).toEqual(['run', 'build:codex-subscription'])
     expect(gates.find(gate => gate.id === 'sidebar')?.args.slice(-2)).toEqual(['run', 'build:sidebar'])
   })

@@ -32,6 +32,7 @@ import { ChatView } from './chat/ChatView.tsx'
 import { ChatFlow } from './chat/ChatFlow.tsx'
 import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
 import { UserContent } from './chat/UserContent.tsx'
+import { LONG_MESSAGE_ID, LONG_MESSAGE_KIND, LongMessageReader, LongMessageReaderTitle } from './chat/LongMessageReader.tsx'
 import { ActivityPill, UsagePill } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { QuotaNoticeHost } from './chat/QuotaNoticeHost.tsx'
@@ -74,7 +75,7 @@ export const CHAT_NODE_INJECT: ChatNodeInjected = {
 /** Services required by the Chat target and its presentation registrations. */
 export const inject = [
   'slots', 'sessions', 'uiWorkspace', 'uiSession', 'uiConversation', 'locale',
-  'configForms', 'remote', 'remote.session', 'sidebarRight',
+  'configForms', 'remote', 'remote.session', 'sidebarRight', 'sidebarRightTabs',
 ]
 
 /**
@@ -174,7 +175,20 @@ export function apply(ctx: Context): void {
   ctx.slots.registerFactory({
     name: 'conversation.chat.user.content', scope: 'session', locale: NS,
     children: { 'conversation.chat.user.images': { kind: 'single', scope: 'session' } },
+    inject: () => ({
+      openLongText: (text: string) => ctx.sidebarRight.openTab(LONG_MESSAGE_KIND, { params: { messageText: text } }),
+    }),
   }, UserContent)
+  ctx.effect(() => ctx.sidebarRightTabs.register({
+    id: LONG_MESSAGE_ID, kind: LONG_MESSAGE_KIND, priority: 'builtin',
+    title: () => t('message.longText.title'),
+  }), 'ui-chat: long-message reader')
+  ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
+    name: 'sidebar.right.pane.tab', key: LONG_MESSAGE_ID, locale: NS,
+  }, LongMessageReader))
+  ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({
+    name: 'sidebar.right.pane.tab.title', key: LONG_MESSAGE_ID, locale: NS,
+  }, LongMessageReaderTitle))
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
@@ -201,6 +215,19 @@ export function apply(ctx: Context): void {
     }),
   }, TranscriptViewRow))
 
+  const processStatusSources = new Map<string, ObservableSnapshot<boolean>>()
+  const processStatusSource = (toolName: string): ObservableSnapshot<boolean> => {
+    let source = processStatusSources.get(toolName)
+    if (source === undefined) {
+      source = {
+        subscribe: listener => ctx.slots.subscribe('conversation.chat.process.status', listener),
+        getSnapshot: () => ctx.slots.entriesOfSlot('conversation.chat.process.status').some(entry => entry.options.key === toolName),
+      }
+      processStatusSources.set(toolName, source)
+    }
+    return source
+  }
+
   const nodeSources = (binding: SessionBinding): ChatFlowDataInjected => {
     const chat = chatSource(binding)
     const conversation = ctx.uiConversation.binding(binding)
@@ -211,6 +238,7 @@ export function apply(ctx: Context): void {
         chatNodeBottom: key => chat.getSnapshot().nodes.bottomSource(key),
         chatNodeProcess: key => chat.getSnapshot().nodes.processSource(key),
         chatGroup: key => conversation.snapshot.getSnapshot().views.grouped('chat')?.groupSource(key as GroupKey),
+        chatProcessStatus: processStatusSource,
       },
     }
   }
@@ -219,6 +247,7 @@ export function apply(ctx: Context): void {
     name: 'conversation.chat.flow', locale: NS, store: chatStore,
     children: {
       'conversation.chat.node': { kind: 'keyed', scope: 'session', inject: CHAT_NODE_INJECT },
+      'conversation.chat.process.status': { kind: 'keyed', scope: 'session' },
     },
     inject: (sessionId: SessionId): ChatFlowDataInjected => {
       const binding = ctx.sessions.binding(sessionId)

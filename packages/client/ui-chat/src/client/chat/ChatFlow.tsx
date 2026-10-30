@@ -11,7 +11,7 @@ import { RunningStatus } from './RunningStatus.tsx'
 /** Render the flow without adding a DOM parent or changing keyed row positions. */
 export const ChatFlow = memo(function ChatFlow({
   entries, pendingInputs, lastInputTurn, deferCollapse,
-  useSession, useChat, useChatNode, useChatNodeBottom, useChatNodeProcess, useChatGroup, usePresentation,
+  useSession, useChat, useChatNode, useChatNodeBottom, useChatNodeProcess, useChatGroup, useChatProcessStatus, usePresentation,
   useStore, actions, renderSlot, renderFactorySlot, t, useGroupAction, useGroupHeaderAction,
   cwd, openFile, inspectCall, forkAt, loadImage, fileMentions,
 }: ChatFlowSlotProps) {
@@ -36,7 +36,7 @@ export const ChatFlow = memo(function ChatFlow({
           {...entry.groupPart === undefined ? {} : { groupPart: entry.groupPart }} />
       case 'group':
         return <ChatGroupSeat {...seatProps} key={chatRenderKey(entry)} groupKey={entry.key}
-          useChatGroup={useChatGroup} useGroupHeaderAction={useGroupHeaderAction} />
+          useChatGroup={useChatGroup} useChatProcessStatus={useChatProcessStatus} useGroupHeaderAction={useGroupHeaderAction} />
       default:
         return assertNever(entry)
     }

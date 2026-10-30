@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-plugin-style-prompt/README.md
+/:
+  en: 96a56865d63e9dc1
+  zh: ec1aeb8eed318ce2
+/style-prompt:
+  en: 71d6286db426b165
+  zh: 4b66966e9e8c8680
+/style-prompt/summary:
+  en: 010531f7ba78247f
+  zh: 55f18fdf8ffefe87
+/style-prompt/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 62810149eb4c15f9
+/style-prompt/use-this-package:
+  en: bbff250eba0f1b89
+  zh: 0a618f05cc88ee2b
+/style-prompt/use-this-package/install-into-a-profile:
+  en: cac21df5146f42a8
+  zh: 3e53760ac2bc1577
+/style-prompt/use-this-package/analyze-and-create-prompts:
+  en: 88c74a59776af1a3
+  zh: 15081aa78fc9e113
+/style-prompt/use-this-package/deployment-configuration:
+  en: cd6e374692aebb9f
+  zh: d268a23787b7859e
+/style-prompt/understand-the-implementation:
+  en: 3ef6c4c1630711dc
+  zh: 19563a2497e9666b
+/style-prompt/further-exploration:
+  en: cd4dffdd2b670cee
+  zh: 7eeb9b66913e6297
+/style-prompt/model-experience:
+  en: 16a2e3119f7377e1
+  zh: 2db7a145e4f970d2
+/style-prompt/known-limitations-and-deferred-work:
+  en: 64e6159f3da444b6
+  zh: a2597096dd26c651
+/style-prompt/dev-note:
+  en: b75c8458928b72b9
+  zh: 02cbcc6baa338b07

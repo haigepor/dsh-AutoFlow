@@ -46,6 +46,32 @@ it('validates account and login JSON while projecting away all credential values
   expect(() => subscriptionLogin({ ...login(), authorizationUrl: 'https://evil.test/oauth/authorize' })).toThrow(SubscriptionFailure)
 })
 
+it('model configuration is explicit, revision checked and keeps image defaults unchanged unless selected', async () => {
+  const changed = vi.fn(async () => {}), calls: { operation: string; args: Record<string, unknown> }[] = []
+  let revision = 3, entries: { kind: 'text' | 'image'; id: string; name: string }[] = []
+  const catalog = () => ({ revision, entries, defaultImageModel: 'existing-image', candidates: [{ id: 'gpt-fixture', name: 'GPT' }] })
+  const owner = new SubscriptionController(changed); owners.push(owner)
+  owner.connect({ availability: async () => 'active', activate: async () => 'active', invoke: async (operation, args) => {
+    calls.push({ operation, args })
+    if (operation === 'account-list') return [account()]
+    if (operation === 'model-list') return [{ id: 'gpt-fixture', name: 'GPT' }]
+    if (operation === 'model-catalog') return catalog()
+    if (operation === 'model-catalog-save') {
+      expect(args['revision']).toBe(revision); revision++
+      entries = [{ kind: 'text', id: 'gpt-fixture', name: 'My GPT' }, { kind: 'image', id: 'image-fixture', name: 'Images' }]
+      return catalog()
+    }
+    throw new Error('Unexpected operation')
+  } })
+  await owner.ensure()
+  expect(calls.some(call => call.operation === 'model-catalog-save')).toBe(false)
+  await owner.loadCatalog()
+  expect(await owner.saveCatalog([{ kind: 'text', id: 'gpt-fixture', name: 'My GPT' }, { kind: 'image', id: 'image-fixture', name: 'Images' }])).toBe(true)
+  expect(calls.find(call => call.operation === 'model-catalog-save')?.args).not.toHaveProperty('defaultImageModel')
+  expect(owner.store.getSnapshot().catalog).toMatchObject({ revision: 4, entries: [{ kind: 'text' }, { kind: 'image' }], defaultImageModel: 'existing-image' })
+  expect(changed).toHaveBeenCalledOnce()
+})
+
 it('polls one login and refreshes accounts plus both model directories before announcing success', async () => {
   vi.useFakeTimers()
   const f = fixture(); await f.owner.ensure()

@@ -27,6 +27,8 @@ Provide the shared DeepSeek Messages transport, request configuration, and model
 <a id="use-this-package"></a>
 ## Use this package
 
+Catalog entries accept `nativeWebSearch`: omission matches documented DeepSeek Messages models automatically; an explicit boolean overrides that choice. Native search uses the selected model, Messages endpoint and captured conversation authentication, including account sign-in. It does not require a separate search API key. See [web-tool routing](../../web/tool-web/README.md).
+
 This package exports the transport library; the provider plugins register routes with the harness LLM service. It captures connection options from Config references once per operation.
 
 The adapter accepts the LLM service's [request-only user inputs](../llm/README.md#use-this-package) alongside durable history; omitting request-only identity and attribution does not alter provider content.
@@ -196,9 +198,7 @@ Loop-retained response blocks append to the next request and preserve its earlie
 
 ## Known Limitations and Deferred Work
 
-
 <a id="known-limitations-and-deferred-work"></a>
-
 
 These limits define where the adapter stops and future work begins. They are current package constraints, not a general DeepSeek comparison or a task backlog.
 

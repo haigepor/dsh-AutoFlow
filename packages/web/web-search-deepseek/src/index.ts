@@ -36,6 +36,7 @@ export {
   DEEPSEEK_PROVIDER_ID,
 } from './provider.ts'
 export type { DeepSeekSearchLlmRequest, DeepSeekSearchProviderOptions } from './provider.ts'
+export { mapAnthropicResponse } from './provider.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'web-search-deepseek'

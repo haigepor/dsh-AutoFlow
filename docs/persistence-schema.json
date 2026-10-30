@@ -22427,6 +22427,124 @@
       }
     },
     {
+      "key": "event:web/native-search-llm-request",
+      "kind": "event",
+      "event": "web/native-search-llm-request",
+      "surface": false,
+      "digest": "7195fba1ffaa67e485ea93f1d2231fbda86babc0d7c5ea72ae8b26c70a869b58",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 9,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 10,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "api",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "body",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 2,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "web/native-search-llm-request"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:working-directory/change",
       "kind": "event",
       "event": "working-directory/change",
@@ -22697,7 +22815,7 @@
         "packages/llm/llm/src/types.ts#ReplayEnvelope"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:452"
+        "packages/llm/llm/src/types.ts:485"
       ]
     },
     {
@@ -22848,7 +22966,7 @@
         "packages/llm/llm/src/types.ts#ImageBlock"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:79"
+        "packages/llm/llm/src/types.ts:80"
       ]
     },
     {
@@ -23024,7 +23142,7 @@
       "digest": "1d76406cbb2ddadb0dbbb51e9d8bc6cf678fed455cf8eb512f36f7c86d37a62f",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:157"
+        "packages/llm/llm/src/types.ts:158"
       ]
     },
     {
@@ -23202,7 +23320,7 @@
       "digest": "287211846beea1eccb5f9acee00d20388a38fcb2e95858fa2332d6f58529379a",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:158"
+        "packages/llm/llm/src/types.ts:159"
       ]
     },
     {
@@ -23234,7 +23352,7 @@
       "digest": "2abb711460e6238d851c30f3e4bdd87a2aa1887ee70575b3d3b7b25610673095",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:477"
+        "packages/llm/llm/src/types.ts:510"
       ]
     },
     {
@@ -23496,7 +23614,7 @@
       "digest": "3bec87f9e6ab3da03346f49923d3c51621debc0159df68605e543c3b2a026f90",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:475"
+        "packages/llm/llm/src/types.ts:508"
       ]
     },
     {
@@ -23589,7 +23707,7 @@
         "packages/llm/llm/src/types.ts#ToolRemovalBlock"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:127"
+        "packages/llm/llm/src/types.ts:128"
       ]
     },
     {
@@ -23637,7 +23755,7 @@
         "packages/llm/llm/src/types.ts#StreamChunk"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:474"
+        "packages/llm/llm/src/types.ts:507"
       ]
     },
     {
@@ -23787,7 +23905,7 @@
         "packages/llm/llm/src/types.ts#TextBlock"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:62",
+        "packages/llm/llm/src/types.ts:63",
         "packages/web/web-search-deepseek/src/provider.ts:66"
       ]
     },
@@ -23944,7 +24062,7 @@
         "packages/llm/llm/src/types.ts#FinishReason"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:165"
+        "packages/llm/llm/src/types.ts:166"
       ]
     },
     {
@@ -24039,6 +24157,13 @@
       "sources": []
     },
     {
+      "digest": "5da6fd65259407c58048c69dfbd2eb9ec5dd586368c7012896a7b10da14dc5f8",
+      "names": [],
+      "sources": [
+        "packages/web/tool-web/src/search.ts:20"
+      ]
+    },
+    {
       "digest": "5dd766ccd1702a1142ad8b4bd44f2242f8e8a6752669ad3de0a5d224329b1438",
       "names": [],
       "sources": [
@@ -24061,7 +24186,7 @@
         "packages/llm/llm/src/types.ts#LlmFailure"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:41"
+        "packages/llm/llm/src/types.ts:42"
       ]
     },
     {
@@ -24150,7 +24275,7 @@
         "packages/llm/llm/src/types.ts#ToolSchema"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:495"
+        "packages/llm/llm/src/types.ts:528"
       ]
     },
     {
@@ -24182,6 +24307,11 @@
       "sources": []
     },
     {
+      "digest": "689ec7438133f377114216733c85ffe0b03249235910a14751edd3cfc0ed55da",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "68f44f59e91c41395076cb77265981a601680ec8a381bbbeb6ab754ffdc94573",
       "names": [],
       "sources": []
@@ -24195,7 +24325,7 @@
       "digest": "693f4952fb5565da96c06bace8924b098ac2fbc915fde0ff8019701183abc057",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:161"
+        "packages/llm/llm/src/types.ts:162"
       ]
     },
     {
@@ -24336,6 +24466,11 @@
       "sources": []
     },
     {
+      "digest": "7195fba1ffaa67e485ea93f1d2231fbda86babc0d7c5ea72ae8b26c70a869b58",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "719c51f67074f97034a6c94297fe1f4b5d3c8d392c57586dab732aa5398c7a91",
       "names": [
         "packages/llm/llm/src/message.ts#ModelMessageSource"
@@ -24472,7 +24607,7 @@
         "packages/llm/llm/src/types.ts#ContentBlockType"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:148"
+        "packages/llm/llm/src/types.ts:149"
       ]
     },
     {
@@ -24519,7 +24654,7 @@
         "packages/llm/llm/src/types.ts#ContentBlock"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:150"
+        "packages/llm/llm/src/types.ts:151"
       ]
     },
     {
@@ -24543,7 +24678,7 @@
         "packages/llm/llm/src/types.ts#ReasoningBlock"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:68"
+        "packages/llm/llm/src/types.ts:69"
       ]
     },
     {
@@ -24672,7 +24807,7 @@
       "digest": "88a610b831be6d92612a464be5c7d0b88ec24d97bd299837bf74bf7672183c9a",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:478"
+        "packages/llm/llm/src/types.ts:511"
       ]
     },
     {
@@ -24730,7 +24865,7 @@
       "digest": "8e31bb958e9b015e6f8407eaade32217068159e816f3cc99c3ad76eb889732e0",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:160"
+        "packages/llm/llm/src/types.ts:161"
       ]
     },
     {
@@ -24739,7 +24874,7 @@
         "packages/llm/llm/src/types.ts#ToolAdditionBlock"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:115"
+        "packages/llm/llm/src/types.ts:116"
       ]
     },
     {
@@ -24823,7 +24958,7 @@
       "digest": "95080295115fbd83544520ba247b68a03790131f6a2eac323d388758cb542f65",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:476"
+        "packages/llm/llm/src/types.ts:509"
       ]
     },
     {
@@ -25023,7 +25158,7 @@
       "digest": "a2b49331716ba0a7078b026d145306a70eae64b7313c3e6204bd931e75ec3bb1",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:481"
+        "packages/llm/llm/src/types.ts:514"
       ]
     },
     {
@@ -25178,7 +25313,7 @@
       "names": [],
       "sources": [
         "packages/core/session/src/types.ts:215",
-        "packages/llm/llm/src/types.ts:159"
+        "packages/llm/llm/src/types.ts:160"
       ]
     },
     {
@@ -25555,7 +25690,7 @@
         "packages/llm/llm/src/types.ts#ToolCallBlock"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:105"
+        "packages/llm/llm/src/types.ts:106"
       ]
     },
     {
@@ -25719,7 +25854,7 @@
       "digest": "d4b739491689cc6bb13d07ffac1a32239875abda364c0d5edd8f74faf5e9c00d",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:479"
+        "packages/llm/llm/src/types.ts:512"
       ]
     },
     {
@@ -26146,7 +26281,7 @@
       "digest": "f1a96afe7503ac1817de769cd0ba13d9b80111c7034c50106b3344ecc14cc515",
       "names": [],
       "sources": [
-        "packages/llm/llm/src/types.ts:480"
+        "packages/llm/llm/src/types.ts:513"
       ]
     },
     {
@@ -26165,7 +26300,7 @@
         "packages/llm/llm/src/types.ts#FileBlock"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:98"
+        "packages/llm/llm/src/types.ts:99"
       ]
     },
     {
@@ -26174,7 +26309,7 @@
         "packages/llm/llm/src/types.ts#SystemPromptUpdate"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:418"
+        "packages/llm/llm/src/types.ts:423"
       ]
     },
     {
@@ -26370,7 +26505,7 @@
         "packages/llm/llm/src/types.ts#TokenUsage"
       ],
       "sources": [
-        "packages/llm/llm/src/types.ts:175"
+        "packages/llm/llm/src/types.ts:176"
       ]
     },
     {

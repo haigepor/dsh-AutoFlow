@@ -1,4 +1,5 @@
 import { runResultFilterSchema } from '../shared/search-feedback.ts'
+import { planReferenceAnalysis } from './reference-state.ts'
 /** Shared business provider for authenticated workbench actions and the Agent tools. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { ProfileContext } from '@deepseek-ai/dsh-app-boot'
@@ -46,10 +47,15 @@ import { compileStyleInstructions } from './style-execution.ts'
 import { projectSnapshot, projectStyle, projectRun, projectConfiguration, projectAnalysisTasks } from './projection.ts'
 import { deleteTaskHistory, hiddenTaskIds } from './task-history.ts'
 import { analysisFollowResponse } from './analysis-follow.ts'
+import { listVisionModels, requireVisionModel } from './vision-models.ts'
+import { compactStyleSummary } from './context-compaction.ts'
+import { listDatasets, readDataset } from './datasets.ts'
+import { readSearchBatches, deleteSearchBatch } from './search-batches.ts'
 import { searchOutputSchema } from '../shared/search-launch.ts'
 import { SearchLaunches } from './search-launch.ts'
 import { nativeSearchSessions, type NativeSearchSessions } from './native-search-session.ts'
 import { originalSearchResult } from './search-results.ts'
+import type {} from '@deepseek-ai/dsh-compaction'
 
 const actionSchema = z.strictObject({ operation: z.string().min(1), args: z.record(z.string(), jsonSchema) })
 const startSchema = z.object({ operationId: z.string().min(1), releaseId: z.string().min(1), usageRevisionId: z.string().min(1).optional(), output: searchOutputSchema.optional(), taskBrief: z.string().min(1).max(4000), budgets: z.record(z.string(), z.number()).optional(), sourceId: z.string().optional(), imageVersionId: z.string().optional(), imageVersionIds: z.array(z.string()).optional(), queries: z.array(z.string().min(1).max(4096)).optional(), targetCount: z.number().int().positive().optional(), protectedContent: z.array(z.string().min(1)).optional(), rect: z.unknown().optional(), includeInLearning: z.boolean().optional(), allowWarning: z.boolean().optional(), runId: z.string().optional() })
@@ -173,7 +179,7 @@ export class CuratorService {
       } })
       return async ctx => { const outcome = await search(ctx); await this.launchesValue?.deliver(ctx.runId); return outcome }
     }
-    return createDataWorker(dependencies)
+    return createDataWorker({ ...dependencies, compactSummary: (input, provider, ctx) => compactStyleSummary({ ...(this.ctx.llm ? { llm: this.ctx.llm } : {}), ...(this.ctx.get?.('compaction') ? { compaction: this.ctx.get('compaction')! } : {}) }, this.domain.repository, provider, input, ctx) })
   }
   private spec(kind: ExecutionSpec['kind'], input: Record<string, Json>, fixed: Record<string, Json>, config = this.config): ExecutionSpec {
     return executionSchema.parse({ kind, config, input, fixed, specDigest: contentDigest({ kind, config, input, fixed }) })
@@ -208,7 +214,7 @@ export class CuratorService {
         const launches = this.launchesValue!
         if (operation === 'search-launch-options') {
           const input = z.object({ usagePageToken: z.string().optional() }).parse(args), page = this.usagePage(input.usagePageToken ? { pageToken: input.usagePageToken } : {})
-          return toJson({ ...launches.options(), usages: page.items.map(usage => ({ usageRevisionId: usage.id, name: usage.name, targetWidth: usage.output.targetWidth, targetHeight: usage.output.targetHeight })), ...(page.pageToken ? { usagePageToken: page.pageToken } : {}), defaultTargetCount: Math.min(10, this.config.limits.maxCandidates), maxTargetCount: this.config.limits.maxCandidates })
+          return toJson({ ...launches.options(), datasetSelection: 'required', previewSearch: this.config.source.provider === 'unsplash', usages: page.items.map(usage => ({ usageRevisionId: usage.id, name: usage.name, targetWidth: usage.output.targetWidth, targetHeight: usage.output.targetHeight })), ...(page.pageToken ? { usagePageToken: page.pageToken } : {}), defaultTargetCount: Math.min(10, this.config.limits.maxCandidates), maxTargetCount: this.config.limits.maxCandidates })
         }
         if (operation === 'search-launch-list') return toJson(launches.list(z.object({ styleId: z.string().optional() }).parse(args).styleId, this.config.limits.pageSize))
         if (operation === 'search-launch-start') return toJson(await launches.start(args))
@@ -227,46 +233,66 @@ export class CuratorService {
         }
       }
       switch (operation) {
+        case 'reference-state': {
+          this.human(actor)
+          const { styleId } = z.object({ styleId: z.string() }).parse(args)
+          return this.domain.repository.readSnapshot(() => toJson(planReferenceAnalysis(this.domain, styleId, effectiveActor, this.recipe(undefined)).view))
+        }
         case 'usage-list': return toJson(this.usagePage(args))
         case 'task-prepare': return await this.prepareTask(args, effectiveActor)
         case 'gallery-reference-start': this.human(effectiveActor); return toJson(await this.galleryTasks!.start(args, effectiveActor))
         case 'gallery-reference-tasks': {
           this.human(effectiveActor)
-          const hidden = hiddenTaskIds(this.domain.repository)
-          return toJson({ tasks: this.galleryTasks!.list(effectiveActor), analyses: projectAnalysisTasks(this.domain, this.engine, effectiveActor).filter(task => !hidden.has(task.runId)), workspaceRevision: this.workspaceRevision() })
+          return this.domain.repository.readSnapshot(() => {
+            const hidden = hiddenTaskIds(this.domain.repository)
+            return toJson({ tasks: this.galleryTasks!.list(effectiveActor), analyses: projectAnalysisTasks(this.domain, this.engine, effectiveActor).filter(task => !hidden.has(task.runId)), workspaceRevision: this.workspaceRevision() })
+          })
         }
         case 'analysis-input': {
           this.human(effectiveActor)
           const { runId, requestId } = z.object({ runId: z.string(), requestId: z.string() }).parse(args)
-          const run = this.engine.get(runId, effectiveActor)
-          if (specOf(run).kind !== 'analyze') throw new CuratorError('invalid-input', 'analysis-input', 'Choose an analysis task.')
-          return this.withSessionResources(toJson(readAnalysisInput(this.domain, run, requestId, effectiveActor)), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+          return this.domain.repository.readSnapshot(() => {
+            const run = this.engine.get(runId, effectiveActor)
+            if (specOf(run).kind !== 'analyze') throw new CuratorError('invalid-input', 'analysis-input', 'Choose an analysis task.')
+            return this.withSessionResources(toJson(readAnalysisInput(this.domain, run, requestId, effectiveActor)), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+          })
         }
         case 'analysis-detail': {
           this.human(effectiveActor)
-          const run = this.engine.get(z.string().parse(args.runId), effectiveActor)
-          if (specOf(run).kind !== 'analyze') throw new CuratorError('invalid-input', 'analysis-detail', 'Choose an analysis task.')
-          const task = projectAnalysisTasks(this.domain, this.engine, effectiveActor).find(item => item.runId === run.id)!
-          const observations = dataOf(run).resultIds.flatMap(id => {
-            const record = this.domain.repository.get('observation', id)
-            if (!record) return []
-            this.domain.authorizedImage(record.imageVersionId, effectiveActor)
-            return [{ imageVersionId: record.imageVersionId, dimensions: record.inferred.map(row => ({ field: row.field, value: row.value, uncertain: row.uncertain })) }]
+          return this.domain.repository.readSnapshot(() => {
+            const run = this.engine.get(z.string().parse(args.runId), effectiveActor)
+            if (specOf(run).kind !== 'analyze') throw new CuratorError('invalid-input', 'analysis-detail', 'Choose an analysis task.')
+            const task = projectAnalysisTasks(this.domain, this.engine, effectiveActor).find(item => item.runId === run.id)!
+            const authorized = new Map<string, ReturnType<CuratorDomain['authorizedImage']>>()
+            const imageOf = (imageVersionId: string) => {
+              if (!authorized.has(imageVersionId)) authorized.set(imageVersionId, this.domain.authorizedImage(imageVersionId, effectiveActor))
+              return authorized.get(imageVersionId)!
+            }
+            const observations = dataOf(run).resultIds.flatMap(id => {
+              const record = this.domain.repository.get('observation', id)
+              if (!record) return []
+              imageOf(record.imageVersionId)
+              return [{ imageVersionId: record.imageVersionId, dimensions: record.inferred.map(row => ({ field: row.field, value: row.value, uncertain: row.uncertain })) }]
+            })
+            const images = [...new Set(z.array(z.object({ imageVersionId: z.string() })).parse(specOf(run).fixed.references).map(reference => reference.imageVersionId))].map(imageVersionId => {
+              const { asset } = imageOf(imageVersionId)
+              return { imageVersionId, name: asset.source.description || imageVersionId }
+            })
+            return toJson({ task, process: this.engine.process(run), requests: analysisRequests(this.domain, run), observations, images, summary: styleAnalysisOf(run)?.summary })
           })
-          const images = [...new Set(z.array(z.object({ imageVersionId: z.string() })).parse(specOf(run).fixed.references).map(reference => reference.imageVersionId))].map(imageVersionId => {
-            const { asset } = this.domain.authorizedImage(imageVersionId, effectiveActor)
-            return { imageVersionId, name: asset.source.description || imageVersionId }
-          })
-          return toJson({ task, process: this.engine.process(run), requests: analysisRequests(this.domain, run), observations, images, summary: styleAnalysisOf(run)?.summary })
         }
-        case 'analysis-stop': {
+        case 'analysis-pause': case 'analysis-resume': case 'analysis-stop': {
           this.human(effectiveActor)
           const run = this.engine.get(z.string().parse(args.runId), effectiveActor)
-          if (specOf(run).kind !== 'analyze') throw new CuratorError('invalid-input', 'analysis-stop', 'Choose an analysis task.')
-          await this.engine.control(run.id, 'cancel', effectiveActor, undefined, false)
-          return { accepted: true }
+          if (specOf(run).kind !== 'analyze') throw new CuratorError('invalid-input', operation, 'Choose an analysis task.')
+          const command = operation === 'analysis-pause' ? 'pause' : operation === 'analysis-resume' ? 'resume' : 'cancel'
+          if (command === 'resume') await this.providers.vision(specOf(run).config)
+          await this.engine.control(run.id, command, effectiveActor, command === 'resume' ? this.worker('analyze') : undefined, false)
+          return command === 'cancel' ? { accepted: true } : toJson(projectAnalysisTasks(this.domain, this.engine, effectiveActor).find(item => item.runId === run.id)!)
         }
         case 'gallery-reference-stop': this.human(effectiveActor); return toJson(await this.galleryTasks!.cancel(galleryTaskIdSchema.parse(args.taskId), effectiveActor))
+        case 'datasets-list': this.human(effectiveActor); return this.withSessionResources(toJson(listDatasets(this.domain, this.engine, effectiveActor, args, this.config.limits.pageSize)), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+        case 'dataset-get': this.human(effectiveActor); return this.withSessionResources(toJson(readDataset(this.domain, this.engine, effectiveActor, args, this.config.limits)), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
         case 'references-list': return this.withSessionResources(referencePage(this.domain, args, effectiveActor, this.config.limits.pageSize), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
         case 'gallery-login-start': case 'gallery-login-status': case 'gallery-login-retry': case 'gallery-login-finish': case 'gallery-login-cancel': {
           this.human(effectiveActor)
@@ -298,6 +324,19 @@ export class CuratorService {
           this.sessionGrants.set(token, { sessionId, expiresAt })
           return { sessionToken: token, sessionId, expiresAt, pollIntervalMs: this.config.limits.pollIntervalMs }
         }
+        case 'conversation-runs': {
+          this.human(actor)
+          const { sessionId } = z.object({ sessionId: z.string().min(1) }).parse(args)
+          if (effectiveActor.sessionId !== sessionId) throw new CuratorError('owner-denied', 'session-channel', 'Open the task list through its Session channel.')
+          const hidden = hiddenTaskIds(this.domain.repository)
+          const tasks = this.domain.repository.list('run').filter(run => run.owner.kind === 'session' && run.owner.sessionId === sessionId && !hidden.has(run.id))
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)).flatMap(run => {
+              this.engine.authorize(run, effectiveActor)
+              const spec = specOf(run)
+              return spec.kind === 'search' || spec.kind === 'crop' ? [{ runId: run.id, revision: run.revision, kind: spec.kind, status: run.status, taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '' }] : []
+            })
+          return toJson({ sessionId, tasks })
+        }
         case 'snapshot': {
           const page = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
           let ids: string[] = [], offset = 0
@@ -314,6 +353,25 @@ export class CuratorService {
           if (offset + page.pageSize < ids.length) snapshot.nextPageToken = this.pageToken('images', offset + page.pageSize, ids)
           return this.withSessionResources(toJson(snapshot), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
         }
+        case 'search-batches': {
+          this.human(actor)
+          return toJson(readSearchBatches(this.domain, actor, args, this.config.limits.pageSize, run => {
+            let token: string | undefined
+            let reader = actor
+            if (run.owner.kind === 'session') {
+              const sessionId = run.owner.sessionId
+              if (!this.ctx.sessions.get(brandString<SessionId>(sessionId))) return undefined
+              const now = Date.now()
+              for (const [key, grant] of this.sessionGrants) if (grant.expiresAt <= now) this.sessionGrants.delete(key)
+              token = [...this.sessionGrants].find(([, grant]) => grant.sessionId === sessionId)?.[0]
+              if (!token) { token = randomUUID(); this.sessionGrants.set(token, { sessionId, expiresAt: now + this.config.limits.sessionGrantTtlMs }) }
+              reader = { ...actor, sessionId }
+            }
+            // 跨会话只用于已认证所有者的只读批次视图；控制和 Agent 工具仍要求原 Session 授权。
+            this.engine.get(run.id, reader)
+            return { actor: reader, ...(token ? { sessionToken: token } : {}) }
+          }))
+        }
         case 'style-list': {
           const query = z.object({ pageSize: z.number().int().min(1).max(100).default(20), pageToken: z.string().optional() }).parse(args)
           const styles = projectSnapshot(this.domain, this.engine, this.config, effectiveActor, { source: false, vision: false }).styles
@@ -326,16 +384,21 @@ export class CuratorService {
         }
         case 'run-get': {
           const { runId, pageSize, pageToken, resultFilter } = z.object({ runId: z.string(), pageSize: z.number().int().min(1).max(100).default(20), pageToken: z.string().optional(), resultFilter: runResultFilterSchema.default('all') }).parse(args)
-          const run = projectRun(this.domain, this.engine.get(runId, effectiveActor), effectiveActor)
-          run.resultFilter = resultFilter
-          run.results = run.results.filter(image => resultFilter === 'all' || image.resultCategory === resultFilter)
-          const ids = run.results.map(item => item.imageVersionId), scope = resultFilter === 'all' ? runId : `${runId}:${resultFilter}`
-          const offset = this.pageOffset(pageToken, scope, ids)
-          return this.withSessionResources(toJson({ ...run, results: run.results.slice(offset, offset + pageSize), ...(offset + pageSize < ids.length ? { pageToken: this.pageToken(scope, offset + pageSize, ids) } : {}) }), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+          return this.domain.repository.readSnapshot(() => {
+            let ids: string[] = [], offset = 0
+            const scope = resultFilter === 'all' ? runId : `${runId}:${resultFilter}`
+            const run = projectRun(this.domain, this.engine.get(runId, effectiveActor), effectiveActor, undefined, true, { resultFilter, imageWindow: imageIds => {
+              ids = imageIds; offset = this.pageOffset(pageToken, scope, ids)
+              return { offset, size: pageSize }
+            } })
+            run.resultFilter = resultFilter
+            return this.withSessionResources(toJson({ ...run, ...(offset + pageSize < ids.length ? { pageToken: this.pageToken(scope, offset + pageSize, ids) } : {}) }), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+          })
         }
         case 'run-delete': {
           this.human(effectiveActor)
-          const { runId, operationId } = z.strictObject({ runId: z.string().min(1), operationId: z.string().min(1) }).parse(args)
+          const { runId, operationId, styleId } = z.strictObject({ runId: z.string().min(1), operationId: z.string().min(1), styleId: z.string().min(1).optional() }).parse(args)
+          if (styleId) return await deleteSearchBatch(this.domain, effectiveActor, { runId, operationId, styleId })
           return await deleteTaskHistory(this.domain.repository, this.engine.get(runId, effectiveActor), operationId)
         }
         case 'run-control': {
@@ -381,24 +444,28 @@ export class CuratorService {
         case 'feedback-confirm': return await this.confirmFeedback(args, effectiveActor)
         case 'reference-analyze': {
           this.human(actor)
-          const { styleId, operationId, buildDataset } = z.object({ styleId: z.string(), operationId: z.string(), buildDataset: z.boolean().default(false) }).parse(args)
-          const style = this.domain.require('style', styleId), draft = this.domain.require('draft', style.draftId)
-          for (const id of draft.referenceIds) this.domain.assertLearningFamily(this.domain.authorizedImage(this.domain.require('reference', id).imageVersionId, effectiveActor).asset.familyId)
+          const { styleId, operationId, buildDataset, analysisMode, planDigest } = z.object({ styleId: z.string(), operationId: z.string(), buildDataset: z.boolean().default(false), analysisMode: z.enum(['pending', 'all']).default('pending'), planDigest: z.string().optional() }).parse(args)
+          const { style, draft, plan } = this.domain.repository.readSnapshot(() => {
+            const style = this.domain.require('style', styleId), draft = this.domain.require('draft', style.draftId)
+            for (const id of draft.referenceIds) this.domain.assertLearningFamily(this.domain.authorizedImage(this.domain.require('reference', id).imageVersionId, effectiveActor).asset.familyId)
+            const plan = buildDataset ? planReferenceAnalysis(this.domain, styleId, effectiveActor, this.recipe(operationId)) : undefined
+            if (planDigest !== undefined && planDigest !== plan?.view.digest) throw new CuratorError('revision-conflict', 'analyze', 'The analysis selection changed; review the current image counts again.')
+            if ((analysisMode === 'all' || (plan?.view.changed ?? 0) > 0) && !planDigest) throw new CuratorError('constraint-conflict', 'analyze', 'Confirm reanalysis of previously analyzed images before starting.')
+            return { style, draft, plan }
+          })
           const provider = await this.providers.vision(this.config)
           provider.assertCapabilities(Math.min(draft.referenceIds.length, this.config.limits.maxReferenceImages))
-          const current = this.domain.repository.manifest('split-index')?.state
-          const splitId = current && typeof current === 'object' && !Array.isArray(current) && typeof current.currentSplitId === 'string' ? current.currentSplitId : undefined
-          const references = draft.referenceIds.map(id => this.domain.require('reference', id))
-          const referenceThreads = new Set(references.flatMap(reference => reference.feedbackThreadIds))
-          const feedback = this.domain.snapshot(effectiveActor).feedback.filter(item => item.scope === 'style-candidate' && item.context.styleId === style.id && (referenceThreads.has(item.threadId) || draft.feedbackIds.includes(item.id)))
-          const reusable = buildDataset ? this.domain.repository.list('run').filter(run => {
-            if (!(run.status === 'failed' || run.status === 'completed' && run.outcome === 'budget-exhausted') || (dataOf(run).counts.observed ?? 0) <= 0 || (run.owner.kind === 'session' ? run.owner.sessionId !== effectiveActor.sessionId : !!effectiveActor.sessionId)) return false
-            const spec = specOf(run)
-            return spec.kind === 'analyze' && spec.input.styleId === styleId && spec.input.buildDataset === true && reviewerRevision(spec.config) === reviewerRevision(this.config)
-              && contentDigest(draftSchema.parse(spec.fixed.draft).rules) === contentDigest(draft.rules)
-              && contentDigest(spec.fixed.references) === contentDigest(references) && contentDigest(spec.fixed.feedback) === contentDigest(feedback)
-          }).sort((a, b) => (dataOf(b).counts.observed ?? 0) - (dataOf(a).counts.observed ?? 0) || b.createdAt.localeCompare(a.createdAt)).at(0) : undefined
-          return await this.launch('analyze', { styleId, buildDataset }, { invocationDigest: contentDigest({ operation, args }), draft: toJson(draft), references: toJson(references), feedback: toJson(feedback), recipe: toJson(this.recipe(operationId)), ...(reusable ? { reuseAnalysis: { runId: reusable.id } } : {}), ...(splitId ? { split: toJson(this.domain.require('split', splitId)) } : {}) }, effectiveActor, operationId)
+          // Provider 准备跨越异步调用，冻结输入前使用新快照复核修订号。
+          const fixed = this.domain.repository.readSnapshot(() => {
+            if (this.domain.require('style', styleId).revision !== style.revision) throw new CuratorError('revision-conflict', 'analyze', 'The image collection changed while preparing analysis; review the current selection.')
+            const current = this.domain.repository.manifest('split-index')?.state
+            const splitId = current && typeof current === 'object' && !Array.isArray(current) && typeof current.currentSplitId === 'string' ? current.currentSplitId : undefined
+            const references = draft.referenceIds.map(id => this.domain.require('reference', id))
+            const referenceThreads = new Set(references.flatMap(reference => reference.feedbackThreadIds))
+            const feedback = this.domain.currentFeedback(effectiveActor).filter(item => item.scope === 'style-candidate' && item.context.styleId === style.id && (referenceThreads.has(item.threadId) || draft.feedbackIds.includes(item.id)))
+            return { invocationDigest: contentDigest({ operation, args }), ...(buildDataset ? { analysisOutput: 'observations-only', reuseObservations: toJson(analysisMode === 'pending' ? plan!.reused : []), analysisMode, ...(planDigest ? { planDigest } : {}) } : {}), draft: toJson(draft), references: toJson(references), feedback: toJson(feedback), recipe: toJson(this.recipe(operationId)), ...(splitId ? { split: toJson(this.domain.require('split', splitId)) } : {}) }
+          })
+          return await this.launch('analyze', { styleId, buildDataset }, fixed, effectiveActor, operationId)
         }
         case 'search-start': case 'crop-start': case 'manual-crop-confirm': return await this.startTask(operation, args, effectiveActor)
         case 'library-save': this.human(actor); return await this.saveLibrary(args, effectiveActor)
@@ -408,6 +475,11 @@ export class CuratorService {
         case 'export-get': {
           const { exportId } = z.object({ exportId: z.string() }).parse(args)
           return this.withSessionResources(this.exportView(exportId, effectiveActor), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+        }
+        case 'vision-models': {
+          this.human(actor)
+          if (!this.ctx.llm) throw new CuratorError('configuration-required', 'vision-model', 'The project model registry is unavailable.')
+          return toJson(await listVisionModels(this.ctx.llm, signal))
         }
         case 'config-read': this.human(actor); return toJson(projectConfiguration(this.config, await this.credentialStatus()))
         case 'config-save': this.human(actor); return await this.saveConfig(args)
@@ -582,8 +654,9 @@ export class CuratorService {
     const { kind } = z.object({ kind: z.enum(['search', 'crop']) }).parse(args)
     const launchConfig = kind === 'search' ? this.launchesValue?.task(actor)?.config : undefined, config = launchConfig ?? this.config
     const options = { usages: this.usagePage({ ...(args.usagePageToken ? { pageToken: args.usagePageToken } : {}), ...(args.usagePageSize ? { pageSize: args.usagePageSize } : {}) }), sourceId: sourceIdentity(config).providerId, budgets: config.limits }
-    const original = kind === 'search' && z.object({ kind: z.literal('original') }).safeParse(args.output).success
-    const fields = ['releaseId', ...(original ? [] : ['usageRevisionId']), 'taskBrief', ...(kind === 'crop' && !Array.isArray(args.imageVersionIds) ? ['imageVersionId'] : [])]
+    const requestedOutput = searchOutputSchema.safeParse(args.output)
+    const directOutput = kind === 'search' && requestedOutput.success && requestedOutput.data.kind !== 'usage'
+    const fields = ['releaseId', ...(directOutput ? [] : ['usageRevisionId']), 'taskBrief', ...(kind === 'crop' && !Array.isArray(args.imageVersionIds) ? ['imageVersionId'] : [])]
     const missingFields = fields.filter(key => typeof args[key] !== 'string' || !String(args[key]).trim())
     if (missingFields.length) return toJson({ status: 'needs-input', missingFields, options })
     try {
@@ -605,8 +678,10 @@ export class CuratorService {
     if (launched) {
       const profile = z.object({ id: z.string() }).parse(launched.fixed.release)
       if (input.releaseId !== profile.id || input.taskBrief !== launched.input.taskBrief || (input.targetCount !== undefined && input.targetCount !== launched.input.targetCount) || (input.output !== undefined && contentDigest(input.output) !== contentDigest(launched.fixed.output))) throw new CuratorError('constraint-conflict', 'search-launch', 'Use this conversation launch’s frozen profile, task, quantity and output.')
+      const preview = searchOutputSchema.parse(launched.fixed.output).kind === 'preview'
+      if (preview && (!input.queries?.length || input.queries.length > launched.config.limits.maxSearchPages)) throw new CuratorError('invalid-input', 'search-query-plan', 'Preview search requires explicit queries within the frozen search-page budget. Include the intended subject and visual style in each query.')
       launched.fixed.invocationDigest = contentDigest({ operation, args })
-      return { kind: 'search', normalized: launched.input, fixed: launched.fixed, config: launched.config }
+      return { kind: 'search', normalized: preview ? { ...launched.input, queries: input.queries! } : launched.input, fixed: launched.fixed, config: launched.config }
     }
     const release = this.domain.repository.get('modelProfile', input.releaseId) ?? this.domain.require('release', input.releaseId), style = this.domain.require('style', release.styleId)
     if (release.kind === 'modelProfile' && !release.rules.length) throw new CuratorError('constraint-conflict', 'resolve', 'Enable at least one style rule before starting a model-profile task.')
@@ -615,6 +690,7 @@ export class CuratorService {
     const output = input.output ?? (input.usageRevisionId ? { kind: 'usage' as const, usageRevisionId: input.usageRevisionId } : undefined)
     if (!output || operation !== 'search-start' && output.kind !== 'usage') throw new CuratorError('invalid-input', 'resolve', 'A fixed usage is required for legacy searches and crops; original output must be explicit.')
     const usage = output.kind === 'usage' ? this.domain.require('usage', output.usageRevisionId) : undefined
+    if (output.kind === 'preview' && this.config.source.provider !== 'unsplash') throw new CuratorError('capability-unavailable', 'preview-search', 'Preview link search requires the Unsplash source. Choose original output for this source.')
     const limits = { ...this.config.limits }
     const hardBudgets = ['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs']
     for (const [key, value] of Object.entries(input.budgets ?? {})) {
@@ -627,7 +703,7 @@ export class CuratorService {
     const config = resolveConfig({ ...this.config, limits })
     if (release.recipe.visionRevision !== reviewerRevision(config) || release.recipe.preprocessingVersion !== this.files.processorVersion) throw new CuratorError('constraint-conflict', 'resolve', 'The saved review recipe differs from this deployment. Publish a new reviewed version.')
     const vision = await this.providers.vision(config)
-    vision.assertCapabilities(Math.min(release.references.length, release.recipe.referenceStrategy.maxImages) + (output.kind === 'original' ? 1 : 2))
+    vision.assertCapabilities(Math.min(release.references.length, release.recipe.referenceStrategy.maxImages) + (output.kind === 'usage' ? 2 : 1))
     for (const rule of release.rules.filter(rule => rule.strength === 'required' && rule.stage === 'final' && rule.check.kind === 'measured')) {
       if (!usage || rule.check.kind !== 'measured' || rule.check.field === 'byteLength') continue
       const value = rule.check.field === 'width' ? usage.output.targetWidth : rule.check.field === 'height' ? usage.output.targetHeight : usage.output.aspectP / usage.output.aspectQ
@@ -734,16 +810,20 @@ export class CuratorService {
     const input = z.object({ revision: z.string(), source: z.record(z.string(), jsonSchema), vision: z.record(z.string(), jsonSchema), limits: z.record(z.string(), jsonSchema) }).parse(args)
     if (input.revision !== configRevision(this.config)) throw new CuratorError('revision-conflict', 'configuration', 'Configuration changed; refresh before saving.')
     const next = resolveCurrentConfig({ source: { ...this.config.source, ...input.source }, vision: { ...this.config.vision, reasoningEffort: this.config.vision.reasoningEffort ?? null, ...input.vision }, limits: { ...this.config.limits, ...input.limits } })
+    if (next.vision.backend === 'native' && (next.vision.backend !== this.config.vision.backend || next.vision.provider !== this.config.vision.provider || next.vision.model !== this.config.vision.model)) {
+      await requireVisionModel(this.ctx.llm, next.vision.provider, next.vision.model, this.lifetime.signal)
+    }
     if (configRevision(next) === input.revision) return toJson({ saved: true, changed: false, configuration: projectConfiguration(this.config, await this.credentialStatus()) })
     if (next.vision.backend === 'native' || next.vision.provider) await this.providers.vision(next)
     const ownedEntry = this.ctx.fiber?.entry
     const entry = this.ctx.configEditor.entries().find(row => ownedEntry ? row === ownedEntry : row.options.id === 'visual-curator')
     if (!entry) throw new CuratorError('capability-unavailable', 'configuration', 'The profile configuration entry is unavailable.')
     await this.ctx.configEditor.edit(entry, current => {
-      const previous = resolveCurrentConfig(current)
+      const raw = z.record(z.string(), z.unknown()).parse(current)
+      const { compaction: _compaction, ...settings } = raw
+      const previous = resolveCurrentConfig(settings)
       if (configRevision(previous) !== input.revision) throw new CuratorError('revision-conflict', 'configuration', 'Configuration changed while saving.')
       // 保留未修改字段的原始默认写法，避免补全 limits 默认值触发不必要的整插件重载。
-      const raw = z.record(z.string(), z.unknown()).parse(current)
       return { ...raw,
         ...(configRevision(previous.source) !== configRevision(next.source) ? { source: next.source } : {}),
         ...(configRevision(previous.limits) !== configRevision(next.limits) ? { limits: next.limits } : {}),
@@ -821,7 +901,7 @@ export class CuratorService {
    * @param request Authenticated same-origin JSON request. @returns Validated workspace data or a safe command result.
    */
   async data(request: Request): Promise<Response> {
-    return await this.workspaceData(request, ['search-launch-options', 'search-launch-list', 'search-launch-start', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'run-get', 'run-control', 'run-delete', 'export-get', 'local-files-list', 'references-list', 'analysis-detail', 'analysis-input', 'analysis-stop', 'reference-analyze', 'config-read', 'config-save'])
+    return await this.workspaceData(request, ['search-launch-options', 'search-launch-list', 'search-launch-start', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-analyze', 'vision-models', 'config-read', 'config-save'])
   }
   /** @param request Authenticated account check, listing or selected-photo import. @returns Bounded JSON without action-text truncation. */
   async gallery(request: Request): Promise<Response> {
@@ -839,10 +919,10 @@ export class CuratorService {
       if (input.operation !== 'analysis-follow') throw new CuratorError('owner-denied', 'analysis-follow', 'This route accepts analysis subscriptions only.')
       const args = z.strictObject({ runId: z.string().min(1), sessionToken: z.string().optional() }).parse(input.args)
       const actor = this.scopedHuman({ kind: 'human', id: 'profile-owner', profileId: this.profileId }, input.args)
-      const run = this.engine.get(args.runId, actor)
       const grant = args.sessionToken ? this.sessionGrants.get(args.sessionToken) : undefined
       const signal = AbortSignal.any([request.signal, this.lifetime.signal, ...(grant ? [AbortSignal.timeout(Math.max(0, grant.expiresAt - Date.now()))] : [])])
-      return analysisFollowResponse(this.engine, run, actor, signal)
+      // 订阅注册与首帧准备是同步读取；快照不跨越后续 SSE 观察生命周期。
+      return this.domain.repository.readSnapshot(() => analysisFollowResponse(this.engine, this.engine.get(args.runId, actor), actor, signal))
     } catch (error) { return Response.json({ ok: false, error: safeFailure(error) }, { status: 400, headers: { 'cache-control': 'no-store' } }) }
   }
   private async requestInput(request: Request): Promise<z.infer<typeof actionSchema>> {

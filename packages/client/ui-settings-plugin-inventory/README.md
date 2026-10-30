@@ -41,7 +41,7 @@ The switcher is the same selector-pill-plus-menu control the General settings ro
 
 ### Retrying a failed read
 
-A failed read renders the shared error marker inside the tab. Loading shows skeleton cards in the card grid, and current-page synchronization uses the shared ongoing loader. Retrying re-runs the lazy `list()` call without exposing transport details.
+A failed read renders the shared error marker inside the tab. Loading reserves 64px skeleton cards in the responsive card grid, with the same 7% primary-ink fill, shared small corners, and 1.8-second sheen as Models. Placeholder text widths stay compact on wide screens; reduced motion keeps them static. Current-page synchronization uses the shared ongoing loader. Retrying re-runs the lazy `list()` call without exposing transport details.
 
 The Plugin list also shows synchronization failures on the current page. Its retry reapplies the latest client graph without changing Host enablement or refreshing the page.
 

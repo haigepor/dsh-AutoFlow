@@ -679,6 +679,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Abstract compaction service. Implementations own trigger policy, retention, and summarization, and may consume a separate measurement service. A successful run replaces the selected surface span with one summary node and prevents concurrent compaction of the same session. The replacement user message uses compactCheckpointSource with the transaction identity so consumers recognize and correlate it independently of the backend. Load one implementation per context as `ctx.compaction`.',
     methods: [
       {
+        signature: 'compactInput( input: InputCompactionRequest, run: InputCompactionRunner, signal: AbortSignal, ): Promise<InputCompactionResult | null>',
+        description: 'Compact operation-owned text under routed model policy without creating or modifying a Session.',
+        parameters: [{ name: 'input', description: 'prepared model capacity, fixed-input price and compressible text chunks.' }, { name: 'run', description: 'owner callback that reserves, records and optionally replays each auxiliary call.' }, { name: 'signal', description: 'operation cancellation, also forwarded to model preparation and dispatch.' }],
+        returns: 'shorter text, or null below pressure; rejects unsupported backends and unsafe compression.',
+      },
+      {
         signature: 'abstract compactIfNeeded( agent: CompactionAgentContext, trigger: CompactionTrigger, signal: AbortSignal, ): Promise<CompactionResult | null>',
         description: 'Consider automatic compaction for one explicit trigger. Pressure policy uses the latest durable routed request, while context-overflow policy may force a useful balanced reduction even below the normal threshold. Return `null` when no safe range can be compacted. A single oversized retained unit or request envelope cannot be repaired through surface compaction.',
         parameters: [{ name: 'agent', description: 'agent context owning the session surface and routing options.' }, { name: 'trigger', description: 'normal pressure or provider-confirmed context overflow.' }, { name: 'signal', description: 'cancellation signal; model-backed implementations must forward it.' }],
@@ -1518,6 +1524,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Resolve and validate all metadata from the adapter that owns one exact route. The result is detached from adapter-owned objects; catalog membership remains advisory and does not control request routing.',
         parameters: [{ name: 'provider', description: 'registered provider route to inspect.' }, { name: 'model', description: 'exact model id passed to the adapter.' }, { name: 'signal', description: 'optional cancellation for adapter-owned asynchronous lookup.' }],
         returns: 'exact model identity plus available context and reasoning metadata.',
+      },
+      {
+        signature: 'async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult>',
+        description: 'Execute native search only when the exact model enables it.',
+        parameters: [{ name: 'request', description: 'Provider/model identity, query and operation-local ownership.' }],
+        returns: 'Results from the selected model\'s credentials and endpoint.',
       },
       {
         signature: 'async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig>',
@@ -5899,6 +5911,30 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type IndexInjectionPlacement = \'head\' | \'body\';',
   },
   {
+    name: 'InputCompactionCall',
+    declaration: 'export interface InputCompactionCall {\n    config: LlmCallConfig;\n    messages: Message[];\n}',
+  },
+  {
+    name: 'InputCompactionMetadata',
+    declaration: 'export interface InputCompactionMetadata {\n    usage?: TokenUsage;\n    finish?: FinishReason;\n}',
+  },
+  {
+    name: 'InputCompactionOutput',
+    declaration: 'export interface InputCompactionOutput {\n    text: string;\n}',
+  },
+  {
+    name: 'InputCompactionRequest',
+    declaration: 'export interface InputCompactionRequest {\n    config: LlmCallConfig;\n    contextWindow: number;\n    retainedTokens: number;\n    chunks: readonly string[];\n    instruction: string;\n    maxOutputBytes: number;\n}',
+  },
+  {
+    name: 'InputCompactionResult',
+    declaration: 'export interface InputCompactionResult extends InputCompactionOutput {\n    inputTokens: number;\n    outputTokens: number;\n}',
+  },
+  {
+    name: 'InputCompactionRunner',
+    declaration: 'export type InputCompactionRunner = (call: InputCompactionCall, work: (signal: AbortSignal, record: (metadata: InputCompactionMetadata) => Promise<void>) => Promise<InputCompactionOutput>) => Promise<InputCompactionOutput>;',
+  },
+  {
     name: 'InspectOptions',
     declaration: 'export interface InspectOptions {\n    readonly registry?: Registry;\n}',
   },
@@ -6108,7 +6144,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LlmAdapter',
-    declaration: 'export abstract class LlmAdapter {\n    providerInfo(provider: string): LlmProviderInfo;\n    providerRetryPolicy(_provider: string): ResolvedRetryPolicy | undefined;\n    imageRequestPricing(_provider: string, _model: string): LlmImageRequestPricing | undefined;\n    imageRequestTarget(_provider: string, _model: string, image: ImageAttachmentRef): ImageRequestTarget;\n    listModels(_provider: string): Promise<readonly LlmModelInfo[]>;\n    resolveModel(provider: string, model: string, _signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall>;\n    abstract stream(options: GenerateOptions): AsyncIterable<StreamChunk>;\n}',
+    declaration: 'export abstract class LlmAdapter {\n    searchNative(_request: NativeWebSearchRequest): Promise<NativeWebSearchResult>;\n    providerInfo(provider: string): LlmProviderInfo;\n    providerRetryPolicy(_provider: string): ResolvedRetryPolicy | undefined;\n    imageRequestPricing(_provider: string, _model: string): LlmImageRequestPricing | undefined;\n    imageRequestTarget(_provider: string, _model: string, image: ImageAttachmentRef): ImageRequestTarget;\n    listModels(_provider: string): Promise<readonly LlmModelInfo[]>;\n    resolveModel(provider: string, model: string, _signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall>;\n    abstract stream(options: GenerateOptions): AsyncIterable<StreamChunk>;\n}',
   },
   {
     name: 'LlmAttemptId',
@@ -6132,7 +6168,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LlmDiscoveredModel',
-    declaration: 'export interface LlmDiscoveredModel {\n    id: string;\n    name?: string;\n    contextWindow?: number;\n    maxTokens?: number;\n    inputModalities?: readonly ModelModality[];\n    reasoning?: LlmModelReasoningInfo;\n    reasoningWireValues?: Readonly<Record<string, string | null>>;\n}',
+    declaration: 'export interface LlmDiscoveredModel {\n    id: string;\n    api?: string;\n    nativeWebSearch?: boolean;\n    name?: string;\n    contextWindow?: number;\n    maxTokens?: number;\n    inputModalities?: readonly ModelModality[];\n    reasoning?: LlmModelReasoningInfo;\n    reasoningWireValues?: Readonly<Record<string, string | null>>;\n}',
   },
   {
     name: 'LlmFailure',
@@ -6176,11 +6212,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LlmResolvedModelInfo',
-    declaration: 'export interface LlmResolvedModelInfo extends LlmModelInfo {\n    context?: LlmModelContext;\n    defaultMaxTokens?: number;\n    reasoning?: LlmModelReasoningInfo;\n    systemPromptUpdate?: SystemPromptUpdate;\n    toolUpdate?: ToolUpdate;\n}',
+    declaration: 'export interface LlmResolvedModelInfo extends LlmModelInfo {\n    nativeWebSearch?: boolean;\n    context?: LlmModelContext;\n    defaultMaxTokens?: number;\n    reasoning?: LlmModelReasoningInfo;\n    systemPromptUpdate?: SystemPromptUpdate;\n    toolUpdate?: ToolUpdate;\n}',
   },
   {
     name: 'LlmRuntime',
-    declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    imageRequestTarget(provider: string, model: string, image: ImageAttachmentRef): ImageRequestTarget;\n    fileRequestText(ref: FileAttachmentRef): string;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig>;\n    async prepareCall(conf /* …truncated — full shape in source */',
+    declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    imageRequestTarget(provider: string, model: string, image: ImageAttachmentRef): ImageRequestTarget;\n    fileRequestText(ref: FileAttachmentRef): string;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult>;\n    async resolveCallConfig(config: /* …truncated — full shape in source */',
   },
   {
     name: 'LocalAtInput',
@@ -6517,6 +6553,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'NativeFileApplication',
     declaration: 'export interface NativeFileApplication {\n    readonly id: string;\n    readonly name: string;\n    readonly default: boolean;\n    readonly icon: string | null;\n}',
+  },
+  {
+    name: 'NativeWebSearchRequest',
+    declaration: 'export interface NativeWebSearchRequest {\n    provider: string;\n    model: string;\n    query: string;\n    maxResults: number;\n    signal: AbortSignal;\n    recordRequest: (request: {\n        api: string;\n        body: JsonValue;\n    }) => void;\n}',
+  },
+  {
+    name: 'NativeWebSearchResult',
+    declaration: 'export interface NativeWebSearchResult {\n    content?: string;\n    sources: {\n        url: string;\n        title?: string;\n        snippet?: string;\n    }[];\n    truncated: boolean;\n}',
   },
   {
     name: 'NotFutureError',

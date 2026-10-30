@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+适配器可实现 `searchNative()`，使用模型自身的服务进行联网搜索。请求记录器在发出请求前接收不含凭据的模型输入；结果包含有数量上限的来源 URL 和可选答案。浏览器可用的 `./native-web-search` 入口依次匹配用户显式选择、提供方元数据和固定版本的 [LiteLLM 目录](https://github.com/BerriAI/litellm/blob/1176e608b199c4a6572c22490839147a9f134ece/model_prices_and_context_window.json)，并按协议限制能力。未知模型默认不启用，可手动声明。
+
 `listModels` 描述目录驱动界面提供的模型。核心解析与流式调用仍可接受未列出的 ID。GUI 的模型选择与提交要求模型出现在目录中；供 GUI 使用的适配器必须实现 `listModels`，公布其可用模型。基类实现返回空列表，因此不向 GUI 提供模型。
 
 任何调用模型提供方的组合——agent loop（智能体循环）、会话标题生成器、压缩（compaction）摘要器——都会通过本服务流式发起请求。与至少一个提供方适配器一起挂载它；服务本身没有任何配置，也不包含提供方协议代码。
@@ -169,7 +171,6 @@ const configure = (maxTokens: number): ConfigureCall =>
 ## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
-
 
 这些限制说明本服务在哪里停止、由其他包或未来工作接续。它们是当前包约束，不是任务积压。
 

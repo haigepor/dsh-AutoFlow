@@ -18,9 +18,12 @@ import type { CuratorConfig } from './config.ts'
 import { dataOf, specOf, decideAssessment, safeFailure, toJson, type Worker, type WorkContext } from './runtime.ts'
 import { measuredRule, runActor, visionImageInput } from './review.ts'
 import { visionBounds } from './providers.ts'
+import { validObservationReuse } from './reference-state.ts'
+import { reusedObservationSchema } from '../shared/reference-state.ts'
+import type { DatasetProgress } from '../shared/datasets.ts'
 
 /** All I/O remains owned by the current Run and its shared budget. */
-export interface DataWorkerDependencies { domain: CuratorDomain; files: AssetFiles; vision: (config: CuratorConfig) => Promise<StructuredVisionProvider> }
+export interface DataWorkerDependencies { domain: CuratorDomain; files: AssetFiles; vision: (config: CuratorConfig) => Promise<StructuredVisionProvider>; compactSummary?: (input: VisionInput, provider: StructuredVisionProvider, ctx: WorkContext) => Promise<VisionInput> }
 const actorSchema = z.strictObject({ kind: z.enum(['human', 'agent']), id: z.string().min(1), profileId: z.string().min(1), sessionId: z.string().optional() })
 const standardSchema = z.union([releaseSchema, candidateSchema])
 const checkpointSchema = z.object({ analysisDoneImageIds: z.array(z.string()).default([]), analysisResultIds: z.array(z.string()).default([]), evaluationItems: z.array(z.string()).default([]) })
@@ -57,6 +60,8 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
   const references = z.array(referenceSchema).parse(ctx.spec.fixed.references)
   const feedback = z.array(feedbackSchema).parse(ctx.spec.fixed.feedback)
   const recipe = recipeSchema.parse(ctx.spec.fixed.recipe)
+  // 新任务冻结观察模式；历史快照未记录该字段时，恢复原来的观察与建议格式。
+  const { analysisOutput } = z.object({ analysisOutput: z.literal('observations-only').optional() }).parse(ctx.spec.fixed)
   if (draft.styleId !== ctx.spec.input.styleId || references.some(r => r.styleId !== draft.styleId)
     || contentDigest([...draft.referenceIds].sort()) !== contentDigest(references.map(r => r.id).sort())) throw new CuratorError('constraint-conflict', 'analyze', 'The fixed references do not match the requested draft.')
   for (const item of feedback) if (item.context.styleId !== draft.styleId || item.scope !== 'style-candidate' || contentDigest(deps.domain.require('feedback', item.id)) !== contentDigest(item)) throw new CuratorError('reference-unavailable', 'analyze', 'Fixed feedback is unavailable or outside this style.')
@@ -70,6 +75,15 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
     }
   }
   let checkpoint = checkpointSchema.parse(dataOf(ctx.current()).checkpoint)
+  if (ctx.spec.fixed.reuseObservations !== undefined && !checkpoint.analysisDoneImageIds.length) {
+    const links = z.array(reusedObservationSchema).parse(ctx.spec.fixed.reuseObservations)
+    if (!validObservationReuse(deps.domain, ctx.spec.fixed, links, actor)) throw new CuratorError('reference-unavailable', 'analyze', 'The saved observations no longer match the frozen analysis inputs.')
+    for (const link of links) await deps.files.verifyReference(deps.domain.authorizedImage(link.imageVersionId, actor).image.blob, ctx.signal)
+    if (links.length) {
+      checkpoint = { ...checkpoint, analysisDoneImageIds: links.map(link => link.imageVersionId), analysisResultIds: links.map(link => link.observationId) }
+      await ctx.save('reviewing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, ...checkpoint }, resultIds: checkpoint.analysisResultIds, counts: { observed: links.length, suggestions: 0 } })
+    }
+  }
   if (ctx.spec.fixed.reuseAnalysis && !checkpoint.analysisDoneImageIds.length) {
     const reuse = z.object({ runId: z.string() }).parse(ctx.spec.fixed.reuseAnalysis), source = deps.domain.require('run', reuse.runId), fixed = specOf(source)
     if (!(source.status === 'failed' || source.status === 'completed' && source.outcome === 'budget-exhausted') || contentDigest(source.owner) !== contentDigest(ctx.current().owner) || fixed.kind !== 'analyze' || fixed.input.buildDataset !== true
@@ -113,7 +127,7 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
     const imageIds = new Set<string>(batch.map(item => item.image.id))
     // 每批只发送当前图片的判断；完整反馈留在冻结输入和最终归纳，避免逐批重复整个素材集。
     const applicableFeedback = feedback.filter(item => item.subject.kind === 'pair' ? imageIds.has(item.subject.leftImageVersionId) && imageIds.has(item.subject.rightImageVersionId) : imageIds.has(item.subject.imageVersionId))
-    const input: VisionInput = { requestId, promptVersion: 'visual-curator-reference-v2', taskBrief: JSON.stringify({ instruction: 'Analyze only the selected reference dimensions. Describe color palette and saturation, light direction and contrast, material and grain, composition and negative space, density and depth. Separate subject content from style unless subject is selected. Record uncertainty, never infer hidden facts. Use the fixed human judgments; original import intent is historical context and does not override revised judgments. Return observations and unconfirmed rule suggestions. Write descriptions in Simplified Chinese.', styleId: draft.styleId, draftRevision: draft.revision, applicableFeedback: modelFeedback(applicableFeedback) }), rules: draft.rules, images: batch.map(i => i.pixels) }
+    const input: VisionInput = { requestId, promptVersion: 'visual-curator-reference-v2', ...(analysisOutput ? { analysisOutput } : {}), taskBrief: JSON.stringify({ instruction: 'Analyze only the selected reference dimensions. Describe color palette and saturation, light direction and contrast, material and grain, composition and negative space, density and depth. Separate subject content from style unless subject is selected. Record uncertainty, never infer hidden facts. Use the fixed human judgments; original import intent is historical context and does not override revised judgments. ' + (analysisOutput === 'observations-only' ? 'Return only per-image observations. Do not propose rules or a shared style profile in this stage; rule induction runs separately after all observations are saved. ' : 'Return observations and unconfirmed rule suggestions. ') + 'Write descriptions in Simplified Chinese.', styleId: draft.styleId, draftRevision: draft.revision, applicableFeedback: modelFeedback(applicableFeedback) }), rules: draft.rules, images: batch.map(i => i.pixels) }
     const cached = savedResponse(deps, ctx, requestId)
     const descriptor = cached?.descriptor ?? toJson(provider.describeRequest(input, 'analyze'))
     ctx.report({ phase: 'analyzing', imageIds: batch.map(item => item.image.id), batch: Math.floor(checkpoint.analysisDoneImageIds.length / maxImages) + 1, resetOutput: true })
@@ -161,7 +175,9 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
   }) }
   const cached = savedResponse(deps, ctx, requestId)
   ctx.report({ phase: 'summarizing', imageIds: representatives.map(image => image.imageVersionId), resetOutput: true })
-  const summary = cached ? styleSummarySchema.parse(cached.output) : await ctx.request('vision', toJson(provider.describeRequest(input, 'summarize')), (signal, recordMetadata) => provider.summarize(input, samples.map(sample => sample.reference.imageVersionId), { ...visionBounds(ctx.spec.config, ctx, signal, recordMetadata), onPhase: phase => ctx.report({ phase: phase === 'analyzing' ? 'summarizing' : phase }), onOutput: delta => ctx.report({ phase: 'receiving', ...delta }) }))
+  const summaryInput = !cached && deps.compactSummary ? await deps.compactSummary(input, provider, ctx) : input
+  if (summaryInput !== input) ctx.report({ phase: 'summarizing', imageIds: representatives.map(image => image.imageVersionId), resetOutput: true })
+  const summary = cached ? styleSummarySchema.parse(cached.output) : await ctx.request('vision', toJson(provider.describeRequest(summaryInput, 'summarize')), (signal, recordMetadata) => provider.summarize(summaryInput, samples.map(sample => sample.reference.imageVersionId), { ...visionBounds(ctx.spec.config, ctx, signal, recordMetadata), onPhase: phase => ctx.report({ phase: phase === 'analyzing' ? 'summarizing' : phase }), onOutput: delta => ctx.report({ phase: 'receiving', ...delta }) }))
   ctx.report({ phase: 'saving' })
   const analysis = styleAnalysisSchema.parse({ formatVersion: 1, runId: ctx.runId, styleId: draft.styleId, draftId: draft.id, draftRevision: draft.revision,
     referenceDigest: analysisReferenceDigest(references, feedback.map(item => item.id)), feedbackIds: feedback.map(item => item.id), recipeId: recipe.id, model: provider.config.model, declaredModelVersion: provider.config.declaredModelVersion ?? null,
@@ -267,8 +283,16 @@ async function evaluate(deps: DataWorkerDependencies, ctx: WorkContext): Promise
 async function exportData(deps: DataWorkerDependencies, ctx: WorkContext): Promise<void> {
   if (typeof ctx.spec.input.modelProfileId === 'string') {
     const input = z.object({ operationId: z.string(), modelProfileId: z.string() }).parse(ctx.spec.input)
-    const snapshot = await new ModelProfiles(deps.domain).export(deps.domain.require('modelProfile', input.modelProfileId), input.operationId, fixedActor(ctx, 'actor'))
-    await ctx.save('finalizing', { resultIds: [snapshot.id], counts: { files: snapshot.files.length, resources: snapshot.resources.length } })
+    let savedPhase: DatasetProgress['phase'] | undefined, savedAt = 0
+    const progress = async (value: DatasetProgress) => {
+      const now = Date.now()
+      // 阶段切换和阶段完成立即落盘，同阶段高频计数按既有进程刷新频率合并。
+      if (value.phase === savedPhase && value.completed !== value.total && now - savedAt < ctx.spec.config.limits.processPollIntervalMs) return
+      await ctx.save(value.phase === 'verifying' ? 'reviewing' : 'finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, datasetExportProgress: toJson(value) } })
+      savedPhase = value.phase; savedAt = now
+    }
+    const snapshot = await new ModelProfiles(deps.domain).export(deps.domain.require('modelProfile', input.modelProfileId), input.operationId, fixedActor(ctx, 'actor'), { signal: ctx.signal, progress })
+    await ctx.save('finalizing', { resultIds: [snapshot.id], counts: { ...dataOf(ctx.current()).counts, files: snapshot.files.length, resources: snapshot.resources.length }, checkpoint: { ...dataOf(ctx.current()).checkpoint, datasetExportProgress: { phase: 'saving', completed: 1, total: 1, unit: 'items' } } })
     return
   }
   const input = exportArgsSchema.parse(ctx.spec.input)

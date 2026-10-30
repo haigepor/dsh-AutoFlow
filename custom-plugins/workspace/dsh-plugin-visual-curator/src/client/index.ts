@@ -1,4 +1,5 @@
 import { createConversationFeedback } from './conversation-feedback.ts'
+import { createSearchBatchesStore } from './search-batches-store.ts'
 /** Optional native page entries; the plugin detail itself stays entirely owned by Plugin Manager. */
 import type { ComponentType } from 'react'
 import css from './entry.css'
@@ -6,6 +7,7 @@ import welcomeImage from '../../assets/welcome-photo-stack-v2.webp'
 import logoImage from '../../assets/visual-curator-logo-v1.png'
 import executionEmptyImage from '../../assets/execution-empty-v1.webp'
 import { createTaskToolView } from './task-tool-view.tsx'
+import { createConversationTaskDock } from './conversation-task-dock.tsx'
 import { createCuratorStore } from './store.ts'
 import { createCuratorTransport } from './transport.ts'
 import { createGalleryCache } from './gallery-cache.ts'
@@ -15,6 +17,8 @@ import { publishStyle } from './workbench-actions.ts'
 import { en, zh } from './workbench-locale.ts'
 import { analysisActive } from '../shared/analysis-process.ts'
 import { galleryTaskActive } from '../shared/gallery-task.ts'
+import { createVisionModelDirectory } from './vision-models.ts'
+import { createDatasetStore } from './dataset-store.ts'
 import { createSearchLaunchStore } from './search-launch-store.ts'
 
 type Page = 'settings' | 'panel' | 'conversation'
@@ -41,11 +45,11 @@ interface EntryContext {
     bind(namespace: string): (key: keyof typeof en) => string
   }
   remote: {
-    $on(event: 'plugin-manager/changed', callback: () => void): () => void
+    $on(event: 'plugin-manager/changed' | 'llm/adapters-updated' | 'settings/document-updated' | 'credentials/record-updated' | 'credentials/reference-updated', callback: () => void): () => void
     pluginManager: { listBundles(): Promise<Result<Bundle[]>>; listPlugins(): Promise<Result<Row[]>>; invokeAction(name: string, action: string, input: Record<string, string>): Promise<Result<{ output: string }>> }
     credentials: { set(ref: string, value: string): Promise<Result<object>> }
   }
-  layout: { panelInfo: { getSnapshot(): { activePanelId: string | null } }; selectPanel(id: string | null): void }
+  layout: { panelInfo: { getSnapshot(): { activePanelId: string | null } }; selectPanel(id: string | null, options?: { fullWindow?: boolean }): void }
   uiConversation: { views: { register(view: { target: string; create(): { empty: null; replace(): null; apply(): null } }): () => void } }
 }
 interface ModuleLoader {
@@ -61,6 +65,7 @@ window.__ModuleLoader__.load({
     const { IconPanelLeftOutlineRegular } = ui
     const PageEntry = createWorkbench(React, ui)
     const TaskToolView = createTaskToolView(React, ui)
+    const ConversationTaskDock = createConversationTaskDock(React, ui)
     return {
       inject: ['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.credentials', 'layout', 'uiConversation'],
       apply(ctx) {
@@ -76,8 +81,14 @@ window.__ModuleLoader__.load({
           },
         })
         const store = createCuratorStore(transport)
+        const batches = createSearchBatchesStore({ ...transport, scope: store.getOwnerScopeId, pollMs: () => store.getSnapshot().snapshot?.configuration.limits.pollIntervalMs ?? 2000, cachePolicy() {
+          const limits = store.getSnapshot().snapshot?.configuration.limits
+          return { ttlMs: limits?.batchCacheTtlMs ?? 0, maxViews: limits?.batchCacheMaxViews ?? 0, resourceTtlMs: limits?.sessionGrantTtlMs ?? 0 }
+        } })
+        ctx.effect(() => () => batches.dispose(), 'Visual Curator collection search batches')
         const feedback = createConversationFeedback(transport)
         ctx.effect(() => () => feedback.dispose(), 'Visual Curator conversation feedback')
+        const datasets = createDatasetStore({ invoke: store.invoke, context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '' }) })
         const launches = createSearchLaunchStore({ invoke: store.invoke, context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '', pollMs: store.getSnapshot().snapshot?.configuration.limits.pollIntervalMs ?? 2000 }), openSession(id) {
           const navigation = ctx.get?.('uiWorkspace')
           if (!navigation) throw new Error('native-navigation-unavailable')
@@ -87,7 +98,19 @@ window.__ModuleLoader__.load({
           const follow = store.subscribe(() => launches.sync()); launches.sync()
           return () => { follow(); launches.dispose() }
         }, 'Visual Curator native search launches')
-        for (const toolName of ['visual_search_start', 'visual_crop_start', 'visual_run_get']) ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({ name: 'tool.call.toolview', key: toolName, locale: namespace, inject: (sessionId: string) => ({ t, hooks: { feedback: feedback.source(sessionId) }, watch: (runId: string) => feedback.watch(sessionId, runId), refresh: (runId: string) => feedback.refresh(sessionId, runId), async openTask(runId: string) { if (!registrations.has('panel')) throw new Error('panel-disabled'); await store.openSession(sessionId); store.selectWorkspace('tasks'); store.selectRun(runId); ctx.layout.selectPanel(panel) } }) }, TaskToolView))
+        ctx.effect(() => {
+          const follow = store.subscribe(() => datasets.sync())
+          datasets.sync()
+          return () => { follow(); datasets.dispose() }
+        }, 'Visual Curator dataset observation')
+        const modelDirectory = createVisionModelDirectory(() => transport.invoke('vision-models', {}))
+        ctx.effect(() => {
+          const events = ['llm/adapters-updated', 'settings/document-updated', 'credentials/record-updated', 'credentials/reference-updated'] as const
+          const disposers = events.map(event => ctx.remote.$on(event, () => modelDirectory.invalidate()))
+          return () => { for (const dispose of disposers) dispose(); modelDirectory.dispose() }
+        }, 'Visual Curator project model catalog')
+        for (const toolName of ['visual_search_start', 'visual_crop_start', 'visual_run_get']) ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({ name: 'tool.call.toolview', key: toolName, locale: namespace, inject: () => ({ t }) }, TaskToolView))
+        ctx.slots.inject('conversation.body.overlay', () => ctx.slots.register({ name: 'conversation.body.overlay', id: 'visual-curator-task', order: 30, locale: namespace, inject: (sessionId: string) => ({ t, hooks: { feedback: feedback.sessionSource(sessionId) }, selectTask: (runId: string) => feedback.select(sessionId, runId), refreshTask: (runId?: string) => feedback.refresh(sessionId, runId), stopTask: (runId: string) => feedback.stop(sessionId, runId), async openTask(runId: string) { if (!registrations.has('panel')) throw new Error('panel-disabled'); await store.openSession(sessionId); store.selectWorkspace('tasks'); store.selectRun(runId); batches.select(runId, store.getSnapshot().styleId); ctx.layout.selectPanel(panel) } }) }, ConversationTaskDock))
         let sessionCache: Storage | undefined
         try { sessionCache = window.sessionStorage } catch (error) { /* 浏览器禁用本地存储时，仅使用内存缓存。 */ }
         const gallery = createGalleryCache({ ...(sessionCache ? { storage: sessionCache } : {}), context: () => {
@@ -96,16 +119,19 @@ window.__ModuleLoader__.load({
           return { namespace: `${new URL(document.baseURI).origin}:${store.getSnapshot().scopeSessionId}`, revision: configuration.revision, accounts: configuration.source.unsplash.accounts.map(({ id, userId, credentialRef }) => ({ id, userId, credentialRef })), policy: resolveGalleryCachePolicy(configuration.source.unsplash.cache) }
         }, read: (operation, args, signal) => transport.invoke(operation, { ...args, ...(store.getSnapshot().sessionToken ? { sessionToken: store.getSnapshot().sessionToken } : {}) }, signal) })
         ctx.effect(() => () => gallery.dispose(), 'Visual Curator gallery cache')
-        const actions: WorkbenchProps['actions'] = { selectWorkspace: store.selectWorkspace, openSession: store.openSession, closeSession: store.closeSession, prepareTask: store.prepareTask, startAnalysis: store.startAnalysis, stopAnalysis: store.stopAnalysis, openAnalysis: store.openAnalysis, closeAnalysis: store.closeAnalysis, refreshAnalysisDetail: store.refreshAnalysisDetail, loadAnalysisInput: store.loadAnalysisInput, saveConfiguration: store.saveConfiguration, execute: store.execute, reload: store.reload, getSnapshot: store.getSnapshot,
+        const actions: WorkbenchProps['actions'] = { selectWorkspace: store.selectWorkspace, openSession: store.openSession, closeSession: store.closeSession, prepareTask: store.prepareTask, startAnalysis: store.startAnalysis, referenceState: store.referenceState, stopAnalysis: store.stopAnalysis, pauseAnalysis: store.pauseAnalysis, resumeAnalysis: store.resumeAnalysis, openAnalysis: store.openAnalysis, closeAnalysis: store.closeAnalysis, refreshAnalysisDetail: store.refreshAnalysisDetail, loadAnalysisInput: store.loadAnalysisInput, saveConfiguration: store.saveConfiguration, execute: store.execute, reload: store.reload, getSnapshot: store.getSnapshot,
           selectStyle: store.selectStyle, selectRun: store.selectRun, loadMoreImages: store.loadMoreImages, loadRun: store.loadRun, loadReferences: store.loadReferences, startGalleryReferences: store.startGalleryReferences, stopGalleryReferences: store.stopGalleryReferences,
-          launches,
+          datasets, launches, batches,
           publish: style => publishStyle(store, style),
           pickLocalReferences: (kind, signal) => transport.invoke('local-reference-pick', { kind, title: t(kind === 'file' ? 'upload' : kind === 'folder' ? 'uploadFolder' : 'referenceLocal'), ...(kind === 'references' ? { folderLabel: t('referenceCurrentFolder'), imagesLabel: t('upload') } : {}) }, signal),
           listLocalReferences: (path, kind, signal) => transport.invoke('local-files-list', { path, kind }, signal),
           galleryRead: gallery.read,
+          loadVisionModels: modelDirectory.load,
+          reloadVisionModels: () => modelDirectory.invalidate(),
+          openModelSettings: () => ctx.layout.selectPanel('settings', { fullWindow: true }),
           async saveCredential(ref, value) { const response = await ctx.remote.credentials.set(ref, value); if (!response.ok) throw response.error },
         }
-        const face = () => ({ t, actions, welcomeImage, logoImage, hooks: { workbench: { getSnapshot: store.getSnapshot, subscribe: store.subscribe }, launches: { getSnapshot: launches.getSnapshot, subscribe: launches.subscribe } } })
+        const face = () => ({ t, actions, welcomeImage, logoImage, hooks: { workbench: { getSnapshot: store.getSnapshot, subscribe: store.subscribe }, visionModels: { getSnapshot: modelDirectory.getSnapshot, subscribe: modelDirectory.subscribe }, datasets: { getSnapshot: datasets.getSnapshot, subscribe: datasets.subscribe }, launches: { getSnapshot: launches.getSnapshot, subscribe: launches.subscribe }, searchBatches: { getSnapshot: batches.getSnapshot, subscribe: batches.subscribe } } })
         function EntryIcon() { return React.createElement(IconPanelLeftOutlineRegular, { size: 18 }) }
         const registrations = new Map<Page, () => void>()
         let stopped = false, sequence = 0
@@ -159,18 +185,24 @@ window.__ModuleLoader__.load({
         ctx.effect(() => {
           const changed = ctx.remote.$on('plugin-manager/changed', () => { void sync() })
           const reset = ctx.on('connection/reset', () => {
-            ++sequence; feedback.reset(); store.reset()
+            ++sequence; feedback.reset(); batches.reset(); store.reset(); modelDirectory.reset()
             for (const page of [...registrations.keys()]) remove(page)
             void sync()
           })
           void sync()
-          let timer: ReturnType<typeof setTimeout> | undefined, detailTimer: ReturnType<typeof setTimeout> | undefined, polling = false
+          let timer: ReturnType<typeof setTimeout> | undefined, detailTimer: ReturnType<typeof setTimeout> | undefined, datasetTimer: ReturnType<typeof setTimeout> | undefined, polling = false
           let referencing = store.getSnapshot().galleryTasks.some(task => galleryTaskActive(task.status))
           const pollDetail = () => {
             detailTimer = setTimeout(async () => {
               const state = store.getSnapshot()
               if (registrations.size && state.analysisRunId && !state.analysisStreaming && (!state.analysisDetail || analysisActive(state.analysisDetail.task.status))) await store.refreshAnalysisDetail()
               if (!stopped) pollDetail()
+            }, store.getSnapshot().snapshot?.configuration.limits.processPollIntervalMs ?? 500)
+          }
+          const pollDatasets = () => {
+            datasetTimer = setTimeout(async () => {
+              try { if (registrations.size && datasets.needsPoll()) await datasets.poll() }
+              finally { if (!stopped) pollDatasets() }
             }, store.getSnapshot().snapshot?.configuration.limits.processPollIntervalMs ?? 500)
           }
           const poll = () => {
@@ -192,7 +224,8 @@ window.__ModuleLoader__.load({
           })
           poll()
           pollDetail()
-          return () => { stopped = true; ++sequence; clearTimeout(timer); clearTimeout(detailTimer); followReferences(); changed(); reset(); readLifetime.abort(); store.dispose(); for (const page of [...registrations.keys()]) remove(page) }
+          pollDatasets()
+          return () => { stopped = true; ++sequence; clearTimeout(timer); clearTimeout(detailTimer); clearTimeout(datasetTimer); followReferences(); changed(); reset(); readLifetime.abort(); store.dispose(); for (const page of [...registrations.keys()]) remove(page) }
         }, 'Visual Curator optional entry lifecycle')
       },
     }

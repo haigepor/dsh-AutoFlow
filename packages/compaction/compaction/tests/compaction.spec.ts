@@ -95,6 +95,17 @@ class StubCompactionEngine extends CompactionEngine {
 }
 
 describe('CompactionEngine seam', () => {
+  it('rejects operation inputs explicitly on unsupported backends and preserves cancellation', async () => {
+    const ctx = new Context(), engine = new StubCompactionEngine(ctx)
+    const input = { config: { provider: 'test', model: 'test' }, contextWindow: 1000, retainedTokens: 0, chunks: ['text'], instruction: 'Preserve facts.', maxOutputBytes: 100 }
+    try {
+      await expect(engine.compactInput(input, async () => ({ text: 'unused' }), new AbortController().signal)).rejects.toThrow(/does not support/)
+      const controller = new AbortController(), reason = new Error('Operation stopped')
+      controller.abort(reason)
+      await expect(engine.compactInput(input, async () => ({ text: 'unused' }), controller.signal)).rejects.toBe(reason)
+    } finally { await ctx.fiber.dispose() }
+  })
+
   function stubAgent(session: Session, model?: string): CompactionAgentContext {
     return { session, options: model === undefined ? {} : { model } }
   }

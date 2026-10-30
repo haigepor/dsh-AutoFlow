@@ -1,0 +1,5 @@
+{
+  "success": { "observed": 4, "status": "completed", "finalInference": true, "error": null, "compressionRecorded": true },
+  "truncated": { "observed": 4, "status": "failed", "finalInference": false, "error": "vision-context-compaction-failed", "compressionRecorded": true },
+  "budget": { "observed": 4, "status": "completed", "finalInference": false, "error": null, "compressionRecorded": false }
+}

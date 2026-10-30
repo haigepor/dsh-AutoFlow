@@ -58,9 +58,10 @@ async function fixture(t, overrides = {}) {
   const credentialValues = { AFP_USERNAME: 'alice', AFP_ACCESS_TOKEN: 'secret-token' }
   const connection = {
     config,
+    async visionInformation() { return { state: 'selection-required' } },
     credentials: { async resolve(ref) { return credentialValues[ref] ? { value: credentialValues[ref] } : undefined } },
     async configurationInfo() {
-      return { credentials: { accessTokenRef: { configured: true }, usernameRef: { configured: true }, passwordRef: { configured: false }, visionKeyRef: { configured: false } },
+      return { credentials: { accessTokenRef: { configured: true }, usernameRef: { configured: true }, passwordRef: { configured: false } },
         token: { configured: true, expiresAt: 1234, verifiedAt: 1000 } }
     },
     async open(signal, write = false, vision = false, preview = false) {
@@ -103,9 +104,9 @@ test('account summary masks resolved usernames and omits credential values', asy
   const summary = await page(service, 'account-summary')
   assert.deepEqual(summary, {
     username: 'a***e',
-    credentials: { accessTokenRef: { configured: true }, usernameRef: { configured: true }, passwordRef: { configured: false }, visionKeyRef: { configured: false } },
+    credentials: { accessTokenRef: { configured: true }, usernameRef: { configured: true }, passwordRef: { configured: false } },
     token: { configured: true, expiresAt: 1234, verifiedAt: 1000 },
-    references: { accessTokenRef: 'AFP_ACCESS_TOKEN', usernameRef: 'AFP_USERNAME', passwordRef: 'AFP_PASSWORD', visionKeyRef: 'VISION_API_KEY' },
+    references: { accessTokenRef: 'AFP_ACCESS_TOKEN', usernameRef: 'AFP_USERNAME', passwordRef: 'AFP_PASSWORD' },
     visionConfigured: false,
     profile: 'desktop',
     settings: { language: 'en', pageSize: 2, targetPerCategory: 100, threshold: .8 },

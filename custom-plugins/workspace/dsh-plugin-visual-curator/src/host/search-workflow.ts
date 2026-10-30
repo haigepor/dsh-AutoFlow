@@ -14,6 +14,7 @@ import { reviewImage, runActor } from './review.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { searchOutputSchema } from '../shared/search-launch.ts'
 import { searchIssueSchema, type SearchIssue } from '../shared/search-feedback.ts'
+import { createPreviewSearchWorker } from './preview-search-workflow.ts'
 
 const searchStateSchema = z.strictObject({
   queryIndex: z.number().int().nonnegative(), cursor: z.string().nullable(), seenCursors: z.array(z.string()),
@@ -38,6 +39,7 @@ export function createSearchWorker(deps: SearchDependencies): Worker {
   return async ctx => {
     const release = executionStandard(styleStandardSchema.parse(ctx.spec.fixed.release), ctx.spec.fixed.executionRecipe)
     const output = ctx.spec.fixed.output === undefined ? undefined : searchOutputSchema.parse(ctx.spec.fixed.output), original = output?.kind === 'original'
+    if (output?.kind === 'preview') return createPreviewSearchWorker(deps)(ctx)
     // 未声明输出的新旧任务仍必须携带原有用途，不能隐式切换交付方式。
     if (!original) usageSchema.parse(ctx.spec.fixed.usage)
     const input = z.object({ taskBrief: z.string().min(1), queries: z.array(z.string().min(1).max(4096)).min(1), targetCount: z.number().int().positive() }).parse(ctx.spec.input)

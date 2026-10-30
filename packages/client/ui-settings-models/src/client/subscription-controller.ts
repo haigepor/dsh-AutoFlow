@@ -1,7 +1,7 @@
 /** Models-page subscription state owns login polling and refreshes both sibling directories after mutations. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { SubscriptionFailure, subscriptionAccounts, subscriptionLogin, subscriptionModels } from './subscription-api.ts'
-import type { SubscriptionAccount, SubscriptionAvailability, SubscriptionLogin, SubscriptionModel, SubscriptionOperations } from './subscription-api.ts'
+import { SubscriptionFailure, subscriptionAccounts, subscriptionLogin, subscriptionModels, subscriptionCatalog } from './subscription-api.ts'
+import type { SubscriptionAccount, SubscriptionAvailability, SubscriptionLogin, SubscriptionModel, SubscriptionOperations, SubscriptionCatalog, SubscriptionCatalogEntry } from './subscription-api.ts'
 
 /** Localized operation feedback survives tab and page navigation through the shell overlay. */
 export interface SubscriptionNotice { id: number; code: string; success: boolean }
@@ -15,12 +15,15 @@ export interface SubscriptionState {
   busy: string | null
   error: string | null
   notice: SubscriptionNotice | null
+  catalog: SubscriptionCatalog | null
+  catalogStatus: 'idle' | 'loading' | 'ready' | 'error'
+  catalogError: string | null
 }
 
 /** One Client plugin instance owns the optional Host connection and all polling timers. */
 export class SubscriptionController {
   /** Safe account metadata and shared operation feedback for Client consumers. */
-  readonly store = createSnapshotStore<SubscriptionState>({ status: 'idle', availability: 'missing', accounts: [], models: [], login: null, busy: null, error: null, notice: null })
+  readonly store = createSnapshotStore<SubscriptionState>({ status: 'idle', availability: 'missing', accounts: [], models: [], login: null, busy: null, error: null, notice: null, catalog: null, catalogStatus: 'idle', catalogError: null })
   private operations: SubscriptionOperations | undefined
   private readonly lifetime = new AbortController()
   private readonly tasks = new Set<Promise<unknown>>()
@@ -84,6 +87,37 @@ export class SubscriptionController {
   }
 
   private async reload(): Promise<void> { await this.loading; await this.load() }
+
+  /** Read model choices only when their management dialog is opened.
+   * @returns Completion after candidates or a localized failure are available.
+   */
+  loadCatalog(): Promise<void> {
+    return this.track((async () => {
+      this.patch(state => { state.catalogStatus = 'loading'; state.catalogError = null })
+      try {
+        const catalog = subscriptionCatalog(await this.invoke('model-catalog'))
+        this.patch(state => { state.catalog = catalog; state.catalogStatus = 'ready' })
+      } catch (error) { this.patch(state => { state.catalogStatus = 'error'; state.catalogError = this.code(error) === 'INVALID_INPUT' ? 'CATALOG_UPDATE_REQUIRED' : this.code(error) }) }
+    })())
+  }
+
+  /** Persist explicit model choices; sign-in never calls this operation or changes defaults.
+   * @param entries Complete profile-level text/image choices from the current editor.
+   * @param defaultImageModel Explicitly chosen new image default, when requested.
+   * @returns Whether saving and refreshing the shared directories completed.
+   */
+  saveCatalog(entries: readonly SubscriptionCatalogEntry[], defaultImageModel?: string): Promise<boolean> {
+    return this.track(this.run('models', async () => {
+      const current = this.store.getSnapshot().catalog
+      if (current === null) throw new SubscriptionFailure('INVALID_RESPONSE')
+      let saved: unknown
+      try { saved = await this.invoke('model-catalog-save', { revision: current.revision, entries, ...(defaultImageModel === undefined ? {} : { defaultImageModel }) }) }
+      catch (error) { if (this.code(error) === 'REVISION_CONFLICT') await this.loadCatalog(); throw error }
+      const catalog = subscriptionCatalog(saved)
+      this.patch(state => { state.catalog = catalog; state.catalogStatus = 'ready'; state.catalogError = null })
+      await this.refreshDirectories()
+    }, 'MODELS_SAVED'))
+  }
 
   /** Activate the already shipped optional bundle after the user's explicit click.
    * @returns Whether activation completed without a refused or concurrent operation.
@@ -200,8 +234,9 @@ export class SubscriptionController {
    */
   refresh(): Promise<boolean> {
     return this.track(this.run('refresh', async () => {
-      await Promise.all(this.store.getSnapshot().accounts.map(account => this.invoke('account-refresh', { accountKey: account.accountKey })))
+      const refreshed = await Promise.all(this.store.getSnapshot().accounts.map(account => this.invoke('account-refresh', { accountKey: account.accountKey })))
       await this.reload(); await this.refreshDirectories()
+      if (subscriptionAccounts(refreshed).some(account => account.usage?.status === 'error')) throw new SubscriptionFailure('QUOTA_REFRESH_FAILED')
     }, 'REFRESHED'))
   }
 

@@ -3,14 +3,15 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { ImageServiceError, imageFailure } from './errors.ts'
 import { decodeImageDataUrl, detectImageMediaType, loadImageReference } from './remote.ts'
-import type { ImageBytes, ImageInput, ImageOwner, ImageServiceOptions, ImageServiceSettings, ImageTask, ImageTaskRecord, ImagesFacade } from './types.ts'
+import type { ImageAssetRecord, ImageBytes, ImageInput, ImageOwner, ImageServiceOptions, ImageServiceSettings, ImageTask, ImageTaskRecord, ImagesFacade } from './types.ts'
 import { parseImageAssetId, parseImageTaskId, type ImageTaskId } from './ids.ts'
 import { accountRefusal } from '../accounts/failures.ts'
 import { codexUserAgent } from '../codex-request.ts'
 
 interface RunningTask { input: ImageInput; settings: ImageServiceSettings; controller: AbortController; sent: boolean; responseKnown: boolean; timer: ReturnType<typeof setTimeout> }
 
-const wireResponse = z.object({ data: z.array(z.object({ b64_json: z.string().optional(), url: z.string().optional() })).min(1).max(4) })
+const wireResponse = z.object({ data: z.array(z.unknown()).min(1).max(4) })
+const wireImage = z.object({ b64_json: z.string().optional(), url: z.string().optional() })
 const terminal = (task: ImageTask) => task.state !== 'queued' && task.state !== 'sent'
 
 /** One initialized service owns admission, task transitions, cancellation and drain order. */
@@ -39,7 +40,10 @@ export class ImageService implements ImagesFacade {
   async initialize(): Promise<void> {
     if (this.started) throw new ImageServiceError('already-initialized', 'The image service has already initialized.')
     for (const task of await this.options.repository.list()) {
-      if (!terminal(task)) await this.options.repository.put({ ...task, updatedAt: this.now(),
+      if (!terminal(task) && task.assets.length > 0) {
+        await this.options.repository.put({ ...task, updatedAt: this.now(), state: 'succeeded', error: {
+          code: 'image-partial-result', message: 'The Host restarted while saving results. Saved images remain available; missing outputs will not be regenerated automatically.' } })
+      } else if (!terminal(task)) await this.options.repository.put({ ...task, updatedAt: this.now(),
         state: task.state === 'sent' ? 'outcome-unknown' : 'cancelled',
         error: task.state === 'sent'
           ? { code: 'interrupted-after-send', message: 'The Host restarted after dispatch. The remote outcome is unknown; this task will not be resent.' }
@@ -162,7 +166,7 @@ export class ImageService implements ImagesFacade {
   async readAsset(taskId: string, assetId: string, owner: ImageOwner, signal?: AbortSignal): Promise<ImageBytes> {
     const task = await this.owned(taskId, owner)
     const asset = task.assets.find(value => value.id === parseImageAssetId(assetId))
-    if (task.state !== 'succeeded' || asset === undefined) throw new ImageServiceError('image-asset-not-found', 'The requested image asset is unavailable.')
+    if (asset === undefined) throw new ImageServiceError('image-asset-not-found', 'The requested image asset is unavailable.')
     return this.options.readAsset(asset, signal)
   }
 
@@ -262,25 +266,32 @@ export class ImageService implements ImagesFacade {
         try { raw = JSON.parse(responseText) } catch (_error) { throw new ImageServiceError('invalid-image-response', 'Codex returned invalid image JSON.') }
         const decoded = wireResponse.safeParse(raw)
         if (!decoded.success) throw new ImageServiceError('invalid-image-response', 'Codex returned no supported image results.')
-        const images: ImageBytes[] = []
-        for (const entry of decoded.data.data) {
+        let failed = 0
+        let lastFailure: unknown
+        for (const rawEntry of decoded.data.data) {
           requestSignal.throwIfAborted()
-          if (entry.b64_json !== undefined) {
-            if (entry.b64_json.length > Math.ceil(settings.maxImageBytes / 3) * 4) throw new ImageServiceError('image-too-large', 'A generated image exceeds the configured limit.')
-            const data = Buffer.from(entry.b64_json, 'base64')
-            if (data.byteLength > settings.maxImageBytes || data.toString('base64') !== entry.b64_json) throw new ImageServiceError('invalid-image-response', 'Codex returned invalid or oversized image base64.')
-            images.push({ data, mimeType: detectImageMediaType(data) })
-          } else if (entry.url !== undefined) images.push(await this.load(entry.url, settings, requestSignal))
-          else throw new ImageServiceError('invalid-image-response', 'Codex returned an image without bytes or a supported URL.')
-        }
-        try {
-          const assets = await this.options.saveAssets(images)
+          let assets: ImageAssetRecord[]
+          try {
+            const image = await this.decodeOutput(rawEntry, settings, requestSignal)
+            try { assets = await this.options.saveAssets([image]) }
+            catch (_error) { throw new ImageServiceError('image-result-storage-failed', 'Codex returned image bytes but saving the result failed. Check Host storage; this task will not be resent automatically.') }
+          } catch (error) {
+            requestSignal.throwIfAborted()
+            failed++; lastFailure = error; continue
+          }
+          // 每张图片立即提交引用；后续下载、解码或写入失败不能丢掉已经付费取得的成功结果。
           await this.serialize(async () => {
             const current = await this.ownedRecord(id)
-            if (terminal(current)) return
-            await this.options.repository.put({ ...current, state: 'succeeded', updatedAt: this.now(), assets })
+            await this.options.repository.put({ ...current, updatedAt: this.now(), assets: [...current.assets, ...assets] })
           })
-        } catch (_error) { throw new ImageServiceError('image-result-storage-failed', 'Codex returned image bytes but saving the result failed. Check Host storage; this task will not be resent automatically.') }
+        }
+        await this.serialize(async () => {
+          const current = await this.ownedRecord(id)
+          if (terminal(current)) return
+          if (current.assets.length === 0) throw lastFailure ?? new ImageServiceError('invalid-image-response', 'Codex returned no saved images.')
+          await this.options.repository.put({ ...current, state: 'succeeded', updatedAt: this.now(), ...(failed === 0 ? {} : { error: {
+            code: 'image-partial-result', message: `${current.assets.length} image(s) saved; ${failed} output(s) could not be saved. Use the existing images; missing outputs will not be regenerated automatically.` } }) })
+        })
       })
     } catch (error) {
       await this.serialize(async () => {
@@ -301,6 +312,20 @@ export class ImageService implements ImagesFacade {
         ? await loadImageReference(reference, settings, signal) : await this.options.readRemoteImage(reference, signal)
     if (image.data.byteLength > settings.maxImageBytes) throw new ImageServiceError('image-too-large', 'An image exceeds the configured byte limit.')
     return { ...image, mimeType: detectImageMediaType(image.data) }
+  }
+
+  private async decodeOutput(raw: unknown, settings: ImageServiceSettings, signal: AbortSignal): Promise<ImageBytes> {
+    const parsed = wireImage.safeParse(raw)
+    if (!parsed.success) throw new ImageServiceError('invalid-image-response', 'Codex returned an invalid image entry.')
+    const entry = parsed.data
+    if (entry.b64_json === undefined) {
+      if (entry.url === undefined) throw new ImageServiceError('invalid-image-response', 'Codex returned an image without bytes or a supported URL.')
+      return this.load(entry.url, settings, signal)
+    }
+    if (entry.b64_json.length > Math.ceil(settings.maxImageBytes / 3) * 4) throw new ImageServiceError('image-too-large', 'A generated image exceeds the configured limit.')
+    const data = Buffer.from(entry.b64_json, 'base64')
+    if (data.byteLength > settings.maxImageBytes || data.toString('base64') !== entry.b64_json) throw new ImageServiceError('invalid-image-response', 'Codex returned invalid or oversized image base64.')
+    return { data, mimeType: detectImageMediaType(data) }
   }
 
   private assertOpen(): void {

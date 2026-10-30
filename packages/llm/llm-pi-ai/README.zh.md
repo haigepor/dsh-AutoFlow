@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+`models` 条目和 `modelOverrides` 值均接受 `nativeWebSearch`：省略时自动匹配能力，`true` 声明支持，`false` 关闭。界面将发现的提供方默认值保存在 `nativeWebSearchDefault`，与手动覆盖分开。原生搜索适配 OpenAI Responses、Codex Responses、Anthropic Messages、Gemini 搜索增强以及专用 OpenAI Chat Completions 搜索模型。网关必须实际提供所选协议；普通函数调用能力不能证明支持原生搜索。调用选路见[网页工具](../../web/tool-web/README.zh.md)。
+
 当组合需要通过 pi-ai 的提供方目录、或通过 pi-ai 已安装目录未描述的网关路由模型请求时挂载本插件。`providers` 字典就是整个配置面：每个键都是请求用 `GenerateOptions.provider` 选择的提供方路由名。
 
 适配器接受 LLM 服务的[仅供请求使用的 user 输入](../llm/README.zh.md#use-this-package)，并可将其与持久历史混用。user 身份与来源不会进入 pi-ai 内容；assistant 回放元数据和工具调用关联仍由持久消息携带。
@@ -236,7 +238,6 @@ pi-ai 事件变成 harness 的推理、文本、工具调用、用量与 finish 
 ## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
-
 
 这些限制说明适配器在哪里停止、由未来工作接续。它们是当前包约束，不是通用 pi-ai 对比或任务积压。
 

@@ -1,8 +1,10 @@
 import { taskPreparationSchema } from '../shared/task-preparation.ts'
+import { referenceStateSchema } from '../shared/reference-state.ts'
 import type { ActionArgs, CuratorSnapshot, ImageView, RunView, SafeFailure, Workspace, ReferencePageView, GalleryTaskView, StyleView } from './contract.ts'
 import { galleryTaskActive, galleryTaskViewSchema } from '../shared/gallery-task.ts'
 import { analysisActive, analysisTaskSchema, analysisDetailSchema, analysisInputSchema, type AnalysisTask, type AnalysisDetail, type AnalysisInput, type AnalysisStreamFrame } from '../shared/analysis-process.ts'
 import type { ConfigurationView } from './contract.ts'
+import { createAnalysisDetailCache } from './analysis-detail-cache.ts'
 
 interface ReferencePageState { total: number; ids: string[]; counts: ReferencePageView['counts']; nextPageToken?: string; endPageToken: string; tailPageToken?: string; revision?: number; draftRevision?: number; taskVersion?: string; loading: boolean; error: SafeFailure | null }
 
@@ -69,6 +71,11 @@ function snapshotValue(value: unknown): CuratorSnapshot {
   return value as CuratorSnapshot
 }
 
+function sessionTokenValue(value: unknown): string {
+  if (typeof value !== 'object' || value === null || !('sessionToken' in value) || typeof value.sessionToken !== 'string') throw failure(value)
+  return value.sessionToken
+}
+
 /** Create the shared workbench store, with stale-response suppression and retained selections.
  * @param transport Authenticated Host action transport.
  * @returns Observable state and commands; dispose only stops Client refresh work.
@@ -81,7 +88,13 @@ export function createCuratorStore(transport: ClientTransport) {
   const listeners = new Set<() => void>()
   let disposed = false, readSequence = 0, toastId = 0
   let refreshing: Promise<void> | undefined
-  let scopeSequence = 0
+  let scopeSequence = 0, ownerScopeSequence = 0
+  let ownerView: (Pick<ClientState, 'referencePages' | 'galleryTasks' | 'analysisTasks' | 'styleId'> & { snapshot: CuratorSnapshot; savedAt: number }) | undefined
+  const readOwnerView = () => {
+    const ttl = ownerView ? Math.min(ownerView.snapshot.configuration.limits.batchCacheTtlMs ?? 0, ownerView.snapshot.configuration.limits.sessionGrantTtlMs ?? 0) : 0
+    return ownerView && Date.now() >= ownerView.savedAt && Date.now() - ownerView.savedAt < ttl ? ownerView : undefined
+  }
+  const analysisControlVersions = new Map<string, number>()
   const runReads = new Map<string, Promise<void>>()
   const runFilters = new Map<string, import('../shared/search-feedback.ts').RunResultFilter>()
   const runVersions = new Map<string, number>()
@@ -94,6 +107,7 @@ export function createCuratorStore(transport: ClientTransport) {
   let streamController: AbortController | undefined, streamVersion = 0, followUnavailable = false
   const stopFollow = () => { streamController?.abort(); streamController = undefined; followUnavailable = false; ++streamVersion; if (state.analysisStreaming) publish({ analysisStreaming: false }) }
   const inputReads = new Map<string, { work: Promise<void>; controller: AbortController }>()
+  const analysisCache = createAnalysisDetailCache()
   const abortInputs = () => { for (const read of inputReads.values()) read.controller.abort(); inputReads.clear() }
   const clearCrop = () => ({ candidateId: '', cropRunId: '', cropSelection: state.cropSelection + 1 })
   const mergeImages = (fresh: ImageView[], previous: ImageView[]) => [...new Map([...previous, ...fresh].map(image => [image.referenceId ?? image.imageVersionId, image])).values()]
@@ -109,8 +123,8 @@ export function createCuratorStore(transport: ClientTransport) {
     catch (error) {
       if (token && token === state.sessionToken && scope === scopeSequence && failure(error).code === 'owner-denied') {
         // 授权失效先撤下私有画面，再显示错误；旧请求不能重新发布这些资源。
-        ++scopeSequence; ++readSequence; runReads.clear(); runFirstCursors.clear(); runFilters.clear(); runVersions.clear(); referenceReads.clear()
-        stopFollow(); detailController?.abort(); abortInputs(); refreshing = undefined; taskRead = undefined
+        ++scopeSequence; ++ownerScopeSequence; ownerView = undefined; analysisControlVersions.clear(); ++readSequence; runReads.clear(); runFirstCursors.clear(); runFilters.clear(); runVersions.clear(); referenceReads.clear()
+        stopFollow(); detailController?.abort(); abortInputs(); analysisCache.invalidate(); refreshing = undefined; taskRead = undefined
         publish({ ...analysisInitial, ...clearCrop(), sessionToken: '', scopeSessionId: '', snapshot: null, runId: '', previewId: '', selectedImageIds: [], galleryTasks: [], referencePages: {}, error: failure(error) })
       }
       throw error
@@ -119,17 +133,20 @@ export function createCuratorStore(transport: ClientTransport) {
 
   async function refreshAnalysisDetail(): Promise<void> {
     if (!state.analysisRunId || detailRead) return detailRead
-    const runId = state.analysisRunId, scope = scopeSequence, controller = new AbortController(), version = streamVersion
+    const runId = state.analysisRunId, scope = scopeSequence, controller = new AbortController(), version = streamVersion, controlVersion = analysisControlVersions.get(state.analysisRunId)
     detailController = controller
     const work = invoke('analysis-detail', { runId }, controller.signal).then(value => {
       const detail = analysisDetailSchema.parse(value)
-      if (!disposed && scope === scopeSequence && state.analysisRunId === runId && !controller.signal.aborted) {
+      if (detail.task.runId !== runId) throw new Error('invalid-analysis-detail')
+      if (!disposed && scope === scopeSequence && state.analysisRunId === runId && !controller.signal.aborted && controlVersion === analysisControlVersions.get(runId)) {
         const current = state.analysisDetail
         const retainLive = version !== streamVersion && current?.process && (!detail.process || current.process.updatedAt >= detail.process.updatedAt)
-        publish({ analysisDetail: retainLive ? { ...detail, process: current.process, task: { ...detail.task, status: current.task.status, phase: current.task.phase } } : detail, analysisLoading: false, analysisError: null })
+        const visible = retainLive ? { ...detail, process: current.process, task: { ...detail.task, status: current.task.status, phase: current.task.phase } } : detail
+        if (state.snapshot?.configuration.limits.analysisCacheTtlMs) analysisCache.save(visible, state.analysisInputs, Date.now())
+        publish({ analysisDetail: visible, analysisLoading: false, analysisError: null })
         startFollow()
       }
-    }).catch(error => { if (!disposed && scope === scopeSequence && state.analysisRunId === runId && !controller.signal.aborted) publish({ analysisLoading: false, analysisError: failure(error) }) })
+    }).catch(error => { if (!disposed && scope === scopeSequence && state.analysisRunId === runId && !controller.signal.aborted) { analysisCache.markStale(runId); publish({ analysisLoading: false, analysisError: failure(error) }) } })
       .finally(() => { if (detailRead === work) detailRead = undefined })
     detailRead = work
     return work
@@ -160,6 +177,46 @@ export function createCuratorStore(transport: ClientTransport) {
     })
   }
 
+  async function controlAnalysis(runId: string, command: 'pause' | 'resume'): Promise<void> {
+    const key = `${command}:${runId}`
+    if (state.pending.includes(key)) return
+    const scope = scopeSequence, styleId = state.styleId, version = (analysisControlVersions.get(runId) ?? 0) + 1
+    analysisControlVersions.set(runId, version); analysisCache.invalidate(runId)
+    runVersions.set(runId, (runVersions.get(runId) ?? 0) + 1); runReads.delete(runId)
+    publish({ pending: [...state.pending, key], ...(state.analysisRunId === runId ? { analysisError: null } : !state.analysisRunId ? { error: null } : {}) })
+    try {
+      const task = analysisTaskSchema.parse(await invoke(`analysis-${command}`, { runId }))
+      if (task.runId !== runId) throw new Error('invalid-analysis-control-response')
+      if (disposed || scope !== scopeSequence || version !== analysisControlVersions.get(runId)) return
+      const selected = state.analysisRunId === runId
+      if (selected) { stopFollow(); detailController?.abort(); detailRead = undefined }
+      ++taskReadVersion; taskRead = undefined
+      publish({ analysisTasks: [task, ...state.analysisTasks.filter(item => item.runId !== runId)],
+        ...(selected ? { analysisLoading: false } : {}),
+        ...(state.analysisDetail?.task.runId === runId ? { analysisDetail: { ...state.analysisDetail, task } } : {}),
+        ...(state.snapshot ? { snapshot: { ...state.snapshot,
+          styles: state.snapshot.styles.map(style => {
+            if (style.analysis?.runId !== runId) return style
+            const { error: previousError, continuation: previousContinuation, ...analysis } = style.analysis
+            return { ...style, analysis: { ...analysis, status: task.status, stage: task.phase, observed: task.observed, total: task.total, ...(task.continuation ? { continuation: task.continuation } : {}), ...(task.error ? { error: task.error } : {}) } }
+          }),
+          runs: state.snapshot.runs.map(run => {
+            if (run.runId !== runId) return run
+            const { error: previousError, ...saved } = run
+            return { ...saved, status: task.status, ...(task.error ? { error: task.error } : {}) }
+          }) } } : {}) })
+      if (selected) { startFollow(); if (!state.analysisDetail) void refreshAnalysisDetail() }
+      void refreshGalleryTasks()
+    } catch (error) {
+      if (!disposed && scope === scopeSequence && version === analysisControlVersions.get(runId) && state.analysisRunId === runId) {
+        // 控制结果未知时只重读状态，不重发控制；旧详情不能留下永不结束的骨架屏。
+        detailController?.abort(); detailRead = undefined
+        publish({ analysisLoading: false, analysisError: failure(error) }); void refreshAnalysisDetail()
+      } else if (!disposed && scope === scopeSequence && version === analysisControlVersions.get(runId) && !state.analysisRunId && state.styleId === styleId) publish({ error: failure(error) })
+    }
+    finally { if (!disposed && scope === scopeSequence) publish({ pending: state.pending.filter(item => item !== key) }) }
+  }
+
   function loadAnalysisInput(requestId: string): Promise<void> {
     if (!state.analysisRunId || state.analysisInputs[requestId]) return Promise.resolve()
     const existing = inputReads.get(requestId)
@@ -171,7 +228,11 @@ export function createCuratorStore(transport: ClientTransport) {
     const work = invoke('analysis-input', { runId, requestId }, controller.signal).then(value => {
       const input = analysisInputSchema.parse(value)
       if (input.requestId !== requestId) throw new Error('invalid-analysis-input')
-      if (current()) publish({ analysisInputs: { ...state.analysisInputs, [requestId]: input } })
+      if (current()) {
+        const inputs = { ...state.analysisInputs, [requestId]: input }
+        if (state.analysisDetail) analysisCache.update(state.analysisDetail, inputs)
+        publish({ analysisInputs: inputs })
+      }
     }).catch(error => { if (current()) publish({ analysisInputErrors: { ...state.analysisInputErrors, [requestId]: failure(error) } }) })
       .finally(() => { if (inputReads.get(requestId)?.work === work) inputReads.delete(requestId); if (current()) publish({ analysisInputLoading: state.analysisInputLoading.filter(id => id !== requestId) }) })
     inputReads.set(requestId, { work, controller })
@@ -249,10 +310,10 @@ export function createCuratorStore(transport: ClientTransport) {
         styles: snapshot.styles.map(style => {
           const task = analyses.find(item => item.styleId === style.styleId)
           if (!task) return style
-          const previous = style.analysis?.runId === task.runId ? style.analysis : undefined
-          return { ...style, analysis: { stale: false, samples: [], ...previous, runId: task.runId, status: task.status, stage: task.phase, observed: task.observed, total: task.total, model: task.model, ...(task.outcome ? { outcome: task.outcome } : {}), ...(task.error ? { error: task.error } : {}) } }
+          const { error: previousError, continuation: previousContinuation, ...previous } = style.analysis?.runId === task.runId ? style.analysis : {}
+          return { ...style, analysis: { stale: false, samples: [], ...previous, runId: task.runId, status: task.status, stage: task.phase, observed: task.observed, total: task.total, model: task.model, ...(task.continuation ? { continuation: task.continuation } : {}), ...(task.outcome ? { outcome: task.outcome } : {}), ...(task.error ? { error: task.error } : {}) } }
         }), runs: [...analyses.map(task => {
-          const previous = snapshot.runs.find(run => run.runId === task.runId)
+          const { error: previousError, ...previous } = snapshot.runs.find(run => run.runId === task.runId) ?? { counts: {} }
           return { taskBrief: '', results: [], warnings: [], ...previous, runId: task.runId, styleId: task.styleId, kind: 'analyze' as const, status: task.status, counts: { ...previous?.counts, observed: task.observed }, ...(task.error ? { error: task.error } : {}) }
         }), ...snapshot.runs.filter(run => !analyses.some(task => task.runId === run.runId))],
       } } : {}) })
@@ -341,8 +402,11 @@ export function createCuratorStore(transport: ClientTransport) {
     if (deletedRun) key = `${key}:${deletedRun}`
     if (controlledRun) key = `${key}:${controlledRun}:${String(args.command)}`
     if (state.pending.includes(key)) return undefined
+    analysisCache.invalidate()
     const scope = scopeSequence, version = controlledRun ? (runVersions.get(controlledRun) ?? 0) + 1 : 0
-    if (controlledRun) { runVersions.set(controlledRun, version); runReads.delete(controlledRun) }
+    const controlVersion = controlledRun ? (analysisControlVersions.get(controlledRun) ?? 0) + 1 : 0
+    // 对话框与任务历史共用控制顺序，晚到的暂停回执不能覆盖后发的取消。
+    if (controlledRun) { runVersions.set(controlledRun, version); analysisControlVersions.set(controlledRun, controlVersion); runReads.delete(controlledRun) }
     publish({ pending: [...state.pending, key] })
     try {
       const result = await invoke(operation, args)
@@ -380,7 +444,7 @@ export function createCuratorStore(transport: ClientTransport) {
       }
       if (controlledRun) {
         if (!result || typeof result !== 'object' || !('runId' in result) || result.runId !== controlledRun || !('results' in result) || !Array.isArray(result.results)) throw new Error('invalid-run-control-response')
-        if (disposed || scope !== scopeSequence || version !== runVersions.get(controlledRun) || !state.snapshot) return result
+        if (disposed || scope !== scopeSequence || version !== runVersions.get(controlledRun) || controlVersion !== analysisControlVersions.get(controlledRun) || !state.snapshot) return result
         const run = result as RunView, previous = state.snapshot.runs.find(item => item.runId === controlledRun)
         const updated = { ...run, ...(previous ? { results: previous.results, ...(previous.resultFilter ? { resultFilter: previous.resultFilter } : {}), ...(previous.pageToken ? { pageToken: previous.pageToken } : {}) } : {}) }
         // 控制回执比此前发出的轮询新；保留已加载图片和结果，且旧暂停不能覆盖后发取消。
@@ -407,13 +471,15 @@ export function createCuratorStore(transport: ClientTransport) {
   return {
     getSnapshot: () => state,
     getScopeId: () => scopeSequence,
+    getOwnerScopeId: () => ownerScopeSequence,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
-    reload, execute,
+    reload(skipSelectedRuns = false, reuseReferences = false) { analysisCache.invalidate(); return reload(skipSelectedRuns, reuseReferences) }, execute,
     async ensureLoaded(): Promise<void> { if (!state.snapshot || state.error) await reload() },
     prepareTask: async (args: ActionArgs) => taskPreparationSchema.parse(await invoke('task-prepare', args)),
     loadReferences, refreshGalleryTasks, refreshAnalysisDetail,
     async saveConfiguration(args: ActionArgs, beforeSave?: () => Promise<void>): Promise<void> {
       if (state.configSaving) return
+      analysisCache.invalidate()
       const scope = scopeSequence
       publish({ configSaving: true, configError: null })
       try {
@@ -426,15 +492,19 @@ export function createCuratorStore(transport: ClientTransport) {
       } catch (error) { if (!disposed && scope === scopeSequence) publish({ configError: failure(error) }); throw failure(error) }
       finally { if (scope === scopeSequence) publish({ configSaving: false }) }
     },
+    async referenceState(styleId: string, signal: AbortSignal) {
+      return referenceStateSchema.parse(await invoke('reference-state', { styleId }, signal))
+    },
     async startAnalysis(args: ActionArgs): Promise<unknown> {
       const key = `analysis:${String(args.styleId)}`
       if (state.pending.includes(key)) return
+      analysisCache.invalidate()
       publish({ pending: [...state.pending, key], error: null })
       try {
         const result = await invoke('reference-analyze', args)
         // 启动前的旧轮询不能阻塞已接受的任务，也不能覆盖本次新状态。
         ++taskReadVersion; taskRead = undefined
-        await refreshGalleryTasks()
+        void refreshGalleryTasks()
         return result
       }
       catch (error) { publish({ error: failure(error) }); throw failure(error) }
@@ -443,17 +513,24 @@ export function createCuratorStore(transport: ClientTransport) {
     async stopAnalysis(runId: string): Promise<void> {
       const key = `stop:${runId}`
       if (state.pending.includes(key)) return
+      analysisControlVersions.set(runId, (analysisControlVersions.get(runId) ?? 0) + 1)
+      analysisCache.invalidate(runId)
       publish({ pending: [...state.pending, key], analysisError: null })
       try { await invoke('analysis-stop', { runId }); await refreshGalleryTasks(); await refreshAnalysisDetail() }
       catch (error) { publish({ analysisError: failure(error), error: failure(error) }) }
       finally { publish({ pending: state.pending.filter(item => item !== key) }) }
     },
+    pauseAnalysis: (runId: string) => controlAnalysis(runId, 'pause'),
+    resumeAnalysis: (runId: string) => controlAnalysis(runId, 'resume'),
     openAnalysis(runId: string) {
+      if (state.analysisDetail) analysisCache.update(state.analysisDetail, state.analysisInputs)
       stopFollow(); detailController?.abort(); detailRead = undefined; abortInputs()
-      publish({ ...inputInitial, analysisRunId: runId, analysisDetail: null, analysisLoading: true, analysisStreaming: false, analysisError: null })
-      void refreshAnalysisDetail()
+      // 终态短时重开不重复读取；运行态保留画面，同时恢复最新详情和推送。
+      const cached = analysisCache.read(runId, state.snapshot?.configuration.limits.analysisCacheTtlMs ?? 0, Date.now(), state.analysisTasks.find(task => task.runId === runId))
+      publish({ ...inputInitial, analysisRunId: runId, analysisDetail: cached?.detail ?? null, analysisInputs: cached?.inputs ?? {}, analysisLoading: !cached, analysisStreaming: false, analysisError: null })
+      if (!cached || cached.stale || analysisActive(cached.detail.task.status)) void refreshAnalysisDetail()
     },
-    closeAnalysis() { stopFollow(); detailController?.abort(); detailRead = undefined; abortInputs(); publish({ ...inputInitial, analysisRunId: '', analysisDetail: null, analysisLoading: false, analysisStreaming: false, analysisError: null }) },
+    closeAnalysis() { if (state.analysisDetail) analysisCache.update(state.analysisDetail, state.analysisInputs); stopFollow(); detailController?.abort(); detailRead = undefined; abortInputs(); publish({ ...inputInitial, analysisRunId: '', analysisDetail: null, analysisLoading: false, analysisStreaming: false, analysisError: null }) },
     loadAnalysisInput,
     async startGalleryReferences(args: ActionArgs): Promise<GalleryTaskView> {
       const scope = scopeSequence
@@ -498,25 +575,40 @@ export function createCuratorStore(transport: ClientTransport) {
       finally { publish({ pending: state.pending.filter(item => item !== 'images-page') }) }
     },
     async openSession(sessionId: string) {
+      if (!state.sessionToken && state.snapshot) ownerView = { snapshot: state.snapshot, styleId: state.styleId, referencePages: state.referencePages, galleryTasks: state.galleryTasks, analysisTasks: state.analysisTasks, savedAt: Date.now() }
+      analysisCache.invalidate()
       const opening = ++scopeSequence
       ++readSequence; refreshing = undefined; runReads.clear(); runFirstCursors.clear(); referenceReads.clear(); taskRead = undefined
       stopFollow(); detailController?.abort(); abortInputs()
-      publish({ ...analysisInitial, ...clearCrop(), snapshot: null, sessionToken: '', scopeSessionId: '', runId: '', previewId: '', selectedImageIds: [], galleryTasks: [], referencePages: {} })
-      const value = await transport.invoke('session-open', { sessionId })
+      publish({ ...analysisInitial, ...clearCrop(), snapshot: null, loading: true, error: null, sessionToken: '', scopeSessionId: '', runId: '', previewId: '', selectedImageIds: [], galleryTasks: [], referencePages: {} })
+      let sessionToken: string
+      try { sessionToken = sessionTokenValue(await transport.invoke('session-open', { sessionId })) }
+      catch (error) {
+        if (!disposed && opening === scopeSequence) {
+          const cached = readOwnerView()
+          ++scopeSequence
+          publish({ snapshot: cached?.snapshot ?? null, referencePages: cached?.referencePages ?? {}, galleryTasks: cached?.galleryTasks ?? [], analysisTasks: cached?.analysisTasks ?? [], ...(cached ? { styleId: cached.styleId } : {}), loading: false, error: failure(error) })
+        }
+        throw error
+      }
       if (disposed || opening !== scopeSequence) return
-      if (typeof value !== 'object' || value === null || !('sessionToken' in value) || typeof value.sessionToken !== 'string') throw failure(value)
       ++readSequence; ++scopeSequence; refreshing = undefined; runReads.clear(); runFirstCursors.clear(); imagesFirstCursor = undefined
       referenceReads.clear(); taskRead = undefined
       stopFollow(); detailController?.abort(); detailRead = undefined; abortInputs()
-      publish({ ...analysisInitial, ...clearCrop(), galleryTasks: [], galleryTaskError: null, referencePages: {}, sessionToken: value.sessionToken, scopeSessionId: sessionId, snapshot: null, runId: '', selectedImageIds: [], previewId: '', page: 0, runLoading: false, runError: null })
+      publish({ ...analysisInitial, ...clearCrop(), galleryTasks: [], galleryTaskError: null, referencePages: {}, sessionToken, scopeSessionId: sessionId, snapshot: null, runId: '', selectedImageIds: [], previewId: '', page: 0, runLoading: false, runError: null })
       await reload()
     },
     closeSession() {
+      const ownerOnly = !state.sessionToken && !state.scopeSessionId
+      const cached = ownerOnly && state.snapshot ? { snapshot: state.snapshot, styleId: state.styleId, galleryTasks: state.galleryTasks, analysisTasks: state.analysisTasks,
+        referencePages: Object.fromEntries(Object.entries(state.referencePages).map(([id, page]) => [id, { ...page, loading: false }])) } : readOwnerView()
+      analysisCache.invalidate()
       ++readSequence; ++scopeSequence; refreshing = undefined; runReads.clear(); runFirstCursors.clear(); imagesFirstCursor = undefined
       referenceReads.clear(); taskRead = undefined
       stopFollow(); detailController?.abort(); detailRead = undefined; abortInputs()
-      publish({ ...analysisInitial, ...clearCrop(), galleryTasks: [], galleryTaskError: null, referencePages: {}, sessionToken: '', scopeSessionId: '', snapshot: null, runId: '', selectedImageIds: [], previewId: '', page: 0, runLoading: false, runError: null })
-      void reload()
+      // 回到已认证所有者范围后才恢复其缓存；会话授权切换期间不显示另一范围的私有画面。
+      publish({ ...analysisInitial, ...clearCrop(), galleryTasks: cached?.galleryTasks ?? [], galleryTaskError: null, analysisTasks: cached?.analysisTasks ?? [], referencePages: cached?.referencePages ?? {}, sessionToken: '', scopeSessionId: '', snapshot: cached?.snapshot ?? null, ...(cached ? { styleId: cached.styleId } : {}), runId: '', selectedImageIds: [], previewId: '', page: 0, loading: false, runLoading: false, runError: null })
+      if (!ownerOnly) void reload(true, !!cached)
     },
     selectWorkspace(workspace: Workspace) { publish({ ...clearCrop(), workspace, page: 0, filter: 'all' }) },
     selectStyle(styleId: string) { publish({ styleId, page: 0 }); if (state.snapshot?.collectionPaging && !referencesCurrent(styleId)) void readReferences(styleId, false, !!state.referencePages[styleId] && state.referencePages[styleId]!.taskVersion !== referenceTaskVersion(styleId)) },
@@ -531,6 +623,8 @@ export function createCuratorStore(transport: ClientTransport) {
     clearSelection() { publish({ selectedImageIds: [] }) },
     dismissToast() { publish({ toast: null }) },
     reset() {
+      ++ownerScopeSequence; ownerView = undefined; analysisControlVersions.clear()
+      analysisCache.invalidate()
       taskWorkspaceRevision = undefined
       ++readSequence; ++scopeSequence; refreshing = undefined; runReads.clear(); runFirstCursors.clear(); imagesFirstCursor = undefined
       referenceReads.clear(); taskRead = undefined
@@ -539,7 +633,7 @@ export function createCuratorStore(transport: ClientTransport) {
         ...(state.sessionToken ? { sessionToken: '', scopeSessionId: '', runId: '', selectedImageIds: [], previewId: '' } : {}) })
       void reload()
     },
-    dispose() { stopFollow(); detailController?.abort(); abortInputs(); disposed = true; ++readSequence; ++scopeSequence; listeners.clear() },
+    dispose() { stopFollow(); detailController?.abort(); abortInputs(); analysisCache.invalidate(); ownerView = undefined; analysisControlVersions.clear(); disposed = true; ++readSequence; ++scopeSequence; ++ownerScopeSequence; listeners.clear() },
   }
 }
 

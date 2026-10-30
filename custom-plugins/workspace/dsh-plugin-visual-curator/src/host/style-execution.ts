@@ -22,17 +22,19 @@ export function matchStyle(profile: ModelProfile, results: readonly { ruleId: st
   const memberships = new Map(profile.options.filter(option => option.enabled).map(option => [option.rule.ruleId, option.groupId]))
   const evaluate = (items: Rule[]): { verdict: StyleMatch['verdict']; ratio: number | null } => {
     if (!items.length) return { verdict: 'matched', ratio: null }
-    let total = 0, satisfied = 0, unknown = false
+    let total = 0, satisfied = 0, unknownWeight = 0
     for (const rule of items) {
       const weight = (profile.recipe.preferenceScale.weights[rule.dimension] ?? 0) / items.filter(item => item.dimension === rule.dimension).length
       const result = results.find(item => item.ruleId === rule.ruleId)?.result
       total += weight
       if (result === 'satisfied') satisfied += weight
-      else if (result !== 'violated') unknown = true
+      else if (result !== 'violated') unknownWeight += weight
     }
     if (total === 0) return { verdict: 'unknown', ratio: null }
     const ratio = Math.min(1, satisfied / total)
-    return { verdict: unknown ? 'unknown' : ratio + Number.EPSILON >= threshold ? 'matched' : 'not-matched', ratio }
+    // 即使未知项全满足也达不到阈值时，可直接拒绝，避免明显不匹配堆积为待复核。
+    const impossible = (satisfied + unknownWeight) / total + Number.EPSILON < threshold
+    return { verdict: impossible ? 'not-matched' : unknownWeight > 0 ? 'unknown' : ratio + Number.EPSILON >= threshold ? 'matched' : 'not-matched', ratio }
   }
   const shared = evaluate(rules.filter(rule => !memberships.get(rule.ruleId)))
   const groups = [...new Set(rules.flatMap(rule => memberships.get(rule.ruleId) ? [memberships.get(rule.ruleId)!] : []))]

@@ -198,13 +198,13 @@ Switching modes retains manually opened groups and inner disclosures. It changes
 
 A group collects adjacent process content within one Turn. Step-number changes alone do not split it. All four modes use the same grouping result. A group's `closed` flag means its content segment has ended, not that its UI disclosure is collapsed.
 
-Grouping reads each Node's [group-tree position](../contract/group-tree.ts), which its Definition sets, rather than its kind.
+Grouping reads each Node's [group-tree position](../contract/group-tree.ts), which its Definition sets, rather than its kind. Each group retains its latest tool for the keyed `conversation.chat.process.status` Slot. A feature can replace the inline icon and label through that Slot while the shared button keeps disclosure, focus and original reasoning/tool rows. A registered status retains this disclosure in every display mode, including flat detailed and verbose views; an unregistered or unloaded key follows the ordinary display policy. Whole-Turn folding still applies.
 
 | Input | Membership and segmentation |
 |---|---|
 | Non-blank Assistant reasoning | Append one `reasoning` reference for that Assistant to the current group, creating a group if necessary. |
 | Assistant reply | End the preceding group and emit an independent `response` reference. If the same Node has reasoning, append that reasoning before ending the group. |
-| Node at `process` or an outer position: `model-retry`, Turn inputs, `turn-error`, `turn-max-tokens`, `turn-tail`, and the `turn-process` control | End the preceding group and retain the Node as an independent root. |
+| Node at `process` or an outer position: `model-retry`, Turn inputs, `turn-error`, `turn-max-tokens`, `turn-tail`, and the `turn-process` control | Retain the Node as an independent root and split the preceding group. A `turn` output can appear while work continues, so it does not mark that group completed; Turn end still closes it. Other positions end the preceding group. |
 | Other visible Nodes owned by a Turn without a position, including tools | Append the whole Node to the current group, creating a group if necessary. |
 | Node from another Turn or without a Turn | Break the same-Turn sequence. A Node without a Turn remains independent, including an unsplit Assistant. |
 | Hidden Nodes, system prompts, ordinary Context injection, and `permission` commands | Excluded from the grouping input; they neither join nor split a group. |
