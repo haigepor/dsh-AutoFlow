@@ -80,6 +80,10 @@ jobs:
           --maxWorkers=2
       - name: Custom plugin regressions
         run: pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 run test
+      - name: Custom plugin types
+        run: |
+          pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 --if-present run check
+          pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 --if-present run typecheck
       # These recorded Bash scenarios belong to the Linux/macOS lane.
       - name: Keyless text, tool call and retained format replay
         env:
@@ -117,3 +121,7 @@ jobs:
       - run: pnpm run verify-cordis-config
       - name: Custom plugin regressions
         run: pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 run test
+      - name: Custom plugin types
+        run: |
+          pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 --if-present run check
+          pnpm --filter './custom-plugins/workspace/**' --workspace-concurrency=1 --if-present run typecheck
