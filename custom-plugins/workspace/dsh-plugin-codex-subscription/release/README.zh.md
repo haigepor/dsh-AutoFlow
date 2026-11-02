@@ -20,8 +20,12 @@ pnpm --filter dsh-plugin-codex-subscription run release:prepare --out .artifacts
 
 插件详情页复用既有的检查、更新和自动更新控件。自动安装须明确开启；安装不会自动启用插件或重启 AutoFlow。重启后加载新的 Host 实现，保留账号凭据、网关密钥、任务、配置和功能选择。运行时限额、摘要校验与 profile 本地缓存由既有插件管理器负责。
 
-订阅页面归 AutoFlow 的模型设置包所有，不随本 Host tarball 分发；页面变化需要配套的 AutoFlow 构建。发布验证使用无密钥夹具，不执行真实订阅登录、生图或付费调用。按要求另行执行下载、安装或旧版本更新验收。
+订阅设置页面归 AutoFlow 的模型设置包所有；本插件包含会话图片卡片和实时状态 Client。应用页面变化需要配套的 AutoFlow 构建。发布验证使用无密钥夹具，不执行真实订阅登录、生图或付费调用。按要求另行执行下载、安装或旧版本更新验收。
 
 ## Dev Note
 
 无。
+
+## Codex Subscription 0.2.0
+
+本包在 Host 与工具之外包含会话图片卡片及实时图片任务状态。账号预检和额度报告区分账号不可用与请求失败，代理处理流式及 WebSocket 完成状态，不将未完成响应标为成功。已保存账号、凭据和任务保留在各自 profile 中；更新后需配套 AutoFlow 构建并重启。

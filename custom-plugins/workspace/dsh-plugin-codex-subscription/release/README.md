@@ -20,8 +20,12 @@ Preparation runs the package tests and prepack, checks all declared Host/tools e
 
 The plugin detail page uses the existing check, update and automatic-update controls. Automatic installation requires explicit opt-in; installation does not enable the plugin or restart AutoFlow. Restart loads the new Host implementation while retaining account credentials, gateway keys, tasks, configuration and feature choices. Runtime limits, digest verification and profile-local caching belong to the existing Plugin Manager.
 
-The subscription page belongs to AutoFlow's Models package and is not shipped by this Host-only tarball. UI changes require a matching AutoFlow build. Release verification uses keyless fixtures; it does not perform real subscription login, image generation or paid calls. Download/install or old-version update acceptance is additional validation when requested.
+The subscription settings page belongs to AutoFlow's Models package; this plugin ships its conversation image cards and live status Client. App-owned UI changes require a matching AutoFlow build. Release verification uses keyless fixtures; it does not perform real subscription login, image generation or paid calls. Download/install or old-version update acceptance is additional validation when requested.
 
 ## Dev Note
 
 None.
+
+## Codex Subscription 0.2.0
+
+The package includes conversation image cards and live image-task status alongside its Host and tools. Account preflight and quota reporting distinguish unavailable accounts from request failures, while the relay handles streaming and WebSocket completion without turning incomplete responses into success. Saved accounts, credentials and tasks remain in their profile; use the matching AutoFlow build and restart after updating.
