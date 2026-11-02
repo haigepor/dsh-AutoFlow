@@ -32,6 +32,18 @@ pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps 
 
 [同源窗口终端用例](sidebar-terminal.e2e.ts)等待 UI 触发的 Host 关闭操作完成后，再检查进程终止。它还检查第一个窗口的进程、保存的绑定以及重载后的布局。
 
+## 新建会话耗时测量
+
+按需运行的[新建诊断](session-create.perf.e2e.ts)使用安装 AFP 的构建后 Host 组合，在 1 个和 24 个项目目录下生成当前格式日志；每种规模分别测量 6 次新建 Agent 和 6 次复用内存中的空白会话。将 `DSH_SESSION_CREATE_PROFILE_OUTPUT` 设为 JSON 输出的绝对路径；`DSH_SESSION_CREATE_PROFILE_PRESET` 可选择 `standard`（默认）或 `afp-curator`。先运行 `pnpm run build:artifacts`，再执行：
+
+```sh
+pnpm exec vitest run --config vitest.web.config.ts apps/web/tests/session-create.perf.e2e.ts --maxWorkers=1 --execArgv=--expose-gc
+```
+
+Host 计时终点为 Agent 初始化和 Workspace 关联完成。设置 `DSH_SESSION_CREATE_PROFILE_BROWSER=1` 后，还会测量 6 次原生“新建会话”点击和 6 次空白会话复用，并验证选中的对话能够在输入框接受草稿。浏览器 `uiReadyMs` 从原生 pointerdown 计时，到选中对话、输入框可编辑后的下一帧结束；`totalMs` 还包含自动化等待和草稿输入。报告保留原始墙钟时间、CPU 样本和包含子调用的服务耗时；浏览器 RPC 耗时与这些阶段重叠。显式 GC 前后的堆快照保留生成的测试数据和 Agent；峰值 RSS 覆盖 Host 样本结束前包含启动过程的测试进程，不包含浏览器阶段。新建计时不包含 profile 启动、测试数据构造、模型调用和外网请求；诊断不设置 CI 耗时阈值，未指定输出路径时跳过。
+
+设置 `DSH_SESSION_CREATE_PROFILE_INVENTORY=1` 可在每次 Workspace 关联期间启动真实插件与组合包清单刷新；该负载对每种操作运行三次浏览器测量，并在样本之间等待刷新完成。`DSH_SESSION_CREATE_PROFILE_CPU=1` 将浏览器负载期间的 Host CPU 采样写到 JSON 报告旁的 `.cpuprofile` 文件。
+
 ## 这些是 Host 面的测试
 
 它们在根 `tsconfig.host.json` 中做类型检查，而不在 Client aggregate 中，因为它们直接读取 Host 服务：`ctx.connection`、Host 侧 `SessionStore` 与 `ctx.sessionProjectionCache`。运行时驱动浏览器并不使一个文件成为 Client 程序的一部分——两个 face 在相同的键上以不同服务合并 Cordis `Context`，因此单个程序无法同时看见两者。把这些文件挪进 Client aggregate 会让每一处 Host 服务访问都无法编译。

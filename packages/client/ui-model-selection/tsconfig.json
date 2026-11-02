@@ -42,7 +42,7 @@
       "path": "../ui-session"
     },
     {
-      "path": "../ui-input-trigger"
+      "path": "../ui-input-trigger/tsconfig.client.json"
     },
     {
       "path": "../ui-slots"

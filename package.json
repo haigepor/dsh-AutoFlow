@@ -257,6 +257,7 @@
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-mcp-client": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-mcp": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-settings-archive": "workspace:*",
     "@deepseek-ai/dsh-mcp-manager": "workspace:*",
     "@deepseek-ai/dsh-tool-session-query": "workspace:*",
     "@deepseek-ai/dsh-web-fetch-http": "workspace:*",

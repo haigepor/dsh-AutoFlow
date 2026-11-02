@@ -109,6 +109,7 @@
     "@deepseek-ai/dsh-client-ui-settings-general": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-models": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-mcp": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-settings-archive": "workspace:*",
     "@deepseek-ai/dsh-mcp-manager": "workspace:*",
     "@deepseek-ai/dsh-skill-manager": "workspace:*",
     "@deepseek-ai/dsh-client-ui-settings-skills": "workspace:*",

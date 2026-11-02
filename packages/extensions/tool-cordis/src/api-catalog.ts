@@ -235,13 +235,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'async recompose(ctx: Context, id: string): Promise<AgentPreset>',
-        description: 'Rebind a blank Agent; the caller owns the blank-session check.',
+        description: 'Rebind an unpublished Agent or one whose caller owns its idle phase.',
         parameters: [{ name: 'ctx', description: 'Agent context.' }, { name: 'id', description: 'Requested preset.' }],
         returns: 'The bound identity.',
       },
       {
         signature: '@Remote(\'select\') async select(agent: Agent, agentPreset: string): Promise<string>',
-        description: 'Select a preset before a session starts its first turn. A Session whose log records the preset and whose Agent runs its current revision keeps its composition; nothing is logged or announced.',
+        description: 'Select a preset between turns, waiting for active work to finish. A Session whose log records the preset and whose Agent runs its current revision keeps its composition; nothing is logged or announced.',
         parameters: [{ name: 'agent', description: 'Target Agent.' }, { name: 'agentPreset', description: 'Requested identity.' }],
         returns: 'Committed preset identity.',
       },
@@ -2342,7 +2342,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Current runtime entries with persistent patch targets.',
       },
       {
-        signature: '@Remote listBundles(): Promise<BundleInfo[]>',
+        signature: '@Remote async listBundles(): Promise<BundleInfo[]>',
         description: 'Read installed, installation-provided, and offline Official catalog bundles, plus selected non-bundle names. A dependency without a bundle patch is listed, as a `not-bundle` problem, only while it is selected.',
         parameters: [],
         returns: 'Package versions, manifest descriptions, the installable spec of profile dependencies, rows, optional display metadata, activation selections, whether the installation offers the bundle, and removal availability.',
@@ -2912,6 +2912,33 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'sessionDeletion',
+    summary: 'Host Remote service exposed only while the selected backend supports erasure.',
+    description: 'Host Remote service exposed only while the selected backend supports erasure.',
+    methods: [
+      {
+        signature: '@Remote deleteSession(request: SessionDeleteRequest): Promise<SessionDeleteValue>',
+        description: 'Permanently remove one ordinary Session without deleting Workspace files or other Sessions. Active work and foreign write ownership refuse deletion. Cleanup failure after removal reports sessionDeletion/cleanup-failed; retrying completes the idempotent cleanup.',
+        parameters: [{ name: 'request', description: 'Session whose complete stored record may be removed.' }],
+        returns: 'confirmation that its record, checkpoints and list references are gone.',
+      },
+    ],
+  },
+  {
+    key: 'sessionErasure',
+    summary: 'Permanent record removal supplied by backends that support it.',
+    description: 'Permanent record removal supplied by backends that support it.',
+    methods: [
+      {
+        signature: 'erase(id: SessionId): Promise<boolean>',
+        description: 'Remove every stored generation of one idle, unowned Session.',
+        parameters: [{ name: 'id', description: 'stored Session identity; live writers must be retired first.' }],
+        returns: 'whether a stored record existed; absence is an idempotent success.',
+        throws: ['SessionAlreadyOwnedError while another writer holds the record.', 'SessionErasureError when removal fails, distinguishing committed removal.'],
+      },
+    ],
+  },
+  {
     key: 'sessionFeedback',
     summary: 'Host Remote through which a product surface records a Session-level remark.',
     description: 'Host Remote through which a product surface records a Session-level remark.',
@@ -2985,7 +3012,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
     key: 'sessionProjectionCache',
     summary: 'The persisted projection cache service.',
-    description: 'The persisted projection cache service. Opens the `session_projcache` domain at init, checkpoints live sessions on a throttled write-behind (count/interval triggers from Config) plus three mandatory points — session creation, `turn/end`, and session disposal (the live-to-cold moment) — and serves the cached rows for a session header. Every durable write is fail-soft: failures log a warning and the cache self-heals on the next write.',
+    description: 'The persisted projection cache service. Opens the `session_projcache` domain at init, checkpoints live sessions on a throttled write-behind (count/interval triggers from Config) plus three mandatory points — session creation, `turn/end`, and session disposal (the live-to-cold moment) — and serves the cached rows for a session header. Checkpoint writes are fail-soft: failures log a warning and the cache self-heals on the next write.',
     methods: [
       {
         signature: 'cachedSnapshot( meta: SessionHeader, keys?: ProjectionKeySelection, ): ProjectionSnapshot | undefined',
@@ -3010,6 +3037,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Durably checkpoint one live session NOW (all mandatory points call this; tests and carriers may too). The registry cut is snapshotted at this boundary (states are live references), then the session\'s record is replaced on the domain\'s write chain. NOT fail-soft — callers on the fail-soft paths contain it.',
         parameters: [{ name: 'session', description: 'the live session to checkpoint.' }],
         returns: 'resolution after durability and event emission.',
+      },
+      {
+        signature: 'async remove(id: SessionId, header?: SessionHeader): Promise<void>',
+        description: 'Erase a retired Session\'s checkpoint and fence delayed pre-retirement writes.',
+        parameters: [{ name: 'id', description: 'Session whose durable record has been permanently removed.' }, { name: 'header', description: 'removed lifecycle, also fencing late cold-read write-backs.' }],
+        returns: 'settlement of the cache deletion.',
       },
       {
         signature: 'coldSnapshot( meta: SessionHeader, inheritedEventCount: SessionLogOffset, events: readonly SessionEvent[], ): ProjectionSnapshot',
@@ -8540,6 +8573,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionCreateValue',
     declaration: 'export interface SessionCreateValue {\n    readonly sessionId: SessionId;\n    readonly agentPreset?: string;\n}',
+  },
+  {
+    name: 'SessionDeleteRequest',
+    declaration: 'export interface SessionDeleteRequest {\n    readonly sessionId: SessionId;\n}',
+  },
+  {
+    name: 'SessionDeleteValue',
+    declaration: 'export interface SessionDeleteValue {\n    readonly deleted: true;\n}',
   },
   {
     name: 'SessionEndInput',

@@ -63,7 +63,10 @@ button.rowMain:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--
 }
 .cardGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; min-width: 0; }
 .card { display: flex; flex-direction: column; min-width: 0; min-height: 176px; box-sizing: border-box; background: var(--dsw-alias-bg-layer-1); border: .5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); overflow: hidden; }
-.card:has(.cardMain:hover), .card:focus-within { border-color: var(--dsw-alias-border-l2); }
+.card:focus-within { border-color: var(--dsw-alias-border-l2); }
+@media (hover: hover) {
+  .card:has(.cardMain:hover) { border-color: var(--dsw-alias-border-l2); }
+}
 .cardMain { display: flex; flex: 1; flex-direction: column; align-items: stretch; gap: 10px; min-width: 0; padding: 14px 16px; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .cardMain:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color); outline-offset: -4px; border-radius: var(--dsw-radius-lg); }
 .cardHeading { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -84,6 +87,10 @@ button.rowMain:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--
 .detailContent { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 3fr); gap: 24px; align-items: start; min-width: 0; }
 .document, .structure { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .tree { max-height: 560px; overflow: auto; padding: 12px; background: var(--dsw-alias-bg-layer-2); border-radius: var(--dsw-radius-md); font-size: 13px; line-height: 20px; }
+.instructions, .previewInstructions, .tree {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
 .tree ul { list-style: none; margin: 0; padding: 0; }
 .tree ul ul { margin-inline-start: 8px; padding-inline-start: 12px; border-inline-start: .5px solid var(--dsw-alias-border-l3); }
 .tree summary, .treeFile { display: flex; align-items: center; gap: 6px; min-height: 30px; overflow-wrap: anywhere; }

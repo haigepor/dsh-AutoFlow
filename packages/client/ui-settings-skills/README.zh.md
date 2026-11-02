@@ -27,6 +27,8 @@ kind: "package-reference"
 
 写入使用明确的目标和版本检查。仓库更新要求精确匹配的预览标识，并保留上一份文件。备份存放在当前 profile 的 skills-manager 目录中，直到显式删除。maxBytes、maxFiles 和 requestTimeoutMs 限制上传与下载。来源和分类信息与技能 Markdown 分开保存。
 
+卡片悬停强调遵循主要输入设备的悬停能力，键盘焦点保持独立可见。可滚动指令与目录树使用高层表面对应的共享滚动条颜色。
+
 <a id="model-experience"></a>
 ## 模型体验
 

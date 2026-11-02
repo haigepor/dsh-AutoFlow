@@ -415,9 +415,6 @@
     "c595e4648d474f3a9538ab1e2140c25255bb4675c6e7bae8043adf9158915b69": 10,
     "ddca8a18cd7755688ea48674c48c3c8a6107186815ea91f516424bbed0e1c518": 1
   },
-  "packages/client/ui-agent-preset/tests/components.client.spec.tsx": {
-    "6c63f71c0aeb1a9a97ec28a3242f77eef021ecfcee48238f17592eb2f1040c09": 1
-  },
   "packages/client/ui-approval/tests/ui-approval.client.spec.tsx": {
     "3e392ff0165a51a6ac716515b99af35ec152f89607cff72080cb9afbcff63f46": 1
   },
@@ -682,7 +679,6 @@
     "e9abfbf3920ecd6502b74e5eb04d3a1a40b2519f849f5daa193ab7819184ee8b": 1,
     "ffb048df32b10bac91f37b55c618701aa0f9d24c5b5504a3d3f953dc8b7cc7fb": 1
   },
-
   "packages/client/ui-theme/tests/theme.client.spec.ts": {
     "6adc289cf963470891b9b4aea9e09db4c98d96d09a245bf41bf679f8f608ba49": 1
   },

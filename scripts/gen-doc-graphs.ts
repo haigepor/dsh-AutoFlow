@@ -690,6 +690,23 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Merges provider skill catalogs; tool-skill renders the session-prefix catalog and loads complete skill bodies.',
   },
   {
+    key: 'sessionErasure',
+    pkg: 'session-persistence',
+    title: 'Stored Session removal',
+    mode: 'seam',
+    implementations: ['session-persistence-jsonl'],
+    consumers: ['api-session-controller'],
+    note: 'Removes stored Session generations only under exclusive write ownership and reports whether removal committed before cleanup failed.',
+  },
+  {
+    key: 'sessionDeletion',
+    pkg: 'api-session-controller',
+    title: 'Archived Session deletion',
+    mode: 'service',
+    consumers: ['ui-settings-archive'],
+    note: 'Admits human deletion of archived idle Sessions and coordinates record removal with projection, search, Workspace and preference cleanup.',
+  },
+  {
     key: 'skillManagement',
     pkg: 'skill-manager',
     title: 'Skill copy management',

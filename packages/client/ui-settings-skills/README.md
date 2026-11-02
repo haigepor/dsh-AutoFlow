@@ -26,6 +26,8 @@ Discovery separates public catalog search from GitHub repository browsing and su
 
 Writes use explicit destinations and revision checks. Repository updates require an exact preview token and retain the previous bundle. Backups remain in the current profile skills-manager directory until explicitly removed. maxBytes, maxFiles and requestTimeoutMs bound uploads and downloads. Sources and classification are stored independently of skill Markdown.
 
+Card hover emphasis follows the primary input's hover capability; keyboard focus remains visible independently. Scrollable instructions and directory trees use the shared scrollbar colors for their elevated surfaces.
+
 ## Model Experience
 
 None, as the management UI registers no model-facing tools or catalogs and only edits stored instruction files and registry state.

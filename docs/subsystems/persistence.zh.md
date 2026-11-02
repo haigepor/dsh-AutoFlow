@@ -348,6 +348,27 @@ interface SessionPersistenceSnapshot {
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.zh.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxsessionerasure--sessionerasure"></a>
+
+### `ctx.sessionErasure` — `SessionErasure`
+
+Permanent record removal supplied by backends that support it.
+
+```ts cordis-catalog
+/**
+ * Remove every stored generation of one idle, unowned Session.
+ * @param id - stored Session identity; live writers must be retired first.
+ * @returns whether a stored record existed; absence is an idempotent success.
+ * @throws SessionAlreadyOwnedError while another writer holds the record.
+ * @throws SessionErasureError when removal fails, distinguishing committed removal.
+ */
+erase(id: SessionId): Promise<boolean>
+```
+
+Types: [SessionId](core.zh.md)
+
+Source: [`packages/session/session-persistence/src/index.ts`](../../packages/session/session-persistence/src/index.ts)
+
 <a id="ctxsessionpersistence--sessionpersistence-abstract-seam"></a>
 
 ### `ctx.sessionPersistence` — `SessionPersistence` (abstract seam)

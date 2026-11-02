@@ -313,7 +313,7 @@ managedUpdateStatus(name: string): { currentVersion: string | undefined installe
  * @returns Package versions, manifest descriptions, the installable spec of profile dependencies, rows, optional
  * display metadata, activation selections, whether the installation offers the bundle, and removal availability.
  */
-@Remote listBundles(): Promise<BundleInfo[]>
+@Remote async listBundles(): Promise<BundleInfo[]>
 
 /** Read the registries this manager asks: the configured first one, its fallbacks in order, and what pnpm's own configuration names.
  * @returns The registries in pnpm's comparison form; null is the one pnpm's own configuration names, `resolved` as pnpm reads it now.

@@ -645,14 +645,14 @@ composedPreset(ctx: Context): string | undefined
  */
 serviceFor<K extends string & keyof Context>(agent: { ctx: Context }, name: K): Context[K] | undefined
 
-/** Rebind a blank Agent; the caller owns the blank-session check.
+/** Rebind an unpublished Agent or one whose caller owns its idle phase.
  * @param ctx Agent context.
  * @param id Requested preset.
  * @returns The bound identity.
  */
 async recompose(ctx: Context, id: string): Promise<AgentPreset>
 
-/** Select a preset before a session starts its first turn. A Session whose
+/** Select a preset between turns, waiting for active work to finish. A Session whose
  * log records the preset and whose Agent runs its current revision keeps its
  * composition; nothing is logged or announced.
  * @param agent Target Agent.

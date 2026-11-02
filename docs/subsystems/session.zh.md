@@ -1046,6 +1046,25 @@ Types: [SessionId](core.zh.md) · [SessionSearchRequest](session-query.zh.md)
 
 Source: [`packages/api/session-controller/src/index.ts`](../../packages/api/session-controller/src/index.ts)
 
+<a id="ctxsessiondeletion--sessiondeletion"></a>
+
+### `ctx.sessionDeletion` — `SessionDeletion`
+
+Host Remote service exposed only while the selected backend supports erasure.
+
+```ts cordis-catalog
+/**
+ * Permanently remove one ordinary Session without deleting Workspace files or other Sessions.
+ * Active work and foreign write ownership refuse deletion. Cleanup failure after removal
+ * reports sessionDeletion/cleanup-failed; retrying completes the idempotent cleanup.
+ * @param request - Session whose complete stored record may be removed.
+ * @returns confirmation that its record, checkpoints and list references are gone.
+ */
+@Remote deleteSession(request: SessionDeleteRequest): Promise<SessionDeleteValue>
+```
+
+Source: [`packages/api/session-controller/src/deletion.ts`](../../packages/api/session-controller/src/deletion.ts)
+
 <a id="ctxsessions--sessionstore"></a>
 
 ### `ctx.sessions` — `SessionStore`

@@ -2527,6 +2527,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-plugin-manager PluginManagerPage',
       'client-ui-schedule TaskManagerPage',
       'client-ui-settings-general SettingsPage',
+      'client-ui-workspace OpeningWorkspace',
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'main\', () => ctx.slots.register(\n      { name: \'main\', key: \'<one key the owner dispatches>\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
@@ -3696,6 +3697,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     occupants: [
       'client-ui-agent-preset AgentPresetSection id \'agent-presets\'',
       'client-ui-settings-account AccountSection id \'account\'',
+      'client-ui-settings-archive ArchivePage id \'archived-sessions\'',
       'client-ui-settings-general GeneralSection id \'general\'',
       'client-ui-settings-mcp McpSettings id \'mcp\'',
       'client-ui-settings-models ModelsSection id \'models\'',
@@ -3854,6 +3856,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-schedule ScheduleDeleteToast id \'schedule.delete-toast\'',
       'client-ui-settings-account DesktopOnboardingEntry id \'desktop-onboarding\'',
       'client-ui-settings-account AccountPlatformHost id \'account.platform-page\'',
+      'client-ui-settings-archive ArchiveFeedback id \'archive-settings.feedback\'',
       'client-ui-settings-general HostReleasePrompt id \'host-release-change\'',
       'client-ui-settings-mcp McpFeedback id \'mcp-settings.feedback\'',
       'client-ui-settings-models SubscriptionToast id \'models.subscription-notice\'',

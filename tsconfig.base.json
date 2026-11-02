@@ -365,6 +365,7 @@
       "@deepseek-ai/dsh-client-ui-settings-general/types": ["./packages/client/ui-settings-general/src/types.ts"],
       "@deepseek-ai/dsh-client-ui-settings-models": ["./packages/client/ui-settings-models/src"],
       "@deepseek-ai/dsh-client-ui-settings-mcp": ["./packages/client/ui-settings-mcp/src"],
+      "@deepseek-ai/dsh-client-ui-settings-archive": ["./packages/client/ui-settings-archive/src"],
       "@deepseek-ai/dsh-client-ui-settings-mcp/types": ["./packages/client/ui-settings-mcp/src/types.ts"],
       "@deepseek-ai/dsh-mcp-manager/types": ["./packages/mcp/mcp-manager/src/types.ts"],
       "@deepseek-ai/dsh-mcp-client/connections": ["./packages/mcp/mcp-client/src/connections.ts"],

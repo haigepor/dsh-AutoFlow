@@ -112,7 +112,7 @@
       "path": "../ui-sidebar-documentpreview/tsconfig.client.json"
     },
     {
-      "path": "../ui-input-trigger"
+      "path": "../ui-input-trigger/tsconfig.client.json"
     },
     {
       "path": "../product-analytics/tsconfig.client.json"

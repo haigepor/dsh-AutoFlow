@@ -19,6 +19,8 @@
     "tests"
   ],
   "exclude": [
+    "tests/session-create.perf.e2e.ts",
+    "tests/archive-settings.e2e.ts",
     "tests/creation-recommendations.e2e.ts",
     "tests/plugin-recommendations.e2e.ts",
     "tests/japanese-plugin-metadata.e2e.ts",
@@ -26,8 +28,10 @@
     "tests/rich-text-quotes.e2e.ts",
     "tests/hover-input.e2e.ts",
     "tests/afp-builtin.e2e.ts",
+    "tests/afp-agent.e2e.ts",
     "tests/better-sidebar-upgrade.e2e.ts",
     "tests/visual-curator-builtin.e2e.ts",
+    "tests/visual-curator-launch.e2e.ts",
     "tests/afp-debug.e2e.ts",
     "tests/afp-management.e2e.ts",
     "tests/conversation-tabs.e2e.ts",

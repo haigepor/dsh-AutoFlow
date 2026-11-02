@@ -349,7 +349,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'openWorkspace( workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void, options?: Pick<StartSessionOptions, \'agentPreset\'>, ): Promise<void>',
         description: 'Connect a Workspace and open its Session unless a later navigation supersedes it.',
         parameters: [{ name: 'workspaceId', description: 'target Workspace.' }, { name: 'beforeOpen', description: 'optional synchronous preparation for the selected Session, skipped after supersession; a throw aborts the open and releases the retained reference.' }, { name: 'options', description: 'choices for the Session the connection creates or reuses.' }],
-        returns: 'completion; a superseded request may create a Session but does not open it.',
+        returns: 'completion; a superseded request may create a Session but does not open it. The Conversation shows a loader immediately; a global panel stays visible until success.',
         throws: ['on failure; a refused creation is also shown through the Workspace notice unless a later navigation or disposal superseded the request.'],
       },
       {
@@ -371,7 +371,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'archiveSession: IWorkspaces[\'archiveSession\']',
-        description: 'Archive a Session and clear it when it is the current selection.',
+        description: 'Archive a Session and clear it when it is the current selection, keeping an open global panel visible. Pending gestures hide its sidebar row; refusal restores it and preserves the main reference.',
         parameters: [{ name: 'sessionId', description: 'Session to archive.' }, { name: 'options', description: '`stopActivity` asks the Host to stop the Session\'s running work instead of refusing.' }],
       },
       {

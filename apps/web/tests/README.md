@@ -32,6 +32,18 @@ Question-composer resize assertions wait for overflow, the clipping mask, and to
 
 [The same-origin terminal case](sidebar-terminal.e2e.ts) waits for the UI-triggered Host close operation before checking process termination. It also checks the first window's process, saved bindings and layout after reload.
 
+## Session creation profiling
+
+The opt-in [creation diagnostic](session-create.perf.e2e.ts) measures the built Host composition with AFP installed, synthetic current-format logs under 1 and 24 project directories, six new Agents and six live blank reuses per size. Set `DSH_SESSION_CREATE_PROFILE_OUTPUT` to an absolute JSON output path; `DSH_SESSION_CREATE_PROFILE_PRESET` selects `standard` (default) or `afp-curator`. Run after `pnpm run build:artifacts`:
+
+```sh
+pnpm exec vitest run --config vitest.web.config.ts apps/web/tests/session-create.perf.e2e.ts --maxWorkers=1 --execArgv=--expose-gc
+```
+
+Host timing ends after Agent initialization and Workspace attachment. Set `DSH_SESSION_CREATE_PROFILE_BROWSER=1` to add six native New Session clicks and six blank reuses, verifying that the selected conversation accepts a composer draft. Browser `uiReadyMs` runs from native pointerdown to the next frame with a selected conversation and editable composer; `totalMs` also includes automation waits and draft input. The report retains raw wall/CPU samples and inclusive service timings; browser RPC timings overlap those phases. Heap snapshots before/after explicit GC retain the generated fixtures and Agents; peak RSS covers the Host test process through the Host samples, including boot, but excludes the browser phase. Profile boot, fixture construction, model calls and external network are outside the creation timer; these diagnostics have no CI timing budget and skip without an output path.
+
+Set `DSH_SESSION_CREATE_PROFILE_INVENTORY=1` to start real plugin and bundle inventory refreshes during each Workspace attachment; this workload uses three browser attempts per operation and drains refreshes between samples. `DSH_SESSION_CREATE_PROFILE_CPU=1` records the browser workload's Host CPU profile beside the JSON report as `.cpuprofile`.
+
 ## These are Host-face tests
 
 They type-check in the root `tsconfig.host.json`, not in the Client aggregate, because they read Host services directly: `ctx.connection`, the Host `SessionStore`, and `ctx.sessionProjectionCache`. Driving a browser at runtime does not make a file part of the Client program — the two faces merge Cordis `Context` under the same keys with different services, so one program cannot see both. Moving these files into the Client aggregate makes every Host-service access fail to compile.

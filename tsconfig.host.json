@@ -5,6 +5,8 @@
     "rewriteRelativeImportExtensions": false
   },
   "include": [
+    "apps/web/tests/session-create.perf.e2e.ts",
+    "apps/web/tests/archive-settings.e2e.ts",
     "apps/web/tests/creation-recommendations.e2e.ts",
     "apps/web/tests/plugin-recommendations.e2e.ts",
     "apps/web/tests/japanese-plugin-metadata.e2e.ts",
@@ -246,6 +248,8 @@
     "website/**/*.ts",
     "website/.vitepress/**/*.ts",
     "apps/web/tests/afp-builtin.e2e.ts",
+    "apps/web/tests/afp-agent.e2e.ts",
+    "apps/web/tests/visual-curator-launch.e2e.ts",
     "apps/web/tests/afp-debug.e2e.ts",
     "apps/web/tests/afp-management.e2e.ts",
     "apps/web/tests/conversation-tabs.e2e.ts",
@@ -342,6 +346,9 @@
     },
     {
       "path": "./packages/client/ui-conversation/tsconfig.host.json"
+    },
+    {
+      "path": "./packages/client/ui-input-trigger/tsconfig.host.json"
     },
     {
       "path": "./packages/client/ui-settings/tsconfig.host.json"

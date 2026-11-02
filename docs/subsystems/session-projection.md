@@ -229,7 +229,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.sessionProjectionCache` — `SessionProjectionCache`
 
-The persisted projection cache service. Opens the `session_projcache` domain at init, checkpoints live sessions on a throttled write-behind (count/interval triggers from Config) plus three mandatory points — session creation, `turn/end`, and session disposal (the live-to-cold moment) — and serves the cached rows for a session header. Every durable write is fail-soft: failures log a warning and the cache self-heals on the next write.
+The persisted projection cache service. Opens the `session_projcache` domain at init, checkpoints live sessions on a throttled write-behind (count/interval triggers from Config) plus three mandatory points — session creation, `turn/end`, and session disposal (the live-to-cold moment) — and serves the cached rows for a session header. Checkpoint writes are fail-soft: failures log a warning and the cache self-heals on the next write.
 
 ```ts cordis-catalog
 /**
@@ -293,6 +293,14 @@ hydratePrepared( session: Session, events: readonly SessionEvent[], ): Projectio
 async write(session: Session): Promise<void>
 
 /**
+ * Erase a retired Session's checkpoint and fence delayed pre-retirement writes.
+ * @param id - Session whose durable record has been permanently removed.
+ * @param header - removed lifecycle, also fencing late cold-read write-backs.
+ * @returns settlement of the cache deletion.
+ */
+async remove(id: SessionId, header?: SessionHeader): Promise<void>
+
+/**
  * Cold-read one session's projections from its complete log. Each unit is
  * seeded from the identity-checked cached rows — the registry skips `apply`
  * for the already-folded prefix (events at or below the row's `seq`) — and
@@ -308,7 +316,7 @@ async write(session: Session): Promise<void>
 coldSnapshot( meta: SessionHeader, inheritedEventCount: SessionLogOffset, events: readonly SessionEvent[], ): ProjectionSnapshot
 ```
 
-Types: [Session](session.md) · [SessionEvent](session.md) · [SessionHeader](persistence.md) · [SessionLogOffset](session.md)
+Types: [Session](session.md) · [SessionEvent](session.md) · [SessionHeader](persistence.md) · [SessionId](core.md) · [SessionLogOffset](session.md)
 
 Source: [`packages/session/session-projection-cache/src/index.ts`](../../packages/session/session-projection-cache/src/index.ts)
 
