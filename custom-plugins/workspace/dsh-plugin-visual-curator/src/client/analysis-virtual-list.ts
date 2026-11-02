@@ -21,6 +21,11 @@ export function createAnalysisVirtualList(React: typeof import('react')) {
       virtualizer._willUpdate()
       const scroller = scroll.current, content = list.current
       if (!enabled || !scroller || !content) return
+      // Streaming can resize a mounted row before ResizeObserver updates the sizer.
+      // Measure this bounded window before the dialog restores its scroll position.
+      for (const element of virtualizer.elementsCache.values()) {
+        if (element.isConnected) virtualizer.resizeItem(virtualizer.indexFromElement(element), element.offsetHeight)
+      }
       const next = content.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
       if (Math.abs(next - margin) > 1) setMargin(next)
     })

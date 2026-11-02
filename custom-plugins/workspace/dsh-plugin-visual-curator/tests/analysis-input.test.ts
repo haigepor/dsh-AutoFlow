@@ -31,7 +31,8 @@ test('saved analysis inputs match transmitted messages and preserve request iden
       assert.equal(saved.instructions, transmitted.messages[0]!.content)
       assert.equal(saved.inputText, (transmitted.messages[1]!.content as { text: string }[])[0]!.text)
       const descriptors = JSON.parse(saved.inputText).input.images as { imageVersionId: string }[]
-      assert.deepEqual(saved.images.map(image => image.imageVersionId), descriptors.map(image => image.imageVersionId))
+      const aliases = row.operation === 'summarize' ? z.object({ imageAliases: z.record(z.string(), z.string()) }).parse(JSON.parse(JSON.parse(saved.inputText).input.taskBrief)).imageAliases : {}
+      assert.deepEqual(saved.images.map(image => image.imageVersionId), descriptors.map(image => aliases[image.imageVersionId] ?? image.imageVersionId))
       assert.ok(saved.images.every(image => image.previewPath.startsWith('/api/visual-curator/resource?')))
       assert.equal(detail.process?.messages?.[index]?.requestId, row.requestId)
       assert.ok(!JSON.stringify(saved).includes('data:image'))

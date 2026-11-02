@@ -10,6 +10,7 @@ import { remoteImageSourceSchema } from '../shared/gallery.ts'
 import { dimensionSchema } from '../shared/model.ts'
 import { parseModelJson } from '../shared/model-json.ts'
 import type { Json } from '../shared/model.ts'
+import { encodeSummaryImages, restoreSummaryImages, summaryImageInstructions } from './summary-image-aliases.ts'
 
 const text = z.string().trim().min(1).max(4096)
 const id = z.string().min(1).max(1024)
@@ -49,6 +50,8 @@ export const visionCropProposalSchema = cropSchema
 const envelopeSchema = z.object({ choices: z.array(z.object({ message: z.object({ content: z.string(), reasoning_content: z.string().nullable().optional() }), finish_reason: z.string().nullable().optional() })).min(1).max(1) })
 /** Optional callbacks receive actual output before completion; absent callbacks retain normal JSON results. */
 export interface VisionBounds extends RequestBounds {
+  /** Native reference analysis uses the LLM runtime's own timeout and cancellation policy. */
+  nativeModelTiming?: boolean
   onOutput?: (delta: VisionDelta) => void
   onPhase?: (phase: 'preparing' | 'analyzing') => void
   /** Persist actual native inputs before dispatch and usage before settlement. */
@@ -70,7 +73,10 @@ export type VisionImage = { imageVersionId: string; digest: string; mime: string
 /** Fields read by the visual reviewer; all other rule data remains part of the textual snapshot. */
 export interface VisionRule { ruleId: string; statement: string; dimension: string; strength: 'required' | 'preferred' | 'reference-only'; stage: 'source' | 'final' }
 /** Snapshot input; absent promptVersion uses legacy prompts, while rules-v3 requires candidate-grounded focal evidence. Optional usage/protectedContent are omitted when unused. */
-export interface VisionInput { promptVersion?: 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2'; analysisOutput?: 'observations-only'; requestId: string; taskBrief: string; rules: readonly VisionRule[]; images: readonly VisionImage[]; stage?: 'source' | 'final'; usage?: unknown; protectedContent?: readonly string[]; maxCropCandidates?: number }
+export interface VisionInput { promptVersion?: 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2'; analysisOutput?: 'observations-only'; requestId: string; taskBrief: string; rules: readonly VisionRule[]; images: readonly VisionImage[]; stage?: 'source' | 'final'; usage?: unknown; protectedContent?: readonly string[]; maxCropCandidates?: number
+  /** Complete canonical image scope supplied by summary dispatch, including images represented only by observations. */
+  summaryEvidenceIds?: readonly string[]
+}
 /** Exact textual messages and saved image identities, sufficient to rebuild the transmitted body. */
 export interface VisionRequestDescriptor {
   requestId: string
@@ -78,10 +84,12 @@ export interface VisionRequestDescriptor {
   model: string
   declaredModelVersion: string | null
   replayLimitation: string | null
-  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2'
+  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2'
   schemaVersion: 1
   instructions: string
   inputText: string
+  /** Canonical preview identities mapped to short model labels; the inverse dictionary is in inputText. */
+  imageAliases?: Readonly<Record<string, string>>
   images: { imageVersionId: string; digest: string; mime: string; role: string; remoteUrl?: string }[]
   maxOutputTokens: number
   temperature: number
@@ -148,14 +156,16 @@ export abstract class StructuredVisionProvider {
     if (operation === 'review' && input.stage === undefined) throw invalidInput('A review must declare source or final stage.')
     if (operation === 'propose-crop' && (!Number.isSafeInteger(input.maxCropCandidates) || input.maxCropCandidates === undefined || input.maxCropCandidates <= 0)) throw invalidInput('Crop proposals require an explicit positive candidate limit.')
     const images = input.images.map(({ imageVersionId, digest, mime, role, remoteSource }) => ({ imageVersionId, digest, mime, role, ...(remoteSource ? { remoteUrl: remoteSource.url } : {}) }))
-    const payload = { operation, taskBrief: input.taskBrief, stage: input.stage, rules: input.rules, usage: input.usage, protectedContent: input.protectedContent, maxCropCandidates: input.maxCropCandidates, ...(input.analysisOutput ? { analysisOutput: input.analysisOutput } : {}), images, requestId: input.requestId }
+    const summary = operation === 'summarize' ? encodeSummaryImages(input.taskBrief, images.map(image => image.imageVersionId), input.summaryEvidenceIds) : undefined
+    const payload = { operation, taskBrief: summary?.taskBrief ?? input.taskBrief, stage: input.stage, rules: input.rules, usage: input.usage, protectedContent: input.protectedContent, maxCropCandidates: input.maxCropCandidates, ...(input.analysisOutput ? { analysisOutput: input.analysisOutput } : {}), images: summary ? images.map(image => ({ ...image, imageVersionId: summary.imageAliases[image.imageVersionId] ?? image.imageVersionId })) : images, requestId: input.requestId }
     const focusedReview = operation === 'review' && input.promptVersion === 'visual-curator-rules-v3'
     const schema = operation === 'review' ? focusedReview ? focusedReviewSchema : reviewSchema : operation === 'analyze' ? input.analysisOutput === 'observations-only' ? analysisSchema.pick({ observations: true }) : analysisSchema : operation === 'summarize' ? styleSummarySchema : cropSchema
     return {
       requestId: input.requestId, operation, model: this.config.model, declaredModelVersion: this.config.declaredModelVersion ?? null,
       replayLimitation: [this.config.declaredModelVersion === undefined ? 'The provider has not declared a fixed model version; deterministic model replay is unavailable.' : '', input.images.some(image => image.remoteSource) ? 'Remote URLs identify provider references, not verified pixel bytes; their content and vendor-side download cost cannot be pinned or measured by this Host.' : ''].filter(Boolean).join(' ') || null,
-      promptVersion: input.promptVersion ?? (operation === 'summarize' ? 'visual-curator-summary-v2' : 'visual-curator-v1'), schemaVersion: 1, instructions: focusedReview ? `${instructions} ${subjectInstructions}` : instructions,
+      promptVersion: summary ? 'visual-curator-summary-v3' : input.promptVersion ?? 'visual-curator-v1', schemaVersion: 1, instructions: focusedReview ? `${instructions} ${subjectInstructions}` : summary ? `${instructions} ${summaryImageInstructions}` : instructions,
       inputText: JSON.stringify({ outputSchema: z.toJSONSchema(schema, { unrepresentable: 'any' }), input: payload }), images,
+      ...(summary ? { imageAliases: summary.imageAliases } : {}),
       maxOutputTokens: this.config.maxOutputTokens, temperature: this.config.temperature,
       ...(this.config.reasoningEffort ? { reasoningEffort: this.config.reasoningEffort } : {}),
     }
@@ -177,8 +187,10 @@ export abstract class StructuredVisionProvider {
    * @returns Unconfirmed profile with validated evidence identities.
    */
   async summarize(input: VisionInput, evidenceIds: readonly string[], bounds: VisionBounds): Promise<StyleSummary> {
-    const raw = await this.invoke(input, 'summarize', bounds)
-    return decodeStyleSummary(raw, evidenceIds)
+    const scoped = { ...input, summaryEvidenceIds: evidenceIds }
+    const aliases = this.describeRequest(scoped, 'summarize').imageAliases!
+    const raw = await this.invoke(scoped, 'summarize', bounds)
+    return decodeStyleSummary(restoreSummaryImages(decodeStyleSummary(raw, [...evidenceIds, ...Object.values(aliases)]), aliases), evidenceIds)
   }
 
   /** Review every rule for the declared stage; geometry remains a program-owned result.
@@ -227,7 +239,7 @@ export class CompatibleVisionProvider extends StructuredVisionProvider {
     const content = [
       { type: 'text', text: descriptor.inputText },
       ...input.images.flatMap(image => [
-        { type: 'text', text: JSON.stringify({ imageVersionId: image.imageVersionId, digest: image.digest, role: image.role }) },
+        { type: 'text', text: JSON.stringify({ imageVersionId: descriptor.imageAliases?.[image.imageVersionId] ?? image.imageVersionId, digest: image.digest, role: image.role }) },
         { type: 'image_url', image_url: { url: image.remoteSource ? image.remoteSource.url : `data:${image.mime};base64,${Buffer.from(image.bytes).toString('base64')}` } },
       ]),
     ]

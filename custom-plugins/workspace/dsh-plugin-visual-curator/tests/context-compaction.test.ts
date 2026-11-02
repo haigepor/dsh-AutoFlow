@@ -15,19 +15,22 @@ import { readFile } from 'node:fs/promises'
 
 class Adapter extends LlmAdapter {
   truncated = false
+  deadline?: AbortController
   calls: GenerateOptions[] = []
   override async resolveModel(provider: string, id: string) { return { provider, id, name: id, context: { contextWindow: 20_000 }, defaultMaxTokens: 1000, inputModalities: ['text', 'image'] as const } }
   async *stream(options: GenerateOptions): AsyncGenerator<StreamChunk> {
     this.calls.push(options)
+    this.deadline?.abort(new DOMException('Old plugin deadline.', 'TimeoutError'))
+    options.signal?.throwIfAborted()
     yield { type: 'text-delta', index: 0, text: 'Muted green palette; preserve uncertainty and negative examples. Human judgments are authoritative.' }
     yield { type: 'usage', usage: { inputTokens: 800, outputTokens: 25 } }
     yield { type: 'finish', reason: { kind: this.truncated ? 'max-tokens' : 'stop' } }
   }
 }
 
-for (const mode of ['success', 'truncated', 'budget'] as const) test(`native compression ${mode} with one visual slot preserves observations`, async () => {
+for (const mode of ['success', 'truncated', 'budget', 'plugin-deadline'] as const) test(`native compression ${mode} with one visual slot preserves observations`, async context => {
   const truncated = mode === 'truncated'
-  const f = await serviceFixture(undefined, { maxConcurrentRequests: 1, maxVisionCalls: mode === 'budget' ? 1 : 40 }), ctx = new Context(), llm = new LlmRuntime(ctx)
+  const f = await serviceFixture(undefined, { maxConcurrentRequests: 1, maxVisionCalls: mode === 'budget' ? 1 : 40, ...(mode === 'plugin-deadline' ? { requestTimeoutMs: 1 } : {}) }), ctx = new Context(), llm = new LlmRuntime(ctx)
   new SessionProjectionRegistry(ctx); new TokenMeter(ctx)
   const compaction = new BasicCompactionEngine(ctx, { auto: false, thresholdRatio: 0.4, retainTokens: 0, headroomTokens: 100, maxTokens: 500 })
   const compact = compaction.compactInput.bind(compaction)
@@ -37,6 +40,10 @@ for (const mode of ['success', 'truncated', 'budget'] as const) test(`native com
     return result
   }, signal)
   const adapter = new Adapter(); adapter.truncated = truncated
+  if (mode === 'plugin-deadline') {
+    adapter.deadline = new AbortController()
+    context.mock.method(AbortSignal, 'timeout', () => adapter.deadline!.signal)
+  }
   const dispose = llm.registerAdapter(['native'], adapter)
   f.host.llm = llm; f.host.get = ctx.get.bind(ctx)
   try {
@@ -68,7 +75,7 @@ for (const mode of ['success', 'truncated', 'budget'] as const) test(`native com
     assert.equal(dataOf(run).budget.vision, requests.length)
     assert.equal(run.status, truncated ? 'failed' : 'completed')
     const expected = JSON.parse(await readFile(new URL('./fixtures/native-context.expected.json', import.meta.url), 'utf8'))
-    assert.deepEqual({ observed: dataOf(run).counts.observed, status: run.status, finalInference: f.http.summaryInputs.length > 0, error: dataOf(run).error?.code ?? null, compressionRecorded: requests.some(row => JSON.stringify(row.data).includes('compact-input')) }, expected[mode])
+    assert.deepEqual({ observed: dataOf(run).counts.observed, status: run.status, finalInference: f.http.summaryInputs.length > 0, error: dataOf(run).error?.code ?? null, compressionRecorded: requests.some(row => JSON.stringify(row.data).includes('compact-input')) }, expected[mode === 'plugin-deadline' ? 'success' : mode])
     if (mode === 'budget') {
       assert.equal(run.outcome, 'budget-exhausted')
       assert.equal(f.http.summaryInputs.length, 0)

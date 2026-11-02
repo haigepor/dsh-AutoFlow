@@ -130,6 +130,19 @@ describe('durable run lifecycle', () => {
 })
 
 describe('shared hard quotas', () => {
+  it('native analysis ignores elapsed time while retaining saved call and download quotas', async () => {
+    const limits = limitsSchema.parse({ maxVisionCalls: 1, maxSearchPages: 1, maxDownloadBytes: 10 })
+    const saved = { vision: 1, search: 0, downloadBytes: 0, deadlineAt: 1 }
+    const ledger = new BudgetLedger(limits, saved, () => 100, 'native-analysis')
+    await ledger.reserve('download', 8)
+    await ledger.reserve('search')
+    await assert.rejects(ledger.reserve('vision'), { code: 'budget-exhausted' })
+    await assert.rejects(ledger.reserve('download', 3), { code: 'budget-exhausted' })
+    await assert.rejects(ledger.reserve('search'), { code: 'budget-exhausted' })
+    assert.deepEqual(ledger.snapshot(), { vision: 1, search: 1, downloadBytes: 8, deadlineAt: 1 })
+    assert.deepEqual(saved, { vision: 1, search: 0, downloadBytes: 0, deadlineAt: 1 })
+  })
+
   it('admits only the remaining attempts under concurrent reservations and keeps unknown quota', async () => {
     const limits = limitsSchema.parse({ maxVisionCalls: 1, maxSearchPages: 1, maxDownloadBytes: 10, deadlineMs: 100 })
     const ledger = new BudgetLedger(limits, undefined, () => 0)

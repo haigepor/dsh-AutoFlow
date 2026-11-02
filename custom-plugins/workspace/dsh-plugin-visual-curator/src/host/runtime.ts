@@ -17,15 +17,28 @@ declare module '@deepseek-ai/dsh-jobs' { interface JobKindMap { visualCurator: '
 const countersSchema = z.strictObject({ vision: z.number().int().nonnegative(), search: z.number().int().nonnegative(), downloadBytes: z.number().int().nonnegative(), deadlineAt: z.number().finite() })
 export type BudgetCounters = z.infer<typeof countersSchema>
 
+/** Native analysis delegates timing to its LLM adapter; other tasks retain plugin deadlines. */
+export type TaskTiming = 'bounded' | 'native-analysis'
+/** @param spec Frozen task kind and selected route. @returns The timing policy shared by execution, requests and continuation reads. */
+export function taskTiming(spec: Pick<ExecutionSpec, 'kind' | 'config'>): TaskTiming {
+  const vision = spec.config.vision
+  return spec.kind === 'analyze' && (vision.backend === 'native' || vision.provider && vision.backend !== 'compatible') ? 'native-analysis' : 'bounded'
+}
+
 /** Quota is spent before dispatch and is never refunded for an unknown response. */
 export class BudgetLedger {
   private counters: BudgetCounters
-  constructor(readonly limits: Limits, saved?: BudgetCounters, private readonly now: () => number = Date.now) {
+  /** @param limits Frozen quotas. @param saved Existing counters, absent for a new task. @param now Current clock. @param timing Native analysis ignores saved time limits without changing its counters; absent retains bounded timing. */
+  constructor(readonly limits: Limits, saved?: BudgetCounters, private readonly now: () => number = Date.now, readonly timing: TaskTiming = 'bounded') {
     this.counters = saved ? structuredClone(saved) : { vision: 0, search: 0, downloadBytes: 0, deadlineAt: now() + limits.deadlineMs }
   }
+  /** @returns Milliseconds until the saved deadline, or absence when the native adapter owns analysis timing. */
+  remainingTimeMs(): number | undefined { return this.timing === 'native-analysis' ? undefined : this.counters.deadlineAt - this.now() }
+  /** @returns Whether a task with bounded timing has reached its saved deadline. */
+  deadlineExpired(): boolean { const remaining = this.remainingTimeMs(); return remaining !== undefined && remaining <= 0 }
   /** @param kind Attempt category. @param bytes Actual bytes admitted. @returns Reserved counters. */
   async reserve(kind: 'vision' | 'search' | 'download', bytes = 0): Promise<BudgetCounters> {
-    if (this.now() >= this.counters.deadlineAt || (kind === 'vision' && this.counters.vision >= this.limits.maxVisionCalls)
+    if (this.deadlineExpired() || (kind === 'vision' && this.counters.vision >= this.limits.maxVisionCalls)
       || (kind === 'search' && this.counters.search >= this.limits.maxSearchPages)
       || (kind === 'download' && this.counters.downloadBytes + bytes > this.limits.maxDownloadBytes)) {
       throw new CuratorError('budget-exhausted', 'budget', 'The saved task budget is exhausted.')
@@ -96,12 +109,12 @@ function jobProgress(stage: RunRecord['stage'], counts: RunData['counts'], targe
 /** @param run Authorized saved analysis. @param prepared Spec and data already validated from this record during the same read. @returns Explicit continuation eligibility under its original budget and terminal state. */
 export function analysisContinuation(run: RunRecord, prepared?: { spec: ExecutionSpec; data: RunData }): AnalysisContinuation {
   const spec = prepared?.spec ?? specOf(run), data = prepared?.data ?? dataOf(run)
-  return analysisContinuationFromFacts({ kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, deadlineAt: data.budget.deadlineAt,
+  return analysisContinuationFromFacts({ kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, deadlineAt: taskTiming(spec) === 'native-analysis' ? null : data.budget.deadlineAt,
     observed: data.counts.observed ?? 0, total: Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0, buildDataset: spec.input.buildDataset === true,
     hasSummary: data.checkpoint.styleAnalysis !== undefined, vision: data.budget.vision, maxVisionCalls: spec.config.limits.maxVisionCalls })
 }
-/** Minimal continuation inputs retained by read-only task summaries, without model inputs or observations. */
-export interface AnalysisContinuationFacts { kind: ExecutionSpec['kind']; status: RunRecord['status']; retryable: boolean; deadlineAt: number; observed: number; total: number; buildDataset: boolean; hasSummary: boolean; vision: number; maxVisionCalls: number }
+/** Minimal continuation inputs; a null deadline delegates analysis timing to the native model adapter. */
+export interface AnalysisContinuationFacts { kind: ExecutionSpec['kind']; status: RunRecord['status']; retryable: boolean; deadlineAt: number | null; observed: number; total: number; buildDataset: boolean; hasSummary: boolean; vision: number; maxVisionCalls: number }
 /** @param facts Current validated run facts. @param now Current wall clock; eligibility is never cached across deadline changes. @returns The same continuation decision used by task controls and read-only summaries. */
 export function analysisContinuationFromFacts(facts: AnalysisContinuationFacts, now = Date.now()): AnalysisContinuation {
   const denied = (reason: AnalysisContinuation['reason']): AnalysisContinuation => ({ allowed: false, reason })
@@ -111,7 +124,7 @@ export function analysisContinuationFromFacts(facts: AnalysisContinuationFacts, 
   if (facts.status === 'cancelled') return denied('cancelled')
   if (facts.status === 'failed' && !facts.retryable) return denied('not-retryable')
   if (!['paused', 'interrupted', 'failed'].includes(facts.status)) return denied('unavailable')
-  if (now >= facts.deadlineAt) return denied('deadline')
+  if (facts.deadlineAt !== null && now >= facts.deadlineAt) return denied('deadline')
   const needsVision = facts.observed < facts.total || facts.buildDataset && !facts.hasSummary
   if (needsVision && facts.vision >= facts.maxVisionCalls) return denied('vision-limit')
   return { allowed: true, reason: 'ready' }
@@ -291,7 +304,7 @@ export class RunEngine {
       return existing
     }
     if (spec.kind === 'analyze' && this.repository.list('run').some(run => specOf(run).kind === 'analyze' && specOf(run).input.styleId === spec.input.styleId && ['created', 'running', 'pausing', 'paused', 'cancelling', 'interrupted'].includes(run.status))) throw new CuratorError('constraint-conflict', 'analysis-start', 'This collection already has an unfinished analysis. Resume or cancel it before starting another.')
-    const run = runSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id, createdAt: now, kind: 'run', owner: actor.sessionId ? { kind: 'session', sessionId: actor.sessionId } : { kind: 'profile' }, revision: 1, status: 'created', stage: null, spec: toJson(spec), data: toJson({ attemptId: randomUUID(), attempts: 1, budget: new BudgetLedger(spec.config.limits).snapshot(), checkpoint: {}, counts: {}, warnings: [], resultIds: [], requestIds: [], ...(spec.kind === 'analyze' ? { autoResume: true } : {}) }) })
+    const run = runSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id, createdAt: now, kind: 'run', owner: actor.sessionId ? { kind: 'session', sessionId: actor.sessionId } : { kind: 'profile' }, revision: 1, status: 'created', stage: null, spec: toJson(spec), data: toJson({ attemptId: randomUUID(), attempts: 1, budget: new BudgetLedger(spec.config.limits, undefined, Date.now, taskTiming(spec)).snapshot(), checkpoint: {}, counts: {}, warnings: [], resultIds: [], requestIds: [], ...(spec.kind === 'analyze' ? { autoResume: true } : {}) }) })
     await this.repository.commit({ aggregateId: `run:${id}`, expectedRevision: 0, operationId: id, request: run, records: [run], state: { runId: id } })
     if (this.closed) {
       await this.update(id, old => ({ run: { ...old, status: 'cancelled' } }))
@@ -316,10 +329,13 @@ export class RunEngine {
     } catch (error) { this.live.delete(saved.id); throw error }
   }
   private async execute(id: string, worker: Worker, handle: JobHandle, live: LiveRun): Promise<JobOutcome> {
+    let activeLedger: BudgetLedger | undefined
     try {
       await this.update(id, old => ({ run: { ...old, status: 'running', data: toJson({ ...dataOf(old), jobId: handle.id }) } }))
-      const saved = this.repository.get('run', id)!, spec = specOf(saved), ledger = new BudgetLedger(spec.config.limits, dataOf(saved).budget)
-      const executionSignal = AbortSignal.any([live.controller.signal, AbortSignal.timeout(Math.max(1, ledger.snapshot().deadlineAt - Date.now()))])
+      const saved = this.repository.get('run', id)!, spec = specOf(saved), ledger = new BudgetLedger(spec.config.limits, dataOf(saved).budget, Date.now, taskTiming(spec))
+      activeLedger = ledger
+      const remaining = ledger.remainingTimeMs()
+      const executionSignal = remaining === undefined ? live.controller.signal : AbortSignal.any([live.controller.signal, AbortSignal.timeout(Math.max(1, remaining))])
       // 暂停只撤回尚未受理的请求；已持久化预留的请求及其检查点继续使用执行信号。
       const admissionSignal = AbortSignal.any([executionSignal, live.pauseAdmissions.signal])
       const checkAdmission = () => {
@@ -409,7 +425,7 @@ export class RunEngine {
       return { status: 'completed', result: JSON.stringify({ runId: id, outcome }) }
     } catch (error) {
       const cancelled = live.controller.signal.aborted || live.pauseAdmissions.signal.aborted && error === live.pauseAdmissions.signal.reason
-      if (!cancelled && (error instanceof CuratorError && error.code === 'budget-exhausted' || Date.now() >= dataOf(this.repository.get('run', id)!).budget.deadlineAt)) {
+      if (!cancelled && (error instanceof CuratorError && error.code === 'budget-exhausted' || activeLedger?.deadlineExpired())) {
         if (specOf(this.repository.get('run', id)!).kind === 'analyze') this.report(id, { phase: 'failed' })
         await this.update(id, old => ({ run: { ...old, status: 'completed', outcome: 'budget-exhausted', data: toJson({ ...dataOf(old), ...(this.process(old) ? { process: this.process(old) } : {}), warnings: [...dataOf(old).warnings, 'Task budget exhausted; committed results remain available.'] }) } }))
         return { status: 'completed', result: JSON.stringify({ runId: id, outcome: 'budget-exhausted' }) }

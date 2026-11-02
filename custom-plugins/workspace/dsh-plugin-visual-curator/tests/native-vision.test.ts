@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import sharp from 'sharp'
+import { z } from 'zod'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
@@ -13,7 +14,7 @@ import LocalAttachmentStore from '../../../../packages/attachment/attachment-loc
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import { NativeVisionProvider } from '../src/host/native-vision.ts'
 import { resolveConfig, resolveCurrentConfig, reviewerRevision } from '../src/host/config.ts'
-import type { VisionImage } from '../src/media/vision.ts'
+import type { VisionImage, VisionInput } from '../src/media/vision.ts'
 import type { HttpClient } from '../src/media/network.ts'
 import { remoteReferenceDigest } from '../src/media/remote-reference.ts'
 import type { Json } from '../src/shared/model.ts'
@@ -123,6 +124,59 @@ it('inherits the registered output and reasoning defaults and records its contex
   } finally { await f.cleanup() }
 })
 
+it('native summary records short model labels and restores complete canonical evidence', async () => {
+  const f = await fixture(true), imageIds = Array.from({ length: 24 }, (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`)
+  f.adapter.resolveModel = async () => ({ provider: 'native-fixture', id: 'vision-model', name: 'Vision fixture', inputModalities: ['text', 'image'], context: { contextWindow: 1_000_000 }, defaultMaxTokens: 65_536 })
+  const input: VisionInput = { ...f.input, requestId: 'native-summary', images: imageIds.slice(0, 8).map(imageVersionId => ({ ...f.input.images[0]!, imageVersionId, bytes: Uint8Array.from(f.pixels) })),
+    taskBrief: JSON.stringify({ instruction: 'Summarize every saved observation.', samples: imageIds.map(imageVersionId => ({ imageVersionId, role: 'positive', observation: { imageVersionId, dimensions: [{ dimension: 'subject', observation: 'A clear vehicle subject.' }] } })) }) }
+  const briefSchema = z.object({ imageAliases: z.record(z.string(), z.string()), samples: z.array(z.object({ imageVersionId: z.string(), observation: z.object({ imageVersionId: z.string() }) })) })
+  const wireSchema = z.object({ input: z.object({ taskBrief: z.string(), images: z.array(z.object({ imageVersionId: z.string() })) }) })
+  const receiptSchema = z.object({ request: z.object({ config: z.object({ maxTokens: z.number() }), messages: z.array(z.json()) }), images: z.array(z.object({ imageVersionId: z.string(), attachment: z.object({ name: z.string() }).passthrough() })) })
+  f.adapter.stream = async function* (options: GenerateOptions): AsyncGenerator<StreamChunk> {
+    f.adapter.calls.push(options)
+    const content = options.messages[0]!.content, first = content[0]!
+    assert.equal(first.type, 'text')
+    if (first.type !== 'text') throw new Error('Expected the actual summary input before image attachments.')
+    const wire = wireSchema.parse(JSON.parse(first.text)).input, brief = briefSchema.parse(JSON.parse(wire.taskBrief)), labels = brief.samples.map(sample => sample.imageVersionId)
+    assert.equal(labels.length, 24)
+    assert.ok(labels.every(label => /^r\d+$/u.test(label)))
+    assert.deepEqual(labels.map(label => brief.imageAliases[label]), imageIds)
+    assert.deepEqual(brief.samples.map(sample => sample.observation.imageVersionId), labels)
+    assert.deepEqual(wire.images.map(image => image.imageVersionId), labels.slice(0, 8))
+    assert.deepEqual(content.flatMap(block => block.type === 'text' ? [block.text] : []).slice(1).map(text => z.object({ imageVersionId: z.string() }).parse(JSON.parse(text)).imageVersionId), labels.slice(0, 8))
+    assert.equal(f.metadata.length, 1, 'The complete request must be recorded before the adapter dispatches it.')
+    const receipt = receiptSchema.parse(f.metadata[0])
+    assert.deepEqual(receipt.request.messages, options.messages)
+    assert.deepEqual(receipt.images.map(image => image.imageVersionId), imageIds.slice(0, 8))
+    assert.deepEqual(receipt.images.map(image => image.attachment.name), imageIds.slice(0, 8))
+    assert.equal(receipt.request.config.maxTokens, 65_536)
+    const text = JSON.stringify({ name: 'Vehicle portraits', summary: 'Clear vehicle subjects with varied environments.', matchingPrompt: 'Inspect the candidate image for a clear vehicle subject.', searchHints: ['car portrait'], avoidTerms: [],
+      dimensions: [{ dimension: 'subject', description: 'The vehicle commands attention.', consistency: 'mixed', supportImageVersionIds: labels.slice(0, 20), counterImageVersionIds: labels.slice(20) }],
+      conflicts: [{ description: 'Different environments.', imageVersionIds: labels }],
+      suggestedRules: [{ statement: 'Prefer a clear vehicle subject.', dimension: 'subject', strength: 'preferred', stage: 'source', supportImageVersionIds: labels.slice(0, 20), counterImageVersionIds: labels.slice(20), condition: '', exceptions: [] }],
+      organization: { groups: [{ groupId: 'vehicle', name: 'Vehicle portraits', description: 'A supported alternative.', imageVersionIds: labels }], selections: [{ ruleIndex: 0, enabled: true, groupId: 'vehicle', reason: 'Supported reference observations.' }] } })
+    yield { type: 'text-delta', index: 0, text: text.slice(0, 100) }
+    yield { type: 'text-delta', index: 0, text: text.slice(100) }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+  try {
+    const original = structuredClone(input), descriptor = f.provider.describeRequest(input, 'summarize')
+    const result = await f.provider.summarize(input, imageIds, { ...f.bounds, nativeModelTiming: true })
+    assert.deepEqual(input, original)
+    assert.equal(descriptor.promptVersion, 'visual-curator-summary-v3')
+    assert.deepEqual(descriptor.images.map(image => image.imageVersionId), imageIds.slice(0, 8))
+    assert.deepEqual(result.dimensions[0]!.supportImageVersionIds, imageIds.slice(0, 20))
+    assert.deepEqual(result.dimensions[0]!.counterImageVersionIds, imageIds.slice(20))
+    assert.deepEqual(result.conflicts[0]!.imageVersionIds, imageIds)
+    assert.deepEqual(result.suggestedRules[0]!.supportImageVersionIds, imageIds.slice(0, 20))
+    assert.deepEqual(result.suggestedRules[0]!.counterImageVersionIds, imageIds.slice(20))
+    assert.deepEqual(result.organization!.groups[0]!.imageVersionIds, imageIds)
+    assert.equal(f.adapter.calls.length, 1)
+    assert.equal(f.adapter.calls[0]!.maxTokens, 65_536)
+    for (const block of f.adapter.calls[0]!.messages[0]!.content) if (block.type === 'image') assert.ok((await f.attachments.readImage(block.attachment)).data.byteLength > 0)
+  } finally { await f.cleanup() }
+})
+
 it('streams through the native LLM with admitted pixels and records disjoint usage before committing output', async () => {
   const f = await fixture()
   try {
@@ -165,12 +219,15 @@ it('native profile observation calls omit rule generation and normalize the save
 
 it('downloads authorized remote pixels before attachment admission and records both identities', async () => {
   const f = await fixture()
+  const request = f.media.request.bind(f.media), downloadTimeouts: number[] = []
+  f.media.request = async (location, bounds) => { downloadTimeouts.push(bounds.timeoutMs); return request(location, bounds) }
   try {
     const source = { providerId: 'unsplash' as const, photoId: 'photo', accountId: 'public', url: 'https://plus.unsplash.com/premium_photo-example?w=1080', thumbnailUrl: 'https://plus.unsplash.com/premium_photo-example?w=400' }
     const image: VisionImage = { imageVersionId: 'image-one', digest: remoteReferenceDigest(source), mime: 'image/jpeg', role: 'positive', remoteSource: source }
     let reserved = 0, settled = 0
-    await f.provider.analyze({ ...f.input, images: [image] }, { ...f.bounds, reserveDownload: async limit => { reserved = limit; return { maxBytes: limit, settle: async bytes => { settled = bytes } } } })
+    await f.provider.analyze({ ...f.input, images: [image] }, { ...f.bounds, nativeModelTiming: true, reserveDownload: async limit => { reserved = limit; return { maxBytes: limit, settle: async bytes => { settled = bytes } } } })
     assert.equal(f.downloads, 1)
+    assert.deepEqual(downloadTimeouts, [f.bounds.timeoutMs])
     assert.ok(reserved >= f.pixels.byteLength)
     assert.equal(settled, f.pixels.byteLength)
     const saved = f.metadata[0]
@@ -237,10 +294,57 @@ it('retains usage when a native response reaches its token limit', async () => {
   try { await assert.rejects(f.provider.analyze(f.input, f.bounds), { code: 'vision-output-truncated' }); assert.ok(JSON.stringify(f.metadata.at(-1)).includes('cacheReadTokens')); assert.equal(f.adapter.calls.length, 1) } finally { await f.cleanup() }
 })
 
+it('completes native analysis while active output exceeds the plugin request timeout', async context => {
+  const f = await fixture(true), deadline = new AbortController()
+  context.mock.method(AbortSignal, 'timeout', () => deadline.signal)
+  f.adapter.stream = async function* (options: GenerateOptions): AsyncGenerator<StreamChunk> {
+    f.adapter.calls.push(options)
+    const text = JSON.stringify({ observations: [{ imageVersionId: 'image-one', dimensions: [{ dimension: 'color', observation: 'Muted green.', uncertain: false }] }], suggestedRules: [] })
+    for (let index = 0; index < 4; index++) {
+      if (index === 1) deadline.abort(new DOMException('Old plugin deadline.', 'TimeoutError'))
+      options.signal?.throwIfAborted()
+      yield { type: 'text-delta', index: 0, text: text.slice(Math.floor(index * text.length / 4), Math.floor((index + 1) * text.length / 4)) }
+    }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+  try {
+    const result = await f.provider.analyze(f.input, { ...f.bounds, timeoutMs: 10, nativeModelTiming: true })
+    assert.equal(result.observations.length, 1)
+    assert.equal(f.deltas.filter(delta => delta.content).length, 4)
+    assert.equal(f.adapter.calls.length, 1)
+  } finally { await f.cleanup() }
+})
+
+it('retains the plugin request timeout for native model calls outside native analysis', async context => {
+  const f = await fixture(), deadline = new AbortController(); f.adapter.mode = 'waiting'
+  context.mock.method(AbortSignal, 'timeout', () => deadline.signal)
+  try {
+    const pending = f.provider.analyze(f.input, { ...f.bounds, timeoutMs: 10 })
+    await f.adapter.started.promise
+    deadline.abort(new DOMException('Plugin deadline.', 'TimeoutError'))
+    await assert.rejects(pending, { code: 'request-timeout' })
+    assert.equal(f.adapter.calls.length, 1)
+  } finally { await f.cleanup() }
+})
+
+it('retains native adapter idle failures when analysis has no plugin time limit', async () => {
+  const f = await fixture(true)
+  f.adapter.stream = async function* (): AsyncGenerator<StreamChunk> {
+    yield { type: 'finish', reason: { kind: 'error', failure: { code: 'TIMEOUT', message: 'Native stream idle timeout.' } } }
+  }
+  try {
+    await assert.rejects(f.provider.analyze(f.input, { ...f.bounds, nativeModelTiming: true }), error => {
+      assert.equal(safeFailure(error).code, 'remote-request-failed')
+      assert.equal(safeFailure(error).retryable, true)
+      return true
+    })
+  } finally { await f.cleanup() }
+})
+
 it('forwards cancellation to the native stream and never retries it', async () => {
   const f = await fixture(); f.adapter.mode = 'waiting'; const controller = new AbortController()
   try {
-    const pending = f.provider.analyze(f.input, { ...f.bounds, signal: controller.signal })
+    const pending = f.provider.analyze(f.input, { ...f.bounds, signal: controller.signal, nativeModelTiming: true })
     await Promise.race([f.adapter.started.promise, pending.then(() => { throw new Error('Stream unexpectedly completed before cancellation') })])
     controller.abort()
     await assert.rejects(pending, { code: 'cancelled' })

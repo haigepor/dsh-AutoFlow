@@ -41,9 +41,9 @@ function streamingMarkdown(message: AnalysisMessage, detail: AnalysisDetail, t: 
   }).join('\n\n---\n\n')
 }
 
-/** @param text Exact provider output, including truncated JSON. @returns Safe native code block for structured output, or unchanged prose. */
-export function providerMarkdown(text: string): string {
-  if (!/^\s*[[{]/u.test(text)) return text
+/** @param text Exact provider output, including truncated JSON. @param structured Keep a known JSON response fenced after retention removes its opening. @returns Safe native code block for structured output, or unchanged prose. */
+export function providerMarkdown(text: string, structured = /^\s*[[{]/u.test(text)): string {
+  if (!structured) return text
   const fence = '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/gu)].map(match => match[0].length + 1)))
   return `${fence}json\n${text}\n${fence}`
 }
@@ -63,16 +63,21 @@ export function analysisAnswer(message: AnalysisMessage, detail: AnalysisDetail,
   if (message.state === 'streaming') return { text: streamingMarkdown(message, detail, t), structured: false, evidence: [] }
   const rows = message.kind === 'analysis' && message.state === 'complete' ? detail.observations.filter(row => message.imageIds.includes(row.imageVersionId)) : []
   if (rows.length) return { text: observationsMarkdown(rows, detail, t, message.imageIds), structured: true, evidence: [] }
-  let summary: AnalysisDetail['summary']
-  if (message.kind === 'summary' && message.state === 'complete' && message.content) {
+  // Only the latest completed response can use the saved, canonical summary.
+  const latestSummary = detail.process?.messages?.findLast(item => item.kind === 'summary' && item.state === 'complete')
+  let summary = message.kind === 'summary' && message.state === 'complete' && latestSummary?.sequence === message.sequence ? detail.summary : undefined
+  if (!summary && message.kind === 'summary' && message.state === 'complete' && message.content) {
     let value: unknown
     try { value = parseModelJson(message.content) } catch (error) { /* 截断或非 JSON 响应仍显示原文，不能作为已保存归纳。 */ }
     const parsed = styleSummarySchema.safeParse(value)
-    if (parsed.success) summary = parsed.data
+    if (parsed.success) {
+      const images = new Set(detail.images.map(image => image.imageVersionId))
+      const references = [...parsed.data.dimensions.flatMap(row => [...row.supportImageVersionIds, ...row.counterImageVersionIds]),
+        ...parsed.data.conflicts.flatMap(row => row.imageVersionIds), ...parsed.data.suggestedRules.flatMap(row => [...row.supportImageVersionIds, ...row.counterImageVersionIds]),
+        ...(parsed.data.organization?.groups.flatMap(group => group.imageVersionIds) ?? [])]
+      if (references.every(id => images.has(id))) summary = parsed.data
+    }
   }
-  // 只允许最后一条完整归纳引用当前保存结果，避免把新归纳安到历史消息上。
-  const latestSummary = detail.process?.messages?.filter(item => item.kind === 'summary' && item.state === 'complete').at(-1)
-  if (!summary && latestSummary?.sequence === message.sequence) summary = detail.summary
   if (!summary) return { text: providerMarkdown(message.content), structured: false, evidence: [] }
   const imageNames = (ids: string[]) => ids.map(id => literal(detail.images.find(image => image.imageVersionId === id)?.name ?? id)).join('、')
   const sections = [`## ${literal(summary.name)}`, valueText(summary.summary), ...summary.dimensions.map(row => [

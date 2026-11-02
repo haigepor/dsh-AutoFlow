@@ -77,10 +77,21 @@ export function createAnalysisDialog(React: typeof import('react'), ui: typeof i
   }
   function ModelMessage({ message, detail, images, onReadInput, t, renderFactorySlot, hideAnswer = false }: { message: AnalysisMessage; detail: AnalysisDetail; images: SavedInput['images']; onReadInput(requestId: string): void; t: WorkbenchText; hideAnswer?: boolean } & PropsRenderFactories) {
     const [reasoningOpen, setReasoningOpen] = React.useState<boolean | null>(null), [rawOpen, setRawOpen] = React.useState(false)
+    const lastReadable = React.useRef<{ runId: string; message: AnalysisMessage } | null>(null)
     const streaming = message.state === 'streaming'
     const preparing = streaming && detail.process?.phase === 'preparing'
     const stateLabel = message.state === 'streaming' ? preparing ? 'analysisPreparing' : message.reasoning && !message.content ? 'modelThinking' : message.content ? 'modelWriting' : 'modelWaiting' : message.state === 'complete' ? 'completed' : message.state
-    const answer = React.useMemo(() => analysisAnswer(message, detail, t), [message.sequence, message.kind, message.state, message.content, JSON.stringify(message.imageIds), detail.observations, detail.images, detail.summary, detail.process?.messages?.findLast(item => item.kind === 'summary' && item.state === 'complete')?.sequence, t])
+    const projection = React.useMemo(() => {
+      const projected = analysisAnswer(message, detail, t), previous = lastReadable.current
+      // Host retention can remove the JSON opening while its latest raw tail keeps streaming.
+      // Retain one bounded source snapshot so its labels use the current locale when rendered.
+      if (message.state !== 'complete' && detail.process?.truncated && previous?.runId === detail.task.runId && previous.message.sequence === message.sequence && message.content && !message.content.startsWith(previous.message.content.slice(0, 64))) return { answer: projected, retained: previous.message }
+      if (streaming && projected.text) lastReadable.current = { runId: detail.task.runId, message }
+      else lastReadable.current = null
+      return { answer: projected, retained: null }
+    }, [message.sequence, message.kind, message.state, message.content, JSON.stringify(message.imageIds), detail.task.runId, detail.observations, detail.images, detail.summary, detail.process?.truncated, detail.process?.messages?.findLast(item => item.kind === 'summary' && item.state === 'complete')?.sequence, t])
+    const retained = projection.retained !== null
+    const answer = projection.retained ? analysisAnswer(projection.retained, detail, t) : projection.answer
     return <article className="vc-chat-message" data-message-sequence={message.sequence} aria-busy={streaming}>
       <header className="vc-chat-message-header"><span className="vc-model-status">{streaming && <StateDot state="ongoing" />}{t(stateLabel)}</span><span className="vc-chat-batch-label">{t(message.kind === 'summary' ? 'processSummary' : 'batchObservations')}{message.kind === 'analysis' && <> · {message.batch}</>}</span><span className="vc-chat-message-spacer" /><span title={detail.task.model}>{detail.task.model}</span></header>
       <div className="vc-chat-message-body">
@@ -88,7 +99,7 @@ export function createAnalysisDialog(React: typeof import('react'), ui: typeof i
         {!hideAnswer && answer.text && <div className="vc-native-answer" data-structured={answer.structured}>{renderFactorySlot('conversation.chat.assistant.content', { text: answer.text, streaming, interrupted: message.state !== 'complete' && !streaming })}</div>}
         {!hideAnswer && !answer.text && (!streaming || !message.reasoning) && <p className="vc-chat-waiting" role="status">{t(preparing ? 'analysisPreparing' : streaming ? 'modelFirstOutputHint' : message.state === 'complete' ? 'analysisOutputBounded' : 'processBatchUnfinished')}</p>}
         {!hideAnswer && answer.evidence.length > 0 && <div className="vc-answer-evidence" aria-label={t('inputImagesHeading')}>{answer.evidence.map(id => <Evidence key={id} imageId={id} images={images} onReadInput={onReadInput} detail={detail} t={t} renderFactorySlot={renderFactorySlot} />)}</div>}
-        {message.content && (answer.structured || streaming || hideAnswer) && <DisclosureRow className="vc-chat-raw" icon={<ui.IconCodeOutlineRegular size={14} />} title={t('providerOutput')} open={rawOpen} expandable expandOnRowClick onToggle={() => setRawOpen(value => !value)}>{renderFactorySlot('conversation.chat.assistant.content', { text: providerMarkdown(message.content), streaming })}</DisclosureRow>}
+        {message.content && (answer.structured || streaming || retained || hideAnswer) && <DisclosureRow className="vc-chat-raw" icon={<ui.IconCodeOutlineRegular size={14} />} title={t('providerOutput')} open={rawOpen} expandable expandOnRowClick onToggle={() => setRawOpen(value => !value)}>{renderFactorySlot('conversation.chat.assistant.content', { text: providerMarkdown(message.content, true), streaming })}</DisclosureRow>}
       </div>
     </article>
   }

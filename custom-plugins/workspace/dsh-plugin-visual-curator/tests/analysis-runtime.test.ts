@@ -16,6 +16,7 @@ import { AssetFiles, CompatibleVisionProvider } from '../src/media/index.ts'
 import type { DomainActor } from '../src/shared/model.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { MediaError } from '../src/media/errors.ts'
+import { requestBounds, visionBounds } from '../src/host/providers.ts'
 
 const owner: DomainActor = { kind: 'human', id: 'analysis-owner', profileId: 'analysis-profile' }
 
@@ -56,6 +57,79 @@ function analysisSpec(styleId = 'style-a', config = configuration.resolveConfig(
 }
 
 describe('background analysis lifecycle', () => {
+  for (const route of ['native', 'legacy-native', 'compatible', 'native-search'] as const) it(`${route} keeps its task timing policy while output crosses the saved deadline`, async t => {
+    const fixture = setup(), nativeAnalysis = route === 'native' || route === 'legacy-native'
+    t.after(() => fixture.engine.dispose())
+    const config = configuration.resolveConfig({ vision: { provider: 'fixture', ...(route === 'legacy-native' ? {} : { backend: route === 'compatible' ? 'compatible' : 'native' }) }, limits: { deadlineMs: 10, maxRetryAttempts: 0 } })
+    const spec = analysisSpec(`timing-${route}`, config)
+    if (route === 'native-search') spec.kind = 'search'
+    let now = Date.now()
+    const deadline = new AbortController()
+    t.mock.method(Date, 'now', () => now)
+    t.mock.method(AbortSignal, 'timeout', () => deadline.signal)
+    let received = 0
+    const run = await fixture.engine.create(spec, owner, async work => {
+      for (let index = 0; index < 3; index++) {
+        if (index === 1) {
+          now += config.limits.deadlineMs
+          deadline.abort(new DOMException('Saved task deadline.', 'TimeoutError'))
+        }
+        work.signal.throwIfAborted()
+        received++
+        work.report({ phase: 'receiving', content: 'Active output.' })
+      }
+      await work.request('vision', { operation: 'timing-probe' }, async signal => { signal.throwIfAborted(); return {} })
+      await work.save('finalizing', { counts: { observed: 24 } })
+      return 'target-met'
+    })
+    await fixture.jobs.hooks[0]!.done
+    const complete = fixture.engine.get(run.id, owner)
+    assert.equal(complete.status, 'completed')
+    assert.equal(complete.outcome, nativeAnalysis ? 'target-met' : 'budget-exhausted')
+    assert.equal(received, nativeAnalysis ? 3 : 1)
+    assert.ok(Number.isFinite(dataOf(complete).budget.deadlineAt))
+  })
+
+  for (const recovery of ['manual', 'automatic'] as const) it(`${recovery} recovery keeps saved native observations after their old deadline`, async t => {
+    const fixture = setup(), imageIds = Array.from({ length: 24 }, (_, index) => `observed-${index}`)
+    t.after(() => fixture.engine.dispose())
+    const config = configuration.resolveConfig({ vision: { backend: 'native', provider: 'fixture' }, limits: { maxVisionCalls: 2, maxRetryAttempts: 0 } })
+    const spec = { ...analysisSpec(`expired-${recovery}`, config), fixed: { references: imageIds } }
+    const run = await fixture.engine.create(spec, owner, async work => {
+      await work.save('reviewing', { checkpoint: { analysisDoneImageIds: imageIds }, counts: { observed: 24 } })
+      await work.request('vision', { operation: 'summarize' }, async () => { throw new MediaError('request-timeout', 'reviewing', true, 'Old model timeout.', 'Continue saved analysis.') })
+      return 'target-met'
+    })
+    await fixture.jobs.hooks[0]!.done
+    const failed = fixture.engine.get(run.id, owner), saved = dataOf(failed)
+    assert.equal(failed.status, 'failed')
+    const expired = { ...failed, ...(recovery === 'automatic' ? { status: 'interrupted' as const } : {}), data: toJson({ ...saved, budget: { ...saved.budget, deadlineAt: 1 } }) }
+    await fixture.repository.commit({ aggregateId: `run:${run.id}`, expectedRevision: failed.revision, operationId: 'expire-old-analysis', request: {}, records: [expired], state: {} })
+    const worker: Worker = async work => {
+      assert.deepEqual(dataOf(work.current()).checkpoint.analysisDoneImageIds, imageIds)
+      await work.request('vision', { operation: 'resume-summary' }, async (signal, record) => {
+        signal.throwIfAborted()
+        const bounds = visionBounds(config, work, signal, record)
+        assert.equal(bounds.nativeModelTiming, true)
+        assert.equal(requestBounds(config, work).timeoutMs, config.limits.requestTimeoutMs)
+        await record({ transport: 'native-llm' })
+        return { summary: 'Complete saved observations.' }
+      })
+      return 'target-met'
+    }
+    if (recovery === 'manual') await fixture.engine.control(run.id, 'resume', owner, worker)
+    else await fixture.engine.resumeAnalyses(worker)
+    await fixture.jobs.hooks[1]!.done
+    const complete = fixture.engine.get(run.id, owner)
+    assert.equal(complete.status, 'completed'); assert.equal(complete.outcome, 'target-met')
+    assert.deepEqual(specOf(complete), specOf(failed))
+    assert.deepEqual(dataOf(complete).checkpoint.analysisDoneImageIds, imageIds)
+    assert.equal(dataOf(complete).counts.observed, 24)
+    assert.equal(dataOf(complete).budget.deadlineAt, 1)
+    assert.equal(dataOf(complete).budget.vision, 2)
+    assert.equal(fixture.repository.list('request').length, 2)
+  })
+
   it('explicit failed continuations retain the global model-call limit despite new retry windows', async t => {
     const fixture = setup(), config = configuration.resolveConfig({ limits: { maxVisionCalls: 3, maxRetryAttempts: 0 } })
     t.after(() => fixture.engine.dispose())

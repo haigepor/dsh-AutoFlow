@@ -15,14 +15,14 @@ import { createHash } from 'node:crypto'
 
 /** @param config Frozen task settings. @param context Current budget and abort signal. @returns Bounded one-attempt settings. */
 export function requestBounds(config: CuratorConfig, context: WorkContext): RequestBounds {
-  const remaining = context.ledger.snapshot().deadlineAt - Date.now()
-  if (remaining <= 0) throw new CuratorError('budget-exhausted', 'request', 'The task deadline has passed.')
-  return { signal: context.signal, maxBytes: config.limits.maxResponseBytes, timeoutMs: Math.min(config.limits.requestTimeoutMs, remaining), maxRedirects: config.limits.maxRedirects }
+  const remaining = context.ledger.remainingTimeMs()
+  if (remaining !== undefined && remaining <= 0) throw new CuratorError('budget-exhausted', 'request', 'The task deadline has passed.')
+  return { signal: context.signal, maxBytes: config.limits.maxResponseBytes, timeoutMs: remaining === undefined ? config.limits.requestTimeoutMs : Math.min(config.limits.requestTimeoutMs, remaining), maxRedirects: config.limits.maxRedirects }
 }
 
 /** @param config Frozen limits. @param context Durable owner. @param signal Attempt cancellation. @param onMetadata Durable native request recorder. @returns Native and legacy bounds sharing one download budget. */
 export function visionBounds(config: CuratorConfig, context: WorkContext, signal: AbortSignal, onMetadata: (metadata: Json) => Promise<void>): VisionBounds {
-  return { ...requestBounds(config, context), signal, onMetadata, reserveDownload: async requested => {
+  return { ...requestBounds(config, context), signal, nativeModelTiming: context.ledger.timing === 'native-analysis', onMetadata, reserveDownload: async requested => {
     const maxBytes = Math.min(requested, context.ledger.remainingBytes())
     if (maxBytes <= 0) throw new CuratorError('budget-exhausted', 'vision-images', 'The saved image download budget is exhausted.')
     await context.ledger.reserve('download', maxBytes)

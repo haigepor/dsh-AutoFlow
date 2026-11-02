@@ -85,3 +85,13 @@ test('summary caches obey entry and byte ceilings, zero policy and disposal', as
     assert.equal(parse.mock.callCount(), 9, 'Disposal releases all derived facts')
   } finally { reads.dispose(); await f.cleanup() }
 })
+
+test('cached native analysis continuation ignores an expired historical task deadline', async () => {
+  const f = await analysisReadFixture(), reads = createAnalysisTaskReads(() => ({ maxEntries: 8, maxBytes: 65536 }), () => 10_000)
+  try {
+    const current = f.domain.require('run', f.historical.id), data = dataOf(current), spec = executionSchema.parse(current.spec)
+    spec.config.vision = { ...spec.config.vision, backend: 'native', provider: 'native-fixture' }
+    await f.commit([runSchema.parse({ ...current, status: 'failed', spec: toJson(spec), data: toJson({ ...data, budget: { ...data.budget, deadlineAt: 1 }, error: { code: 'request-timeout', stage: 'reviewing', retryable: true, safeMessage: 'Old plugin timeout.', suggestedAction: 'Continue saved analysis.' } }) })], 'native-expired-summary')
+    for (let read = 0; read < 2; read++) assert.deepEqual(reads.get(f.domain, f.engine, f.actor, current.id)!.continuation, { allowed: true, reason: 'ready' })
+  } finally { reads.dispose(); await f.cleanup() }
+})

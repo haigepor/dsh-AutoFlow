@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { analysisAnswer, providerMarkdown } from '../src/client/analysis-markdown.ts'
 import { analysisDetailSchema, analysisMessageSchema } from '../src/shared/analysis-process.ts'
-import { en, type WorkbenchText } from '../src/client/workbench-locale.ts'
+import { en, zh, type WorkbenchText } from '../src/client/workbench-locale.ts'
+import { styleSummarySchema } from '../src/shared/style-analysis.ts'
 
 const t: WorkbenchText = key => en[key]
 const detail = analysisDetailSchema.parse({ task: { runId: 'r', styleId: 's', name: 'Saved analysis', status: 'failed', observed: 1, total: 2, model: 'Fixture', reasoningEffort: null, attempts: 1, startedAt: '2026-10-26', phase: 'failed', autoResume: false }, images: [{ imageVersionId: 'a', name: 'Image [a](unsafe)' }], observations: [{ imageVersionId: 'a', dimensions: [{ field: 'color', value: 'Muted **green**', uncertain: true }] }] })
@@ -34,4 +35,48 @@ test('streams readable observation text without treating an unfinished response 
   assert.equal(detail.observations.length, 1)
   const foreign = analysisAnswer({ ...partial, content: partial.content.replace('"a"', '"foreign"') }, active, t)
   assert.equal(foreign.text, '')
+})
+
+test('known raw JSON tails keep code presentation when retention removes the opening', () => {
+  for (const tail of ['observation": "Retained tail', '    "uncertain": false\n  }', '```\nA provider-authored fence']) {
+    const markdown = providerMarkdown(tail, true)
+    const delimiter = markdown.slice(0, markdown.indexOf('json\n'))
+    assert.ok(delimiter.length >= 3)
+    assert.equal(markdown.slice(delimiter.length + 5, -delimiter.length - 1), tail)
+  }
+})
+
+test('summary presentation links restored evidence while retaining the original short-label output', () => {
+  const summary = styleSummarySchema.parse({ name: 'Saved vehicle style', summary: 'A clear vehicle subject.', matchingPrompt: 'Inspect the actual vehicle.', searchHints: ['car portrait'], avoidTerms: [],
+    dimensions: [{ dimension: 'subject', description: 'The vehicle commands attention.', consistency: 'consistent', supportImageVersionIds: ['a'], counterImageVersionIds: [] }], conflicts: [], suggestedRules: [] })
+  const content = JSON.stringify({ ...summary, dimensions: [{ ...summary.dimensions[0], supportImageVersionIds: ['r1'] }] })
+  const complete = { ...message, kind: 'summary' as const, content }
+  const current = { ...detail, summary, process: { phase: 'completed' as const, events: [], messages: [complete], content, reasoning: '', truncated: false, updatedAt: 'now' } }
+  const answer = analysisAnswer(complete, current, t)
+  assert.deepEqual(answer.evidence, ['a'])
+  assert.ok(answer.text.includes('Image \\[a\\](unsafe)'))
+  assert.equal(complete.content, content)
+  const historical = analysisAnswer({ ...complete, sequence: 0 }, current, t)
+  assert.equal(historical.structured, false)
+  assert.deepEqual(historical.evidence, [])
+  assert.ok(historical.text.includes('r1'))
+})
+
+test('a retained source uses the current labels through a stable translator reference', () => {
+  let dictionary = zh
+  const translate: WorkbenchText = key => dictionary[key]
+  const stableTranslate = translate
+  const source = { ...message, state: 'streaming' as const, content: '{"observations":[{"imageVersionId":"a","dimensions":[{"dimension":"color","observation":"Soft reflected light' }
+  const original = source.content
+  const chinese = analysisAnswer(source, detail, translate)
+  assert.ok(chinese.text.includes(`### ${zh.chatImage} 01`))
+  assert.ok(chinese.text.includes(`**${zh.color}**`))
+  dictionary = en
+  const english = analysisAnswer(source, detail, translate)
+  assert.equal(translate, stableTranslate)
+  assert.ok(english.text.includes(`### ${en.chatImage} 01`))
+  assert.ok(english.text.includes(`**${en.color}**`))
+  assert.ok(english.text.includes('Soft reflected light'))
+  assert.ok(!english.text.includes(`### ${zh.chatImage} 01`))
+  assert.equal(source.content, original)
 })

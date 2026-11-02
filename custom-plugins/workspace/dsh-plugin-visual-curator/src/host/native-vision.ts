@@ -73,8 +73,8 @@ export class NativeVisionProvider extends StructuredVisionProvider {
   protected async invoke(input: VisionInput, operation: VisionRequestDescriptor['operation'], bounds: VisionBounds): Promise<unknown> {
     const descriptor = this.describeRequest(input, operation), startedAt = Date.now()
     bounds.onPhase?.('preparing')
-    const deadline = AbortSignal.timeout(bounds.timeoutMs)
-    const signal = bounds.signal ? AbortSignal.any([bounds.signal, deadline]) : deadline
+    const deadline = bounds.nativeModelTiming ? undefined : AbortSignal.timeout(bounds.timeoutMs)
+    const signal = AbortSignal.any([...(bounds.signal ? [bounds.signal] : []), ...(deadline ? [deadline] : [])])
     let firstOutputMs: number | undefined, firstReasoningMs: number | undefined, firstTextMs: number | undefined, usage: TokenUsage | undefined, terminal = false, streamStarted = false
     const assembler = new BlockAssembler()
     try {
@@ -124,7 +124,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       const content: ContentBlock[] = [{ type: 'text', text: descriptor.inputText }]
       for (let index = 0; index < refs.length; index++) {
         const image = input.images[index]!, attachment = refs[index]!
-        content.push({ type: 'text', text: JSON.stringify({ imageVersionId: image.imageVersionId, digest: image.digest, role: image.role }) }, { type: 'image', attachment })
+        content.push({ type: 'text', text: JSON.stringify({ imageVersionId: descriptor.imageAliases?.[image.imageVersionId] ?? image.imageVersionId, digest: image.digest, role: image.role }) }, { type: 'image', attachment })
       }
       const options: GenerateOptions = { ...prepared.config, system: descriptor.instructions, messages: [{ role: 'user', content }], signal }
       const base = { transport: 'native-llm', provider: this.provider, model: this.config.model, ...(prepared.context ? { context: prepared.context } : {}), request: { config: prepared.config, system: options.system, messages: options.messages }, images: sources.map((source, index) => ({ ...source, attachment: refs[index] })) }
@@ -164,7 +164,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       }
     } catch (error) {
       if (bounds.signal?.aborted) throw new MediaError('cancelled', 'reviewing', false, 'Operation cancelled.', 'Resume explicitly when needed.')
-      if (deadline.aborted) throw new MediaError('request-timeout', 'reviewing', true, 'The native model request timed out.', 'Continue within the saved task budget.')
+      if (deadline?.aborted) throw new MediaError('request-timeout', 'reviewing', true, 'The native model request timed out.', 'Continue within the saved task budget.')
       if (isAttachmentError(error)) {
         // 接纳采用按内容发布的原子写入；仅在进入模型流之前允许重试写入失败。
         const retryable = error.code === 'ATTACHMENT_WRITE_FAILED' && !streamStarted

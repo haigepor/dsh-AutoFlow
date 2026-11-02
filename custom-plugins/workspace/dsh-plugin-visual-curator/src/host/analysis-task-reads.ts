@@ -2,7 +2,7 @@
 import type { CuratorDomain } from '../domain/curator.ts'
 import type { DomainActor, RunRecord } from '../shared/model.ts'
 import type { AnalysisTask } from '../shared/analysis-process.ts'
-import { analysisContinuationFromFacts, dataOf, specOf, type AnalysisContinuationFacts, type ExecutionSpec, type RunData, type RunEngine } from './runtime.ts'
+import { analysisContinuationFromFacts, dataOf, specOf, taskTiming, type AnalysisContinuationFacts, type ExecutionSpec, type RunData, type RunEngine } from './runtime.ts'
 
 interface TaskFacts {
   task: Omit<AnalysisTask, 'name' | 'phase' | 'continuation'> & { runId: RunRecord['id'] }
@@ -18,7 +18,7 @@ function factsOf(run: Readonly<RunRecord>, prepared?: Prepared): TaskFacts | nul
   return { task: { runId: run.id, styleId: String(spec.input.styleId), status: run.status, observed, total, model: spec.config.vision.model,
     reasoningEffort: spec.config.vision.reasoningEffort ?? null, attempts: data.attempts, startedAt: run.createdAt, autoResume: data.autoResume === true,
     ...(run.outcome ? { outcome: run.outcome } : {}), ...(data.error ? { error: data.error } : {}) }, savedPhase: data.process?.phase,
-    continuation: { kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, deadlineAt: data.budget.deadlineAt, observed, total,
+    continuation: { kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, deadlineAt: taskTiming(spec) === 'native-analysis' ? null : data.budget.deadlineAt, observed, total,
       buildDataset: spec.input.buildDataset === true, hasSummary: data.checkpoint.styleAnalysis !== undefined, vision: data.budget.vision, maxVisionCalls: spec.config.limits.maxVisionCalls } }
 }
 
