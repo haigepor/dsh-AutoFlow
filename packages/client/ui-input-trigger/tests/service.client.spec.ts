@@ -8,11 +8,12 @@
  * session scope (createScope).
  */
 import { Context } from '@deepseek-ai/cordis'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { createScope, scopeOf } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { LocaleSnapshot } from '@deepseek-ai/dsh-client-locale/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { InputTriggerController, InputTriggerService } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import { resolveCandidateCacheConfig, type Config } from '../src/config.ts'
 import type {
   BeginCommandRequest, ClientSessionContext, CommandClaim, InsertReferenceRequest, PickOutcome,
   ReferenceInsert, InputTriggerCandidate, InputTriggerPick, InputTriggerSource, SourceRoster, TriggerChar,
@@ -69,14 +70,15 @@ const claimOf = (token: string): CommandClaim =>
 const tick = () => Promise.resolve()
 
 /** Direct controller bench: real scope tag + live roster array. */
-function controllerBench(sources: InputTriggerSource[] = [], key = 'a') {
+function controllerBench(sources: InputTriggerSource[] = [], key = 'a', cache?: Config) {
   const root = new Context()
   const scope = createScope(root, sid(key))
   const roster: SourceRoster = {
     sources: trigger => sources.filter(s => s.trigger === trigger),
     all: () => sources,
   }
-  const controller = new InputTriggerController({ actx: scope.ctx, sessionId: sid(key), roster })
+  const controller = new InputTriggerController({ actx: scope.ctx, sessionId: sid(key), roster,
+    ...cache === undefined ? {} : { cache } })
   return { root, actx: scope.ctx, controller, sources }
 }
 
@@ -104,7 +106,201 @@ async function serviceBench() {
   return { root, inputTriggers, mint }
 }
 
+describe('candidate query cache', () => {
+  function cachedBench(sources: InputTriggerSource[], key = 'a', config?: Config) {
+    const b = controllerBench(sources, key, config)
+    onTestFinished(async () => { b.controller.dispose(); await b.root.fiber.dispose() })
+    return b.controller
+  }
+
+  const track = (controller: InputTriggerController, draft: string) => {
+    controller.track(draft, draft.length, { tier: 'plain' }, 1)
+  }
+  const reopen = (controller: InputTriggerController, draft: string) => {
+    track(controller, '')
+    track(controller, draft)
+  }
+
+  it('shows a completed query immediately after reopening without another source lookup', async () => {
+    const source = deferredSource('@', 'reference', { cacheCandidates: true })
+    const controller = cachedBench([source.source])
+    track(controller, '@')
+    expect(controller.menu.getSnapshot().groups[0]).toMatchObject({ status: 'pending', items: [] })
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(1) })
+    source.pending[0]!.resolve([{ name: 'README.md' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.status).toBe('ready') })
+    reopen(controller, '@')
+    expect(controller.menu.getSnapshot().groups[0]).toMatchObject({ status: 'ready', items: [{ name: 'README.md' }] })
+    expect(source.pending).toHaveLength(1)
+  })
+
+  it('shares an unfinished lookup across reopenings and never reopens a dismissed menu', async () => {
+    const source = deferredSource('@', 'reference', { cacheCandidates: true })
+    const controller = cachedBench([source.source])
+    track(controller, '@file')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(1) })
+    reopen(controller, '@file')
+    expect(source.pending[0]!.signal.aborted).toBe(false)
+    await tick()
+    expect(source.pending).toHaveLength(1)
+    controller.dismiss()
+    source.pending[0]!.resolve([{ name: 'file.txt' }])
+    await vi.waitFor(() => {
+      reopen(controller, '@file')
+      expect(controller.menu.getSnapshot().groups[0]?.status).toBe('ready')
+    })
+    expect(source.pending).toHaveLength(1)
+    controller.dismiss()
+    await tick()
+    expect(controller.menu.getSnapshot().open).toBe(false)
+  })
+
+  it('never shows a prior search in an uncached query and reuses that search when revisited', async () => {
+    const source = deferredSource('@', 'reference', { cacheCandidates: true })
+    const controller = cachedBench([source.source])
+    track(controller, '@old')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(1) })
+    source.pending[0]!.resolve([{ name: 'old-session' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.status).toBe('ready') })
+    track(controller, '@')
+    expect(controller.menu.getSnapshot().groups[0]).toMatchObject({ status: 'pending', items: [] })
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(2) })
+    source.pending[1]!.resolve([{ name: 'README.md' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.status).toBe('ready') })
+    track(controller, '@old')
+    expect(controller.menu.getSnapshot().groups[0]?.items).toEqual([{ name: 'old-session' }])
+    expect(source.pending).toHaveLength(2)
+  })
+
+  it('keeps stale rows during refresh and after failure, then retries on the next open', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    onTestFinished(() => { errors.mockRestore() })
+    const source = deferredSource('@', 'reference', { cacheCandidates: true })
+    const controller = cachedBench([source.source], 'a', resolveCandidateCacheConfig({ candidateCacheMaxAgeMs: 0 }))
+    track(controller, '@')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(1) })
+    source.pending[0]!.resolve([{ name: 'cached.txt' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.status).toBe('ready') })
+    reopen(controller, '@')
+    expect(controller.menu.getSnapshot().groups[0]).toMatchObject({ status: 'pending', items: [{ name: 'cached.txt' }] })
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(2) })
+    source.pending[1]!.reject(new Error('offline'))
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.status).toBe('ready') })
+    expect(controller.menu.getSnapshot().groups[0]?.items).toEqual([{ name: 'cached.txt' }])
+    reopen(controller, '@')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(3) })
+    source.pending[2]!.resolve([{ name: 'fresh.txt' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.items).toEqual([{ name: 'fresh.txt' }]) })
+  })
+
+  it('does not cache failed lookups and retains successful empty results', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    onTestFinished(() => { errors.mockRestore() })
+    const source = deferredSource('@', 'reference', { cacheCandidates: true })
+    const controller = cachedBench([source.source])
+    track(controller, '@')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(1) })
+    source.pending[0]!.reject(new Error('offline'))
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().open).toBe(false) })
+    reopen(controller, '@')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(2) })
+    source.pending[1]!.resolve([])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().open).toBe(false) })
+    reopen(controller, '@')
+    expect(controller.menu.getSnapshot().open).toBe(false)
+    expect(source.pending).toHaveLength(2)
+  })
+
+  it('evicts older queries at the configured bound and cancels them on disposal', async () => {
+    const source = deferredSource('@', 'reference', { cacheCandidates: true })
+    const controller = cachedBench([source.source], 'a', resolveCandidateCacheConfig({ candidateCacheMaxEntries: 1 }))
+    track(controller, '@one')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(1) })
+    source.pending[0]!.resolve([{ name: 'one' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.status).toBe('ready') })
+    track(controller, '@two')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(2) })
+    source.pending[1]!.resolve([{ name: 'two' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.items).toEqual([{ name: 'two' }]) })
+    track(controller, '@one')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(3) })
+    controller.dispose()
+    expect(source.pending[2]!.signal.aborted).toBe(true)
+    source.pending[2]!.resolve([{ name: 'late' }])
+    await tick()
+    expect(controller.menu.getSnapshot().open).toBe(false)
+  })
+
+  it('cancels superseded searches and rejects their late results after returning to the same query', async () => {
+    const source = deferredSource('@', 'reference', { cacheCandidates: true })
+    const controller = cachedBench([source.source])
+    track(controller, '@a')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(1) })
+    track(controller, '@b')
+    expect(source.pending[0]!.signal.aborted).toBe(true)
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(2) })
+    track(controller, '@a')
+    expect(source.pending[1]!.signal.aborted).toBe(true)
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(3) })
+    source.pending[2]!.resolve([{ name: 'current' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.items).toEqual([{ name: 'current' }]) })
+    source.pending[0]!.resolve([{ name: 'obsolete-a' }])
+    source.pending[1]!.resolve([{ name: 'obsolete-b' }])
+    reopen(controller, '@a')
+    expect(controller.menu.getSnapshot().groups[0]?.items).toEqual([{ name: 'current' }])
+    expect(source.pending).toHaveLength(3)
+  })
+
+  it('isolates Session identities and lets deployments disable caching', async () => {
+    const candidates = vi.fn(async () => [{ name: 'file' }])
+    const source = readySource('@', 'reference', []).source
+    const cached = { ...source, candidates, cacheCandidates: true }
+    const a = cachedBench([cached], 'a')
+    const b = cachedBench([cached], 'b')
+    const disabled = cachedBench([cached], 'c', resolveCandidateCacheConfig({ candidateCacheMaxEntries: 0 }))
+    for (const controller of [a, b, disabled]) {
+      track(controller, '@')
+      await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.status).toBe('ready') })
+    }
+    reopen(a, '@')
+    reopen(disabled, '@')
+    await vi.waitFor(() => { expect(candidates).toHaveBeenCalledTimes(4) })
+  })
+
+  it('invalidates retained results after reconnect and source changes', async () => {
+    const { root, inputTriggers, mint } = await serviceBench()
+    onTestFinished(() => root.fiber.dispose())
+    const source = deferredSource('@', 'plugin', { cacheCandidates: true })
+    inputTriggers.registerSource(source.source)
+    const controller = inputTriggers.sessionOf(mint('a').actx)
+    track(controller, '@')
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(1) })
+    source.pending[0]!.resolve([{ name: 'old-plugin' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.status).toBe('ready') })
+    inputTriggers.invalidateCandidates(source.source)
+    expect(controller.menu.getSnapshot().groups[0]?.items).toEqual([])
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(2) })
+    root.emit('connection/reset')
+    expect(source.pending[1]!.signal.aborted).toBe(true)
+    await vi.waitFor(() => { expect(source.pending).toHaveLength(3) })
+    source.pending[1]!.resolve([{ name: 'discarded' }])
+    source.pending[2]!.resolve([{ name: 'current-plugin' }])
+    await vi.waitFor(() => { expect(controller.menu.getSnapshot().groups[0]?.items).toEqual([{ name: 'current-plugin' }]) })
+  })
+})
+
 describe('registerSource', () => {
+  it('passes the current Session identity to reference serialization', async () => {
+    const serialize = vi.fn(async () => 'prepared-reference')
+    const source = readySource('@', 'plugin', []).source
+    const { root, controller } = controllerBench([{ ...source, codec: { clipboardText: ref => ref, serialize } }], 'afp-session')
+    try {
+      const signal = new AbortController().signal
+      await expect(controller.serializeReference('plugin', 'dsh-plugin-afp', signal)).resolves.toBe('prepared-reference')
+      expect(serialize).toHaveBeenCalledExactlyOnceWith('dsh-plugin-afp', signal, { sessionId: sid('afp-session') })
+    } finally { await root.fiber.dispose() }
+  })
+
   it('throws on a duplicate (trigger, name); same name across triggers is fine', async () => {
     const { inputTriggers } = await serviceBench()
     inputTriggers.registerSource(readySource('/', 'command', []).source)

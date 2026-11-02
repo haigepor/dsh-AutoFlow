@@ -12,6 +12,7 @@ import type { ISessions, SessionBinding } from '@deepseek-ai/dsh-api-session-con
 import { WeakMapWithValues } from '@deepseek-ai/dsh-util-values'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { InputTriggerSource } from '../types.ts'
+import { resolveCandidateCacheConfig, type Config } from '../config.ts'
 import { InputTriggerController } from './controller.ts'
 import type { InputTriggerServiceContract } from './contract.ts'
 
@@ -37,12 +38,14 @@ export class InputTriggerService extends Service implements InputTriggerServiceC
 
   /**
    * @param ctx - owning root context (the service registers itself as `slash`).
+   * @param config - validated per-Session cache limits.
    */
-  constructor(ctx: Context) {
+  constructor(ctx: Context, private readonly config: Config = resolveCandidateCacheConfig()) {
     super(ctx, 'inputTriggers')
     ctx.on('locale/change', () => {
-      for (const controller of this.live.controllers.values) controller.refreshOpenMenu()
+      this.invalidateCandidates()
     })
+    ctx.on('connection/reset', () => { this.invalidateCandidates() })
   }
 
   /**
@@ -77,6 +80,27 @@ export class InputTriggerService extends Service implements InputTriggerServiceC
   }
 
   /**
+   * Drop retained queries owned by a source and refresh its visible menus.
+   * @param source - source to invalidate; omission invalidates all sources.
+   */
+  invalidateCandidates(source?: InputTriggerSource): void {
+    for (const controller of this.live.controllers.values) controller.invalidateCandidates(source)
+  }
+
+  /**
+   * Apply Host-validated cache preferences and discard results retained under the old policy.
+   * @param next - current cache limits from the shared configuration mirror.
+   */
+  configureCandidateCache(next: Config): void {
+    const current = this.config
+    if (current.candidateCacheMaxEntries === next.candidateCacheMaxEntries
+      && current.candidateCacheMaxAgeMs === next.candidateCacheMaxAgeMs) return
+    current.candidateCacheMaxEntries = next.candidateCacheMaxEntries
+    current.candidateCacheMaxAgeMs = next.candidateCacheMaxAgeMs
+    this.invalidateCandidates()
+  }
+
+  /**
    * Resolve the per-session controller for one session scope (lazy; the
    * scope disposer removes and disposes it). Construction warms the source
    * roster once — sessions are always agent-backed, so scope birth is the
@@ -99,6 +123,7 @@ export class InputTriggerService extends Service implements InputTriggerServiceC
     const controller = new InputTriggerController({
       actx: binding.ctx,
       sessionId: id,
+      cache: this.config,
       roster: {
         sources: trigger => live.sources.filter(s => s.trigger === trigger).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
         all: () => live.sources,

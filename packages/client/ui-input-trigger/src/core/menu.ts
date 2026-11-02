@@ -108,6 +108,15 @@ export const menuReduce: MenuReduce = (state, ev) => {
         highlight: state.highlight,
       }
     }
+    case 'source-pending': {
+      if (!state.open || ev.generation !== state.generation) return state
+      if (!state.groups.some(g => g.source === ev.source)) return state
+      return {
+        ...state,
+        groups: state.groups.map(g => g.source === ev.source ? { ...g, status: 'pending', items: ev.items ?? [] } : g),
+        highlight: state.highlight?.source === ev.source ? null : state.highlight,
+      }
+    }
     case 'source-settled': {
       if (!state.open || ev.generation !== state.generation) return state
       const idx = state.groups.findIndex(g => g.source === ev.source)

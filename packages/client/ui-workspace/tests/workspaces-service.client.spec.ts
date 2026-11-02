@@ -19,7 +19,7 @@ import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { DraftInitializationOptions, SessionInputResolver } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { RowToast } from '../src/client/contract/slots.ts'
-import { DirectoryBrowseError, UiWorkspaceService } from '../src/client/navigation.ts'
+import { DirectoryBrowseError, UiWorkspaceService, WORKSPACE_OPENING_PANEL_ID } from '../src/client/navigation.ts'
 import { en, zh } from '../src/client/locales.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
 import { UNGROUPED_KEY } from '../src/client/tree.ts'
@@ -287,11 +287,12 @@ function bench(options: BenchOptions = {}) {
   ctx.provide('locale', locale)
   const requestDraftInitialization = vi.fn<SessionInputResolver['requestDraftInitialization']>(() => 'applied')
   if (options.conversation !== false) ctx.provide('conversation', { input: { requestDraftInitialization } })
+  const panelInfo = createSnapshotStore<{ activePanelId: MainPanelId | null }>({ activePanelId: null })
   const layout = new LayoutController({
     selectPanel: vi.fn(), retainMainPanels: vi.fn(),
     setSidebar: vi.fn(), toggleSidebar: vi.fn(), setViewportWidth: vi.fn(),
     setRightbar: vi.fn(), openRightbar: vi.fn(), closeRightbar: vi.fn(),
-  }, () => true, createSnapshotStore({ activePanelId: null }))
+  }, () => true, panelInfo)
   const selectPanel = vi.spyOn(layout, 'selectPanel')
   ctx.provide('layout', layout)
   ctx.effect(() => () => { layout.dispose() })
@@ -310,7 +311,9 @@ function bench(options: BenchOptions = {}) {
     view.actions,
     notify,
   )
-  return { ctx, directoryPicker, sessions, uiWorkspace, workspaces, layout, selectPanel, view, notify, requestDraftInitialization }
+  return {
+    ctx, directoryPicker, sessions, uiWorkspace, workspaces, layout, panelInfo, selectPanel, view, notify, requestDraftInitialization,
+  }
 }
 
 function lastOpening(open: MockInstance<UiWorkspaceService['openWorkspace']>): Promise<void> {
@@ -320,6 +323,38 @@ function lastOpening(open: MockInstance<UiWorkspaceService['openWorkspace']>): P
 }
 
 describe('UiWorkspaceService', () => {
+  it('publishes archive pending synchronously, joins duplicate clicks and preserves the current Session on refusal', async () => {
+    const b = bench({ sessions: sessionState([summary('one')], 'pending'), workspaces: workspaceState([workspace('a', [sid('one')])]) })
+    b.uiWorkspace.openSession(sid('one'))
+    const admitted = Promise.withResolvers<undefined>()
+    b.workspaces.onArchive = () => admitted.promise
+    const request = b.uiWorkspace.archiveSession(sid('one'))
+    expect(b.uiWorkspace.activity.getSnapshot().archiving).toEqual([sid('one')])
+    expect(b.uiWorkspace.archiveSession(sid('one'))).toBe(request)
+    expect(b.workspaces.archiveCalls).toEqual([sid('one')])
+    expect(b.workspaces.list.getSnapshot().archivedSessionIds).toEqual([])
+    admitted.reject(new Error('active'))
+    await expect(request).rejects.toThrow('active')
+    expect(b.uiWorkspace.activity.getSnapshot().archiving).toEqual([])
+    expect(b.sessions.retained[0]!.release).not.toHaveBeenCalled()
+  })
+
+  it('shows creation immediately, keeps the old conversation retained, and restores it on failure', async () => {
+    const b = bench({ sessions: sessionState([summary('one')], 'pending'), workspaces: workspaceState([workspace('a', [sid('one')])]) })
+    b.uiWorkspace.openSession(sid('one'))
+    b.selectPanel.mockClear()
+    const admitted = Promise.withResolvers<SessionId>()
+    b.sessions.create.mockReturnValueOnce(admitted.promise)
+    const opening = b.uiWorkspace.openWorkspace(wid('a'))
+    expect(b.selectPanel).toHaveBeenCalledWith(WORKSPACE_OPENING_PANEL_ID)
+    expect(b.uiWorkspace.activity.getSnapshot().creating).toEqual([wid('a')])
+    expect(b.sessions.retained[0]!.release).not.toHaveBeenCalled()
+    admitted.reject(new Error('cannot create'))
+    await expect(opening).rejects.toThrow('cannot create')
+    expect(b.uiWorkspace.activity.getSnapshot().creating).toEqual([])
+    expect(b.selectPanel).toHaveBeenLastCalledWith(null)
+    expect(b.sessions.retained[0]!.release).not.toHaveBeenCalled()
+  })
   it('prepares and selects the default Workspace after both startup baselines', async () => {
     const b = bench({ configureWorkspaces: (workspaces) => {
       workspaces.initializeDefault.mockImplementation(async () => {
@@ -846,7 +881,7 @@ describe('UiWorkspaceService', () => {
         expect(target.release).not.toHaveBeenCalled()
         expect(previous.release).not.toHaveBeenCalled()
         expect(JSON.parse(backing.get('dsh.sessions.current')!)).toEqual({ sessionId: sid('previous') })
-        expect(b.selectPanel).not.toHaveBeenCalled()
+        expect(b.selectPanel).toHaveBeenCalledExactlyOnceWith(WORKSPACE_OPENING_PANEL_ID)
         return 'applied'
       })
 
@@ -975,7 +1010,7 @@ describe('UiWorkspaceService', () => {
         expect(b.sessions.retained[1]!.release).toHaveBeenCalledOnce()
         expect(b.sessions.binding(sid('created-a'))).toBeUndefined()
         expect(JSON.parse(backing.get('dsh.sessions.current')!)).toEqual({ sessionId: sid('previous') })
-        expect(b.selectPanel).not.toHaveBeenCalled()
+        expect(b.selectPanel.mock.calls).toEqual([[WORKSPACE_OPENING_PANEL_ID], [null]])
         expect(b.requestDraftInitialization).toHaveBeenCalledTimes(failure === 'blocked' ? 1 : 0)
       },
     )
@@ -1015,7 +1050,7 @@ describe('UiWorkspaceService', () => {
       expect(b.sessions.retained).toHaveLength(1)
       expect(b.sessions.retained[0]!.release).not.toHaveBeenCalled()
       expect(JSON.parse(backing.get('dsh.sessions.current')!)).toEqual({ sessionId: sid('previous') })
-      expect(b.selectPanel).not.toHaveBeenCalled()
+      expect(b.selectPanel.mock.calls).toEqual([[WORKSPACE_OPENING_PANEL_ID], [null]])
     })
   })
 
@@ -1528,6 +1563,18 @@ describe('UiWorkspaceService', () => {
 
     expect(b.sessions.retained[0]!.release).toHaveBeenCalledOnce()
     expect(b.selectPanel).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['stream', 'command'] as const)('keeps a global panel open when %s archiving clears its background conversation', async (source) => {
+    const b = bench()
+    if (source === 'command') b.workspaces.onArchive = async () => {}
+    b.uiWorkspace.openSession(sid('current'))
+    b.panelInfo.set({ activePanelId: 'settings' as MainPanelId })
+    b.selectPanel.mockClear()
+    await b.uiWorkspace.archiveSession(sid('current'))
+    expect(b.sessions.retained[0]!.release).toHaveBeenCalledOnce()
+    expect(b.selectPanel).not.toHaveBeenCalled()
+    expect(b.panelInfo.getSnapshot().activePanelId).toBe('settings')
   })
 
   it('forwards archive commands and preserves failures', async () => {

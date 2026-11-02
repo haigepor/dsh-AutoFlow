@@ -25,7 +25,7 @@ Use `dsh-client-ui-reference` when Web users need to mention files, folders, or 
 <a id="use-this-package"></a>
 ## Use this package
 
-The source is active whenever the composition mounts this package and a Host `ctx.fileReferences` provider is available. Type `@` followed by an unquoted token to see files first, then sessions; open `@"…` to search files only. The candidate list is a completion menu, not a search result page: pick once and keep typing.
+The source is active whenever the composition mounts this package and a Host `ctx.fileReferences` provider is available. A bare `@` lists files and folders without querying Sessions. An unquoted search token adds Session matches after files; quoted paths and folder drill-downs only query files. The source opts into the input-trigger cache, so reopening a recent query displays its candidates immediately. The candidate list is a completion menu: pick once and keep typing.
 
 ### What a pick inserts
 
@@ -36,6 +36,8 @@ A session pick inserts an atomic inline reference whose hidden `ref` and clipboa
 ### Failure behavior
 
 One unavailable or failed candidate domain yields no rows for that domain while the other still lists. A session-reference preparation failure occurs after prompt acceptance and terminates that agent turn.
+
+If every requested domain fails, the lookup rejects so the menu retains any cached rows and retries on the next open. An empty successful query remains cacheable.
 
 Click a file reference in the composer to preview its current contents in the right Sidebar. Quoted paths retain their spaces, and paths resolve in the composer Session. Folder and Session references retain their editing behavior.
 
@@ -51,7 +53,7 @@ The source keeps candidate encoding internal to the registration effect: the `/c
 
 ### Candidate flow
 
-For an unquoted token, the browser starts the `fileReferences/list` and `sessionReferenceResolver/candidates` Remote calls together, then deterministically orders files, direct subagents of the current Session, and other Sessions. Rows use the resolver's display title, which prefers a subagent's creation label while ordinary Sessions retain their projected title, and render under locale-owned group headings without a redundant raw `reference` source title. A session row is dated from the Host session list's `updatedAt` through the same relative-time bucket that list uses, so one session reads the same age on both surfaces; a session the list does not carry falls back to the candidate's creation time. A drilled query publishes a breadcrumb from the workspace root to the current directory; each crumb carries the drill payload a folder row would, so returning to a step and descending into one are one outcome.
+For a nonempty unquoted search token, the browser starts the `fileReferences/list` and `sessionReferenceResolver/candidates` Remote calls together, then deterministically orders files, direct subagents of the current Session, and other Sessions. Rows use the resolver's display title, which prefers a subagent's creation label while ordinary Sessions retain their projected title, and render under locale-owned group headings without a redundant raw `reference` source title. A session row is dated from the Host session list's `updatedAt` through the same relative-time bucket that list uses, so one session reads the same age on both surfaces; a session the list does not carry falls back to the candidate's creation time. A drilled query publishes a breadcrumb from the workspace root to the current directory; each crumb carries the drill payload a folder row would, so returning to a step and descending into one are one outcome.
 
 Candidate requests require an existing retained Client Session and share one temporary `referenceCandidates` reference. Both discovery calls wait for that Session's initial history open to succeed; an unretained Session or failed open prevents both RPCs. The candidate request's cancellation signal covers the history wait and both calls, and the temporary reference is released when the lookup settles.
 

@@ -7,6 +7,8 @@
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import { resolveCandidateCacheConfig, type Config } from '../config.ts'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
@@ -58,6 +60,14 @@ export const inject = ['sessions', 'locale']
  */
 export function apply(ctx: ClientContext): void {
   ctx.plugin(InputTriggerService)
+  ctx.inject(['configForms', 'inputTriggers'], (scope) => {
+    const settings = scope.configForms.get<Config>('ui-input-trigger')
+    const service = scope.get('inputTriggers') as InputTriggerService
+    const defaults = resolveCandidateCacheConfig()
+    const sync = (): void => { service.configureCandidateCache(settings.getSnapshot().value ?? defaults) }
+    scope.effect(() => settings.subscribe(sync), 'ui-input-trigger: cache preferences')
+    sync()
+  })
   ctx.effect(() => ctx.locale.register(MENU_NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-input-trigger: menu dictionaries')
   ctx.inject(['slots', 'inputTriggers', 'sessions'], (scope: ClientContext) => {
     const inputTriggers = scope.inputTriggers

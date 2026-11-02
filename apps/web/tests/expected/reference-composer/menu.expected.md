@@ -1,9 +1,31 @@
 - listbox "Trigger suggestions":
+  - text: Plugins
+  - option "AFP photo curation dsh-plugin-afp Disabled · enable before use" [selected]
+  - option "Agent teams @deepseek-ai/dsh-experimental-agent-team-profile Disabled · enable before use"
+  - option "Auto authorization review @deepseek-ai/dsh-experimental-auto-review Disabled · enable before use"
+  - option "Better Sidebar dsh-better-sidebar Disabled · enable before use"
+  - option "Better Sidebar updater dsh-plugin-better-sidebar-updater Disabled · enable before use"
+  - option "Change requests & worktrees @deepseek-ai/dsh-experimental-forge-bundle Disabled · enable before use"
+  - option "Claude Code subagent @deepseek-ai/dsh-subagent-claude-code Disabled · enable before use"
+  - option "Codex subagent @deepseek-ai/dsh-subagent-codex Disabled · enable before use"
+  - option "Codex subscription dsh-plugin-codex-subscription Disabled · enable before use"
+  - option "Conversation-following titles @deepseek-ai/dsh-experimental-session-titles-bundle Disabled · enable before use"
+  - option "Custom plugin indexes @deepseek-ai/dsh-experimental-plugin-market-bundle Disabled · enable before use"
+  - option "Developer tools @deepseek-ai/dsh-experimental-inspector-profile Disabled · enable before use"
+  - option "DSH badge skill @deepseek-ai/dsh-experimental-badge-skill-bundle Disabled · enable before use"
+  - option "dsh-web-scaffold-defaults"
+  - option "Git worktrees @deepseek-ai/dsh-experimental-tool-worktree Disabled · enable before use"
+  - option "LiveShare Session Sharing @deepseek-ai/dsh-experimental-liveshare Disabled · enable before use"
+  - option "Machine translation of reasoning @deepseek-ai/dsh-experimental-cot-translation-bundle Disabled · enable before use"
+  - option "Persistent terminals @deepseek-ai/dsh-experimental-terminal-bundle Disabled · enable before use"
+  - option "Personalized recommendations @deepseek-ai/dsh-personalized-recommendations Disabled · enable before use"
+  - option "Ralph loops @deepseek-ai/dsh-experimental-ralph-bundle Disabled · enable before use"
+  - option "Session search @deepseek-ai/dsh-experimental-session-search Disabled · enable before use"
+  - option "Style Prompt dsh-plugin-style-prompt Disabled · enable before use"
+  - option "Visual Curator dsh-plugin-visual-curator Disabled · enable before use"
+  - option "Voice input @deepseek-ai/dsh-experimental-voice-input-bundle Disabled · enable before use"
   - text: Files & folders
-  - option "folderx/ Browse folder" [selected]:
+  - option "folderx/ Browse folder":
     - text: folderx/
     - button "Browse folder"
   - option "reference.txt"
-  - text: Sessions
-  - option "reference-order-target-session {{cwd}} · {{age}}"
-  - option "reference-source-session {{cwd}} · {{age}}"

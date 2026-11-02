@@ -144,8 +144,8 @@ export interface InputTriggerPick {
 export interface ReferenceCodec {
   /** Clipboard / persistence projection of one reference (e.g. `/name`). */
   clipboardText(ref: string): string
-  /** Model serialization of one reference (e.g. `<skill>name</skill>`). */
-  serialize(ref: string, signal: AbortSignal): Promise<string>
+  /** Model serialization of one reference; Session identity permits preparation before submission. */
+  serialize(ref: string, signal: AbortSignal, session?: ClientSessionContext): Promise<string>
 }
 
 /**
@@ -167,6 +167,8 @@ export interface InputTriggerSource {
   readonly order?: number
   /** Whether the menu renders the source-title row; defaults to true. */
   readonly showGroupTitle?: boolean
+  /** Retain successful read-only candidate queries within their Client Session; defaults to false. */
+  readonly cacheCandidates?: boolean
   candidates(session: ClientSessionContext, req: CandidateRequest): Promise<readonly InputTriggerCandidate[]>
   /**
    * Synchronous breadcrumb rendered above this source's group, re-polled on

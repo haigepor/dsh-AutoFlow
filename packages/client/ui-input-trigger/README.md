@@ -25,7 +25,16 @@ When users type `/` or `@` at the caret in the Web GUI, this package opens a gro
 <a id="use-this-package"></a>
 ## Use this package
 
+Sources can opt into candidate caching with `cacheCandidates: true`. Each Client Session retains its own queries, including quoted paths, trigger position and directory-drill state. Fresh hits display immediately without another lookup; a miss shows Settings-style skeleton rows, and an expired query retains its own rows while refreshing. In-flight queries are shared across menu reopenings. Failed refreshes keep cached rows, and failures without cached results are retried on the next open. Cache entries are evicted in least-recently-used order and released with their source or Session. Reconnection and locale changes invalidate the cache; source owners call `inputTriggers.invalidateCandidates(source)` when their inventory changes.
+
+| Config | Default | Meaning |
+|---|---|---|
+| `candidateCacheMaxEntries` | `64` | Maximum retained queries per Client Session; `0` disables caching. |
+| `candidateCacheMaxAgeMs` | `30000` | Freshness interval in milliseconds; `0` refreshes each time while keeping cached rows visible. |
+
 Sources may implement `describeReference(session, ref, signal)` to read known reference metadata without opening a menu, modifying a draft, or submitting a message. The controller routes by source name and discards replies after reader cancellation, source disposal, or controller disposal.
+
+`ReferenceCodec.serialize(ref, signal, session)` receives the current Session identity from the controller. Sources can await Session-specific preparation before returning the logged reference; rejection stops submission. The optional third parameter preserves codecs that only need the reference and cancellation signal.
 
 Mount this plugin alongside `ui-conversation`; the menu then appears in the input overlay when the user types a trigger under the caret. Grouped candidates render under title rows, or under the section headings a source attaches to its own rows; a pick routes to the source, and the consuming surface applies the result — a slash command opens its popup or executes, a reference inserts its inline token. Menu icons and navigation chevrons use the `--dsw-alias-menu-icon` color. A row shows its icon, its title (the candidate `label`, or the `name` when no label is given), the `name` as a trailing alias when the label is not the name in another letter case, and the description right-aligned; a query matches either the name or the label.
 
@@ -45,7 +54,7 @@ Menus use the shared `MenuSurface` material, including the macOS backing for bac
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-`src/core/` is the pure core — trigger detection, menu reduction, and exact match, with zero React/DOM/cordis — while `src/client/service.ts` wires the core to the menu snapshot store, the per-hit candidate fetch (generation-gated, `AbortSignal`-superseded, failed sources dropping silently with a console record), and the pick paths. One `InputTriggerController` resolves per session scope (`sessionOf`); the conversation wiring layer drives `track`/`arbitrate`/`onSpace`/`adjudicate` on the controller. A source is warmed into every session controller it can reach; sources whose `lexicon` rolls change after warm implement `subscribeLexicon` and the controller re-polls on each notification. `MenuView` self-registers into `conversation.input.overlay` (list kind, session scope) and renders null while closed. The `listbox` role sits on its scrolling viewport rather than the bounded shell, because a breadcrumb header is not an option and a listbox may not carry one; crumbs ride their own snapshot store beside the menu store, so the frozen reducer stays unaware of them. The overlay SlotMap merge lives here because the dependency direction (ui-conversation → ui-input-trigger) admits no reverse type import.
+`src/core/` is the pure core — trigger detection, menu reduction, and exact match, with zero React/DOM/cordis — while `src/client/service.ts` wires the core to the menu snapshot store, candidate caching and fetch cancellation, and the pick paths. One `InputTriggerController` resolves per session scope (`sessionOf`); the conversation wiring layer drives `track`/`arbitrate`/`onSpace`/`adjudicate` on the controller. A source is warmed into every session controller it can reach; sources whose `lexicon` rolls change after warm implement `subscribeLexicon` and the controller re-polls on each notification. `MenuView` self-registers into `conversation.input.overlay` (list kind, session scope) and renders null while closed. The `listbox` role sits on its scrolling viewport rather than the bounded shell, because a breadcrumb header is not an option and a listbox may not carry one; crumbs ride their own snapshot store beside the menu store, so the frozen reducer stays unaware of them. The overlay SlotMap merge lives here because the dependency direction (ui-conversation → ui-input-trigger) admits no reverse type import.
 
 </details>
 

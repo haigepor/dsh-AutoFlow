@@ -20,6 +20,8 @@ import type {
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
+import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { DraftInitializationOptions } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { RowToast } from './contract/slots.ts'
 import { pinOrderAccounts, pinOrderSource } from './pin-order.ts'
@@ -30,6 +32,15 @@ interface MainSelection {
   readonly subagentAddress?: SubagentAddress
 }
 
+/** Loading panel shown while a new conversation is admitted by the Host. */
+export const WORKSPACE_OPENING_PANEL_ID = 'workspace-opening' as MainPanelId
+
+/** Pending gestures; confirmed Session and Workspace data stays in the API models. */
+export interface WorkspaceActivity {
+  readonly archiving: readonly SessionId[]
+  readonly creating: readonly WorkspaceId[]
+}
+
 /** Content preparation and Agent preset for the Session a Workspace flow opens. */
 export interface StartSessionOptions extends DraftInitializationOptions {
   /** Agent preset the Session runs; the Host default when omitted. */
@@ -38,6 +49,8 @@ export interface StartSessionOptions extends DraftInitializationOptions {
 
 /** Workspace archive and directory operations consumed by Client UI domains. */
 export interface UiWorkspace {
+  /** Pending archive and create gestures, observable before the Host responds. */
+  readonly activity: HostObservable<WorkspaceActivity>
   /**
    * Select a Session and show its Conversation as one UI navigation action.
    * @param target - known Session identity or durable direct-parent subagent address to display.
@@ -50,6 +63,7 @@ export interface UiWorkspace {
    * skipped after supersession; a throw aborts the open and releases the retained reference.
    * @param options - choices for the Session the connection creates or reuses.
    * @returns completion; a superseded request may create a Session but does not open it.
+   * The Conversation shows a loader immediately; a global panel stays visible until success.
    * @throws on failure; a refused creation is also shown through the Workspace
    * notice unless a later navigation or disposal superseded the request.
    */
@@ -96,7 +110,8 @@ export interface UiWorkspace {
    */
   openNewSession(beforeOpen: (sessionId: SessionId) => void): Promise<void>
   /**
-   * Archive a Session and clear it when it is the current selection.
+   * Archive a Session and clear it when it is the current selection, keeping an open global panel visible.
+   * Pending gestures hide its sidebar row; refusal restores it and preserves the main reference.
    * @param sessionId - Session to archive.
    * @param options - `stopActivity` asks the Host to stop the Session's running work instead of refusing.
    */
@@ -170,6 +185,9 @@ export class DirectoryBrowseError extends Error {
 
 /** Implements Workspace archive and directory UI operations. */
 class UiWorkspaceService extends Service implements UiWorkspace {
+  /** Pending UI actions survive sidebar remounts and clear on either outcome. */
+  readonly activity = createSnapshotStore<WorkspaceActivity>({ archiving: [], creating: [] })
+  private readonly archiving = new Map<SessionId, Promise<void>>()
   /** The latest in-flight connection per Workspace; a request joins it only when both name the same preset. */
   private readonly connecting = new Map<WorkspaceId, {
     readonly agentPreset: string | undefined
@@ -230,8 +248,11 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const inflight = this.connecting.get(workspaceId)
     if (inflight !== undefined && inflight.agentPreset === reuse.agentPreset) return inflight.attempt
 
+    this.activity.set({ ...this.activity.getSnapshot(), creating: [...new Set([...this.activity.getSnapshot().creating, workspaceId])] })
     const attempt = this.createInWorkspace(workspace, reuse).finally(() => {
-      if (this.connecting.get(workspaceId)?.attempt === attempt) this.connecting.delete(workspaceId)
+      if (this.connecting.get(workspaceId)?.attempt !== attempt) return
+      this.connecting.delete(workspaceId)
+      this.activity.set({ ...this.activity.getSnapshot(), creating: this.activity.getSnapshot().creating.filter(id => id !== workspaceId) })
     })
     this.connecting.set(workspaceId, { agentPreset: reuse.agentPreset, attempt })
     return attempt
@@ -313,18 +334,23 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     beforeOpen: ((sessionId: SessionId) => void) | undefined,
     reuse: Pick<StartSessionOptions, 'agentPreset'>,
   ): Promise<void> {
+    const previousPanel = this.ctx.layout.panelInfo.getSnapshot().activePanelId
+    const showLoading = previousPanel === null || previousPanel === WORKSPACE_OPENING_PANEL_ID
+    if (showLoading) this.ctx.layout.selectPanel(WORKSPACE_OPENING_PANEL_ID)
     const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
-    let sessionId: SessionId
     try {
-      sessionId = await this.connectBlank(workspaceId, reuse)
+      let sessionId: SessionId
+      try {
+        sessionId = await this.connectBlank(workspaceId, reuse)
+      } catch (error: unknown) {
+        if (!navigation.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(error) })
+        throw error
+      }
+      if (!navigation.aborted) this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
     } catch (error: unknown) {
-      // Reported here, not in connectWorkspace: startup restoration calls that
-      // directly and stays console-only.
-      if (!navigation.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(error) })
+      if (!navigation.aborted && showLoading) this.ctx.layout.selectPanel(null)
       throw error
     }
-    if (navigation.aborted) return
-    this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
   }
 
   async forkSession(
@@ -400,9 +426,20 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     throw new Error(message)
   }
 
-  async archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {
-    await this.workspaces.archiveSession(sessionId, options)
-    if (this.mainReference?.sessionId === sessionId) this.clearMain()
+  archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {
+    const existing = this.archiving.get(sessionId)
+    if (existing !== undefined) return existing
+    this.activity.set({ ...this.activity.getSnapshot(), archiving: [...this.activity.getSnapshot().archiving, sessionId] })
+    const request = this.workspaces.archiveSession(sessionId, options).then(() => {
+      if (this.mainReference?.sessionId === sessionId) {
+        this.clearMain(this.ctx.layout.panelInfo.getSnapshot().activePanelId !== null)
+      }
+    }).finally(() => {
+      this.archiving.delete(sessionId)
+      this.activity.set({ ...this.activity.getSnapshot(), archiving: this.activity.getSnapshot().archiving.filter(id => id !== sessionId) })
+    })
+    this.archiving.set(sessionId, request)
+    return request
   }
 
   async unarchiveSession(sessionId: SessionId): Promise<void> {
@@ -529,16 +566,16 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const current = this.mainReference?.sessionId
     if (current === undefined
       || !this.workspaces.list.getSnapshot().archivedSessionIds.includes(current)) return false
-    this.clearMain()
+    this.clearMain(this.ctx.layout.panelInfo.getSnapshot().activePanelId !== null)
     return true
   }
 
-  private clearMain(): void {
+  private clearMain(preservePanel = false): void {
     const previous = this.mainReference
     this.mainReference = undefined
     this.selection.set({})
     previous?.release()
-    this.ctx.layout.selectPanel(null)
+    if (!preservePanel) this.ctx.layout.selectPanel(null)
   }
 
   private replaceMain(

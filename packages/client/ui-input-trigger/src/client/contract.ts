@@ -17,6 +17,11 @@ export interface InputTriggerServiceContract {
    */
   registerSource(src: InputTriggerSource): () => void
   /**
+   * Invalidate retained candidate results and refresh any affected open menu.
+   * @param source - one registered source, or every source when omitted.
+   */
+  invalidateCandidates(source?: InputTriggerSource): void
+  /**
    * Resolve the lazy controller owned by one session scope.
    * @param actx - session-scoped Client context.
    * @returns controller that dies with that scope.

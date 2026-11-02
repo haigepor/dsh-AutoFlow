@@ -37,7 +37,7 @@
       "path": "../ui-primitives"
     },
     {
-      "path": "../ui-input-trigger"
+      "path": "../ui-input-trigger/tsconfig.client.json"
     },
     {
       "path": "../ui-renderer"

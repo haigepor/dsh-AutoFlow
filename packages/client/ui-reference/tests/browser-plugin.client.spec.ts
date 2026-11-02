@@ -193,6 +193,18 @@ describe('apply', () => {
 })
 
 describe('candidates', () => {
+  it('lists files without querying Sessions for a bare @ or a drilled folder', async () => {
+    const lookup = vi.fn(() => Promise.resolve({ ok: true as const, value: [] }))
+    const { source } = await bench(undefined, lookup)
+    expect(source.cacheCandidates).toBe(true)
+    const empty = await source.candidates(session, request(''))
+    expect(empty.every(row => row.icon !== 'session')).toBe(true)
+    await source.candidates(session, { ...request('src/'), drilled: true })
+    expect(lookup).not.toHaveBeenCalled()
+    await source.candidates(session, request('research'))
+    expect(lookup).toHaveBeenCalledOnce()
+  })
+
   it('waits for initial history before both lookups and releases its reference after they settle', async () => {
     const opened = Promise.withResolvers<undefined>()
     const response = Promise.withResolvers<RemoteEnvelope<FileReferenceCandidate[]>>()
@@ -200,7 +212,7 @@ describe('candidates', () => {
     const lookup = vi.fn(() => Promise.resolve({ ok: true as const, value: [] }))
     const b = await bench(files, lookup, {}, { initialOpen: () => opened.promise })
     try {
-      const pending = b.source.candidates(session, request(''))
+      const pending = b.source.candidates(session, request('research'))
       expect(b.sessions.retainInfo(session.sessionId).getSnapshot().retainedBy.referenceCandidates).toBe(1)
       expect(files).not.toHaveBeenCalled()
       expect(lookup).not.toHaveBeenCalled()
@@ -384,7 +396,7 @@ describe('candidates', () => {
     await expect(pending).resolves.toEqual([])
   })
 
-  it('treats Remote failures as empty domains and filters paths that cannot be mentioned', async () => {
+  it('keeps available domains and rejects an entirely failed lookup instead of caching an empty result', async () => {
     const files = vi.fn(() => Promise.resolve({
       ok: true as const,
       value: [{ path: 'bad\nname', kind: 'file' as const }],
@@ -400,7 +412,7 @@ describe('candidates', () => {
       ok: false as const,
       error: new RemoteError('gateway/internal', 'file lookup failed', {}),
     } as never)
-    await expect(source.candidates(session, request('bad'))).resolves.toEqual([])
+    await expect(source.candidates(session, request('bad'))).rejects.toThrow('file lookup failed')
   })
 
   it('labels a session without a cwd and still dates it', async () => {
@@ -655,7 +667,7 @@ describe('pick and codec', () => {
 
   it('inserts sessions as atomic chips whose clipboard and model forms are canonical mentions', async () => {
     const { source } = await bench()
-    const candidates = await source.candidates(session, request(''))
+    const candidates = await source.candidates(session, request('research'))
     const candidate = candidates.find(item => item.name === 'Research')!
     const mention = '@[Research](dsh-session:InNvdXJjZSI)'
     expect(pick(source, candidate)).toEqual({

@@ -1,8 +1,9 @@
 - banner:
+  - button "Collapse view tabs" [expanded]
   - navigation "Session hierarchy": Reference order target
   - button "More actions"
   - button "Open right sidebar"
-  - tablist:
+  - tablist "Session views":
     - tab "Chat" [selected]
     - tab "Trajectory"
   - button "More conversation views"

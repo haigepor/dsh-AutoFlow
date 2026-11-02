@@ -5,9 +5,9 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { Browser, Locator, Page } from 'playwright'
+import type { Browser, Locator, Page, Route } from 'playwright'
 import { chromium } from 'playwright'
-import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, onTestFailed, onTestFinished } from 'vitest'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import {
@@ -144,7 +144,9 @@ describe.skipIf(MODE === 'record')('web e2e: file and session references through
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
+    scaffold = await launchWebScaffold({
+      extraOverlayPath: fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)),
+    })
     const targetCreatedAt = WEB_FIXTURE_TIME - 60_000
     await seedSession(scaffold, sourceSessionFixture(), SOURCE_SESSION_ID, undefined, { createdAt: targetCreatedAt - 1 })
     await seedSession(scaffold, targetSessionFixture(), TARGET_SESSION_ID, undefined, { createdAt: targetCreatedAt })
@@ -179,10 +181,50 @@ describe.skipIf(MODE === 'record')('web e2e: file and session references through
     const input = page.locator('[data-composer-input]').first()
     const menu = page.getByRole('listbox', { name: 'Trigger suggestions' })
 
+    const firstLookup = Promise.withResolvers<undefined>()
+    const fileRoute = '**/api/fileReferences/list'
+    const holdFiles = async (route: Route) => { await firstLookup.promise; await route.continue() }
+    let fileLookups = 0
+    let sessionLookups = 0
+    const countLookup = (request: import('playwright').Request): void => {
+      if (request.url().endsWith('/api/fileReferences/list')) fileLookups++
+      if (request.url().endsWith('/api/sessionReferenceResolver/candidates')) sessionLookups++
+    }
+    page.on('request', countLookup)
+    await page.route(fileRoute, holdFiles)
+    onTestFinished(async () => {
+      firstLookup.resolve(undefined)
+      page.off('request', countLookup)
+      await page.unroute(fileRoute, holdFiles)
+    })
+
     await writeComposerDraft(page, input, '@')
+    const loading = menu.getByRole('status', { name: 'Loading…' }).last()
+    await loading.waitFor()
+    expect(await loading.getAttribute('aria-busy')).toBe('true')
+    expect(sessionLookups).toBe(0)
+    const bar = loading.locator('span').first()
+    expect(await bar.evaluate(element => getComputedStyle(element, '::after').animationDuration)).toBe('1.8s')
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    expect(await bar.evaluate(element => getComputedStyle(element, '::after').display)).toBe('none')
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    const proofDir = fileURLToPath(new URL('../../../.artifacts', import.meta.url))
+    await mkdir(proofDir, { recursive: true })
+    await loading.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(proofDir, `mention-cache-${process.pid}-loading.png`) })
+    firstLookup.resolve(undefined)
     await expect.poll(() => menu.getByRole('option').count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(2)
-    // Session rows are dated from the live Host list, so their age bucket
-    // advances while the suite runs.
+    await page.unroute(fileRoute, holdFiles)
+    const completedLookups = fileLookups
+    await writeComposerDraft(page, input, '')
+    await menu.waitFor({ state: 'hidden' })
+    await writeComposerDraft(page, input, '@')
+    await menu.getByRole('option', { name: /reference\.txt/ }).waitFor()
+    expect(await menu.getByRole('status').count()).toBe(0)
+    expect(fileLookups).toBe(completedLookups)
+    expect(sessionLookups).toBe(0)
+    await menu.getByRole('option', { name: /reference\.txt/ }).scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(proofDir, `mention-cache-${process.pid}-cached.png`) })
     const snapshot = await captureStableAria(
       page, '[role="listbox"]', scaffold.workspaceCwd, {
         normalizeAge: true,
@@ -191,24 +233,17 @@ describe.skipIf(MODE === 'record')('web e2e: file and session references through
     )
     await compareOrRefreshGolden(MENU_EXPECTED, snapshot, MODE)
     expect(snapshot).toContain('Files & folders')
-    expect(snapshot).toContain('Sessions')
+    expect(snapshot).not.toContain('Sessions')
     expect(snapshot).not.toContain('text: reference Files & folders')
     expect(snapshot).toContain('reference.txt')
-    // A seed reaches disk as a log alone, and the Host labels a session from
-    // its projections: no checkpoint, so the row is its id. The fixture's own
-    // title (`Research notes`) is unreachable here by construction, and the
-    // package suite owns the titled paths.
-    expect(snapshot).toContain(SOURCE_SESSION_ID)
+    expect(snapshot).not.toContain(SOURCE_SESSION_ID)
     expect(snapshot).not.toContain('Research notes')
     expect(snapshot).not.toContain('text: Subagents')
 
     await writeComposerDraft(page, input, '@reference')
-    // The open menu keeps the previous query's rows while the new one loads
-    // (stale-while-revalidate), and rows are keyed by index, so a click
-    // resolved against a stale row lands on whatever settles into that slot.
-    // `folderx/` matches only the bare '@' query: its disappearance marks the
-    // settled result set.
-    await expect.poll(() => menu.getByRole('option', { name: /folderx/ }).count(), { timeout: 15_000 }).toBe(0)
+    // This uncached query replaces the previous query's rows with a skeleton.
+    await menu.getByRole('option', { name: /reference\.txt/ }).waitFor()
+    expect(sessionLookups).toBeGreaterThan(0)
     await menu.getByRole('option', { name: /reference\.txt/ }).click()
     // The pick lands an atomic chip: a real DOM capsule carrying the domain
     // icon and the label (the canonical reference text lives on the node and
@@ -224,6 +259,25 @@ describe.skipIf(MODE === 'record')('web e2e: file and session references through
     await expect.poll(() => sessionReference.textContent()).toBe(SOURCE_SESSION_ID)
     await expect.poll(() => sessionReference.locator('svg').count()).toBe(1)
     await expect.poll(() => input.textContent()).toBe(`${SOURCE_SESSION_ID} `)
+
+    await writeComposerDraft(page, input, '@')
+    await menu.getByRole('option', { name: /reference\.txt/ }).waitFor()
+    const beforePolicyChange = fileLookups
+    try {
+      await scaffold.ctx.settings.update('ui-input-trigger', { candidateCacheMaxEntries: 0 })
+      expect(scaffold.ctx.settings.describe().find(row => row.ns === 'ui-input-trigger')?.value)
+        .toMatchObject({ candidateCacheMaxEntries: 0 })
+      await expect.poll(() => fileLookups, { timeout: 10_000 }).toBeGreaterThan(beforePolicyChange)
+      await menu.getByRole('option', { name: /reference\.txt/ }).waitFor()
+      const withoutCache = fileLookups
+      await writeComposerDraft(page, input, '')
+      await writeComposerDraft(page, input, '@')
+      await expect.poll(() => fileLookups, { timeout: 10_000 }).toBeGreaterThan(withoutCache)
+      await menu.getByRole('option', { name: /reference\.txt/ }).waitFor()
+    } finally {
+      await scaffold.ctx.settings.update('ui-input-trigger', { candidateCacheMaxEntries: 64 })
+      await writeComposerDraft(page, input, '')
+    }
 
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])

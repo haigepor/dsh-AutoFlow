@@ -74,6 +74,7 @@ export function apply(ctx: ClientContext): void {
     trigger: '@',
     name: 'reference',
     showGroupTitle: false,
+    cacheCandidates: true,
     async candidates(session: ClientSessionContext, { query, quoted, drilled, signal }) {
       if (sessions.binding(session.sessionId) === undefined) {
         throw new Error(`reference candidates require a retained session "${session.sessionId}"`)
@@ -88,12 +89,12 @@ export function apply(ctx: ClientContext): void {
             throw state.openError ?? new Error(`session "${session.sessionId}" is not open`)
           }
           const fileLookup = ctx.remote.fileReferences.list(session.sessionId, query, signal)
-            .then(result => result.ok ? result.value : [])
-          const sessionLookup = quoted === true
-            ? Promise.resolve([] as SessionReferenceMentionCandidate[])
+          const sessionLookup = quoted === true || drilled || query.trim() === ''
+            ? Promise.resolve(undefined)
             : ctx.remote.sessionReferenceResolver.candidates(session.sessionId, query, signal)
-              .then(result => result.ok ? result.value : [])
-          return Promise.all([fileLookup, sessionLookup])
+          const [fileResult, sessionResult] = await Promise.all([fileLookup, sessionLookup])
+          if (!fileResult.ok && (sessionResult === undefined || !sessionResult.ok)) throw fileResult.error
+          return [fileResult.ok ? fileResult.value : [], sessionResult?.ok === true ? sessionResult.value : []] as const
         },
       )
       if (signal.aborted) return []

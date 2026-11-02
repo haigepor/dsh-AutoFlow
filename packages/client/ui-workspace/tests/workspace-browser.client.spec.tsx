@@ -112,6 +112,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
   const props: WorkspaceBrowserProps = {
     useShortcuts: select => select([]),
     useWorkspaceShortcuts: bindSnapshotSelector(controls.state),
+    useWorkspaceActivity: hook({ archiving: [], creating: [] }),
     requestSearch: controls.search,
     requestAddWorkspace: controls.add,
     closeAddWorkspace: controls.closeAdd,
@@ -155,6 +156,32 @@ function rerender(b: ReturnType<typeof mount>, overrides: Partial<WorkspaceBrows
 }
 
 describe('WorkspaceBrowser', () => {
+  it('hides an archive gesture before confirmation and restores the row on refusal without changing its saved order', () => {
+    const activity = createSnapshotStore({ archiving: [] as readonly SessionId[], creating: [] as readonly WorkspaceId[] })
+    const b = mount({
+      useSessions: hook(sessionState([summary('one', 2), summary('two', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['one', 'two'])])),
+      useWorkspaceActivity: bindSnapshotSelector(activity),
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    expect(screen.getByText('one')).toBeTruthy()
+    const savedOrder = b.store.getSnapshot().sessionOrderByAccount
+    act(() => { activity.set({ archiving: [sid('one')], creating: [] }) })
+    expect(screen.queryByRole('treeitem', { name: /one/ })).toBeNull()
+    expect(screen.getByText('two')).toBeTruthy()
+    act(() => { activity.set({ archiving: [], creating: [] }) })
+    expect(screen.getByText('one')).toBeTruthy()
+    expect(b.store.getSnapshot().sessionOrderByAccount).toEqual(savedOrder)
+  })
+
+  it('marks the Workspace New Session button busy while creation is pending', () => {
+    mount({ useWorkspaces: hook(workspaceState([workspace('alpha', [])])),
+      useWorkspaceActivity: hook({ archiving: [], creating: [wid('alpha')] }),
+    })
+    const button = screen.getByRole('button', { name: '在“alpha”中新建会话' })
+    expect(button.getAttribute('aria-busy')).toBe('true')
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+  })
   it.each(['workspace', 'flat', 'ungrouped'] as const)('keeps %s recency independent of arrival order and saved manual positions', (mode) => {
     localStorage.clear()
     const preferences = createWorkspaceViewStore().create()

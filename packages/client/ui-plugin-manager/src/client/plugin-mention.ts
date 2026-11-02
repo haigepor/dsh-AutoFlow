@@ -2,7 +2,7 @@
 import type { BundleInfo } from '@deepseek-ai/dsh-plugin-manager/types'
 import type { LocalizedText } from '@deepseek-ai/dsh-package-manifest'
 import { PluginArtworkDefault, type IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InputTriggerSource, ReferenceInsert } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { ClientSessionContext, InputTriggerSource, ReferenceInsert } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { createElement, useState, type ComponentType } from 'react'
 import type { PluginManagerLocaleKey } from './locales.ts'
 import { BUILTIN_PROFILE_BUNDLES } from './presentation.ts'
@@ -37,15 +37,21 @@ function artwork(src: string | undefined): ComponentType<IconProps> {
  * @param listBundles - current profile bundle listing.
  * @param resolveText - current locale's plugin display text.
  * @param t - plugin manager dictionary.
+ * @param preparation - optional selection and submission preparation owned by plugin integrations.
  * @returns the source registered through the input-trigger lifecycle.
  */
 export function pluginMentionSource(
   listBundles: () => Promise<readonly BundleInfo[]>,
   resolveText: (value: LocalizedText) => string,
   t: Translate,
+  preparation?: {
+    picked(session: ClientSessionContext, name: string): void
+    prepare(session: ClientSessionContext, name: string, signal: AbortSignal): Promise<void>
+  },
 ): InputTriggerSource {
   return {
     trigger: '@', name: 'plugin', order: -10, showGroupTitle: false,
+    cacheCandidates: true,
     async candidates(_session, { query, quoted, drilled, signal }) {
       if (quoted === true || drilled) return []
       signal.throwIfAborted()
@@ -65,18 +71,21 @@ export function pluginMentionSource(
         .filter(candidate => [candidate.name, candidate.label].some(value => value.toLocaleLowerCase().includes(query.toLocaleLowerCase())))
         .sort((a, b) => a.label.localeCompare(b.label))
     },
-    onPick({ candidate }) {
+    onPick({ candidate, session }) {
+      preparation?.picked(session, candidate.name)
       return { insert: pluginReference(candidate.name, candidate.label ?? candidate.name, candidate.value) }
     },
     codec: {
       clipboardText: ref => `@${ref.replace(/^@/u, '')}`,
-      async serialize(ref, signal) {
+      async serialize(ref, signal, session) {
         signal.throwIfAborted()
         const bundles = await listBundles()
         signal.throwIfAborted()
         const bundle = bundles.find(item => item.name === ref && item.enabled
           && item.error === undefined && !BUILTIN_PROFILE_BUNDLES.has(item.name))
         if (bundle === undefined) throw new Error(t('mentionUnavailable'))
+        if (session !== undefined) await preparation?.prepare(session, ref, signal)
+        signal.throwIfAborted()
         const label = (bundle.meta?.title === undefined ? bundle.name : resolveText(bundle.meta.title))
           .replace(/[\]\r\n]/gu, ' ')
         return `@[${label}](dsh-plugin:${bundle.name})`

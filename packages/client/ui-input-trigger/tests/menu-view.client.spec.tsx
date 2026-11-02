@@ -111,6 +111,7 @@ describe('MenuView', () => {
     expect(options[0]?.querySelector('svg')).not.toBeNull()
     expect(options[1]?.querySelector('svg')).toBeNull()
     const status = screen.getByRole('status', { name: '正在加载…' })
+    expect(status.getAttribute('aria-busy')).toBe('true')
     expect(status.children).toHaveLength(2)
   })
 

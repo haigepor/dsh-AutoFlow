@@ -15,6 +15,7 @@ import type {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { detectTrigger } from '../core/detect.ts'
 import { MENU_CLOSED, menuReduce, seedGroups } from '../core/menu.ts'
+import { resolveCandidateCacheConfig, type Config } from '../config.ts'
 import type { MenuEvent, MenuState, TriggerHit } from '../core/contract.ts'
 import type {
   ClientSessionContext, InputTriggerCandidate, InputTriggerCrumb, InputTriggerSource, PickAction,
@@ -50,6 +51,17 @@ export interface InputTriggerControllerDeps {
   sessionId: SessionId
   /** Root-service roster view. */
   roster: SourceRoster
+  /** Validated completion cache limits; omitted by direct callers to use plugin defaults. */
+  cache?: Config
+}
+
+/** One query owned by this controller, including a lookup shared across menu reopenings. */
+interface CandidateCacheEntry {
+  readonly source: InputTriggerSource
+  items: readonly InputTriggerCandidate[] | undefined
+  settledAt: number
+  pending: Promise<readonly InputTriggerCandidate[]> | undefined
+  abort: AbortController | undefined
 }
 
 /**
@@ -100,10 +112,13 @@ export class InputTriggerController {
   private drilled = false
   private fetch: AbortController | null = null
   private disposed = false
+  private readonly candidateCache = new Map<string, CandidateCacheEntry>()
+  private readonly cacheConfig: Config
   /** Per-source lexicon unsubscribers (sources without the hook never enter). */
   private readonly lexiconOffs = new Map<InputTriggerSource, () => void>()
 
   constructor(private readonly deps: InputTriggerControllerDeps) {
+    this.cacheConfig = deps.cache ?? resolveCandidateCacheConfig()
     // Scope-birth prewarm: sessions are always agent-backed, so the one-time
     // roster warm here replaces the projection-transition watch — there are
     // no capability steps to react to.
@@ -348,7 +363,7 @@ export class InputTriggerController {
     if (owner?.codec === undefined) {
       return Promise.reject(new Error(`slash: no serializer for reference source "${source}"`))
     }
-    return owner.codec.serialize(ref, signal)
+    return owner.codec.serialize(ref, signal, this.project())
   }
 
   /**
@@ -384,7 +399,6 @@ export class InputTriggerController {
     const owner = this.deps.roster.all().find(candidate => candidate.name === source)
     const description = await owner?.describeReference?.(this.project(), reference, signal)
     // 异步目录返回时，dispose 和取消可能已经改变这两个值。
-    // oxlint-disable-next-line typescript/no-unnecessary-condition
     return this.disposed || signal.aborted || owner === undefined || !this.deps.roster.all().includes(owner) ? undefined : description
   }
 
@@ -439,6 +453,7 @@ export class InputTriggerController {
    * @param source - the source whose registration was disposed.
    */
   sourceRemoved(source: InputTriggerSource): void {
+    this.clearCandidateCache(source)
     const state = this.menu.getSnapshot()
     if (state.open && state.hit !== null && state.hit.trigger === source.trigger) {
       this.reduce({ type: 'source-failed', generation: state.generation, source: source.name })
@@ -480,10 +495,22 @@ export class InputTriggerController {
     this.fetchCandidates(this.hit, roster)
   }
 
+  /**
+   * Invalidate cached queries without changing the draft or Session identity.
+   * @param source - source to invalidate; omission clears every source.
+   */
+  invalidateCandidates(source?: InputTriggerSource): void {
+    if (this.disposed) return
+    this.clearCandidateCache(source)
+    const state = this.menu.getSnapshot()
+    if (source === undefined || state.groups.some(group => group.source === source.name)) this.refreshOpenMenu()
+  }
+
   /** Scope teardown: close and abort (the service deletes the map entry). */
   dispose(): void {
     this.disposed = true
     this.stopFetch()
+    this.clearCandidateCache()
     this.reduce({ type: 'close' })
     this.hit = null
     for (const off of this.lexiconOffs.values()) off()
@@ -559,14 +586,40 @@ export class InputTriggerController {
     const generation = this.menu.getSnapshot().generation
     const projection = this.project()
     for (const source of roster) {
-      void source
-        .candidates(projection, {
-          query: hit.query,
-          quoted: hit.quoted,
-          position: hit.position,
-          drilled: this.drilled,
-          signal: controller.signal,
-        })
+      const request = {
+        query: hit.query, quoted: hit.quoted, position: hit.position, drilled: this.drilled, signal: controller.signal,
+      }
+      const cacheable = source.cacheCandidates === true && this.cacheConfig.candidateCacheMaxEntries > 0
+      const key = JSON.stringify([source.trigger, source.name, hit.query, hit.quoted, hit.position, this.drilled])
+      if (cacheable) this.cancelOtherQueries(source, key)
+      let cached = cacheable ? this.candidateCache.get(key) : undefined
+      if (cached !== undefined) {
+        this.candidateCache.delete(key)
+        this.candidateCache.set(key, cached)
+        if (cached.items !== undefined && performance.now() - cached.settledAt < this.cacheConfig.candidateCacheMaxAgeMs) {
+          this.reduce({ type: 'source-settled', generation, source: source.name, items: cached.items })
+          continue
+        }
+      }
+      if (source.cacheCandidates === true) {
+        // A new query must not show the previous query's Session matches or directory rows.
+        this.reduce({ type: 'source-pending', generation, source: source.name, items: cached?.items ?? [] })
+        if (cacheable && cached === undefined) {
+          cached = { source, items: undefined, settledAt: 0, pending: undefined, abort: undefined }
+          this.candidateCache.set(key, cached)
+          while (this.candidateCache.size > this.cacheConfig.candidateCacheMaxEntries) {
+            const oldest = this.candidateCache.entries().next().value
+            if (oldest === undefined) break
+            oldest[1].abort?.abort()
+            this.candidateCache.delete(oldest[0])
+          }
+        }
+      }
+      const pending = cached === undefined
+        ? source.candidates(projection, request)
+        : cached.pending ?? this.fetchCachedCandidates(key, cached, projection, request)
+      const retained = cached?.items
+      void pending
         .then(
           (items) => {
             if (controller.signal.aborted) return
@@ -575,9 +628,69 @@ export class InputTriggerController {
           (error: unknown) => {
             if (controller.signal.aborted) return
             console.error(`[ui-input-trigger] source "${source.name}" candidates failed:`, error)
-            this.reduce({ type: 'source-failed', generation, source: source.name })
+            this.reduce(retained === undefined
+              ? { type: 'source-failed', generation, source: source.name }
+              : { type: 'source-settled', generation, source: source.name, items: retained })
           },
         )
+    }
+  }
+
+  /** Share an opted-in lookup until completion, eviction, invalidation, or Session teardown. */
+  private fetchCachedCandidates(
+    key: string,
+    entry: CandidateCacheEntry,
+    session: ClientSessionContext,
+    request: import('../types.ts').CandidateRequest,
+  ): Promise<readonly InputTriggerCandidate[]> {
+    const abort = new AbortController()
+    entry.abort = abort
+    const pending = Promise.resolve()
+      .then(() => {
+        abort.signal.throwIfAborted()
+        return entry.source.candidates(session, { ...request, signal: abort.signal })
+      })
+      .then(
+        (items) => {
+          if (!abort.signal.aborted && this.candidateCache.get(key) === entry && entry.abort === abort) {
+            entry.items = items
+            entry.settledAt = performance.now()
+            entry.pending = undefined
+            entry.abort = undefined
+          }
+          return items
+        },
+        (error: unknown) => {
+          if (this.candidateCache.get(key) === entry && entry.abort === abort) {
+            entry.pending = undefined
+            entry.abort = undefined
+            if (entry.items === undefined) this.candidateCache.delete(key)
+          }
+          throw error
+        },
+      )
+    entry.pending = pending
+    return pending
+  }
+
+  /** Cancel superseded queries while retaining completed results for later reuse. */
+  private cancelOtherQueries(source: InputTriggerSource, activeKey: string): void {
+    for (const [key, entry] of this.candidateCache) {
+      if (entry.source !== source || key === activeKey || entry.pending === undefined) continue
+      const abort = entry.abort
+      entry.pending = undefined
+      entry.abort = undefined
+      if (entry.items === undefined) this.candidateCache.delete(key)
+      abort?.abort()
+    }
+  }
+
+  /** Abort retained lookups before withdrawing their cache ownership. */
+  private clearCandidateCache(source?: InputTriggerSource): void {
+    for (const [key, entry] of this.candidateCache) {
+      if (source !== undefined && entry.source !== source) continue
+      entry.abort?.abort()
+      this.candidateCache.delete(key)
     }
   }
 

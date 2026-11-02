@@ -25,7 +25,16 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+source 可用 `cacheCandidates: true` 启用候选缓存。每个 Client Session 分别保存查询结果，区分引号路径、触发位置和目录下钻状态。命中有效缓存时立即显示，无需重复查询；首次查询显示与设置页一致的骨架行，过期刷新保留该查询已有的候选。菜单关闭后重新打开会复用尚未完成的查询。刷新失败保留已有缓存；没有缓存的失败会在下次打开时重试。缓存按最近使用顺序淘汰，并随 source 或 Session 释放。重连或语言变更会清除缓存；source 所有者在目录变化时调用 `inputTriggers.invalidateCandidates(source)`。
+
+| 配置 | 默认值 | 含义 |
+|---|---|---|
+| `candidateCacheMaxEntries` | `64` | 每个 Client Session 保留的查询上限；`0` 关闭缓存。 |
+| `candidateCacheMaxAgeMs` | `30000` | 缓存有效期，单位为毫秒；`0` 每次刷新，同时保留已缓存候选。 |
+
 来源可实现 `describeReference(session, ref, signal)`，读取已知引用的元数据，不打开菜单、不修改草稿或提交消息。控制器按来源名称路由，在读取取消、来源移除或控制器释放后丢弃响应。
+
+`ReferenceCodec.serialize(ref, signal, session)` 由控制器传入当前 Session 标识。来源可在返回要记录的引用前等待会话准备，拒绝会阻止发送。第三个参数为可选项，只使用引用和取消信号的现有 codec 可继续工作。
 
 与 `ui-conversation` 一起挂载本插件；用户在光标处键入触发器时，菜单随即出现在输入浮层中。分组候选项渲染在标题行之下，或渲染在 source 附加在自己各行上的小节标题之下；pick 路由到 source，消费方表面应用其结果——斜杠命令打开其弹窗或执行，引用插入其行内 token。菜单图标和导航箭头使用 `--dsw-alias-menu-icon` 文本色。每一行显示图标、标题（候选项的 `label`，没有 label 时显示 `name`）、当标题不是 `name` 的另一种大小写写法时跟在标题后的 `name` 别名，以及右对齐的说明；查询同时匹配 name 与 label。
 
@@ -45,7 +54,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-`src/core/` 是纯内核——触发器检测、菜单归约与精确匹配，零 React／DOM／cordis——而 `src/client/service.ts` 把内核接到菜单快照存储、逐 hit 候选拉取（以 generation 把关、被后继请求通过 `AbortSignal` 取代、失败的 source 静默丢弃并留一条 console 记录）与 pick 路径上。每个会话 scope 各解析一个 `InputTriggerController`（`sessionOf`）；对话接线层在控制器上驱动 `track`／`arbitrate`／`onSpace`／`adjudicate`。source 会被预热进它能触达的每个会话控制器；`lexicon` 名录在预热后变化的 source 实现 `subscribeLexicon`，控制器每收到通知就重拉。`MenuView` 自注册进 `conversation.input.overlay`（列表类，会话 scope），菜单关闭期间渲染 null。`listbox` 角色落在其滚动视口而非有界外壳上，因为面包屑头部不是选项，listbox 也不得承载它；面包屑走菜单存储之外的独立快照存储，冻结的归约器因此对它一无所知。overlay 的 SlotMap 合并放在本包，因为依赖方向（ui-conversation → ui-input-trigger）不允许反向的类型导入。
+`src/core/` 是纯内核——触发器检测、菜单归约与精确匹配，零 React／DOM／cordis——而 `src/client/service.ts` 把内核接到菜单快照存储、候选缓存与请求取消与 pick 路径上。每个会话 scope 各解析一个 `InputTriggerController`（`sessionOf`）；对话接线层在控制器上驱动 `track`／`arbitrate`／`onSpace`／`adjudicate`。source 会被预热进它能触达的每个会话控制器；`lexicon` 名录在预热后变化的 source 实现 `subscribeLexicon`，控制器每收到通知就重拉。`MenuView` 自注册进 `conversation.input.overlay`（列表类，会话 scope），菜单关闭期间渲染 null。`listbox` 角色落在其滚动视口而非有界外壳上，因为面包屑头部不是选项，listbox 也不得承载它；面包屑走菜单存储之外的独立快照存储，冻结的归约器因此对它一无所知。overlay 的 SlotMap 合并放在本包，因为依赖方向（ui-conversation → ui-input-trigger）不允许反向的类型导入。
 
 </details>
 

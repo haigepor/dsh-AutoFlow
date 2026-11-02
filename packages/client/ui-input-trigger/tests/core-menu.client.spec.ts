@@ -68,6 +68,25 @@ describe('menuReduce hit', () => {
   })
 })
 
+describe('menuReduce source-pending', () => {
+  it('clears unrelated rows on a cache miss and retains exact cached rows during refresh', () => {
+    const state = ready()
+    const cleared = menuReduce(state, { type: 'source-pending', generation: 1, source: 'command' })
+    expect(cleared.groups[0]).toMatchObject({ status: 'pending', items: [] })
+    expect(cleared.highlight).toBeNull()
+    const retained = menuReduce(state, { type: 'source-pending', generation: 1, source: 'command', items: [item('goal')] })
+    expect(retained.groups[0]).toMatchObject({ status: 'pending', items: [item('goal')] })
+    expect(retained.groups[1]).toBe(state.groups[1])
+  })
+
+  it('ignores withdrawn sources, closed menus, and superseded query generations', () => {
+    const state = ready()
+    expect(menuReduce(state, { type: 'source-pending', generation: 0, source: 'command' })).toBe(state)
+    expect(menuReduce(state, { type: 'source-pending', generation: 1, source: 'gone' })).toBe(state)
+    expect(menuReduce(MENU_CLOSED, { type: 'source-pending', generation: 0, source: 'command' })).toBe(MENU_CLOSED)
+  })
+})
+
 describe('menuReduce source-settled', () => {
   it('marks the group ready and highlights the first item', () => {
     let s = open(['command', 'skill'])

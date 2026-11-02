@@ -9,8 +9,10 @@ import { describe, expect, it } from 'vitest'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { createScope, scopeOf } from '@deepseek-ai/dsh-api-session-controller/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { apply, inject, InputTriggerService } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import { resolveCandidateCacheConfig } from '../src/config.ts'
 import type { MenuViewInjected } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 
 const sid = (k: string): SessionId => k as SessionId
@@ -46,6 +48,12 @@ async function bench() {
 }
 
 describe('apply', () => {
+  it('resolves cache defaults and rejects invalid deployment bounds', () => {
+    expect(resolveCandidateCacheConfig()).toEqual({ candidateCacheMaxEntries: 64, candidateCacheMaxAgeMs: 30_000 })
+    expect(resolveCandidateCacheConfig({ candidateCacheMaxEntries: 0 }).candidateCacheMaxEntries).toBe(0)
+    expect(() => resolveCandidateCacheConfig({ candidateCacheMaxEntries: -1 })).toThrow()
+    expect(() => resolveCandidateCacheConfig({ candidateCacheMaxAgeMs: -1 })).toThrow()
+  })
   it('declares the sessions and locale dependencies (scope tree + localized menu copy)', () => {
     expect(inject).toEqual(['sessions', 'locale'])
   })
@@ -65,6 +73,38 @@ describe('apply', () => {
     const { ctx } = await bench()
     await ctx.plugin({ inject: [...inject], apply }).await()
     expect(ctx.get('inputTriggers')).toBeInstanceOf(InputTriggerService)
+  })
+
+  it('applies shared settings changes to retained and subsequent candidate queries', async () => {
+    const { ctx } = await bench()
+    const form = createSnapshotStore({ value: resolveCandidateCacheConfig() })
+    ctx.provide('configForms', { get: () => form } as never)
+    try {
+      await ctx.plugin({ inject: [...inject], apply }).await()
+      const service = ctx.get('inputTriggers') as InputTriggerService
+      let revision = 0
+      service.registerSource({
+        trigger: '@', name: 'files', cacheCandidates: true,
+        candidates: () => Promise.resolve([{ name: `candidate ${++revision}`, value: 'file' }]),
+        onPick: () => undefined,
+      })
+      const controller = service.sessionOf(ctx.sessions.scope(sid('a'))!)
+      const track = (draft: string): void => { controller.track(draft, draft.length, { tier: 'plain' }, 1) }
+      const name = (): string | undefined => controller.menu.getSnapshot().groups[0]?.items[0]?.name
+      track('@')
+      await expect.poll(name).toBe('candidate 1')
+      track('')
+      track('@')
+      expect(name()).toBe('candidate 1')
+
+      form.set({ value: resolveCandidateCacheConfig({ candidateCacheMaxEntries: 0 }) })
+      await expect.poll(name).toBe('candidate 2')
+      track('')
+      track('@')
+      await expect.poll(name).toBe('candidate 3')
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 
   it('registers MenuView into the overlay and resolves the per-session controller by slot sessionId', async () => {

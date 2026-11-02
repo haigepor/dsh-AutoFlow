@@ -218,6 +218,8 @@ type ProjectRowItemProps = {
   containsCurrentDescendant?: boolean
   onToggle: () => void
   onCreate: () => void
+  /** The Host is already admitting a new Session for this Workspace. */
+  creating?: boolean
   /** Workspace rename/archive/delete actions, or the ungrouped bucket's bulk actions. */
   actions?: { rename: () => void; archive?: () => void; delete: () => void } | { archive: () => void; dismiss: () => void } | undefined
   /** Present only for real Workspace rows in the grouped view. */
@@ -281,7 +283,7 @@ function WorkspaceProjectRow({ workspaceId, ...props }: ProjectRowItemProps & { 
 }
 
 function ProjectRow({
-  group, containsCurrentDescendant = false, onToggle, onCreate, actions, drag: offeredDrag, home, newShortcut, t, access,
+  group, containsCurrentDescendant = false, onToggle, onCreate, creating = false, actions, drag: offeredDrag, home, newShortcut, t, access,
 }: ProjectRowItemProps & { access: ProjectRowAccess }) {
   const drag = access.reorder ? offeredDrag : undefined
   const row = group
@@ -371,9 +373,11 @@ function ProjectRow({
               className={css.iconButton}
               aria-keyshortcuts={newShortcut?.aria}
               aria-label={t('actions.newSession.aria', { name: label })}
+              disabled={creating}
+              aria-busy={creating}
               onClick={(e) => { e.stopPropagation(); onCreate() }}
             >
-              <IconNewChatOutlineRegular size={14} />
+              {creating ? <StateDot state="ongoing" size={14} /> : <IconNewChatOutlineRegular size={14} />}
             </button>
           </Tooltip>
         )}

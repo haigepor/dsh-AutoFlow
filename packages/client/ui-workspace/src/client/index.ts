@@ -44,7 +44,8 @@ import {
   type WorkspaceBrowserInjected, type WorkspacePickerInjected,
 } from './contract/slots.ts'
 import { createWorkspaceShortcutControls, installWorkspaceShortcuts } from './shortcuts.ts'
-import { UiWorkspaceService } from './navigation.ts'
+import { UiWorkspaceService, WORKSPACE_OPENING_PANEL_ID } from './navigation.ts'
+import { OpeningWorkspace } from './OpeningWorkspace.tsx'
 import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './rows/WorkspaceBrowser.tsx'
 import { ArchiveSessionMenuItem, ArchiveSessionRowButton, SessionArchiveConfirmDialog } from './session-actions/ArchiveSession.tsx'
@@ -315,8 +316,12 @@ export function apply(ctx: Context): void {
     requestAddWorkspace: shortcutControls.add,
     closeAddWorkspace: shortcutControls.closeAdd,
     setDirectoryBusy: shortcutControls.directoryBusy,
-    hooks: { directoryFlow: browserFlowSource, hostInfo, workspaceShortcuts: shortcutControls.state, shortcuts: ctx.shortcuts.catalog },
+    hooks: {
+      directoryFlow: browserFlowSource, hostInfo, workspaceShortcuts: shortcutControls.state,
+      shortcuts: ctx.shortcuts.catalog, workspaceActivity: uiWorkspace.activity,
+    },
   })
+  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: WORKSPACE_OPENING_PANEL_ID, locale: NS }, OpeningWorkspace))
   const pickerInjected = (): WorkspacePickerInjected => ({
     createWorkspace: input => workspaces.create(input),
     hooks: { directoryFlow: pickerFlowSource },

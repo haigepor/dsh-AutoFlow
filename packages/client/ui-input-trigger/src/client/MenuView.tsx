@@ -146,9 +146,12 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
                 : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
               {group.status === 'pending' && group.items.length === 0
                 ? (
-                  <div role="status" aria-label={t('loading')} data-source={group.source}>
-                    <div className={css.skeletonRow}><span className={css.skeletonBar} style={{ width: '32%' }} /></div>
-                    <div className={css.skeletonRow}><span className={css.skeletonBar} style={{ width: '48%' }} /></div>
+                  <div role="status" aria-label={t('loading')} aria-busy="true" data-source={group.source}>
+                    {['32%', '48%'].map(width => <div key={width} className={css.skeletonRow} aria-hidden="true">
+                      <span className={clsx(css.skeletonBar, css.skeletonIcon)} />
+                      <span className={css.skeletonBar} style={{ width }} />
+                      <span className={clsx(css.skeletonBar, css.skeletonDescription)} />
+                    </div>)}
                   </div>
                 )
                 : group.items.map((item, index) => {

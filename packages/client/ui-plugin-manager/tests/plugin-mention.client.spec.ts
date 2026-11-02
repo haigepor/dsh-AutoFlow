@@ -50,4 +50,24 @@ describe('plugin @ source', () => {
     bundles = [disabled]
     await expect(source.codec?.serialize('@example/notes', request.signal)).rejects.toThrow(en.mentionUnavailable)
   })
+
+  it('prepares the selected plugin in its Session and waits before serializing submission', async () => {
+    const gate = Promise.withResolvers<undefined>()
+    const picked = vi.fn(), prepare = vi.fn(() => gate.promise)
+    const source = pluginMentionSource(async () => [enabled], value => typeof value === 'string' ? value : value?.en ?? '', key => en[key], { picked, prepare })
+    const choices = await source.candidates(session, request)
+    source.onPick({ candidate: choices[0]!, session, position: 'inline', via: 'menu', action: 'pick', span: { start: 0, end: 1, draftRev: 1 } })
+    expect(picked).toHaveBeenCalledExactlyOnceWith(session, enabled.name)
+    const serializing = source.codec!.serialize(enabled.name, request.signal, session)
+    await vi.waitFor(() => { expect(prepare).toHaveBeenCalledExactlyOnceWith(session, enabled.name, request.signal) })
+    gate.resolve(undefined)
+    await expect(serializing).resolves.toBe('@[Notes](dsh-plugin:@example/notes)')
+  })
+
+  it('blocks submission when plugin preparation refuses the Session', async () => {
+    const source = pluginMentionSource(async () => [enabled], value => typeof value === 'string' ? value : value?.en ?? '', key => en[key], {
+      picked: vi.fn(), prepare: () => Promise.reject(new Error('Preset unavailable')),
+    })
+    await expect(source.codec!.serialize(enabled.name, request.signal, session)).rejects.toThrow('Preset unavailable')
+  })
 })

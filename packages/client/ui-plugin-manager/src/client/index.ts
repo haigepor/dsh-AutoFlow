@@ -98,6 +98,21 @@ export const PANEL_ID = 'plugins' as MainPanelId
 /** Services required by the sidebar registration and the Remote methods; the inventory says whether the Host manages a profile. */
 export const inject = ['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.pluginInventory', 'remote.pluginRegistryProbe', 'configForms', 'layout', 'uiWorkspace', 'sessions', 'conversation', 'inputTriggers', 'remoteAccess']
 
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /** A plugin reference was selected.
+     * @mode parallel
+     * @param selection Selected plugin and Session.
+     */
+    'plugin/reference-picked'(selection: { sessionId: import('@deepseek-ai/dsh-session/types').SessionId; name: string }): void
+    /** Prepare a plugin reference before sending it.
+     * @mode parallel
+     * @param selection Plugin, Session and submission lifetime.
+     */
+    'plugin/reference-prepare'(selection: { sessionId: import('@deepseek-ai/dsh-session/types').SessionId; name: string; signal: AbortSignal }): Promise<void> | void
+  }
+}
+
 /**
  * Contribute the Plugins entry to the sidebar with the management page it
  * opens, and keep it current on the Host's change events, while the current
@@ -112,11 +127,15 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-plugin-manager: dictionaries')
   const t = ctx.locale.bind(NS)
   const inputTriggers = ctx.get('inputTriggers') as InputTriggerServiceContract
-  ctx.effect(() => inputTriggers.registerSource(pluginMentionSource(async () => {
+  const mentionSource = pluginMentionSource(async () => {
     const result = await ctx.remote.pluginManager.listBundles()
     if (!result.ok) throw result.error
     return result.value
-  }, value => ctx.locale.resolveText(value), t)), 'ui-plugin-manager: @ bundles')
+  }, value => ctx.locale.resolveText(value), t, {
+    picked: (session, name) => { ctx.emit('plugin/reference-picked', { sessionId: session.sessionId, name }) },
+    prepare: async (session, name, signal) => { await ctx.parallel('plugin/reference-prepare', { sessionId: session.sessionId, name, signal }) },
+  })
+  ctx.effect(() => inputTriggers.registerSource(mentionSource), 'ui-plugin-manager: @ bundles')
   const controller = new PluginManagerController(ctx)
   ctx.effect(() => () => { controller.dispose() }, 'ui-plugin-manager: controller')
   ctx.provide('pluginChanges', { bundle: packageName => controller.observeChanges(packageName) })
@@ -131,6 +150,7 @@ export function apply(ctx: ClientContext): void {
     // this page, the CLI, or another browser — and streams install output.
     // A page never rendered holds no snapshot to refresh.
     const refresh = (): void => {
+      inputTriggers.invalidateCandidates(mentionSource)
       // A profile change can replace a bundle's files, and a restarted Host is read afresh.
       controller.details.reset()
       if (controller.getSnapshot().status !== 'idle') void controller.load()
