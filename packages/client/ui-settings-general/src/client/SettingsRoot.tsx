@@ -47,7 +47,8 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   const onboardingActive = useSessions((state) => {
     const main = Object.values(state.byId)
       .find(session => (session.retainedBy.mainView ?? 0) > 0)
-    return state.phase === 'ready' && (main === undefined || main.blank)
+    // Session management can release mainView without leaving Settings.
+    return state.phase === 'ready' && (main === undefined ? !open : main.blank)
   })
   const onboardingStep = requestedOnboarding !== undefined
     ? onboardingSteps.find(step => step.id === requestedOnboarding)

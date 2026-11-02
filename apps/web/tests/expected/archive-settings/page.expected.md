@@ -1,0 +1,41 @@
+- heading "Archived sessions" [level=1]
+- heading "Put finished conversations aside" [level=2]
+- paragraph: Archiving clears your daily list while keeping messages and Workspace positions. Restore a session whenever you need it.
+- button "Refresh list"
+- tablist "Session scope":
+  - tab "Archived 2" [selected]
+  - tab "Unarchived 1"
+- tabpanel "Archived 2":
+  - searchbox "Search session titles"
+  - 'button "Workspace: All Workspaces"': All Workspaces
+  - 'button "Last updated: All time"': All time
+  - 'button "Sort: Recently updated"': Recently updated
+  - button "Favorites only"
+  - checkbox "Select current results"
+  - text: Select current results
+  - status: 2 sessions
+  - button "Delete selected" [disabled]
+  - button "Restore selected" [disabled]
+  - button "Expand or collapse Archive project" [expanded]: Archive project {{cwd}} 1
+  - list:
+    - listitem:
+      - checkbox "Select Alpha archived"
+      - text: Select Alpha archived
+      - button "Restore and open · Alpha archived": Alpha archived
+      - text: Updated Jan 15, 2026
+      - button "Favorite Alpha archived"
+      - button "Restore"
+      - button "Restore and open"
+      - button "Delete Alpha archived"
+  - button "Expand or collapse Ungrouped" [expanded]: Ungrouped 1
+  - list:
+    - listitem:
+      - checkbox "Select Beta archived"
+      - text: Select Beta archived
+      - button "Restore and open · Beta archived": Beta archived
+      - text: Updated Jan 15, 2026
+      - button "Favorite Beta archived"
+      - button "Restore"
+      - button "Restore and open"
+      - button "Delete Beta archived"
+  - paragraph: Restore the session and open it to continue your work.

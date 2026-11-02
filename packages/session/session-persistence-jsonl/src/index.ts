@@ -14,8 +14,8 @@ import {
   sessionFormatCatalog,
 } from '@deepseek-ai/dsh-session-format-catalog'
 import { readdirSync, type Dirent } from 'node:fs'
-import { open, mkdir, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { open, mkdir, readdir, realpath, link, rename, rm, stat, truncate } from 'node:fs/promises'
+import { dirname, join, relative, resolve, isAbsolute } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
 import { createHash, randomBytes } from 'node:crypto'
@@ -23,6 +23,7 @@ import pLimit, { type LimitFunction } from 'p-limit'
 import {
   SessionPersistence, SessionPersistenceRevision, SessionFormatUnsupportedError,
   SessionPersistenceCorruptionError,
+  SessionErasureError,
   SessionAlreadyExistsError, SessionPersistenceNotFoundError,
   assertStoredId, materializeCreateHeader, sessionFormatVersionRefusal, validateStoredEvents,
   type SessionAccess, type SessionHandle,
@@ -65,6 +66,8 @@ export type { JsonlCompression } from './format.ts'
  * log, so the memo only needs the sessions in flight between those steps.
  */
 const COLD_LOG_MEMO_MAX_ENTRIES = 2
+/** Reserved staging directory: committed removals never re-enter the Session corpus. */
+const ERASURE_DIRECTORY = '.deleted-sessions'
 
 const DEFAULT_COMPRESSION: JsonlCompression = 'zstd'
 /**
@@ -104,8 +107,8 @@ export interface Config {
   compression?: JsonlCompression
   /**
    * Maximum directory, header, and stat reads in flight across all concurrent
-   * listings of this backend (`list()`, the root encoding check, and historical
-   * fingerprints). Defaults to 3.
+   * listings of this backend, the root encoding check, and historical
+   * fingerprints. Session-id directory probes share this limit. Defaults to 3.
    */
   listConcurrency?: number
 }
@@ -295,9 +298,8 @@ class JsonlSessionPersistence extends SessionPersistence {
   private root: string
   private compression: JsonlCompression
   /**
-   * Bounds directory, header, and stat I/O across every concurrent listing of
-   * this backend (`list()`, the root encoding check, historical fingerprints).
-   * Queued tasks of a cancelled listing run and reject at their signal check.
+   * Bounds listing reads and project-directory probes for session-id lookups.
+   * Queued tasks of a cancelled operation run and reject at their signal check.
    */
   private readonly listLimit: LimitFunction
   private rootEncodingCheck: Promise<void> | undefined
@@ -312,6 +314,7 @@ class JsonlSessionPersistence extends SessionPersistence {
   private readonly coldLogMemo = new Map<SessionId, StoredLog>()
   /** One joinable decode/migration operation per selected historical Session file revision. */
   private readonly migrationPreparations = new Map<SessionId, MigrationPreparation>()
+  private readonly erasureState = { accepting: true, pending: new Set<Promise<boolean>>() }
 
   constructor(ctx: Context, public config: Config, private readonly tracker: JsonlBackendTracker) {
     super(ctx)
@@ -335,6 +338,90 @@ class JsonlSessionPersistence extends SessionPersistence {
         error instanceof SessionFormatUnsupportedMigrationError,
     }
     this.assertUsableRoot()
+    ctx.effect(() => async () => {
+      this.erasureState.accepting = false
+      await Promise.allSettled([...this.erasureState.pending])
+    }, 'session-persistence-jsonl: erasure drain')
+    ctx.provide('sessionErasure', { erase: (id: SessionId) => {
+      if (!this.erasureState.accepting) return Promise.reject(new Error('Session erasure provider is closing'))
+      const task = this.eraseSession(id)
+      this.erasureState.pending.add(task)
+      void task.then(() => this.erasureState.pending.delete(task), () => this.erasureState.pending.delete(task))
+      return task
+    } })
+  }
+
+  /** Remove the whole generation directory while holding both write exclusions. */
+  private async eraseSession(id: SessionId): Promise<boolean> {
+    await this.ensureRootEncoding()
+    await this.finishErasures()
+    this.tracker.claimWrite(id)
+    let lease: SessionWriteLease | undefined
+    let committed = false
+    let failure: SessionErasureError | undefined
+    try {
+      const selected = await this.findLog(id)
+      if (selected === undefined) return false
+      const source = dirname(selected.sourcePath)
+      await this.assertErasurePath(source, this.root)
+      lease = await this.acquireLease(id, undefined, source)
+      const current = await this.stat(id)
+      if (current === undefined) return false
+      const stagingPath = join(this.root, ERASURE_DIRECTORY)
+      await mkdir(stagingPath, { recursive: true, mode: 0o700 })
+      await this.assertErasurePath(stagingPath, this.root)
+      const staging = await realpath(stagingPath)
+      const target = join(staging, `session-${randomBytes(16).toString('hex')}`)
+      const checkedTarget = relative(await realpath(staging), resolve(target))
+      if (checkedTarget === '' || checkedTarget.startsWith('..') || isAbsolute(checkedTarget)) {
+        throw new Error('Session erasure target is outside its staging directory')
+      }
+      if (process.platform === 'win32') await publishNewFileWin32(source, target)
+      else await rename(source, target)
+      committed = true
+      this.coldLogMemo.delete(id)
+      this.migrationPreparations.delete(id)
+      if (process.platform !== 'win32') {
+        await this.syncDirPosix(dirname(source))
+        await this.syncDirPosix(staging)
+      }
+      try {
+        await this.assertErasurePath(target, staging)
+        await rm(target, { recursive: true, force: true })
+      } catch (error: unknown) { if (!isENOENT(error)) throw error }
+      if (process.platform !== 'win32') await this.syncDirPosix(staging)
+      return true
+    } catch (cause: unknown) {
+      failure = new SessionErasureError(id, committed, cause)
+      throw failure
+    } finally {
+      try { await lease?.release() } catch (cause: unknown) {
+        throw new SessionErasureError(id, committed, failure === undefined ? cause : new AggregateError([failure, cause]))
+      } finally { this.tracker.releaseClaim(id) }
+    }
+  }
+
+  /** Refuse root aliases and symlink escapes before moving or recursively removing data. */
+  private async assertErasurePath(path: string, root: string): Promise<void> {
+    const inside = relative(await realpath(root), await realpath(path))
+    if (inside === '' || inside.startsWith('..') || isAbsolute(inside)) {
+      throw new Error('Session erasure path is outside its owned directory')
+    }
+  }
+
+  /** Finish physical cleanup left by an interrupted, already committed removal. */
+  private async finishErasures(): Promise<void> {
+    const staging = join(this.root, ERASURE_DIRECTORY)
+    if (!await this.exists(staging)) return
+    await this.assertErasurePath(staging, this.root)
+    for (const entry of await readdir(staging, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^session-[0-9a-f]{32}$/.test(entry.name)) continue
+      const target = join(staging, entry.name)
+      try {
+        await this.assertErasurePath(target, staging)
+        await rm(target, { recursive: true, force: true })
+      } catch (error: unknown) { if (!isENOENT(error)) throw error }
+    }
   }
 
   /**
@@ -1573,15 +1660,14 @@ class JsonlSessionPersistence extends SessionPersistence {
 
   /** Find the unique authoritative generation for an id across project directories. */
   private async findLog(id: SessionId, signal?: AbortSignal): Promise<ResolvedJsonlGeneration | undefined> {
-    const matches: ResolvedJsonlGeneration[] = []
-    for (const project of await this.listProjectDirs(signal)) {
+    const projects = await this.listLimit(() => this.listProjectDirs(signal))
+    const matches = settledValues(await settleLimited(this.listLimit, projects, async (project) => {
       signal?.throwIfAborted()
       await this.rejectLegacyFlatArtifact(project, id, signal)
       signal?.throwIfAborted()
       const dir = join(project, encodeSegment(id))
-      const selected = await this.resolveGenerationInDirectory(dir, signal)
-      if (selected !== undefined) matches.push(selected)
-    }
+      return this.resolveGenerationInDirectory(dir, signal)
+    })).filter(selected => selected !== undefined)
     if (matches.length > 1) {
       throw new Error(`duplicate JSONL session id "${id}" appears in multiple project directories`)
     }
@@ -1673,7 +1759,7 @@ class JsonlSessionPersistence extends SessionPersistence {
       signal?.throwIfAborted()
       const entries = await readdir(this.root, { withFileTypes: true })
       signal?.throwIfAborted()
-      return entries.filter(e => e.isDirectory()).map(e => join(this.root, e.name))
+      return entries.filter(e => e.isDirectory() && e.name !== ERASURE_DIRECTORY).map(e => join(this.root, e.name))
     } catch (error) {
       // Only an absent root means no sessions; rethrow every other I/O failure.
       if (isENOENT(error)) return []
@@ -1694,7 +1780,9 @@ class JsonlSessionPersistence extends SessionPersistence {
 
   /** Reject a root that already belongs to the other physical encoding. */
   private ensureRootEncoding(): Promise<void> {
-    this.rootEncodingCheck ??= this.checkRootEncoding()
+    this.rootEncodingCheck ??= this.finishErasures().catch((error: unknown) => {
+      this.ctx.logger.warn('Session erasure recovery is unfinished:', error)
+    }).then(() => this.checkRootEncoding())
     return this.rootEncodingCheck
   }
 

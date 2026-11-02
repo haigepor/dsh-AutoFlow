@@ -46,7 +46,7 @@ Choose this backend when consumers benefit from one artifact per session — nav
 |---|---|---|
 | `root` | required | Root directory for all session files |
 | `compression` | `'zstd'` | Physical encoding: `'zstd'` checksummed frames, or `'none'` newline-delimited UTF-8 text |
-| `listConcurrency` | `3` | Maximum directory, header, and stat reads in flight, shared by every concurrent listing of this backend |
+| `listConcurrency` | `3` | Maximum concurrent listing reads and session-id directory probes, shared across this backend |
 
 Live-event write batching is not configuration: the batching window is the seam's internal scheduling policy inside each write handle.
 
@@ -71,6 +71,8 @@ Each session gets a session-owned directory under a readable project directory. 
 ```
 
 Session ids are injectively escaped to one safe path segment before use (no traversal, no collision). The normalized cwd keeps the project directory readable for navigation; cwd strings that normalize alike share a project directory while session ids still select distinct session directories. Runtime operations select the numerically highest canonical generation, and format-refusal diagnostics name that absolute path so an operator can find the raw log a build refused to interpret.
+
+The backend also provides `sessionErasure`: under the in-process ownership claim and cross-process lease, it moves the selected session directory into the reserved `<root>/.deleted-sessions` directory and then removes it. This removes all of that session’s format generations together. Staged records are excluded from listing; an interrupted cleanup is retried on the next access or deletion. Resolved paths must remain inside the owned root, and a held writer refuses erasure. Cleanup failure after the move reports `SessionErasureError` with `committed: true`.
 
 ### Durability and crash semantics
 

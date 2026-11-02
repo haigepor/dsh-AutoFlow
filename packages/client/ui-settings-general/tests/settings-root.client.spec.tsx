@@ -173,9 +173,15 @@ function mount({
     act(() => { sessions.byId[activeId] = { ...session, blank: next } })
     view.rerender(<SettingsRoot {...props} />)
   }
+  const setMainView = (retained: boolean) => {
+    const session = sessions.byId[activeId]
+    if (session === undefined) throw new Error('expected the mounted Session')
+    sessions.byId[activeId] = { ...session, retainedBy: retained ? { mainView: 1 } : {} }
+    view.rerender(<SettingsRoot {...props} />)
+  }
   return {
     view, renderSlot: renderSlotMock, bump, listeners, reconnect, setConnectionState,
-    setDesktopUpdate, setShortcuts, setOnboardingActive,
+    setDesktopUpdate, setShortcuts, setOnboardingActive, setMainView,
   }
 }
 
@@ -292,6 +298,13 @@ describe('SettingsRoot trigger', () => {
 })
 
 describe('SettingsRoot onboarding', () => {
+  it('keeps Settings open when archiving releases the main Session', () => {
+    const { setMainView, renderSlot } = mount({ onboardingActive: false })
+    openPanel()
+    setMainView(false)
+    expect(screen.getByRole('button', { name: 'Settings' }).getAttribute('aria-current')).toBe('page')
+    expect(renderSlot.mock.calls.some(call => call[0] === 'settings.onboarding')).toBe(false)
+  })
   it('mounts onboarding steps in order and opens the selected section', () => {
     const { renderSlot } = mount()
     const first = renderSlot.mock.calls.find(call => call[0] === 'settings.onboarding')

@@ -75,6 +75,18 @@ function unpublishedAgent(ctx: Context, meta: SessionHeader): Agent {
 }
 
 describe('ApiSession identity failures', () => {
+  it('fences activation and explicit reuse while permanent removal is pending, then releases the fence', async () => {
+    const { agents } = await harness()
+    const id = SessionId('being-deleted')
+    const gate = Promise.withResolvers<undefined>()
+    const removing = agents.withDeletion(id, async () => gate.promise)
+    await expect(agents.resolveAgent(id)).resolves.toMatchObject({ error: { code: 'session/agent-busy' } })
+    await expect(agents.createSession({ sessionId: id, cwd: '/workspace', reusable: () => true }))
+      .rejects.toMatchObject({ code: 'session/agent-busy' })
+    gate.resolve(undefined)
+    await removing
+    await expect(agents.withDeletion(id, async () => 'released')).resolves.toBe('released')
+  })
   it('describes cwd conflicts with and without a recorded cwd', () => {
     expect(new ApiSessionCwdConflict(SessionId('missing-cwd'), '/wanted', undefined).message)
       .toContain('records no cwd')

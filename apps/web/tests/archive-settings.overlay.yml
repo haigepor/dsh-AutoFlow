@@ -1,0 +1,3 @@
+# Test the served artifacts independently of a developer's concurrent bundle watcher.
+- id: client-hmr
+  disabled: true

@@ -14,6 +14,33 @@ import type { Principal } from '@deepseek-ai/dsh-typert-protocol'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 
+/** Identity explicitly confirmed by the permanent-deletion dialog. */
+export interface SessionDeleteRequest {
+  readonly sessionId: SessionId
+}
+
+/** The selected Session record and its list references have been removed. */
+export interface SessionDeleteValue {
+  readonly deleted: true
+}
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    /** Another owner or deletion still holds this Session. */
+    'sessionDeletion/busy': { readonly sessionId: SessionId }
+    /** Running work must finish before permanent removal. */
+    'sessionDeletion/active': { readonly sessionId: SessionId }
+    /** Subagent records remain owned by their runtime. */
+    'sessionDeletion/owned': { readonly sessionId: SessionId }
+    /** Only an archived Session may be permanently removed. */
+    'sessionDeletion/not-archived': { readonly sessionId: SessionId }
+    /** The stored record was not removed. */
+    'sessionDeletion/failed': { readonly sessionId: SessionId }
+    /** The record is gone; retry finishes physical or list cleanup. */
+    'sessionDeletion/cleanup-failed': { readonly sessionId: SessionId; readonly deleted: true }
+  }
+}
+
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
     /** Persisted facts used to summarize a Session without activating it. */

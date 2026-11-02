@@ -2885,7 +2885,7 @@ describe('JsonlSessionPersistence listing concurrency', () => {
     expect(() => JsonlSessionPersistence.Config({ root: listingRoot, listConcurrency: 1.5 })).toThrow()
   })
 
-  it('bounds directory and stat reads across concurrent listings of one backend', async () => {
+  it('bounds directory and stat reads across concurrent listings and id lookups', async () => {
     await seed('/work-a', ['bound-a1', 'bound-a2', 'bound-a3'])
     await seed('/work-b', ['bound-b1', 'bound-b2', 'bound-b3'])
     const expected = ['bound-a1', 'bound-a2', 'bound-a3', 'bound-b1', 'bound-b2', 'bound-b3']
@@ -2893,14 +2893,45 @@ describe('JsonlSessionPersistence listing concurrency', () => {
 
     listingProbe.delayMs = 5
     listingProbe.active = true
-    const listings = await Promise.all([
+    const [first, second, found] = await Promise.all([
       listingCtx.sessionPersistence.list(),
       listingCtx.sessionPersistence.list(),
+      listingCtx.sessionPersistence.stat(SessionId('bound-absent')),
     ])
     listingProbe.active = false
 
     expect(listingProbe.maxInFlight).toBe(2)
-    for (const listing of listings) expect(listing.map(s => s.header.id).sort()).toEqual(expected)
+    for (const listing of [first, second]) expect(listing.map(s => s.header.id).sort()).toEqual(expected)
+    expect(found).toBeUndefined()
+  })
+
+  it('probes project directories in parallel when reserving a new Session id', async () => {
+    await seed('/work-a', ['lookup-a'])
+    await seed('/work-b', ['lookup-b'])
+    await seed('/work-c', ['lookup-c'])
+    listingProbe.delayMs = 5
+    listingProbe.active = true
+
+    const handle = await listingCtx.sessionPersistence.create(meta('lookup-new', '/work-a'))
+    try {
+      expect(listingProbe.maxInFlight).toBe(2)
+      expect((await listingCtx.sessionPersistence.stat(handle.header.id))?.header).toEqual(handle.header)
+    } finally { await handle.close() }
+  })
+
+  it('preserves the first project lookup failure and drains the other probes', async () => {
+    await seed('/work-a', ['lookup-order-a'])
+    await seed('/work-b', ['lookup-order-b'])
+    const [earlierProject, laterProject] = await directoriesOf(listingRoot) as [string, string]
+    const id = SessionId('lookup-denied')
+    const earlierFailure = Object.assign(new Error('earlier lookup denied'), { code: 'EACCES' })
+    const laterFailure = Object.assign(new Error('later lookup denied'), { code: 'EACCES' })
+    listingProbe.failures.set(join(earlierProject, encodeSegment(id)), earlierFailure)
+    listingProbe.failures.set(join(laterProject, encodeSegment(id)), laterFailure)
+    listingProbe.active = true
+
+    await expect(listingCtx.sessionPersistence.stat(id)).rejects.toBe(earlierFailure)
+    expect(listingProbe.inFlight).toBe(0)
   })
 
   it('reports the failure a sequential traversal would reach first', async () => {

@@ -118,6 +118,33 @@ export interface SessionPersistenceListOptions {
 declare module '@deepseek-ai/cordis' {
   interface Context {
     sessionPersistence: SessionPersistence
+    /** Optional backend capability for permanent removal under exclusive write ownership. */
+    sessionErasure: SessionErasure
+  }
+}
+
+/** Permanent record removal supplied by backends that support it. */
+export interface SessionErasure {
+  /**
+   * Remove every stored generation of one idle, unowned Session.
+   * @param id - stored Session identity; live writers must be retired first.
+   * @returns whether a stored record existed; absence is an idempotent success.
+   * @throws SessionAlreadyOwnedError while another writer holds the record.
+   * @throws SessionErasureError when removal fails, distinguishing committed removal.
+   */
+  erase(id: SessionId): Promise<boolean>
+}
+
+/** A committed removal cannot restore the record even when physical cleanup failed. */
+export class SessionErasureError extends Error {
+  /**
+   * @param id - affected Session.
+   * @param committed - whether the record has already left the readable corpus.
+   * @param cause - underlying filesystem failure.
+   */
+  constructor(readonly id: SessionId, readonly committed: boolean, cause: unknown) {
+    super(`session "${id}": permanent removal ${committed ? 'committed but cleanup failed' : 'failed'}`, { cause })
+    this.name = 'SessionErasureError'
   }
 }
 

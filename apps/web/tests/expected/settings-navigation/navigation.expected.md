@@ -10,5 +10,7 @@
   - heading "模型与智能体" [level=2]
   - button "模型"
   - button "Agent 预设"
+  - button "MCP 服务"
   - heading "插件与应用" [level=2]
   - button "内置插件"
+  - button "归档会话"

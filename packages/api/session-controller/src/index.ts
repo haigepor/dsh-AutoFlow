@@ -31,6 +31,7 @@ import { buildModelCatalog, hasProviderApiKey } from './catalog.ts'
 import { SessionSkillCatalog } from './skill-catalog.ts'
 import { SessionMediaReferences } from './media-references.ts'
 import { ArchivedSessionGate } from './archived-session-gate.ts'
+import { SessionDeletion } from './deletion.ts'
 import type {
   ModelCatalog,
   SessionWorkspacePathApplication,
@@ -71,6 +72,7 @@ export type * from './types.ts'
 export { ApiSessionNotFound } from './agent.ts'
 export { SessionFileReferences } from './file-references.ts'
 export { SessionSkillCatalog } from './skill-catalog.ts'
+export { SessionDeletion } from './deletion.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -211,6 +213,12 @@ export class SessionController extends TypertRemoteService {
     this.webController = new WebController(ctx, this.historyController, (observation) => { this.promote(observation) })
     this.listState = new ApiSessionList(ctx, this.listWorkSliceMs)
     await this.listState.initialize()
+    ctx.inject(['sessionErasure', 'sessionProjectionCache'], (scope) => {
+      scope.plugin(SessionDeletion, { owner: this.agents, recover: async (id) => {
+        const row = (await this.listState.list()).find(item => item.sessionId === id)
+        if (row !== undefined) ctx.emit('api-session/added', row)
+      } })
+    })
     ctx.plugin(SessionFileReferences)
     ctx.plugin(SessionMediaReferences)
     ctx.plugin(SessionSkillCatalog)
