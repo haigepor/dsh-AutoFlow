@@ -415,6 +415,7 @@ class SkillWatchManager {
       const current = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
       // A child unlink can publish an empty catalog before root unlinkDir arrives.
       // Discovery therefore revalidates the retained handle independently.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- Watch events can mark the root unhealthy during the awaited probe.
       if (!state.unhealthy && sameWatchMode(watcher.mode, current)) return
     }
     await this.replaceWatcher(state)
@@ -431,6 +432,7 @@ class SkillWatchManager {
       /* v8 ignore next -- The loop returns no handle only when teardown wins between awaited probes. */
       if (watcher === undefined) return
       /* v8 ignore start -- Post-open teardown is timing-dependent; the disposal race has an explicit integration test. */
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- dispose() can run during the awaited watcher opening.
       if (this.closing || state.owners.size === 0) {
         await this.closeWatcher(watcher)
         return
@@ -439,6 +441,7 @@ class SkillWatchManager {
       state.watcher = watcher
       state.unhealthy = false
     } catch (error) {
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- dispose() can run while the watcher opening rejects.
       if (!this.closing) {
         state.unhealthy = true
         this.ctx.logger.warn(`skill-filesystem: failed to watch ${state.root.path}: ${errorMessage(error)}`)

@@ -3,6 +3,7 @@ import { unzipSync } from 'fflate'
 import { z } from 'zod'
 import { parseSkillDocument } from '@deepseek-ai/dsh-skill-filesystem'
 import { containedPath, ManagementError } from './files.ts'
+import { readDownload } from './download.ts'
 import type { RepositorySkill } from './types.ts'
 
 /** Decode an archive after checking both compressed and expanded limits.
@@ -69,23 +70,7 @@ export async function repositoryArchive(
         redirect: 'error',
         headers: { Accept: 'application/vnd.github+json' },
       })
-      if (!response.ok || response.body === null) throw new ManagementError('network')
-      const reader = response.body.getReader()
-      const chunks: Uint8Array[] = []
-      let size = 0
-      try {
-        for (;;) {
-          const chunk = await reader.read()
-          if (chunk.done) break
-          size += chunk.value.length
-          if (size > maxBytes) throw new ManagementError('too-large')
-          chunks.push(chunk.value)
-        }
-      } finally {
-        await reader.cancel()
-        reader.releaseLock()
-      }
-      return Buffer.concat(chunks)
+      return await readDownload(response, maxBytes)
     } catch (error) {
       if (error instanceof ManagementError) throw error
       throw new ManagementError('network')

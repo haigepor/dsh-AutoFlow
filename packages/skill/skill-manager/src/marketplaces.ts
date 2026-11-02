@@ -1,6 +1,7 @@
 /** Bounded adapters for fixed public marketplace endpoints. */
 import { z } from 'zod'
 import { ManagementError } from './files.ts'
+import { readDownload } from './download.ts'
 import { decodeArchive } from './repositories.ts'
 import type { MarketplaceSkill, SkillImportFile } from './types.ts'
 
@@ -16,23 +17,7 @@ import type { MarketplaceSkill, SkillImportFile } from './types.ts'
 async function download(url: URL, maxBytes: number, timeoutMs: number): Promise<Uint8Array> {
   try {
     const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) })
-    if (!response.ok || response.body === null) throw new ManagementError('network')
-    const reader = response.body.getReader()
-    const chunks: Uint8Array[] = []
-    let total = 0
-    try {
-      for (;;) {
-        const chunk = await reader.read()
-        if (chunk.done) break
-        total += chunk.value.length
-        if (total > maxBytes) throw new ManagementError('too-large')
-        chunks.push(chunk.value)
-      }
-    } finally {
-      await reader.cancel()
-      reader.releaseLock()
-    }
-    return Buffer.concat(chunks)
+    return await readDownload(response, maxBytes)
   } catch (error) {
     if (error instanceof ManagementError) throw error
     throw new ManagementError('network')

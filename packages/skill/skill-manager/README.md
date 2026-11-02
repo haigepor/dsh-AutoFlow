@@ -22,6 +22,8 @@ Manage skill copies through ctx.skillManagement. The Web bundle mounts the servi
 
 Writes use explicit destinations and revision checks. Repository updates require an exact preview token and retain the previous bundle. Backups remain in the current profile skills-manager directory until explicitly removed. maxBytes, maxFiles and requestTimeoutMs bound uploads and downloads. Sources and classification are stored independently of skill Markdown.
 
+Repository and marketplace downloads share a bounded response reader that releases its stream after completion or rejection.
+
 Details include a directory listing bounded by maxFiles across files and directories. Listing reads names without executing scripts or following symbolic links; unreadable or truncated subtrees are explicitly marked incomplete. Flat Markdown skills list only their instruction file; runtime-only skills have no local members.
 
 The package bundles a read-only, user-only `skill-creator` under assets. It is discoverable through the native registry and explicit `/skill-creator` invocation, without adding an entry to model-facing catalogs. The skill guides requirements, native Markdown authoring, resource organization and practical validation. The settings creation action prepares a draft; it does not send a model request.
