@@ -41,7 +41,7 @@ async function rankedSearch(equalScores: boolean) {
   await f.service.initialize()
   try {
     const { id: styleId } = identity.parse(await f.action('style-create', { operationId: 'ranking-style', name: 'Ranking fixture' }))
-    await f.action('reference-import', { operationId: 'ranking-reference', styleId, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    await f.action('reference-import', { operationId: 'ranking-reference', styleId, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
     await f.action('reference-analyze', { operationId: 'ranking-analysis', styleId, buildDataset: true })
     await f.jobs.drain()
     const profile = f.repository.list('modelProfile')[0]!

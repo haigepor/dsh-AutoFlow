@@ -15,7 +15,7 @@ type Fixture = Awaited<ReturnType<typeof serviceFixture>>
 
 async function standard(fixture: Fixture) {
   const style = identified.parse(await fixture.action('style-create', { operationId: 'create', name: 'Frozen standard' }))
-  const imported = z.object({ results: z.array(z.object({ imageVersionId: z.string() })) }).parse(await fixture.action('reference-import', { operationId: 'import', styleId: style.id, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: fixture.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] }))
+  const imported = z.object({ results: z.array(z.object({ imageVersionId: z.string() })) }).parse(await fixture.action('reference-import', { operationId: 'import', styleId: style.id, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: fixture.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] }))
   const candidate = identified.parse(await fixture.action('candidate-create', { operationId: 'candidate', styleId: style.id, expectedRevision: 2 }))
   const release = identified.parse(await fixture.action('release-publish', { operationId: 'publish', styleId: style.id, expectedRevision: 3, candidateId: candidate.id }))
   const usage = identified.parse(await fixture.action('usage-create', { operationId: 'usage', name: 'Square', output: { aspectP: 1, aspectQ: 1, targetWidth: 100, targetHeight: 100, acceptedFormats: ['png'], allowUpscale: false }, safeRegions: [], protectedContent: [] }))

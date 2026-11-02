@@ -12,7 +12,7 @@ type Fixture = Awaited<ReturnType<typeof serviceFixture>>
 
 async function prepare(f: Fixture) {
   const style = idSchema.parse(await f.action('style-create', { operationId: 'style', name: 'Frozen green' }))
-  const upload = { name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }
+  const upload = { name: 'reference.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }
   await f.action('reference-import', { operationId: 'reference', styleId: style.id, expectedRevision: 1, files: [upload] })
   const candidate = idSchema.parse(await f.action('candidate-create', { operationId: 'candidate', styleId: style.id, expectedRevision: 2 }))
   const release = idSchema.parse(await f.action('release-publish', { operationId: 'publish', styleId: style.id, expectedRevision: 3, candidateId: candidate.id }))
@@ -37,7 +37,10 @@ test('editing references and the default during a blocked search keeps its sourc
       return request(url, input)
     }
     const started = z.object({ runId: z.string() }).parse(await f.action('search-start', { operationId: 'search', releaseId: release.id, usageRevisionId: usage.id, taskBrief: 'Green subject.', sourceId: 'images', targetCount: 1 }))
-    await blocked
+    await Promise.race([
+      blocked,
+      f.jobs.drain().then(() => { throw new Error('Search ended before entering its review barrier') }),
+    ])
     await f.action('reference-import', { operationId: 'new-reference', styleId: style.id, expectedRevision: 5, files: [{ ...upload, role: 'negative', intent: 'dimensions', dimensions: ['composition'] }] })
     const next = idSchema.parse(await f.action('candidate-create', { operationId: 'next-candidate', styleId: style.id, expectedRevision: 6 }))
     const published = idSchema.parse(await f.action('release-publish', { operationId: 'next-release', styleId: style.id, expectedRevision: 7, candidateId: next.id }))

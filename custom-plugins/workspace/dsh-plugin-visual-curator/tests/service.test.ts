@@ -9,9 +9,9 @@ test('real service imports references, publishes explicitly, searches/crops, rev
   await f.service.initialize()
   try {
     const style = z.object({ id: z.string(), revision: z.number() }).parse(await f.action('style-create', { name: 'Muted green', operationId: 'create' }))
-    const imported = await f.action('reference-import', { operationId: 'import', styleId: style.id, expectedRevision: 1, bytesAllowed: true, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    const imported = await f.action('reference-import', { operationId: 'import', styleId: style.id, expectedRevision: 1, bytesAllowed: true, files: [{ name: 'reference.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
     assert.equal(z.object({ results: z.array(z.object({ ok: z.boolean() })) }).parse(imported).results[0]?.ok, true)
-    assert.deepEqual(await f.action('reference-import', { operationId: 'import', styleId: style.id, expectedRevision: 1, bytesAllowed: true, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] }), imported)
+    assert.deepEqual(await f.action('reference-import', { operationId: 'import', styleId: style.id, expectedRevision: 1, bytesAllowed: true, files: [{ name: 'reference.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] }), imported)
     await f.action('reference-analyze', { styleId: style.id, operationId: 'analysis' }); await f.jobs.drain()
     assert.equal(f.repository.list('suggestion').length, 1)
     assert.equal(f.repository.list('feedback').length, 1)

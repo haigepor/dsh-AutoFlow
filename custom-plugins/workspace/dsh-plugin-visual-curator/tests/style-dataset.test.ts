@@ -86,6 +86,7 @@ test('workbench confirms API suggestions and grouping before exporting a dataset
   try {
     const styleId = await imported(f)
     await store.execute('reference-analyze', { styleId, operationId: 'ui-analysis', buildDataset: true }); await f.jobs.drain(); await store.reload()
+    await store.reconcileProfile(styleId)
     let snapshot = store.getSnapshot().snapshot!, style = snapshot.styles.find(item => item.styleId === styleId)!
     await assert.rejects(exportStyleDataset(store, style, '', true), /dataset-not-ready/)
     const suggestions = suggestedRules({ ...snapshot, images: [] }, style)

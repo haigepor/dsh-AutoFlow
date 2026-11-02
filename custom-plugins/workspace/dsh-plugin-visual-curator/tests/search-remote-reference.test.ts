@@ -44,7 +44,7 @@ async function analyzed(remote: boolean, grouped = false) {
   try {
     const { id: styleId } = identity.parse(await f.action('style-create', { operationId: 'search-style', name: 'Search reference fixture' }))
     if (remote) await f.action('gallery-import', { operationId: 'remote-reference', transferId: 'remote-transfer', mode: 'remote-reference', accountId: 'a', styleId, expectedRevision: 1, photoIds: ['park'], role: 'positive' })
-    else await f.action('reference-import', { operationId: 'byte-reference', styleId, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    else await f.action('reference-import', { operationId: 'byte-reference', styleId, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
     const { runId: analysisRunId } = taskIdentity.parse(await f.action('reference-analyze', { operationId: 'analyze-reference', styleId, buildDataset: true }))
     await f.jobs.drain()
     assert.equal(f.domain.require('run', analysisRunId).status, 'completed')

@@ -10,7 +10,7 @@ test('current rules replace the old prompt and zero-style candidates cannot beco
   const f = await serviceFixture(); await f.service.initialize()
   try {
     const style = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 's', name: 'Profile' }))
-    await f.action('reference-import', { operationId: 'i', styleId: style.id, expectedRevision: 1, files: [{ name: 'r.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    await f.action('reference-import', { operationId: 'i', styleId: style.id, expectedRevision: 1, files: [{ name: 'r.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
     await f.action('reference-analyze', { operationId: 'a', styleId: style.id, buildDataset: true }); await f.jobs.drain()
     let profile = f.repository.list('modelProfile')[0]!
     const saved = z.object({ id: z.string() }).parse(await f.action('profile-save', { operationId: 'edit', styleId: style.id, analysisRunId: profile.analysisRunId, expectedProfileId: profile.id, changes: [{ ruleId: profile.rules[0]!.ruleId, enabled: true, statement: 'Prefer red colors.' }] }))

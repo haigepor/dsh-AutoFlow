@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFile } from 'node:fs/promises'
+import sharp from 'sharp'
 import { modelProfileSchema, recipeSchema, ruleSchema, type ModelProfile, type Rule } from '../src/shared/model.ts'
 import { subjectReviewResults, subjectFocusVerdict } from '../src/host/subject-review.ts'
 import { matchStyle } from '../src/host/style-execution.ts'
@@ -48,6 +49,7 @@ test('new image-search tasks persist focal evidence and reject a contradictory s
   let observed: 'dominant' | 'incidental' | 'unknown' = 'incidental'
   const request = f.http.request.bind(f.http)
   f.http.request = async (url, input) => {
+    if (url.startsWith('https://source.example.test')) return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ items: [{ id: observed, previewUrl: `https://images.example.test/${observed}`, originalUrl: `https://images.example.test/${observed}` }], nextCursor: null })) }
     const response = await request(url, input)
     if (!url.startsWith('https://vision.example.test')) return response
     const envelope = JSON.parse(Buffer.from(response.bytes).toString('utf8')), result = JSON.parse(envelope.choices[0].message.content)
@@ -60,13 +62,14 @@ test('new image-search tasks persist focal evidence and reject a contradictory s
   }
   try {
     const style = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'focus-style', name: 'Vehicle focus' }))
-    await f.action('reference-import', { operationId: 'focus-reference', styleId: style.id, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    await f.action('reference-import', { operationId: 'focus-reference', styleId: style.id, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
     await f.action('reference-analyze', { operationId: 'focus-analysis', styleId: style.id, buildDataset: true }); await f.jobs.drain()
     const analyzed = f.repository.list('modelProfile')[0]!, subject = analyzed.options.find(option => option.rule.dimension === 'subject')!
     const selected = z.object({ id: z.string() }).parse(await f.action('profile-save', { operationId: 'enable-focus', styleId: style.id, analysisRunId: analyzed.analysisRunId, expectedProfileId: analyzed.id, changes: [{ ruleId: subject.rule.ruleId, enabled: true }] }))
     const frozen = f.domain.require('modelProfile', selected.id), recorded = []
     for (const choice of ['incidental', 'dominant', 'unknown'] as const) {
       observed = choice
+      f.http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: { incidental: '#536f53', dominant: '#234799', unknown: '#716f53' }[choice] } }).png().toBuffer()
       const start = z.object({ runId: z.string() }).parse(await f.action('search-start', { operationId: `focus-${choice}`, releaseId: frozen.id, output: { kind: 'original' }, sourceId: 'images', taskBrief: 'Find vehicle environmental portraits.', queries: ['car forest road'], targetCount: 1 }))
       await f.jobs.drain()
       const assessment = f.repository.list('assessment').find(item => item.runId === start.runId)!
