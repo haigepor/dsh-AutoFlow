@@ -7,6 +7,11 @@ on:
         description: 'Confirmed Desktop build version, such as 0.2.0-rc.2.20261010.1'
         required: true
         type: string
+      publish:
+        description: 'Publish Release and update policy; disable to retain only the test installer artifact'
+        required: false
+        default: true
+        type: boolean
       minimum_supported_version:
         description: 'Optional forced-update threshold; leaving it empty preserves the published minimum'
         required: false
@@ -71,6 +76,7 @@ jobs:
           compression-level: 0
           if-no-files-found: error
       - name: Publish Release and Pages policy
+        if: inputs.publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
           MINIMUM_SUPPORTED_VERSION: ${{ inputs.minimum_supported_version }}

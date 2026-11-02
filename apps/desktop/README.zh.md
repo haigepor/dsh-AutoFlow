@@ -237,6 +237,8 @@ Desktop 在 Host 启动后、打开工作区前检查模型 API Key 引用是否
 
 <a id="release-versions"></a>
 
+GitHub Actions 的 `Publish Windows Desktop` 工作流可传入 `publish=false`，只构建无签名测试安装包并保留 artifact，不发布 Release 或修改更新策略。省略该选项或设为 `true` 时，仍执行原有发布流程。
+
 ### 发布版本
 
 用户指定完整版本时沿用该值。一键 Windows 无签名脚本未收到版本参数时，在 Desktop 基础版本后追加 UTC 时间戳；选择唯一版本，不复用已发布版本。正式发布使用目标产品版本及真实签名配置。
