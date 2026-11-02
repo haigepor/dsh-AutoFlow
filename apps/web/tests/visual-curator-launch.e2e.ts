@@ -24,16 +24,16 @@ const BRIEF = 'Find 3 muted green landscapes with soft natural light.'
 const PAGE_FEATURES = ['ui-panel', 'ui-conversation', 'ui-settings']
 const actionEnvelopeSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), value: z.json() }),
-  z.object({ ok: z.literal(false), error: z.object({ code: z.string(), safeMessage: z.string() }).passthrough() }),
+  z.object({ ok: z.literal(false), error: z.object({ code: z.string(), safeMessage: z.string() }).loose() }),
 ])
 const searchLaunchViewSchema = z.object({
   id: z.string(), sessionId: z.string(), stage: z.string(), status: z.string(),
-  input: z.object({ taskBrief: z.string(), targetCount: z.number().int().positive() }).passthrough(),
-}).passthrough()
+  input: z.object({ taskBrief: z.string(), targetCount: z.number().int().positive() }).loose(),
+}).loose()
 
 function visionResponse(bytes: Buffer, operations: string[]) {
   const request = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([
-    z.string(), z.array(z.object({ type: z.string(), text: z.string().optional() }).passthrough()),
+    z.string(), z.array(z.object({ type: z.string(), text: z.string().optional() }).loose()),
   ]) })) }).parse(JSON.parse(bytes.toString('utf8')))
   const content = request.messages.find(message => message.role === 'user')?.content
   if (!Array.isArray(content)) throw new Error('The local vision fixture requires image content')
@@ -115,10 +115,13 @@ it('launches one native search conversation while request preparation is held, t
       if (request.method === 'POST' && request.url === '/release') { release(); json(response, { released: true }); return }
       if (request.method === 'POST' && request.url === '/close') { json(response, { closing: true }); closed.resolve(undefined); return }
       if (request.method !== 'POST' || request.url !== '/vision') { json(response, { error: 'Unknown isolated fixture route' }, 404); return }
-      const chunks: Buffer[] = []
-      for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+      const chunks: Uint8Array[] = []
+      for await (const chunk of request) {
+        if (!(chunk instanceof Uint8Array)) throw new Error('The fixture requires a binary HTTP body')
+        chunks.push(chunk)
+      }
       json(response, { choices: [{ message: { content: JSON.stringify(visionResponse(Buffer.concat(chunks), visionOperations)) }, finish_reason: 'stop' }] })
-    })().catch((error) => { json(response, { error: error instanceof Error ? error.message : 'Fixture request failed' }, 500) })
+    })().catch((error: unknown) => { json(response, { error: error instanceof Error ? error.message : 'Fixture request failed' }, 500) })
   })
   try {
     server.listen(0, '127.0.0.1')
@@ -167,7 +170,7 @@ it('launches one native search conversation while request preparation is held, t
         gateSession = agent.id
         entered.resolve(agent.id)
         const aborted = Promise.withResolvers<never>()
-        const onAbort = () => aborted.reject(signal.reason)
+        const onAbort = () => { aborted.reject(signal.reason) }
         signal.addEventListener('abort', onAbort, { once: true })
         try { signal.throwIfAborted(); await Promise.race([released.promise, aborted.promise]); signal.throwIfAborted() }
         finally { signal.removeEventListener('abort', onAbort) }
@@ -177,7 +180,7 @@ it('launches one native search conversation while request preparation is held, t
     // Production import normalizes real pixels; only the remote vision response is local.
     const fixturePng = await readFile(join(PACKAGE, 'assets/visual-curator-logo-v1.png'))
     styleId = z.object({ id: z.string() }).parse(await invoke('style-create', { operationId: randomUUID(), name: 'MCP launch fixture' })).id
-    const imported = z.object({ results: z.array(z.object({ ok: z.boolean() }).passthrough()) }).parse(await invoke('reference-import', { operationId: randomUUID(), styleId, expectedRevision: 1, files: [{ name: 'fixture-reference.png', mime: 'image/png', base64: fixturePng.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] }))
+    const imported = z.object({ results: z.array(z.object({ ok: z.boolean() }).loose()) }).parse(await invoke('reference-import', { operationId: randomUUID(), styleId, expectedRevision: 1, files: [{ name: 'fixture-reference.png', mime: 'image/png', base64: fixturePng.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] }))
     expect(imported.results).toEqual([expect.objectContaining({ ok: true })])
     const analysis = z.object({ runId: z.string() }).parse(await invoke('reference-analyze', { operationId: randomUUID(), styleId, buildDataset: true }))
     await expect.poll(async () => z.object({ status: z.string() }).parse(await invoke('run-get', { runId: analysis.runId })).status, { timeout: 30_000 }).toBe('completed')
@@ -236,11 +239,11 @@ it('launches one native search conversation while request preparation is held, t
     ready = false; release(); lifetime.abort()
     await scaffold?.close()
     await new Promise<void>((resolve, reject) => {
-      server.close(error => error === undefined ? resolve() : reject(error))
+      server.close((error) => { if (error === undefined) resolve(); else reject(error) })
       server.closeIdleConnections()
     })
     if (HOLD) {
-      const metadata = await readFile(METADATA, 'utf8').catch((error) => {
+      const metadata = await readFile(METADATA, 'utf8').catch((error: unknown) => {
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return ''
         throw error
       })

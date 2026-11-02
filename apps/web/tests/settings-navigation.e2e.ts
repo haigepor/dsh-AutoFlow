@@ -15,9 +15,18 @@ it('groups settings, finds an unmounted page setting, and keeps the rail and con
   const scaffold = await launchWebScaffold({
     extraOverlayPath: fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)),
   })
-  onTestFinished(() => scaffold.close())
-  const browser = await chromium.launch()
-  onTestFinished(() => browser.close())
+  const browser = await chromium.launch().catch(async (error: unknown) => {
+    try { await scaffold.close() } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Settings navigation startup failed')
+    }
+    throw error
+  })
+  onTestFinished(async () => {
+    const failures: unknown[] = []
+    try { await browser.close() } catch (error) { failures.push(error) }
+    try { await scaffold.close() } catch (error) { failures.push(error) }
+    if (failures.length > 0) throw new AggregateError(failures, 'Settings navigation cleanup failed')
+  })
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: ZH_BROWSER_LOCALE })
   const tripwire = watchConsole(page)
   await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
@@ -55,23 +64,35 @@ it('groups settings, finds an unmounted page setting, and keeps the rail and con
   const insets: string[] = []
   const headingStyles: string[] = []
   const headingAria: string[] = []
-  const headingGap = () => shell.locator('[data-settings-section]').evaluate((element) => {
+  const headingGap = (fromHeader = false) => shell.locator('[data-settings-section]').evaluate((element, measureHeader) => {
     const heading = element.querySelector('h1')!
-    const body = heading.closest('[data-settings-page-header]')?.nextElementSibling ?? heading.nextElementSibling
+    const header = heading.closest('[data-settings-page-header]')
+    const headingBlock = measureHeader ? header?.parentElement ?? heading : header ?? heading
+    const body = headingBlock.nextElementSibling
     const firstBox = (candidate: Element): Element | undefined => {
-      if (getComputedStyle(candidate).display === 'contents') {
+      const style = getComputedStyle(candidate)
+      if (style.position === 'absolute' || style.position === 'fixed') return undefined
+      if (style.display === 'contents') {
         return Array.from(candidate.children).map(firstBox).find(child => child !== undefined)
       }
       return candidate.getBoundingClientRect().height > 0 ? candidate : undefined
     }
-    const content = firstBox(body!)!
-    return Math.round(content.getBoundingClientRect().top - heading.getBoundingClientRect().bottom)
-  })
+    const anchor = measureHeader ? headingBlock : heading
+    for (let candidate = body; candidate !== null; candidate = candidate.nextElementSibling) {
+      const content = firstBox(candidate)
+      if (content !== undefined) return Math.round(content.getBoundingClientRect().top
+        + (measureHeader ? parseFloat(getComputedStyle(content).paddingTop) : 0)
+        - anchor.getBoundingClientRect().bottom)
+    }
+    throw new Error('The settings heading has no visible content below it')
+  }, fromHeader)
   for (const name of ['通用设置', '外观主题', '模型', '内置插件', 'Agent 预设']) {
     await shell.getByRole('button', { name, exact: true }).click()
     await shell.getByRole('region', { name, exact: true }).waitFor()
-    expect(await shell.locator('footer').getByRole('button', { name: '打开配置文件', exact: true }).count()).toBe(1)
-    expect(await shell.locator('footer').count()).toBe(1)
+    await expect.poll(() => shell.locator('[data-settings-section] [aria-busy="true"]').count(), { timeout: 15_000 }).toBe(0)
+    const shellFooterCount = name === '模型' ? 0 : 1
+    expect(await shell.locator('footer').getByRole('button', { name: '打开配置文件', exact: true }).count()).toBe(shellFooterCount)
+    expect(await shell.locator('footer').count()).toBe(shellFooterCount)
     insets.push(await shell.locator('[data-settings-section]').evaluate((element) => {
       const style = getComputedStyle(element)
       return `${style.paddingInlineStart} ${style.paddingInlineEnd} ${style.paddingBlockStart}`
@@ -80,8 +101,8 @@ it('groups settings, finds an unmounted page setting, and keeps the rail and con
       const style = getComputedStyle(element)
       return `${style.fontSize} ${style.fontWeight} ${style.lineHeight} ${style.margin}`
     }))
-    expect(await shell.locator('[data-settings-page-header] p, [data-settings-page-header] > [aria-hidden]').count()).toBe(0)
-    expect(await headingGap()).toBe(24)
+    expect(await shell.locator('[data-settings-page-header] p, [data-settings-page-header] > [aria-hidden]').count()).toBe(name === '模型' ? 1 : 0)
+    expect(await headingGap(name === '模型')).toBe(name === '模型' ? 42 : 24)
     if (name === '外观主题') {
       const row = shell.locator('section[aria-labelledby="appearance-mode-heading"]')
       const selector = row.getByRole('button', { name: '跟随系统', exact: true })
@@ -145,7 +166,7 @@ it('groups settings, finds an unmounted page setting, and keeps the rail and con
   for (const name of ['通用设置', '外观主题', '模型', '内置插件', 'Agent 预设']) {
     await shell.getByRole('button', { name, exact: true }).click()
     await shell.getByRole('region', { name, exact: true }).waitFor()
-    expect(await headingGap()).toBe(24)
+    expect(await headingGap(name === '模型')).toBe(name === '模型' ? 42 : 24)
     expect(await shell.locator('[data-settings-section]').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
   }
   expect(tripwire.pageErrors).toEqual([])

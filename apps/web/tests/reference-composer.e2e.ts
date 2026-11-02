@@ -220,10 +220,12 @@ describe.skipIf(MODE === 'record')('web e2e: file and session references through
     await menu.waitFor({ state: 'hidden' })
     await writeComposerDraft(page, input, '@')
     await menu.getByRole('option', { name: /reference\.txt/ }).waitFor()
-    expect(await menu.getByRole('status').count()).toBe(0)
+    expect(await menu.locator('[role="status"][data-source="reference"]').count()).toBe(0)
     expect(fileLookups).toBe(completedLookups)
     expect(sessionLookups).toBe(0)
     await menu.getByRole('option', { name: /reference\.txt/ }).scrollIntoViewIfNeeded()
+    await menu.locator('[role="status"][data-source="plugin"]').waitFor({ state: 'hidden' })
+    await menu.getByRole('option', { name: 'reference.txt', exact: true }).hover()
     await page.screenshot({ path: join(proofDir, `mention-cache-${process.pid}-cached.png`) })
     const snapshot = await captureStableAria(
       page, '[role="listbox"]', scaffold.workspaceCwd, {
@@ -290,7 +292,8 @@ describe.skipIf(MODE === 'record')('web e2e: file and session references through
 
     await writeComposerDraft(page, input, '@reference.txt')
     await expect.poll(() => input.locator('[data-composer-chip]').count()).toBe(0)
-    await expect.poll(() => menu.getByRole('option').allTextContents()).toEqual(['reference.txt'])
+    await menu.getByRole('option', { name: 'reference.txt', exact: true }).waitFor({ timeout: 15_000 })
+    expect(await menu.getByRole('option').allTextContents()).toEqual(['reference.txt'])
     await menu.getByRole('option', { name: 'reference.txt', exact: true }).click()
     await expect.poll(() => input.locator('[data-composer-chip]').count()).toBe(1)
 
@@ -321,7 +324,8 @@ describe.skipIf(MODE === 'record')('web e2e: file and session references through
 
     await writeComposerDraft(page, input, '@reference.txt')
     await expect.poll(() => input.locator('[data-composer-chip]').count()).toBe(0)
-    await expect.poll(() => menu.getByRole('option').allTextContents()).toEqual(['reference.txt'])
+    await menu.getByRole('option', { name: 'reference.txt', exact: true }).waitFor({ timeout: 15_000 })
+    expect(await menu.getByRole('option').allTextContents()).toEqual(['reference.txt'])
     await menu.getByRole('option', { name: 'reference.txt', exact: true }).click()
     await expect.poll(() => input.locator('[data-composer-chip]').count()).toBe(1)
 

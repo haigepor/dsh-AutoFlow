@@ -11,6 +11,7 @@
   - button "模型"
   - button "Agent 预设"
   - button "MCP 服务"
+  - button "Skills技能"
   - heading "插件与应用" [level=2]
   - button "内置插件"
   - button "归档会话"

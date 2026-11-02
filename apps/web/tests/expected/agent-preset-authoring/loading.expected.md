@@ -1,2 +1,3 @@
 - heading "Agent 预设" [level=1]
 - status: 正在加载 Agent 预设…
+- button "打开配置文件"

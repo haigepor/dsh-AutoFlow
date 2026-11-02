@@ -1,6 +1,6 @@
 - listbox "Trigger suggestions":
   - text: Plugins
-  - option "AFP photo curation dsh-plugin-afp Disabled · enable before use" [selected]
+  - option "AFP photo curation dsh-plugin-afp Disabled · enable before use"
   - option "Agent teams @deepseek-ai/dsh-experimental-agent-team-profile Disabled · enable before use"
   - option "Auto authorization review @deepseek-ai/dsh-experimental-auto-review Disabled · enable before use"
   - option "Better Sidebar dsh-better-sidebar Disabled · enable before use"
@@ -28,4 +28,4 @@
   - option "folderx/ Browse folder":
     - text: folderx/
     - button "Browse folder"
-  - option "reference.txt"
+  - option "reference.txt" [selected]
