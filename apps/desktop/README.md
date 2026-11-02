@@ -241,6 +241,8 @@ The `Publish Windows Desktop` GitHub Actions workflow accepts `publish=false` to
 
 ### Release versions
 
+Remote updates require published Release assets and the live Pages feed together. The first Pages publication needs repository administration permissions; later workflows reuse the dedicated `desktop-updates` site. Interrupted publications locate drafts in the authenticated, paginated Release list and resume by ID, preserving matching assets and rejecting ambiguous listings. Existing documentation sites and previously published minimum-supported versions remain protected.
+
 Use the user-selected complete version when supplied. The one-step unsigned Windows script otherwise appends a UTC timestamp to the Desktop base version; select a unique version and never reuse a published version. Production releases require the intended product version and signing configuration.
 
 Record the current dsh version as the base. A production Desktop release uses that exact version, including any `alpha`, `beta`, or `rc` identifiers. A test release preserves the complete prerelease base and appends `.YYYYMMDD.index`; a stable base uses `-test.YYYYMMDD.index` instead.

@@ -27,6 +27,23 @@ function token(repository: string): string {
   return password
 }
 
+async function findRelease(
+  prefix: string, tag: string, request: (path: string) => Promise<unknown>,
+): Promise<Record<string, unknown> | undefined> {
+  let found: Record<string, unknown> | undefined
+  // Authenticated listings include drafts that a tag lookup can omit during recovery.
+  for (let page = 1; ; page++) {
+    const result = await request(`${prefix}/releases?per_page=100&page=${page}`)
+    if (!Array.isArray(result)) throw new Error('desktop GitHub: invalid release list')
+    for (const item of result.map(object)) {
+      if (item.tag_name !== tag) continue
+      if (found !== undefined) throw new Error('desktop GitHub: multiple releases use the selected tag')
+      found = item
+    }
+    if (result.length < 100) return found
+  }
+}
+
 /**
  * Publish a validated release and atomically advance policy and feed files after public downloads exist.
  * @param plan Verified local assets and policy metadata.
@@ -55,10 +72,10 @@ export async function publishDesktopGithub(plan: DesktopGithubPublication, previ
   const currentRef = await request(refPath)
   const currentHead = currentRef === undefined ? undefined : object(object(currentRef).object).sha
   if (currentHead !== previousHead) throw new Error('desktop GitHub: Pages branch moved; reconcile before publishing')
+  const existing = await findRelease(prefix, plan.tag, request)
   const tagRef = await request(`${prefix}/git/refs/tags/${plan.tag}`)
   if (tagRef === undefined) await request(`${prefix}/git/refs`, 'POST', { ref: `refs/tags/${plan.tag}`, sha: plan.commit })
   else if (object(object(tagRef).object).sha !== plan.commit) throw new Error('desktop GitHub: release tag names a different commit')
-  const existing = await request(`${prefix}/releases/tags/${encodeURIComponent(plan.tag)}`)
   let release = existing === undefined ? object(await request(`${prefix}/releases`, 'POST', {
     tag_name: plan.tag, target_commitish: plan.commit, name: `AutoFlow Desktop ${plan.version}${plan.signing === 'unsigned' ? '（无签名测试版）' : ''}`,
     body: `桌面完整安装包，包含对应 dsh 运行时和 AFP 插件。\n\n${plan.signing === 'unsigned' ? '此版本未进行代码签名，仅用于无签名测试通道。' : '此版本使用发布环境完成签名。'}\n\n构建提交：${plan.commit}`,

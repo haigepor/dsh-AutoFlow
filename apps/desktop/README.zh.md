@@ -241,6 +241,8 @@ GitHub Actions 的 `Publish Windows Desktop` 工作流可传入 `publish=false`�
 
 ### 发布版本
 
+远程更新需要公开的 Release 附件和已生效的 Pages 清单。首次 Pages 发布需要仓库管理权限；后续工作流复用专用的 `desktop-updates` 站点。发布中断后，从已鉴权的分页 Release 列表定位草稿，按 ID 继续处理，保留匹配附件并拒绝不明确的列表。已有文档站点与已发布的最低支持版本继续受到保护。
+
 用户指定完整版本时沿用该值。一键 Windows 无签名脚本未收到版本参数时，在 Desktop 基础版本后追加 UTC 时间戳；选择唯一版本，不复用已发布版本。正式发布使用目标产品版本及真实签名配置。
 
 记录当前 dsh 版本作为基础版本。production Desktop 使用完全相同的版本，包括其中的 `alpha`、`beta` 或 `rc` 标识。test 发布保留完整的预发布基础版本并追加 `.YYYYMMDD.index`；稳定基础版本则追加 `-test.YYYYMMDD.index`。

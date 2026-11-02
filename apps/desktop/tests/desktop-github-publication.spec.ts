@@ -59,6 +59,7 @@ function network(plan: DesktopGithubPublication) {
   const request = vi.fn(async (path: string, method = 'GET', _body?: unknown): Promise<unknown> => {
     calls.push(`${method} ${path}`)
     if (path === '/repos/owner/repository') return { private: false }
+    if (method === 'GET' && path.includes('/releases?')) return []
     if (method === 'GET' && (path.includes('/git/refs/') || path.endsWith('/pages') || path.includes('/releases/tags/'))) return undefined
     if (path.includes('uploads.github.com')) {
       const asset = plan.assets.find(asset => asset.name === new URL(path).searchParams.get('name'))!
@@ -99,6 +100,37 @@ it('never writes Pages content when downloads are unavailable or the checkout is
   request.mockClear()
   await expect(publishDesktopGithub({ ...plan, dirty: true }, undefined, request)).rejects.toThrow('clean')
   expect(request).not.toHaveBeenCalled()
+})
+
+it('resumes a paginated draft by ID and uploads only its missing matching asset', async () => {
+  const { plan } = await fixture()
+  const { request, publicRequest } = network(plan)
+  const original = request.getMockImplementation()!
+  const first = plan.assets[0]!
+  request.mockImplementation(async (path, method = 'GET', body) => {
+    if (path.endsWith('/releases?per_page=100&page=1')) return Array.from({ length: 100 }, (_, index) => ({ tag_name: `other-${index}` }))
+    if (path.endsWith('/releases?per_page=100&page=2')) return [{ id: 42, tag_name: plan.tag, draft: true,
+      assets: [{ name: first.name, size: first.size, digest: `sha256:${first.sha256}` }] }]
+    if (path.endsWith('/releases/42') && method === 'PATCH') return { html_url: `https://github.com/owner/repository/releases/tag/${plan.tag}` }
+    return original(path, method, body)
+  })
+  await publishDesktopGithub(plan, undefined, request, publicRequest)
+  expect(request.mock.calls.some(([path, method]) => path.endsWith('/releases') && method === 'POST')).toBe(false)
+  const uploads = request.mock.calls.filter(([path]) => path.includes('uploads.github.com'))
+  expect(uploads.map(([path]) => new URL(path).searchParams.get('name'))).toEqual([plan.assets[1]!.name])
+  expect(uploads[0]![0]).toContain('/releases/42/assets?')
+  expect(request.mock.calls.some(([path, method]) => path.endsWith('/releases/42') && method === 'PATCH')).toBe(true)
+})
+
+it.each(['ambiguous', 'malformed'] as const)('rejects %s release listings before creating a version or policy', async (mode) => {
+  const { plan } = await fixture()
+  const { request, publicRequest } = network(plan)
+  const original = request.getMockImplementation()!
+  request.mockImplementation(async (path, method, body) => path.includes('/releases?')
+    ? mode === 'ambiguous' ? [{ tag_name: plan.tag }, { tag_name: plan.tag }] : { message: 'invalid listing' }
+    : original(path, method, body))
+  await expect(publishDesktopGithub(plan, undefined, request, publicRequest)).rejects.toThrow(mode === 'ambiguous' ? 'multiple releases' : 'release list')
+  expect(request.mock.calls.filter(([, method]) => method === 'POST' || method === 'PATCH')).toEqual([])
 })
 
 it('refuses to replace an existing documentation Pages site or a concurrently advanced branch', async () => {
