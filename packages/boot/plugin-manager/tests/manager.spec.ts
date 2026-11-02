@@ -470,6 +470,12 @@ it('serves only declared icon images as content-addressed files even when the bu
   expect(response.headers.get('content-type')).toBe('image/svg+xml')
   expect(response.headers.get('content-security-policy')).toContain('sandbox')
   expect(await response.text()).toBe(image)
+  const checkedManifestPath = join(dir, 'node_modules', 'extra', 'package.json')
+  const checkedManifest = JSON.parse(readFileSync(checkedManifestPath, 'utf8')) as { dsh: { bundle: { features: Array<{ icon?: string }> } } }
+  delete checkedManifest.dsh.bundle.features[0]!.icon
+  writeFileSync(checkedManifestPath, JSON.stringify(checkedManifest))
+  await manager.checkBundleUpdates()
+  expect((await fetch(new URL(icon, base))).status).toBe(200)
   const head = await fetch(new URL(icon, base), { method: 'HEAD' })
   expect(head.status).toBe(200)
   expect(await head.text()).toBe('')

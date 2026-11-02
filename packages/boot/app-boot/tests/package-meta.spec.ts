@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { ModuleLoader } from '@deepseek-ai/cordis-plugin-loader'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { readPluginMeta, resolvePluginResource } from '../src/package-meta.ts'
+import { readPluginMeta, readPluginMetaAsync, resolvePluginResource } from '../src/package-meta.ts'
 import { installRuntimeInterception } from '../src/profile-resolution/resolver.ts'
 import { registerHooksThreadStacks } from './hooks-thread-stack.ts'
 
@@ -42,6 +42,47 @@ afterEach(() => {
 })
 
 describe('plugin locale display metadata', () => {
+  it('reads runtime locale dictionaries without synchronous file reads', async () => {
+    dictionary('en', { meta: { title: 'Runtime plugin' } })
+    dictionary('zh', { meta: { title: '运行时插件' } })
+    const original = fs.readFileSync
+    let synchronousLocaleReads = 0
+    const reader = vi.spyOn(fs, 'readFileSync').mockImplementation(new Proxy(original, {
+      apply(target, receiver: unknown, args: unknown[]): unknown {
+        if (String(args[0]).startsWith(join(dir, 'locale'))) synchronousLocaleReads++
+        return Reflect.apply(target, receiver, args)
+      },
+    }))
+    syncBuiltinESMExports()
+    try {
+      expect(await readPluginMetaAsync('localized', parentURL)).toEqual({
+        title: { en: 'Runtime plugin', zh: '运行时插件' },
+      })
+      expect(synchronousLocaleReads).toBe(0)
+    } finally {
+      reader.mockRestore()
+      syncBuiltinESMExports()
+    }
+  })
+
+  it('rereads runtime translations and retains text when icon validation fails', async () => {
+    manifest({ '.': './index.js', './package.json': './package.json', './locale/*.json': './locale/*.json' },
+      { description: 'Fallback description', icon: './invalid.txt' })
+    file(join(dir, 'invalid.txt'), 'invalid icon')
+    dictionary('en', { meta: { title: 'First title' } })
+    dictionary('zh', { meta: { title: '首个标题' } })
+    const initial = await readPluginMetaAsync('localized', parentURL)
+    expect(initial).toMatchObject({
+      title: { en: 'First title', zh: '首个标题' }, description: 'Fallback description',
+    })
+    expect(initial?.error).toContain('icon must be SVG, PNG, JPEG, or WebP')
+    expect(initial?.icon).toBeUndefined()
+    dictionary('en', { meta: { title: 'Updated title' } })
+    expect((await readPluginMetaAsync('localized', parentURL))?.title).toEqual({ en: 'Updated title', zh: '首个标题' })
+    dictionary('zh', { meta: { title: '' } })
+    expect((await readPluginMetaAsync('localized', parentURL))?.error).toContain('meta.title must be a non-empty string')
+  })
+
   it.each([
     'C:\\plugins\\search.js',
     'C:/plugins/search.js',

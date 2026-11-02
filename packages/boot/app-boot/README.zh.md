@@ -90,7 +90,10 @@ profile 导入插件前，DSH 会将其声明的 DSH 版本要求与 `getDshRunt
 
 投影器使用 Ajv 根据生成的 schema 检查字面量默认值，以保留原生省略行为，不执行原生验证器或 transform 回调。正则兼容性检查、不支持的情况及递归默认值分析会产生显式限制说明。不透明的输入转换和 lazy 元数据副作用会放宽验证，而不是重放原生修改。非 JSON 默认值或展示注释会被省略并附上限制说明，不丢弃结构 schema；无法表示的默认值使省略接受性保持未知，必填字段除外。这些依赖仅在收集运行时加载。导入、Config getter 和 lazy builder 仍会执行可信代码；收集不是沙箱。profile 解析拦截不得重叠。收集器返回前释放自己的拦截，而 Node 仍缓存导入的模块；运行时创建的插件和 Agent preset 实例不在发现范围内。
 
+<a id="reading-plugin-display-metadata"></a>
 ### 读取插件展示元信息
+
+运行时清单请求使用 `readPluginMetaAsync(specifier, parentURL)` 或 `ctx.pluginPackages.metaOfAsync(specifier, parentURL)`，在读取 locale 和清单 JSON 时让出事件循环。每次调用重新读取资源，遵循同步读取器的翻译、导出和图标校验规则，不缓存元信息或激活插件。
 
 `resolvePluginResource(specifier, parentURL)` 通过活动的 Node ESM 解析器将插件模块或导出资源解析为本地文件路径，不执行其代码。解析器不可用或资源无法解析为本地文件时会抛出错误。
 

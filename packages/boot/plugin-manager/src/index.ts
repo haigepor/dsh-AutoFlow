@@ -18,7 +18,7 @@ import type {} from '@deepseek-ai/dsh-client-connection'
 import { readBundleDocument, readBundleImage, type BundleDetailOptions } from './bundle-detail.ts'
 import { pluginEntryId, readPluginInventory } from '@deepseek-ai/dsh-host-plugin-inventory'
 import {
-  readPluginMeta, readPluginIcon, readProfileManifest, resolveBundleDir,
+  readPluginMetaAsync, readPluginIcon, readProfileManifest, resolveBundleDir,
   loadOverlayPatches, composeEntries, readProfilePatches, bundlePatchPaths,
   evaluatePluginCompatibility, readProfileCompatibility, readProfileVersionExemptions, setProfileVersionExemption,
   PROFILE_COMPATIBILITY_FILENAME, resolveBundleUpdateSource, bundleFeatureConfigPath, readBundleFeatureConfig,
@@ -578,7 +578,7 @@ export class PluginManager extends TypertRemoteService {
    */
   @Remote
   async checkBundleUpdates(): Promise<BundleUpdateInfo[]> {
-    const bundles = await this.listBundles()
+    const bundles = await this.readBundles(false)
     return Promise.all(bundles.filter(bundle => bundle.update !== undefined).map(bundle => this.checkUpdate(bundle.name)))
   }
 
@@ -741,11 +741,12 @@ export class PluginManager extends TypertRemoteService {
   private sweepUpdates(): void {
     if (this.abort.signal.aborted || this.updateSweep !== undefined) return
     const task = (async () => {
-      for (const state of await this.checkBundleUpdates()) {
+      const states = await this.checkBundleUpdates()
+      for (const state of states) {
         if (this.abort.signal.aborted) break
         if (readAutomaticUpdates(this.profile.dir)[state.name] === true && state.status === 'available' && !state.restartRequired) await this.updateBundleRelease(state.name)
       }
-      if (!this.abort.signal.aborted) this.ownerContext.emit('plugin-manager/changed', { reason: 'bundle' })
+      if (states.length > 0 && !this.abort.signal.aborted) this.ownerContext.emit('plugin-manager/changed', { reason: 'bundle' })
     })().catch((error: unknown) => {
       if (!this.abort.signal.aborted) this.ownerContext.logger.warn('Plugin update check failed', error)
     }).finally(() => { this.updateSweep = undefined; this.packageOperations.delete(task) })
@@ -850,12 +851,12 @@ export class PluginManager extends TypertRemoteService {
    * display metadata, activation selections, whether the installation offers the bundle, and removal availability.
    */
   @Remote
-  listBundles(): Promise<BundleInfo[]> {
-    return Promise.resolve(this.readBundles().map(bundle => ({ ...bundle, updatable: typeof updateRefusal(bundle, bundle.name) !== 'string' })))
+  async listBundles(): Promise<BundleInfo[]> {
+    return (await this.readBundles(true)).map(bundle => ({ ...bundle, updatable: typeof updateRefusal(bundle, bundle.name) !== 'string' }))
   }
 
-  /** The bundle inventory before update eligibility, which is derived from each listed bundle. */
-  private readBundles(): Omit<BundleInfo, 'updatable'>[] {
+  /** Bundle inventory before update eligibility; release checks skip localized display metadata. */
+  private async readBundles(displayMetadata: boolean): Promise<Omit<BundleInfo, 'updatable'>[]> {
     const icons = new Map<string, PluginIcon>()
     const iconURL = (image: PluginIcon): string => {
       if (!this.webIcons) return `data:${image.contentType};base64,${image.bytes.toString('base64')}`
@@ -928,11 +929,11 @@ export class PluginManager extends TypertRemoteService {
         const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
         const manifestPath = join(dir, 'package.json')
         const updateManager = resolveBundleUpdateManager(name, this.profile.installAnchor, this.profile.dir)
-        let meta = offered?.meta ?? readPluginMeta(name, pathToFileURL(manifestPath).href, iconURL)
+        let meta = displayMetadata ? offered?.meta ?? await readPluginMetaAsync(name, pathToFileURL(manifestPath).href, iconURL) : undefined
         // 独立更新只替换实现；随应用提供的自定义图标继续由安装目录持有。
-        if (updateManager !== undefined && Object.hasOwn(installation.dependencies ?? {}, name)) {
+        if (displayMetadata && updateManager !== undefined && Object.hasOwn(installation.dependencies ?? {}, name)) {
           const shippedDir = resolveBundleDir('dsh', name, this.profile.installAnchor, dirname(this.profile.installAnchor))
-          const shippedMeta = readPluginMeta(name, pathToFileURL(join(shippedDir, 'package.json')).href, iconURL)
+          const shippedMeta = await readPluginMetaAsync(name, pathToFileURL(join(shippedDir, 'package.json')).href, iconURL)
           if (shippedMeta?.icon !== undefined) meta = { ...meta, icon: shippedMeta.icon }
         }
         // 待重启时继续展示旧选择，只有下一次启动才迁移新版功能文件。
@@ -957,7 +958,7 @@ export class PluginManager extends TypertRemoteService {
           ...meta === undefined ? {} : { meta },
           ...sourceOf(info.name), enabled, installed, optional, removable: removable && readOnlyReason === undefined,
           ...(readOnlyReason === undefined ? {} : { readOnlyReason }),
-          ...this.declaredRows(name, info, iconURL),
+          ...await this.declaredRows(name, info, iconURL, displayMetadata),
           ...(features.length === 0 ? {} : { features }),
           ...(examples.length === 0 ? {} : { examples }),
           ...error === undefined ? {} : { error } })
@@ -971,7 +972,7 @@ export class PluginManager extends TypertRemoteService {
       }
     }
     // 一次完整列表替换资源表，避免反复刷新累积旧图标；未启用的组合包也拥有图标。
-    this.iconAssets = icons
+    if (displayMetadata) this.iconAssets = icons
     return bundles
   }
 
@@ -1578,7 +1579,7 @@ export class PluginManager extends TypertRemoteService {
   }
 
   /** The rows a bundle's patch inserts and the existing rows it changes; an unreadable patch throws. */
-  private declaredRows(name: string, info: ProfileManifest, iconURL: (image: PluginIcon) => string): Pick<BundleInfo, 'rows' | 'overrides'> {
+  private async declaredRows(name: string, info: ProfileManifest, iconURL: (image: PluginIcon) => string, displayMetadata: boolean): Promise<Pick<BundleInfo, 'rows' | 'overrides'>> {
     const bundle = info.dsh?.bundle
     /* v8 ignore next -- bundleManifest answers only manifests that declare a patch */
     if (bundle === undefined) return { rows: [], overrides: [] }
@@ -1599,7 +1600,7 @@ export class PluginManager extends TypertRemoteService {
       const active = live.get(row.id)
       const entryId = active?.entryId
       const base = active?.baseUrl ?? pathToFileURL(join(dir, 'package.json')).href
-      const meta = this.ctx.get('pluginPackages') === undefined ? undefined : readPluginMeta(row.name, base, iconURL)
+      const meta = !displayMetadata || this.ctx.get('pluginPackages') === undefined ? undefined : await readPluginMetaAsync(row.name, base, iconURL)
       rows.push({ rowId: row.id, moduleName: row.name,
         ...entryId === undefined ? {} : { entryId }, ...meta === undefined ? {} : { meta } })
     }

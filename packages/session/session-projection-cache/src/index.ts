@@ -8,9 +8,9 @@
  * first, then memory), so a read can never observe a disk write the memory
  * has not applied, or a memory value the disk does not hold. The cache is a
  * fold shortcut, never an authority: a row
- * is possibly stale (its `seq` says how stale) but never wrong, so every
- * write path is fail-soft (a lost write costs a longer tail replay on the
- * next cold read) and a `ver` mismatch discards the row instead of migrating
+ * is possibly stale (its `seq` says how stale) but never wrong, so checkpoint
+ * writes are fail-soft (a lost write costs a longer tail replay on the
+ * next cold read); explicit erasure reports failures. A `ver` mismatch discards the row instead of migrating
  * it. Design authority: the session-projection RFC
  * (.agents/notes/proposed/architecture/2026-07-27-session-projection-and-command-log.md).
  * @module @deepseek-ai/dsh-session-projection-cache
@@ -99,7 +99,7 @@ interface DirtyState {
  * (count/interval triggers from {@link Config}) plus three mandatory points —
  * session creation, `turn/end`, and session disposal (the live-to-cold
  * moment) — and serves the
- * cached rows for a session header. Every durable write is fail-soft:
+ * cached rows for a session header. Checkpoint writes are fail-soft:
  * failures log a warning and the cache self-heals on the next write.
  */
 export class SessionProjectionCache extends Service {
@@ -109,6 +109,8 @@ export class SessionProjectionCache extends Service {
 
   private table?: KvTable<SessionId, CheckpointRecord>
   private readonly dirty = new Map<Session, DirtyState>()
+  private readonly erasureEpochs = new Map<SessionId, number>()
+  private readonly erasedLifecycles = new Map<SessionId, Set<string>>()
 
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'sessionProjectionCache')
@@ -255,6 +257,7 @@ export class SessionProjectionCache extends Service {
    * @returns resolution after durability and event emission.
    */
   async write(session: Session): Promise<void> {
+    const epoch = this.erasureEpochs.get(session.id) ?? 0
     const rows = this.ctx.sessionProjections.checkpoint(session)
     this.markClean(session)
     // Durability barrier: the checkpoint cut was taken above, so flushing
@@ -269,7 +272,25 @@ export class SessionProjectionCache extends Service {
       session.id,
       identityOf(session.header, session.inheritedEventCount),
       rows,
+      epoch,
     )
+  }
+
+  /**
+   * Erase a retired Session's checkpoint and fence delayed pre-retirement writes.
+   * @param id - Session whose durable record has been permanently removed.
+   * @param header - removed lifecycle, also fencing late cold-read write-backs.
+   * @returns settlement of the cache deletion.
+   */
+  async remove(id: SessionId, header?: SessionHeader): Promise<void> {
+    const identity = header ?? this.requireTable().get(id)?.identity
+    if (identity !== undefined) {
+      let removed = this.erasedLifecycles.get(id)
+      if (removed === undefined) { removed = new Set(); this.erasedLifecycles.set(id, removed) }
+      removed.add(JSON.stringify([identity.createdAt, identity.cwd, identity.isSeeded ?? false]))
+    }
+    this.erasureEpochs.set(id, (this.erasureEpochs.get(id) ?? 0) + 1)
+    await this.requireTable().delete(id)
   }
 
   /**
@@ -387,7 +408,12 @@ export class SessionProjectionCache extends Service {
   }
 
   /** Replace one session's stored record with its log identity and a detached snapshot of `rows`. */
-  private async put(id: SessionId, identity: CheckpointIdentity, rows: ProjectionCheckpoint): Promise<void> {
+  private async put(
+    id: SessionId, identity: CheckpointIdentity, rows: ProjectionCheckpoint,
+    epoch = this.erasureEpochs.get(id) ?? 0,
+  ): Promise<void> {
+    if (epoch !== (this.erasureEpochs.get(id) ?? 0)) return
+    if (this.erasedLifecycles.get(id)?.has(JSON.stringify([identity.createdAt, identity.cwd, identity.isSeeded ?? false]))) return
     const detached = snapshotJsonValue(rows)
     if (detached === undefined) {
       throw new TypeError('projection checkpoint is not losslessly JSON-serializable (a unit state violates the plain-JSON contract)')

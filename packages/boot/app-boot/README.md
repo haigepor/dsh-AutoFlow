@@ -90,7 +90,10 @@ The generated JSON Schema 2020-12 describes the composed entry list, with `$defs
 
 The projector preserves native omission behavior by checking literal defaults against generated schemas with Ajv, without executing native validators or transform callbacks. Regex compatibility checks and unsupported or recursive-default cases produce explicit limitations. Opaque input adaptations and lazy metadata effects widen validation rather than replaying native mutation. Non-JSON default/presentation annotations are omitted with limitations without losing the structural schema; an unrepresentable default leaves omission acceptance unknown unless the field is required. These dependencies load only when collection runs. Imports, Config getters, and lazy builders still execute trusted code; collection is not a sandbox. Do not overlap profile-resolution interceptions. The collector releases its interception before returning, while Node retains imported modules; runtime-created plugins and Agent preset instances remain outside discovery.
 
+<a id="reading-plugin-display-metadata"></a>
 ### Reading plugin display metadata
+
+Runtime inventory requests use `readPluginMetaAsync(specifier, parentURL)` or `ctx.pluginPackages.metaOfAsync(specifier, parentURL)` to yield during locale and manifest JSON reads. Each call rereads the resources and retains the synchronous reader's translation, export and icon-validation rules; no metadata cache or plugin activation is involved.
 
 `resolvePluginResource(specifier, parentURL)` resolves a plugin module or exported resource to its local filesystem path through the active Node ESM resolver without evaluating it. It throws when the resolver is unavailable or the resource cannot resolve to a local file.
 

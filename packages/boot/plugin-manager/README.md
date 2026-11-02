@@ -30,6 +30,8 @@ Manage the current profile's plugins without editing configuration by hand. Enab
 <a id="use-this-package"></a>
 ## Use this package
 
+Plugin and bundle inventories load display metadata through the [asynchronous runtime reader](../app-boot/README.md#reading-plugin-display-metadata). Update checks omit localized display metadata; a check with no declared update sources emits no bundle-change notification.
+
 Bundle metadata may declare selectable features and example prompts. Feature choices persist in the profile, survive independent updates, and apply after the required restart. Row changes share a comment-preserving patch transaction that removes redundant enablement overrides against the selected bundle composition. Installation validates engine requirements together with peers; discovered official catalog targets do not install until requested.
 
 Base-backed profiles provide the manager. In Web, the sidebar's **Plugins** page ([ui-plugin-manager](../../client/ui-plugin-manager/README.md)) manages the profile's bundles and their uniquely addressable rows; the Settings Plugin list stays read-only. Agent-preset rows remain read-only. The `plugin_manager` tool exposes the same operations and is enabled in the Standard and Creator presets. Other presets keep it disabled by default. Every tool action requires `danger-full-access` or approval for that call. Under lower sandbox modes, `ask` requests approval; `never`, rejection, cancellation, or an unavailable approval channel prevents execution. An approval leaves the session permission mode unchanged. Profile changes persist across sessions, and installed Host code executes in-process outside the workspace sandbox. Dependency build-script approval remains separate.

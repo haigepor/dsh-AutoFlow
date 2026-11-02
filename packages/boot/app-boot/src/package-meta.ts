@@ -1,6 +1,7 @@
 /** Read plugin display text and icons through exported resources without evaluating plugin code. */
 
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { readdir, readFile } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ModuleLoader } from '@deepseek-ai/cordis-plugin-loader'
@@ -153,29 +154,62 @@ function readObject(file: string): Record<string, unknown> {
   return objectOf(contents, file)
 }
 
+async function readObjectAsync(file: string): Promise<Record<string, unknown>> {
+  let contents: unknown
+  try {
+    contents = JSON.parse(await readFile(file, 'utf8'))
+  } catch (error) {
+    throw new Error(`${file}: ${String(error)}`)
+  }
+  return objectOf(contents, file)
+}
+
 function fallbackText(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined
 }
 
-function dictionariesOf(englishPath: string, specifier: string, parentURL: string): Map<string, DisplayFields> {
-  const dictionaries = new Map<string, DisplayFields>()
-  for (const entry of readdirSync(dirname(englishPath), { withFileTypes: true })) {
-    if (!entry.name.endsWith('.json')) continue
-    const resource = `${specifier}/locale/${entry.name}`
-    const language = entry.name.slice(0, -5)
+function* dictionaryFiles(
+  names: readonly string[], englishPath: string, specifier: string, parentURL: string,
+): IterableIterator<readonly [string, string]> {
+  const languages = new Set<string>()
+  for (const name of names) {
+    if (!name.endsWith('.json')) continue
+    const resource = `${specifier}/locale/${name}`
+    const language = name.slice(0, -5)
     if (!LANGUAGE_ID.test(language)) throw new Error(`${resource} must use a language id as its filename`)
     const id = language.toLowerCase()
-    if (dictionaries.has(id)) throw new Error(`${resource} duplicates locale ${id}`)
+    if (languages.has(id)) throw new Error(`${resource} duplicates locale ${id}`)
     const file = resolvePluginResource(resource, parentURL)
     if (dirname(file) !== dirname(englishPath)) {
       throw new Error(`${resource}: ${file} must share the English locale directory ${dirname(englishPath)}`)
     }
-    const parsed = readObject(file)
-    const meta = parsed.meta === undefined ? undefined : objectOf(parsed.meta, `${file}: meta`)
-    dictionaries.set(id, {
-      title: textOf(meta?.title, `${file}: meta.title`),
-      description: textOf(meta?.description, `${file}: meta.description`),
-    })
+    languages.add(id)
+    yield [id, file]
+  }
+}
+
+function displayFields(parsed: Record<string, unknown>, file: string): DisplayFields {
+  const meta = parsed.meta === undefined ? undefined : objectOf(parsed.meta, `${file}: meta`)
+  return {
+    title: textOf(meta?.title, `${file}: meta.title`),
+    description: textOf(meta?.description, `${file}: meta.description`),
+  }
+}
+
+function dictionariesOf(englishPath: string, specifier: string, parentURL: string): Map<string, DisplayFields> {
+  const dictionaries = new Map<string, DisplayFields>()
+  const names = readdirSync(dirname(englishPath), { withFileTypes: true }).map(entry => entry.name)
+  for (const [id, file] of dictionaryFiles(names, englishPath, specifier, parentURL)) {
+    dictionaries.set(id, displayFields(readObject(file), file))
+  }
+  return dictionaries
+}
+
+async function dictionariesOfAsync(englishPath: string, specifier: string, parentURL: string): Promise<Map<string, DisplayFields>> {
+  const dictionaries = new Map<string, DisplayFields>()
+  const names = (await readdir(dirname(englishPath), { withFileTypes: true })).map(entry => entry.name)
+  for (const [id, file] of dictionaryFiles(names, englishPath, specifier, parentURL)) {
+    dictionaries.set(id, displayFields(await readObjectAsync(file), file))
   }
   return dictionaries
 }
@@ -189,6 +223,26 @@ function localizedText(
   })
   if (entries.length === 0) return fallback
   return { en: fallback ?? finalFallback, ...Object.fromEntries(entries) }
+}
+
+function metadataOf(
+  specifier: string, packageName: string, parentURL: string, manifestPath: string | undefined,
+  manifest: Record<string, unknown> | undefined, dictionaries: Map<string, DisplayFields>, iconURL?: (icon: PluginIcon) => string,
+): PluginLocalizedMeta | undefined {
+  const title = localizedText('title', dictionaries, fallbackText(manifest?.name), specifier)
+  const description = localizedText('description', dictionaries, fallbackText(manifest?.description), '')
+  const text = {
+    ...title === undefined ? {} : { title },
+    ...description === undefined ? {} : { description },
+  }
+  let icon: string | undefined
+  try {
+    icon = iconOf(specifier, packageName, parentURL, manifestPath, manifest?.icon, iconURL)
+  } catch (error) {
+    return { ...text, error: `Plugin metadata for ${specifier}: ${String(error)}` }
+  }
+  if (title === undefined && description === undefined && icon === undefined) return undefined
+  return { ...text, ...icon === undefined ? {} : { icon } }
 }
 
 /**
@@ -219,20 +273,31 @@ export function readPluginMeta(
     const dictionaries = englishPath === undefined ? new Map<string, DisplayFields>() : dictionariesOf(englishPath, specifier, parentURL)
     const manifestPath = packageName === specifier ? optionalResourcePath(`${specifier}/package.json`, parentURL) : undefined
     const manifest = manifestPath === undefined ? undefined : readObject(manifestPath)
-    const title = localizedText('title', dictionaries, fallbackText(manifest?.name), specifier)
-    const description = localizedText('description', dictionaries, fallbackText(manifest?.description), '')
-    const text = {
-      ...title === undefined ? {} : { title },
-      ...description === undefined ? {} : { description },
-    }
-    let icon: string | undefined
-    try {
-      icon = iconOf(specifier, packageName, parentURL, manifestPath, manifest?.icon, iconURL)
-    } catch (error) {
-      return { ...text, error: `Plugin metadata for ${specifier}: ${String(error)}` }
-    }
-    if (title === undefined && description === undefined && icon === undefined) return undefined
-    return { ...text, ...icon === undefined ? {} : { icon } }
+    return metadataOf(specifier, packageName, parentURL, manifestPath, manifest, dictionaries, iconURL)
+  } catch (error) {
+    return { error: `Plugin metadata for ${specifier}: ${String(error)}` }
+  }
+}
+
+/** Read installed plugin display metadata without blocking on locale and manifest JSON reads.
+ * Resource resolution and bounded icon validation use the synchronous reader's rules.
+ * @param specifier Configured package module, including package subpaths.
+ * @param parentURL Owning Loader tree's module-resolution base.
+ * @param iconURL Optional resource delivery callback.
+ * @returns The same display fields and diagnostics as {@link readPluginMeta}.
+ */
+export async function readPluginMetaAsync(
+  specifier: string, parentURL: string, iconURL?: (icon: PluginIcon) => string,
+): Promise<PluginLocalizedMeta | undefined> {
+  const packageName = barePackageName(specifier)
+  if (packageName === undefined) return undefined
+  try {
+    const englishPath = optionalResourcePath(`${specifier}/locale/en.json`, parentURL)
+    const dictionaries = englishPath === undefined
+      ? new Map<string, DisplayFields>() : await dictionariesOfAsync(englishPath, specifier, parentURL)
+    const manifestPath = packageName === specifier ? optionalResourcePath(`${specifier}/package.json`, parentURL) : undefined
+    const manifest = manifestPath === undefined ? undefined : await readObjectAsync(manifestPath)
+    return metadataOf(specifier, packageName, parentURL, manifestPath, manifest, dictionaries, iconURL)
   } catch (error) {
     return { error: `Plugin metadata for ${specifier}: ${String(error)}` }
   }

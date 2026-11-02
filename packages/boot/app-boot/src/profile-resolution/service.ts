@@ -12,7 +12,7 @@ import {
   type RuntimeInterception,
 } from './resolver.ts'
 import { ProfileRuntimeResolution, type RuntimeResolution } from '../profile.ts'
-import { readPluginMeta } from '../package-meta.ts'
+import { readPluginMeta, readPluginMetaAsync } from '../package-meta.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -136,6 +136,15 @@ export class PluginPackages extends Service {
    */
   metaOf(specifier: string, parentURL: string): PluginLocalizedMeta | undefined {
     return readPluginMeta(specifier, parentURL)
+  }
+
+  /** Read display metadata with asynchronous locale and manifest JSON I/O.
+   * @param specifier Configured package module, including package subpaths.
+   * @param parentURL Owning Loader tree's resolution base.
+   * @returns Local display metadata or its diagnostic, without activating the plugin.
+   */
+  metaOfAsync(specifier: string, parentURL: string): Promise<PluginLocalizedMeta | undefined> {
+    return readPluginMetaAsync(specifier, parentURL)
   }
 }
 

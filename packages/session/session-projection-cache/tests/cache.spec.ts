@@ -214,6 +214,31 @@ afterEach(async () => {
 })
 
 describe('SessionProjectionCache write policy', () => {
+  it('erases retired checkpoints and rejects delayed live and cold write-backs from that lifecycle', async () => {
+    const { ctx, cache, root } = await harness()
+    const id = SessionId('erased-checkpoint')
+    let session!: Session
+    const scope = ctx.plugin({ inject: ['sessions'], apply(child: Context) { session = child.sessions.create(id) } })
+    await scope.await()
+    mark(session, ['private'])
+    await cache.write(session)
+    const gate = Promise.withResolvers<boolean>()
+    const flush = vi.spyOn(ctx.sessions, 'flush').mockImplementation(() => gate.promise)
+    const delayed = cache.write(session)
+    const events = session.snapshotEvents()
+    await scope.dispose()
+    await cache.remove(id, session.header)
+    gate.resolve(true)
+    await delayed
+    flush.mockRestore()
+    cache.coldSnapshot(session.header, session.inheritedEventCount, events)
+    expect(cache.cachedSnapshot(session.header)).toBeUndefined()
+    expect(await storedRecord(root, id)).toBeUndefined()
+    const replacement = ctx.sessions.create(id, { meta: { createdAt: session.header.createdAt + 1 } })
+    mark(replacement, ['new record'])
+    await cache.write(replacement)
+    expect(cache.cachedSnapshot(replacement.header)).toBeDefined()
+  })
   it('writes a durable checkpoint at turn/end (mandatory point)', async () => {
     const { ctx, root } = await harness()
     // The interval cannot substitute for the mandatory turn/end trigger.

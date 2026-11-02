@@ -28,11 +28,16 @@ export const inject = ['storage']
 export interface Config {
   /** Directory holding one `<unit>.json` file (or `<unit>/` tree) per unit. */
   root: string
+  /** Maximum simultaneous document reads within one per-record load; tables are read in sequence. */
+  readConcurrency?: number
 }
+
+const readConcurrencySchema = z.number().min(1).step(1).default(32)
 
 /** Config schema. */
 export const Config: z<Config> = z.object({
   root: z.string().required(),
+  readConcurrency: readConcurrencySchema,
 })
 
 /** JSON backend: owns the file-tree root and serves the `kv` facet. */
@@ -43,7 +48,12 @@ export class JsonStorageBackend implements StorageBackend {
   private readonly opening = new Map<string, Promise<KvUnit>>()
   private closed = false
 
-  constructor(private readonly root: string) {}
+  private readonly readConcurrency: number
+
+  /** @param root Unit directory. @param readConcurrency Per-record read limit, validated with the plugin defaults. */
+  constructor(private readonly root: string, readConcurrency?: number) {
+    this.readConcurrency = readConcurrencySchema(readConcurrency)
+  }
 
   readonly kv: KvFacet = {
     // The body up to the first await runs synchronously, so the opening-slot
@@ -67,7 +77,7 @@ export class JsonStorageBackend implements StorageBackend {
     // path convention under the shared root.
     const onClose = () => this.open.delete(descriptor.name)
     const unit = descriptor.layout === 'per-record'
-      ? await openPerRecordUnit(descriptor, this.root, onClose)
+      ? await openPerRecordUnit(descriptor, this.root, onClose, this.readConcurrency)
       : await openSingleUnit(descriptor, this.root, onClose)
     if (this.closed) {
       // The backend closed while this open was in flight: do not hand out a
@@ -107,7 +117,7 @@ function validateDescriptor(descriptor: KvUnitDescriptor): void {
  * @param config - Validated configuration.
  */
 export function apply(ctx: Context, config: Config) {
-  const backend = new JsonStorageBackend(config.root)
+  const backend = new JsonStorageBackend(config.root, config.readConcurrency)
   ctx.effect(() => {
     const unregister = ctx.storage.backend.register('json', backend)
     return async () => {

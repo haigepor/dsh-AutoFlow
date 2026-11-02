@@ -388,14 +388,14 @@ describe('per-record layout', () => {
     await backend.close()
   })
 
-  it('reads an unreadable record document as absent (per-record contract)', async () => {
+  it('rejects an unreadable record document without publishing a partial table', async () => {
     const root = await freshRoot()
     // A directory where the record document should be: readFile fails with
     // EISDIR on every platform (permission bits are unenforceable on win32).
     await mkdir(join(root, 'recs', 't', 'locked.json'), { recursive: true })
     const backend = new JsonStorageBackend(root)
     const unit = await backend.kv.open(descriptor)
-    expect(await unit.loadAll()).toEqual({ tables: { t: {} }, global: null })
+    await expect(unit.loadAll()).rejects.toMatchObject({ code: 'EISDIR' })
     await backend.close()
   })
 

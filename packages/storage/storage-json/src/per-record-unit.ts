@@ -46,15 +46,16 @@ const SAFE_KEY_RE = /^[a-zA-Z0-9_-]+$/
  * @param descriptor - Static identity and shape of the unit.
  * @param root - Absolute backend root directory.
  * @param onClose - Backend callback releasing the unit's open-slot.
+ * @param readConcurrency - Validated maximum simultaneous document reads for each load.
  * @returns the opened unit.
  */
-// oxlint-disable-next-line typescript/require-await -- async keeps both openers' call sites uniform
 export async function openPerRecordUnit(
   descriptor: KvUnitDescriptor,
   root: string,
   onClose: () => void,
+  readConcurrency: number,
 ): Promise<KvUnit> {
-  return new PerRecordJsonUnit(descriptor, join(root, descriptor.name), onClose)
+  return new PerRecordJsonUnit(descriptor, join(root, descriptor.name), onClose, readConcurrency)
 }
 
 /**
@@ -67,7 +68,7 @@ export async function openPerRecordUnit(
  * @param dir - Absolute unit directory path.
  * @returns the authoritative state reconstructed from the tree.
  */
-async function loadPerRecordState(descriptor: KvUnitDescriptor, dir: string): Promise<UnitState> {
+async function loadPerRecordState(descriptor: KvUnitDescriptor, dir: string, readConcurrency: number): Promise<UnitState> {
   const versions = acceptedStamps(descriptor)
   const state: UnitState = {
     version: descriptor.version,
@@ -82,23 +83,23 @@ async function loadPerRecordState(descriptor: KvUnitDescriptor, dir: string): Pr
     // Missing directory = empty unit; the legacy bootstrap below still runs
     // (the fresh-upgrade shape is exactly an absent new tree).
   }
-  const hasNewState = entries === undefined
-    ? false
-    : (await Promise.all(entries.map(async (entry) => {
+  let hasNewState = false
+  if (entries !== undefined) {
+    for (const entry of entries) {
       if (entry.isDirectory()) {
         const records = state.tables.get(entry.name)
         if (records !== undefined) {
-          await loadTableRecords(records, versions, join(dir, entry.name))
-          return true
+          await loadTableRecords(records, versions, join(dir, entry.name), readConcurrency)
+          hasNewState = true
         }
       }
       if (entry.name === 'global.json' && descriptor.hasGlobal) {
         const global = await readRecord(join(dir, entry.name), versions)
         if (global !== undefined) state.global = global
-        return true
+        hasNewState = true
       }
-      return false
-    }))).some(Boolean)
+    }
+  }
   if (!hasNewState) await bootstrapLegacyUnit(descriptor, dir, state)
   return state
 }
@@ -161,26 +162,43 @@ async function bootstrapLegacyUnit(descriptor: KvUnitDescriptor, dir: string, st
 /**
  * Read one declared table's record documents into `records`.
  */
-async function loadTableRecords(records: Map<string, unknown>, versions: readonly number[], dir: string): Promise<void> {
+async function loadTableRecords(
+  records: Map<string, unknown>, versions: readonly number[], dir: string, readConcurrency: number,
+): Promise<void> {
   const files = await readdir(dir, { withFileTypes: true })
-  const loaded = await Promise.all(files.map(async (file) => {
-    if (!file.name.endsWith('.json')) return
-    const key = file.name.slice(0, -'.json'.length)
-    if (!SAFE_KEY_RE.test(key)) return
-    const record = await readRecord(join(dir, file.name), versions)
-    if (record !== undefined) return [key, record] as const
-  }))
+  const loaded = new Array<readonly [string, unknown] | undefined>(files.length)
+  const pending = files.entries()
+  let stopped = false
+  const workers = Array.from({ length: Math.min(readConcurrency, files.length) }, async () => {
+    while (!stopped) {
+      const next = pending.next()
+      if (next.done) return
+      const [index, file] = next.value
+      if (!file.name.endsWith('.json')) continue
+      const key = file.name.slice(0, -'.json'.length)
+      if (!SAFE_KEY_RE.test(key)) continue
+      try {
+        const record = await readRecord(join(dir, file.name), versions)
+        if (record !== undefined) loaded[index] = [key, record]
+      } catch (error) { stopped = true; throw error }
+    }
+  })
+  // A rejected snapshot cannot leave reads racing a close or a caller's retry.
+  const settled = await Promise.allSettled(workers)
+  const failed = settled.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+  if (failed) throw failed.reason
   for (const record of loaded) {
     if (record !== undefined) records.set(...record)
   }
 }
 
-/** Read one record document; a foreign (unreadable or stale) one reads as absent. */
+/** Read one record document; missing, malformed and stale documents read as absent, while I/O failures reject. */
 async function readRecord(path: string, versions: readonly number[]): Promise<unknown> {
   try {
     return parseRecord(await readFile(path, 'utf8'), versions)
-  } catch {
-    return undefined
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw error
   }
 }
 
@@ -201,12 +219,13 @@ export class PerRecordJsonUnit implements KvUnit {
     private readonly descriptor: KvUnitDescriptor,
     private readonly dir: string,
     private readonly onClose: () => void,
+    private readonly readConcurrency: number,
   ) {}
 
   /** Re-read the tree: the directory is the authoritative state. */
   async loadAll(): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }> {
     this.assertOpen()
-    const state = await loadPerRecordState(this.descriptor, this.dir)
+    const state = await loadPerRecordState(this.descriptor, this.dir, this.readConcurrency)
     const tables: Record<string, Record<string, unknown>> = {}
     for (const [table, records] of state.tables) {
       tables[table] = Object.fromEntries(records)

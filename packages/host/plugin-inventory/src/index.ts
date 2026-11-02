@@ -85,7 +85,7 @@ export async function readPluginInventory(ctx: Context): Promise<PluginInventory
   for (const entry of ctx.loader.entries()) {
     if (entry.options.group) continue
     const base = entry.parent.tree.ctx.baseUrl
-    const meta = base === undefined ? undefined : packages?.metaOf(entry.options.name, base)
+    const meta = base === undefined ? undefined : await packages?.metaOfAsync(entry.options.name, base)
     const fiber = entry.fiber
     const fiberPhase = fiber === undefined ? null : FIBER_PHASE[fiber.state]
     let diagnostic: string | undefined
@@ -104,18 +104,21 @@ export async function readPluginInventory(ctx: Context): Promise<PluginInventory
   const presets = ctx.get('agentPresets')
   const management = ctx.get('pluginManager') === undefined ? {} : { managementAvailable: true }
   if (presets === undefined) return { entries, ...management }
-  const agentPresets: AgentPresetPluginGroup[] = (await presets.compositionInventory()).map(
-    composition => ({
+  const agentPresets: AgentPresetPluginGroup[] = []
+  for (const composition of await presets.compositionInventory()) {
+    const rows: AgentPresetPluginGroup['rows'][number][] = []
+    for (const { fiberState, ...row } of composition.rows) {
+      const meta = ctx.baseUrl === undefined ? undefined : await packages?.metaOfAsync(row.moduleName, ctx.baseUrl)
+      rows.push({
+        ...row,
+        fiberPhase: fiberState === undefined ? null : FIBER_PHASE[fiberState],
+        ...meta === undefined ? {} : { meta },
+      })
+    }
+    agentPresets.push({
       ...composition,
-      rows: composition.rows.map(({ fiberState, ...row }) => {
-        const meta = ctx.baseUrl === undefined ? undefined : packages?.metaOf(row.moduleName, ctx.baseUrl)
-        return {
-          ...row,
-          fiberPhase: fiberState === undefined ? null : FIBER_PHASE[fiberState],
-          ...meta === undefined ? {} : { meta },
-        }
-      }),
-    }),
-  )
+      rows,
+    })
+  }
   return { entries, agentPresets, ...management }
 }

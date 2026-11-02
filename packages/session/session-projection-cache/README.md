@@ -52,6 +52,8 @@ The cache opens its domain through the storage stack, so base mounts `storage`, 
 
 The plugin injects `storageDomain`, `sessionProjections`, and `sessions`. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-session-projection-cache) is the exhaustive source for every accepted field and its JSDoc.
 
+After permanent session removal, `remove(id, header)` deletes its checkpoint and rejects delayed writes captured before removal, including cold-read write-backs for the removed lifecycle. Erasure failures are returned to the caller for explicit retry; ordinary checkpoint writes remain fail-soft. A new lifecycle with the same id can create a new checkpoint.
+
 ### How checkpoints are written
 
 Three mandatory points always write: session creation persists the seed-derived cut, `turn/end` persists the value that listing reads want, and session disposal persists the final live cut. Between them, the configured count and interval throttles write as events accumulate. Every write atomically replaces the session's complete record through the domain write chain; a failure logs a warning and keeps the cache stale, and the next write self-heals.
@@ -124,7 +126,7 @@ None; the cache never assembles or sends provider requests.
 
 These limits define where the cache needs operational care. They are current package constraints, not a task backlog.
 
-- **No eviction or retention surface** — records accumulate per session; pruning stored checkpoints is out-of-band maintenance, same stance as session persistence itself.
+- **No automatic eviction or retention policy** — checkpoints remain until the application explicitly removes a retired session or an operator prunes storage.
 - **Interval throttle is per-session coarse** — the timer arms at the first dirty event after a clean write; a steady sub-threshold trickle writes once per interval, not a sliding window.
 - **No cache-side cold refold** — the cache serves and refreshes its rows but never reads the session log (it does not depend on the persistence layer); a consumer that needs a guaranteed cold snapshot refolds from the log itself.
 - **Every schema or domain-version change must prove its upgrade story** — a change to the stored record schema or the domain version lands in the same PR with an archived fixture of the previously shipped on-disk format under `tests/fixtures/` and test cases in `tests/fixtures.spec.ts` proving the chosen disposition: read-compat recovery (`compatibleVersions`), current-version rewrite, or backup-and-skip salvage. A bump whose old records are simply discarded still proves that the discard neither causes startup to fail nor poisons the tree.

@@ -29,6 +29,8 @@ kind: "package-reference"
 
 ### 快照包含什么
 
+展示元信息使用[运行时异步读取器](../../boot/app-boot/README.zh.md#reading-plugin-display-metadata)。
+
 每一行是一个非组 Loader 条目：其条目 id、精确模块标识、有效启用状态（含被禁用的祖先组）与当前根 Fiber 阶段。`pending` 表示条目等待加载，`loading` 表示正在读取，`active` 表示正在运行，`failed` 表示其 fiber 被拒绝，`unloading` 表示正在拆除；`null` 表示完全不存在存活的根 Fiber。结构性的 group 行会被跳过。
 
 Loader 行与预设行可以携带可选的 `meta`，其中包含标题、描述或元信息诊断。Host 返回可用翻译与字面回退文本，由 Client 选择语言。元信息诊断不改变启停状态或 fiber 阶段。
