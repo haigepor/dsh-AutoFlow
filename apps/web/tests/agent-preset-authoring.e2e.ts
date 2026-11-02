@@ -164,17 +164,40 @@ describe('web e2e: preset roster guidance', () => {
     expect(scaffold.ctx.agentPresets.defaultId).toBe('standard')
   })
 
-  it('starts a Creator-mode task from the section entry', async () => {
-    onTestFailed(() => saveFailureShot(page, 'preset-roster-creator'))
-    // The entry stages the self-referential preset and lands a new task on it,
-    // so the flow needs a connected workspace to enter.
-    await page.locator('[data-settings-page]').getByRole('button', { name: '返回', exact: true }).click()
+  it('runs without page errors or model calls', () => { expect(tripwire.pageErrors).toEqual([]) })
+})
+
+describe('web e2e: Creator entry navigation', () => {
+  let scaffold: WebScaffold
+  let browser: Browser
+  let page: Page
+  let tripwire: ReturnType<typeof watchConsole>
+
+  beforeAll(async () => {
+    scaffold = await launchWebScaffold({ profile: { packages: [] }, extraOverlayPath: fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)) })
+    browser = await chromium.launch()
+    page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+    tripwire = watchConsole(page)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await connectFreshWorkspaceZh(page, scaffold.workspaceCwd)
+  }, 120_000)
+  afterAll(async () => { await browser?.close(); await scaffold?.close() })
+
+  it.each(['conversation', 'plugins'] as const)('opens the Creator conversation after entering Settings from %s', async (panel) => {
+    onTestFailed(() => saveFailureShot(page, 'preset-roster-creator'))
+    if (panel === 'plugins') await page.getByRole('button', { name: '插件', exact: true }).click()
     await openSettings(page, 'zh')
     const settings = page.locator('[data-settings-page]')
     await settings.getByRole('button', { name: 'Agent 预设' }).click()
     await settings.getByRole('button', { name: '让 Agent 帮我创建预设模式', exact: true }).click()
     await settings.waitFor({ state: 'detached', timeout: 10_000 })
+    await page.locator('[data-composer-input][contenteditable="true"]').waitFor({ state: 'visible', timeout: 10_000 })
+    await page.getByRole('button', { name: '创造模式', exact: true }).waitFor({ state: 'visible', timeout: 10_000 })
+    if (panel === 'plugins') {
+      const snapshot = await captureStableAria(page, '[data-conversation-main]', scaffold.workspaceCwd)
+      await compareOrRefreshGolden(join(EXPECTED, 'creator.expected.md'), snapshot, mode)
+    }
     await expect.poll(async () => {
       const response = await scaffold.hostFetch('/api/session/list', {
         method: 'POST',
@@ -191,7 +214,7 @@ describe('web e2e: preset roster guidance', () => {
         .map(item => item.projections?.values.agentPreset)
         .filter(preset => typeof preset === 'string') ?? []
     }, { timeout: 15_000 }).toContain('cordis')
+    expect(scaffold.ctx.agentPresets.defaultId).toBe('standard')
+    expect(tripwire.pageErrors).toEqual([])
   })
-
-  it('runs without page errors or model calls', () => { expect(tripwire.pageErrors).toEqual([]) })
 })

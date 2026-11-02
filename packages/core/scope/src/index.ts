@@ -42,9 +42,8 @@ const scopeParents = new WeakMap<ScopeKey, ScopeKey>()
 export interface ScopeParentBinding {
   /**
    * Re-link the bound key to a different parent, with the same cycle check as
-   * the bind. Valid only while nothing produced under the old parent is
-   * retained — the blank-session recompose contract, which the holder upholds
-   * because this relation cannot see what a session logged.
+   * the bind. The caller owns request quiescence and records any model-visible
+   * composition change; this relation cannot inspect Session activity.
    * @param parent - the new enclosing scope key.
    */
   rebind(parent: ScopeKey): void

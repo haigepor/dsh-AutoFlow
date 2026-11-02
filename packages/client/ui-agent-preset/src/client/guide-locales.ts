@@ -1,5 +1,25 @@
 /** Curated help for shipped presets, kept separate from their short picker copy. */
 export const guideEn = {
+  guideAfpIntro: 'Enable the AFP plugin and configure its account and visual model in the AFP workbench. Choose AFP curator in the preset menu, or select AFP from the @ menu to switch automatically.',
+  guideAfpExplanation: [
+    '### Search and visual screening',
+    'Search reads photo metadata. Pixel screening uses the AFP visual model for animals, food, landscapes, movie posters and celestial wallpapers. The agent follows background progress, reads the saved report and records the final selected images.',
+    '### Collections and downloads',
+    'Add selected photos, copy or move them between collections, remove memberships, bind categories and prepare whole-category changes. Downloads let you choose renditions and a Host directory, with a preview of the credit cost.',
+    '### Confirmation and recovery',
+    'Collection writes and downloads require a preview and confirmation. Selected-photo operations use exact IDs; a final gallery does not limit a whole-category plan. Jobs stay with their conversation, support pause and resume, and retain history and diagnostics. Partial or uncertain writes are inspected before preparing another plan.',
+  ].join('\n\n'),
+  guideAfpUsage: [
+    '### Search for candidate images',
+    '> Find 20 landscape photos. Show the metadata candidates first and explain which images still need visual screening.',
+    'Expected output: candidate photos, selection criteria and the screening status.',
+    '### Screen a visual category',
+    '> Visually screen 30 animal photos. Track the task and explain why each selected image was kept. Save the final gallery before answering.',
+    'Expected output: a saved visual report, selected photos and any remaining quantity gap.',
+    '### Collect or download selected images',
+    '> Add only my selected photos to collection X. Preview the target and exact changes, then ask for confirmation. For downloads, show the rendition sizes, destination and credit cost first.',
+    'Expected output: an explicit preview followed by confirmed execution and its actual result.',
+  ].join('\n\n'),
   modeExplanation: 'Mode details',
   howToUse: 'How to use',
   guideSections: 'Guide sections',
@@ -78,6 +98,26 @@ export type PresetGuideKey = keyof typeof guideEn
 
 /** Simplified Chinese help. Examples describe suggested tasks, not recorded runs. */
 export const guideZh: Record<PresetGuideKey, string> = {
+  guideAfpIntro: '先启用 AFP 插件，在 AFP 操作台配置账号与视觉模型。然后在预设菜单选择「AFP 策展助手」，或从输入框的 @ 菜单选中 AFP 插件自动切换。',
+  guideAfpExplanation: [
+    '### 搜索与视觉筛选',
+    '搜索先读取图片元数据；逐图视觉审核由 AFP 单独配置的视觉模型完成，支持动物、食物、风景、电影海报和天体壁纸五类。Agent 跟踪后台进度，读取已保存的报告，再记录最终选图。',
+    '### 收藏夹与下载',
+    '可以收藏指定图片、跨收藏夹复制或移动、移除图片关系、绑定分类，以及预览整类追加、替换或清空。下载时选择图片版本和本机目录，先核对积分费用。',
+    '### 确认与恢复',
+    '收藏夹写入和下载均需预览并确认。指定图片操作使用准确 ID，最终图库不会自动限制整类写入范围。作业归原对话所有，可暂停、续跑，并保留历史和诊断；部分完成或结果未知时先核对，再建立新计划。',
+  ].join('\n\n'),
+  guideAfpUsage: [
+    '### 搜索候选图片',
+    '> 找 20 张风景图片，先展示元数据候选，说明哪些图片仍需视觉筛选。',
+    '预期产出：候选图片、选择条件及实际筛选状态。',
+    '### 按分类视觉筛选',
+    '> 视觉筛选 30 张动物图片，跟踪任务进度，说明每张图保留的理由，回答前保存最终图库。',
+    '预期产出：已保存的视觉报告、最终选图和仍未满足的数量。',
+    '### 收藏或下载选中图片',
+    '> 只把我选中的图片加入 X 收藏夹，先预览目标和具体增删，再请求确认。需要下载时，先列出版本、尺寸、目录和积分费用。',
+    '预期产出：明确的操作预览、确认后的执行过程和实际结果。',
+  ].join('\n\n'),
   modeExplanation: '模式说明',
   howToUse: '如何使用',
   guideSections: '帮助内容',
@@ -153,6 +193,8 @@ export const guideZh: Record<PresetGuideKey, string> = {
 
 /** Japanese copy, checked against the English keys. */
 export const guideJa = {
+  // AFP guidance uses English until this locale provides its translation.
+  ...guideEn,
   'modeExplanation': 'モードの詳細',
   'howToUse': '使い方',
   'guideSections': 'ガイドのセクション',
@@ -176,6 +218,8 @@ export const guideJa = {
 
 /** Spanish dictionary, checked against the English keys. */
 export const guideEs = {
+  // AFP guidance uses English until this locale provides its translation.
+  ...guideEn,
   modeExplanation: 'Detalles del modo',
   howToUse: 'como usar',
   guideSections: 'Secciones de guía',
@@ -251,6 +295,8 @@ export const guideEs = {
 
 /** French dictionary, checked against the English keys. */
 export const guideFr = {
+  // AFP guidance uses English until this locale provides its translation.
+  ...guideEn,
   modeExplanation: 'Détails du mode',
   howToUse: 'Comment utiliser',
   guideSections: 'Sections du guide',
@@ -326,6 +372,8 @@ export const guideFr = {
 
 /** German dictionary, checked against the English keys. */
 export const guideDe = {
+  // AFP guidance uses English until this locale provides its translation.
+  ...guideEn,
   modeExplanation: 'Modusdetails',
   howToUse: 'Wie zu verwenden',
   guideSections: 'Leitfadenabschnitte',
@@ -401,6 +449,8 @@ export const guideDe = {
 
 /** Russian dictionary, checked against the English keys. */
 export const guideRu = {
+  // AFP guidance uses English until this locale provides its translation.
+  ...guideEn,
   modeExplanation: 'Подробности режима',
   howToUse: 'Как использовать',
   guideSections: 'Разделы руководства',
@@ -476,6 +526,8 @@ export const guideRu = {
 
 /** Portuguese dictionary, checked against the English keys. */
 export const guidePt = {
+  // AFP guidance uses English until this locale provides its translation.
+  ...guideEn,
   modeExplanation: 'Detalhes do modo',
   howToUse: 'Como usar',
   guideSections: 'Seções do guia',

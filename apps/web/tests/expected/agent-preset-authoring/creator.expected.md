@@ -1,0 +1,15 @@
+- banner:
+  - button "打开右侧边栏"
+- text: 探索未至之境 预览版
+- region "开始一项任务":
+  - button "探索并理解代码"
+  - button "构建新功能、应用或工具"
+  - button "审查代码并提出修改建议"
+  - button "修复问题和失败"
+- button "选择工作区": workspace
+- button "创造模式"
+- textbox "描述你想要构建的内容, / 调用指令, @ 文件或对话"
+- button "添加文件或调用指令"
+- button "访问模式，当前：工作区内修改": 工作区内修改
+- button "选择模型，当前 DeepSeek-V4-Flash": DeepSeek-V4-Flash
+- button "发送消息" [disabled]

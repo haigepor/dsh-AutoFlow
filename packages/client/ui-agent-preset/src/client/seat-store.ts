@@ -1,5 +1,5 @@
 /**
- * Hero-chip controller: which preset the NEXT session gets.
+ * Preset choices for the new-session chip and current-session header.
  *
  * The new-session screen has no session, so a pick is staged rather than
  * applied. It reaches a session when one becomes current and is still blank —
@@ -52,7 +52,7 @@ export interface AgentPresetStage {
 
 /**
  * Result of one attempt to hand a staged preset to the current Session: the Host applied it,
- * it waits for a Session to appear, nothing changed (busy, already composed, started, or no
+ * it waits for a Session to appear, nothing changed (busy, already composed, or no
  * stage), or the Host refused it.
  */
 export type AgentPresetApplyOutcome =
@@ -61,7 +61,7 @@ export type AgentPresetApplyOutcome =
 
 const UNCHANGED: AgentPresetApplyOutcome = { kind: 'unchanged' }
 
-/** Stages the next session's preset and applies it when one appears. */
+/** Applies current-session choices or stages a choice until a Session appears. */
 export class AgentPresetSeatController {
   /** Chip snapshot the renderer subscribes to. */
   readonly store: SnapshotStore<AgentPresetSeatState> = createSnapshotStore(INITIAL)
@@ -129,8 +129,8 @@ export class AgentPresetSeatController {
   }
 
   /**
-   * Stage one preset for the next session, applying it immediately when a
-   * blank session is already current.
+   * Stage one preset for the next session, or ask the Host to switch the
+   * current Session between turns.
    *
    * The refusal is stored for the chip's announcement and returned to callers
    * such as Settings that also report the result of their own write.
@@ -140,16 +140,21 @@ export class AgentPresetSeatController {
   async select(id: string): Promise<AgentPresetApplyOutcome> {
     if (this.store.getSnapshot().busy) return UNCHANGED
     this.stage(id)
-    return await this.apply()
+    return await this.apply(true)
+  }
+
+  /** Wait for the currently submitted selection before preparing another action.
+   * @returns completion of all selections already in flight.
+   */
+  async whenSettled(): Promise<void> {
+    while (this.pendingSelection !== undefined) await this.pendingSelection
   }
 
   /**
    * Stage a pick WITHOUT the immediate apply, for a flow that starts the
    * receiving session after the pick (the settings section's creator entry).
-   * `select()`'s immediate apply would meet the still-current running session
-   * and drop the stage as unservable; staging alone leaves it for the
-   * list-change applier, which fires when the started session becomes
-   * current.
+   * Staging alone avoids switching the previously current Session before the
+   * new Session opens.
    * @param id - the preset to stage.
    * @param introduce - true when the stage came from another screen and the
    * chip should announce itself on the session it lands on.
@@ -210,9 +215,10 @@ export class AgentPresetSeatController {
    * Called both by `select()` and by whoever observes the current session
    * changing, because the session may appear either before or after the pick.
    * List updates do not repeat a selection while its response is pending.
+   * @param explicitSelection - allow an explicit pick to change the current started Session.
    * @returns how this attempt settled; only a Host commit of the staged preset is applied.
    */
-  async apply(): Promise<AgentPresetApplyOutcome> {
+  async apply(explicitSelection = false): Promise<AgentPresetApplyOutcome> {
     if (this.store.getSnapshot().busy) return UNCHANGED
     const staged = this.staged.id
     const session = this.currentSession()
@@ -223,9 +229,9 @@ export class AgentPresetSeatController {
       return UNCHANGED
     }
     if (session === undefined) return { kind: 'staged' }
-    // A started session's history was produced under its own composition; the
-    // host refuses the swap, so the stage is no longer meaningful.
-    if (!session.blank || presetOf(session) === staged) {
+    // Creator and unbound choices wait for a blank; list refreshes must not switch the old conversation.
+    if (!session.blank && !explicitSelection) return UNCHANGED
+    if (presetOf(session) === staged) {
       this.clearStage()
       return UNCHANGED
     }

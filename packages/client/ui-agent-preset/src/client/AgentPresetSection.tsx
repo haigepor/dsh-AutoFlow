@@ -95,7 +95,11 @@ export function AgentPresetSection({
         type="button"
         className={css.creatorButton}
         disabled={state.saving}
-        onClick={() => { creator(); closeSettings() }}
+        onClick={() => {
+          // Closing Settings cancels pending navigation.
+          closeSettings()
+          creator()
+        }}
       >
         <IconPlusOutlineRegular size={14} />
         {t('creatorDraft')}

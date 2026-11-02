@@ -1,0 +1,13 @@
+Tool: built-in image_gen
+Style reference: src/client/assets/standard-whale-maid-v6.webp
+Output: src/client/assets/afp-whale-maid-v1.webp, 256 x 256, transparent alpha
+
+Use case: stylized-concept
+Asset type: transparent decorative illustration for the AFP specialist Agent card, matching an existing set of 112px UI character illustrations.
+Input image 1: character identity and illustration style reference only. Create a new sibling illustration; do not modify or replace the reference file.
+Primary request: the same adorable blue-haired whale maid as a photo curator. Preserve her recognizable large blue eyes, wavy cobalt-to-cyan hair, white ruffled maid headband with the tiny blue bow, navy and white frilly maid outfit, blue whale tail, cheerful chibi proportions and polished anime game-sticker rendering.
+Subject and props: one full-body character with a compact camera hanging at her chest, holding a small fan of three photo cards depicting a mountain landscape, an animal, and stars. These photo-curation props replace the coding notebook. Make the camera and photo cards clearly legible at small thumbnail size.
+Composition: square canvas, centered full character and tail, entire head and shoes visible, matching the reference character scale and clean silhouette, about 10% breathing room around all edges.
+Lighting and palette: gentle highlights, crisp outlines, soft dimensional cel shading, same saturated navy, blue, cyan and white as the reference, modest warm accents only within the photographs.
+Text: none.
+Constraints: genuinely transparent alpha background; no checkerboard, floor, scene, background color, card frame, text, letters, logos, watermark, second character, extra limbs or cropped body.

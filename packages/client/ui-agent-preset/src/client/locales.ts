@@ -24,11 +24,14 @@ export type AgentPresetSettingsKey =
   | 'presetMinimalDescription'
   | 'presetCordisName'
   | 'presetCordisDescription'
+  | 'presetAfpName'
+  | 'presetAfpDescription'
   | 'inUse'
   | 'noDescription'
   | 'brokenBadge'
   | 'switchRefused'
   | 'standardUnavailable'
+  | 'sessionUnavailable'
   | 'close'
   | 'creatorDraft'
   | 'createPlugin'
@@ -44,7 +47,7 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   sectionIntro: 'Choose the agent’s tools and how it works. Use Standard mode for everyday tasks, or Creator mode to add capabilities to DSH.',
 
   seatHint: 'Choose the agent preset for your new task',
-  headerHint: 'The agent preset chosen when this task started',
+  headerHint: 'Switch this conversation’s agent preset after the current turn finishes',
   nav: 'Agent presets',
 
   setDefault: 'Set as new task default',
@@ -54,6 +57,8 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   view: 'View configuration',
 
   presetStandardName: 'Standard mode',
+  presetAfpName: 'AFP curator',
+  presetAfpDescription: 'Search photos, screen visual categories, organize collections and download selected images. Preview changes and costs before confirmation.',
   presetStandardDescription:
     'Work with code, files, and information. Suitable for most tasks, with search, editing, terminal commands, and other tools available as needed.',
   presetPtcName: 'PTC mode',
@@ -73,6 +78,7 @@ export const en: Record<AgentPresetSettingsKey, string> = {
 
   switchRefused: 'Could not switch to {name}: {reason}',
   standardUnavailable: 'Standard mode is unavailable. Restore it or choose another available mode.',
+  sessionUnavailable: 'This conversation is no longer active. Reopen it before switching its agent preset.',
 
   close: 'Close',
 
@@ -92,7 +98,7 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   sectionIntro: '选择 Agent 的工具和工作方式。日常任务用「标准模式」，扩展 DSH 的能力用「创造模式」。',
 
   seatHint: '选择新任务使用的 Agent 预设',
-  headerHint: '本任务的 Agent 预设，在任务开始时确定',
+  headerHint: '切换当前对话的 Agent 预设；当前轮结束后生效',
   nav: 'Agent 预设',
 
   setDefault: '设为新任务默认',
@@ -102,6 +108,8 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   view: '查看配置',
 
   presetStandardName: '标准模式',
+  presetAfpName: 'AFP 策展助手',
+  presetAfpDescription: '搜索选图、分类视觉筛选、整理收藏夹和下载图片。预览具体图片、目标与费用，确认后执行。',
   presetStandardDescription: '处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。',
   presetPtcName: 'PTC 模式',
   presetPtcDescription: '包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。',
@@ -117,6 +125,7 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
 
   switchRefused: '无法切换到「{name}」：{reason}',
   standardUnavailable: '标准模式不可用，请恢复该模式或选择其他可用模式。',
+  sessionUnavailable: '当前对话已离开，请重新打开后切换 Agent 预设。',
 
   close: '关闭',
 
@@ -144,7 +153,7 @@ export const ja = {
   'customGroup': 'カスタム',
   'sectionIntro': 'エージェントのツールと動作を選択します。日々のタスクには標準モードを、DSH に機能を追加するにはクリエイターモードを使用してください。',
   'seatHint': '新しいタスクで使用するエージェントプリセットを選択',
-  'headerHint': 'このタスクの開始時に選択されたエージェントプリセット',
+  headerHint: 'この会話のエージェントプリセットを切り替えます。実行中の処理の完了を待ちます',
   'nav': 'エージェントプリセット',
   'setDefault': '新しいタスクの既定に設定',
   'view': '設定を表示',
@@ -161,6 +170,7 @@ export const ja = {
   'brokenBadge': '読み込みに失敗',
   'switchRefused': '{name} に切り替えられませんでした: {reason}',
   'standardUnavailable': '標準モードは利用できません。復元するか、利用可能な別のモードを選択してください。',
+  sessionUnavailable: 'この会話を開き直してからエージェントプリセットを切り替えてください。',
   'close': '閉じる',
   'creatorDraft': 'エージェントにプリセット作成を手伝ってもらう',
   'createPlugin': 'エージェントにプラグインを作成してもらう',
@@ -179,7 +189,7 @@ export const es = {
   sectionIntro: 'Elija las herramientas del agente y cómo funciona. Utilice el modo Estándar para las tareas diarias o el modo Creador para agregar capacidades a DSH.',
 
   seatHint: 'Elija el agente preestablecido para su nueva tarea',
-  headerHint: 'El agente preestablecido elegido cuando comenzó esta tarea',
+  headerHint: 'Cambiar el agente de esta conversación al terminar el trabajo activo',
   nav: 'Ajustes preestablecidos del agente',
 
   setDefault: 'Establecer como nueva tarea predeterminada',
@@ -205,6 +215,7 @@ export const es = {
 
   switchRefused: 'No se pudo cambiar a {name}: {reason}',
   standardUnavailable: 'El modo estándar no está disponible. Restáuralo o elige otro modo disponible.',
+  sessionUnavailable: 'Vuelva a abrir esta conversación antes de cambiar el agente.',
 
   close: 'Cerrar',
 
@@ -226,7 +237,7 @@ export const fr = {
   sectionIntro: 'Choisissez les outils de l’agent et son fonctionnement. Utilisez le mode Standard pour les tâches quotidiennes ou le mode Créateur pour ajouter des fonctionnalités à DSH.',
 
   seatHint: "Choisissez le préréglage d'agent pour votre nouvelle tâche",
-  headerHint: "Le préréglage d'agent choisi au démarrage de cette tâche",
+  headerHint: 'Changer l’agent de cette conversation après le travail en cours',
   nav: "Préréglages d'agent",
 
   setDefault: 'Définir comme nouvelle tâche par défaut',
@@ -252,6 +263,7 @@ export const fr = {
 
   switchRefused: 'Impossible de passer à {name} : {reason}',
   standardUnavailable: "Le mode standard n'est pas disponible. Restaurez-le ou choisissez un autre mode disponible.",
+  sessionUnavailable: 'Rouvrez cette conversation avant de changer son agent.',
 
   close: 'Fermer',
 
@@ -273,7 +285,7 @@ export const de = {
   sectionIntro: 'Wählen Sie die Tools des Agenten und deren Funktionsweise aus. Verwenden Sie den Standardmodus für alltägliche Aufgaben oder den Creator-Modus, um DSH Funktionen hinzuzufügen.',
 
   seatHint: 'Wählen Sie die Agentenvoreinstellung für Ihre neue Aufgabe',
-  headerHint: 'Die Agentenvoreinstellung, die beim Start dieser Aufgabe ausgewählt wurde',
+  headerHint: 'Agent dieser Unterhaltung nach laufenden Aufgaben wechseln',
   nav: 'Agentenvoreinstellungen',
 
   setDefault: 'Als Standard für neue Aufgabe festlegen',
@@ -299,6 +311,7 @@ export const de = {
 
   switchRefused: 'Konnte nicht zu {name} wechseln: {reason}',
   standardUnavailable: 'Der Standardmodus ist nicht verfügbar. Stellen Sie es wieder her oder wählen Sie einen anderen verfügbaren Modus.',
+  sessionUnavailable: 'Öffnen Sie diese Unterhaltung erneut, bevor Sie den Agenten wechseln.',
 
   close: 'Schließen',
 
@@ -320,7 +333,7 @@ export const ru = {
   sectionIntro: 'Выбирайте инструменты агента и то, как они работают. Используйте стандартный режим для повседневных задач или режим Creator, чтобы расширить возможности DSH.',
 
   seatHint: 'Выберите предустановку агента для вашей новой задачи',
-  headerHint: 'Предварительная настройка агента, выбранная при запуске этой задачи',
+  headerHint: 'Сменить агента беседы после завершения текущей работы',
   nav: 'Настройки агента',
 
   setDefault: 'Установить в качестве новой задачи по умолчанию',
@@ -346,6 +359,7 @@ export const ru = {
 
   switchRefused: 'Не удалось переключиться на {name}: {reason}',
   standardUnavailable: 'Стандартный режим недоступен. Восстановите его или выберите другой доступный режим.',
+  sessionUnavailable: 'Откройте эту беседу заново перед сменой агента.',
 
   close: 'Закрыть',
 
@@ -367,7 +381,7 @@ export const pt = {
   sectionIntro: 'Escolha as ferramentas do agente e como funciona. Use o modo Padrão para tarefas diárias ou o modo Criador para adicionar recursos ao DSH.',
 
   seatHint: 'Escolha a predefinição de agente para sua nova tarefa',
-  headerHint: 'A predefinição do agente escolhida quando esta tarefa foi iniciada',
+  headerHint: 'Mudar o agente desta conversa após concluir o trabalho em curso',
   nav: 'Predefinições de agente',
 
   setDefault: 'Definir como nova tarefa padrão',
@@ -393,6 +407,7 @@ export const pt = {
 
   switchRefused: 'Não foi possível mudar para {name}: {reason}',
   standardUnavailable: 'O modo padrão não está disponível. Restaure-o ou escolha outro modo disponível.',
+  sessionUnavailable: 'Reabra esta conversa antes de mudar o agente.',
 
   close: 'Fechar',
 

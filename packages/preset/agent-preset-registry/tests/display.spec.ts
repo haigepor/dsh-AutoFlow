@@ -21,6 +21,12 @@ describe('presetDisplayText', () => {
       .toEqual({ name: '我的模式', description: '自述' })
   })
 
+  it('localizes the shipped AFP preset and respects named overrides', () => {
+    expect(presetDisplayText({ id: 'afp-curator' }, t)).toEqual({ name: 't:presetAfpName', description: 't:presetAfpDescription' })
+    expect(presetDisplayText({ id: 'afp-curator', name: 'My AFP', description: 'Team workflow' }, t))
+      .toEqual({ name: 'My AFP', description: 'Team workflow' })
+  })
+
   it('falls back to the id for a preset publishing no metadata', () => {
     // A system id outside the shipped set behaves like authored metadata:
     // there is no dictionary copy to resolve.

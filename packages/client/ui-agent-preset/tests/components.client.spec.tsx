@@ -1,16 +1,14 @@
 // @vitest-environment jsdom
 /**
  * The two conversation-adjacent surfaces: the new-session chip naming the
- * next session's preset, and the session header's read-only label. The split
- * is the host's rule — a session's history is produced under its preset's
- * tools, so the choice is only ever offered before one starts.
+ * next session's preset, and the current session's header switcher.
  */
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SessionRetainInfo } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionListState, SessionRetainInfo, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { AgentPresetLabel } from '../src/client/AgentPresetLabel.tsx'
 import type { AgentPresetLabelProps } from '../src/client/AgentPresetLabel.tsx'
@@ -21,12 +19,6 @@ import type { AgentPresetSeatState } from '../src/client/seat-store.ts'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
-
-const ROSTER_READY: AgentPresetSettingsState = {
-  status: 'ready',
-  error: null,
-  options: [{ id: 'standard' }, { id: 'mine' }],
-}
 
 const SEAT_READY: AgentPresetSeatState = {
   current: 'standard',
@@ -82,21 +74,27 @@ function renderSeat(
 function renderLabel(
   summary: { blank: boolean; projectionValues?: { agentPreset?: string | null } } | undefined,
   roster: Partial<AgentPresetSettingsState> = {},
+  developerToolsEnabled = true,
 ) {
   // The chip and the label read the same roster, metadata included.
-  const store = createSnapshotStore<AgentPresetSettingsState>({
-    ...ROSTER_READY, options: SEAT_READY.options, ...roster,
-  })
-  const sessions = createSnapshotStore({ byId: summary === undefined ? {} : { s1: summary } })
+  const store = createSnapshotStore<AgentPresetSeatState>({ ...SEAT_READY, ...roster })
+  const sessionId = SessionId('s1')
+  const current: SessionSummary | undefined = summary === undefined ? undefined : {
+    id: sessionId, displayTitle: 's1', updatedAt: 0, running: false, retainedBy: {}, ...summary,
+  }
+  const sessions = createSnapshotStore<SessionListState>({ ids: current ? [sessionId] : [], byId: current ? { [sessionId]: current } : {}, phase: 'ready', projectionsBySession: {} })
   const load = vi.fn(() => Promise.resolve())
+  const select = vi.fn(async () => undefined)
+  const developerTools = createSnapshotStore(developerToolsEnabled)
   const view = render(<AgentPresetLabel {...({
-    load,
-    sessionId: 's1',
+    load, select, introduced: vi.fn(), dismissRefusal: vi.fn(),
+    sessionId,
     useSessions: bindSnapshotSelector(sessions),
-    useAgentPresets: bindSnapshotSelector(store),
+    useAgentPresetSeat: bindSnapshotSelector(store),
+    useDeveloperTools: bindSnapshotSelector(developerTools),
     t: (key: keyof typeof en) => en[key],
-  } as unknown as AgentPresetLabelProps)} />)
-  return { load, view }
+  } as AgentPresetLabelProps)} />)
+  return { load, view, select }
 }
 
 describe('the new-session chip', () => {
@@ -382,16 +380,25 @@ describe('the chip introduce cue', () => {
 })
 
 describe('the session-header label', () => {
-  it('names the preset the session runs, and never offers a switch', async () => {
-    const { load } = renderLabel({
+  it('retains a hidden coding preset’s display name while filtering its menu entry', async () => {
+    renderLabel({ blank: false, projectionValues: { agentPreset: 'ptc' } }, { options: [{ id: 'standard' }, { id: 'ptc' }] }, false)
+    fireEvent.click(screen.getByRole('button', { name: en.presetPtcName }))
+    expect(screen.queryByRole('menuitem', { name: /^PTC mode/ })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: /^Standard mode/ })).toBeTruthy()
+  })
+
+  it('offers a preset switch while preserving the current label until the Host commits', async () => {
+    const { load, select } = renderLabel({
       blank: false,
       projectionValues: { agentPreset: 'standard' },
     })
 
     await waitFor(() => { expect(load).toHaveBeenCalledTimes(1) })
-    // A control here would promise a switch the host refuses outright.
-    expect(screen.queryByRole('button')).toBeNull()
-    expect(screen.getByTitle(en.presetStandardDescription).textContent).toBe(en.presetStandardName)
+    const button = screen.getByRole('button', { name: en.presetStandardName })
+    fireEvent.click(button)
+    fireEvent.click(screen.getByRole('menuitem', { name: /^mine/ }))
+    expect(select).toHaveBeenCalledWith('mine')
+    expect(button.textContent).toBe(en.presetStandardName)
   })
 
   it('falls back to the id, and to the generic hint, when metadata is absent', () => {

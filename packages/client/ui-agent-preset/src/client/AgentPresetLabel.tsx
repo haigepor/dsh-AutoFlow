@@ -1,33 +1,24 @@
 /**
  * The session header's agent-preset label.
  *
- * Read-only by construction: a session's composition is fixed once its
- * conversation starts, and a header is only worth reading after that. Offering
- * a control here would promise a switch the host refuses; naming what the
- * session runs is the honest affordance, and the choice itself lives on the
- * new-session screen ({@link AgentPresetSeat}).
+ * The label selects this Session's preset without changing its history or
+ * the new-task default. The Host waits for active work before rebinding.
  */
 
-import { useEffect } from 'react'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { useEffect, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconAgentPresetOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconAgentPresetOutlineRegular, IconChevronDownOutlineRegular, Menu, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the header actions).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
-import type { AgentPresetSettingsState } from './settings-store.ts'
+import type { AgentPresetSeatInjected } from './AgentPresetSeat.tsx'
+import { requiresCodingTools } from './settings-store.ts'
 import { presetDisplayText } from './locales.ts'
 import css from './AgentPresetLabel.module.css'
+import pickerCss from './AgentPresetSeat.module.css'
 
 /** Registration-side business face for the header label. */
-export interface AgentPresetLabelInjected {
-  hooks: {
-    /** Roster snapshot bound by the renderer as useAgentPresets. */
-    agentPresets: SnapshotStore<AgentPresetSettingsState>
-  }
-  /** Read the roster, so the label can show a name rather than an id. */
-  load: () => Promise<void>
-}
+export type AgentPresetLabelInjected = AgentPresetSeatInjected
 
 /** Full component props. */
 export type AgentPresetLabelProps =
@@ -38,16 +29,19 @@ export type AgentPresetLabelProps =
 /**
  * Render this session's agent-preset name beside its title.
  * @param props - composed slot props.
- * @returns the label, or null when the session records no preset.
+ * @returns the preset menu, or null when the Session records no preset.
  */
 export function AgentPresetLabel({
-  sessionId, useSessions, useAgentPresets, load, t,
+  sessionId, useSessions, useAgentPresetSeat, useDeveloperTools, load, select, dismissRefusal, t,
 }: AgentPresetLabelProps) {
   const preset = useSessions((state) => {
     const value = state.byId[sessionId]?.projectionValues?.agentPreset
     return typeof value === 'string' ? value : undefined
   })
-  const options = useAgentPresets(state => state.options)
+  const state = useAgentPresetSeat(value => value)
+  const developerTools = useDeveloperTools(value => value)
+  const options = state.options.filter(option => developerTools || !requiresCodingTools(option))
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     // Deployments that compose no presets never label anything, so the roster
@@ -57,12 +51,30 @@ export function AgentPresetLabel({
 
   if (preset === undefined) return null
 
-  const option = options.find(entry => entry.id === preset)
+  const option = state.options.find(entry => entry.id === preset)
   const text = option === undefined ? undefined : presetDisplayText(option, t)
   return (
-    <span className={css.label} title={text?.description ?? t('headerHint')}>
-      <IconAgentPresetOutlineRegular size={14} className={css.icon} />
-      {text?.name ?? preset}
-    </span>
+    <>
+      <Menu open={open} onClose={() => { setOpen(false) }} selectedId={preset} align="start" portal
+        className={pickerCss.menuAnchor}
+        items={options.map((option) => {
+          const display = presetDisplayText(option, t)
+          return { id: option.id, label: <span className={pickerCss.item}>
+            <span className={pickerCss.itemName}>{display.name}</span>
+            <span className={pickerCss.itemDesc}>{display.description ?? t('noDescription')}</span>
+          </span> }
+        })}
+        onSelect={(id) => { setOpen(false); void select(id) }}
+        anchor={<button type="button" className={css.label} title={t('headerHint')}
+          aria-haspopup="menu" aria-expanded={open} disabled={state.busy || options.length === 0}
+          onClick={() => { setOpen(value => !value) }}>
+          <IconAgentPresetOutlineRegular size={14} className={css.icon} />
+          <span className={css.text}>{state.busy ? t('switching') : text?.name ?? preset}</span>
+          <IconChevronDownOutlineRegular size={12} className={css.icon} />
+        </button>} />
+      {state.error !== null && typeof state.error === 'object' && <Toast
+        text={t('switchRefused', { name: presetDisplayText(state.error.preset, t).name, reason: state.error.reason })}
+        holdMs={8000} onDone={() => { dismissRefusal(state.error) }} />}
+    </>
   )
 }

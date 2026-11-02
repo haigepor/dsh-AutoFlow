@@ -1047,7 +1047,7 @@ describe('ui-agent-preset apply', () => {
 
     await label.load()
 
-    expect(label.hooks.agentPresets.getSnapshot().options).toEqual([{ id: 'standard' }])
+    expect(label.hooks.agentPresetSeat.getSnapshot().options).toEqual([{ id: 'standard' }])
   })
 
   it('stages the creator preset and starts a session from the section', async () => {
@@ -1234,6 +1234,23 @@ async function analyticsBench(
 }
 
 describe('agent preset switch analytics', () => {
+  it('lets plugin preparation wait for a selection and refuses a Session that leaves the main view', async () => {
+    const gate = Promise.withResolvers<undefined>()
+    const b = await analyticsBench({ selectGate: gate.promise }, { preset: 'standard', blank: false })
+    try {
+      const first = b.ctx.uiAgentPresets.select(SessionId('blank'), 'cordis')
+      await vi.waitFor(() => { expect(b.calls).toContain('select:cordis') })
+      const preparing = b.ctx.uiAgentPresets.select(SessionId('blank'), 'afp-curator')
+      const refused = expect(preparing).rejects.toThrow('当前对话已离开')
+      vi.spyOn(b.sessions, 'binding').mockReturnValue(undefined)
+      gate.resolve(undefined)
+      await first
+      await refused
+      expect(b.calls.filter(call => call.startsWith('select:'))).toEqual(['select:cordis'])
+      expect(b.seat.hooks.agentPresetSeat.getSnapshot().busy).toBe(false)
+    } finally { gate.resolve(undefined); await b.ctx.fiber.dispose() }
+  })
+
   it('reports unbound picks staged for the next Session, except equal modes and custom targets', async () => {
     const b = await analyticsBench()
     try {
@@ -1283,7 +1300,6 @@ describe('agent preset switch analytics', () => {
   })
 
   it.each([
-    { name: 'a started Session', options: {}, bound: { preset: 'standard', blank: false } },
     { name: 'a Host result other than the pick', options: { selectResult: 'standard' }, bound: { preset: 'standard', blank: true } },
     { name: 'an unknown source mode', options: {}, bound: { blank: true } },
   ])('does not report $name', async ({ options, bound }) => {
@@ -1575,7 +1591,6 @@ describe('AgentPresetSeatController apply outcomes', () => {
   })
 
   it.each([
-    { name: 'a started Session', session: { ...blankStandard, blank: false }, pick: 'minimal' },
     { name: 'a Session already using the pick', session: blankStandard, pick: 'standard' },
   ])('leaves $name unchanged and drops the stage', async ({ session, pick }) => {
     let current: SessionView = session
@@ -1591,6 +1606,28 @@ describe('AgentPresetSeatController apply outcomes', () => {
     await expect(controller.select('minimal')).resolves.toEqual({ kind: 'applied' })
     expect(select).toHaveBeenCalledExactlyOnceWith(SessionId('blank'), 'minimal')
     expect(controller.store.getSnapshot()).toMatchObject({ current: 'minimal', busy: false, error: null })
+  })
+
+  it('switches a started Session without carrying the choice to the next Session', async () => {
+    let current = { ...blankStandard, blank: false }
+    const { controller, select } = seatOver(() => current)
+    await expect(controller.select('minimal')).resolves.toEqual({ kind: 'applied' })
+    expect(select).toHaveBeenCalledExactlyOnceWith(SessionId('blank'), 'minimal')
+    current = { ...blankStandard, id: SessionId('next') }
+    await expect(controller.apply()).resolves.toEqual({ kind: 'unchanged' })
+    expect(select).toHaveBeenCalledOnce()
+    expect(controller.store.getSnapshot().current).toBe('standard')
+  })
+
+  it('keeps a staged next-session choice away from the previously current started Session', async () => {
+    let current = { ...blankStandard, blank: false }
+    const { controller, select } = seatOver(() => current)
+    controller.stage('cordis', true)
+    await expect(controller.apply()).resolves.toEqual({ kind: 'unchanged' })
+    expect(select).not.toHaveBeenCalled()
+    current = { ...blankStandard, id: SessionId('new-creator') }
+    await expect(controller.apply()).resolves.toEqual({ kind: 'applied' })
+    expect(select).toHaveBeenCalledExactlyOnceWith(SessionId('new-creator'), 'cordis')
   })
 
   it('is unchanged when the Host settles on another preset', async () => {

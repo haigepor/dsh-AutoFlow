@@ -23,6 +23,7 @@ const guides = new Map<string, PresetGuide>([
   ['ptc', { id: 'ptc', name: 'presetPtcName', intro: 'guidePtcIntro', explanation: 'guidePtcExplanation', usage: 'guidePtcUsage' }],
   ['minimal', { id: 'minimal', name: 'presetMinimalName', intro: 'guideMinimalIntro', explanation: 'guideMinimalExplanation', usage: 'guideMinimalUsage' }],
   ['cordis', { id: 'cordis', name: 'presetCordisName', intro: 'guideCordisIntro', explanation: 'guideCordisExplanation', usage: 'guideCordisUsage' }],
+  ['afp-curator', { id: 'afp-curator', name: 'presetAfpName', intro: 'guideAfpIntro', explanation: 'guideAfpExplanation', usage: 'guideAfpUsage' }],
 ])
 
 /**

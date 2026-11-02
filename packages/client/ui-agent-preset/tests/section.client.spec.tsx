@@ -48,6 +48,17 @@ it('keeps the heading and four decorative cards until the initial roster arrives
   expect(screen.getByRole('heading', { name: en.nav }).closest('section')?.getAttribute('aria-busy')).toBe('false')
   expect(rowFor('standard')).toBeTruthy()
 })
+
+it('shows AFP as a shipped card with its own illustration and working mode help', () => {
+  view({ rows: [{ id: 'standard', isDefault: true }, { id: 'afp-curator', isDefault: false }] })
+  const card = rowFor('afp-curator')
+  expect(card.closest('section')?.querySelector('h3')?.textContent).toBe(en.builtInGroup)
+  expect(card.querySelector('img')?.getAttribute('data-preset-art')).toBe('afp-curator')
+  fireEvent.click(screen.getByRole('button', { name: `${en.modeExplanation}: ${en.presetAfpName}` }))
+  expect(screen.getByRole('dialog').textContent).toContain(en.guideAfpIntro)
+  fireEvent.click(screen.getByRole('tab', { name: en.howToUse }))
+  expect(screen.getByRole('dialog').textContent).toContain('Add only my selected photos')
+})
 it('retains the same cards during a refresh and offers retry after a roster failure', () => {
   const { store, load } = view()
   const card = rowFor('standard')

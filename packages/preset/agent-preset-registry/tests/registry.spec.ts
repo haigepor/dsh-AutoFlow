@@ -102,7 +102,7 @@ describe('declarative preset revisions', () => {
     expect(ctx.agentPresets.composeFrom(createScope(ctx, {}).ctx, ctx)).toBeUndefined()
   })
 
-  it('logs selection and rejects preset changes after the first turn', async () => {
+  it('records selections and refuses an unsettled turn', async () => {
     const ctx = await setup()
     await declare(ctx, contribution('standard'))
     await declare(ctx, contribution('minimal'))
@@ -110,7 +110,47 @@ describe('declarative preset revisions', () => {
     expect(await ctx.agentPresets.select(agent, 'minimal')).toBe('minimal')
     expect(ctx.sessionProjections.checkpoint(agent.session).agentPreset?.val).toBe('minimal')
     agent.session.append('turn/start', { turn: 1 })
-    await expect(ctx.agentPresets.select(agent, 'standard')).rejects.toThrow('already started')
+    await expect(ctx.agentPresets.select(agent, 'standard')).rejects.toThrow('has not settled')
+  })
+
+  it('switches tools and prompt after a completed turn and retains earlier history', async () => {
+    const ctx = await setup()
+    await declare(ctx, contribution('standard'))
+    await declare(ctx, contribution('minimal'))
+    const agent = await agentOn(ctx, 'continued')
+    agent.session.append('turn/start', { turn: 1 })
+    agent.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const history = agent.session.snapshotEvents()
+    expect(await ctx.agentPresets.select(agent, 'minimal')).toBe('minimal')
+    expect(ctx.tools.schemas(agent).map(row => row.name)).toEqual(['minimal'])
+    const prompt = await ctx.systemPrompt.assemble(assembleContextFor(agent))
+    expect(prompt.sections.map(row => row.name)).toContain('preset:minimal')
+    expect(prompt.sections.map(row => row.name)).not.toContain('preset:standard')
+    expect(agent.session.snapshotEvents().slice(0, history.length)).toEqual(history)
+    expect(ctx.sessionProjections.checkpoint(agent.session).agentPreset?.val).toBe('minimal')
+    await expect(ctx.agentPresets.select(agent, 'missing')).rejects.toThrow('Unknown agent preset')
+    expect(ctx.tools.schemas(agent).map(row => row.name)).toEqual(['minimal'])
+  })
+
+  it('waits for active work and applies queued choices in order', async () => {
+    const ctx = await setup()
+    await declare(ctx, contribution('standard'))
+    await declare(ctx, contribution('minimal'))
+    const agent = await agentOn(ctx, 'busy')
+    const gate = Promise.withResolvers<undefined>()
+    const working = agent.runMaintenance(async () => { await gate.promise })
+    const first = ctx.agentPresets.select(agent, 'minimal')
+    const second = ctx.agentPresets.select(agent, 'standard')
+    try {
+      await Promise.resolve()
+      expect(ctx.tools.schemas(agent).map(row => row.name)).toEqual(['standard'])
+      expect(agent.session.snapshotEvents().filter(event => event.type === 'agent-preset/selected')).toEqual([])
+    } finally { gate.resolve(undefined) }
+    await working
+    expect(await first).toBe('minimal')
+    expect(await second).toBe('standard')
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'agent-preset/selected').map(event => event.data.agentPreset)).toEqual(['minimal', 'standard'])
+    expect(ctx.tools.schemas(agent).map(row => row.name)).toEqual(['standard'])
   })
 
   it('inventories active and disabled child entries and declared display metadata', async () => {

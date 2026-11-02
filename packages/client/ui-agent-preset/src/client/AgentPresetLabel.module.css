@@ -1,4 +1,4 @@
-/* Session-header agent-preset label: static chrome, never a control. */
+/* Session-header preset switcher shares the existing compact title-row treatment. */
 
 .label {
   display: inline-flex;
@@ -9,6 +9,9 @@
   height: 22px;
   border-radius: var(--dsw-radius-xs);
   background: var(--dsw-alias-fill-tsp-secondary);
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 12px;
   line-height: 22px;
   color: var(--dsw-alias-label-tertiary);
@@ -17,16 +20,33 @@
   text-overflow: ellipsis;
 }
 
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.label:disabled {
+  cursor: default;
+}
+
+.label[aria-expanded='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+@media (hover: hover) {
+  .label:not(:disabled):hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
 .icon {
   flex: none;
   opacity: 0.7;
 }
 
-/* First sacrifice when the title row (the enclosing inline-size container)
-   runs out of width: the preset is passive chrome, so it yields before any
-   interactive header action loses its label. */
 @container (max-width: 540px) {
   .label {
-    display: none;
+    max-width: 110px;
   }
 }
