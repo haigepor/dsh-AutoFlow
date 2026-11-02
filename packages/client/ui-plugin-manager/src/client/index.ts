@@ -150,6 +150,7 @@ export function apply(ctx: ClientContext): void {
     // this page, the CLI, or another browser — and streams install output.
     // A page never rendered holds no snapshot to refresh.
     const refresh = (): void => {
+      mentionSource.invalidateInventory()
       inputTriggers.invalidateCandidates(mentionSource)
       // A profile change can replace a bundle's files, and a restarted Host is read afresh.
       controller.details.reset()

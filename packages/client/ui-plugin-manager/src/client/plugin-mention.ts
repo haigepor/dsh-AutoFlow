@@ -9,6 +9,12 @@ import { BUILTIN_PROFILE_BUNDLES } from './presentation.ts'
 
 type Translate = (key: PluginManagerLocaleKey) => string
 
+/** Plugin candidates with an in-flight inventory read invalidated by Host changes. */
+export interface PluginMentionSource extends InputTriggerSource {
+  /** Withdraw the shared inventory read before the controller invalidates its queries. */
+  invalidateInventory(): void
+}
+
 /** Build the same atomic plugin reference for menu picks and example drafts.
  * @param name Bundle package name.
  * @param label Localized display title.
@@ -48,14 +54,24 @@ export function pluginMentionSource(
     picked(session: ClientSessionContext, name: string): void
     prepare(session: ClientSessionContext, name: string, signal: AbortSignal): Promise<void>
   },
-): InputTriggerSource {
+): PluginMentionSource {
+  let inventory: Promise<readonly BundleInfo[]> | undefined
+  const candidateInventory = (): Promise<readonly BundleInfo[]> => {
+    if (inventory !== undefined) return inventory
+    const pending: Promise<readonly BundleInfo[]> = listBundles().finally(() => {
+      if (inventory === pending) inventory = undefined
+    })
+    inventory = pending
+    return pending
+  }
   return {
     trigger: '@', name: 'plugin', order: -10, showGroupTitle: false,
     cacheCandidates: true,
+    invalidateInventory() { inventory = undefined },
     async candidates(_session, { query, quoted, drilled, signal }) {
       if (quoted === true || drilled) return []
       signal.throwIfAborted()
-      const bundles = await listBundles()
+      const bundles = await candidateInventory()
       signal.throwIfAborted()
       return bundles.filter(bundle => bundle.error === undefined && !BUILTIN_PROFILE_BUNDLES.has(bundle.name))
         .map(bundle => ({

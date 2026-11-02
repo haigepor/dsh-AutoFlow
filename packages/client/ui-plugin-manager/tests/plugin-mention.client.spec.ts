@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { BundleInfo } from '@deepseek-ai/dsh-plugin-manager/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { pluginMentionSource } from '../src/client/plugin-mention.ts'
@@ -16,6 +16,63 @@ const session = { sessionId: 'session-1' as SessionId }
 const request = { query: '', position: 'inline' as const, drilled: false, signal: new AbortController().signal }
 
 describe('plugin @ source', () => {
+  it('shares inventory across overlapping queries and sessions while discarding cancelled queries', async () => {
+    const inventory = Promise.withResolvers<readonly BundleInfo[]>()
+    onTestFinished(() => { inventory.resolve([]) })
+    const list = vi.fn(() => inventory.promise)
+    const source = pluginMentionSource(list, value => typeof value === 'string' ? value : value?.en ?? '', key => en[key])
+    const queries = Array.from(enabled.name, (_, index) => {
+      const abort = new AbortController()
+      const pending = source.candidates(session, { ...request, query: enabled.name.slice(0, index + 1), signal: abort.signal })
+      if (index < enabled.name.length - 1) abort.abort()
+      return pending
+    })
+    const settled = Promise.allSettled(queries)
+    const otherSession = source.candidates({ sessionId: 'session-2' as SessionId }, { ...request, query: 'Notes' })
+    expect(list).toHaveBeenCalledTimes(1)
+    inventory.resolve([enabled])
+    const results = await settled
+    expect(results.slice(0, -1).every(result => result.status === 'rejected')).toBe(true)
+    expect(results.at(-1)).toMatchObject({ status: 'fulfilled', value: [{ name: enabled.name }] })
+    await expect(otherSession).resolves.toMatchObject([{ name: enabled.name }])
+  })
+
+  it('starts a fresh inventory after invalidation without letting the old read release the new one', async () => {
+    const oldInventory = Promise.withResolvers<readonly BundleInfo[]>(), nextInventory = Promise.withResolvers<readonly BundleInfo[]>()
+    onTestFinished(() => { oldInventory.resolve([]); nextInventory.resolve([]) })
+    const list = vi.fn<() => Promise<readonly BundleInfo[]>>()
+      .mockImplementationOnce(() => oldInventory.promise)
+      .mockImplementationOnce(() => nextInventory.promise)
+    const source = pluginMentionSource(list, value => typeof value === 'string' ? value : value?.en ?? '', key => en[key])
+    const oldQuery = source.candidates(session, request)
+    source.invalidateInventory()
+    const nextQuery = source.candidates(session, { ...request, query: 'Notes' })
+    oldInventory.resolve([disabled])
+    await oldQuery
+    const joinedQuery = source.candidates(session, { ...request, query: 'example' })
+    expect(list).toHaveBeenCalledTimes(2)
+    nextInventory.resolve([enabled])
+    await expect(nextQuery).resolves.toMatchObject([{ name: enabled.name }])
+    await expect(joinedQuery).resolves.toMatchObject([{ name: enabled.name }])
+  })
+
+  it('checks submission independently of pending candidates and retries failed inventory reads', async () => {
+    const inventory = Promise.withResolvers<readonly BundleInfo[]>()
+    onTestFinished(() => { inventory.resolve([]) })
+    const list = vi.fn<() => Promise<readonly BundleInfo[]>>()
+      .mockImplementationOnce(() => inventory.promise)
+      .mockResolvedValueOnce([{ ...enabled, enabled: false }])
+      .mockResolvedValueOnce([enabled])
+    const source = pluginMentionSource(list, value => typeof value === 'string' ? value : value?.en ?? '', key => en[key])
+    const pending = expect(source.candidates(session, request)).rejects.toThrow('inventory unavailable')
+    await expect(source.codec?.serialize(enabled.name, request.signal)).rejects.toThrow(en.mentionUnavailable)
+    expect(list).toHaveBeenCalledTimes(2)
+    inventory.reject(new Error('inventory unavailable'))
+    await pending
+    await expect(source.candidates(session, request)).resolves.toMatchObject([{ name: enabled.name }])
+    expect(list).toHaveBeenCalledTimes(3)
+  })
+
   it('lists available bundles, marks disabled ones, and inserts a highlighted plugin chip', async () => {
     const list = vi.fn(async () => [disabled, infrastructure, enabled])
     const source = pluginMentionSource(list, value => typeof value === 'string' ? value : value?.en ?? '', key => en[key])
