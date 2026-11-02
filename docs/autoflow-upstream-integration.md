@@ -4,6 +4,14 @@ English | [中文](autoflow-upstream-integration.zh.md)
 
 This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.2-alpha.2`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) stores current comparison references and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
 
+## `dsh-v0.2.1-rc.5` reasoning backport (2026-11-02)
+
+The official rc.5 release branches from rc.4 and adds the reasoning-display fix in [#7484](https://github.com/deepseek-ai/deepseek-harness/pull/7484). AutoFlow applies that functional change to its existing alpha.2 baseline. The official mirror and package versions remain at `dsh-v0.2.2-alpha.2`; the rc.5 release-version changes are excluded. `codex/backup-before-rc5-20261102` retains the preceding AutoFlow main.
+
+Reasoning rows, expanded bodies, and running process summaries omit a leading signature block, including incomplete streaming prefixes. Ordinary Markdown and the original model output remain intact. Body extensions receive display-ready `text` and unchanged `rawText`; translation and untranslated views use `text`. See the [extension upgrade guide](upgrade-guide/v0.2.2-alpha.2/reasoning-body-props/guide.md).
+
+The adaptation retains local theme tokens, layout, collapse animation, text selection and quotes, and custom-plugin configuration. The Client slot catalog is regenerated from the adapted declarations. The owning reasoning tests and assembled Web scenario cover plain and signed output; actual results belong to the delivery commit.
+
 ## `dsh-v0.2.2-alpha.2` integration (2026-10-30)
 
 The official target is `dsh-v0.2.2-alpha.2`, integrated through an rc.4 checkpoint. The saved local tree is `backup/local-before-alpha2-20261030`; `backup/main-before-alpha2-20261030` and `backup/mirror-before-alpha2-20261030` retain the original branch heads. An isolated `codex/integrate-alpha2-20261030` checkout owns implementation and validation. The local snapshot includes pending edits; private profile files are backed up outside Git.

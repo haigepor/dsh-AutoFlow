@@ -4,6 +4,14 @@
 
 本文记录 AutoFlow 的官方集成决定。当前目标为 `dsh-v0.2.2-alpha.2`；下方早期版本章节保留历史背景。[文件清单](autoflow-local-change-manifest.json)保存当前比较基点及历史路径清单；[维护对照地图](cookbook/maintaining-autoflow-fork.zh.md)定位需要保护的定制实现。
 
+## `dsh-v0.2.1-rc.5` 思考展示修复移植（2026-11-02）
+
+官方 rc.5 从 rc.4 分支发布，增加 [#7484](https://github.com/deepseek-ai/deepseek-harness/pull/7484) 的思考展示修复。AutoFlow 将这项功能改动移植到已有的 alpha.2 基线上。官方镜像和包版本保持 `dsh-v0.2.2-alpha.2`，不合入 rc.5 的发布版本修改。`codex/backup-before-rc5-20261102` 保留修改前的 AutoFlow main。
+
+思考行、展开正文及运行中的过程摘要隐藏开头的签名块，包括尚未接收完整的流式前缀。普通 Markdown 与原始模型输出保持完整。正文扩展接收展示用的 `text` 及未修改的 `rawText`；翻译和未翻译视图使用 `text`。见[扩展升级指南](upgrade-guide/v0.2.2-alpha.2/reasoning-body-props/guide.zh.md)。
+
+适配保留本地主题令牌、布局、折叠动画、文字选择与引用，以及自定义插件配置。Client 插槽目录从适配后的声明重新生成。所属思考测试及完整 Web 场景覆盖普通输出和带签名输出；实际结果归属交付提交。
+
 ## `dsh-v0.2.2-alpha.2` 集成（2026-10-30）
 
 官方目标固定为 `dsh-v0.2.2-alpha.2`，经 rc.4 检查点分阶段集成。`backup/local-before-alpha2-20261030` 保存本地工作树；`backup/main-before-alpha2-20261030` 与 `backup/mirror-before-alpha2-20261030` 保留原分支头。实现和验证在隔离的 `codex/integrate-alpha2-20261030` 检出中进行。本地快照包含待提交改动；私有 profile 文件备份在 Git 外。

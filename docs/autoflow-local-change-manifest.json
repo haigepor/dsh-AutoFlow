@@ -1,6 +1,22 @@
 {
   "snapshotDate": "2026-10-30",
   "officialRef": "dsh-v0.2.2-alpha.2",
+  "backports": [
+    {
+      "sourceRef": "dsh-v0.2.1-rc.5",
+      "upstreamPullRequest": 7484,
+      "integrationDate": "2026-11-02",
+      "baseRef": "dsh-v0.2.2-alpha.2",
+      "rollbackRef": "codex/backup-before-rc5-20261102",
+      "paths": [
+        "packages/client/ui-chat",
+        "packages/experimental/client-ui-cot-translation",
+        "packages/extensions/cordis-client-runner/src/client/slot-catalog.ts",
+        "apps/web/tests/reasoning-preview.e2e.ts",
+        "docs/upgrade-guide/v0.2.2-alpha.2/reasoning-body-props"
+      ]
+    }
+  ],
   "oldOfficialRef": "dsh-v0.2.1-rc.3",
   "mainRef": "backup/local-before-alpha2-20261030",
   "integrationRef": "codex/integrate-alpha2-20261030",

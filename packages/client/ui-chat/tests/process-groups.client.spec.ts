@@ -72,6 +72,15 @@ function harness(nodes: readonly ChatConversationViewNode[], currentTimeline = t
 
 describe('Definition-owned Chat process groups', () => {
   it.each([
+    ['<sig', ''],
+    ['<signature>metadata.payload</signature>\n\n', ''],
+    ['<signature>metadata.payload</signature>\n\n**Visible thought**\nMore detail', 'Visible thought More detail'],
+    ['Ordinary reasoning', 'Ordinary reasoning'],
+  ])('uses display-ready reasoning for the running group detail in %j', (text, expected) => {
+    expect(processActivity([assistant(text)]).runningDetail).toBe(expected)
+  })
+
+  it.each([
     ['whitespace', '  one\t\n two  ', 'one two'],
     ['empty text', ' \t\n ', 'bash'],
     ['exact limit', 'x'.repeat(160), 'x'.repeat(160)],
