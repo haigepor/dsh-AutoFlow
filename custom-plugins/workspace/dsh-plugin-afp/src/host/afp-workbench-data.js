@@ -269,10 +269,14 @@ export class WorkbenchData {
       if (run.pending && (args.category === undefined || run.pending.category === args.category)) {
         for (const candidate of run.pending.candidates) candidates.push({ category: run.pending.category, candidate })
       }
+      const seen = new Set()
       const items = candidates.map(({ category, candidate }) => {
         const photo = photoDto(candidate)
         if (!photo) return null
-        const decision = decisionsByKey.get(`${category}\n${photo.id}`)
+        const key = `${category}\n${photo.id}`
+        if (seen.has(key)) return null
+        seen.add(key)
+        const decision = decisionsByKey.get(key)
         const requestFailed = decision?.reason === 'preview or vision request failed'
         return { ...photo, category, keep: typeof decision?.keep === 'boolean' ? decision.keep : null,
           confidence: Number.isFinite(decision?.confidence) ? decision.confidence : null,

@@ -12,7 +12,7 @@ const defaults = Object.freeze({
   selectionsEndpoint: 'https://slt-api-news.app.afp.com',
   loginEndpoint: 'https://hub-api-news.app.afp.com/search',
   mediaEndpoint: 'https://afp-apicore-prod.afp.com/objects/api/medias', previewCdnHosts: [], previewAutoCdnHosts: true,
-  targetPerCategory: 100, batchSize: 30, pageSize: 60, maxPages: 3, maxBatches: 10,
+  targetPerCategory: 100, batchSize: 30, pageSize: 60, maxSelectionPhotos: 1000, maxPages: 3, maxBatches: 10,
   concurrency: 3, threshold: 0.8, requestTimeoutMs: 180000, readRetries: 2,
   collectionConcurrency: 8, searchConcurrency: 3, maxSearchRequests: 30,
   preparationTimeoutMs: 600000, dedupSnapshotTtlMs: 600000, dedupReadMode: 'full', maxPhotoAttempts: 3, minimumReviewedPerCategory: 0,
@@ -27,7 +27,7 @@ const defaults = Object.freeze({
 })
 const ranges = {
   debugMaxBytes: [65536, 4194304], debugMaxEvents: [10, 10000], debugMaxRuns: [1, 200], debugRetentionDays: [1, 30], debugFlushIntervalMs: [250, 10000],
-  targetPerCategory: [1, 1000], batchSize: [1, 500], pageSize: [1, 120], maxPages: [1, 10],
+  targetPerCategory: [1, 1000], batchSize: [1, 500], pageSize: [1, 120], maxSelectionPhotos: [1, 1000], maxPages: [1, 10],
   maxBatches: [1, 100], concurrency: [1, 16], requestTimeoutMs: [1000, 600000], readRetries: [0, 5],
   collectionConcurrency: [1, 16], searchConcurrency: [1, 16], maxSearchRequests: [1, 1000],
   preparationTimeoutMs: [1000, 3600000], dedupSnapshotTtlMs: [0, 3600000], maxPhotoAttempts: [1, 5], minimumReviewedPerCategory: [0, 1000],

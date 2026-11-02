@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/
 /** Successful tools whose complete photo metadata supplies Turn-scoped evidence. */
-export const photoReadTools = new Set(['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_result_page'])
+export const photoReadTools = new Set(['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_run_items', 'afp_result_page'])
 
 /** Read a plugin-owned result envelope; a retained prefix may recover only its opaque reference.
  * @param {object} message Durable tool message or PTC dispatch.
@@ -49,7 +49,7 @@ export class ConversationRecords {
     const saved = this.failures.get(this.failureKey(exec))
     if (!saved) return null
     // 参数未变但本轮证据增加时，允许重新验证；否则缺证据会永远无法修复。
-    if (['selection-missing-photos', 'selection-report-missing', 'selection-visual-rejected', 'selection-unverified'].includes(saved.error.code)
+    if (['selection-missing-photos', 'selection-report-missing', 'selection-visual-rejected', 'selection-unverified', 'operation-evidence-missing', 'operation-invalid-choice'].includes(saved.error.code)
       && exec.agent.session.snapshotEvents().some(event => event.seq > saved.atSeq &&
         (event.type === 'tool/result' && !event.data.message.isError && event.data.meta?.afp
           || event.type === 'tool/ptc-dispatch' && !event.data.isError && event.data.name.startsWith('afp_')))) return null
@@ -85,7 +85,10 @@ export class ConversationRecords {
 export function renderPhotoResult(value, maxBytes) {
   // 查看明细保存在原调用的完整记录中；模型摘要不携带仅供图片列表使用的身份和逐图结果。
   const { reviewedPhotoIds, reviewedPhotos, ...result } = JSON.parse(value)
-  const compact = photo => ({ id: photo.id, title: (photo.title ?? '').slice(0, 160), caption: (photo.caption ?? '').slice(0, 400), provider: photo.provider, previewPath: 'api/afp/preview?photoId=' + encodeURIComponent(photo.id) })
+  const compact = photo => ({ id: photo.id, title: (photo.title ?? '').slice(0, 160), caption: (photo.caption ?? '').slice(0, 400),
+    provider: photo.provider, previewPath: 'api/afp/preview?photoId=' + encodeURIComponent(photo.id),
+    ...(Object.hasOwn(photo, 'keep') ? { category: photo.category, keep: photo.keep, confidence: photo.confidence,
+      reason: photo.reason, requestFailed: photo.requestFailed } : {}) })
   if (!result.resultRef) return [{ type: 'text', text: JSON.stringify(result) }]
   if (!Array.isArray(result.items)) {
     const output = Buffer.byteLength(value) > maxBytes && result.photo ? { ...result, photo: compact(result.photo) } : result

@@ -1,7 +1,8 @@
-import { afpReportFeedback, feedbackStages, useAfpFeedbackProgress } from './afp-conversation-feedback.js'
+import { afpErrorFeedback, afpReportFeedback, feedbackStages, useAfpFeedbackProgress } from './afp-conversation-feedback.js'
 import { createReviewedPreviews, reviewedImageRows } from './afp-conversation-reviewed-images.js'
 
 const names = {
+  afp_collection_plan: 'agentCollectionPreview', afp_category_plan: 'agentCategoryPreview', afp_download_directory: 'agentDownloadDestination',
   afp_status: 'agentCheckStatus', afp_search_plan: 'agentPlanSearch', afp_collections: 'agentReadTargets',
   afp_collection_list: 'agentReadCollections', afp_collection_items: 'collectionPhotos', afp_report: 'agentReadReport',
   afp_refresh: 'agentVisualReview', afp_photo_selection: 'agentSelectFinal', afp_result_page: 'agentReadSavedResults',
@@ -147,7 +148,7 @@ export function createAfpToolRow(React, UI, t, store) {
         collapsedContent: feedback ? React.createElement('span', { className: 'afp-agent-tool-summary', title: summaryHint, role: refresh ? 'status' : undefined },
           React.createElement('span', { 'aria-hidden': true }, '·'), ' ', inlineSummary) : props.phase === 'result' && !error ? null : React.createElement('span', { role: error ? 'alert' : 'status' },
           React.createElement(UI.Tag, { tone: error ? 'danger' : props.phase === 'result' ? 'neutral' : 'info' }, t(status)), repeat?.count > 1 ? ' · ' + repeat.count : '') }, feedback),
-      error ? React.createElement('p', { className: 'afp-chat-help' }, t('agentError_' + error.code) === 'agentError_' + error.code ? t('agentFailureAdvice') : t('agentError_' + error.code)) : null,
+      error ? React.createElement('p', { className: 'afp-chat-help' }, afpErrorFeedback(error, t)) : null,
       props.inspect ? React.createElement(UI.Button, { variant: 'ghost', size: 'sm', className: 'afp-agent-inspect', onClick: props.inspect }, t('agentInspectRecord')) : null,
       React.createElement(PreviewModal, { photo: open ? zoomPhoto : null, items: zoomItems,
         onChange: setZoomPhoto, onClose: () => setZoomPhoto(null) }))
@@ -280,7 +281,7 @@ export function createAfpProgressDock(React, UI, t, store) {
       return h('li', { key: call.callId, className: 'afp-task-trace', 'data-state': state },
         h('span', { className: 'afp-task-trace-dot', 'aria-hidden': true }),
         h('div', { className: 'afp-task-trace-copy' }, h('span', null, t(names[name] ?? 'agentOperation')), typeof query === 'string' ? h('small', { title: query }, query) : null,
-          call.isError ? h('small', null, t('agentError_' + value?.code) === 'agentError_' + value?.code ? t('agentFailureAdvice') : t('agentError_' + value?.code)) : null),
+          call.isError ? h('small', null, afpErrorFeedback(value, t)) : null),
         h(UI.Tag, { tone: state === 'failed' ? 'danger' : state === 'stopped' ? 'warning' : state === 'running' ? 'info' : 'neutral' }, stateLabel(state)))
     })
     const elapsed = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0')

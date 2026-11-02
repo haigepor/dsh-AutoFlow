@@ -330,6 +330,7 @@ export class AfpDownloads {
       prefix: cleanFilenamePart(prefix, 80), suffix: cleanFilenamePart(suffix, 80), balance, totalCost }
     this.plans.set(planId, plan)
     return { changed: false, planId, confirmation, expiresAt, creditBalance: balance, totalCost,
+      destination: { directoryId, label: basename(directory.path) || directory.path },
       items: updatedRows.map(row => ({ ...dto(row), fileNamePreview: requestedBase(row, plan.prefix, plan.suffix) })) }
   }
 
@@ -363,7 +364,13 @@ export class AfpDownloads {
     return this.createPlan(input, signal)
   }
 
-  async confirm({ planId, confirmation, confirmed }, signal) {
+  /** Consume a download preview and recheck its quote before admitting work.
+   * @param {object} input Preview ID, private confirmation and explicit confirmation flag.
+   * @param {AbortSignal} signal Caller cancellation.
+   * @param {string} [owner] Invoking Session for Agent downloads; absent for workbench jobs.
+   * @returns {Promise<object>} A queued handle or changed quote requiring another approval.
+   */
+  async confirm({ planId, confirmation, confirmed }, signal, owner) {
     const plan = this.plans.get(planId)
     if (confirmed !== true || !plan || plan.confirmation !== confirmation || plan.expiresAt <= Date.now()) throw failure('download-confirmation-expired')
     this.plans.delete(planId)
@@ -390,7 +397,7 @@ export class AfpDownloads {
     this.active.add(record.id)
     const feature = plan.totalCost > 0 ? 'write' : 'read'
     try {
-      const job = this.schedule(feature, 'AFP image download', (taskSignal, handle) => this.execute(record, selected, plan, taskSignal, handle))
+      const job = this.schedule(feature, 'AFP image download', (taskSignal, handle) => this.execute(record, selected, plan, taskSignal, handle), owner)
       record.jobId = job.jobId
       record.taskId = job.taskId
       record.updatedAt = Date.now()

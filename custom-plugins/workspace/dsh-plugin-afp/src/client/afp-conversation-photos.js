@@ -4,7 +4,7 @@ import { previewSource } from './afp-preview-media.js'
 import { photoDisplayTitle } from './afp-photo-labels.js'
 import { cancelPhotoScroll, slidePhotoStrip } from './afp-photo-scroll.js'
 
-const tools = ['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_result_page']
+const tools = ['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_run_items', 'afp_result_page']
 const resourceId = value => typeof value === 'string' && value.trim() && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value)
 const errorMessages = new Map([
   ['authentication-failed', 'agentPhotosAuthenticationFailed'], ['login-failed', 'agentPhotosAuthenticationFailed'],

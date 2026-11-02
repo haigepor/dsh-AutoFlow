@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { afpReportFeedback, useAfpFeedbackProgress } from '../src/client/afp-conversation-feedback.js'
+import { afpErrorFeedback, afpReportFeedback, useAfpFeedbackProgress } from '../src/client/afp-conversation-feedback.js'
 import { createAfpToolRow } from '../src/client/afp-conversation-progress.js'
 import { summary, reviewedPhotoResults } from '../src/host/afp-refresh-workflow.js'
 import { createReviewedPreviews, reviewedPreviewPhotos, reviewedImageRows } from '../src/client/afp-conversation-reviewed-images.js'
@@ -11,6 +11,36 @@ import { renderPhotoResult } from '../src/host/afp-conversation-records.js'
 const report = { runId: 'run', status: 'paused', stage: 'visual', categories: [
   { category: 'landscape', reviewed: 5, kept: 1, target: 10, requestFailures: 2 },
 ] }
+
+test('field errors show localized runId guidance and preserve legacy summaries', async () => {
+  for (const language of ['en', 'zh']) {
+    const dictionary = JSON.parse(await readFile(new URL(`../src/client/locales/${language}.json`, import.meta.url), 'utf8'))
+    const t = (key, values = {}) => (dictionary[key] ?? key).replace(/\{(\w+)\}/g, (_match, name) => String(values[name]))
+    const runId = afpErrorFeedback({ code: 'invalid-arguments', field: 'runId' }, t)
+    assert.ok(runId.includes('runId') && runId.includes('null') && runId.includes('UUID'))
+    assert.ok(afpErrorFeedback({ code: 'invalid-arguments', field: 'photoIds[1]' }, t).includes('photoIds[1]'))
+    assert.equal(afpErrorFeedback({ code: 'invalid-arguments' }, t), dictionary['agentError_invalid-arguments'])
+    assert.equal(afpErrorFeedback({ code: 'not-in-this-build' }, t), dictionary.agentFailureAdvice)
+  }
+})
+
+test('nullable operation errors show localized field guidance without changing required ID errors', async () => {
+  for (const language of ['en', 'zh']) {
+    const dictionary = JSON.parse(await readFile(new URL(`../src/client/locales/${language}.json`, import.meta.url), 'utf8'))
+    const t = (key, values = {}) => (dictionary[key] ?? key).replace(/\{(\w+)\}/g, (_match, name) => String(values[name]))
+    for (const [code, field] of [['operation-invalid-choice', 'targetCollectionId'], ['operation-failed', 'path']]) {
+      const feedback = afpErrorFeedback({ code, field, expectedType: 'null' }, t)
+      assert.ok(feedback.includes(field) && feedback.includes('null'))
+      assert.equal(feedback, t('agentError_expected-null', { field }))
+    }
+    for (const field of ['collectionId', 'targetCollectionId']) {
+      assert.equal(afpErrorFeedback({ code: 'operation-invalid-choice', field }, t), dictionary['agentError_invalid-' + field])
+      assert.equal(afpErrorFeedback({ code: 'invalid-arguments', field }, t), t('agentError_invalid-field', { field }))
+    }
+    assert.equal(afpErrorFeedback({ code: 'operation-invalid-choice' }, t), dictionary.agentFailureAdvice)
+    assert.equal(afpErrorFeedback({ code: 'operation-failed' }, t), dictionary.agentFailureAdvice)
+  }
+})
 
 test('historical reports count failed requests separately from completed pixel decisions', () => {
   const result = afpReportFeedback(report)

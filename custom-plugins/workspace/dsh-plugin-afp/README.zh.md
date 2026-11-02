@@ -21,7 +21,9 @@ GitHub 分发使用包自己的 `afp-v<version>` 标签，以及独立 tarball�
 
 ## 目录约定
 
-根目录 `index.js`、`execute.js`、`skill.js` 和生成的 `client.js` 是导出的生命周期入口；`config-schema.js` 校验部署配置。自有 Host 实现放在 `src/host/afp-*.js`；浏览器实现放在 `src/client/afp-*.js`；适配的协议与分类实现放在 `src/vendor/auto-afp-img/`。`skills/` 只存技能说明和参考文档。根目录 `cli/afp-task.js` 导出 DSH 托管的任务适配器，与 UI 调用同一个 Host 服务；`scripts/` 只存本包构建和检查脚本。修改浏览器源码后运行 `npm run build:client`，不直接修改生成的 client.js。
+组合包声明专用的 **AFP 策展助手** 预设，可在对话中手动选择，也可选中 AFP 的 `@` 引用自动切换。专用工具覆盖现有操作台业务，保留其他预设及原有功能开关；功能对照、确认机制及使用示例见 [English guide](docs/agent.md) / [中文指南](docs/agent.zh.md)。
+
+根目录 `index.js`、`execute.js`、`skill.js`、`agent.js` 和生成的 `client.js` 是导出的生命周期入口；`config-schema.js` 校验部署配置。自有 Host 实现放在 `src/host/afp-*.js`；浏览器实现放在 `src/client/afp-*.js`；适配的协议与分类实现放在 `src/vendor/auto-afp-img/`。`skills/` 只存技能说明和参考文档。根目录 `cli/afp-task.js` 导出 DSH 托管的任务适配器，与 UI 调用同一个 Host 服务；`scripts/` 只存本包构建和检查脚本。修改浏览器源码后运行 `npm run build:client`，不直接修改生成的 client.js。
 
 ## 图标资源
 
@@ -83,7 +85,28 @@ AFP 发布流程要求 Linux、Windows、Apple Silicon Mac 和 Intel Mac 的原�
 
 模型接收由 agentResultMaxBytes 限制的有效 JSON，默认 16384，范围 4096–65536。afp_result_page 仅读取剩余本地元数据，不再次请求 AFP。新搜索、详情、收藏夹成员和最终选择记录不依赖通用输出截断。afp_photo_selection 使用 basis=metadata、runId=null，或 basis=visual 加上本轮成功读取的真实运行报告 ID。afp_report 接收 kind=run|plan 和 id；afp_refresh 新建使用 mode=start、categories、runId=null，续跑使用 mode=resume、categories=[] 及真实 runId。收藏夹写入授权不变。
 
+`runId` 仍为必填字段。元数据选图和启动新的视觉任务必须填写 JSON `null`，不加引号；视觉选图和续跑任务必须填写成功工具结果返回的真实运行 UUID。字符串 `"null"`、空字符串和省略字段均无效。校验错误保留 `invalid-arguments` 与 `retryable: false`，同时提供 `field`、`expected` 和 `receivedType`，不回显被拒绝的参数值。应先修正指定字段再重试，修改无关的筛选说明或图片数量无法解决该错误。会话卡片显示本地化字段提示，并继续兼容没有这些字段的旧错误记录。
+
+收藏夹和下载预览先使用当前 Turn 的图片读取证据，再按需查询运行报告。已归档或缺失的报告不提供证据，既不会阻断已有充分读取证据的操作，也不能授权未读取的图片。其他存储错误仍会报出；账号、成员关系和人工确认校验保持必需。
+
+`afp_run_items` 保存完整元数据，返回有字节上限的 JSON，并保留审核结论、置信度、理由及请求失败状态。先根据 `nextOffset` 调用 `afp_result_page`，直到本地结果分页结束，再用 `runNextOffset` 调用 `afp_run_items` 读取下一页运行明细。每个本地分页均保留运行游标；标题和说明的摘要不替代完整保存的元数据。待完成批次和已保存候选先按分类及图片 ID 去重，再按审核结果过滤、计数和分页。
+
+其他可空参数也使用不加引号的 JSON `null`：移除预览使用 `{"action":"remove","targetCollectionId":null}`，分类解绑预览使用 `{"collectionId":null}`，打开原生目录选择器使用 `{"action":"select","path":null}`。这些是字段片段，仍需保留工具要求的其他必填字段。选择目标和绑定分类使用真实收藏夹 ID，浏览式目录选择器填写实际路径。错误指出具体字段和预期类型，保留原有错误码；真实 ID 或浏览目录名恰为 `"null"` 时仍按字符串处理。
+
+元数据选图示例：将图片 ID 占位符替换为本轮成功读取结果中的完整 ID，保留不加引号的 JSON `null`。视觉选图应使用 `basis: "visual"`、真实运行 UUID，并在本轮读取该运行报告后，仅选择其中通过审核的图片。
+
+```json
+{
+  "photoIds": ["<complete photo ID from a successful read in this Turn>"],
+  "criteria": "Title and caption screening; no visual review",
+  "basis": "metadata",
+  "runId": null
+}
+```
+
 AFP 不再注册输入框上方的独立进度胶囊。任务计划由原生任务清单展示，实际检索和视觉校验进度保留在聊天行内折叠输出；工作台和下载进度入口保持可用。
+
+整类修改与指定图片修改共用账号锁。并发写入冲突时不执行变更，需要重新预览并确认，不自动重试。整类预览排除无名目录项，保留具名共享收藏夹的读取及其失败。分类绑定预览与执行共用名称唯一、目标可写及分类占用校验，并检查默认绑定。
 
 过程中保留一份可折叠候选图库，完成后收起。仅成功保存的明确选择生成最终图库及结构化表格，保持选图顺序，显示说明、AFP 图片 ID 和不含登录 token 的同源认证预览链接。元数据结果明确未视觉复核，视觉合格状态来自已保存报告。重开读取持久元数据，不从回答文字推测最终图片。Agent 回答采用“结果与数量、标准与依据、未满足要求或错误”三个简短段落；选图失败不能用手写清单或缩写 ID 代替。界面统一展示图库、结果表和已保存的筛选标准。
 

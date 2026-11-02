@@ -27,6 +27,14 @@ const descriptions = {
   'operation-failed': ['operation', 'AFP operation failed.', 'Check setup and the saved report before any further write; its outcome may be partial.'],
 }
 
+/** Field diagnostics use schema-owned names, constraints and types without rejected values. */
+export class AfpArgumentError extends Error {
+  /** @param {object} issue Invalid field, expected value/type, received type and parameter guidance.
+   * @param {string} code Existing failure code retained for operation-specific constraints.
+   */
+  constructor(issue, code = 'invalid-arguments') { super('Invalid AFP arguments'); this.name = 'AfpArgumentError'; this.issue = issue; this.code = code }
+}
+
 /** Fixed error projection; upstream messages are used only for known classifications and never returned.
  * @param {Error} error Failure from argument validation or the AFP service.
  * @param {string} kind Tool presentation kind; only reads permit a retry suggestion.
@@ -34,6 +42,14 @@ const descriptions = {
  * @returns {object} Safe model-visible error fields, without upstream bodies or credentials.
  */
 export function agentError(error, kind, durationMs) {
+  if (error instanceof AfpArgumentError) {
+    const { field, expected, expectedType, receivedType, guidance } = error.issue
+    return { code: error.code, stage: 'validation', field, expected, receivedType,
+      ...(expectedType ? { expectedType } : {}),
+      message: `Invalid AFP argument "${field}". Expected ${expected}; received ${receivedType}.`,
+      action: `${guidance ?? `Use ${expected}.`} Correct this field before retrying; leave unrelated arguments unchanged. Do not repeat unchanged invalid input.`,
+      retryable: false, durationMs }
+  }
   const message = typeof error?.message === 'string' ? error.message : ''
   const read = ['read', 'search'].includes(kind)
   const failure = error?.afpFailure

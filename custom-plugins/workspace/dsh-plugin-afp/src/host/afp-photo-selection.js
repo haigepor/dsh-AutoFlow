@@ -1,5 +1,4 @@
-import { photoResultEnvelope } from './afp-conversation-records.js'
-const reads = new Set(['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_result_page'])
+import { photoResultEnvelope, photoReadTools as reads } from './afp-conversation-records.js'
 
 /** Read only the active Turn's successful AFP metadata and report identities from its durable log.
  * @param {object} session Owning DSH Session.

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AfpService } from '../src/host/afp-service.js'
 import { registerAgentTools } from '../src/host/afp-agent-tools.js'
+import { registerExtendedAgentTools } from '../src/host/afp-agent-operations.js'
 import { resolveConfig } from '../config-schema.js'
 import { conversationPhotoModel, conversationCandidateModel, conversationSummaryPhotoModel } from '../src/client/afp-conversation-photos.js'
 import { createAfpApiClient } from '../src/vendor/auto-afp-img/afp-api-client.mjs'
@@ -14,7 +15,8 @@ import { createAfpApiClient } from '../src/vendor/auto-afp-img/afp-api-client.mj
 const repo = new URL('../../../../', import.meta.url)
 const built = path => import(new URL(path + '/lib/index.js', repo))
 for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Session reads AFP metadata with ${dedupReadMode} preparation across fresh visual tasks`,
-  { skip: !existsSync(new URL('packages/core/agent-loop/lib/index.js', repo)) }, async t => {
+  { skip: !existsSync(new URL('packages/core/agent-loop/lib/index.js', repo)), concurrency: false }, async t => {
+    t.mock.method(Date, 'now', () => Date.UTC(2026, 9, 31, 12))
     const { Context } = await built('vendor/cordis')
     const { default: LlmRuntime, LlmAdapter, createUserMessage } = await built('packages/llm/llm')
     const { default: SessionStore, SessionId, foldRequestHeader } = await built('packages/core/session')
@@ -42,13 +44,23 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
       ['afp_photo_details', { photoId: 'p1' }],
       ['afp_collection_list', {}],
       ['afp_collection_items', { collectionId: 'shared', limit: 2 }],
+      ['afp_collection_plan', { action: 'remove', photoIds: ['p1'], sourceCollectionIds: ['shared'], targetCollectionId: 'null' }],
+      ['afp_category_plan', { category: 'animals', collectionId: 'null' }],
+      ['afp_category_plan', { category: 'animals', collectionId: 'collection-0' }],
+      ['afp_plan_change', { operation: 'clear', categories: ['animals'] }],
+      ['afp_download_directory', { action: 'select', path: 'null' }],
+      ['afp_photo_selection', { photoIds: ['p2', 'p1'], criteria: 'Cat captions; metadata only', basis: 'metadata', runId: 'null' }],
+      ['afp_photo_selection', { photoIds: ['p2', 'p1'], criteria: 'Cat captions; metadata only', basis: 'metadata' }],
       ['afp_photo_selection', { photoIds: ['p2', 'p1'], criteria: 'Cat captions; metadata only', basis: 'metadata', runId: null }],
       ['afp_photo_selection', { photoIds: ['not-searched'], criteria: 'Reject absent evidence', basis: 'metadata', runId: null }],
       ['afp_report', { kind: 'run', id: '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f' }],
+      ['afp_run_items', { runId: '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f', category: 'all', decision: 'all', offset: 0, limit: 1 }],
+      ['afp_run_items', { runId: '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f', category: 'all', decision: 'all', offset: 1, limit: 2 }],
       ['afp_refresh', { mode: 'resume', categories: [], runId: '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f' }],
       ['afp_search_plan', { query: ' ' }],
       ...['schema', 'authentication', 'unknown'].map(category => ['afp_photo_search_start', { query: `fixture-${category}`, language: 'en', limit: 2 }]),
       ['afp_photo_search_start', { query: 'fixture-malformed', language: 'en', limit: 2 }],
+      ['afp_refresh', { mode: 'start', categories: ['food'], runId: 'null' }],
       ['afp_refresh', { mode: 'start', categories: ['food'], runId: null }],
       ['afp_report', latestRun],
       ['afp_refresh', { mode: 'start', categories: ['food'], runId: null }],
@@ -93,11 +105,12 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
       async photosByIds(ids) { return ids.map(photo) },
       async photoSelectionsByIds(ids) { return ids.map(id => ({ id, selections: [] })) },
       async listSelections() { return [{ id: 'shared', name: 'Shared', isPrivate: dedupReadMode === 'candidate', docsCount: 3, lastContentUpdate: '2026-10-26T01:00:00.000Z' },
-        ...Array.from({ length: 8 }, (_, i) => ({ id: `collection-${i}`, name: `Synthetic ${i}`, isPrivate: dedupReadMode === 'candidate' || i % 2 === 0,
-          docsCount: 1, lastContentUpdate: '2026-10-26T01:00:00.000Z' }))] },
-      async getSelection(id) { collectionReads++; return { docs: id === 'shared' ? ['p1', 'p2', 'p3'] : [`${id}-photo`] } },
+        ...Array.from({ length: 8 }, (_, i) => ({ id: `collection-${i}`, name: `Synthetic ${i === 1 ? 0 : i}`, isPrivate: dedupReadMode === 'candidate' || i % 2 === 0,
+          docsCount: 1, lastContentUpdate: '2026-10-26T01:00:00.000Z' })), { id: 'directory', name: '', isPrivate: false }] },
+      async getSelection(id) { if (id === 'directory') throw new Error('Unnamed directory is not a collection'); collectionReads++; return { docs: id === 'shared' ? ['p1', 'p2', 'p3'] : [`${id}-photo`] } },
     }
     const service = new AfpService({ profileContext: { home, dir: join(home, 'profile') },
+      directoryPicker: { capability: () => ({ kind: 'native', pick: async () => { throw new Error('Unexpected picker invocation') } }) },
       jobs: { start(spec) { jobs.push(spec.run({ append() {}, updateProgress() {} })); return `afp-fixture-job-${jobs.length}` } } },
       resolveConfig({ pageSize: 2, dedupReadMode, targetPerCategory: 1, searchConcurrency: 1, maxSearchRequests: 2, maxPages: 1 }),
       { connection: { async open() { return { client, account: 'fixture-account',
@@ -106,8 +119,9 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
       } } } })
     const disable = await service.enable('read')
     const disableRefresh = await service.enable('refresh')
+    await service.store.saveBindings('fixture-account', { animals: { id: 'collection-2', name: 'Synthetic 2' } })
     await service.store.saveRun({ schema: 1, id: '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f', status: 'paused', stage: 'visual',
-      account: 'fixture-account', categories: ['animals'], settings: service.config, pending: null, groups: { animals: { candidates: ['one', 'two', 'three'].map(photo), batches: 1, exhausted: false } }, decisions: [
+      account: 'fixture-account', categories: ['animals'], settings: service.config, pending: { category: 'animals', candidates: ['one', 'two'].map(photo), exhausted: false }, groups: { animals: { candidates: ['one', 'two', 'three'].map(id => ({ ...photo(id), ...(id === 'one' ? { caption: 'C'.repeat(20000) } : {}) })), batches: 1, exhausted: false } }, decisions: [
         { id: 'one', category: 'animals', keep: true, confidence: .99 },
         { id: 'two', category: 'animals', keep: false, reason: 'preview or vision request failed' },
         { id: 'three', category: 'animals', keep: false, reason: 'animal body is cropped or only a partial close-up' },
@@ -115,7 +129,7 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
     // 模拟已准入任务；真实忙碌与准入数量由 lifecycle.test.js 检查。
     service.live.set('fixture-active', { feature: 'refresh', runId: '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f', controller: new AbortController(), done: Promise.resolve() })
     const tools = await ctx.plugin({ inject: ['tools'], apply(child) {
-      registerAgentTools(child, service, 'read'); registerAgentTools(child, service, 'refresh')
+      registerAgentTools(child, service, 'read'); registerAgentTools(child, service, 'refresh'); registerExtendedAgentTools(child, service)
     } })
     async function turn(id) {
       const agent = await ctx.agentLoop.create(SessionId(id), { provider: 'fixture', model: 'fixture' })
@@ -125,7 +139,7 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
     }
     const enabled = await turn('afp-enabled')
     assert.equal(jobs.length, 2)
-    assert.equal(collectionReads, dedupReadMode === 'candidate' ? 1 : 10)
+    assert.equal(collectionReads, dedupReadMode === 'candidate' ? 10 : 19)
     const visualRuns = await Promise.all(jobs.map(async job => service.store.readRun(JSON.parse((await job.done).result).runId)))
     assert.deepEqual(visualRuns[0].decisions.filter(item => item.keep).map(item => item.id), ['food-new'])
     assert.deepEqual(visualRuns[1].decisions, [])
@@ -140,7 +154,7 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
     const refresh = offered.find(tool => tool.name === 'afp_refresh')
     assert.equal(refresh.parameters.properties.targetPerCategory.maximum, 1000)
     assert.equal(refresh.parameters.properties.minimumReviewedPerCategory.minimum, 0)
-    const projection = { tools: offered.map(tool => tool.name), firstPageSchema: structuredClone(start.parameters), refreshSchema: structuredClone(refresh.parameters), cursorSchema: structuredClone(search.parameters.properties.cursor),
+    const projection = { tools: offered.map(tool => tool.name), firstPageSchema: structuredClone(start.parameters), refreshSchema: structuredClone(refresh.parameters), cursorSchema: structuredClone(search.parameters.properties.cursor), selectionSchema: structuredClone(offered.find(tool => tool.name === 'afp_photo_selection').parameters),
       calls: enabled.filter(event => event.type === 'tool/call').map(event => ({ name: event.data.name, arguments: event.data.arguments })),
       results: enabled.filter(event => event.type === 'tool/result').map(event => structuredClone(event.data)),
       todoWrites: enabled.filter(event => event.type === 'todo/write').map(event => structuredClone(event.data.todos)),
@@ -165,14 +179,43 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
     projection.processCandidates = conversationCandidateModel(rows)
     projection.finalSelection = conversationSummaryPhotoModel(rows)
     assert.deepEqual(projection.finalSelection.photos.map(photo => photo.id), ['p2', 'p1'])
-    assert.equal(JSON.parse(afpResults[8].message.content[0].text.slice('Error: '.length)).code, 'selection-missing-photos')
-    assert.equal(JSON.parse(afpResults[10].message.content[0].text.slice('Error: '.length)).code, 'refresh-busy')
-    const reportResult = JSON.parse(afpResults[9].message.content[0].text)
+    const missingPhoto = scriptedCalls.findIndex(([name, args]) => name === 'afp_photo_selection' && args.photoIds?.[0] === 'not-searched')
+    const busyRefresh = scriptedCalls.findIndex(([name, args]) => name === 'afp_refresh' && args.mode === 'resume')
+    const firstReport = scriptedCalls.findIndex(([name]) => name === 'afp_report')
+    assert.equal(JSON.parse(projection.results[missingPhoto].message.content[0].text.slice('Error: '.length)).code, 'selection-missing-photos')
+    assert.equal(JSON.parse(projection.results[busyRefresh].message.content[0].text.slice('Error: '.length)).code, 'refresh-busy')
+    const reportResult = JSON.parse(projection.results[firstReport].message.content[0].text)
     const savedReport = await service.store.read(join(service.store.profile, 'conversation-results', reportResult.resultRef + '.json'))
     assert.deepEqual(savedReport.result.reviewedPhotoIds, ['one', 'three'])
     assert.deepEqual(savedReport.result.reviewedPhotos.map(photo => [photo.id, photo.keep, photo.requestFailed]), [['one', true, false], ['two', false, true], ['three', false, false]])
     assert.equal(reportResult.reviewedPhotos, undefined)
     assert.equal(reportResult.reviewedPhotoIds, undefined)
+    for (const [name, field] of [['afp_collection_plan', 'targetCollectionId'], ['afp_category_plan', 'collectionId'], ['afp_download_directory', 'path']]) {
+      const index = scriptedCalls.findIndex(([tool]) => tool === name)
+      const error = JSON.parse(projection.results[index].message.content[0].text.slice('Error: '.length))
+      assert.equal(projection.results[index].message.isError, true)
+      assert.equal(error.field, field); assert.equal(error.receivedType, 'string')
+    }
+    const bindingIndex = scriptedCalls.findIndex(([name, args]) => name === 'afp_category_plan' && args.collectionId === 'collection-0')
+    const bindingError = JSON.parse(projection.results[bindingIndex].message.content[0].text.slice('Error: '.length))
+    assert.equal(bindingError.field, 'collectionId'); assert.match(bindingError.expected, /uniquely named/)
+    const planIndex = scriptedCalls.findIndex(([name]) => name === 'afp_plan_change')
+    const plan = JSON.parse(projection.results[planIndex].message.content[0].text)
+    assert.equal(plan.requiresApproval, true)
+    assert.equal(plan.categories[0].selectionName, 'Synthetic 2'); assert.equal(plan.categories[0].remove, 1)
+    const runItemsIndex = scriptedCalls.findIndex(([name]) => name === 'afp_run_items')
+    const runItemsMessage = projection.results[runItemsIndex].message
+    assert.equal(runItemsMessage.isError, false)
+    const runItems = JSON.parse(runItemsMessage.content[0].text)
+    assert.equal(runItems.items[0].id, 'one'); assert.equal(runItems.items[0].keep, true)
+    assert.equal(runItems.items[0].confidence, .99); assert.equal(runItems.runNextOffset, 1)
+    assert.equal(runItems.total, 3)
+    const remainingItems = JSON.parse(projection.results[runItemsIndex + 1].message.content[0].text)
+    assert.deepEqual(remainingItems.items.map(item => item.id), ['two', 'three'])
+    assert.equal(remainingItems.total, 3); assert.equal(remainingItems.runNextOffset, null)
+    assert.ok(Buffer.byteLength(runItemsMessage.content[0].text) <= service.config.agentResultMaxBytes)
+    const savedItems = await service.store.read(join(service.store.profile, 'conversation-results', runItems.resultRef + '.json'))
+    assert.equal(savedItems.result.items[0].caption.length, 20000)
     assert.deepEqual(projection.disabledTools, [])
     // UUID 映射保留引用之间的对应关系；耗时是测量值，不进入可重放快照。
     const references = new Map()
@@ -181,7 +224,10 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
       if (typeof value === 'string') return references.get(value) ?? value
       if (!value || typeof value !== 'object') return value
       const entries = Object.entries(value).filter(([key]) => key !== 'durationMs').map(([key, item]) => {
-        if (typeof item === 'string' && (key === 'resultRef' || key === 'taskId' || key === 'runId' && item !== '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f')) {
+        // Keep invalid literal arguments intact; only generated UUIDs need stable aliases.
+        const generatedRun = key === 'runId' && typeof item === 'string' && item !== '4a8b7032-fc24-4a8c-85fb-6c3a3c108b8f'
+          && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(item)
+        if (typeof item === 'string' && (key === 'resultRef' || key === 'taskId' || key === 'planId' || generatedRun)) {
           if (!references.has(item)) references.set(item, `00000000-0000-4000-8000-${String(references.size + 1).padStart(12, '0')}`)
           return [key, references.get(item)]
         }
@@ -198,6 +244,8 @@ for (const dedupReadMode of ['full', 'candidate']) test(`recorded keyless Sessio
       if (result.meta) result.meta = normalize(result.meta)
     }
     projection.calls = projection.calls.map(call => ({ ...call, arguments: JSON.stringify(normalize(JSON.parse(call.arguments))) }))
+    assert.equal(projection.calls.filter(call => ['afp_photo_selection', 'afp_refresh'].includes(call.name)
+      && JSON.parse(call.arguments).runId === 'null').length, 2)
     const file = new URL(`./fixtures/session-search${dedupReadMode === 'candidate' ? '-candidate' : ''}.expected.json`, import.meta.url)
     if (process.env.DSH_AFP_REFRESH_SNAPSHOT === '1') await writeFile(file, JSON.stringify(projection, null, 2) + '\n', 'utf8')
     assert.deepEqual(projection, JSON.parse(await readFile(file, 'utf8')))

@@ -100,6 +100,82 @@
         "config": {
           "skill": "afp-curation-celestial-wallpaper"
         }
+      },
+      {
+        "id": "preset-afp-curator",
+        "name": "@deepseek-ai/dsh-agent-preset",
+        "config": {
+          "id": "afp-curator",
+          "order": 50,
+          "plugins": [
+            {
+              "id": "persona",
+              "name": "@deepseek-ai/dsh-persona",
+              "config": {
+                "prefix": "You are the AFP photo search and curation specialist. Respond in the user's language. Use AFP tools and native task tracking to complete the user's request.\n\nBefore AFP work, load afp-core-search-collections for search/collections or afp-core-visual-triage for pixel screening. Load only the matching category skill and referenced rules when necessary. Check afp_status; credentials being configured does not prove that a remote read succeeded. Direct credential setup to the existing AFP configuration screen; never request secrets in chat.\n\nChoose the correct workflow. Free-text AFP searches return metadata and do not feed their photos into afp_refresh. Translate Chinese intent into supported search terms before searching. Built-in visual runs accept animals, food, landscape, movie-poster, or celestial-body-wallpaper. Start with the requested retention count, preserve the runId, wait through job_output, and read afp_report after settlement. Zero reviewed pictures during connection or collection preparation is normal. Resume the same run only for requested continuation or a retryable saved failure; do not lower quality rules to fill quotas.\n\nBefore claiming a final selection, call afp_photo_selection with complete canonical IDs. Metadata selections need successful reads in this Turn; visual selections need a report read in this Turn and only its kept photos. Page saved output with afp_result_page rather than repeating remote searches. The UI owns the final gallery; summarize the saved count, selection basis and remaining gap without reproducing its image table.\n\nUse afp_plan_change for whole-category report changes. To add only a chosen subset or copy, move or remove specific images, use afp_collection_plan. Never assume the final gallery automatically limits a whole-run write. Use afp_category_plan for category bindings. Every plan must show exact targets and counts and be applied only through the normal human approval flow. Partial or unknown remote outcomes require inspection and a fresh plan, never automatic write retry or rollback.\n\nFor downloads, read afp_download_options, let the user choose a Host directory through afp_download_directory, and prepare afp_download_plan. Show renditions, exact total cost and destination label before afp_operation_apply. Quote changes require a new explicit selection and approval; never invent a rendition or directory ID. Use afp_history, afp_diagnostics and afp_run_control for history, diagnosis and requested pause/archive. Keep task-list progress consistent with actual job and report outcomes. Ordinary searches need no persistent goal or delegated agents."
+              }
+            },
+            {
+              "id": "afp-agent",
+              "name": "dsh-plugin-afp/agent"
+            },
+            {
+              "id": "time-context",
+              "name": "@deepseek-ai/dsh-time-context"
+            },
+            {
+              "id": "skill-filesystem",
+              "name": "@deepseek-ai/dsh-skill-filesystem"
+            },
+            {
+              "id": "tool-skill",
+              "name": "@deepseek-ai/dsh-tool-skill"
+            },
+            {
+              "id": "tool-jobs",
+              "name": "@deepseek-ai/dsh-tool-jobs"
+            },
+            {
+              "id": "tool-todo",
+              "name": "@deepseek-ai/dsh-tool-todo",
+              "config": {
+                "allowParallelInProgress": false
+              }
+            },
+            {
+              "id": "tool-ask-user",
+              "name": "@deepseek-ai/dsh-tool-ask-user"
+            },
+            {
+              "id": "tool-fs",
+              "name": "@deepseek-ai/dsh-tool-fs",
+              "config": {
+                "read": true,
+                "readImage": false,
+                "write": false,
+                "edit": false
+              }
+            },
+            {
+              "id": "compaction",
+              "name": "cordis:group",
+              "group": true,
+              "isolate": {
+                "compaction": true
+              },
+              "config": [
+                {
+                  "id": "compaction-basic",
+                  "name": "@deepseek-ai/dsh-compaction-basic"
+                },
+                {
+                  "id": "command-compact",
+                  "name": "@deepseek-ai/dsh-command-compact"
+                }
+              ]
+            }
+          ]
+        }
       }
     ]
   }

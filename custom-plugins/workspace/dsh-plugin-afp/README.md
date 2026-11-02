@@ -21,7 +21,9 @@ GitHub distribution uses the package's `afp-v<version>` tag and an independent t
 
 ## Directory reference
 
-Root `index.js`, `execute.js`, `skill.js` and generated `client.js` are exported lifecycle entries. `config-schema.js` validates deployment settings. Host implementations live under `src/host/afp-*.js`; browser implementations live under `src/client/afp-*.js`; adapted protocol and category policy modules live under `src/vendor/auto-afp-img/`. `skills/` contains instructions and references only. Root `cli/afp-task.js` exports a DSH-managed task adapter calling the same Host service as the UI; `scripts/` contains package build/check scripts. Edit browser source and run `npm run build:client`, rather than editing generated client.js.
+The bundle declares the dedicated **AFP 策展助手** preset. Choose it in conversation or pick the AFP `@` reference to switch automatically. It covers existing workbench operations through scoped Agent tools while preserving original presets and feature switches; see the [English guide](docs/agent.md) / [中文指南](docs/agent.zh.md) for capability mapping, confirmation behavior and examples.
+
+Root `index.js`, `execute.js`, `skill.js`, `agent.js` and generated `client.js` are exported lifecycle entries. `config-schema.js` validates deployment settings. Host implementations live under `src/host/afp-*.js`; browser implementations live under `src/client/afp-*.js`; adapted protocol and category policy modules live under `src/vendor/auto-afp-img/`. `skills/` contains instructions and references only. Root `cli/afp-task.js` exports a DSH-managed task adapter calling the same Host service as the UI; `scripts/` contains package build/check scripts. Edit browser source and run `npm run build:client`, rather than editing generated client.js.
 
 ## Icon assets
 
@@ -83,7 +85,28 @@ Ordinary photo search does not enumerate fixed category collections or start vis
 
 The model receives valid JSON bounded by agentResultMaxBytes (default 16384, range 4096–65536). afp_result_page reads remaining local metadata without AFP requests. New search, details, collection-member and final-selection records are independent of general output truncation. afp_photo_selection requires basis=metadata with runId=null, or basis=visual with a real run report read successfully in the same Turn. afp_report accepts kind=run|plan and id. afp_refresh starts with mode=start, categories and runId=null, or resumes with mode=resume, categories=[] and a real runId. Collection write approval remains unchanged.
 
+`runId` remains required. Metadata selection and a new visual task require JSON `null` without quotes; visual selection and task resume require a real run UUID copied from a successful tool result. The string `"null"`, an empty string and omission are invalid. Validation errors retain `invalid-arguments` and `retryable: false`, and include `field`, `expected` and `receivedType` without echoing rejected values. Correct the named field before retrying; changing unrelated criteria or photo counts does not resolve it. Conversation cards show localized field guidance and continue to render older errors without these fields.
+
+Collection and download previews use photo reads from the current Turn before consulting run reports. An archived or missing report contributes no evidence; it cannot block sufficient current reads or authorize unseen photos. Other storage failures remain visible. Account, membership and human-confirmation checks remain required.
+
+`afp_run_items` saves complete metadata and returns bounded JSON with review decisions, confidence, reasons and request-failure status. Finish the local saved-result pages through `afp_result_page` using `nextOffset` until it is null, then use `runNextOffset` with `afp_run_items` for the next run page. Each local page retains the run cursor; title and caption summaries do not replace the full saved metadata. Pending batches and saved candidates share one entry per category and photo ID before decision filtering, counts and pagination.
+
+Other nullable inputs also use unquoted JSON `null`: `{"action":"remove","targetCollectionId":null}` for a removal preview, `{"collectionId":null}` to preview unbinding a category, and `{"action":"select","path":null}` to open the native directory picker. These are field fragments; retain the tool's other required fields. Target selection and category binding use real collection IDs, while the browse picker accepts an actual path. Errors identify the field and expected type without changing existing error codes. A real ID or browse path named `"null"` remains a string.
+
+Metadata selection example: replace the photo ID placeholder with the complete ID from a successful read in the current Turn, and keep `runId` as unquoted JSON `null`. For visual selection, use `basis: "visual"`, the actual run UUID and only photos accepted in that run after reading its report in this Turn.
+
+```json
+{
+  "photoIds": ["<complete photo ID from a successful read in this Turn>"],
+  "criteria": "Title and caption screening; no visual review",
+  "basis": "metadata",
+  "runId": null
+}
+```
+
 AFP does not register a separate progress capsule above the composer. The native checklist shows task planning, while search and visual-review progress remain in inline conversation disclosures; the workbench and download progress entry remain available.
+
+Whole-category and exact-photo mutations share account locking. An overlapping write fails without mutation and requires a fresh preview and approval; it is never automatically retried. Whole-category previews skip unnamed directory entries while retaining named shared collection reads and their failures. Binding previews and execution share unique-name, writable-target and category-conflict checks, including default bindings.
 
 One collapsible candidate gallery belongs to the process and collapses after completion. Only a successful explicit selection creates the final gallery and structured table, preserving selection order and showing description, AFP photo ID and a same-origin authenticated preview link without login tokens. Metadata results state that no visual review occurred; visual acceptance comes from the saved report. Reload reads persisted metadata rather than reconstructing a selection from assistant text. The Agent uses three short paragraphs for outcome/count, criteria/basis, and unmet requirements or errors; failed selection cannot be substituted with a handwritten list or shortened IDs. The interface owns the fixed gallery/table layout and shows saved criteria.
 

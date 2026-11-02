@@ -21,6 +21,18 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
     const namespace = 'afpWorkbench', panel = 'afp-workbench'
     ctx.effect(() => ctx.locale.register(namespace, { en, zh }), 'AFP locale')
     const t = ctx.locale.bind(namespace), store = createAfpClientStore(ctx)
+    ctx.inject(['uiAgentPresets'], scope => {
+      const choose = async ({ sessionId, name, signal }) => {
+        if (name !== 'dsh-plugin-afp') return
+        signal?.throwIfAborted()
+        await scope.uiAgentPresets.select(sessionId, 'afp-curator')
+        signal?.throwIfAborted()
+      }
+      scope.on('plugin/reference-picked', value => { void choose(value).catch(_error => {
+        // The preset picker reports refusals; submission preparation checks again before sending.
+      }) })
+      scope.on('plugin/reference-prepare', choose)
+    })
     const ConfigurationForm = createConfigurationForm(React, { Input, Button, Menu, Switch, StateDot, Tag, Toast, Tooltip,
       Chevron: icons.IconChevronDownOutlineRegular, RefreshIcon: icons.IconRefreshOutlineRegular }, ctx, t)
     const Workbench = createWorkbench(React, { Switch, Input, Button, StateDot, Tag, Checkbox, Toast, Menu, MenuSurface, createPortal, useDismissOnOutsidePointer, SegmentedControl, Tooltip, Modal, GlideHighlight }, ctx, t, store, ConfigurationForm, icons)

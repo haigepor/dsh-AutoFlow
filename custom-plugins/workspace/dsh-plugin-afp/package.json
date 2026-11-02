@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-afp",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/haigepor/dsh-AutoFlow.git",
@@ -16,6 +16,7 @@
     "./client": "./client.js",
     "./skill": "./skill.js",
     "./execute": "./execute.js",
+    "./agent": "./agent.js",
     "./config-schema": "./config-schema.js",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
@@ -25,6 +26,7 @@
     "client.js",
     "skill.js",
     "execute.js",
+    "agent.js",
     "config-schema.js",
     "config.json",
     "src/**",
@@ -40,7 +42,8 @@
     "release/README.zh.md",
     "release.config.json",
     "UPSTREAM.md",
-    "cli/**"
+    "cli/**",
+    "docs/**"
   ],
   "icon": "./assets/icons/afp.svg",
   "dsh": {
@@ -307,7 +310,8 @@
         "@deepseek-ai/dsh-client-ui-plugin-manager",
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-locale"
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-agent-preset"
       ]
     }
   },

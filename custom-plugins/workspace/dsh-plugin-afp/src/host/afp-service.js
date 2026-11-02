@@ -14,8 +14,9 @@ import { resolveConfig } from '../../config-schema.js'
 import { readFailure } from '../vendor/auto-afp-img/read-failure.mjs'
 import { boundedWork } from '../vendor/auto-afp-img/bounded-work.mjs'
 import { AfpDiagnostics, diagnosticFailure } from './afp-diagnostics.js'
-import { categoryTargets } from './afp-category-bindings.js'
+import { categoryTargets, resolveCategoryBinding } from './afp-category-bindings.js'
 import { createCandidateDedup } from './afp-candidate-dedup.js'
+import { AfpAgentOperations } from './afp-agent-operations.js'
 
 function photoMembership(selection) {
   const rows = Array.isArray(selection) ? selection : selection?.docs ?? selection?.content ?? selection?.documents ?? []
@@ -41,7 +42,8 @@ export class AfpService {
     this.pageOwner = `profile:${digest(ctx.profileContext.dir)}`
     this.previewCacheScope = randomUUID()
     this.downloads = dependencies.downloads ?? new AfpDownloads({ ctx, config, connection: this.connection, store: this.store,
-      schedule: (feature, label, operation) => this.job(feature, undefined, label, operation), requireFeature: feature => this.require(feature) })
+      schedule: (feature, label, operation, owner) => this.job(feature, owner, label, operation), requireFeature: feature => this.require(feature) })
+    this.agentOperations = new AfpAgentOperations(this)
   }
   require(feature) { if (this.stopping || !this.flags.has(feature)) throw new Error(`AFP feature unavailable: ${feature}`) }
   async enable(feature) {
@@ -66,6 +68,7 @@ export class AfpService {
     for (const task of tasks) task.controller.abort()
     await this.workbench.dispose()
     this.downloads.dispose()
+    this.agentOperations.dispose()
     await Promise.allSettled(tasks.map(task => task.done))
     this.dedupSnapshot = null
     this.conversationRecords.dispose()
@@ -281,7 +284,13 @@ export class AfpService {
       tasks: [...this.live.values()].filter(task => !task.owner).map(({ taskId, feature, progress, runId }) => ({ taskId, feature, runId: runId ?? null, progress: progress ?? null })),
       downloads: await this.downloads.status(), reports: await this.reports(), pollIntervalMs: this.config.pollIntervalMs }
   }
-  async collectionOperation(args, signal) {
+  /** Mutate explicit photo memberships after validating targets and source membership.
+   * @param {object} args Operation, photo IDs, source map and target.
+   * @param {AbortSignal} signal Operation cancellation.
+   * @param {object} [expected] Agent-approved account and membership snapshot, checked inside the write lock.
+   * @returns {Promise<object>} Per-photo completed, partial, uncertain and failed outcomes.
+   */
+  async collectionOperation(args, signal, expected) {
     this.require('write')
     const action = args.action
     const photoIds = Array.isArray(args.photoIds) ? [...new Set(args.photoIds.map(value => {
@@ -295,20 +304,29 @@ export class AfpService {
     const targetId = args.targetCollectionId
     if (action !== 'remove' && (typeof targetId !== 'string' || targetId.length > 256)) throw new Error('Choose an AFP target collection')
     const { client, account } = await this.connection.open(signal, true)
-    return this.membershipWrite(() => this.store.lock(`collection-actions:${account}`, async () => {
+    return this.membershipWrite(() => this.store.lock(`account:${account}`, async () => {
       const selections = await client.listSelections()
       const byId = new Map(selections.filter(item => typeof item?.id === 'string').map(item => [item.id, item]))
+      // Agent approvals bind to membership and names checked inside the write lock.
+      if (expected) {
+        const rows = []
+        for (const row of expected.rows) {
+          const selection = byId.get(row.id)
+          rows.push({ id: row.id, name: selection?.name, docs: [...selectionDocIds(await client.getSelection(row.id))].sort() })
+        }
+        if (digest(JSON.stringify({ account, rows })) !== expected.hash) throw new Error('AFP collections changed; create a new plan')
+      }
       const sourceIds = [...new Set(photoIds.flatMap(id => {
         const values = sources[id] ?? []
         if (!Array.isArray(values) || values.some(value => typeof value !== 'string' || value.length > 256)) throw new Error('Invalid AFP source collection list')
         return values
       }))]
       const target = action === 'remove' ? null : byId.get(targetId)
-      if (action !== 'remove' && (!target || !isPrivateSelection(target))) throw new Error('Target collection is missing, shared or read-only')
+      if (action !== 'remove' && (!target || !isPrivateSelection(target) || target.readOnly === true)) throw new Error('Target collection is missing, shared or read-only')
       if (action !== 'copy') {
         for (const id of sourceIds) {
           const selection = byId.get(id)
-          if (!selection || !isPrivateSelection(selection)) throw new Error('A source collection is missing, shared or read-only')
+          if (!selection || !isPrivateSelection(selection) || selection.readOnly === true) throw new Error('A source collection is missing, shared or read-only')
         }
       }
       if (action === 'move' && sourceIds.includes(targetId)) throw new Error('Choose a different target collection')
@@ -402,12 +420,16 @@ export class AfpService {
     task.controller.abort(); await task.done
     return { taskId, cancelled: true }
   }
-  /** Pause only an active profile refresh and wait until its checkpoint and locks are released. */
-  async pauseRun(runId) {
+  /** Pause an active profile refresh or a refresh owned by the requesting Session.
+   * @param {string} runId Active visual run.
+   * @param {string} [owner] Invoking Session; omission permits only unowned profile tasks.
+   * @returns {Promise<object>} Acknowledgement after the durable checkpoint and locks settle.
+   */
+  async pauseRun(runId, owner) {
     this.require('refresh')
     await this.store.readRun(runId)
     const task = [...this.live.values()].find(task => task.runId === runId)
-    if (!task || task.owner || task.feature !== 'refresh') throw new Error('AFP profile run is not active; Agent jobs use Session cancellation')
+    if (!task || (owner ? task.owner !== owner : task.owner) || task.feature !== 'refresh') throw new Error('AFP run is not active; use Session cancellation or the owning AFP Agent')
     task.controller.abort(new DOMException('AFP run paused', 'AfpPause'))
     await task.done
     const saved = await this.store.readRun(runId)
@@ -422,8 +444,13 @@ export class AfpService {
     this.challenges.clear()
     return result
   }
-  /** Persist only a local category association with a unique writable collection owned by this account. */
-  async bindCategory({ category, collectionId }, signal) {
+  /** Persist a local category association with a unique writable collection owned by this account.
+   * @param {object} args Category and collection ID, or null for unbinding.
+   * @param {AbortSignal} signal Caller cancellation.
+   * @param {string} [expectedHash] Agent-approved account, bindings and target digest.
+   * @returns {Promise<object>} Saved category association.
+   */
+  async bindCategory({ category, collectionId }, signal, expectedHash) {
     this.require('read')
     chooseCategories([category])
     if (collectionId !== null && (typeof collectionId !== 'string' || !collectionId || collectionId.length > 256
@@ -432,15 +459,14 @@ export class AfpService {
     return this.store.lock(`account:${account}`, async () => {
       const selections = await client.listSelections()
       const record = await this.store.readBindings(account)
-      let binding = null
-      if (collectionId !== null) {
-        const matches = selections.filter(item => item.id === collectionId), chosen = matches[0]
-        if (matches.length !== 1 || !isPrivateSelection(chosen) || typeof chosen.name !== 'string' || !chosen.name.trim()
-          || chosen.name.length > 256 || /[\u0000-\u001f\u007f]/.test(chosen.name)
-          || selections.filter(item => item.name === chosen.name).length !== 1) throw new Error('AFP binding target is missing, ambiguous, shared or read-only')
-        if (categoryTargets(selections, record.values).some(target => target.category !== category && target.id === collectionId)) throw new Error('AFP collection is bound to another category')
-        binding = { id: collectionId, name: chosen.name }
+      if (expectedHash !== undefined && digest(JSON.stringify({ account, bindings: record.values,
+        target: collectionId === null ? null : selections.find(item => item.id === collectionId) })) !== expectedHash) {
+        throw new Error('AFP category binding changed; create a new plan')
       }
+      const resolved = resolveCategoryBinding(selections, record.values, category, collectionId)
+      if (resolved.kind === 'invalid-target') throw new Error('AFP binding target is missing, ambiguous, shared or read-only')
+      if (resolved.kind === 'category-conflict') throw new Error('AFP collection is bound to another category')
+      const binding = resolved.target ? { id: collectionId, name: resolved.target.name } : null
       signal.throwIfAborted(); this.require('read')
       await this.store.saveBindings(account, { ...record.values, [category]: binding })
       this.challenges.clear(); this.writeEpoch++

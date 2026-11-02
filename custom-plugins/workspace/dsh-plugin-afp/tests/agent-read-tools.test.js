@@ -277,6 +277,54 @@ test('final selection reads only logged current-turn photos, preserves ordering 
   assert.equal(calls.opens, opens); assert.equal(calls.writes, 0)
 })
 
+test('selection errors identify runId and recover only after its JSON value is corrected', async t => {
+  const { invoke, calls, tools } = await fixture(t)
+  await invoke('afp_photo_search_start', { query: 'cat', language: 'en', limit: 2 })
+  const opens = calls.opens
+  const args = { photoIds: ['p1'], criteria: 'Cat metadata', basis: 'metadata', runId: 'null' }
+  const invalid = await errorOf(invoke, 'afp_photo_selection', args)
+  assert.equal(invalid.code, 'invalid-arguments'); assert.equal(invalid.field, 'runId')
+  assert.equal(invalid.receivedType, 'string'); assert.equal(invalid.retryable, false)
+  assert.match(invalid.expected, /null/); assert.match(invalid.expected, /UUID v4/)
+  assert.match(invalid.action, /"runId":null/); assert.doesNotMatch(invalid.action, /paging|language/)
+  const repeated = await errorOf(invoke, 'afp_photo_selection', args)
+  assert.equal(repeated.repeated, true); assert.equal(repeated.field, 'runId')
+  const changed = await errorOf(invoke, 'afp_photo_selection', { ...args, criteria: 'Kitten primary subject clean scene' })
+  assert.equal(changed.field, 'runId')
+  const { runId, ...missing } = args
+  const required = await errorOf(invoke, 'afp_photo_selection', missing)
+  assert.equal(required.field, 'runId'); assert.equal(required.receivedType, 'missing')
+  const selected = await invoke('afp_photo_selection', { ...args, runId: null })
+  assert.deepEqual(selected.items.map(photo => photo.id), ['p1']); assert.equal(selected.selection.basis, 'metadata')
+  assert.equal(calls.opens, opens); assert.equal(calls.writes, 0)
+  const schema = tools.get('afp_photo_selection').parameters
+  assert.ok(schema.required.includes('runId')); assert.deepEqual(schema.properties.runId.type, ['string', 'null'])
+  assert.match(schema.properties.runId.description, /"runId":null/)
+})
+
+test('validation reports field paths and types without echoing rejected values', async t => {
+  const { invoke, calls } = await fixture(t)
+  const invalid = await errorOf(invoke, 'afp_photo_selection', {
+    photoIds: ['p1', { token: 'private-value' }], criteria: 'Cat', basis: 'metadata', runId: null,
+  })
+  assert.equal(invalid.field, 'photoIds[1]'); assert.equal(invalid.receivedType, 'object')
+  assert.doesNotMatch(JSON.stringify(invalid), /private-value/)
+  const paging = await errorOf(invoke, 'afp_photo_search_start', { query: 'cat', language: 'en', limit: 3 })
+  assert.equal(paging.field, 'limit'); assert.match(paging.expected, /1.*2/)
+  const extra = await errorOf(invoke, 'afp_photo_search_start', { query: 'cat', language: 'en', limit: 2, 'private-key': 'private-value' })
+  assert.equal(extra.field, '$'); assert.doesNotMatch(JSON.stringify(extra), /private-key|private-value/)
+  assert.equal(calls.opens, 0); assert.equal(calls.writes, 0)
+})
+
+test('final selections can span multiple search pages within the independent selection limit', async t => {
+  const { invoke, tools } = await fixture(t, { pageSize: 2, maxSelectionPhotos: 3 })
+  await invoke('afp_collection_items', { collectionId: 'shared', limit: 2 })
+  await invoke('afp_collection_items', { collectionId: 'shared', offset: 2, limit: 2 })
+  const result = await invoke('afp_photo_selection', { photoIds: ['p1', 'p2', 'p3'], criteria: 'Collection metadata', basis: 'metadata', runId: null })
+  assert.deepEqual(result.items.map(photo => photo.id), ['p1', 'p2', 'p3'])
+  assert.equal(tools.get('afp_photo_selection').parameters.properties.photoIds.maxItems, 3)
+})
+
 test('visual final selection requires a report read in this turn and actual kept decisions', async t => {
   const { invoke, service, calls } = await fixture(t)
   const run = await service.store.createRun(['animals'], service.config)

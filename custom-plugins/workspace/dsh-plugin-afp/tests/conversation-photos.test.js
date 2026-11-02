@@ -277,8 +277,8 @@ test('keyed toolview registrations wait for the slot and are independent of work
   assert.equal(registrations.length, 0)
   assert.equal(pending[0].name, 'tool.call.toolview')
   const disposers = [...pending[0].factory()]
-  assert.equal(disposers.length, 5)
-  assert.deepEqual(registrations.map(entry => entry.metadata.key), ['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_result_page'])
+  assert.equal(disposers.length, 6)
+  assert.deepEqual(registrations.map(entry => entry.metadata.key), ['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_run_items', 'afp_result_page'])
   assert.ok(registrations.every(entry => entry.metadata.locale === 'afpWorkbench' && entry.component === Component))
 })
 
@@ -305,5 +305,5 @@ test('actual Cordis SlotRegistry waits for declarations and removes AFP cards on
     const child = spawnSync(process.execPath, ['--import', 'tsx/esm', '--input-type=module'],
       { cwd: fileURLToPath(repo), input: script, encoding: 'utf8' })
     assert.equal(child.status, 0, child.stderr)
-    assert.deepEqual(JSON.parse(child.stdout.trim()), ['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_result_page'])
+    assert.deepEqual(JSON.parse(child.stdout.trim()), ['afp_photo_search_start', 'afp_photo_search', 'afp_photo_details', 'afp_collection_items', 'afp_run_items', 'afp_result_page'])
   })

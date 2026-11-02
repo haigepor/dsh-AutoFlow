@@ -1,3 +1,20 @@
+/** Localize field diagnostics while preserving feedback for older saved errors.
+ * @param {object|null} error Saved AFP error fields.
+ * @param {Function} t Active plugin translator.
+ * @returns {string} Localized field guidance or the existing error summary.
+ */
+export function afpErrorFeedback(error, t) {
+  if (['invalid-arguments', 'operation-invalid-choice', 'operation-failed'].includes(error?.code) && typeof error.field === 'string' && error.field !== '$') {
+    if (error.expectedType === 'null') return t('agentError_expected-null', { field: error.field })
+    if (error.field === 'runId') return t('agentError_invalid-runId')
+    if (error.code === 'operation-invalid-choice' && error.field === 'collectionId') return t('agentError_invalid-collectionId')
+    if (error.code === 'operation-invalid-choice' && error.field === 'targetCollectionId') return t('agentError_invalid-targetCollectionId')
+    return t('agentError_invalid-field', { field: error.field })
+  }
+  const key = 'agentError_' + error?.code, text = t(key)
+  return text === key ? t('agentFailureAdvice') : text
+}
+
 /** Saved report totals preserve the difference between failed requests and pixel decisions.
  * @param {object} value Persisted AFP report.
  * @returns {object|null} Safe counters and categories, without provider diagnostic text.

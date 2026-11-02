@@ -23,7 +23,7 @@ async function snapshot(client, selected, signal, bindings = {}) {
     targets.push({ category, name: target.name, id: target.id })
   }
   const records = []
-  for (const item of list) {
+  for (const item of list.filter(selection => String(selection.name ?? '').trim())) {
     signal.throwIfAborted()
     if (typeof item.id !== 'string' || !item.id) throw new Error('AFP collection has no id')
     records.push({ id: item.id, name: item.name, private: isPrivateSelection(item), docs: [...selectionDocIds(await client.getSelection(item.id))].sort() })

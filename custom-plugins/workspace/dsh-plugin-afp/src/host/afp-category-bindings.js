@@ -1,6 +1,23 @@
 import { CATEGORY_PROFILES } from '../vendor/auto-afp-img/afp-photo-search.mjs'
 import { isPrivateSelection } from '../vendor/auto-afp-img/afp-collection-run.mjs'
 
+/** Resolve one proposed binding for both previews and confirmed writes.
+ * @param {Array<object>} selections Current account directory.
+ * @param {object} values Saved category overrides.
+ * @param {string} category Category receiving the binding.
+ * @param {string|null} collectionId Private target ID, or null to unbind.
+ * @returns {object} Valid target (null for unbinding), or an invalid-target/category-conflict kind.
+ */
+export function resolveCategoryBinding(selections, values, category, collectionId) {
+  if (collectionId === null) return { kind: 'valid', target: null }
+  const matches = selections.filter(item => item.id === collectionId), chosen = matches[0]
+  if (matches.length !== 1 || !isPrivateSelection(chosen) || chosen.readOnly === true || typeof chosen.name !== 'string' || !chosen.name.trim()
+    || chosen.name.length > 256 || /[\u0000-\u001f\u007f]/.test(chosen.name)
+    || selections.filter(item => item.name === chosen.name).length !== 1) return { kind: 'invalid-target' }
+  if (categoryTargets(selections, values).some(target => target.category !== category && target.id === collectionId)) return { kind: 'category-conflict' }
+  return { kind: 'valid', target: chosen }
+}
+
 /** Resolve explicit account bindings, including deliberate detachment; absent entries retain legacy defaults.
  * @param {Array<object>} selections Current account collections.
  * @param {object} values Saved category overrides.
