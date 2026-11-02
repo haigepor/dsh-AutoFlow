@@ -2,7 +2,7 @@
 import { z } from 'zod'
 import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
-import { draftSchema, referenceSchema, feedbackSchema, recipeSchema, type DomainActor, type EvaluationRecipe, type Reference } from '../shared/model.ts'
+import { draftSchema, referenceSchema, feedbackSchema, recipeSchema, type DomainActor, type EvaluationRecipe, type Reference, type RunRecord } from '../shared/model.ts'
 import { referenceStateSchema, reusedObservationSchema } from '../shared/reference-state.ts'
 import { dataOf, specOf } from './runtime.ts'
 
@@ -15,11 +15,26 @@ function recipeIdentity(recipe: EvaluationRecipe) {
   const { id, createdAt, ...settings } = recipe
   return settings
 }
-function imageInputs(input: Inputs, imageId: string) {
-  const references = input.references.filter(ref => ref.imageVersionId === imageId)
-  const threads = new Set(references.flatMap(ref => ref.feedbackThreadIds))
-  // 新增图片只改变草稿修订号；旧图意图、有效反馈、规则和处理配置仍必须逐项匹配。
-  return { rules: input.draft.rules, recipe: recipeIdentity(input.recipe), references: references.map(ref => ({ role: ref.role, intent: ref.intent, context: ref.context })).sort((a, b) => contentDigest(a).localeCompare(contentDigest(b))), feedback: input.feedback.filter(item => threads.has(item.threadId) || (item.subject.kind === 'pair' ? [item.subject.leftImageVersionId, item.subject.rightImageVersionId].includes(imageId) : item.subject.imageVersionId === imageId)).sort((a, b) => a.id.localeCompare(b.id)) }
+function imageInputDigests(input: Inputs) {
+  const references = new Map<string, Reference[]>(), threadImages = new Map<string, Set<string>>(), feedback = new Map<string, Inputs['feedback']>(), digests = new Map<string, string>()
+  for (const reference of input.references) {
+    const rows = references.get(reference.imageVersionId) ?? []; rows.push(reference); references.set(reference.imageVersionId, rows)
+    for (const threadId of reference.feedbackThreadIds) { const images = threadImages.get(threadId) ?? new Set<string>(); images.add(reference.imageVersionId); threadImages.set(threadId, images) }
+  }
+  for (const item of input.feedback) {
+    const imageIds = new Set([...(threadImages.get(item.threadId) ?? []), ...(item.subject.kind === 'pair' ? [item.subject.leftImageVersionId, item.subject.rightImageVersionId] : [item.subject.imageVersionId])])
+    for (const imageId of imageIds) { const rows = feedback.get(imageId) ?? []; rows.push(item); feedback.set(imageId, rows) }
+  }
+  // 规则与处理配置共用一次摘要；逐图意图与当前有效反馈仍分别比较。
+  const policy = contentDigest({ rules: input.draft.rules, recipe: recipeIdentity(input.recipe) })
+  return (imageId: string) => {
+    let digest = digests.get(imageId)
+    if (!digest) {
+      const rows = (references.get(imageId) ?? []).map(ref => { const value = { role: ref.role, intent: ref.intent, context: ref.context }; return { value, digest: contentDigest(value) } }).sort((a, b) => a.digest.localeCompare(b.digest))
+      digest = contentDigest({ policy, references: rows.map(row => row.value), feedback: [...feedback.get(imageId) ?? []].sort((a, b) => a.id.localeCompare(b.id)) }); digests.set(imageId, digest)
+    }
+    return digest
+  }
 }
 
 /** @param domain Authorized record owner. @param styleId Current collection. @param actor Trusted execution scope. @returns Current draft, references and applicable human judgments. */
@@ -45,39 +60,41 @@ export function importedGalleryReference(domain: CuratorDomain, styleId: string,
 export function planReferenceAnalysis(domain: CuratorDomain, styleId: string, actor: DomainActor, recipe: EvaluationRecipe) {
   const current = referenceInputs(domain, styleId, actor)
   const inputs: Inputs = { ...current, recipe, analysisOutput: 'observations-only' }
+  const imageIds = [...new Set(current.references.map(ref => ref.imageVersionId))], wanted = new Set(imageIds), currentDigest = imageInputDigests(inputs)
   const reused = new Map<string, z.infer<typeof reusedObservationSchema>>(), seen = new Set<string>()
   const runs = domain.repository.list('run').filter(run => run.owner.kind === 'session' ? run.owner.sessionId === actor.sessionId : !actor.sessionId).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
   const sources = runs.map(run => ({ run, spec: specOf(run) })).filter(({ spec }) => spec.kind === 'analyze' && spec.input.styleId === styleId)
-  const runIds = new Set<string>(sources.map(({ run }) => run.id)), committedRequests = new Map<string, Set<string>>()
-  // 同一次预检只复制并校验一次请求表；观察仍只能使用所属任务已提交的请求。
-  if (sources.length) for (const request of domain.repository.list('request')) {
-    if (request.state !== 'committed' || !runIds.has(request.runId)) continue
-    const saved = committedRequestSchema.safeParse(request.data)
-    if (!saved.success) continue
-    let requests = committedRequests.get(request.runId)
-    if (!requests) committedRequests.set(request.runId, requests = new Set())
-    requests.add(saved.data.bundle.requestId)
-  }
   for (const { run, spec } of sources) {
-    const source = inputsSchema.safeParse(spec.fixed)
-    const checkpoint = checkpointSchema.parse(dataOf(run).checkpoint)
-    const requests = committedRequests.get(run.id)
+    const data = dataOf(run), checkpoint = checkpointSchema.parse(data.checkpoint), done = new Set(checkpoint.analysisDoneImageIds)
+    if (!checkpoint.analysisDoneImageIds.some(id => wanted.has(id) && !reused.has(id))) continue
+    const source = inputsSchema.safeParse(spec.fixed), sourceDigest = source.success ? imageInputDigests(source.data) : undefined
+    let requests: Set<string> | undefined
     for (const observationId of checkpoint.analysisResultIds) {
       const observation = domain.repository.get('observation', observationId)
-      if (!observation || !checkpoint.analysisDoneImageIds.includes(observation.imageVersionId)) continue
+      if (!observation || !done.has(observation.imageVersionId)) continue
       const imageId = observation.imageVersionId
-      if (!current.references.some(ref => ref.imageVersionId === imageId)) continue
+      if (!wanted.has(imageId)) continue
       seen.add(imageId)
-      if (!source.success || spec.input.buildDataset !== true || reused.has(imageId) || contentDigest(imageInputs(source.data, imageId)) !== contentDigest(imageInputs(inputs, imageId))) continue
+      if (!sourceDigest || spec.input.buildDataset !== true || reused.has(imageId) || sourceDigest(imageId) !== currentDigest(imageId)) continue
+      if (!requests) {
+        requests = new Set()
+        // requestIds 与请求记录在同一次检查点提交；只读取该来源任务登记的请求。
+        for (const id of data.requestIds) {
+          const request = domain.repository.get('request', id)
+          if (!request || request.runId !== run.id || request.state !== 'committed') continue
+          const saved = committedRequestSchema.safeParse(request.data)
+          if (saved.success) requests.add(saved.data.bundle.requestId)
+        }
+      }
       // 旧 Run 复用的观察仍指向原请求；输出及其图片必须已经持久化，不能复用在途响应。
-      if (!observation.inferred.length || !observation.inferred.every(field => requests?.has(field.requestId))) continue
+      const committed = requests
+      if (!observation.inferred.length || !observation.inferred.every(field => committed.has(field.requestId))) continue
       reused.set(imageId, { runId: run.id, observationId: observation.id, imageVersionId: domain.require('imageVersion', imageId).id })
     }
   }
-  const imageIds = [...new Set(current.references.map(ref => ref.imageVersionId))]
   const entries = current.references.map(ref => {
     const { asset, image } = domain.authorizedImage(ref.imageVersionId, actor)
-    return { referenceId: ref.id, imageVersionId: image.id, state: reused.has(image.id) ? 'analyzed' as const : seen.has(image.id) ? 'needs-update' as const : 'pending' as const, ...(asset.source.kind === 'provider' ? { providerId: asset.source.providerId, photoId: asset.source.providerAssetId } : {}) }
+    return { referenceId: ref.id, imageVersionId: image.id, role: ref.role, state: reused.has(image.id) ? 'analyzed' as const : seen.has(image.id) ? 'needs-update' as const : 'pending' as const, ...(asset.source.kind === 'provider' ? { providerId: asset.source.providerId, photoId: asset.source.providerAssetId } : {}) }
   })
   const links = [...reused.values()].sort((a, b) => a.imageVersionId.localeCompare(b.imageVersionId))
   const digest = contentDigest({ styleId, revision: current.style.revision, draft: current.draft, recipe: recipeIdentity(recipe), feedback: current.feedback, links })
@@ -86,14 +103,22 @@ export function planReferenceAnalysis(domain: CuratorDomain, styleId: string, ac
 
 /** @param domain Persisted source records. @param value Frozen analysis inputs. @param links Observation links admitted by the Host. @param actor Trusted Run scope. @returns Whether each link still matches committed source inputs in the same collection and owner. */
 export function validObservationReuse(domain: CuratorDomain, value: unknown, links: z.infer<typeof reusedObservationSchema>[], actor: DomainActor): boolean {
-  const current = inputsSchema.parse(value)
+  const current = inputsSchema.parse(value), currentDigest = imageInputDigests(current), imageIds = new Set(current.references.map(ref => ref.imageVersionId))
+  const sources = new Map<string, { run: RunRecord; spec: ReturnType<typeof specOf>; observations: Set<string>; images: Set<string> }>(), digests = new Map<string, ReturnType<typeof imageInputDigests>>()
   return new Set(links.map(link => link.imageVersionId)).size === links.length && links.every(link => {
-    const run = domain.require('run', link.runId), spec = specOf(run), observation = domain.require('observation', link.observationId)
+    let source = sources.get(link.runId)
+    if (!source) {
+      const run = domain.require('run', link.runId)
+      if (run.owner.kind === 'session' ? run.owner.sessionId !== actor.sessionId : !!actor.sessionId) return false
+      const checkpoint = checkpointSchema.parse(dataOf(run).checkpoint)
+      source = { run, spec: specOf(run), observations: new Set(checkpoint.analysisResultIds), images: new Set(checkpoint.analysisDoneImageIds) }; sources.set(link.runId, source)
+    }
+    const { run, spec } = source, observation = domain.require('observation', link.observationId)
     if (run.owner.kind === 'session' ? run.owner.sessionId !== actor.sessionId : !!actor.sessionId) return false
     if (spec.kind !== 'analyze' || spec.input.styleId !== current.draft.styleId || spec.input.buildDataset !== true || observation.imageVersionId !== link.imageVersionId) return false
-    const checkpoint = checkpointSchema.parse(dataOf(run).checkpoint)
-    return checkpoint.analysisResultIds.includes(link.observationId) && checkpoint.analysisDoneImageIds.includes(link.imageVersionId)
-      && current.references.some(ref => ref.imageVersionId === link.imageVersionId)
-      && contentDigest(imageInputs(inputsSchema.parse(spec.fixed), link.imageVersionId)) === contentDigest(imageInputs(current, link.imageVersionId))
+    if (!source.observations.has(link.observationId) || !source.images.has(link.imageVersionId) || !imageIds.has(link.imageVersionId)) return false
+    let sourceDigest = digests.get(run.id)
+    if (!sourceDigest) { sourceDigest = imageInputDigests(inputsSchema.parse(spec.fixed)); digests.set(run.id, sourceDigest) }
+    return sourceDigest(link.imageVersionId) === currentDigest(link.imageVersionId)
   })
 }

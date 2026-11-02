@@ -1,7 +1,7 @@
 /** Required-rule decisions are computed locally from measured and inferred checks. */
 import { z } from 'zod'
 import { compileStyleInstructions, matchStyle } from './style-execution.ts'
-import { assessmentSchema, jsonSchema, type Assessment, type ImageVersion, type Rule, type StyleRelease, type StyleStandard, type StyleCandidate, type DomainActor } from '../shared/model.ts'
+import { assessmentSchema, jsonSchema, type Assessment, type ImageVersion, type Rule, type StyleStandard, type StyleCandidate, type DomainActor } from '../shared/model.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
 import { CuratorError } from '../shared/errors.ts'
@@ -10,6 +10,9 @@ import type { AssetFiles, StructuredVisionProvider, VisionImage, VisionReview } 
 import { decideAssessment, toJson, type WorkContext } from './runtime.ts'
 import { visionBounds } from './providers.ts'
 import { remoteReferenceSource } from '../media/remote-reference.ts'
+import { selectReviewReferences, effectiveReviewReferenceRole } from './review-references.ts'
+import { subjectReviewResults, subjectFocusVerdict } from './subject-review.ts'
+import { decodeVisionReview } from '../media/vision.ts'
 
 /** @param image Authorized saved image. @param files Private byte reader. @param role Model-visible reference role. @param signal Request lifetime. @returns Exact pixels or an explicitly identified remote URL. */
 export async function visionImageInput(image: ImageVersion, files: AssetFiles, role: string, signal: AbortSignal): Promise<VisionImage> {
@@ -18,13 +21,15 @@ export async function visionImageInput(image: ImageVersion, files: AssetFiles, r
 }
 
 /** @param domain Authorized records. @param files Private verified files. @param release Frozen reference strategy. @param actor Task owner. @param signal Task cancellation. @returns Stable ordered, actual reference pixels. */
-export async function referenceImages(domain: CuratorDomain, files: AssetFiles, release: Pick<StyleRelease, 'references' | 'recipe'>, actor: DomainActor, signal: AbortSignal): Promise<VisionImage[]> {
-  const selected = [...release.references].sort((a, b) => a.reference.id.localeCompare(b.reference.id, 'en')).slice(0, release.recipe.referenceStrategy.maxImages)
+export async function referenceImages(domain: CuratorDomain, files: AssetFiles, release: StyleStandard | StyleCandidate, actor: DomainActor, signal: AbortSignal): Promise<VisionImage[]> {
+  const selected = release.recipe.promptVersion === 'visual-curator-rules-v3'
+    ? selectReviewReferences(release, snapshot => domain.authorizedImage(snapshot.reference.imageVersionId, actor).image.blob.byteLength)
+    : [...release.references].sort((a, b) => a.reference.id.localeCompare(b.reference.id, 'en')).slice(0, release.recipe.referenceStrategy.maxImages)
   const result: VisionImage[] = []; let bytes = 0
   for (const snapshot of selected) {
     const { image } = domain.authorizedImage(snapshot.reference.imageVersionId, actor)
     if (image.blob.digest !== snapshot.imageDigest) throw new Error('Fixed reference digest is unavailable')
-    const input = await visionImageInput(image, files, JSON.stringify({ role: snapshot.reference.role, intent: snapshot.reference.intent, context: snapshot.reference.context, judgments: snapshot.judgments }), signal)
+    const input = await visionImageInput(image, files, JSON.stringify({ role: release.recipe.promptVersion === 'visual-curator-rules-v3' ? effectiveReviewReferenceRole(release, snapshot) : snapshot.reference.role, ...(release.recipe.promptVersion === 'visual-curator-rules-v3' ? { importedRole: snapshot.reference.role } : {}), intent: snapshot.reference.intent, context: snapshot.reference.context, judgments: snapshot.judgments }), signal)
     bytes += input.bytes?.length ?? 0
     if (bytes > release.recipe.referenceStrategy.maxBytes) throw new Error('Fixed references exceed the saved recipe byte limit')
     result.push(input)
@@ -66,7 +71,8 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
   const identity = contentDigest({ runId: ctx.runId, imageVersionId: image.id, standardDigest: release.contentDigest, stage }).slice(10)
   const brief = typeof ctx.spec.input.taskBrief === 'string' ? ctx.spec.input.taskBrief : 'Review supplied image against the frozen visual standard.'
   const taskBrief = styleReviewBrief(release, brief)
-  const requestId = `review-${identity}`, input = { ...(release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId, taskBrief, rules: rules.filter(rule => rule.check.kind === 'visual').map(rule => ({ ...rule, stage })), stage, images, ...(ctx.spec.fixed.usage ? { usage: ctx.spec.fixed.usage } : {}) }
+  const focused = release.recipe.promptVersion === 'visual-curator-rules-v3'
+  const requestId = `review-${identity}`, input = { ...(focused ? { promptVersion: 'visual-curator-rules-v3' as const } : release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId, taskBrief, rules: rules.filter(rule => rule.check.kind === 'visual').map(rule => ({ ...rule, stage })), stage, images, ...(ctx.spec.fixed.usage ? { usage: ctx.spec.fixed.usage } : {}) }
   const descriptor = dependencies.vision.describeRequest(input, 'review')
   const bundle = toJson(descriptor), requestDigest = contentDigest(bundle)
   const saved = dependencies.domain.repository.list('request').find(request => request.runId === ctx.runId && request.state === 'committed' && request.requestDigest === requestDigest)
@@ -78,21 +84,26 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
     // 已提交响应与完整描述摘要匹配时直接重放，避免检查点前退出导致重复计费。
     output = replay.data.output
   }
+  output = decodeVisionReview(output, input)
+  const checked = focused ? subjectReviewResults(rules, output) : { ruleResults: output.ruleResults, focusRuleIds: [] }
   const results = rules.map(rule => {
     if (rule.check.kind === 'measured') return measuredRule(rule, image)
-    const inferred = output.ruleResults.find(item => item.ruleId === rule.ruleId)!
+    const inferred = checked.ruleResults.find(item => item.ruleId === rule.ruleId)!
     return { ruleId: rule.ruleId, result: inferred.status === 'not-applicable' ? 'unknown' as const : inferred.status, basis: 'inferred' as const, reason: inferred.reason, ...(inferred.region ? { region: inferred.region } : {}) }
   })
   let verdict = decideAssessment(results.map(result => ({ strength: rules.find(rule => rule.ruleId === result.ruleId)!.strength, result: result.result })))
   if (output.taskRelevance === 'irrelevant') verdict = 'reject'
   if (output.taskRelevance === 'unknown' && verdict === 'pass') verdict = 'needs-review'
   if (Object.entries(release.recipe.preferenceScale.weights).some(([dimension, weight]) => weight > 0 && !output.preferenceScores.some(score => score.dimension === dimension)) && verdict === 'pass') verdict = 'needs-review'
-  const styleMatch = stage === 'final' && release.kind === 'modelProfile' && release.recipe.styleMatching ? matchStyle(release, results, release.recipe.styleMatching.minSatisfiedRatio) : undefined
+  const focusVerdict = subjectFocusVerdict(release, results, checked.focusRuleIds)
+  if (focusVerdict === 'not-matched') verdict = 'reject'
+  else if (focusVerdict === 'unknown' && verdict === 'pass') verdict = 'needs-review'
+  const styleMatch = stage === 'final' && release.kind === 'modelProfile' && release.recipe.styleMatching ? matchStyle(release, results, release.recipe.styleMatching.minSatisfiedRatio, checked.focusRuleIds) : undefined
   if (styleMatch?.verdict === 'not-matched') verdict = 'reject'
   else if (styleMatch?.verdict === 'unknown' && verdict === 'pass') verdict = 'needs-review'
   const weights = release.recipe.preferenceScale.weights, scores = Object.fromEntries(Object.keys(weights).map(key => [key, output.preferenceScores.find(score => score.dimension === key)?.score ?? 0]))
   const score = Object.entries(weights).reduce((sum, [key, weight]) => sum + weight * (scores[key] ?? 0), 0)
   const sampled = Number.parseInt(image.blob.digest.slice(0, 8), 16) / 0xffffffff < ctx.spec.config.limits.reviewSampleRate
-  const assessment = assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: `assessment-${identity}`, createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: image.id, runId: ctx.runId, stage, ...(release.kind === 'release' ? { releaseId: release.id } : {}), standard: { kind: release.kind, id: release.id, contentDigest: release.contentDigest }, recipeId: release.recipe.id, reviewBundleId: requestId, technicalStatus: 'completed', verdict, ruleResults: results, cropPotential: output.cropPotential, preferenceScores: scores, data: toJson({ descriptor, taskRelevance: output.taskRelevance, score, reviewQueueReasons: [...(verdict === 'needs-review' ? ['unknown'] : []), ...(sampled ? ['random-sample'] : [])] }) })
+  const assessment = assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: `assessment-${identity}`, createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: image.id, runId: ctx.runId, stage, ...(release.kind === 'release' ? { releaseId: release.id } : {}), standard: { kind: release.kind, id: release.id, contentDigest: release.contentDigest }, recipeId: release.recipe.id, reviewBundleId: requestId, technicalStatus: 'completed', verdict, ruleResults: results, cropPotential: output.cropPotential, preferenceScores: scores, data: toJson({ descriptor, taskRelevance: output.taskRelevance, score, ...(focused ? { subjectFocus: output.subjectFocus, subjectFocusVerdict: focusVerdict } : {}), reviewQueueReasons: [...(verdict === 'needs-review' ? ['unknown'] : []), ...(sampled ? ['random-sample'] : [])] }) })
   return { assessment, score }
 }

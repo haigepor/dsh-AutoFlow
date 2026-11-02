@@ -1,5 +1,8 @@
 import { runResultFilterSchema } from '../shared/search-feedback.ts'
 import { planReferenceAnalysis } from './reference-state.ts'
+import { datasetScopeSchema } from '../shared/datasets.ts'
+import { importTaskReferences, readTaskReferences, referenceTask, validateTaskReferences } from './task-references.ts'
+import { taskReferenceReadSchema, taskReferenceImportSchema, type TaskReferenceImport } from '../shared/task-references.ts'
 /** Shared business provider for authenticated workbench actions and the Agent tools. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { ProfileContext } from '@deepseek-ai/dsh-app-boot'
@@ -9,6 +12,7 @@ import type { JobRegistry } from '@deepseek-ai/dsh-jobs'
 import type { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import type { ConfigEditor } from '@deepseek-ai/dsh-config-editor'
 import type { SessionStore } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session-persistence'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type {} from '@deepseek-ai/dsh-config-editor'
@@ -23,8 +27,9 @@ import { ModelProfiles, profileSaveSchema } from '../domain/model-profile.ts'
 import { styleAnalysisOf } from '../shared/style-analysis.ts'
 import { AssetFiles, resolveCrop } from '../media/index.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { analysisRequests, readAnalysisInput } from './analysis-input.ts'
-import { assetSchema, imageVersionSchema, jsonSchema, recipeSchema, draftSchema, feedbackContextSchema, subjectSchema, type DomainActor, type Json, type Rule, type EvaluationRecipe, type CuratorRecord } from '../shared/model.ts'
+import { readAnalysisInput } from './analysis-input.ts'
+import { readAnalysisDetail } from './analysis-detail.ts'
+import { assetSchema, imageVersionSchema, jsonSchema, recipeSchema, draftSchema, feedbackContextSchema, subjectSchema, type DomainActor, type Json, type Rule, type EvaluationRecipe, type CuratorRecord, type ProfileExport, type ExportSnapshot } from '../shared/model.ts'
 import { agentOperations, type ClientActionInput } from '../client/contract.ts'
 import { resolveConfig, resolveCurrentConfig, configRevision, reviewerRevision, type CuratorConfig } from './config.ts'
 import { RunEngine, executionSchema, dataOf, specOf, toJson, safeFailure, type ExecutionSpec, type Worker } from './runtime.ts'
@@ -44,15 +49,18 @@ import { createCropWorker, createCropProcessor } from './crop-workflow.ts'
 import { createSearchWorker } from './search-workflow.ts'
 import { createDataWorker } from './data-workflows.ts'
 import { compileStyleInstructions } from './style-execution.ts'
-import { projectSnapshot, projectStyle, projectRun, projectConfiguration, projectAnalysisTasks } from './projection.ts'
+import { projectSnapshot, projectStyle, projectStyles, projectRun, projectConfiguration, projectAnalysisTasks, projectProfileSelection } from './projection.ts'
 import { deleteTaskHistory, hiddenTaskIds } from './task-history.ts'
 import { analysisFollowResponse } from './analysis-follow.ts'
 import { listVisionModels, requireVisionModel } from './vision-models.ts'
 import { compactStyleSummary } from './context-compaction.ts'
-import { listDatasets, readDataset } from './datasets.ts'
+import { createDatasetReads, listDatasets, readDataset } from './datasets.ts'
 import { readSearchBatches, deleteSearchBatch } from './search-batches.ts'
 import { searchOutputSchema } from '../shared/search-launch.ts'
 import { SearchLaunches } from './search-launch.ts'
+import { freezeSearchExclusions, searchHistoryRuns } from './search-exclusions.ts'
+import { createPreviewReads, remotePreviewLocation } from './preview-cache.ts'
+import { createAnalysisTaskReads } from './analysis-task-reads.ts'
 import { nativeSearchSessions, type NativeSearchSessions } from './native-search-session.ts'
 import { originalSearchResult } from './search-results.ts'
 import type {} from '@deepseek-ai/dsh-compaction'
@@ -87,6 +95,8 @@ export interface CuratorHost {
 
 interface ResolvedTask { kind: 'search' | 'crop'; normalized: Record<string, Json>; fixed: Record<string, Json>; config: CuratorConfig }
 
+const sessionReadOperations = new Set(['task-reference-list', 'snapshot', 'style-list', 'style-get', 'run-get', 'conversation-runs', 'analysis-detail', 'analysis-input', 'reference-state', 'references-list', 'datasets-list', 'dataset-get', 'profile-current', 'gallery-reference-tasks', 'search-batches'])
+
 /** One provider owns one profile writer; it never changes the default bundle composition. */
 export class CuratorService {
   readonly profileId: string
@@ -105,6 +115,9 @@ export class CuratorService {
   private stopping = false
   private selectingLocalFiles = false
   private readonly lifetime = new AbortController()
+  private readonly previewReads = createPreviewReads((location, signal) => this.loadPreview(location, signal), () => this.config.source.unsplash.previewConcurrency)
+  private readonly datasetReads = createDatasetReads(() => ({ ttlMs: this.config.limits.datasetCacheTtlMs, maxViews: this.config.limits.datasetCacheMaxViews, maxBytes: this.config.limits.datasetCacheMaxBytes }))
+  private readonly analysisTaskReads = createAnalysisTaskReads(() => ({ maxEntries: this.config.limits.analysisTaskCacheMaxEntries, maxBytes: this.config.limits.analysisTaskCacheMaxBytes }))
   private readonly foreground = new Set<Promise<unknown>>()
   private readonly sessionGrants = new Map<string, { sessionId: string; expiresAt: number }>()
   constructor(private readonly ctx: CuratorHost, input: unknown, private readonly dependencies: CuratorServiceDependencies = {}) {
@@ -125,7 +138,10 @@ export class CuratorService {
       return api.me({ signal, maxBytes: this.config.limits.maxResponseBytes, timeoutMs: this.config.source.unsplash.login.validationTimeoutMs, maxRedirects: this.config.limits.maxRedirects })
     }, (ref, value) => this.ctx.credentials.set(credentialRef(ref), value))
     this.galleryValue = new GalleryService(this.config, this.domainValue, this.files, this.dependencies.galleryApi ?? ((config, accountId, ref, cookie) => galleryFactory.gallery(config, accountId, ref, cookie)), this.dependencies.galleryMedia ?? galleryFactory.unsplashMedia(this.config))
-    this.galleryTasks = new GalleryReferenceTasks(this.config, this.domainValue, this.ctx.jobs, (operation, args, actor, signal) => this.galleryValue!.action(operation, args, actor, signal), (args, actor) => this.galleryValue!.referenceProgress(args, actor), async (styleId, actor) => { await this.action({ operation: 'reference-analyze', args: { operationId: randomUUID(), styleId, buildDataset: true } }, actor, this.lifetime.signal) })
+    this.galleryTasks = new GalleryReferenceTasks(this.config, this.domainValue, this.ctx.jobs, (operation, args, actor, signal) => this.galleryValue!.action(operation, args, actor, signal), (args, actor) => this.galleryValue!.referenceProgress(args, actor), async (styleId, actor) => { await this.action({ operation: 'reference-analyze', args: { operationId: randomUUID(), styleId, buildDataset: true } }, actor, this.lifetime.signal) }, {
+      validate: async (input, actor) => { const readers = await this.taskReferenceReaders(input, actor, AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(this.config.limits.requestTimeoutMs)])); validateTaskReferences(this.domain, actor, input, this.config.limits.maxImportFiles, readers) },
+      import: async (input, actor, signal) => importTaskReferences(this.domain, this.files, actor, input, this.config.limits.maxImportFiles, signal, await this.taskReferenceReaders(input, actor, signal)),
+    })
     await this.galleryTasks.initialize()
     this.engineValue = new RunEngine(this.domainValue.repository, this.ctx.jobs, (run) => {
       if (run.owner.kind !== 'session') return
@@ -134,10 +150,10 @@ export class CuratorService {
       // 完整请求已提交到 run 的持久化日志；Session 通过工具结果中的 runId 关联，独立插件不写实验事件。
     }, this.config.limits)
     await this.engineValue.recover()
-    this.launchesValue = new SearchLaunches({ domain: this.domain, files: this.files, engine: this.engine, signal: this.lifetime.signal,
+    this.launchesValue = new SearchLaunches({ domain: this.domain, files: this.files, engine: this.engine, signal: this.lifetime.signal, datasetReads: this.datasetReads,
       native: () => this.dependencies.nativeSessions ?? (this.ctx.get ? nativeSearchSessions({ get: this.ctx.get.bind(this.ctx) }) : undefined),
       freeze: async (input, actor) => {
-        const task = await this.resolveTask('search-start', toJson({ operationId: input.operationId, releaseId: input.modelProfileId, output: input.output, ...(input.output.kind === 'usage' ? { usageRevisionId: input.output.usageRevisionId } : {}), taskBrief: input.taskBrief, targetCount: input.targetCount, sourceId: sourceIdentity(this.config).providerId }) as Record<string, Json>, actor)
+        const task = await this.resolveTask('search-start', toJson({ operationId: input.operationId, releaseId: input.modelProfileId, output: input.output, ...(input.output.kind === 'usage' ? { usageRevisionId: input.output.usageRevisionId } : {}), taskBrief: input.taskBrief, targetCount: input.targetCount, sourceId: sourceIdentity(this.config).providerId }) as Record<string, Json>, actor, true)
         return this.spec(task.kind, task.normalized, task.fixed, task.config)
       } })
     // 旧的完整分析只补充模型档案，不重放模型请求，也不改写人工规则。
@@ -160,11 +176,35 @@ export class CuratorService {
   private get domain(): CuratorDomain { if (!this.domainValue) throw new CuratorError('capability-unavailable', 'service', 'The provider is unavailable.'); return this.domainValue }
   private get engine(): RunEngine { if (!this.engineValue) throw new CuratorError('capability-unavailable', 'service', 'The task controller is unavailable.'); return this.engineValue }
   private human(actor: DomainActor): void { if (actor.kind !== 'human') throw new CuratorError('owner-denied', 'confirmation', 'This operation requires the authenticated workbench owner.') }
-  private scopedHuman(actor: DomainActor, args: Record<string, Json>): DomainActor {
+  private async readableSession(sessionId: string, signal: AbortSignal): Promise<boolean> {
+    signal.throwIfAborted()
+    const id = brandString<SessionId>(sessionId)
+    if (this.ctx.sessions.get(id)) return true
+    const persistence = this.ctx.get?.('sessionPersistence')
+    return persistence ? await persistence.stat(id, { signal }) !== undefined : false
+  }
+  private async taskReferenceReaders(input: TaskReferenceImport, actor: DomainActor, signal: AbortSignal): Promise<ReadonlyMap<string, DomainActor>> {
+    const readers = new Map<string, DomainActor>()
+    for (const runId of new Set(input.images.map(image => image.runId))) {
+      signal.throwIfAborted()
+      const run = referenceTask(this.domain, input.styleId, runId, actor)
+      let reader = actor
+      if (run.owner.kind === 'session') {
+        if (!await this.readableSession(run.owner.sessionId, signal)) throw new CuratorError('owner-denied', 'task-reference', 'The source Session is unavailable.')
+        reader = { ...actor, sessionId: run.owner.sessionId }
+      }
+      this.engine.get(runId, reader); readers.set(runId, reader)
+    }
+    return readers
+  }
+  private async scopedHuman(actor: DomainActor, args: Record<string, Json>, signal: AbortSignal, readOnly = false): Promise<DomainActor> {
     if (actor.kind !== 'human') return actor
     if (!args.sessionToken) return { kind: actor.kind, id: actor.id, profileId: actor.profileId }
     const grant = typeof args.sessionToken === 'string' ? this.sessionGrants.get(args.sessionToken) : undefined
-    if (!grant || grant.expiresAt <= Date.now() || !this.ctx.sessions.get(brandString<SessionId>(grant.sessionId))) throw new CuratorError('owner-denied', 'session-channel', 'The Session channel expired or is unavailable. Open it again from the workbench.')
+    if (!grant || grant.expiresAt <= Date.now()) throw new CuratorError('owner-denied', 'session-channel', 'The Session channel expired or is unavailable. Open it again from the workbench.')
+    // 历史图片只核对持久会话是否存在；写入及控制仍需原会话处于运行态。
+    if (!this.ctx.sessions.get(brandString<SessionId>(grant.sessionId)) && (!readOnly || !await this.readableSession(grant.sessionId, signal))) throw new CuratorError('owner-denied', 'session-channel', 'Open the owning Session before changing this task.')
+    if (grant.expiresAt <= Date.now()) throw new CuratorError('owner-denied', 'session-channel', 'The Session channel expired. Open it again from the workbench.')
     return { ...actor, sessionId: grant.sessionId }
   }
   private worker(kind: ExecutionSpec['kind']): Worker {
@@ -207,21 +247,22 @@ export class CuratorService {
     this.domain.repository.assertProfile(actor.profileId)
     try {
       const parsed = actionSchema.parse(input), operation = parsed.operation
-      const effectiveActor = this.scopedHuman(actor, parsed.args)
+      const effectiveActor = await this.scopedHuman(actor, parsed.args, signal, sessionReadOperations.has(operation))
       const { sessionToken, ...args } = parsed.args
       if (operation.startsWith('search-launch-')) {
         this.human(effectiveActor)
         const launches = this.launchesValue!
         if (operation === 'search-launch-options') {
           const input = z.object({ usagePageToken: z.string().optional() }).parse(args), page = this.usagePage(input.usagePageToken ? { pageToken: input.usagePageToken } : {})
-          return toJson({ ...launches.options(), datasetSelection: 'required', previewSearch: this.config.source.provider === 'unsplash', usages: page.items.map(usage => ({ usageRevisionId: usage.id, name: usage.name, targetWidth: usage.output.targetWidth, targetHeight: usage.output.targetHeight })), ...(page.pageToken ? { usagePageToken: page.pageToken } : {}), defaultTargetCount: Math.min(10, this.config.limits.maxCandidates), maxTargetCount: this.config.limits.maxCandidates })
+          return toJson({ ...launches.options(), ...await launches.models(), datasetSelection: 'required', automaticDatasetPreparation: true, negativeReferenceDatasets: true, previewSearch: this.config.source.provider === 'unsplash', usages: page.items.map(usage => ({ usageRevisionId: usage.id, name: usage.name, targetWidth: usage.output.targetWidth, targetHeight: usage.output.targetHeight })), ...(page.pageToken ? { usagePageToken: page.pageToken } : {}), defaultTargetCount: Math.min(10, this.config.limits.maxCandidates), maxTargetCount: this.config.limits.maxCandidates })
         }
+        if (operation === 'search-launch-datasets') return toJson(launches.datasets(args, effectiveActor, this.config.limits.pageSize))
         if (operation === 'search-launch-list') return toJson(launches.list(z.object({ styleId: z.string().optional() }).parse(args).styleId, this.config.limits.pageSize))
         if (operation === 'search-launch-start') return toJson(await launches.start(args))
         if (operation === 'search-launch-stop') return toJson(await launches.stop(z.object({ id: z.string().uuid() }).parse(args).id))
         throw new CuratorError('invalid-input', 'search-launch', 'Unknown search launch operation.')
       }
-      if (['style-archive', 'reference-analyze', 'reference-import', 'reference-local-import', 'gallery-import', 'draft-save'].includes(operation) && typeof args.styleId === 'string' && this.galleryTasks?.busy(args.styleId)) throw new CuratorError('constraint-conflict', 'gallery-task', 'Wait for this collection reference task to finish or stop it first.')
+      if (['style-archive', 'style-rename', 'reference-analyze', 'reference-import', 'reference-local-import', 'task-reference-import', 'gallery-import', 'draft-save'].includes(operation) && typeof args.styleId === 'string' && this.galleryTasks?.busy(args.styleId)) throw new CuratorError('constraint-conflict', 'gallery-task', 'Wait for this collection reference task to finish or stop it first.')
       if (actor.kind === 'agent' && !Object.values(agentOperations).includes(operation as (typeof agentOperations)[keyof typeof agentOperations])) throw new CuratorError('owner-denied', 'tool', 'This operation is unavailable to Agent tools.')
       if (['search-start', 'crop-start', 'manual-crop-confirm', 'reference-analyze', 'evaluate-start', 'export-start'].includes(operation) && typeof args.operationId === 'string') {
         const id = contentDigest({ profileId: effectiveActor.profileId, sessionId: effectiveActor.sessionId ?? null, operationId: args.operationId }).slice(10)
@@ -241,11 +282,13 @@ export class CuratorService {
         case 'usage-list': return toJson(this.usagePage(args))
         case 'task-prepare': return await this.prepareTask(args, effectiveActor)
         case 'gallery-reference-start': this.human(effectiveActor); return toJson(await this.galleryTasks!.start(args, effectiveActor))
+        case 'task-reference-start': this.human(effectiveActor); return toJson(await this.galleryTasks!.start({ ...taskReferenceImportSchema.parse(args), source: 'completed-search' }, effectiveActor))
+        case 'gallery-reference-resume': this.human(effectiveActor); return toJson(await this.galleryTasks!.resume(galleryTaskIdSchema.parse(args.taskId), effectiveActor))
         case 'gallery-reference-tasks': {
           this.human(effectiveActor)
           return this.domain.repository.readSnapshot(() => {
             const hidden = hiddenTaskIds(this.domain.repository)
-            return toJson({ tasks: this.galleryTasks!.list(effectiveActor), analyses: projectAnalysisTasks(this.domain, this.engine, effectiveActor).filter(task => !hidden.has(task.runId)), workspaceRevision: this.workspaceRevision() })
+            return toJson({ tasks: this.galleryTasks!.list(effectiveActor), analyses: projectAnalysisTasks(this.domain, this.engine, effectiveActor, this.analysisTaskReads).filter(task => !hidden.has(task.runId)), workspaceRevision: this.workspaceRevision() })
           })
         }
         case 'analysis-input': {
@@ -259,27 +302,7 @@ export class CuratorService {
         }
         case 'analysis-detail': {
           this.human(effectiveActor)
-          return this.domain.repository.readSnapshot(() => {
-            const run = this.engine.get(z.string().parse(args.runId), effectiveActor)
-            if (specOf(run).kind !== 'analyze') throw new CuratorError('invalid-input', 'analysis-detail', 'Choose an analysis task.')
-            const task = projectAnalysisTasks(this.domain, this.engine, effectiveActor).find(item => item.runId === run.id)!
-            const authorized = new Map<string, ReturnType<CuratorDomain['authorizedImage']>>()
-            const imageOf = (imageVersionId: string) => {
-              if (!authorized.has(imageVersionId)) authorized.set(imageVersionId, this.domain.authorizedImage(imageVersionId, effectiveActor))
-              return authorized.get(imageVersionId)!
-            }
-            const observations = dataOf(run).resultIds.flatMap(id => {
-              const record = this.domain.repository.get('observation', id)
-              if (!record) return []
-              imageOf(record.imageVersionId)
-              return [{ imageVersionId: record.imageVersionId, dimensions: record.inferred.map(row => ({ field: row.field, value: row.value, uncertain: row.uncertain })) }]
-            })
-            const images = [...new Set(z.array(z.object({ imageVersionId: z.string() })).parse(specOf(run).fixed.references).map(reference => reference.imageVersionId))].map(imageVersionId => {
-              const { asset } = imageOf(imageVersionId)
-              return { imageVersionId, name: asset.source.description || imageVersionId }
-            })
-            return toJson({ task, process: this.engine.process(run), requests: analysisRequests(this.domain, run), observations, images, summary: styleAnalysisOf(run)?.summary })
-          })
+          return toJson(readAnalysisDetail(this.domain, this.engine, effectiveActor, args))
         }
         case 'analysis-pause': case 'analysis-resume': case 'analysis-stop': {
           this.human(effectiveActor)
@@ -288,11 +311,11 @@ export class CuratorService {
           const command = operation === 'analysis-pause' ? 'pause' : operation === 'analysis-resume' ? 'resume' : 'cancel'
           if (command === 'resume') await this.providers.vision(specOf(run).config)
           await this.engine.control(run.id, command, effectiveActor, command === 'resume' ? this.worker('analyze') : undefined, false)
-          return command === 'cancel' ? { accepted: true } : toJson(projectAnalysisTasks(this.domain, this.engine, effectiveActor).find(item => item.runId === run.id)!)
+          return command === 'cancel' ? { accepted: true } : toJson(this.analysisTaskReads.get(this.domain, this.engine, effectiveActor, run.id)!)
         }
         case 'gallery-reference-stop': this.human(effectiveActor); return toJson(await this.galleryTasks!.cancel(galleryTaskIdSchema.parse(args.taskId), effectiveActor))
-        case 'datasets-list': this.human(effectiveActor); return this.withSessionResources(toJson(listDatasets(this.domain, this.engine, effectiveActor, args, this.config.limits.pageSize)), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
-        case 'dataset-get': this.human(effectiveActor); return this.withSessionResources(toJson(readDataset(this.domain, this.engine, effectiveActor, args, this.config.limits)), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+        case 'datasets-list': this.human(effectiveActor); return this.withSessionResources(toJson(listDatasets(this.domain, this.engine, effectiveActor, args, this.config.limits.pageSize, this.datasetReads)), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+        case 'dataset-get': this.human(effectiveActor); return this.withSessionResources(toJson(readDataset(this.domain, this.engine, effectiveActor, args, this.config.limits, this.datasetReads)), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
         case 'references-list': return this.withSessionResources(referencePage(this.domain, args, effectiveActor, this.config.limits.pageSize), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
         case 'gallery-login-start': case 'gallery-login-status': case 'gallery-login-retry': case 'gallery-login-finish': case 'gallery-login-cancel': {
           this.human(effectiveActor)
@@ -318,7 +341,7 @@ export class CuratorService {
         case 'session-open': {
           this.human(actor)
           const { sessionId } = z.strictObject({ sessionId: z.string().min(1), operationId: z.string().optional() }).parse(args)
-          if (!this.ctx.sessions.get(brandString<SessionId>(sessionId))) throw new CuratorError('owner-denied', 'session-channel', 'The Session is unavailable in this profile.')
+          if (!await this.readableSession(sessionId, signal)) throw new CuratorError('owner-denied', 'session-channel', 'The Session is unavailable in this profile.')
           const token = randomUUID()
           const expiresAt = Date.now() + this.config.limits.sessionGrantTtlMs
           this.sessionGrants.set(token, { sessionId, expiresAt })
@@ -335,12 +358,13 @@ export class CuratorService {
               const spec = specOf(run)
               return spec.kind === 'search' || spec.kind === 'crop' ? [{ runId: run.id, revision: run.revision, kind: spec.kind, status: run.status, taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '' }] : []
             })
-          return toJson({ sessionId, tasks })
+          const launch = this.launchesValue!.forSession(sessionId)
+          return toJson({ sessionId, tasks, ...(launch ? { launch } : {}) })
         }
         case 'snapshot': {
-          const page = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
+          const page = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional(), includeStyleSamples: z.boolean().default(true) }).parse(args)
           let ids: string[] = [], offset = 0
-          const snapshot = projectSnapshot(this.domain, this.engine, this.config, effectiveActor, await this.credentialStatus(), { includeRunResults: false, imageWindow: imageIds => {
+          const snapshot = projectSnapshot(this.domain, this.engine, this.config, effectiveActor, await this.credentialStatus(), { includeRunResults: false, includeStyleSamples: page.includeStyleSamples, imageWindow: imageIds => {
             ids = imageIds; offset = this.pageOffset(page.pageToken, 'images', ids)
             return { offset, size: page.pageSize }
           } })
@@ -355,12 +379,13 @@ export class CuratorService {
         }
         case 'search-batches': {
           this.human(actor)
-          return toJson(readSearchBatches(this.domain, actor, args, this.config.limits.pageSize, run => {
+          const cold = new Set<string>(), readable = new Set<string>()
+          const readerFor: Parameters<typeof readSearchBatches>[4] = run => {
             let token: string | undefined
             let reader = actor
             if (run.owner.kind === 'session') {
               const sessionId = run.owner.sessionId
-              if (!this.ctx.sessions.get(brandString<SessionId>(sessionId))) return undefined
+              if (!this.ctx.sessions.get(brandString<SessionId>(sessionId)) && !readable.has(sessionId)) { cold.add(sessionId); return undefined }
               const now = Date.now()
               for (const [key, grant] of this.sessionGrants) if (grant.expiresAt <= now) this.sessionGrants.delete(key)
               token = [...this.sessionGrants].find(([, grant]) => grant.sessionId === sessionId)?.[0]
@@ -370,17 +395,22 @@ export class CuratorService {
             // 跨会话只用于已认证所有者的只读批次视图；控制和 Agent 工具仍要求原 Session 授权。
             this.engine.get(run.id, reader)
             return { actor: reader, ...(token ? { sessionToken: token } : {}) }
-          }))
+          }
+          const page = readSearchBatches(this.domain, actor, args, this.config.limits.pageSize, readerFor)
+          if (!cold.size) return toJson(page)
+          const present = await Promise.all([...cold].map(async sessionId => await this.readableSession(sessionId, signal) ? sessionId : undefined))
+          for (const sessionId of present) if (sessionId) readable.add(sessionId)
+          return toJson(readable.size ? readSearchBatches(this.domain, actor, args, this.config.limits.pageSize, readerFor) : page)
         }
         case 'style-list': {
           const query = z.object({ pageSize: z.number().int().min(1).max(100).default(20), pageToken: z.string().optional() }).parse(args)
-          const styles = projectSnapshot(this.domain, this.engine, this.config, effectiveActor, { source: false, vision: false }).styles
-          const offset = this.pageOffset(query.pageToken, 'styles', styles.map(style => style.styleId))
-          return toJson({ items: styles.slice(offset, offset + query.pageSize), ...(offset + query.pageSize < styles.length ? { pageToken: this.pageToken('styles', offset + query.pageSize, styles.map(style => style.styleId)) } : {}) })
+          let ids: string[] = [], offset = 0
+          const styles = projectStyles(this.domain, effectiveActor, styleIds => { ids = styleIds; offset = this.pageOffset(query.pageToken, 'styles', ids); return { offset, size: query.pageSize } })
+          return toJson({ items: styles, ...(offset + query.pageSize < ids.length ? { pageToken: this.pageToken('styles', offset + query.pageSize, ids) } : {}) })
         }
         case 'style-get': {
           const { styleId } = z.object({ styleId: z.string() }).parse(args)
-          return toJson(projectStyle(this.domain, styleId, effectiveActor))
+          return this.withSessionResources(toJson(projectStyle(this.domain, styleId, effectiveActor)), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
         }
         case 'run-get': {
           const { runId, pageSize, pageToken, resultFilter } = z.object({ runId: z.string(), pageSize: z.number().int().min(1).max(100).default(20), pageToken: z.string().optional(), resultFilter: runResultFilterSchema.default('all') }).parse(args)
@@ -416,6 +446,32 @@ export class CuratorService {
           return toJson(projectRun(this.domain, await this.engine.control(runId, command, effectiveActor, this.worker(specOf(run).kind), waitForCompletion), effectiveActor))
         }
         case 'reference-import': this.human(actor); return await this.importReferences(args, actor, signal)
+        case 'task-reference-list': {
+          this.human(effectiveActor)
+          const input = taskReferenceReadSchema.parse(args)
+          let reader = effectiveActor, token: string | undefined
+          if (input.runId) {
+            const run = referenceTask(this.domain, input.styleId, input.runId, effectiveActor)
+            if (run.owner.kind === 'session') {
+              const sessionId = run.owner.sessionId
+              if (!await this.readableSession(sessionId, signal)) throw new CuratorError('owner-denied', operation, 'The source Session is unavailable.')
+              reader = { ...effectiveActor, sessionId }
+              const now = Date.now()
+              token = [...this.sessionGrants].find(([, grant]) => grant.sessionId === sessionId && grant.expiresAt > now)?.[0]
+              if (!token) { token = randomUUID(); this.sessionGrants.set(token, { sessionId, expiresAt: now + this.config.limits.sessionGrantTtlMs }) }
+            }
+            this.engine.get(run.id, reader)
+          }
+          const page = readTaskReferences(this.domain, reader, input, this.config.limits.pageSize)
+          return this.withSessionResources(toJson({ ...page, ...(token ? { resourceExpiresAt: this.sessionGrants.get(token)!.expiresAt } : {}) }), reader, token)
+        }
+        case 'task-reference-import': {
+          this.human(effectiveActor)
+          const input = taskReferenceImportSchema.parse(args)
+          if (input.images.length > this.config.limits.maxImportFiles) throw new CuratorError('invalid-input', operation, 'Choose a bounded set of task images.')
+          const readers = await this.taskReferenceReaders(input, effectiveActor, signal)
+          return toJson(await importTaskReferences(this.domain, this.files, effectiveActor, input, this.config.limits.maxImportFiles, signal, readers))
+        }
         case 'local-files-list': {
           this.human(actor)
           const input = z.strictObject({ path: z.string().min(1), kind: z.enum(['file', 'folder']) }).parse(args)
@@ -425,8 +481,18 @@ export class CuratorService {
         case 'local-reference-pick': this.human(actor); return await this.pickLocalReferences(args, signal)
         case 'profile-save': {
           this.human(actor)
-          const profile = await new ModelProfiles(this.domain).save(profileSaveSchema.parse(args), effectiveActor)
-          return { id: profile.id, revision: profile.revision }
+          const input = profileSaveSchema.parse(args), profile = await new ModelProfiles(this.domain).save(input, effectiveActor)
+          return toJson({ ...projectProfileSelection(this.domain, profile, effectiveActor), previousProfileId: input.expectedProfileId })
+        }
+        case 'profile-current': {
+          return this.domain.repository.readSnapshot(() => {
+            this.human(effectiveActor)
+            const { styleId } = z.object({ styleId: z.string().min(1) }).parse(args)
+            this.domain.require('style', styleId)
+            const profiles = new ModelProfiles(this.domain), profile = profiles.current(styleId, effectiveActor)
+            if (profile) profiles.authorize(profile, effectiveActor)
+            return toJson({ styleId, profile: profile ? projectProfileSelection(this.domain, profile, effectiveActor) : null })
+          })
         }
         case 'draft-save': {
           this.human(actor)
@@ -640,7 +706,7 @@ export class CuratorService {
     const release = z.object({ id: z.string(), styleId: z.string() }).parse(task.fixed.release)
     const usage = task.fixed.usage ? z.object({ presetId: z.string() }).parse(task.fixed.usage) : undefined
     const currentUsage = usage && !task.fixed.searchLaunchId ? this.domain.repository.manifest(`usage:${usage.presetId}`)?.state ?? null : null
-    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage ?? null, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, currentProfileId: task.fixed.searchLaunchId ? null : new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
+    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage ?? null, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, searchExclusions: task.fixed.searchExclusions ?? null, currentProfileId: task.fixed.searchLaunchId ? null : new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
   }
   private usagePage(args: Record<string, Json>): { items: import('../shared/model.ts').UsageRevision[]; pageToken?: string } {
     const input = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
@@ -671,7 +737,7 @@ export class CuratorService {
       return toJson({ status: 'blocked', options, error: safeFailure(error) })
     }
   }
-  private async resolveTask(operation: string, args: Record<string, Json>, actor: DomainActor): Promise<ResolvedTask> {
+  private async resolveTask(operation: string, args: Record<string, Json>, actor: DomainActor, allowCollectionHistory = false): Promise<ResolvedTask> {
     if (operation === 'manual-crop-confirm') this.human(actor)
     const input = startSchema.parse(operation === 'manual-crop-confirm' ? { ...args, taskBrief: typeof args.taskBrief === 'string' && args.taskBrief ? args.taskBrief : 'Review this manually selected crop against the frozen style and usage.' } : args)
     const launched = operation === 'search-start' ? this.launchesValue?.task(actor) : undefined
@@ -714,7 +780,8 @@ export class CuratorService {
       const policy = { version: 2, minSatisfiedRatio: config.limits.minStyleMatchRatio }
       const dimensions = new Set(release.rules.filter(rule => rule.check.kind === 'visual' && rule.strength !== 'reference-only').map(rule => rule.dimension))
       const weights = Object.fromEntries(Object.entries(release.recipe.preferenceScale.weights).filter(([dimension]) => dimensions.has(dimension as Rule['dimension'])))
-      fixed.executionRecipe = toJson(recipeSchema.parse({ ...release.recipe, id: `recipe-${contentDigest({ recipe: release.recipe, standardDigest: release.contentDigest, policy, weights }).slice(10, 50)}`, preferenceScale: { ...release.recipe.preferenceScale, weights }, promptVersion: 'visual-curator-rules-v2', styleMatching: policy }))
+      const promptVersion = 'visual-curator-rules-v3'
+      fixed.executionRecipe = toJson(recipeSchema.parse({ ...release.recipe, id: `recipe-${contentDigest({ recipe: release.recipe, standardDigest: release.contentDigest, policy, weights, promptVersion }).slice(10, 50)}`, preferenceScale: { ...release.recipe.preferenceScale, weights }, promptVersion, styleMatching: policy }))
       fixed.executionInstructions = compileStyleInstructions(release)
     }
     const kind = operation === 'search-start' ? 'search' : 'crop'
@@ -727,6 +794,21 @@ export class CuratorService {
       const hints = config.source.provider === 'unsplash' && release.kind === 'modelProfile' && !release.options.some(option => option.selectionSource === 'user') ? styleAnalysisOf(this.domain.require('run', release.analysisRunId))?.summary.searchHints : undefined
       const queries = z.array(z.string().trim().min(1).max(4096)).min(1).parse(input.queries ?? (hints?.length ? hints : [input.taskBrief]))
       Object.assign(normalized, { queries, targetCount })
+      const history: { run: import('../shared/model.ts').RunRecord; actor: DomainActor }[] = [], readable = new Map<string, boolean>()
+      const signal = AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(config.limits.requestTimeoutMs)])
+      for (const run of searchHistoryRuns(this.domain, release.styleId)) {
+        let reader = actor
+        if (run.owner.kind === 'profile') { if (actor.kind !== 'human' && !allowCollectionHistory) continue; reader = { ...actor, kind: 'human' } }
+        else if (run.owner.sessionId !== actor.sessionId) {
+          if (actor.kind !== 'human' && !allowCollectionHistory) continue
+          const sessionId = run.owner.sessionId
+          if (!readable.has(sessionId)) readable.set(sessionId, await this.readableSession(sessionId, signal))
+          if (!readable.get(sessionId)) continue
+          reader = { ...actor, sessionId }
+        }
+        this.engine.get(run.id, reader); history.push({ run, actor: reader })
+      }
+      fixed.searchExclusions = toJson(this.domain.repository.readSnapshot(() => freezeSearchExclusions(this.domain, release, actor, history)))
     } else {
       const ids = input.imageVersionIds ?? (input.imageVersionId ? [input.imageVersionId] : [])
       if (!ids.length || ids.length > config.limits.maxCandidates) throw new CuratorError('invalid-input', 'resolve', 'Choose authorized saved image versions.')
@@ -782,28 +864,43 @@ export class CuratorService {
     return await this.launch('evaluate', { leftId, rightId, splitId, usageRevisionId }, { invocationDigest: contentDigest({ operation: 'evaluate-start', args }), left: toJson(left), right: toJson(right), split: toJson(split), usage: toJson(usage), feedback: toJson(this.domain.snapshot(actor).feedback), humanActor: toJson(actor), images: toJson(images) }, actor, operationId)
   }
   private async startExport(args: Record<string, Json>, actor: DomainActor): Promise<Json> {
-    const { kind, operationId, ...rest } = z.object({ kind: z.enum(['style', 'classification', 'preference', 'crop', 'skill']), operationId: z.string(), purpose: z.enum(['training', 'development', 'holdout', 'reference']), releaseId: z.string(), splitId: z.string().optional(), mode: z.enum(['references-only', 'with-bytes']).default('references-only'), usageRevisionId: z.string().optional(), analysisRunId: z.string().optional() }).parse(args)
+    const { kind, operationId, sampleScope, ...rest } = z.object({ kind: z.enum(['style', 'classification', 'preference', 'crop', 'skill']), operationId: z.string(), purpose: z.enum(['training', 'development', 'holdout', 'reference']), releaseId: z.string(), splitId: z.string().optional(), mode: z.enum(['references-only', 'with-bytes']).default('references-only'), usageRevisionId: z.string().optional(), analysisRunId: z.string().optional(), sampleScope: datasetScopeSchema.default('all') }).parse(args)
     const profile = this.domain.repository.get('modelProfile', rest.releaseId)
     if (profile) {
       if (!['style', 'skill'].includes(kind) || rest.purpose !== 'reference' || rest.mode !== 'references-only') throw new CuratorError('constraint-conflict', 'profile-export', 'Model profiles export reference packages only; human supervision and image-byte permissions remain separate.')
       new ModelProfiles(this.domain).assertFresh(profile, actor)
-      if (!profile.rules.length) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one style rule before exporting.')
-      return await this.launch('export', { operationId: `${operationId}:export`, modelProfileId: profile.id }, { invocationDigest: contentDigest({ operation: 'export-start', args }), actor: toJson(actor) }, actor, operationId)
+      if (sampleScope === 'all' && !profile.rules.length) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one style rule before exporting.')
+      if (!profile.references.some(ref => sampleScope === 'all' || ref.reference.role === sampleScope)) throw new CuratorError('constraint-conflict', 'profile-export', 'There are no analyzed references in the selected export scope.')
+      return await this.launch('export', { operationId: `${operationId}:export`, modelProfileId: profile.id, sampleScope }, { invocationDigest: contentDigest({ operation: 'export-start', args }), actor: toJson(actor) }, actor, operationId)
     }
+    if (sampleScope !== 'all') throw new CuratorError('constraint-conflict', 'export', 'Role-filtered observation exports require an analyzed model profile.')
     if (!rest.splitId) throw new CuratorError('invalid-input', 'export', 'A supervised or human-release export requires its saved split.')
     this.domain.require('release', rest.releaseId); this.domain.require('split', rest.splitId)
     const exportInput = z.record(z.string(), jsonSchema).parse(toJson({ operationId: `${operationId}:export`, exportKind: kind, ...rest }))
     return await this.launch('export', exportInput, { invocationDigest: contentDigest({ operation: 'export-start', args }), actor: toJson(actor), feedbackHeads: toJson(this.domain.snapshot(actor).feedback.map(feedback => feedback.id)) }, actor, operationId)
   }
+  private authorizedExport(id: string, actor: DomainActor): ProfileExport | ExportSnapshot {
+    return this.domain.repository.readSnapshot(() => {
+      const profileExport = this.domain.repository.get('profileExport', id)
+      if (profileExport) {
+        if (profileExport.access.kind === 'session-run' && profileExport.access.sessionId !== actor.sessionId) throw new CuratorError('owner-denied', 'export-read', 'This export belongs to another Session.')
+        new ModelProfiles(this.domain).authorize(this.domain.require('modelProfile', profileExport.modelProfileId), actor)
+        return profileExport
+      }
+      const snapshot = this.domain.repository.get('export', id)
+      if (!snapshot) throw new CuratorError('owner-denied', 'export-read', 'This export is unavailable to the current owner.')
+      try { this.domain.authorizeExport(snapshot, actor); for (const resource of snapshot.resources) this.domain.authorizedImage(resource.imageVersionId, actor) }
+      catch (error) { if (!(error instanceof CuratorError)) throw error; throw new CuratorError('owner-denied', 'export-read', 'This export is unavailable to the current owner.', { cause: error }) }
+      return snapshot
+    })
+  }
   private exportView(id: string, actor: DomainActor): Json {
-    const profileExport = this.domain.repository.get('profileExport', id)
-    if (profileExport) {
-      if (profileExport.access.kind === 'session-run' && profileExport.access.sessionId !== actor.sessionId) throw new CuratorError('owner-denied', 'export-read', 'This export belongs to another Session.')
-      new ModelProfiles(this.domain).authorize(this.domain.require('modelProfile', profileExport.modelProfileId), actor)
+    const saved = this.authorizedExport(id, actor)
+    if (saved.kind === 'profileExport') {
+      const profileExport = saved
       return toJson({ exportId: profileExport.id, kind: 'style', status: 'ready', downloadPath: `/api/visual-curator/resource?exportId=${encodeURIComponent(id)}${actor.sessionId ? `&sessionId=${encodeURIComponent(actor.sessionId)}` : ''}`, checksum: contentDigest(profileExport.files), preview: profileExport.files.map(file => `${file.name}\n${file.content}`).join('\n\n'), exclusions: [] })
     }
-    const snapshot = this.domain.snapshot(actor).exports.find(item => item.id === id)
-    if (!snapshot) throw new CuratorError('owner-denied', 'export-read', 'This export is unavailable to the current owner.')
+    const snapshot = saved
     return toJson({ exportId: snapshot.id, kind: snapshot.exportKind, status: 'ready', downloadPath: `/api/visual-curator/resource?exportId=${encodeURIComponent(id)}${actor.sessionId ? `&sessionId=${encodeURIComponent(actor.sessionId)}` : ''}`, checksum: contentDigest(snapshot.files), preview: snapshot.files.map(file => `${file.name}\n${file.content}`).join('\n\n'), exclusions: Object.entries(snapshot.exclusions).map(([reason, count]) => ({ reason, count })) })
   }
   private async saveConfig(args: Record<string, Json>): Promise<Json> {
@@ -850,7 +947,7 @@ export class CuratorService {
       if (this.stopping) throw new CuratorError('capability-unavailable', 'resource', 'The plugin is stopping.')
       const resourceSignal = AbortSignal.any([request.signal, this.lifetime.signal])
       const url = new URL(request.url)
-      const actor = this.scopedHuman({ kind: 'human', id: 'profile-owner', profileId: this.profileId }, { ...(url.searchParams.get('sessionToken') ? { sessionToken: url.searchParams.get('sessionToken')! } : {}) })
+      const actor = await this.scopedHuman({ kind: 'human', id: 'profile-owner', profileId: this.profileId }, { ...(url.searchParams.get('sessionToken') ? { sessionToken: url.searchParams.get('sessionToken')! } : {}) }, resourceSignal, true)
       if (url.searchParams.get('sessionId') && actor.sessionId !== url.searchParams.get('sessionId')) throw new CuratorError('owner-denied', 'resource', 'Open the owning Session channel before requesting this resource.')
       const imageId = url.searchParams.get('imageVersionId'), exportId = url.searchParams.get('exportId'), galleryUrl = url.searchParams.get('galleryUrl'), selectionId = url.searchParams.get('selectionId')
       const headers = { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox" }
@@ -864,48 +961,52 @@ export class CuratorService {
         const { image } = this.domain.authorizedImage(imageId, actor)
         if (image.blob.remoteSource) {
           await this.files.verifyReference(image.blob, resourceSignal)
-          const location = url.searchParams.get('preview') === 'thumbnail' ? image.blob.remoteSource.thumbnailUrl : image.blob.remoteSource.url
+          const location = remotePreviewLocation(image.blob.remoteSource, url.searchParams.get('preview') === 'thumbnail')
           return await this.readPreview(location, headers, resourceSignal, request.method === 'HEAD')
         }
         const bytes = await this.files.read(image.blob, resourceSignal)
         return new Response(request.method === 'HEAD' ? null : new Uint8Array(bytes), { headers: { ...headers, 'content-type': image.blob.mime, 'content-length': String(bytes.length) } })
       }
       if (exportId && !imageId && !galleryUrl) {
-        this.exportView(exportId, actor)
-        const referencePackage = this.domain.repository.get('profileExport', exportId)
-        if (referencePackage) {
-          const body = JSON.stringify({ formatVersion: 2, export: referencePackage.id, files: referencePackage.files, resources: [] })
-          return new Response(request.method === 'HEAD' ? null : body, { headers: { ...headers, 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="visual-curator-${referencePackage.id}.json"` } })
+        const saved = this.authorizedExport(exportId, actor), head = request.method === 'HEAD'
+        if (saved.kind === 'profileExport') {
+          const body = head ? null : JSON.stringify({ formatVersion: 2, export: saved.id, files: saved.files, resources: [] })
+          return new Response(body, { headers: { ...headers, 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="visual-curator-${saved.id}.json"` } })
         }
-        const snapshot = this.domain.require('export', exportId)
+        const snapshot = saved
         const resources: Json[] = []
         if (snapshot.mode === 'with-bytes') for (const resource of snapshot.resources) {
           const image = this.domain.authorizedImage(resource.imageVersionId, actor).image
-          resources.push({ imageVersionId: image.id, mime: image.blob.mime, digest: image.blob.digest, base64: (await this.files.read(image.blob, resourceSignal)).toString('base64') })
+          const bytes = await this.files.read(image.blob, resourceSignal)
+          if (!head) resources.push({ imageVersionId: image.id, mime: image.blob.mime, digest: image.blob.digest, base64: bytes.toString('base64') })
         }
-        const body = JSON.stringify({ formatVersion: 1, export: snapshot.id, files: snapshot.files, resources })
-        return new Response(request.method === 'HEAD' ? null : body, { headers: { ...headers, 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="visual-curator-${snapshot.id}.json"` } })
+        const body = head ? null : JSON.stringify({ formatVersion: 1, export: snapshot.id, files: snapshot.files, resources })
+        return new Response(body, { headers: { ...headers, 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="visual-curator-${snapshot.id}.json"` } })
       }
       return new Response(null, { status: 400 })
     } catch (error) { return new Response(JSON.stringify(safeFailure(error)), { status: error instanceof CuratorError && error.code === 'owner-denied' ? 403 : 404, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }) }
   }
   private async readPreview(location: string, headers: Record<string, string>, signal: AbortSignal, head: boolean): Promise<Response> {
     if (this.config.source.unsplash.previewTransport === 'redirect') return new Response(null, { status: 302, headers: { ...headers, location, 'referrer-policy': 'no-referrer' } })
+    const response = await this.previewReads.read(location, signal)
+    return new Response(head ? null : new Uint8Array(response.bytes), { headers: { ...headers, 'cache-control': `private, max-age=${Math.floor(this.config.source.unsplash.cache.ttlMs / 1000)}`, 'content-type': response.mime, 'content-length': String(response.bytes.length), 'referrer-policy': 'no-referrer' } })
+  }
+  private async loadPreview(location: string, signal: AbortSignal) {
     const media = this.dependencies.galleryMedia ?? this.providers.media({ ...this.config, source: { ...this.config.source, provider: 'unsplash' } })
     const response = await media.request(location, { signal, method: 'GET', maxBytes: this.config.limits.maxReferenceBytes, timeoutMs: this.config.limits.requestTimeoutMs, maxRedirects: this.config.limits.maxRedirects, headers: { accept: 'image/jpeg,image/png,image/webp' } })
     const mime = response.headers['content-type']?.split(';')[0]?.trim().toLowerCase()
     if (!mime || !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(mime)) throw new CuratorError('reference-unavailable', 'resource', 'The image source did not return supported raster bytes.')
-    return new Response(head ? null : new Uint8Array(response.bytes), { headers: { ...headers, 'cache-control': `private, max-age=${Math.floor(this.config.source.unsplash.cache.ttlMs / 1000)}`, 'content-type': mime, 'content-length': String(response.bytes.length), 'referrer-policy': 'no-referrer' } })
+    return { bytes: response.bytes, mime }
   }
   /** Workspace reads, task controls and configuration saves bypass bounded action-text responses.
    * @param request Authenticated same-origin JSON request. @returns Validated workspace data or a safe command result.
    */
   async data(request: Request): Promise<Response> {
-    return await this.workspaceData(request, ['search-launch-options', 'search-launch-list', 'search-launch-start', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-analyze', 'vision-models', 'config-read', 'config-save'])
+    return await this.workspaceData(request, ['task-reference-list', 'task-reference-import', 'task-reference-start', 'search-launch-options', 'search-launch-datasets', 'search-launch-list', 'search-launch-start', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-analyze', 'vision-models', 'config-read', 'config-save', 'profile-save', 'profile-current', 'style-get'])
   }
   /** @param request Authenticated account check, listing or selected-photo import. @returns Bounded JSON without action-text truncation. */
   async gallery(request: Request): Promise<Response> {
-    return this.workspaceData(request, ['gallery-validate', 'gallery-collections', 'gallery-photos', 'gallery-import', 'gallery-import-progress', 'gallery-import-cancel', 'gallery-login-start', 'gallery-login-status', 'gallery-login-retry', 'gallery-login-finish', 'gallery-login-cancel', 'gallery-reference-start', 'gallery-reference-tasks', 'gallery-reference-stop'])
+    return this.workspaceData(request, ['gallery-validate', 'gallery-collections', 'gallery-photos', 'gallery-import', 'gallery-import-progress', 'gallery-import-cancel', 'gallery-login-start', 'gallery-login-status', 'gallery-login-retry', 'gallery-login-finish', 'gallery-login-cancel', 'gallery-reference-start', 'gallery-reference-resume', 'gallery-reference-tasks', 'gallery-reference-stop'])
   }
   /** Register only authenticated Client-selected local paths through the bounded JSON route.
    * @param request Local-reference mutation envelope. @returns Per-file registration outcomes without copied bytes.
@@ -918,7 +1019,7 @@ export class CuratorService {
       const input = await this.requestInput(request)
       if (input.operation !== 'analysis-follow') throw new CuratorError('owner-denied', 'analysis-follow', 'This route accepts analysis subscriptions only.')
       const args = z.strictObject({ runId: z.string().min(1), sessionToken: z.string().optional() }).parse(input.args)
-      const actor = this.scopedHuman({ kind: 'human', id: 'profile-owner', profileId: this.profileId }, input.args)
+      const actor = await this.scopedHuman({ kind: 'human', id: 'profile-owner', profileId: this.profileId }, input.args, AbortSignal.any([request.signal, this.lifetime.signal]), true)
       const grant = args.sessionToken ? this.sessionGrants.get(args.sessionToken) : undefined
       const signal = AbortSignal.any([request.signal, this.lifetime.signal, ...(grant ? [AbortSignal.timeout(Math.max(0, grant.expiresAt - Date.now()))] : [])])
       // 订阅注册与首帧准备是同步读取；快照不跨越后续 SSE 观察生命周期。
@@ -951,8 +1052,10 @@ export class CuratorService {
   /** Stop admitting work, drain jobs, then release the sole profile writer. */
   async dispose(): Promise<void> {
     this.stopping = true
+    this.datasetReads.dispose()
+    this.analysisTaskReads.dispose()
     const references = this.galleryTasks?.dispose() ?? Promise.resolve()
-    const jobs = Promise.allSettled([references, this.engineValue?.dispose(), this.launchesValue?.drain(), this.logins?.dispose(), this.providers.dispose?.(), this.galleryProviders?.dispose(), references.catch(() => {}).then(() => this.galleryValue?.dispose())])
+    const jobs = Promise.allSettled([references, this.previewReads.dispose(), this.engineValue?.dispose(), this.launchesValue?.drain(), this.logins?.dispose(), this.providers.dispose?.(), this.galleryProviders?.dispose(), references.catch(() => {}).then(() => this.galleryValue?.dispose())])
     this.lifetime.abort()
     try {
       await Promise.allSettled([...this.foreground])

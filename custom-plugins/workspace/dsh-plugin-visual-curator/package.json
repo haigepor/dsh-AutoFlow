@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-visual-curator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/haigepor/dsh-AutoFlow.git",
@@ -316,6 +316,7 @@
   },
   "dependencies": {
     "@deepseek-ai/dsh-host-directory-picker-native": "workspace:*",
+    "@tanstack/virtual-core": "3.17.8",
     "eventsource-parser": "^3.1.0",
     "ipaddr.js": "2.5.0",
     "partial-json": "^0.1.7",

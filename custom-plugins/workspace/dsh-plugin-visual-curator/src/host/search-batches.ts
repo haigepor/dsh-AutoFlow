@@ -51,7 +51,9 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
       return standard.success && standard.data.styleId === input.styleId
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
     const matches = new Map<string, Set<string>>(), selections = new Map<string, RecordOf<'selection'>[]>()
+    const runIds = new Set<string>(runs.map(run => run.id))
     for (const selection of domain.repository.list('selection')) {
+      if (!runIds.has(selection.runId)) continue
       const rows = selections.get(selection.runId) ?? []; rows.push(selection); selections.set(selection.runId, rows)
       if (selection.qualification === 'auto-qualified') {
         const ids = matches.get(selection.runId) ?? new Set<string>(); ids.add(selection.imageVersionId); matches.set(selection.runId, ids)
@@ -64,19 +66,20 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
     const batches = page.map(run => {
       const reader = read(run), spec = specOf(run)
       const order = reader ? rankedRunSelections(run, selections.get(run.id) ?? [], id => domain.repository.get('assessment', id)) : []
-      const images = [...new Set(order.map(item => item.id))].flatMap(id => {
+      const imageIds = [...new Set(order.map(item => item.id))]
+      const imageScope = `${scope}:images:${run.id}`, imageStart = input.batchId ? offset(input.pageToken, imageScope, imageIds) : 0
+      const window = imageIds.slice(imageStart, imageStart + pageSize)
+      const visible = window.flatMap(id => {
         try { return [domain.authorizedImage(id, reader!.actor)] }
         catch (error) { if (error instanceof CuratorError && error.code === 'owner-denied') return []; throw error }
       })
-      const imageScope = `${scope}:images:${run.id}`, imageStart = input.batchId ? offset(input.pageToken, imageScope, images.map(({ image }) => image.id)) : 0
-      const visible = images.slice(imageStart, imageStart + pageSize)
       return { runId: run.id, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}), kind: spec.kind === 'crop' ? 'crop' as const : 'search' as const, status: run.status, createdAt: run.createdAt, taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', matched: matches.get(run.id)?.size ?? 0, unavailable: !reader,
         images: visible.map(({ image, asset }) => {
           const previewPath = `/api/visual-curator/resource?${new URLSearchParams({ imageVersionId: image.id, ...(reader?.sessionToken ? { sessionToken: reader.sessionToken } : {}) })}`
           return { imageVersionId: image.id, name: asset.source.description || asset.id, width: image.geometry.width, height: image.geometry.height, previewPath,
             ...(image.blob.remoteSource ? { thumbnailPath: `${previewPath}&preview=thumbnail` } : {}) }
         }),
-        ...(imageStart + pageSize < images.length ? { nextImagePageToken: continuation(imageScope, visible.at(-1)!.image.id) } : {}) }
+        ...(imageStart + pageSize < imageIds.length ? { nextImagePageToken: continuation(imageScope, window.at(-1)!) } : {}) }
     })
     return { styleId: input.styleId, totalBatches: selected.length, totalMatches: selected.reduce((total, run) => total + (matches.get(run.id)?.size ?? 0), 0), batches,
       ...(!input.batchId && start + pageSize < selected.length ? { nextPageToken: continuation(scope, page.at(-1)!.id) } : {}) }

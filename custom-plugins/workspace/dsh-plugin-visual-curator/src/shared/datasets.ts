@@ -10,6 +10,20 @@ export type DatasetPageToken = Branded<'VisualCurator.DatasetPageToken'>
 const identity = z.string().min(1).transform(value => brandString<DatasetId>(value))
 const pageToken = z.string().min(1).transform(value => brandString<DatasetPageToken>(value))
 const count = z.number().int().nonnegative()
+/** Full style packages or role-filtered observation packages; existing packages cover all references. */
+export const datasetScopeSchema = profileExportSchema.shape.sampleScope.unwrap()
+/** Role selection frozen when a dataset task is accepted. */
+export type DatasetScope = z.infer<typeof datasetScopeSchema>
+/** Saved sample filters apply before pagination. */
+export const datasetRoleFilterSchema = z.enum(['all', 'positive', 'negative', 'undecided'])
+/** Role selection for frozen sample pages. */
+export type DatasetRoleFilter = z.infer<typeof datasetRoleFilterSchema>
+/** @param references Imported reference roles. @returns Role counts, independent of confirmed training labels. */
+export function datasetRoleCounts(references: readonly { role: 'positive' | 'negative' | 'undecided' }[]) {
+  const counts = { positive: 0, negative: 0, undecided: 0 }
+  for (const reference of references) counts[reference.role]++
+  return counts
+}
 /** A zero total means the current phase has no determinate work count. */
 export const datasetProgressSchema = z.strictObject({ phase: z.enum(['verifying', 'samples', 'files', 'saving']), completed: count, total: count, unit: z.enum(['references', 'samples', 'files', 'items']) }).refine(value => value.total === 0 ? value.completed === 0 : value.completed <= value.total, 'Progress exceeds its reported total')
 /** Progress persisted inside the existing extensible run checkpoint JSON. */
@@ -17,9 +31,9 @@ export type DatasetProgress = z.infer<typeof datasetProgressSchema>
 /** Lightweight task/artifact summary; no prompts, images or raw file contents. */
 export const datasetEntrySchema = z.strictObject({
   id: identity, runId: runSchema.shape.id.optional(), exportId: profileExportSchema.shape.id.optional(),
-  styleId: z.string(), name: z.string(), modelProfileId: modelProfileSchema.shape.id, profileRevision: count, model: z.string(), contentDigest: z.string(),
+  styleId: z.string(), name: z.string(), modelProfileId: modelProfileSchema.shape.id, profileRevision: count, model: z.string(), contentDigest: z.string(), sampleScope: datasetScopeSchema,
   createdAt: z.string(), status: runSchema.shape.status, progress: datasetProgressSchema.optional(),
-  counts: z.strictObject({ references: count, rules: count, candidates: count, groups: count, enabledGroups: count, files: count }),
+  counts: z.strictObject({ references: count, positive: count, negative: count, undecided: count, rules: count, candidates: count, groups: count, enabledGroups: count, files: count }),
   byteLength: count.optional(), downloadPath: z.string().optional(),
   error: z.object({ code: z.string(), safeMessage: z.string(), suggestedAction: z.string() }).optional(),
 })
@@ -46,4 +60,4 @@ export const datasetDetailSchema = z.strictObject({
 /** Frozen detail with bounded file previews and a sample window. */
 export type DatasetDetail = z.infer<typeof datasetDetailSchema>
 /** Detail identity and optional frozen-sample continuation. */
-export const datasetDetailInputSchema = z.object({ id: identity, pageToken: pageToken.optional() })
+export const datasetDetailInputSchema = z.object({ id: identity, pageToken: pageToken.optional(), sampleRole: datasetRoleFilterSchema.default('all') })

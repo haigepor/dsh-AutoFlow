@@ -1,7 +1,6 @@
 /** Collection references register public links; pixel imports retain their separate implementation. */
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { importedGalleryReference } from './reference-state.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
 import { remoteReferenceBlob } from '../media/remote-reference.ts'
@@ -69,22 +68,23 @@ export class RemoteGalleryReferences {
       return state
     }
     if (this.active.has(input.transferId)) throw new CuratorError('operation-conflict', 'gallery-reference', 'This transfer is already active.')
-    const style = this.domain.require('style', input.styleId), draft = this.domain.require('draft', style.draftId)
+    const style = this.domain.require('style', input.styleId)
     if (style.archived || style.revision !== input.expectedRevision) throw new CuratorError('revision-conflict', 'gallery-reference', 'The image collection changed; refresh before referencing.')
+    const append = this.domain.beginReferenceAppend(style.id, style.revision, actor)
     let expectedRevision = input.expectedRevision
     const work: Active = { owner: owner(actor), accountId, controller: new AbortController(), phase: 'verifying', rows: [] }
     const cancellationKey = `${work.owner}:${accountId}:${input.transferId}`, cancelledUntil = this.cancelled.get(cancellationKey)
     if (cancelledUntil !== undefined && cancelledUntil > Date.now()) work.controller.abort()
     else this.cancelled.delete(cancellationKey)
     this.active.set(input.transferId, work)
-    const signal = AbortSignal.any([work.controller.signal, ...(bounds.signal ? [bounds.signal] : [])]), references: string[] = []
+    const signal = AbortSignal.any([work.controller.signal, ...(bounds.signal ? [bounds.signal] : [])])
     try {
       try { await verify(signal) } catch (error) { if (!signal.aborted) throw error }
       work.phase = 'referencing'
       for (const photoId of input.photoIds) {
         if (signal.aborted) break
         try {
-          const existing = importedGalleryReference(this.domain, style.id, photoId, actor)
+          const existing = append.findBySource('unsplash', photoId)
           if (existing) { work.rows.push({ name: photoId, ok: true, skipped: 'already-imported', imageVersionId: existing.imageVersionId, referenceId: existing.id }); continue }
           const fileOp = `${aggregateId}:${photoId}`, imageAggregate = `gallery-url:${fileOp}`, savedImage = this.domain.repository.manifest(imageAggregate)?.state
           let imageId: string
@@ -106,12 +106,13 @@ export class RemoteGalleryReferences {
           this.domain.assertLearningFamily(this.domain.familyOf(this.domain.require('asset', image.assetId).familyId))
           const reference = z.object({ id: z.string() }).parse(await this.domain.action('reference-confirm', { operationId: `${fileOp}:reference`, styleId: style.id, imageVersionId: image.id, role: input.role, intent: { kind: 'overall' }, context: {}, viewEvidence: [{ imageVersionId: image.id, versionKind: image.versionKind }] }, actor))
           // 逐张提交素材集关联后才公布成功，关闭或取消窗口不会丢失已显示的前缀。
-          await this.domain.action('draft-save', toJson({ operationId: `${fileOp}:draft`, styleId: style.id, expectedRevision, rules: draft.rules, referenceIds: [...new Set([...draft.referenceIds, ...references, reference.id])], feedbackIds: draft.feedbackIds, conflicts: draft.conflicts }), actor)
+          await append.append(reference.id, `${fileOp}:draft`, expectedRevision)
           expectedRevision++
-          references.push(reference.id); work.rows.push({ name: photoId, ok: true, imageVersionId: image.id, referenceId: reference.id })
+          work.rows.push({ name: photoId, ok: true, imageVersionId: image.id, referenceId: reference.id })
         } catch (error) {
           if (signal.aborted) break
           if (error instanceof CuratorError && ['storage-commit-failed', 'revision-conflict'].includes(error.code)) throw error
+          if (error && typeof error === 'object' && 'code' in error && ['source-network-failed', 'source-request-timeout', 'source-dns-failed', 'source-response-incomplete'].includes(String(error.code))) throw error
           if (error && typeof error === 'object' && 'code' in error && ['source-auth-required', 'source-access-denied', 'owner-denied'].includes(String(error.code))) { this.photos.delete(api); this.invalidateIdentity(api) }
           work.rows.push({ name: photoId, ok: false, error: toJson(safeFailure(error)) })
         }

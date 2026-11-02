@@ -3,7 +3,7 @@ import Schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
 import { createHash } from 'node:crypto'
 import { galleryAccountSchema, galleryAccountIdSchema } from '../shared/gallery.ts'
-import { galleryCacheDefaults } from '../shared/gallery-cache.ts'
+import { defaultPreviewConcurrency, galleryCacheDefaults } from '../shared/gallery-cache.ts'
 
 const positive = z.number().int().positive()
 export const limitsSchema = z.object({
@@ -15,7 +15,10 @@ export const limitsSchema = z.object({
   maxProcessEvents: positive.max(2000).default(200), maxProcessTextChars: positive.max(200_000).default(12_000),
   processPollIntervalMs: positive.min(100).max(5000).default(500),
   analysisCacheTtlMs: z.number().int().nonnegative().default(60_000),
+  analysisTaskCacheMaxEntries: z.number().int().min(0).max(4096).default(128), analysisTaskCacheMaxBytes: z.number().int().min(0).max(32 * 1024 * 1024).default(1024 * 1024),
   batchCacheTtlMs: z.number().int().min(0).max(3_600_000).default(60_000), batchCacheMaxViews: z.number().int().min(0).max(64).default(8),
+  datasetCacheTtlMs: z.number().int().min(0).max(3_600_000).default(60_000), datasetCacheMaxViews: z.number().int().min(0).max(64).default(8),
+  datasetCacheMaxBytes: z.number().int().min(0).max(128 * 1024 * 1024).default(16 * 1024 * 1024),
   deadlineMs: positive.default(600_000), pollIntervalMs: positive.min(500).default(2000), pageSize: positive.max(100).default(20),
   maxImportFiles: positive.default(30), maxImportBytes: positive.default(20 * 1024 * 1024),
   maxLocalReferenceFiles: positive.default(10_000),
@@ -45,11 +48,12 @@ export const sourceSettingsSchema = z.strictObject({
     mediaDnsResolvers: z.array(z.string().url()).max(8).default(['https://dns.google/resolve', 'https://cloudflare-dns.com/dns-query']),
     mediaConnectAttempts: positive.max(16).default(6), mediaConnectTimeoutMs: positive.default(2000), mediaDnsCacheEntries: positive.max(1000).default(64), mediaDnsCacheTtlMs: positive.default(60_000), mediaDnsFailureTtlMs: positive.default(60_000),
     previewTransport: z.enum(['host', 'redirect']).default('host'),
+    previewConcurrency: positive.max(4).default(defaultPreviewConcurrency),
     identityCacheTtlMs: z.number().int().nonnegative().default(180_000),
     cache: z.strictObject({ ttlMs: positive.default(galleryCacheDefaults.ttlMs), maxPages: positive.default(galleryCacheDefaults.maxPages), maxBytes: positive.default(galleryCacheDefaults.maxBytes) }).default(() => ({ ...galleryCacheDefaults })),
     login: galleryLoginSchema.default(() => galleryLoginSchema.parse({})),
     userAgent: z.string().min(1).max(1024).regex(/^[^\r\n\0]+$/).default('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'),
-  }).default(() => ({ accounts: [], defaultAccountId: null, curlBinary: 'curl', connectTimeoutMs: 5000, readRetryAttempts: 1, readRetryDelayMs: 1000, mediaDnsResolvers: ['https://dns.google/resolve', 'https://cloudflare-dns.com/dns-query'], mediaConnectAttempts: 6, mediaConnectTimeoutMs: 2000, mediaDnsCacheEntries: 64, mediaDnsCacheTtlMs: 60_000, mediaDnsFailureTtlMs: 60_000, previewTransport: 'host' as const, identityCacheTtlMs: 180_000, cache: { ...galleryCacheDefaults }, login: galleryLoginSchema.parse({}), userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36' })),
+  }).default(() => ({ accounts: [], defaultAccountId: null, curlBinary: 'curl', connectTimeoutMs: 5000, readRetryAttempts: 1, readRetryDelayMs: 1000, mediaDnsResolvers: ['https://dns.google/resolve', 'https://cloudflare-dns.com/dns-query'], mediaConnectAttempts: 6, mediaConnectTimeoutMs: 2000, mediaDnsCacheEntries: 64, mediaDnsCacheTtlMs: 60_000, mediaDnsFailureTtlMs: 60_000, previewTransport: 'host' as const, previewConcurrency: defaultPreviewConcurrency, identityCacheTtlMs: 180_000, cache: { ...galleryCacheDefaults }, login: galleryLoginSchema.parse({}), userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36' })),
   id: z.string().min(1).default('images'), endpoint: z.string().default(''), method: z.enum(['GET', 'POST']).default('GET'),
   credentialRef: z.string().regex(/^$|^[A-Za-z_][A-Za-z0-9_]*$/).default('VISUAL_CURATOR_SOURCE_KEY'),
   queryField: z.string().min(1).default('q'), cursorField: z.string().min(1).default('cursor'), pageSizeField: z.string().min(1).default('limit'),

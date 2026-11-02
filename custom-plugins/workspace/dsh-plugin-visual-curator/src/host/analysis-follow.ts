@@ -1,29 +1,42 @@
-/** Authenticated SSE response over live analysis state with one pending snapshot under backpressure. */
+/** Authenticated analysis SSE coalesces ordinary text snapshots and retains one pending snapshot under backpressure. */
 import type { DomainActor, RunRecord } from '../shared/model.ts'
 import { analysisActive, type AnalysisStreamFrame } from '../shared/analysis-process.ts'
-import type { RunEngine } from './runtime.ts'
+import { specOf, type RunEngine } from './runtime.ts'
 
-/** @param engine Task owner. @param run Authorized analysis. @param actor Authenticated reader. @param signal Request/profile lifetime. @returns Native Fetch stream; disconnecting stops observation only. */
+/** @param engine Task owner. @param run Authorized analysis with its frozen ordinary-update interval. @param actor Authenticated reader. @param signal Request/profile lifetime. @returns Native Fetch stream; first output, phases, checkpoints and terminal status are immediate, and disconnecting stops observation only. */
 export function analysisFollowResponse(engine: RunEngine, run: RunRecord, actor: DomainActor, signal: AbortSignal): Response {
   const encoder = new TextEncoder()
   let pending: AnalysisStreamFrame | undefined, controller: ReadableStreamDefaultController<Uint8Array> | undefined
-  let stopped = false, scheduled = false, unsubscribe: (() => void) | undefined
-  const cleanup = () => { if (stopped) return; stopped = true; unsubscribe?.(); signal.removeEventListener('abort', aborted) }
-  const aborted = () => { cleanup(); controller?.error(signal.reason) }
+  const interval = specOf(run).config.limits.processPollIntervalMs
+  let stopped = false, scheduled = false, immediate = false, unsubscribe: (() => void) | undefined
+  let previous: AnalysisStreamFrame | undefined, timer: ReturnType<typeof setTimeout> | undefined
+  const cleanup = () => {
+    if (stopped) return
+    stopped = true; pending = undefined; unsubscribe?.(); signal.removeEventListener('abort', aborted)
+    if (timer !== undefined) { clearTimeout(timer); timer = undefined }
+  }
+  const aborted = () => { if (stopped) return; cleanup(); controller?.error(signal.reason) }
   const flush = () => {
     scheduled = false
     if (stopped || !controller || !pending || (controller.desiredSize ?? 0) <= 0) return
-    const frame = pending; pending = undefined
+    if (timer !== undefined && !immediate) return
+    if (timer !== undefined) { clearTimeout(timer); timer = undefined }
+    const frame = pending; pending = undefined; immediate = false
     try {
       controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`))
-      if (!analysisActive(frame.status)) { cleanup(); controller.close() }
+      previous = frame
+      if (!analysisActive(frame.status)) { cleanup(); controller.close(); return }
+      timer = setTimeout(() => { timer = undefined; flush() }, interval)
     } catch (error) { cleanup(); controller.error(error) }
   }
   const enqueue = (frame: AnalysisStreamFrame) => {
     if (stopped) return
     // 慢读者只保留最新快照，且不能丢掉“已保存结果需要刷新”的标记。
     pending = { ...frame, checkpoint: frame.checkpoint || pending?.checkpoint === true }
-    if (!scheduled) { scheduled = true; queueMicrotask(flush) }
+    immediate ||= !previous || frame.checkpoint || frame.status !== previous.status || frame.process?.phase !== previous.process?.phase
+      || frame.process?.messages?.at(-1)?.sequence !== previous.process?.messages?.at(-1)?.sequence
+      || !!frame.process?.content && !previous.process?.content || !!frame.process?.reasoning && !previous.process?.reasoning
+    if (!scheduled && (timer === undefined || immediate)) { scheduled = true; queueMicrotask(flush) }
   }
   const body = new ReadableStream<Uint8Array>({
     start(value) {

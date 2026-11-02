@@ -8,7 +8,7 @@ export type GalleryTaskId = Branded<'VisualCurator.GalleryTaskId'>
 export const galleryTaskIdSchema = z.string().regex(/^[a-f0-9]{64}$/).transform(value => brandString<GalleryTaskId>(value))
 /** Public progress excludes credentials, selected photo IDs and internal batch receipts. */
 export const galleryTaskViewSchema = z.strictObject({
-  id: galleryTaskIdSchema, styleId: z.string().min(1), accountId: z.string().optional(),
+  id: galleryTaskIdSchema, styleId: z.string().min(1), accountId: z.string().optional(), source: z.literal('completed-search').optional(),
   status: z.enum(['queued', 'running', 'cancelling', 'completed', 'partial', 'failed', 'cancelled', 'interrupted', 'needs-review']),
   phase: z.enum(['verifying', 'referencing', 'saving']),
   total: z.number().int().nonnegative(), completed: z.number().int().nonnegative(), failed: z.number().int().nonnegative(),
@@ -19,6 +19,9 @@ export type GalleryTaskView = z.infer<typeof galleryTaskViewSchema>
 
 /** @param status Saved task status. @returns Whether the Host still owns active work. */
 export function galleryTaskActive(status: GalleryTaskView['status']): boolean { return status === 'queued' || status === 'running' || status === 'cancelling' }
+
+/** @param status Saved task status. @returns Whether the owner can reconcile saved references and continue this task. */
+export function galleryTaskRecoverable(status: GalleryTaskView['status']): boolean { return status === 'interrupted' || status === 'needs-review' || status === 'partial' || status === 'failed' }
 
 /** @param task Durable totals plus published references in the active batch. @returns Clamped live counts shared by the page, dialog and progress bar. */
 export function galleryTaskProgress(task: GalleryTaskView): { referenced: number; processed: number; percent: number } {

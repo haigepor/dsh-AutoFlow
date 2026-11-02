@@ -117,7 +117,7 @@ export interface CommitResult { revision: number; state: Json }
 export class DomainRepository {
   private chain: Promise<void> = Promise.resolve()
   private closed = false
-  private readScope: { pointers: Map<string, AggregateManifest['records'][number]>; records: Map<string, CuratorRecord | undefined>; revisionDigest: string } | undefined
+  private readScope: { identity: object; pointers: Map<string, AggregateManifest['records'][number]>; idsByKind: Map<string, string[]>; records: Map<string, CuratorRecord | undefined>; revisionDigest: string } | undefined
   /** @param profileId Owning profile. @param adapter Storage-domain or deterministic fixture. */
   constructor(readonly profileId: string, private readonly adapter: DomainAdapter) {
     for (const manifest of adapter.manifests()) {
@@ -145,6 +145,8 @@ export class DomainRepository {
   }
   /** @returns Revision-only cache identity without copying historical requests or responses. */
   revisionDigest(): string { return this.readScope?.revisionDigest ?? contentDigest(this.adapter.manifests().map(manifest => [manifest.aggregateId, manifest.revision])) }
+  /** @returns An opaque identity valid only inside the current synchronous read; absence prevents reuse across independent reads. */
+  readSnapshotIdentity(): object | undefined { return this.readScope?.identity }
   /** Reuse verified records only during a synchronous read; caller mutations still receive independent clones.
    * @param read Synchronous projection with no writes or external callbacks.
    * @returns Projection result; nested reads share this scope and exceptions release it.
@@ -152,20 +154,25 @@ export class DomainRepository {
   readSnapshot<T>(read: () => T): T {
     if (this.readScope) return read()
     const pointers = new Map<string, AggregateManifest['records'][number]>()
+    const idsByKind = new Map<string, string[]>()
     const revisions: [string, number][] = []
     for (const manifest of this.adapter.manifests()) {
       revisions.push([manifest.aggregateId, manifest.revision])
       for (const pointer of manifest.records) {
         const identity = `${pointer.kind}:${pointer.id}`
-        if (!pointers.has(identity)) pointers.set(identity, pointer)
+        if (!pointers.has(identity)) { pointers.set(identity, pointer); const ids = idsByKind.get(pointer.kind) ?? []; ids.push(pointer.id); idsByKind.set(pointer.kind, ids) }
       }
     }
     // 修订身份与指针来自同一次读取；离开同步作用域后不保留历史内容或信任结果。
-    this.readScope = { pointers, records: new Map(), revisionDigest: contentDigest(revisions) }
+    this.readScope = { identity: {}, pointers, idsByKind, records: new Map(), revisionDigest: contentDigest(revisions) }
     try { return read() } finally { this.readScope = undefined }
   }
   /** @param kind Record tag. @param id Logical record ID. @returns Only committed records. */
   get<K extends RecordKind>(kind: K, id: string): RecordOf<K> | undefined {
+    const value = this.verifiedRecord(kind, id)
+    return value ? structuredClone(value) : undefined
+  }
+  private verifiedRecord<K extends RecordKind>(kind: K, id: string): RecordOf<K> | undefined {
     if (this.readScope) {
       const identity = `${kind}:${id}`, { pointers, records } = this.readScope
       if (!records.has(identity)) {
@@ -176,21 +183,36 @@ export class DomainRepository {
         records.set(identity, value)
       }
       const value = records.get(identity)
-      return value?.kind === kind ? structuredClone(value) as RecordOf<K> : undefined
+      return value?.kind === kind ? value as RecordOf<K> : undefined
     }
     for (const manifest of this.adapter.manifests()) {
       const pointer = manifest.records.find(p => p.kind === kind && p.id === id)
       if (!pointer) continue
       const value = this.adapter.readRecord(pointer.key)
       if (!value || contentDigest(value) !== pointer.digest) throw new CuratorError('reference-unavailable', 'storage-read', 'Committed data is missing or has changed.')
-      if (value.kind === kind) return structuredClone(value) as RecordOf<K>
+      if (value.kind === kind) return value as RecordOf<K>
     }
     return undefined
   }
+  /** Project a small value without cloning the whole committed record. The callback is synchronous, must not mutate or retain its input, and returns cloneable data.
+   * @param kind Record tag. @param id Committed identity. @param read Pure same-process projection and the verified record digest.
+   * @returns An independent projection, or absence; every read scope verifies the backing record before calling the projection.
+   */
+  project<K extends RecordKind, T>(kind: K, id: string, read: (record: Readonly<RecordOf<K>>, digest: string) => T): T | undefined {
+    return this.readSnapshot(() => {
+      const value = this.verifiedRecord(kind, id)
+      if (!value) return undefined
+      return structuredClone(read(value, this.readScope!.pointers.get(`${kind}:${id}`)!.digest))
+    })
+  }
+  /** @param kind Record tag. @returns Independent committed identities in stable order, without loading record bodies. */
+  recordIds<K extends RecordKind>(kind: K): string[] {
+    const ids = this.readScope ? this.readScope.idsByKind.get(kind) ?? [] : new Set(this.adapter.manifests().flatMap(manifest => manifest.records.filter(pointer => pointer.kind === kind).map(pointer => pointer.id)))
+    return [...ids].sort()
+  }
   /** @param kind Record tag. @returns Committed records in stable ID order. */
   list<K extends RecordKind>(kind: K): RecordOf<K>[] {
-    const ids = new Set(this.readScope ? [...this.readScope.pointers.values()].filter(p => p.kind === kind).map(p => p.id) : this.adapter.manifests().flatMap(m => m.records.filter(p => p.kind === kind).map(p => p.id)))
-    return [...ids].sort().map(id => this.get(kind, id)).filter((r): r is RecordOf<K> => r !== undefined)
+    return this.recordIds(kind).map(id => this.get(kind, id)).filter((record): record is RecordOf<K> => record !== undefined)
   }
   /** @param input Complete aggregate mutation. @returns Original operation receipt after durability. */
   commit(input: CommitInput): Promise<CommitResult> {

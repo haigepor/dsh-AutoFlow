@@ -20,7 +20,7 @@ import { measuredRule, runActor, visionImageInput } from './review.ts'
 import { visionBounds } from './providers.ts'
 import { validObservationReuse } from './reference-state.ts'
 import { reusedObservationSchema } from '../shared/reference-state.ts'
-import type { DatasetProgress } from '../shared/datasets.ts'
+import { datasetScopeSchema, type DatasetProgress } from '../shared/datasets.ts'
 
 /** All I/O remains owned by the current Run and its shared budget. */
 export interface DataWorkerDependencies { domain: CuratorDomain; files: AssetFiles; vision: (config: CuratorConfig) => Promise<StructuredVisionProvider>; compactSummary?: (input: VisionInput, provider: StructuredVisionProvider, ctx: WorkContext) => Promise<VisionInput> }
@@ -282,7 +282,7 @@ async function evaluate(deps: DataWorkerDependencies, ctx: WorkContext): Promise
 
 async function exportData(deps: DataWorkerDependencies, ctx: WorkContext): Promise<void> {
   if (typeof ctx.spec.input.modelProfileId === 'string') {
-    const input = z.object({ operationId: z.string(), modelProfileId: z.string() }).parse(ctx.spec.input)
+    const input = z.object({ operationId: z.string(), modelProfileId: z.string(), sampleScope: datasetScopeSchema.default('all') }).parse(ctx.spec.input)
     let savedPhase: DatasetProgress['phase'] | undefined, savedAt = 0
     const progress = async (value: DatasetProgress) => {
       const now = Date.now()
@@ -291,7 +291,7 @@ async function exportData(deps: DataWorkerDependencies, ctx: WorkContext): Promi
       await ctx.save(value.phase === 'verifying' ? 'reviewing' : 'finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, datasetExportProgress: toJson(value) } })
       savedPhase = value.phase; savedAt = now
     }
-    const snapshot = await new ModelProfiles(deps.domain).export(deps.domain.require('modelProfile', input.modelProfileId), input.operationId, fixedActor(ctx, 'actor'), { signal: ctx.signal, progress })
+    const snapshot = await new ModelProfiles(deps.domain).export(deps.domain.require('modelProfile', input.modelProfileId), input.operationId, fixedActor(ctx, 'actor'), { signal: ctx.signal, progress, sampleScope: input.sampleScope })
     await ctx.save('finalizing', { resultIds: [snapshot.id], counts: { ...dataOf(ctx.current()).counts, files: snapshot.files.length, resources: snapshot.resources.length }, checkpoint: { ...dataOf(ctx.current()).checkpoint, datasetExportProgress: { phase: 'saving', completed: 1, total: 1, unit: 'items' } } })
     return
   }

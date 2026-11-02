@@ -4,6 +4,8 @@ import type { ModelProfile } from '../shared/model.ts'
 import type { GalleryAccount } from '../shared/gallery.ts'
 import type { GalleryTaskView } from '../shared/gallery-task.ts'
 import type { AnalysisContinuation } from '../shared/analysis-process.ts'
+import type { RuleView } from '../shared/profile-selection.ts'
+export type { RuleView } from '../shared/profile-selection.ts'
 export type Dimension = 'color' | 'lighting' | 'texture' | 'subject' | 'composition' | 'density' | 'depth'
 export type Workspace = 'styles' | 'samples' | 'tasks' | 'data'
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
@@ -11,20 +13,6 @@ export type ActionArgs = Record<string, Json>
 
 /** Explicitly selected Host-local file metadata; no browser upload or copied image bytes. */
 export interface LocalPathFile { path: string; name: string; size: number; readable: boolean }
-
-/** A persisted rule, including the references needed to inspect and resolve its evidence. */
-export interface RuleView {
-  ruleId: string
-  dimension: Dimension
-  statement: string
-  strength: 'required' | 'preferred' | 'reference-only'
-  stage: 'source' | 'final'
-  confirmed: boolean
-  condition: string
-  exceptions: string[]
-  supportRefs: string[]
-  counterRefs: string[]
-}
 
 /** Immutable release and candidate identities remain explicit in every launch form. */
 export interface VersionView {
@@ -40,6 +28,8 @@ export interface VersionView {
 /** The mutable style aggregate and its committed, immutable versions. */
 export interface StyleView {
   styleId: string
+  /** False when a workspace summary defers observations to style-get; absence means evidence is complete. */
+  evidenceLoaded?: boolean
   name: string
   revision: number
   draftId: string
@@ -218,6 +208,7 @@ export interface EvaluationView {
 
 /** A ready export is downloadable only through a Host-authorized, same-origin resource. */
 export interface ExportView {
+  sampleScope?: import('../shared/datasets.ts').DatasetScope
   exportId: string
   kind: string
   status: string
@@ -239,7 +230,7 @@ export interface ConfigurationView {
   visionCredentialConfigured: boolean
   source: {
     provider: 'generic' | 'unsplash'
-    unsplash: { accounts: GalleryAccount[]; defaultAccountId: string | null; curlBinary: string; userAgent: string; readRetryAttempts?: number; readRetryDelayMs?: number; cache?: import('../shared/gallery-cache.ts').GalleryCachePolicy; login: { browser: 'auto' | 'msedge' | 'chrome'; executablePath: string; timeoutMs: number; launchTimeoutMs: number; pollIntervalMs: number } }
+    unsplash: { accounts: GalleryAccount[]; defaultAccountId: string | null; curlBinary: string; userAgent: string; readRetryAttempts?: number; readRetryDelayMs?: number; previewConcurrency?: number; cache?: import('../shared/gallery-cache.ts').GalleryCachePolicy; login: { browser: 'auto' | 'msedge' | 'chrome'; executablePath: string; timeoutMs: number; launchTimeoutMs: number; pollIntervalMs: number } }
     id: string; endpoint: string; method: 'GET' | 'POST'; credentialRef: string
     queryField: string; cursorField: string; pageSizeField: string
     itemsPointer: string; idPointer: string; previewPointer: string; originalPointer: string
@@ -247,7 +238,7 @@ export interface ConfigurationView {
     allowedMediaOrigins: string[]; lookupEndpoint: string
   }
   vision: { backend?: 'native' | 'compatible' | undefined; useModelDefaults?: boolean | undefined; provider?: string | undefined; endpoint: string; model: string; credentialRef: string; supportsMultipleImages: boolean; supportsJson: boolean; supportsStreaming?: boolean | undefined; localOrigin: string; vendorVersion: string | null; reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'max' | null | undefined }
-  limits: { maxVisionCalls: number; maxSearchPages: number; maxCandidates: number; maxDownloadBytes: number; maxCropCandidatesPerImage: number; maxConcurrentRequests: number; maxRetryAttempts: number; requestTimeoutMs: number; maxVisionOutputTokens: number; deadlineMs: number; pollIntervalMs: number; processPollIntervalMs?: number; analysisCacheTtlMs?: number; batchCacheTtlMs?: number; batchCacheMaxViews?: number; sessionGrantTtlMs?: number; pageSize: number; maxImportFiles: number; maxImportBytes: number; maxGalleryReferenceFiles: number }
+  limits: { maxVisionCalls: number; maxSearchPages: number; maxCandidates: number; maxDownloadBytes: number; maxCropCandidatesPerImage: number; maxConcurrentRequests: number; maxRetryAttempts: number; requestTimeoutMs: number; maxVisionOutputTokens: number; deadlineMs: number; pollIntervalMs: number; processPollIntervalMs?: number; analysisCacheTtlMs?: number; analysisTaskCacheMaxEntries?: number; analysisTaskCacheMaxBytes?: number; batchCacheTtlMs?: number; batchCacheMaxViews?: number; datasetCacheTtlMs?: number; datasetCacheMaxViews?: number; datasetCacheMaxBytes?: number; sessionGrantTtlMs?: number; pageSize: number; maxImportFiles: number; maxImportBytes: number; maxGalleryReferenceFiles: number }
 }
 
 /** Complete profile projection; polling refreshes data while viewing state stays in the Client store. */

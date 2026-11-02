@@ -14,7 +14,10 @@ import { configRevision, type CuratorConfig } from './config.ts'
 import { dataOf, rankedSelections, specOf, analysisContinuation, type RunEngine } from './runtime.ts'
 import type { AnalysisTask } from '../shared/analysis-process.ts'
 import { resultCategory, searchIssueSchema, type RunResultFilter } from '../shared/search-feedback.ts'
+import type { ProfileSelection } from '../shared/profile-selection.ts'
+import type { ModelProfile } from '../shared/model.ts'
 import { searchOutputSchema, searchLaunchInputSchema } from '../shared/search-launch.ts'
+import { createAnalysisTaskReads, type AnalysisTaskReads } from './analysis-task-reads.ts'
 
 /** @param config Current defaults. @param credentialStatus Presence only, never secret values. @returns Lightweight settings projection. */
 export function projectConfiguration(config: CuratorConfig, credentialStatus: { source: boolean; vision: boolean }): ConfigurationView {
@@ -24,15 +27,11 @@ export function projectConfiguration(config: CuratorConfig, credentialStatus: { 
     sourceCredentialConfigured: credentialStatus.source, visionCredentialConfigured: credentialStatus.vision, source: config.source, vision: { ...vision, ...(reasoningEffort ? { reasoningEffort } : {}) }, limits: config.limits }
 }
 
-/** @param domain Saved collections. @param engine Task owner. @param actor Authenticated reader. @returns Authorized task summaries without image projection. */
-export function projectAnalysisTasks(domain: CuratorDomain, engine: RunEngine, actor: DomainActor): AnalysisTask[] {
-  return domain.repository.list('run').filter(run => canReadRun(domain, run, actor)).map(run => ({ run, spec: specOf(run) })).filter(({ spec }) => spec.kind === 'analyze').map(({ run, spec }) => {
-    // 复用同一次授权读取中已校验的字段，避免轮询反复解析完整固定输入和历史输出。
-    const data = dataOf(run), styleId = String(spec.input.styleId), process = engine.process(run, data)
-    return { runId: run.id, styleId, name: domain.require('style', styleId).name, status: run.status, observed: data.counts.observed ?? 0, continuation: analysisContinuation(run, { spec, data }),
-      total: Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0, model: spec.config.vision.model, reasoningEffort: spec.config.vision.reasoningEffort ?? null,
-      attempts: data.attempts, startedAt: run.createdAt, phase: process?.phase ?? (['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status) ? run.status as 'completed' | 'failed' | 'cancelled' | 'interrupted' : 'queued'), autoResume: data.autoResume === true, ...(run.outcome ? { outcome: run.outcome } : {}), ...(data.error ? { error: data.error } : {}) }
-  }).sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+/** @param domain Saved collections. @param engine Task owner. @param actor Authenticated reader. @param reads Optional service-owned bounded summary reuse. @returns Authorized task summaries without image projection or full Run clones. */
+export function projectAnalysisTasks(domain: CuratorDomain, engine: RunEngine, actor: DomainActor, reads?: AnalysisTaskReads): AnalysisTask[] {
+  if (reads) return reads.list(domain, engine, actor)
+  const reader = createAnalysisTaskReads(() => ({ maxEntries: 0, maxBytes: 0 }))
+  try { return reader.list(domain, engine, actor) } finally { reader.dispose() }
 }
 
 function ruleView(rule: Rule): RuleView {
@@ -40,6 +39,14 @@ function ruleView(rule: Rule): RuleView {
     stage: rule.stage, confirmed: rule.confirmation.status === 'confirmed', condition: rule.condition.subjects?.join(', ') ?? '',
     exceptions: rule.exceptions.map(condition => condition.subjects?.join(', ') ?? condition.usageRevisionIds?.join(', ') ?? ''),
     supportRefs: rule.supportRefs, counterRefs: rule.counterRefs }
+}
+
+/** Project only mutable rule-selection fields; callers retain observations from the same analysis.
+ * @param domain Current profile data. @param profile Authorized immutable selection. @param actor Reader whose current references determine freshness. @returns Selection metadata without image observations or resource URLs.
+ */
+export function projectProfileSelection(domain: CuratorDomain, profile: ModelProfile, actor: DomainActor): ProfileSelection {
+  return { id: profile.id, revision: profile.revision, styleId: profile.styleId, analysisRunId: profile.analysisRunId,
+    stale: !new ModelProfiles(domain).isFresh(profile, actor), options: profile.options.map(option => ({ ...option, rule: ruleView(option.rule) })) }
 }
 
 function sampleViews(domain: CuratorDomain, analysis: StyleAnalysis, actor: DomainActor, familyStatuses: ReadonlyMap<string, boolean>, index: ProjectionIndex): StyleAnalysisView['samples'] {
@@ -307,6 +314,8 @@ export interface SnapshotProjection {
   imageWindow?(ids: string[]): { offset: number; size: number }
   /** False for workspace summaries whose task results load separately. */
   includeRunResults?: boolean
+  /** False for workspace navigation; full observations remain available through style-get. */
+  includeStyleSamples?: boolean
 }
 
 /** Build all four workspaces using authorized records; no storage references or external media URLs leave the Host.
@@ -325,14 +334,33 @@ export function projectSnapshot(domain: CuratorDomain, engine: RunEngine, config
 /** @param domain Saved collection service. @param styleId Requested collection. @param actor Authenticated reader. @returns Current collection fields without projecting unrelated image cards or task results. */
 export function projectStyle(domain: CuratorDomain, styleId: string, actor: DomainActor): StyleView {
   return domain.repository.readSnapshot(() => {
-    const base = domain.snapshot(actor)
+    const base = styleBase(domain, actor)
     base.styles = base.styles.filter(style => style.id === styleId)
     if (!base.styles.length) throw new CuratorError('reference-unavailable', 'style-read', 'The requested style is unavailable.')
     return styleViews(domain, base, actor, domain.familyConfirmationStatuses(), domain.repository.list('run').filter(run => canReadRun(domain, run, actor)), projectionIndex(domain))[0]!
   })
 }
 
-function styleViews(domain: CuratorDomain, base: ReturnType<CuratorDomain['snapshot']>, actor: DomainActor, familyStatuses: ReadonlyMap<string, boolean>, runs: RunRecord[], index: ProjectionIndex): StyleView[] {
+type StyleBase = Pick<ReturnType<CuratorDomain['snapshot']>, 'styles' | 'drafts' | 'feedback' | 'releases' | 'candidates'>
+
+function styleBase(domain: CuratorDomain, actor: DomainActor): StyleBase {
+  return { styles: domain.repository.list('style'), drafts: domain.repository.list('draft'), feedback: domain.currentFeedback(actor), releases: domain.repository.list('release'), candidates: domain.repository.list('candidate') }
+}
+
+/** Project one authorized style page without materializing workspace images or unrelated profiles.
+ * @param domain Saved collection service. @param actor Authenticated reader.
+ * @param window Validates the cursor against all ordered style IDs before selecting a page.
+ * @returns Complete style fields for the requested page, in the existing stable order.
+ */
+export function projectStyles(domain: CuratorDomain, actor: DomainActor, window: (ids: string[]) => { offset: number; size: number }): StyleView[] {
+  return domain.repository.readSnapshot(() => {
+    const base = styleBase(domain, actor), page = window(base.styles.map(style => style.id))
+    base.styles = base.styles.slice(page.offset, page.offset + page.size)
+    return styleViews(domain, base, actor, domain.familyConfirmationStatuses(), domain.repository.list('run').filter(run => canReadRun(domain, run, actor)), projectionIndex(domain))
+  })
+}
+
+function styleViews(domain: CuratorDomain, base: StyleBase, actor: DomainActor, familyStatuses: ReadonlyMap<string, boolean>, runs: RunRecord[], index: ProjectionIndex, includeSamples = true): StyleView[] {
   return base.styles.map(style => {
     const draft = base.drafts.find(item => item.id === style.draftId) ?? domain.require('draft', style.draftId)
     const run = runs.filter(run => { const spec = specOf(run); return spec.kind === 'analyze' && spec.input.buildDataset === true && spec.input.styleId === style.id }).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).at(0)
@@ -346,15 +374,15 @@ function styleViews(domain: CuratorDomain, base: ReturnType<CuratorDomain['snaps
         ...(run.outcome ? { outcome: run.outcome } : {}),
         stale: result ? result.referenceDigest !== analysisReferenceDigest(references, feedbackIds) : false,
         ...(result ? { summary: result.summary } : {}), ...(data.error ? { error: data.error } : {}),
-        samples: result ? sampleViews(domain, result, actor, familyStatuses, index) : [] }
+        samples: result && includeSamples ? sampleViews(domain, result, actor, familyStatuses, index) : [] }
     }
     const profile = new ModelProfiles(domain).current(style.id, actor)
     const visibleProfile = profile && (profile.access.kind !== 'session-run' || profile.access.sessionId === actor.sessionId) && profile.references.every(ref => readableImage(domain, domain.require('imageVersion', ref.reference.imageVersionId), actor)) ? profile : undefined
     const profileAnalysis = visibleProfile ? styleAnalysisOf(domain.require('run', visibleProfile.analysisRunId)) : undefined
-    return { styleId: style.id, name: style.name, revision: style.revision, draftId: draft.id, draftRevision: draft.revision,
+    return { styleId: style.id, ...(!includeSamples ? { evidenceLoaded: false } : {}), name: style.name, revision: style.revision, draftId: draft.id, draftRevision: draft.revision,
       archived: style.archived, ...(style.defaultReleaseId ? { defaultReleaseId: style.defaultReleaseId } : {}),
       ...(analysis ? { analysis } : {}),
-      ...(visibleProfile && profileAnalysis ? { modelProfile: { id: visibleProfile.id, revision: visibleProfile.revision, analysisRunId: visibleProfile.analysisRunId, model: visibleProfile.model, stale: !new ModelProfiles(domain).isFresh(visibleProfile, actor), summary: profileAnalysis.summary, samples: sampleViews(domain, profileAnalysis, actor, familyStatuses, index), groups: visibleProfile.groups, options: visibleProfile.options.map(option => ({ ...option, rule: ruleView(option.rule) })) } } : {}),
+      ...(visibleProfile && profileAnalysis ? { modelProfile: { id: visibleProfile.id, revision: visibleProfile.revision, analysisRunId: visibleProfile.analysisRunId, model: visibleProfile.model, stale: !new ModelProfiles(domain).isFresh(visibleProfile, actor), summary: profileAnalysis.summary, samples: includeSamples ? sampleViews(domain, profileAnalysis, actor, familyStatuses, index) : [], groups: visibleProfile.groups, options: visibleProfile.options.map(option => ({ ...option, rule: ruleView(option.rule) })) } } : {}),
       rules: draft.rules.map(ruleView), conflicts: draft.conflicts.filter(item => !item.resolved).map(item => item.reason), referenceIds: draft.referenceIds, feedbackIds: draft.feedbackIds,
       releases: base.releases.filter(item => item.styleId === style.id && style.committedReleaseIds.includes(item.id)).map(item => ({ id: item.id, label: `v${item.releaseNumber}`, contentDigest: item.contentDigest, draftRevision: item.draftRevision, validation: item.validation.status, evaluationIds: item.validation.evaluationIds, rules: item.rules.map(ruleView) })),
       candidates: base.candidates.filter(item => item.styleId === style.id).map(item => ({ id: item.id, label: item.id, contentDigest: item.contentDigest, rules: item.rules.map(ruleView) })),
@@ -371,7 +399,7 @@ function snapshotNow(domain: CuratorDomain, engine: RunEngine, config: CuratorCo
   const views = [base]
   const unique = <T extends { id: string }>(values: T[]) => [...new Map(values.map(item => [item.id, item])).values()]
   const feedback = unique(views.flatMap(view => view.feedback)), exports = unique(views.flatMap(view => view.exports)), suggestions = unique(views.flatMap(view => view.suggestions)), evaluations = unique(views.flatMap(view => view.evaluations))
-  const styles = styleViews(domain, base, actor, familyStatuses, runs, index)
+  const styles = styleViews(domain, base, actor, familyStatuses, runs, index, projection.includeStyleSamples !== false)
   const configuration = projectConfiguration(config, credentialStatus)
   const references = unique(views.flatMap(view => view.references))
   const referenced = new Set(references.map(reference => reference.imageVersionId))
@@ -400,6 +428,6 @@ function snapshotNow(domain: CuratorDomain, engine: RunEngine, config: CuratorCo
       downloadPath: `/api/visual-curator/resource?exportId=${encodeURIComponent(record.id)}`,
       checksum: contentDigest(record.files.map(file => ({ name: file.name, checksum: file.checksum }))),
       preview: record.files.map(file => `${file.name}\n${file.content}`).join('\n'), exclusions: Object.entries(record.exclusions).map(([reason, count]) => ({ reason, count })) })),
-      ...modelExports.map(record => ({ exportId: record.id, kind: 'style', status: 'completed', modelProfileId: record.modelProfileId, analysisRunId: record.analysisRunId, downloadPath: `/api/visual-curator/resource?exportId=${encodeURIComponent(record.id)}`, checksum: contentDigest(record.files), exclusions: [] }))],
+      ...modelExports.map(record => ({ exportId: record.id, kind: 'style', status: 'completed', modelProfileId: record.modelProfileId, analysisRunId: record.analysisRunId, sampleScope: record.sampleScope ?? 'all', downloadPath: `/api/visual-curator/resource?exportId=${encodeURIComponent(record.id)}`, checksum: contentDigest(record.files), exclusions: [] }))],
     suggestions: suggestions.map(suggestion => ({ suggestionId: suggestion.id, text: suggestion.text, status: suggestion.status })), configuration }
 }

@@ -80,19 +80,40 @@ export function safeFailure(error: unknown) {
 }
 export function dataOf(run: RunRecord): RunData { return runDataSchema.parse(run.data) }
 export function specOf(run: RunRecord): ExecutionSpec { return executionSchema.parse(run.spec) }
+
+const progressStages: Record<NonNullable<RunRecord['stage']>, string> = { planning: 'Planning', retrieving: 'Finding candidates', screening: 'Screening candidates', cropping: 'Cropping images', reviewing: 'Reviewing images', finalizing: 'Finalizing results' }
+const progressCounts: Record<string, string> = { candidates: 'Candidates', distinct: 'Unique images', qualified: 'Matches', failedQueries: 'Failed queries', unavailable: 'Unavailable images', technicalFailed: 'Technical failures', retrievedUnique: 'Source images', sourceReviewed: 'Reviewed sources', rejected: 'Rejected images', needsReview: 'Needs review', pending: 'Pending images', cropGenerated: 'Generated crops', finalPassed: 'Passed final review', humanSelected: 'Human selections', observed: 'Observed images', suggestions: 'Suggested rules', summarized: 'Summarized images', compared: 'Compared images', unprocessed: 'Unprocessed images', files: 'Files', resources: 'Resources', excludedNegative: 'Skipped negative references', excludedReference: 'Skipped reference images', excludedPrevious: 'Skipped previous matches' }
+
+function jobProgress(stage: RunRecord['stage'], counts: RunData['counts'], target: Json | undefined): string {
+  const matchKey = counts.qualified === undefined ? 'finalPassed' : 'qualified'
+  const parts = [stage === null ? 'Preparing' : progressStages[stage]]
+  for (const [key, value] of Object.entries(counts)) {
+    parts.push(`${key === matchKey ? 'Matches' : progressCounts[key] ?? key} ${value}${key === matchKey && typeof target === 'number' ? `/${target}` : ''}`)
+  }
+  if (typeof target === 'number' && counts[matchKey] === undefined) parts.push(`Target ${target}`)
+  return parts.join(' · ')
+}
 /** @param run Authorized saved analysis. @param prepared Spec and data already validated from this record during the same read. @returns Explicit continuation eligibility under its original budget and terminal state. */
 export function analysisContinuation(run: RunRecord, prepared?: { spec: ExecutionSpec; data: RunData }): AnalysisContinuation {
   const spec = prepared?.spec ?? specOf(run), data = prepared?.data ?? dataOf(run)
+  return analysisContinuationFromFacts({ kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, deadlineAt: data.budget.deadlineAt,
+    observed: data.counts.observed ?? 0, total: Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0, buildDataset: spec.input.buildDataset === true,
+    hasSummary: data.checkpoint.styleAnalysis !== undefined, vision: data.budget.vision, maxVisionCalls: spec.config.limits.maxVisionCalls })
+}
+/** Minimal continuation inputs retained by read-only task summaries, without model inputs or observations. */
+export interface AnalysisContinuationFacts { kind: ExecutionSpec['kind']; status: RunRecord['status']; retryable: boolean; deadlineAt: number; observed: number; total: number; buildDataset: boolean; hasSummary: boolean; vision: number; maxVisionCalls: number }
+/** @param facts Current validated run facts. @param now Current wall clock; eligibility is never cached across deadline changes. @returns The same continuation decision used by task controls and read-only summaries. */
+export function analysisContinuationFromFacts(facts: AnalysisContinuationFacts, now = Date.now()): AnalysisContinuation {
   const denied = (reason: AnalysisContinuation['reason']): AnalysisContinuation => ({ allowed: false, reason })
-  if (spec.kind !== 'analyze') return denied('unavailable')
-  if (['created', 'running', 'pausing', 'cancelling'].includes(run.status)) return denied('active')
-  if (run.status === 'completed') return denied('completed')
-  if (run.status === 'cancelled') return denied('cancelled')
-  if (run.status === 'failed' && !data.error?.retryable) return denied('not-retryable')
-  if (!['paused', 'interrupted', 'failed'].includes(run.status)) return denied('unavailable')
-  if (Date.now() >= data.budget.deadlineAt) return denied('deadline')
-  const needsVision = (data.counts.observed ?? 0) < (Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0) || spec.input.buildDataset === true && data.checkpoint.styleAnalysis === undefined
-  if (needsVision && data.budget.vision >= spec.config.limits.maxVisionCalls) return denied('vision-limit')
+  if (facts.kind !== 'analyze') return denied('unavailable')
+  if (['created', 'running', 'pausing', 'cancelling'].includes(facts.status)) return denied('active')
+  if (facts.status === 'completed') return denied('completed')
+  if (facts.status === 'cancelled') return denied('cancelled')
+  if (facts.status === 'failed' && !facts.retryable) return denied('not-retryable')
+  if (!['paused', 'interrupted', 'failed'].includes(facts.status)) return denied('unavailable')
+  if (now >= facts.deadlineAt) return denied('deadline')
+  const needsVision = facts.observed < facts.total || facts.buildDataset && !facts.hasSummary
+  if (needsVision && facts.vision >= facts.maxVisionCalls) return denied('vision-limit')
   return { allowed: true, reason: 'ready' }
 }
 interface LiveRun { run: RunRecord; controller: AbortController; pauseAdmissions: AbortController; completion: Promise<JobOutcome>; command: 'pause' | 'cancel' | 'interrupt' | undefined }
@@ -179,6 +200,8 @@ export class RunEngine {
   }
   /** @param run Saved authorized task. @param saved Data already validated from this record during the same read. @returns Latest bounded output, including uncommitted stream chunks. */
   process(run: RunRecord, saved?: RunData): AnalysisProcess | undefined { return this.processes.get(run.id) ?? (saved ?? dataOf(run)).process }
+  /** @param runId Authorized run identity. @returns Its current in-memory phase, without parsing or copying saved model output. */
+  processPhase(runId: RunRecord['id']): AnalysisProcess['phase'] | undefined { return this.processes.get(runId)?.phase }
   /** @param id Task identity. @param actor Authenticated owner. @param listener Queues bounded frames without performing work in the model callback. @returns Idempotent subscription disposer. */
   subscribeProcess(id: string, actor: DomainActor, listener: (frame: AnalysisStreamFrame) => void): () => void {
     const run = this.get(id, actor)
@@ -308,9 +331,10 @@ export class RunEngine {
         await this.update(id, old => {
           executionSignal.throwIfAborted(); beforeSave?.()
           const data = { ...dataOf(old), ...patch, budget: ledger.snapshot(), ...(this.process(old) ? { process: this.process(old) } : {}) }
-          handle.updateProgress(JSON.stringify({ runId: id, stage, counts: data.counts }))
           return { run: { ...old, stage, data: toJson(data) }, records }
         })
+        const committed = this.repository.get('run', id)!
+        handle.updateProgress(jobProgress(committed.stage, dataOf(committed).counts, spec.input.targetCount))
       }
       const ctx: WorkContext = {
         runId: id, signal: executionSignal, spec, ledger,

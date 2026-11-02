@@ -1,7 +1,7 @@
 /** Bounded, provider-visible task output; it never represents unreturned private model reasoning. */
 import { z } from 'zod'
 import { styleSummarySchema } from './style-analysis.ts'
-import { brandString } from '@deepseek-ai/dsh-brand'
+import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
 import type { RequestId } from './model.ts'
 
 const requestIdentity = z.string().min(1).transform(value => brandString<RequestId>(value))
@@ -41,8 +41,12 @@ export type AnalysisContinuation = z.infer<typeof analysisContinuationSchema>
 export const analysisTaskSchema = z.object({ runId: z.string(), styleId: z.string(), name: z.string(), status: z.enum(['created', 'running', 'pausing', 'paused', 'interrupted', 'cancelling', 'cancelled', 'completed', 'failed']), outcome: z.string().optional(), observed: z.number(), total: z.number(), model: z.string(), reasoningEffort: z.string().nullable(), attempts: z.number(), startedAt: z.string(), phase: processPhaseSchema, autoResume: z.boolean(), continuation: analysisContinuationSchema.optional(), error: z.object({ code: z.string(), stage: z.string(), retryable: z.boolean(), safeMessage: z.string(), suggestedAction: z.string() }).optional() })
 /** Collection progress for the menu and shared workbench state. */
 export type AnalysisTask = z.infer<typeof analysisTaskSchema>
+/** Opaque owner/run/reference-bound identity of an already validated observation prefix. */
+export type AnalysisObservationCursor = Branded<'VisualCurator.AnalysisObservationCursor'>
+/** Observation continuations remain small regardless of image count. */
+export const analysisObservationCursorSchema = z.string().min(1).max(2048).transform(value => brandString<AnalysisObservationCursor>(value))
 /** Detailed process output and complete committed results, independent of raw-text retention. */
-export const analysisDetailSchema = z.object({ task: analysisTaskSchema, process: analysisProcessSchema.optional(), requests: z.array(analysisRequestSchema).default([]), summary: styleSummarySchema.optional(), images: z.array(z.object({ imageVersionId: z.string(), name: z.string() })).default([]), observations: z.array(z.object({ imageVersionId: z.string(), dimensions: z.array(z.object({ field: z.string(), value: z.unknown(), uncertain: z.boolean() })) })) })
+export const analysisDetailSchema = z.object({ task: analysisTaskSchema, process: analysisProcessSchema.optional(), requests: z.array(analysisRequestSchema).default([]), summary: styleSummarySchema.optional(), images: z.array(z.object({ imageVersionId: z.string(), name: z.string() })).default([]), observations: z.array(z.object({ imageVersionId: z.string(), dimensions: z.array(z.object({ field: z.string(), value: z.unknown(), uncertain: z.boolean() })) })), observationCursor: analysisObservationCursorSchema.optional(), observationBase: analysisObservationCursorSchema.optional() })
 /** Read-only conversation details for one authorized task. */
 export type AnalysisDetail = z.infer<typeof analysisDetailSchema>
 /** Read-only process frames; checkpoints refresh saved results without invoking a model. */

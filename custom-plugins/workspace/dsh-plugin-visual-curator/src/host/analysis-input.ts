@@ -8,7 +8,7 @@ import { nativeCallFactsSchema, analysisRequestSchema } from '../shared/analysis
 import { dataOf } from './runtime.ts'
 
 const descriptorSchema = z.object({ operation: z.enum(['analyze', 'summarize']), model: z.string(), instructions: z.string(), inputText: z.string(), images: z.array(z.object({ imageVersionId: z.string(), digest: z.string(), mime: z.string(), role: z.string(), remoteUrl: z.string().optional() })) })
-function descriptor(request: RecordOf<'request'>) {
+function descriptor(request: Readonly<RecordOf<'request'>>) {
   const data = request.data
   // 旧恢复逻辑只改请求状态，仍保留预留时的直接描述；完整校验后继续提供原输入。
   if (request.state === 'outcome-unknown') {
@@ -18,15 +18,17 @@ function descriptor(request: RecordOf<'request'>) {
   return descriptorSchema.safeParse(request.state === 'reserved' ? data : data && typeof data === 'object' && !Array.isArray(data) ? data.bundle : undefined)
 }
 
-/** @param domain Saved records. @param run Authorized analysis. @returns Attempt identities without prompt text. */
-export function analysisRequests(domain: CuratorDomain, run: RunRecord): AnalysisRequest[] {
-  return dataOf(run).requestIds.flatMap(id => {
-    const request = domain.repository.get('request', id)
-    if (!request || request.runId !== run.id) return []
-    const parsed = descriptor(request)
-    const native = nativeCallFactsSchema.safeParse(request.data && typeof request.data === 'object' && !Array.isArray(request.data) ? request.data.metadata : undefined)
-    const error = analysisRequestSchema.shape.error.unwrap().safeParse(request.data && typeof request.data === 'object' && !Array.isArray(request.data) ? request.data.error : undefined)
-    return [{ requestId: request.id, createdAt: request.createdAt, state: request.state, operation: parsed.success ? parsed.data.operation : null, model: parsed.success ? parsed.data.model : null, imageIds: parsed.success ? parsed.data.images.map(image => image.imageVersionId) : [], available: parsed.success, ...(native.success ? { native: native.data } : {}), ...(error.success ? { error: error.data } : {}) }]
+/** @param domain Saved records. @param run Authorized analysis. @param requestIds Optional IDs already validated from this same run during the caller's synchronous read. @returns Current attempt metadata without copying saved prompt text. */
+export function analysisRequests(domain: CuratorDomain, run: RunRecord, requestIds: readonly string[] = dataOf(run).requestIds): AnalysisRequest[] {
+  return requestIds.flatMap(id => {
+    const projected = domain.repository.project('request', id, request => {
+      if (request.runId !== run.id) return undefined
+      const parsed = descriptor(request)
+      const native = nativeCallFactsSchema.safeParse(request.data && typeof request.data === 'object' && !Array.isArray(request.data) ? request.data.metadata : undefined)
+      const error = analysisRequestSchema.shape.error.unwrap().safeParse(request.data && typeof request.data === 'object' && !Array.isArray(request.data) ? request.data.error : undefined)
+      return { requestId: request.id, createdAt: request.createdAt, state: request.state, operation: parsed.success ? parsed.data.operation : null, model: parsed.success ? parsed.data.model : null, imageIds: parsed.success ? parsed.data.images.map(image => image.imageVersionId) : [], available: parsed.success, ...(native.success ? { native: native.data } : {}), ...(error.success ? { error: error.data } : {}) }
+    })
+    return projected ? [projected] : []
   })
 }
 

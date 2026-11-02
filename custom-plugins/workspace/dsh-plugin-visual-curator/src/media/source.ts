@@ -12,7 +12,7 @@ export interface SourceConfig { endpoint: string; method: 'GET' | 'POST'; reques
 /** Keyword query fixed by the RunSpec. */
 export interface SourceQuery { query: string; pageSize: number; language?: string; filter?: string }
 /** Ephemeral locations must never be written into durable business records or logs. */
-export interface SourceLocation { previewUrl: string; originalUrl?: string }
+export interface SourceLocation { previewUrl: string; thumbnailUrl?: string; originalUrl?: string }
 /** Stable identity and optional provider-declared dimensions; dimensions are not pixel proof. */
 export interface SourceItem extends SourceLocation { providerAssetId: string; width?: number; height?: number; originalUnavailable?: 'restricted' }
 /** One real source page; null means normal exhaustion. */

@@ -103,6 +103,8 @@ export const styleStandardSchema = z.union([releaseSchema, modelProfileSchema])
 export type StyleStandard = z.infer<typeof styleStandardSchema>
 /** Version-two reference packages contain no training split or fabricated human confirmation. */
 export const profileExportSchema = z.strictObject({ ...base, id: brandedIdSchema<'VisualCurator.ProfileExportId'>(), kind: z.literal('profileExport'), access: accessSchema, formatVersion: z.literal(2), modelProfileId: opaque, analysisRunId: opaque,
+  // 未标记范围的已有格式 2 数据包始终表示完整风格参考包。
+  sampleScope: z.enum(['all', 'positive', 'negative']).optional(),
   resources: z.array(z.strictObject({ imageVersionId: opaque, digest: z.string(), familyId: opaque })), files: z.array(z.strictObject({ name: z.string(), content: z.string(), checksum: digestSchema })),
 })
 export type ProfileExport = z.infer<typeof profileExportSchema>

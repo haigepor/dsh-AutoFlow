@@ -25,3 +25,9 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 ## Dev Note
 
 None.
+
+## Visual Curator 0.2.0
+
+Reference imports run in the background, retain committed images after interruption and resume remaining work. Completed searches can supply positive or negative references across tasks. Dataset export distinguishes complete style packages from role-specific observation packages, and search preparation includes current negative evidence and historical exclusions.
+
+Search queries and visual reviews enforce subject prominence before accepting a style match. The workbench adds paginated, virtualized image lists, responsive conversation task cards and incremental analysis refreshes with current context usage. Repeated reference validation, dataset serialization and preview concurrency are reduced without removing authorization, checksums or per-image commits. Saved profile data remains in place; app-owned UI and native capabilities require the matching AutoFlow build, followed by restart.

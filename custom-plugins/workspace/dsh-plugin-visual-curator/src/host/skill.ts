@@ -2,6 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-skill'
 import { z } from 'zod'
+import { searchQueryGuidance, searchToolGuidance } from './search-guidance.ts'
 
 const instructions = {
   'visual-style-reference': {
@@ -14,7 +15,7 @@ const instructions = {
   },
   'visual-image-search': {
     description: 'Search and visually screen images against a fixed Visual Curator release.',
-    content: 'Read the selected published release or fresh modelProfile first. Start visual_search_start only with real release, usage and source IDs and explicit budgets. Use sourceId unsplash when the selected source is Unsplash; it searches the full library with the saved default account. Provide concise queries when needed. Otherwise an Unsplash model profile uses its saved search hints, while taskBrief remains the visual review objective. Search requires configured source and vision services. Track its returned run ID using visual_run_get and bounded job waits. Report visual rejections separately from technical failures. Only saved pixel reviews establish qualified results; a successful launch is not a qualified image. Never weaken required rules to fill a quota.',
+    content: searchToolGuidance + ' Use visual_task_prepare(kind=search) with real release, output and source IDs and explicit budgets, then pass its normalizedInput and preparationDigest to visual_search_start. Preview output requires explicit queries; original-output legacy callers may omit queries to use saved source hints. Use sourceId unsplash when the selected source is Unsplash; it searches the full library with the saved default account. ' + searchQueryGuidance + ' Track its returned run ID using visual_run_get and bounded job waits. Report visual rejections separately from technical failures. A successful launch is not a qualified image. Never weaken required rules to fill a quota.',
   },
   'visual-crop-composition': {
     description: 'Plan image crops with protected subjects and inspect the rendered result against a fixed style.',

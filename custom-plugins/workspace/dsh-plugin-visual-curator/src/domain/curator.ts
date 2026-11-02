@@ -19,6 +19,7 @@ import type { StyleStandard } from '../shared/model.ts'
 const op = { operationId: z.string().min(1).max(256) }
 const styleMutation = { ...op, styleId: z.string().min(1), expectedRevision: z.number().int().positive() }
 const styleCreateSchema = z.strictObject({ ...op, name: z.string().min(1) })
+const styleRenameSchema = z.strictObject({ ...styleMutation, name: z.string().trim().min(1) })
 const draftSaveSchema = z.strictObject({ ...styleMutation, rules: z.array(ruleSchema), referenceIds: z.array(z.string()), feedbackIds: z.array(z.string()), conflicts: z.array(z.strictObject({ id: z.string(), ruleIds: z.array(z.string()), reason: z.string(), resolved: z.boolean() })), recipeId: z.string().optional(), recipe: recipeSchema.optional(), status: z.enum(['editing', 'ready']).optional() })
 const candidateCreateSchema = z.strictObject({ ...styleMutation, recipeId: z.string().optional(), recipe: recipeSchema.optional() })
 const publishSchema = z.strictObject({ ...styleMutation, candidateId: z.string(), evaluationIds: z.array(z.string()).optional(), changeSummary: z.string().optional() })
@@ -46,9 +47,20 @@ export interface CuratorDomainOptions {
   close?: () => Promise<void>
 }
 
+/** One internal import batch's actor-bound, revision-checked reference append operations. */
+export interface ReferenceAppender {
+  /** @param imageVersionId Current library image. @returns Its existing reference, without exposing the batch's stored validation. */
+  findByImage(imageVersionId: string): Reference | undefined
+  /** @param providerId Source provider. @param providerAssetId Stable source photo. @returns Its existing reference across provider accounts. */
+  findBySource(providerId: string, providerAssetId: string): Reference | undefined
+  /** @param referenceId Newly confirmed reference. @param operationId Existing draft-save idempotency identity. @param expectedRevision Exact collection revision. @returns The committed draft, with the same per-image receipt as draft-save. */
+  append(referenceId: string, operationId: string, expectedRevision: number): Promise<StyleDraft>
+}
+
 /** One profile's domain service; Client actions and Agent suggestions share these operations. */
 export class CuratorDomain {
   private readonly now: () => string
+  private readonly familyAliases = new WeakMap<object, Map<string, string>>()
   /** @param profileId Owning profile. @param repository Manifest-backed store. @param options Clock, media integrity and lifecycle. */
   constructor(readonly profileId: string, readonly repository: DomainRepository, private readonly options: CuratorDomainOptions = {}) {
     this.now = options.now ?? (() => new Date().toISOString())
@@ -59,6 +71,7 @@ export class CuratorDomain {
     try {
       switch (operation) {
         case 'style-create': return toJson(await this.createStyle(styleCreateSchema.parse(args), actor))
+        case 'style-rename': return toJson(await this.renameStyle(styleRenameSchema.parse(args), actor))
         case 'draft-save': return toJson(await this.saveDraft(draftSaveSchema.parse(args), actor))
         case 'candidate-create': return toJson(await this.createCandidate(candidateCreateSchema.parse(args), actor))
         case 'style-publish': case 'release-publish': return toJson(await this.publishStyle(publishSchema.parse(args), actor))
@@ -129,11 +142,13 @@ export class CuratorDomain {
       else profiles.assertFresh(release, actor)
     }
     let completed = 0
+    const verified = new Set<string>()
     for (const ref of release.references) {
       options.signal?.throwIfAborted()
       const { image } = this.authorizedImage(ref.reference.imageVersionId, actor)
       if (image.blob.digest !== ref.imageDigest) throw new CuratorError('reference-unavailable', 'resolve', 'A fixed reference digest does not match.')
-      await this.verifyImage(image)
+      const blob = contentDigest(image.blob)
+      if (!verified.has(blob)) { await this.verifyImage(image); verified.add(blob) }
       options.signal?.throwIfAborted()
       await options.verified?.(++completed, release.references.length)
     }
@@ -148,6 +163,18 @@ export class CuratorDomain {
     const draft: StyleDraft = { ...this.base('draft', draftId), styleId: id, revision: 1, status: 'editing', rules: [], referenceIds: [], feedbackIds: [], conflicts: [] }
     await this.repository.commit({ aggregateId: `style:${id}`, expectedRevision: 0, operationId: input.operationId, request: input, records: [style, draft], state: { id, record: toJson(style) } })
     return this.require('style', id)
+  }
+  /** Rename the collection without replacing its references or published versions.
+   * @param input Owner-confirmed name and current collection revision. @param actor Authenticated owner. @returns The committed collection, or the original idempotent result.
+   */
+  async renameStyle(input: z.infer<typeof styleRenameSchema>, actor: DomainActor): Promise<Style> {
+    this.human(actor)
+    const replay = this.recover('style', input, actor)
+    if (replay) return replay
+    const style = this.require('style', input.styleId)
+    if (style.archived) throw new CuratorError('constraint-conflict', 'style-rename', 'Archived collections cannot be renamed.')
+    await this.styleCommit({ ...style, name: input.name }, input, [], { id: style.id })
+    return this.require('style', style.id)
   }
   async saveDraft(input: z.infer<typeof draftSaveSchema>, actor: DomainActor): Promise<StyleDraft> {
     this.human(actor)
@@ -170,6 +197,78 @@ export class CuratorDomain {
     const draft: StyleDraft = { ...current, revision: current.revision + 1, rules: input.rules.map(rule => rule.confirmation.status === 'confirmed' ? { ...rule, confirmation: { status: 'confirmed', actor: this.human(actor) } } : rule), referenceIds: [...new Set(input.referenceIds)], feedbackIds: [...new Set(input.feedbackIds)], conflicts: input.conflicts, status: input.status ?? 'editing', ...(recipeId === undefined ? {} : { recipeId }) }
     await this.styleCommit(style, input, [draft, ...(input.recipe ? [input.recipe] : [])], { id: draft.id })
     return this.require('draft', draft.id)
+  }
+
+  /** Validate an import prefix once, then append only newly confirmed references during this internal batch.
+   * @param styleId Target collection. @param expectedRevision Exact initial collection revision. @param actor Captured authenticated owner; the returned operations cannot accept another actor.
+   * @returns A batch-local appender, never persisted or accepted through JSON actions. Every append checks current style/draft revisions, archival and prefix pointers. Only already-read immutable library references reuse authorization; private images and feedback are checked again. Full record reads retain repository checksum validation.
+   */
+  beginReferenceAppend(styleId: string, expectedRevision: number, actor: DomainActor): ReferenceAppender {
+    const owner = structuredClone(actor)
+    this.human(owner)
+    const byImage = new Map<string, Reference>(), bySource = new Map<string, Reference>(), prefix = { reference: new Set<string>(), imageVersion: new Set<string>(), asset: new Set<string>() }, privateImages = new Set<string>()
+    const sourceKey = (providerId: string, providerAssetId: string) => JSON.stringify([providerId, providerAssetId])
+    const remember = (reference: Reference, image: ImageVersion, asset: Asset) => {
+      if (!byImage.has(image.id)) byImage.set(image.id, reference)
+      if (asset.source.kind === 'provider' && !bySource.has(sourceKey(asset.source.providerId, asset.source.providerAssetId))) bySource.set(sourceKey(asset.source.providerId, asset.source.providerAssetId), reference)
+      prefix.reference.add(reference.id); prefix.imageVersion.add(image.id); prefix.asset.add(asset.id)
+      if (asset.access.kind === 'session-run') privateImages.add(image.id)
+    }
+    const initial = this.repository.readSnapshot(() => {
+      const style = this.require('style', styleId), draft = this.require('draft', style.draftId)
+      if (style.archived || style.revision !== expectedRevision) throw new CuratorError('revision-conflict', 'reference-append', 'The collection changed before this import batch.')
+      for (const id of draft.referenceIds) {
+        const reference = this.require('reference', id)
+        if (reference.styleId !== styleId) throw new CuratorError('owner-denied', 'reference-append', 'Reference belongs to another style.')
+        const { image, asset } = this.authorizedImage(reference.imageVersionId, owner)
+        remember(reference, image, asset)
+      }
+      return { style, draft }
+    })
+    let revision = initial.style.revision, previous = initial.draft
+    const history = new Map<string, { referenceId: string; input: z.infer<typeof draftSaveSchema> }>()
+    const current = () => {
+      this.human(owner)
+      const style = this.require('style', styleId), draft = this.require('draft', style.draftId)
+      if (style.archived || style.revision !== revision || draft.id !== previous.id || draft.revision !== previous.revision || contentDigest(draft) !== contentDigest(previous)) throw new CuratorError('revision-conflict', 'reference-append', 'The collection changed during this import batch.')
+      for (const kind of ['reference', 'imageVersion', 'asset'] as const) {
+        const ids = new Set(this.repository.recordIds(kind))
+        if ([...prefix[kind]].some(id => !ids.has(id))) throw new CuratorError('reference-unavailable', 'reference-append', 'An imported reference is no longer available.')
+      }
+      for (const id of privateImages) this.authorizedImage(id, owner)
+      for (const id of initial.draft.feedbackIds) {
+        const feedback = this.require('feedback', id)
+        if (feedback.context.styleId !== style.id || feedback.scope !== 'style-candidate') throw new CuratorError('constraint-conflict', 'reference-append', 'Feedback has not been confirmed for this style.')
+        if (!this.canReadFeedback(feedback, owner)) throw new CuratorError('owner-denied', 'reference-append', 'Feedback is outside this Session.')
+      }
+      if (draft.recipeId) this.require('recipe', draft.recipeId)
+      return { style, draft }
+    }
+    return {
+      findByImage: id => { const reference = byImage.get(id); return reference ? this.repository.readSnapshot(() => { current(); return structuredClone(reference) }) : undefined },
+      findBySource: (providerId, providerAssetId) => { const reference = bySource.get(sourceKey(providerId, providerAssetId)); return reference ? this.repository.readSnapshot(() => { current(); return structuredClone(reference) }) : undefined },
+      append: async (referenceId, operationId, expected) => {
+        const known = history.get(operationId)
+        if (known && (known.referenceId !== referenceId || known.input.expectedRevision !== expected)) throw new CuratorError('operation-conflict', 'reference-append', 'Operation ID was already used for another reference.')
+        const input = known?.input ?? { operationId, styleId, expectedRevision: expected, rules: initial.draft.rules, referenceIds: [...new Set([...previous.referenceIds, referenceId])], feedbackIds: initial.draft.feedbackIds, conflicts: initial.draft.conflicts }
+        const replay = this.recover('draft', input, owner)
+        if (replay) { this.repository.readSnapshot(current); return replay }
+        if (expected !== revision) throw new CuratorError('revision-conflict', 'reference-append', 'The collection changed during this import batch.')
+        const prepared = this.repository.readSnapshot(() => {
+          const { style, draft } = current()
+          const reference = this.require('reference', referenceId)
+          if (reference.styleId !== styleId) throw new CuratorError('owner-denied', 'reference-append', 'Reference belongs to another style.')
+          const authorized = this.authorizedImage(reference.imageVersionId, owner)
+          const next: StyleDraft = { ...draft, revision: draft.revision + 1, status: 'editing', rules: input.rules.map(rule => rule.confirmation.status === 'confirmed' ? { ...rule, confirmation: { status: 'confirmed', actor: this.human(owner) } } : rule), referenceIds: input.referenceIds, feedbackIds: input.feedbackIds, conflicts: input.conflicts }
+          return { style, next, reference, ...authorized }
+        })
+        history.set(operationId, { referenceId, input })
+        await this.styleCommit(prepared.style, input, [prepared.next], { id: prepared.next.id })
+        revision++; previous = prepared.next
+        remember(prepared.reference, prepared.image, prepared.asset)
+        return structuredClone(prepared.next)
+      },
+    }
   }
   async createCandidate(input: z.infer<typeof candidateCreateSchema>, actor: DomainActor): Promise<StyleCandidate> {
     this.human(actor)
@@ -362,7 +461,9 @@ export class CuratorDomain {
   }
   /** @param familyId Immutable family identity. @returns Whether all current members have explicit confirmation. */
   familyOf(familyId: string): string {
-    const aliases = new Map(this.repository.list('familyGroup').flatMap(group => group.aliases.map(alias => [alias, group.familyId] as const)))
+    const scope = this.repository.readSnapshotIdentity()
+    let aliases = scope ? this.familyAliases.get(scope) : undefined
+    if (!aliases) { aliases = new Map(this.repository.list('familyGroup').flatMap(group => group.aliases.map(alias => [alias, group.familyId] as const))); if (scope) this.familyAliases.set(scope, aliases) }
     const visited = new Set<string>()
     while (aliases.has(familyId)) {
       if (visited.has(familyId)) throw new CuratorError('constraint-conflict', 'family-group', 'Family aliases contain a cycle.')
