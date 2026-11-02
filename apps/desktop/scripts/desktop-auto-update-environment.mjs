@@ -176,7 +176,7 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
       throw new Error('desktop auto-update: unsigned updates require an isolated /unsigned/ Pages directory')
     }
     const keyPrefix = `${pages.pathname.slice(1)}feeds/${target}`
-    return { environment, target, origin: pages.origin, keyPrefix, binaryKeyPrefix: '',
+    return { environment, channel, target, origin: pages.origin, keyPrefix, binaryKeyPrefix: '',
       publicUrl: `${pages.origin}/${keyPrefix}/`, provider: 'github', repository, pagesUrl: pages.href }
   }
   if (env.DSH_DESKTOP_UNSIGNED_UPDATES === '1') throw new Error('desktop auto-update: unsigned updates require GitHub')

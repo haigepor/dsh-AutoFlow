@@ -237,7 +237,7 @@ Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\desktop\scripts\
 
 <a id="release-versions"></a>
 
-The `Publish Windows Desktop` GitHub Actions workflow accepts `publish=false` to build an unsigned test installer and retain its artifact without publishing a Release or changing the update policy. Omit this option or set it to `true` for the existing publication flow.
+The `Publish Windows Desktop` GitHub Actions workflow accepts `publish=false` to build an unsigned test installer and retain its artifact without publishing a Release or changing the update policy. Omit this option or set it to `true` for the existing publication flow. GitHub packaging passes the default `nightly` channel to the installer and completion record; the workflow verifies the Nightly metadata and asset checksums before retaining the artifact.
 
 ### Release versions
 

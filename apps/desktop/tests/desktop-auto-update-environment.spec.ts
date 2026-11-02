@@ -11,6 +11,15 @@ import {
 const RELEASE_ID = '0123456789abcdef0123456789abcdef'
 
 describe('desktop auto-update environment', () => {
+  it.each(['nightly', 'latest'] as const)('retains the selected %s channel for GitHub packages', (channel) => {
+    const environment = { DSH_DESKTOP_UPDATE_PROVIDER: 'github', DSH_DESKTOP_GITHUB_REPOSITORY: 'owner/repository',
+      DSH_DESKTOP_GITHUB_PAGES_URL: 'https://owner.github.io/repository/desktop/unsigned/', DSH_DESKTOP_UNSIGNED_UPDATES: '1' }
+    expect(resolveDesktopAutoUpdateConfig(environment, 'win32', 'x64').channel).toBe('nightly')
+    for (const [platform, arch] of [['win32', 'x64'], ['darwin', 'arm64']] as const) {
+      expect(resolveDesktopAutoUpdateConfig({ ...environment, DSH_DESKTOP_UPDATE_CHANNEL: channel }, platform, arch).channel).toBe(channel)
+    }
+  })
+
   it.each([undefined, 'test'])('requires a release ID for deployment %s', (deployment) => {
     const environment = { DSH_DESKTOP_AUTO_UPDATE_ENV: deployment, DOWNLOAD_TEST_ORIGIN: 'https://updates.example.com',
       DOWNLOAD_TEST_COS_BUCKET: 'test-bucket' }

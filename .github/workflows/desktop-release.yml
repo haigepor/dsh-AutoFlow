@@ -68,6 +68,24 @@ jobs:
         env:
           BUILD_VERSION: ${{ inputs.version }}
         run: pnpm --dir apps/desktop run package:win:x64:unsigned --build-version "$env:BUILD_VERSION"
+      - name: Verify packaged GitHub assets
+        run: |
+          @'
+          import assert from 'node:assert/strict'
+          import fs from 'node:fs'
+          import { loadDesktopPackageEnvironment } from './apps/desktop/scripts/desktop-package-environment.mjs'
+          import { desktopTargetBuildPaths } from './apps/desktop/scripts/desktop-build-paths.mjs'
+          import { prepareDesktopGithubPublication } from './apps/desktop/scripts/desktop-github-publication.ts'
+          const environment = loadDesktopPackageEnvironment('win32', process.env, undefined, { unsigned: true })
+          const plan = await prepareDesktopGithubPublication('win-x64', {
+            environment, productVersion: JSON.parse(fs.readFileSync('apps/desktop/package.json', 'utf8')).version,
+            artifactsRoot: desktopTargetBuildPaths('win-x64', environment).unsignedArtifacts,
+          })
+          assert.equal(plan.commit, process.env.GITHUB_SHA)
+          assert.equal(plan.dirty, false)
+          console.log(`Verified ${plan.version}: ${plan.feedName} and ${plan.assets.length} assets`)
+          '@ | node --import tsx/esm --input-type=module
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Retain installer and completion record
         uses: actions/upload-artifact@v4
         with:
