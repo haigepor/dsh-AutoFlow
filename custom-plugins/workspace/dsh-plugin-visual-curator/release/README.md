@@ -26,6 +26,12 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.1
+
+Native reference analysis uses the selected LLM adapter's timing instead of plugin request and task wall-clock deadlines, including continuation of failed tasks. Cancellation, native connection and idle handling, call counts and byte budgets remain active. Continuing retains saved observations; image downloads, search, crop and compatible HTTP requests keep their existing time limits.
+
+Style summaries use short image labels, log their canonical dictionary and restore evidence identities before saving. The analysis dialog retains readable received content and a stable JSON view across bounded stream tails, preserving follow-to-latest and historical reading positions. Update the plugin and restart AutoFlow. Existing profile data requires no migration; live paid-model behavior on another computer remains to be tested.
+
 ## Visual Curator 0.2.0
 
 Reference imports run in the background, retain committed images after interruption and resume remaining work. Completed searches can supply positive or negative references across tasks. Dataset export distinguishes complete style packages from role-specific observation packages, and search preparation includes current negative evidence and historical exclusions.
