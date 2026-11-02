@@ -236,7 +236,6 @@ async function main() {
         return new Response(await readFile(new URL(`${path === 'design-platform.css' ? '../../lib/welcome' : '../../renderer'}/${path}`, import.meta.url)), { headers: { 'content-type': mime } })
       })
       const parent = new BrowserWindow({ show: true, width: 900, height: 650, webPreferences: { preload: fileURLToPath(new URL('../../lib/preload-app.cjs', import.meta.url)), sandbox: true, contextIsolation: true } })
-      await parent.loadURL('dsh-app://app/')
       const f = await fixture('hold-download')
       const config = resolveDesktopPolicyConfig({ origin: server.url, allowedPageOrigins: ['https://downloads.example.com'],
         intervalMs: 600_000, timeoutMs: 1000 }, true)
@@ -266,12 +265,15 @@ async function main() {
       clipboard.writeText = async value => { copied.push(value); copyComplete.resolve() }
       clipboard.readText = async () => copied.at(-1)
       try {
+        await parent.loadURL('dsh-app://app/')
         server.policy('force')
         await policy.check('launch')
         const window = modal.confirmationWindow
         assert.ok(window)
         const contents = process.platform === 'win32' ? await mandatoryFrame(parent)
           : parent.contentView.children.at(-1).webContents
+        // Windows scripts the embedded frame but captures the owning WebContents.
+        const captureSurface = process.platform === 'win32' ? parent.webContents : contents
         assert.equal(window.isModal(), false)
         assert.equal(parent.isEnabled(), true)
         contents.on('console-message', event => { console.log('mandatory renderer:', event.message) })
@@ -328,7 +330,7 @@ async function main() {
         await until("document.getElementById('update').textContent === '继续更新' && !document.getElementById('update').disabled")
         assert.equal(f.installations.length, 0)
         let capture
-        try { capture = await contents.capturePage() }
+        try { capture = await captureSurface.capturePage() }
         catch (error) { screenshot = { captured: false, reason: String(error) } }
         if (capture !== undefined) {
           await writeFile(join(root, 'mandatory-update.png'), capture.toPNG())
@@ -351,7 +353,7 @@ async function main() {
             assert.equal(await contents.executeJavaScript("document.getElementById('technical-details-label').click(); document.getElementById('technical-details').open"), true)
           }
           const name = expanded ? 'mandatory-error-expanded.png' : 'mandatory-error-collapsed.png'
-          await writeFile(join(root, name), (await contents.capturePage()).toPNG())
+          await writeFile(join(root, name), (await captureSurface.capturePage()).toPNG())
           dialogScreenshots.push(name)
         }
         assert.equal(policy.state.blocking, true)
