@@ -26,7 +26,7 @@ async function fixture(readConcurrency?: number) {
 
 it('loads every record across large tables without exceeding the configured read concurrency', async () => {
   const f = await fixture(4)
-  for (const table of f.descriptor.tables) for (let index = 0; index < 160; index++) await f.put(table, 'record_' + index, { index })
+  for (const table of f.descriptor.tables) for (let index = 0; index < 160; index++) await f.put(table, `record_${index}`, { index })
   await writeFile(join(f.root, 'reads', 'global.json'), JSON.stringify({ version: 1, record: 'complete' }), 'utf8')
   let active = 0, peak = 0
   hooks.read = async (_path, read) => {
@@ -40,7 +40,7 @@ it('loads every record across large tables without exceeding the configured read
   const unit = await f.backend.kv.open(f.descriptor), snapshot = await unit.loadAll()
   for (const table of f.descriptor.tables) {
     expect(Object.keys(snapshot.tables[table]!)).toHaveLength(160)
-    for (let index = 0; index < 160; index++) expect(snapshot.tables[table]!['record_' + index]).toEqual({ index })
+    for (let index = 0; index < 160; index++) expect(snapshot.tables[table]![`record_${index}`]).toEqual({ index })
   }
   expect(snapshot.global).toBe('complete')
   expect(peak).toBe(4)
@@ -103,7 +103,7 @@ it('waits for admitted reads before rejecting a failed load', async () => {
 
 it('defaults the read limit and rejects nonpositive or fractional deployment values', async () => {
   const f = await fixture()
-  for (let index = 0; index < 64; index++) await f.put('alpha', 'record_' + index, index)
+  for (let index = 0; index < 64; index++) await f.put('alpha', `record_${index}`, index)
   let active = 0, peak = 0
   hooks.read = async (_path, read) => {
     active++; peak = Math.max(active, peak)

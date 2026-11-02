@@ -398,7 +398,7 @@ export class InputTriggerController {
     if (this.disposed || signal.aborted) return undefined
     const owner = this.deps.roster.all().find(candidate => candidate.name === source)
     const description = await owner?.describeReference?.(this.project(), reference, signal)
-    // 异步目录返回时，dispose 和取消可能已经改变这两个值。
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- Disposal and cancellation can occur during the await.
     return this.disposed || signal.aborted || owner === undefined || !this.deps.roster.all().includes(owner) ? undefined : description
   }
 

@@ -393,6 +393,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
           })
         } catch (error) {
           // Input may claim the idle phase before maintenance does.
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- The maintenance callback can claim the phase before rejecting.
           if (claimed) throw error
         }
       }

@@ -49,13 +49,13 @@ const SAFE_KEY_RE = /^[a-zA-Z0-9_-]+$/
  * @param readConcurrency - Validated maximum simultaneous document reads for each load.
  * @returns the opened unit.
  */
-export async function openPerRecordUnit(
+export function openPerRecordUnit(
   descriptor: KvUnitDescriptor,
   root: string,
   onClose: () => void,
   readConcurrency: number,
 ): Promise<KvUnit> {
-  return new PerRecordJsonUnit(descriptor, join(root, descriptor.name), onClose, readConcurrency)
+  return Promise.resolve(new PerRecordJsonUnit(descriptor, join(root, descriptor.name), onClose, readConcurrency))
 }
 
 /**
