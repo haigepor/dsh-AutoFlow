@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execa } from 'execa'
 import type { Context } from '@deepseek-ai/cordis'
 import { afterAll, beforeAll, expect, it, onTestFinished, vi } from 'vitest'
+import * as appBoot from '@deepseek-ai/dsh-app-boot'
 import {
   boot, composeEntries, initProfile, loadProfileDirectory, readProfilePatches, readProfileManifest,
   reconcileProfilePatches, PluginPackages, readPluginMeta, getDshRuntimeVersion,
@@ -790,6 +791,51 @@ it('lists bundle versions and current-profile plugin targets', async () => {
       rows: [{ rowId: 'managed', moduleName: pathToFileURL(join(dir, 'node_modules', 'extra', 'plugin.mjs')).href, entryId: 'include:managed' }], overrides: [],
     },
   ])
+})
+
+it('does not recreate feature configuration when metadata settles after disposal', async () => {
+  const { manager, dir, ctx } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const packageDir = join(profileDir, 'node_modules', 'extra')
+    const path = join(packageDir, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
+    manifest.dsh.bundle.featureConfig = './config.json'
+    manifest.dsh.bundle.features = [{ id: 'example', rowId: 'managed', title: 'Example', defaultEnabled: true }]
+    writeFileSync(path, JSON.stringify(manifest))
+    writeFileSync(join(packageDir, 'config.json'), JSON.stringify({ version: 1, features: { example: true } }))
+  })
+  const featureConfig = join(dir, '.plugins', 'extra', 'config.json')
+  expect(existsSync(featureConfig)).toBe(true)
+  const metadataStarted = Promise.withResolvers<undefined>()
+  const releaseMetadata = Promise.withResolvers<undefined>()
+  const readMetadata = appBoot.readPluginMetaAsync
+  const metadata = vi.spyOn(appBoot, 'readPluginMetaAsync').mockImplementation(async (...args) => {
+    const value = await readMetadata(...args)
+    if (args[0] === 'extra') {
+      metadataStarted.resolve(undefined)
+      await releaseMetadata.promise
+    }
+    return value
+  })
+  const listing = manager.listBundles().then(
+    () => ({ status: 'fulfilled' as const }),
+    (error: unknown) => ({ status: 'rejected' as const, error }),
+  )
+  try {
+    await Promise.race([
+      metadataStarted.promise,
+      listing.then(() => { throw new Error('Bundle inventory settled before its metadata barrier') }),
+    ])
+    await ctx.fiber.dispose()
+    rmSync(featureConfig)
+    releaseMetadata.resolve(undefined)
+    expect(await listing).toMatchObject({ status: 'rejected', error: { name: 'AbortError' } })
+    expect(existsSync(featureConfig)).toBe(false)
+    await expect(manager.listBundles()).rejects.toMatchObject({ name: 'AbortError' })
+  } finally {
+    releaseMetadata.resolve(undefined)
+    await listing
+    metadata.mockRestore()
+  }
 })
 
 it('describes a bundle by its manifest and patch: one-liner, rows without a live entry, and the built-in rows it changes', async () => {

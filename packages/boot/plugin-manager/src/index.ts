@@ -847,6 +847,7 @@ export class PluginManager extends TypertRemoteService {
 
   /** Read installed, installation-provided, and offline Official catalog bundles, plus selected non-bundle names.
    * A dependency without a bundle patch is listed, as a `not-bundle` problem, only while it is selected.
+   * New and unfinished inventory reads reject once the service is disposed.
    * @returns Package versions, manifest descriptions, the installable spec of profile dependencies, rows, optional
    * display metadata, activation selections, whether the installation offers the bundle, and removal availability.
    */
@@ -855,8 +856,11 @@ export class PluginManager extends TypertRemoteService {
     return (await this.readBundles(true)).map(bundle => ({ ...bundle, updatable: typeof updateRefusal(bundle, bundle.name) !== 'string' }))
   }
 
-  /** Bundle inventory before update eligibility; release checks skip localized display metadata. */
+  /** Bundle inventory before update eligibility; release checks skip localized display metadata.
+   * Disposal prevents subsequent feature-config initialization and icon publication.
+   */
   private async readBundles(displayMetadata: boolean): Promise<Omit<BundleInfo, 'updatable'>[]> {
+    this.abort.signal.throwIfAborted()
     const icons = new Map<string, PluginIcon>()
     const iconURL = (image: PluginIcon): string => {
       if (!this.webIcons) return `data:${image.contentType};base64,${image.bytes.toString('base64')}`
@@ -876,6 +880,7 @@ export class PluginManager extends TypertRemoteService {
     const bundles: Omit<BundleInfo, 'updatable'>[] = []
     const runtimeVersion = getDshRuntimeVersion()
     for (const name of names) {
+      this.abort.signal.throwIfAborted()
       const installed = dependencies.includes(name)
       const optional = OPTIONAL_BUNDLES.includes(name)
       const enabled = selected.includes(name)
@@ -930,10 +935,12 @@ export class PluginManager extends TypertRemoteService {
         const manifestPath = join(dir, 'package.json')
         const updateManager = resolveBundleUpdateManager(name, this.profile.installAnchor, this.profile.dir)
         let meta = displayMetadata ? offered?.meta ?? await readPluginMetaAsync(name, pathToFileURL(manifestPath).href, iconURL) : undefined
+        this.abort.signal.throwIfAborted()
         // 独立更新只替换实现；随应用提供的自定义图标继续由安装目录持有。
         if (displayMetadata && updateManager !== undefined && Object.hasOwn(installation.dependencies ?? {}, name)) {
           const shippedDir = resolveBundleDir('dsh', name, this.profile.installAnchor, dirname(this.profile.installAnchor))
           const shippedMeta = await readPluginMetaAsync(name, pathToFileURL(join(shippedDir, 'package.json')).href, iconURL)
+          this.abort.signal.throwIfAborted()
           if (shippedMeta?.icon !== undefined) meta = { ...meta, icon: shippedMeta.icon }
         }
         // 待重启时继续展示旧选择，只有下一次启动才迁移新版功能文件。
@@ -963,6 +970,7 @@ export class PluginManager extends TypertRemoteService {
           ...(examples.length === 0 ? {} : { examples }),
           ...error === undefined ? {} : { error } })
       } catch (error) {
+        this.abort.signal.throwIfAborted()
         if (enabled || installed || optional || offered !== undefined) {
           bundles.push({ name, official, availability, ...listing, ...catalogMeta, ...target, ...(version === undefined ? {} : { version }),
             ...sourceOf(), enabled, installed, optional, removable: removable && readOnlyReason === undefined,
@@ -971,6 +979,7 @@ export class PluginManager extends TypertRemoteService {
         }
       }
     }
+    this.abort.signal.throwIfAborted()
     // 一次完整列表替换资源表，避免反复刷新累积旧图标；未启用的组合包也拥有图标。
     if (displayMetadata) this.iconAssets = icons
     return bundles
@@ -1601,6 +1610,7 @@ export class PluginManager extends TypertRemoteService {
       const entryId = active?.entryId
       const base = active?.baseUrl ?? pathToFileURL(join(dir, 'package.json')).href
       const meta = !displayMetadata || this.ctx.get('pluginPackages') === undefined ? undefined : await readPluginMetaAsync(row.name, base, iconURL)
+      this.abort.signal.throwIfAborted()
       rows.push({ rowId: row.id, moduleName: row.name,
         ...entryId === undefined ? {} : { entryId }, ...meta === undefined ? {} : { meta } })
     }
