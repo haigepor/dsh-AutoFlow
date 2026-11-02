@@ -115,6 +115,18 @@ describe('control detail adapters', () => {
     expect(details('job_kill', 'unexpected', { job_id: 'j1' })).toBeNull()
     expect(details('terminal_close', 'unexpected', { sessionId: 'pty-1' })).toBeNull()
   })
+
+  it('keeps recorded job progress and terminal detail visible in collapsed summaries', () => {
+    const progress = 'Screening candidates · Candidates 18 · Matches 6/10'
+    const recorded = `unchanged job output\n${statusLine({ status: 'running', detail: progress })}`
+    const block = output('job_output', recorded, { job_id: 'j1' }), running = detailsCardModel(block, t, 'en')
+    expect(running?.summary).toBe(`${progress} · Running · j1`)
+    expect(running?.expandedSummary).toBe('j1')
+    expect(running?.items[0]).toMatchObject({ title: 'j1', badge: { label: 'Running' }, description: progress, code: { text: 'unchanged job output' } })
+    expect(details('job_output', `done\n${statusLine({ status: 'completed', detail: 'exit code: 0' })}`, { job_id: 'j1' })?.summary).toBe('exit code: 0 · Completed · j1')
+    expect(details('job_output', `waiting\n${statusLine({ status: 'running' })}`, { job_id: 'j1' })?.summary).toBe('j1 · Running')
+    expect(block.content).toEqual([{ type: 'text', text: recorded }])
+  })
 })
 
 describe('inspection detail adapters', () => {

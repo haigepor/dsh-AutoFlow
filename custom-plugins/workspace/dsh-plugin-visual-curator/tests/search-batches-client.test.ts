@@ -9,6 +9,87 @@ const image = (id: string) => ({ imageVersionId: id, name: id, width: 400, heigh
 const batch = (id: string): SearchBatch => searchBatchSchema.parse({ runId: id, kind: 'search', status: 'completed', createdAt: '2026-10-29T00:00:00Z', taskBrief: id, matched: 3, unavailable: false, images: [image(`${id}-1`)], nextImagePageToken: 'images-a' })
 const page = (styleId: string, batches = [batch('a')]): SearchBatchPage => searchBatchPageSchema.parse({ styleId, totalBatches: batches.length, totalMatches: batches.length * 3, batches })
 
+test('fresh cached views reuse metadata until the remaining refresh interval elapses', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  let calls = 0, now = 0
+  const store = createSearchBatchesStore({ now: () => now, pollMs: () => 10, cachePolicy: () => ({ ttlMs: 100, maxViews: 4, resourceTtlMs: 1000 }), async invoke() { calls++; return page('style') } })
+  let stop = store.watch('style'); await settle()
+  try {
+    for (let n = 0; n < 10; n++) { stop(); stop = store.watch('style'); await settle() }
+    assert.equal(calls, 1, 'Reopening fresh history must not refetch the same metadata')
+    assert.equal(store.getSnapshot().loading, false)
+    now = 99; context.mock.timers.tick(99); await settle(); assert.equal(calls, 1)
+    now = 100; context.mock.timers.tick(1); await settle(); assert.equal(calls, 2)
+    store.refresh(); await settle(); assert.equal(calls, 3, 'Explicit refresh always verifies the Host')
+  } finally { stop(); store.dispose(); context.mock.timers.reset() }
+})
+
+test('reopening an active cached view preserves the remaining short progress interval', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  let calls = 0, now = 0
+  const store = createSearchBatchesStore({ now: () => now, pollMs: () => 10, cachePolicy: () => ({ ttlMs: 100, maxViews: 4, resourceTtlMs: 1000 }), async invoke() { calls++; return page('style', [{ ...batch('a'), status: 'running' }]) } })
+  let stop = store.watch('style'); await settle()
+  try {
+    stop(); now = 5; stop = store.watch('style'); await settle(); assert.equal(calls, 1)
+    now = 9; context.mock.timers.tick(4); await settle(); assert.equal(calls, 1)
+    now = 10; context.mock.timers.tick(1); await settle(); assert.equal(calls, 2)
+    stop(); now = 21; stop = store.watch('style'); await settle(); assert.equal(calls, 3, 'An outdated progress view must refresh immediately')
+  } finally { stop(); store.dispose(); context.mock.timers.reset() }
+})
+
+test('reopening a failed cached refresh retries immediately while preserving authorized images', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  let calls = 0, now = 0, fail = false
+  const store = createSearchBatchesStore({ now: () => now, pollMs: () => 10, cachePolicy: () => ({ ttlMs: 100, maxViews: 4, resourceTtlMs: 1000 }), async invoke() { calls++; if (fail) throw new Error('offline'); return page('style', [{ ...batch('a'), status: 'running' }]) } })
+  let stop = store.watch('style'); await settle()
+  try {
+    fail = true; now = 10; context.mock.timers.tick(10); await settle(); assert.equal(calls, 2)
+    const images = store.getSnapshot().page!.batches[0]!.images
+    stop(); fail = false; stop = store.watch('style'); await settle(); assert.equal(calls, 3)
+    assert.equal(store.getSnapshot().error, false)
+    assert.deepEqual(store.getSnapshot().page!.batches[0]!.images, images)
+  } finally { stop(); store.dispose(); context.mock.timers.reset() }
+})
+
+test('settled history polls at the cache interval without republishing unchanged cards', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  let calls = 0, renders = 0
+  const store = createSearchBatchesStore({ pollMs: () => 10, cachePolicy: () => ({ ttlMs: 100, maxViews: 4, resourceTtlMs: 1000 }), async invoke() { calls++; return page('style') } })
+  const stop = store.watch('style'), unsubscribe = store.subscribe(() => renders++)
+  await settle()
+  try {
+    const original = store.getSnapshot().page, initialRenders = renders
+    context.mock.timers.tick(10); await settle(); assert.equal(calls, 1)
+    context.mock.timers.tick(90); await settle(); assert.equal(calls, 2)
+    assert.equal(store.getSnapshot().page, original)
+    assert.equal(renders, initialRenders, 'unchanged background history must not flash loading or rerender image cards')
+  } finally { stop(); unsubscribe(); store.dispose(); context.mock.timers.reset() }
+})
+
+test('active histories and read failures retain their prompt refresh cadence', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  let calls = 0, fail = false
+  const store = createSearchBatchesStore({ pollMs: () => 10, cachePolicy: () => ({ ttlMs: 100, maxViews: 4, resourceTtlMs: 1000 }), async invoke() { calls++; if (fail) throw new Error('offline'); return page('style', [{ ...batch('a'), status: 'running' }]) } })
+  const stop = store.watch('style'); await settle()
+  try {
+    fail = true; context.mock.timers.tick(10); await settle(); assert.equal(calls, 2); assert.equal(store.getSnapshot().error, true)
+    fail = false; context.mock.timers.tick(10); await settle(); assert.equal(calls, 3); assert.equal(store.getSnapshot().error, false)
+  } finally { stop(); store.dispose(); context.mock.timers.reset() }
+})
+
+test('resource expiry refreshes the authoritative first page instead of retaining expired image tails', async () => {
+  let now = 0
+  const store = createSearchBatchesStore({ pollMs: () => 1000000, now: () => now, cachePolicy: () => ({ ttlMs: 1000, maxViews: 4, resourceTtlMs: 100 }), async invoke(_operation, args) {
+    return args.pageToken ? page('style', [{ ...batch('a'), images: [image('tail')], nextImagePageToken: undefined }]) : page('style')
+  } })
+  const stop = store.watch('style'); await settle()
+  try {
+    await store.moreImages('a'); assert.equal(store.getSnapshot().page?.batches[0]?.images.length, 2)
+    now = 101; store.refresh(); await settle()
+    assert.deepEqual(store.getSnapshot().page?.batches[0]?.images.map(image => image.imageVersionId), ['a-1'])
+  } finally { stop(); store.dispose() }
+})
+
 test('all batches are the initial view and late collection responses cannot replace the current collection', async () => {
   let finish!: (value: SearchBatchPage) => void
   const calls: Record<string, unknown>[] = []
@@ -70,7 +151,7 @@ test('an unconfirmed deletion keeps the card and clears its busy state', async (
   } finally { stop(); store.dispose() }
 })
 
-test('returning to a cached collection restores loaded pages before revalidation and isolates the owner scope', async () => {
+test('returning to a fresh cached collection restores loaded pages without revalidation and isolates the owner scope', async () => {
   let hold = false, scope = 1
   const store = createSearchBatchesStore({ pollMs: () => 1000000, scope: () => scope, cachePolicy: () => ({ ttlMs: 1000, maxViews: 4, resourceTtlMs: 10000 }), async invoke(_operation, args) {
     if (hold) return new Promise<SearchBatchPage>(() => {})
@@ -83,7 +164,7 @@ test('returning to a cached collection restores loaded pages before revalidation
     hold = true; stop = store.watch('first')
     assert.deepEqual(store.getSnapshot().page?.batches.map(row => row.runId), ['a', 'b'])
     assert.equal(store.getSnapshot().page?.nextPageToken, undefined)
-    assert.equal(store.getSnapshot().loading, true)
+    assert.equal(store.getSnapshot().loading, false)
     stop(); scope++; stop = store.watch('first')
     assert.equal(store.getSnapshot().page, null)
   } finally { stop(); store.dispose() }
@@ -101,6 +182,8 @@ test('batch caches expire, evict least recently used views and retain visible re
     stop(); stop = store.watch('b'); await settle(); stop(); stop = store.watch('c'); await settle(); stop()
     hold = true; stop = store.watch('a'); assert.equal(store.getSnapshot().page, null); stop()
     hold = false; fail = true; stop = store.watch('b'); assert.equal(store.getSnapshot().page?.batches[0]?.runId, 'b'); await settle()
+    assert.equal(store.getSnapshot().error, false, 'A fresh cached view needs no speculative read')
+    store.refresh(); await settle()
     assert.equal(store.getSnapshot().error, true)
     assert.equal(store.getSnapshot().page?.batches[0]?.runId, 'b')
     stop(); now = 101; hold = true; stop = store.watch('b'); assert.equal(store.getSnapshot().page, null)

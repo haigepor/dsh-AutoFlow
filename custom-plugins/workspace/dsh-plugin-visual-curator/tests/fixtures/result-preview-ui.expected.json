@@ -1,0 +1,12 @@
+{
+  "reachableFromResult": true,
+  "thumbnailFallback": true,
+  "clearFallbackNotice": true,
+  "freshPrimaryRetry": true,
+  "stableImageStage": true,
+  "bothFailuresReported": true,
+  "explicitRetryRecovers": true,
+  "mostlyOpaqueThemes": true,
+  "narrowFits": true,
+  "errors": []
+}

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { z } from 'zod'
+import sharp from 'sharp'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { readSearchBatches } from '../src/host/search-batches.ts'
 import { projectRun } from '../src/host/projection.ts'
@@ -15,7 +16,8 @@ async function fixture() {
   const f = await serviceFixture()
   await f.service.initialize()
   const style = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'style-a', name: 'A' }))
-  await f.action('reference-import', { operationId: 'reference-a', styleId: style.id, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+  const reference = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#314f77' } }).png().toBuffer()
+  await f.action('reference-import', { operationId: 'reference-a', styleId: style.id, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: reference.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
   await f.action('reference-analyze', { operationId: 'analysis-a', styleId: style.id, buildDataset: true }); await f.jobs.drain()
   const profile = f.repository.list('modelProfile')[0]!
   assert.ok(profile)
@@ -104,6 +106,34 @@ test('batch browsing assembles selected metadata without image review projection
     assert.equal(listed.includes('feedbackThread'), false)
     assert.equal(listed.includes('cropCandidate'), false)
     assert.equal(listed.includes('assessment'), false)
+  } finally { await f.cleanup() }
+})
+
+test('a large selected batch reads only the current image page', async context => {
+  const f = await fixture()
+  try {
+    const selection = f.repository.list('selection').find(item => item.runId === f.original.id)!
+    const image = f.domain.require('imageVersion', selection.imageVersionId)
+    const records = Array.from({ length: 1024 }, (_, index) => [
+      recordSchema.parse({ ...image, id: `large-image-${String(index).padStart(4, '0')}` }),
+      recordSchema.parse({ ...selection, id: `large-selection-${index}`, imageVersionId: `large-image-${String(index).padStart(4, '0')}` }),
+    ]).flat()
+    await f.repository.commit({ aggregateId: 'fixture:large-batch', expectedRevision: 0, operationId: 'large-batch', request: {}, state: {}, records })
+    const authorize = f.domain.authorizedImage.bind(f.domain)
+    let reads = 0
+    f.domain.authorizedImage = (id, actor) => { reads++; return authorize(id, actor) }
+    const samples: number[] = [], heapBefore = process.memoryUsage().heapUsed
+    let first!: ReturnType<typeof readSearchBatches>
+    for (let index = 0; index < 5; index++) {
+      const started = performance.now()
+      first = readSearchBatches(f.domain, f.actor, { styleId: f.styleId, batchId: f.original.id }, 20, f.read)
+      samples.push(performance.now() - started)
+    }
+    context.diagnostic(JSON.stringify({ selectedImages: 1025, pageSize: 20, samplesMs: samples, authorizationReads: reads, retainedHeapDelta: process.memoryUsage().heapUsed - heapBefore }))
+    assert.equal(first.batches[0]!.images.length, 20)
+    assert.equal(reads, 100, 'five twenty-image reads must not authorize the unseen thousand-image tail')
+    const second = readSearchBatches(f.domain, f.actor, { styleId: f.styleId, batchId: f.original.id, pageToken: first.batches[0]!.nextImagePageToken }, 20, f.read)
+    assert.equal(new Set([...first.batches[0]!.images, ...second.batches[0]!.images].map(item => item.imageVersionId)).size, 40)
   } finally { await f.cleanup() }
 })
 

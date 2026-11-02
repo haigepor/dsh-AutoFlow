@@ -6,6 +6,7 @@ import { mountAgentLoopTestDependencies, mountAgentLoopTestHarness } from '@deep
 import { LlmAdapter, ToolCallId, createUserMessage, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId, pluginRecordOf } from '@deepseek-ai/dsh-session'
 import { z } from 'zod'
+import sharp from 'sharp'
 import { createAgentTools } from '../src/host/tools.ts'
 import { dataOf } from '../src/host/runtime.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
@@ -39,8 +40,13 @@ test('a real AgentLoop records fixed-style jobs, technical and crop failures, su
   const f = await serviceFixture(), ctx = new Context()
   await f.service.initialize()
   try {
+    const request = f.http.request.bind(f.http)
+    f.http.request = async (url, input) => url.startsWith('https://source.example.test')
+      ? { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ items: [{ id: `one-${f.http.mode}`, previewUrl: 'https://images.example.test/preview', originalUrl: 'https://images.example.test/original' }], nextCursor: null })) }
+      : request(url, input)
     const style = z.object({ id: z.string() }).parse(await f.action('style-create', { name: 'Recorded green', operationId: 'create' }))
-    await f.action('reference-import', { styleId: style.id, expectedRevision: 1, operationId: 'reference', files: [{ name: 'sample.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    const reference = await sharp({ create: { width: 80, height: 40, channels: 3, background: { r: 30, g: 140, b: 35 } } }).png().toBuffer()
+    await f.action('reference-import', { styleId: style.id, expectedRevision: 1, operationId: 'reference', files: [{ name: 'sample.png', mime: 'image/png', base64: reference.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
     await f.action('draft-save', { styleId: style.id, expectedRevision: 2, operationId: 'required-final-rule', referenceIds: f.domain.require('draft', f.domain.require('style', style.id).draftId).referenceIds,
       feedbackIds: [], conflicts: [], rules: [{ ruleId: 'final-color', dimension: 'color', statement: 'Preserve muted green in the final image', condition: '', exceptions: [], supportRefs: [], counterRefs: [], strength: 'required', stage: 'final', confirmed: true }] })
     const candidate = z.object({ id: z.string() }).parse(await f.action('candidate-create', { styleId: style.id, expectedRevision: 3, operationId: 'candidate' }))
@@ -81,6 +87,7 @@ test('a real AgentLoop records fixed-style jobs, technical and crop failures, su
       },
       async () => {
         f.http.mode = 'reject-final'
+        f.http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#755353' } }).png().toBuffer()
         return toolResponse('search-rejected', 'visual_search_start', searchArgs)
       },
       async () => {
@@ -93,6 +100,7 @@ test('a real AgentLoop records fixed-style jobs, technical and crop failures, su
       },
       async () => {
         f.http.mode = 'bad-json'
+        f.http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#535375' } }).png().toBuffer()
         return toolResponse('search-invalid', 'visual_search_start', searchArgs)
       },
       async () => {

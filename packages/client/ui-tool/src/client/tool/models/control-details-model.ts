@@ -166,8 +166,10 @@ export function controlDetails(
       const code = truncated ? output.slice(0, -OUTPUT_TRUNCATED.length) : output
       const description = [match[2], truncated ? t('detail.output.truncated') : undefined]
         .filter((value): value is string => value !== undefined).join(' · ')
+      const status = detailBadge(match[1], t)
+      const summary = match[2] === undefined ? `${target} · ${status.label}` : `${match[2]} · ${status.label} · ${target}`
       return {
-        ...detailList([{ title: target, badge: detailBadge(match[1], t), fields: [], ...(description === '' ? {} : { description }), code: { text: code } }], `${target} · ${detailBadge(match[1], t).label}`, t),
+        ...detailList([{ title: target, badge: status, fields: [], ...(description === '' ? {} : { description }), code: { text: code } }], summary, t),
         expandedSummary: target,
       }
     }

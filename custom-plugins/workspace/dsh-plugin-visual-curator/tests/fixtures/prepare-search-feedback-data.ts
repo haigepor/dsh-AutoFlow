@@ -2,6 +2,7 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
+import sharp from 'sharp'
 import { serviceFixture } from '../helpers/service-fixture.ts'
 
 const output = process.argv[2]
@@ -10,7 +11,8 @@ const f = await serviceFixture()
 try {
   await f.service.initialize()
   const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'style', name: '测试训练' }))
-  await f.action('reference-import', { operationId: 'reference', styleId, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+  const reference = await sharp({ create: { width: 80, height: 40, channels: 3, background: { r: 30, g: 140, b: 35 } } }).png().toBuffer()
+  await f.action('reference-import', { operationId: 'reference', styleId, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: reference.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
   await f.action('reference-analyze', { operationId: 'analyze', styleId, buildDataset: true }); await f.jobs.drain()
   const original = f.http.request.bind(f.http)
   f.http.request = async (url, request) => url.startsWith('https://source.example.test')

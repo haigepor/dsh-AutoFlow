@@ -1,0 +1,18 @@
+{
+  "choices": 2,
+  "saved": 1,
+  "pending": 1,
+  "total": 2,
+  "analysisModes": ["pending", "all"],
+  "cancelStartsNoTask": true,
+  "artworkLoaded": true,
+  "summaryCallDisclosed": true,
+  "narrowOverflow": false,
+  "themes": ["dark", "light"],
+  "currentPlanOpensWithoutRead": true,
+  "sharedInFlightRead": true,
+  "cancellationKeepsBackgroundRead": true,
+  "roleCountsByRange": true,
+  "failedReadCanRetry": true,
+  "pageErrors": []
+}

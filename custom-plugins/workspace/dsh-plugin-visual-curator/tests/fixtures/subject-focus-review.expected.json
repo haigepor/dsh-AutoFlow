@@ -1,0 +1,5 @@
+[
+  { "observed": "incidental", "verdict": "reject", "subject": "violated", "selected": 0 },
+  { "observed": "dominant", "verdict": "pass", "subject": "satisfied", "selected": 1 },
+  { "observed": "unknown", "verdict": "needs-review", "subject": "unknown", "selected": 0 }
+]

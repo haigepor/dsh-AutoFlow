@@ -8,6 +8,7 @@ import type { WorkbenchText } from './workbench-locale.ts'
 import { safeResourcePath } from './store.ts'
 import { taskStageKeys } from './search-feedback-locale.ts'
 import { galleryMediaUrlSchema } from '../shared/gallery.ts'
+import { createResultPreview } from './result-preview.tsx'
 
 const kindKey = { analyze: 'analyzeKind', search: 'searchKind', crop: 'cropKind', evaluate: 'evaluateKind', export: 'exportKind' } as const
 const metrics = {
@@ -27,6 +28,7 @@ function issueKey(issue: { code: string; category?: string | undefined; stage: s
 /** @param React Host React runtime. @param ui Existing accessible primitives. @returns Task history using saved run data and store actions. */
 export function createTaskHistory(React: typeof import('react'), ui: typeof import('@deepseek-ai/dsh-client-ui-primitives')) {
   const { Button, Tag, StateDot, Modal, Menu } = ui
+  const ResultPreview = createResultPreview(React, ui)
   const icons = { analyze: ui.IconSparkleRegular, search: ui.IconSearchOutlineRegular, crop: ui.IconListPenOutlineRegular, evaluate: ui.IconListPenOutlineRegular, export: ui.IconDownloadOutlineRegular }
   const resource = (path: string) => { const safe = safeResourcePath(path); return safe ? new URL(safe.slice(1), document.baseURI).href : '' }
   return function TaskHistory({ runs, selected, snapshot, t, loading, errorCode, actions, onSelect, onCrop, onStart, onReferences, report, pending = [] }: {
@@ -148,7 +150,7 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
           </header>
           {(selected.error || errorCode) && <div className="vc-notice vc-task-error-banner" role="alert"><span>{t('error')} ({selected.error?.code ?? errorCode})</span>{recoverable(selected) && <Button size="sm" variant="primary" className="vc-primary-action" disabled={requesting('resume')} onClick={() => control('resume')}>{t('resume')}</Button>}</div>}
           {!goalSummary && informationContent}
-          {(selected.kind === 'search' || selected.kind === 'crop') && <div className="vc-task-filters">{visibleFilters.map(value => <Button key={value} size="sm" variant={filter === value ? 'outline' : 'ghost'} aria-pressed={filter === value} disabled={loading} onClick={() => report(() => actions.loadRun(selected.runId, false, value))}><span>{t(value === 'selected' && selected.outputKind === 'preview' ? 'taskPreviewMatched' : filterKeys[value])}</span>{filterCounts?.[value] !== undefined && <>{' '}<span className="vc-task-filter-count">{filterCounts[value]}</span></>}</Button>)}</div>}
+          {(selected.kind === 'search' || selected.kind === 'crop') && <div className="vc-task-filters">{visibleFilters.map(value => <Button key={value} size="sm" variant={filter === value ? 'outline' : 'ghost'} aria-pressed={filter === value} onClick={() => { void actions.loadRun(selected.runId, false, value) }}><span>{t(value === 'selected' && selected.outputKind === 'preview' ? 'taskPreviewMatched' : filterKeys[value])}</span>{filterCounts?.[value] !== undefined && <>{' '}<span className="vc-task-filter-count">{filterCounts[value]}</span></>}</Button>)}</div>}
         </div>
         <div className="vc-task-results-scroll">{loading && !results.length && <div className="vc-image-grid vc-results" role="status" aria-label={t('taskBatchLoading')}>{[0, 1, 2].map(index => <div className="vc-result-card" aria-hidden="true" key={index}><span className="vc-skeleton-fill vc-search-batch-skeleton-image" /><div className="vc-result-meta"><span className="vc-skeleton-fill vc-search-batch-skeleton-tag" /></div></div>)}</div>}
           {selected.kind === 'analyze' && <p className="vc-task-retained"><ui.IconArchiveCheckOutlineRegular size={16} />{t('analysisRetainedHint')}</p>}
@@ -169,7 +171,7 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
               {selected.outputKind === 'preview' ? <Button size="sm" variant="outline" disabled={!galleryMediaUrlSchema.safeParse(image.previewUrl).success} onClick={() => { const url = galleryMediaUrlSchema.safeParse(image.previewUrl); if (url.success) window.open(url.data, '_blank', 'noopener,noreferrer') }}>{t('taskOpenPreview')}</Button> : onCrop && <Button size="sm" variant="outline" onClick={() => onCrop(image.parentImageVersionId ?? image.imageVersionId)}>{t('taskRecrop')}</Button>}
             </div>
           </figure>)}</div>}
-          {!results.length && selected.kind !== 'analyze' && <p className="vc-task-empty">{t(emptyKeys[filter])}</p>}
+          {!loading && !results.length && selected.kind !== 'analyze' && <p className="vc-task-empty">{t(emptyKeys[filter])}</p>}
           {selected.pageToken && <Button className="vc-task-more" variant="outline" disabled={loading} onClick={() => report(() => actions.loadRun(selected.runId, true))}>{loading && <StateDot state="ongoing" />}{t('more')}</Button>}
         </div>
         <Modal open={!!detailImage} onClose={closeDetail} title={detailImage?.name ?? t('taskImageDetails')} closeLabel={t('close')} className="vc-result-detail-modal" contentClassName="vc-result-detail-content" footer={<div className="vc-task-footer">
@@ -181,11 +183,11 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
           {detailImage && <div className="vc-result-detail-body">
             <div className="vc-result-detail-media" data-has-source={!!detailImage.sourcePreviewPath}>
               <div className="vc-result-detail-stage">
-                <a href={resource(detailImage.previewPath)} target="_blank" rel="noreferrer"><img src={resource(detailImage.previewPath)} alt={detailImage.name} /></a>
+                <ResultPreview src={resource(detailImage.previewPath)} thumbnailSrc={detailImage.thumbnailPath ? resource(detailImage.thumbnailPath) : undefined} alt={detailImage.name} t={t} />
                 <small>{selected.outputKind === 'preview' ? t('searchLaunchPreview') : detailImage.selection?.kind === 'selected' ? t('taskSelected') : t(detailImage.reviewStage === 'source' ? 'taskSourceImage' : 'taskOtherCrop')} · {detailImage.width} × {detailImage.height}</small>
               </div>
               {detailImage.sourcePreviewPath && <div className="vc-result-detail-stage vc-result-detail-source">
-                <a href={resource(detailImage.sourcePreviewPath)} target="_blank" rel="noreferrer"><img src={resource(detailImage.sourcePreviewPath)} alt={`${detailImage.name} (${t('taskSourceImage')})`} /></a>
+                <ResultPreview src={resource(detailImage.sourcePreviewPath)} alt={`${detailImage.name} (${t('taskSourceImage')})`} t={t} />
                 <small>{t('taskSourceComparison')} · <a href={resource(detailImage.sourcePreviewPath)} target="_blank" rel="noreferrer">{t('taskOriginal')}</a></small>
               </div>}
             </div>

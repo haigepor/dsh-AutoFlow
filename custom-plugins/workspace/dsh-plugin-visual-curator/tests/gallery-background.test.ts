@@ -8,9 +8,91 @@ import { GalleryReferenceTasks } from '../src/host/gallery-tasks.ts'
 import { toJson } from '../src/host/runtime.ts'
 import { readFile } from 'node:fs/promises'
 import { galleryTaskProgress, galleryTaskViewSchema } from '../src/shared/gallery-task.ts'
+import { MediaError } from '../src/media/errors.ts'
 
 const taskView = z.object({ id: z.string(), styleId: z.string(), status: z.string(), completed: z.number(), failed: z.number(), total: z.number() })
 const photo = (id: string) => ({ id, width: 400, height: 200, urls: { small: `https://images.unsplash.com/${id}?w=200`, regular: `https://images.unsplash.com/${id}?w=800` } })
+const completedTasksUnavailable = { validate: async () => { throw new Error('This fixture only accepts gallery photos.') }, import: async () => { throw new Error('This fixture only accepts gallery photos.') } }
+
+test('a broken gallery connection stops at its checkpoint and continues only missing photos in the same task', async () => {
+  const seen: string[] = []
+  let offline = true
+  const api = new UnsplashApi({ request: async path => {
+    const id = path.split('/').at(-1)!; seen.push(id)
+    if (id === 'two' && offline) throw new MediaError('source-network-failed', 'gallery', true, 'Connection interrupted.', 'Retry when connected.')
+    return photo(id)
+  } })
+  const f = await serviceFixture(undefined, { maxImportFiles: 3 }, { galleryApi: async () => api }); await f.service.initialize()
+  try {
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'resume-style', name: 'Resume' }))
+    const task = taskView.parse(await f.action('gallery-reference-start', { operationId: 'resume-import', styleId, photoIds: ['one', 'two', 'three'] }))
+    await f.jobs.drain()
+    assert.deepEqual(seen, ['one', 'two'], 'a connection failure stops later dispatch')
+    const stopped = z.object({ tasks: z.array(taskView) }).parse(await f.action('gallery-reference-tasks')).tasks[0]!
+    assert.equal(stopped.completed, 1)
+    offline = false
+    const resume = async () => {
+      const response = await f.service.gallery(new Request('https://owner.example/api/visual-curator/gallery', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operation: 'gallery-reference-resume', args: { taskId: task.id } }) }))
+      assert.equal(response.status, 200, 'the authenticated gallery HTTP route must admit continuation')
+      return z.object({ ok: z.literal(true), value: taskView }).parse(await response.json()).value
+    }
+    const resumes = await Promise.all([resume(), resume()])
+    assert.ok(resumes.every(value => taskView.parse(value).id === task.id))
+    await f.jobs.drain()
+    const completed = await resume()
+    assert.equal(completed.status, 'completed', 'a repeated continuation after completion must reuse the original result')
+    const result = z.object({ tasks: z.array(taskView) }).parse(await f.action('gallery-reference-tasks')).tasks[0]!
+    assert.deepEqual({ status: result.status, completed: result.completed, failed: result.failed, total: result.total }, { status: 'completed', completed: 3, failed: 0, total: 3 })
+    assert.deepEqual(seen, ['one', 'two', 'two', 'three'])
+    assert.equal(f.domain.require('draft', f.domain.require('style', styleId).draftId).referenceIds.length, 3)
+    assert.equal(f.repository.list('asset').length, 3)
+  } finally { await f.cleanup() }
+})
+
+test('an interrupted import can be cancelled without removing saved photos or accepting a later resume', async () => {
+  const api = new UnsplashApi({ request: async path => {
+    const id = path.split('/').at(-1)!
+    if (id === 'two') throw new MediaError('source-network-failed', 'gallery', true, 'Connection interrupted.', 'Retry when connected.')
+    return photo(id)
+  } })
+  const f = await serviceFixture(undefined, { maxImportFiles: 1 }, { galleryApi: async () => api }); await f.service.initialize()
+  try {
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'cancel-recovery-style', name: 'Cancel' }))
+    const task = taskView.parse(await f.action('gallery-reference-start', { operationId: 'cancel-recovery', styleId, photoIds: ['one', 'two', 'three'] }))
+    await f.jobs.drain()
+    await assert.rejects(f.service.action({ operation: 'gallery-reference-resume', args: { taskId: task.id } }, { ...f.actor, kind: 'agent', sessionId: 'other-session' }, new AbortController().signal), { code: 'owner-denied' })
+    const cancelled = taskView.parse(await f.action('gallery-reference-stop', { taskId: task.id }))
+    assert.equal(cancelled.status, 'cancelled'); assert.equal(cancelled.completed, 1)
+    await assert.rejects(f.action('gallery-reference-resume', { taskId: task.id }), { code: 'invalid-input' })
+    assert.equal(f.domain.require('draft', f.domain.require('style', styleId).draftId).referenceIds.length, 1)
+  } finally { await f.cleanup() }
+})
+
+test('continuation retries failed photos from earlier completed batches after a Host restart', async () => {
+  const seen: string[] = []
+  let unavailable = true
+  const api = new UnsplashApi({ request: async path => {
+    const id = path.split('/').at(-1)!; seen.push(id)
+    if (id === 'two' && unavailable) throw new MediaError('reference-unavailable', 'gallery', false, 'Photo unavailable.', 'Retry later.')
+    return photo(id)
+  } })
+  const f = await serviceFixture(undefined, { maxImportFiles: 2 }, { galleryApi: async () => api }); await f.service.initialize()
+  const recovered = new GalleryReferenceTasks(f.service.config, f.domain, f.jobs, (operation, args) => f.action(operation, args), () => ({ rows: [] }), async () => {}, completedTasksUnavailable)
+  try {
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'partial-resume-style', name: 'Partial' }))
+    const task = taskView.parse(await f.action('gallery-reference-start', { operationId: 'partial-resume', styleId, photoIds: ['one', 'two', 'three'] })); await f.jobs.drain()
+    await recovered.initialize()
+    assert.equal(recovered.list(f.actor)[0]!.status, 'partial')
+    unavailable = false
+    await assert.rejects(recovered.resume(task.id, { ...f.actor, sessionId: 'other-session' }), { code: 'owner-denied' })
+    await recovered.resume(task.id, f.actor); await f.jobs.drain()
+    assert.deepEqual(seen, ['one', 'two', 'three', 'two'])
+    assert.equal(recovered.list(f.actor)[0]!.completed, 3)
+    assert.equal(recovered.list(f.actor)[0]!.failed, 0)
+    assert.equal(recovered.list(f.actor)[0]!.status, 'completed')
+    assert.equal(f.repository.list('asset').length, 3)
+  } finally { await recovered.dispose(); await f.cleanup() }
+})
 
 test('live progress includes published batch rows and stays unchanged when its batch receipt settles', () => {
   const task = galleryTaskViewSchema.parse({ id: 'a'.repeat(64), styleId: 'style', status: 'running', phase: 'saving', total: 25, completed: 0, registered: 3, failed: 0, createdAt: '', updatedAt: '' })
@@ -130,7 +212,7 @@ test('restart reconstructs a committed batch before marking its unfinished task 
     const manifest = f.repository.manifest(`gallery-task:${task.id}`)!
     const saved = z.record(z.string(), z.json()).parse(manifest.state)
     await f.repository.commit({ aggregateId: manifest.aggregateId, expectedRevision: manifest.revision, operationId: 'simulate-before-task-checkpoint', request: {}, records: [], state: toJson({ ...saved, status: 'running', offset: 0, completed: 0, batch: { operationId: `gallery-task:${task.id}:0`, expectedRevision: 1, photoIds: ['one', 'two'] } }) })
-    const recovered = new GalleryReferenceTasks(f.service.config, f.domain, f.jobs, async () => { throw new Error('Recovery must not dispatch') }, () => ({ rows: [] }), async () => {})
+    const recovered = new GalleryReferenceTasks(f.service.config, f.domain, f.jobs, async () => { throw new Error('Recovery must not dispatch') }, () => ({ rows: [] }), async () => {}, completedTasksUnavailable)
     await recovered.initialize()
     assert.equal(recovered.list(f.actor)[0]!.completed, 2)
     assert.equal(recovered.list(f.actor)[0]!.status, 'interrupted')
@@ -152,9 +234,12 @@ test('a missing final batch receipt retains published cards and recovers their c
     assert.equal(result.status, 'needs-review'); assert.equal(result.completed, 2)
     assert.equal(f.domain.require('draft', f.domain.require('style', styleId).draftId).referenceIds.length, 2)
     f.repository.commit = commit
+    const resumed = taskView.parse(await f.action('gallery-reference-resume', { taskId: task.id }))
+    assert.equal(resumed.status, 'completed'); assert.equal(resumed.completed, 2)
+    assert.equal(requests, 2, 'committed references settle an unknown receipt without another gallery request')
     const manifest = f.repository.manifest(`gallery-task:${task.id}`)!, saved = z.record(z.string(), z.json()).parse(manifest.state)
     await commit({ aggregateId: manifest.aggregateId, expectedRevision: manifest.revision, operationId: 'simulate-before-partial-checkpoint', request: {}, records: [], state: toJson({ ...saved, status: 'running', completed: 0, offset: 0, batch: { operationId: `gallery-task:${task.id}:0`, expectedRevision: 1, photoIds: ['one', 'two'] } }) })
-    const recovered = new GalleryReferenceTasks(f.service.config, f.domain, f.jobs, async () => { throw new Error('Recovery cannot dispatch') }, () => ({ rows: [] }), async () => {})
+    const recovered = new GalleryReferenceTasks(f.service.config, f.domain, f.jobs, async () => { throw new Error('Recovery cannot dispatch') }, () => ({ rows: [] }), async () => {}, completedTasksUnavailable)
     await recovered.initialize()
     assert.equal(recovered.list(f.actor)[0]!.completed, 2)
     assert.equal(recovered.list(f.actor)[0]!.status, 'interrupted')
@@ -166,7 +251,7 @@ test('a missing final batch receipt retains published cards and recovers their c
 test('an unrecognizable batch receipt stops the task without replay or later dispatch', async () => {
   const f = await serviceFixture(undefined, { maxImportFiles: 1 }); await f.service.initialize()
   let calls = 0
-  const tasks = new GalleryReferenceTasks(f.service.config, f.domain, f.jobs, async () => { calls++; return { results: [] } }, () => ({ rows: [] }), async () => {})
+  const tasks = new GalleryReferenceTasks(f.service.config, f.domain, f.jobs, async () => { calls++; return { results: [] } }, () => ({ rows: [] }), async () => {}, completedTasksUnavailable)
   await tasks.initialize()
   try {
     const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'unknown-style', name: 'Unknown' }))

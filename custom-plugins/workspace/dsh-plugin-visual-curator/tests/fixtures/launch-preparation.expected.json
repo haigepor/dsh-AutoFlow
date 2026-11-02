@@ -1,0 +1,15 @@
+{
+  "requirementsVisible": true,
+  "targetVisible": true,
+  "compactUpperRight": true,
+  "outsideComposer": true,
+  "detailsDisclosure": true,
+  "bothThemes": true,
+  "noFakeRun": true,
+  "inPlaceRunTransition": true,
+  "completedResults": true,
+  "narrowHidden": true,
+  "stopBeforeFirstRun": true,
+  "stoppedBriefRetained": true,
+  "errors": []
+}

@@ -6,6 +6,7 @@ async (page) => {
   await page.setViewportSize({ width: 1920, height: 900 }); await page.emulateMedia({ reducedMotion: 'reduce' }); await page.reload()
   const dock = page.locator('[data-conversation-task]'), todos = page.getByTestId('todo-panel'), expand = dock.getByRole('button', { name: '展开结果', exact: true })
   await expand.waitFor()
+  assert(await page.locator('[data-conversation-scroll] > [data-slot="conversation.session"] > [data-conversation-active-view="chat"]').count() === 1, 'Chat visibility must follow the native Session slot wrapper')
   assert(await dock.count() === 1 && await dock.evaluate(node => !!node.closest('[data-conversation-body-overlay]') && !node.closest('[data-fixture-process]')), 'task card escaped its Session overlay')
   await expand.click(); await dock.locator('.vc-conversation-task-previews img').last().waitFor()
   const measure = () => page.evaluate(() => {
@@ -22,14 +23,76 @@ async (page) => {
   const heading = await dock.locator('.vc-conversation-task-header').boundingBox()
   await details.hover(); await page.mouse.wheel(0, 500); await page.waitForFunction(() => document.querySelector('.vc-conversation-task-details').scrollTop > 0)
   assert(Math.abs((await dock.locator('.vc-conversation-task-header').boundingBox()).y - heading.y) < 1, 'results scrolling moves controls')
-  const resize = dock.getByRole('separator'), beforeWidth = (await dock.boundingBox()).width
-  await resize.focus(); await page.keyboard.press('ArrowLeft'); assert((await dock.boundingBox()).width === beforeWidth + 24, 'keyboard resizing changed')
+  const resize = dock.getByRole('separator')
+  await resize.focus(); await page.keyboard.press('Home'); assert((await dock.boundingBox()).width === 280, 'The keyboard minimum must fit the side column')
+  await page.keyboard.press('ArrowLeft'); assert((await dock.boundingBox()).width === 300, 'Resizing must stop at the available side-column width')
   await dock.getByRole('button', { name: '收起结果', exact: true }).focus(); await page.keyboard.press('Escape')
   assert(await expand.getAttribute('aria-expanded') === 'false' && await expand.evaluate(node => node === document.activeElement), 'collapse focus changed')
-  await page.setViewportSize({ width: 390, height: 844 }); assert(!await dock.isVisible() && !await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), 'narrow layout changed')
+  await page.setViewportSize({ width: 390, height: 844 }); assert(!await dock.isVisible() && !await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), 'The task card must hide instead of covering narrow conversation content')
+  await page.setViewportSize({ width: 1920, height: 900 }); await dock.waitFor()
+  await dock.locator('[data-result="selected"]').click()
+  await page.waitForFunction(() => document.querySelectorAll('.vc-conversation-task-previews img').length === 3)
+  assert(await dock.locator('[data-result="selected"]').getAttribute('aria-pressed') === 'true', 'Matching count must select its image category')
+  for (const dark of [false, true]) {
+    await page.evaluate(value => window.dockFixture.theme(value), dark)
+    const paint = await dock.locator('[data-result="selected"]').evaluate(node => ({ background: getComputedStyle(node).backgroundColor, stroke: getComputedStyle(node).borderColor, inactiveStroke: getComputedStyle(document.querySelector('[data-result="review"]')).borderColor, label: getComputedStyle(node.querySelector('.vc-conversation-task-metric-label')).color, inactiveLabel: getComputedStyle(document.querySelector('[data-result="review"] .vc-conversation-task-metric-label')).color, texture: getComputedStyle(node, '::before').backgroundImage.startsWith('url("data:image/webp'), textureOpacity: Number(getComputedStyle(node, '::before').opacity), textureSize: getComputedStyle(node, '::before').backgroundSize, textureRight: parseFloat(getComputedStyle(node, '::before').right), accent: getComputedStyle(node, '::after').content }))
+    assert(paint.stroke !== paint.inactiveStroke && paint.label !== paint.inactiveLabel && paint.texture && paint.textureOpacity > 0 && paint.textureOpacity <= 0.35 && paint.textureSize === 'contain' && paint.textureRight < 0 && paint.accent === 'none', 'Selected cards need a distinct theme border, label and corner artwork without an extra accent line in both themes')
+    assert(await dock.locator('.vc-conversation-task-metrics > button[aria-pressed="true"]').count() === 1, 'Only the current category may show the selected card treatment')
+    await dock.locator('[data-result="selected"]').hover()
+    assert(await dock.locator('[data-result="selected"]').evaluate(node => getComputedStyle(node).backgroundColor) === paint.background, 'Hover must retain the selected tint')
+  }
+  await dock.locator('[data-result="review"]').click()
+  await page.waitForFunction(() => document.querySelectorAll('.vc-conversation-task-previews img').length === 1)
+  await dock.locator('[data-result="candidates"]').click()
+  await page.waitForFunction(() => document.querySelectorAll('.vc-conversation-task-previews img').length === 4)
+  await dock.getByRole('button', { name: '加载更多图片', exact: true }).click()
+  await page.waitForFunction(() => document.querySelectorAll('.vc-conversation-task-previews img').length === 12)
+  await page.evaluate(() => window.dockFixture.refresh())
+  await page.waitForFunction(() => window.dockFixture.feedback().runs.search?.freshness === 'current')
+  assert(await dock.locator('.vc-conversation-task-previews img').count() === 12, 'A live refresh must retain every loaded image')
+  await dock.locator('[data-result="unique"]').click()
+  assert(await dock.locator('[data-result="unique"]').getAttribute('aria-pressed') === 'true', 'Unique-image count must select the saved deduplicated candidates')
+  const alongside = await page.evaluate(() => {
+    const card = document.querySelector('[data-conversation-task]').getBoundingClientRect(), chat = document.querySelector('.fixture-chat').getBoundingClientRect()
+    return card.left >= chat.right + 8
+  })
+  assert(alongside, 'Task card must sit beside the conversation instead of floating over the text')
+  const visibleCopy = await dock.innerText()
+  assert(!['初筛图片', '实时任务数据', '已保存任务数据', '列表展示已保存的去重图片候选'].some(text => visibleCopy.includes(text)), 'The compact task card must omit auxiliary phase, freshness and candidate-list copy')
+  for (const view of ['trajectory', 'visual-curator-page']) {
+    await page.evaluate(value => window.dockFixture.view(value), view)
+    await dock.waitFor({ state: 'hidden' })
+    assert(await page.locator('.fixture-chat [data-conversation-active-view="chat"]').count() === 1, 'A nested Chat view must not make the outer non-Chat task card visible')
+  }
+  await page.evaluate(() => window.dockFixture.view('chat')); await dock.waitFor()
+  assert(await dock.locator('.vc-conversation-task-previews img').count() === 12, 'Returning to Chat must retain the loaded image window')
+  const tiles = await dock.locator('.vc-conversation-task-metrics > button').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height } }))
+  assert(tiles.length === 4 && tiles[0].y === tiles[1].y && tiles[2].y === tiles[3].y && tiles[2].y > tiles[0].y && tiles.every(tile => tile.w === tiles[0].w && tile.h === tiles[0].h), 'Statistics must use four equal cards in a two-column grid')
+  assert(await dock.locator('.vc-conversation-task-metrics svg').count() === 0, 'Metric filters must show values and labels without icons')
+  const metricLayout = await dock.locator('.vc-conversation-task-metrics > button').evaluateAll(nodes => nodes.map(node => {
+    const value = node.querySelector('.vc-conversation-task-stat').getBoundingClientRect(), label = node.querySelector('.vc-conversation-task-metric-label').getBoundingClientRect()
+    return value.bottom <= label.top
+  }))
+  assert(metricLayout.every(Boolean), 'Values must sit above labels without overlap')
+  await page.setViewportSize({ width: 1288, height: 900 }); await dock.waitFor()
+  assert((await dock.boundingBox()).width === 280, 'The card must fit the minimum available side-column width')
+  assert(await dock.locator('.vc-conversation-task-metric-label').evaluateAll(nodes => nodes.every(node => node.getBoundingClientRect().height <= 16)), 'Metric labels must stay aligned at the minimum side-column width')
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const animated = await page.evaluate(async () => {
+    document.querySelector('.fixture-conversation').style.flex = '0 0 780px'
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    return document.querySelector('[data-conversation-task]').getAnimations().some(animation => animation.transitionProperty === 'opacity')
+  })
+  assert(animated, 'Side-column visibility must fade when available width changes')
+  await dock.waitFor({ state: 'hidden' })
+  await page.evaluate(() => { document.querySelector('.fixture-conversation').style.flex = '' })
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-conversation-task]')).opacity === '1')
+  assert(await dock.locator('.vc-conversation-task-previews img').count() === 12, 'Hiding the side column must retain the selected category and loaded images')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.setViewportSize({ width: 1920, height: 900 }); await page.evaluate(() => window.dockFixture.session('b')); await dock.getByText('另一个会话的找图任务', { exact: true }).waitFor()
   assert(await dock.getByRole('button', { name: '展开结果', exact: true }).getAttribute('aria-expanded') === 'false', 'Session expansion leaked')
-  const result = { singleDock: true, outsideProcess: true, fillsRemainingHeight: true, todoReflowsHeight: true, innerScroll: true, controlsRemainVisible: true, resizingRetained: true, collapseFocus: true, narrowHidden: true, sessionIsolated: true, horizontalOverflow: false, errors }
+  const result = { singleDock: true, outsideProcess: true, fillsRemainingHeight: true, todoReflowsHeight: true, innerScroll: true, controlsRemainVisible: true, resizingRetained: true, collapseFocus: true, narrowHidden: true, metricFilters: true, equalMetricCards: true, iconFreeMetrics: true, selectedMetricThemes: true, valueFirstMetrics: true, containedMetricArtwork: true, allImagesPageable: true, loadedImagesRetained: true, alongsideConversation: true, chatViewOnly: true, nativeSlotWrapper: true, nestedChatIsolated: true, auxiliaryCopyHidden: true, minimumGutterFits: true, animatedVisibility: true, sessionIsolated: true, horizontalOverflow: false, errors }
   const expected = await page.evaluate(async () => (await fetch('expected.json')).json()); assert(JSON.stringify(result) === JSON.stringify(expected), 'saved output differs')
   return { result, measurements: { desktop, expandedTodo, compact } }
 }

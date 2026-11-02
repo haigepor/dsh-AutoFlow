@@ -12,9 +12,9 @@ import { listDatasets, readDataset } from '../src/host/datasets.ts'
 import { profileExportSchema } from '../src/shared/model.ts'
 import sharp from 'sharp'
 
-async function recognized(f: Awaited<ReturnType<typeof serviceFixture>>, sampleCount = 1) {
+async function recognized(f: Awaited<ReturnType<typeof serviceFixture>>, sampleCount = 1, negativeCount = 0) {
   const style = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'dataset-style', name: 'Dataset collection' }))
-  const files = await Promise.all(Array.from({ length: sampleCount }, async (_, index) => ({ name: `reference-${index}.png`, mime: 'image/png', base64: index ? (await sharp(f.http.image).tint('#625353').png().toBuffer()).toString('base64') : f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] })))
+  const files = await Promise.all(Array.from({ length: sampleCount }, async (_, index) => ({ name: `reference-${index}.png`, mime: 'image/png', base64: index ? (await sharp({ create: { width: 400, height: 200, channels: 3, background: { r: index * 20, g: 100, b: 50 } } }).png().toBuffer()).toString('base64') : f.http.image.toString('base64'), role: index >= sampleCount - negativeCount ? 'negative' : 'positive', intent: 'overall', dimensions: [] })))
   await f.action('reference-import', { operationId: 'dataset-images', styleId: style.id, expectedRevision: 1, files })
   await f.action('reference-analyze', { operationId: 'dataset-analysis', styleId: style.id, buildDataset: true }); await f.jobs.drain()
   const profile = f.repository.list('modelProfile')[0]
@@ -27,6 +27,74 @@ test('dataset progress separates unknown totals from measured zero and rejects i
   assert.equal(datasetProgressSchema.parse({ phase: 'files', completed: 0, total: 5, unit: 'files' }).total, 5)
   assert.equal(datasetProgressSchema.safeParse({ phase: 'samples', completed: 11, total: 10, unit: 'samples' }).success, false)
   assert.equal(datasetProgressSchema.safeParse({ phase: 'saving', completed: 1, total: 0, unit: 'items' }).success, false)
+})
+
+test('role-filtered packages retain only selected references and observations without executable style rules', async () => {
+  const f = await serviceFixture(undefined, { pageSize: 1 }); await f.service.initialize()
+  try {
+    const profile = await recognized(f, 4, 2), calls = f.http.operations.length
+    for (const sampleScope of ['positive', 'negative'] as const) {
+      const { runId } = z.object({ runId: z.string() }).parse(await f.action('export-start', { operationId: `scope-${sampleScope}`, kind: 'style', purpose: 'reference', releaseId: profile.id, sampleScope }))
+      await f.jobs.drain()
+      assert.equal(f.domain.require('run', runId).status, 'completed')
+      const saved = f.repository.list('profileExport').find(record => record.sampleScope === sampleScope)!
+      const file = (name: string) => saved.files.find(file => file.name === name)!.content
+      const rows = file('samples.jsonl').trim().split('\n').map(line => JSON.parse(line))
+      assert.equal(rows.length, 2)
+      assert.ok(rows.every(row => row.importIntent.role === sampleScope && row.inferred.length > 0 && row.requestIds.length > 0))
+      const metadata = JSON.parse(file('style-profile.json'))
+      assert.equal(metadata.purpose, 'api-reference-observations')
+      assert.deepEqual(metadata.activeRules, [])
+      assert.deepEqual(metadata.ruleSelections, [])
+      assert.equal(metadata.matchingPrompt, '')
+      assert.equal(saved.resources.length, 2)
+      assert.ok(JSON.parse(file('references.json')).references.every((row: { reference: { role: string } }) => row.reference.role === sampleScope))
+      for (const file of saved.files) assert.equal(fileChecksum(file.content), file.checksum)
+      const entry = datasetListSchema.parse(await f.action('datasets-list', { styleId: profile.styleId, query: saved.id })).entries[0]!
+      assert.equal(entry.sampleScope, sampleScope)
+      assert.equal(entry.counts[sampleScope], 2)
+      assert.equal(entry.counts[sampleScope === 'positive' ? 'negative' : 'positive'], 0)
+      assert.equal(entry.counts.rules, 0)
+      const response = await f.service.resource(new Request(`https://owner.example/api/visual-curator/resource?exportId=${saved.id}`))
+      const download = z.object({ files: z.array(z.object({ name: z.string(), content: z.string() })) }).parse(await response.json())
+      assert.equal(download.files.find(file => file.name === 'samples.jsonl')!.content, file('samples.jsonl'))
+    }
+    assert.equal(f.http.operations.length, calls, 'Generating observations must not invoke the model again')
+    const reusable = datasetListSchema.parse(await f.action('datasets-list', { styleId: profile.styleId, reusableOnly: true }))
+    assert.equal(reusable.total, 0)
+  } finally { await f.cleanup() }
+})
+
+test('a negative-only collection exports observations without requiring adopted style rules', async () => {
+  const f = await serviceFixture(); await f.service.initialize()
+  try {
+    const profile = await recognized(f, 2, 2)
+    assert.equal(profile.rules.length, 0)
+    await assert.rejects(f.action('export-start', { operationId: 'negative-full', kind: 'style', purpose: 'reference', releaseId: profile.id }), { code: 'constraint-conflict' })
+    await assert.rejects(f.action('export-start', { operationId: 'empty-positive', kind: 'style', purpose: 'reference', releaseId: profile.id, sampleScope: 'positive' }), { code: 'constraint-conflict' })
+    await f.action('export-start', { operationId: 'negative-observations', kind: 'style', purpose: 'reference', releaseId: profile.id, sampleScope: 'negative' }); await f.jobs.drain()
+    const saved = f.repository.list('profileExport')[0]!
+    assert.equal(saved.sampleScope, 'negative')
+    assert.equal(saved.resources.length, 2)
+    await assert.rejects(new ModelProfiles(f.domain).export(profile, 'negative-observations:export', f.actor, { sampleScope: 'positive' }), { code: 'operation-conflict' })
+  } finally { await f.cleanup() }
+})
+
+test('sample role filters apply before pagination and cannot reuse a different filter cursor', async () => {
+  const f = await serviceFixture(undefined, { pageSize: 1 }); await f.service.initialize()
+  try {
+    const profile = await recognized(f, 4, 2), saved = await new ModelProfiles(f.domain).export(profile, 'mixed-filter', f.actor)
+    const first = datasetDetailSchema.parse(await f.action('dataset-get', { id: saved.id, sampleRole: 'negative' }))
+    assert.equal(first.sampleTotal, 2)
+    assert.equal(first.samples.length, 1)
+    assert.equal(first.samples[0]!.role, 'negative')
+    assert.ok(first.nextSamplePageToken)
+    const next = datasetDetailSchema.parse(await f.action('dataset-get', { id: saved.id, sampleRole: 'negative', pageToken: first.nextSamplePageToken }))
+    assert.equal(next.samples[0]!.role, 'negative')
+    assert.notEqual(next.samples[0]!.referenceId, first.samples[0]!.referenceId)
+    assert.equal(next.nextSamplePageToken, undefined)
+    await assert.rejects(f.action('dataset-get', { id: saved.id, sampleRole: 'positive', pageToken: first.nextSamplePageToken }), { code: 'invalid-input' })
+  } finally { await f.cleanup() }
 })
 
 test('dataset reads join a completed task with its immutable package and bound file previews', async () => {

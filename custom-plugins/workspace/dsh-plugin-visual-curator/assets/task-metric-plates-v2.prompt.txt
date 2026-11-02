@@ -1,0 +1,13 @@
+Mode: built-in image_gen
+
+Use case: stylized-concept.
+Asset type: a transparent decorative corner image for compact statistic filter cards in a professional photo-curation interface. Live text, counts and native vector icons will be rendered separately in HTML.
+Primary request: one refined miniature stack of three rigid photographic plates, made from matte translucent optical acrylic with cool silver edges and restrained ice-blue reflections. Each plate is a flat rounded rectangle, slightly offset like a neat stack of photo prints; the top plate has a very subtle frosted relief of a mountain horizon and a small sun, no actual landscape photograph. Crisp geometric plate edges, precisely machined, visually simple and instantly legible when reduced to about 72 pixels.
+Style/medium: polished tactile 3D product still life, understated editorial quality, soft natural studio lighting, gentle contact shadows confined to the object.
+Composition/framing: square canvas; the stack is small, occupying the lower-right 50 percent of the canvas with generous genuinely transparent negative space on the left and top. Front three-quarter view with a slight tilt; keep the whole object inside the canvas. Reflections stay on the rigid surfaces.
+Color palette: neutral translucent silver, desaturated slate blue, a tiny touch of pale cyan; no intense saturation or glow.
+Text: none.
+Constraints: actual transparent background, one isolated still-life object, no UI card, no panel, no border around the canvas, no words, numbers, logos, watermarks, ribbons, checkmarks or interface icons.
+Avoid: cloth, crumpled material, flowing fabric, clouds, fog, smoke, liquid, wavy glass, ribbons, iridescent sheets, busy textures, bright gradients, floating particles, dark rectangular backdrop or checkerboard.
+
+Production asset: task-metric-plates-v2.webp; proportionally resized to 384 x 384 with original alpha preserved, WebP quality 84.

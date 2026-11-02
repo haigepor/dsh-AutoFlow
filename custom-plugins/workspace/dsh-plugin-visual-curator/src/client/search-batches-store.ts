@@ -5,7 +5,7 @@ import type { ClientTransport } from './store.ts'
 /** Viewing state is separate from execution ownership and the active conversation. */
 export interface SearchBatchesState { styleId: string; batchId: string; page: SearchBatchPage | null; loading: boolean; error: boolean; deleting: string[] }
 
-interface CachedView { page: SearchBatchPage; firstPageToken: string | undefined; imageFirstTokens: Map<string, string | undefined>; cachedAt: number; resourceReadAt: number; expiresAt: number }
+interface CachedView { page: SearchBatchPage; firstPageToken: string | undefined; imageFirstTokens: Map<string, string | undefined>; cachedAt: number; resourceReadAt: number; expiresAt: number; failed?: boolean }
 
 /** @param dependencies Authenticated transport, owner scope and deployment cache/refresh limits; omitted cache policy disables reuse. @returns Cancellable observation with independent pagination and bounded, memory-only collection/filter caches. */
 export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'invoke'> & { pollMs(): number; scope?(): number; cachePolicy?(): { ttlMs: number; maxViews: number; resourceTtlMs: number }; now?(): number }) {
@@ -17,7 +17,9 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
   const cache = new Map<string, CachedView>(), now = dependencies.now ?? Date.now
   let ownerScope = dependencies.scope?.(), resourceReadAt = 0
   const cacheKey = (styleId: string, batchId: string) => JSON.stringify([styleId, batchId])
-  const publish = (patch: Partial<SearchBatchesState>) => { state = { ...state, ...patch }; for (const listener of listeners) listener() }
+  const publish = (patch: Partial<SearchBatchesState>) => { if (Object.entries(patch).every(([key, value]) => Object.is(state[key as keyof SearchBatchesState], value))) return; state = { ...state, ...patch }; for (const listener of listeners) listener() }
+  const publishPage = (page: SearchBatchPage) => { if (!state.page || JSON.stringify(state.page) !== JSON.stringify(page)) publish({ page }) }
+  const pollDelay = () => state.error || !state.page || state.page.batches.some(batch => ['created', 'running', 'pausing', 'cancelling'].includes(batch.status)) ? dependencies.pollMs() : Math.max(dependencies.pollMs(), Math.min(dependencies.cachePolicy?.().ttlMs || dependencies.pollMs(), dependencies.cachePolicy?.().resourceTtlMs || dependencies.pollMs()))
   const cancel = () => { ++version; controller?.abort(); controller = undefined; if (timer) clearTimeout(timer); timer = undefined }
   const clearPages = () => { firstPageToken = undefined; imageFirstTokens.clear(); resourceReadAt = 0 }
   function syncScope() {
@@ -50,16 +52,28 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
     const key = cacheKey(styleId, batchId), saved = cache.get(key)
     if (saved) { cache.delete(key); cache.set(key, saved); firstPageToken = saved.firstPageToken; for (const [id, token] of saved.imageFirstTokens) imageFirstTokens.set(id, token); resourceReadAt = saved.resourceReadAt }
     publish({ styleId, batchId, page: saved?.page ?? null, loading: false, error: false, deleting: [] })
+    return saved
   }
-  async function read(mode: 'refresh' | 'more' | 'images' = 'refresh', runId?: string, replace = false): Promise<void> {
+  function resumeView(saved: CachedView | undefined) {
+    if (!saved || saved.failed) { void read('refresh', undefined, false, !!saved); return }
+    const remaining = saved.cachedAt + pollDelay() - now()
+    if (remaining <= 0) { void read('refresh', undefined, false, true); return }
+    if (observers) timer = setTimeout(() => { timer = undefined; void read('refresh', undefined, false, true) }, remaining)
+  }
+  async function read(mode: 'refresh' | 'more' | 'images' = 'refresh', runId?: string, replace = false, background = false): Promise<void> {
     syncScope()
     if (disposed || !state.styleId || controller) return
+    const resourceTtl = dependencies.cachePolicy?.().resourceTtlMs
+    if (state.page && resourceTtl && resourceReadAt + resourceTtl <= now()) {
+      clearPages(); replace = true
+      if (mode !== 'refresh') return read('refresh', undefined, true)
+    }
     if (timer) clearTimeout(timer); timer = undefined
     const current = ++version, scope = ownerScope, startedAt = now(), styleId = state.styleId, batchId = state.batchId, prior = state.page
     const imageBatch = prior?.batches.find(batch => batch.runId === runId)
     const pageToken = mode === 'more' ? prior?.nextPageToken : mode === 'images' ? imageBatch?.nextImagePageToken : undefined
     if (mode !== 'refresh' && !pageToken) return
-    const request = new AbortController(); controller = request; publish({ loading: true, error: false })
+    const request = new AbortController(); controller = request; publish({ ...(!background ? { loading: true } : {}), error: false })
     try {
       const page = searchBatchPageSchema.parse(await dependencies.invoke('search-batches', { styleId, ...(mode === 'images' && runId ? { batchId: runId } : batchId ? { batchId } : {}), ...(pageToken ? { pageToken } : {}) }, request.signal))
       if (disposed || current !== version) return
@@ -71,7 +85,7 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
         const updated = page.batches[0]
         if (!updated || updated.runId !== runId) throw new Error('batch-response-mismatch')
         const ids = new Set(imageBatch.images.map(image => image.imageVersionId))
-        publish({ page: { ...prior, batches: prior.batches.map(batch => batch.runId === runId ? { ...updated, images: [...imageBatch.images, ...updated.images.filter(image => !ids.has(image.imageVersionId))] } : batch) } })
+        publishPage({ ...prior, batches: prior.batches.map(batch => batch.runId === runId ? { ...updated, images: [...imageBatch.images, ...updated.images.filter(image => !ids.has(image.imageVersionId))] } : batch) })
       } else {
         const ids = new Set(page.batches.map(batch => batch.runId))
         const retainTail = mode === 'refresh' && !replace && prior && !!firstPageToken && firstPageToken === page.nextPageToken
@@ -79,7 +93,7 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
         const batches = page.batches.map(batch => {
           const old = prior?.batches.find(item => item.runId === batch.runId)
           // 只有真实加载过后续页才合并尾部；完整响应中移除的批次或图片不能被旧缓存补回。
-          const keepImages = mode === 'refresh' && old && !!imageFirstTokens.get(batch.runId) && imageFirstTokens.get(batch.runId) === batch.nextImagePageToken
+          const keepImages = !replace && mode === 'refresh' && old && !!imageFirstTokens.get(batch.runId) && imageFirstTokens.get(batch.runId) === batch.nextImagePageToken
           imageFirstTokens.set(batch.runId, batch.nextImagePageToken)
           if (!keepImages) return batch
           const imageIds = new Set(batch.images.map(image => image.imageVersionId)), { nextImagePageToken, ...fields } = batch
@@ -90,12 +104,18 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
         const { nextPageToken, ...fields } = page, next = retainTail ? prior.nextPageToken : nextPageToken
         if (mode === 'refresh') firstPageToken = nextPageToken
         if (!keptResources) resourceReadAt = startedAt
-        publish({ page: { ...fields, batches: mode === 'more' && prior ? [...prior.batches, ...batches.filter(batch => !prior.batches.some(old => old.runId === batch.runId))] : retainTail ? [...batches, ...prior.batches.filter(batch => !ids.has(batch.runId))] : batches, ...(next ? { nextPageToken: next } : {}) } })
+        publishPage({ ...fields, batches: mode === 'more' && prior ? [...prior.batches, ...batches.filter(batch => !prior.batches.some(old => old.runId === batch.runId))] : retainTail ? [...batches, ...prior.batches.filter(batch => !ids.has(batch.runId))] : batches, ...(next ? { nextPageToken: next } : {}) })
       }
       remember()
-    } catch (error) { if (!request.signal.aborted && !disposed && current === version) publish({ error: true }) }
+    } catch (error) {
+      if (!request.signal.aborted && !disposed && current === version) {
+        const key = cacheKey(styleId, batchId), saved = cache.get(key)
+        if (saved) cache.set(key, { ...saved, failed: true })
+        publish({ error: true })
+      }
+    }
     finally {
-      if (controller === request) { controller = undefined; publish({ loading: false }); if (observers) timer = setTimeout(() => { void read() }, dependencies.pollMs()) }
+      if (controller === request) { controller = undefined; publish({ loading: false }); if (observers) timer = setTimeout(() => { void read('refresh', undefined, false, true) }, pollDelay()) }
     }
   }
   return {
@@ -104,11 +124,10 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
     watch(styleId: string) {
       const reopening = observers++ === 0
       syncScope()
-      if (state.styleId !== styleId || reopening) selectView(styleId, state.styleId === styleId ? state.batchId : '')
-      void read()
+      if (state.styleId !== styleId || reopening) resumeView(selectView(styleId, state.styleId === styleId ? state.batchId : ''))
       return () => { if (--observers === 0) { cancel(); publish({ loading: false }) } }
     },
-    select(batchId: string, styleId = state.styleId) { syncScope(); if (styleId !== state.styleId || batchId !== state.batchId) selectView(styleId, batchId); void read() },
+    select(batchId: string, styleId = state.styleId) { syncScope(); if (styleId !== state.styleId || batchId !== state.batchId) resumeView(selectView(styleId, batchId)); else if (!state.page) void read() },
     refresh() { syncScope(); invalidateCollection(state.styleId); cancel(); publish({ loading: false }); void read() },
     more: () => read('more'), moreImages: (runId: string) => read('images', runId),
     async remove(runId: string): Promise<void> {
@@ -129,7 +148,7 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
       } finally {
         if (!disposed && scope === scopeVersion && owner === dependencies.scope?.()) {
           publish({ deleting: state.deleting.filter(id => id !== runId) })
-          if (observers && !controller && !timer) timer = setTimeout(() => { void read() }, dependencies.pollMs())
+          if (observers && !controller && !timer) timer = setTimeout(() => { void read('refresh', undefined, false, true) }, pollDelay())
         }
       }
     },

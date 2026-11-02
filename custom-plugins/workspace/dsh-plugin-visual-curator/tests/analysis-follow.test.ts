@@ -1,7 +1,83 @@
-import { test } from 'node:test'
+import { test, type TestContext } from 'node:test'
 import assert from 'node:assert/strict'
-import { serviceFixture } from './helpers/service-fixture.ts'
-import { analysisDetailSchema } from '../src/shared/analysis-process.ts'
+import { setImmediate } from 'node:timers/promises'
+import { serviceFixture, FixtureJobs } from './helpers/service-fixture.ts'
+import { analysisDetailSchema, analysisStreamFrameSchema } from '../src/shared/analysis-process.ts'
+import { DomainRepository, MemoryDomainAdapter } from '../src/domain/repository.ts'
+import { RunEngine, type WorkContext } from '../src/host/runtime.ts'
+import { resolveCurrentConfig } from '../src/host/config.ts'
+import { analysisFollowResponse } from '../src/host/analysis-follow.ts'
+
+async function liveStream(t: TestContext) {
+  const repository = new DomainRepository('stream-fixture', new MemoryDomainAdapter()), jobs = new FixtureJobs(), engine = new RunEngine(repository, jobs)
+  const actor = { kind: 'human', id: 'stream-reader', profileId: 'stream-fixture' } as const
+  let release!: () => void, entered!: () => void, context!: WorkContext
+  const gate = new Promise<void>(resolve => { release = resolve }), ready = new Promise<void>(resolve => { entered = resolve })
+  t.after(async () => { release(); await jobs.drain(); await engine.dispose() })
+  const run = await engine.create({ kind: 'analyze', config: resolveCurrentConfig({ limits: { processPollIntervalMs: 100 } }), input: { styleId: 'stream-fixture' }, fixed: {}, specDigest: 'stream-fixture' }, actor, async ctx => { context = ctx; entered(); await gate; return 'target-met' })
+  await ready
+  const lifetime = new AbortController()
+  const response = analysisFollowResponse(engine, engine.get(run.id, actor), actor, lifetime.signal), reader = response.body!.getReader()
+  const next = async () => {
+    const item = await reader.read()
+    assert.equal(item.done, false)
+    return analysisStreamFrameSchema.parse(JSON.parse(new TextDecoder().decode(item.value).slice(6).trim()))
+  }
+  return { context, reader, next, lifetime, release, engine, jobs, run, actor }
+}
+
+test('ordinary fragments share the configured interval while first content, checkpoints and completion remain immediate', async t => {
+  const f = await liveStream(t)
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  assert.equal((await f.next()).checkpoint, true)
+  f.context.report({ phase: 'receiving', content: 'a', resetOutput: true })
+  assert.equal((await f.next()).process?.content, 'a')
+  let delivered = false
+  const combined = f.next().then(frame => { delivered = true; return frame })
+  for (const content of ['b', 'c']) { f.context.report({ phase: 'receiving', content }); await setImmediate() }
+  t.mock.timers.tick(99); await setImmediate()
+  assert.equal(delivered, false)
+  t.mock.timers.tick(1)
+  assert.equal((await combined).process?.content, 'abc')
+  f.context.report({ phase: 'receiving', content: 'd' })
+  await f.context.save('screening', { counts: { observed: 1 } })
+  const checkpoint = await f.next()
+  assert.equal(checkpoint.checkpoint, true); assert.equal(checkpoint.process?.content, 'abcd')
+  f.context.report({ phase: 'receiving', content: 'e' })
+  f.release(); await f.jobs.drain()
+  let final = await f.next()
+  if (final.status === 'running') final = await f.next()
+  assert.equal(final.status, 'completed'); assert.equal(final.process?.content, 'abcde')
+  assert.equal(final.checkpoint, true); assert.equal((await f.reader.read()).done, true)
+  t.mock.timers.tick(1000)
+})
+
+test('backpressure keeps the latest snapshot and checkpoint marker until a reader resumes', async t => {
+  const f = await liveStream(t)
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  await setImmediate()
+  f.context.report({ phase: 'receiving', content: 'a', resetOutput: true })
+  await f.context.save('screening', { counts: { observed: 1 } })
+  f.context.report({ phase: 'receiving', content: 'b' }); await setImmediate()
+  assert.equal((await f.next()).process?.content, '')
+  const saved = await f.next()
+  assert.equal(saved.process?.content, 'ab'); assert.equal(saved.checkpoint, true)
+  await f.reader.cancel()
+  assert.equal(f.engine.get(f.run.id, f.actor).status, 'running')
+  t.mock.timers.tick(1000)
+})
+
+test('aborting observation with a coalesced update pending leaves the model task running', async t => {
+  const f = await liveStream(t)
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  await f.next()
+  f.context.report({ phase: 'receiving', content: 'a', resetOutput: true }); await f.next()
+  f.context.report({ phase: 'receiving', content: 'b' })
+  const reading = assert.rejects(f.reader.read(), { name: 'AbortError' })
+  f.lifetime.abort(); await reading
+  assert.equal(f.engine.get(f.run.id, f.actor).status, 'running')
+  t.mock.timers.tick(1000)
+})
 
 test('live output reaches an authenticated reader before completion; reconnecting does not restart the model', async () => {
   const f = await serviceFixture(); await f.service.initialize()

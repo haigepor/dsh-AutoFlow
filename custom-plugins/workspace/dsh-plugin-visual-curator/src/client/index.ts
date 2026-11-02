@@ -1,4 +1,5 @@
 import { createConversationFeedback } from './conversation-feedback.ts'
+import { resolvePreviewConcurrency, sharedPreviewLoader } from './preview-loader.ts'
 import { createSearchBatchesStore } from './search-batches-store.ts'
 /** Optional native page entries; the plugin detail itself stays entirely owned by Plugin Manager. */
 import type { ComponentType } from 'react'
@@ -6,6 +7,7 @@ import css from './entry.css'
 import welcomeImage from '../../assets/welcome-photo-stack-v2.webp'
 import logoImage from '../../assets/visual-curator-logo-v1.png'
 import executionEmptyImage from '../../assets/execution-empty-v1.webp'
+import taskMetricArtwork from '../../assets/task-metric-plates-v2.webp'
 import { createTaskToolView } from './task-tool-view.tsx'
 import { createConversationTaskDock } from './conversation-task-dock.tsx'
 import { createCuratorStore } from './store.ts'
@@ -81,6 +83,11 @@ window.__ModuleLoader__.load({
           },
         })
         const store = createCuratorStore(transport)
+        ctx.effect(() => {
+          const configure = () => sharedPreviewLoader.configure(resolvePreviewConcurrency(store.getSnapshot().snapshot?.configuration.source.unsplash.previewConcurrency))
+          const follow = store.subscribe(configure); configure()
+          return () => { follow(); void sharedPreviewLoader.dispose() }
+        }, 'Visual Curator bounded preview loading')
         const batches = createSearchBatchesStore({ ...transport, scope: store.getOwnerScopeId, pollMs: () => store.getSnapshot().snapshot?.configuration.limits.pollIntervalMs ?? 2000, cachePolicy() {
           const limits = store.getSnapshot().snapshot?.configuration.limits
           return { ttlMs: limits?.batchCacheTtlMs ?? 0, maxViews: limits?.batchCacheMaxViews ?? 0, resourceTtlMs: limits?.sessionGrantTtlMs ?? 0 }
@@ -88,8 +95,11 @@ window.__ModuleLoader__.load({
         ctx.effect(() => () => batches.dispose(), 'Visual Curator collection search batches')
         const feedback = createConversationFeedback(transport)
         ctx.effect(() => () => feedback.dispose(), 'Visual Curator conversation feedback')
-        const datasets = createDatasetStore({ invoke: store.invoke, context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '' }) })
-        const launches = createSearchLaunchStore({ invoke: store.invoke, context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '', pollMs: store.getSnapshot().snapshot?.configuration.limits.pollIntervalMs ?? 2000 }), openSession(id) {
+        const datasets = createDatasetStore({ invoke: store.invoke, context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '' }), cachePolicy() {
+          const limits = store.getSnapshot().snapshot?.configuration.limits
+          return { ttlMs: limits?.datasetCacheTtlMs ?? 0, maxViews: limits?.datasetCacheMaxViews ?? 0, maxBytes: limits?.datasetCacheMaxBytes ?? 0, resourceTtlMs: limits?.sessionGrantTtlMs ?? 0 }
+        } })
+        const launches = createSearchLaunchStore({ invoke: store.invoke, context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '', workspaceRevision: store.getSnapshot().snapshot?.workspaceRevision, pollMs: store.getSnapshot().snapshot?.configuration.limits.pollIntervalMs ?? 2000 }), openSession(id) {
           const navigation = ctx.get?.('uiWorkspace')
           if (!navigation) throw new Error('native-navigation-unavailable')
           navigation.openSession(id)
@@ -110,7 +120,8 @@ window.__ModuleLoader__.load({
           return () => { for (const dispose of disposers) dispose(); modelDirectory.dispose() }
         }, 'Visual Curator project model catalog')
         for (const toolName of ['visual_search_start', 'visual_crop_start', 'visual_run_get']) ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({ name: 'tool.call.toolview', key: toolName, locale: namespace, inject: () => ({ t }) }, TaskToolView))
-        ctx.slots.inject('conversation.body.overlay', () => ctx.slots.register({ name: 'conversation.body.overlay', id: 'visual-curator-task', order: 30, locale: namespace, inject: (sessionId: string) => ({ t, hooks: { feedback: feedback.sessionSource(sessionId) }, selectTask: (runId: string) => feedback.select(sessionId, runId), refreshTask: (runId?: string) => feedback.refresh(sessionId, runId), stopTask: (runId: string) => feedback.stop(sessionId, runId), async openTask(runId: string) { if (!registrations.has('panel')) throw new Error('panel-disabled'); await store.openSession(sessionId); store.selectWorkspace('tasks'); store.selectRun(runId); batches.select(runId, store.getSnapshot().styleId); ctx.layout.selectPanel(panel) } }) }, ConversationTaskDock))
+        const taskDockFace = (sessionId: string) => ({ t, hooks: { feedback: feedback.sessionSource(sessionId) }, selectTask: (runId: string) => feedback.select(sessionId, runId), refreshTask: (runId?: string) => feedback.refresh(sessionId, runId), stopTask: (runId: string) => feedback.stop(sessionId, runId), stopLaunch: (launchId: string) => feedback.stopLaunch(sessionId, launchId), filterTask: (runId: string, filter: import('../shared/search-feedback.ts').RunResultFilter) => feedback.filterResults(sessionId, runId, filter), loadMoreTask: (runId: string) => feedback.loadMore(sessionId, runId), async openTask(runId: string) { if (!registrations.has('panel')) throw new Error('panel-disabled'); const opening = store.openTask(runId, sessionId); ctx.layout.selectPanel(panel); await opening } })
+        ctx.slots.inject('conversation.body.overlay', () => ctx.slots.register({ name: 'conversation.body.overlay', id: 'visual-curator-task', order: 30, locale: namespace, inject: taskDockFace }, ConversationTaskDock))
         let sessionCache: Storage | undefined
         try { sessionCache = window.sessionStorage } catch (error) { /* 浏览器禁用本地存储时，仅使用内存缓存。 */ }
         const gallery = createGalleryCache({ ...(sessionCache ? { storage: sessionCache } : {}), context: () => {
@@ -119,19 +130,27 @@ window.__ModuleLoader__.load({
           return { namespace: `${new URL(document.baseURI).origin}:${store.getSnapshot().scopeSessionId}`, revision: configuration.revision, accounts: configuration.source.unsplash.accounts.map(({ id, userId, credentialRef }) => ({ id, userId, credentialRef })), policy: resolveGalleryCachePolicy(configuration.source.unsplash.cache) }
         }, read: (operation, args, signal) => transport.invoke(operation, { ...args, ...(store.getSnapshot().sessionToken ? { sessionToken: store.getSnapshot().sessionToken } : {}) }, signal) })
         ctx.effect(() => () => gallery.dispose(), 'Visual Curator gallery cache')
-        const actions: WorkbenchProps['actions'] = { selectWorkspace: store.selectWorkspace, openSession: store.openSession, closeSession: store.closeSession, prepareTask: store.prepareTask, startAnalysis: store.startAnalysis, referenceState: store.referenceState, stopAnalysis: store.stopAnalysis, pauseAnalysis: store.pauseAnalysis, resumeAnalysis: store.resumeAnalysis, openAnalysis: store.openAnalysis, closeAnalysis: store.closeAnalysis, refreshAnalysisDetail: store.refreshAnalysisDetail, loadAnalysisInput: store.loadAnalysisInput, saveConfiguration: store.saveConfiguration, execute: store.execute, reload: store.reload, getSnapshot: store.getSnapshot,
-          selectStyle: store.selectStyle, selectRun: store.selectRun, loadMoreImages: store.loadMoreImages, loadRun: store.loadRun, loadReferences: store.loadReferences, startGalleryReferences: store.startGalleryReferences, stopGalleryReferences: store.stopGalleryReferences,
+        const actions: WorkbenchProps['actions'] = { selectWorkspace: store.selectWorkspace, openSession: store.openSession, closeSession: store.closeSession, openTask: store.openTask, prepareTask: store.prepareTask, startAnalysis: store.startAnalysis, referenceState: store.referenceState, stopAnalysis: store.stopAnalysis, pauseAnalysis: store.pauseAnalysis, resumeAnalysis: store.resumeAnalysis, openAnalysis: store.openAnalysis, closeAnalysis: store.closeAnalysis, refreshAnalysisDetail: store.refreshAnalysisDetail, loadAnalysisInput: store.loadAnalysisInput, saveConfiguration: store.saveConfiguration, execute: store.execute, reload: store.reload, getSnapshot: store.getSnapshot, reconcileProfile: store.reconcileProfile,
+          selectStyle: store.selectStyle, selectRun: store.selectRun, loadMoreImages: store.loadMoreImages, loadRun: store.loadRun, loadReferences: store.loadReferences, startGalleryReferences: store.startGalleryReferences, resumeGalleryReferences: store.resumeGalleryReferences, stopGalleryReferences: store.stopGalleryReferences,
           datasets, launches, batches,
           publish: style => publishStyle(store, style),
           pickLocalReferences: (kind, signal) => transport.invoke('local-reference-pick', { kind, title: t(kind === 'file' ? 'upload' : kind === 'folder' ? 'uploadFolder' : 'referenceLocal'), ...(kind === 'references' ? { folderLabel: t('referenceCurrentFolder'), imagesLabel: t('upload') } : {}) }, signal),
           listLocalReferences: (path, kind, signal) => transport.invoke('local-files-list', { path, kind }, signal),
           galleryRead: gallery.read,
+          readTaskReferences: (args, signal) => transport.invoke('task-reference-list', args, signal),
           loadVisionModels: modelDirectory.load,
           reloadVisionModels: () => modelDirectory.invalidate(),
           openModelSettings: () => ctx.layout.selectPanel('settings', { fullWindow: true }),
           async saveCredential(ref, value) { const response = await ctx.remote.credentials.set(ref, value); if (!response.ok) throw response.error },
         }
-        const face = () => ({ t, actions, welcomeImage, logoImage, hooks: { workbench: { getSnapshot: store.getSnapshot, subscribe: store.subscribe }, visionModels: { getSnapshot: modelDirectory.getSnapshot, subscribe: modelDirectory.subscribe }, datasets: { getSnapshot: datasets.getSnapshot, subscribe: datasets.subscribe }, launches: { getSnapshot: launches.getSnapshot, subscribe: launches.subscribe }, searchBatches: { getSnapshot: batches.getSnapshot, subscribe: batches.subscribe } } })
+        let workbenchObservers = 0, observationChanged = () => {}
+        const observeWorkbench = (listener: () => void) => {
+          const unsubscribe = store.subscribe(listener), first = workbenchObservers++ === 0
+          if (first) observationChanged()
+          let closed = false
+          return () => { if (closed) return; closed = true; unsubscribe(); if (--workbenchObservers === 0) observationChanged() }
+        }
+        const face = () => ({ t, actions, welcomeImage, logoImage, hooks: { workbench: { getSnapshot: store.getSnapshot, subscribe: observeWorkbench }, visionModels: { getSnapshot: modelDirectory.getSnapshot, subscribe: modelDirectory.subscribe }, datasets: { getSnapshot: datasets.getSnapshot, subscribe: datasets.subscribe }, launches: { getSnapshot: launches.getSnapshot, subscribe: launches.subscribe }, searchBatches: { getSnapshot: batches.getSnapshot, subscribe: batches.subscribe } } })
         function EntryIcon() { return React.createElement(IconPanelLeftOutlineRegular, { size: 18 }) }
         const registrations = new Map<Page, () => void>()
         let stopped = false, sequence = 0
@@ -156,7 +175,6 @@ window.__ModuleLoader__.load({
             if (page === 'panel' && ctx.layout.panelInfo.getSnapshot().activePanelId === panel) ctx.layout.selectPanel(null)
             void child.dispose()
           })
-          void store.ensureLoaded()
         }
         async function sync() {
           const current = ++sequence
@@ -173,13 +191,14 @@ window.__ModuleLoader__.load({
               if (active && !registrations.has(page)) mount(page)
               else if (!active) remove(page)
             }
+            observationChanged()
           } catch (error) {
             // 重连与停用会拒绝在途 Remote；旧入口不得继续保留。
             if (!stopped && current === sequence) for (const page of [...registrations.keys()]) remove(page)
           }
         }
         ctx.effect(() => {
-          const style = document.createElement('style'); style.textContent = css.replace('__VC_EXECUTION_EMPTY_ART__', executionEmptyImage); document.head.append(style)
+          const style = document.createElement('style'); style.textContent = css.replace('__VC_EXECUTION_EMPTY_ART__', executionEmptyImage).replace('__VC_TASK_METRIC_ART__', taskMetricArtwork); document.head.append(style)
           return () => style.remove()
         }, 'Visual Curator entry styles')
         ctx.effect(() => {
@@ -190,42 +209,52 @@ window.__ModuleLoader__.load({
             void sync()
           })
           void sync()
-          let timer: ReturnType<typeof setTimeout> | undefined, detailTimer: ReturnType<typeof setTimeout> | undefined, datasetTimer: ReturnType<typeof setTimeout> | undefined, polling = false
+          let timer: ReturnType<typeof setTimeout> | undefined, detailTimer: ReturnType<typeof setTimeout> | undefined, datasetTimer: ReturnType<typeof setTimeout> | undefined, polling = false, opening: Promise<void> | undefined
           let referencing = store.getSnapshot().galleryTasks.some(task => galleryTaskActive(task.status))
+          const observed = () => !stopped && workbenchObservers > 0 && registrations.size > 0
           const pollDetail = () => {
+            if (!observed() || detailTimer) return
             detailTimer = setTimeout(async () => {
+              detailTimer = undefined
               const state = store.getSnapshot()
-              if (registrations.size && state.analysisRunId && !state.analysisStreaming && (!state.analysisDetail || analysisActive(state.analysisDetail.task.status))) await store.refreshAnalysisDetail()
-              if (!stopped) pollDetail()
+              if (observed() && state.analysisRunId && !state.analysisStreaming && (!state.analysisDetail || analysisActive(state.analysisDetail.task.status))) await store.refreshAnalysisDetail()
+              pollDetail()
             }, store.getSnapshot().snapshot?.configuration.limits.processPollIntervalMs ?? 500)
           }
           const pollDatasets = () => {
+            if (!observed() || datasetTimer) return
             datasetTimer = setTimeout(async () => {
-              try { if (registrations.size && datasets.needsPoll()) await datasets.poll() }
-              finally { if (!stopped) pollDatasets() }
+              datasetTimer = undefined
+              try { if (observed() && datasets.needsPoll()) await datasets.poll() }
+              finally { pollDatasets() }
             }, store.getSnapshot().snapshot?.configuration.limits.processPollIntervalMs ?? 500)
           }
           const poll = () => {
+            if (!observed() || timer || polling) return
             timer = setTimeout(async () => {
               timer = undefined; polling = true
               try {
-                if (registrations.size) {
+                if (observed()) {
                   if (store.getSnapshot().snapshot?.collectionPaging) await store.refreshGalleryTasks()
                   else await store.reload()
                 }
-              } finally { polling = false; if (!stopped) poll() }
+              } finally { polling = false; poll() }
             }, referencing ? store.getSnapshot().snapshot?.configuration.limits.processPollIntervalMs ?? 500 : store.getSnapshot().snapshot?.configuration.limits.pollIntervalMs ?? 2000)
+          }
+          const clearPolling = () => { clearTimeout(timer); clearTimeout(detailTimer); clearTimeout(datasetTimer); timer = detailTimer = datasetTimer = undefined }
+          observationChanged = () => {
+            if (!observed()) { clearPolling(); return }
+            if (!opening) opening = store.reload(false, true).finally(() => { opening = undefined; poll() })
+            pollDetail(); pollDatasets()
           }
           const followReferences = store.subscribe(() => {
             const active = store.getSnapshot().galleryTasks.some(task => galleryTaskActive(task.status))
             if (active === referencing) return
             referencing = active
-            if (!polling && !stopped) { clearTimeout(timer); poll() }
+            if (!polling) { clearTimeout(timer); timer = undefined; poll() }
           })
-          poll()
-          pollDetail()
-          pollDatasets()
-          return () => { stopped = true; ++sequence; clearTimeout(timer); clearTimeout(detailTimer); clearTimeout(datasetTimer); followReferences(); changed(); reset(); readLifetime.abort(); store.dispose(); for (const page of [...registrations.keys()]) remove(page) }
+          observationChanged()
+          return () => { stopped = true; ++sequence; clearPolling(); followReferences(); changed(); reset(); readLifetime.abort(); store.dispose(); for (const page of [...registrations.keys()]) remove(page) }
         }, 'Visual Curator optional entry lifecycle')
       },
     }

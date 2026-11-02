@@ -78,6 +78,31 @@ test('a late task acceptance cannot populate another Session scope', async () =>
   } finally { store.dispose(); await f.cleanup() }
 })
 
+test('continuing a gallery task updates its state without discarding existing image cards', async () => {
+  let offline = true
+  const api = new UnsplashApi({ request: async path => {
+    const id = path.split('/').at(-1)!
+    if (id === 'two' && offline) throw Object.assign(new Error('offline'), { code: 'source-network-failed' })
+    return { id, width: 20, height: 10, urls: { small: `https://images.unsplash.com/${id}` } }
+  } })
+  const f = await serviceFixture(undefined, { maxImportFiles: 1 }, { galleryApi: async () => api }); await f.service.initialize()
+  const store = createCuratorStore({ invoke: (operation, args) => f.action(operation, args) })
+  try {
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'store-resume-style', name: 'Resume' }))
+    await store.reload()
+    const task = await store.startGalleryReferences({ operationId: 'store-resume', styleId, photoIds: ['one', 'two'] })
+    await f.jobs.drain(); await store.refreshGalleryTasks()
+    const saved = store.getSnapshot().snapshot!.images.map(image => image.imageVersionId)
+    assert.equal(saved.length, 1)
+    offline = false
+    await store.resumeGalleryReferences(task.id)
+    assert.ok(saved.every(id => store.getSnapshot().snapshot!.images.some(image => image.imageVersionId === id)))
+    await f.jobs.drain(); await store.refreshGalleryTasks()
+    assert.equal(store.getSnapshot().galleryTasks.find(item => item.id === task.id)!.status, 'completed')
+    assert.equal(store.getSnapshot().snapshot!.images.length, 2)
+  } finally { store.dispose(); await f.cleanup() }
+})
+
 test('unchanged lightweight polling does not publish another gallery render', async () => {
   const f = await serviceFixture(); await f.service.initialize()
   const store = createCuratorStore({ invoke: (operation, args) => f.action(operation, args) })

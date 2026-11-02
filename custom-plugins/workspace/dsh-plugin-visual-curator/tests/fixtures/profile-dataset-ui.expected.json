@@ -1,0 +1,14 @@
+{
+  "responsiveRuleEdits": true,
+  "coalescedFirstSaves": 2,
+  "immutableReceiptOrdering": true,
+  "unknownAcknowledgementRetained": true,
+  "retryOperationIdentity": true,
+  "generationUsesSavedProfile": true,
+  "closeBeforeExportAcknowledgement": true,
+  "automaticSamplePages": [5, 10, 13],
+  "sampleFailureRetainsRows": true,
+  "sameCursorRetry": true,
+  "productionWrites": 0,
+  "pageErrors": []
+}

@@ -1,0 +1,8 @@
+{
+  "acceptedBeforeWritesFinished": true,
+  "requestAbortKeepsJob": true,
+  "crossTaskImages": 2,
+  "publishedWhileRunning": 1,
+  "finalStatus": "completed",
+  "completed": 2
+}

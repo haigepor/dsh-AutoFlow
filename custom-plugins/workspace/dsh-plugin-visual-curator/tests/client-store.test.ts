@@ -16,6 +16,96 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+test('Session navigation publishes its target immediately and returning during admission ignores the late grant', async () => {
+  const grant = deferred<{ sessionToken: string }>(), owner = snapshot()
+  let ownerReads = 0
+  const store = createCuratorStore({ invoke: async operation => {
+    if (operation === 'session-open') return grant.promise
+    if (operation === 'snapshot') { ownerReads++; return owner }
+    throw new Error(operation)
+  } })
+  try {
+    await store.reload()
+    const ownerView = store.getSnapshot().snapshot
+    const opening = store.openSession('pending-session')
+    assert.equal(store.getSnapshot().scopeSessionId, 'pending-session', 'the target scope is visible before its grant arrives')
+    assert.equal(store.getSnapshot().loading, true)
+    await store.ensureLoaded()
+    assert.equal(ownerReads, 1, 'mounting the target must not read an owner snapshot while admission is pending')
+    store.closeSession()
+    assert.equal(store.getSnapshot().snapshot, ownerView)
+    assert.equal(store.getSnapshot().scopeSessionId, '')
+    grant.resolve({ sessionToken: 'late-grant' }); await opening
+    assert.equal(store.getSnapshot().scopeSessionId, '')
+    assert.equal(store.getSnapshot().sessionToken, '')
+    assert.deepEqual(store.getSnapshot().snapshot, ownerView)
+  } finally { grant.resolve({ sessionToken: 'cleanup' }); store.dispose() }
+})
+
+test('task result filters change immediately, restore their own cached pages and ignore an older filter response', async () => {
+  const image = (id: string, resultCategory: NonNullable<ImageView['resultCategory']>): ImageView => ({ imageVersionId: id, assetId: id, familyId: id, width: 100, height: 100,
+    kind: 'normalized', previewPath: `/api/visual-curator/resource?imageVersionId=${id}`, name: id, source: 'fixture', exportPermission: 'references-only', groupingStatus: 'confirmed', resultCategory })
+  const run: RunView = { runId: 'filter-run', kind: 'search', status: 'completed', counts: {}, results: [image('all-image', 'selected')], taskBrief: 'Filter fixture', warnings: [], resultFilter: 'all' }
+  const review = deferred<RunView>(), all = deferred<RunView>()
+  let snapshotReads = 0, hold = false
+  const calls: Record<string, unknown>[] = []
+  const store = createCuratorStore({ invoke: async (operation, args) => {
+    if (operation === 'snapshot') { snapshotReads++; return { ...snapshot(), runs: [run] } }
+    if (operation !== 'run-get') throw new Error(operation)
+    calls.push(args)
+    return hold ? args.resultFilter === 'review' ? review.promise : all.promise : run
+  } })
+  try {
+    await store.reload()
+    const cached = store.getSnapshot().snapshot?.runs[0]?.results
+    hold = true
+    const pendingReview = store.loadRun(run.runId, false, 'review')
+    assert.equal(store.getSnapshot().snapshot?.runs[0]?.resultFilter, 'review', 'the pressed tab must not wait for network')
+    assert.deepEqual(store.getSnapshot().snapshot?.runs[0]?.results, [], 'a new category must not display another category images')
+    const pendingAll = store.loadRun(run.runId, false, 'all')
+    assert.equal(store.getSnapshot().snapshot?.runs[0]?.resultFilter, 'all')
+    assert.equal(store.getSnapshot().snapshot?.runs[0]?.results, cached, 'a known category is visible while its refresh is pending')
+    review.resolve({ ...run, resultFilter: 'review', results: [image('review-image', 'review')] }); await pendingReview
+    assert.equal(store.getSnapshot().snapshot?.runs[0]?.resultFilter, 'all')
+    assert.equal(store.getSnapshot().runLoading, false, 'the restored category remains usable while its background refresh is pending')
+    all.resolve(run); await pendingAll
+    assert.deepEqual(store.getSnapshot().snapshot?.runs[0]?.results.map(item => item.imageVersionId), ['all-image'])
+    assert.equal(snapshotReads, 1)
+    assert.equal(calls.length, 3)
+  } finally { review.resolve(run); all.resolve(run); store.dispose() }
+})
+
+test('opening a task selects its route before admission and loads only that task without reference pages or another Session grant', async () => {
+  const grant = deferred<{ sessionToken: string }>()
+  const wanted: RunView = { runId: 'wanted', styleId: 'collection', kind: 'search', status: 'completed', counts: {}, results: [], taskBrief: 'Wanted task', warnings: [] }
+  const unrelated = { ...wanted, runId: 'unrelated' }
+  const style: StyleView = { styleId: 'collection', name: 'Collection', archived: false, revision: 1, draftId: 'draft', draftRevision: 1, rules: [], conflicts: [], referenceIds: [], releases: [], candidates: [] }
+  const calls: { operation: string; args: Record<string, unknown> }[] = []
+  const store = createCuratorStore({ invoke: async (operation, args) => {
+    calls.push({ operation, args })
+    if (operation === 'session-open') return grant.promise
+    if (operation === 'snapshot') return args.sessionToken ? { ...snapshot(), collectionPaging: true, styles: [style], runs: [unrelated] } : snapshot()
+    if (operation === 'run-get') return wanted
+    throw new Error(operation)
+  } })
+  try {
+    await store.reload()
+    const opening = store.openTask(wanted.runId, 'session')
+    assert.equal(store.getSnapshot().workspace, 'tasks')
+    assert.equal(store.getSnapshot().taskTarget?.runId, wanted.runId)
+    assert.equal(store.getSnapshot().runId, wanted.runId)
+    assert.equal(store.getSnapshot().snapshot, null, 'the old page is withdrawn while its new Session is opening')
+    grant.resolve({ sessionToken: 'grant' }); await opening
+    assert.equal(store.getSnapshot().snapshot?.runs.find(run => run.runId === wanted.runId)?.taskBrief, 'Wanted task')
+    assert.deepEqual(calls.filter(call => call.operation === 'run-get').map(call => call.args.runId), [wanted.runId])
+    const snapshots = calls.filter(call => call.operation === 'snapshot').length
+    await store.openTask(wanted.runId, 'session')
+    assert.equal(calls.filter(call => call.operation === 'session-open').length, 1)
+    assert.equal(calls.filter(call => call.operation === 'snapshot').length, snapshots)
+    assert.equal(calls.some(call => call.operation === 'references-list'), false)
+  } finally { grant.resolve({ sessionToken: 'cleanup' }); store.dispose() }
+})
+
 test('creating a collection reads only its current style and empty page without waiting for a full workspace refresh', async () => {
   const first: StyleView = { styleId: 'first', name: 'First', archived: false, revision: 1, draftId: 'draft-first', draftRevision: 1, rules: [], conflicts: [], referenceIds: [], releases: [], candidates: [] }
   const oldRun: RunView = { runId: 'old-run', styleId: first.styleId, kind: 'search', status: 'completed', counts: {}, results: [], taskBrief: '', warnings: [] }

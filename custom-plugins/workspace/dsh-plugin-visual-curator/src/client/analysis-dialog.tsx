@@ -15,6 +15,7 @@ import type { AnalysisInput as SavedInput } from '../shared/analysis-process.ts'
 import { analysisNavigation } from './analysis-navigation.ts'
 import { createSelectField } from './select-field.tsx'
 import { analysisContextUsage, type AnalysisContextUsage } from './analysis-context.ts'
+import { createAnalysisVirtualList } from './analysis-virtual-list.ts'
 import sidebarArtwork from '../../assets/analysis-sidebar-accent-v1.webp'
 import { createAnalysisDiagnostics, analysisIssues, analysisCanContinue, analysisContinuationHint, analysisFailureSummary } from './analysis-diagnostics.tsx'
 
@@ -30,6 +31,7 @@ export function createAnalysisDialog(React: typeof import('react'), ui: typeof i
   const AnalysisInput = createAnalysisInput(React, ui)
   const AnalysisIcon = createAnalysisIcon(React)
   const AnalysisDiagnostics = createAnalysisDiagnostics(React, ui)
+  const useAnalysisVirtualList = createAnalysisVirtualList(React)
   function ContextUsage({ value, t }: { value: AnalysisContextUsage; t: WorkbenchText }) {
     const { usedTokens, contextWindow, percent } = value
     const reading = percent === undefined ? '—' : `${percent.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
@@ -78,7 +80,7 @@ export function createAnalysisDialog(React: typeof import('react'), ui: typeof i
     const streaming = message.state === 'streaming'
     const preparing = streaming && detail.process?.phase === 'preparing'
     const stateLabel = message.state === 'streaming' ? preparing ? 'analysisPreparing' : message.reasoning && !message.content ? 'modelThinking' : message.content ? 'modelWriting' : 'modelWaiting' : message.state === 'complete' ? 'completed' : message.state
-    const answer = React.useMemo(() => analysisAnswer(message, detail, t), [message, detail, t])
+    const answer = React.useMemo(() => analysisAnswer(message, detail, t), [message.sequence, message.kind, message.state, message.content, JSON.stringify(message.imageIds), detail.observations, detail.images, detail.summary, detail.process?.messages?.findLast(item => item.kind === 'summary' && item.state === 'complete')?.sequence, t])
     return <article className="vc-chat-message" data-message-sequence={message.sequence} aria-busy={streaming}>
       <header className="vc-chat-message-header"><span className="vc-model-status">{streaming && <StateDot state="ongoing" />}{t(stateLabel)}</span><span className="vc-chat-batch-label">{t(message.kind === 'summary' ? 'processSummary' : 'batchObservations')}{message.kind === 'analysis' && <> · {message.batch}</>}</span><span className="vc-chat-message-spacer" /><span title={detail.task.model}>{detail.task.model}</span></header>
       <div className="vc-chat-message-body">
@@ -95,7 +97,7 @@ export function createAnalysisDialog(React: typeof import('react'), ui: typeof i
     const [navigation, setNavigation] = React.useState<number | null>(null)
     const [selectedSequence, setSelectedSequence] = React.useState<number | null>(null)
     const [processDisclosure, setProcessDisclosure] = React.useState<{ runId: string; final: boolean; open: boolean } | null>(null)
-    const feed = React.useRef<HTMLDivElement>(null), follow = React.useRef(true), outputScroll = React.useRef(0), tabId = React.useId()
+    const feed = React.useRef<HTMLDivElement>(null), transcript = React.useRef<HTMLDivElement>(null), follow = React.useRef(true), outputScroll = React.useRef(0), tabId = React.useId()
     const detail = state.analysisDetail, task = detail?.task ?? state.analysisTasks.find(item => item.runId === state.analysisRunId), process = detail?.process
     const initialLoading = state.analysisLoading && !detail
     const active = !!task && analysisActive(task.status), stopping = task?.status === 'cancelling' || state.pending.includes(`stop:${state.analysisRunId}`)
@@ -119,30 +121,35 @@ export function createAnalysisDialog(React: typeof import('react'), ui: typeof i
     // 成功归纳后切换到收起的默认值；手动展开保留到当前任务或完成状态改变。
     const processOpen = processDisclosure?.runId === state.analysisRunId && processDisclosure.final === hasFinal ? processDisclosure.open : !hasFinal
     const setProcessOpen = (open: boolean) => setProcessDisclosure({ runId: state.analysisRunId, final: hasFinal, open })
+    const virtual = useAnalysisVirtualList(feed, transcript, state.analysisRunId, messages.map(message => message.sequence), view === 'output' && processOpen, !hasFinal)
     const linked = new Set(messages.flatMap(message => message.requestId ? [message.requestId] : []))
     const unlinked = detail?.requests.filter(request => !linked.has(request.requestId)) ?? []
     const tabs = React.useMemo(() => [{ value: 'output', label: t('processModelOutput'), id: `${tabId}-output-tab`, panelId: `${tabId}-output` }, { value: 'activity', label: t('analysisTimeline'), id: `${tabId}-activity-tab`, panelId: `${tabId}-activity` }, { value: 'requests', label: `${t('analysisRequestsTab')}${detail?.requests.length ? ` · ${detail.requests.length}` : ''}`, id: `${tabId}-requests-tab`, panelId: `${tabId}-requests` }, { value: 'diagnostics', label: `${t('analysisDiagnosticsTab')}${issues.length ? ` · ${issues.length}` : ''}`, id: `${tabId}-diagnostics-tab`, panelId: `${tabId}-diagnostics` }] as const, [tabId, t, detail?.requests.length, issues.length])
     React.useLayoutEffect(() => { follow.current = true; outputScroll.current = 0; setFollowing(true); setView('output'); setNavigation(null); setSelectedSequence(null) }, [state.analysisRunId])
     // 只有输出页处于末尾时跟随；切换到日志不会丢失模型正文的阅读位置。
     React.useLayoutEffect(() => { if (view === 'output' && feed.current) feed.current.scrollTop = follow.current ? feed.current.scrollHeight : outputScroll.current }, [view, state.analysisRunId, process?.updatedAt, detail?.observations.length])
+    React.useLayoutEffect(() => { if (view === 'output' && follow.current && feed.current) feed.current.scrollTop = feed.current.scrollHeight }, [view, virtual.size])
     React.useLayoutEffect(() => {
       if (navigation === null || view !== 'output' || !feed.current) return
       const scroller = feed.current
-      const target = scroller.querySelector<HTMLElement>(hasFinal && navigation === summaryMessage?.sequence ? '.vc-final-summary' : `[data-exchange-sequence="${navigation}"]`)
-      if (!target) return
+      const finalTarget = hasFinal && navigation === summaryMessage?.sequence
+      const index = messages.findIndex(message => message.sequence === navigation)
+      const target = scroller.querySelector<HTMLElement>(finalTarget ? '.vc-final-summary' : `[data-exchange-sequence="${navigation}"]`)
+      if (!target) { if (!finalTarget && index >= 0) virtual.virtualizer.scrollToIndex(index, { align: 'start' }); return }
       let cancelled = false
       const anchor = target.querySelector<HTMLElement>('.vc-chat-message') ?? target
-      const align = () => { scroller.scrollTop += anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16; outputScroll.current = scroller.scrollTop }
+      const align = () => { const offset = scroller.scrollTop + anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16; if (finalTarget) scroller.scrollTop = offset; else virtual.virtualizer.scrollToOffset(offset); outputScroll.current = scroller.scrollTop }
       const frame = requestAnimationFrame(() => {
         align(); target.focus({ preventScroll: true })
         // 原生折叠组件展开会改变可滚动高度；结束后再次定位，避免目标被提前截断。
+        // 测高仍可能移动批次；阅读者滚轮、指针或键盘操作后才解除该定位。
         const collapse = target.closest('.vc-process-disclosure')?.querySelector(':scope > [data-expanded]')
-        void Promise.allSettled((collapse?.getAnimations() ?? []).map(animation => animation.finished)).then(() => { if (!cancelled) { align(); setNavigation(null) } })
+        void Promise.allSettled((collapse?.getAnimations() ?? []).map(animation => animation.finished)).then(() => { if (!cancelled) align() })
       })
       return () => { cancelled = true; cancelAnimationFrame(frame) }
-    }, [navigation, view, processOpen, hasFinal, summaryMessage?.sequence])
+    }, [navigation, view, processOpen, hasFinal, summaryMessage?.sequence, virtual.rows])
     const navigate = (sequence: number) => { follow.current = false; setFollowing(false); setSelectedSequence(sequence); setProcessOpen(!(hasFinal && sequence === summaryMessage?.sequence)); setView('output'); setNavigation(sequence) }
-    const latest = () => { follow.current = true; setFollowing(true); setSelectedSequence(null); if (feed.current) feed.current.scrollTop = feed.current.scrollHeight }
+    const latest = () => { follow.current = true; setFollowing(true); setSelectedSequence(null); setNavigation(null); if (!hasFinal) virtual.virtualizer.scrollToEnd(); else if (feed.current) feed.current.scrollTop = feed.current.scrollHeight }
     const inspectInput = (requestId: string) => { follow.current = false; setFollowing(false); outputScroll.current = feed.current?.scrollTop ?? 0; onReadInput(requestId) }
     const latestMessage = messages.at(-1)
     const phase = task?.outcome === 'budget-exhausted' ? t('budgetExhausted') : task ? ['pausing', 'cancelling', 'paused'].includes(task.status) ? t(task.status === 'pausing' ? 'pausing' : task.status === 'cancelling' ? 'cancelling' : 'paused') : active && task.phase === 'paused' ? t('analysisQueued') : active && task.phase === 'receiving' ? t(latestMessage?.reasoning && !latestMessage.content ? 'modelThinking' : latestMessage?.content ? 'modelWriting' : 'modelWaiting') : analysisPhaseLabel(t, task.phase) : t('busy')
@@ -156,14 +163,15 @@ export function createAnalysisDialog(React: typeof import('react'), ui: typeof i
       </div>
       {(initialLoading || detail) && <div className="vc-process-mobile-context" aria-busy={initialLoading}>{initialLoading ? <ContextSkeleton /> : <ContextUsage value={contextUsage} t={t} />}</div>}
       <div className="vc-process-layout"><div className="vc-chat-panels">
-        <div ref={feed} id={`${tabId}-output`} role="tabpanel" aria-labelledby={`${tabId}-output-tab`} hidden={view !== 'output'} className="vc-chat-feed" onScroll={() => { const element = feed.current; if (!element || view !== 'output') return; outputScroll.current = element.scrollTop; const nearEnd = element.scrollHeight - element.scrollTop - element.clientHeight < 64; follow.current = nearEnd; setFollowing(nearEnd) }}>
+        <div ref={feed} id={`${tabId}-output`} role="tabpanel" aria-labelledby={`${tabId}-output-tab`} hidden={view !== 'output'} className="vc-chat-feed" onWheel={() => setNavigation(null)} onPointerDown={() => setNavigation(null)} onKeyDown={() => setNavigation(null)} onScroll={() => { const element = feed.current; if (!element || view !== 'output') return; outputScroll.current = element.scrollTop; const nearEnd = element.scrollHeight - element.scrollTop - element.clientHeight < 64; follow.current = nearEnd; setFollowing(nearEnd) }}>
           <div role="log" aria-live="off" aria-label={t('modelConversation')}>
             {detail && (messages.length > 0 || detail.observations.length > 0) && <DisclosureRow className="vc-process-disclosure" icon={<ui.IconThinkOutlineRegular size={14} />} title={t('processDetails')} open={processOpen} running={active} expandable expandOnRowClick onToggle={() => setProcessOpen(!processOpen)} collapsedContent={<span className="vc-process-disclosure-count">{task?.observed} / {task?.total}</span>}>
             {unlinked.length > 0 && <section className="vc-input-history"><h3>{t('inputHistory')}</h3><p>{t('inputHistoryHint')}</p>{unlinked.map(request => <AnalysisInput key={request.requestId} request={request} state={state} t={t} onRead={onReadInput} onInspect={inspectInput} renderFactorySlot={renderFactorySlot} />)}</section>}
-            {detail && messages.map(message => {
+            {detail && <div ref={transcript} className="vc-analysis-virtual-items" style={{ height: virtual.size }}>{virtual.rows.map(row => {
+              const message = messages[row.index]!
               const request = detail.requests.find(item => item.requestId === message.requestId)
-              return <div key={message.sequence} id={`${tabId}-message-${message.sequence}`} className="vc-request-exchange" data-exchange-sequence={message.sequence} data-selected-batch={selectedSequence === message.sequence || undefined} tabIndex={-1}>{request && <AnalysisInput request={request} state={state} t={t} onRead={onReadInput} onInspect={inspectInput} renderFactorySlot={renderFactorySlot} />}<ModelMessage message={message} detail={detail} images={images} onReadInput={onReadInput} t={t} renderFactorySlot={renderFactorySlot} hideAnswer={hasFinal && message.sequence === summaryMessage?.sequence} /></div>
-            })}
+              return <div key={row.key} ref={virtual.virtualizer.measureElement} data-index={row.index} style={{ transform: `translateY(${row.start - virtual.margin}px)` }} id={`${tabId}-message-${message.sequence}`} className="vc-request-exchange vc-analysis-virtual-item" data-exchange-sequence={message.sequence} data-selected-batch={selectedSequence === message.sequence || undefined} tabIndex={-1}>{request && <AnalysisInput request={request} state={state} t={t} onRead={onReadInput} onInspect={inspectInput} renderFactorySlot={renderFactorySlot} />}<ModelMessage message={message} detail={detail} images={images} onReadInput={onReadInput} t={t} renderFactorySlot={renderFactorySlot} hideAnswer={hasFinal && message.sequence === summaryMessage?.sequence} /></div>
+            })}</div>}
             {detail && !messages.length && detail.observations.length > 0 && <article className="vc-chat-message"><header className="vc-chat-message-header"><strong>{t('sampleObservations')}</strong></header><Observations rows={detail.observations} detail={detail} images={images} onReadInput={onReadInput} t={t} renderFactorySlot={renderFactorySlot} /></article>}
             {detail && !messages.length && process?.reasoning && renderFactorySlot('conversation.chat.reasoning.content', { text: process.reasoning, running: active && !process.content })}
             {process?.truncated && <p className="vc-chat-retention">{t('analysisOutputBounded')}</p>}
@@ -174,16 +182,18 @@ export function createAnalysisDialog(React: typeof import('react'), ui: typeof i
         </div>
         {view === 'activity' && <div id={`${tabId}-activity`} role="tabpanel" aria-labelledby={`${tabId}-activity-tab`} className="vc-process-log">{task && <dl className="vc-chat-config"><div><dt>{t('model')}</dt><dd title={task.model}>{task.model}</dd></div><div><dt>{t('reasoningEffort')}</dt><dd>{task.reasoningEffort ?? t('providerDefault')}</dd></div><div><dt>{t('analysisAttempt')}</dt><dd>{task.attempts}</dd></div></dl>}<ol className="vc-analysis-timeline">{process?.events.map(event => <li key={event.sequence}><time dateTime={event.at}>{new Date(event.at).toLocaleTimeString()}</time><div><strong>{analysisPhaseLabel(t, event.phase)}</strong>{event.batch !== undefined && <span>{t('analysisBatch')} {event.batch}</span>}</div></li>)}</ol>{!process?.events.length && <p className="vc-chat-empty">{t('processNoActivity')}</p>}</div>}
         {detail && (view === 'requests' || view === 'diagnostics') && <div className="vc-process-log" id={`${tabId}-${view}`} role="tabpanel" aria-labelledby={`${tabId}-${view}-tab`}><AnalysisDiagnostics detail={detail} mode={view} t={t} onLocate={navigate} /></div>}
-      </div><aside className="vc-process-context" aria-label={t('analysisContext')} aria-busy={initialLoading}>
+      </div><aside className="vc-process-navigation-rail" aria-label={t('analysisBatches')} aria-busy={initialLoading}>
+        {initialLoading && <NavigationSkeleton />}
+        {navigationEntries.length > 0 && <section className="vc-process-navigation"><div className="vc-process-batch-heading"><h3>{t('analysisBatches')}</h3><span>{navigationEntries.length}</span></div><p className="vc-process-navigation-hint">{t('analysisNavigationHint')}</p><nav aria-label={t('analysisBatches')}>{navigationEntries.map(entry => <Button key={entry.sequence} variant="ghost" size="sm" className="vc-process-batch-link" aria-current={selectedSequence === entry.sequence ? 'step' : undefined} aria-controls={hasFinal && entry.sequence === summaryMessage?.sequence ? `${tabId}-final-summary` : `${tabId}-message-${entry.sequence}`} onClick={() => navigate(entry.sequence)}><StateDot state={entry.state === 'streaming' ? 'ongoing' : entry.state === 'complete' ? 'done' : entry.state === 'failed' ? 'warning' : 'idle'} /><span className="vc-process-batch-copy"><span><strong>{t(entry.kind === 'summary' ? 'processSummary' : 'analysisBatch')}{entry.batch !== undefined && <> {entry.batch}</>}</strong><Tag tone={entry.state === 'complete' ? 'success' : entry.state === 'failed' ? 'danger' : entry.state === 'streaming' ? 'info' : 'neutral'}>{messageStateLabel(entry.state)}</Tag></span><small>{entry.imageCount} {t('galleryPhotoUnit')}{entry.attempts > 1 && <> · {t('analysisRequestAttempt')} {entry.attempt}/{entry.attempts}</>}</small></span><ui.IconChevronRightOutlineRegular size={14} /></Button>)}</nav></section>}
+        <Button size="sm" variant="outline" className="vc-process-log-toggle" onClick={() => setView(view === 'activity' ? 'output' : 'activity')}><ui.IconListPenOutlineRegular size={14} />{t(view === 'activity' ? 'processModelOutput' : 'analysisTimeline')}</Button>
+      </aside><aside className="vc-process-context" aria-label={t('analysisContext')} aria-busy={initialLoading}>
         <header className="vc-process-context-heading"><div><h3>{t('analysisContext')}</h3>{nativeCalls.length > 0 && <Tag tone="info">{t('nativeLlm')}</Tag>}</div><img src={sidebarArtwork} alt="" width={64} height={43} /></header>
         <div className="vc-process-facts">{initialLoading ? <InformationSkeleton /> : <>
         {task && <section className="vc-process-model"><div className="vc-process-model-name"><strong aria-label={t('model')} title={task.model}>{task.model}</strong>{nativeCalls.length > 0 && <small title={t('nativeProvider')}>{nativeCalls.at(-1)?.provider}</small>}</div><dl className="vc-process-model-controls"><div><dt>{t('reasoningEffort')}</dt><dd><Tag>{task.reasoningEffort ?? t('providerDefault')}</Tag></dd></div><div><dt>{t('analysisExecutions')}</dt><dd>{task.attempts}</dd></div></dl></section>}
         {detail && <ContextUsage value={contextUsage} t={t} />}
         {usage.length > 0 && <section className="vc-process-usage"><h3>{t('analysisUsage')}</h3><dl><div><dt>{t('modelInputTokens')}</dt><dd>{inputTokens.toLocaleString()}</dd></div><div><dt>{t('modelOutputTokens')}</dt><dd>{usage.reduce((sum, item) => sum + item.outputTokens, 0).toLocaleString()}</dd></div><div className="vc-process-cache"><dt>{t('modelCacheRead')}</dt><dd>{cacheAvailable ? `${cacheReadTokens.toLocaleString()}${inputTokens > 0 ? ` · ${Math.round(cacheReadTokens / inputTokens * 100)}%` : ''}` : t('modelCacheUnknown')}</dd></div></dl></section>}
         </>}</div>
-        {initialLoading && <NavigationSkeleton />}
-        {navigationEntries.length > 0 && <section className="vc-process-navigation"><div className="vc-process-batch-heading"><h3>{t('analysisBatches')}</h3><span>{navigationEntries.length}</span></div><p className="vc-process-navigation-hint">{t('analysisNavigationHint')}</p><nav aria-label={t('analysisBatches')}>{navigationEntries.map(entry => <Button key={entry.sequence} variant="ghost" size="sm" className="vc-process-batch-link" aria-current={selectedSequence === entry.sequence ? 'step' : undefined} aria-controls={hasFinal && entry.sequence === summaryMessage?.sequence ? `${tabId}-final-summary` : `${tabId}-message-${entry.sequence}`} onClick={() => navigate(entry.sequence)}><StateDot state={entry.state === 'streaming' ? 'ongoing' : entry.state === 'complete' ? 'done' : entry.state === 'failed' ? 'warning' : 'idle'} /><span className="vc-process-batch-copy"><span><strong>{t(entry.kind === 'summary' ? 'processSummary' : 'analysisBatch')}{entry.batch !== undefined && <> {entry.batch}</>}</strong><Tag tone={entry.state === 'complete' ? 'success' : entry.state === 'failed' ? 'danger' : entry.state === 'streaming' ? 'info' : 'neutral'}>{messageStateLabel(entry.state)}</Tag></span><small>{entry.imageCount} {t('galleryPhotoUnit')}{entry.attempts > 1 && <> · {t('analysisRequestAttempt')} {entry.attempt}/{entry.attempts}</>}</small></span><ui.IconChevronRightOutlineRegular size={14} /></Button>)}</nav></section>}
-        <Button size="sm" variant="outline" className="vc-process-log-toggle" onClick={() => setView(view === 'activity' ? 'output' : 'activity')}><ui.IconListPenOutlineRegular size={14} />{t(view === 'activity' ? 'processModelOutput' : 'analysisTimeline')}</Button>
+
       </aside></div>
       <footer className="vc-chat-footer"><small>{task && !active && ['failed', 'paused', 'interrupted'].includes(task.status) ? analysisContinuationHint(task, t) : t(pausing ? 'analysisPausingHint' : active ? 'analysisContinueHint' : task?.status === 'cancelled' ? 'processCancelledHint' : 'analysisRetainedHint')}</small><div className="vc-dataset-actions">
         {view === 'output' && !following && <Button variant="outline" onClick={latest}>{t('latestOutput')}</Button>}

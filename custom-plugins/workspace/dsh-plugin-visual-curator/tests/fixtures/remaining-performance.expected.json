@@ -1,0 +1,16 @@
+{
+  "observationWindow": true,
+  "observationTail": true,
+  "inactiveUnmount": true,
+  "scrollRestored": true,
+  "roleCache": true,
+  "automaticCursors": [null, "20", "40"],
+  "smallResultsEager": true,
+  "savedAppendPosition": true,
+  "savedResultWindow": true,
+  "savedResultTail": true,
+  "fullPreviewNavigation": true,
+  "narrowOverflow": false,
+  "laterBatchVisible": true,
+  "pageErrors": []
+}

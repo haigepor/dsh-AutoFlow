@@ -1,5 +1,9 @@
 /** Search feedback copy uses the existing typed locale dictionary. */
 export const feedbackEn = {
+  searchLaunchDatasetAutomatic: 'Automatic · reuse or prepare the current style package', searchLaunchDatasetAutomaticHint: 'A matching complete package is reused. If it is missing, preparation continues in the new conversation before image search starts.',
+  searchLaunchNegativesAutomatic: 'All valid negative references are included by default', searchLaunchNegativesSummary: '{datasets} negative datasets · {references} unique negative images', searchLaunchNegativesHint: 'Uses the current collection’s saved observations. Repeated images appear once; removed references and images now marked positive are excluded.', searchLaunchNegativesFailed: 'A negative dataset could not be verified. Refresh or regenerate the affected package, then continue the same task.',
+  searchLaunchDatasetPreparing: 'Preparing the complete style package and negative reference data. Image search starts when preparation finishes.',
+  searchLaunchDatasetMissing: 'No complete style package exists for v{version}. Negative observation packages are included as supporting data. Start creates a conversation, prepares the current complete package and continues searching.',
   taskBatchLoading: 'Loading task batches',
   taskBatchDeleted: 'Batch record deleted', taskBatchDeleteFailed: 'Deletion could not be confirmed. Refresh this list and retry.',
   taskBatchResults: 'Matched images by task batch', taskBatchCount: 'Batches', taskBatchFilter: 'Task batch', taskAllBatches: 'All batches', taskMoreBatches: 'More batches', taskBatchEmpty: 'No image search or crop batches in this collection yet.', taskBatchNoMatches: 'This batch has no saved matches yet.', taskBatchReadFailed: 'Batch results could not be read. Reload the application service after updating, then refresh.', taskBatchUnavailable: 'This batch’s Session is unavailable. Open its original conversation, then refresh.',
@@ -17,6 +21,10 @@ export const feedbackEn = {
   taskExtraStats: 'More statistics',
   taskResizeWidth: 'Resize task card', taskResizeWidthHint: 'Drag the left edge to resize; double-click to reset. Arrow keys, Home and End also adjust width.', taskDockNoResults: 'No saved image results yet', taskDockDeliveryPending: 'No delivery receipt yet',
   taskConversation: 'Visual Curator task', taskSwitch: 'Choose a task', taskExpand: 'Show results', taskCollapse: 'Hide results', taskCallReturned: 'Call returned',
+  taskLaunchTarget: 'Target images', taskLaunchPendingHint: 'Your search requirements are saved. Image progress appears here after the model starts the search.',
+  taskLaunchAwaitingSearch: 'Preparing search', taskLaunchCollapse: 'Hide details',
+  taskLaunchAttachingHint: 'Preparing the profile and conversation task', taskLaunchSubmittingHint: 'Submitting the task to the conversation', taskLaunchAcceptedHint: 'Conversation started; image search has not started yet',
+  taskMoreResults: 'Load more images', taskSavedCandidatesHint: 'Showing saved, deduplicated image candidates',
   taskLookupFailed: 'Source details could not be retrieved',
   taskReadProgress: 'Read task progress', taskReading: 'Reading saved progress', taskLive: 'Live task data', taskSaved: 'Saved task data',
   taskReadFailed: 'Progress could not be refreshed. Confirmed results are kept.', taskRefresh: 'Refresh progress',
@@ -34,6 +42,10 @@ export const feedbackEn = {
   taskStageRetrieving: 'Retrieving originals', taskStageScreening: 'Screening images', taskStageReviewing: 'Final review', taskStageCropping: 'Rendering crops', taskStageExporting: 'Saving results',
 }
 export const feedbackZh: typeof feedbackEn = {
+  searchLaunchDatasetAutomatic: '自动使用当前完整包，缺少时后台生成', searchLaunchDatasetAutomaticHint: '已有匹配完整包时直接复用；缺少时会在新会话中后台准备，完成后继续找图。',
+  searchLaunchNegativesAutomatic: '默认携带全部有效反例参考', searchLaunchNegativesSummary: '{datasets} 个反例数据集 · {references} 张反例图片（去重）', searchLaunchNegativesHint: '使用当前素材集已保存的观察；重复图片只带一份，已移除或已改为正例的历史参考不会加入。', searchLaunchNegativesFailed: '反例数据集未能通过核验，请刷新或重新生成对应包后继续原任务。',
+  searchLaunchDatasetPreparing: '正在准备完整风格包和反例参考，完成后将继续找图。',
+  searchLaunchDatasetMissing: '当前 v{version} 尚无完整风格包。反例观察包会自动附带；点击开始后将新建会话、后台补齐完整包并继续找图。',
   taskBatchLoading: '正在加载任务批次',
   taskBatchDeleted: '已删除批次记录', taskBatchDeleteFailed: '尚未确认删除结果，请刷新列表后重试',
   taskBatchResults: '按任务批次查看匹配图片', taskBatchCount: '任务批次', taskBatchFilter: '任务批次', taskAllBatches: '全部批次', taskMoreBatches: '更多批次', taskBatchEmpty: '当前分组暂无找图或裁剪批次。', taskBatchNoMatches: '该批次暂无已保存的匹配图片。', taskBatchReadFailed: '无法读取批次结果。更新插件后请重载应用服务，再刷新。', taskBatchUnavailable: '该批次的会话暂不可读，请打开原会话后刷新。',
@@ -51,6 +63,10 @@ export const feedbackZh: typeof feedbackEn = {
   taskExtraStats: '更多统计',
   taskResizeWidth: '调整任务卡片宽度', taskResizeWidthHint: '拖动左边缘调整宽度，双击恢复默认；也可使用左右方向键及 Home、End', taskDockNoResults: '暂未保存图片结果', taskDockDeliveryPending: '尚无交付回执',
   taskConversation: '视觉策展任务', taskSwitch: '选择任务', taskExpand: '展开结果', taskCollapse: '收起结果', taskCallReturned: '调用已返回',
+  taskLaunchTarget: '目标图片', taskLaunchPendingHint: '找图要求已保存；模型开始检索后，这里会显示实际图片进度。',
+  taskLaunchAwaitingSearch: '检索准备中', taskLaunchCollapse: '收起详情',
+  taskLaunchAttachingHint: '正在准备画像附件和会话任务', taskLaunchSubmittingHint: '正在将任务提交到会话', taskLaunchAcceptedHint: '会话已启动，图片检索尚未开始',
+  taskMoreResults: '加载更多图片', taskSavedCandidatesHint: '列表展示已保存的去重图片候选',
   taskLookupFailed: '暂时无法获取图库来源信息',
   taskReadProgress: '读取任务进度', taskReading: '正在读取已保存进度', taskLive: '实时任务数据', taskSaved: '已保存任务数据',
   taskReadFailed: '暂时无法刷新进度，已确认结果仍保留', taskRefresh: '刷新进度',

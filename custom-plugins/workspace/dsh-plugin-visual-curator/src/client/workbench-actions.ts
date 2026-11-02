@@ -30,8 +30,8 @@ export async function archiveCollections(store: Pick<CuratorStore, 'execute'>, t
  * @param role Reference role, or all roles. @returns Matching references in their saved order.
  */
 export function filterReferences(images: ImageView[], style: Pick<StyleView, 'styleId' | 'referenceIds'>, query: string, role: 'all' | 'positive' | 'negative' | 'undecided'): ImageView[] {
-  const needle = query.trim().toLowerCase()
-  return images.filter(image => image.styleId === style.styleId && image.referenceId && style.referenceIds.includes(image.referenceId)
+  const needle = query.trim().toLowerCase(), references = new Set(style.referenceIds)
+  return images.filter(image => image.styleId === style.styleId && image.referenceId && references.has(image.referenceId)
     && (role === 'all' || (image.role ?? 'undecided') === role) && image.name.toLowerCase().includes(needle))
 }
 

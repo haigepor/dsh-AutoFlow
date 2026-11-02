@@ -4,10 +4,34 @@ import { createCuratorStore } from '../src/client/store.ts'
 import { createCuratorTransport } from '../src/client/transport.ts'
 import { analysisDetailSchema, type AnalysisStreamFrame } from '../src/shared/analysis-process.ts'
 import { createWorkbenchSelector } from '../src/client/workbench-state.ts'
+import { analysisContextUsage } from '../src/client/analysis-context.ts'
 
 const process = (content: string) => ({ phase: 'receiving' as const, events: [], content, reasoning: '', messages: [{ sequence: 0, kind: 'analysis' as const, batch: 1, imageIds: [], content, reasoning: '', state: 'streaming' as const, at: '2026-10-27T00:00:00Z', updatedAt: '2026-10-27T00:00:01Z' }], updatedAt: '2026-10-27T00:00:01Z', truncated: false })
 const detail = () => analysisDetailSchema.parse({ task: { runId: 'live', styleId: 's', name: 'Live', status: 'running', observed: 0, total: 1, model: 'fixture', reasoningEffort: null, attempts: 1, startedAt: 'now', phase: 'analyzing', autoResume: true }, observations: [] })
 const tick = () => new Promise<void>(resolve => setTimeout(resolve, 0))
+
+test('a checkpoint arriving while an earlier detail refresh settles eventually publishes its latest usage', async () => {
+  const reported = (tokens: number) => analysisDetailSchema.parse({ ...detail(), requests: [{ requestId: 'request', createdAt: 'now', state: 'committed', operation: 'analyze', model: 'fixture', imageIds: [], available: true, native: { transport: 'native-llm', provider: 'fixture', context: { contextWindow: 1000 }, usage: { inputTokens: tokens, outputTokens: 0 }, timing: { elapsedMs: 1 } } }] })
+  for (let depth = 0; depth < 14; depth++) {
+    let receive!: (frame: AnalysisStreamFrame) => void, resolveRead!: (value: unknown) => void, reads = 0
+    const store = createCuratorStore({ invoke: async () => { reads++; if (reads === 1) return reported(10); return new Promise(resolve => { resolveRead = resolve }) }, followAnalysis: async (_args, callback, signal) => {
+      receive = callback
+      await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))
+    } })
+    try {
+      store.openAnalysis('live'); await store.refreshAnalysisDetail(); await tick()
+      receive({ runId: 'live', status: 'running', checkpoint: true }); await tick()
+      resolveRead(reported(20))
+      // Vary only the checkpoint's delivery turn across the existing refresh settlement.
+      let checkpoint = () => receive({ runId: 'live', status: 'running', checkpoint: true })
+      for (let turn = 0; turn < depth; turn++) { const next = checkpoint; checkpoint = () => queueMicrotask(next) }
+      checkpoint(); await tick(); await tick()
+      assert.ok(reads >= 3, `checkpoint at delivery turn ${depth} must read its saved request metadata`)
+      resolveRead(reported(30)); await tick(); await tick()
+      assert.equal(analysisContextUsage(store.getSnapshot().analysisDetail!.requests).usedTokens, 30)
+    } finally { store.dispose(); resolveRead?.(reported(30)); await tick() }
+  }
+})
 
 test('live frames render before completion and closing the dialog aborts observation without cancelling the model', async () => {
   let receive!: (frame: AnalysisStreamFrame) => void, signal!: AbortSignal, reads = 0

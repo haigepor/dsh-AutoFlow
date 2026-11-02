@@ -7,6 +7,7 @@ import css from './ConversationRoot.module.css'
 /**
  * Renders the active Session view inside the resident scrollport and keeps
  * the input draft persisted while blank Hero chrome is visible.
+ * The root's data-conversation-active-view identifies the resolved View for adjacent body chrome.
  * @param props - Strict Session input/store, view ledger, and render shares.
  * @returns the active view area, or null while the Session remains blank.
  */
@@ -32,7 +33,7 @@ export function DefaultConversationViews({
   if (session.blank && conversationPhase(session, conversation) === 'blank') return null
   const viewId = view ?? active?.id
   return (
-    <div className={css.viewArea}>
+    <div className={css.viewArea} data-conversation-active-view={viewId}>
       {viewId !== undefined && renderSlot('conversation.view', {
         inspectCall,
         viewRequest,

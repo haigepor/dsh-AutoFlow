@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import * as UI from '../../../../../packages/client/ui-primitives/src/index.ts'
 import { TodoPanel } from '../../../../../packages/client/ui-conversation/src/client/skeleton/TodoPanel.tsx'
 import { ConversationContent } from '../../../../../packages/client/ui-conversation/src/client/skeleton/ConversationContent.tsx'
+import { installIconSprite } from '../../../../../packages/client/ui-theme/src/client/icon-sprite.ts'
 import conversationCss from '../../../../../packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css'
 import { createConversationFeedback } from '../../src/client/conversation-feedback.ts'
 import { createTaskToolView } from '../../src/client/task-tool-view.tsx'
@@ -11,6 +12,8 @@ import { createConversationTaskDock } from '../../src/client/conversation-task-d
 import { createWorkbench } from '../../src/client/workbench.tsx'
 import { zh } from '../../src/client/workbench-locale.ts'
 import pluginCss from '../../src/client/entry.css'
+import taskMetricArtwork from '../../assets/task-metric-plates-v2.webp'
+import executionEmptyArtwork from '../../assets/execution-empty-v1.webp'
 import '../../../../../packages/client/ui-theme/src/styles/base.css'
 import '../../../../../packages/client/ui-theme/src/styles/corner-shape.css'
 import '../../../../../packages/client/ui-theme/src/styles/design-platform.css'
@@ -18,7 +21,9 @@ import '../../../../../packages/client/ui-theme/src/styles/personalization.css'
 import '../../../../../packages/client/ui-theme/src/styles/focus.css'
 
 const h = React.createElement, t = key => zh[key], { run: hostRun, snapshot: baseSnapshot } = window.feedbackFixtureData
-const style = document.createElement('style'); style.textContent = pluginCss; document.head.append(style)
+const themeDisposers = []
+installIconSprite({ effect(work) { themeDisposers.push(work()) }, on() { return () => {} } }, undefined)
+const style = document.createElement('style'); style.textContent = pluginCss.replace('__VC_TASK_METRIC_ART__', taskMetricArtwork).replace('__VC_EXECUTION_EMPTY_ART__', executionEmptyArtwork); document.head.append(style)
 
 const svgUrl = (w, h, bg, accent, label) => `/api/visual-curator/resource?imageVersionId=${encodeURIComponent(`${label}-${w}x${h}-${bg}-${accent}`)}`
 const baseImage = hostRun.results[0] ?? {
@@ -161,7 +166,7 @@ const TaskDock = createConversationTaskDock(React, UI)
 const todoT = (key, vars = {}) => ({ 'todo.title': '任务', 'todo.status.completed': '已完成', 'todo.status.inProgress': '进行中', 'todo.status.pending': '待处理', 'todo.progress.done': `${vars.done} 已完成`, 'todo.progress.active': `${vars.active} 进行中`, 'todo.progress.pending': `${vars.pending} 待处理` })[key] ?? key
 const todos = [{ content: '读取参考包并核验固定画像与检索参数', status: 'completed' }, { content: '启动检索并等待实际像素筛选和最终复核，完整长文本应换行显示', status: 'in_progress' }, { content: '核验保存结果并报告合格数量与失败情况', status: 'pending' }]
 function FixtureViews() {
-  return h('div', { className: 'fixture-chat' }, h(Task, { phase: 'result', toolName: 'visual_search_start', block: { isError: false, content: [{ type: 'text', text: JSON.stringify({ runId: hostRun.runId }) }] }, t }))
+  return h('div', { 'data-slot': 'conversation.session' }, h('div', { className: 'fixture-chat', 'data-conversation-active-view': 'chat' }, h(Task, { phase: 'result', toolName: 'visual_search_start', block: { isError: false, content: [{ type: 'text', text: JSON.stringify({ runId: hostRun.runId }) }] }, t })))
 }
 function FixtureTaskDock() {
   const source = store.sessionSource(state.session)
@@ -195,7 +200,7 @@ function currentRuns() {
   }
   if (state.scenario === 'multi-task') return [primary, secondary]
   if (state.scenario === 'batches') return [{ ...primary, runId: 'batch-one', outputKind: 'preview' }, { ...primary, runId: 'batch-two', outputKind: 'preview', kind: 'crop', status: 'completed' }]
-  if (state.scenario === 'preview') return [{ ...primary, outputKind: 'preview', delivery: undefined, warnings: [...primary.warnings, ...primary.issues.map(issue => `Candidate ${issue.candidateId}: ${issue.code}.`)], results: primary.results.map(image => ({ ...image, kind: 'remote-reference', sourcePreviewPath: undefined, previewUrl: `https://images.unsplash.com/photo-${image.imageVersionId}` })) }]
+  if (state.scenario === 'preview') return [{ ...primary, outputKind: 'preview', delivery: undefined, warnings: [...primary.warnings, ...primary.issues.map(issue => `Candidate ${issue.candidateId}: ${issue.code}.`)], results: primary.results.map(image => ({ ...image, kind: 'remote-reference', sourcePreviewPath: undefined, thumbnailPath: `${image.previewPath}&preview=thumbnail`, previewUrl: `https://images.unsplash.com/photo-${image.imageVersionId}` })) }]
   if (state.scenario === 'interrupted') return [{ ...secondary, runId: enrichedPrimaryRun.runId, resultFilter: state.filter }]
   return [primary]
 }
@@ -217,11 +222,12 @@ function Workbench() {
     analysisInputErrors: {},
     configSaving: false,
     configError: null,
-    galleryTasks: [],
+    galleryTasks: state.taskReferenceBackground ? [state.taskReferenceBackground] : [],
     galleryTaskError: null,
     referencePages: {},
     snapshot,
-    workspace: 'tasks',
+    workspace: state.scenario === 'task-reference' ? 'styles' : 'tasks',
+    taskTarget: state.taskTarget ?? null,
     styleId,
     runId: activeRun?.runId ?? '',
     candidateId: '',
@@ -236,7 +242,7 @@ function Workbench() {
     error: null,
     toast: null,
     sessionToken: 'fixture',
-    scopeSessionId: state.scopeSessionId ?? '',
+    scopeSessionId: state.scenario === 'task-reference' ? '' : state.scopeSessionId ?? '',
     runLoading: false,
     runError: null,
   }
@@ -253,7 +259,7 @@ function Workbench() {
     qualified: activeRun?.resultSummary?.selected ?? 1,
   }
   const launchState = { entries: [launchEntry], submission: null, options: { workspaces: [{ id: 'ws-1', title: '默认工作区', path: 'D:/workspace' }], usages: [], defaultTargetCount: 10, maxTargetCount: 200 }, optionsLoading: false, loading: false, error: '' }
-  const datasetState = { styleId, entries: [], pageIds: [], total: 0, allTotal: 0, query: '', status: 'all', loading: false, error: false, submissions: [], watched: [], dismissed: [], detailId: '', detail: null, detailLoading: false, detailError: false }
+  const datasetState = { styleId, entries: [], pageIds: [], total: 0, allTotal: 0, query: '', status: 'all', loading: false, error: false, submissions: [], watched: [], dismissed: [], detailId: '', detail: null, detailLoading: false, detailError: false, sampleRole: 'all' }
   const batchRows = ['batch-one', 'batch-two'].map((runId, index) => ({ runId, kind: index ? 'crop' : 'search', status: 'completed', createdAt: `2026-10-29T0${index}:00:00Z`, taskBrief: `匹配批次 ${index + 1}`, matched: 1, unavailable: false, images: [{ ...richResults[index], thumbnailPath: `${richResults[index].previewPath}&preview=thumbnail` }] }))
   const batchState = { deleting: [], styleId, batchId: state.batchFilter ?? '', page: { styleId, totalBatches: state.batchFilter ? 1 : 2, totalMatches: state.batchFilter ? 1 : 2, batches: batchRows.filter(batch => !(state.deletedBatchIds ?? []).includes(batch.runId) && (!state.batchFilter || batch.runId === state.batchFilter)) }, loading: false, error: false }
   if (state.batchLoading === 'initial' || state.batchLoading === 'error') batchState.page = null
@@ -274,9 +280,17 @@ function Workbench() {
       batches: { watch: () => () => {}, select: batchId => { state.batchFilter = batchId; render() }, refresh: () => {}, more: async () => {}, moreImages: async () => {}, remove: async runId => { state.deletedBatchIds = [...(state.deletedBatchIds ?? []), runId]; render() } },
       selectWorkspace: () => {},
       openSession: async () => {},
-      closeSession: () => { state.scopeSessionId = undefined; render() },
+      openTask: async (runId, sessionId) => { state.taskTarget = { runId }; state.selectedRunId = runId; if (sessionId) state.scopeSessionId = sessionId; render() },
+      closeSession: () => { state.scopeSessionId = undefined; state.taskTarget = null; render() },
       prepareTask: async () => ({}),
-      execute: async (op, args) => { state.runCommands.push([op, args]); return {} },
+      execute: async (op, args) => {
+        state.runCommands.push([op, args])
+        if (op === 'task-reference-import') {
+          if (state.taskReferenceDropOnce) { state.taskReferenceDropOnce = false; throw new Error('response-lost') }
+          return { results: args.images.map(({ imageVersionId: sourceImageVersionId }) => ({ sourceImageVersionId, status: 'added', referenceId: `reference-${sourceImageVersionId}` })) }
+        }
+        return {}
+      },
       reload: async () => {},
       getSnapshot: () => clientState,
       selectStyle: () => {},
@@ -284,7 +298,14 @@ function Workbench() {
       loadMoreImages: async () => {},
       loadRun: async (runId, _append, resultFilter) => { state.selectedRunId = runId; if (resultFilter) state.filter = resultFilter; render() },
       loadReferences: async () => {},
-      startGalleryReferences: async () => ({}),
+      startGalleryReferences: async (args, source) => {
+        if (source !== 'completed-search') return {}
+        state.runCommands.push(['task-reference-start', args])
+        state.taskReferenceBackground ??= { id: 'c'.repeat(64), styleId: args.styleId, source: 'completed-search', status: 'running', phase: 'referencing', total: args.images.length, completed: 0, failed: 0, registered: 0, createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z' }
+        render()
+        if (state.taskReferenceDropOnce) { state.taskReferenceDropOnce = false; throw new Error('response-lost') }
+        return state.taskReferenceBackground
+      },
       stopGalleryReferences: async () => {},
       referenceState: async styleId => ({ styleId, revision: 1, digest: 'fixture', total: 0, pending: 0, reusable: 0, changed: 0, entries: [] }),
       startAnalysis: async () => ({}),
@@ -304,6 +325,17 @@ function Workbench() {
       pickLocalReferences: async () => ({}),
       listLocalReferences: async () => ({}),
       galleryRead: async () => ({}),
+      readTaskReferences: async args => {
+        state.taskReferenceReads ??= []; state.taskReferenceReads.push(args)
+        if (state.taskReferenceReadGate && args.pageToken) await state.taskReferenceReadGate
+        if (state.taskReferenceReadFailOnce && args.pageToken) { state.taskReferenceReadFailOnce = false; throw new Error('page-read-failed') }
+        const tasks = [{ runId: 'completed-search', taskBrief: '已完成的车辆找图', createdAt: '2026-10-31T00:00:00Z', candidates: state.taskReferenceImageCount ?? 7 }, { runId: 'completed-search-previous', taskBrief: '上一次完成的图片检索', createdAt: '2026-10-30T14:30:00Z', candidates: state.taskReferenceImageCount ?? 7 }]
+        if (!args.runId) return { styleId: args.styleId, runId: null, tasks, images: [], totalImages: 0 }
+        const prefix = args.runId === 'completed-search' ? 'task-reference' : 'previous-task-reference'
+        const all = Array.from({ length: state.taskReferenceImageCount ?? 7 }, (_, index) => ({ ...richResults[index % richResults.length], imageVersionId: `${prefix}-${index}`, kind: 'remote-reference', name: `${args.runId === 'completed-search' ? '任务' : '上次任务'}候选 ${index + 1}`, thumbnailPath: `${richResults[index % richResults.length].previewPath}&preview=thumbnail`, resultCategory: index === 0 ? 'selected' : index < 4 ? 'rejected' : 'review' }))
+        const images = all.filter(image => !args.resultFilter || args.resultFilter === 'all' || image.resultCategory === args.resultFilter), offset = Number(args.pageToken ?? 0), end = offset + 4
+        return { styleId: args.styleId, runId: args.runId, tasks: [], images: images.slice(offset, end), totalImages: images.length, ...(end < images.length ? { nextImagePageToken: String(end) } : {}) }
+      },
     },
   })
 }
@@ -311,6 +343,7 @@ const root = createRoot(document.getElementById('root'))
 function render() { root.render(h(React.Fragment, null, state.mode === 'conversation' && h('div', { className: 'fixture-toolbar' }, h('button', { onClick: () => { state.mode = 'workbench'; render() } }, '切换验收视图')), state.mode === 'conversation' ? h(Conversation) : h(Workbench))) }
 window.feedbackFixture = {
   state,
+  setTaskReferenceProgress: (completed, status = 'running') => { state.taskReferenceBackground = { ...state.taskReferenceBackground, completed, status }; render() },
   setMode: mode => { state.mode = mode; render() },
   setAnalysisRunning: value => { state.analysisRunning = value; render() },
   setBatchLoading: value => { state.batchLoading = value; render() },
@@ -318,6 +351,6 @@ window.feedbackFixture = {
   session: id => { state.session = id; render() },
   reset: () => store.reset(),
   theme: dark => document.body.toggleAttribute('data-ds-dark-theme', dark),
-  dispose: () => { root.unmount(); store.dispose() },
+  dispose: () => { root.unmount(); store.dispose(); for (const dispose of themeDisposers) dispose() },
 }
 render()

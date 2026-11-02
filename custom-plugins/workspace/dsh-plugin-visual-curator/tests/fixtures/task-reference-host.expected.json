@@ -1,0 +1,9 @@
+{
+  "includesRejected": true,
+  "explicitRole": "negative",
+  "added": "added",
+  "replayUnchanged": true,
+  "repeatedSelection": "skipped",
+  "sourceTaskUnchanged": true,
+  "crossTaskAdditions": 2
+}

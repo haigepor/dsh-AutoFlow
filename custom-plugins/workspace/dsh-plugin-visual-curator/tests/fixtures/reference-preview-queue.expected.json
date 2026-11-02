@@ -1,0 +1,12 @@
+{
+  "sharedFactories": true,
+  "maxImageRequests": 2,
+  "metadataDuringSlowImages": true,
+  "offscreenDeferred": true,
+  "scrollCancelsDownloads": true,
+  "failedImageRetry": true,
+  "leasesReleasedOnUnmount": true,
+  "reactivation": true,
+  "noEmptyImageRequests": true,
+  "errors": []
+}

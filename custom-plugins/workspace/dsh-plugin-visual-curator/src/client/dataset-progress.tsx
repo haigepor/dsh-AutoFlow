@@ -2,15 +2,15 @@
 /** @jsx React.createElement */
 /** @jsxFrag React.Fragment */
 /** Dataset labels adapt persisted export phases to the shared task presentation. */
-import type { DatasetEntry } from '../shared/datasets.ts'
+import type { DatasetEntry, DatasetScope } from '../shared/datasets.ts'
 import { datasetActive, type DatasetClientState, type DatasetSubmission } from './dataset-store.ts'
 import { createBackgroundTaskCard } from './background-task-card.tsx'
 import type { WorkbenchText } from './workbench-locale.ts'
 
-/** @param state Current owner-private observation. @param styleId Current collection. @param profileId Optional specific profile. @returns The pending submission or most recent relevant task. */
-export function datasetNotice(state: DatasetClientState, styleId: string, profileId?: string): { submission?: DatasetSubmission; entry?: DatasetEntry } {
-  const submission = state.submissions.filter(item => item.styleId === styleId && (!profileId || item.profileId === profileId)).at(-1)
-  const entry = state.entries.filter(row => row.styleId === styleId && (!profileId || row.modelProfileId === profileId) && (!submission || row.runId === submission.runId) && !state.dismissed.includes(row.id) && (datasetActive(row.status) || state.watched.includes(row.id))).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+/** @param state Current owner-private observation. @param styleId Current collection. @param profileId Optional specific profile. @param sampleScope Optional frozen export scope. @returns The pending submission or most recent relevant task. */
+export function datasetNotice(state: DatasetClientState, styleId: string, profileId?: string, sampleScope?: DatasetScope): { submission?: DatasetSubmission; entry?: DatasetEntry } {
+  const submission = state.submissions.filter(item => item.styleId === styleId && (!profileId || item.profileId === profileId) && (!sampleScope || item.sampleScope === sampleScope)).at(-1)
+  const entry = state.entries.filter(row => row.styleId === styleId && (!profileId || row.modelProfileId === profileId) && (!sampleScope || row.sampleScope === sampleScope) && (!submission || row.runId === submission.runId) && !state.dismissed.includes(row.id) && (datasetActive(row.status) || state.watched.includes(row.id))).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
   return { ...(submission ? { submission } : {}), ...(entry ? { entry } : {}) }
 }
 

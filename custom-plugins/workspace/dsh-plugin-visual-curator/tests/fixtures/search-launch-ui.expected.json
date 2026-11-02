@@ -1,15 +1,20 @@
 {
-  "prefilled": true,
-  "defaultQuantity": "10",
-  "original": "保留原图",
-  "presetVisible": true,
+  "catalogDefault": true,
+  "selectedModelSubmitted": true,
+  "datasetSubmitted": true,
+  "defaultNegativeDatasets": true,
+  "automaticMissingPackage": true,
+  "navigateDuringDatasetPreparation": true,
+  "frozenOnReopen": true,
+  "dialogMaterial": true,
   "narrowOverflow": false,
-  "footerVisible": true,
-  "reopenedReadOnly": true,
-  "retrySameIdentity": true,
-  "workspace": "archive",
-  "exactSession": true,
-  "hasRealCounts": true,
+  "nativeNavigation": true,
+  "navigateAfterSessionCreation": true,
+  "navigateBeforeModelReady": true,
   "escapeCloses": true,
+  "themes": [
+    "dark",
+    "light"
+  ],
   "errors": []
 }

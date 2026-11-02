@@ -60,13 +60,13 @@ test('analysis preflight verifies one snapshot and reads feedback without assemb
   } finally { await f.cleanup() }
 })
 
-test('analysis preflight groups committed requests once across historical runs', async () => {
+test('analysis preflight reads only registered requests from relevant historical runs', async () => {
   const f = await savedAnalysis(true)
   try {
     f.repository.listReads.clear()
     const plan = z.object({ total: z.number(), digest: z.string() }).parse(await f.action('reference-state', { styleId: f.styleId }))
     assert.equal(plan.total, 1)
-    assert.equal(f.repository.listReads.get('request'), 1)
+    assert.equal(f.repository.listReads.get('request') ?? 0, 0)
     assert.equal(z.object({ digest: z.string() }).parse(await f.action('reference-state', { styleId: f.styleId })).digest, plan.digest)
   } finally { await f.cleanup() }
 })

@@ -6,6 +6,32 @@ import { archiveCollections, draftArgs, filterReferences, publishStyle, resultId
 import type { ImageView } from '../src/client/contract.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
 
+test('renaming a collection retains its images and selection without reloading the workspace', async () => {
+  const f = await serviceFixture(); await f.service.initialize()
+  const reads: string[] = []
+  const store = createCuratorStore({ invoke: (operation, args) => { reads.push(operation); return f.action(operation, args) } })
+  try {
+    const styleId = resultId(await store.execute('style-create', { operationId: 'rename-create', name: 'Original' }))
+    await store.execute('reference-import', { operationId: 'rename-import', styleId, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    const before = store.getSnapshot(), style = before.snapshot!.styles.find(item => item.styleId === styleId)!
+    const input = { operationId: 'rename-label', styleId, expectedRevision: style.revision, name: 'Renamed' }
+    reads.length = 0
+    await store.execute('style-rename', input)
+    const after = store.getSnapshot(), renamed = after.snapshot!.styles.find(item => item.styleId === styleId)!
+    assert.deepEqual(reads, ['style-rename'])
+    assert.equal(after.styleId, before.styleId)
+    assert.equal(renamed.name, 'Renamed')
+    assert.equal(renamed.revision, style.revision + 1)
+    assert.strictEqual(after.snapshot!.images, before.snapshot!.images)
+    assert.strictEqual(renamed.referenceIds, style.referenceIds)
+    assert.strictEqual(after.referencePages[styleId], before.referencePages[styleId])
+    await store.execute('style-rename', input)
+    assert.equal(store.getSnapshot().snapshot!.styles.find(item => item.styleId === styleId)!.revision, renamed.revision)
+    await assert.rejects(store.execute('style-rename', { ...input, operationId: 'rename-stale', name: 'Stale' }), { code: 'revision-conflict' })
+    await assert.rejects(f.action('style-rename', { ...input, operationId: 'rename-empty', expectedRevision: renamed.revision, name: '  ' }), { code: 'invalid-input' })
+  } finally { store.dispose(); await f.cleanup() }
+})
+
 test('bulk removal uses the confirmed collection list and leaves later collections available', async () => {
   const f = await serviceFixture(); await f.service.initialize()
   const store = createCuratorStore({ invoke: f.action })
@@ -139,4 +165,14 @@ test('image browsing combines filename and role filters without including other 
   assert.deepEqual(filterReferences(images, style, '', 'all').map(item => item.referenceId), ['positive', 'negative', 'undecided', 'legacy'])
   assert.equal(images.length, 6)
   assert.equal(style.referenceIds.length, 5)
+})
+
+test('reference filtering reads collection membership in linear work while retaining image order', () => {
+  let reads = 0
+  const ids = Array.from({ length: 128 }, (_, index) => `linear-reference-${index}`)
+  const referenceIds = new Proxy(ids, { get(target, key, receiver) { if (typeof key === 'string' && /^\d+$/.test(key)) reads++; return Reflect.get(target, key, receiver) } })
+  const images: ImageView[] = ids.map(referenceId => ({ referenceId, imageVersionId: referenceId, assetId: referenceId, familyId: referenceId, styleId: 'linear-style', name: referenceId,
+    width: 400, height: 200, kind: 'normalized', previewPath: '/api/visual-curator/resource?imageVersionId=' + referenceId, source: 'local', exportPermission: 'references-only', groupingStatus: 'unreviewed' }))
+  assert.deepEqual(filterReferences(images, { styleId: 'linear-style', referenceIds }, '', 'all').map(image => image.referenceId), ids)
+  assert.ok(reads <= ids.length * 2, `Filtering ${ids.length} references performed ${reads} membership reads`)
 })

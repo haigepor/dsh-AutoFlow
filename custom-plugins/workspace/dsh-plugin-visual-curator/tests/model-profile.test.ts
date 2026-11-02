@@ -3,17 +3,92 @@ import assert from 'node:assert/strict'
 import { z } from 'zod'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { dataOf } from '../src/host/runtime.ts'
-import { fileChecksum } from '../src/domain/repository.ts'
+import { fileChecksum, MemoryDomainAdapter, type CommitInput } from '../src/domain/repository.ts'
+import { ModelProfiles } from '../src/domain/model-profile.ts'
+import { profileProjectionFixture } from './helpers/profile-projection-fixture.ts'
 import { readFile } from 'node:fs/promises'
+import { createCuratorStore } from '../src/client/store.ts'
+import { profileSaveReceiptSchema } from '../src/shared/profile-selection.ts'
+import sharp from 'sharp'
 
 async function recognized(f: Awaited<ReturnType<typeof serviceFixture>>) {
   const { id } = z.object({ id: z.string() }).parse(await f.action('style-create', { name: 'Automatic profile', operationId: 'auto-style' }))
-  await f.action('reference-import', { operationId: 'auto-import', styleId: id, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+  const reference = await sharp({ create: { width: 80, height: 40, channels: 3, background: '#617a48' } }).png().toBuffer()
+  await f.action('reference-import', { operationId: 'auto-import', styleId: id, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: reference.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
   const { runId } = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'auto-analysis', styleId: id, buildDataset: true }))
   await f.jobs.drain()
   assert.equal(f.domain.require('run', runId).status, 'completed', JSON.stringify(dataOf(f.domain.require('run', runId)).error))
   return { styleId: id, runId }
 }
+
+test('rule selection saves and reconciliation retain loaded observations without workspace reads', async () => {
+  const f = await serviceFixture(); await f.service.initialize()
+  const operations: string[] = []
+  const store = createCuratorStore({ invoke: (operation, args) => { operations.push(operation); return f.action(operation, args) } })
+  try {
+    const { styleId, runId } = await recognized(f)
+    await store.reload()
+    await store.reconcileProfile(styleId)
+    const before = store.getSnapshot(), original = before.snapshot!.styles.find(style => style.styleId === styleId)!.modelProfile!
+    operations.length = 0
+    const saved = profileSaveReceiptSchema.parse(await store.execute('profile-save', { operationId: 'quick-selection', styleId, analysisRunId: runId, expectedProfileId: original.id, changes: [{ ruleId: original.options[0]!.rule.ruleId, enabled: false }] }))
+    const after = store.getSnapshot(), profile = after.snapshot!.styles.find(style => style.styleId === styleId)!.modelProfile!
+    assert.deepEqual(operations, ['profile-save'])
+    assert.equal(profile.id, saved.id)
+    assert.equal(profile.options[0]!.enabled, false)
+    assert.strictEqual(profile.samples, original.samples)
+    assert.strictEqual(profile.summary, original.summary)
+    assert.strictEqual(after.snapshot!.images, before.snapshot!.images)
+    assert.strictEqual(after.referencePages[styleId], before.referencePages[styleId])
+    const latest = profileSaveReceiptSchema.parse(await f.action('profile-save', { operationId: 'outside-selection', styleId, analysisRunId: runId, expectedProfileId: profile.id, changes: [{ ruleId: profile.options[0]!.rule.ruleId, enabled: true }] }))
+    operations.length = 0
+    await store.reconcileProfile(styleId)
+    const reconciled = store.getSnapshot().snapshot!.styles.find(style => style.styleId === styleId)!.modelProfile!
+    assert.deepEqual(operations, ['profile-current'])
+    assert.equal(reconciled.id, latest.id)
+    assert.equal(reconciled.options[0]!.enabled, true)
+    assert.strictEqual(reconciled.samples, original.samples)
+    assert.equal('samples' in saved, false)
+  } finally { store.dispose(); await f.cleanup() }
+})
+
+test('profile freshness checks authorize every image while verifying shared records once per read', async context => {
+  const f = await profileProjectionFixture(41)
+  try {
+    const profile = f.repository.list('modelProfile').find(row => row.styleId === f.styleIds[0])!, profiles = new ModelProfiles(f.domain)
+    const adapter: unknown = Reflect.get(f.repository, 'adapter')
+    assert.ok(adapter instanceof MemoryDomainAdapter)
+    const reads = context.mock.method(adapter, 'readRecord'), authorized = context.mock.method(f.domain, 'authorizedImage')
+    assert.equal(profiles.isFresh(profile, f.actor), true)
+    assert.equal(authorized.mock.calls.filter(call => profile.references.some(ref => ref.reference.imageVersionId === call.arguments[0])).length, profile.references.length)
+    assert.equal(reads.mock.calls.filter(call => call.result?.kind === 'asset').length, 1)
+    reads.mock.resetCalls()
+    assert.equal(profiles.isFresh(profile, f.actor), true)
+    assert.equal(reads.mock.calls.filter(call => call.result?.kind === 'asset').length, 1, 'Independent reads must verify the shared record again')
+    const imageId = profile.references[0]!.reference.imageVersionId, manifest = f.repository.manifests().find(row => row.records.some(record => record.kind === 'imageVersion' && record.id === imageId))!, pointer = manifest.records.find(record => record.kind === 'imageVersion' && record.id === imageId)!
+    const image = f.domain.require('imageVersion', imageId)
+    adapter.records.set(pointer.key, { ...image, geometry: { ...image.geometry, width: image.geometry.width + 1 } })
+    assert.throws(() => profiles.isFresh(profile, f.actor), { code: 'reference-unavailable' })
+  } finally { await f.cleanup() }
+})
+
+test('a reference change during selection commit is visible in the returned freshness receipt', async context => {
+  const f = await serviceFixture(); await f.service.initialize()
+  try {
+    const { styleId, runId } = await recognized(f), profile = f.repository.list('modelProfile')[0]!, commit = f.repository.commit.bind(f.repository)
+    context.mock.method(f.repository, 'commit', async (input: CommitInput) => {
+      const result = await commit(input)
+      if (input.operationId === 'concurrent-selection') {
+        const style = f.domain.require('style', styleId)
+        await f.action('reference-import', { operationId: 'concurrent-reference', styleId, expectedRevision: style.revision, files: [{ name: 'late-reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'negative', intent: 'overall', dimensions: [] }] })
+      }
+      return result
+    })
+    const saved = profileSaveReceiptSchema.parse(await f.action('profile-save', { operationId: 'concurrent-selection', styleId, analysisRunId: runId, expectedProfileId: profile.id, changes: [{ ruleId: profile.options[0]!.rule.ruleId, enabled: false }] }))
+    assert.equal(saved.stale, true)
+    await assert.rejects(f.action('profile-save', { operationId: 'after-concurrent-reference', styleId, analysisRunId: runId, expectedProfileId: saved.id, changes: [{ ruleId: profile.options[0]!.rule.ruleId, enabled: true }] }), { code: 'revision-conflict' })
+  } finally { await f.cleanup() }
+})
 
 test('completed vision analysis automatically adopts traceable rules and exports reference data without human publication or split confirmation', async () => {
   const f = await serviceFixture(); await f.service.initialize()

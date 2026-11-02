@@ -1,0 +1,73 @@
+/** Native Workbench inputs exercise hidden references and closed-profile work without external media. */
+async page => {
+  const assert = (value, message) => { if (!value) throw new Error(message) }
+  const errors = [], onError = error => errors.push(error.message)
+  const baseline = new URL(page.url()).searchParams.has('baseline')
+  page.on('pageerror', onError)
+  const media = route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#496252"/></svg>' })
+  await page.route('**/api/visual-curator/resource**', media)
+  try {
+    await page.setViewportSize({ width: 1440, height: 1000 }); await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.waitForFunction(() => window.incrementalFixture)
+    await page.evaluate(() => window.incrementalFixture.preparePerformance(1024))
+    const figures = page.locator('.vc-reference-grid > figure')
+    await page.waitForFunction(baseline => { const grid = document.querySelector('.vc-reference-grid'), count = grid?.querySelectorAll(':scope > figure').length ?? 0; return baseline ? count === 1024 : grid?.getAttribute('data-reference-total') === '1024' && count > 1 && count < 128 }, baseline)
+    const initialRendered = await figures.count()
+    await page.getByRole('button', { name: '列表', exact: true }).click()
+    const input = page.getByRole('textbox', { name: '按文件名搜索已加载图片', exact: true })
+    const inputTimes = []
+    for (const query of ['vehicle 102', 'never-match-name', 'vehicle 102']) {
+      await input.evaluate(element => { window.fixtureInputAt = performance.now(); element.addEventListener('input', () => { window.fixtureInputAt = performance.now() }, { once: true }) })
+      await input.fill(query)
+      await page.waitForFunction(count => document.querySelectorAll('.vc-reference-grid > figure').length === count, query === 'never-match-name' ? 0 : 5)
+      inputTimes.push(await page.evaluate(() => performance.now() - window.fixtureInputAt))
+    }
+    const before = await page.evaluate(() => window.incrementalFixture.performanceCounts())
+    await page.getByRole('tab', { name: '找图与裁剪', exact: true }).click()
+    await page.getByRole('tab', { name: '找图与裁剪', exact: true }).getAttribute('aria-selected').then(value => assert(value === 'true', 'Task view must activate'))
+    const hiddenReferences = await figures.count()
+    await page.getByRole('tab', { name: '数据集', exact: true }).click()
+    assert(await figures.count() === hiddenReferences, 'Every inactive reference view must release the same image subtree')
+    await page.getByRole('tab', { name: '参考与画像', exact: true }).click()
+    assert(await input.inputValue() === 'vehicle 102', 'Reference search must survive tab switches')
+    assert(await page.locator('.vc-reference-grid.vc-image-list').count() === 1, 'Reference layout must survive tab switches')
+    assert(await figures.count() === 5, 'Returning restores the same filtered references')
+    await input.fill(''); await page.waitForFunction(baseline => { const grid = document.querySelector('.vc-reference-grid'), count = grid?.querySelectorAll(':scope > figure').length ?? 0; return baseline ? count === 1024 : grid?.getAttribute('data-reference-total') === '1024' && count > 1 && count < 128 }, baseline)
+    await page.locator('.vc-library-pane').evaluate(element => { element.scrollTop = 600 })
+    const scrollTop = await page.locator('.vc-library-pane').evaluate(element => element.scrollTop)
+    await page.getByRole('tab', { name: '找图与裁剪', exact: true }).click()
+    const hiddenFullReferences = await figures.count()
+    await page.getByRole('tab', { name: '参考与画像', exact: true }).click()
+    await page.waitForFunction(expected => Math.abs(document.querySelector('.vc-library-pane').scrollTop - expected) <= 1, scrollTop)
+    const restoredScrollTop = await page.locator('.vc-library-pane').evaluate(element => element.scrollTop)
+    assert(Math.abs(restoredScrollTop - scrollTop) <= 1, 'Switching views must retain the reference scroll position')
+    await page.locator('.vc-library-pane').evaluate(element => { element.scrollTop = element.scrollHeight })
+    await page.waitForFunction(() => [...document.querySelectorAll('.vc-reference-grid > figure img')].some(image => image.alt === 'vehicle 1023'))
+    const tailRendered = await figures.count()
+    await page.getByRole('button', { name: '网格', exact: true }).click()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.locator('.vc-library-pane').evaluate(element => { element.scrollTop = element.scrollHeight })
+    await page.waitForFunction(() => [...document.querySelectorAll('.vc-reference-grid > figure img')].some(image => image.alt === 'vehicle 1023'))
+    assert(await page.locator('.vc-library-pane').evaluate(element => element.scrollWidth <= element.clientWidth + 1), 'Narrow virtual rows must retain the original grid columns without overflow')
+    await page.evaluate(() => window.incrementalFixture.enablePerformancePaging())
+    await page.waitForFunction(() => window.incrementalFixture.state.performancePageReads === 1)
+    await page.locator('.vc-library-pane').evaluate(element => { element.scrollTop = element.scrollHeight })
+    await page.waitForFunction(() => [...document.querySelectorAll('.vc-reference-grid > figure img')].some(image => image.alt === 'vehicle 1043'))
+    assert(await page.evaluate(() => window.incrementalFixture.state.performancePageReads) === 1, 'The full virtual height must admit each continuation only once')
+    const lastFigure = page.locator('.vc-reference-grid > figure').last()
+    if (!baseline) assert(await lastFigure.getAttribute('aria-setsize') === '1044', 'Assistive metadata must retain the complete loaded collection size')
+    await lastFigure.locator('.vc-image-preview').click()
+    const lightbox = page.getByRole('dialog', { name: '预览图片', exact: true })
+    await lightbox.getByText('1044 / 1044', { exact: true }).waitFor()
+    for (let index = 0; index < 20; index++) await lightbox.getByRole('button', { name: '上一张', exact: true }).click()
+    await lightbox.getByText('1024 / 1044', { exact: true }).waitFor()
+    await lightbox.getByRole('button', { name: '关闭', exact: true }).click()
+    const after = await page.evaluate(() => window.incrementalFixture.performanceCounts())
+    const result = { referenceCount: 1024, boundedReferenceWindow: initialRendered < 128 && tailRendered < 128, hiddenReferences, hiddenFullReferences, closedEvidenceReads: after.closedEvidenceReads, searchAndViewRetained: true, referencesRestored: true, scrollRetained: true, lastReferenceReachable: true, automaticTailPage: true, fullLightboxNavigation: true, narrowOverflow: false, pageErrors: errors }
+    if (!baseline) {
+      const expected = await (await page.request.get(new URL('workbench-performance-ui.expected.json', page.url()).href)).json()
+      assert(JSON.stringify(result) === JSON.stringify(expected), 'Inactive-view work and retained state must match the owner-local expectation')
+    }
+    return { behavior: result, diagnostic: { inputToDomMs: inputTimes.map(value => Math.round(value)), evidenceReadsBeforeNavigation: before.closedEvidenceReads, initialRendered, tailRendered } }
+  } finally { page.off('pageerror', onError); await page.unroute('**/api/visual-curator/resource**', media) }
+}

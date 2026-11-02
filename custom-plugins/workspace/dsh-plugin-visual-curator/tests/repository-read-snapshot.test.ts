@@ -22,6 +22,52 @@ function setup() {
   return { adapter, repository, commit }
 }
 
+test('small projections verify the committed body and return independent data without cloning the whole record', async context => {
+  const { adapter, repository, commit } = setup()
+  try {
+    await commit(0, 'initial')
+    const originalClone = structuredClone, clonedKinds: string[] = []
+    context.mock.method(globalThis, 'structuredClone', <T>(value: T): T => {
+      if (value && typeof value === 'object' && 'kind' in value && typeof value.kind === 'string') clonedKinds.push(value.kind)
+      return originalClone(value)
+    })
+    adapter.resetReads()
+    const projected = repository.project('suggestion', 'suggestion-one', (record, revision) => ({ text: record.text, feedbackIds: record.feedbackIds, revision }))
+    assert.ok(projected); assert.equal(projected.text, 'Saved content'); assert.ok(projected.revision.length > 0)
+    assert.deepEqual(clonedKinds, [], 'Only the selected fields are copied')
+    assert.equal(adapter.recordReads, 1)
+    projected.feedbackIds.push('local-only')
+    assert.deepEqual(repository.project('suggestion', 'suggestion-one', record => record.feedbackIds), [])
+    const [key, original] = [...adapter.records.entries()][0]!
+    assert.ok(original.kind === 'suggestion')
+    adapter.records.set(key, { ...original, text: 'Uncommitted content' })
+    assert.throws(() => repository.project('suggestion', 'suggestion-one', record => record.text), { code: 'reference-unavailable' })
+    adapter.records.set(key, original)
+    await commit(1, 'updated', 'Updated content')
+    const updated = repository.project('suggestion', 'suggestion-one', (record, revision) => ({ text: record.text, revision }))
+    assert.equal(updated?.text, 'Updated content'); assert.notEqual(updated?.revision, projected.revision)
+  } finally { await repository.close() }
+})
+
+test('record identities avoid body reads and synchronous scope identities cannot escape into the next read', async () => {
+  const { adapter, repository, commit } = setup()
+  try {
+    await commit(0, 'initial'); adapter.resetReads()
+    assert.deepEqual(repository.recordIds('suggestion'), ['suggestion-one']); assert.equal(adapter.recordReads, 0)
+    assert.equal(repository.readSnapshotIdentity(), undefined)
+    const identity = repository.readSnapshot(() => {
+      const current = repository.readSnapshotIdentity(); assert.ok(current); assert.deepEqual(Object.keys(current), [])
+      assert.equal(repository.readSnapshot(() => repository.readSnapshotIdentity()), current)
+      const ids = repository.recordIds('suggestion'); ids.length = 0; assert.deepEqual(repository.recordIds('suggestion'), ['suggestion-one'])
+      return current
+    })
+    assert.equal(repository.readSnapshotIdentity(), undefined)
+    assert.notEqual(repository.readSnapshot(() => repository.readSnapshotIdentity()), identity)
+    assert.throws(() => repository.project('suggestion', 'suggestion-one', () => { throw new Error('Failed projection') }), /Failed projection/)
+    assert.equal(repository.readSnapshotIdentity(), undefined)
+  } finally { await repository.close() }
+})
+
 test('one synchronous read scope verifies each record once and returns independent clones from get and list', async () => {
   const { adapter, repository, commit } = setup()
   try {

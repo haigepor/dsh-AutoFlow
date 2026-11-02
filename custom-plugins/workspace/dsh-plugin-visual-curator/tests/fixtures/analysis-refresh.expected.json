@@ -1,0 +1,11 @@
+{
+  "firstCount": 2,
+  "appendedCount": 1,
+  "unchangedCount": 0,
+  "observationOrder": ["plan-image-0", "plan-image-1", "plan-image-2"],
+  "retainedImages": 12,
+  "requestCount": 3,
+  "usedTokens": 20,
+  "sendsCursor": true,
+  "boundedCursor": true
+}

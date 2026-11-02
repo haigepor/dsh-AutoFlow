@@ -95,7 +95,7 @@ An Auto denial takes precedence over keyed specialized views. Its generic row pr
 
 Recorded tool details cover goal and schedule tools, Cordis inspection, workflow and Ralph reports, Session event/search/trace queries, agent and teammate controls, background jobs, persistent terminals, and LSP navigation. These expanded bodies read successful logged results, preserve generic input/output for failures or unsupported data, and keep Inspect available. Dates include the viewer's time zone, and statuses reflect the call result rather than current session state. Session traces preserve descendant indentation. LSP results open filesystem paths through the Host callback and display other URIs as text. The browser adapter consumes recorded producer text and JSON; Host service objects and presenter callbacks do not cross into the Client.
 
-Expanded status dots and labels use static semantic colors. Receipt and job-output headers keep neutral text and omit the status while expanded. An interruption receipt confirms only that interruption was requested.
+Expanded status dots and labels use static semantic colors. Receipt and job-output headers keep neutral text and omit the status while expanded. Collapsed job-output rows show the recorded progress or terminal detail before the status and job identity; the expanded output and Inspect retain the recorded content. An interruption receipt confirms only that interruption was requested.
 
 Terminal prompt labels use recorded result `cwd`. Older successful root shell calls fall back to their original workspace and authored workdir; running calls show a directory only when their workdir is absolute. Terminal sends do not infer a process directory from the Session.
 

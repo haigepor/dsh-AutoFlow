@@ -18,12 +18,16 @@ import { RunEngine } from '../src/host/runtime.ts'
 import { modelProfileSchema } from '../src/shared/model.ts'
 import { ModelProfiles } from '../src/domain/model-profile.ts'
 import { readFileSync } from 'node:fs'
+import sharp from 'sharp'
 
 class NativeFixture implements NativeSearchSessions {
   path = ''; created: string[] = []; messages: { sessionId: string; requestId: string; text: string; bytes: Uint8Array }[] = []; cancelled: string[] = []
   fail: 'create-ack' | 'attach' | 'prompt-ack' | 'cancel' | undefined
   readonly sessions = new SessionStore(new Context())
+  readonly selectedModels: { sessionId: string; provider: string; model: string }[] = []
   workspaces() { return [{ id: 'workspace', title: 'Photos', path: this.path }] }
+  async models() { return { conversationModels: [{ provider: 'fixture', model: 'default', label: 'Default' }, { provider: 'fixture', model: 'alternate', label: 'Alternate' }], defaultConversationModel: { provider: 'fixture', model: 'default' } } }
+  async selectModel(sessionId: string, model: { provider: string; model: string }) { this.selectedModels.push({ sessionId, ...model }) }
   async preflight() { return this.workspaces()[0]! }
   async ensure(_target: unknown, id: string) {
     if (!this.created.includes(id)) { this.created.push(id); this.sessions.create(brandString<import('@deepseek-ai/dsh-session').SessionId>(id), { meta: { cwd: this.path } }) }
@@ -39,13 +43,15 @@ class NativeFixture implements NativeSearchSessions {
   async cancel(id: string) { if (this.fail === 'cancel') { this.fail = undefined; throw new Error('Cancel was not acknowledged') } this.cancelled.push(id) }
 }
 
-async function setup(previewSource = false) {
+async function setup(previewSource = false, negativeCount = 0) {
   const native = new NativeFixture(), f = await serviceFixture(undefined, {}, { nativeSessions: native }, previewSource ? { provider: 'unsplash' } : {})
   native.path = f.root
   f.host.sessions.get = id => native.sessions.get(id)
   await f.service.initialize()
   const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'style', name: 'Green photos' }))
-  await f.action('reference-import', { operationId: 'reference', styleId, expectedRevision: 1, files: [{ name: 'ref.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+  const negatives = await Promise.all(Array.from({ length: negativeCount }, async (_, index) => ({ name: `negative-${index}.png`, mime: 'image/png', base64: (await sharp({ create: { width: 80, height: 40, channels: 3, background: { r: 50 + index * 30, g: 25, b: 35 } } }).png().toBuffer()).toString('base64'), role: 'negative', intent: 'overall', dimensions: [] })))
+  const reference = await sharp({ create: { width: 80, height: 40, channels: 3, background: { r: 30, g: 140, b: 35 } } }).png().toBuffer()
+  await f.action('reference-import', { operationId: 'reference', styleId, expectedRevision: 1, files: [{ name: 'ref.png', mime: 'image/png', base64: reference.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }, ...negatives] })
   await f.action('reference-analyze', { operationId: 'analysis', styleId, buildDataset: true }); await f.jobs.drain()
   const profile = f.repository.list('modelProfile')[0]!
   assert.ok(profile)
@@ -62,14 +68,150 @@ async function setup(previewSource = false) {
   return { f, native, profile, styleId, input, settled }
 }
 
+test('automatic preparation creates a Session first and freezes all negative packages without duplicate images', async () => {
+  const { f, native, input, profile, styleId, settled } = await setup(false, 2), commit = f.repository.commit.bind(f.repository)
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>()
+  try {
+    const profiles = new ModelProfiles(f.domain)
+    await profiles.export(profile, 'negative-a', f.actor, { sampleScope: 'negative' })
+    await profiles.export(profile, 'negative-b', f.actor, { sampleScope: 'negative' })
+    await profiles.export(profile, 'negative-private', { ...f.actor, sessionId: 'private' }, { sampleScope: 'negative' })
+    const current = await profiles.save({ operationId: 'new-profile', styleId, analysisRunId: profile.analysisRunId, expectedProfileId: profile.id, changes: [{ ruleId: profile.options[0]!.rule.ruleId, enabled: true, statement: 'Prefer muted green with visible detail.' }] }, f.actor)
+    const options = z.object({ entries: z.array(z.unknown()), negativeReferences: z.object({ datasets: z.number(), references: z.number() }) }).parse(await f.action('search-launch-datasets', { styleId, modelProfileId: current.id }))
+    assert.equal(options.entries.length, 0)
+    assert.deepEqual(options.negativeReferences, { datasets: 2, references: 2 })
+    f.repository.commit = async request => { if (request.records.some(record => record.kind === 'profileExport' && record.modelProfileId === current.id)) { entered.resolve(); await release.promise }; return await commit(request) }
+    const { datasetId: oldDataset, ...draft } = input
+    const automatic = { ...draft, modelProfileId: current.id, autoPrepareDataset: true, includeNegativeDatasets: true }
+    const receipt = searchLaunchViewSchema.parse(await f.action('search-launch-start', automatic))
+    await entered.promise
+    const preparing = z.array(searchLaunchViewSchema).parse(await f.action('search-launch-list'))[0]!
+    assert.equal(preparing.stage, 'preparing-dataset')
+    assert.deepEqual(native.created, [receipt.sessionId])
+    assert.equal(native.messages.length, 0)
+    await profiles.export(profile, 'negative-after-admission', f.actor, { sampleScope: 'negative' })
+    release.resolve()
+    const accepted = await settled(), dataset = f.domain.require('profileExport', accepted.datasetId!)
+    assert.equal(dataset.modelProfileId, current.id)
+    assert.equal(dataset.access.kind, 'profile-library')
+    const attachment = z.object({ negativeReferences: z.object({ datasets: z.array(z.object({ exportId: z.string() })), samples: z.array(z.object({ reference: z.object({ role: z.literal('negative'), imageVersionId: z.string() }), inferred: z.array(z.unknown()) })) }) }).parse(JSON.parse(Buffer.from(native.messages[0]!.bytes).toString('utf8')))
+    assert.equal(attachment.negativeReferences.datasets.length, 2, 'Late and private packages must not change admitted references')
+    assert.equal(attachment.negativeReferences.samples.length, 2)
+    assert.equal(new Set(attachment.negativeReferences.samples.map(sample => sample.reference.imageVersionId)).size, 2)
+    assert.ok(attachment.negativeReferences.samples.every(sample => sample.inferred.length > 0))
+    assert.ok(native.messages[0]!.text.includes('negativeReferences'))
+    await f.action('search-launch-start', automatic); await settled()
+    assert.equal(native.created.length, 1); assert.equal(native.messages.length, 1)
+    assert.equal(f.repository.list('profileExport').filter(item => item.modelProfileId === current.id && !item.sampleScope).length, 1)
+    assert.ok(f.domain.require('profileExport', oldDataset))
+  } finally { release.resolve(); f.repository.commit = commit; await f.cleanup() }
+})
+
+test('automatic preparation reuses an existing complete package and does not republish without launch authorization', async () => {
+  const { f, input, profile, settled } = await setup()
+  try {
+    const { datasetId, ...draft } = input
+    await f.action('search-launch-start', { ...draft, autoPrepareDataset: true, includeNegativeDatasets: true })
+    assert.equal((await settled()).datasetId, datasetId)
+    assert.equal(f.repository.list('profileExport').length, 1)
+    await assert.rejects(new ModelProfiles(f.domain).export(profile, 'unapproved-library-export', f.actor, { shareWithLibrary: true }), { code: 'owner-denied' })
+  } finally { await f.cleanup() }
+})
+
+test('launch dataset choices share verified directory reads and the service package-size cache', async context => {
+  const { f, profile, styleId } = await setup(false, 2)
+  try {
+    await new ModelProfiles(f.domain).export(profile, 'negative-choice', f.actor, { sampleScope: 'negative' })
+    await f.action('datasets-list', { styleId })
+    const serializing = context.mock.method(JSON, 'stringify'), listing = context.mock.method(f.repository, 'list')
+    const choices = z.object({ total: z.number(), negativeReferences: z.object({ datasets: z.number(), references: z.number() }) }).parse(await f.action('search-launch-datasets', { styleId, modelProfileId: profile.id }))
+    assert.equal(choices.total, 1); assert.deepEqual(choices.negativeReferences, { datasets: 1, references: 2 })
+    assert.equal(listing.mock.calls.filter(call => call.arguments[0] === 'modelProfile').length, 1)
+    assert.equal(listing.mock.calls.filter(call => call.arguments[0] === 'profileExport').length, 1)
+    assert.equal(serializing.mock.calls.filter(call => { const value = call.arguments[0]; return value && typeof value === 'object' && 'formatVersion' in value && value.formatVersion === 2 && 'export' in value && 'files' in value }).length, 0)
+  } finally { await f.cleanup() }
+})
+
+test('automatic package generation recovers from failure without creating another Session or export', async () => {
+  const { f, native, input, profile, styleId, settled } = await setup(), commit = f.repository.commit.bind(f.repository)
+  let fail = true
+  try {
+    const current = await new ModelProfiles(f.domain).save({ operationId: 'retry-profile', styleId, analysisRunId: profile.analysisRunId, expectedProfileId: profile.id, changes: [{ ruleId: profile.options[0]!.rule.ruleId, enabled: true, statement: 'Prefer muted green and natural detail.' }] }, f.actor)
+    f.repository.commit = async request => { if (fail && request.records.some(record => record.kind === 'profileExport' && record.modelProfileId === current.id)) { fail = false; throw new Error('Package storage temporarily unavailable') }; return await commit(request) }
+    const { datasetId, ...draft } = input
+    const automatic = { ...draft, modelProfileId: current.id, autoPrepareDataset: true, includeNegativeDatasets: true }
+    await f.action('search-launch-start', automatic)
+    assert.equal((await settled()).status, 'failed')
+    assert.equal(native.created.length, 1)
+    await f.action('search-launch-start', automatic)
+    assert.equal((await settled()).status, 'accepted')
+    assert.equal(native.created.length, 1); assert.equal(native.messages.length, 1)
+    assert.equal(f.repository.list('profileExport').filter(item => item.modelProfileId === current.id).length, 1)
+  } finally { f.repository.commit = commit; await f.cleanup() }
+})
+
+test('observation-only exports cannot start a style-search conversation', async () => {
+  const { f, native, input, profile } = await setup()
+  try {
+    const observations = await new ModelProfiles(f.domain).export(profile, 'positive-observations', f.actor, { sampleScope: 'positive' })
+    await assert.rejects(f.action('search-launch-start', { ...input, datasetId: observations.id }), { code: 'constraint-conflict' })
+    const privateObservations = await new ModelProfiles(f.domain).export(profile, 'private-observations', { ...f.actor, sessionId: 'private' }, { sampleScope: 'positive' })
+    await assert.rejects(f.action('search-launch-start', { ...input, datasetId: privateObservations.id }), { code: 'owner-denied' })
+    assert.equal(native.created.length, 0)
+  } finally { await f.cleanup() }
+})
+
+test('a chosen conversation model is frozen and is not selected again after acknowledgement', async () => {
+  const { f, native, input, settled } = await setup()
+  try {
+    const conversationModel = { provider: 'fixture', model: 'alternate' }, selected = { ...input, conversationModel }
+    await f.action('search-launch-start', selected)
+    const receipt = await settled()
+    assert.deepEqual(receipt.input.conversationModel, conversationModel)
+    assert.deepEqual(native.selectedModels, [{ sessionId: receipt.sessionId, ...conversationModel }])
+    await f.action('search-launch-start', selected); await settled()
+    assert.equal(native.selectedModels.length, 1)
+    assert.equal(native.messages.length, 1)
+  } finally { await f.cleanup() }
+})
+
+test('launch progress reaches attaching only after the native Session exists and is scoped to that Session', async () => {
+  const { f, native, input, settled } = await setup()
+  const ensureEntered = Promise.withResolvers<void>(), releaseEnsure = Promise.withResolvers<void>(), namingEntered = Promise.withResolvers<void>(), releaseNaming = Promise.withResolvers<void>()
+  const ensure = native.ensure.bind(native)
+  native.ensure = async (...args) => { ensureEntered.resolve(); await releaseEnsure.promise; await ensure(...args) }
+  native.name = async () => { namingEntered.resolve(); await releaseNaming.promise }
+  const launches = new SearchLaunches({ domain: f.domain, files: new AssetFiles(join(f.root, 'visual-curator'), { maxFileBytes: 1000000, maxPixels: 80000000, maxDimension: 20000, previewMaxDimension: 1280, maxStorageBytes: 4294967296 }), engine: new RunEngine(f.repository, f.jobs), signal: new AbortController().signal, native: () => native, freeze: async () => { throw new Error('Reading launch progress cannot resolve current defaults') } })
+  try {
+    const receipt = searchLaunchViewSchema.parse(await f.action('search-launch-start', input))
+    await ensureEntered.promise
+    assert.equal(launches.forSession(receipt.sessionId)?.stage, 'creating-session')
+    assert.equal(native.created.length, 0)
+    assert.equal(launches.forSession('another-session'), undefined)
+    releaseEnsure.resolve()
+    await namingEntered.promise
+    assert.equal(launches.forSession(receipt.sessionId)?.stage, 'attaching')
+    assert.deepEqual(native.created, [receipt.sessionId])
+    assert.equal(native.messages.length, 0)
+    releaseNaming.resolve()
+    const accepted = await settled()
+    assert.equal(launches.forSession(receipt.sessionId)?.status, 'accepted')
+    assert.equal(accepted.sessionId, receipt.sessionId)
+  } finally { releaseEnsure.resolve(); releaseNaming.resolve(); await f.cleanup() }
+})
+
 test('native preview launch requests a subject-and-style query plan and preparation preserves it', async () => {
-  const { f, native, input, settled } = await setup(true)
+  const { f, native, input, styleId, settled } = await setup(true)
   try {
     await f.action('search-launch-start', { ...input, output: { kind: 'preview' } })
     const launch = await settled()
     assert.equal(launch.status, 'accepted')
-    assert.match(native.messages[0]!.text, /英文 queries/)
+    assert.match(native.messages[0]!.text, /short English queries/)
+    assert.match(native.messages[0]!.text, /at most half the search-page budget/)
     assert.match(native.messages[0]!.text, /不下载原图/)
+    assert.ok(native.messages[0]!.text.includes(`styleId：${styleId}`))
+    assert.match(native.messages[0]!.text, /afp_\* tools operate a separate AFP service/)
+    assert.match(native.messages[0]!.text, /without visual_style_list or fetching a newer profile/)
     const actor = { kind: 'agent' as const, id: launch.sessionId, sessionId: launch.sessionId, profileId: f.profileId }
     const args = { kind: 'search', releaseId: input.modelProfileId, taskBrief: input.taskBrief, targetCount: 1, output: { kind: 'preview' }, queries: ['muted green forest soft light', 'misty landscape natural light'] }
     const result = z.object({ status: z.literal('ready'), normalizedInput: z.object({ queries: z.array(z.string()), output: z.object({ kind: z.literal('preview') }) }), preparationDigest: z.string() }).parse(await f.service.action({ operation: 'task-prepare', args }, actor, new AbortController().signal))

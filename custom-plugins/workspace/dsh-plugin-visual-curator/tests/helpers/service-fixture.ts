@@ -24,7 +24,7 @@ export class FixtureJobs implements Pick<JobRegistry, 'start'> {
   async drain(): Promise<void> { await Promise.all(this.hooks.map(hook => hook.done)) }
 }
 const envelope = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ type: z.string(), text: z.string().optional() }))]) })) })
-const promptSchema = z.object({ input: z.object({ operation: z.string(), taskBrief: z.string(), stage: z.string().optional(), analysisOutput: z.literal('observations-only').optional(), images: z.array(z.object({ imageVersionId: z.string() })), rules: z.array(z.object({ ruleId: z.string() })) }) })
+const promptSchema = z.object({ outputSchema: z.object({ properties: z.record(z.string(), z.json()) }), input: z.object({ operation: z.string(), taskBrief: z.string(), stage: z.string().optional(), analysisOutput: z.literal('observations-only').optional(), images: z.array(z.object({ imageVersionId: z.string() })), rules: z.array(z.object({ ruleId: z.string(), dimension: z.string() })) }) })
 
 /** Actual adapter input is parsed, so fixtures exercise messages, image bytes and strict output schemas. */
 export class FixtureHttp implements HttpClient {
@@ -39,7 +39,7 @@ export class FixtureHttp implements HttpClient {
     const messages = envelope.parse(JSON.parse(Buffer.from(request.body ?? []).toString('utf8'))).messages
     const content = messages.find(message => message.role === 'user')?.content
     if (!Array.isArray(content)) throw new Error('Expected model image content')
-    const prompt = promptSchema.parse(JSON.parse(content[0]?.text ?? '{}')).input
+    const descriptor = promptSchema.parse(JSON.parse(content[0]?.text ?? '{}')), prompt = descriptor.input
     this.operations.push(`${prompt.operation}:${prompt.stage ?? ''}`)
     const dimensions = ['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth']
     let result: Json
@@ -51,7 +51,7 @@ export class FixtureHttp implements HttpClient {
       result = { name: 'Muted green', summary: 'Soft lighting with muted greens.', matchingPrompt: 'Prefer muted green palettes and soft light; inspect actual candidate pixels.', searchHints: ['muted green landscape'], avoidTerms: ['neon'], dimensions: [{ dimension: 'color', description: 'Muted greens are shared across positive examples.', consistency: 'consistent', supportImageVersionIds: evidence, counterImageVersionIds: [] }], conflicts: [], suggestedRules: [{ statement: 'Use muted green colors.', dimension: 'color', strength: 'preferred', stage: 'source', supportImageVersionIds: evidence, counterImageVersionIds: [], condition: '', exceptions: [] }] }
     }
     else if (prompt.operation === 'propose-crop') result = { feasibility: 'feasible', reason: 'Central subject fits the requested output.', candidates: [{ requestedRect: { x: 0.25, y: 0, width: 0.5, height: 1 }, reason: 'Retains the subject.', protectedContent: 'preserved' }] }
-    else result = { ruleResults: prompt.rules.map(rule => ({ ruleId: rule.ruleId, status: this.mode === 'reject-final' && prompt.stage === 'final' ? 'violated' : 'satisfied', source: 'inferred', reason: 'Fixture result from supplied actual pixels.', evidenceImageVersionIds: [prompt.images[0]?.imageVersionId ?? 'missing'] })), cropPotential: 'crop-candidate', preferenceScores: dimensions.map(dimension => ({ dimension, score: 0.8 })), taskRelevance: 'relevant' }
+    else result = { ruleResults: prompt.rules.map(rule => ({ ruleId: rule.ruleId, status: this.mode === 'reject-final' && prompt.stage === 'final' ? 'violated' : 'satisfied', source: 'inferred', reason: 'Fixture result from supplied actual pixels.', evidenceImageVersionIds: [prompt.images[0]?.imageVersionId ?? 'missing'] })), cropPotential: 'crop-candidate', preferenceScores: dimensions.map(dimension => ({ dimension, score: 0.8 })), taskRelevance: 'relevant', ...(descriptor.outputSchema.properties.subjectFocus ? { subjectFocus: prompt.rules.filter(rule => rule.dimension === 'subject').map(rule => ({ ruleId: rule.ruleId, requirement: 'dominant', observed: 'dominant', reason: 'The intended subject commands the candidate composition.', evidenceImageVersionIds: [prompt.images[0]?.imageVersionId ?? 'missing'] })) } : {}) }
     if (this.mode === 'incomplete-analysis' && prompt.operation === 'analyze') result = { observations: [], ...(prompt.analysisOutput === 'observations-only' ? {} : { suggestedRules: [] }) }
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: this.mode === 'bad-json' ? 'invalid JSON' : JSON.stringify(result) }, finish_reason: 'stop' }] })) }
   }

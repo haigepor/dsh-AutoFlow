@@ -1,0 +1,23 @@
+{
+  "exportChoices": ["all", "positive", "negative"],
+  "roleCountsVisible": true,
+  "distinctPackageTypes": true,
+  "separatedImageCounts": true,
+  "compactCoverage": true,
+  "newProfileNotice": true,
+  "reconciliationExplained": true,
+  "deferredEvidenceRestored": true,
+  "changedAnalysisRefreshesOpenDialog": true,
+  "roleFilterBeforePaging": true,
+  "scopeImagesAndObservations": true,
+  "completeEvidenceRestored": true,
+  "incrementalCachedRolePreview": true,
+  "emptyRoleExplained": true,
+  "negativePages": 2,
+  "negativeOnlyGeneration": true,
+  "frozenSubmissionScope": "negative",
+  "closeWhileSubmitting": true,
+  "narrowOverflow": false,
+  "themes": ["dark", "light"],
+  "pageErrors": []
+}

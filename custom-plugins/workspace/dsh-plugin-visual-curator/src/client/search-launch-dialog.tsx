@@ -17,6 +17,8 @@ export function createSearchLaunchUI(React: typeof import('react'), ui: typeof i
     if (code === 'launch-update-required') return t('searchLaunchUpdateHint')
     if (code === 'preview-source-unsupported') return t('searchLaunchPreviewUnsupported')
     if (stage === 'search-launch-dataset') return t('searchLaunchDatasetRejected')
+    if (stage === 'search-launch-negatives') return t('searchLaunchNegativesFailed')
+    if (stage === 'search-launch-model') return t('searchLaunchModelUnavailable')
     if (code === 'invalid-input') return t('searchLaunchInputRejected')
     if (code === 'configuration-required' || code === 'capability-unavailable') return t('searchLaunchConfigHint')
     if (code === 'connection-unavailable') return t('searchLaunchReadFailed')
@@ -85,8 +87,10 @@ export function createSearchLaunchUI(React: typeof import('react'), ui: typeof i
     const state = useLaunches(value => value), retainedEntry = state.entries.find(item => item.status === 'working' || item.status === 'failed'), retained = state.submission?.input ?? retainedEntry?.input
     const [workspaceId, setWorkspace] = React.useState(retained?.workspaceId ?? ''), [brief, setBrief] = React.useState(retained?.taskBrief ?? t('searchLaunchDefaultBrief').replace('{name}', style.name))
     const [datasetId, setDataset] = React.useState<string>(retained?.datasetId ?? (state.submission ? '' : retainedEntry?.datasetId) ?? '')
+    const modelKey = (value: { provider: string; model: string }) => JSON.stringify([value.provider, value.model])
+    const [conversationModelId, setConversationModel] = React.useState(retained?.conversationModel ? modelKey(retained.conversationModel) : '')
     const [quantity, setQuantity] = React.useState(retained?.targetCount ?? Math.min(10, snapshot.configuration.limits.maxCandidates)), [output, setOutput] = React.useState<string>(retained?.output.kind ?? 'preview'), [usageId, setUsage] = React.useState(retained?.output.kind === 'usage' ? retained.output.usageRevisionId : snapshot.usages[0]?.usageRevisionId ?? '')
-    const operationId = React.useRef(retained?.operationId ?? crypto.randomUUID()), opened = React.useRef(false)
+    const operationId = React.useRef(retained?.operationId ?? crypto.randomUUID()), opened = React.useRef(false), navigateAfterStart = React.useRef(false)
     const usages = state.options?.usages ?? snapshot.usages
     const selected = state.entries.find(item => item.id === operationId.current), pending = state.submission?.input.operationId === operationId.current ? state.submission : null
     const locked = !!pending && pending.status !== 'rejected' || !!selected && selected.status !== 'stopped'
@@ -98,24 +102,31 @@ export function createSearchLaunchUI(React: typeof import('react'), ui: typeof i
     React.useEffect(() => { void actions.loadOptions(); void actions.refresh() }, [actions])
     React.useEffect(() => { if (open && profileId) void actions.loadDatasets(profileId) }, [actions, open, profileId])
     React.useEffect(() => { if (!workspaceId && state.options?.workspaces.length) setWorkspace(state.options.workspaces[0]!.id) }, [state.options, workspaceId])
+    React.useEffect(() => { if (!conversationModelId && state.options?.defaultConversationModel) setConversationModel(modelKey(state.options.defaultConversationModel)) }, [state.options, conversationModelId])
     React.useEffect(() => { if (!usageId && usages.length) setUsage(usages[0]!.usageRevisionId) }, [usages, usageId])
-    React.useEffect(() => { if (selected?.status === 'accepted' && !opened.current) { opened.current = true; if (actions.openSession(selected.sessionId)) onClose() } }, [selected?.status, selected?.sessionId, actions, onClose])
+    React.useEffect(() => {
+      const ready = selected && (selected.status === 'working' || selected.status === 'accepted') && (selected.stage === 'preparing-dataset' || selected.stage === 'attaching' || selected.stage === 'submitting' || selected.stage === 'accepted')
+      if (ready && navigateAfterStart.current && !opened.current && actions.openSession(selected.sessionId)) { opened.current = true; onClose() }
+    }, [selected?.status, selected?.stage, selected?.sessionId, actions, onClose])
     const start = () => {
-      if (pending && pending.status !== 'rejected') { void actions.start(pending.input); return }
-      if (selected && selected.status !== 'stopped') { void actions.retry(selected.id); return }
-      if (!style.modelProfile || !dataset?.exportId || datasetLoading || datasetOptions?.error) return
+      if (pending && pending.status !== 'rejected') { navigateAfterStart.current = true; void actions.start(pending.input); return }
+      if (selected && selected.status !== 'stopped') { navigateAfterStart.current = true; void actions.retry(selected.id); return }
+      if (!style.modelProfile || datasetId && !dataset?.exportId || datasetLoading || datasetOptions?.error || !conversationModel) return
+      navigateAfterStart.current = true
       if (pending?.status === 'rejected' || selected?.status === 'stopped') operationId.current = crypto.randomUUID()
-      void actions.start({ operationId: operationId.current, workspaceId, modelProfileId: style.modelProfile.id, datasetId: dataset.exportId, taskBrief: brief, targetCount: quantity, output: output === 'preview' ? { kind: 'preview' } : output === 'original' ? { kind: 'original' } : { kind: 'usage', usageRevisionId: usageId } })
+      const { label, ...selectedModel } = conversationModel
+      void actions.start({ operationId: operationId.current, workspaceId, modelProfileId: style.modelProfile.id, ...(dataset?.exportId ? { datasetId: dataset.exportId } : { autoPrepareDataset: true }), includeNegativeDatasets: true, conversationModel: selectedModel, taskBrief: brief, targetCount: quantity, output: output === 'preview' ? { kind: 'preview' } : output === 'original' ? { kind: 'original' } : { kind: 'usage', usageRevisionId: usageId } })
     }
-    const workspace = state.options?.workspaces.find(item => item.id === workspaceId), usage = usages.find(item => item.usageRevisionId === usageId)
-    const incompatible = !!state.options && (state.options.datasetSelection !== 'required' && (!locked || !!(selected?.input.datasetId ?? pending?.input.datasetId)) || output === 'preview' && state.options.previewSearch === undefined)
+    const workspace = state.options?.workspaces.find(item => item.id === workspaceId), usage = usages.find(item => item.usageRevisionId === usageId), conversationModel = state.options?.conversationModels.find(item => modelKey(item) === conversationModelId)
+    const negativeReferences = locked ? selected?.negativeReferences : datasetOptions?.negativeReferences
+    const incompatible = !!state.options && (state.options.datasetSelection !== 'required' && (!locked || !!(selected?.input.datasetId ?? pending?.input.datasetId)) || output === 'preview' && state.options.previewSearch === undefined || state.options.conversationModelSelection !== true && (!locked || !!retained?.conversationModel) || (!locked && !datasetId || retained?.autoPrepareDataset) && state.options.automaticDatasetPreparation !== true || (!locked || retained?.includeNegativeDatasets) && state.options.negativeReferenceDatasets !== true)
     const previewUnsupported = output === 'preview' && state.options?.previewSearch === false
     const failure = pending?.error ? pending.failure : selected?.status === 'failed' ? selected.error : state.failure
     const errorCode = incompatible ? 'launch-update-required' : previewUnsupported ? 'preview-source-unsupported' : pending?.error || (selected?.status === 'failed' ? selected.error?.code : undefined) || state.error
     const unknown = pending?.status === 'unknown', preparing = pending?.status === 'submitting' || selected?.status === 'working'
     const failed = !!errorCode || selected?.status === 'failed', feedback = failed || unknown || preparing
     const refresh = () => { void actions.loadOptions(); void actions.refresh(); if (profileId) void actions.loadDatasets(profileId) }
-    const invalid = !locked && (!workspace || !brief.trim() || !Number.isInteger(quantity) || quantity < 1 || quantity > (state.options?.maxTargetCount ?? snapshot.configuration.limits.maxCandidates) || output === 'usage' && !usage || !style.modelProfile || style.modelProfile.stale || !dataset?.exportId || datasetLoading || !!datasetOptions?.error)
+    const invalid = !locked && (!workspace || !conversationModel || !brief.trim() || !Number.isInteger(quantity) || quantity < 1 || quantity > (state.options?.maxTargetCount ?? snapshot.configuration.limits.maxCandidates) || output === 'usage' && !usage || !style.modelProfile || style.modelProfile.stale || !!datasetId && !dataset?.exportId || datasetLoading || !!datasetOptions?.error)
     return <ui.Modal open={open} onClose={onClose} title={t('searchLaunchTitle')} closeLabel={t('close')} className="vc-search-launch-modal" contentClassName="vc-search-launch-content" footer={<div className="vc-search-launch-footer"><p className="vc-search-launch-hint">{t(output === 'preview' ? 'searchLaunchPreviewHint' : 'searchLaunchAutoHint')}</p><div className="vc-task-footer"><ui.Button variant="outline" onClick={onClose}>{t('close')}</ui.Button><ui.Button variant="primary" disabled={preparing || incompatible || previewUnsupported || invalid} onClick={start}>{preparing && <ui.StateDot state="ongoing" />}{t(unknown || selected?.status === 'failed' ? 'searchLaunchContinue' : 'startTask')}</ui.Button></div></div>}>
       <div className="vc-search-launch-form"><div className="vc-search-launch-summary"><ui.IconSparkleRegular size={16} /><strong>{style.name}</strong>{dataset ? <ui.Tag>v{dataset.profileRevision}</ui.Tag> : !locked && style.modelProfile ? <ui.Tag>v{style.modelProfile.revision}</ui.Tag> : null}</div>
       {feedback && <section className="vc-search-launch-feedback" role={failed ? 'alert' : 'status'}>
@@ -129,15 +140,17 @@ export function createSearchLaunchUI(React: typeof import('react'), ui: typeof i
         <div className="vc-search-launch-field-heading"><span>{t('searchLaunchDataset')} <span aria-hidden="true">*</span></span>{!locked && <ui.Button size="sm" variant="ghost" disabled={datasetLoading} onClick={() => { void actions.loadDatasets(profileId) }}><ui.IconRefreshOutlineRegular size={14} />{t('refresh')}</ui.Button>}</div>
         {locked ? <div className="vc-search-launch-fixed"><ui.StateDot state={frozenDatasetId ? 'done' : 'ongoing'} /><div><span>{t('searchLaunchDatasetFixed')}</span>{frozenDatasetId && <small>{frozenDatasetId}</small>}</div></div>
           : datasetLoading && !datasetOptions?.entries.length ? <span className="vc-skeleton-fill vc-search-launch-skeleton" aria-busy="true" />
-            : <SelectField label={t('searchLaunchDatasetRequired')} value={datasetId} options={[{ value: '', label: t('searchLaunchDatasetChoose') }, ...(datasetOptions?.entries ?? []).map(item => ({ value: item.exportId!, label: `${item.name} · v${item.profileRevision} · ${new Date(item.createdAt).toLocaleString()}` }))]} disabled={datasetLoading || !datasetOptions?.entries.length} onChange={setDataset} />}
-        {!locked && (!dataset || datasetOptions?.error) && <small role={datasetOptions?.error ? 'alert' : undefined}>{datasetOptions?.error ? t('searchLaunchDatasetLoadFailed') : !datasetLoading && !datasetOptions?.entries.length ? t('searchLaunchDatasetEmpty') : t('searchLaunchDatasetHint')}</small>}
+            : <SelectField label={t('searchLaunchDatasetRequired')} value={datasetId} options={[{ value: '', label: t('searchLaunchDatasetAutomatic') }, ...(datasetOptions?.entries ?? []).map(item => ({ value: item.exportId!, label: `${item.name} · v${item.profileRevision} · ${new Date(item.createdAt).toLocaleString()}` }))]} disabled={datasetLoading} onChange={setDataset} />}
+        {!locked && (!dataset || datasetOptions?.error) && <small role={datasetOptions?.error ? 'alert' : undefined}>{datasetOptions?.error ? t('searchLaunchDatasetLoadFailed') : !datasetLoading && !datasetId ? datasetOptions?.total === 0 ? t('searchLaunchDatasetMissing').replace('{version}', String(style.modelProfile?.revision)) : t('searchLaunchDatasetAutomaticHint') : t('searchLaunchDatasetHint')}</small>}
         <div className="vc-search-launch-dataset-meta">{dataset && <small>{t('searchLaunchDatasetSummary').replace('{references}', String(dataset.counts.references)).replace('{rules}', String(dataset.counts.rules))}</small>}<div className="vc-search-launch-dataset-actions">
           {datasetOptions?.pageToken && datasetOptions.entries.length < datasetOptions.total && <ui.Button size="sm" variant="ghost" disabled={datasetLoading} onClick={() => { void actions.loadDatasets(profileId, true) }}>{t('searchLaunchDatasetMore')}</ui.Button>}
           {dataset && <ui.Button size="sm" variant="ghost" disabled={!onDatasets} onClick={() => onDatasets?.(dataset.id)}>{t('searchLaunchDatasetView')}</ui.Button>}
           {!locked && <ui.Button size="sm" variant="ghost" disabled={!onDatasets} onClick={() => onDatasets?.()}>{t('searchLaunchDatasetGenerate')}</ui.Button>}
         </div></div>
       </div>
+      {(!locked || negativeReferences) && <div className="vc-search-launch-field vc-search-launch-negatives" role="note"><strong>{t('searchLaunchNegativesAutomatic')}</strong><small>{datasetLoading && !locked ? t('galleryLoading') : t('searchLaunchNegativesSummary').replace('{datasets}', String(negativeReferences?.datasets ?? 0)).replace('{references}', String(negativeReferences?.references ?? 0))}</small><small>{t('searchLaunchNegativesHint')}</small></div>}
       <label className="vc-search-launch-field"><span>{t('searchLaunchWorkspace')}</span>{state.optionsLoading && !state.options ? <span className="vc-skeleton-fill vc-search-launch-skeleton" aria-busy="true" /> : <SelectField label={t('searchLaunchWorkspace')} value={workspaceId} options={(state.options?.workspaces ?? []).map(item => ({ value: item.id, label: item.title }))} disabled={locked || !state.options?.workspaces.length} onChange={setWorkspace} />}<small>{workspace?.path ?? t('searchLaunchNoWorkspace')}</small></label>
+      <label className="vc-search-launch-field"><span>{t('searchLaunchModel')}</span>{locked && !retained?.conversationModel ? <small>{t('searchLaunchModelLegacy')}</small> : <SelectField label={t('searchLaunchModel')} value={conversationModelId} options={[{ value: '', label: t('searchLaunchModelChoose') }, ...(state.options?.conversationModels ?? []).map(model => ({ value: modelKey(model), label: model.label }))]} disabled={locked || state.optionsLoading} onChange={setConversationModel} />}{!locked && !state.optionsLoading && !state.options?.conversationModels.length && <small>{t('searchLaunchModelUnavailable')}</small>}</label>
       </section><section className="vc-search-launch-section" aria-label={t('searchLaunchRequirements')}><h3>{t('searchLaunchRequirements')}</h3>
       <label className="vc-search-launch-field"><span>{t('taskBriefLabel')}</span><ui.TextArea data-modal-autofocus rows={2} maxLength={4000} value={brief} disabled={locked} onChange={event => setBrief(event.target.value)} /></label>
       <div className="vc-search-launch-grid"><label className="vc-search-launch-field"><span>{t('targetCountLabel')}</span><ui.Input type="number" min={1} max={state.options?.maxTargetCount ?? snapshot.configuration.limits.maxCandidates} value={quantity} disabled={locked} onChange={event => setQuantity(Number(event.target.value))} /></label><label className="vc-search-launch-field"><span>{t('searchLaunchOutput')}</span><SelectField label={t('searchLaunchOutput')} value={output} disabled={locked} options={[{ value: 'preview', label: t('searchLaunchPreview') }, { value: 'original', label: t('searchLaunchOriginal') }, { value: 'usage', label: t('searchLaunchSized') }]} onChange={setOutput} /></label></div>

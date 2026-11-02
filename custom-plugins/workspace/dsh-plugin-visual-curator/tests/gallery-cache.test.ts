@@ -7,7 +7,7 @@ import { createGalleryCache } from '../src/client/gallery-cache.ts'
 const policy = { ttlMs: 100, maxPages: 2, maxBytes: 10000 }
 const page = (id: string) => ({ items: [{ id, title: id, description: '', private: false, totalPhotos: 2 }], nextCursor: null })
 const context = () => ({ namespace: 'profile-a', revision: 'revision-a', accounts: [{ id: 'a', userId: 'owner-a', credentialRef: 'COOKIE_A' }], policy })
-const storage = () => { const values = new Map<string,string>(); return { values, getItem: (key:string) => values.get(key) ?? null, setItem: (key:string,value:string) => { values.set(key,value) }, removeItem: (key:string) => { values.delete(key) } } }
+const storage = () => { const values = new Map<string,string>(); return { values, get length() { return values.size }, key: (index:number) => [...values.keys()][index] ?? null, getItem: (key:string) => values.get(key) ?? null, setItem: (key:string,value:string) => { values.set(key,value) }, removeItem: (key:string) => { values.delete(key) } } }
 test('fresh listings survive cache reconstruction and explicit refresh performs one new read', async () => {
   const saved = storage(); let calls = 0
   const dependencies = { context, storage: saved, now: () => 1, read: async () => { calls++; return page('folder') } }
@@ -82,7 +82,7 @@ test('a late response after all subscribers cancel cannot populate the next read
   await Promise.resolve();assert.deepEqual(await cache.read('gallery-collections',{},new AbortController().signal),page('current'));assert.equal(calls,2);cache.dispose()
 })
 test('oversized, corrupt storage, rejected reads and non-list operations are never cached', async () => {
-  const saved=storage(); saved.values.set('visual-curator.gallery-cache.v2','invalid JSON')
+  const saved=storage(); saved.values.set('visual-curator.gallery-cache.v3','invalid JSON')
   let calls=0
   const cache=createGalleryCache({context,storage:saved,read:async operation=>{calls++;if(operation==='gallery-collections')throw new Error('offline');return {accountId:'a'}}})
   const signal=new AbortController().signal
@@ -97,4 +97,119 @@ test('the configured page and byte budgets evict old pages without persisting an
   assert.equal(calls,3); cache.dispose()
   const tiny=createGalleryCache({context:()=>({...context(),policy:{...policy,maxBytes:100}}),storage:saved,read:async()=>{calls++;return page('oversized')}})
   await tiny.read('gallery-collections',{},signal); await tiny.read('gallery-collections',{},signal); assert.equal(calls,5); assert.equal(saved.values.size,0); tiny.dispose()
+})
+
+test('incremental persistence stays proportional to loaded metadata and retains every committed page after reconstruction', async () => {
+  const saved = storage(), writes: number[] = [], set = saved.setItem
+  saved.setItem = (key, value) => { writes.push(Buffer.byteLength(value)); set(key, value) }
+  let calls = 0
+  const dependencies = { context: () => ({ ...context(), policy: { ...policy, maxPages: 40, maxBytes: 256_000 } }), storage: saved, now: () => 1, read: async (_operation: string, args: Record<string,unknown>) => { calls++; const value = page(String(args.cursor)); value.items[0]!.title = 'Synthetic gallery metadata '.repeat(80); return value } }
+  const signal = new AbortController().signal, cache = createGalleryCache(dependencies)
+  for (let cursor = 0; cursor < 40; cursor++) await cache.read('gallery-collections', { accountId: 'a', cursor: String(cursor) }, signal)
+  const retained = [...saved.values.values()].reduce((sum, value) => sum + Buffer.byteLength(value), 0)
+  assert.ok(retained <= 256_000)
+  assert.ok(writes.reduce((sum, bytes) => sum + bytes, 0) < retained * 3, 'loading another page must not rewrite earlier page contents')
+  cache.dispose()
+  const reloaded = createGalleryCache(dependencies)
+  try {
+    for (let cursor = 0; cursor < 40; cursor++) assert.equal((await reloaded.read('gallery-collections', { accountId: 'a', cursor: String(cursor) }, signal) as ReturnType<typeof page>).items[0]!.id, String(cursor))
+    assert.equal(calls, 40)
+  } finally { reloaded.dispose() }
+})
+
+test('a quota failure while publishing the index preserves memory reads without exposing an uncommitted page on reload', async () => {
+  const saved = storage(), set = saved.setItem
+  let writes = 0, calls = 0
+  saved.setItem = (key, value) => { if (++writes === 3) throw new DOMException('Storage quota', 'QuotaExceededError'); set(key, value) }
+  const dependencies = { context, storage: saved, now: () => 1, read: async () => page(String(++calls)) }, signal = new AbortController().signal
+  const cache = createGalleryCache(dependencies)
+  assert.deepEqual(await cache.read('gallery-collections', {}, signal), page('1'))
+  assert.deepEqual(await cache.read('gallery-collections', {}, signal), page('1'))
+  assert.equal(calls, 1); assert.equal(saved.values.size, 0); cache.dispose()
+  const reloaded = createGalleryCache(dependencies)
+  try { assert.deepEqual(await reloaded.read('gallery-collections', {}, signal), page('2')) }
+  finally { reloaded.dispose() }
+})
+
+test('reconstruction discards an interrupted page write while preserving previously committed pages', async () => {
+  const saved = storage(), set = saved.setItem
+  let interrupted = new Map<string,string>(), calls = 0
+  saved.setItem = (key, value) => { set(key, value); if (key.includes('.page.')) interrupted = new Map(saved.values) }
+  const dependencies = { context, storage: saved, now: () => 1, read: async () => page(String(++calls)) }, signal = new AbortController().signal
+  const cache = createGalleryCache(dependencies)
+  await cache.read('gallery-collections', {}, signal)
+  await cache.read('gallery-collections', { cursor: 'next' }, signal)
+  cache.dispose(); saved.values.clear()
+  for (const [key, value] of interrupted) saved.values.set(key, value)
+  const reloaded = createGalleryCache(dependencies)
+  try {
+    assert.deepEqual(await reloaded.read('gallery-collections', {}, signal), page('1'))
+    assert.equal(calls, 2)
+    assert.deepEqual(await reloaded.read('gallery-collections', { cursor: 'next' }, signal), page('3'))
+    assert.equal(saved.values.size, 3)
+    assert.equal(JSON.parse(saved.getItem('visual-curator.gallery-cache.v3')!).writing, undefined)
+  } finally { reloaded.dispose() }
+})
+
+test('refresh removes every page of its list while keeping unrelated cached lists available after reload', async () => {
+  const saved = storage()
+  let calls = 0
+  const dependencies = { context: () => ({ ...context(), policy: { ...policy, maxPages: 5 } }), storage: saved, now: () => 1, read: async () => page(String(++calls)) }, signal = new AbortController().signal
+  const cache = createGalleryCache(dependencies)
+  await cache.read('gallery-collections', { accountId: 'a' }, signal)
+  await cache.read('gallery-collections', { accountId: 'a', cursor: 'next' }, signal)
+  await cache.read('gallery-collections', { accountId: 'b' }, signal)
+  await cache.read('gallery-collections', { accountId: 'a' }, signal, { refresh: true })
+  cache.dispose()
+  const reloaded = createGalleryCache(dependencies)
+  try {
+    assert.deepEqual(await reloaded.read('gallery-collections', { accountId: 'b' }, signal), page('3'))
+    assert.equal(calls, 4)
+    assert.deepEqual(await reloaded.read('gallery-collections', { accountId: 'a', cursor: 'next' }, signal), page('5'))
+  } finally { reloaded.dispose() }
+})
+
+test('identity changes, expiry and corrupt indexes clean persisted page records before a new read', async () => {
+  const signal = new AbortController().signal
+  for (const change of ['namespace', 'revision', 'account', 'expired', 'future', 'corrupt'] as const) {
+    const saved = storage()
+    let owner = context(), time = 1, calls = 0
+    const dependencies = { context: () => owner, storage: saved, now: () => time, read: async () => page(String(++calls)) }
+    const cache = createGalleryCache(dependencies)
+    await cache.read('gallery-collections', {}, signal); cache.dispose()
+    if (change === 'namespace') owner = { ...owner, namespace: 'profile-b' }
+    if (change === 'revision') owner = { ...owner, revision: 'revision-b' }
+    if (change === 'account') owner = { ...owner, accounts: [{ id: 'a', userId: 'owner-b', credentialRef: 'COOKIE_B' }] }
+    if (change === 'expired') time = 101
+    if (change === 'future') time = 0
+    if (change === 'corrupt') saved.setItem('visual-curator.gallery-cache.v3', 'invalid JSON')
+    const reloaded = createGalleryCache(dependencies)
+    try {
+      assert.deepEqual(await reloaded.read('gallery-collections', {}, signal), page('2'), change)
+      assert.equal(saved.values.size, 2, change)
+    } finally { reloaded.dispose() }
+  }
+})
+
+test('byte ceilings still bound the cache when session storage is unavailable', async () => {
+  let calls = 0
+  const cache = createGalleryCache({ context: () => ({ ...context(), policy: { ...policy, maxBytes: 100 } }), read: async () => page(String(++calls)) })
+  try {
+    const signal = new AbortController().signal
+    await cache.read('gallery-collections', {}, signal)
+    await cache.read('gallery-collections', {}, signal)
+    assert.equal(calls, 2)
+  } finally { cache.dispose() }
+})
+
+test('disposing aborts pending source work and a late response cannot change persisted pages', async () => {
+  const saved = storage()
+  let finish!: (value: unknown) => void, sourceSignal!: AbortSignal
+  const cache = createGalleryCache({ context, storage: saved, read: async (_operation, _args, signal) => { sourceSignal = signal; return await new Promise(resolve => { finish = resolve }) } })
+  const reading = cache.read('gallery-collections', {}, new AbortController().signal)
+  await Promise.resolve(); cache.dispose()
+  assert.equal(sourceSignal.aborted, true)
+  finish(page('late')); await reading
+  assert.equal(saved.values.size, 0)
+  await assert.rejects(cache.read('gallery-collections', {}, new AbortController().signal), { name: 'AbortError' })
 })

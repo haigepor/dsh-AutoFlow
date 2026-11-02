@@ -84,3 +84,18 @@ test('reviewer identity changes with model sampling, output limits and reference
   assert.notEqual(reviewerRevision(resolveConfig({ ...base, vision: { ...base.vision, vendorVersion: 'version-b' } })), identity)
   assert.equal(reviewerRevision(resolveConfig({ ...base, limits: { ...base.limits, pollIntervalMs: 3000, pageSize: 30, deadlineMs: base.limits.deadlineMs + 1 } })), identity)
 })
+test('dataset cache budgets are independently configurable and may disable reuse', () => {
+  const defaults = resolveConfig({}).limits
+  assert.deepEqual([defaults.datasetCacheTtlMs, defaults.datasetCacheMaxViews, defaults.datasetCacheMaxBytes], [60000, 8, 16 * 1024 * 1024])
+  const disabled = resolveConfig({ limits: { datasetCacheTtlMs: 0, datasetCacheMaxViews: 0, datasetCacheMaxBytes: 0 } }).limits
+  assert.deepEqual([disabled.datasetCacheTtlMs, disabled.datasetCacheMaxViews, disabled.datasetCacheMaxBytes], [0, 0, 0])
+  for (const limits of [{ datasetCacheTtlMs: -1 }, { datasetCacheTtlMs: 3600001 }, { datasetCacheMaxViews: 65 }, { datasetCacheMaxBytes: -1 }, { datasetCacheMaxBytes: 128 * 1024 * 1024 + 1 }]) assert.throws(() => resolveConfig({ limits }))
+})
+
+test('analysis task summaries use validated entry and byte limits without retaining complete runs', () => {
+  const limits = resolveConfig({}).limits
+  assert.deepEqual([limits.analysisTaskCacheMaxEntries, limits.analysisTaskCacheMaxBytes], [128, 1024 * 1024])
+  const disabled = resolveConfig({ limits: { analysisTaskCacheMaxEntries: 0, analysisTaskCacheMaxBytes: 0 } }).limits
+  assert.deepEqual([disabled.analysisTaskCacheMaxEntries, disabled.analysisTaskCacheMaxBytes], [0, 0])
+  for (const limits of [{ analysisTaskCacheMaxEntries: -1 }, { analysisTaskCacheMaxEntries: 4097 }, { analysisTaskCacheMaxBytes: -1 }, { analysisTaskCacheMaxBytes: 32 * 1024 * 1024 + 1 }]) assert.throws(() => resolveConfig({ limits }))
+})

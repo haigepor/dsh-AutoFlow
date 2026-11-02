@@ -2,11 +2,24 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { SourceHttpProvider, MediaError } from '../src/media/index.ts'
 import type { HttpClient, HttpRequest, HttpResponse, SourceConfig } from '../src/media/index.ts'
+import { UnsplashApi, UnsplashSourceProvider } from '../src/media/unsplash.ts'
 
 const bounds = { maxBytes: 65536, timeoutMs: 5000, maxRedirects: 1 }
 const config: SourceConfig = { endpoint: 'https://api.example.test/search', method: 'GET', request: { query: 'q', cursor: 'cursor', pageSize: 'limit', language: 'language', filter: 'filter' }, response: { items: '/data/items', nextCursor: '/data/next', id: '/id', previewUrl: '/preview', originalUrl: '/original', width: '/width', height: '/height' }, maxPageSize: 10 }
 const item = { id: 'stable-1', preview: 'https://cdn.example.test/p?signature=short-lived', original: null, width: 80, height: 40 }
 const hasCode = (code: string) => (error: unknown) => error instanceof MediaError && error.code === code
+
+test('Unsplash search and lookup keep the small image separate from the review preview', async () => {
+  const photo = { id: 'photo-1', width: 4000, height: 3000, urls: { small: 'https://images.unsplash.com/photo-1?w=400', regular: 'https://images.unsplash.com/photo-1?w=1080', raw: 'https://images.unsplash.com/photo-1' } }
+  const source = new UnsplashSourceProvider(new UnsplashApi({ async request(path) { return path === '/search/photos' ? { results: [photo], total: 1, total_pages: 1 } : photo } }))
+  const page = await source.search({ query: 'car forest road', pageSize: 1 }, null, bounds)
+  const refreshed = await source.lookup('photo-1', bounds)
+  for (const value of [page.items[0]!, refreshed]) {
+    assert.equal(value.thumbnailUrl, photo.urls.small)
+    assert.equal(value.previewUrl, photo.urls.regular)
+    assert.equal(value.originalUrl, photo.urls.raw)
+  }
+})
 
 class JsonFixture implements HttpClient {
   readonly requests: { url: string; input: HttpRequest }[] = []

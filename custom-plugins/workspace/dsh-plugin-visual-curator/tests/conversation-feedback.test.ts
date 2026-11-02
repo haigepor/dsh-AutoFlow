@@ -6,6 +6,174 @@ import { resultCategory } from '../src/shared/search-feedback.ts'
 
 const report = (sessionId: string, runId: string, status = 'running') => ({ runId, owner: { kind: 'session', sessionId }, kind: 'search', status, stage: 'retrieving', counts: { candidates: 3, qualified: 0 }, warnings: [], results: [], resultSummary: { selected: 0, needsReview: 1, candidates: 2, target: 10 } })
 
+test('conversation pagination reads only new results while refresh revalidates the complete loaded window', async () => {
+  const images = Array.from({ length: 127 }, (_, index) => ({ imageVersionId: `image-${index}`, name: `Image ${index}`, previewPath: '/preview', resultCategory: index < 6 ? 'selected' : index < 9 ? 'review' : 'rejected' }))
+  const requests: { filter: string; size: number; offset: number }[] = []
+  const store = createConversationFeedback({ schedule: () => () => {}, invoke: async (operation, args) => {
+    if (operation === 'session-open') return { sessionToken: 'owner-grant', expiresAt: Date.now() + 100000, pollIntervalMs: 10 }
+    assert.equal(args.sessionId, 'owner'); assert.equal(args.sessionToken, 'owner-grant')
+    const filter = String(args.resultFilter), size = Number(args.pageSize), offset = Number(args.pageToken ?? 0)
+    requests.push({ filter, size, offset }); assert.ok(size > 0 && size <= 100)
+    const filtered = images.filter(image => filter === 'all' || image.resultCategory === filter), end = offset + size
+    return { ...report('owner', 'run'), resultFilter: filter, results: filtered.slice(offset, end), resultSummary: { selected: 6, needsReview: 3, candidates: 127, target: 10 }, ...(end < filtered.length ? { pageToken: String(end) } : {}) }
+  } })
+  const close = store.watch('owner', 'run'), entry = () => store.source('owner').getSnapshot().runs.run
+  try {
+    await setImmediate(); assert.equal(entry()?.run?.results.length, 4)
+    for (let page = 0; page < 7; page++) {
+      const previousCount = entry()!.run!.results.length, before = requests.length
+      store.loadMore('owner', 'run'); await setImmediate()
+      assert.deepEqual(requests.slice(before), [{ filter: 'all', size: 20, offset: previousCount }])
+    }
+    assert.equal(entry()?.run?.results.length, 127); assert.equal(entry()?.run?.pageToken, undefined)
+    assert.equal(new Set(entry()?.run?.results.map(image => image.imageVersionId)).size, 127)
+    assert.equal(requests.length, 8)
+    const beforeRefresh = requests.length
+    store.refresh('owner', 'run'); await setImmediate()
+    assert.equal(entry()?.run?.results.length, 127, 'Live progress must not reset a loaded list to four images')
+    assert.deepEqual(requests.slice(beforeRefresh), [{ filter: 'all', size: 100, offset: 0 }, { filter: 'all', size: 44, offset: 100 }])
+    store.filterResults('owner', 'run', 'selected'); await setImmediate()
+    assert.equal(entry()?.run?.results.length, 4); assert.equal(entry()?.resultFilter, 'selected')
+    store.loadMore('owner', 'run'); await setImmediate()
+    assert.deepEqual(entry()?.run?.results.map(image => image.imageVersionId), images.slice(0, 6).map(image => image.imageVersionId))
+    store.filterResults('owner', 'run', 'review'); await setImmediate()
+    assert.deepEqual(entry()?.run?.results.map(image => image.imageVersionId), ['image-6', 'image-7', 'image-8'])
+  } finally { close(); store.dispose() }
+})
+
+test('expired Session grants refresh the loaded prefix before adding more results', async context => {
+  let now = 1000, grants = 0
+  context.mock.method(Date, 'now', () => now)
+  const requests: { token: string; offset: number; size: number }[] = []
+  const store = createConversationFeedback({ schedule: () => () => {}, invoke: async (operation, args) => {
+    if (operation === 'session-open') return { sessionToken: `grant-${++grants}`, expiresAt: now + 100, pollIntervalMs: 10 }
+    const offset = Number(args.pageToken ?? 0), size = Number(args.pageSize), token = String(args.sessionToken)
+    requests.push({ token, offset, size })
+    return { ...report('owner', 'run'), results: Array.from({ length: size }, (_, index) => ({ imageVersionId: `image-${offset + index}`, name: `Image ${offset + index}`, previewPath: `/preview?grant=${token}` })), pageToken: String(offset + size) }
+  } })
+  const close = store.watch('owner', 'run')
+  try {
+    await setImmediate(); now += 101
+    store.loadMore('owner', 'run'); await setImmediate()
+    assert.deepEqual(requests, [{ token: 'grant-1', offset: 0, size: 4 }, { token: 'grant-2', offset: 0, size: 24 }])
+    const entry = store.source('owner').getSnapshot().runs.run!
+    assert.equal(entry.run?.results.length, 24)
+    assert.ok(entry.run?.results.every(image => image.previewPath === '/preview?grant=grant-2'))
+  } finally { close(); store.dispose() }
+})
+
+test('reopening and loading more cannot merge an old grant prefix or publish a cancelled refresh', async () => {
+  let grants = 0, release: (value: object) => void = () => {}, cancelled: AbortSignal | undefined
+  const requests: { token: string; offset: number; size: number }[] = []
+  const value = (token: string, size: number) => ({ ...report('owner', 'run'), results: Array.from({ length: size }, (_, index) => ({ imageVersionId: `image-${index}`, name: `Image ${index}`, previewPath: `/preview?grant=${token}` })), pageToken: String(size) })
+  const store = createConversationFeedback({ schedule: () => () => {}, invoke: async (operation, args, signal) => {
+    if (operation === 'session-open') return { sessionToken: `grant-${++grants}`, expiresAt: Date.now() + 100000, pollIntervalMs: 10 }
+    const token = String(args.sessionToken), size = Number(args.pageSize)
+    requests.push({ token, offset: Number(args.pageToken ?? 0), size })
+    if (token === 'grant-2' && size === 4) { cancelled = signal; return new Promise<object>(resolve => { release = resolve }) }
+    return value(token, size)
+  } })
+  let close = store.watch('owner', 'run')
+  try {
+    await setImmediate(); close(); close = store.watch('owner', 'run'); await setImmediate()
+    store.loadMore('owner', 'run'); await setImmediate()
+    assert.equal(cancelled?.aborted, true)
+    assert.deepEqual(requests.at(-1), { token: 'grant-2', offset: 0, size: 24 })
+    const entry = () => store.source('owner').getSnapshot().runs.run!
+    assert.equal(entry().run?.results.length, 24)
+    assert.ok(entry().run?.results.every(image => image.previewPath === '/preview?grant=grant-2'))
+    release(value('grant-2', 4)); await setImmediate()
+    assert.equal(entry().run?.results.length, 24)
+  } finally { close(); store.dispose() }
+})
+
+test('a changed continuation retries the complete window once without dropping confirmed results', async () => {
+  const offsets: number[] = []
+  let changed = false, grants = 0, failWindow = false
+  const store = createConversationFeedback({ schedule: () => () => {}, invoke: async (operation, args) => {
+    if (operation === 'session-open') return { sessionToken: `grant-${++grants}`, expiresAt: Date.now() + 100000, pollIntervalMs: 10 }
+    const offset = Number(args.pageToken ?? 0), size = Number(args.pageSize)
+    offsets.push(offset)
+    if (args.pageToken) { changed = true; throw { code: 'invalid-input' } }
+    if (failWindow) throw { code: 'invalid-input' }
+    return { ...report('owner', 'run'), results: Array.from({ length: size }, (_, index) => ({ imageVersionId: `${changed ? 'updated' : 'before'}-${index}`, name: `Image ${index}`, previewPath: '/preview' })), pageToken: String(size) }
+  } })
+  const close = store.watch('owner', 'run')
+  try {
+    await setImmediate(); store.loadMore('owner', 'run'); await setImmediate()
+    assert.deepEqual(offsets, [0, 4, 0]); assert.equal(grants, 1)
+    const entry = store.source('owner').getSnapshot().runs.run!
+    assert.equal(entry.freshness, 'current'); assert.equal(entry.error, undefined)
+    assert.equal(entry.run?.results.length, 24); assert.equal(entry.run?.results[0]?.imageVersionId, 'updated-0')
+    offsets.length = 0; failWindow = true
+    store.loadMore('owner', 'run'); await setImmediate()
+    assert.deepEqual(offsets, [24, 0], 'an invalid first page must not restart the window again')
+    assert.equal(store.source('owner').getSnapshot().runs.run?.freshness, 'stale')
+    assert.equal(store.source('owner').getSnapshot().runs.run?.run?.results.length, 24)
+  } finally { close(); store.dispose() }
+})
+
+test('changing an image filter discards a late page while a failed load retains confirmed images for retry', async () => {
+  let delay = false, fail = false, finish: ((value: object) => void) | undefined
+  const image = { imageVersionId: 'saved', name: 'Saved image', previewPath: '/preview', resultCategory: 'selected' }
+  const images = Array.from({ length: 4 }, (_, index) => ({ ...image, imageVersionId: index === 0 ? 'saved' : `saved-${index}` }))
+  const store = createConversationFeedback({ schedule: () => () => {}, invoke: async (operation, args) => {
+    if (operation === 'session-open') return { sessionToken: 'grant', expiresAt: Date.now() + 100000, pollIntervalMs: 10 }
+    const value = { ...report('owner', 'run'), resultFilter: args.resultFilter, results: args.resultFilter === 'review' || args.pageToken ? [] : images, ...(args.resultFilter === 'all' && !args.pageToken ? { pageToken: 'next' } : {}) }
+    if (fail) throw new Error('offline')
+    if (delay) return new Promise<object>(resolve => { finish = resolve })
+    return value
+  } })
+  const close = store.watch('owner', 'run'), entry = () => store.source('owner').getSnapshot().runs.run
+  try {
+    await setImmediate(); fail = true; store.loadMore('owner', 'run'); await setImmediate()
+    assert.equal(entry()?.loadingMore, undefined); assert.equal(entry()?.freshness, 'stale'); assert.equal(entry()?.run?.results[0]?.imageVersionId, 'saved')
+    fail = false; delay = true; store.loadMore('owner', 'run'); await setImmediate()
+    delay = false; store.filterResults('owner', 'run', 'review'); await setImmediate()
+    finish?.({ ...report('owner', 'run'), resultFilter: 'all', results: [image] }); await setImmediate()
+    assert.equal(entry()?.resultFilter, 'review'); assert.deepEqual(entry()?.run?.results, [])
+  } finally { close(); store.dispose() }
+})
+
+const pendingLaunch = (sessionId: string) => {
+  const id = '949d1789-e443-4ba7-b3d0-9f34f7a3392e'
+  return { id, input: { operationId: id, workspaceId: 'photos', modelProfileId: 'profile', datasetId: 'profile-export-fixture', taskBrief: 'Find muted green landscape images.', targetCount: 10, output: { kind: 'preview' } }, sessionId, status: 'working', stage: 'attaching', createdAt: '2026-10-31T00:00:00Z', updatedAt: '2026-10-31T00:00:00Z', runIds: [], qualified: 0 }
+}
+
+test('a saved launch shows its requirements before the first Run and stops through its owning Session grant', async () => {
+  const launch = pendingLaunch('owner'), calls: string[] = [], timers = new Set<() => void>()
+  let offline = false
+  const store = createConversationFeedback({ schedule: work => { timers.add(work); return () => timers.delete(work) }, invoke: async (operation, args) => {
+    calls.push(operation)
+    if (operation === 'session-open') return { sessionToken: 'grant', expiresAt: Date.now() + 100000, pollIntervalMs: 10 }
+    if (operation === 'conversation-runs') { if (offline) throw new Error('offline'); return { sessionId: 'owner', tasks: [], launch } }
+    if (operation === 'search-launch-stop') { assert.equal(args.sessionId, 'owner'); assert.equal(args.sessionToken, 'grant'); assert.equal(args.id, launch.id); return { ...launch, status: 'stopped', stage: 'stopped' } }
+    throw new Error(operation)
+  } })
+  const source = store.sessionSource('owner'), close = source.subscribe(() => {})
+  try {
+    await setImmediate()
+    assert.deepEqual(source.getSnapshot().tasks?.items, [])
+    assert.equal(source.getSnapshot().tasks?.launch?.input.taskBrief, launch.input.taskBrief)
+    assert.equal(source.getSnapshot().tasks?.launch?.input.targetCount, 10)
+    assert.equal(calls.includes('run-get'), false)
+    offline = true; store.refresh('owner'); await setImmediate()
+    assert.equal(source.getSnapshot().tasks?.freshness, 'stale')
+    assert.equal(source.getSnapshot().tasks?.launch?.id, launch.id)
+    await store.stopLaunch('owner', launch.id)
+    assert.equal(source.getSnapshot().tasks?.launch?.status, 'stopped')
+    offline = false; store.refresh('owner'); await setImmediate()
+    assert.equal(source.getSnapshot().tasks?.launch?.status, 'stopped')
+  } finally { close(); store.dispose() }
+})
+
+test('a task list cannot expose a launch belonging to another Session', async () => {
+  const store = createConversationFeedback({ schedule: () => () => {}, invoke: async operation => operation === 'session-open' ? { sessionToken: 'grant', expiresAt: Date.now() + 100000, pollIntervalMs: 10 } : { sessionId: 'owner', tasks: [], launch: pendingLaunch('other') } })
+  const source = store.sessionSource('owner'), close = source.subscribe(() => {})
+  try { await setImmediate(); assert.equal(source.getSnapshot().tasks?.launch, undefined); assert.equal(source.getSnapshot().tasks?.error, 'owner-denied') }
+  finally { close(); store.dispose() }
+})
+
 test('dock stop uses the owning launch and a late running reply cannot replace its cancelled revision', async () => {
   const calls: string[] = [], timers = new Set<() => void>()
   let cancelled = false

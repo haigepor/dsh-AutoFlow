@@ -9,6 +9,8 @@ import { CuratorDomain } from '../src/domain/curator.ts'
 import { contentDigest, DomainRepository, MemoryDomainAdapter } from '../src/domain/repository.ts'
 import { createCropProcessor } from '../src/host/crop-workflow.ts'
 import { createSearchWorker } from '../src/host/search-workflow.ts'
+import { freezeSearchExclusions } from '../src/host/search-exclusions.ts'
+import { importedRecords } from '../src/host/imports.ts'
 import { projectRun } from '../src/host/projection.ts'
 import { resolveConfig } from '../src/host/config.ts'
 import { BudgetLedger, dataOf, specOf, RunEngine, toJson } from '../src/host/runtime.ts'
@@ -16,7 +18,7 @@ import { FixtureJobs } from './helpers/service-fixture.ts'
 import type { ExecutionSpec, WorkContext } from '../src/host/runtime.ts'
 import { AssetFiles, CompatibleVisionProvider, MediaError, SourceHttpProvider } from '../src/media/index.ts'
 import type { HttpClient, HttpRequest, HttpResponse } from '../src/media/index.ts'
-import { draftSchema, styleSchema, recipeSchema, releaseSchema, requestSchema as persistedRequestSchema, runSchema, usageSchema } from '../src/shared/model.ts'
+import { draftSchema, styleSchema, recipeSchema, releaseSchema, referenceSnapshotSchema, requestSchema as persistedRequestSchema, runSchema, usageSchema } from '../src/shared/model.ts'
 
 const base = { schemaVersion: 1, profileId: 'p', createdAt: '2026-10-23T00:00:00.000Z' }
 const human = { kind: 'authenticated-human', id: 'human', confirmationMethod: 'client-action', confirmedAt: base.createdAt }
@@ -34,6 +36,8 @@ class SearchFixture implements HttpClient {
   readonly sourceRequests: { query: string; cursor: string | null }[] = []
   readonly downloads: string[] = []
   readonly visionOperations: string[] = []
+  readonly reviewedImages: { imageId: string; stage: string }[] = []
+  relevance: (imageId: string) => 'relevant' | 'irrelevant' | 'unknown' = () => 'relevant'
   rejectFinal = false
   unknownFinal = false
   failDownloadAttempts = 0
@@ -60,20 +64,21 @@ class SearchFixture implements HttpClient {
       assert.ok(Array.isArray(content))
       const prompt = promptSchema.parse(JSON.parse(content[0]?.text ?? '{}')).input
       this.visionOperations.push(`${prompt.operation}:${prompt.stage ?? ''}`)
-      const output = prompt.operation === 'propose-crop' ? { feasibility: 'feasible', reason: 'Full square can retain the subject.', candidates: [{ requestedRect: { x: 0, y: 0, width: 1, height: 1 }, reason: 'Full image.', protectedContent: 'preserved' }] } : { ruleResults: prompt.rules.filter(rule => rule.stage === prompt.stage).map(rule => ({ ruleId: rule.ruleId, status: this.unknownFinal && prompt.stage === 'final' ? 'unknown' : this.rejectFinal && prompt.stage === 'final' ? 'violated' : 'satisfied', source: 'inferred', reason: 'Visible image evidence.', evidenceImageVersionIds: [prompt.images[0]?.imageVersionId] })), cropPotential: 'crop-candidate', preferenceScores: [{ dimension: 'color', score: 0.8 }], taskRelevance: 'relevant' }
+      if (prompt.operation !== 'propose-crop') this.reviewedImages.push({ imageId: prompt.images[0]!.imageVersionId, stage: prompt.stage! })
+      const output = prompt.operation === 'propose-crop' ? { feasibility: 'feasible', reason: 'Full square can retain the subject.', candidates: [{ requestedRect: { x: 0, y: 0, width: 1, height: 1 }, reason: 'Full image.', protectedContent: 'preserved' }] } : { ruleResults: prompt.rules.filter(rule => rule.stage === prompt.stage).map(rule => ({ ruleId: rule.ruleId, status: this.unknownFinal && prompt.stage === 'final' ? 'unknown' : this.rejectFinal && prompt.stage === 'final' ? 'violated' : 'satisfied', source: 'inferred', reason: 'Visible image evidence.', evidenceImageVersionIds: [prompt.images[0]?.imageVersionId] })), cropPotential: 'crop-candidate', preferenceScores: [{ dimension: 'color', score: 0.8 }], taskRelevance: this.relevance(prompt.images[0]!.imageVersionId) }
       result = { choices: [{ message: { content: JSON.stringify(output) }, finish_reason: 'stop' }] }
     }
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify(result)) }
   }
 }
 
-async function setup(pages: SearchFixture['pages'], options: { original?: boolean; targetCount?: number; queries?: string[]; maxDownloadBytes?: number; maxImportBytes?: number; maxCandidates?: number; maxVisionCalls?: number } = {}) {
+async function setup(pages: SearchFixture['pages'], options: { original?: boolean; targetCount?: number; queries?: string[]; maxDownloadBytes?: number; maxImportBytes?: number; maxCandidates?: number; maxVisionCalls?: number; maxSearchPages?: number } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'visual-search-'))
   const bytes = await sharp({ create: { width: 100, height: 100, channels: 3, background: 'red' } }).png().toBuffer()
   const fixture = new SearchFixture(bytes, pages)
-  const config = resolveConfig({ source: { endpoint: 'https://source.example.test/search', allowedMediaOrigins: ['https://cdn.example.test'] }, limits: { pageSize: 10, maxVisionCalls: options.maxVisionCalls ?? 100, ...(options.maxDownloadBytes === undefined ? {} : { maxDownloadBytes: options.maxDownloadBytes }), ...(options.maxImportBytes === undefined ? {} : { maxImportBytes: options.maxImportBytes }), ...(options.maxCandidates === undefined ? {} : { maxCandidates: options.maxCandidates }) } })
+  const config = resolveConfig({ source: { endpoint: 'https://source.example.test/search', allowedMediaOrigins: ['https://cdn.example.test'] }, limits: { pageSize: 10, maxVisionCalls: options.maxVisionCalls ?? 100, ...(options.maxSearchPages === undefined ? {} : { maxSearchPages: options.maxSearchPages }), ...(options.maxDownloadBytes === undefined ? {} : { maxDownloadBytes: options.maxDownloadBytes }), ...(options.maxImportBytes === undefined ? {} : { maxImportBytes: options.maxImportBytes }), ...(options.maxCandidates === undefined ? {} : { maxCandidates: options.maxCandidates }) } })
   const files = new AssetFiles(directory, { maxFileBytes: config.limits.maxImportBytes, maxPixels: 1000000, maxDimension: 1000, previewMaxDimension: 32, maxStorageBytes: 10000000 })
-  const repository = new DomainRepository('p', new MemoryDomainAdapter())
+  const adapter = new MemoryDomainAdapter(), repository = new DomainRepository('p', adapter)
   const domain = new CuratorDomain('p', repository, { verifyImage: async image => { await files.read(image.blob) } })
   const spec: ExecutionSpec = { kind: 'search', config, input: { queries: options.queries ?? ['cats'], taskBrief: 'Clear subjects.', targetCount: options.targetCount ?? 10 }, fixed: { release: toJson(release), ...(options.original ? { output: { kind: 'original' } } : { usage: toJson(usage) }) }, specDigest: 'fixed-spec' }
   const ledger = new BudgetLedger(config.limits)
@@ -107,8 +112,133 @@ async function setup(pages: SearchFixture['pages'], options: { original?: boolea
   const vision = new CompatibleVisionProvider({ endpoint: 'https://vision.example.test', model: 'fixture', supportsMultiImage: true, maxImages: 10, maxImageBytes: 1000000, maxRequestBytes: 1000000, maxOutputTokens: 2000, temperature: 0 }, fixture)
   const crop = createCropProcessor({ domain, files, vision: async () => vision })
   const worker = createSearchWorker({ domain, files, source: async () => source, media: () => fixture, vision: async () => vision, crop: async (ctx, ids) => { for (const id of ids) await crop(ctx, id, release, usage) } })
-  return { worker, context, fixture, domain, files, controller, bytes, source, setSignal: (signal: AbortSignal) => { currentSignal = signal }, setAfterSave: (callback: typeof afterSave) => { afterSave = callback }, cleanup: async () => { await rm(directory, { recursive: true, force: true }) } }
+  return { worker, context, fixture, domain, files, controller, bytes, source, adapter, setSignal: (signal: AbortSignal) => { currentSignal = signal }, setAfterSave: (callback: typeof afterSave) => { afterSave = callback }, cleanup: async () => { await rm(directory, { recursive: true, force: true }) } }
 }
+
+test('exact local negative pixels under another source id are skipped without spending vision quota', async () => {
+  const f = await setup(() => ({ items: [item('same-bytes'), item('fresh-bytes')], next: null }), { original: true, targetCount: 1, maxSearchPages: 1 })
+  try {
+    const actor = { kind: 'human' as const, id: 'owner', profileId: 'p' }
+    const media = await f.files.importBytes(f.bytes, 'image/png', f.context.signal)
+    const negative = importedRecords('p', actor, media, { kind: 'local-import', description: 'Negative reference' })
+    await f.domain.repository.commit({ aggregateId: 'negative', expectedRevision: 0, operationId: 'negative', request: {}, records: negative.records, state: {} })
+    const reference = referenceSnapshotSchema.parse({ reference: { ...base, id: 'negative-reference', kind: 'reference', styleId: release.styleId, imageVersionId: negative.image.id, role: 'negative', intent: { kind: 'overall' }, context: {}, feedbackThreadIds: [] }, imageDigest: negative.image.blob.digest, familyId: negative.asset.familyId, feedbackIds: [] })
+    const standard = releaseSchema.parse({ ...release, references: [reference] })
+    f.context.spec.fixed.searchExclusions = toJson(freezeSearchExclusions(f.domain, standard, actor, []))
+    const fresh = await sharp({ create: { width: 100, height: 100, channels: 3, background: 'blue' } }).png().toBuffer()
+    f.fixture.images.set('/fresh-bytes-original', fresh)
+    assert.equal(await f.worker(f.context), 'target-met')
+    const run = f.context.current(), data = dataOf(run)
+    assert.equal(data.counts.excludedNegative, 1); assert.equal(data.counts.technicalFailed, 0)
+    assert.equal(data.budget.search, 1); assert.equal(data.budget.vision, 2)
+    assert.equal(data.budget.downloadBytes, f.bytes.length + fresh.length)
+    assert.deepEqual(f.fixture.downloads, ['/same-bytes-original', '/fresh-bytes-original'])
+    assert.equal(f.fixture.reviewedImages.length, 2)
+    const selection = f.domain.repository.list('selection')[0]!, asset = f.domain.require('asset', f.domain.require('imageVersion', selection.imageVersionId).assetId)
+    assert.equal(asset.source.kind === 'provider' ? asset.source.providerAssetId : '', 'fresh-bytes')
+    assert.equal(f.domain.repository.list('selection').length, 1)
+  } finally { await f.cleanup() }
+})
+
+for (const interrupt of [false, true]) test(`original search yields an off-subject query and follows productive pages${interrupt ? ' after checkpoint recovery' : ''}`, async () => {
+  const f = await setup((query, cursor) => query === 'off-subject'
+    ? { items: [item('bad-1'), item('bad-2')], next: 'bad-next' }
+    : { items: cursor === null ? [item('good-1')] : [item('good-2'), item('good-3')], next: cursor === null ? 'good-next' : null },
+  { original: true, targetCount: 3, queries: ['off-subject', 'productive', 'unexplored'], maxSearchPages: 3 })
+  try {
+    for (const [index, id] of ['bad-1', 'bad-2', 'good-1', 'good-2', 'good-3'].entries()) f.fixture.images.set(`/${id}-original`, await sharp({ create: { width: 100, height: 100, channels: 3, background: { r: 20 + index * 30, g: 80, b: 120 } } }).png().toBuffer())
+    f.fixture.relevance = imageId => {
+      const source = f.domain.require('asset', f.domain.require('imageVersion', imageId).assetId).source
+      return source.kind === 'provider' && source.providerAssetId.startsWith('bad-') ? 'irrelevant' : 'relevant'
+    }
+    if (interrupt) {
+      f.setAfterSave(records => { if (records.some(record => record.kind === 'selection')) f.controller.abort() })
+      await assert.rejects(f.worker(f.context))
+      const saved = z.object({ queryRemainders: z.array(z.object({ queryIndex: z.number(), pageDone: z.array(z.string()) })) }).parse(dataOf(f.context.current()).checkpoint.search)
+      assert.ok(saved.queryRemainders.some(query => query.queryIndex === 0 && query.pageDone.includes('bad-1')))
+      f.setAfterSave(undefined); f.setSignal(new AbortController().signal)
+    }
+    assert.equal(await f.worker(f.context), 'target-met')
+    assert.deepEqual(f.fixture.sourceRequests, [{ query: 'off-subject', cursor: null }, { query: 'productive', cursor: null }, { query: 'productive', cursor: 'good-next' }])
+    assert.equal(f.context.ledger.snapshot().search, 3)
+    assert.equal(f.domain.repository.list('selection').length, 3)
+    assert.equal(f.fixture.reviewedImages.filter(review => review.stage === 'source').length, 4)
+    assert.equal(f.fixture.downloads.length, 4)
+  } finally { await f.cleanup() }
+})
+
+test('legacy query checkpoints do not reopen directions completed before their saved index', async () => {
+  const f = await setup(query => { assert.equal(query, 'remaining'); return { items: [item('remaining-image')], next: null } }, { original: true, targetCount: 1, queries: ['already-completed', 'remaining'], maxSearchPages: 1 })
+  try {
+    await f.context.save('retrieving', { checkpoint: { search: { queryIndex: 1, cursor: null, seenCursors: [], seenIds: [], seenDigests: [], pageIds: [], pageDone: [], nextCursor: null, pageLoaded: false, failedQueries: 0, successfulPages: 0, importedImages: {}, duplicateIds: [] } } })
+    assert.equal(await f.worker(f.context), 'target-met')
+    assert.deepEqual(f.fixture.sourceRequests, [{ query: 'remaining', cursor: null }])
+    assert.equal(f.context.ledger.snapshot().search, 1)
+  } finally { await f.cleanup() }
+})
+
+test('a yielded original query restores its saved next cursor after another direction exhausts', async () => {
+  const f = await setup((query, cursor) => query === 'first'
+    ? { items: [item(cursor === null ? 'bad-first' : 'good-returned')], next: cursor === null ? 'saved-next' : null }
+    : { items: [item('good-second')], next: null }, { original: true, queries: ['first', 'second'], targetCount: 2, maxSearchPages: 3 })
+  try {
+    for (const [index, id] of ['bad-first', 'good-second', 'good-returned'].entries()) f.fixture.images.set(`/${id}-original`, await sharp({ create: { width: 100, height: 100, channels: 3, background: { r: 50 + index * 50, g: 100, b: 30 } } }).png().toBuffer())
+    f.fixture.relevance = imageId => {
+      const source = f.domain.require('asset', f.domain.require('imageVersion', imageId).assetId).source
+      return source.kind === 'provider' && source.providerAssetId === 'bad-first' ? 'irrelevant' : 'relevant'
+    }
+    f.setAfterSave(records => { if (records.some(record => record.kind === 'selection')) f.controller.abort() })
+    await assert.rejects(f.worker(f.context))
+    const paused = z.object({ queryRemainders: z.array(z.object({ queryIndex: z.number(), cursor: z.string().nullable(), pageLoaded: z.boolean() })) }).parse(dataOf(f.context.current()).checkpoint.search)
+    assert.ok(paused.queryRemainders.some(query => query.queryIndex === 0 && query.cursor === 'saved-next' && !query.pageLoaded))
+    f.setAfterSave(undefined); f.setSignal(new AbortController().signal)
+    assert.equal(await f.worker(f.context), 'target-met')
+    assert.deepEqual(f.fixture.sourceRequests, [{ query: 'first', cursor: null }, { query: 'second', cursor: null }, { query: 'first', cursor: 'saved-next' }])
+    assert.equal(f.context.ledger.snapshot().search, 3)
+    assert.equal(f.fixture.downloads.length, 3)
+    assert.equal(f.domain.repository.list('selection').length, 2)
+  } finally { await f.cleanup() }
+})
+
+test('unproductive directions end at the saved search-call budget instead of extending it', async () => {
+  const f = await setup((_query, cursor) => ({ items: [item(`bad-${cursor ?? 'first'}`)], next: `page-${cursor ?? 'first'}` }), { original: true, targetCount: 1, maxSearchPages: 2 })
+  try {
+    f.fixture.relevance = () => 'irrelevant'
+    assert.equal(await f.worker(f.context), 'budget-exhausted')
+    assert.equal(f.fixture.sourceRequests.length, 2)
+    assert.equal(f.context.ledger.snapshot().search, 2)
+    assert.equal(f.domain.repository.list('selection').length, 0)
+  } finally { await f.cleanup() }
+})
+
+test('a duplicate-only original page cannot turn earlier selections into new query yield', async () => {
+  const f = await setup((query, cursor) => query === 'repeating'
+    ? { items: [item('first-match')], next: cursor === null ? 'duplicate-page' : 'another-duplicate-page' }
+    : { items: [item('second-match')], next: null }, { original: true, queries: ['repeating', 'fresh'], targetCount: 2, maxSearchPages: 3 })
+  try {
+    f.fixture.images.set('/second-match-original', await sharp({ create: { width: 100, height: 100, channels: 3, background: 'blue' } }).png().toBuffer())
+    assert.equal(await f.worker(f.context), 'target-met')
+    assert.deepEqual(f.fixture.sourceRequests, [{ query: 'repeating', cursor: null }, { query: 'repeating', cursor: 'duplicate-page' }, { query: 'fresh', cursor: null }])
+    assert.equal(f.fixture.downloads.length, 2)
+    assert.equal(f.domain.repository.list('selection').length, 2)
+    assert.equal(f.context.ledger.snapshot().search, 3)
+  } finally { await f.cleanup() }
+})
+
+test('a failed checkpoint stops query scheduling and resumes the committed image without another fetch', async () => {
+  const f = await setup(() => ({ items: [item('saved-image')], next: null }), { original: true, targetCount: 1, maxSearchPages: 1 })
+  try {
+    f.setAfterSave(records => { if (records.some(record => record.kind === 'asset')) f.adapter.failNextManifest = true })
+    await assert.rejects(f.worker(f.context), { code: 'storage-commit-failed' })
+    assert.equal(f.domain.repository.list('assessment').length, 0)
+    assert.equal(f.domain.repository.list('selection').length, 0)
+    f.setAfterSave(undefined)
+    assert.equal(await f.worker(f.context), 'target-met')
+    assert.equal(f.fixture.sourceRequests.length, 1)
+    assert.equal(f.fixture.downloads.length, 1)
+    assert.equal(f.context.ledger.snapshot().search, 1)
+  } finally { await f.cleanup() }
+})
 
 test('missing source originals retain candidate diagnostics without becoming reference or visual failures', async () => {
   const fixture = await setup(() => ({ items: [item('preview-only', false)], next: null }), { original: true, targetCount: 1 })
