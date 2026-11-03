@@ -932,9 +932,10 @@ async function main(): Promise<void> {
       if (width < 960) window.setSize(960, height)
     }
   })
-  ipcMain.handle(DESKTOP_IPC.updatesOpen, async (event) => {
+  ipcMain.handle(DESKTOP_IPC.updatesOpen, (event) => {
     assertProductSender(event)
-    await openUpdatePrompt()
+    // Acknowledging the UI request must not wait for the background download or installation decision.
+    void openUpdatePrompt().catch((error: unknown) => { console.error('desktop update: open prompt failed', error) })
   })
 
   let promptOperation: Promise<void> | undefined
@@ -942,6 +943,16 @@ async function main(): Promise<void> {
   const openUpdatePrompt = (manual = false): Promise<void> => {
     if (authenticationOperation !== undefined) {
       policyAuth?.focus(); updateDialog.focus()
+    }
+    if (!manual && authenticationOperation === undefined && !isMandatory()
+      && (updates.state.phase === 'downloading' || updates.state.phase === 'verifying')) {
+      if (updateDialog.isOpen) updateDialog.focus()
+      else showDownloadProgress()
+      return Promise.resolve()
+    }
+    if (!manual && authenticationOperation === undefined && !isMandatory() && promptOperation !== undefined
+      && updates.state.phase === 'ready' && updates.state.version !== undefined) {
+      return updates.install(updates.state.version).then(showUpdateFailure)
     }
     let failedOperation: 'check' | 'download' | 'install' = 'check'
     promptOperation ??= Promise.resolve().then(async () => {

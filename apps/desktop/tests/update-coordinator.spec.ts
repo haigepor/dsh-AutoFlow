@@ -72,6 +72,26 @@ function fixture(channel: 'nightly' | 'latest' = 'nightly', version = '1.1.0-alp
   return { coordinator, updater, events, states, checkForUpdates, downloadUpdate, quitAndInstall, beforeRestart, downloadResult }
 }
 
+it('joins concurrent installation confirmations and allows another attempt after cancellation', async () => {
+  const f = fixture()
+  const ready = await f.coordinator.check()
+  const version = ready.version!
+  await f.coordinator.download(version)
+  const confirmation = Promise.withResolvers<boolean>()
+  f.beforeRestart.mockImplementationOnce(() => confirmation.promise)
+  const attempts = [f.coordinator.install(version), f.coordinator.install(version)]
+  await Promise.resolve()
+  expect(f.coordinator.state.phase).toBe('installing')
+  expect(f.beforeRestart).toHaveBeenCalledOnce()
+  expect(f.quitAndInstall).not.toHaveBeenCalled()
+  confirmation.resolve(false)
+  expect((await Promise.all(attempts)).every(state => state.phase === 'ready')).toBe(true)
+  expect(f.quitAndInstall).not.toHaveBeenCalled()
+  await f.coordinator.install(version)
+  expect(f.beforeRestart).toHaveBeenCalledTimes(2)
+  expect(f.quitAndInstall).toHaveBeenCalledOnce()
+})
+
 it('retains only version-bound official notes through download, progress and readiness', async () => {
   const f = fixture()
   const result = await f.checkForUpdates()

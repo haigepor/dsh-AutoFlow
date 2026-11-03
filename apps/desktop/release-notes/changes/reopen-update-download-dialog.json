@@ -1,0 +1,8 @@
+{
+  "id": "reopen-update-download-dialog",
+  "category": "fixes",
+  "text": {
+    "en": "Reopen update progress while a download or file verification continues, and keep the installation confirmation accessible after the package is ready.",
+    "zh-CN": "修复下载或文件校验期间关闭弹窗后无法重新打开，以及安装包就绪后按钮可能持续转圈、无法再次打开安装确认的问题。"
+  }
+}

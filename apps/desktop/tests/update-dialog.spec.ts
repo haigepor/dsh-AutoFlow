@@ -165,6 +165,24 @@ it('blocks owner input and restores dialog focus only when that owner is focused
   expect(f.parent.listenerCount('focus')).toBe(0)
 })
 
+it('recreates a dismissed download dialog with current progress on each reopen', async () => {
+  vi.useFakeTimers()
+  const f = setup()
+  for (const percent of [22, 58, 84]) {
+    const pending = f.show(undefined, { message: '下载更新', buttons: ['关闭'], cancelId: 0,
+      download: { phase: 'downloading', version: '1.0.1', percent } })
+    expect(f.invoke(UPDATE_DIALOG_IPC.status)).toMatchObject({ download: { state: { phase: 'downloading', percent } } })
+    expect(dialogs!.isOpen).toBe(true)
+    f.invoke(UPDATE_DIALOG_IPC.respond, 0)
+    expect((await pending).response).toBe(0)
+    await vi.advanceTimersByTimeAsync(150)
+    expect(dialogs!.isOpen).toBe(false)
+    expect(f.overlays.input(f.owner).blocked).toBe(false)
+  }
+  expect(f.parent.contentView.addChildView).toHaveBeenCalledTimes(3)
+  expect(f.parent.contentView.removeChildView).toHaveBeenCalledTimes(3)
+})
+
 it('cancels on abort, renderer failure, failed load, disposal, or a destroyed owner', async () => {
   const f = setup()
   const abort = new AbortController()

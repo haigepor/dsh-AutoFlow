@@ -24,6 +24,7 @@ export interface DesktopUpdatePresentation {
 /** Optional carrier API; it cannot select artifacts or authorize installation. */
 export interface DesktopUpdateBridge {
   status(): Promise<DesktopUpdatePresentation>
+  /** @returns Acceptance of the shell action, independently of download or installation completion. */
   open(): Promise<void>
   subscribe(listener: (state: DesktopUpdatePresentation) => void): () => void
 }

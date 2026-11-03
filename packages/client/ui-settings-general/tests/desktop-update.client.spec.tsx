@@ -72,7 +72,8 @@ it('keeps the newest event, hides for connection priority, and invokes only the 
     await f.emit({ phase: 'downloading', version: available.version, percent: 58 })
     f.view.rerender(<f.Indicator />)
     fireEvent.click(screen.getByRole('button', { name: '58%' }))
-    expect(f.open).toHaveBeenCalledOnce()
+    await act(async () => {})
+    expect(f.open).toHaveBeenCalledTimes(2)
     await f.emit({ phase: 'error', version: available.version, failure: 'download' })
     const retry = screen.getByRole('button', { name: '重试更新' })
     fireEvent.focus(retry)
@@ -102,7 +103,7 @@ it('accepts initial status, coalesces actions, and ignores late events and actio
   try {
     await act(async () => { f.status.resolve(available) })
     expect(screen.getByRole('button', { name: '新版本' })).toBeTruthy()
-    await f.emit({ phase: 'verifying', version: available.version })
+    await f.emit({ phase: 'checking', version: available.version })
     f.source.open()
     expect(f.open).not.toHaveBeenCalled()
     await f.emit(available)
@@ -116,6 +117,41 @@ it('accepts initial status, coalesces actions, and ignores late events and actio
     await act(async () => { pending.reject(new Error('late IPC failure')) })
     expect(f.source.store.getSnapshot()).toBe(state)
   } finally { pending.resolve(undefined); f.status.resolve(available) }
+})
+
+it.each(['downloading', 'verifying', 'ready'] as const)('reopens the %s dialog after an accepted request without waiting for the update operation', async (phase) => {
+  const f = fixture()
+  const pending = Promise.withResolvers<undefined>()
+  try {
+    await f.emit({ phase, version: available.version, percent: 22 })
+    const button = screen.getByRole('button')
+    expect(button.getAttribute('aria-disabled')).toBe('false')
+    f.open.mockImplementationOnce(() => pending.promise)
+    fireEvent.click(button)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(button)
+    act(() => { f.source.open() })
+    expect(f.open).toHaveBeenCalledOnce()
+    await act(async () => { pending.resolve(undefined) })
+    expect(button.getAttribute('aria-disabled')).toBe('false')
+    await f.emit({ phase, version: available.version, percent: 58 })
+    fireEvent.click(screen.getByRole('button'))
+    await act(async () => {})
+    expect(f.open).toHaveBeenCalledTimes(2)
+    expect(f.source.store.getSnapshot()).toMatchObject({ presentation: { phase, percent: 58 }, opening: false, failed: false })
+  } finally { pending.resolve(undefined); f.view.unmount(); f.status.resolve(available) }
+})
+
+it.each(['checking', 'installing'] as const)('does not dispatch another update action while %s', async (phase) => {
+  const f = fixture()
+  try {
+    await f.emit({ phase, version: available.version })
+    const button = screen.getByRole('button')
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(button)
+    f.source.open()
+    expect(f.open).not.toHaveBeenCalled()
+  } finally { f.view.unmount(); f.status.resolve(available) }
 })
 
 it('keeps an event newer than an initial-status failure', async () => {
