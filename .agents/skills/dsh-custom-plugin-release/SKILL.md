@@ -1,7 +1,7 @@
 ---
 name: dsh-custom-plugin-release
 description: >-
-  Prepare and publish an independent custom DSH plugin GitHub Release for AFP, Codex Subscription, Visual Curator, Style Prompt or Boot Animation: review source, validate the package-owned version and tag, build a tarball, publish checksums and update metadata, and confirm publication. Download verification and isolated installation are optional when requested or diagnosing failures. Use for first releases, subsequent releases, release-adapter configuration and failed release recovery. Do not use for runtime updater implementation, ordinary plugin installation, npm publication, AutoFlow application releases, or official upstream synchronization.
+  Prepare and publish independent custom DSH plugin Releases for AFP, Codex Subscription, Visual Curator, Style Prompt or Boot Animation. Identify changed products, verify their frozen source and package assets, then confirm the shared official update index. Use for first or subsequent releases, release-adapter configuration and recovery. Download verification and isolated installation are conditional. Do not use for runtime updater implementation, ordinary installation, npm publication, desktop application releases or upstream synchronization.
 compatibility: Requires Git, the repository Node.js/pnpm runtime and an authenticated GitHub CLI; publication requires explicit user authorization.
 ---
 
@@ -34,6 +34,7 @@ compatibility: Requires Git, the repository Node.js/pnpm runtime and an authenti
 2. 检查 `git status`、分支、remote、远程头、已有标签和 Release。区分本会话已授权改动与用户其他未提交改动；不得使用无差别 `git add .` 或覆盖用户源码。
 3. 校验仓库写权限。优先用现有 GitHub CLI；找不到时检查已安装位置或使用官方可校验的临时工具。现有凭据只供匹配的 GitHub 主机使用，不打印、持久化或写入文档。
 4. 确认包版本与标签完全匹配。首版可以沿用未发布的包版本；已公开版本不得重用。保留第三方来源记录，不推定缺失许可证，不据此向 npm 注册表发布。
+5. 用户要求“有更新才发布”时，逐个与本产品最近公开稳定标签比较源码及实际随包输入，包括共享 Client 资产；只为产物确有变化的插件升版和发布。其他插件保持原版本、标签及公开资产，不因共享宿主更新而一起升版。桌面随包版本和远程索引应分别核验，不能以 Release 存在代替随包检查。
 
 ## 2. 准备与验证
 
@@ -65,9 +66,19 @@ pnpm --filter dsh-boot-animation run release:prepare --out .artifacts/boot-anima
 4. 如果改用本地发布，使用已验证的干净来源产物，先建立 draft，上传并验证三项资产，再公开。草稿从 Releases 列表查到 ID 后，按 ID 校验与发布；不要把按 tag 查询的 404 当作草稿不存在。不得把 GitHub 自动生成的全仓库源码压缩包当成 AFP npm 包。
 5. 已存在公开 Release 时不覆盖资产；相同内容可以复验，不同内容必须发布新版本。恢复失败 draft 前，核对 tag、来源提交和已上传内容；只续传缺失的匹配资产，其他修改需要明确的范围依据。仅修正发布工作流时更新当前源码，不移动发布 tag；可从当前工作流手动传入已有 tag 复验其冻结源码。
 
-## 4. 确认发布与交付
+## 4. 推进共享官方索引
 
-默认在发布任务成功后，通过 Release API 确认公开状态、正确的 tag 提交和三个已上传资产，记录版本、来源提交、资产名称、大小及可用摘要，然后交付 Release 链接并结束。不要把只有 tag、草稿或缺少资产的状态当作发布成功。发布器已经验证的资产无需为交付再次下载。
+五个插件共用官方 Pages 的 `plugins/stable/index.json`，仓库、包名及稳定标签前缀以各包 `dsh.bundle.update` 为准。AFP 或自定义插件 Release 工作流成功后，等待 [Publish plugin update index](../../../.github/workflows/plugin-update-index.yml) 完成；手动初始化或修复索引也使用此工作流。它从默认分支运行[索引发布器](../../../custom-plugins/release-governance/publish-update-index.mjs)，验证各族最新公开版本、标签提交、元数据及完整安装包字节的大小和 SHA256，成功后才合并索引。
+
+发布索引的凭据仅留在 Actions。验证失败保留旧索引；并发发布由合并及 Git 引用条件更新保护，不能手工覆盖整个 `desktop-updates` 分支或丢弃其他插件与桌面 feed、策略。分支移动时按发布器的有限重试结果处理；同版本不同字节必须使用新版本，不能改旧资产来通过校验。
+
+匿名读取已部署的官方索引，核对本插件条目的包名、仓库、版本、标签、源码提交、安装包 URL、大小和 SHA256，同时确认其他插件条目及 Desktop 策略仍存在。索引中的哈希应匹配发布器已核验的 Release 资产，不为重复证明再次下载整包。Release 成功但索引未推进时分别报告两者状态，不能宣称远程更新已交付。
+
+客户端的共享检查缓存默认 15 分钟；可配置项、在途复用和持久化冷却由[插件管理器](../../../packages/boot/plugin-manager/README.zh.md)维护。验收延迟时区分未部署索引、已有缓存和旧宿主，不绕过 REST 冷却或把 GitHub 连接器凭据放入客户端。索引读取逻辑位于宿主，单独更新五个插件不能修复旧桌面宿主的检查逻辑。
+
+## 5. 确认发布与交付
+
+默认在发布及索引任务成功后，通过 Release API 确认公开状态、正确的 tag 提交和三个已上传资产，记录版本、来源提交、资产名称、大小及摘要，并核对已部署的共享索引后交付。不要把只有 tag、草稿或缺少资产的状态当作发布成功。发布器已经验证的资产无需为交付再次下载。
 
 用户明确要求回验，或发布日志、资产摘要、安装反馈出现异常时，再下载相关资产核对 SHA-256 与元数据；只在加载或更新问题需要时追加隔离 profile smoke。报告实际执行的步骤，不将跳过的安装、更新或真实 AFP 行为说成已验证。
 
