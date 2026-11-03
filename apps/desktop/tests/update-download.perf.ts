@@ -86,5 +86,7 @@ try {
   }
 } finally {
   server.closeAllConnections()
-  if (server.listening) await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()) })
+  if (server.listening) await new Promise<void>((resolve, reject) => {
+    server.close((error) => { if (error) reject(error); else resolve() })
+  })
 }

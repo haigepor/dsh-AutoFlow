@@ -31,7 +31,7 @@ const STARTUP_TIMEOUT_MS = 30_000
  */
 export function startStartupAnimation(doc: Document, source: string): StartupAnimation {
   const win = doc.defaultView
-  if (win === null || win.__DSH_STARTUP_ANIMATION__ !== true || win.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+  if (win === null || win.__DSH_STARTUP_ANIMATION__ !== true || win.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     return { mounted() {}, fail() {}, dispose() {} }
   }
   const activeWindow = win

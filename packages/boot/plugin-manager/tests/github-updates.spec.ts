@@ -8,6 +8,10 @@ import { cacheBundleUpdate, discoverBundleUpdate, updateCacheDirectory } from '.
 import { backupUpdateEntry, readAutomaticUpdates, writeAutomaticUpdate } from '../src/update-state.ts'
 import { githubFixture, limits, source } from './update-fixture.ts'
 
+function requestedUrl(input: string | URL | Request): string {
+  return typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+}
+
 function profile(): string {
   const root = mkdtempSync(join(tmpdir(), 'plugin-updates-'))
   onTestFinished(() => { rmSync(root, { recursive: true, force: true }) })
@@ -34,7 +38,7 @@ it('keeps a healthy archive response alive beyond the metadata deadline and publ
   const { bytes, release, fetchMock } = githubFixture()
   const original = fetchMock.getMockImplementation()!
   fetchMock.mockImplementation(async (input, init) => {
-    if (String(input) !== release.metadata.asset.url) return original(input, init)
+    if (requestedUrl(input) !== release.metadata.asset.url) return original(input, init)
     let offset = 0
     return new Response(new ReadableStream<Uint8Array>({ async pull(controller) {
       await new Promise(resolve => setTimeout(resolve, 25))
@@ -70,7 +74,7 @@ it('transfers plugin archive ranges concurrently and validates the complete npm 
   let active = 0, maximum = 0
   const requested: string[] = []
   fetchMock.mockImplementation(async (input, init) => {
-    if (String(input) !== release.metadata.asset.url) return original(input, init)
+    if (requestedUrl(input) !== release.metadata.asset.url) return original(input, init)
     const range = new Headers(init?.headers).get('range')!
     requested.push(range)
     const [, from, to] = /^bytes=(\d+)-(\d+)$/u.exec(range)!

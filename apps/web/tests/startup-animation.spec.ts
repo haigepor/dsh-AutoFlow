@@ -4,12 +4,15 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { startStartupAnimation, type StartupAnimation } from '../src/startup-animation.ts'
 
 let animation: StartupAnimation | undefined
+const play = vi.fn<() => Promise<void>>()
 
 beforeEach(() => {
   vi.useFakeTimers()
   vi.stubGlobal('__DSH_STARTUP_ANIMATION__', true)
+  vi.stubGlobal('matchMedia', () => ({ matches: false }))
   document.body.innerHTML = '<div id="root"></div>'
-  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+  play.mockReset().mockResolvedValue()
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play)
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
   vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
 })
@@ -35,7 +38,7 @@ it('starts before application mount and keeps the underlying mount point availab
   expect(video.muted && video.autoplay && video.playsInline).toBe(true)
   expect(document.getElementById('root')).not.toBeNull()
   expect(document.getElementById('root')?.inert).toBe(true)
-  expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce()
+  expect(play).toHaveBeenCalledOnce()
 })
 
 it('plays to the end when mount and the initial data arrive first', async () => {
@@ -86,7 +89,7 @@ it.each([undefined, false])('does not create media before mount when activation 
   expect(document.querySelector('video')).toBeNull()
   expect(document.querySelector('[data-dsh-startup-animation]')).toBeNull()
   expect(document.getElementById('root')?.inert).not.toBe(true)
-  expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled()
+  expect(play).not.toHaveBeenCalled()
 })
 
 it('reveals the existing application when an expected startup plugin never publishes its baseline', async () => {
@@ -102,5 +105,5 @@ it('honors reduced motion without creating media or blocking the application', (
   animation.mounted()
   expect(document.querySelector('video')).toBeNull()
   expect(document.getElementById('root')?.inert).not.toBe(true)
-  expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled()
+  expect(play).not.toHaveBeenCalled()
 })

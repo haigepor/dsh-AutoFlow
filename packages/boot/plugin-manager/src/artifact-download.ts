@@ -324,6 +324,20 @@ export class ArtifactDownload {
     return scores[0]?.source ?? sources.find(item => item.id === 'github')
   }
 
+  private monitorSlowSource(
+    controller: AbortController, transferred: () => number, started: number, initial: number,
+  ): ReturnType<typeof setInterval> {
+    let windowStarted = started
+    let windowBytes = initial
+    return setInterval(() => {
+      const now = performance.now(), bytes = transferred()
+      if (this.choice.source === 'auto' && (bytes - windowBytes) * 1000 / Math.max(1, now - windowStarted) < this.config.minimumBytesPerSecond) {
+        controller.abort(new Error('Artifact download source remained slow; trying another source'))
+      }
+      windowStarted = now; windowBytes = bytes
+    }, this.config.slowWindowMs)
+  }
+
   private async transfer(source: Source, artifact: ArtifactDownloadArtifact, identity: string,
     offset: number, signal: AbortSignal): Promise<number> {
     const controller = new AbortController()
@@ -344,15 +358,7 @@ export class ArtifactDownload {
     const started = performance.now()
     let lastReport = started - 250
     let receivedFirstByte = false
-    let windowStarted = started
-    let windowBytes = bytes
-    const monitor = setInterval(() => {
-      const now = performance.now()
-      if (this.choice.source === 'auto' && (bytes - windowBytes) * 1000 / Math.max(1, now - windowStarted) < this.config.minimumBytesPerSecond) {
-        controller.abort(new Error('Artifact download source remained slow; trying another source'))
-      }
-      windowStarted = now; windowBytes = bytes
-    }, this.config.slowWindowMs)
+    const monitor = this.monitorSlowSource(controller, () => bytes, started, offset)
     try {
       signal.throwIfAborted()
       refresh()
@@ -428,15 +434,7 @@ export class ArtifactDownload {
     let failure: { error: unknown } | undefined
     let lastReport = started - 250
     let firstByte = false
-    let windowStarted = started
-    let windowBytes = initial
-    const monitor = setInterval(() => {
-      const now = performance.now(), bytes = totalReceived()
-      if (this.choice.source === 'auto' && (bytes - windowBytes) * 1000 / Math.max(1, now - windowStarted) < this.config.minimumBytesPerSecond) {
-        controller.abort(new Error('Artifact download source remained slow; trying another source'))
-      }
-      windowStarted = now; windowBytes = bytes
-    }, this.config.slowWindowMs)
+    const monitor = this.monitorSlowSource(controller, totalReceived, started, initial)
     const worker = async (first = false): Promise<void> => {
       try {
         for (;;) {
