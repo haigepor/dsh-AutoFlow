@@ -18,6 +18,7 @@ import { createSearchLaunchStore } from '../../src/client/search-launch-store.ts
 import { createSearchLaunchUI } from '../../src/client/search-launch-dialog.tsx'
 import { zh } from '../../src/client/workbench-locale.ts'
 import pluginCss from '../../src/client/entry.css'
+import searchLaunchArtwork from '../../assets/search-launch-whale-maid-v1.webp'
 import '../../../../../packages/client/ui-theme/src/styles/base.css'
 import '../../../../../packages/client/ui-theme/src/styles/corner-shape.css'
 import '../../../../../packages/client/ui-theme/src/styles/design-platform.css'
@@ -27,7 +28,7 @@ import '../../../../../packages/client/ui-theme/src/styles/focus.css'
 const ui = { Button, Checkbox, Input, TextArea, Modal, Tag, StateDot, Menu, SegmentedTabs, DisclosureRow, ...icons }
 const h = React.createElement, t = key => zh[key], { style, snapshot, usageOptions, datasetPage } = window.datasetFixtureData
 installIconSprite({ effect: register => register(), on: () => () => {} }, undefined)
-const sheet = document.createElement('style'); sheet.textContent = pluginCss; document.head.append(sheet)
+const sheet = document.createElement('style'); sheet.textContent = pluginCss.replace('__VC_SEARCH_LAUNCH_ART__', searchLaunchArtwork); document.head.append(sheet)
 let entry = null, calls = [], opened = [], fail = false
 const store = createSearchLaunchStore({ context: () => ({ scope: 1, styleId: style.styleId, pollMs: 1000 }), openSession: id => opened.push(id), invoke: async (operation, args) => {
   if (operation === 'search-launch-options') return { workspaces: [{ id: 'photos', title: 'CodexMcp', path: 'D:/project/CodexMcp' }, { id: 'archive', title: '素材归档', path: 'D:/素材归档' }], usages: usageOptions, datasetSelection: 'required', automaticDatasetPreparation: true, negativeReferenceDatasets: true, previewSearch: true, conversationModelSelection: true, conversationModels: [{ provider: 'fixture', model: 'default', label: 'Fixture / Default' }, { provider: 'fixture', model: 'alternate', label: 'Fixture / Alternate' }], defaultConversationModel: { provider: 'fixture', model: 'default' }, defaultTargetCount: 10, maxTargetCount: 200 }

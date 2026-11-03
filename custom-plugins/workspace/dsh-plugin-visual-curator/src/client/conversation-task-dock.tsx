@@ -54,7 +54,7 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
       setTransitioning(!!card.current && getComputedStyle(card.current).transitionDuration.split(',').some(value => Number.parseFloat(value) > 0))
       setExpanded(next)
     }
-    const maxWidth = () => Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, card.current?.closest<HTMLElement>('[data-conversation-body-overlay]')?.clientWidth ?? DEFAULT_WIDTH))
+    const maxWidth = () => Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, (card.current?.closest<HTMLElement>('[data-conversation-content]')?.clientWidth ?? DEFAULT_WIDTH + 608) - 608))
     const clamp = (value: number, maximum = maxWidth()) => Math.round(Math.min(maximum, Math.max(MIN_WIDTH, value)))
     const finishResize = (event: PointerEvent<HTMLDivElement>, cancelled = false) => {
       const current = drag.current
@@ -104,6 +104,7 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
       <ui.Tooltip label={t('taskResizeWidthHint')} side="left" portal>
         <div className="vc-conversation-task-resize" role="separator" tabIndex={0} aria-orientation="vertical" aria-label={t('taskResizeWidth')}
           aria-valuemin={MIN_WIDTH} aria-valuemax={maxWidth()} aria-valuenow={Math.min(width ?? DEFAULT_WIDTH, maxWidth())}
+          onBlur={event => { if (getComputedStyle(event.currentTarget).display === 'none') toggle.current?.focus() }}
           onPointerDown={event => {
             if (event.button !== 0) return
             event.preventDefault(); event.currentTarget.focus()

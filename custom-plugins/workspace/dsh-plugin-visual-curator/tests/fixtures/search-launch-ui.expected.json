@@ -7,6 +7,7 @@
   "navigateDuringDatasetPreparation": true,
   "frozenOnReopen": true,
   "dialogMaterial": true,
+  "decorativeArtwork": true,
   "narrowOverflow": false,
   "nativeNavigation": true,
   "navigateAfterSessionCreation": true,

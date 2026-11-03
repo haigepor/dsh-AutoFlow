@@ -25,10 +25,17 @@ async (page) => {
   assert(Math.abs((await dock.locator('.vc-conversation-task-header').boundingBox()).y - heading.y) < 1, 'results scrolling moves controls')
   const resize = dock.getByRole('separator')
   await resize.focus(); await page.keyboard.press('Home'); assert((await dock.boundingBox()).width === 280, 'The keyboard minimum must fit the side column')
-  await page.keyboard.press('ArrowLeft'); assert((await dock.boundingBox()).width === 300, 'Resizing must stop at the available side-column width')
+  await page.keyboard.press('ArrowLeft'); assert((await dock.boundingBox()).width === 304, 'The rail must grow with the task width preference')
+  await page.keyboard.press('End')
+  const resized = await page.evaluate(() => ({ task: document.querySelector('[data-conversation-task]').getBoundingClientRect().width, chat: document.querySelector('[data-conversation-scroll]').getBoundingClientRect().width }))
+  assert(resized.task === 640 && resized.chat >= 584, 'A wider rail must preserve the readable transcript width')
+  await resize.dblclick()
   await dock.getByRole('button', { name: '收起结果', exact: true }).focus(); await page.keyboard.press('Escape')
   assert(await expand.getAttribute('aria-expanded') === 'false' && await expand.evaluate(node => node === document.activeElement), 'collapse focus changed')
-  await page.setViewportSize({ width: 390, height: 844 }); assert(!await dock.isVisible() && !await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), 'The task card must hide instead of covering narrow conversation content')
+  await resize.focus(); await page.setViewportSize({ width: 390, height: 844 })
+  assert(await expand.evaluate(node => node === document.activeElement), 'A hidden resize handle must return focus to the task action')
+  assert(await dock.isVisible() && !await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), 'Narrow conversations must retain the task card without horizontal scrolling')
+  assert(await page.evaluate(() => document.querySelector('[data-conversation-body-overlay]').getBoundingClientRect().bottom <= document.querySelector('[data-conversation-scroll]').getBoundingClientRect().top), 'Narrow tasks must sit above the transcript')
   await page.setViewportSize({ width: 1920, height: 900 }); await dock.waitFor()
   await dock.locator('[data-result="selected"]').click()
   await page.waitForFunction(() => document.querySelectorAll('.vc-conversation-task-previews img').length === 3)
@@ -74,21 +81,26 @@ async (page) => {
     return value.bottom <= label.top
   }))
   assert(metricLayout.every(Boolean), 'Values must sit above labels without overlap')
-  await page.setViewportSize({ width: 1288, height: 900 }); await dock.waitFor()
-  assert((await dock.boundingBox()).width === 280, 'The card must fit the minimum available side-column width')
+  for (const width of [920, 1130, 1288]) {
+    await page.setViewportSize({ width, height: 900 }); await dock.waitFor()
+    const columns = await page.evaluate(() => { const chat = document.querySelector('[data-conversation-scroll]'), rail = document.querySelector('[data-conversation-body-overlay]'); return { chat: chat.getBoundingClientRect(), rail: rail.getBoundingClientRect(), overflow: chat.scrollWidth > chat.clientWidth + 1 } })
+    assert(columns.chat.width >= 584 && columns.rail.width >= 280 && columns.chat.right <= columns.rail.left && !columns.overflow, 'Intermediate widths must fit both columns without hiding tasks or scrolling horizontally')
+  }
+  await resize.focus(); await page.keyboard.press('Home')
+  assert((await dock.boundingBox()).width === 280, 'The minimum task width must remain usable')
   assert(await dock.locator('.vc-conversation-task-metric-label').evaluateAll(nodes => nodes.every(node => node.getBoundingClientRect().height <= 16)), 'Metric labels must stay aligned at the minimum side-column width')
   await page.setViewportSize({ width: 1920, height: 900 })
   await page.emulateMedia({ reducedMotion: 'no-preference' })
-  const animated = await page.evaluate(async () => {
+  const focusedAction = dock.locator('.vc-conversation-task-actions button[aria-expanded]')
+  await focusedAction.focus()
+  await page.evaluate(async () => {
     document.querySelector('.fixture-conversation').style.flex = '0 0 780px'
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    return document.querySelector('[data-conversation-task]').getAnimations().some(animation => animation.transitionProperty === 'opacity')
   })
-  assert(animated, 'Side-column visibility must fade when available width changes')
-  await dock.waitFor({ state: 'hidden' })
+  assert(await dock.isVisible() && await focusedAction.evaluate(node => node === document.activeElement), 'Reflow must retain task visibility and keyboard focus')
   await page.evaluate(() => { document.querySelector('.fixture-conversation').style.flex = '' })
   await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-conversation-task]')).opacity === '1')
-  assert(await dock.locator('.vc-conversation-task-previews img').count() === 12, 'Hiding the side column must retain the selected category and loaded images')
+  assert(await dock.locator('.vc-conversation-task-previews img').count() === 12, 'Reflow must retain the selected category and loaded images')
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.setViewportSize({ width: 1920, height: 900 }); await page.evaluate(() => window.dockFixture.session('b')); await dock.getByText('另一个会话的找图任务', { exact: true }).waitFor()
   assert(await dock.getByRole('button', { name: '展开结果', exact: true }).getAttribute('aria-expanded') === 'false', 'Session expansion leaked')
@@ -99,7 +111,7 @@ async (page) => {
   await dock.locator('.vc-conversation-task-status').getByText('已完成', { exact: true }).waitFor()
   await page.getByRole('button', { name: '返回旧详情', exact: true }).click()
   assert((await dock.locator('.vc-conversation-task-status').innerText()).trim() === '已完成', 'A delayed running reply must not restore an active task badge')
-  const result = { terminalStateReconciled: true, singleDock: true, outsideProcess: true, fillsRemainingHeight: true, todoReflowsHeight: true, innerScroll: true, controlsRemainVisible: true, resizingRetained: true, collapseFocus: true, narrowHidden: true, metricFilters: true, equalMetricCards: true, iconFreeMetrics: true, selectedMetricThemes: true, valueFirstMetrics: true, containedMetricArtwork: true, allImagesPageable: true, loadedImagesRetained: true, alongsideConversation: true, chatViewOnly: true, nativeSlotWrapper: true, nestedChatIsolated: true, auxiliaryCopyHidden: true, minimumGutterFits: true, animatedVisibility: true, sessionIsolated: true, horizontalOverflow: false, errors }
+  const result = { terminalStateReconciled: true, singleDock: true, outsideProcess: true, fillsRemainingHeight: true, todoReflowsHeight: true, innerScroll: true, controlsRemainVisible: true, resizingRetained: true, collapseFocus: true, narrowVisible: true, metricFilters: true, equalMetricCards: true, iconFreeMetrics: true, selectedMetricThemes: true, valueFirstMetrics: true, containedMetricArtwork: true, allImagesPageable: true, loadedImagesRetained: true, alongsideConversation: true, chatViewOnly: true, nativeSlotWrapper: true, nestedChatIsolated: true, auxiliaryCopyHidden: true, minimumRailFits: true, resizeFocusRetained: true, coordinatedWidths: true, sessionIsolated: true, horizontalOverflow: false, errors }
   const expected = await page.evaluate(async () => (await fetch('expected.json')).json()); assert(JSON.stringify(result) === JSON.stringify(expected), 'saved output differs')
   return { result, measurements: { desktop, expandedTodo, compact } }
 }

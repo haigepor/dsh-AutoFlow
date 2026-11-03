@@ -8,6 +8,7 @@ import welcomeImage from '../../assets/welcome-photo-stack-v2.webp'
 import logoImage from '../../assets/plugin-logo-v2.webp'
 import executionEmptyImage from '../../assets/execution-empty-v1.webp'
 import taskMetricArtwork from '../../assets/task-metric-plates-v2.webp'
+import searchLaunchArtwork from '../../assets/search-launch-whale-maid-v1.webp'
 import { createTaskToolView } from './task-tool-view.tsx'
 import { createConversationTaskDock } from './conversation-task-dock.tsx'
 import { createCuratorStore } from './store.ts'
@@ -197,7 +198,7 @@ window.__ModuleLoader__.load({
           }
         }
         ctx.effect(() => {
-          const style = document.createElement('style'); style.textContent = css.replace('__VC_EXECUTION_EMPTY_ART__', executionEmptyImage).replace('__VC_TASK_METRIC_ART__', taskMetricArtwork); document.head.append(style)
+          const style = document.createElement('style'); style.textContent = css.replace('__VC_EXECUTION_EMPTY_ART__', executionEmptyImage).replace('__VC_TASK_METRIC_ART__', taskMetricArtwork).replace('__VC_SEARCH_LAUNCH_ART__', searchLaunchArtwork); document.head.append(style)
           return () => style.remove()
         }, 'Visual Curator entry styles')
         ctx.effect(() => {

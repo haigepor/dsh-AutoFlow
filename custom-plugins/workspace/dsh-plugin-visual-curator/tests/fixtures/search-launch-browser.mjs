@@ -16,6 +16,11 @@ async page => {
     await test.getByRole('menuitem', { name: 'Fixture / Alternate', exact: true }).click()
     const material = await dialog.evaluate(el => getComputedStyle(el, '::before').backgroundColor)
     assert(material.includes('0.92') || material.includes('0.9') || material.startsWith('rgb('), 'The launch dialog must use the more opaque dialog material')
+    const artwork = await dialog.locator('.vc-search-launch-artwork').evaluate(async node => {
+      const image = new Image(); image.src = getComputedStyle(node).backgroundImage.slice(5, -2); await image.decode()
+      return { width: image.naturalWidth, decorative: node.getAttribute('aria-hidden') === 'true', displayWidth: node.getBoundingClientRect().width }
+    })
+    assert(artwork.width === 320 && artwork.decorative && artwork.displayWidth <= 104, 'The dialog must load the transparent character material at settings-page scale')
     const brief = await dialog.getByRole('textbox').inputValue()
     assert(brief.includes('测试训练'), 'The task brief must retain the profile name')
     await dialog.screenshot({ path: '.playwright-mcp/search-launch-model-desktop.png', animations: 'disabled' })
@@ -62,7 +67,7 @@ async page => {
     await test.waitForFunction(() => window.searchFixture.opened.length === 1)
     assert(await dialog.count() === 0, 'Dataset preparation must continue after navigating to the created Session')
     assert(errors.length === 0, 'The launch form must not throw browser errors')
-    const result = { catalogDefault: true, selectedModelSubmitted: true, datasetSubmitted: true, defaultNegativeDatasets: true, automaticMissingPackage: true, navigateDuringDatasetPreparation: true, frozenOnReopen: true, dialogMaterial: true, narrowOverflow: false, nativeNavigation: true, navigateAfterSessionCreation: true, navigateBeforeModelReady: true, escapeCloses: true, themes: ['dark', 'light'], errors }
+    const result = { catalogDefault: true, selectedModelSubmitted: true, datasetSubmitted: true, defaultNegativeDatasets: true, automaticMissingPackage: true, navigateDuringDatasetPreparation: true, frozenOnReopen: true, dialogMaterial: true, decorativeArtwork: true, narrowOverflow: false, nativeNavigation: true, navigateAfterSessionCreation: true, navigateBeforeModelReady: true, escapeCloses: true, themes: ['dark', 'light'], errors }
     const expected = await (await test.request.get('http://127.0.0.1:39088/search-launch-ui.expected.json')).json()
     assert(JSON.stringify(result) === JSON.stringify(expected), 'Search launch acceptance snapshot differs: ' + JSON.stringify(result))
     return result

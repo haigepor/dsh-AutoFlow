@@ -3,6 +3,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import * as UI from '../../../../../packages/client/ui-primitives/src/index.ts'
 import { ConversationContent } from '../../../../../packages/client/ui-conversation/src/client/skeleton/ConversationContent.tsx'
+import { ConversationWidthControls } from '../../../../../packages/client/ui-conversation/src/client/skeleton/ConversationWidthControls.tsx'
 import { TodoPanel } from '../../../../../packages/client/ui-conversation/src/client/skeleton/TodoPanel.tsx'
 import { installIconSprite } from '../../../../../packages/client/ui-theme/src/client/icon-sprite.ts'
 import conversationCss from '../../../../../packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css'
@@ -59,7 +60,7 @@ function Conversation() {
     phase: 'active', sessionId: state.session, hero: false, variant: 'main', t: key => key,
     useSession: select => select({}), useSessions: select => select({ byId: {} }), useSessionStatus: select => select(new Map()),
     useWorkspaces: select => select({ phase: 'ready', items: [] }), useInput: select => select({ draft: '' }), useComposerBlock: select => select(undefined),
-    useFactorySlot: (name, fallback) => name === 'views' ? Views : fallback,
+    useFactorySlot: (name, fallback) => name === 'views' ? Views : name === 'widthControls' ? ConversationWidthControls : fallback,
     renderSlot: name => name === 'conversation.body.overlay' ? h(React.Fragment, null, h(TodoPanel, { key: state.session, todos, t: todoT }), h(DockFixture)) : name === 'conversation.composer.bar' ? h('textarea', { className: 'fixture-composer', 'aria-label': '消息输入框', placeholder: '发送消息' }) : null,
     renderSlotChain: (_name, _owner, options) => options.fallback, inputActions: { prefill: async () => {} }, selectWorkspace: async () => {},
   }))
