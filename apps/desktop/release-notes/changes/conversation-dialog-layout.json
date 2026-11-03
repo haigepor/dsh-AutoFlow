@@ -1,0 +1,8 @@
+{
+  "id": "conversation-dialog-layout",
+  "category": "improvements",
+  "text": {
+    "en": "Image search and question dialogs use settings-style groups and matching character illustrations. Conversation tasks remain available as the window narrows without adding a horizontal scrollbar.",
+    "zh-CN": "找图与提问弹窗采用与设置页一致的分组排版和角色插画；缩窄窗口时仍可查看会话任务，并避免底部出现横向滚动条。"
+  }
+}

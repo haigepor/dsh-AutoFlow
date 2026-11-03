@@ -212,20 +212,22 @@ export function ConversationContent(props: ConversationContentProps) {
   )
 
   return (
-    <div
-      ref={setBody}
-      className={clsx(css.body, props.variant === 'embedded' && css.embeddedBody)}
-      data-conversation-content=""
-      data-conversation-session={sessionId}
-      data-conversation-region="chat"
-      data-content-phase={phase}
-    >
-      <div className={css.scrollBody} data-conversation-scroll="">
-        {sessionId === undefined ? null : <Views />}
-        {composerSeat}
+    <div className={css.contentContainer}>
+      <div
+        ref={setBody}
+        className={clsx(css.body, props.variant === 'embedded' && css.embeddedBody)}
+        data-conversation-content=""
+        data-conversation-session={sessionId}
+        data-conversation-region="chat"
+        data-content-phase={phase}
+      >
+        <div className={css.scrollBody} data-conversation-scroll="">
+          {sessionId === undefined ? null : <Views />}
+          {composerSeat}
+        </div>
+        {sessionId !== undefined && <div className={css.bodyOverlay} data-conversation-body-overlay=""><div className={css.bodyOverlayStack}>{renderSlot('conversation.body.overlay', {})}</div></div>}
+        <WidthControls container={body} phase={phase} />
       </div>
-      {sessionId !== undefined && <div className={css.bodyOverlay} data-conversation-body-overlay=""><div className={css.bodyOverlayStack}>{renderSlot('conversation.body.overlay', {})}</div></div>}
-      <WidthControls container={body} phase={phase} />
     </div>
   )
 }

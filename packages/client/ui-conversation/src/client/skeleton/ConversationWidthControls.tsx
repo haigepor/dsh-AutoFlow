@@ -4,8 +4,8 @@ import css from './ConversationRoot.module.css'
 
 /** localStorage key for the dragged transcript width preference (px). */
 const WIDTH_PREF_KEY = 'dsh.conversation.contentWidth'
-/** Floor for a dragged content width; matches the layout center-column minimum. */
-const CONTENT_MIN = 640
+/** Comfortable transcript floor; smaller columns fit their available content box. */
+const CONTENT_MIN = 520
 /** Horizontal room reserved for both handles and their safe edge zones. */
 const CONTENT_EDGE_BUDGET = 176
 const WHEEL_DELTA_LINE = 1
@@ -22,9 +22,15 @@ function readWidthPreference(): number | null {
 
 /** Resolve the width displayed for one measured Conversation column. */
 function resolveContentWidth(columnWidth: number, preference: number | null): number {
-  const max = Math.max(CONTENT_MIN, columnWidth - CONTENT_EDGE_BUDGET)
-  if (preference !== null) return Math.min(Math.max(preference, CONTENT_MIN), max)
-  return Math.max(680, Math.min(columnWidth * 0.64, 920))
+  const min = Math.min(CONTENT_MIN, Math.max(0, columnWidth - 64))
+  const max = Math.max(min, columnWidth - CONTENT_EDGE_BUDGET)
+  if (preference !== null) return Math.min(Math.max(preference, min), max)
+  return Math.min(max, Math.max(min, Math.min(columnWidth * 0.64, 920)))
+}
+
+/** The task rail owns a separate grid track, outside the transcript width. */
+function transcriptColumnWidth(container: HTMLDivElement): number {
+  return container.querySelector<HTMLElement>(':scope > [data-conversation-scroll]')?.offsetWidth ?? container.offsetWidth
 }
 
 /** Convert a wheel event's vertical delta to scrollport pixels. */
@@ -135,8 +141,8 @@ function WidthHandle(props: {
  */
 export function ConversationWidthControls({ container, phase }: ConversationWidthControlsProps) {
   const publishWidths = useCallback((container: HTMLDivElement): void => {
-    const target = container.parentElement ?? container
-    const column = container.offsetWidth
+    const target = container
+    const column = transcriptColumnWidth(container)
     target.style.setProperty('--dsh-conversation-column-width', `${column}px`)
     const preference = readWidthPreference()
     if (preference === null) target.style.removeProperty('--dsh-chat-user-width')
@@ -147,22 +153,23 @@ export function ConversationWidthControls({ container, phase }: ConversationWidt
     if (container === null) return
     const observer = new ResizeObserver(() => { publishWidths(container) })
     observer.observe(container)
+    const scrollport = container.querySelector<HTMLElement>(':scope > [data-conversation-scroll]')
+    if (scrollport !== null) observer.observe(scrollport)
     publishWidths(container)
     return () => { observer.disconnect() }
   }, [container, publishWidths])
 
   const onStart = useCallback((): number => {
     if (container === null) return 680
-    return resolveContentWidth(container.offsetWidth, readWidthPreference())
+    return resolveContentWidth(transcriptColumnWidth(container), readWidthPreference())
   }, [container])
   const onDrag = useCallback((width: number): void => {
     if (container === null) return
-    const target = container.parentElement ?? container
-    target.style.setProperty('--dsh-chat-user-width', `${resolveContentWidth(container.offsetWidth, width)}px`)
+    container.style.setProperty('--dsh-chat-user-width', `${resolveContentWidth(transcriptColumnWidth(container), width)}px`)
   }, [container])
   const onCommit = useCallback((width: number): void => {
     if (container === null) return
-    localStorage.setItem(WIDTH_PREF_KEY, `${resolveContentWidth(container.offsetWidth, width)}`)
+    localStorage.setItem(WIDTH_PREF_KEY, `${resolveContentWidth(transcriptColumnWidth(container), width)}`)
   }, [container])
   const onEnd = useCallback((): void => {
     if (container !== null) publishWidths(container)

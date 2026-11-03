@@ -206,13 +206,14 @@ async function awaitTableLayout(target: Page): Promise<void> {
     const element = document.querySelector('[data-sidebar-collapsed][data-rightbar-collapsed]')
     if (element === null) return false
     const tracks = getComputedStyle(element).gridTemplateColumns.split(' ').map(Number.parseFloat)
-    const root = element.querySelector<HTMLElement>('div[data-phase]')
+    const body = element.querySelector<HTMLElement>('[data-conversation-content]')
+    const scrollport = body?.querySelector<HTMLElement>(':scope > [data-conversation-scroll]')
     // Mirrored from ui-layout's SIDEBAR_COLLAPSED; these tests use the Host compiler face.
     return tracks[0] === 56 && tracks.at(-1) === 0
       && element.getAnimations().every(animation =>
         animation.playState === 'finished' || animation.playState === 'idle')
-      && root !== null
-      && root.style.getPropertyValue('--dsh-conversation-column-width') === `${String(root.offsetWidth)}px`
+      && body !== null && scrollport !== undefined && scrollport !== null
+      && body.style.getPropertyValue('--dsh-conversation-column-width') === `${String(scrollport.offsetWidth)}px`
   }, undefined, { timeout: 10_000 })
 }
 

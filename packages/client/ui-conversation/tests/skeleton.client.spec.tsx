@@ -970,10 +970,10 @@ describe('ConversationRoot resident composer', () => {
   it('publishes the column width as a px variable for the shared width axis', () => {
     const b = mount(sessionSnapshotOf())
     const content = b.view.container.querySelector('[data-conversation-content]') as HTMLElement
-    const root = content.parentElement as HTMLElement
-    // jsdom offsetWidth is 0 until faked: the observer publishes whatever the
-    // layout reports, and the CSS clamp() floors the axis at 680px either way.
-    Object.defineProperty(content, 'offsetWidth', { value: 1200, configurable: true })
+    const root = content
+    const scrollport = content.querySelector('[data-conversation-scroll]') as HTMLElement
+    Object.defineProperty(content, 'offsetWidth', { value: 1528, configurable: true })
+    Object.defineProperty(scrollport, 'offsetWidth', { value: 1200, configurable: true })
     act(() => { fireResize(content) })
     expect(root.style.getPropertyValue('--dsh-conversation-column-width')).toBe('1200px')
     // No dragged preference: the user-width override stays absent so the
@@ -984,8 +984,10 @@ describe('ConversationRoot resident composer', () => {
   it('drag → persist → window clamp round-trip on a width handle', () => {
     const b = mount(sessionSnapshotOf())
     const content = b.view.container.querySelector('[data-conversation-content]') as HTMLElement
-    const root = content.parentElement as HTMLElement
-    Object.defineProperty(content, 'offsetWidth', { value: 1600, configurable: true })
+    const root = content
+    const scrollport = content.querySelector('[data-conversation-scroll]') as HTMLElement
+    Object.defineProperty(content, 'offsetWidth', { value: 1920, configurable: true })
+    Object.defineProperty(scrollport, 'offsetWidth', { value: 1600, configurable: true })
     act(() => { fireResize(content) })
     const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
     expect(handle).not.toBeNull()
@@ -1012,7 +1014,7 @@ describe('ConversationRoot resident composer', () => {
       expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
       // Window shrinks: the displayed width re-clamps (900 − 176 = 724) but the
       // preference stays.
-      Object.defineProperty(content, 'offsetWidth', { value: 900, configurable: true })
+      Object.defineProperty(scrollport, 'offsetWidth', { value: 900, configurable: true })
       act(() => { fireResize(content) })
       expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
       expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')

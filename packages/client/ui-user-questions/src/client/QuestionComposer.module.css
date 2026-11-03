@@ -17,8 +17,9 @@
   /* Composer seat sits in a fixed-height conversation column (overflow
      hidden): cap the card against the viewport and scroll the option list
      so header and footer actions stay reachable on long batches. */
-  max-height: min(60vh, 520px);
-  padding: 0 0 10px;
+  max-height: min(70vh, 640px);
+  min-width: 0;
+  padding: 0;
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l2-darkmode-thin);
   box-shadow: var(--dsw-elevation-panel);
@@ -83,27 +84,56 @@
   justify-content: space-between;
   gap: 16px;
   flex-shrink: 0;
-  padding: 16px 16px 8px 20px;
+  padding: 20px 20px 12px 24px;
   transition: padding var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
 .headingBlock {
+  display: grid;
   flex: 1;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  align-items: center;
+  column-gap: 16px;
   min-width: 0;
+  min-height: 64px;
+}
+
+.headingBlock::after {
+  content: '';
+  grid-column: 2;
+  grid-row: 1 / 3;
+  width: 64px;
+  height: 64px;
+  background: url('./assets/question-helper-whale-maid-v1.webp') center / contain no-repeat;
+  pointer-events: none;
+}
+
+.headingBlock > * { grid-column: 1; }
+
+.headingBlock:not(:has(.title))::after { grid-row: 1; }
+
+.cardMinimized .headingBlock {
+  grid-template-columns: minmax(0, 1fr) 36px;
+  min-height: 36px;
+}
+
+.cardMinimized .headingBlock::after {
+  width: 36px;
+  height: 36px;
 }
 
 .eyebrow {
-  /* Eyebrow-to-title gap widened from the figma 2px (user-tuned). */
-  margin-bottom: 5px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
 }
 
 .title {
   margin: 0;
-  line-height: 22px;
-  font-weight: 500;
+  line-height: 24px;
+  font-weight: 400;
   font-size: 14px;
 }
 
@@ -118,7 +148,7 @@
 .questionTitle {
   position: relative;
   flex-shrink: 0;
-  margin: 5px 24px 0;
+  margin: 4px 24px 12px;
   timeline-scope: --question-copy;
 }
 
@@ -236,19 +266,19 @@
 .options {
   display: flex;
   flex-direction: column;
-  padding: 4px 12px;
-  gap: 6px;
+  padding: 4px 20px 16px;
+  gap: 10px;
   margin: 0;
 }
 
 .optionRow {
   position: relative;
   width: 100%;
-  min-height: 40px;
+  min-height: 64px;
   flex-shrink: 0;
-  border: 0.5px solid transparent;
-  border-radius: var(--dsw-radius-md);
-  background: transparent;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-lg);
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 60%, transparent);
   transition: background-color 120ms ease, border-color 120ms ease;
   timeline-scope: --description-copy;
 }
@@ -257,30 +287,31 @@
   display: flex;
   /* flex-start keeps the indicator aligned with the first label line. */
   align-items: flex-start;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
   min-width: 0;
-  min-height: 40px;
+  min-height: 64px;
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
-  padding: 10px 12px 10px 8px;
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  padding: 12px;
+  border: none;
+  border-radius: inherit;
 }
 
 .optionSelected {
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 8%, transparent);
 }
 
 @media (hover: hover) {
-  .optionRowInteractive:hover {
+  .optionRowInteractive:not(.optionSelected):hover {
     background: var(--dsw-alias-interactive-bg-hover);
   }
 }
 
 .optionSelected {
-  border-color: var(--dsw-alias-border-l2);
+  border-color: var(--dsw-alias-state-business-primary);
 }
 
 .option:disabled {
@@ -348,9 +379,9 @@
 .optionCopy {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -388,14 +419,14 @@
   overflow: hidden;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-weight: 400;
   scroll-timeline: --description-copy block;
   animation-name: description-clipped;
   animation-fill-mode: both;
   animation-timeline: --description-copy;
   display: block;
-  margin-top: 4px;
+  margin-top: 0;
   font-size: 13px;
   line-height: 20px;
 }
@@ -479,16 +510,16 @@
   /* Same first-line alignment as .option — the indicator seat carries the
      2px re-centering margin. */
   align-items: flex-start;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
-  min-height: 40px;
+  min-height: 64px;
   /* Same reason as .option: the custom row is scroll content, and shrinking
      it pushes the inline input past the footer. */
   flex-shrink: 0;
-  padding: 8px 12px 8px 8px;
-  border-radius: var(--dsw-radius-md);
+  padding: 12px;
+  border-radius: var(--dsw-radius-lg);
   transition: background-color 120ms ease, border-color 120ms ease;
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .customRow:focus-within:not(.customRowYielded),
@@ -504,7 +535,7 @@
 
 .customRow:focus-within:not(.customRowYielded),
 .customRowActive {
-  border-color: var(--dsw-alias-border-l2);
+  border-color: var(--dsw-alias-state-business-primary);
 }
 
 /* Auto-growing free-text answer (see AnswerField): mirror and textarea share
@@ -530,7 +561,7 @@
 }
 
 /* The height ruler, never painted. Growth stops at 6 lines: the card body is
-   capped at 520px and still owes that budget to the title, the option rows and
+   capped at 640px and still owes that budget to the title, the option rows and
    the footer actions, so a long answer scrolls in the textarea instead of
    pushing the choices it belongs to out of view.
    content-box overrides the card-wide border-box so the cap counts TEXT lines
@@ -573,7 +604,7 @@
 .customBlock {
   min-height: 64px;
   flex-shrink: 0;
-  margin: 0 12px;
+  margin: 0 4px;
   border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-bg-module-platform);
@@ -590,9 +621,9 @@
   justify-content: space-between;
   gap: 12px;
   flex-shrink: 0;
-  margin-top: 12px;
-  padding: 10px 16px 0;
-  border-top: 0.5px solid var(--dsw-alias-border-l1);
+  margin-top: 0;
+  padding: 14px 20px;
+  border-top: 0.5px solid var(--dsw-alias-border-l3);
 }
 
 .feedback {
@@ -610,21 +641,32 @@
   }
 
   .header {
-    padding: 12px 12px 8px 16px;
+    padding: 16px 12px 10px 20px;
+  }
+
+  .headingBlock {
+    grid-template-columns: minmax(0, 1fr) 48px;
+    column-gap: 12px;
+    min-height: 48px;
+  }
+
+  .headingBlock::after {
+    width: 48px;
+    height: 48px;
   }
 
   .options {
-    padding: 4px 8px;
+    padding: 4px 16px 12px;
   }
 
   .title {
     font-size: 14px;
-    line-height: 22px;
+    line-height: 24px;
   }
 
   .option,
   .customRow {
-    padding: 8px 6px;
+    padding: 10px;
   }
 
   .descriptionToggle {
@@ -633,7 +675,7 @@
 
   .footer {
     align-items: flex-end;
-    padding: 0 10px;
+    padding: 12px 16px;
     flex-wrap: wrap;
   }
 
@@ -653,6 +695,10 @@
 
 .disclosure { flex: 1 1 auto; }
 .disclosureBody { display: flex; flex-direction: column; }
+
+@media (pointer: coarse) {
+  .field > * { font-size: 16px; }
+}
 
 .collapseIcon { transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
 .cardMinimized .collapseIcon { transform: rotate(180deg); }

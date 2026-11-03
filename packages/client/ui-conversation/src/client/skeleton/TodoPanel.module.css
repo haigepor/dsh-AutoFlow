@@ -1,5 +1,5 @@
 .root {
-  display: none;
+  display: block;
   box-sizing: border-box;
   flex: none;
   overflow: hidden;
@@ -19,8 +19,8 @@
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
-@container (min-width: 280px) {
-  .root { display: block; }
+@container (max-width: 919px) {
+  .root { max-width: none; }
 }
 
 .root[data-expanded] { border-radius: var(--dsw-radius-lg); }
