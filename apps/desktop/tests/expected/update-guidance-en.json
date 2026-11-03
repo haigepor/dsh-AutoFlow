@@ -34,16 +34,12 @@
     "detail": "This version is no longer supported. Update to continue. Tasks in progress will keep running until you confirm installation and restart.",
     "version": "New version: 0.1.7-alpha.2",
     "error": "The update has not been installed. Check the tasks again and retry.",
-    "update": "Retry update",
-    "page": "Download from the official website"
+    "update": "Retry update"
   },
   {
     "title": "Update to continue",
     "detail": "This version is no longer supported. Update to continue. Tasks in progress will keep running until you confirm installation and restart.",
     "version": "",
-    "error": "No compatible update was found. Check again or contact support.",
-    "page": "Open the official download page again",
-    "browser-message": "Could not open the official download page. Copy the link and open it in your browser.",
-    "copy-message": "Could not copy the link. Select and copy it below."
+    "error": "No compatible update was found. Check again or contact support."
   }
 ]

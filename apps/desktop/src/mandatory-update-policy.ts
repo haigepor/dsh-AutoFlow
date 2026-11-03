@@ -160,7 +160,7 @@ export class DesktopMandatoryUpdatePolicy {
    * @param identity - Installed software identity, fixed for this application build.
    * @param publish - Receives policy changes without controlling downloads or existing tasks.
    * @param request - Anonymous Fetch or the dedicated test-authentication Session transport.
-   * @param client - UI build version, language, and UTC offset, sampled for every check.
+   * @param client - Installed application version, active language, and UTC offset, sampled for every check.
    * @param random - Jitter source, replaceable for clock-driven tests.
    */
   constructor(

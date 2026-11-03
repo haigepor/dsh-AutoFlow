@@ -178,7 +178,7 @@ const harness = await vi.hoisted(async () => {
     whenReady: () => Promise.resolve(),
     getLocale: (): string => 'en-US',
     getPreferredSystemLanguages: () => ['en-US'],
-    getVersion: () => '1.0.0',
+    getVersion: (): string => '1.0.0',
     getAppPath: (): string => 'desktop-test-app',
     setAppLogsPath: vi.fn(),
     getPath: vi.fn<(name: string) => string>(),
@@ -1639,6 +1639,29 @@ describe('desktop main startup', () => {
     } finally { host.exited.resolve(); await harness.quitCompleted.promise }
   })
 
+  it('checks dated installed releases independently of the embedded product version and follows the application language', async () => {
+    const installedVersion = '0.2.2-alpha.2.20261103.1'
+    vi.stubEnv('DSH_CLIENT_VERSION', '0.2.2-alpha.2')
+    vi.spyOn(harness.app, 'getVersion').mockReturnValue(installedVersion)
+    harness.embeddedPolicy = { source: 'static-json', policyUrl: 'https://policy.example.com/policy.json',
+      allowedPageOrigins: ['https://github.com'] }
+    const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ schemaVersion: 1, channel: 'nightly', targets: {
+      'win-x64': { latestVersion: installedVersion, minimumSupportedVersion: '0.2.2-alpha.2.20261102.2',
+        downloadPage: 'https://github.com/example/application/releases/tag/current' },
+    } }))
+    vi.stubGlobal('fetch', request)
+    await readyForUpdate()
+    const window = harness.windows[0]!
+    const owned = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
+    const status = harness.handlers.get(MANDATORY_IPC.status)!
+    await vi.waitFor(() => {
+      expect(request).toHaveBeenCalledOnce()
+      expect(status(owned)).toMatchObject({ policy: { blocking: false, checking: false } })
+    })
+    harness.ipcOn.mock.calls.find(([channel]) => channel === DESKTOP_IPC.localeChanged)![1](owned, 'zh')
+    expect(status(owned)).toMatchObject({ locale: { id: 'zh-CN', messages: { mandatoryRefresh: zh.mandatoryRefresh } } })
+  })
+
   it('blocks subsequent product operations without stopping the Host and clears only on a fresh no-force policy', async () => {
     harness.embeddedPolicy = { origin: 'https://policy.example.com',
       allowedPageOrigins: ['https://downloads.example.com'], intervalMs: 10_000, jitter: 0 }
@@ -1685,7 +1708,7 @@ describe('desktop main startup', () => {
     expect(modal.webContents.send.mock.calls.at(-1)).toMatchObject([MANDATORY_IPC.state, { policy: { blocking: false } }])
     expect(host.stop).not.toHaveBeenCalled()
     expect(request.mock.calls[0]![1]!.headers).toMatchObject({
-      'x-client-bundle-id': '', 'x-client-platform': 'desktop-win', 'x-client-version': '1.2.3',
+      'x-client-bundle-id': '', 'x-client-platform': 'desktop-win', 'x-client-version': '1.0.0',
       'x-client-arch': 'x64', 'x-client-update-channel': 'nightly', 'x-client-bundled-dsh-version': '1.0.0',
       'x-client-locale': 'en_US', 'x-client-timezone-offset': String(-new Date().getTimezoneOffset() * 60),
     })

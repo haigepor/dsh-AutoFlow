@@ -35,7 +35,8 @@ export interface MandatoryUpdateApi {
 export interface MandatoryUpdateWindowOptions {
   readonly preload: string
   readonly overlays: Pick<DesktopUpdateOverlays, 'create'>
-  readonly locale: DesktopLocale
+  /** Active application language; a reader also updates an already-open dialog. */
+  readonly locale: DesktopLocale | (() => DesktopLocale)
   readonly allowedPageOrigins: readonly string[]
   readonly parent: () => BrowserWindow | undefined
   readonly policy: () => DesktopPolicyState
@@ -73,7 +74,7 @@ export class DesktopMandatoryUpdateWindow {
 
   /** @param options - Main-process actions and immutable deployment/navigation settings. */
   constructor(private readonly options: MandatoryUpdateWindowOptions) {
-    this.attention = new DesktopUpdateAttention(options.locale)
+    this.attention = new DesktopUpdateAttention(() => this.locale)
     this.embeddedParent = this.embedded ? options.parent() : undefined
     this.embeddedParent?.webContents.on('did-finish-load', this.publishEmbedded)
     ipcMain.handle(MANDATORY_IPC.status, (event) => { this.assertSender(event); return this.view() })
@@ -114,7 +115,7 @@ export class DesktopMandatoryUpdateWindow {
           case 'install': await this.options.install(version as string); break
         }
       }).catch(() => {
-        this.error = this.options.locale.messages.mandatoryActionFailed
+        this.error = this.locale.messages.mandatoryActionFailed
       }).finally(() => { this.action = undefined; this.sync() })
       return this.action
     })
@@ -281,15 +282,13 @@ export class DesktopMandatoryUpdateWindow {
       if (!valid() || !failed || prompt !== undefined || !parent.isVisible() || !parent.isFocused()) return
       const controller = new AbortController()
       prompt = controller
-      const messages = this.options.locale.messages
+      const messages = this.locale.messages
       const policy = this.options.policy()
       const update = this.options.update()
-      const destination = desktopPolicyPage(policy.page, this.options.allowedPageOrigins)
-      const actions: readonly ('page' | 'quit')[] = destination === undefined ? ['quit'] : ['page', 'quit']
-      const labels = { page: messages.mandatoryViewDownload, quit: messages.quit }
+      const actions: readonly ('retry' | 'quit')[] = ['retry', 'quit']
+      const labels = { retry: messages.mandatoryRefresh, quit: messages.quit }
       const detail = [policy.detail ?? messages.mandatoryDetail,
-        ...('version' in update ? [messages.mandatoryVersion.replace('{version}', update.version)] : []),
-        ...(this.navigation?.page === 'failed' ? [messages.mandatoryViewPageFailed] : [])].join('\n\n')
+        ...('version' in update ? [messages.mandatoryVersion.replace('{version}', update.version)] : [])].join('\n\n')
       void dialog.showMessageBox(parent, { type: 'error', title: messages.mandatoryTitle,
         message: policy.title ?? messages.mandatoryTitle, detail,
         buttons: actions.map(action => labels[action]), defaultId: 0, cancelId: -1,
@@ -298,11 +297,8 @@ export class DesktopMandatoryUpdateWindow {
         if (controller.signal.aborted) { show(); return }
         if (!valid() || !failed) return
         if (actions[response] === 'quit') app.quit()
-        else if (actions[response] === 'page') {
-          if (destination !== desktopPolicyPage(this.options.policy().page, this.options.allowedPageOrigins)) { show(); return }
-          void this.navigate('page').then(() => { if (this.navigation?.page === 'failed') show() })
-            .catch((error: unknown) => { console.error('desktop policy: recovery download page failed', error) })
-        } else show()
+        else if (actions[response] === 'retry') void load()
+        else show()
       }).catch((error: unknown) => {
         if (prompt === controller) prompt = undefined
         console.error('desktop policy: native update recovery failed', error)
@@ -351,11 +347,16 @@ export class DesktopMandatoryUpdateWindow {
     return { load, dismiss, dispose }
   }
 
+  private get locale(): DesktopLocale {
+    return typeof this.options.locale === 'function' ? this.options.locale() : this.options.locale
+  }
+
   private view(): MandatoryUpdateView {
+    const current = this.locale
     const locale = process.platform === 'win32'
-      ? { ...this.options.locale, messages: { ...this.options.locale.messages,
-        mandatoryReadyDetail: this.options.locale.messages.updateDownloadedDetailWindows } }
-      : this.options.locale
+      ? { ...current, messages: { ...current.messages,
+        mandatoryReadyDetail: current.messages.updateDownloadedDetailWindows } }
+      : current
     return { locale, policy: this.options.policy(), update: this.options.update(),
       deferred: this.deferred,
       ...(this.confirmation === undefined ? {}

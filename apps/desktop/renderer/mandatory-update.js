@@ -12,7 +12,7 @@ function render(view) {
   if (!view.policy.blocking) return
   const wasConfirming = current?.confirmation !== undefined
   current = view
-  const { locale: { id, messages }, policy, update, confirmation, navigation } = view
+  const { locale: { id, messages }, policy, update, confirmation } = view
   const confirming = confirmation !== undefined
   if (confirming || view.restart !== undefined) downloads.hide()
   else downloads.render(update, messages, id)
@@ -79,33 +79,23 @@ function render(view) {
   element('refresh').textContent = authenticationRequired ? messages.policyLogin : messages.mandatoryRefresh
   element('refresh').hidden = confirming || view.restart !== undefined || (!authenticationRequired && (!!primary || !fallback))
   element('refresh').disabled = busy || policy.checking
-  element('page').textContent = navigation ? messages.mandatoryReopen : messages.mandatoryPage
-  element('page').hidden = !fallback || confirming || policy.page === undefined
   element('actions').hidden = [...element('actions').children].every(child => child.hidden)
-  element('fallback').hidden = !navigation || !fallback || confirming || policy.page === undefined
-  element('browser-message').textContent = navigation?.page === 'failed' ? messages.mandatoryPageFailed : messages.mandatoryOpenHelp
-  element('copy').textContent = navigation?.copy === 'copied' ? messages.mandatoryCopied : messages.mandatoryCopy
-  element('copy-message').textContent = navigation?.copy === 'failed' ? messages.mandatoryCopyFailed : ''
-  element('manual-copy').hidden = navigation?.copy !== 'failed'
-  element('address-label').textContent = messages.mandatoryAddress
-  element('address').value = navigation?.copy === 'failed' ? policy.page ?? '' : ''
   // A download button can become an install button while a key remains held.
   if (confirming && !wasConfirming && document.activeElement?.id === 'update') document.activeElement.blur()
 }
 
 async function act(action) {
-  const navigation = ['page', 'copy'].includes(action)
   const confirmation = current?.confirmation !== undefined && ['install', 'later'].includes(action)
-  if (current === undefined || (busy && !navigation && !confirmation)) return
-  if (!navigation) busy = true
+  if (current === undefined || (busy && !confirmation)) return
+  busy = true
   localError = undefined
   render(current)
   try { await api.action(action, current.confirmation?.version ?? current.update.version, current.confirmation?.revision) }
   catch { localError = current.locale.messages.mandatoryActionFailed }
-  finally { if (!navigation) busy = false; render(current) }
+  finally { busy = false; render(current) }
 }
 
-for (const action of ['refresh', 'page', 'copy', 'later']) element(action).addEventListener('click', () => { void act(action) })
+for (const action of ['refresh', 'later']) element(action).addEventListener('click', () => { void act(action) })
 element('update').addEventListener('click', event => {
   if (event.detail <= 1) void act(element('update').dataset.action)
 })

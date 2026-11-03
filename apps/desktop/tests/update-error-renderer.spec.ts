@@ -151,7 +151,7 @@ it('uses client copy and retry when optional policy fields are absent', async ()
   expect(p.element('detail').textContent).toBe(messages.mandatoryDetail)
   expect(p.element('error').textContent).toBe(messages.mandatoryNoRelease)
   expect(p.element('refresh').hidden).toBe(false)
-  expect(p.element('page').hidden).toBe(true)
+  expect(p.document.getElementById('page')).toBeNull()
 })
 
 it('uses the same modal for download, verification, inspected confirmation and task-aware restart', async () => {
@@ -170,9 +170,9 @@ it('uses the same modal for download, verification, inspected confirmation and t
   expect(p.document.activeElement?.id).not.toBe('update')
   expect(p.element('update').textContent).toBe('安装并重启')
   expect((p.element('update') as HTMLButtonElement).disabled).toBe(false)
-  expect(p.element('page').hidden).toBe(true)
+  expect(p.document.getElementById('page')).toBeNull()
   expect(p.element('refresh').hidden).toBe(true)
-  expect(p.element('manual-copy').hidden).toBe(true)
+  expect(p.document.getElementById('manual-copy')).toBeNull()
   const repeat = new p.dom.window.KeyboardEvent('keydown', { key: 'Enter', repeat: true, cancelable: true })
   p.document.dispatchEvent(repeat)
   expect(repeat.defaultPrevented).toBe(true)
@@ -189,24 +189,15 @@ it('uses the same modal for download, verification, inspected confirmation and t
   expect(p.document.querySelector('main')).toBe(modal)
 })
 
-it('reveals the complete selectable address only after copy failure, without replacing updater diagnostics', async () => {
+it('keeps download failure and retry inside the application without website or clipboard controls', async () => {
   const p = mandatoryPage({ phase: 'error', failedOperation: 'download', message: 'HASH_MISMATCH' })
   await expect.poll(() => p.element('error').textContent).toBe('更新文件下载或准备失败，请重试。')
   const originalError = p.element('error').textContent
-  p.publish({ ...p.initial, navigation: { page: 'requested' } })
-  expect(p.element('browser-message').textContent).toBe('页面未打开？')
-  expect(p.element('manual-copy').hidden).toBe(true)
   p.publish({ ...p.initial, navigation: { page: 'failed', copy: 'failed' } })
-  expect(p.element('manual-copy').hidden).toBe(false)
-  expect((p.element('address') as HTMLTextAreaElement).value).toBe(p.initial.policy.page)
-  expect((p.element('address') as HTMLTextAreaElement).readOnly).toBe(true)
+  for (const id of ['page', 'copy', 'fallback', 'manual-copy', 'address']) expect(p.document.getElementById(id)).toBeNull()
   expect(p.element('error').textContent).toBe(originalError)
   expect(p.element('technical-details-content').textContent).toBe('HASH_MISMATCH')
-  expect(p.element('copy-message').textContent).toBe('复制失败，请手动选择并复制下方链接。')
-  p.publish({ ...p.initial, navigation: { page: 'failed', copy: 'copied' } })
-  expect(p.element('manual-copy').hidden).toBe(true)
-  expect((p.element('address') as HTMLTextAreaElement).value).toBe('')
-  expect(p.element('copy').textContent).toBe('链接已复制')
+  expect(p.element('update').textContent).toBe(p.initial.locale.messages.updateRetry)
   expect(p.action).not.toHaveBeenCalled()
 })
 
@@ -240,7 +231,9 @@ it.each(['en', 'zh-CN'])('records mandatory update guidance and actions across i
   ]
   const snapshots = states.map((state) => {
     publish(state)
-    return Object.fromEntries(['title', 'detail', 'version', 'error', 'update', 'later', 'page', 'browser-message', 'copy-message']
+    expect(p.document.getElementById('page')).toBeNull()
+    expect(p.document.getElementById('fallback')).toBeNull()
+    return Object.fromEntries(['title', 'detail', 'version', 'error', 'update', 'later']
       .filter(id => !p.element(id).hidden && !p.element(id).closest('[hidden]'))
       .map(id => [id, p.element(id).textContent]))
   })

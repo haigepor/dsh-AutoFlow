@@ -100,7 +100,7 @@ export async function prepareDesktopGithubPublication(target: DesktopPolicyTarge
   const previous = options.previousPolicy === undefined ? undefined : parseDesktopStaticUpdatePolicy(options.previousPolicy)
   const old = previous?.targets[target]
   if (old !== undefined && gt(old.latestVersion, version)) throw new Error('desktop GitHub publication: refusing a feed downgrade')
-  const minimum = options.minimumSupportedVersion ?? old?.minimumSupportedVersion ?? version
+  const minimum = options.minimumSupportedVersion ?? old?.minimumSupportedVersion ?? (unsigned ? '0.0.0' : version)
   if (old !== undefined && gt(old.minimumSupportedVersion, minimum)) {
     throw new Error('desktop GitHub publication: refusing to lower the minimum supported version')
   }

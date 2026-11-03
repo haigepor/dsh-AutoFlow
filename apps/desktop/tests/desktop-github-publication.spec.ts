@@ -33,6 +33,7 @@ async function fixture() {
 it('builds a platform feed with explicit desktop Release URLs and retains the preceding minimum', async () => {
   const { options, plan } = await fixture()
   expect(plan.tag).toBe(`desktop-v${version}-unsigned`)
+  expect(plan.policy.targets['win-x64']?.minimumSupportedVersion).toBe('0.0.0')
   expect(load(plan.feed)).toMatchObject({ version, files: [{ url: `https://github.com/owner/repository/releases/download/${plan.tag}/${plan.assets[0]!.name}` }] })
   const previous = { ...plan.policy, targets: { ...plan.policy.targets,
     'win-x64': { ...plan.policy.targets['win-x64'], latestVersion: '0.2.0-rc.2', minimumSupportedVersion: '0.2.0-rc.1' } } }

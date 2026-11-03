@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { BrowserWindow, MessageBoxOptions, WebContents, WebFrameMain } from 'electron'
-import { DesktopMandatoryUpdateWindow, type MandatoryUpdateView } from '../src/mandatory-update-window.ts'
+import { DesktopMandatoryUpdateWindow, type MandatoryUpdateView, type MandatoryUpdateWindowOptions } from '../src/mandatory-update-window.ts'
 import { MANDATORY_IPC } from '../src/mandatory-update-ipc.ts'
 import { resolveDesktopLocale } from '../src/locale.ts'
 import type { DesktopPolicyState } from '../src/mandatory-update-policy.ts'
@@ -32,7 +32,8 @@ function fakeWindow() {
     isMinimized: () => false, focus: vi.fn(), show: vi.fn(), restore: vi.fn() })
 }
 afterEach(() => { ui?.dispose(); vi.restoreAllMocks(); vi.clearAllMocks(); native.handlers.clear(); vi.useRealTimers() })
-function setup(platform: NodeJS.Platform = 'darwin', beforeSync?: (surface: ReturnType<typeof fakeWindow>) => void) {
+function setup(platform: NodeJS.Platform = 'darwin', beforeSync?: (surface: ReturnType<typeof fakeWindow>) => void,
+  locale: MandatoryUpdateWindowOptions['locale'] = resolveDesktopLocale('zh')) {
   vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
   native.messageBox.mockImplementation(() => new Promise(() => {}))
   window = fakeWindow()
@@ -45,7 +46,7 @@ function setup(platform: NodeJS.Platform = 'darwin', beforeSync?: (surface: Retu
   const create = createOverlay as () => BrowserWindow
   const currentParent = (): WindowFixture => platform === 'win32' ? window : owner
   const parent = currentParent as () => BrowserWindow
-  ui = new DesktopMandatoryUpdateWindow({ overlays: { create }, preload: 'owned', locale: resolveDesktopLocale('zh'),
+  ui = new DesktopMandatoryUpdateWindow({ overlays: { create }, preload: 'owned', locale,
     allowedPageOrigins: ['https://downloads.example.com'], parent,
     policy: () => policy, update: () => update, refresh: async () => {}, download: async () => update, install })
   beforeSync?.(window)
@@ -57,6 +58,17 @@ function setup(platform: NodeJS.Platform = 'darwin', beforeSync?: (surface: Retu
   return { view, action, install, owner, policy(next: DesktopPolicyState) { policy = next; ui!.sync() },
     update(next: DesktopUpdateState) { update = next; ui!.sync() } }
 }
+
+it('updates an open dialog from the active application language reader', () => {
+  let locale = resolveDesktopLocale('en')
+  const f = setup('win32', undefined, () => locale)
+  expect(f.view().locale.id).toBe('en')
+  locale = resolveDesktopLocale('zh')
+  ui!.sync()
+  expect(f.view().locale.id).toBe('zh-CN')
+  expect(f.view().locale.messages.mandatoryReadyDetail).toBe(locale.messages.updateDownloadedDetailWindows)
+  expect(window.webContents.send).toHaveBeenLastCalledWith(MANDATORY_IPC.state, expect.objectContaining({ locale: f.view().locale }))
+})
 
 it('releases IPC after the Windows main window has already been destroyed', () => {
   setup('win32')
@@ -255,7 +267,7 @@ it.each(['initial', 'recovery'] as const)('keeps the native owner title unchange
   expect(f.owner.setTitle).not.toHaveBeenCalled()
 })
 
-it('defers native recovery until foreground and opens the policy download page without installing', async () => {
+it('defers native recovery until foreground and retries the local dialog without opening a website', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   const f = setup('darwin')
   await Promise.resolve()
@@ -272,14 +284,14 @@ it('defers native recovery until foreground and opens the policy download page w
   expect(native.messageBox).toHaveBeenCalledOnce()
   expect(native.messageBox).toHaveBeenCalledWith(f.owner, expect.objectContaining({
     message: '请更新后继续使用', cancelId: -1,
-    buttons: ['打开下载页面', '退出'],
+    buttons: ['重新检查', '退出'],
   }))
   expect(native.messageBox.mock.calls[0]![1].detail).toContain('1.0.1-nightly.1')
   answer.resolve({ response: 0 })
   await Promise.resolve()
   await Promise.resolve()
-  expect(window.loadURL).toHaveBeenCalledTimes(2)
-  expect(native.open).toHaveBeenCalledWith('https://downloads.example.com/desktop')
+  expect(window.loadURL).toHaveBeenCalledTimes(3)
+  expect(native.open).not.toHaveBeenCalled()
   expect(f.install).not.toHaveBeenCalled()
   expect(f.view().policy.blocking).toBe(true)
   expect(native.quit).not.toHaveBeenCalled()
@@ -347,7 +359,7 @@ it('ignores a late quit response after policy clearance', async () => {
 })
 
 
-it.each([undefined, 'https://unapproved.example.com/download'])('omits native download action for unavailable destination %s', async (page) => {
+it.each([undefined, 'https://unapproved.example.com/download'])('keeps recovery inside the application for destination %s', async (page) => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   const f = setup()
   await Promise.resolve()
@@ -355,12 +367,12 @@ it.each([undefined, 'https://unapproved.example.com/download'])('omits native do
   window.loadURL.mockRejectedValueOnce(new Error('local recovery failed'))
   window.webContents.emit('render-process-gone')
   await Promise.resolve()
-  expect(native.messageBox.mock.calls[0]![1].buttons).toEqual(['退出'])
+  expect(native.messageBox.mock.calls[0]![1].buttons).toEqual(['重新检查', '退出'])
   expect(native.messageBox.mock.calls[0]![1].cancelId).toBe(-1)
   expect(native.open).not.toHaveBeenCalled()
 })
 
-it('does not open a changed policy URL using approval for the previous destination', async () => {
+it('retries locally after the policy download URL changes', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   const f = setup()
   await Promise.resolve()
@@ -373,23 +385,25 @@ it('does not open a changed policy URL using approval for the previous destinati
   answer.resolve({ response: 0 })
   await Promise.resolve()
   expect(native.open).not.toHaveBeenCalled()
-  expect(native.messageBox).toHaveBeenCalledTimes(2)
+  expect(window.loadURL).toHaveBeenCalledTimes(3)
+  expect(native.messageBox).toHaveBeenCalledOnce()
 })
 
 
-it('reports a browser-opening failure in the native fallback without claiming download success', async () => {
+it('keeps a failed local retry recoverable without opening a browser or installing', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   const f = setup()
   await Promise.resolve()
   const answer = Promise.withResolvers<{ response: number }>()
   native.messageBox.mockReturnValueOnce(answer.promise)
-  native.open.mockRejectedValueOnce(new Error('browser unavailable'))
   window.loadURL.mockRejectedValueOnce(new Error('local recovery failed'))
   window.webContents.emit('render-process-gone')
   await Promise.resolve()
+  window.loadURL.mockRejectedValueOnce(new Error('local retry failed'))
   answer.resolve({ response: 0 })
   await vi.waitFor(() => { expect(native.messageBox).toHaveBeenCalledTimes(2) })
-  expect(native.messageBox.mock.calls[1]![1].detail).toContain('无法打开下载页面，请重试')
+  expect(native.messageBox.mock.calls[1]![1].buttons).toEqual(['重新检查', '退出'])
+  expect(native.open).not.toHaveBeenCalled()
   expect(f.view().policy.blocking).toBe(true)
   expect(f.install).not.toHaveBeenCalled()
 })

@@ -282,10 +282,11 @@ async function main() {
       const policy = new DesktopMandatoryUpdatePolicy(config, { platform: 'win32', arch: 'x64', bundledDshVersion: '1.0.0' },
         () => { modal?.sync() }, undefined,
         () => ({ version: '1.0.0', locale: 'zh-CN', timezoneOffsetSeconds: -new Date().getTimezoneOffset() * 60 }))
+      let activeLocale = resolveDesktopLocale('en')
       modal = new DesktopMandatoryUpdateWindow({
         overlays: new DesktopUpdateOverlays(),
         preload: fileURLToPath(new URL('../../lib/preload-mandatory.cjs', import.meta.url)),
-        locale: resolveDesktopLocale('zh-CN'), allowedPageOrigins: config.allowedPageOrigins,
+        locale: () => activeLocale, allowedPageOrigins: config.allowedPageOrigins,
         parent: () => parent, policy: () => policy.state, update: () => f.coordinator.state,
         refresh: async () => { await Promise.all([policy.check('manual', true), f.coordinator.check(true)]); modal.sync() },
         download: async version => { const pending = f.coordinator.download(version); await Promise.resolve(); modal.sync();
@@ -299,9 +300,8 @@ async function main() {
       const originalCopy = clipboard.writeText
       const opened = []
       const copied = []
-      const copyComplete = Promise.withResolvers()
       shell.openExternal = async url => { opened.push(url); throw new Error('Simulated unavailable browser') }
-      clipboard.writeText = async value => { copied.push(value); copyComplete.resolve() }
+      clipboard.writeText = async value => { copied.push(value) }
       clipboard.readText = async () => copied.at(-1)
       try {
         await parent.loadURL('dsh-app://app/')
@@ -329,6 +329,10 @@ async function main() {
           }
         }
         await until("document.getElementById('title')?.textContent === '需要更新'")
+        await until("document.documentElement.lang === 'en'")
+        activeLocale = resolveDesktopLocale('zh-CN')
+        modal.sync()
+        await until("document.documentElement.lang === 'zh-CN'")
         assert.equal(await contents.executeJavaScript("document.querySelector('#title b') === null"), true)
         if (process.platform === 'win32') {
           assert.equal(window, parent)
@@ -337,20 +341,16 @@ async function main() {
         assert.equal(await contents.executeJavaScript("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }))"), false)
         assert.equal(window.isDestroyed(), false)
         assert.equal(f.installations.length, 0)
-        await contents.executeJavaScript("document.getElementById('page').click()")
-        await until("document.getElementById('browser-message').textContent.includes('无法打开官网下载页面，请复制链接后在浏览器中打开。')")
-        assert.deepEqual(opened, ['https://downloads.example.com/desktop'])
-        await contents.executeJavaScript("document.getElementById('copy').click()")
-        await copyComplete.promise
-        await until("document.getElementById('copy').textContent === '链接已复制'")
-        assert.deepEqual(copied, opened)
+        assert.equal(await contents.executeJavaScript("document.getElementById('page') === null && document.getElementById('copy') === null"), true)
+        assert.deepEqual(opened, [])
+        assert.deepEqual(copied, [])
         await f.coordinator.check()
         modal.sync()
         await until("!document.getElementById('update').hidden")
         await contents.executeJavaScript("document.getElementById('update').click()")
         await server.arrived()
         assert.equal(f.coordinator.state.phase, 'downloading')
-        assert.equal(await contents.executeJavaScript("document.getElementById('page').hidden"), true)
+        assert.equal(await contents.executeJavaScript("document.getElementById('page') === null"), true)
         server.release()
         await until("document.getElementById('update').textContent === '停止任务并更新' && !document.getElementById('update').disabled")
         assert.equal(f.installations.length, 0)
