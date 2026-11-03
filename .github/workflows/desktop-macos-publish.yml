@@ -1,0 +1,125 @@
+name: Publish verified macOS Desktop artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Successful Build macOS Desktop artifacts run ID'
+        required: true
+        type: string
+      target:
+        description: 'Architecture of the completed unsigned auto-update build'
+        required: true
+        type: choice
+        options: [mac-arm64, mac-x64]
+      version:
+        description: 'Exact Desktop version in the completed artifact'
+        required: true
+        type: string
+      expected_commit:
+        description: 'Exact source commit of the completed build'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-github-publication
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'haigepor/dsh-AutoFlow' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: desktop-macos-test
+    permissions:
+      actions: read
+      contents: write
+      pages: write
+    env:
+      BUILD_RUN_ID: ${{ inputs.run_id }}
+      DESKTOP_TARGET: ${{ inputs.target }}
+      BUILD_VERSION: ${{ inputs.version }}
+      EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.14.0'
+          cache: pnpm
+      - name: Verify completed build source and archive digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$BUILD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > "$RUNNER_TEMP/build-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/build-artifacts.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs'
+          import { selectMacOSPublicationArtifact } from './apps/desktop/scripts/desktop-macos-ci.mjs'
+          const read = name => JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/${name}.json`, 'utf8'))
+          const artifact = selectMacOSPublicationArtifact(read('build-run'), read('build-artifacts'), {
+            runId: process.env.BUILD_RUN_ID, target: process.env.DESKTOP_TARGET,
+            version: process.env.BUILD_VERSION, commit: process.env.EXPECTED_COMMIT,
+          })
+          appendFileSync(process.env.GITHUB_ENV, `ARTIFACT_ID=${artifact.id}\nARTIFACT_SHA256=${artifact.sha256}\n`, 'utf8')
+          NODE
+      - name: Download and verify the frozen artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/macos-artifact.zip"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$archive"
+          printf '%s  %s\n' "$ARTIFACT_SHA256" "$archive" | sha256sum --check
+          directory="apps/desktop/.desktop-build/targets/$DESKTOP_TARGET/unsigned-artifacts"
+          mkdir -p "$directory"
+          unzip -q "$archive" -d "$directory"
+          (cd "$directory" && sha256sum --check SHA256SUMS)
+      - name: Install publication dependencies without build scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Configure the isolated certificate-free channel
+        env:
+          DESKTOP_APP_ID: ${{ vars.DESKTOP_UNSIGNED_APP_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs'
+          const appId = process.env.DESKTOP_APP_ID
+          if (!appId?.endsWith('.unsigned') || !/^[A-Za-z0-9.-]+$/.test(appId)) throw new Error('Missing isolated unsigned application ID')
+          const pages = `https://${process.env.GITHUB_REPOSITORY_OWNER}.github.io/${process.env.GITHUB_REPOSITORY.split('/')[1]}/desktop/unsigned/`
+          writeFileSync('apps/desktop/.env.macos', [
+            `DSH_DESKTOP_APP_ID=${appId}`, 'DSH_DESKTOP_AUTO_UPDATE_ENV=test',
+            'DSH_DESKTOP_UPDATE_PROVIDER=github', `DSH_DESKTOP_GITHUB_REPOSITORY=${process.env.GITHUB_REPOSITORY}`,
+            `DSH_DESKTOP_GITHUB_PAGES_URL=${pages}`, 'DSH_DESKTOP_UNSIGNED_UPDATES=1',
+            'DSH_DESKTOP_MANDATORY_UPDATE_SOURCE=static-json', `DSH_DESKTOP_MANDATORY_UPDATE_URL=${pages}policy.json`, '',
+          ].join('\n'), 'utf8')
+          NODE
+      - name: Prepare and confirm the exact version and source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --import tsx/esm apps/desktop/scripts/publish-github.ts "$DESKTOP_TARGET" --prepare-only
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+          const plan = JSON.parse(readFileSync(`apps/desktop/.desktop-build/targets/${process.env.DESKTOP_TARGET}/github-publication/publication.json`, 'utf8'))
+          assert.equal(plan.version, process.env.BUILD_VERSION)
+          assert.equal(plan.commit, process.env.EXPECTED_COMMIT)
+          assert.equal(plan.signing, 'unsigned')
+          assert.equal(plan.dirty, false)
+          NODE
+      - name: Publish immutable assets and merge the latest Pages policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --import tsx/esm apps/desktop/scripts/publish-github.ts "$DESKTOP_TARGET"
+      - name: Remove runner-owned public configuration
+        if: always()
+        run: rm -f apps/desktop/.env.macos

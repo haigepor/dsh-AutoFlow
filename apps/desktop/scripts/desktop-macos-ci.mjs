@@ -41,6 +41,41 @@ function macOSTarget(target) {
   throw new Error('desktop macOS CI: explicitly select mac-arm64 or mac-x64')
 }
 
+/**
+ * Select only a successful default-branch build's exact unsigned artifact for separate publication.
+ * @param {unknown} run GitHub Actions workflow-run response.
+ * @param {unknown} listing GitHub Actions artifact-list response.
+ * @param {{runId: string, target: string, version: string, commit: string}} expected Confirmed immutable build identity.
+ * @returns {{id: number, sha256: string}} Artifact ID and GitHub's archive digest.
+ */
+export function selectMacOSPublicationArtifact(run, listing, expected) {
+  macOSTarget(expected.target)
+  const fail = () => { throw new Error('desktop macOS publication: completed trusted build or artifact does not match') }
+  /** @param {unknown} value GitHub JSON object. */
+  const object = value => {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return fail()
+    return /** @type {Record<string, unknown>} */ (value)
+  }
+  if (!/^[1-9]\d*$/u.test(expected.runId) || !/^[0-9a-f]{40}$/u.test(expected.commit)
+    || !/^[0-9A-Za-z][0-9A-Za-z.+-]{0,159}$/u.test(expected.version)) fail()
+  const details = object(run)
+  const files = object(listing)
+  /** @param {unknown} value GitHub repository response. */
+  const official = value => object(value).full_name === 'haigepor/dsh-AutoFlow'
+  if (String(details.id) !== expected.runId || details.event !== 'workflow_dispatch' || details.status !== 'completed'
+    || details.conclusion !== 'success' || details.head_branch !== 'main' || details.head_sha !== expected.commit
+    || details.path !== '.github/workflows/desktop-macos-build.yml' || !official(details.repository) || !official(details.head_repository)
+    || !Number.isSafeInteger(details.run_attempt) || Number(details.run_attempt) < 1 || !Array.isArray(files.artifacts)) return fail()
+  const name = `desktop-${expected.target}-unsigned-${expected.version}-${expected.runId}-${details.run_attempt}`
+  const matches = Array.from(files.artifacts, object).filter(value => value.name === name)
+  if (matches.length !== 1) return fail()
+  const artifact = matches[0]
+  if (!artifact || typeof artifact.id !== 'number' || !Number.isSafeInteger(artifact.id) || artifact.id < 1 || artifact.expired !== false
+    || typeof artifact.digest !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(artifact.digest)
+    || object(artifact.workflow_run).head_sha !== expected.commit || object(artifact.workflow_run).id !== details.id) return fail()
+  return { id: artifact.id, sha256: artifact.digest.slice(7) }
+}
+
 function validateSigningMode(signing, deployment) {
   if (!['signed', 'unsigned'].includes(signing)) throw new Error('desktop macOS CI: explicitly select signed or unsigned')
   if (signing === 'unsigned' && deployment !== 'test') throw new Error('desktop macOS CI: unsigned packages require test deployment')

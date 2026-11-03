@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { parseEnv } from 'node:util'
 import { dump } from 'js-yaml'
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanupMacOSCI, collectMacOSCIDiagnostics, initializeMacOSCI, prepareMacOSCI, stageMacOSCIArtifacts, validateMacOSCIBuild } from '../scripts/desktop-macos-ci.mjs'
+import { cleanupMacOSCI, collectMacOSCIDiagnostics, initializeMacOSCI, prepareMacOSCI, selectMacOSPublicationArtifact, stageMacOSCIArtifacts, validateMacOSCIBuild } from '../scripts/desktop-macos-ci.mjs'
 import { writeMacOSUnsignedRecord } from '../scripts/macos-unsigned-artifacts.ts'
 // 预加载真实校验模块，避免把源码冷转换时间计入单条配置测试的超时。
 import '../scripts/desktop-package-environment.mjs'
@@ -16,6 +16,34 @@ afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(p
 const version = '0.2.0-rc.2.20261010.7'
 const productVersion = '0.2.0-rc.2'
 const commit = 'a'.repeat(40)
+
+describe('separate macOS artifact publication', () => {
+  const expected = { runId: '123', target: 'mac-arm64', version, commit }
+  const official = { full_name: 'haigepor/dsh-AutoFlow' }
+  const run = { id: 123, run_attempt: 1, event: 'workflow_dispatch', status: 'completed', conclusion: 'success', head_branch: 'main',
+    head_sha: commit, path: '.github/workflows/desktop-macos-build.yml', repository: official, head_repository: official }
+  const artifact = { id: 456, name: `desktop-mac-arm64-unsigned-${version}-123-1`, expired: false, digest: `sha256:${'b'.repeat(64)}`,
+    workflow_run: { id: 123, head_sha: commit } }
+
+  it('selects the exact frozen archive and digest from a successful trusted build', () => {
+    expect(selectMacOSPublicationArtifact(run, { artifacts: [artifact] }, expected)).toEqual({ id: 456, sha256: 'b'.repeat(64) })
+  })
+
+  it.each([{ conclusion: 'failure' }, { status: 'in_progress' }, { event: 'pull_request' }, { head_branch: 'feature' },
+    { head_sha: 'c'.repeat(40) }, { repository: { full_name: 'other/fork' } }, { head_repository: { full_name: 'other/fork' } },
+    { path: '.github/workflows/unrelated.yml' }, { id: 124 }])('rejects a different or incomplete source run %j', (changes) => {
+    expect(() => { selectMacOSPublicationArtifact({ ...run, ...changes }, { artifacts: [artifact] }, expected) }).toThrow('does not match')
+  })
+
+  it.each([{ expired: true }, { digest: '' }, { workflow_run: { id: 124, head_sha: commit } },
+    { name: `desktop-mac-x64-unsigned-${version}-123-1` }, { name: `desktop-mac-arm64-unsigned-${version}-123-2` }])('rejects mismatched artifact identity %j', (changes) => {
+    expect(() => { selectMacOSPublicationArtifact(run, { artifacts: [{ ...artifact, ...changes }] }, expected) }).toThrow('does not match')
+  })
+
+  it('rejects ambiguous matching artifacts', () => {
+    expect(() => { selectMacOSPublicationArtifact(run, { artifacts: [artifact, artifact] }, expected) }).toThrow('does not match')
+  })
+})
 const confirmed = { target: 'mac-arm64', deployment: 'test', signing: 'signed', version, productVersion, expectedCommit: commit, actualCommit: commit, dirty: false }
 const environment = {
   DESKTOP_TARGET: 'mac-arm64', DEPLOYMENT: 'test', SIGNING_MODE: 'signed', DESKTOP_APP_ID: 'com.example.desktop.test',

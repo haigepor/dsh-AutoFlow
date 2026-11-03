@@ -243,7 +243,7 @@ GitHub Actions 的 `Publish Windows Desktop` 工作流可传入 `publish=false`�
 
 既有 `Build macOS Desktop artifacts` 工作流在 Apple Silicon 构建 `mac-arm64`，在 Intel 构建 `mac-x64`。确认 `deployment=test`、`signing=unsigned`、完整版本及精确 `expected_commit`；`unsigned_updates=true` 无需 Apple 凭据即可选择隔离的 GitHub 更新渠道。工作流先用私有测试应用验证 Squirrel 下载、应用替换和重新启动。测试应用采用显式 ad-hoc 应用标识要求、严格嵌套代码校验及官方 HTTPS 清单的完整 SHA512，没有 Developer ID 或公证。普通本地 `--unsigned` 继续默认关闭更新；`--unsigned --unsigned-updates` 读取 `.env.macos` 中显式配置的 GitHub 渠道，要求应用 ID 以 `.unsigned` 结尾。
 
-两种无证书 Mac 目标分别通过 `publish:github <target>` 发布不可变的 `desktop-v<version>-mac-arm64-unsigned` 或 `desktop-v<version>-mac-x64-unsigned` Release。按顺序发布，每个目标合并前一次 Pages 策略，保留 Windows 与插件索引。测试渠道的 `minimumSupportedVersion` 保持 `0.0.0`，更新可选，安装仍需用户确认；这些测试包不具备 Apple 发布者身份验证，也不保证 Gatekeeper 放行。
+两种无证书 Mac 目标分别通过 `publish:github <target>` 发布不可变的 `desktop-v<version>-mac-arm64-unsigned` 或 `desktop-v<version>-mac-x64-unsigned` Release。[Publish verified macOS Desktop artifacts](../../.github/workflows/desktop-macos-publish.yml) 接收已成功构建的 run ID、目标、版本和源码提交，在 GitHub 内校验来源及 artifact SHA256，再调用同一发布器，无需重新构建或经本机转传安装包。它与 Windows 发布共用串行队列，合并最新 Pages 策略并保留插件索引。测试渠道的 `minimumSupportedVersion` 保持 `0.0.0`，更新可选，安装仍需用户确认；这些测试包不具备 Apple 发布者身份验证，也不保证 Gatekeeper 放行。
 
 ### 发布版本
 

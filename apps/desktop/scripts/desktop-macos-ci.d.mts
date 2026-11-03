@@ -27,6 +27,20 @@ export interface MacOSCIPaths {
 export function validateMacOSCIBuild(input: MacOSCIBuild): void
 
 /**
+ * Select a successful main-branch macOS build's exact frozen unsigned artifact.
+ * @param run GitHub workflow-run JSON.
+ * @param listing GitHub artifact-list JSON.
+ * @param expected Confirmed run, architecture, version and source commit.
+ * @returns The artifact ID and GitHub archive SHA256; mismatches throw.
+ */
+export function selectMacOSPublicationArtifact(run: unknown, listing: unknown, expected: {
+  runId: string
+  target: string
+  version: string
+  commit: string
+}): { id: number; sha256: string }
+
+/**
  * Allocate private credentials, temporary files and artifact staging directories.
  * @param runnerTemp Existing runner temporary directory.
  * @param appRoot Desktop checkout directory.
