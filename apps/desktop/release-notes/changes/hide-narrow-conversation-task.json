@@ -1,0 +1,8 @@
+{
+  "id": "hide-narrow-conversation-task",
+  "category": "improvements",
+  "text": {
+    "en": "Hide the conversation task sidebar when the conversation area is too narrow, keeping chat space available. Widening the area restores the task card and its state.",
+    "zh-CN": "会话区域较窄时隐藏任务侧栏，避免占用聊天空间；宽度恢复后重新显示，并保留任务卡片状态。"
+  }
+}

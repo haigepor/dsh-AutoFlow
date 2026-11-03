@@ -450,7 +450,7 @@
   display: grid;
   flex: 1;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   container-type: inline-size;
@@ -479,7 +479,7 @@
 
 .scrollBody {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -687,7 +687,7 @@
   position: relative;
   grid-column: 1;
   grid-row: 1;
-  display: flex;
+  display: none;
   align-items: flex-start;
   justify-content: flex-end;
   z-index: 8;
@@ -725,12 +725,10 @@
 @container conversation-layout (min-width: 920px) {
   .body {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: minmax(0, 1fr);
   }
 
-  .scrollBody { grid-row: 1; }
-
   .bodyOverlay {
+    display: flex;
     grid-column: 2;
     margin: 12px 16px 12px 8px;
     max-width: min(640px, calc(100cqi - 608px));
