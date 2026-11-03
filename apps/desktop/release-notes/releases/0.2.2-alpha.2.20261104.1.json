@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-alpha.2.20261104.1",
+  "items": [
+    {
+      "id": "hide-narrow-conversation-task",
+      "category": "improvements",
+      "text": {
+        "en": "Hide the conversation task sidebar when the conversation area is too narrow, keeping chat space available. Widening the area restores the task card and its state.",
+        "zh-CN": "会话区域较窄时隐藏任务侧栏，避免占用聊天空间；宽度恢复后重新显示，并保留任务卡片状态。"
+      }
+    },
+    {
+      "id": "visual-search-review-recovery",
+      "category": "fixes",
+      "text": {
+        "en": "Image search reviews use bounded concurrency, reuse prepared reference images, and retry invalid model output within the saved budget. Repeated searches skip confirmed mismatches when the task and rules are unchanged.",
+        "zh-CN": "找图复核采用受控并行并复用已准备的参考图片；模型输出异常按保存的预算重试，同一任务和规则下跳过已确认不匹配的历史照片。"
+      }
+    }
+  ]
+}
