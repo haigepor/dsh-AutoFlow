@@ -9,6 +9,8 @@ import { resolveCurrentConfig } from '../src/host/config.ts'
 import { analysisFollowResponse } from '../src/host/analysis-follow.ts'
 
 async function liveStream(t: TestContext) {
+  // Opening the stream publishes its first frame and starts the throttle timer.
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   const repository = new DomainRepository('stream-fixture', new MemoryDomainAdapter()), jobs = new FixtureJobs(), engine = new RunEngine(repository, jobs)
   const actor = { kind: 'human', id: 'stream-reader', profileId: 'stream-fixture' } as const
   let release!: () => void, entered!: () => void, context!: WorkContext
@@ -28,7 +30,6 @@ async function liveStream(t: TestContext) {
 
 test('ordinary fragments share the configured interval while first content, checkpoints and completion remain immediate', async t => {
   const f = await liveStream(t)
-  t.mock.timers.enable({ apis: ['setTimeout'] })
   assert.equal((await f.next()).checkpoint, true)
   f.context.report({ phase: 'receiving', content: 'a', resetOutput: true })
   assert.equal((await f.next()).process?.content, 'a')
@@ -54,7 +55,6 @@ test('ordinary fragments share the configured interval while first content, chec
 
 test('backpressure keeps the latest snapshot and checkpoint marker until a reader resumes', async t => {
   const f = await liveStream(t)
-  t.mock.timers.enable({ apis: ['setTimeout'] })
   await setImmediate()
   f.context.report({ phase: 'receiving', content: 'a', resetOutput: true })
   await f.context.save('screening', { counts: { observed: 1 } })
@@ -69,7 +69,6 @@ test('backpressure keeps the latest snapshot and checkpoint marker until a reade
 
 test('aborting observation with a coalesced update pending leaves the model task running', async t => {
   const f = await liveStream(t)
-  t.mock.timers.enable({ apis: ['setTimeout'] })
   await f.next()
   f.context.report({ phase: 'receiving', content: 'a', resetOutput: true }); await f.next()
   f.context.report({ phase: 'receiving', content: 'b' })
