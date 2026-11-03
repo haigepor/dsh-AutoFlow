@@ -483,7 +483,19 @@ Background mandatory-installation confirmation requests Windows taskbar attentio
 
 ### Local updater qualification
 
-Ordinary update HTTP requests have a per-connection inactivity deadline: no response headers or no further response bytes for `60000` ms fails the operation. `DSH_DESKTOP_UPDATE_HTTP_IDLE_TIMEOUT_MS` accepts an integer from `1000` through `2147483647` to adjust it; active downloads have no total-duration deadline. Failed downloads retain the retry indicator and require another user action.
+Ordinary update HTTP requests have a per-connection inactivity deadline: no response headers or no further response bytes for `60000` ms fails the operation. `DSH_DESKTOP_UPDATE_HTTP_IDLE_TIMEOUT_MS` accepts an integer from `1000` through `2147483647` to adjust it; active downloads have no total-duration deadline. Automatic full downloads try other eligible sources before reporting failure; exhausted retries require another user action.
+
+Both ordinary and mandatory update dialogs reuse the shared UI controls, icons, and theme tokens and show the download source, transferred bytes, speed, and estimated remaining time, with source selection, pause, resume, and a new speed test. Closing the ordinary dialog leaves its download running; opening Updates shows its current progress. These controls do not stop Host tasks or authorize installation. Source selection is stored in Electron userData at `desktop/update-download/source.json`. Custom sources accept an HTTPS proxy prefix without credentials, query, or fragment and append the original public GitHub Release asset URL. Git Clone and repository-browser mirrors are not installer sources. Automatic selection measures bounded Range responses from GitHub, GH-Proxy, GH-Proxy.org, and GHFast; GHProxy.net is available manually. Version metadata remains on the configured update feed, and no update authentication headers are forwarded to public proxies. Automatic mode retains native differential downloads; manually selecting a mirror or changing sources during a native transfer uses the full-file transport.
+
+Full files with feed-declared size and SHA512 use a contiguous partial file outside the native updater's disposable pending directory. Checkpoints bind the version, original URL, size, and SHA512, retain a digest of flushed bytes, and survive pause, retry, and application restart. Resuming rejects an incorrect `Content-Range` or a full HTTP 200 response at a nonzero offset. Changed cache bytes are discarded, and the whole file must pass SHA512 before native signature checks and platform preparation. Successful preparation removes the extra partial copy. Graceful quit waits for the download checkpoint; abrupt process loss can discard the uncommitted tail. Native differential files and authenticated or unqualified downloads retain the native updater's caching behavior.
+
+| Environment variable | Default and accepted values |
+| --- | --- |
+| `DSH_DESKTOP_UPDATE_PROBE_TIMEOUT_MS` | `4000`; integer milliseconds from `1000` through `2147483647`, at most two concurrent probes |
+| `DSH_DESKTOP_UPDATE_PROBE_BYTES` | `131072`; integer bytes from `1024` through `1048576` per probe |
+| `DSH_DESKTOP_UPDATE_PROBE_CACHE_MS` | `300000`; integer milliseconds from `1000` through `2147483647`; a new speed test clears cached rankings |
+| `DSH_DESKTOP_UPDATE_SLOW_WINDOW_MS` | `30000`; integer milliseconds from `1000` through `2147483647` per throughput window |
+| `DSH_DESKTOP_UPDATE_MINIMUM_BYTES_PER_SECOND` | `32768`; integer bytes per second from `1` through `2147483647`; automatic mode switches away from a slower source |
 
 On Windows with workspace dependencies installed, run this command from the repository root:
 

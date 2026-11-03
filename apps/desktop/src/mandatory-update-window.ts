@@ -28,6 +28,7 @@ export interface MandatoryUpdateApi {
   status(): Promise<MandatoryUpdateView>
   action(action: MandatoryUpdateAction, version?: string, confirmationRevision?: number): Promise<void>
   subscribe(listener: (state: MandatoryUpdateView) => void): () => void
+  control?(action: string, version: string, choice?: unknown): Promise<void>
 }
 
 /** Main-process operations owned by the policy client, updater, and application lifecycle. */
@@ -42,6 +43,7 @@ export interface MandatoryUpdateWindowOptions {
   readonly refresh: () => Promise<void>
   readonly download: (version: string) => Promise<DesktopUpdateState>
   readonly install: (version: string) => Promise<DesktopUpdateState>
+  readonly controlDownload?: (action: unknown, version: unknown, choice: unknown) => Promise<void>
 }
 
 // main.ts's protocol.handle shell route serves this document and its renderer assets; the modal requires that route.
@@ -75,6 +77,13 @@ export class DesktopMandatoryUpdateWindow {
     this.embeddedParent = this.embedded ? options.parent() : undefined
     this.embeddedParent?.webContents.on('did-finish-load', this.publishEmbedded)
     ipcMain.handle(MANDATORY_IPC.status, (event) => { this.assertSender(event); return this.view() })
+    ipcMain.handle(MANDATORY_IPC.control, (event, action: unknown, version: unknown, choice: unknown) => {
+      this.assertSender(event)
+      if (!this.options.policy().blocking || this.confirmation !== undefined || this.options.controlDownload === undefined) {
+        throw new Error('desktop policy: no download controls are active')
+      }
+      return this.options.controlDownload(action, version, choice)
+    })
     ipcMain.handle(MANDATORY_IPC.action, (event, action: unknown, version: unknown, confirmationRevision: unknown) => {
       this.assertSender(event)
       if (!this.options.policy().blocking) throw new Error('desktop policy: no mandatory decision is active')
@@ -246,6 +255,7 @@ export class DesktopMandatoryUpdateWindow {
     this.clearNavigation()
     ipcMain.removeHandler(MANDATORY_IPC.status)
     ipcMain.removeHandler(MANDATORY_IPC.action)
+    ipcMain.removeHandler(MANDATORY_IPC.control)
     if (this.embeddedParent !== undefined && !this.embeddedParent.isDestroyed()) {
       this.embeddedParent.webContents.off('did-finish-load', this.publishEmbedded)
       this.embeddedParent.webContents.send(MANDATORY_IPC.state, { ...this.view(), policy: { blocking: false, checking: false } })

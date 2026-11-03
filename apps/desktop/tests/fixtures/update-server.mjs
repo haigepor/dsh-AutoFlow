@@ -12,7 +12,9 @@ export async function createUpdateServer() {
   const payload = Buffer.alloc(256 * 1024, 0x5a)
   const sha512 = createHash('sha512').update(payload).digest('base64')
   const requests = []
+  const ranges = []
   const failures = []
+  const handlers = new Set()
   let mode = 'healthy'
   let version = '1.0.1-nightly.1'
   let policyMode = 'clear'
@@ -22,10 +24,11 @@ export async function createUpdateServer() {
   const server = createServer((request, response) => {
     const path = new URL(request.url, origin).pathname
     requests.push(path)
+    if (path === '/payload.exe') ranges.push(request.headers.range)
     const selectedMode = mode
     const selectedGate = gate
     response.setHeader('Cache-Control', 'no-store')
-    void (async () => {
+    const handler = (async () => {
       if (path === '/api/v0/check_client_update') {
         response.setHeader('Content-Type', 'application/json')
         if (policyMode === 'stall') return
@@ -48,7 +51,10 @@ export async function createUpdateServer() {
         return
       }
       if (path !== '/payload.exe' || selectedMode === 'download-404') { response.writeHead(404).end(); return }
-      response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': payload.length })
+      const start = Number(/^bytes=(\d+)-$/u.exec(request.headers.range ?? '')?.[1] ?? 0)
+      const ranged = request.headers.range !== undefined
+      response.writeHead(ranged ? 206 : 200, { 'Content-Type': 'application/octet-stream', 'Content-Length': payload.length - start,
+        ...(ranged ? { 'Content-Range': `bytes ${start}-${payload.length - 1}/${payload.length}` } : {}) })
       if (selectedMode === 'download-stall') { response.write(payload.subarray(0, 1024)); return }
       if (selectedMode === 'corrupt') { response.end(Buffer.alloc(payload.length, 0x21)); return }
       if (selectedMode === 'disconnect') {
@@ -62,15 +68,17 @@ export async function createUpdateServer() {
         if (!response.destroyed) response.end(payload.subarray(1024))
         return
       }
-      response.end(payload)
+      response.end(payload.subarray(start))
     })().catch(error => { failures.push(String(error)); response.destroy() })
+    handlers.add(handler)
+    void handler.finally(() => { handlers.delete(handler) })
   })
   const listening = once(server, 'listening')
   server.listen(0, '127.0.0.1')
   await listening
   origin = `http://127.0.0.1:${server.address().port}`
   return {
-    url: `${origin}/`, payload, requests, failures,
+    url: `${origin}/`, payload, requests, ranges, failures,
     policy(next) { policyMode = next },
     select(nextMode, nextVersion = '1.0.1-nightly.1') {
       gate.resolve()
@@ -86,6 +94,7 @@ export async function createUpdateServer() {
       const closed = new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
       server.closeAllConnections()
       await closed
+      await Promise.all(handlers)
     },
   }
 }

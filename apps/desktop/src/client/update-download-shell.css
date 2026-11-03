@@ -1,0 +1,22 @@
+body.download-dialog main {
+  width: min(500px, calc(100vw - 32px));
+  padding: 20px 24px;
+  border-radius: var(--dsw-radius-panel);
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 95%, transparent);
+  backdrop-filter: var(--dsw-dialog-backdrop-filter);
+  box-shadow: var(--dsw-shadow-lv3);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+}
+body.download-dialog header { margin-bottom: 6px; }
+body.download-dialog h1 { font-size: 17px; line-height: 26px; font-weight: 500; }
+body.download-dialog #detail { color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; }
+body.download-dialog #download-controls { margin-top: 16px; }
+body.download-dialog main[role="dialog"] #actions,
+body.download-dialog #status,
+body.download-dialog #version { display: none; }
+body.download-dialog .close::before { content: none; }
+body.download-dialog .close { color: var(--dsw-alias-label-secondary); }
+body.download-dialog button { min-height: 0; }
+.download-icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+@media (max-width: 420px) { body.download-dialog main { padding: 20px; } }

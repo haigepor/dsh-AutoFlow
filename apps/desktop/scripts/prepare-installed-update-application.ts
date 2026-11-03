@@ -32,7 +32,8 @@ export async function prepareInstalledUpdateApplication(manifest: string, source
     const modules = (await readdir(join(source, 'lib'), { withFileTypes: true }))
       .filter(entry => /\.(?:js|cjs)$/u.test(entry.name))
     if (modules.some(entry => !entry.isFile())) throw new Error('installed update: application modules must be regular files')
-    const paths = [...modules.map(entry => `lib/${entry.name}`), ...await applicationFiles(source, 'renderer'), 'lib/welcome/design-platform.css'].sort()
+    const paths = [...modules.map(entry => `lib/${entry.name}`), ...await applicationFiles(source, 'renderer'),
+      'lib/welcome/design-platform.css', 'lib/shell/download-controls.js', 'lib/shell/download-controls.css'].sort()
     for (const required of ['lib/main.js', 'lib/preload-app.cjs', 'lib/preload-mandatory.cjs', 'lib/preload-update-dialog.cjs']) {
       if (!paths.includes(required)) throw new Error('installed update: rebuild Desktop before freezing application files')
     }
@@ -76,7 +77,7 @@ export async function verifyInstalledUpdateApplication(root: string): Promise<st
     if (typeof entry !== 'object' || entry === null || !('path' in entry) || !('sha256' in entry)
       || typeof entry.path !== 'string' || typeof entry.sha256 !== 'string'
       || entry.path.includes('\\') || entry.path.includes(':') || entry.path.split('/').some(part => ['', '.', '..'].includes(part))
-      || (entry.path !== 'lib/welcome/design-platform.css'
+      || (!['lib/welcome/design-platform.css', 'lib/shell/download-controls.js', 'lib/shell/download-controls.css'].includes(entry.path)
         && !/^(?:lib\/[^/]+\.(?:js|cjs)|renderer\/.+|qualification-bootstrap\.mjs|installed-update-identity\.mjs)$/u.test(entry.path))
       || !/^[a-f0-9]{64}$/u.test(entry.sha256) || paths.has(entry.path)) {
       throw new Error('installed update: invalid application file inventory')

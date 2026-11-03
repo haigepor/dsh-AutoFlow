@@ -38,5 +38,12 @@ if (window.parent !== window && window.dshMandatoryUpdate === undefined) {
       port.postMessage({ type: 'dsh-mandatory-action', id, action, version, revision })
       return request.promise
     },
+    control: (action, version, choice) => {
+      const id = ++sequence
+      const request = Promise.withResolvers()
+      requests.set(id, request)
+      port.postMessage({ type: 'dsh-mandatory-control', id, action, version, revision: undefined, choice })
+      return request.promise
+    },
   }
 }

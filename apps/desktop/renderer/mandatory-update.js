@@ -1,5 +1,6 @@
 /** Text-only policy rendering; the main process owns task inspection and every privileged action. */
 const api = window.dshMandatoryUpdate
+const downloads = createDownloadControls((action, version, choice) => api.control(action, version, choice))
 let current
 let busy = false
 let localError
@@ -13,6 +14,8 @@ function render(view) {
   current = view
   const { locale: { id, messages }, policy, update, confirmation, navigation } = view
   const confirming = confirmation !== undefined
+  if (confirming || view.restart !== undefined) downloads.hide()
+  else downloads.render(update, messages, id)
   const failed = update.phase === 'error'
   const ready = update.phase === 'ready' || (failed && update.failedOperation === 'install')
   const downloadable = update.phase === 'available' || (failed && update.failedOperation === 'download')
@@ -58,7 +61,7 @@ function render(view) {
   element('detail').textContent = detail
   element('status').textContent = status
   element('version').textContent = update.version === undefined ? '' : format(messages.mandatoryVersion, { version: update.version })
-  element('progress').hidden = update.phase !== 'downloading'
+  element('progress').hidden = update.phase !== 'downloading' || update.download !== undefined
   element('progress').value = update.percent ?? 0
   element('progress').setAttribute('aria-label', status)
   element('error').textContent = error ?? ''
@@ -67,7 +70,7 @@ function render(view) {
   element('technical-details').hidden = technicalDetails === '' || confirming
   element('technical-details-label').textContent = messages.updateTechnicalDetails
   element('technical-details-content').textContent = technicalDetails
-  element('update').hidden = !primary
+  element('update').hidden = !primary || (update.download !== undefined && downloadable && !confirming)
   element('update').textContent = primary
   element('update').dataset.action = action
   element('update').disabled = busy && !confirming

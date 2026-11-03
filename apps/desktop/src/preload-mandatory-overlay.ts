@@ -50,11 +50,12 @@ export function installMandatoryUpdateOverlay(): void {
   const message = (event: MessageEvent<unknown>): void => {
     const value = event.data
     if (typeof value !== 'object' || value === null || !('type' in value)) return
-    if (value.type !== 'dsh-mandatory-action' || !('id' in value) || !Number.isSafeInteger(value.id)
+    if (!['dsh-mandatory-action', 'dsh-mandatory-control'].includes(String(value.type)) || !('id' in value) || !Number.isSafeInteger(value.id)
       || !('action' in value) || !('version' in value) || !('revision' in value)) return
     const target = port
     if (target === undefined) return
-    void ipcRenderer.invoke(MANDATORY_IPC.action, value.action, value.version, value.revision).then(
+    void ipcRenderer.invoke(value.type === 'dsh-mandatory-control' ? MANDATORY_IPC.control : MANDATORY_IPC.action,
+      value.action, value.version, value.type === 'dsh-mandatory-control' ? ('choice' in value ? value.choice : undefined) : value.revision).then(
       () => { target.postMessage({ type: 'dsh-mandatory-result', id: value.id, ok: true }) },
       () => { target.postMessage({ type: 'dsh-mandatory-result', id: value.id, ok: false }) },
     )

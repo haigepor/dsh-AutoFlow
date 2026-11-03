@@ -1,5 +1,6 @@
 /** Main-owned copy and responses; Escape is cancellation, never acceptance. */
 const api = window.dshUpdateDialog
+const downloads = createDownloadControls((action, version, choice) => api.control(action, version, choice), () => { respond(view.cancelId) })
 let view
 let responding = false
 function respond(index) {
@@ -9,9 +10,11 @@ function respond(index) {
 }
 document.getElementById('close').addEventListener('click', () => { respond(view.cancelId) })
 document.addEventListener('keydown', event => {
+  if (document.querySelector('[role="menu"]') !== null) return
   if (event.key === 'Escape' && view !== undefined) { event.preventDefault(); respond(view.cancelId) }
   if (event.key !== 'Tab') return
-  const controls = [...document.querySelectorAll('button, details:not([hidden]) > summary, details[open]:not([hidden]) > pre')]
+  const controls = [...document.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), details:not([hidden]) > summary, details[open]:not([hidden]) > pre')]
+    .filter(control => !control.closest('[hidden]'))
   const current = controls.indexOf(document.activeElement)
   const next = current < 0 ? (event.shiftKey ? controls.length - 1 : 0)
     : (current + (event.shiftKey ? -1 : 1) + controls.length) % controls.length
@@ -24,9 +27,15 @@ function render(state) {
     document.body.classList.remove('visible')
     return
   }
-  if (view !== undefined && state.revision <= view.revision) return
+  if (view !== undefined && state.revision < view.revision) return
+  if (view !== undefined && state.revision === view.revision) {
+    if (state.download) downloads.render(state.download.state, state.download.messages, state.locale)
+    return
+  }
   responding = false
   view = state
+  if (state.download) downloads.render(state.download.state, state.download.messages, state.locale)
+  else downloads.hide()
   document.documentElement.lang = state.locale
   document.title = state.title
   document.getElementById('title').textContent = state.message

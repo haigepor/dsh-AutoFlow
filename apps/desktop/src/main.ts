@@ -37,6 +37,8 @@ import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLoc
 import { claimDesktopSingleInstance } from './single-instance.ts'
 import { desktopUpdateChannel } from './update-channel.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
+import { getNetSession } from 'electron-updater/out/electronHttpExecutor.js'
+import { DesktopUpdateDownload, desktopDownloadConfig } from './update-download.ts'
 import { prepareDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, authenticateWebHost, forwardWebRequest } from './web-document.ts'
@@ -440,7 +442,8 @@ async function main(): Promise<void> {
   const ordinaryDialogs = new Set<AbortController>()
   const currentDialogWindow = (): BrowserWindow | undefined => welcomeWindow ?? mainWindow
   const updateOverlays = new DesktopUpdateOverlays()
-  const updateDialog = new DesktopUpdateDialog(fileURLToPath(new URL('./preload-update-dialog.cjs', import.meta.url)), () => locale, updateOverlays)
+  const updateDialog = new DesktopUpdateDialog(fileURLToPath(new URL('./preload-update-dialog.cjs', import.meta.url)), () => locale,
+    updateOverlays, (action, version, choice) => controlDownload(action, version, choice))
   const isMandatory = (): boolean => mandatoryPolicy?.state.blocking === true
   const ordinaryMessageBox = async (options: UpdateDialogOptions): Promise<Electron.MessageBoxReturnValue> => {
     const controller = new AbortController()
@@ -601,7 +604,8 @@ async function main(): Promise<void> {
     if (shown === undefined) {
       shown = ordinaryMessageBox({ type: 'error', title: locale.messages.updateFailedTitle,
         message: desktopUpdateErrorSummary(state, locale.messages),
-        technicalDetails: state.technicalDetails ?? state.message ?? '' }).then(() => {})
+        technicalDetails: state.technicalDetails ?? state.message ?? '',
+        ...(state.download === undefined ? {} : { download: state }) }).then(() => {})
       updateErrors.set(state, shown)
     }
     return shown
@@ -609,6 +613,7 @@ async function main(): Promise<void> {
   const publishUpdate = (state: DesktopUpdateState): DesktopUpdateState => {
     updateJournal?.state(state)
     updateState = state
+    updateDialog.updateDownload(state)
     mandatoryUI?.sync()
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(DESKTOP_IPC.updatesPresentation, presentDesktopUpdate(state))
@@ -676,6 +681,10 @@ async function main(): Promise<void> {
 
   const manifest: unknown = JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8'))
   const updateChannel = desktopUpdateChannel(manifest)
+  const downloadTransport = new DesktopUpdateDownload(
+    desktopDownloadConfig(join(app.getPath('userData'), 'desktop', 'update-download'), process.env),
+    (url, options) => getNetSession().fetch(url instanceof URL ? url.href : url, options), (progress) => { updates.transfer(progress) })
+  await downloadTransport.initialize()
   const updates = new DesktopUpdateCoordinator(
     publishUpdate,
     async () => {
@@ -734,13 +743,40 @@ async function main(): Promise<void> {
     undefined, undefined, undefined,
     (success, reason) => { void track('desktop_upgrade_download_result', { is_success: success, ...reason === undefined ? {} : { error_reason: reason } }) },
     updateChannel,
+    downloadTransport,
   )
 
   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
 
-  const downloadUpdate = async (version: string): Promise<DesktopUpdateState> => {
+  const showDownloadProgress = (): void => {
+    if (isMandatory()) return
+    const parent = currentDialogWindow()
+    if (parent === undefined) return
+    void updateDialog.show(parent, { title: locale.messages.updateTitle,
+      message: locale.messages.updateTitle,
+      detail: locale.messages.updateDetail, buttons: [locale.messages.updateClose], cancelId: 0, download: updates.state })
+  }
+  const controlDownload = async (action: unknown, version: unknown, choice: unknown): Promise<void> => {
+    if (typeof version !== 'string' || version !== updates.state.version || ['ready', 'installing', 'verifying'].includes(updates.state.phase)) {
+      throw new Error('desktop update: stale download control')
+    }
+    switch (action) {
+      case 'source': await updates.selectSource(choice); return
+      case 'retest': await updates.selectSource({ source: 'auto' }); return
+      case 'pause': await updates.pauseDownload(); return
+      case 'resume':
+        if (updates.state.phase !== 'available' && !(updates.state.phase === 'error' && updates.state.failedOperation === 'download')) {
+          throw new Error('desktop update: download cannot be resumed in this phase')
+        }
+        void downloadUpdate(version, false).catch((error: unknown) => { console.error('desktop update: resume failed', error) })
+        return
+      default: throw new Error('desktop update: invalid download control')
+    }
+  }
+  const downloadUpdate = async (version: string, showProgress = true): Promise<DesktopUpdateState> => {
     void track('desktop_upgrade_click', {})
     updateJournal?.action('download-requested')
+    if (showProgress) showDownloadProgress()
     const state = await updates.download(version)
     if (state.phase !== 'ready' || quitting) return state
     // Only a completed user-driven download opens this prompt; cancelling installation does not reopen it.
@@ -762,7 +798,8 @@ async function main(): Promise<void> {
     const url = new URL(request.url)
     // Shell-owned documents live in the application bundle and never pass through the Host.
     if (url.hostname === 'shell') return serveWebDocument(request, join(app.getAppPath(),
-      url.pathname === '/design-platform.css' ? 'lib/welcome' : 'renderer'))
+      url.pathname === '/design-platform.css' ? 'lib/welcome'
+        : ['/download-controls.js', '/download-controls.css'].includes(url.pathname) ? 'lib/shell' : 'renderer'))
     if (url.hostname === 'app') {
       if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.startsWith('/assets/')
         || ['/favicon.svg', '/manifest.webmanifest'].includes(url.pathname)) {
@@ -925,6 +962,7 @@ async function main(): Promise<void> {
           state = await updateSchedule.check(true)
         }
         if (isMandatory()) { mandatoryUI?.focus(); return }
+        if (state.phase === 'downloading' || state.phase === 'verifying') { showDownloadProgress(); return }
         if (state.phase === 'error' && state.failedOperation === 'check') { await showUpdateFailure(state); return }
         if (state.phase === 'idle') {
           await ordinaryMessageBox({ type: 'info', title: locale.messages.updateCheckTitle,
@@ -1371,6 +1409,7 @@ async function main(): Promise<void> {
       }),
       platformView.dispose(),
       disposeFileDrag(),
+      updates.pauseDownload(),
     ].map(cleanup => cleanup.catch((error: unknown) => { console.error(error) })))
       .then(() => { app.quit() })
   }
@@ -1435,6 +1474,7 @@ async function main(): Promise<void> {
       policy: () => policy.state, update: () => updates.state,
       refresh: async () => { await Promise.all([checkPolicyManually(), updateSchedule.check(true)]) },
       download: downloadUpdate, install: version => updates.install(version),
+      controlDownload,
     })
     void mandatoryPolicy.check('launch').then((state) => {
       if (app.isPackaged && state.error === 'authentication-required' && !isQuitting()) queuePolicyAuthentication()

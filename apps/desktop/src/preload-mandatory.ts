@@ -5,6 +5,7 @@ import { MANDATORY_IPC } from './mandatory-update-ipc.ts'
 
 const api: MandatoryUpdateApi = {
   status: () => ipcRenderer.invoke(MANDATORY_IPC.status) as Promise<MandatoryUpdateView>,
+  control: (action, version, choice) => ipcRenderer.invoke(MANDATORY_IPC.control, action, version, choice) as Promise<void>,
   action: (action, version, confirmationRevision) =>
     ipcRenderer.invoke(MANDATORY_IPC.action, action, version, confirmationRevision) as Promise<void>,
   subscribe(listener) {

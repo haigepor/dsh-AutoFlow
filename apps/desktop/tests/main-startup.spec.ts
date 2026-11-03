@@ -362,6 +362,7 @@ vi.mock('../src/update-dialog.ts', () => ({ DesktopUpdateDialog: class {
       : harness.dialog.showMessageBox(options)) as Promise<Electron.MessageBoxReturnValue>
   }
   cancel() {}
+  updateDownload() {}
   readonly focus = harness.shellDialog.focus
   dispose() {}
 } }))
@@ -373,6 +374,7 @@ vi.mock('../src/update-coordinator.ts', () => ({ DesktopUpdateCoordinator: class
   get state() { return harness.updateState }
   readonly check = harness.updateCheck
   readonly download = harness.updateDownload
+  readonly pauseDownload = vi.fn(async () => {})
   readonly install = harness.updateInstall
   readonly dispose = vi.fn()
 } }))
@@ -1853,7 +1855,9 @@ describe('desktop main startup', () => {
     const action = invoke(DESKTOP_IPC.updatesOpen, 'app')
     await started.promise
     const repeated = invoke(DESKTOP_IPC.updatesOpen, 'app')
-    expect(harness.dialog.showMessageBox).not.toHaveBeenCalled()
+    expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      download: { phase: 'available', version: '1.0.1-nightly.1' }, buttons: [en.updateClose],
+    }))
     expect(harness.updateDownload).toHaveBeenCalledExactlyOnceWith('1.0.1-nightly.1')
     expect(harness.updateInstall).not.toHaveBeenCalled()
     downloading.resolve({ phase: 'ready', version: '1.0.1-nightly.1' })

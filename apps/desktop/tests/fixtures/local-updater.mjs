@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join, sep } from 'node:path'
 import { app, BrowserWindow, protocol, shell, clipboard } from 'electron'
+import { getNetSession } from 'electron-updater/out/electronHttpExecutor.js'
 import { fileURLToPath } from 'node:url'
 import updaterModule from 'electron-updater'
 import { DesktopUpdateCoordinator } from '../../lib/types/update-coordinator.js'
@@ -17,6 +18,7 @@ import { DesktopMandatoryUpdatePolicy, resolveDesktopPolicyConfig } from '../../
 import { DesktopMandatoryUpdateWindow } from '../../lib/types/mandatory-update-window.js'
 import { DesktopUpdatePreparationError } from '../../lib/types/update-error.js'
 import { DesktopUpdateHttpExecutor } from '../../lib/types/update-http-executor.js'
+import { DesktopUpdateDownload, desktopDownloadConfig } from '../../lib/types/update-download.js'
 import { DesktopUpdateOverlays } from '../../lib/types/update-overlay.js'
 import { qualifyUpdateDialogs } from './update-dialogs.mjs'
 
@@ -38,9 +40,9 @@ async function main() {
   const server = await createUpdateServer()
   let serial = 0
   const fixtures = []
-  async function fixture(mode = 'healthy', timeoutMs = 60_000) {
+  async function fixture(mode = 'healthy', timeoutMs = 60_000, resumable = false, reuseDirectory) {
     server.select(mode)
-    const directory = join(root, String(++serial))
+    const directory = reuseDirectory ?? join(root, String(++serial))
     await mkdir(directory, { recursive: true })
     const config = join(directory, 'app-update.yml')
     // Unsigned inert bytes are confined to this fixture; production configuration is never loaded or changed.
@@ -52,22 +54,55 @@ async function main() {
       whenReady: async () => {}, quit: forbidden, relaunch: forbidden, onQuit: forbidden,
     })
     updater.logger = null
-    updater.httpExecutor = new DesktopUpdateHttpExecutor(timeoutMs)
+    let coordinator
+    const transferred = Promise.withResolvers()
+    const download = resumable ? new DesktopUpdateDownload(desktopDownloadConfig(join(directory, 'resume'), {}),
+      (url, options) => getNetSession().fetch(url instanceof URL ? url.href : url, options), progress => coordinator.transfer(progress)) : undefined
+    await download?.initialize()
+    const transport = new DesktopUpdateHttpExecutor(timeoutMs, undefined, download)
+    updater.httpExecutor = transport
     updater.disableDifferentialDownload = true
     updater.disableWebInstaller = true
     updater.setFeedURL({ provider: 'generic', url: server.url, channel: 'nightly' })
     const installations = []
     const states = []
+    let observer = () => {}
     let restart = async () => true
     updater.quitAndInstall = (...args) => { installations.push(args) }
-    const coordinator = new DesktopUpdateCoordinator(state => { states.push(state); return state },
-      () => restart(), updater, () => true, () => '1.0.0')
-    const result = { updater, coordinator, installations, states, directory, restart: handler => { restart = handler } }
+    coordinator = new DesktopUpdateCoordinator(state => {
+      states.push(state)
+      observer(state)
+      if (state.download?.transferred > 0) transferred.resolve()
+      return state
+    }, () => restart(), updater, () => true, () => '1.0.0', undefined, 'nightly', download, transport)
+    const result = { updater, coordinator, installations, states, directory, download, transferred: () => transferred.promise,
+      observe: listener => { observer = listener },
+      restart: handler => { restart = handler } }
     fixtures.push(result)
     return result
   }
   async function scenario(name, run) { await run(); cases.push(name); console.log(`local updater: ${name}`) }
   try {
+    await scenario('native-updater-pause-cleanup-and-owner-recreation-preserve-resume', async () => {
+      const f = await fixture('hold-download', 60_000, true)
+      const available = await f.coordinator.check()
+      const pending = f.coordinator.download(available.version)
+      await f.transferred()
+      await f.coordinator.pauseDownload()
+      assert.equal((await pending).download.stage, 'paused')
+      assert.equal(f.installations.length, 0)
+      const checkpoint = JSON.parse(await readFile(join(f.directory, 'resume', 'checkpoint.json'), 'utf8'))
+      assert.ok(checkpoint.bytes > 0 && checkpoint.bytes < server.payload.length)
+      f.coordinator.dispose()
+      const next = await fixture('healthy', 60_000, true, f.directory)
+      await next.coordinator.check()
+      const completed = await next.coordinator.download(available.version)
+      assert.equal(completed.phase, 'ready')
+      assert.equal(server.ranges.at(-1), `bytes=${checkpoint.bytes}-`)
+      assert.equal(next.installations.length, 0)
+      const paths = await next.updater.downloadUpdate()
+      assert.deepEqual(await readFile(paths[0]), server.payload)
+    })
     await scenario('same-version-no-update', async () => {
       const f = await fixture()
       server.select('healthy', '1.0.0')
@@ -231,9 +266,13 @@ async function main() {
       protocol.handle('dsh-app', async request => {
         if (new URL(request.url).hostname === 'app') return new Response('<!doctype html><title>Updater qualification</title>', { headers: { 'content-type': 'text/html' } })
         const path = new URL(request.url).pathname.slice(1)
-        assert.ok(['design-platform.css', 'shell-theme.js', 'mandatory-update-frame.js', 'mandatory-update.html', 'mandatory-update.js', 'mandatory-update.css', 'update-dialog.css'].includes(path))
+        assert.ok(['design-platform.css', 'shell-theme.js', 'mandatory-update-frame.js', 'mandatory-update.html', 'mandatory-update.js',
+          'mandatory-update.css', 'update-dialog.css', 'download-controls.js', 'download-controls.css', 'assets/update-download-whale-v1.webp'].includes(path))
         const mime = path.endsWith('.js') ? 'text/javascript' : path.endsWith('.css') ? 'text/css' : 'text/html'
-        return new Response(await readFile(new URL(`${path === 'design-platform.css' ? '../../lib/welcome' : '../../renderer'}/${path}`, import.meta.url)), { headers: { 'content-type': mime } })
+        const directory = path === 'design-platform.css' ? '../../lib/welcome'
+          : ['download-controls.js', 'download-controls.css'].includes(path) ? '../../lib/shell' : '../../renderer'
+        return new Response(await readFile(new URL(`${directory}/${path}`, import.meta.url)),
+          { headers: { 'content-type': path.endsWith('.webp') ? 'image/webp' : mime } })
       })
       const parent = new BrowserWindow({ show: true, width: 900, height: 650, webPreferences: { preload: fileURLToPath(new URL('../../lib/preload-app.cjs', import.meta.url)), sandbox: true, contextIsolation: true } })
       const f = await fixture('hold-download')

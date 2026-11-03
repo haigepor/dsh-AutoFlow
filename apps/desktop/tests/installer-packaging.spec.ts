@@ -114,7 +114,7 @@ describe('installer preparation preserves application dependencies', () => {
     expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
   })
 
-  it('packages every preload entry point the shell loads', async () => {
+  it('packages every preload entry point and both shared update renderer files the shell loads', async () => {
     const { readdirSync, readFileSync } = await import('node:fs')
     const sourceDirectory = new URL('../src/', import.meta.url)
     const referenced = new Set<string>()
@@ -135,5 +135,7 @@ describe('installer preparation preserves application dependencies', () => {
     }, 'darwin', 'arm64')
     const packaged = new Set(config.files.filter((entry): entry is string => typeof entry === 'string'))
     for (const name of referenced) expect(packaged.has(`lib/${name}`)).toBe(true)
+    expect(packaged.has('lib/shell/download-controls.js')).toBe(true)
+    expect(packaged.has('lib/shell/download-controls.css')).toBe(true)
   })
 })

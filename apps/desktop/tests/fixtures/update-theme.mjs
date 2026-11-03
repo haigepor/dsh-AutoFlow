@@ -25,9 +25,11 @@ async function main() {
   const deadline = setTimeout(() => { console.error('Theme qualification deadline exceeded'); app.exit(1) }, 30000)
   protocol.handle('dsh-app', async request => {
     const name = new URL(request.url).pathname.slice(1)
-    const file = new URL(`${name === 'design-platform.css' ? '../../lib/welcome' : '../../renderer'}/${name}`, import.meta.url)
+    const directory = name === 'design-platform.css' ? '../../lib/welcome'
+      : ['download-controls.js', 'download-controls.css'].includes(name) ? '../../lib/shell' : '../../renderer'
+    const file = new URL(`${directory}/${name}`, import.meta.url)
     const mime = name.endsWith('.css') ? 'text/css' : name.endsWith('.js') ? 'text/javascript'
-      : name.endsWith('.svg') ? 'image/svg+xml' : 'text/html'
+      : name.endsWith('.svg') ? 'image/svg+xml' : name.endsWith('.webp') ? 'image/webp' : 'text/html'
     return new Response(await readFile(file), { headers: { 'content-type': mime } })
   })
   ipcMain.handle(UPDATE_DIALOG_IPC.status, () => ({ revision: 1, locale: locale.id,

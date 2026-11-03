@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="design-platform.css">
     <link rel="stylesheet" href="update-dialog.css">
     <link rel="stylesheet" href="mandatory-update.css">
+    <link rel="stylesheet" href="download-controls.css">
   </head>
   <body class="update-dialog">
     <script src="shell-theme.js"></script>
@@ -17,6 +18,7 @@
       <p id="version"></p>
       <p id="status" role="status" aria-live="polite"></p>
       <progress id="progress" max="100" value="0" hidden></progress>
+      <section id="download-controls" hidden></section>
       <p id="error" role="alert" hidden></p>
       <details id="technical-details" hidden>
         <summary id="technical-details-label"></summary>
@@ -35,6 +37,7 @@
       </div>
     </main>
     <script src="mandatory-update-frame.js"></script>
+    <script src="download-controls.js"></script>
     <script src="mandatory-update.js"></script>
   </body>
 </html>

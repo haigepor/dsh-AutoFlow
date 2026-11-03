@@ -86,6 +86,20 @@ export default defineConfig([
           },
         },
       })
+      await build({
+        configFile: false,
+        root: fileURLToPath(new URL('.', import.meta.url)),
+        esbuild: { jsx: 'automatic' },
+        define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+        build: {
+          outDir: 'lib/shell',
+          emptyOutDir: true,
+          lib: {
+            entry: 'src/client/update-download-controls.tsx', formats: ['iife'], name: 'DesktopUpdateDownload',
+            fileName: () => 'download-controls.js', cssFileName: 'download-controls',
+          },
+        },
+      })
     },
     outDir: 'lib',
     format: ['esm'],

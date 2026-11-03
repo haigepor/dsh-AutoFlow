@@ -1,0 +1,39 @@
+.panel { display: grid; gap: 10px; color: var(--dsw-alias-label-primary); }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 12px; align-items: center; min-height: 108px; }
+.summary { min-width: 0; }
+.statusHeader { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.status { display: flex; align-items: center; gap: 7px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+.percent { margin-top: 8px; font-size: 40px; line-height: 48px; font-weight: 500; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.percent > span { margin-left: 3px; font-size: 18px; letter-spacing: 0; color: var(--dsw-alias-label-tertiary); }
+.amount { margin: 0; font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.amount > span { color: var(--dsw-alias-label-tertiary); }
+.art { width: 112px; height: 112px; background: url('dsh-app://shell/assets/update-download-whale-v1.webp') center / contain no-repeat; }
+.track { height: 6px; overflow: hidden; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-border-l2); }
+.fill { width: var(--download-progress); height: 100%; border-radius: inherit; background: var(--dsw-alias-link); transition: width 200ms var(--ds-ease-in-out); }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0; margin: 0; }
+.facts > div { min-width: 0; }
+.facts dt { display: flex; align-items: center; gap: 5px; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
+.facts dd { margin: 4px 0 0; font-size: 13px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.sourceHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--dsw-alias-border-l4); }
+.label { display: flex; align-items: center; gap: 3px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.info { width: 24px; padding: 0; color: var(--dsw-alias-label-tertiary); }
+.menu { width: 100%; }
+.source { width: 100%; min-width: 0; justify-content: flex-start; background: var(--dsw-alias-bg-layer-2); }
+.source > span:nth-child(2) { flex: 1; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.custom { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.route { color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+.error { margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; line-height: 18px; }
+.footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-top: 8px; }
+.safety { display: flex; flex: 1; min-width: 120px; align-items: flex-start; gap: 6px; margin: 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
+.safety > svg { flex: none; margin-top: 1px; }
+.actions { display: flex; gap: 10px; justify-content: flex-end; }
+.actions > button { min-width: 100px; }
+.actions > button:only-child { width: 100%; }
+@media (max-width: 420px) {
+  .hero { grid-template-columns: minmax(0, 1fr) 100px; min-height: 100px; }
+  .art { width: 100px; height: 108px; }
+  .actions > button { flex: 1; min-width: 0; }
+  .actions { width: 100%; }
+  .percent { font-size: 36px; line-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } }

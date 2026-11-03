@@ -148,6 +148,8 @@ export function createElectronBuilderConfig(
       'lib/main.js',
       'lib/operation-report-worker.js',
       'lib/welcome/**/*',
+      'lib/shell/download-controls.js',
+      'lib/shell/download-controls.css',
       'lib/preload-app.cjs',
       'lib/preload-mandatory.cjs',
       'lib/preload-platform-account.cjs',

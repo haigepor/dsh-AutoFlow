@@ -2,9 +2,12 @@
 import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type MessageBoxOptions, type MessageBoxReturnValue } from 'electron'
 import type { DesktopLocale } from './locale.ts'
 import type { DesktopUpdateOverlays, DesktopUpdateOverlay } from './update-overlay.ts'
+import type { DesktopUpdateState } from './ipc.ts'
+import type { DesktopMessages } from './locale.ts'
 
 /** Channels available only to the isolated update-dialog document. */
-export const UPDATE_DIALOG_IPC = { status: 'dsh-update-dialog:status', changed: 'dsh-update-dialog:changed', respond: 'dsh-update-dialog:respond' } as const
+export const UPDATE_DIALOG_IPC = { status: 'dsh-update-dialog:status', changed: 'dsh-update-dialog:changed',
+  respond: 'dsh-update-dialog:respond', control: 'dsh-update-dialog:download-control' } as const
 
 /** Text and choices supplied by the main process, never by product documents. */
 export interface UpdateDialogView {
@@ -19,11 +22,13 @@ export interface UpdateDialogView {
   readonly closeLabel: string
   readonly technicalDetails: string
   readonly technicalDetailsLabel: string
+  readonly download?: { readonly state: DesktopUpdateState; readonly messages: DesktopMessages }
 }
 
 /** Electron message options with separately expandable, main-owned diagnostics. */
 export interface UpdateDialogOptions extends MessageBoxOptions {
   readonly technicalDetails?: string
+  readonly download?: DesktopUpdateState
 }
 
 /** The document can select only a displayed response index. */
@@ -31,6 +36,7 @@ export interface UpdateDialogApi {
   status(): Promise<UpdateDialogView | null>
   respond(revision: number, index: number): Promise<void>
   subscribe(listener: (view: UpdateDialogView | null) => void): () => void
+  control?(action: string, version: string, choice?: unknown): Promise<void>
 }
 
 // main.ts's protocol.handle shell route serves this document and its renderer assets; the modal requires that route.
@@ -59,9 +65,11 @@ export class DesktopUpdateDialog {
    * @param preload - Bundled isolated preload.
    * @param locale - Shell-owned copy or a reader of the current UI language.
    * @param overlays - Application-owned view creation and input tracking.
+   * @param controlDownload - Validated download commands; omitted callers cannot expose download controls.
    */
   constructor(private readonly preload: string, private readonly locale: DesktopLocale | (() => DesktopLocale),
-    private readonly overlays: Pick<DesktopUpdateOverlays, 'create'>) {
+    private readonly overlays: Pick<DesktopUpdateOverlays, 'create'>,
+    private readonly controlDownload?: (action: unknown, version: unknown, choice: unknown) => Promise<void>) {
     ipcMain.handle(UPDATE_DIALOG_IPC.status, (event) => { this.owned(event); return this.active?.view ?? null })
     ipcMain.handle(UPDATE_DIALOG_IPC.respond, (event, revision: unknown, index: unknown) => {
       this.owned(event)
@@ -73,6 +81,18 @@ export class DesktopUpdateDialog {
       }
       active.finish(index)
     })
+    ipcMain.handle(UPDATE_DIALOG_IPC.control, (event, action: unknown, version: unknown, choice: unknown) => {
+      this.owned(event)
+      if (this.active?.view.download === undefined || this.controlDownload === undefined) throw new Error('desktop update: no download dialog is active')
+      return this.controlDownload(action, version, choice)
+    })
+  }
+
+  /** @param state - New measured progress; preserve the same prompt revision, focus, and cancellation semantics. */
+  updateDownload(state: DesktopUpdateState): void {
+    if (this.active?.view.download === undefined) return
+    this.active.view = { ...this.active.view, download: { ...this.active.view.download, state } }
+    this.view?.webContents.send(UPDATE_DIALOG_IPC.changed, this.active.view)
   }
 
   /**
@@ -97,11 +117,12 @@ export class DesktopUpdateDialog {
     this.parent = parent
     const view: UpdateDialogView = { revision: ++this.revision, locale: locale.id, title: options.title ?? '', message: options.message,
       detail: options.detail ?? '', buttons, cancelId, closeLabel: locale.messages.updateClose,
-      technicalDetails: options.technicalDetails ?? '', technicalDetailsLabel: locale.messages.updateTechnicalDetails }
+      technicalDetails: options.technicalDetails ?? '', technicalDetailsLabel: locale.messages.updateTechnicalDetails,
+      ...(options.download === undefined ? {} : { download: { state: options.download, messages: locale.messages } }) }
     return new Promise((resolve) => {
       const abort = (): void => { finish(cancelId) }
       const finish = (response: number, retain = false): void => {
-        if (this.active?.view !== view) return
+        if (this.active?.view.revision !== view.revision) return
         this.active = undefined
         options.signal?.removeEventListener('abort', abort)
         if (!retain && !surface.webContents.isDestroyed()) {
@@ -135,6 +156,7 @@ export class DesktopUpdateDialog {
     this.close()
     ipcMain.removeHandler(UPDATE_DIALOG_IPC.status)
     ipcMain.removeHandler(UPDATE_DIALOG_IPC.respond)
+    ipcMain.removeHandler(UPDATE_DIALOG_IPC.control)
   }
 
   private close(): void {

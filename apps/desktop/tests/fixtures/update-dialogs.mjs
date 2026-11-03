@@ -28,15 +28,87 @@ export async function qualifyUpdateDialogs(root, fixture) {
   const screenshots = []
   protocol.handle('dsh-app', async request => {
     const name = new URL(request.url).pathname.slice(1)
-    assert.ok(['design-platform.css', 'shell-theme.js', 'update-dialog.html', 'update-dialog.js', 'update-dialog.css', 'update-close.svg'].includes(name))
+    assert.ok(['design-platform.css', 'shell-theme.js', 'update-dialog.html', 'update-dialog.js', 'update-dialog.css',
+      'update-close.svg', 'download-controls.js', 'download-controls.css', 'assets/update-download-whale-v1.webp'].includes(name))
     const mime = name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css'
-      : name.endsWith('.svg') ? 'image/svg+xml' : 'text/html'
-    return new Response(await readFile(new URL(`${name === 'design-platform.css' ? '../../lib/welcome' : '../../renderer'}/${name}`, import.meta.url)), { headers: { 'content-type': mime } })
+      : name.endsWith('.svg') ? 'image/svg+xml' : name.endsWith('.webp') ? 'image/webp' : 'text/html'
+    const directory = name === 'design-platform.css' ? '../../lib/welcome'
+      : ['download-controls.js', 'download-controls.css'].includes(name) ? '../../lib/shell' : '../../renderer'
+    return new Response(await readFile(new URL(`${directory}/${name}`, import.meta.url)), { headers: { 'content-type': mime } })
   })
   const parent = new BrowserWindow({ show: true, width: 900, height: 650 })
-  const dialogs = new DesktopUpdateDialog(fileURLToPath(new URL('../../lib/preload-update-dialog.cjs', import.meta.url)), locale, new DesktopUpdateOverlays())
+  let controlled
+  let transfer
+  const dialogs = new DesktopUpdateDialog(fileURLToPath(new URL('../../lib/preload-update-dialog.cjs', import.meta.url)), locale,
+    new DesktopUpdateOverlays(), async (action, version, choice) => {
+      assert.equal(version, controlled.coordinator.state.version)
+      if (action === 'source') await controlled.coordinator.selectSource(choice)
+      else if (action === 'pause') await controlled.coordinator.pauseDownload()
+      else if (action === 'resume') transfer = controlled.coordinator.download(version)
+      else throw new Error('Unexpected download action')
+    })
   try {
     await parent.loadURL('data:text/html;charset=utf-8,<title>Update dialog qualification</title><h1>Local updater</h1>')
+    controlled = await fixture('hold-download', 60_000, true)
+    controlled.observe(state => dialogs.updateDownload(state))
+    await controlled.coordinator.check()
+    const createdDownload = once(app, 'web-contents-created', { signal: AbortSignal.timeout(10_000) })
+    const downloadPrompt = dialogs.show(parent, { title: messages.updateTitle, message: messages.updateTitle,
+      detail: messages.updateDetail, buttons: [messages.updateClose], cancelId: 0, download: controlled.coordinator.state })
+    const [, downloadContents] = await createdDownload
+    await once(downloadContents, 'did-finish-load', { signal: AbortSignal.timeout(10_000) })
+    await rendered({ webContents: downloadContents })
+    await downloadContents.executeJavaScript(`document.querySelector('#download-controls button[data-action="resume"]').click()`)
+    await controlled.transferred()
+    await downloadContents.executeJavaScript(`document.querySelector('#download-controls button[data-action="pause"]').click()`)
+    await downloadContents.executeJavaScript(`new Promise((resolve, reject) => {
+      const deadline = setTimeout(() => { observer.disconnect(); reject(new Error('Pause did not render')); }, 10000);
+      const observer = new MutationObserver(check);
+      function check() { if (document.getElementById('download-status').textContent === ${JSON.stringify(messages.downloadPaused)}) {
+        observer.disconnect(); clearTimeout(deadline); resolve(); } }
+      observer.observe(document, {subtree:true, childList:true, characterData:true, attributes:true}); check();
+    })`)
+    assert.equal((await transfer).download.stage, 'paused')
+    assert.equal(controlled.installations.length, 0)
+    await downloadContents.executeJavaScript(`window.dshUpdateDialog.control('source', ${JSON.stringify(controlled.coordinator.state.version)}, {source:'github'})`)
+    assert.deepEqual(await downloadContents.executeJavaScript(`({source: document.getElementById('download-source').dataset.source,
+      status: document.getElementById('download-status').textContent,
+      button: document.querySelector('#download-controls button[data-action]').textContent})`), {
+      source: 'github', status: messages.downloadPaused, button: messages.downloadResume,
+    })
+    await downloadContents.executeJavaScript(`Promise.all(document.getAnimations().map(animation => animation.finished))`)
+    await downloadContents.executeJavaScript(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`)
+    await writeFile(join(root, 'download-paused.png'), (await downloadContents.capturePage()).toPNG())
+    screenshots.push('download-paused.png')
+    nativeTheme.themeSource = 'dark'
+    await downloadContents.executeJavaScript(`new Promise((resolve, reject) => {
+      const deadline = setTimeout(() => { observer.disconnect(); reject(new Error('Download theme did not settle')); }, 10000);
+      const observer = new MutationObserver(check);
+      function check() { if (document.body.hasAttribute('data-ds-dark-theme')) { observer.disconnect(); clearTimeout(deadline); resolve(); } }
+      observer.observe(document.body, {attributes:true}); check();
+    })`)
+    await downloadContents.executeJavaScript(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`)
+    assert.equal(await downloadContents.executeJavaScript(`document.querySelector('main').scrollHeight <= document.querySelector('main').clientHeight + 1`), true)
+    await writeFile(join(root, 'download-paused-dark.png'), (await downloadContents.capturePage()).toPNG())
+    screenshots.push('download-paused-dark.png')
+    await downloadContents.executeJavaScript(`document.getElementById('download-source').click()`)
+    const menuBounds = await downloadContents.executeJavaScript(`new Promise((resolve, reject) => {
+      const deadline = setTimeout(() => { observer.disconnect(); reject(new Error('Source menu did not open')); }, 10000);
+      const observer = new MutationObserver(check);
+      function check() { const menu = document.querySelector('[role="menu"]'); if (!menu) return;
+        const rect = menu.getBoundingClientRect(); if (!rect.width) return;
+        observer.disconnect(); clearTimeout(deadline); resolve({x:rect.left,y:rect.top,right:rect.right,bottom:rect.bottom,width:innerWidth,height:innerHeight}); }
+      observer.observe(document.body, {subtree:true,childList:true,attributes:true}); check();
+    })`)
+    assert.ok(menuBounds.x >= 0 && menuBounds.y >= 0 && menuBounds.right <= menuBounds.width && menuBounds.bottom <= menuBounds.height)
+    await downloadContents.executeJavaScript(`document.querySelector('[role="menu"]').dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true}))`)
+    nativeTheme.themeSource = 'light'
+    const closedDownload = once(downloadContents, 'destroyed', { signal: AbortSignal.timeout(10_000) })
+    dialogs.cancel()
+    await downloadPrompt
+    await closedDownload
+    controlled.observe(() => {})
+    controlled.coordinator.dispose()
     const f = await fixture()
     const available = await f.coordinator.check()
     await f.coordinator.download(available.version)

@@ -18,7 +18,10 @@ function page(name: string) {
     if (result === null) throw new Error(`Missing update element: ${id}`)
     return result
   }
-  const run = (): void => { runInContext(readFileSync(new URL(`../renderer/${name}.js`, import.meta.url), 'utf8'), dom.getInternalVMContext()) }
+  const run = (): void => {
+    Object.defineProperty(dom.window, 'createDownloadControls', { value: () => ({ render: vi.fn(), hide: vi.fn() }) })
+    runInContext(readFileSync(new URL(`../renderer/${name}.js`, import.meta.url), 'utf8'), dom.getInternalVMContext())
+  }
   return { dom, document, element, run }
 }
 

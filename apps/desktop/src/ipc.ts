@@ -5,6 +5,9 @@ import type { IpcMainInvokeEvent } from 'electron'
 import type { DesktopBrowserBridge } from '@deepseek-ai/dsh-client-ui-sidebar-browser/types'
 import type { DesktopFileDrag } from '@deepseek-ai/dsh-util-file-drag'
 
+import type { DesktopUpdateState } from './update-state.ts'
+export type { DesktopUpdateState, DesktopUpdatePreparationFailureKind, DesktopDownloadChoice, DesktopDownloadProgress } from './update-state.ts'
+
 /** IPC channel names kept private to the desktop application bundle. */
 export const DESKTOP_IPC = {
   shortcutsInput: 'dsh-desktop:shortcuts-input',
@@ -38,21 +41,6 @@ export const DESKTOP_IPC = {
   windowsAppearance: 'dsh-desktop:windows-appearance',
   windowsMenu: 'dsh-desktop:windows-menu',
 } as const
-
-/** Desktop release update state rendered by desktop-owned UI. */
-export type DesktopUpdatePreparationFailureKind = 'stop-failed' | 'tasks-changed' | 'tasks-unavailable' | 'fullscreen-timeout'
-
-export interface DesktopUpdateState {
-  readonly phase: 'idle' | 'checking' | 'available' | 'downloading' | 'verifying' | 'installing' | 'ready' | 'error'
-  readonly version?: string
-  readonly message?: string
-  /** Main-owned diagnostics without subprocess output or credentials; hidden until expanded. */
-  readonly technicalDetails?: string
-  readonly percent?: number
-  readonly failedOperation?: 'check' | 'download' | 'install'
-  /** Main-owned preparation cause; UI wording is selected by the active locale. */
-  readonly preparationFailure?: DesktopUpdatePreparationFailureKind
-}
 
 /** Classified failure copy selected by the Web locale without exposing raw updater diagnostics. */
 export type DesktopUpdateFailureKind =
