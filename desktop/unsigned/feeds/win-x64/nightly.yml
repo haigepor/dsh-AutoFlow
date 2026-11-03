@@ -1,8 +1,8 @@
-version: 0.2.2-alpha.2.20261103.1
+version: 0.2.2-alpha.2.20261103.2
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.1-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.1-win-x64-unsigned.exe
-    sha512: UMuCU0OWiBOrjUde8xZ9F42wXtBiN9B6/nTr8UiBH74jcTQWm0PDb6YGMghx5uSXkXRQedLQwphl+uKuvBaEhw==
-    size: 408870251
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.1-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.1-win-x64-unsigned.exe
-sha512: UMuCU0OWiBOrjUde8xZ9F42wXtBiN9B6/nTr8UiBH74jcTQWm0PDb6YGMghx5uSXkXRQedLQwphl+uKuvBaEhw==
-releaseDate: '2026-11-03T04:58:20.095Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.2-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.2-win-x64-unsigned.exe
+    sha512: fTzlcTkXZc7TVCBQ34jVAGBOL8kRrELE79QtScUZE+UFwLeBR89JjPQvUq2e2alziEfrNOlfVLuSOZns1eWO+A==
+    size: 408869724
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.2-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.2-win-x64-unsigned.exe
+sha512: fTzlcTkXZc7TVCBQ34jVAGBOL8kRrELE79QtScUZE+UFwLeBR89JjPQvUq2e2alziEfrNOlfVLuSOZns1eWO+A==
+releaseDate: '2026-11-03T05:59:04.811Z'
