@@ -7,6 +7,27 @@ type UpdateWindow = Pick<BrowserWindow, 'isDestroyed' | 'isFullScreen' | 'setFul
 const FULLSCREEN_EXIT_TIMEOUT_MS = 5000
 
 /**
+ * Wait for the product window to become visible without restoring or activating it.
+ * @param window - Current owner; a missing or destroyed window cancels the wait.
+ * @returns Settlement on show, restore, focus or closure, releasing every owned listener.
+ */
+export function waitForDesktopUpdateWindow(window: (Pick<BrowserWindow, 'isDestroyed' | 'isVisible' | 'isMinimized'>
+  & Pick<NodeJS.EventEmitter, 'on' | 'off'>) | undefined): Promise<void> {
+  if (window === undefined || window.isDestroyed() || window.isVisible() && !window.isMinimized()) return Promise.resolve()
+  return new Promise((resolve) => {
+    const finish = (): void => {
+      for (const event of ['show', 'restore', 'focus']) window.off(event, visible)
+      window.off('closed', finish)
+      resolve()
+    }
+    const visible = (): void => { if (!window.isDestroyed() && window.isVisible() && !window.isMinimized()) finish() }
+    for (const event of ['show', 'restore', 'focus']) window.on(event, visible)
+    window.on('closed', finish)
+    visible()
+  })
+}
+
+/**
  * Leave macOS fullscreen before displaying installation confirmation.
  * @param window - Product window that owns the update confirmation.
  * @param timeoutMessage - Locale-owned guidance to exit fullscreen and retry.

@@ -41,7 +41,7 @@ import { getNetSession } from 'electron-updater/out/electronHttpExecutor.js'
 import electronUpdater from 'electron-updater'
 import { DesktopUpdateDownload, desktopDownloadConfig } from './update-download.ts'
 import { createDesktopUpdateFetch } from './update-fetch.ts'
-import { prepareDesktopUpdateWindow } from './update-window.ts'
+import { prepareDesktopUpdateWindow, waitForDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, authenticateWebHost, forwardWebRequest } from './web-document.ts'
 import { DesktopFatalRecovery } from './fatal-recovery.ts'
@@ -692,7 +692,7 @@ async function main(): Promise<void> {
   await downloadTransport.initialize()
   const updates = new DesktopUpdateCoordinator(
     publishUpdate,
-    async () => {
+    async (confirmation) => {
       await commandManager.idle()
       await workspaceRecovery
       await startup?.catch(() => undefined)
@@ -702,7 +702,7 @@ async function main(): Promise<void> {
       const parent = currentDialogWindow()
       if (parent === undefined || !await prepareDesktopUpdateWindow(parent, locale.messages.updateFullscreenTimeout)) return false
       const ready = desktopUpdateReadyConfirmation(locale.messages, updates.state.version ?? '', process.platform)
-      const confirmation: Electron.MessageBoxOptions = {
+      const prompt: Electron.MessageBoxOptions = {
         type: active ? 'warning' : 'info', title: locale.messages.updateTitle,
         message: active ? locale.messages.updateActiveTasks : ready.message,
         detail: active ? locale.messages.updateActiveTasksDetail : ready.detail,
@@ -711,8 +711,8 @@ async function main(): Promise<void> {
       }
       if (isMandatory()) {
         if (!await mandatoryUI?.confirm(updates.state.version ?? '', active)) return false
-      } else {
-        const result = await updateDialog.show(parent, confirmation)
+      } else if (confirmation !== 'approved' || active) {
+        const result = await updateDialog.show(parent, prompt)
         if (result.response !== 0 || isMandatory()) return false
       }
       // The update lock rejects new HTTP requests, including analytics intake.
@@ -784,20 +784,25 @@ async function main(): Promise<void> {
     if (showProgress) showDownloadProgress()
     const state = await updates.download(version)
     if (state.phase !== 'ready' || quitting) return state
-    // Only a completed user-driven download opens this prompt; cancelling installation does not reopen it.
-    // A confirmation on a hidden window would go unseen, so it waits for the next show; the mandatory
-    // flow keeps its own taskbar and Dock attention instead.
-    if (!isMandatory()) await windowShown()
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- A quit can begin while the show is awaited.
-    if (quitting) return state
-    return updates.install(version)
+    return confirmPreparedUpdate(version)
   }
-  const windowShown = (): Promise<void> => new Promise((resolve) => {
-    const window = currentDialogWindow()
-    if (window === undefined || window.isDestroyed() || window.isVisible()) { resolve(); return }
-    window.once('show', () => { resolve() })
-    window.once('closed', () => { resolve() })
-  })
+  let readyConfirmation: Promise<DesktopUpdateState> | undefined
+  const confirmPreparedUpdate = (version: string, focus = false): Promise<DesktopUpdateState> => {
+    if (readyConfirmation !== undefined && focus) updateDialog.focus()
+    readyConfirmation ??= Promise.resolve().then(async () => {
+      if (!isMandatory()) await waitForDesktopUpdateWindow(currentDialogWindow())
+      const state = updates.state
+      if (quitting || state.version !== version || !(state.phase === 'ready' || state.phase === 'error' && state.failedOperation === 'install')) return state
+      if (isMandatory()) return updates.install(version)
+      const ready = desktopUpdateReadyConfirmation(locale.messages, version, process.platform)
+      // Readiness is presented before Host inspection or installation preparation can wait.
+      const result = await ordinaryMessageBox({ type: 'info', title: locale.messages.updateTitle,
+        message: ready.message, detail: ready.detail, buttons: [locale.messages.installAndRestart], cancelId: 1 })
+      if (result.response !== 0 || isQuitting() || isMandatory()) return updates.state
+      return updates.install(version, 'approved')
+    }).finally(() => { readyConfirmation = undefined })
+    return readyConfirmation
+  }
 
   protocol.handle(SCHEME, (request) => {
     const url = new URL(request.url)
@@ -952,7 +957,7 @@ async function main(): Promise<void> {
     }
     if (!manual && authenticationOperation === undefined && !isMandatory() && promptOperation !== undefined
       && updates.state.phase === 'ready' && updates.state.version !== undefined) {
-      return updates.install(updates.state.version).then(showUpdateFailure)
+      return confirmPreparedUpdate(updates.state.version, true).then(showUpdateFailure)
     }
     let failedOperation: 'check' | 'download' | 'install' = 'check'
     promptOperation ??= Promise.resolve().then(async () => {
@@ -991,7 +996,7 @@ async function main(): Promise<void> {
         if (state.phase === 'ready' || (state.phase === 'error' && state.failedOperation === 'install')) {
           if (state.version !== undefined) {
             failedOperation = 'install'
-            await showUpdateFailure(await updates.install(state.version))
+            await showUpdateFailure(await confirmPreparedUpdate(state.version, true))
           }
           return
         }

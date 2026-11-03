@@ -1,9 +1,31 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, expect, it, vi } from 'vitest'
-import { prepareDesktopUpdateWindow } from '../src/update-window.ts'
+import { prepareDesktopUpdateWindow, waitForDesktopUpdateWindow } from '../src/update-window.ts'
 import { en } from '../src/locale.ts'
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+
+it.each(['show', 'restore', 'focus'])('continues ready confirmation after %s and removes every visibility listener', async (event) => {
+  let visible = false, minimized = true
+  const window = Object.assign(new EventEmitter(), { isDestroyed: () => false, isVisible: () => visible, isMinimized: () => minimized })
+  let completed = false
+  const waiting = waitForDesktopUpdateWindow(window).then(() => { completed = true })
+  window.emit(event)
+  await Promise.resolve()
+  expect(completed).toBe(false)
+  visible = true; minimized = false
+  window.emit(event)
+  await waiting
+  expect(window.eventNames()).toEqual([])
+})
+
+it('releases hidden-window confirmation listeners when the owner closes', async () => {
+  const window = Object.assign(new EventEmitter(), { isDestroyed: () => false, isVisible: () => false, isMinimized: () => false })
+  const waiting = waitForDesktopUpdateWindow(window)
+  window.emit('closed')
+  await waiting
+  expect(window.eventNames()).toEqual([])
+})
 
 function setup(platform = 'darwin', fullscreen = true, destroyed = false) {
   vi.stubGlobal('process', { ...process, platform })

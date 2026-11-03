@@ -1,0 +1,8 @@
+{
+  "id": "ready-install-confirmation",
+  "category": "fixes",
+  "text": {
+    "en": "Show installation confirmation as soon as a download is ready, even after closing its progress window. Check running tasks after approval so Host preparation cannot hide the confirmation.",
+    "zh-CN": "下载就绪后立即显示安装确认，关闭过下载进度弹窗也能收到提示；用户批准后再检查运行任务，避免确认弹窗被应用服务的准备等待阻塞。"
+  }
+}

@@ -46,7 +46,7 @@ const harness = await vi.hoisted(async () => {
   const hosts: FakeHost[] = []
   const handlers = new Map<string, InvokeHandler>()
   let pluginsEnabled = false
-  let prepareUpdate: (() => Promise<boolean>) | undefined
+  let prepareUpdate: ((confirmation?: 'required' | 'approved') => Promise<boolean>) | undefined
   let publishUpdate: ((state: DesktopUpdateState) => DesktopUpdateState) | undefined
   let preparing = deferred()
   let prepared = deferred()
@@ -70,7 +70,7 @@ const harness = await vi.hoisted(async () => {
   const loginShell = vi.fn((base: NodeJS.ProcessEnv, _config: unknown, _options: { signal?: AbortSignal }) => readLoginShell(base))
   const updateCheck = vi.fn(async (_manual?: boolean): Promise<DesktopUpdateState> => updateState)
   const updateDownload = vi.fn(async (_version: string): Promise<DesktopUpdateState> => updateState)
-  const updateInstall = vi.fn(async (_version: string): Promise<DesktopUpdateState> => updateState)
+  const updateInstall = vi.fn(async (_version: string, _confirmation?: 'required' | 'approved'): Promise<DesktopUpdateState> => updateState)
   const popup = vi.fn<(options: { window: FakeWindow; x?: number; y?: number; callback?: () => void }) => void>()
   const menuBuilder = vi.fn<(template: MenuItemConstructorOptions[]) => { popup: typeof popup }>(() => ({ popup }))
   const menu = Object.assign(menuBuilder, { buildFromTemplate: menuBuilder, setApplicationMenu: vi.fn() })
@@ -234,7 +234,7 @@ const harness = await vi.hoisted(async () => {
     get updateState() { return updateState },
     set updateState(value: DesktopUpdateState) { updateState = value },
     get prepareUpdate() { return prepareUpdate! },
-    set prepareUpdate(value: () => Promise<boolean>) { prepareUpdate = value },
+    set prepareUpdate(value: (confirmation?: 'required' | 'approved') => Promise<boolean>) { prepareUpdate = value },
     get publishUpdate() { return publishUpdate! },
     set publishUpdate(value: (state: DesktopUpdateState) => DesktopUpdateState) { publishUpdate = value },
     dialog: { showOpenDialog: vi.fn(), showErrorBox: vi.fn(), showMessageBox: vi.fn() },
@@ -367,8 +367,8 @@ vi.mock('../src/update-dialog.ts', () => ({ DesktopUpdateDialog: class {
   dispose() {}
 } }))
 vi.mock('../src/update-coordinator.ts', () => ({ DesktopUpdateCoordinator: class {
-  constructor(publish: (state: DesktopUpdateState) => DesktopUpdateState, beforeRestart: () => Promise<boolean>) {
-    harness.prepareUpdate = beforeRestart
+  constructor(publish: (state: DesktopUpdateState) => DesktopUpdateState, beforeRestart: (confirmation: 'required' | 'approved') => Promise<boolean>) {
+    harness.prepareUpdate = confirmation => beforeRestart(confirmation ?? 'required')
     harness.publishUpdate = publish
   }
   get state() { return harness.updateState }
@@ -1516,6 +1516,7 @@ describe('desktop main startup', () => {
 
   it('defers the downloaded-update confirmation until the hidden window is shown again', async () => {
     await readyWorkspace()
+    harness.dialog.showMessageBox.mockResolvedValue({ response: 0 })
     const window = harness.windows[0]!
     harness.updateState = { phase: 'available', version: '1.0.1' }
     harness.updateDownload.mockImplementation(async () => { harness.updateState = { phase: 'ready', version: '1.0.1' }; return harness.updateState })
@@ -1528,7 +1529,7 @@ describe('desktop main startup', () => {
     window.visible = true
     window.emit('show')
     await opened
-    expect(harness.updateInstall).toHaveBeenCalledWith('1.0.1')
+    await vi.waitFor(() => { expect(harness.updateInstall).toHaveBeenCalledWith('1.0.1', 'approved') })
   })
 
   it('waits for Platform view storage cleanup before an ordinary quit completes', async () => {
@@ -1867,6 +1868,7 @@ describe('desktop main startup', () => {
 
   it('downloads on the first click and opens installation confirmation only after readiness', async () => {
     await readyForUpdate()
+    harness.dialog.showMessageBox.mockResolvedValue({ response: 0 })
     harness.updateState = { phase: 'available', version: '1.0.1-nightly.1' }
     const downloading = Promise.withResolvers<DesktopUpdateState>()
     const started = Promise.withResolvers<undefined>()
@@ -1883,17 +1885,73 @@ describe('desktop main startup', () => {
     }))
     expect(harness.updateDownload).toHaveBeenCalledExactlyOnceWith('1.0.1-nightly.1')
     expect(harness.updateInstall).not.toHaveBeenCalled()
-    downloading.resolve({ phase: 'ready', version: '1.0.1-nightly.1' })
+    harness.updateState = { phase: 'ready', version: '1.0.1-nightly.1' }
+    downloading.resolve(harness.updateState)
     await Promise.all([action, repeated])
-    expect(harness.updateInstall).toHaveBeenCalledExactlyOnceWith('1.0.1-nightly.1')
+    await vi.waitFor(() => { expect(harness.updateInstall).toHaveBeenCalledExactlyOnceWith('1.0.1-nightly.1', 'approved') })
     await harness.updateCheck()
     expect(harness.updateInstall).toHaveBeenCalledOnce()
+  })
+
+  it('shows completed-download confirmation before waiting for Host task inspection', async () => {
+    const host = await readyForUpdate()
+    const version = '1.0.1-nightly.1'
+    const downloaded = Promise.withResolvers<DesktopUpdateState>()
+    const started = Promise.withResolvers<undefined>()
+    const inspected = Promise.withResolvers<boolean>()
+    const confirmed = Promise.withResolvers<{ response: number; checkboxChecked: boolean }>()
+    host.updateTasks.mockImplementation(() => inspected.promise)
+    harness.updateState = { phase: 'available', version }
+    harness.updateDownload.mockImplementationOnce(() => { started.resolve(undefined); return downloaded.promise })
+    harness.updateInstall.mockImplementationOnce(async () => { await harness.prepareUpdate(); return harness.updateState })
+    harness.dialog.showMessageBox.mockImplementation((options: MessageBoxOptions & { download?: unknown }) => {
+      // The user closes progress; completion must still open a separate confirmation on the visible window.
+      if (options.download !== undefined) return Promise.resolve({ response: 0 })
+      return confirmed.promise
+    })
+    try {
+      await invoke(DESKTOP_IPC.updatesOpen, 'app')
+      await started.promise
+      harness.updateState = { phase: 'ready', version }
+      downloaded.resolve(harness.updateState)
+      await vi.waitFor(() => { expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+        buttons: [en.installAndRestart],
+      })) }, { timeout: 500 })
+      expect(host.updateTasks).not.toHaveBeenCalled()
+      expect(harness.updateInstall).not.toHaveBeenCalled()
+      expect(host.stop).not.toHaveBeenCalled()
+    } finally {
+      inspected.resolve(false)
+      confirmed.resolve({ response: 1, checkboxChecked: false })
+      await vi.advanceTimersByTimeAsync(0)
+    }
   })
 
   it('does not lock or stop tasks when restart confirmation is dismissed', async () => {
     const host = await readyForUpdate()
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 })
     await expect(harness.prepareUpdate()).resolves.toBe(false)
+    expect(host.updateTasks.mock.calls).toEqual([['inspect']])
+    expect(host.stop).not.toHaveBeenCalled()
+  })
+
+  it('does not repeat installation consent after the ready dialog was approved and no tasks are active', async () => {
+    const host = await readyForUpdate()
+    const installing = harness.prepareUpdate('approved')
+    await host.stopping.promise
+    expect(harness.dialog.showMessageBox).not.toHaveBeenCalled()
+    expect(host.updateTasks.mock.calls).toEqual([['inspect'], ['lock']])
+    host.exited.resolve()
+    await expect(installing).resolves.toBe(true)
+  })
+
+  it('requires separate task-stop consent after installation was approved', async () => {
+    const host = await readyForUpdate()
+    host.updateTasks.mockResolvedValue(true)
+    await expect(harness.prepareUpdate('approved')).resolves.toBe(false)
+    expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      message: en.updateActiveTasks, buttons: [en.updateStopTasks, en.updateLater],
+    }))
     expect(host.updateTasks.mock.calls).toEqual([['inspect']])
     expect(host.stop).not.toHaveBeenCalled()
   })
