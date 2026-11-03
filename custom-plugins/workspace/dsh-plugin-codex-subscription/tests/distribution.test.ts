@@ -21,7 +21,7 @@ const manifest = manifestSchema.parse(JSON.parse(await readFile(join(directory, 
 test('published metadata pairs image cards with Host tools without an application executable', async () => {
   assert.deepEqual(Object.keys(manifest.exports).sort(), ['.', './client', './locale/*.json', './package.json', './tools'])
   assert.deepEqual(manifest.exports, { '.': './index.js', './tools': './tools.js', './client': './client.js', './package.json': './package.json', './locale/*.json': './locale/*.json' })
-  for (const file of ['index.js', 'tools.js', 'client.js', 'cordis.patch.yml', 'icon.svg', 'locale', 'README.md', 'README.zh.md', 'THIRD_PARTY_NOTICES.md']) assert.ok(manifest.files.includes(file), `${file} must be shipped`)
+  for (const file of ['index.js', 'tools.js', 'client.js', 'cordis.patch.yml', 'assets', 'locale', 'README.md', 'README.zh.md', 'THIRD_PARTY_NOTICES.md']) assert.ok(manifest.files.includes(file), `${file} must be shipped`)
   assert.equal(manifest.dsh.client.platform, 'web')
   assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-tool'))
   assert.equal(manifest.bin, undefined)
@@ -33,7 +33,8 @@ test('published metadata pairs image cards with Host tools without an applicatio
     const locale = z.object({ meta: z.object({ title: z.string().min(1), description: z.string().min(1) }) }).parse(JSON.parse(await readFile(join(directory, 'locale', `${language}.json`), 'utf8')))
     assert.ok(locale.meta.title)
   }
-  assert.equal(readPluginIcon(manifest.icon, join(directory, 'package.json'))?.contentType, 'image/svg+xml')
+  assert.equal(manifest.icon, './assets/plugin-logo-v2.webp')
+  assert.equal(readPluginIcon(manifest.icon, join(directory, 'package.json'))?.contentType, 'image/webp')
 })
 
 test('the shipped bundle composes two addressable rows without experimental classification or default activation', async () => {
