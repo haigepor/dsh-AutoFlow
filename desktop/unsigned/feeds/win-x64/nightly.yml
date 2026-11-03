@@ -1,81 +1,61 @@
-version: 0.2.2-alpha.2.20261103.3
+version: 0.2.2-alpha.2.20261103.4
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.3-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.3-win-x64-unsigned.exe
-    sha512: DxPAy291PnWF/gnsgQWQYXXfXKmDtn7t7K86UclmjjrvcnJSCGbiL87TrX0o2E1QEHZMDtzSmFrZgOd/zbMNMg==
-    size: 414886191
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.3-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.3-win-x64-unsigned.exe
-sha512: DxPAy291PnWF/gnsgQWQYXXfXKmDtn7t7K86UclmjjrvcnJSCGbiL87TrX0o2E1QEHZMDtzSmFrZgOd/zbMNMg==
-releaseDate: '2026-11-03T10:34:49.004Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.4-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.4-win-x64-unsigned.exe
+    sha512: Kv7SsurswIYxL3bVO6/0QeJMQaevBWoQO2im4h0QpE0M6t4VVffnc8/Lj5P1NJWVP3EI8O19p/LlJzo9nYf3uw==
+    size: 414822994
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.4-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.4-win-x64-unsigned.exe
+sha512: Kv7SsurswIYxL3bVO6/0QeJMQaevBWoQO2im4h0QpE0M6t4VVffnc8/Lj5P1NJWVP3EI8O19p/LlJzo9nYf3uw==
+releaseDate: '2026-11-03T14:31:54.055Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-alpha.2.20261103.3
+  version: 0.2.2-alpha.2.20261103.4
   items:
-    - id: custom-plugin-artwork
+    - id: conversation-dialog-layout
       category: improvements
       text:
-        en: Refresh artwork across the built-in custom plugins and their workbenches.
-        zh-CN: 更新随包自定义插件及工作台图标。
-    - id: more-plugin-updates
-      category: features
-      text:
-        en: Check for independent Style Prompt and Boot Animation plugin updates from the Plugins page.
-        zh-CN: 插件页支持检查风格提示词和启动动画的独立更新。
-    - id: parallel-update-download
+        en: Image search and question dialogs use settings-style groups and matching character illustrations. Conversation tasks remain available as the window narrows without adding a horizontal scrollbar.
+        zh-CN: 找图与提问弹窗采用与设置页一致的分组排版和角色插画；缩窄窗口时仍可查看会话任务，并避免底部出现横向滚动条。
+    - id: macos-test-updates
       category: improvements
       text:
-        en: Windows installer downloads use bounded parallel requests on supported sources and retain verified progress across pauses, source changes and restarts.
-        zh-CN: Windows 安装包在支持的线路使用有上限的并行下载，暂停、换源和重启后保留经过校验的进度。
-    - id: plugin-download-idle-timeout
+        en: Apple Silicon and Intel certificate-free macOS test packages can check and download updates through the isolated official channel, with installation requiring confirmation.
+        zh-CN: Apple Silicon 与 Intel 的无证书 macOS 测试包支持通过隔离的官方渠道检查和下载更新，安装仍需确认。
+    - id: plugin-update-index
       category: fixes
       text:
-        en: Plugin downloads can continue while data is arriving instead of timing out after a fixed total duration, and show measured percentages in lists and details.
-        zh-CN: 修复插件安装包持续下载时仍因固定总时限而超时的问题，列表和详情同步显示真实下载百分比。
-    - id: startup-animation
-      category: features
-      text:
-        en: Play the cyberpunk intro while the workspace and initial data load, with skip and reduced-motion support.
-        zh-CN: 启动时在工作区和首批数据加载期间播放赛博朋克片头，支持跳过和减少动态效果。
-    - id: update-notes-panel
-      category: features
-      text:
-        en: Read new features, improvements and bug fixes in the desktop update dialog while the download continues.
-        zh-CN: 桌面更新弹窗新增更新说明，可在下载时查看新增功能、体验优化和问题修复。
-    - id: visual-curator-native-timeouts
+        en: Check bundled plugin versions through a shared official update index, respect rate-limit recovery times, and retain the last successful check when updates cannot be checked.
+        zh-CN: 随包插件通过共享官方索引检查更新，遵守限流恢复时间；检查暂不可用时保留上次成功结果，并区分检查、下载和安装失败。
+    - id: ready-install-confirmation
       category: fixes
       text:
-        en: Let the selected native model manage Visual Curator request timing, and refresh conversation cards when tasks finish.
-        zh-CN: 视觉策展的原生模型请求交由所选模型管理时序，并在任务结束时刷新会话卡片。
+        en: Show installation confirmation as soon as a download is ready, even after closing its progress window. Check running tasks after approval so Host preparation cannot hide the confirmation.
+        zh-CN: 下载就绪后立即显示安装确认，关闭过下载进度弹窗也能收到提示；用户批准后再检查运行任务，避免确认弹窗被应用服务的准备等待阻塞。
+    - id: reopen-update-download-dialog
+      category: fixes
+      text:
+        en: Reopen update progress while a download or file verification continues, and keep the installation confirmation accessible after the package is ready.
+        zh-CN: 修复下载或文件校验期间关闭弹窗后无法重新打开，以及安装包就绪后按钮可能持续转圈、无法再次打开安装确认的问题。
 releaseNotes: |-
-  ## 新增功能
-
-  - 插件页支持检查风格提示词和启动动画的独立更新。
-  - 启动时在工作区和首批数据加载期间播放赛博朋克片头，支持跳过和减少动态效果。
-  - 桌面更新弹窗新增更新说明，可在下载时查看新增功能、体验优化和问题修复。
-
   ## 体验优化
 
-  - 更新随包自定义插件及工作台图标。
-  - Windows 安装包在支持的线路使用有上限的并行下载，暂停、换源和重启后保留经过校验的进度。
+  - 找图与提问弹窗采用与设置页一致的分组排版和角色插画；缩窄窗口时仍可查看会话任务，并避免底部出现横向滚动条。
+  - Apple Silicon 与 Intel 的无证书 macOS 测试包支持通过隔离的官方渠道检查和下载更新，安装仍需确认。
 
   ## 问题修复
 
-  - 修复插件安装包持续下载时仍因固定总时限而超时的问题，列表和详情同步显示真实下载百分比。
-  - 视觉策展的原生模型请求交由所选模型管理时序，并在任务结束时刷新会话卡片。
+  - 随包插件通过共享官方索引检查更新，遵守限流恢复时间；检查暂不可用时保留上次成功结果，并区分检查、下载和安装失败。
+  - 下载就绪后立即显示安装确认，关闭过下载进度弹窗也能收到提示；用户批准后再检查运行任务，避免确认弹窗被应用服务的准备等待阻塞。
+  - 修复下载或文件校验期间关闭弹窗后无法重新打开，以及安装包就绪后按钮可能持续转圈、无法再次打开安装确认的问题。
 
   ---
 
-  ## New features
-
-  - Check for independent Style Prompt and Boot Animation plugin updates from the Plugins page.
-  - Play the cyberpunk intro while the workspace and initial data load, with skip and reduced-motion support.
-  - Read new features, improvements and bug fixes in the desktop update dialog while the download continues.
-
   ## Improvements
 
-  - Refresh artwork across the built-in custom plugins and their workbenches.
-  - Windows installer downloads use bounded parallel requests on supported sources and retain verified progress across pauses, source changes and restarts.
+  - Image search and question dialogs use settings-style groups and matching character illustrations. Conversation tasks remain available as the window narrows without adding a horizontal scrollbar.
+  - Apple Silicon and Intel certificate-free macOS test packages can check and download updates through the isolated official channel, with installation requiring confirmation.
 
   ## Bug fixes
 
-  - Plugin downloads can continue while data is arriving instead of timing out after a fixed total duration, and show measured percentages in lists and details.
-  - Let the selected native model manage Visual Curator request timing, and refresh conversation cards when tasks finish.
+  - Check bundled plugin versions through a shared official update index, respect rate-limit recovery times, and retain the last successful check when updates cannot be checked.
+  - Show installation confirmation as soon as a download is ready, even after closing its progress window. Check running tasks after approval so Host preparation cannot hide the confirmation.
+  - Reopen update progress while a download or file verification continues, and keep the installation confirmation accessible after the package is ready.
