@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-alpha.2.20261103.4",
+  "items": [
+    {
+      "id": "conversation-dialog-layout",
+      "category": "improvements",
+      "text": {
+        "en": "Image search and question dialogs use settings-style groups and matching character illustrations. Conversation tasks remain available as the window narrows without adding a horizontal scrollbar.",
+        "zh-CN": "找图与提问弹窗采用与设置页一致的分组排版和角色插画；缩窄窗口时仍可查看会话任务，并避免底部出现横向滚动条。"
+      }
+    },
+    {
+      "id": "macos-test-updates",
+      "category": "improvements",
+      "text": {
+        "en": "Apple Silicon and Intel certificate-free macOS test packages can check and download updates through the isolated official channel, with installation requiring confirmation.",
+        "zh-CN": "Apple Silicon 与 Intel 的无证书 macOS 测试包支持通过隔离的官方渠道检查和下载更新，安装仍需确认。"
+      }
+    },
+    {
+      "id": "plugin-update-index",
+      "category": "fixes",
+      "text": {
+        "en": "Check bundled plugin versions through a shared official update index, respect rate-limit recovery times, and retain the last successful check when updates cannot be checked.",
+        "zh-CN": "随包插件通过共享官方索引检查更新，遵守限流恢复时间；检查暂不可用时保留上次成功结果，并区分检查、下载和安装失败。"
+      }
+    },
+    {
+      "id": "reopen-update-download-dialog",
+      "category": "fixes",
+      "text": {
+        "en": "Reopen update progress while a download or file verification continues, and keep the installation confirmation accessible after the package is ready.",
+        "zh-CN": "修复下载或文件校验期间关闭弹窗后无法重新打开，以及安装包就绪后按钮可能持续转圈、无法再次打开安装确认的问题。"
+      }
+    }
+  ]
+}
