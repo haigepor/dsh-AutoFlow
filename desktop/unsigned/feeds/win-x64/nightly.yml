@@ -1,8 +1,81 @@
-version: 0.2.2-alpha.2.20261103.2
+version: 0.2.2-alpha.2.20261103.3
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.2-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.2-win-x64-unsigned.exe
-    sha512: fTzlcTkXZc7TVCBQ34jVAGBOL8kRrELE79QtScUZE+UFwLeBR89JjPQvUq2e2alziEfrNOlfVLuSOZns1eWO+A==
-    size: 408869724
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.2-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.2-win-x64-unsigned.exe
-sha512: fTzlcTkXZc7TVCBQ34jVAGBOL8kRrELE79QtScUZE+UFwLeBR89JjPQvUq2e2alziEfrNOlfVLuSOZns1eWO+A==
-releaseDate: '2026-11-03T05:59:04.811Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.3-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.3-win-x64-unsigned.exe
+    sha512: DxPAy291PnWF/gnsgQWQYXXfXKmDtn7t7K86UclmjjrvcnJSCGbiL87TrX0o2E1QEHZMDtzSmFrZgOd/zbMNMg==
+    size: 414886191
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.3-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.3-win-x64-unsigned.exe
+sha512: DxPAy291PnWF/gnsgQWQYXXfXKmDtn7t7K86UclmjjrvcnJSCGbiL87TrX0o2E1QEHZMDtzSmFrZgOd/zbMNMg==
+releaseDate: '2026-11-03T10:34:49.004Z'
+dshReleaseNotes:
+  schemaVersion: 1
+  version: 0.2.2-alpha.2.20261103.3
+  items:
+    - id: custom-plugin-artwork
+      category: improvements
+      text:
+        en: Refresh artwork across the built-in custom plugins and their workbenches.
+        zh-CN: 更新随包自定义插件及工作台图标。
+    - id: more-plugin-updates
+      category: features
+      text:
+        en: Check for independent Style Prompt and Boot Animation plugin updates from the Plugins page.
+        zh-CN: 插件页支持检查风格提示词和启动动画的独立更新。
+    - id: parallel-update-download
+      category: improvements
+      text:
+        en: Windows installer downloads use bounded parallel requests on supported sources and retain verified progress across pauses, source changes and restarts.
+        zh-CN: Windows 安装包在支持的线路使用有上限的并行下载，暂停、换源和重启后保留经过校验的进度。
+    - id: plugin-download-idle-timeout
+      category: fixes
+      text:
+        en: Plugin downloads can continue while data is arriving instead of timing out after a fixed total duration, and show measured percentages in lists and details.
+        zh-CN: 修复插件安装包持续下载时仍因固定总时限而超时的问题，列表和详情同步显示真实下载百分比。
+    - id: startup-animation
+      category: features
+      text:
+        en: Play the cyberpunk intro while the workspace and initial data load, with skip and reduced-motion support.
+        zh-CN: 启动时在工作区和首批数据加载期间播放赛博朋克片头，支持跳过和减少动态效果。
+    - id: update-notes-panel
+      category: features
+      text:
+        en: Read new features, improvements and bug fixes in the desktop update dialog while the download continues.
+        zh-CN: 桌面更新弹窗新增更新说明，可在下载时查看新增功能、体验优化和问题修复。
+    - id: visual-curator-native-timeouts
+      category: fixes
+      text:
+        en: Let the selected native model manage Visual Curator request timing, and refresh conversation cards when tasks finish.
+        zh-CN: 视觉策展的原生模型请求交由所选模型管理时序，并在任务结束时刷新会话卡片。
+releaseNotes: |-
+  ## 新增功能
+
+  - 插件页支持检查风格提示词和启动动画的独立更新。
+  - 启动时在工作区和首批数据加载期间播放赛博朋克片头，支持跳过和减少动态效果。
+  - 桌面更新弹窗新增更新说明，可在下载时查看新增功能、体验优化和问题修复。
+
+  ## 体验优化
+
+  - 更新随包自定义插件及工作台图标。
+  - Windows 安装包在支持的线路使用有上限的并行下载，暂停、换源和重启后保留经过校验的进度。
+
+  ## 问题修复
+
+  - 修复插件安装包持续下载时仍因固定总时限而超时的问题，列表和详情同步显示真实下载百分比。
+  - 视觉策展的原生模型请求交由所选模型管理时序，并在任务结束时刷新会话卡片。
+
+  ---
+
+  ## New features
+
+  - Check for independent Style Prompt and Boot Animation plugin updates from the Plugins page.
+  - Play the cyberpunk intro while the workspace and initial data load, with skip and reduced-motion support.
+  - Read new features, improvements and bug fixes in the desktop update dialog while the download continues.
+
+  ## Improvements
+
+  - Refresh artwork across the built-in custom plugins and their workbenches.
+  - Windows installer downloads use bounded parallel requests on supported sources and retain verified progress across pauses, source changes and restarts.
+
+  ## Bug fixes
+
+  - Plugin downloads can continue while data is arriving instead of timing out after a fixed total duration, and show measured percentages in lists and details.
+  - Let the selected native model manage Visual Curator request timing, and refresh conversation cards when tasks finish.
