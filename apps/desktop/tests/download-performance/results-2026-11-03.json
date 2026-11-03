@@ -5173,7 +5173,7 @@
       ]
     }
   },
-  "recordedPublicPayloadBytes": 1781935989,
+  "recordedPublicPayloadBytes": 1793756176,
   "trafficLimit": "Application-received payload only; excludes HTTP/TLS overhead, unrecorded invalid initial benchmark, aborted requests not delivered to application, and intermediate diagnostic attempts lacking a final JSON record.",
   "currentProxyAwareFullDownload": {
     "runtime": {
@@ -5621,6 +5621,559 @@
         "durationMs": 216.8153999999995,
         "failure": "net::ERR_CONNECTION_TIMED_OUT",
         "receivedBytes": 0
+      }
+    ]
+  },
+  "finalCheckpointGithubDirect": {
+    "conditions": "Sequential 30-second samples with fresh app caches; network and OS caches uncontrolled; build and documentation checks were running. None completed the full artifact.",
+    "fileBytes": 408869724,
+    "source": "github",
+    "cases": [
+      {
+        "round": 0,
+        "connections": 1,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30267.7938,
+        "transferred": 3097474,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 3097474,
+        "mibPerSecond": 0.09759486994840479,
+        "mainCpu": {
+          "user": 515000,
+          "system": 375000
+        },
+        "peakMainRss": 139710464,
+        "finalMainRss": 139558912,
+        "eventLoopP99Ms": 19.316735,
+        "eventLoopMaxMs": 23.904255,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 6.7993999999999915,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 888.7191,
+            "bytes": 1335
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 12.316799999998693,
+            "bytes": 1048814
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 13.846199999999953,
+            "bytes": 1050396
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.332500000000437,
+            "bytes": 998264
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30008.931800000002,
+        "transferred": 3406846,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 3406846,
+        "mibPerSecond": 0.10826848325708704,
+        "mainCpu": {
+          "user": 500000,
+          "system": 265000
+        },
+        "peakMainRss": 140103680,
+        "finalMainRss": 136265728,
+        "eventLoopP99Ms": 17.137663,
+        "eventLoopMaxMs": 23.822335,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 8.846099999998842,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 201.1235000000015,
+            "bytes": 2564
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.979700000003504,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4974999999976717,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4057000000029802,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.172599999998056,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8610999999946216,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2732000000032713,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4197999999960302,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9376000000047497,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.187400000002526,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5293000000019674,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.811699999998382,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.6881999999968684,
+            "bytes": 262144
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5745999999999185,
+            "bytes": 198529
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.930899999999383,
+            "bytes": 62589
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 8,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30020.4208,
+        "transferred": 2456634,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 2456634,
+        "mibPerSecond": 0.07804116958315094,
+        "mainCpu": {
+          "user": 250000,
+          "system": 203000
+        },
+        "peakMainRss": 140541952,
+        "finalMainRss": 137482240,
+        "eventLoopP99Ms": 19.759103,
+        "eventLoopMaxMs": 79.298559,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 3.7669000000023516,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 361.1507999999958,
+            "bytes": 10716
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.725500000000466,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.1155999999973574,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.5789999999979045,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.9315999999962514,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.09079999999085,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.680099999997765,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4227000000100816,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.1667000000015832,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.228900000001886,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.158400000000256,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.319200000012643,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.310199999992619,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.888099999996484,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.3025000000052387,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.01140000000305,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.402799999996205,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0684999999939464,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.202900000003865,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.601699999999255,
+            "bytes": 55772
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.1345000000001164,
+            "bytes": 425
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.7655999999988126,
+            "bytes": 41141
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 16,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30021.507100000003,
+        "transferred": 2859233,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 2859233,
+        "mibPerSecond": 0.09082745471899348,
+        "mainCpu": {
+          "user": 391000,
+          "system": 250000
+        },
+        "peakMainRss": 142802944,
+        "finalMainRss": 140427264,
+        "eventLoopP99Ms": 16.752639,
+        "eventLoopMaxMs": 26.230783,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 6.010999999998603,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 228.3801999999996,
+            "bytes": 1335
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.885399999999208,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7836999999999534,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.255199999999604,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0626000000047497,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8162999999913154,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9857999999949243,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.6195999999908963,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.362200000003213,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9390999999886844,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.608600000006845,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.818199999994249,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.003700000001118,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.3681999999971595,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.125899999999092,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5150999999896158,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8365999999950873,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2291999999870313,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.258799999995972,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.521900000007008,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.26239999999234,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4759999999951106,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4038000000000466,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.34780000000319,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.647400000001653,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.728000000002794,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7035999999934575,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7348000000056345,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.3621000000130152,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.232000000003609,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.134200000000419,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9913000000087777,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.977899999998044,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4437999999936437,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0384000000049127,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.63990000000922,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.847399999998743,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.518400000000838,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7271999999939,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.514500000004773,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.152700000006007,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.1964000000007218,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.341099999990547,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5203999999939697,
+            "bytes": 45056
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.9223000000056345,
+            "bytes": 61665
+          }
+        ]
       }
     ]
   }
