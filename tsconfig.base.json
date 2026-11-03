@@ -39,6 +39,8 @@
       "dsh-plugin-visual-curator/page": ["./custom-plugins/workspace/dsh-plugin-visual-curator/src/host/page.ts"],
       "dsh-plugin-style-prompt": ["./custom-plugins/workspace/dsh-plugin-style-prompt/src/host/plugin.ts"],
       "dsh-plugin-style-prompt/client": ["./custom-plugins/workspace/dsh-plugin-style-prompt/src/client/index.ts"],
+      "dsh-boot-animation": ["./custom-plugins/workspace/dsh-boot-animation/src/host/index.js"],
+      "dsh-boot-animation/client": ["./custom-plugins/workspace/dsh-boot-animation/src/client/index.ts"],
       "dsh-plugin-codex-subscription": ["./custom-plugins/workspace/dsh-plugin-codex-subscription/src/host/plugin.ts"],
       "dsh-plugin-codex-subscription/tools": ["./custom-plugins/workspace/dsh-plugin-codex-subscription/src/host/tools.ts"],
       "dsh-better-sidebar": ["./custom-plugins/workspace/dsh-better-sidebar/src/index.ts"],

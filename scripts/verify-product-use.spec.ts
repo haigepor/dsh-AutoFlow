@@ -65,6 +65,20 @@ afterEach(() => {
 })
 
 describe('product package use', () => {
+  it('requires packaged video URL imports to resolve to an existing local export', () => {
+    const root = fixture()
+    const directory = 'custom-plugins/workspace/video'
+    const name = 'dsh-fixture-video'
+    pkg(root, directory, name, { exports: { './intro.mp4': './assets/intro.mp4' } })
+    write(root, 'apps/web/src/main.ts', `import video from '${name}/intro.mp4?url'`)
+    write(root, `${directory}/assets/intro.mp4`, 'video fixture')
+    expect(failures(root)).toBe('')
+    rmSync(join(root, directory, 'assets/intro.mp4'))
+    expect(failures(root)).toContain(`${name}/intro.mp4?url must export an existing package-local video`)
+    write(root, `${directory}/package.json`, { name, exports: { './intro.mp4': '../outside.mp4' } })
+    expect(failures(root)).toContain(`${name}/intro.mp4?url must export an existing package-local video`)
+  })
+
   it('reads JavaScript beside its type declaration when tracing runtime imports', () => {
     const root = fixture()
     pkg(root, candidateDir, candidate)

@@ -1,7 +1,7 @@
 /** Check that maintained packages have effective product use or an explicit non-default role. */
 
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs'
-import { dirname, extname, relative, resolve } from 'node:path'
+import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
 import ts from 'typescript'
@@ -24,6 +24,7 @@ const DYNAMIC_MOUNTS: Readonly<Record<string, readonly string[]>> = {
 interface Package {
   directory: string
   name: string
+  exports?: Record<string, unknown>
   bundle?: DshBundleManifest
   client: boolean
   generatedRemote: boolean
@@ -90,6 +91,7 @@ export function verifyProductUse(
     const pkg: Package = { directory: dirname(path), name: manifest.name, client: manifest.dsh?.client !== undefined,
       generatedRemote: isRecord(remote) && remote.default === './lib/typert.remote-client.js'
         && remote.types === './lib/typert.remote-client.d.ts',
+      ...(manifest.exports === undefined ? {} : { exports: manifest.exports }),
       ...(manifest.dsh?.bundle === undefined ? {} : { bundle: manifest.dsh.bundle }) }
     packages.set(pkg.name, pkg)
     directories.set(resolve(root, pkg.directory), pkg)
@@ -154,6 +156,18 @@ export function verifyProductUse(
     const name = /^(?:@[^/]+\/)?[^/]+/.exec(specifier)?.[0] ?? specifier
     const pkg = packages.get(name)
     if (pkg !== undefined) reach.packages.add(pkg.directory)
+    if (pkg !== undefined && specifier.endsWith('.mp4?url')) {
+      const entry = `.${specifier.slice(pkg.name.length, -'?url'.length)}`
+      const asset = pkg.exports?.[entry]
+      const directory = resolve(root, pkg.directory)
+      const path = typeof asset === 'string' ? resolve(directory, asset) : directory
+      const local = relative(directory, path)
+      if (typeof asset !== 'string' || !asset.startsWith('./') || local === '' || local === '..'
+        || local.startsWith(`..${sep}`) || isAbsolute(local) || !existsSync(path) || !statSync(path).isFile()) {
+        failures.push(`${display(from)}: ${specifier} must export an existing package-local video`)
+      }
+      return
+    }
     // Typert Remote contributions contain generated descriptors and external codecs, with no workspace runtime imports.
     if (pkg?.generatedRemote && specifier === `${pkg.name}/remote`) return
     const target = resolveModule(normalized, from)

@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 import { ClipRegistry } from '../src/host/clip-registry.js'
 import { ClipResolver } from '../src/host/clip-resolver.js'
 import { MediaServer } from '../src/host/media-server.js'
+import { CLIPS as sourceClips } from '../src/clips.meta.js'
 import { CLIPS } from '../lib/clips.meta.js'
 
 test('offers only cyberpunk and falls back to it when a retired clip was selected', () => {
@@ -26,6 +27,8 @@ test('serves the exact cyberpunk bytes recorded in the upstream clip metadata', 
   const media = new MediaServer({ dataModulePath: new URL('../lib/clips.data.js', import.meta.url).href })
   const video = await media.embeddedBuffer('cyberpunk')
   assert.equal(video?.length, 1_856_280)
+  assert.deepEqual(CLIPS, sourceClips)
+  assert.equal(CLIPS[0]?.b64, video?.toString('base64').length)
   assert.equal(createHash('sha256').update(video!).digest('hex').slice(0, 16), 'beabf5956e0b467e')
   assert.ok(video!.indexOf('moov') < video!.indexOf('mdat'))
 })

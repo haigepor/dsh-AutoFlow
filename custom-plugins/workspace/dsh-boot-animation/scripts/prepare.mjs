@@ -15,9 +15,8 @@ if (video.length !== clip.bytes || hash !== clip.sha256) {
   throw new Error(`MP4 does not match the selected upstream clip: ${clip.id}`)
 }
 const encoded = video.toString('base64')
-const metadata = { ...clip, ext: '.mp4', sha256: hash.slice(0, 16), b64: encoded.length }
-writeFileSync(new URL('../lib/clips.meta.js', import.meta.url),
-  `// Generated from src/clip.json and assets/${clip.id}.mp4.\nexport const CLIPS = ${JSON.stringify([metadata], null, 2)}\n`, 'utf8')
+cpSync(new URL('../src/clips.meta.js', import.meta.url), new URL('../lib/clips.meta.js', import.meta.url))
+cpSync(new URL('../src/clip.json', import.meta.url), new URL('../lib/clip.json', import.meta.url))
 writeFileSync(new URL('../lib/clips.data.js', import.meta.url),
   `// Generated from assets/${clip.id}.mp4.\nexport const ${clip.id} = ${JSON.stringify(encoded)}\n`, 'utf8')
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))

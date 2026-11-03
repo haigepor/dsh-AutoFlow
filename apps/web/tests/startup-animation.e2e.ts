@@ -136,6 +136,9 @@ it('uses native sidebar glyphs, enlarged detail artwork and title-based introduc
 
 it('does not request or display startup video on a new document after disabling the bundle or its feature', async () => {
   const management = await browser.newPage({ locale: 'en-US', reducedMotion: 'no-preference' })
+  const diagnostics: string[] = []
+  management.on('pageerror', (error) => { diagnostics.push(error.message) })
+  management.on('console', (message) => { if (message.type() === 'error') diagnostics.push(message.text()) })
   try {
     await management.goto(scaffold.authenticatedUrl)
     await management.locator('[data-dsh-startup-animation]').waitFor({ state: 'detached', timeout: 35_000 })
@@ -160,7 +163,11 @@ it('does not request or display startup video on a new document after disabling 
       if (target === 'bundle') {
         await toggle.click()
         await expect.poll(() => toggle.getAttribute('aria-checked')).toBe('true')
-        await expect.poll(() => toggle.isEnabled(), { timeout: 30_000, message: 'Save enabled bundle' }).toBe(true)
+        try {
+          await expect.poll(() => toggle.isEnabled(), { timeout: 30_000, message: 'Save enabled bundle' }).toBe(true)
+        } catch (error) {
+          throw new Error(`Enable did not settle; detail=${await detail.innerText()}; browser errors=${diagnostics.join(' | ')}`, { cause: error })
+        }
       }
     }
   } finally { await management.close() }
