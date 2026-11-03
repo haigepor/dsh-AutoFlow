@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "channel": "nightly",
+  "targets": {
+    "win-x64": {
+      "latestVersion": "0.2.2-alpha.2.20261102.3",
+      "minimumSupportedVersion": "0.2.2-alpha.2.20261102.2",
+      "downloadPage": "https://github.com/haigepor/dsh-AutoFlow/releases/tag/desktop-v0.2.2-alpha.2.20261102.3-unsigned"
+    }
+  }
+}
