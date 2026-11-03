@@ -1,0 +1,5627 @@
+{
+  "date": "2026-11-03",
+  "system": {
+    "os": "Windows 11 10.0.26200",
+    "cpu": "Intel Core i5-14400",
+    "logicalProcessors": 16,
+    "filesystem": "NTFS",
+    "node": "24.14.0",
+    "electron": "44.7.0"
+  },
+  "artifact": {
+    "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.2-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.2-win-x64-unsigned.exe",
+    "version": "0.2.2-alpha.2.20261103.2",
+    "size": 408869724,
+    "sha512": "fTzlcTkXZc7TVCBQ34jVAGBOL8kRrELE79QtScUZE+UFwLeBR89JjPQvUq2e2alziEfrNOlfVLuSOZns1eWO+A=="
+  },
+  "conditions": "Sequential tests; independent app userData/cache and fresh destination per case; CDN, OS filesystem and TLS/DNS cache state uncontrolled. Payload byte counters exclude protocol overhead. Main process CPU/RSS are not whole-machine metrics. No installer was executed.",
+  "local64MiB": {
+    "runtime": {
+      "node": "24.14.0",
+      "acorn": "8.15.0",
+      "ada": "3.4.2",
+      "amaro": "1.1.7",
+      "ares": "1.34.6",
+      "brotli": "1.2.0",
+      "cldr": "48.0",
+      "icu": "78.2",
+      "llhttp": "9.3.0",
+      "merve": "1.0.0",
+      "modules": "137",
+      "napi": "10",
+      "nbytes": "0.1.1",
+      "ncrypto": "0.0.1",
+      "nghttp2": "1.68.0",
+      "openssl": "3.5.5",
+      "simdjson": "4.2.4",
+      "simdutf": "6.4.0",
+      "sqlite": "3.51.2",
+      "tz": "2025c",
+      "undici": "7.21.0",
+      "unicode": "17.0",
+      "uv": "1.51.0",
+      "uvwasi": "0.0.23",
+      "v8": "13.6.233.17-node.41",
+      "zlib": "1.3.1-e00f703",
+      "zstd": "1.5.7"
+    },
+    "fileBytes": 67108864,
+    "source": "github",
+    "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+    "cases": [
+      {
+        "round": 0,
+        "connections": 1,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 640.9211,
+        "transferred": 67108864,
+        "mibPerSecond": 99.8562849623768,
+        "mainCpu": {
+          "user": 687000,
+          "system": 579000
+        },
+        "peakMainRss": 199241728,
+        "finalMainRss": 170741760,
+        "eventLoopP99Ms": 14.827519,
+        "eventLoopMaxMs": 17.645567,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 1.1876000000000317,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 26.588799999999992,
+            "bytes": 65327
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.223000000000013,
+            "bytes": 1113903
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2276999999999703,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0054999999999836,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.984800000000007,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5756000000000085,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.0645000000000095,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9150999999999954,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.354499999999973,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.6451999999999884,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.747799999999984,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8344000000000165,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.632499999999993,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.95150000000001,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.158299999999997,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8678999999999633,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.02170000000001,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.1195999999999913,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.680499999999995,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.344799999999964,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7017999999999915,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7065999999999235,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.066699999999969,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7385000000000446,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8437999999999874,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8845000000000027,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.5265000000000555,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5702999999999747,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9149999999999636,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2613999999999805,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0304000000000997,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.5009000000000015,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0680999999999585,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4202999999999975,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.615099999999984,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5492000000000417,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.278299999999945,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2993999999999915,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0634000000000015,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.824799999999982,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.439399999999978,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9443999999999733,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.844000000000051,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.725299999999947,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8769999999999527,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7379000000000815,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8537000000000035,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.464599999999905,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.095900000000029,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.062599999999975,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9694999999999254,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4711999999999534,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7087999999999965,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.550700000000006,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.316100000000006,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.088399999999979,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7876999999999725,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5675999999999704,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8228000000000293,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.859499999999912,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4763000000000375,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.83159999999998,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.443300000000022,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4330999999999676,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.066599999999994,
+            "bytes": 983249
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 488.30350000000004,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 128.56090000000006,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 21.426500000000033,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 423.02909999999997,
+        "transferred": 67108864,
+        "mibPerSecond": 151.28982852479888,
+        "mainCpu": {
+          "user": 375000,
+          "system": 203000
+        },
+        "peakMainRss": 208072704,
+        "finalMainRss": 172265472,
+        "eventLoopP99Ms": 16.990207,
+        "eventLoopMaxMs": 16.990207,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 4.361300000000028,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 12.67089999999996,
+            "bytes": 65329
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 21.107400000000098,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.768499999999904,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.544499999999971,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.700599999999895,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 19.4853999999998,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.510400000000118,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9624999999998636,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.9411000000000058,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 285.26149999999996,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 113.40100000000007,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 18.940200000000004,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 8,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 453.7328,
+        "transferred": 67108864,
+        "mibPerSecond": 141.05217872721568,
+        "mainCpu": {
+          "user": 312000,
+          "system": 297000
+        },
+        "peakMainRss": 248553472,
+        "finalMainRss": 179896320,
+        "eventLoopP99Ms": 15.597567,
+        "eventLoopMaxMs": 15.597567,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 3.657600000000002,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 10.749099999999999,
+            "bytes": 65329
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 32.43430000000012,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.1417999999998756,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.6047000000000935,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.590400000000045,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.5097000000000662,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.4475999999999658,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.9561000000001059,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.3308999999999287,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 280.6001000000001,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 143.41910000000007,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 25.106700000000046,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 16,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 468.85069999999996,
+        "transferred": 67108864,
+        "mibPerSecond": 136.50400863217226,
+        "mainCpu": {
+          "user": 297000,
+          "system": 343000
+        },
+        "peakMainRss": 222892032,
+        "finalMainRss": 176312320,
+        "eventLoopP99Ms": 18.464767,
+        "eventLoopMaxMs": 18.464767,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 5.42450000000008,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 9.055499999999938,
+            "bytes": 65329
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 31.067399999999907,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.024800000000141,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.3209999999999127,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.92679999999973,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.7937999999999192,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.6305999999999585,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.5752000000002226,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.785899999999856,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 314.7978999999998,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 127.57960000000003,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 19.989399999999932,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 16,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 403.6699000000003,
+        "transferred": 67108864,
+        "mibPerSecond": 158.5453857223438,
+        "mainCpu": {
+          "user": 281000,
+          "system": 266000
+        },
+        "peakMainRss": 250183680,
+        "finalMainRss": 174051328,
+        "eventLoopP99Ms": 23.314431,
+        "eventLoopMaxMs": 23.314431,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 4.771099999999933,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 8.660400000000209,
+            "bytes": 65329
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 28.757500000000164,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.21120000000019,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.5127000000002226,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.5390999999999622,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.2797999999997955,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.4297999999998865,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.876800000000003,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.9619000000002416,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 265.22530000000006,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 112.69979999999987,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 19.990699999999833,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 8,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 467.2873999999997,
+        "transferred": 67108864,
+        "mibPerSecond": 136.96067987281498,
+        "mainCpu": {
+          "user": 282000,
+          "system": 266000
+        },
+        "peakMainRss": 245583872,
+        "finalMainRss": 173817856,
+        "eventLoopP99Ms": 21.331967,
+        "eventLoopMaxMs": 21.331967,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 3.763799999999719,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 7.867699999999786,
+            "bytes": 65329
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 32.01749999999993,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7241000000003623,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.670100000000275,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.0080000000002656,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.408599999999751,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.566100000000006,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.651100000000042,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5366000000003623,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 279.2158999999997,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 159.33550000000014,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 23.769400000000132,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 478.42700000000013,
+        "transferred": 67108864,
+        "mibPerSecond": 133.771714389029,
+        "mainCpu": {
+          "user": 547000,
+          "system": 296000
+        },
+        "peakMainRss": 233664512,
+        "finalMainRss": 173711360,
+        "eventLoopP99Ms": 24.297471,
+        "eventLoopMaxMs": 24.297471,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 6.224799999999959,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 14.217099999999846,
+            "bytes": 65329
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 17.989100000000235,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.183899999999994,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.306299999999737,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.684000000000196,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 17.988700000000335,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.152099999999791,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0975000000003092,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9151999999999134,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 284.83989999999994,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 159.81359999999995,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 26.23810000000003,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 1,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 727.1533,
+        "transferred": 67108864,
+        "mibPerSecond": 88.01445307337532,
+        "mainCpu": {
+          "user": 453000,
+          "system": 485000
+        },
+        "peakMainRss": 225406976,
+        "finalMainRss": 215912448,
+        "eventLoopP99Ms": 11.804671,
+        "eventLoopMaxMs": 15.482879,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 1.12920000000031,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 38.5300000000002,
+            "bytes": 65327
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6743000000001302,
+            "bytes": 1113903
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4783000000002176,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.3492999999998574,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.026900000000296,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.164099999999962,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8326999999999316,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.711999999999989,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.679500000000189,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.117699999999786,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5274999999996908,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0194000000001324,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6875,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.9367999999999483,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.216699999999946,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.971900000000005,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.712199999999939,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.3239000000003216,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.2820999999999,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.594300000000203,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.402700000000095,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.361499999999978,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.706300000000283,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.258100000000013,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.526900000000296,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.193100000000413,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.626600000000053,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.0516999999999825,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.550200000000132,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.197999999999865,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.271600000000035,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.163000000000011,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.0374000000001615,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7011999999999716,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.171600000000126,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.518000000000029,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.067999999999756,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.277400000000398,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5313999999998487,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.958799999999883,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6831999999999425,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.720799999999599,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7300999999997657,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.981500000000324,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0141999999996187,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.350399999999809,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.026299999999992,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.647400000000289,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6948999999999614,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8828000000003158,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.0715000000000146,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4450999999999112,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.261199999999917,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7545000000000073,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.206199999999626,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.517700000000332,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.780399999999645,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.455299999999625,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.777600000000348,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.1523000000006505,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.30619999999999,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.9465000000000146,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.268799999999828,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.8463999999994485,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4886999999998807,
+            "bytes": 983249
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 542.6354999999999,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 158.9356000000007,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 23.282400000000052,
+            "bytes": 67108864
+          }
+        ]
+      }
+    ]
+  },
+  "ghfastFinal": {
+    "runtime": {
+      "node": "24.21.0",
+      "acorn": "8.18.0",
+      "ada": "4.0.0",
+      "amaro": "1.1.11",
+      "ares": "1.34.8",
+      "brotli": "1.2.0",
+      "cldr": "48.0",
+      "icu": "78.2",
+      "llhttp": "9.4.3",
+      "merve": "1.2.2",
+      "modules": "149",
+      "napi": "10",
+      "nbytes": "0.1.4",
+      "ncrypto": "0.0.1",
+      "nghttp2": "1.70.0",
+      "nghttp3": "",
+      "ngtcp2": "",
+      "openssl": "0.0.0",
+      "simdjson": "4.6.7",
+      "simdutf": "7.7.0",
+      "sqlite": "3.53.4",
+      "tz": "2026d",
+      "undici": "7.29.1",
+      "unicode": "17.0",
+      "uv": "1.52.1",
+      "uvwasi": "0.0.23",
+      "v8": "15.2.124.28-electron.0",
+      "zlib": "1.3.2.1-motley",
+      "zstd": "1.6.0",
+      "electron": "44.7.0",
+      "chrome": "152.0.7977.130"
+    },
+    "fileBytes": 408869724,
+    "source": "ghfast",
+    "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+    "cases": [
+      {
+        "round": 0,
+        "connections": 1,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30291.2042,
+        "transferred": 21757952,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 21757952,
+        "mibPerSecond": 0.6850173358245032,
+        "mainCpu": {
+          "user": 328000,
+          "system": 296000
+        },
+        "peakMainRss": 145268736,
+        "finalMainRss": 147910656,
+        "eventLoopP99Ms": 22.183935,
+        "eventLoopMaxMs": 50.724863,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 1.9615999999999758,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1514.5273000000002,
+            "bytes": 15721
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 40.15570000000025,
+            "bytes": 1063432
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.005300000000716,
+            "bytes": 1065014
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.561499999999796,
+            "bytes": 1072873
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.626800000000003,
+            "bytes": 1091289
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.793499999999767,
+            "bytes": 1079641
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.124899999998888,
+            "bytes": 1097890
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 10.260000000000218,
+            "bytes": 1081272
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.331099999999424,
+            "bytes": 1115635
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.370699999999488,
+            "bytes": 1112624
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.670500000000175,
+            "bytes": 1056723
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.540500000002794,
+            "bytes": 1056867
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.049299999998766,
+            "bytes": 1066394
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.385699999998906,
+            "bytes": 1096328
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 29.86829999999827,
+            "bytes": 1146880
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.787899999999354,
+            "bytes": 1064870
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.490900000000693,
+            "bytes": 1050102
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.875700000000506,
+            "bytes": 1079780
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.958300000002055,
+            "bytes": 1114148
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 11.67659999999887,
+            "bytes": 1212452
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 18.70219999999972,
+            "bytes": 1033738
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30026.2397,
+        "transferred": 66617308,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 66617308,
+        "mibPerSecond": 2.1158565408949497,
+        "mainCpu": {
+          "user": 719000,
+          "system": 344000
+        },
+        "peakMainRss": 165203968,
+        "finalMainRss": 136749056,
+        "eventLoopP99Ms": 21.004287,
+        "eventLoopMaxMs": 48.529407,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 11.209800000000541,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1653.6942000000017,
+            "bytes": 32021
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.645199999999022,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.455800000003364,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.570599999999104,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6290999999982887,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.85290000000532,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.313900000001013,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.594799999998941,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.008399999998801,
+            "bytes": 3506140
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.813300000001618,
+            "bytes": 4325376
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5498999999981606,
+            "bytes": 65536
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 8,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "failure": "Desktop update source rejected download (429)",
+        "durationMs": 3186.611299999997,
+        "transferred": 6281329,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 6281329,
+        "mibPerSecond": 1.879847140502439,
+        "mainCpu": {
+          "user": 46000,
+          "system": 31000
+        },
+        "peakMainRss": 144150528,
+        "finalMainRss": 143933440,
+        "eventLoopP99Ms": 18.202623,
+        "eventLoopMaxMs": 22.626303,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 7.734600000003411,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1806.300900000002,
+            "bytes": 196608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.486100000001898,
+            "bytes": 6281329
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 16,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "failure": "Desktop update source rejected download (429)",
+        "durationMs": 4286.690000000002,
+        "transferred": 10976920,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 10976920,
+        "mibPerSecond": 2.442072246242693,
+        "mainCpu": {
+          "user": 125000,
+          "system": 94000
+        },
+        "peakMainRss": 146042880,
+        "finalMainRss": 141438976,
+        "eventLoopP99Ms": 20.856831,
+        "eventLoopMaxMs": 21.954559,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 5.4681000000055064,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1650.8857999999964,
+            "bytes": 65536
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.379899999999907,
+            "bytes": 6291456
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4377999999996973,
+            "bytes": 4685464
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 16,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "failure": "Desktop update source rejected download (429)",
+        "durationMs": 5001.848299999998,
+        "transferred": 15186618,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 15186618,
+        "mibPerSecond": 2.895547139978807,
+        "mainCpu": {
+          "user": 125000,
+          "system": 47000
+        },
+        "peakMainRss": 155656192,
+        "finalMainRss": 141484032,
+        "eventLoopP99Ms": 21.938175,
+        "eventLoopMaxMs": 29.720575,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 6.6362999999983,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1674.9468999999954,
+            "bytes": 425948
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.974600000001374,
+            "bytes": 6291456
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.26589999999851,
+            "bytes": 6291456
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4790999999968335,
+            "bytes": 2603706
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 8,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "failure": "Desktop update source rejected download (429)",
+        "durationMs": 5103.068299999999,
+        "transferred": 14163743,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 14163743,
+        "mibPerSecond": 2.6469561309376974,
+        "mainCpu": {
+          "user": 141000,
+          "system": 94000
+        },
+        "peakMainRss": 161779712,
+        "finalMainRss": 136863744,
+        "eventLoopP99Ms": 21.348351,
+        "eventLoopMaxMs": 24.150015,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 10.548899999994319,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1589.1652999999933,
+            "bytes": 684502
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.149300000004587,
+            "bytes": 6291456
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.3980000000010477,
+            "bytes": 6291456
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9465999999956694,
+            "bytes": 1580831
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30024.108199999988,
+        "transferred": 151022071,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 151022071,
+        "mibPerSecond": 4.7970074369496585,
+        "mainCpu": {
+          "user": 594000,
+          "system": 515000
+        },
+        "peakMainRss": 181112832,
+        "finalMainRss": 155828224,
+        "eventLoopP99Ms": 21.200895,
+        "eventLoopMaxMs": 26.001407,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 6.051699999996345,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 3025.0698999999877,
+            "bytes": 131072
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.3070000000006985,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.8125,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.014699999999721,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.9452999999921303,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2591000000102213,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.202399999994668,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.30789999999979,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.832800000003772,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2268000000040047,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.238899999996647,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.925499999997555,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.104599999991478,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.032500000001164,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.188799999988987,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.204599999997299,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.447200000009616,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.853400000007241,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.241200000004028,
+            "bytes": 7830021
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.1785000000090804,
+            "bytes": 585714
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 1,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30332.444099999993,
+        "transferred": 86081500,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 86081500,
+        "mibPerSecond": 2.706465571883297,
+        "mainCpu": {
+          "user": 672000,
+          "system": 844000
+        },
+        "peakMainRss": 172670976,
+        "finalMainRss": 148983808,
+        "eventLoopP99Ms": 22.446079,
+        "eventLoopMaxMs": 120.193023,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 1.2484000000113156,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 2383.2678000000014,
+            "bytes": 371023
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.693299999998999,
+            "bytes": 1097602
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.879000000000815,
+            "bytes": 1383719
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.860400000005029,
+            "bytes": 1122871
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.42960000000312,
+            "bytes": 1097998
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.323800000012852,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.613100000002305,
+            "bytes": 1162814
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.41370000000461,
+            "bytes": 1114544
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8251000000018394,
+            "bytes": 1187651
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6094000000011874,
+            "bytes": 1073233
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6986000000033528,
+            "bytes": 1065086
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.263200000001234,
+            "bytes": 1228818
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.908100000000559,
+            "bytes": 1089347
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.836300000009942,
+            "bytes": 1187471
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.27369999999064,
+            "bytes": 1073476
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.287400000001071,
+            "bytes": 1130055
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.350800000000163,
+            "bytes": 1073809
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.44890000000305,
+            "bytes": 1097710
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.665999999997439,
+            "bytes": 1359170
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 29.457500000004075,
+            "bytes": 1049296
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.072200000009616,
+            "bytes": 1276935
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 132.71869999999763,
+            "bytes": 1188164
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 28.485700000004726,
+            "bytes": 1057479
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.287099999986822,
+            "bytes": 1620882
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 97.7728000000061,
+            "bytes": 1065734
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 19.382400000002235,
+            "bytes": 1507688
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 11.297399999995832,
+            "bytes": 1212416
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.536699999996927,
+            "bytes": 1154919
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.564200000007986,
+            "bytes": 1391254
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.714000000007218,
+            "bytes": 1063790
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.957200000004377,
+            "bytes": 1059423
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.598299999997835,
+            "bytes": 1113752
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.136499999993248,
+            "bytes": 1368073
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 11.710699999995995,
+            "bytes": 1073557
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.502299999992829,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.601299999994808,
+            "bytes": 1137149
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.21020000000135,
+            "bytes": 1287683
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.874600000010105,
+            "bytes": 1195438
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.732700000007753,
+            "bytes": 1163822
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.083899999997811,
+            "bytes": 1064726
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.299299999998766,
+            "bytes": 1048756
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.251300000003539,
+            "bytes": 1294390
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.55470000000787,
+            "bytes": 1162850
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.468000000008033,
+            "bytes": 1049008
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.427100000000792,
+            "bytes": 1212380
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.9703000000008615,
+            "bytes": 1122079
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.197100000004866,
+            "bytes": 1146547
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.376499999998487,
+            "bytes": 1090040
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.151099999988219,
+            "bytes": 1138517
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.6137000000017,
+            "bytes": 1408772
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7911000000021886,
+            "bytes": 1073557
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.55449999999837,
+            "bytes": 1187471
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8539999999920838,
+            "bytes": 1057047
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7762999999977183,
+            "bytes": 1146772
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.996500000008382,
+            "bytes": 1081668
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4778000000078464,
+            "bytes": 1154523
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.372499999997672,
+            "bytes": 1237505
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.348899999997229,
+            "bytes": 1097674
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.377399999997579,
+            "bytes": 1228314
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.506700000012643,
+            "bytes": 1065446
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.732900000002701,
+            "bytes": 1081164
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 14.500899999999092,
+            "bytes": 1228746
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.11009999999078,
+            "bytes": 1147060
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.003599999996368,
+            "bytes": 1089419
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.9962999999988824,
+            "bytes": 1056903
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.6014999999897555,
+            "bytes": 1081452
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.303699999989476,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.54649999999674,
+            "bytes": 1064942
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.989499999996042,
+            "bytes": 1146916
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.370599999994738,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.857900000002701,
+            "bytes": 1113968
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.652100000006612,
+            "bytes": 1097818
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.681799999991199,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.708100000018021,
+            "bytes": 1064870
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.232699999993201,
+            "bytes": 1121935
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.191200000001118,
+            "bytes": 942557
+          }
+        ]
+      }
+    ]
+  },
+  "ghfastFull": {
+    "runtime": {
+      "node": "24.21.0",
+      "acorn": "8.18.0",
+      "ada": "4.0.0",
+      "amaro": "1.1.11",
+      "ares": "1.34.8",
+      "brotli": "1.2.0",
+      "cldr": "48.0",
+      "icu": "78.2",
+      "llhttp": "9.4.3",
+      "merve": "1.2.2",
+      "modules": "149",
+      "napi": "10",
+      "nbytes": "0.1.4",
+      "ncrypto": "0.0.1",
+      "nghttp2": "1.70.0",
+      "nghttp3": "",
+      "ngtcp2": "",
+      "openssl": "0.0.0",
+      "simdjson": "4.6.7",
+      "simdutf": "7.7.0",
+      "sqlite": "3.53.4",
+      "tz": "2026d",
+      "undici": "7.29.1",
+      "unicode": "17.0",
+      "uv": "1.52.1",
+      "uvwasi": "0.0.23",
+      "v8": "15.2.124.28-electron.0",
+      "zlib": "1.3.2.1-motley",
+      "zstd": "1.6.0",
+      "electron": "44.7.0",
+      "chrome": "152.0.7977.130"
+    },
+    "fileBytes": 408869724,
+    "source": "ghfast",
+    "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+    "cases": [
+      {
+        "round": 0,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 119929.8773,
+        "transferred": 408869724,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 408869724,
+        "mibPerSecond": 3.2513045398981006,
+        "mainCpu": {
+          "user": 2407000,
+          "system": 2078000
+        },
+        "peakMainRss": 220512256,
+        "finalMainRss": 168235008,
+        "eventLoopP99Ms": 20.938751,
+        "eventLoopMaxMs": 25.198591,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 4.63839999999999,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 816.0802,
+            "bytes": 16366
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.786599999999453,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.3156999999991967,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0159999999996217,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.184400000001915,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 39.90809999999692,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.0108000000000175,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.870699999999488,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.57129999999961,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.602900000001682,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.9406999999991967,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.935299999997369,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 40.66269999999349,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.00350000000617,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2832000000053085,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.49029999999766,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.409699999996519,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.098000000005413,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.1542999999946915,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.98689999999624,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.373200000001816,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.2386999999944237,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.655299999998533,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.747400000000198,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.255099999994854,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 41.42749999999796,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.860499999995227,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7263999999995576,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.654999999998836,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.190800000011222,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5265999999974156,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7819999999919673,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 40.33170000000973,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.156199999997625,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4799000000057276,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.576699999990524,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.27620000000752,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6710999999922933,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.043600000004517,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.9544000000023516,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.546099999992293,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.6344000000099186,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.151799999992363,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 39.83900000000722,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 39.18609999999171,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.6560000000026776,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.96480000000156,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.151799999992363,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.372099999993225,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.2748999999894295,
+            "bytes": 6216540
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 118168.061,
+            "bytes": 408869724
+          },
+          {
+            "phase": "verify",
+            "durationMs": 1612.4241000000038,
+            "bytes": 408869724
+          },
+          {
+            "phase": "copy",
+            "durationMs": 142.96760000000359,
+            "bytes": 408869724
+          }
+        ]
+      }
+    ]
+  },
+  "ghProxyEarlier": {
+    "runtime": {
+      "node": "24.21.0",
+      "acorn": "8.18.0",
+      "ada": "4.0.0",
+      "amaro": "1.1.11",
+      "ares": "1.34.8",
+      "brotli": "1.2.0",
+      "cldr": "48.0",
+      "icu": "78.2",
+      "llhttp": "9.4.3",
+      "merve": "1.2.2",
+      "modules": "149",
+      "napi": "10",
+      "nbytes": "0.1.4",
+      "ncrypto": "0.0.1",
+      "nghttp2": "1.70.0",
+      "nghttp3": "",
+      "ngtcp2": "",
+      "openssl": "0.0.0",
+      "simdjson": "4.6.7",
+      "simdutf": "7.7.0",
+      "sqlite": "3.53.4",
+      "tz": "2026d",
+      "undici": "7.29.1",
+      "unicode": "17.0",
+      "uv": "1.52.1",
+      "uvwasi": "0.0.23",
+      "v8": "15.2.124.28-electron.0",
+      "zlib": "1.3.2.1-motley",
+      "zstd": "1.6.0",
+      "electron": "44.7.0",
+      "chrome": "152.0.7977.130"
+    },
+    "fileBytes": 408869724,
+    "source": "gh-proxy",
+    "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+    "cases": [
+      {
+        "round": 0,
+        "connections": 16,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30035.674899999998,
+        "transferred": 3914097,
+        "mibPerSecond": 0.12427800584639949,
+        "mainCpu": {
+          "user": 250000,
+          "system": 282000
+        },
+        "peakMainRss": 143224832,
+        "finalMainRss": 135389184,
+        "eventLoopP99Ms": 18.219007,
+        "eventLoopMaxMs": 34.734079,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 5.337999999999965,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1572.9123,
+            "bytes": 6836
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.888599999998405,
+            "bytes": 2907596
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.341300000000047,
+            "bytes": 901120
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.455299999997806,
+            "bytes": 105381
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 8,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30039.4899,
+        "transferred": 5772721,
+        "mibPerSecond": 0.18326861647138037,
+        "mainCpu": {
+          "user": 156000,
+          "system": 281000
+        },
+        "peakMainRss": 146149376,
+        "finalMainRss": 138686464,
+        "eventLoopP99Ms": 24.756223,
+        "eventLoopMaxMs": 73.138175,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 8.764800000000832,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1422.6867999999995,
+            "bytes": 62331
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 17.10349999999744,
+            "bytes": 4252334
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.182600000000093,
+            "bytes": 1309059
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.565000000002328,
+            "bytes": 194944
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8332999999984168,
+            "bytes": 16384
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30006.199400000005,
+        "transferred": 5022966,
+        "mibPerSecond": 0.15964279922707691,
+        "mainCpu": {
+          "user": 250000,
+          "system": 328000
+        },
+        "peakMainRss": 146403328,
+        "finalMainRss": 137625600,
+        "eventLoopP99Ms": 17.891327,
+        "eventLoopMaxMs": 34.013183,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 13.713700000000244,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1546.4632999999958,
+            "bytes": 75454
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.9576999999990221,
+            "bytes": 3745014
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.322599999999511,
+            "bytes": 1097728
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.7701000000088243,
+            "bytes": 180224
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 1,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30113.239700000006,
+        "transferred": 5574210,
+        "mibPerSecond": 0.17653301219711945,
+        "mainCpu": {
+          "user": 94000,
+          "system": 94000
+        },
+        "peakMainRss": 146309120,
+        "finalMainRss": 137658368,
+        "eventLoopP99Ms": 16.637951,
+        "eventLoopMaxMs": 21.479423,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 0.8905999999988126,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1692.266499999998,
+            "bytes": 10375
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.207800000003772,
+            "bytes": 1112453
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7382000000070548,
+            "bytes": 1064870
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7721000000019558,
+            "bytes": 1097818
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 38.66259999999602,
+            "bytes": 1086617
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5935000000026776,
+            "bytes": 1048648
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.125400000004447,
+            "bytes": 163804
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 1,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30095.938399999985,
+        "transferred": 11075548,
+        "mibPerSecond": 0.35095983807983255,
+        "mainCpu": {
+          "user": 141000,
+          "system": 125000
+        },
+        "peakMainRss": 155353088,
+        "finalMainRss": 140677120,
+        "eventLoopP99Ms": 16.777215,
+        "eventLoopMaxMs": 21.184511,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 1.9768000000040047,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 4.36250000000291,
+            "bytes": 524288
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5138999999908265,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.979699999996228,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2915000000066357,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.173899999994319,
+            "bytes": 1379906
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.3046999999933178,
+            "bytes": 1063279
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.278599999990547,
+            "bytes": 1095678
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.8542000000015832,
+            "bytes": 1048648
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7445000000006985,
+            "bytes": 1064843
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5851000000257045,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.8509999999951106,
+            "bytes": 180314
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30017.79389999999,
+        "transferred": 5757675,
+        "mibPerSecond": 0.1829230618348125,
+        "mainCpu": {
+          "user": 203000,
+          "system": 46000
+        },
+        "peakMainRss": 150433792,
+        "finalMainRss": 140214272,
+        "eventLoopP99Ms": 16.793599,
+        "eventLoopMaxMs": 21.381119,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 3.652799999981653,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1347.5800000000163,
+            "bytes": 32208
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.85130000000936,
+            "bytes": 4268397
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.213900000002468,
+            "bytes": 1309054
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.2797000000136904,
+            "bytes": 180224
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 8,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30022.210300000006,
+        "transferred": 6117377,
+        "mibPerSecond": 0.19432231239397837,
+        "mainCpu": {
+          "user": 156000,
+          "system": 78000
+        },
+        "peakMainRss": 146710528,
+        "finalMainRss": 138473472,
+        "eventLoopP99Ms": 16.891903,
+        "eventLoopMaxMs": 23.560191,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 5.479400000011083,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1243.8653999999806,
+            "bytes": 15955
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.620599999994738,
+            "bytes": 4501450
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.6552000000083353,
+            "bytes": 1404599
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8268000000098255,
+            "bytes": 211328
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 16,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 30031.796700000006,
+        "transferred": 5327040,
+        "mibPerSecond": 0.16916274711158888,
+        "mainCpu": {
+          "user": 156000,
+          "system": 125000
+        },
+        "peakMainRss": 149495808,
+        "finalMainRss": 139452416,
+        "eventLoopP99Ms": 17.186815,
+        "eventLoopMaxMs": 21.643263,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 3.6903999999922235,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1711.392599999992,
+            "bytes": 145756
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7546999999904074,
+            "bytes": 4004379
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.2635000000009313,
+            "bytes": 1096063
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.6353000000235625,
+            "bytes": 211330
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.1933000000135507,
+            "bytes": 15268
+          }
+        ]
+      }
+    ]
+  },
+  "autoEarlier": {
+    "runtime": {
+      "node": "24.21.0",
+      "acorn": "8.18.0",
+      "ada": "4.0.0",
+      "amaro": "1.1.11",
+      "ares": "1.34.8",
+      "brotli": "1.2.0",
+      "cldr": "48.0",
+      "icu": "78.2",
+      "llhttp": "9.4.3",
+      "merve": "1.2.2",
+      "modules": "149",
+      "napi": "10",
+      "nbytes": "0.1.4",
+      "ncrypto": "0.0.1",
+      "nghttp2": "1.70.0",
+      "nghttp3": "",
+      "ngtcp2": "",
+      "openssl": "0.0.0",
+      "simdjson": "4.6.7",
+      "simdutf": "7.7.0",
+      "sqlite": "3.53.4",
+      "tz": "2026d",
+      "undici": "7.29.1",
+      "unicode": "17.0",
+      "uv": "1.52.1",
+      "uvwasi": "0.0.23",
+      "v8": "15.2.124.28-electron.0",
+      "zlib": "1.3.2.1-motley",
+      "zstd": "1.6.0",
+      "electron": "44.7.0",
+      "chrome": "152.0.7977.130"
+    },
+    "fileBytes": 408869724,
+    "source": "auto",
+    "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+    "cases": [
+      {
+        "round": 0,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": false,
+        "durationMs": 120013.89580000001,
+        "transferred": 91337218,
+        "mibPerSecond": 0.7257989448468402,
+        "mainCpu": {
+          "user": 1172000,
+          "system": 1203000
+        },
+        "peakMainRss": 152170496,
+        "finalMainRss": 138846208,
+        "eventLoopP99Ms": 21.741567,
+        "eventLoopMaxMs": 73.859071,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 4.864300000000014,
+            "bytes": 0
+          },
+          {
+            "phase": "probe",
+            "durationMs": 3631.6659999999997,
+            "bytes": 524288
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 179.63360000000011,
+            "bytes": 16375
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.4804000000003725,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.515999999999622,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.6019000000014785,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4812999999994645,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 38.264100000000326,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4034000000101514,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8408999999955995,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.190099999992526,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6284000000014203,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.6537000000098487,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.055900000006659,
+            "bytes": 4653056
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.147400000001653,
+            "bytes": 2012132
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.6230999999970663,
+            "bytes": 720414
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8090999999985797,
+            "bytes": 65536
+          }
+        ]
+      }
+    ]
+  },
+  "initialKernelComparison": {
+    "total": 408869724,
+    "original": "https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.2-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.2-win-x64-unsigned.exe",
+    "conditions": "15-second budget, fresh destination; shared CDN and OS caches uncontrolled; startup included; no engine retry",
+    "results": [
+      {
+        "engine": "aria2-motrix.21",
+        "label": "github",
+        "connections": 1,
+        "ms": 15073.363099999999,
+        "ttfb": 787.8844999999999,
+        "completed": 2457600,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "electron-range-prototype",
+        "label": "github",
+        "connections": 1,
+        "ms": 15040.964499999998,
+        "ttfb": 480.0614999999998,
+        "completed": 1318997,
+        "cpu": {
+          "user": 187000,
+          "system": 110000
+        },
+        "maxRss": 146030592,
+        "errors": [
+          "AbortError: The operation was aborted"
+        ]
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "github",
+        "connections": 4,
+        "ms": 15216.229099999997,
+        "ttfb": 905.3875999999946,
+        "completed": 3981312,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "electron-range-prototype",
+        "label": "github",
+        "connections": 4,
+        "ms": 15014.996699999996,
+        "ttfb": 271.5764000000054,
+        "completed": 2395327,
+        "cpu": {
+          "user": 218000,
+          "system": 234000
+        },
+        "maxRss": 149893120,
+        "errors": [
+          "AbortError: This operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted"
+        ]
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "github",
+        "connections": 8,
+        "ms": 15224.936100000006,
+        "ttfb": 905.9562000000005,
+        "completed": 7864320,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "electron-range-prototype",
+        "label": "github",
+        "connections": 8,
+        "ms": 15016.998099999997,
+        "ttfb": 340.96259999999893,
+        "completed": 1030615,
+        "cpu": {
+          "user": 187000,
+          "system": 62000
+        },
+        "maxRss": 150171648,
+        "errors": [
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted"
+        ]
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "github",
+        "connections": 16,
+        "ms": 15290.420700000002,
+        "ttfb": 1855.4429999999993,
+        "completed": 6078464,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "electron-range-prototype",
+        "label": "github",
+        "connections": 16,
+        "ms": 15002.798999999999,
+        "ttfb": 418.13240000000224,
+        "completed": 775355,
+        "cpu": {
+          "user": 109000,
+          "system": 79000
+        },
+        "maxRss": 150568960,
+        "errors": [
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted"
+        ]
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "gh-proxy",
+        "connections": 1,
+        "ms": 15052.402700000006,
+        "ttfb": 1686.9844000000157,
+        "completed": 1671168,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "electron-range-prototype",
+        "label": "gh-proxy",
+        "connections": 1,
+        "ms": 15013.654300000024,
+        "ttfb": 717.2308000000194,
+        "completed": 2628393,
+        "cpu": {
+          "user": 93000,
+          "system": 32000
+        },
+        "maxRss": 157126656,
+        "errors": [
+          "AbortError: The operation was aborted"
+        ]
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "gh-proxy",
+        "connections": 4,
+        "ms": 15186.996600000013,
+        "ttfb": 1584.0516000000061,
+        "completed": 8896512,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "electron-range-prototype",
+        "label": "gh-proxy",
+        "connections": 4,
+        "ms": 15006.179100000008,
+        "ttfb": 377.7474999999977,
+        "completed": 11756482,
+        "cpu": {
+          "user": 235000,
+          "system": 172000
+        },
+        "maxRss": 161927168,
+        "errors": [
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted"
+        ]
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "gh-proxy",
+        "connections": 8,
+        "ms": 15126.359999999986,
+        "ttfb": 1994.4499999999825,
+        "completed": 10747904,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "electron-range-prototype",
+        "label": "gh-proxy",
+        "connections": 8,
+        "ms": 15018.095799999981,
+        "ttfb": 280.25029999998515,
+        "completed": 38560673,
+        "cpu": {
+          "user": 328000,
+          "system": 437000
+        },
+        "maxRss": 164892672,
+        "errors": [
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted"
+        ]
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "gh-proxy",
+        "connections": 16,
+        "ms": 15183.848200000008,
+        "ttfb": 1369.0270000000019,
+        "completed": 30113792,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "electron-range-prototype",
+        "label": "gh-proxy",
+        "connections": 16,
+        "ms": 15036.527500000026,
+        "ttfb": 336.6612000000314,
+        "completed": 79175969,
+        "cpu": {
+          "user": 1140000,
+          "system": 828000
+        },
+        "maxRss": 175079424,
+        "errors": [
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: This operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted",
+          "AbortError: The operation was aborted"
+        ]
+      }
+    ]
+  },
+  "reverseGhProxyKernel": {
+    "results": [
+      {
+        "engine": "aria2-motrix.21",
+        "label": "gh-proxy",
+        "connections": 16,
+        "ms": 15157.762999999999,
+        "ttfb": 2354.2501,
+        "completed": 21463040,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "gh-proxy",
+        "connections": 8,
+        "ms": 15115.197100000001,
+        "ttfb": 1061.3057000000008,
+        "completed": 13254656,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "gh-proxy",
+        "connections": 4,
+        "ms": 15120.2327,
+        "ttfb": 901.4510999999984,
+        "completed": 15056896,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "gh-proxy",
+        "connections": 1,
+        "ms": 15072.335500000001,
+        "ttfb": 1524.5485999999946,
+        "completed": 1327104,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ]
+  },
+  "ghfastKernel": {
+    "results": [
+      {
+        "engine": "aria2-motrix.21",
+        "label": "ghfast",
+        "connections": 16,
+        "ms": 15173.1371,
+        "ttfb": 2064.2652,
+        "completed": 27672576,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "ghfast",
+        "connections": 8,
+        "ms": 15170.264799999997,
+        "ttfb": 1388.7740999999987,
+        "completed": 47431680,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "ghfast",
+        "connections": 4,
+        "ms": 15183.530400000003,
+        "ttfb": 2167.035600000003,
+        "completed": 29556736,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "engine": "aria2-motrix.21",
+        "label": "ghfast",
+        "connections": 1,
+        "ms": 15158.7088,
+        "ttfb": 1491.5371999999988,
+        "completed": 4554752,
+        "status": "paused",
+        "actualConnections": "0",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ]
+  },
+  "scope": {
+    "fullDownload": "Electron session.fetch, full bounded range cache, official size/SHA512, final copy; no native installer preparation. The later proxy-aware adapter is qualified separately and measured in ghfastFinal.",
+    "ghfastFinal": "Proxy-aware production adapter. 30-second budgets, two orders 1/4/8/16 then 16/8/4/1. 429 cases stop at first failure and retain received ranges.",
+    "kernel": "Verified official Motrix aria2 .21, private loopback RPC/token/SQLite per process, no retries, 15-second budgets; startup included, graceful shutdown excluded; pause counts come from RPC completedLength, not sparse file length.",
+    "finalCheckpointCadence": "Final cadence bounds aggregate active unjournaled progress to about one MiB; older public and local runs used a less frequent cadence."
+  },
+  "electronLocal64MiB": {
+    "runtime": {
+      "node": "24.21.0",
+      "acorn": "8.18.0",
+      "ada": "4.0.0",
+      "amaro": "1.1.11",
+      "ares": "1.34.8",
+      "brotli": "1.2.0",
+      "cldr": "48.0",
+      "icu": "78.2",
+      "llhttp": "9.4.3",
+      "merve": "1.2.2",
+      "modules": "149",
+      "napi": "10",
+      "nbytes": "0.1.4",
+      "ncrypto": "0.0.1",
+      "nghttp2": "1.70.0",
+      "nghttp3": "",
+      "ngtcp2": "",
+      "openssl": "0.0.0",
+      "simdjson": "4.6.7",
+      "simdutf": "7.7.0",
+      "sqlite": "3.53.4",
+      "tz": "2026d",
+      "undici": "7.29.1",
+      "unicode": "17.0",
+      "uv": "1.52.1",
+      "uvwasi": "0.0.23",
+      "v8": "15.2.124.28-electron.0",
+      "zlib": "1.3.2.1-motley",
+      "zstd": "1.6.0",
+      "electron": "44.7.0",
+      "chrome": "152.0.7977.130"
+    },
+    "fileBytes": 67108864,
+    "source": "github",
+    "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+    "cases": [
+      {
+        "round": 0,
+        "connections": 1,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 1069.2434,
+        "transferred": 67108864,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 67108864,
+        "mibPerSecond": 59.855408038992806,
+        "mainCpu": {
+          "user": 688000,
+          "system": 578000
+        },
+        "peakMainRss": 275611648,
+        "finalMainRss": 207237120,
+        "eventLoopP99Ms": 16.408575,
+        "eventLoopMaxMs": 27.803647,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 4.302400000000034,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 30.496299999999906,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.563200000000052,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.155999999999949,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.767400000000066,
+            "bytes": 1114112
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 10.463199999999915,
+            "bytes": 3080192
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.4424999999999955,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.774900000000002,
+            "bytes": 1114112
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.07770000000005,
+            "bytes": 3080192
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.804399999999987,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.669900000000098,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.107099999999946,
+            "bytes": 1048576
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.690399999999954,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.083200000000033,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.489399999999932,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.448799999999892,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.983299999999872,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 10.663800000000037,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.8417000000001735,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.259499999999889,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.430900000000065,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.70659999999998,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.274000000000115,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.279999999999973,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.568700000000035,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.543700000000172,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.683899999999994,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.817000000000007,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.324200000000019,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.702099999999973,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.83159999999998,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.288900000000012,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.641799999999876,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.812199999999848,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.016700000000128,
+            "bytes": 1638400
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.9526999999998225,
+            "bytes": 458752
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 368.6705999999999,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 664.1407000000002,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 30.055200000000013,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 619.1678999999997,
+        "transferred": 67108864,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 67108864,
+        "mibPerSecond": 103.36453165611466,
+        "mainCpu": {
+          "user": 328000,
+          "system": 297000
+        },
+        "peakMainRss": 268365824,
+        "finalMainRss": 263233536,
+        "eventLoopP99Ms": 16.351231,
+        "eventLoopMaxMs": 21.299199,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 8.707400000000007,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 9.33809999999994,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 27.928300000000036,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 14.977100000000064,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 16.569300000000112,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 16.47519999999986,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 17.43229999999994,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 10.75669999999991,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.655799999999999,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5790000000001783,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 178.76119999999992,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 407.0920000000001,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 24.007600000000366,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 8,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 652.9384,
+        "transferred": 67108864,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 67108864,
+        "mibPerSecond": 98.01843481712822,
+        "mainCpu": {
+          "user": 359000,
+          "system": 343000
+        },
+        "peakMainRss": 276750336,
+        "finalMainRss": 275476480,
+        "eventLoopP99Ms": 18.284543,
+        "eventLoopMaxMs": 19.021823,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 4.239500000000135,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 7.299799999999777,
+            "bytes": 1310390
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 41.5945999999999,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 16.810300000000097,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 1.8000999999999294,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.1824000000001433,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.351999999999862,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.096599999999853,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.744799999999941,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.967399999999998,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 173.58640000000014,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 446.4760000000001,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 27.95069999999987,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 0,
+        "connections": 16,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 768.8971999999999,
+        "transferred": 67108864,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 67108864,
+        "mibPerSecond": 83.23609450001901,
+        "mainCpu": {
+          "user": 516000,
+          "system": 438000
+        },
+        "peakMainRss": 278925312,
+        "finalMainRss": 264802304,
+        "eventLoopP99Ms": 18.300927,
+        "eventLoopMaxMs": 21.397503,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 6.119200000000092,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 16.501999999999953,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 78.4719,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 29.853700000000117,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.9254000000000815,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.360699999999724,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.283300000000054,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.4690999999997985,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.570799999999963,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7869000000000597,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 204.3973000000001,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 523.5841999999998,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 34.082800000000134,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 16,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 696.4726,
+        "transferred": 67108864,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 67108864,
+        "mibPerSecond": 91.89162646168707,
+        "mainCpu": {
+          "user": 484000,
+          "system": 375000
+        },
+        "peakMainRss": 279625728,
+        "finalMainRss": 279625728,
+        "eventLoopP99Ms": 20.283391,
+        "eventLoopMaxMs": 21.463039,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 10.76359999999977,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 8.077900000000227,
+            "bytes": 1642289
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 65.27419999999984,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 24.369900000000598,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.989599999999882,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8324000000002343,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.7417999999997846,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5326999999997497,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.8046999999996842,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.782000000000153,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 232.3203999999996,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 416.8127999999997,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 34.78269999999975,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 8,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 710.0243,
+        "transferred": 67108864,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 67108864,
+        "mibPerSecond": 90.13776007384536,
+        "mainCpu": {
+          "user": 484000,
+          "system": 390000
+        },
+        "peakMainRss": 280743936,
+        "finalMainRss": 265392128,
+        "eventLoopP99Ms": 20.496383,
+        "eventLoopMaxMs": 22.200319,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 8.895599999999831,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 8.728900000000067,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 71.29449999999997,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 35.21819999999934,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.435600000000704,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.5120999999999185,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.4588000000003376,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.910200000000259,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8494000000000597,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0442000000002736,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 199.84119999999984,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 468.5487000000003,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 30.88259999999991,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 749.7270000000008,
+        "transferred": 67108864,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 67108864,
+        "mibPerSecond": 85.3644059771089,
+        "mainCpu": {
+          "user": 594000,
+          "system": 297000
+        },
+        "peakMainRss": 292216832,
+        "finalMainRss": 212832256,
+        "eventLoopP99Ms": 17.121279,
+        "eventLoopMaxMs": 17.678335,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 6.7872000000006665,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 8.838200000000143,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 28.4395999999997,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 17.538399999999456,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 21.367299999999886,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 18.52599999999984,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 17.71270000000004,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 20.41190000000006,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 13.174999999999272,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.678100000000086,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 208.6327000000001,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 496.4345000000003,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 37.136100000000624,
+            "bytes": 67108864
+          }
+        ]
+      },
+      {
+        "round": 1,
+        "connections": 1,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 711.7365,
+        "transferred": 67108864,
+        "restoredBytes": 0,
+        "sources": [
+          "github"
+        ],
+        "receivedBytes": 67108864,
+        "mibPerSecond": 89.9209187669875,
+        "mainCpu": {
+          "user": 328000,
+          "system": 500000
+        },
+        "peakMainRss": 279142400,
+        "finalMainRss": 238149632,
+        "eventLoopP99Ms": 13.213695,
+        "eventLoopMaxMs": 18.776063,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 1.203599999999824,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 18.34150000000045,
+            "bytes": 593711
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 10.568699999999808,
+            "bytes": 1904431
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.961099999999533,
+            "bytes": 1703936
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.675099999999475,
+            "bytes": 2228224
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.328599999999824,
+            "bytes": 2552017
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.613699999999881,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5753999999997177,
+            "bytes": 1376256
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.493899999999485,
+            "bytes": 2818048
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.7263999999995576,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.716099999999642,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.9544000000005326,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.8784999999998035,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.684400000000096,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.198800000000119,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.544700000000375,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.1283000000003085,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.934200000000601,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.151699999999437,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.055199999999786,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.792199999999866,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.280299999999443,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.314099999999598,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.729899999999361,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5443999999997686,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.808500000000095,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.604699999999866,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.046100000000479,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.782900000000154,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.15979999999945,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.452500000000327,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.342899999999645,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.181700000000092,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.277800000000752,
+            "bytes": 2097152
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0385999999998603,
+            "bytes": 0
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 290.0594000000001,
+            "bytes": 67108864
+          },
+          {
+            "phase": "verify",
+            "durationMs": 392.9348999999993,
+            "bytes": 67108864
+          },
+          {
+            "phase": "copy",
+            "durationMs": 27.0649999999996,
+            "bytes": 67108864
+          }
+        ]
+      }
+    ]
+  },
+  "additionalDiagnostics": {
+    "ua8": {
+      "runtime": {
+        "node": "24.21.0",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.8",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "149",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.7",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026d",
+        "undici": "7.29.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.2.124.28-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "44.7.0",
+        "chrome": "152.0.7977.130"
+      },
+      "fileBytes": 408869724,
+      "source": "gh-proxy",
+      "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+      "cases": [
+        {
+          "round": 0,
+          "connections": 4,
+          "pieceBytes": 8388608,
+          "complete": false,
+          "durationMs": 20054.3006,
+          "transferred": 7437490,
+          "mibPerSecond": 0.353686889062006,
+          "mainCpu": {
+            "user": 203000,
+            "system": 359000
+          },
+          "peakMainRss": 145129472,
+          "finalMainRss": 141340672,
+          "eventLoopP99Ms": 21.118975,
+          "eventLoopMaxMs": 22.478847,
+          "measurements": [
+            {
+              "phase": "restore",
+              "durationMs": 7.286699999999996,
+              "bytes": 0
+            },
+            {
+              "phase": "first-byte",
+              "durationMs": 1018.9694999999999,
+              "bytes": 53289
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 20.687999999998283,
+              "bytes": 1767798
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 9.669000000001688,
+              "bytes": 262144
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 8.348500000000058,
+              "bytes": 8192
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 3.9059999999990396,
+              "bytes": 5399356
+            }
+          ]
+        }
+      ]
+    },
+    "ua64": {
+      "runtime": {
+        "node": "24.21.0",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.8",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "149",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.7",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026d",
+        "undici": "7.29.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.2.124.28-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "44.7.0",
+        "chrome": "152.0.7977.130"
+      },
+      "fileBytes": 408869724,
+      "source": "gh-proxy",
+      "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+      "cases": [
+        {
+          "round": 0,
+          "connections": 4,
+          "pieceBytes": 67108864,
+          "complete": false,
+          "durationMs": 20020.3006,
+          "transferred": 2262606,
+          "mibPerSecond": 0.10778006152148784,
+          "mainCpu": {
+            "user": 203000,
+            "system": 188000
+          },
+          "peakMainRss": 153104384,
+          "finalMainRss": 146792448,
+          "eventLoopP99Ms": 17.760255,
+          "eventLoopMaxMs": 45.154303,
+          "measurements": [
+            {
+              "phase": "restore",
+              "durationMs": 12.889299999999992,
+              "bytes": 0
+            },
+            {
+              "phase": "first-byte",
+              "durationMs": 1219.628,
+              "bytes": 59259
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 10.09649999999965,
+              "bytes": 1727402
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 3.0852000000013504,
+              "bytes": 502436
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 4.190200000000914,
+              "bytes": 32768
+            }
+          ]
+        }
+      ]
+    },
+    "default8": {
+      "runtime": {
+        "node": "24.21.0",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.8",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "149",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.7",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026d",
+        "undici": "7.29.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.2.124.28-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "44.7.0",
+        "chrome": "152.0.7977.130"
+      },
+      "fileBytes": 408869724,
+      "source": "gh-proxy",
+      "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+      "cases": [
+        {
+          "round": 0,
+          "connections": 4,
+          "pieceBytes": 8388608,
+          "complete": false,
+          "durationMs": 20025.5422,
+          "transferred": 1906996,
+          "mibPerSecond": 0.09081667245391503,
+          "mainCpu": {
+            "user": 218000,
+            "system": 265000
+          },
+          "peakMainRss": 140324864,
+          "finalMainRss": 138563584,
+          "eventLoopP99Ms": 16.842751,
+          "eventLoopMaxMs": 22.102015,
+          "measurements": [
+            {
+              "phase": "restore",
+              "durationMs": 5.184200000000004,
+              "bytes": 0
+            },
+            {
+              "phase": "first-byte",
+              "durationMs": 1258.6757,
+              "bytes": 36918
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 3.7017000000014377,
+              "bytes": 1440110
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 2.4742000000005646,
+              "bytes": 434118
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 2.8616000000001804,
+              "bytes": 32768
+            }
+          ]
+        }
+      ]
+    },
+    "default64": {
+      "runtime": {
+        "node": "24.21.0",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.8",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "149",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.7",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026d",
+        "undici": "7.29.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.2.124.28-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "44.7.0",
+        "chrome": "152.0.7977.130"
+      },
+      "fileBytes": 408869724,
+      "source": "gh-proxy",
+      "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+      "cases": [
+        {
+          "round": 0,
+          "connections": 4,
+          "pieceBytes": 67108864,
+          "complete": false,
+          "durationMs": 20026.2416,
+          "transferred": 1971268,
+          "mibPerSecond": 0.09387421264075409,
+          "mainCpu": {
+            "user": 157000,
+            "system": 125000
+          },
+          "peakMainRss": 143273984,
+          "finalMainRss": 141565952,
+          "eventLoopP99Ms": 16.670719,
+          "eventLoopMaxMs": 51.019775,
+          "measurements": [
+            {
+              "phase": "restore",
+              "durationMs": 8.303800000000024,
+              "bytes": 0
+            },
+            {
+              "phase": "first-byte",
+              "durationMs": 1196.823,
+              "bytes": 60628
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 3.69709999999759,
+              "bytes": 1465258
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 3.4006999999983236,
+              "bytes": 433401
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 2.7083999999995285,
+              "bytes": 72609
+            }
+          ]
+        }
+      ]
+    },
+    "public-gh-proxy-org": {
+      "runtime": {
+        "node": "24.21.0",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.8",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "149",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.7",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026d",
+        "undici": "7.29.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.2.124.28-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "44.7.0",
+        "chrome": "152.0.7977.130"
+      },
+      "fileBytes": 408869724,
+      "source": "gh-proxy-org",
+      "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+      "cases": [
+        {
+          "round": 0,
+          "connections": 4,
+          "pieceBytes": 8388608,
+          "complete": false,
+          "durationMs": 30019.031,
+          "transferred": 7650941,
+          "restoredBytes": 0,
+          "sources": [
+            "gh-proxy-org"
+          ],
+          "receivedBytes": 7650941,
+          "mibPerSecond": 0.24306267341006282,
+          "mainCpu": {
+            "user": 359000,
+            "system": 282000
+          },
+          "peakMainRss": 146472960,
+          "finalMainRss": 137195520,
+          "eventLoopP99Ms": 16.629759,
+          "eventLoopMaxMs": 21.086207,
+          "measurements": [
+            {
+              "phase": "restore",
+              "durationMs": 9.22339999999997,
+              "bytes": 0
+            },
+            {
+              "phase": "first-byte",
+              "durationMs": 1439.5497,
+              "bytes": 1360
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 6.0689000000020314,
+              "bytes": 5545597
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 4.152200000000448,
+              "bytes": 1769472
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 2.623199999998178,
+              "bytes": 311296
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 2.532200000001467,
+              "bytes": 24576
+            }
+          ]
+        }
+      ]
+    },
+    "public-ghfast": {
+      "runtime": {
+        "node": "24.21.0",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.8",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "149",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.7",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026d",
+        "undici": "7.29.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.2.124.28-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "44.7.0",
+        "chrome": "152.0.7977.130"
+      },
+      "fileBytes": 408869724,
+      "source": "ghfast",
+      "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+      "cases": [
+        {
+          "round": 0,
+          "connections": 4,
+          "pieceBytes": 8388608,
+          "complete": false,
+          "durationMs": 30019.1073,
+          "transferred": 61210624,
+          "restoredBytes": 0,
+          "sources": [
+            "ghfast"
+          ],
+          "receivedBytes": 61210624,
+          "mibPerSecond": 1.9445948014583365,
+          "mainCpu": {
+            "user": 453000,
+            "system": 328000
+          },
+          "peakMainRss": 189964288,
+          "finalMainRss": 185819136,
+          "eventLoopP99Ms": 21.053439,
+          "eventLoopMaxMs": 24.723455,
+          "measurements": [
+            {
+              "phase": "restore",
+              "durationMs": 7.7538000000000125,
+              "bytes": 0
+            },
+            {
+              "phase": "first-byte",
+              "durationMs": 885.3658,
+              "bytes": 16366
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 14.217499999998836,
+              "bytes": 8388608
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 3.154399999999441,
+              "bytes": 8388608
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 4.363100000002305,
+              "bytes": 8388608
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 2.379000000000815,
+              "bytes": 8388608
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 6.35649999999805,
+              "bytes": 8388608
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 3.6530000000020664,
+              "bytes": 8388608
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 2.709000000002561,
+              "bytes": 6291456
+            },
+            {
+              "phase": "checkpoint",
+              "durationMs": 2.536999999996624,
+              "bytes": 4587520
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "recordedPublicPayloadBytes": 1781935989,
+  "trafficLimit": "Application-received payload only; excludes HTTP/TLS overhead, unrecorded invalid initial benchmark, aborted requests not delivered to application, and intermediate diagnostic attempts lacking a final JSON record.",
+  "currentProxyAwareFullDownload": {
+    "runtime": {
+      "node": "24.21.0",
+      "acorn": "8.18.0",
+      "ada": "4.0.0",
+      "amaro": "1.1.11",
+      "ares": "1.34.8",
+      "brotli": "1.2.0",
+      "cldr": "48.0",
+      "icu": "78.2",
+      "llhttp": "9.4.3",
+      "merve": "1.2.2",
+      "modules": "149",
+      "napi": "10",
+      "nbytes": "0.1.4",
+      "ncrypto": "0.0.1",
+      "nghttp2": "1.70.0",
+      "nghttp3": "",
+      "ngtcp2": "",
+      "openssl": "0.0.0",
+      "simdjson": "4.6.7",
+      "simdutf": "7.7.0",
+      "sqlite": "3.53.4",
+      "tz": "2026d",
+      "undici": "7.29.1",
+      "unicode": "17.0",
+      "uv": "1.52.1",
+      "uvwasi": "0.0.23",
+      "v8": "15.2.124.28-electron.0",
+      "zlib": "1.3.2.1-motley",
+      "zstd": "1.6.0",
+      "electron": "44.7.0",
+      "chrome": "152.0.7977.130"
+    },
+    "fileBytes": 408869724,
+    "source": "ghfast",
+    "conditions": "Fresh app-owned cache per case; shared OS and CDN caches uncontrolled; no same-source retries; startup, resume validation and final verification included; CPU/RSS/event loop cover main process only",
+    "cases": [
+      {
+        "round": 0,
+        "connections": 4,
+        "pieceBytes": 8388608,
+        "complete": true,
+        "durationMs": 247792.8274,
+        "transferred": 408869724,
+        "restoredBytes": 0,
+        "sources": [
+          "ghfast"
+        ],
+        "receivedBytes": 408869724,
+        "mibPerSecond": 1.5736071081083765,
+        "mainCpu": {
+          "user": 4359000,
+          "system": 3765000
+        },
+        "peakMainRss": 178360320,
+        "finalMainRss": 153518080,
+        "eventLoopP99Ms": 20.692991,
+        "eventLoopMaxMs": 50.659327,
+        "measurements": [
+          {
+            "phase": "restore",
+            "durationMs": 4.827699999999993,
+            "bytes": 0
+          },
+          {
+            "phase": "first-byte",
+            "durationMs": 1102.7207999999998,
+            "bytes": 16366
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.270800000005693,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.742500000000291,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.638400000003458,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.293499999999767,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.969700000001467,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.339300000006915,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.030199999993783,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.283399999985704,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 10.052400000000489,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.318299999998999,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 10.982199999998556,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 18.101999999998952,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.291200000006938,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 11.335899999990943,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.818899999998393,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 10.60879999998724,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 15.235100000005332,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.512000000002445,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 23.928899999998976,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.486699999994016,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 16.791400000016438,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.369799999985844,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.428499999979977,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 24.649399999994785,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.732099999993807,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 11.705700000020443,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5595999999786727,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 16.036099999997532,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 5.332800000003772,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 7.37510000000475,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 6.6608999999880325,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 8.572500000009313,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 10.74210000000312,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.089399999997113,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 9.046100000006845,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.0948999999964144,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.5037000000011176,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.422900000005029,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 38.7447000000102,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.30460000000312,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.271500000002561,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.9261999999871477,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.9919000000227243,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.3655999999900814,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.440499999996973,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 2.866700000013225,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.4694000000017695,
+            "bytes": 8388608
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 3.8790999999910127,
+            "bytes": 6216540
+          },
+          {
+            "phase": "checkpoint",
+            "durationMs": 4.715500000020256,
+            "bytes": 8388608
+          },
+          {
+            "phase": "transfer",
+            "durationMs": 244741.5448,
+            "bytes": 408869724
+          },
+          {
+            "phase": "verify",
+            "durationMs": 2861.7228999999934,
+            "bytes": 408869724
+          },
+          {
+            "phase": "copy",
+            "durationMs": 181.80040000000736,
+            "bytes": 408869724
+          }
+        ]
+      }
+    ]
+  },
+  "finalCheckpointElectronLocal64MiB": {
+    "conditions": "Two sequential rounds per configuration, fresh app caches, shared warm OS filesystem cache; checkpoint time sums worker durations and may overlap.",
+    "fileBytes": 67108864,
+    "cases": [
+      {
+        "round": 0,
+        "connections": 1,
+        "complete": true,
+        "durationMs": 502.16319999999996,
+        "receivedBytes": 67108864,
+        "peakMainRss": 261541888,
+        "finalMainRss": 261541888,
+        "eventLoopP99Ms": 20.152319,
+        "eventLoopMaxMs": 20.152319,
+        "phaseDurationMs": {
+          "first-byte": 24.7817,
+          "transfer": 226.687,
+          "checkpoint": 118.52389999999991,
+          "verify": 244.57479999999998,
+          "copy": 27.774599999999964
+        }
+      },
+      {
+        "round": 0,
+        "connections": 4,
+        "complete": true,
+        "durationMs": 1423.0555,
+        "receivedBytes": 67108864,
+        "peakMainRss": 272072704,
+        "finalMainRss": 235917312,
+        "eventLoopP99Ms": 17.219583,
+        "eventLoopMaxMs": 23.527423,
+        "phaseDurationMs": {
+          "first-byte": 5.692900000000009,
+          "transfer": 1004.8979000000002,
+          "checkpoint": 986.1345999999974,
+          "verify": 379.4339,
+          "copy": 29.203100000000177
+        }
+      },
+      {
+        "round": 1,
+        "connections": 4,
+        "complete": true,
+        "durationMs": 1166.3671,
+        "receivedBytes": 67108864,
+        "peakMainRss": 272879616,
+        "finalMainRss": 207257600,
+        "eventLoopP99Ms": 15.441919,
+        "eventLoopMaxMs": 23.461887,
+        "phaseDurationMs": {
+          "first-byte": 5.840900000000147,
+          "transfer": 825.8620999999998,
+          "checkpoint": 810.8655999999969,
+          "verify": 298.2835,
+          "copy": 31.596300000000156
+        }
+      },
+      {
+        "round": 1,
+        "connections": 1,
+        "complete": true,
+        "durationMs": 665.4409999999998,
+        "receivedBytes": 67108864,
+        "peakMainRss": 266719232,
+        "finalMainRss": 240451584,
+        "eventLoopP99Ms": 14.499839,
+        "eventLoopMaxMs": 18.235391,
+        "phaseDurationMs": {
+          "first-byte": 9.511700000000019,
+          "transfer": 192.6929,
+          "checkpoint": 106.33719999999994,
+          "verify": 452.1673999999998,
+          "copy": 19.46050000000014
+        }
+      }
+    ]
+  },
+  "finalCheckpointPublicAttempt": {
+    "conditions": "Same artifact and GHFast source; one sequential case per connection count; fresh app caches. Every connection timed out before receiving data.",
+    "cases": [
+      {
+        "round": 0,
+        "connections": 1,
+        "complete": false,
+        "durationMs": 21100.335300000002,
+        "failure": "net::ERR_CONNECTION_TIMED_OUT",
+        "receivedBytes": 0
+      },
+      {
+        "round": 0,
+        "connections": 4,
+        "complete": false,
+        "durationMs": 213.45780000000013,
+        "failure": "net::ERR_CONNECTION_TIMED_OUT",
+        "receivedBytes": 0
+      },
+      {
+        "round": 0,
+        "connections": 8,
+        "complete": false,
+        "durationMs": 20833.135200000004,
+        "failure": "net::ERR_CONNECTION_TIMED_OUT",
+        "receivedBytes": 0
+      },
+      {
+        "round": 0,
+        "connections": 16,
+        "complete": false,
+        "durationMs": 216.8153999999995,
+        "failure": "net::ERR_CONNECTION_TIMED_OUT",
+        "receivedBytes": 0
+      }
+    ]
+  }
+}

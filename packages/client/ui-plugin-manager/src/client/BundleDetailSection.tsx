@@ -52,5 +52,6 @@ export function BundleDetailSection(props: BundleDetailSectionProps): ReactNode 
   const shown = detailDocumentState(state?.status === 'error'
     ? { status: 'error', message: t(FAILURE_KEYS[state.failure]) }
     : state === undefined || state.status === 'loading' ? state : { status: 'ready', markdown: detail?.status === 'found' ? detail.markdown : undefined })
+  if (state?.status === 'ready' && detail?.status !== 'found') return <p>{t('detailNone')}</p>
   return <DetailDocument state={shown} labels={labels} images={images} onRetry={() => { retry(name, version, language, fromNpm) }} />
 }

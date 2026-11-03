@@ -1,4 +1,6 @@
 /** Public plugin management records shared with clients. */
+import type { ArtifactDownloadProgress } from './artifact-download-types.ts'
+export type { ArtifactDownloadChoice, ArtifactDownloadProgress } from './artifact-download-types.ts'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 
 /** Opaque identity of the Host that accepted an update restart confirmation. */
@@ -141,6 +143,10 @@ export interface BundleUpdateInfo {
   version?: string
   releaseUrl?: string
   diagnostic?: string
+  /** Operation owning the diagnostic; metadata failure does not imply an archive download started. */
+  failureStage?: 'metadata' | 'download' | 'install'
+  /** True byte progress for the verified archive; absent during metadata checks and package-manager installation. */
+  transfer?: ArtifactDownloadProgress
   /** This process retains the old module generation until restart. */
   restartRequired: boolean
 }
@@ -457,6 +463,12 @@ declare module '@deepseek-ai/cordis' {
      * @param change - what changed.
      */
     'plugin-manager/changed'(change: PluginChange): void
+    /**
+     * Measured public archive progress, throttled by the transfer owner; installation has no transfer field.
+     * @mode emit
+     * @param update - Current bundle update facts without package inventory or credentials.
+     */
+    'plugin-manager/bundle-update'(update: BundleUpdateInfo): void
     /**
      * One chunk of a pnpm run's output, streamed as the run produces it.
      * @mode emit

@@ -2261,13 +2261,18 @@ button.versionSummary:focus-visible {
   margin-top: 20px;
 }
 
+.bundleDetail .detailHead .cardIcon {
+  width: 80px;
+  height: 80px;
+}
+
 .bundleDetail .detailMain {
   margin-top: 16px;
 }
 .bundleDetail[data-managed-bundle] { max-width: 720px; }
 .bundleDetail[data-managed-bundle] .detailTitleLine { gap: 12px; flex-wrap: nowrap; flex-direction: row; align-items: center; }
 .bundleDetail[data-managed-bundle] .detailTitle { font-size: 22px; line-height: 30px; }
-.managedBrandIcon { display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; width: 44px; height: 44px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
+.managedBrandIcon { display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; width: 64px; height: 64px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
 .bundleDetail[data-managed-bundle] .bundleDescription { padding-top: 12px; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; }
 .bundleDetail[data-managed-bundle] .detailSections { margin-top: 24px; gap: 20px; }
 .managedModules { min-width: 0; }
@@ -2582,6 +2587,9 @@ button.versionSummary:focus-visible {
 .featureDetails p { margin: 0; white-space: pre-line; }
 .featureDetails p + p { margin-top: 6px; }
 .featureConfigDialog { width: min(560px, 100%); max-height: 100%; }
+.detailAbout { flex: none; color: var(--dsw-alias-label-secondary); }
+.detailAboutDialog { width: min(800px, 100%); max-height: min(800px, 100%); }
+.detailAboutContent { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .featureConfigContent { min-height: 0; overflow: hidden; }
 .featureConfigContent > :first-child { flex: none; }
 .featureConfigContent > :last-child { flex: 1; min-height: 0; margin-top: 12px; overflow: auto; }

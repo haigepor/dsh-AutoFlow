@@ -159,6 +159,7 @@ export function apply(ctx: ClientContext): void {
     // Host changes made while access was withdrawn reached no subscription below.
     refresh()
     yield ctx.remote.$on('plugin-manager/changed', refresh)
+    yield ctx.remote.$on('plugin-manager/bundle-update', (update) => { controller.bundleUpdateProgress(update) })
     yield ctx.remote.$on('plugin-manager/install-log', (chunk) => { controller.appendLog(chunk) })
     yield ctx.remote.$on('plugin-manager/install-state', (progress) => { controller.installProgress(progress) })
     yield ctx.remote.$on('plugin-manager/update-state', (progress) => { controller.updateProgress(progress) })

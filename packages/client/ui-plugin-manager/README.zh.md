@@ -11,6 +11,8 @@ kind: "package-reference"
 
 声明更新来源的组合包在详情页显示「版本更新」，提供检查、安装、自动下载安装许可和重启状态。进入页面及手动刷新会检查版本，不会开启自动安装；关闭页面后 Host 仍继续检查。安装须手动执行或已保存自动许可。更新后的功能与启用控制等待重启；为更新安装到 profile 的内置包仍不可卸载。验证、持久化与失败行为见[Host 更新器](../../boot/plugin-manager/README.zh.md)。
 
+公开组合包下载在列表徽标显示真实字节百分比，在详情显示带百分比的确定进度条。选源、安装包校验和安装使用分别本地化的状态；没有字节总量的检查和安装保持不确定进度。进度事件只更新现有组合包，不重读列表或重置已打开的详情。元数据、下载和安装失败分别显示本地化的阶段提示。
+
 独立组合包更新面板安装完成后，可调用 `ctx.pluginNavigation.showUpdateRestart(packageName)`，复用保存工作提示与应用载体负责的重启恢复。
 
 独立更新器注册 `plugins.detail.updates`，将卡片放在组合包功能与组件列表之前，并保留自身操作与状态。插件页通过原生 details 元素上的 `data-plugin-update-card` 共享内置更新样式：summary 子元素使用 `data-update-title`、`data-update-version` 和 `data-update-summary`；展开内容使用 `data-update-body`、`data-update-release`、`data-update-status`、`data-update-actions` 和 `data-update-hint`。错误状态设置 `data-error="true"`。收起时仅在 summary 显示一个实时状态，展开时移到正文；检查使用共享的小号描边按钮，安装或重启使用默认按钮。
@@ -125,6 +127,8 @@ ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
 组合包的 patch 必须以该 id 声明这一行；注册只在组合包开启期间存在，因此关闭的组合包不显示配置控件。
 
 ### 详情页扩展点
+
+组合包标题旁的信息按钮在可滚动弹窗中显示详细介绍，首次打开时才读取文档。加载、重试和空状态均在弹窗中显示，关闭后返回插件控件。列表和详情页头部统一使用包清单声明的图标，详情页放大图标，列表卡片保持紧凑尺寸。
 
 对某个不属于自己的组合包、行或官方插件有话要说的插件，通过本页声明的三个 list slot 向该对象的页面贡献内容：`plugins.detail.actions` 在页头放一个控件，位于页面自己的开关和卸载之前；`plugins.detail.badge` 在标题旁放一个标签，位于版本、实验性和异常标签之后；`plugins.detail.section` 在页面自身内容之下放一个区块——组合包页在来源信息之后，行页和官方插件页在配置之后。每个条目都以页面的 `subject` 渲染：`{ kind: 'bundle', pkg }`、`{ kind: 'row', pkg, row }` 或 `{ kind: 'item', id }`，其中 `pkg` 与 `row` 携带包名、版本、是否已安装、是否启用以及行列表这些供贡献者判断的事实。条目对无话可说的 subject 返回 null，自绘区块外观；页面按 `order` 排列条目。
 

@@ -599,7 +599,8 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, newer, on
                 <Tag tone="info">{t('updatesPending')}</Tag>
               </Button>
               : pkg.update?.status === 'installing' || busy && pkg.update?.status === 'available'
-                ? <span className={css.updateBadge} role="status" aria-busy="true"><Tag tone="info"><PluginUpdateActivity compact label={t('updatesInstalling')} /></Tag></span>
+                ? <span className={css.updateBadge} role="status" aria-busy="true"><Tag tone="info"><PluginUpdateActivity compact
+                  label={bundleDownloadLabel(pkg.update, t)} percent={bundleDownloadPercent(pkg.update)} /></Tag></span>
                 : pkg.update?.status === 'available'
                   ? <Button variant="ghost" size="sm" className={css.updateBadge} disabled={busy} onClick={onUpdate}>
                     <Tag tone="info">{t('updatesBadge', { version: pkg.update.version ?? '' })}</Tag>
@@ -801,6 +802,18 @@ function FeatureRow({ feature, row, t, resolveText, busy, checked, locked, confi
 }
 
 /** Declared release status, explicit update actions and persisted automatic-install permission. */
+function bundleDownloadLabel(update: PackageView['update'], t: Translate): string {
+  const stage = update?.transfer?.stage
+  return t(stage === 'probing' ? 'updatesSelectingSource' : stage === 'verifying' ? 'updatesVerifying'
+    : stage === 'downloading' ? 'updatesDownloading' : 'updatesInstalling')
+}
+
+function bundleDownloadPercent(update: PackageView['update']): number | undefined {
+  const transfer = update?.transfer
+  return transfer === undefined || transfer.total === 0 ? undefined : transfer.transferred / transfer.total * 100
+}
+
+/** Release controls keep the measured download phase separate from package installation. */
 function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdate, onRestart }: {
   readonly pkg: PackageView
   readonly t: Translate
@@ -817,7 +830,7 @@ function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdat
   if (update === undefined) return null
   const installing = update.status === 'installing' || busy && update.status === 'available'
   const active = !update.restartRequired && (installing || checking)
-  const status = update.restartRequired ? t('updatesRestart') : installing ? t('updatesInstalling') : checking ? t('updatesChecking')
+  const status = update.restartRequired ? t('updatesRestart') : installing ? bundleDownloadLabel(update, t) : checking ? t('updatesChecking')
     : update.status === 'available' ? t('releaseUpdateAvailable', { version: update.version ?? '' })
       : t(update.status === 'current' ? 'updatesCurrent' : update.status === 'error' ? 'updatesError' : 'updatesUnchecked')
   return <details className={`${css.detailSection} ${css.updatesDisclosure}`} open={open}
@@ -827,13 +840,13 @@ function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdat
       <span className={css.sectionTitle}>{t('updatesTitle')}</span>
       {pkg.version === undefined ? null : <span className={css.updateVersion}>{t('updatesVersion', { version: pkg.version })}</span>}
       {open ? null : <span className={css.updateSummary} role="status" aria-live="polite" data-error={update.status === 'error'}>
-        {active ? <PluginUpdateActivity compact label={status} /> : status}
+        {active ? <PluginUpdateActivity compact label={status} percent={bundleDownloadPercent(update)} /> : status}
       </span>}
     </summary>
     <div className={css.updatesBody}>
       <div className={css.updateRelease}>
         {open ? <div className={css.updateStatus} role="status" aria-live="polite" data-error={update.status === 'error'}>
-          {active ? <PluginUpdateActivity label={status} /> : status}
+          {active ? <PluginUpdateActivity label={status} percent={bundleDownloadPercent(update)} /> : status}
         </div> : null}
         <div className={css.updateActions}>
           <Button variant="outline" size="sm" disabled={busy || checking || installing || update.restartRequired} onClick={onCheck}>
@@ -843,7 +856,9 @@ function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdat
             : update.status !== 'available' ? null : <Button size="sm" disabled={busy} onClick={onUpdate}>{t('updatesInstall')}</Button>}
         </div>
       </div>
-      {update.status !== 'error' || update.diagnostic === undefined ? null : <p className={css.reason}>{update.diagnostic}</p>}
+      {update.status !== 'error' || update.diagnostic === undefined ? null : <p className={css.reason}>
+        {update.failureStage === undefined ? null : <span>{t(update.failureStage === 'metadata' ? 'updatesMetadataFailed'
+          : update.failureStage === 'download' ? 'updatesDownloadFailed' : 'updatesInstallFailed')} </span>}{update.diagnostic}</p>}
       <div className={css.updatePreference}>
         <div className={css.updatePreferenceText}><span className={css.updatePreferenceTitle}>{t('updatesAutomatic')}</span><p className={css.updateHint}>{t('updatesHint')}</p></div>
         <Switch checked={update.automatic} disabled={busy || installing} label={t('updatesAutomatic')} onChange={onAutoUpdate} />
@@ -928,6 +943,7 @@ function PackageDetail({
   readonly onUpdateVersion: (version: string) => void
 }): ReactNode {
   const [editing, setEditing] = useState<{ rowId: string; featureId?: string } | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const editingRow = pkg.rows.find(row => row.rowId === editing?.rowId)
   const editingFeature = pkg.features?.find(feature => feature.id === editing?.featureId)
   const { title, description, beta } = packageText(pkg, resolveText)
@@ -943,15 +959,20 @@ function PackageDetail({
         crumbLabel={inMore ? t('backToPackage', { name: t('moreTitle') }) : t('backToList')}
         crumbText={t(inMore ? 'moreTitle' : 'crumbRoot')}
         onBack={onBack}
-        icon={companion === undefined ? <PackageArtwork key={pkg.meta?.icon} src={pkg.meta?.icon} /> : null}
+        icon={companion === undefined ? <PackageArtwork key={pkg.meta?.icon} src={pkg.meta?.icon} size={72} /> : null}
       />
       <div className={css.detailMain}>
         <div className={css.detailTitleLine}>
           {companion === undefined ? null : <span className={css.managedBrandIcon} aria-hidden="true">
-            <PackageArtwork key={pkg.meta?.icon} src={pkg.meta?.icon} />
+            <PackageArtwork key={pkg.meta?.icon} src={pkg.meta?.icon} size={56} />
           </span>}
           <div className={css.titleRow}>
             <h3 className={css.detailTitle}>{title}</h3>
+            <Tooltip label={t('detailTitle')} portal>
+              <Button variant="ghost" size="sm" className={css.detailAbout}
+                icon={<IconInfoOutlineRegular size={16} />} aria-label={t('detailTitle')} aria-haspopup="dialog"
+                onClick={() => { setDetailsOpen(true) }} />
+            </Tooltip>
             {beta ? <Tag className={css.statusTag} tone="info">{t('statusBeta')}</Tag> : null}
             {status === 'problem' ? <Tag className={css.statusTag} tone="danger">{t('statusProblem')}</Tag> : null}
             {renderSlot('plugins.detail.badge', { subject })}
@@ -1012,7 +1033,6 @@ function PackageDetail({
       {pkg.readOnlyReason === undefined ? null : <p className={css.reason} role="status">{managementText({ code: pkg.readOnlyReason }, t)}</p>}
       {preview === undefined ? null : <PackagePreview src={preview} title={title} t={t} />}
       <div className={css.detailSections}>
-        {detail}
         <UpdatesSection key={pkg.name} pkg={pkg} t={t} busy={busy} checking={updateChecking}
           onCheck={onCheckUpdates} onUpdate={onUpdate} onAutoUpdate={onAutoUpdate} onRestart={onRestart} />
         {renderSlot('plugins.detail.updates', { subject })}
@@ -1090,6 +1110,11 @@ function PackageDetail({
         ]} />
         {renderSlot('plugins.detail.section', { subject })}
       </div>
+      {detailsOpen ? <Modal open title={t('detailTitle')} closeLabel={t('close')}
+        onClose={() => { setDetailsOpen(false) }} className={css.detailAboutDialog as string}
+        contentClassName={css.detailAboutContent as string}>
+        {detail}
+      </Modal> : null}
       {editing === null || editingRow === undefined || !configure.has(editingRow) ? null : <Modal open
         title={t('configureRow', { name: editingFeature === undefined ? rowText(editingRow, resolveText).title : resolveText(editingFeature.title) })} closeLabel={t('close')}
         onClose={() => { setEditing(null) }} className={css.featureConfigDialog as string}

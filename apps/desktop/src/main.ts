@@ -38,7 +38,9 @@ import { claimDesktopSingleInstance } from './single-instance.ts'
 import { desktopUpdateChannel } from './update-channel.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
 import { getNetSession } from 'electron-updater/out/electronHttpExecutor.js'
+import electronUpdater from 'electron-updater'
 import { DesktopUpdateDownload, desktopDownloadConfig } from './update-download.ts'
+import { createDesktopUpdateFetch } from './update-fetch.ts'
 import { prepareDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, authenticateWebHost, forwardWebRequest } from './web-document.ts'
@@ -684,7 +686,9 @@ async function main(): Promise<void> {
   const updateChannel = desktopUpdateChannel(manifest)
   const downloadTransport = new DesktopUpdateDownload(
     desktopDownloadConfig(join(app.getPath('userData'), 'desktop', 'update-download'), process.env),
-    (url, options) => getNetSession().fetch(url instanceof URL ? url.href : url, options), (progress) => { updates.transfer(progress) })
+    createDesktopUpdateFetch(getNetSession, (auth, callback) => {
+      if (!electronUpdater.autoUpdater.emit('login', auth, callback)) callback()
+    }), (progress) => { updates.transfer(progress) })
   await downloadTransport.initialize()
   const updates = new DesktopUpdateCoordinator(
     publishUpdate,

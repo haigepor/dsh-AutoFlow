@@ -47,28 +47,37 @@ export async function createUpdateServer() {
         if (selectedMode === 'hold-check') { arrived.resolve(); await selectedGate.promise }
         response.setHeader('Content-Type', 'application/yaml')
         response.end(dump({ version, files: [{ url: `${origin}/payload.exe`, size: payload.length, sha512 }],
+          dshReleaseNotes: { schemaVersion: 1, version, items: [
+            { id: 'local-notes-panel', category: 'features', text: { en: 'Read release notes while downloading.', 'zh-CN': '下载时可查看更新内容和问题修复说明。' } },
+            { id: 'local-parallel-download', category: 'improvements', text: { en: 'Retain verified progress across source changes.', 'zh-CN': '换源与重启后保留经过校验的下载进度。' } },
+            { id: 'local-download-timeout', category: 'fixes', text: { en: 'Healthy downloads use inactivity timeouts.', 'zh-CN': '修复持续收到数据时仍被固定总时限中断的问题。' } },
+            { id: 'local-test-only', category: 'other', text: { en: 'Isolated qualification notes; no installer runs.', 'zh-CN': '以上为隔离测试说明，不执行真实安装器。' } },
+          ] },
           path: 'payload.exe', sha512, releaseDate: '2026-09-10T00:00:00.000Z' }))
         return
       }
       if (path !== '/payload.exe' || selectedMode === 'download-404') { response.writeHead(404).end(); return }
-      const start = Number(/^bytes=(\d+)-$/u.exec(request.headers.range ?? '')?.[1] ?? 0)
+      const range = /^bytes=(\d+)-(\d*)$/u.exec(request.headers.range ?? '')
+      const start = Number(range?.[1] ?? 0)
+      const end = range?.[2] ? Number(range[2]) : payload.length - 1
       const ranged = request.headers.range !== undefined
-      response.writeHead(ranged ? 206 : 200, { 'Content-Type': 'application/octet-stream', 'Content-Length': payload.length - start,
-        ...(ranged ? { 'Content-Range': `bytes ${start}-${payload.length - 1}/${payload.length}` } : {}) })
+      response.writeHead(ranged ? 206 : 200, { 'Content-Type': 'application/octet-stream', 'Content-Length': end - start + 1,
+        ...(ranged ? { 'Content-Range': `bytes ${start}-${end}/${payload.length}` } : {}) })
       if (selectedMode === 'download-stall') { response.write(payload.subarray(0, 1024)); return }
       if (selectedMode === 'corrupt') { response.end(Buffer.alloc(payload.length, 0x21)); return }
       if (selectedMode === 'disconnect') {
         response.write(payload.subarray(0, 1024), () => response.destroy())
         return
       }
-      if (selectedMode === 'hold-download') {
-        response.write(payload.subarray(0, 1024))
+      if (selectedMode === 'hold-download' || selectedMode === 'hold-after-prefix' || (selectedMode === 'hold-after-piece' && start > 0)) {
+        const held = selectedMode === 'hold-after-prefix' ? 65536 : 1024
+        response.write(payload.subarray(start, Math.min(start + held, end + 1)))
         arrived.resolve()
         await selectedGate.promise
-        if (!response.destroyed) response.end(payload.subarray(1024))
+        if (!response.destroyed) response.end(payload.subarray(start + held, end + 1))
         return
       }
-      response.end(payload.subarray(start))
+      response.end(payload.subarray(start, end + 1))
     })().catch(error => { failures.push(String(error)); response.destroy() })
     handlers.add(handler)
     void handler.finally(() => { handlers.delete(handler) })

@@ -1,7 +1,7 @@
 /** Source-specific GitHub release discovery and verified private tarball caching. */
 import { createHash } from 'node:crypto'
 import { createReadStream, existsSync, lstatSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join, posix, resolve } from 'node:path'
 import { Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -11,14 +11,42 @@ import { Parser } from 'tar'
 import z from 'zod'
 import type { DshBundleUpdateSource } from '@deepseek-ai/dsh-package-manifest'
 import type { ProfileManifest } from '@deepseek-ai/dsh-app-boot'
+import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
+import { ArtifactDownload, type ArtifactDownloadConfig } from './artifact-download.ts'
+import type { ArtifactDownloadChoice, ArtifactDownloadProgress } from './artifact-download-types.ts'
 
-/** Deployment bounds applied to complete remote responses and expanded archives. */
+/** Deployment bounds for official metadata, public archive transfers and expanded content. */
 export interface UpdateLimits {
+  /** Deadline for one official metadata response. */
   timeoutMs: number
+  /** Maximum JSON document bytes. */
   jsonBytes: number
+  /** Maximum compressed archive bytes. */
   archiveBytes: number
+  /** Maximum expanded archive bytes, including padding. */
   expandedBytes: number
+  /** Maximum release-list pages before refusing an incomplete result. */
   releasePages: number
+  /** Network controls for verified public archive bytes. */
+  download: Omit<ArtifactDownloadConfig, 'directory'> & {
+    /** Public byte route, independent from official metadata requests. */
+    source: ArtifactDownloadChoice
+  }
+}
+
+/** Public bytes use HTTPS without account headers, cookies or HTTPS-to-HTTP redirects. */
+async function publicArchiveFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  let url = new URL(input instanceof Request ? input.url : input)
+  for (let redirects = 0; redirects <= 5; redirects++) {
+    if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') throw new Error('Plugin archive redirects require public HTTPS')
+    const response = await fetch(url, { ...init, credentials: 'omit', redirect: 'manual' })
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response
+    await response.body?.cancel()
+    const target = response.headers.get('location')
+    if (target === null) throw new Error('Plugin archive redirect has no destination')
+    url = new URL(target, url)
+  }
+  throw new Error('Too many plugin archive redirects')
 }
 
 const assetSchema = z.object({ name: z.string(), browser_download_url: z.string(),
@@ -238,32 +266,60 @@ export async function validateBundleArchive(
  * @param release Verified public release.
  * @param limits Download and archive bounds.
  * @param signal Owner cancellation.
+ * @param publish Measured archive progress; metadata and package installation have no byte percentage.
  * @returns Persistent tarball path and validated manifest.
  */
 export async function cacheBundleUpdate(
   profileDir: string, release: BundleUpdateRelease, limits: UpdateLimits, signal: AbortSignal,
+  publish: (progress: ArtifactDownloadProgress) => void = () => {},
 ): Promise<{ file: string; manifest: ProfileManifest }> {
+  allowedUrl(release.metadata.asset.url)
+  if (release.metadata.asset.size > limits.archiveBytes) throw new Error('Plugin archive exceeds its byte bound')
   const cache = updateCacheDirectory(profileDir)
   await mkdir(cache, { recursive: true, mode: 0o700 })
   const directory = join(cache, release.metadata.asset.sha256)
   if (existsSync(directory) && !lstatSync(directory).isDirectory()) throw new Error('Invalid plugin archive cache directory')
   await mkdir(directory, { recursive: true, mode: 0o700 })
   const file = join(directory, release.metadata.asset.name)
-  let bytes: Buffer
-  if (existsSync(file)) {
-    const stat = lstatSync(file)
-    if (!stat.isFile() || stat.size > limits.archiveBytes) throw new Error('Invalid cached plugin archive')
-    bytes = await readFile(file)
-  }
-  else bytes = await fetchBytes(release.metadata.asset.url, limits.archiveBytes, limits, signal)
-  signal.throwIfAborted()
-  if (bytes.length !== release.metadata.asset.size || createHash('sha256').update(bytes).digest('hex') !== release.metadata.asset.sha256) {
-    throw new Error('Plugin update size or SHA-256 verification failed')
-  }
-  if (!existsSync(file)) {
-    try { await writeFile(file, bytes, { flag: 'wx', mode: 0o600 }) }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error }
-  }
-  if (!lstatSync(file).isFile()) throw new Error('Invalid cached plugin archive')
-  return { file, manifest: await validateUpdateArchive(file, release, limits, signal) }
+  return withFileLock(file, async () => {
+    const transferDirectory = join(directory, 'transfer')
+    if (existsSync(transferDirectory) && (!lstatSync(transferDirectory).isDirectory() || lstatSync(transferDirectory).isSymbolicLink())) {
+      throw new Error('Invalid plugin transfer cache directory')
+    }
+    const download = new ArtifactDownload({ ...limits.download, directory: transferDirectory }, publicArchiveFetch, publish)
+    await download.initialize()
+    await download.select(limits.download.source)
+    const staged = join(directory, 'verified-download.tmp')
+    let manifest: ProfileManifest
+    try {
+      if (existsSync(file)) {
+        const stat = lstatSync(file)
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== release.metadata.asset.size) throw new Error('Invalid cached plugin archive')
+        const hash = createHash('sha256')
+        for await (const chunk of createReadStream(file, { signal })) {
+          if (!Buffer.isBuffer(chunk)) throw new Error('Invalid plugin archive stream')
+          hash.update(chunk)
+        }
+        if (hash.digest('hex') !== release.metadata.asset.sha256) throw new Error('Plugin update SHA-256 verification failed')
+        publish({ ...download.state, stage: 'verifying', transferred: stat.size, total: stat.size })
+        manifest = await validateUpdateArchive(file, release, limits, signal)
+      } else {
+        if (existsSync(staged) && (!lstatSync(staged).isFile() || lstatSync(staged).isSymbolicLink())) {
+          throw new Error('Invalid plugin staging file')
+        }
+        await download.download({ url: new URL(release.metadata.asset.url), version: release.metadata.version,
+          size: release.metadata.asset.size,
+          checksum: { algorithm: 'sha256', value: release.metadata.asset.sha256 } }, staged, signal)
+        manifest = await validateUpdateArchive(staged, release, limits, signal)
+        signal.throwIfAborted()
+        await rename(staged, file)
+      }
+      await download.complete()
+      return { file, manifest }
+    } finally {
+      download.dispose()
+      try { await unlink(staged) }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+    }
+  }, { signal, waitMs: limits.timeoutMs })
 }

@@ -30,7 +30,7 @@ export class DesktopUpdateHttpExecutor extends ElectronHttpExecutor {
     // Custom headers can carry publisher authentication; retain the native path rather than forwarding them to mirrors.
     const customHeaders = Object.keys(options.headers ?? {}).some(key => !/^(?:accept|user-agent|cache-control)$/iu.test(key))
     if (this.resumable === undefined || file?.size === undefined || !Number.isSafeInteger(file.size) || file.size <= 0
-      || customHeaders || this.release === undefined) return super.download(url, destination, options)
+      || customHeaders || url.username !== '' || url.password !== '' || this.release === undefined) return super.download(url, destination, options)
     const controller = new AbortController()
     const cancel = (): void => { controller.abort(new Error('Desktop update download cancelled')) }
     options.cancellationToken.on('cancel', cancel)

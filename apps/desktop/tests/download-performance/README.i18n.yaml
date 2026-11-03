@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/desktop/tests/download-performance/README.md
+/desktop-update-download-measurements:
+  en: 267d01751803eea6
+  zh: f9598b97fdc74196
+/desktop-update-download-measurements/summary:
+  en: 83e258c54a4b3b2c
+  zh: 5c05e198e49ddbfd
+/desktop-update-download-measurements/contents:
+  en: f4b595794dfbeff2
+  zh: ffeaa705c806d675
+/desktop-update-download-measurements/engine-choice:
+  en: 3c0926ac5773ef93
+  zh: 2c24431d99b3c73b
+/desktop-update-download-measurements/measurements:
+  en: 2178ce0c88c0b34d
+  zh: 0c440771d0b5092c
+/desktop-update-download-measurements/recovery-and-integrity:
+  en: f6ba055713404d98
+  zh: a259475a42eb7858
+/desktop-update-download-measurements/reproduce-and-qualify:
+  en: b395e71089fdbca1
+  zh: 1989a7e304b1cd84
+/desktop-update-download-measurements/limits-and-rollback:
+  en: 595a1ff56b49bfab
+  zh: b369c6b5b417dae1

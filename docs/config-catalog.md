@@ -2659,7 +2659,7 @@ export interface PlanModeConfig {
 
 - `inject`: `loader` · `profileContext`
 - `refs`: [`NpmFileSource`](subsystems/boot.md)
-- `source`: [`packages/boot/plugin-manager/src/index.ts:63`](../packages/boot/plugin-manager/src/index.ts)
+- `source`: [`packages/boot/plugin-manager/src/index.ts:64`](../packages/boot/plugin-manager/src/index.ts)
 
 ```ts config-catalog
 /** The pnpm executable, registries, and limits for diagnostics, lookups and connection checks. */
@@ -2668,8 +2668,10 @@ export interface Config {
   restartTimeoutMs?: number
   /** Interval between automatic stable-release checks, in milliseconds. */
   updateIntervalMs?: number
-  /** Timeout for a complete update HTTP response. */
+  /** Deadline for one complete official update metadata response. */
   updateTimeoutMs?: number
+  /** Public archive network and parallelism settings; archive timeouts measure inactivity. */
+  updateDownload?: Partial<UpdateLimits['download']>
   /** Maximum JSON response bytes. */
   updateJsonBytes?: number
   /** Maximum compressed plugin archive bytes. */
@@ -2712,6 +2714,55 @@ export interface Config {
   detailFetchTimeoutMs?: number
   /** npm file CDNs that offered bundles are read from, in order; a read's `npmFileSources` moves the CDNs it names first. */
   detailNpmFileSources?: NpmFileSource[]
+}
+
+/** Deployment bounds for official metadata, public archive transfers and expanded content. */
+export interface UpdateLimits {
+  /** Deadline for one official metadata response. */
+  timeoutMs: number
+  /** Maximum JSON document bytes. */
+  jsonBytes: number
+  /** Maximum compressed archive bytes. */
+  archiveBytes: number
+  /** Maximum expanded archive bytes, including padding. */
+  expandedBytes: number
+  /** Maximum release-list pages before refusing an incomplete result. */
+  releasePages: number
+  /** Network controls for verified public archive bytes. */
+  download: Omit<ArtifactDownloadConfig, 'directory'> & {
+    /** Public byte route, independent from official metadata requests. */
+    source: ArtifactDownloadChoice
+  }
+}
+
+/** Deployment and test controls for bounded probing and source switching. */
+export interface ArtifactDownloadConfig {
+  /** Owner-private persistent cache directory; never a package-manager disposable directory. */
+  readonly directory: string
+  /** Maximum time without response headers or received body bytes. */
+  readonly idleTimeoutMs: number
+  /** Deadline for each bounded public-source probe. */
+  readonly probeTimeoutMs: number
+  /** Largest byte range used by a source probe. */
+  readonly probeBytes: number
+  /** Lifetime of the ranked source list for this artifact. */
+  readonly probeCacheMs: number
+  /** Measurement window before a slow automatic source fails over. */
+  readonly slowWindowMs: number
+  /** Lowest accepted average throughput in the slow-source window. */
+  readonly minimumBytesPerSecond: number
+  /** Maximum concurrent Range requests, from one through sixteen. */
+  readonly connections: number
+  /** Requested interval size; existing journals retain their original interval size. */
+  readonly pieceBytes: number
+}
+
+/** Public artifact route preference; custom prefixes never receive origin credentials. */
+export interface ArtifactDownloadChoice {
+  /** Automatic selection, a declared public source ID, or custom. */
+  readonly source: string
+  /** HTTPS public-byte prefix without credentials, query or fragment; used only with custom. */
+  readonly customPrefix?: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-plugin-manager -->

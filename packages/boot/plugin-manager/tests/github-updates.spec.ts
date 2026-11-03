@@ -2,6 +2,7 @@
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { randomBytes } from 'node:crypto'
 import { expect, it, onTestFinished } from 'vitest'
 import { cacheBundleUpdate, discoverBundleUpdate, updateCacheDirectory } from '../src/github-updates.ts'
 import { backupUpdateEntry, readAutomaticUpdates, writeAutomaticUpdate } from '../src/update-state.ts'
@@ -25,6 +26,65 @@ it('selects its own stable family and retains verified bytes for pnpm file depen
   expect(await discoverBundleUpdate('extra', '1.0.0', source, limits, signal)).toEqual(release)
   expect(await discoverBundleUpdate('extra', '1.1.0', source, limits, signal)).toBeUndefined()
   const cached = await cacheBundleUpdate(profile(), release, limits, signal)
+  expect(readFileSync(cached.file)).toEqual(bytes)
+  expect(cached.manifest.version).toBe('1.1.0')
+})
+
+it('keeps a healthy archive response alive beyond the metadata deadline and publishes measured bytes', async () => {
+  const { bytes, release, fetchMock } = githubFixture()
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(async (input, init) => {
+    if (String(input) !== release.metadata.asset.url) return original(input, init)
+    let offset = 0
+    return new Response(new ReadableStream<Uint8Array>({ async pull(controller) {
+      await new Promise(resolve => setTimeout(resolve, 25))
+      init?.signal?.throwIfAborted()
+      if (offset === bytes.length) { controller.close(); return }
+      const end = Math.min(bytes.length, offset + Math.ceil(bytes.length / 6))
+      controller.enqueue(new Uint8Array(bytes.subarray(offset, end)))
+      offset = end
+    } }))
+  })
+  const progress: number[] = []
+  const cached = await cacheBundleUpdate(profile(), release, { ...limits, timeoutMs: 40 }, new AbortController().signal,
+    (state) => { progress.push(state.transferred) })
+  expect(readFileSync(cached.file)).toEqual(bytes)
+  expect(progress.at(-1)).toBe(bytes.length)
+})
+
+it('revalidates a retained archive and refuses corrupted cached bytes', async () => {
+  const { release } = githubFixture()
+  const root = profile()
+  const cached = await cacheBundleUpdate(root, release, limits, new AbortController().signal)
+  writeFileSync(cached.file, Buffer.alloc(release.metadata.asset.size))
+  await expect(cacheBundleUpdate(root, release, limits, new AbortController().signal)).rejects.toThrow('SHA-256')
+})
+
+it('transfers plugin archive ranges concurrently and validates the complete npm package', async () => {
+  const { bytes, release, fetchMock } = githubFixture([
+    { path: 'package/package.json', body: JSON.stringify({ name: 'extra', version: '1.1.0', dsh: { bundle: { patch: './cordis.patch.yml' } } }) },
+    { path: 'package/cordis.patch.yml', body: '[]' },
+    { path: 'package/content.txt', body: randomBytes(256 * 1024).toString('hex') },
+  ])
+  const original = fetchMock.getMockImplementation()!
+  let active = 0, maximum = 0
+  const requested: string[] = []
+  fetchMock.mockImplementation(async (input, init) => {
+    if (String(input) !== release.metadata.asset.url) return original(input, init)
+    const range = new Headers(init?.headers).get('range')!
+    requested.push(range)
+    const [, from, to] = /^bytes=(\d+)-(\d+)$/u.exec(range)!
+    const start = Number(from), end = Math.min(Number(to), bytes.length - 1)
+    active++; maximum = Math.max(maximum, active)
+    await new Promise(resolve => setTimeout(resolve, 15))
+    active--
+    return new Response(new Uint8Array(bytes.subarray(start, end + 1)), { status: 206,
+      headers: { 'content-range': `bytes ${start}-${end}/${bytes.length}`, 'content-length': String(end - start + 1) } })
+  })
+  const cached = await cacheBundleUpdate(profile(), release, limits, new AbortController().signal)
+  expect(maximum).toBeGreaterThan(1)
+  expect(maximum).toBeLessThanOrEqual(4)
+  expect(requested.length).toBeGreaterThan(4)
   expect(readFileSync(cached.file)).toEqual(bytes)
   expect(cached.manifest.version).toBe('1.1.0')
 })

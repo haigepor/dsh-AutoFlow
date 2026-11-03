@@ -983,6 +983,15 @@ export class PluginManagerController {
     this.patch({ update: { ...update, steps: [...update.steps, progress.step] } })
   }
 
+  /**
+   * Patch archive progress without rereading package inventory or resetting detail documents.
+   * @param update - Host-owned bundle status, including measured bytes while transferring.
+   */
+  bundleUpdateProgress(update: BundleUpdateInfo): void {
+    if (this.disposed) return
+    this.patch({ packages: this.getSnapshot().packages.map(pkg => pkg.name === update.name ? { ...pkg, update } : pkg) })
+  }
+
   /** Read one package's newer versions; a transport failure reads as an unknown refusal. */
   private async checkVersions(packageName: string): Promise<void> {
     const { versions, update } = this.getSnapshot()

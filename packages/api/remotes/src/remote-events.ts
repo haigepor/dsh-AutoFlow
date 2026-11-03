@@ -50,6 +50,7 @@ export const API_REMOTE_FORWARDED_EVENTS = [
   { event: 'llm/models-updated', mode: 'emit' },
   { event: 'permission-presets/catalog-changed', mode: 'emit' },
   { event: 'plugin-manager/changed', mode: 'emit' },
+  { event: 'plugin-manager/bundle-update', mode: 'emit' },
   { event: 'plugin-manager/install-log', mode: 'emit' },
   { event: 'plugin-manager/install-state', mode: 'emit' },
   { event: 'plugin-manager/update-state', mode: 'emit' },

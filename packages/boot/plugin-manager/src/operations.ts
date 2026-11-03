@@ -659,3 +659,5 @@ export async function viewProfilePackage(dir: string, spec: string, options: Pac
     ...cause === undefined ? {} : { cause },
   }
 }
+export { ArtifactDownload, ArtifactDownloadPaused, ARTIFACT_DOWNLOAD_SOURCES } from './artifact-download.ts'
+export type { ArtifactDownloadConfig, ArtifactDownloadArtifact, ArtifactDownloadMeasurement } from './artifact-download.ts'

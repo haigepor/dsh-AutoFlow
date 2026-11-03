@@ -1,10 +1,13 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClientRequest } from 'electron'
+import { ElectronHttpExecutor } from 'electron-updater/out/electronHttpExecutor.js'
+import electronUpdater from 'electron-updater'
 import { DesktopUpdateHttpExecutor } from '../src/update-http-executor.ts'
+import { DesktopUpdateDownload, desktopDownloadConfig } from '../src/update-download.ts'
 
 beforeEach(() => { vi.useFakeTimers() })
-afterEach(() => { vi.useRealTimers() })
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 function fixture() {
   const request = Object.assign(new EventEmitter(), { abort: vi.fn(() => { request.emit('abort') }) })
@@ -66,5 +69,25 @@ describe('Electron updater inactivity deadline', () => {
 
   it.each([0, 999, 1.5, NaN, 2_147_483_648])('rejects invalid inactivity configuration: %s', (value) => {
     expect(() => new DesktopUpdateHttpExecutor(value)).toThrow('idle timeout')
+  })
+})
+
+describe('public full-file routing', () => {
+  it.each([
+    { headers: { Authorization: 'Bearer private' }, size: 1024, url: 'https://github.com/example/app/releases/download/v2/setup.exe' },
+    { headers: { Cookie: 'account=private' }, size: 1024, url: 'https://github.com/example/app/releases/download/v2/setup.exe' },
+    { headers: {}, size: 1024, url: 'https://user:private@example.com/setup.exe' },
+    { headers: {}, size: undefined, url: 'https://example.com/setup.exe' },
+  ])('retains native transfer for authentication or missing checked metadata: %o', async ({ headers, size, url }) => {
+    const native = vi.spyOn(ElectronHttpExecutor.prototype, 'download').mockResolvedValue('native')
+    const transport = new DesktopUpdateDownload(desktopDownloadConfig('unused', {}), fetch, () => {})
+    const publicDownload = vi.spyOn(transport, 'download')
+    const executor = new DesktopUpdateHttpExecutor(1000, undefined, transport)
+    executor.prepare({ version: '2.0.0', files: [{ sha512: 'checked', ...(size === undefined ? {} : { size }) }] })
+    await expect(executor.download(new URL(url), 'unused', {
+      headers, sha512: 'checked', cancellationToken: new electronUpdater.CancellationToken(),
+    })).resolves.toBe('native')
+    expect(native).toHaveBeenCalledOnce()
+    expect(publicDownload).not.toHaveBeenCalled()
   })
 })

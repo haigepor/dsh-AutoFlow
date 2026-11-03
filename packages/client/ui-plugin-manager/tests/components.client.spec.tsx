@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { ConfigPageForm } from '../src/client/slot-contract.ts'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -16,6 +18,7 @@ import { createNavigationStore } from '../src/client/navigation-store.ts'
 import { PluginManagerPage } from '../src/client/PluginManagerPage.tsx'
 import { PluginRefreshToast } from '../src/client/PluginRefreshToast.tsx'
 import { PluginUpdateRestartModal } from '../src/client/PluginUpdateRestartModal.tsx'
+import { PluginUpdateActivity } from '../src/client/PluginUpdateActivity.tsx'
 import type { PluginManagerPageProps } from '../src/client/index.ts'
 import type { PluginTab } from '../src/client/tab-ledger.ts'
 import type { ConfigLedger } from '../src/client/config-ledger.ts'
@@ -25,6 +28,18 @@ import type { PluginActivationOwnerProps, PluginAddActionsProps, PluginDetailPro
 
 beforeEach(() => { localStorage.clear() })
 afterEach(cleanup)
+
+it('shows measured percentages in plugin badges and accessible determinate detail progress', () => {
+  const f = render(<PluginUpdateActivity label={en.updatesDownloading} percent={42.7} compact />)
+  expect(screen.getByText('42%')).toBeTruthy()
+  expect(screen.queryByRole('progressbar')).toBeNull()
+  f.rerender(<PluginUpdateActivity label={en.updatesDownloading} percent={42.7} />)
+  expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('42')
+  expect(screen.getByText('42%')).toBeTruthy()
+  f.rerender(<PluginUpdateActivity label={en.updatesInstalling} />)
+  expect(screen.getByRole('progressbar').hasAttribute('aria-valuenow')).toBe(false)
+  expect(screen.queryByText('42%')).toBeNull()
+})
 
 it('keeps update completion outside the panel and leaves a failed restart retryable', async () => {
   const b = renderTab({ packages: [pkg()] })
@@ -77,14 +92,18 @@ it('shows indeterminate recovery while restarting and removes it after a retryab
 
 it('shows download activity in the list and detail until restart is required', async () => {
   const name = 'dsh-better-sidebar'
-  const update = { name, repository: 'example/plugins', automatic: false, status: 'installing' as const, version: '1.1.0', restartRequired: false }
+  const update = { name, repository: 'example/plugins', automatic: false, status: 'installing' as const, version: '1.1.0', restartRequired: false,
+    transfer: { stage: 'downloading' as const, choice: { source: 'auto' }, source: 'github', transferred: 42, total: 100,
+      bytesPerSecond: 10, sources: [{ id: 'github', name: 'GitHub' }] } }
   const b = renderTab({ packages: [pkg({ update })] })
-  const badge = screen.getByText(en.updatesInstalling).closest('[role="status"]')!
+  const badge = screen.getByText(en.updatesDownloading).closest('[role="status"]')!
+  expect({ list: badge.textContent }).toEqual(JSON.parse(readFileSync(join(import.meta.dirname, 'expected/update-download-en.json'), 'utf8')))
   expect(badge.getAttribute('aria-busy')).toBe('true')
   expect(badge.querySelector('[data-state="ongoing"]')).not.toBeNull()
   fireEvent.click(screen.getByRole('button', { name: `View ${name}` }))
   fireEvent.click(screen.getByText(en.updatesTitle))
-  await waitFor(() => { expect(screen.getByRole('progressbar', { name: en.updatesInstalling })).toBeDefined() })
+  await waitFor(() => { expect(screen.getByRole('progressbar', { name: en.updatesDownloading }).getAttribute('aria-valuenow')).toBe('42') })
+  expect(screen.getByText('42%')).toBeTruthy()
   expect(screen.getByRole('button', { name: en.updatesCheck })).toHaveProperty('disabled', true)
   expect(screen.queryByRole('button', { name: en.updatesInstall })).toBeNull()
   await act(async () => { b.set({ packages: [pkg({ update: { ...update, status: 'current', restartRequired: true } })] }) })
@@ -642,16 +661,19 @@ describe('PluginManagerPage', () => {
     expect(document.querySelector('[data-plugin-package="dsh-better-sidebar"]')).not.toBeNull()
   })
 
-  it('shows a bundle\'s detail document first among its sections, and its failures with a retry', () => {
+  it('opens the introduction from the title and loads its document only on demand', () => {
     const b = renderTab({ packages: [pkg()] })
     act(() => { b.navigation.actions.setView({ kind: 'package', name: 'dsh-better-sidebar' }) })
+    expect(b.actions.loadDetail).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: en.detailTitle }))
+    expect(screen.getByRole('dialog', { name: en.detailTitle })).toBeTruthy()
     expect(b.actions.loadDetail).toHaveBeenCalledWith('dsh-better-sidebar', '0.16.0', 'en', false)
     expect(screen.getByRole('status', { name: en.detailLoading })).toBeTruthy()
     const key = bundleDetailKey('dsh-better-sidebar', '0.16.0', 'en')
     b.setDetails({ [key]: { status: 'ready', detail: { status: 'found', origin: 'locale', path: 'guide/DETAIL.md', markdown: '# Sidebar\n\n![shot](img/a.png)' } } })
     const sections = [...document.querySelectorAll('[data-plugin-detail="dsh-better-sidebar"] section')]
     const order = sections.map(section => section.hasAttribute('data-detail-document') ? 'detail' : section.hasAttribute('data-plugin-source') ? 'source' : 'other')
-    expect(order[0]).toBe('detail')
+    expect(order).not.toContain('detail')
     expect(order).toContain('source')
     expect(screen.getByRole('heading', { name: 'Sidebar' })).toBeTruthy()
     expect(screen.getByRole('img', { name: 'shot' }).getAttribute('src'))
@@ -665,9 +687,12 @@ describe('PluginManagerPage', () => {
     expect(b.actions.retryDetail).toHaveBeenCalledWith('dsh-better-sidebar', '0.16.0', 'en', false)
     b.setDetails({ [key]: { status: 'ready', detail: { status: 'none' } } })
     expect(document.querySelector('[data-detail-document]')).toBeNull()
+    expect(screen.getByText(en.detailNone)).toBeTruthy()
     // A read the controller forgot, after a profile change, starts again.
     b.setDetails({})
     expect(b.actions.loadDetail).toHaveBeenLastCalledWith('dsh-better-sidebar', '0.16.0', 'en', false)
+    fireEvent.click(screen.getByRole('button', { name: en.close }))
+    expect(screen.queryByRole('dialog', { name: en.detailTitle })).toBeNull()
   })
 
   it('says where a bundle comes from: the spec that installs it, or built in, with its version', () => {
@@ -691,6 +716,7 @@ describe('PluginManagerPage', () => {
     act(() => { b.navigation.actions.setView({ kind: 'package', name: 'dsh-missing' }) })
     expect(facts()).toEqual([en.sourceSpec, en.sourceNotInstalled])
     // A bundle whose files are not installed is read from the npm file CDNs.
+    fireEvent.click(screen.getByRole('button', { name: en.detailTitle }))
     expect(b.actions.loadDetail).toHaveBeenLastCalledWith('dsh-missing', undefined, 'en', true)
   })
 

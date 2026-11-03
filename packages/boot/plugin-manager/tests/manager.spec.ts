@@ -59,7 +59,8 @@ async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, pre
     writeFileSync(join(path, 'cordis.patch.yml'), JSON.stringify([{ insert: rows }]))
     writeFileSync(join(path, 'plugin.mjs'), 'export function apply(ctx, config) { if (config?.fail) throw new Error("test activation failed"); ctx.provide(config?.service ?? "managedProbe", true) }\n')
   }
-  bundle('core', [{ id: 'manager', name: 'cordis:manager', config }])
+  // Release fixtures own GitHub bytes; public mirror sockets must never escape this test.
+  bundle('core', [{ id: 'manager', name: 'cordis:manager', config: { updateDownload: { source: { source: 'github' } }, ...config } }])
   bundle('extra', [{ id: 'managed', name: './plugin.mjs' }])
   const manifest = readProfileManifest('test', dir)
   manifest.dependencies = { extra: '1.0.0' }

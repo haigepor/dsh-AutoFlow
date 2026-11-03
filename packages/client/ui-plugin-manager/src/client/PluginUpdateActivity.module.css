@@ -2,6 +2,9 @@
 :global([data-plugin-update-card] [data-update-activity]) { display: flex; min-width: 0; flex-direction: column; gap: 10px; }
 .label,
 :global([data-plugin-update-card] [data-update-activity-label]) { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.percent { flex: none; min-width: 4ch; margin-left: auto; padding-left: 6px; text-align: right; font-variant-numeric: tabular-nums; }
+.activity > .label { display: flex; }
+.fill { display: block; height: 100%; border-radius: inherit; background: var(--dsw-alias-brand-primary); transition: width 180ms ease; }
 .label > span,
 :global([data-plugin-update-card] [data-update-activity-label] > span) { min-width: 0; overflow-wrap: anywhere; }
 .label [data-state='ongoing'],
@@ -17,6 +20,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .fill { transition: none; }
   .sweep,
   :global([data-plugin-update-card] [data-update-progress-sweep]) { animation: none; transform: translateX(80%); }
 }

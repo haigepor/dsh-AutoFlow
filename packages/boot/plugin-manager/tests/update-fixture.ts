@@ -7,7 +7,9 @@ import type { BundleUpdateRelease, UpdateLimits } from '../src/github-updates.ts
 import type { DshBundleUpdateSource } from '@deepseek-ai/dsh-package-manifest'
 
 /** Small bounded responses for deterministic update fixtures. */
-export const limits: UpdateLimits = { timeoutMs: 1000, jsonBytes: 65536, archiveBytes: 1048576, expandedBytes: 2097152, releasePages: 2 }
+export const limits: UpdateLimits = { timeoutMs: 1000, jsonBytes: 65536, archiveBytes: 1048576, expandedBytes: 2097152, releasePages: 2,
+  download: { idleTimeoutMs: 1000, probeTimeoutMs: 1000, probeBytes: 1024, probeCacheMs: 1000, slowWindowMs: 1000,
+    minimumBytesPerSecond: 1, connections: 4, pieceBytes: 65536, source: { source: 'github' } } }
 /** One plugin family sharing its repository with desktop releases. */
 export const source: DshBundleUpdateSource = { provider: 'github', repository: 'example/plugins', tagPrefix: 'extra-v', metadataAsset: 'extra-update.json' }
 

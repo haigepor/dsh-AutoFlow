@@ -5355,6 +5355,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [],
   },
   {
+    name: 'plugin-manager/bundle-update',
+    mode: 'emit',
+    signature: '\'plugin-manager/bundle-update\'(update: BundleUpdateInfo): void',
+    summary: 'Measured public archive progress, throttled by the transfer owner; installation has no transfer field.',
+    description: 'Measured public archive progress, throttled by the transfer owner; installation has no transfer field.',
+    parameters: [{ name: 'update', description: 'Current bundle update facts without package inventory or credentials.' }],
+  },
+  {
     name: 'plugin-manager/changed',
     mode: 'emit',
     signature: '\'plugin-manager/changed\'(change: PluginChange): void',
@@ -5855,6 +5863,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ArchiveSessionOptions {\n    readonly stopActivity?: boolean;\n}',
   },
   {
+    name: 'ArtifactDownloadChoice',
+    declaration: 'export interface ArtifactDownloadChoice {\n    readonly source: string;\n    readonly customPrefix?: string;\n}',
+  },
+  {
+    name: 'ArtifactDownloadProgress',
+    declaration: 'export interface ArtifactDownloadProgress {\n    readonly stage: \'idle\' | \'probing\' | \'downloading\' | \'paused\' | \'verifying\' | \'failed\';\n    readonly choice: ArtifactDownloadChoice;\n    readonly source?: string;\n    readonly transferred: number;\n    readonly total: number;\n    readonly bytesPerSecond: number;\n    readonly remainingSeconds?: number;\n    readonly sources: readonly {\n        readonly id: string;\n        readonly name: string;\n    }[];\n}',
+  },
+  {
     name: 'AskOptions',
     declaration: 'export interface AskOptions {\n    options?: readonly string[];\n    header?: string;\n    multiSelect?: true;\n}',
   },
@@ -6040,7 +6056,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'BundleUpdateInfo',
-    declaration: 'export interface BundleUpdateInfo {\n    name: string;\n    repository: string;\n    automatic: boolean;\n    status: \'unchecked\' | \'current\' | \'available\' | \'installing\' | \'error\';\n    version?: string;\n    releaseUrl?: string;\n    diagnostic?: string;\n    restartRequired: boolean;\n}',
+    declaration: 'export interface BundleUpdateInfo {\n    name: string;\n    repository: string;\n    automatic: boolean;\n    status: \'unchecked\' | \'current\' | \'available\' | \'installing\' | \'error\';\n    version?: string;\n    releaseUrl?: string;\n    diagnostic?: string;\n    failureStage?: \'metadata\' | \'download\' | \'install\';\n    transfer?: ArtifactDownloadProgress;\n    restartRequired: boolean;\n}',
   },
   {
     name: 'ButtonProps',

@@ -13,6 +13,8 @@ Web 中的组合包与功能图标使用文档相对路径 `plugin-icons/<conten
 
 声明 `dsh.bundle.update` 的组合包支持按来源检查 GitHub 稳定版本。管理器在应用就绪后及每个 `updateIntervalMs` 周期检查，默认周期 3600000 ms；各 profile 的自动安装默认关闭，须明确开启。插件页面使用 `checkBundleUpdates`、`setBundleAutoUpdate` 和 `updateBundleRelease`。`updateTimeoutMs`、`updateJsonBytes`、`updateArchiveBytes`、`updateExpandedBytes` 和 `updateReleasePages` 配置 HTTP 超时、JSON、压缩与展开字节上限和分页上限。仅支持公开 GitHub HTTPS 来源，不支持需要认证的私有仓库。检查按声明的标签族选择版本，不使用仓库级 latest。安装验证资产身份、API 摘要、源码标签、SHA-256、压缩包路径和包身份，再复用 profile 包事务；失败恢复包入口、清单、lockfile 和待应用的功能迁移，依赖构建脚本副作用无法撤销。新版模块重启生效，保留组合包启用状态和功能选择。偏好及保留的 tarball 存在 profile 的 `.plugin-updates/` 下；删除已引用缓存会破坏 pnpm file 依赖。自动安装失败在页面显示，可手动重试；许可仍开启时，后续周期检查也可重试，不会自动批准依赖脚本。
 
+公开安装包与 Desktop 复用经过校验的 Range 下载器；官方元数据仍只使用 GitHub。`updateTimeoutMs` 限制元数据响应，安装包请求则使用距最近一次接收数据的 `updateDownload.idleTimeoutMs`，默认 60000 ms。`updateDownload` 还可配置 `connections`（4，上限 16）、`pieceBytes`（8388608）、`probeTimeoutMs`（4000）、`probeBytes`（131072）、`probeCacheMs`（300000）、`slowWindowMs`（30000）、`minimumBytesPerSecond`（32768）和 `source`（`{ source: 'auto' }`；可指定线路，或用公开 HTTPS `customPrefix` 选择自定义线路）。自动模式限制测速请求，每个失败源只尝试一次。安装包哈希及安全 tar 内容通过检查后才原子提升为缓存；传输失败保留安装包 `transfer/` 目录内经过校验的区间，跨进程锁阻止多个写入者。Node fetch 使用 Host 现有代理 dispatcher 和 CA 策略，不继承 Electron PAC 或会话代理凭据。`plugin-manager/bundle-update` 发送节流后的字节进度，不重读插件列表；诊断区分元数据、安装包传输和安装失败。`/operations` 另向 Desktop 适配器提供 `ArtifactDownload`，官方 SHA512 和原生准备仍由 Desktop 负责。
+
 ## 概述
 
 管理当前 profile 的插件，无需手动编辑配置。启停单个插件条目、选择已安装的组合包，以及安装或删除外部组合包。在 YAML 中启用 HMR 时，配置变化立即生效；未启用 HMR 时，运行中的组合保留到重启。改动影响使用该 profile 的全部会话。

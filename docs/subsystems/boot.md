@@ -608,6 +608,23 @@ Source: [`packages/boot/hmr/src/index.ts`](../../packages/boot/hmr/src/index.ts)
 
 ### `plugin-manager/*` events
 
+<a id="plugin-managerbundle-update--emit"></a>
+
+#### `plugin-manager/bundle-update` — emit
+
+Measured public archive progress, throttled by the transfer owner; installation has no transfer field.
+
+```ts cordis-catalog
+/**
+ * Measured public archive progress, throttled by the transfer owner; installation has no transfer field.
+ * @mode emit
+ * @param update - Current bundle update facts without package inventory or credentials.
+ */
+'plugin-manager/bundle-update'(update: BundleUpdateInfo): void
+```
+
+Source: [`packages/boot/plugin-manager/src/types.ts`](../../packages/boot/plugin-manager/src/types.ts)
+
 <a id="plugin-managerchanged--emit"></a>
 
 #### `plugin-manager/changed` — emit

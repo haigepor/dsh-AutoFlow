@@ -42,6 +42,7 @@ import { incompatiblePlugin, ManagementFailure } from './failure.ts'
 import { approveBuilds, recordPendingBuilds } from './build-approval.ts'
 import { checkGithubConnection } from './github-connection.ts'
 import { cacheBundleUpdate, discoverBundleUpdate, validateBundleArchive, type UpdateLimits } from './github-updates.ts'
+import { parseArtifactDownloadChoice } from './artifact-download.ts'
 import { backupUpdateEntry, readAutomaticUpdates, writeAutomaticUpdate, type UpdateEntryBackup } from './update-state.ts'
 import { chooseGitTransport, sshGitSpec } from './git-transport.ts'
 import { newerVersions, VERSION_FIELDS, VERSION_LIST_FIELDS, versionFacts } from './versions.ts'
@@ -65,8 +66,10 @@ export interface Config {
   restartTimeoutMs?: number
   /** Interval between automatic stable-release checks, in milliseconds. */
   updateIntervalMs?: number
-  /** Timeout for a complete update HTTP response. */
+  /** Deadline for one complete official update metadata response. */
   updateTimeoutMs?: number
+  /** Public archive network and parallelism settings; archive timeouts measure inactivity. */
+  updateDownload?: Partial<UpdateLimits['download']>
   /** Maximum JSON response bytes. */
   updateJsonBytes?: number
   /** Maximum compressed plugin archive bytes. */
@@ -398,6 +401,18 @@ export class PluginManager extends TypertRemoteService {
     restartTimeoutMs: z.number().step(1).min(1000).default(180000),
     updateIntervalMs: z.number().step(1).min(60000).default(3600000),
     updateTimeoutMs: z.number().step(1).min(1000).default(20000),
+    updateDownload: z.object({
+      idleTimeoutMs: z.number().step(1).min(1000).default(60000),
+      probeTimeoutMs: z.number().step(1).min(1000).default(4000),
+      probeBytes: z.number().step(1).min(1024).max(1048576).default(131072),
+      probeCacheMs: z.number().step(1).min(1000).default(300000),
+      slowWindowMs: z.number().step(1).min(1000).default(30000),
+      minimumBytesPerSecond: z.number().step(1).min(1).default(32768),
+      connections: z.number().step(1).min(1).max(16).default(4),
+      pieceBytes: z.number().step(1).min(65536).max(67108864).default(8388608),
+      source: z.object({ source: z.string().pattern(/^(?:auto|github|gh-proxy|gh-proxy-org|ghfast|ghproxy|custom)$/u).default('auto'),
+        customPrefix: z.string() }).default({ source: 'auto' }),
+    }).default({}),
     updateJsonBytes: z.number().step(1).min(1024).default(1048576),
     updateArchiveBytes: z.number().step(1).min(1024).default(67108864),
     updateExpandedBytes: z.number().step(1).min(1024).default(268435456),
@@ -498,7 +513,8 @@ export class PluginManager extends TypertRemoteService {
     const updateConfig = config as Required<Config>
     this.updateLimits = { timeoutMs: updateConfig.updateTimeoutMs, jsonBytes: updateConfig.updateJsonBytes,
       archiveBytes: updateConfig.updateArchiveBytes, expandedBytes: updateConfig.updateExpandedBytes,
-      releasePages: updateConfig.updateReleasePages }
+      releasePages: updateConfig.updateReleasePages, download: { ...updateConfig.updateDownload as UpdateLimits['download'],
+        source: parseArtifactDownloadChoice(updateConfig.updateDownload.source) } }
     this.versionListLimit = (config as Required<Config>).versionListLimit
     this.versionLookupConcurrency = (config as Required<Config>).versionLookupConcurrency
     this.configuredRegistries = {
@@ -637,6 +653,8 @@ export class PluginManager extends TypertRemoteService {
         const state: BundleUpdateInfo = { ...info, status: release === undefined ? 'current' : 'available',
           ...(release === undefined ? {} : { version: release.metadata.version, releaseUrl: release.releaseUrl }) }
         delete state.diagnostic
+        delete state.failureStage
+        delete state.transfer
         if (release === undefined) { delete state.version; delete state.releaseUrl }
         this.updateStates.set(name, state)
         return state
@@ -644,7 +662,7 @@ export class PluginManager extends TypertRemoteService {
         // 旧检查的迟到失败不能覆盖正在安装或等待重启的状态。
         const latest = this.updateInfo(name)
         if (latest?.restartRequired || latest?.status === 'installing') return latest
-        const state: BundleUpdateInfo = { ...info, status: 'error', diagnostic: messageOf(error) }
+        const state: BundleUpdateInfo = { ...info, status: 'error', diagnostic: messageOf(error), failureStage: 'metadata' }
         this.updateStates.set(name, state)
         return state
       }
@@ -655,6 +673,7 @@ export class PluginManager extends TypertRemoteService {
   }
 
   private async performUpdate(name: string): Promise<ChangeResult> {
+    let stage: 'metadata' | 'download' | 'install' = 'metadata'
     try {
       const source = resolveBundleUpdateSource(name, this.profile.installAnchor, this.profile.dir)
       if (source === undefined || this.protectsManager(name)) throw new ManagementFailure('unknown-plugin')
@@ -669,9 +688,22 @@ export class PluginManager extends TypertRemoteService {
         this.updateStates.set(name, { ...info, status: 'current' })
         return { target: name, stage: 'install', changed: false, application: 'applied' }
       }
-      this.updateStates.set(name, { ...info, status: 'installing', version: release.metadata.version, releaseUrl: release.releaseUrl })
+      const installing: BundleUpdateInfo = { ...info, status: 'installing', version: release.metadata.version, releaseUrl: release.releaseUrl }
+      delete installing.diagnostic
+      delete installing.failureStage
+      delete installing.transfer
+      this.updateStates.set(name, installing)
       this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
-      const cached = await cacheBundleUpdate(this.profile.dir, release, this.updateLimits, this.abort.signal)
+      stage = 'download'
+      const cached = await cacheBundleUpdate(this.profile.dir, release, this.updateLimits, this.abort.signal, (transfer) => {
+        if (this.abort.signal.aborted) return
+        const state = { ...installing, transfer }
+        this.updateStates.set(name, state)
+        this.ownerContext.emit('plugin-manager/bundle-update', state)
+      })
+      stage = 'install'
+      this.updateStates.set(name, installing)
+      this.ownerContext.emit('plugin-manager/bundle-update', installing)
       const enabled = readProfileManifest('dsh', this.profile.dir).dsh?.profile?.bundles?.includes(name) === true
       const result = await this.install(cached.file, { enabled }, { name, version: release.metadata.version, before })
       if (result.application === 'restart-required' && result.error === undefined) {
@@ -681,14 +713,15 @@ export class PluginManager extends TypertRemoteService {
         this.ownerContext.emit('plugin-manager/changed', { reason: 'install' })
       } else if (result.application === 'failed') {
         this.updateStates.set(name, { name, repository: source.repository, automatic: readAutomaticUpdates(this.profile.dir)[name] === true,
-          status: 'error', diagnostic: result.error?.diagnostic ?? result.packageResult?.output ?? 'Plugin installation failed', restartRequired: false })
+          status: 'error', diagnostic: result.error?.diagnostic ?? result.packageResult?.output ?? 'Plugin installation failed', failureStage: 'install', restartRequired: false })
         this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
       }
       return result
     } catch (error) {
       const state = this.updateStates.get(name)
       if (!this.abort.signal.aborted && state !== undefined) {
-        this.updateStates.set(name, { ...state, status: 'error', diagnostic: messageOf(error) })
+        this.updateStates.set(name, { ...state, status: 'error', diagnostic: messageOf(error), failureStage: stage })
+        this.ownerContext.logger.warn(`Plugin update ${stage} failed (${name})`, error)
         this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
       }
       return { target: name, stage: 'install', changed: false, application: this.abort.signal.aborted ? 'cancelled' : 'failed', error: managementError(error) }
