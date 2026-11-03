@@ -33,6 +33,8 @@ Release 标题包含插件名或 `Desktop` 及其版本。正文仅描述该产�
 
 自定义插件的原生检查将 `TMPDIR`、`TMP` 和 `TEMP` 指向 runner 所属临时目录的规范路径，避免 Windows 短路径和 macOS 目录别名改变测试路径比较。仅修正工作流时可从当前工作流传入已有标签恢复发布；各任务检出和安装包仍来自该标签的冻结源码。
 
+AFP 或自定义插件发布工作流成功后，[Publish plugin update index](../../.github/workflows/plugin-update-index.yml) 使用默认分支中的可信发布器运行。它选择各声明标签族最新的公开稳定 Release，验证元数据及安装包 SHA256、完整公开安装包字节和标签提交，再将 `plugins/stable/index.json` 合并到既有 `desktop-updates` 文件树。分支并发变化时最多重试三次，保留较新条目、其他插件及 Desktop 更新清单和策略，拒绝同一版本出现不同字节。验证失败时保留旧索引。也可手动触发该工作流，在不发布新插件版本的情况下初始化或修复索引。发布凭据仅存在于 Actions 中。桌面用户需要包含索引读取能力的宿主构建，独立插件更新不会替换该宿主。
+
 ## 里程碑与标签命名
 
 正式分发使用产品标签 `afp-v<semver>`、`<plugin>-v<semver>` 或 `desktop-v<version>`。源码里程碑统一使用 `milestone/<subject>-<version-or-yyyymmdd>`，不创建 Release。只记录官方集成、视觉基线等需要长期引用的节点，普通功能修改由 Git 提交记录。

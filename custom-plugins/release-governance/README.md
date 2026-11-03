@@ -33,6 +33,8 @@ Release titles name the selected plugin or `Desktop` and its version. Notes desc
 
 The custom-plugin native checks use the canonical runner-owned temporary directory for `TMPDIR`, `TMP` and `TEMP`, so Windows short paths and macOS directory aliases do not change fixture path comparisons. A workflow-only recovery may dispatch the current workflow with an existing tag; every checkout and prepared asset still uses that tag's frozen source.
 
+After a successful AFP or custom-plugin release workflow, [Publish plugin update index](../../.github/workflows/plugin-update-index.yml) runs the trusted default-branch publisher. It selects each declared family’s newest public stable Release, verifies metadata and archive SHA256, complete public archive bytes and tag commits, then merges `plugins/stable/index.json` into the existing `desktop-updates` tree. Concurrent movement is retried three times; newer entries, other families, Desktop feeds and policies are retained, and changed bytes under an existing version are refused. Verification failures leave the previous index untouched. The workflow can also be dispatched manually to initialize or reconcile the index without releasing new plugin versions. Publishing credentials remain inside Actions. Desktop users need a build containing the index-aware Host; independent plugin updates do not replace that Host.
+
 ## Milestones and tag names
 
 Formal distributions use product tags `afp-v<semver>`, `<plugin>-v<semver>` or `desktop-v<version>`. Source milestones use `milestone/<subject>-<version-or-yyyymmdd>` and have no Release. Record only long-lived references such as upstream integrations and visual baselines; ordinary feature changes remain Git commits.

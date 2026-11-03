@@ -1,0 +1,37 @@
+name: Publish plugin update index
+
+on:
+  workflow_run:
+    workflows: ['Release custom plugins', 'Release AFP plugin']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: custom-plugin-update-index
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      # Use the trusted default-branch publisher, never code or artifacts from the triggering run.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Verify public plugin assets and merge the Pages index
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node custom-plugins/release-governance/publish-update-index.mjs
