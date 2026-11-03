@@ -66,7 +66,8 @@ try {
     const transport = spawnSync('/usr/libexec/PlistBuddy', ['-c', 'Print :NSAppTransportSecurity', plist])
     if (transport.status !== 0) execFileSync('/usr/libexec/PlistBuddy', ['-c', 'Add :NSAppTransportSecurity dict', plist])
     execFileSync('/usr/libexec/PlistBuddy', ['-c', 'Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true', plist])
-    execFileSync('/usr/bin/codesign', ['--force', '--sign', '-', '--identifier', identifier, '--timestamp=none', bundle])
+    // Raw Electron distributions need their nested frameworks sealed before the enclosing fixture app.
+    execFileSync('/usr/bin/codesign', ['--deep', '--force', '--sign', '-', '--identifier', identifier, '--timestamp=none', bundle])
   }
   const shown = spawnSync('/usr/bin/codesign', ['--display', '-r-', base], { encoding: 'utf8' })
   assert.equal(shown.status, 0)
