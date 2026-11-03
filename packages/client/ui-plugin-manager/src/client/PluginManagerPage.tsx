@@ -606,7 +606,7 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, newer, on
                     <Tag tone="info">{t('updatesBadge', { version: pkg.update.version ?? '' })}</Tag>
                   </Button>
                   : pkg.update?.status === 'error'
-                    ? <Tag tone="danger">{t('updatesFailed')}</Tag> : null}
+                    ? <Tag tone="danger">{t(pkg.update.failureStage === 'metadata' ? 'updatesCheckUnavailable' : 'updatesError')}</Tag> : null}
             {pkg.availability === 'missing' ? <Tag className={css.statusTag}>{t(pkg.installed ? 'statusMissingFiles' : 'statusNotInstalled')}</Tag> : null}
             {updateAvailable(pkg) || newer !== undefined ? <Tag className={css.statusTag} tone="info">{t('statusUpdateAvailable')}</Tag> : null}
           </>
@@ -814,9 +814,10 @@ function bundleDownloadPercent(update: PackageView['update']): number | undefine
 }
 
 /** Release controls keep the measured download phase separate from package installation. */
-function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdate, onRestart }: {
+function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, onAutoUpdate, onRestart }: {
   readonly pkg: PackageView
   readonly t: Translate
+  readonly language: string
   readonly busy: boolean
   readonly checking: boolean
   readonly onCheck: () => void
@@ -829,10 +830,16 @@ function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdat
   useEffect(() => { if (update?.status === 'error') setOpen(true) }, [update?.status])
   if (update === undefined) return null
   const installing = update.status === 'installing' || busy && update.status === 'available'
+  const metadataFailed = update.status === 'error' && update.failureStage === 'metadata'
+  const checkFailureKeys = {
+    'rate-limited': 'updatesRateLimited', forbidden: 'updatesCheckForbidden', network: 'updatesCheckNetwork',
+    'invalid-metadata': 'updatesCheckInvalid', cache: 'updatesCheckCache',
+  } as const
+  const formatTime = (value: number): string => new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }).format(value)
   const active = !update.restartRequired && (installing || checking)
   const status = update.restartRequired ? t('updatesRestart') : installing ? bundleDownloadLabel(update, t) : checking ? t('updatesChecking')
     : update.status === 'available' ? t('releaseUpdateAvailable', { version: update.version ?? '' })
-      : t(update.status === 'current' ? 'updatesCurrent' : update.status === 'error' ? 'updatesError' : 'updatesUnchecked')
+      : t(update.status === 'current' ? 'updatesCurrent' : metadataFailed ? 'updatesCheckUnavailable' : update.status === 'error' ? 'updatesError' : 'updatesUnchecked')
   return <details className={`${css.detailSection} ${css.updatesDisclosure}`} open={open}
     onToggle={(event) => { setOpen(event.currentTarget.open) }} data-plugin-updates>
     <summary className={css.updatesHead}>
@@ -856,9 +863,20 @@ function UpdatesSection({ pkg, t, busy, checking, onCheck, onUpdate, onAutoUpdat
             : update.status !== 'available' ? null : <Button size="sm" disabled={busy} onClick={onUpdate}>{t('updatesInstall')}</Button>}
         </div>
       </div>
-      {update.status !== 'error' || update.diagnostic === undefined ? null : <p className={css.reason}>
+      {metadataFailed ? <div role="status" aria-live="polite">
+        <p className={css.reason}>{t(update.checkFailure === undefined ? 'updatesCheckUnavailable' : checkFailureKeys[update.checkFailure.kind])}
+          {update.checkFailure?.retryAt === undefined ? null : <> {t('updatesRetryAt', { time: formatTime(update.checkFailure.retryAt) })}</>}
+        </p>
+        {update.diagnostic === undefined ? null : <details className={css.reason}>
+          <summary>{t('updatesTechnicalDetails')}</summary><p>{update.diagnostic}</p>
+        </details>}
+      </div> : update.status !== 'error' || update.diagnostic === undefined ? null : <p className={css.reason}>
         {update.failureStage === undefined ? null : <span>{t(update.failureStage === 'metadata' ? 'updatesMetadataFailed'
           : update.failureStage === 'download' ? 'updatesDownloadFailed' : 'updatesInstallFailed')} </span>}{update.diagnostic}</p>}
+      {update.lastCheckedAt === undefined ? null : <p className={css.updateHint}>
+        {t('updatesLastSuccess', { time: formatTime(update.lastCheckedAt) })}
+        {update.lastKnownVersion === undefined ? null : <> · {t('updatesLastKnownVersion', { version: update.lastKnownVersion })}</>}
+      </p>}
       <div className={css.updatePreference}>
         <div className={css.updatePreferenceText}><span className={css.updatePreferenceTitle}>{t('updatesAutomatic')}</span><p className={css.updateHint}>{t('updatesHint')}</p></div>
         <Switch checked={update.automatic} disabled={busy || installing} label={t('updatesAutomatic')} onChange={onAutoUpdate} />
@@ -899,7 +917,7 @@ function ManagedModules({ packages, t, resolveText, busy, targets, onSetEnabled 
 /** A bundle's selectable capabilities, shared configuration, and component inventory. */
 function PackageDetail({
   pkg, companion, companionBusy = false, onSetCompanionEnabled,
-  t, resolveText, busy, featureBusy, rowBusy, targets, rowForm, configured, configure, renderSlot,
+  t, language, resolveText, busy, featureBusy, rowBusy, targets, rowForm, configured, configure, renderSlot,
   onBack, onSetEnabled, onUninstall, onOfficialUpdate, onSetRowEnabled, onSetFeature, onOpenExample,
   updateChecking, onCheckUpdates, onUpdate, onAutoUpdate, onRestart, inMore,
   versions, detail, onEnsureVersions, onCheckVersions, onUpdateVersion,
@@ -911,6 +929,7 @@ function PackageDetail({
   readonly companionBusy?: boolean
   readonly onSetCompanionEnabled?: ((enabled: boolean) => void) | undefined
   readonly t: Translate
+  readonly language: string
   readonly resolveText: ResolveText
   readonly busy: boolean
   /** Whether this exact declared feature is being persisted. */
@@ -1033,7 +1052,7 @@ function PackageDetail({
       {pkg.readOnlyReason === undefined ? null : <p className={css.reason} role="status">{managementText({ code: pkg.readOnlyReason }, t)}</p>}
       {preview === undefined ? null : <PackagePreview src={preview} title={title} t={t} />}
       <div className={css.detailSections}>
-        <UpdatesSection key={pkg.name} pkg={pkg} t={t} busy={busy} checking={updateChecking}
+        <UpdatesSection key={pkg.name} pkg={pkg} t={t} language={language} busy={busy} checking={updateChecking}
           onCheck={onCheckUpdates} onUpdate={onUpdate} onAutoUpdate={onAutoUpdate} onRestart={onRestart} />
         {renderSlot('plugins.detail.updates', { subject })}
         {companion !== undefined && (!companion.enabled || !companion.rows.some(row => row.enabled && row.phase === 'active'))
@@ -2129,6 +2148,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
               onRestart={() => { props.showUpdateRestart(openPkg.name) }}
               pkg={openPkg}
               t={t}
+              language={language}
               resolveText={resolveText}
               busy={packageBusy(openPkg)}
               rowBusy={row => row.entryId !== undefined && state.busy.includes(rowKey(row.entryId))}

@@ -2661,7 +2661,7 @@ export interface PlanModeConfig {
 
 - `inject`: `loader` · `profileContext`
 - `refs`: [`NpmFileSource`](subsystems/boot.zh.md)
-- `source`: [`packages/boot/plugin-manager/src/index.ts:64`](../packages/boot/plugin-manager/src/index.ts)
+- `source`: [`packages/boot/plugin-manager/src/index.ts:65`](../packages/boot/plugin-manager/src/index.ts)
 
 ```ts config-catalog
 /** The pnpm executable, registries, and limits for diagnostics, lookups and connection checks. */
@@ -2672,6 +2672,14 @@ export interface Config {
   updateIntervalMs?: number
   /** Deadline for one complete official update metadata response. */
   updateTimeoutMs?: number
+  /** Official project Pages indexes, keyed by GitHub owner/repository; other sources retain REST discovery. */
+  updateIndexes?: Record<string, string>
+  /** Time successful official metadata remains fresh; shared by automatic and manual checks. */
+  updateMetadataCacheMs?: number
+  /** Minimum delay after unavailable metadata or a rate limit without a later server deadline. */
+  updateMetadataBackoffMs?: number
+  /** Maximum retained metadata documents and successful package checks. */
+  updateMetadataCacheEntries?: number
   /** Public archive network and parallelism settings; archive timeouts measure inactivity. */
   updateDownload?: Partial<UpdateLimits['download']>
   /** Maximum JSON response bytes. */

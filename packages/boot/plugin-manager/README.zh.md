@@ -11,9 +11,11 @@ kind: "package-reference"
 
 Web 中的组合包与功能图标使用文档相对路径 `plugin-icons/<content-hash>.<extension>`，关闭组合包后仍可显示。可选功能 `icon` 字段声明清单相对图片路径；GET/HEAD 仅提供最近一次列表中的校验图片，包含不可变缓存、MIME 和 sandbox CSP，未知 URL 返回 404，其他方法返回 405。没有 Web 服务时保留 data URL。
 
-声明 `dsh.bundle.update` 的组合包支持按来源检查 GitHub 稳定版本。管理器在应用就绪后及每个 `updateIntervalMs` 周期检查，默认周期 3600000 ms；各 profile 的自动安装默认关闭，须明确开启。插件页面使用 `checkBundleUpdates`、`setBundleAutoUpdate` 和 `updateBundleRelease`。`updateTimeoutMs`、`updateJsonBytes`、`updateArchiveBytes`、`updateExpandedBytes` 和 `updateReleasePages` 配置 HTTP 超时、JSON、压缩与展开字节上限和分页上限。仅支持公开 GitHub HTTPS 来源，不支持需要认证的私有仓库。检查按声明的标签族选择版本，不使用仓库级 latest。安装验证资产身份、API 摘要、源码标签、SHA-256、压缩包路径和包身份，再复用 profile 包事务；失败恢复包入口、清单、lockfile 和待应用的功能迁移，依赖构建脚本副作用无法撤销。新版模块重启生效，保留组合包启用状态和功能选择。偏好及保留的 tarball 存在 profile 的 `.plugin-updates/` 下；删除已引用缓存会破坏 pnpm file 依赖。自动安装失败在页面显示，可手动重试；许可仍开启时，后续周期检查也可重试，不会自动批准依赖脚本。
+声明 `dsh.bundle.update` 的组合包支持按来源检查 GitHub 稳定版本。管理器在应用就绪后及每个 `updateIntervalMs` 周期检查，默认周期 3600000 ms；各 profile 的自动安装默认关闭，须明确开启。插件页面使用 `checkBundleUpdates`、`setBundleAutoUpdate` 和 `updateBundleRelease`。`updateTimeoutMs`、`updateJsonBytes`、`updateArchiveBytes`、`updateExpandedBytes` 和 `updateReleasePages` 配置 HTTP 超时、JSON、压缩与展开字节上限和分页上限。支持官方项目 Pages 索引及公开 GitHub HTTPS 来源，不支持需要认证的私有仓库。检查按声明的标签族选择版本，不使用仓库级 latest。REST 发现验证 API 摘要与源码标签，索引发布在推进 Pages 前执行这些验证；安装验证资产身份、SHA-256、压缩包路径和包身份，再复用 profile 包事务；失败恢复包入口、清单、lockfile 和待应用的功能迁移，依赖构建脚本副作用无法撤销。新版模块重启生效，保留组合包启用状态和功能选择。偏好及保留的 tarball 存在 profile 的 `.plugin-updates/` 下；删除已引用缓存会破坏 pnpm file 依赖。自动安装失败在页面显示，可手动重试；许可仍开启时，后续周期检查也可重试，不会自动批准依赖脚本。
 
-公开安装包与 Desktop 复用经过校验的 Range 下载器；官方元数据仍只使用 GitHub。`updateTimeoutMs` 限制元数据响应，安装包请求则使用距最近一次接收数据的 `updateDownload.idleTimeoutMs`，默认 60000 ms。`updateDownload` 还可配置 `connections`（4，上限 16）、`pieceBytes`（8388608）、`probeTimeoutMs`（4000）、`probeBytes`（131072）、`probeCacheMs`（300000）、`slowWindowMs`（30000）、`minimumBytesPerSecond`（32768）和 `source`（`{ source: 'auto' }`；可指定线路，或用公开 HTTPS `customPrefix` 选择自定义线路）。自动模式限制测速请求，每个失败源只尝试一次。安装包哈希及安全 tar 内容通过检查后才原子提升为缓存；传输失败保留安装包 `transfer/` 目录内经过校验的区间，跨进程锁阻止多个写入者。Node fetch 使用 Host 现有代理 dispatcher 和 CA 策略，不继承 Electron PAC 或会话代理凭据。`plugin-manager/bundle-update` 发送节流后的字节进度，不重读插件列表；诊断区分元数据、安装包传输和安装失败。`/operations` 另向 Desktop 适配器提供 `ArtifactDownload`，官方 SHA512 和原生准备仍由 Desktop 负责。
+公开安装包与 Desktop 复用经过校验的 Range 下载器；官方元数据使用声明的项目 Pages 或 GitHub 来源。`updateTimeoutMs` 限制元数据响应，安装包请求则使用距最近一次接收数据的 `updateDownload.idleTimeoutMs`，默认 60000 ms。`updateDownload` 还可配置 `connections`（4，上限 16）、`pieceBytes`（8388608）、`probeTimeoutMs`（4000）、`probeBytes`（131072）、`probeCacheMs`（300000）、`slowWindowMs`（30000）、`minimumBytesPerSecond`（32768）和 `source`（`{ source: 'auto' }`；可指定线路，或用公开 HTTPS `customPrefix` 选择自定义线路）。自动模式限制测速请求，每个失败源只尝试一次。安装包哈希及安全 tar 内容通过检查后才原子提升为缓存；传输失败保留安装包 `transfer/` 目录内经过校验的区间，跨进程锁阻止多个写入者。Node fetch 使用 Host 现有代理 dispatcher 和 CA 策略，不继承 Electron PAC 或会话代理凭据。`plugin-manager/bundle-update` 发送节流后的字节进度，不重读插件列表；诊断区分元数据、安装包传输和安装失败。`/operations` 另向 Desktop 适配器提供 `ArtifactDownload`，官方 SHA512 和原生准备仍由 Desktop 负责。
+
+`updateIndexes` 按仓库配置官方项目 Pages 索引，默认将 `haigepor/dsh-AutoFlow` 指向 `https://haigepor.github.io/dsh-AutoFlow/plugins/stable/index.json`；未配置的仓库保留 GitHub REST 发现。配置的索引失败时不回退 REST。所有调用共享文档和在途请求，`updateMetadataCacheMs` 默认 900000 ms，`updateMetadataCacheEntries` 默认 64。没有更晚的服务端期限时，`updateMetadataBackoffMs` 默认提供 60000 ms 的最短重试间隔。来源主机的冷却期限和上次成功检查的版本、时间保存在 `.plugin-updates/metadata.json`；手动检查和进程重启不能绕过限流。检查失败时保留此前信息，不报告新的“已是最新”结果。索引的包名、仓库、标签和归档身份必须符合声明来源；公共镜像仅接收不带账号凭据的安装包请求。
 
 ## 概述
 
@@ -102,6 +104,10 @@ CLI 提供 `dsh plugin --profile <profile> version-exemptions`、`allow-version 
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
+| `updateIndexes` | AutoFlow 官方 Pages 索引 | 按仓库配置索引，其他仓库使用 REST。 |
+| `updateMetadataCacheMs` | `900000` | 所有调用共享的成功元数据有效期，单位毫秒。 |
+| `updateMetadataBackoffMs` | `60000` | 最短失败重试间隔，按服务端限流响应延长。 |
+| `updateMetadataCacheEntries` | `64` | 保留的文档和成功检查记录数量上限。 |
 | `pnpmCommand` | `pnpm` | pnpm 可执行文件名或路径，与 `dsh plugin` 命令一样通过 `PATH` 解析。 |
 | `inspectTimeoutMs` | `20000` | 单次检查所做注册表查询的上限，单位毫秒。 |
 | `githubConnectionTimeoutMs` | `5000` | 安装前 GitHub 仓库连接检查的时限，单位毫秒。 |

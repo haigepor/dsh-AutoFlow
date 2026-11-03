@@ -6056,7 +6056,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'BundleUpdateInfo',
-    declaration: 'export interface BundleUpdateInfo {\n    name: string;\n    repository: string;\n    automatic: boolean;\n    status: \'unchecked\' | \'current\' | \'available\' | \'installing\' | \'error\';\n    version?: string;\n    releaseUrl?: string;\n    diagnostic?: string;\n    failureStage?: \'metadata\' | \'download\' | \'install\';\n    transfer?: ArtifactDownloadProgress;\n    restartRequired: boolean;\n}',
+    declaration: 'export interface BundleUpdateInfo {\n    name: string;\n    repository: string;\n    automatic: boolean;\n    status: \'unchecked\' | \'current\' | \'available\' | \'installing\' | \'error\';\n    version?: string;\n    releaseUrl?: string;\n    diagnostic?: string;\n    failureStage?: \'metadata\' | \'download\' | \'install\';\n    lastCheckedAt?: number;\n    lastKnownVersion?: string;\n    checkFailure?: {\n        kind: \'rate-limited\' | \'forbidden\' | \'network\' | \'invalid-metadata\' | \'cache\';\n        retryAt?: number;\n    };\n    transfer?: ArtifactDownloadProgress;\n    restartRequired: boolean;\n}',
   },
   {
     name: 'ButtonProps',

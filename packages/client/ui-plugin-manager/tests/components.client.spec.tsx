@@ -12,7 +12,6 @@ import type { ConfigForm, ConfigFormSnapshot, SettingsMirrorSnapshot } from '@de
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives'
 import { StrictMode, type ReactNode } from 'react'
-import type { LocaleSnapshot } from '@deepseek-ai/dsh-client-locale/client'
 import { bundleDetailKey, type BundleDetailsState } from '../src/client/detail-store.ts'
 import { createNavigationStore } from '../src/client/navigation-store.ts'
 import { PluginManagerPage } from '../src/client/PluginManagerPage.tsx'
@@ -118,6 +117,48 @@ const translate = (dict: typeof en): PluginManagerPageProps['t'] => ((key: Plugi
   )) as PluginManagerPageProps['t']
 
 const t = translate(en)
+
+it('keeps a rate-limited check separate from installed state and localizes its recovery information', async () => {
+  const name = 'dsh-better-sidebar'
+  const update = { name, repository: 'example/plugins', automatic: false, status: 'error' as const,
+    failureStage: 'metadata' as const, diagnostic: 'GitHub update request failed: HTTP 403', restartRequired: false,
+    checkFailure: { kind: 'rate-limited' as const, retryAt: Date.parse('2026-11-03T10:43:39Z') },
+    lastCheckedAt: Date.parse('2026-11-03T09:00:00Z'), lastKnownVersion: '1.1.0' }
+  const b = renderTab({ packages: [pkg({ update })] })
+  const badge = screen.getByText(en.updatesCheckUnavailable)
+  expect(screen.queryByText(en.updatesFailed)).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: `View ${name}` }))
+  await waitFor(() => { expect(screen.getByText(en.updatesRateLimited, { exact: false })).toBeTruthy() })
+  const detail = screen.getByText(en.updatesRateLimited, { exact: false })
+  expect(detail.textContent).toContain('Nov')
+  expect({ list: badge.textContent, detail: detail.firstChild?.textContent,
+    lastKnownVersion: screen.getByText('Last known version: v1.1.0', { exact: false }).textContent?.split(' · ').at(-1) })
+    .toEqual(JSON.parse(readFileSync(join(import.meta.dirname, 'expected/update-check-unavailable-en.json'), 'utf8')))
+  expect(screen.queryByText(en.updatesCurrent)).toBeNull()
+  const diagnostics = screen.getByText(en.updatesTechnicalDetails).closest('details')!
+  expect(diagnostics.open).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: en.updatesCheck }))
+  expect(b.actions.checkUpdates).toHaveBeenCalledOnce()
+  expect(b.actions.updateBundle).not.toHaveBeenCalled()
+  await act(async () => { b.setLanguage(zh) })
+  expect(screen.getByText(zh.updatesRateLimited, { exact: false }).textContent).toContain('年')
+  expect(screen.getByText('上次发现的版本：v1.1.0', { exact: false })).toBeTruthy()
+  expect(screen.getByText(zh.updatesTechnicalDetails)).toBeTruthy()
+  expect(b.store.getSnapshot().packages[0]?.enabled).toBe(true)
+})
+
+it('keeps archive and installation failures distinct from unavailable metadata', async () => {
+  const name = 'dsh-better-sidebar'
+  const update = { name, repository: 'example/plugins', automatic: false, status: 'error' as const,
+    failureStage: 'download' as const, diagnostic: 'SHA256 mismatch', restartRequired: false }
+  const b = renderTab({ packages: [pkg({ update })] })
+  expect(screen.getByText(en.updatesError)).toBeTruthy()
+  expect(screen.queryByText(en.updatesCheckUnavailable)).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: `View ${name}` }))
+  await waitFor(() => { expect(screen.getByText(en.updatesDownloadFailed)).toBeTruthy() })
+  b.set({ packages: [pkg({ update: { ...update, failureStage: 'install' } })] })
+  expect(screen.getByText(en.updatesInstallFailed)).toBeTruthy()
+})
 
 function pkg(overrides: Partial<PackageView> = {}): PackageView {
   return {
@@ -331,7 +372,7 @@ function renderTab(
     useConfigLedger: bindSnapshotSelector(ledger),
     usePluginTabs: bindSnapshotSelector(tabLedger),
     useBundleDetails: bindSnapshotSelector(bundleDetails),
-    useLocale: bindSnapshotSelector(createSnapshotStore<LocaleSnapshot>({ active: 'en', locales: [], revision: 0 })),
+    useLocale: bindSnapshotSelector(locale),
     useConfigurations: bindSnapshotSelector(createSnapshotStore<SettingsMirrorSnapshot>({
       status: 'ready', error: null,
       view: { writable: true, hasDocument: true, namespaces: Object.keys(forms).map(ns => ({

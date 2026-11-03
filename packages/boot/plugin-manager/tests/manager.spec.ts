@@ -303,9 +303,9 @@ it('reports archive download failures without changing the installed version', a
   expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.0.0')
 })
 
-it('keeps installation progress when an earlier version check fails late', async () => {
+it('shares a pending metadata failure between checking and installation without changing the installed plugin', async () => {
   const { fetchMock } = githubFixture()
-  const { manager, dir } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+  const { manager, dir } = await fixture('startup', false, undefined, { updateMetadataCacheMs: 0 }, undefined, (profileDir) => {
     const path = join(profileDir, 'node_modules/extra/package.json')
     const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { bundle: Record<string, unknown> } }
     manifest.dsh.bundle.update = updateSource
@@ -315,36 +315,26 @@ it('keeps installation progress when an earlier version check fails late', async
   const original = fetchMock.getMockImplementation()!
   const checkStarted = Promise.withResolvers<undefined>()
   const failedCheck = Promise.withResolvers<Response>()
-  let holdCheck = true
+  const before = fetchMock.mock.calls.length
   fetchMock.mockImplementation(async (input, init) => {
     const url = input instanceof Request ? input.url : input.toString()
-    if (holdCheck && url.includes('/releases?')) {
-      holdCheck = false
-      checkStarted.resolve(undefined)
-      return failedCheck.promise
-    }
+    if (url.includes('/releases?')) { checkStarted.resolve(undefined); return failedCheck.promise }
     return original(input, init)
   })
-  const installing = Promise.withResolvers<undefined>()
-  const installation = Promise.withResolvers<Awaited<ReturnType<typeof operations.runProfilePnpm>>>()
-  const run = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
-    installing.resolve(undefined)
-    return installation.promise
-  })
+  const run = vi.spyOn(operations, 'runProfilePnpm')
   onTestFinished(() => { run.mockRestore() })
   const check = manager.checkBundleUpdates()
   await checkStarted.promise
   const update = manager.updateBundleRelease('extra')
   try {
-    await installing.promise
-    failedCheck.reject(new Error('Older check lost connection'))
-    await check
-    expect((await manager.listBundles()).find(item => item.name === 'extra')?.update).toMatchObject({ status: 'installing', version: '1.1.0' })
-  } finally {
-    failedCheck.resolve(Response.json([]))
-    installation.resolve({ exitCode: 1, output: 'Stopped fixture installation', truncated: false, logPath: join(dir, 'operation.log') })
-    await Promise.allSettled([check, update])
-  }
+    failedCheck.reject(new Error('Metadata connection lost'))
+    expect(await check).toMatchObject([{ status: 'error', failureStage: 'metadata', checkFailure: { kind: 'network' }, lastKnownVersion: '1.1.0' }])
+    expect(await update).toMatchObject({ application: 'failed', changed: false })
+    expect(run).not.toHaveBeenCalled()
+    expect(fetchMock.mock.calls.length - before).toBe(1)
+    expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.0.0')
+    expect((await manager.listBundles()).find(item => item.name === 'extra')).toMatchObject({ enabled: true })
+  } finally { failedCheck.resolve(Response.json([])); await Promise.allSettled([check, update]) }
 })
 
 it('persists declared feature choices and rejects unknown selections', async () => {

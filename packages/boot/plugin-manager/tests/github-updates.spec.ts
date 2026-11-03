@@ -7,6 +7,7 @@ import { expect, it, onTestFinished } from 'vitest'
 import { cacheBundleUpdate, discoverBundleUpdate, updateCacheDirectory } from '../src/github-updates.ts'
 import { backupUpdateEntry, readAutomaticUpdates, writeAutomaticUpdate } from '../src/update-state.ts'
 import { githubFixture, limits, source } from './update-fixture.ts'
+import { UpdateMetadata } from '../src/update-metadata.ts'
 
 function requestedUrl(input: string | URL | Request): string {
   return typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -18,6 +19,11 @@ function profile(): string {
   return root
 }
 
+function metadata(): UpdateMetadata {
+  return new UpdateMetadata(join(profile(), 'metadata.json'), { indexes: {}, cacheMs: 0, cacheEntries: 64,
+    failureBackoffMs: 1000, timeoutMs: limits.timeoutMs, jsonBytes: limits.jsonBytes }, new AbortController().signal)
+}
+
 it('normalizes absolute directory separators before traversing cache owners', () => {
   const root = profile()
   expect(updateCacheDirectory(root.replaceAll('\\', '/'))).toBe(join(root, '.plugin-updates', 'packages'))
@@ -27,8 +33,8 @@ it('normalizes absolute directory separators before traversing cache owners', ()
 it('selects its own stable family and retains verified bytes for pnpm file dependencies', async () => {
   const { bytes, release } = githubFixture()
   const signal = new AbortController().signal
-  expect(await discoverBundleUpdate('extra', '1.0.0', source, limits, signal)).toEqual(release)
-  expect(await discoverBundleUpdate('extra', '1.1.0', source, limits, signal)).toBeUndefined()
+  expect(await discoverBundleUpdate('extra', '1.0.0', source, limits, signal, metadata())).toEqual(release)
+  expect(await discoverBundleUpdate('extra', '1.1.0', source, limits, signal, metadata())).toBeUndefined()
   const cached = await cacheBundleUpdate(profile(), release, limits, signal)
   expect(readFileSync(cached.file)).toEqual(bytes)
   expect(cached.manifest.version).toBe('1.1.0')
@@ -96,7 +102,7 @@ it('transfers plugin archive ranges concurrently and validates the complete npm 
 it('rejects corrupted release digests', async () => {
   const { fetchMock, releaseRow } = githubFixture()
   fetchMock.mockResolvedValueOnce(Response.json([{ ...releaseRow, assets: releaseRow.assets.map(asset => ({ ...asset, digest: 'sha256:wrong' })) }]))
-  await expect(discoverBundleUpdate('extra', '1.0.0', source, limits, new AbortController().signal)).rejects.toThrow('metadata bytes')
+  await expect(discoverBundleUpdate('extra', '1.0.0', source, limits, new AbortController().signal, metadata())).rejects.toThrow('metadata bytes')
 })
 
 it('rejects moved tags, offline responses and stopped requests', async () => {
@@ -104,11 +110,11 @@ it('rejects moved tags, offline responses and stopped requests', async () => {
   const original = fetchMock.getMockImplementation()!
   fetchMock.mockImplementation(async (input, init) => (input instanceof Request ? input.url : input.toString()).includes('/git/ref/tags/')
     ? Response.json({ object: { type: 'commit', sha: 'b'.repeat(40) } }) : original(input, init))
-  await expect(discoverBundleUpdate('extra', '1.0.0', source, limits, new AbortController().signal)).rejects.toThrow('source commit')
+  await expect(discoverBundleUpdate('extra', '1.0.0', source, limits, new AbortController().signal, metadata())).rejects.toThrow('source commit')
   fetchMock.mockRejectedValueOnce(new Error('offline'))
-  await expect(discoverBundleUpdate('extra', '1.0.0', source, limits, new AbortController().signal)).rejects.toThrow('offline')
+  await expect(discoverBundleUpdate('extra', '1.0.0', source, limits, new AbortController().signal, metadata())).rejects.toThrow('offline')
   const stopped = new AbortController(); stopped.abort()
-  await expect(discoverBundleUpdate('extra', '1.0.0', source, limits, stopped.signal)).rejects.toThrow()
+  await expect(discoverBundleUpdate('extra', '1.0.0', source, limits, stopped.signal, metadata())).rejects.toThrow()
 })
 
 it('rejects requests outside official GitHub endpoints', async () => {

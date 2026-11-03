@@ -145,6 +145,15 @@ export interface BundleUpdateInfo {
   diagnostic?: string
   /** Operation owning the diagnostic; metadata failure does not imply an archive download started. */
   failureStage?: 'metadata' | 'download' | 'install'
+  /** Last completely validated version check, in epoch milliseconds; retained when a later check fails. */
+  lastCheckedAt?: number
+  /** Latest version observed by that successful check; absent when no release family was published. */
+  lastKnownVersion?: string
+  /** Structured discovery failure; it never describes archive transfer or package installation. */
+  checkFailure?: {
+    kind: 'rate-limited' | 'forbidden' | 'network' | 'invalid-metadata' | 'cache'
+    retryAt?: number
+  }
   /** True byte progress for the verified archive; absent during metadata checks and package-manager installation. */
   transfer?: ArtifactDownloadProgress
   /** This process retains the old module generation until restart. */

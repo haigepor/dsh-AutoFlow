@@ -1,0 +1,8 @@
+{
+  "id": "plugin-update-index",
+  "category": "fixes",
+  "text": {
+    "en": "Check bundled plugin versions through a shared official update index, respect rate-limit recovery times, and retain the last successful check when updates cannot be checked.",
+    "zh-CN": "随包插件通过共享官方索引检查更新，遵守限流恢复时间；检查暂不可用时保留上次成功结果，并区分检查、下载和安装失败。"
+  }
+}

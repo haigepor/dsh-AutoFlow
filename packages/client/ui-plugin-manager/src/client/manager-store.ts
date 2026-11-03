@@ -1167,7 +1167,7 @@ export class PluginManagerController {
       }) })
     } catch (error) {
       this.patch({ packages: this.getSnapshot().packages.map(pkg => pkg.update === undefined ? pkg : {
-        ...pkg, update: { ...pkg.update, status: 'error', diagnostic: reasonOf(error) },
+        ...pkg, update: { ...pkg.update, status: 'error', diagnostic: reasonOf(error), failureStage: 'metadata' },
       }) })
     } finally { this.finishSwitches([key]) }
   }

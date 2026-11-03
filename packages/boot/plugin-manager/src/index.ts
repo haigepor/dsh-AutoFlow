@@ -41,7 +41,8 @@ import { flatten, readPluginFeatureEnabled, writePluginEnabled, writePluginEnabl
 import { incompatiblePlugin, ManagementFailure } from './failure.ts'
 import { approveBuilds, recordPendingBuilds } from './build-approval.ts'
 import { checkGithubConnection } from './github-connection.ts'
-import { cacheBundleUpdate, discoverBundleUpdate, validateBundleArchive, type UpdateLimits } from './github-updates.ts'
+import { cacheBundleUpdate, discoverBundleUpdate, updateCacheDirectory, validateBundleArchive, type UpdateLimits } from './github-updates.ts'
+import { UpdateMetadata, UpdateMetadataError } from './update-metadata.ts'
 import { parseArtifactDownloadChoice } from './artifact-download.ts'
 import { backupUpdateEntry, readAutomaticUpdates, writeAutomaticUpdate, type UpdateEntryBackup } from './update-state.ts'
 import { chooseGitTransport, sshGitSpec } from './git-transport.ts'
@@ -68,6 +69,14 @@ export interface Config {
   updateIntervalMs?: number
   /** Deadline for one complete official update metadata response. */
   updateTimeoutMs?: number
+  /** Official project Pages indexes, keyed by GitHub owner/repository; other sources retain REST discovery. */
+  updateIndexes?: Record<string, string>
+  /** Time successful official metadata remains fresh; shared by automatic and manual checks. */
+  updateMetadataCacheMs?: number
+  /** Minimum delay after unavailable metadata or a rate limit without a later server deadline. */
+  updateMetadataBackoffMs?: number
+  /** Maximum retained metadata documents and successful package checks. */
+  updateMetadataCacheEntries?: number
   /** Public archive network and parallelism settings; archive timeouts measure inactivity. */
   updateDownload?: Partial<UpdateLimits['download']>
   /** Maximum JSON response bytes. */
@@ -401,6 +410,12 @@ export class PluginManager extends TypertRemoteService {
     restartTimeoutMs: z.number().step(1).min(1000).default(180000),
     updateIntervalMs: z.number().step(1).min(60000).default(3600000),
     updateTimeoutMs: z.number().step(1).min(1000).default(20000),
+    updateIndexes: z.dict(z.string()).default({
+      'haigepor/dsh-AutoFlow': 'https://haigepor.github.io/dsh-AutoFlow/plugins/stable/index.json',
+    }),
+    updateMetadataCacheMs: z.number().step(1).min(0).max(MAX_TIMER_DELAY_MS).default(900000),
+    updateMetadataBackoffMs: z.number().step(1).min(1000).max(MAX_TIMER_DELAY_MS).default(60000),
+    updateMetadataCacheEntries: z.number().step(1).min(1).max(256).default(64),
     updateDownload: z.object({
       idleTimeoutMs: z.number().step(1).min(1000).default(60000),
       probeTimeoutMs: z.number().step(1).min(1000).default(4000),
@@ -461,6 +476,7 @@ export class PluginManager extends TypertRemoteService {
   private iconAssets = new Map<string, PluginIcon>()
   private webIcons = false
   private readonly updateLimits: UpdateLimits
+  private readonly updateMetadata: UpdateMetadata
   private readonly updateStates = new Map<string, BundleUpdateInfo>()
   private readonly updateChecks = new Map<string, Promise<BundleUpdateInfo>>()
   private readonly updateInstalls = new Map<string, Promise<ChangeResult>>()
@@ -515,6 +531,11 @@ export class PluginManager extends TypertRemoteService {
       archiveBytes: updateConfig.updateArchiveBytes, expandedBytes: updateConfig.updateExpandedBytes,
       releasePages: updateConfig.updateReleasePages, download: { ...updateConfig.updateDownload as UpdateLimits['download'],
         source: parseArtifactDownloadChoice(updateConfig.updateDownload.source) } }
+    this.updateMetadata = new UpdateMetadata(join(dirname(updateCacheDirectory(this.profile.dir)), 'metadata.json'), {
+      indexes: updateConfig.updateIndexes, cacheMs: updateConfig.updateMetadataCacheMs,
+      failureBackoffMs: updateConfig.updateMetadataBackoffMs, cacheEntries: updateConfig.updateMetadataCacheEntries,
+      timeoutMs: updateConfig.updateTimeoutMs, jsonBytes: updateConfig.updateJsonBytes,
+    }, this.abort.signal)
     this.versionListLimit = (config as Required<Config>).versionListLimit
     this.versionLookupConcurrency = (config as Required<Config>).versionLookupConcurrency
     this.configuredRegistries = {
@@ -529,6 +550,7 @@ export class PluginManager extends TypertRemoteService {
     ctx.effect(() => async () => {
       this.abort.abort()
       await Promise.allSettled([...this.packageOperations])
+      await this.updateMetadata.drain()
     }, 'plugin-manager: package cancellation')
     ctx.inject(['appReady'], (ready) => {
       ready.effect(() => {
@@ -632,8 +654,14 @@ export class PluginManager extends TypertRemoteService {
   private updateInfo(name: string): BundleUpdateInfo | undefined {
     const source = resolveBundleUpdateSource(name, this.profile.installAnchor, this.profile.dir)
     if (source === undefined) return undefined
-    return { name, repository: source.repository, status: 'unchecked', ...this.updateStates.get(name),
+    return { name, repository: source.repository, status: 'unchecked', ...this.knownUpdate(name, source.repository), ...this.updateStates.get(name),
       automatic: readAutomaticUpdates(this.profile.dir)[name] === true, restartRequired: this.restartBundles.has(name) }
+  }
+
+  private knownUpdate(name: string, repository: string): Pick<BundleUpdateInfo, 'lastCheckedAt' | 'lastKnownVersion'> {
+    const check = this.updateMetadata.previous(repository, name)
+    return check === undefined ? {} : { lastCheckedAt: check.checkedAt,
+      ...(check.version === undefined ? {} : { lastKnownVersion: check.version }) }
   }
 
   private checkUpdate(name: string): Promise<BundleUpdateInfo> {
@@ -647,13 +675,14 @@ export class PluginManager extends TypertRemoteService {
         const source = resolveBundleUpdateSource(name, this.profile.installAnchor, this.profile.dir)
         if (source === undefined) throw new ManagementFailure('unknown-plugin')
         const manifest = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
-        const release = await discoverBundleUpdate(name, manifest?.version ?? '', source, this.updateLimits, this.abort.signal)
+        const release = await discoverBundleUpdate(name, manifest?.version ?? '', source, this.updateLimits, this.abort.signal, this.updateMetadata)
         const latest = this.updateInfo(name)
         if (latest?.restartRequired || latest?.status === 'installing') return latest
-        const state: BundleUpdateInfo = { ...info, status: release === undefined ? 'current' : 'available',
+        const state: BundleUpdateInfo = { ...info, ...this.knownUpdate(name, source.repository), status: release === undefined ? 'current' : 'available',
           ...(release === undefined ? {} : { version: release.metadata.version, releaseUrl: release.releaseUrl }) }
         delete state.diagnostic
         delete state.failureStage
+        delete state.checkFailure
         delete state.transfer
         if (release === undefined) { delete state.version; delete state.releaseUrl }
         this.updateStates.set(name, state)
@@ -662,7 +691,9 @@ export class PluginManager extends TypertRemoteService {
         // 旧检查的迟到失败不能覆盖正在安装或等待重启的状态。
         const latest = this.updateInfo(name)
         if (latest?.restartRequired || latest?.status === 'installing') return latest
-        const state: BundleUpdateInfo = { ...info, status: 'error', diagnostic: messageOf(error), failureStage: 'metadata' }
+        const state: BundleUpdateInfo = { ...info, status: 'error', diagnostic: messageOf(error), failureStage: 'metadata',
+          checkFailure: { kind: error instanceof UpdateMetadataError ? error.kind : 'invalid-metadata',
+            ...(error instanceof UpdateMetadataError && error.retryAt !== undefined ? { retryAt: error.retryAt } : {}) } }
         this.updateStates.set(name, state)
         return state
       }
@@ -683,14 +714,21 @@ export class PluginManager extends TypertRemoteService {
       const before = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
       if (before?.dsh?.bundle === undefined) throw new ManagementFailure('not-bundle')
       if (this.restartBundles.has(name)) return { target: name, stage: 'install', changed: false, application: 'restart-required' }
-      const release = await discoverBundleUpdate(name, before.version ?? '', source, this.updateLimits, this.abort.signal)
+      const release = await discoverBundleUpdate(name, before.version ?? '', source, this.updateLimits, this.abort.signal, this.updateMetadata)
       if (release === undefined) {
-        this.updateStates.set(name, { ...info, status: 'current' })
+        const current: BundleUpdateInfo = { ...info, ...this.knownUpdate(name, source.repository), status: 'current' }
+        delete current.checkFailure
+        delete current.diagnostic
+        delete current.failureStage
+        delete current.version
+        delete current.releaseUrl
+        this.updateStates.set(name, current)
         return { target: name, stage: 'install', changed: false, application: 'applied' }
       }
-      const installing: BundleUpdateInfo = { ...info, status: 'installing', version: release.metadata.version, releaseUrl: release.releaseUrl }
+      const installing: BundleUpdateInfo = { ...info, ...this.knownUpdate(name, source.repository), status: 'installing', version: release.metadata.version, releaseUrl: release.releaseUrl }
       delete installing.diagnostic
       delete installing.failureStage
+      delete installing.checkFailure
       delete installing.transfer
       this.updateStates.set(name, installing)
       this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
@@ -720,7 +758,9 @@ export class PluginManager extends TypertRemoteService {
     } catch (error) {
       const state = this.updateStates.get(name)
       if (!this.abort.signal.aborted && state !== undefined) {
-        this.updateStates.set(name, { ...state, status: 'error', diagnostic: messageOf(error), failureStage: stage })
+        this.updateStates.set(name, { ...state, status: 'error', diagnostic: messageOf(error), failureStage: stage,
+          ...(stage !== 'metadata' ? {} : { checkFailure: { kind: error instanceof UpdateMetadataError ? error.kind : 'invalid-metadata',
+            ...(error instanceof UpdateMetadataError && error.retryAt !== undefined ? { retryAt: error.retryAt } : {}) } }) })
         this.ownerContext.logger.warn(`Plugin update ${stage} failed (${name})`, error)
         this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
       }
