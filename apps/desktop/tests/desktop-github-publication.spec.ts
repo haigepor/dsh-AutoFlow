@@ -13,24 +13,38 @@ const version = '0.2.0-rc.2.20261010.1'
 const environment = { DSH_DESKTOP_UPDATE_PROVIDER: 'github', DSH_DESKTOP_GITHUB_REPOSITORY: 'owner/repository',
   DSH_DESKTOP_GITHUB_PAGES_URL: 'https://owner.github.io/repository/desktop/unsigned/', DSH_DESKTOP_UNSIGNED_UPDATES: '1' }
 
-async function fixture() {
+async function fixture(target: 'win-x64' | 'mac-arm64' | 'mac-x64' = 'win-x64') {
   const root = await mkdtemp(join(tmpdir(), 'desktop-github-'))
   directories.push(root)
-  const name = `deepseek-harness-${version}-win-x64-unsigned.exe`
+  const mac = target !== 'win-x64'
+  const base = `deepseek-harness-${version}-${target}-unsigned`
+  const name = `${base}.${mac ? 'zip' : 'exe'}`
   const bytes = Buffer.from('test installer payload')
   const metadata = { version, files: [{ url: name, size: bytes.length, sha512: createHash('sha512').update(bytes).digest('base64') }], path: name }
   await writeFile(join(root, name), bytes)
   await writeFile(join(root, `${name}.blockmap`), 'blockmap')
-  await writeFile(join(root, 'nightly.yml'), dump(metadata))
-  const record = { schemaVersion: 1, provider: 'github', repository: 'owner/repository', target: 'win-x64', version,
-    pagesUrl: environment.DSH_DESKTOP_GITHUB_PAGES_URL, publicUrl: `${environment.DSH_DESKTOP_GITHUB_PAGES_URL}feeds/win-x64/`,
+  await writeFile(join(root, mac ? 'nightly-mac.yml' : 'nightly.yml'), dump(metadata))
+  if (mac) await writeFile(join(root, `${base}.dmg`), 'test disk image')
+  const record = { schemaVersion: 1, provider: 'github', repository: 'owner/repository', target, version,
+    pagesUrl: environment.DSH_DESKTOP_GITHUB_PAGES_URL, publicUrl: `${environment.DSH_DESKTOP_GITHUB_PAGES_URL}feeds/${target}/`,
     signing: 'unsigned', commit: 'a'.repeat(40), dirty: false }
-  await writeFile(join(root, 'win-x64-release.json'), JSON.stringify(record))
+  await writeFile(join(root, `${target}-release.json`), JSON.stringify(record))
   const options = { environment, artifactsRoot: root, productVersion: '0.2.0-rc.2',
     readReleaseNotes: async () => ({ schemaVersion: 1, version, items: [{ id: 'resume-download', category: 'fixes',
       text: { en: 'Resume interrupted downloads.', 'zh-CN': '支持恢复中断的下载。' } }] }) }
-  return { root, name, record, metadata, options, plan: await prepareDesktopGithubPublication('win-x64', options) }
+  return { root, name, record, metadata, options, plan: await prepareDesktopGithubPublication(target, options) }
 }
+
+it.each(['mac-arm64', 'mac-x64'] as const)('publishes %s update ZIP, blockmap and DMG under its immutable test release', async (target) => {
+  const { plan } = await fixture(target)
+  expect(plan.tag).toBe(`desktop-v${version}-${target}-unsigned`)
+  expect(plan.assets.map(asset => asset.name)).toEqual([
+    `deepseek-harness-${version}-${target}-unsigned.zip`, `deepseek-harness-${version}-${target}-unsigned.zip.blockmap`,
+    `deepseek-harness-${version}-${target}-unsigned.dmg`,
+  ])
+  expect(plan.policy.targets[target]?.minimumSupportedVersion).toBe('0.0.0')
+  expect(load(plan.feed)).toMatchObject({ files: [{ url: `https://github.com/owner/repository/releases/download/${plan.tag}/${plan.assets[0]!.name}` }] })
+})
 
 it('builds a platform feed with explicit desktop Release URLs and retains the preceding minimum', async () => {
   const { options, plan } = await fixture()

@@ -132,6 +132,23 @@ export async function signMacOSAdHocCode(path, identifier, entitlements) {
 }
 
 /**
+ * Seal a certificate-free test app with an explicit identifier requirement shared by its future updates.
+ * Squirrel verifies this requirement and nested code integrity; it does not authenticate a publisher.
+ * Public update bytes remain bound to the isolated HTTPS feed's complete SHA512.
+ * @param {string} path Already signed application bundle; nested signatures remain intact.
+ * @param {string} identifier Isolated test application identifier ending in .unsigned.
+ * @returns {Promise<void>} Resolves after sealing and strict nested-code verification.
+ */
+export async function signMacOSAdHocUpdateBundle(path, identifier) {
+  if (!/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\.unsigned$/u.test(identifier)) throw new Error('desktop macOS update: isolated .unsigned app identifier required')
+  const requirement = `designated => identifier "${identifier}"`
+  await runAppleCommandAsync('/usr/bin/codesign', ['--force', '--sign', '-', '--identifier', identifier,
+    '--timestamp=none', '--preserve-metadata=entitlements', '--requirements', `=${requirement}`, path], 'codesign ad-hoc update')
+  verifyMacOSAdHocSignature(path, true)
+  runCodeSign(['--verify', '--strict', '-R', `=identifier "${identifier}"`, path])
+}
+
+/**
  * Verify code integrity and the ad-hoc identity, without asserting notarization or Gatekeeper acceptance.
  * @param {string} path Runtime file or application bundle.
  * @param {boolean} deep Whether to verify the nested application code as well.

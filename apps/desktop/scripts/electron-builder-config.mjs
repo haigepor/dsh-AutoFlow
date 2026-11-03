@@ -30,7 +30,7 @@ import { preserveWindowsRuntimeSignature, signWindowsCode } from './windows-runt
 import { prepareWindowsAsarUnpack, verifyWindowsAsarUnpack } from './windows-asar-unpack.mjs'
 import { recordPackagingEvent } from './packaging-run.mjs'
 import { validateMacOSUnsignedEnvironment } from './desktop-package-environment.mjs'
-import { verifyMacOSAdHocSignature } from './verify-macos-signature.mjs'
+import { signMacOSAdHocUpdateBundle, verifyMacOSAdHocSignature } from './verify-macos-signature.mjs'
 import {
   resolveMacOSAppUpdateFeed,
   verifyMacOSAppUpdateConfig,
@@ -69,7 +69,7 @@ export function createElectronBuilderConfig(
   if (skipNotarization && (unsigned || resolvedPlatform !== 'darwin')) throw new Error('Skipping notarization requires a signed macOS build')
   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
   if (packagesMacOS && unsigned) validateMacOSUnsignedEnvironment(env)
-  const policy = packagesMacOS && unsigned ? undefined : resolveDesktopPolicyEnvironment(env)
+  const policy = packagesMacOS && unsigned && env.DSH_DESKTOP_UNSIGNED_UPDATES !== '1' ? undefined : resolveDesktopPolicyEnvironment(env)
   const packagesWindows = resolvedPlatform === 'win32'
   const macOSSigning = packagesMacOS && !unsigned ? resolveMacOSSigningEnvironment(env) : undefined
   if (packagesMacOS && !unsigned && !skipNotarization) resolveMacOSNotarizationEnvironment(env)
@@ -232,9 +232,10 @@ export function createElectronBuilderConfig(
         })
         await verifyWindowsAsarUnpack(buildPaths.dsh, context.packager.getResourcesDir(context.appOutDir), windowsCode)
       }
-      if (context.electronPlatformName !== 'darwin' || unsigned) return
+      if (context.electronPlatformName !== 'darwin') return
       const appPath = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
       if (unsigned) {
+        if (env.DSH_DESKTOP_UNSIGNED_UPDATES === '1') await signMacOSAdHocUpdateBundle(appPath, resolveDesktopAppId(env))
         verifyMacOSAdHocSignature(appPath, true)
         return
       }

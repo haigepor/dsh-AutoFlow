@@ -16,6 +16,14 @@ export function assertMacOSAdHocSignatureDetails(details: string): void
 export function signMacOSAdHocCode(path: string, identifier: string, entitlements: string | undefined): Promise<void>
 
 /**
+ * Seal an isolated certificate-free test app with the identifier requirement verified by Squirrel updates.
+ * @param path Already signed application bundle; nested signatures remain intact.
+ * @param identifier Test app ID ending in .unsigned; no publisher identity is asserted.
+ * @returns Resolves after sealing and strict nested-code verification.
+ */
+export function signMacOSAdHocUpdateBundle(path: string, identifier: string): Promise<void>
+
+/**
  * Verify integrity and an ad-hoc identity without asserting Apple trust.
  * @param path Runtime file or application bundle.
  * @param deep Whether to verify nested code.

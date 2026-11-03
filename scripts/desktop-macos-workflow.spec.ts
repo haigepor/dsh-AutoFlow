@@ -57,8 +57,11 @@ describe('artifact-only native macOS Desktop workflow', () => {
 
   it('requires an explicit deployment, full version and exact source commit', () => {
     const inputs = workflow.on.workflow_dispatch!.inputs
-    expect(Object.keys(inputs).sort()).toEqual(['deployment', 'expected_commit', 'signing', 'target', 'version'])
-    for (const [name, input] of Object.entries(inputs)) { expect(input.required).toBe(true); if (name !== 'target') expect(input.default).toBeUndefined() }
+    expect(Object.keys(inputs).sort()).toEqual(['deployment', 'expected_commit', 'signing', 'target', 'unsigned_updates', 'version'])
+    for (const [name, input] of Object.entries(inputs)) {
+      if (name === 'unsigned_updates') { expect(input).toMatchObject({ required: false, type: 'boolean', default: false }); continue }
+      expect(input.required).toBe(true); if (name !== 'target') expect(input.default).toBeUndefined()
+    }
     expect(inputs.target?.options).toEqual(['mac-arm64', 'mac-x64'])
     expect(inputs.target?.default).toBe('mac-arm64')
     expect(inputs.deployment?.options).toEqual(['unconfirmed', 'test', 'production'])

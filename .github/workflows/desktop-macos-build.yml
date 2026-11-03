@@ -27,6 +27,11 @@ on:
         description: 'Confirmed 40-character commit SHA on main'
         required: true
         type: string
+      unsigned_updates:
+        description: 'Enable the isolated GitHub auto-update channel for certificate-free test packages'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -51,6 +56,7 @@ jobs:
       SIGNING_MODE: ${{ inputs.signing }}
       BUILD_VERSION: ${{ inputs.version }}
       EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+      DESKTOP_UNSIGNED_UPDATES: ${{ inputs.unsigned_updates }}
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -58,8 +64,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
-        with:
-          version: '11.7.0'
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24.14.0'
@@ -127,15 +131,20 @@ jobs:
         env:
           DESKTOP_APP_ID: ${{ vars.DESKTOP_UNSIGNED_APP_ID }}
         run: node apps/desktop/scripts/desktop-macos-ci.mjs prepare
+      - name: Qualify native certificate-free update replacement
+        if: inputs.signing == 'unsigned' && inputs.unsigned_updates
+        run: node apps/desktop/scripts/qualify-macos-adhoc-updates.mjs
       - name: Preflight the existing package pipeline
         run: |
           args=("$DESKTOP_TARGET" --build-version "$BUILD_VERSION")
           if [[ "$SIGNING_MODE" == 'unsigned' ]]; then args+=(--unsigned); fi
+          if [[ "$SIGNING_MODE" == 'unsigned' && "$DESKTOP_UNSIGNED_UPDATES" == 'true' ]]; then args+=(--unsigned-updates); fi
           pnpm --dir apps/desktop run check:package "${args[@]}"
       - name: Build selected macOS installers in the confirmed signing mode
         run: |
           args=(--build-version "$BUILD_VERSION")
           if [[ "$SIGNING_MODE" == 'unsigned' ]]; then args+=(--unsigned); fi
+          if [[ "$SIGNING_MODE" == 'unsigned' && "$DESKTOP_UNSIGNED_UPDATES" == 'true' ]]; then args+=(--unsigned-updates); fi
           pnpm run "package:desktop:mac:$DESKTOP_ARCH" "${args[@]}"
       - name: Verify completion and stage the explicit artifact list
         id: stage

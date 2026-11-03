@@ -63,6 +63,8 @@ export function stageMacOSCIArtifacts(options: MacOSCIPaths & {
   deployment: string
   signing: string
   expectedCommit: string
+  unsignedUpdates?: boolean
+  readReleaseNotes?: (commit: string, version: string) => Promise<unknown>
 }): Promise<void>
 
 /**

@@ -77,11 +77,11 @@ export async function prepareDesktopGithubPublication(target: DesktopPolicyTarge
   const signing = unsigned ? 'unsigned' : 'signed'
   if (record.schemaVersion !== 1 || record.target !== target || record.provider !== 'github'
     || record.repository !== update.repository || record.publicUrl !== update.publicUrl || record.pagesUrl !== update.pagesUrl
-    || record.signing !== signing || (unsigned && target !== 'win-x64') || typeof record.commit !== 'string'
+    || record.signing !== signing || typeof record.commit !== 'string'
     || !/^[0-9a-f]{40}$/u.test(record.commit) || typeof record.dirty !== 'boolean') {
     throw new Error('desktop GitHub publication: completion record does not match the selected release')
   }
-  const tag = `desktop-v${version}${unsigned ? '-unsigned' : ''}`
+  const tag = `desktop-v${version}${unsigned ? `${target === 'win-x64' ? '' : `-${target}`}-unsigned` : ''}`
   const notes = parseDesktopReleaseNotes(await (options.readReleaseNotes ?? readCommittedReleaseNotes)(record.commit, version), version)
   const releaseNotes = `${releaseNotesMarkdown(notes, 'zh-CN')}\n\n---\n\n${releaseNotesMarkdown(notes, 'en')}`
   const feedName = desktopUpdateMetadataFilename(version, platform)

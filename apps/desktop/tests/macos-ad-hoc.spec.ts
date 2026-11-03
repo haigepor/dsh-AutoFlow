@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { signMacOSAdHocCode, verifyMacOSAdHocSignature } from '../scripts/verify-macos-signature.mjs'
+import { signMacOSAdHocCode, signMacOSAdHocUpdateBundle, verifyMacOSAdHocSignature } from '../scripts/verify-macos-signature.mjs'
 import { signMacOSRuntime } from '../scripts/macos-runtime.ts'
 
 const apple = vi.hoisted(() => ({ code: 0, details: 'Signature=adhoc\nTeamIdentifier=not set\n' }))
@@ -27,6 +27,15 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
   apple.code = 0; apple.details = 'Signature=adhoc\nTeamIdentifier=not set\n'
   vi.clearAllMocks()
+})
+
+it('restricts updatable ad-hoc bundles to the isolated test application identity', async () => {
+  await expect(signMacOSAdHocUpdateBundle('/fixture/App.app', 'com.example.production')).rejects.toThrow('.unsigned')
+  expect(spawn).not.toHaveBeenCalled()
+  await signMacOSAdHocUpdateBundle('/fixture/App.app', 'com.example.desktop.unsigned')
+  expect(spawn).toHaveBeenCalledOnce()
+  expect(spawnSync).toHaveBeenCalledWith('/usr/bin/codesign', ['--verify', '--strict', '-R',
+    '=identifier "com.example.desktop.unsigned"', '/fixture/App.app'], { encoding: 'utf8' })
 })
 
 it('signs without certificate discovery, a keychain or a timestamp service', async () => {

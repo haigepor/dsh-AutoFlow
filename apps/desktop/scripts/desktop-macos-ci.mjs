@@ -136,8 +136,18 @@ export async function prepareMacOSCI(options) {
   const { loadDesktopPackageEnvironment, validateDesktopPackageEnvironment } = await import('./desktop-package-environment.mjs')
   if (signing === 'unsigned') {
     // 测试模式仅生成非敏感配置，不读取 Secrets，也不接触登录 keychain。
-    writeFileSync(config, header(root) + dotenv({ DSH_DESKTOP_APP_ID: required(env, 'DESKTOP_APP_ID'),
-      DSH_DESKTOP_AUTO_UPDATE_ENV: 'test', DSH_DESKTOP_MACOS_PACK_CONCURRENCY: '2' }), { flag: 'wx', mode: 0o600 })
+    const settings = { DSH_DESKTOP_APP_ID: required(env, 'DESKTOP_APP_ID'),
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'test', DSH_DESKTOP_MACOS_PACK_CONCURRENCY: '2' }
+    if (env.DESKTOP_UNSIGNED_UPDATES === 'true') {
+      const repository = required(env, 'GITHUB_REPOSITORY')
+      if (!/^[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+$/u.test(repository)) throw new Error('desktop macOS CI: invalid repository')
+      const [owner, name] = repository.split('/')
+      const pages = `https://${owner}.github.io/${name}/desktop/unsigned/`
+      Object.assign(settings, { DSH_DESKTOP_UPDATE_PROVIDER: 'github', DSH_DESKTOP_GITHUB_REPOSITORY: repository,
+        DSH_DESKTOP_GITHUB_PAGES_URL: pages, DSH_DESKTOP_UNSIGNED_UPDATES: '1',
+        DSH_DESKTOP_MANDATORY_UPDATE_SOURCE: 'static-json', DSH_DESKTOP_MANDATORY_UPDATE_URL: `${pages}policy.json` })
+    }
+    writeFileSync(config, header(root) + dotenv(settings), { flag: 'wx', mode: 0o600 })
     validateDesktopPackageEnvironment(loadDesktopPackageEnvironment('darwin', {}, options.appRoot),
       host, { unsigned: true })
     return
@@ -203,7 +213,7 @@ export function collectMacOSCIDiagnostics(options) {
 
 /**
  * Verify mode-specific completion/payload hashes, then stage an explicit file list.
- * @param {{directory: string, runnerTemp: string, appRoot: string, target: string, version: string, productVersion: string, deployment: string, signing: string, expectedCommit: string}} options Confirmed dispatch and owned paths.
+ * @param {{directory: string, runnerTemp: string, appRoot: string, target: string, version: string, productVersion: string, deployment: string, signing: string, expectedCommit: string, unsignedUpdates?: boolean, readReleaseNotes?: (commit: string, version: string) => Promise<unknown>}} options Confirmed dispatch, owned paths and optional source reader for isolated tests.
  * @returns {Promise<void>} Produces deliverables/SHA256SUMS; performs no network or publication operation.
  */
 export async function stageMacOSCIArtifacts(options) {
@@ -213,7 +223,7 @@ export async function stageMacOSCIArtifacts(options) {
   const artifactsRoot = join(options.appRoot, '.desktop-build', 'targets', target,
     options.signing === 'unsigned' ? 'unsigned-artifacts' : 'artifacts')
   let names
-  if (options.signing === 'unsigned') {
+  if (options.signing === 'unsigned' && !options.unsignedUpdates) {
     const { verifyMacOSUnsignedArtifacts } = await import('./macos-unsigned-artifacts.ts')
     names = await verifyMacOSUnsignedArtifacts({ target, artifactsRoot, version: options.version,
       productVersion: options.productVersion, expectedCommit: options.expectedCommit })
@@ -221,11 +231,13 @@ export async function stageMacOSCIArtifacts(options) {
     const { loadDesktopPackageEnvironment } = await import('./desktop-package-environment.mjs')
     const { prepareDesktopGithubPublication } = await import('./desktop-github-publication.ts')
     const environment = loadDesktopPackageEnvironment('darwin', {}, options.appRoot)
-    const publication = await prepareDesktopGithubPublication(target, { environment, artifactsRoot, productVersion: options.productVersion })
+    if ((environment.DSH_DESKTOP_UNSIGNED_UPDATES === '1') !== (options.signing === 'unsigned')) throw new Error('desktop macOS CI: update configuration differs from confirmed signing mode')
+    const publication = await prepareDesktopGithubPublication(target, { environment, artifactsRoot, productVersion: options.productVersion,
+      ...(options.readReleaseNotes === undefined ? {} : { readReleaseNotes: options.readReleaseNotes }) })
     const recordName = `${target}-release.json`
     const record = JSON.parse(plainFile(join(artifactsRoot, recordName)).toString('utf8'))
     if (publication.version !== options.version || publication.commit !== options.expectedCommit || publication.dirty
-      || record.environment !== options.deployment || publication.signing !== 'signed') {
+      || record.environment !== options.deployment || publication.signing !== options.signing) {
       throw new Error('desktop macOS CI: completed package differs from the confirmed build')
     }
     names = [...publication.assets.map(asset => asset.name), publication.feedName, recordName]
@@ -308,7 +320,8 @@ async function main() {
   else if (command === 'cleanup') cleanupMacOSCI(options)
   else if (command === 'stage') await stageMacOSCIArtifacts({ ...options, target: required(process.env, 'DESKTOP_TARGET'), version: required(process.env, 'BUILD_VERSION'),
     productVersion: JSON.parse(readFileSync(join(appRoot, 'package.json'), 'utf8')).version,
-    deployment: required(process.env, 'DEPLOYMENT'), signing: required(process.env, 'SIGNING_MODE'), expectedCommit: required(process.env, 'EXPECTED_COMMIT') })
+    deployment: required(process.env, 'DEPLOYMENT'), signing: required(process.env, 'SIGNING_MODE'), expectedCommit: required(process.env, 'EXPECTED_COMMIT'),
+    unsignedUpdates: process.env.DESKTOP_UNSIGNED_UPDATES === 'true' })
   else throw new Error('desktop macOS CI: unknown command')
 }
 

@@ -148,16 +148,21 @@ function requireReadableFile(environment, name) {
 }
 
 /**
- * Keep certificate-free macOS packages in the test deployment without an update channel.
+ * Keep certificate-free macOS packages in the test deployment; updates require the isolated GitHub channel.
  * @param {NodeJS.ProcessEnv} environment File-owned packaging settings.
- * @returns {void} Rejects production and the Windows-only unsigned update switch.
+ * @returns {void} Rejects production and an unsigned update configuration outside its GitHub test channel.
  */
 export function validateMacOSUnsignedEnvironment(environment) {
   if (environment.DSH_DESKTOP_AUTO_UPDATE_ENV !== 'test') {
     throw new Error('desktop package: unsigned macOS requires explicit test deployment')
   }
   if (environment.DSH_DESKTOP_UNSIGNED_UPDATES === '1') {
-    throw new Error('desktop package: unsigned macOS does not support automatic updates')
+    const update = resolveDesktopAutoUpdateConfig(environment, 'darwin', 'arm64')
+    const policy = resolveDesktopPolicyEnvironment(environment)
+    if (update.provider !== 'github' || policy.source !== 'static-json' || policy.policyUrl !== `${update.pagesUrl}policy.json`
+      || !resolveDesktopAppId(environment).endsWith('.unsigned')) {
+      throw new Error('desktop package: unsigned macOS automatic updates require an isolated GitHub policy and .unsigned app ID')
+    }
   }
 }
 

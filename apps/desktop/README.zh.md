@@ -241,6 +241,10 @@ Desktop 在 Host 启动后、打开工作区前检查模型 API Key 引用是否
 
 GitHub Actions 的 `Publish Windows Desktop` 工作流可传入 `publish=false`，只构建无签名测试安装包并保留 artifact，不发布 Release 或修改更新策略。省略该选项或设为 `true` 时，仍执行原有发布流程。GitHub 打包会将默认的 `nightly` 通道传入安装器和完成记录；工作流在保留 artifact 前校验 Nightly 元数据与资产摘要。
 
+既有 `Build macOS Desktop artifacts` 工作流在 Apple Silicon 构建 `mac-arm64`，在 Intel 构建 `mac-x64`。确认 `deployment=test`、`signing=unsigned`、完整版本及精确 `expected_commit`；`unsigned_updates=true` 无需 Apple 凭据即可选择隔离的 GitHub 更新渠道。工作流先用私有测试应用验证 Squirrel 下载、应用替换和重新启动。测试应用采用显式 ad-hoc 应用标识要求、严格嵌套代码校验及官方 HTTPS 清单的完整 SHA512，没有 Developer ID 或公证。普通本地 `--unsigned` 继续默认关闭更新；`--unsigned --unsigned-updates` 读取 `.env.macos` 中显式配置的 GitHub 渠道，要求应用 ID 以 `.unsigned` 结尾。
+
+两种无证书 Mac 目标分别通过 `publish:github <target>` 发布不可变的 `desktop-v<version>-mac-arm64-unsigned` 或 `desktop-v<version>-mac-x64-unsigned` Release。按顺序发布，每个目标合并前一次 Pages 策略，保留 Windows 与插件索引。测试渠道的 `minimumSupportedVersion` 保持 `0.0.0`，更新可选，安装仍需用户确认；这些测试包不具备 Apple 发布者身份验证，也不保证 Gatekeeper 放行。
+
 ### 发布版本
 
 远程更新需要公开的 Release 附件和已生效的 Pages 清单。首次 Pages 发布需要仓库管理权限；后续工作流复用专用的 `desktop-updates` 站点。发布中断后，从已鉴权的分页 Release 列表定位草稿，按 ID 继续处理，保留匹配附件并拒绝不明确的列表。已有文档站点与已发布的最低支持版本继续受到保护。

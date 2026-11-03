@@ -204,6 +204,7 @@ interface DesktopPackageInvocation {
   readonly directory: boolean
   readonly prepareOnly: boolean
   readonly unsigned: boolean
+  readonly unsignedUpdates: boolean
   readonly skipNotarization: boolean
   readonly check: boolean
   /** Build identifier to publish under, when this build does not publish the product version. */
@@ -237,6 +238,7 @@ export function parseDesktopPackageInvocation(
       dir: { type: 'boolean', default: false },
       'prepare-only': { type: 'boolean', default: false },
       unsigned: { type: 'boolean', default: false },
+      'unsigned-updates': { type: 'boolean', default: false },
       'skip-notarization': { type: 'boolean', default: false },
       check: { type: 'boolean', default: false },
       'build-version': { type: 'string' },
@@ -245,6 +247,9 @@ export function parseDesktopPackageInvocation(
   if (positionals.length > 1) throw new Error('desktop package: expected at most one target')
   const name = positionals[0] ?? hostTargetName(hostPlatform, hostArch)
   if (values.unsigned && values['prepare-only']) throw new Error('desktop package: --unsigned cannot use --prepare-only')
+  if (values['unsigned-updates'] && (!values.unsigned || name === 'win-x64')) {
+    throw new Error('desktop package: --unsigned-updates requires an explicitly unsigned macOS build')
+  }
   if (values['skip-notarization'] && (name === 'win-x64' || values.unsigned || values['prepare-only'])) {
     throw new Error('desktop package: --skip-notarization requires a signed macOS build, without --prepare-only')
   }
@@ -257,6 +262,7 @@ export function parseDesktopPackageInvocation(
     directory: values.dir,
     prepareOnly: values['prepare-only'],
     unsigned: values.unsigned,
+    unsignedUpdates: values['unsigned-updates'],
     skipNotarization: values['skip-notarization'],
     check: values.check,
     requestedBuildVersion,
@@ -350,11 +356,14 @@ async function main(): Promise<void> {
   if (invocation.skipNotarization) {
     process.stdout.write('desktop package: skipping notarization and stapling; internal debugging only, not qualified for distribution or update publishing\n')
   }
-  const environment = target.platform === 'darwin' && invocation.unsigned
+  const environment = target.platform === 'darwin' && invocation.unsigned && !invocation.unsignedUpdates
     ? localMacOSPackageEnvironment()
     : loadDesktopPackageEnvironment(target.platform, process.env, APP_ROOT, {
       unsigned: invocation.unsigned, prepareOnly: invocation.prepareOnly,
     })
+  if (invocation.unsignedUpdates && environment.DSH_DESKTOP_UNSIGNED_UPDATES !== '1') {
+    throw new Error('desktop package: --unsigned-updates requires explicit GitHub update configuration in .env.macos')
+  }
   const productVersion = packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')
   // Release settings come from the selected configuration files, so the version this run publishes is an
   // argument; the environment variable below only carries it to the child processes that build.
@@ -549,7 +558,7 @@ export async function packageTarget(
   if (target.platform === 'darwin' && invocation.unsigned) {
     await execute(desktopElectronBuilderArguments(target, invocation.directory), electronBuilderEnv)
     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts', '--unsigned'], targetEnv)
-    if (!invocation.directory) await writeMacOSUnsignedRecord({ target: target.name === 'mac-arm64' ? 'mac-arm64' : 'mac-x64',
+    if (!invocation.directory && environment.DSH_DESKTOP_UNSIGNED_UPDATES !== '1') await writeMacOSUnsignedRecord({ target: target.name === 'mac-arm64' ? 'mac-arm64' : 'mac-x64',
       artifactsRoot, environment: electronBuilderEnv,
       version: resolveDesktopBuildVersion(environment, packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')),
       productVersion: packageVersion(join(APP_ROOT, 'package.json'), 'desktop package') })

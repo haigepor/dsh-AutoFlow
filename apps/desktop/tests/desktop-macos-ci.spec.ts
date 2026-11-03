@@ -41,12 +41,13 @@ async function fixture() {
   return { ...options, options, calls }
 }
 
-async function completedFixture(target: 'mac-arm64' | 'mac-x64' = 'mac-arm64') {
+async function completedFixture(target: 'mac-arm64' | 'mac-x64' = 'mac-arm64', unsigned = false) {
   const item = await fixture()
-  await prepareMacOSCI({ ...item.options, environment: { ...environment, DESKTOP_TARGET: target } })
-  const artifacts = join(item.appRoot, '.desktop-build', 'targets', target, 'artifacts')
+  await prepareMacOSCI({ ...item.options, environment: { ...environment, DESKTOP_TARGET: target,
+    ...(unsigned ? { SIGNING_MODE: 'unsigned', DESKTOP_APP_ID: 'com.example.desktop.unsigned', DESKTOP_UNSIGNED_UPDATES: 'true' } : {}) } })
+  const artifacts = join(item.appRoot, '.desktop-build', 'targets', target, unsigned ? 'unsigned-artifacts' : 'artifacts')
   mkdirSync(artifacts, { recursive: true })
-  const base = `deepseek-harness-${version}-${target}`
+  const base = `deepseek-harness-${version}-${target}${unsigned ? '-unsigned' : ''}`
   const payload = Buffer.from('fixture signed ZIP')
   writeFileSync(join(artifacts, `${base}.zip`), payload)
   writeFileSync(join(artifacts, `${base}.zip.blockmap`), 'fixture blockmap')
@@ -54,10 +55,14 @@ async function completedFixture(target: 'mac-arm64' | 'mac-x64' = 'mac-arm64') {
   const metadata = { version, files: [{ url: `${base}.zip`, size: payload.length, sha512: createHash('sha512').update(payload).digest('base64') }], path: `${base}.zip` }
   writeFileSync(join(artifacts, 'nightly-mac.yml'), dump(metadata))
   const record = { schemaVersion: 1, provider: 'github', repository: environment.GITHUB_REPOSITORY,
-    target, version, environment: 'test', signing: 'signed', commit, dirty: false,
-    pagesUrl: environment.DESKTOP_GITHUB_PAGES_URL, publicUrl: `${environment.DESKTOP_GITHUB_PAGES_URL}feeds/${target}/` }
+    target, version, environment: 'test', signing: unsigned ? 'unsigned' : 'signed', commit, dirty: false,
+    pagesUrl: unsigned ? 'https://owner.github.io/repository/desktop/unsigned/' : environment.DESKTOP_GITHUB_PAGES_URL,
+    publicUrl: `${unsigned ? 'https://owner.github.io/repository/desktop/unsigned/' : environment.DESKTOP_GITHUB_PAGES_URL}feeds/${target}/` }
   writeFileSync(join(artifacts, `${target}-release.json`), JSON.stringify(record))
-  const stageOptions = { ...item.options, target, version, productVersion, deployment: 'test', signing: 'signed', expectedCommit: commit }
+  const readReleaseNotes = async () => ({ schemaVersion: 1, version, items: [{ id: 'fixture-update', category: 'fixes',
+    text: { en: 'Retain validated updates.', 'zh-CN': '保留已经校验的更新。' } }] })
+  const stageOptions = { ...item.options, target, version, productVersion, deployment: 'test', signing: unsigned ? 'unsigned' : 'signed',
+    expectedCommit: commit, readReleaseNotes, unsignedUpdates: unsigned }
   return { ...item, artifacts, base, metadata, record, stageOptions }
 }
 
@@ -222,6 +227,15 @@ describe('macOS CI artifact evidence', () => {
     const { stageOptions, directory } = await completedFixture()
     await expect(stageMacOSCIArtifacts({ ...stageOptions, target: 'mac-x64' })).rejects.toThrow()
     expect(existsSync(join(directory, 'deliverables'))).toBe(false)
+  })
+
+  it.each(['mac-arm64', 'mac-x64'] as const)('stages %s certificate-free update assets in the isolated channel without Apple credentials', async (target) => {
+    const { stageOptions, directory, base, calls } = await completedFixture(target, true)
+    await stageMacOSCIArtifacts(stageOptions)
+    expect(readdirSync(join(directory, 'deliverables')).sort()).toEqual(['SHA256SUMS', `${base}.dmg`, `${base}.zip`,
+      `${base}.zip.blockmap`, `${target}-release.json`, 'nightly-mac.yml'].sort())
+    expect(readdirSync(join(directory, 'credentials'))).toEqual([])
+    expect(calls).toEqual([])
   })
 
   it.each(['version', 'commit', 'dirty', 'environment', 'signing'])('rejects a mismatched completion record: %s', async (field) => {

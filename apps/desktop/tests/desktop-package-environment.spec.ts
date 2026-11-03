@@ -20,7 +20,14 @@ it('requires explicit test mode but no Apple credentials or update URLs for cert
   for (const deployment of [undefined, '', 'production']) {
     expect(() =>{  validateDesktopPackageEnvironment({ ...unsigned, DSH_DESKTOP_AUTO_UPDATE_ENV: deployment }, MACOS, { unsigned: true }) }).toThrow('explicit test')
   }
-  expect(() =>{  validateDesktopPackageEnvironment({ ...unsigned, DSH_DESKTOP_UNSIGNED_UPDATES: '1' }, MACOS, { unsigned: true }) }).toThrow('automatic updates')
+  expect(() =>{  validateDesktopPackageEnvironment({ ...unsigned, DSH_DESKTOP_UNSIGNED_UPDATES: '1' }, MACOS, { unsigned: true }) }).toThrow()
+  const updates = { ...unsigned, DSH_DESKTOP_APP_ID: 'com.example.desktop.unsigned', DSH_DESKTOP_UNSIGNED_UPDATES: '1',
+    DSH_DESKTOP_UPDATE_PROVIDER: 'github', DSH_DESKTOP_GITHUB_REPOSITORY: 'owner/repository',
+    DSH_DESKTOP_GITHUB_PAGES_URL: 'https://owner.github.io/repository/desktop/unsigned/',
+    DSH_DESKTOP_MANDATORY_UPDATE_SOURCE: 'static-json',
+    DSH_DESKTOP_MANDATORY_UPDATE_URL: 'https://owner.github.io/repository/desktop/unsigned/policy.json' }
+  expect(() => { validateDesktopPackageEnvironment(updates, MACOS, { unsigned: true }) }).not.toThrow()
+  expect(() => { validateDesktopPackageEnvironment({ ...updates, DSH_DESKTOP_APP_ID: 'com.example.desktop' }, MACOS, { unsigned: true }) }).toThrow('.unsigned app ID')
 })
 
 async function withDirectory(action: (directory: string) => Promise<void>): Promise<void> {

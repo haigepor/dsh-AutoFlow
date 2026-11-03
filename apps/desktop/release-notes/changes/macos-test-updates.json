@@ -1,0 +1,8 @@
+{
+  "id": "macos-test-updates",
+  "category": "improvements",
+  "text": {
+    "en": "Apple Silicon and Intel certificate-free macOS test packages can check and download updates through the isolated official channel, with installation requiring confirmation.",
+    "zh-CN": "Apple Silicon 与 Intel 的无证书 macOS 测试包支持通过隔离的官方渠道检查和下载更新，安装仍需确认。"
+  }
+}
