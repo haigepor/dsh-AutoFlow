@@ -29,6 +29,8 @@ kind: "package-bundle"
 <a id="use-this-package"></a>
 ## 使用本包
 
+AutoFlow 默认包含[启动动画插件](../../../custom-plugins/workspace/dsh-boot-animation/README.zh.md)。打包的赛博朋克视频与 Host、插件、渲染器及会话和工作区首批列表并行加载，并支持跳过或交接到已就绪的应用。
+
 启动 GUI、打开浏览器，然后开始与 agent（智能体）对话。flag 用于微调本次调用。
 
 ### 启动 Web GUI

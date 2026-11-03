@@ -16,9 +16,10 @@ const artifactGraph = {
   'afp': ['client-bundle'],
   'visual-curator': ['client-bundle'],
   'style-prompt': ['client-bundle'],
+  'boot-animation': ['client-bundle'],
   'codex-subscription': ['host-bundle'],
   'sidebar': ['client-bundle'],
-  'web': ['afp', 'sidebar', 'visual-curator', 'style-prompt', 'codex-subscription'],
+  'web': ['afp', 'sidebar', 'visual-curator', 'style-prompt', 'codex-subscription', 'boot-animation'],
 }
 
 function graph(gates: ReturnType<typeof buildGates>): Record<string, string[] | undefined> {

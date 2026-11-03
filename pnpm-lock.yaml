@@ -564,6 +564,9 @@ importers:
       dsh-better-sidebar:
         specifier: workspace:*
         version: link:../../custom-plugins/workspace/dsh-better-sidebar
+      dsh-boot-animation:
+        specifier: workspace:*
+        version: link:../../custom-plugins/workspace/dsh-boot-animation
       dsh-plugin-afp:
         specifier: workspace:*
         version: link:../../custom-plugins/workspace/dsh-plugin-afp
@@ -1100,6 +1103,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.7.0
         version: 4.7.0(supports-color@9.4.0)(vite@6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0))
+      dsh-boot-animation:
+        specifier: workspace:*
+        version: link:../../custom-plugins/workspace/dsh-boot-animation
       fflate:
         specifier: ^0.8.2
         version: 0.8.3
@@ -1630,6 +1636,27 @@ importers:
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
+
+  custom-plugins/workspace/dsh-boot-animation:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-api-session-controller':
+        specifier: workspace:*
+        version: link:../../../packages/api/session-controller
+      '@deepseek-ai/dsh-api-workspace-controller':
+        specifier: workspace:*
+        version: link:../../../packages/api/workspace-controller
+      '@deepseek-ai/dsh-app-boot':
+        specifier: workspace:*
+        version: link:../../../packages/boot/app-boot
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(oxc-resolver@11.20.0)(publint@0.3.24)(tsx@4.23.13)(typescript@6.0.3)(unrun@0.2.39)
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
 
   custom-plugins/workspace/dsh-plugin-afp:
     devDependencies:

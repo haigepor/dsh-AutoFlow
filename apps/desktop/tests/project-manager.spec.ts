@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDesktopPaths } from '../src/paths.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
 import { loadProfileDirectory, readProfilePlugins } from '@deepseek-ai/dsh-app-boot'
-import { runtimeFixture } from './runtime-fixture.ts'
+import { runtimeFixture, writePackage } from './runtime-fixture.ts'
 
 const roots: string[] = []
 function temporaryRoot(): string {
@@ -43,7 +43,34 @@ afterEach(() => {
 })
 
 describe('desktop external plugin profile', () => {
-  it('enables the shipped curation and sidebar bundles only when initializing a new profile', async () => {
+  it('reads startup animation enablement from the selected bundle, profile row and home override', async () => {
+    const { manager } = setup()
+    const directory = writePackage(join(manager.runtime.dsh, 'node_modules'), 'dsh-boot-animation', {
+      dsh: { bundle: { patch: './cordis.patch.yml' } },
+    })
+    writeFileSync(join(directory, 'cordis.patch.yml'), '- insert:\n    - id: dsh-boot-animation\n      name: dsh-boot-animation\n', 'utf8')
+    await manager.applyRelease()
+    expect(manager.startupAnimationEnabled()).toBe(true)
+    const path = join(manager.paths.profile, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { profile: { bundles: string[] } } }
+    const bundles = manifest.dsh.profile.bundles
+    manifest.dsh.profile.bundles = bundles.filter(name => name !== 'dsh-boot-animation')
+    writeFileSync(path, JSON.stringify(manifest), 'utf8')
+    expect(manager.startupAnimationEnabled()).toBe(false)
+    await manager.applyRelease()
+    expect(manager.startupAnimationEnabled()).toBe(false)
+    manifest.dsh.profile.bundles = bundles
+    writeFileSync(path, JSON.stringify(manifest), 'utf8')
+    const patch = join(manager.paths.profile, 'cordis.patch.yml')
+    writeFileSync(patch, '- id: dsh-boot-animation\n  disabled: true\n', 'utf8')
+    expect(manager.startupAnimationEnabled()).toBe(false)
+    writeFileSync(patch, '- id: dsh-boot-animation\n  disabled: false\n', 'utf8')
+    expect(manager.startupAnimationEnabled()).toBe(true)
+    writeFileSync(join(manager.paths.profile, '..', '..', 'cordis.patch.yml'), '- id: dsh-boot-animation\n  disabled: true\n', 'utf8')
+    expect(manager.startupAnimationEnabled()).toBe(false)
+  })
+
+  it('enables the shipped curation, sidebar and startup bundles when initializing a new profile', async () => {
     const { manager } = setup()
     await manager.applyRelease()
     const manifest = JSON.parse(readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')) as {
@@ -55,8 +82,32 @@ describe('desktop external plugin profile', () => {
       'dsh-plugin-visual-curator',
       'dsh-plugin-style-prompt',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
+      'dsh-boot-animation',
     ])
     expect(manifest.dependencies).toEqual({})
+  })
+
+  it('preserves the former installation defaults without re-enabling startup animation', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    const path = join(manager.paths.profile, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as {
+      dependencies: Record<string, string>
+      dsh: { profile: { bundles: string[] } }
+    }
+    manifest.dsh.profile.bundles = [
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
+      'dsh-plugin-visual-curator', 'dsh-plugin-style-prompt',
+      'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
+    ]
+    manifest.dependencies.saved = '1.0.0'
+    writeFileSync(path, JSON.stringify(manifest), 'utf8')
+    const patchPath = join(manager.paths.profile, 'cordis.patch.yml')
+    const patch = '- id: dsh-boot-animation\n  disabled: true\n'
+    writeFileSync(patchPath, patch, 'utf8')
+    await manager.applyRelease()
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual(manifest)
+    expect(readFileSync(patchPath, 'utf8')).toBe(patch)
   })
 
   it.each([
@@ -64,6 +115,7 @@ describe('desktop external plugin profile', () => {
     { selected: ['dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater'] },
     { selected: ['dsh-plugin-visual-curator'] },
     { selected: ['dsh-plugin-style-prompt'] },
+    { selected: ['dsh-boot-animation'] },
   ])('retains existing Desktop bundle choices $selected across application launches', async ({ selected }) => {
     const { manager } = setup()
     await manager.applyRelease()
@@ -107,6 +159,7 @@ describe('desktop external plugin profile', () => {
     const restored = JSON.parse(readFileSync(path, 'utf8')) as typeof manifest
     expect(restored.dsh.profile.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp', 'dsh-plugin-visual-curator', 'dsh-plugin-style-prompt',
+      'dsh-boot-animation',
     ])
     for (const name of sidebars) {
       expect(restored.dependencies[name]).toBe('1.0.0')

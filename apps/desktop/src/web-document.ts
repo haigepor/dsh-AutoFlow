@@ -6,6 +6,7 @@ const MIME: Readonly<Record<string, string>> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json',
   '.woff2': 'font/woff2', '.png': 'image/png', '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4',
 }
 const BOOT = '<script>globalThis.__DSH_BOOT_READY__ = Promise.withResolvers()</script>'
 
@@ -13,9 +14,10 @@ const BOOT = '<script>globalThis.__DSH_BOOT_READY__ = Promise.withResolvers()</s
  * Read an application-owned static asset; the index waits for asynchronous Host injections.
  * @param request - Local application request.
  * @param root - Packaged Web dist directory.
+ * @param startupAnimation - Effective Desktop profile permits early startup media.
  * @returns Static response, or a missing/invalid path response.
  */
-export async function serveWebDocument(request: Request, root: string): Promise<Response> {
+export async function serveWebDocument(request: Request, root: string, startupAnimation = false): Promise<Response> {
   if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405 })
   const url = new URL(request.url)
   let pathname: string
@@ -29,7 +31,7 @@ export async function serveWebDocument(request: Request, root: string): Promise<
     throw error
   }
   const content = pathname === '/' || pathname === '/index.html'
-    ? body.toString().replace('<head>', '<head>' + BOOT) : new Uint8Array(body)
+    ? body.toString().replace('<head>', '<head>' + BOOT + `<script>globalThis.__DSH_STARTUP_ANIMATION__=${String(startupAnimation)}</script>`) : new Uint8Array(body)
   return new Response(request.method === 'HEAD' ? null : content, {
     headers: { 'content-type': MIME[extname(target)] ?? 'application/octet-stream' },
   })

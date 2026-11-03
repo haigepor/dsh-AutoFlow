@@ -116,6 +116,7 @@
     "dsh-plugin-afp": "workspace:*",
     "dsh-plugin-visual-curator": "workspace:*",
     "dsh-plugin-style-prompt": "workspace:*",
+    "dsh-boot-animation": "workspace:*",
     "dsh-plugin-codex-subscription": "workspace:*",
     "dsh-better-sidebar": "workspace:*",
     "dsh-plugin-better-sidebar-updater": "workspace:*"

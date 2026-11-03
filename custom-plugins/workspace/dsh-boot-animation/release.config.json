@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "repository": "haigepor/dsh-AutoFlow",
+  "tagPrefix": "boot-animation-v",
+  "metadataAsset": "boot-animation-update.json",
+  "channel": "stable",
+  "makeLatest": false
+}

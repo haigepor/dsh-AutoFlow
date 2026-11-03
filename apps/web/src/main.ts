@@ -2,6 +2,8 @@
 import '@deepseek-ai/dsh-client-ui-theme/brand-font.css'
 import '@deepseek-ai/dsh-client-ui-theme/appearance-font.css'
 import { AppWebEntry, applyIndexInjections } from '@deepseek-ai/dsh-client-web'
+import cyberpunk from 'dsh-boot-animation/cyberpunk.mp4?url'
+import { startStartupAnimation } from './startup-animation.ts'
 
 interface DesktopBootGlobal {
   dshDesktopBoot?: {
@@ -10,6 +12,8 @@ interface DesktopBootGlobal {
   }
 }
 const desktop = (globalThis as DesktopBootGlobal).dshDesktopBoot
+const animationStartedEarly = window.__DSH_STARTUP_ANIMATION__ === true
+let startup = startStartupAnimation(document, cyberpunk)
 const reportFailure = (reason: unknown): void => {
   if (desktop === undefined) throw reason
   void desktop.failed(reason instanceof Error ? reason.message : String(reason)).catch(console.error)
@@ -32,10 +36,15 @@ try {
         script.onerror = () => { reject(new Error(`desktop web: failed to load ${src}`)) }
         document.head.append(script)
       }))
+      if (!animationStartedEarly) startup = startStartupAnimation(document, cyberpunk)
       gate.resolve()
     }).catch((error: unknown) => { gate.reject(error) })
   }
-  void entry.run(desktop === undefined ? undefined : reportFailure)
+  void entry.run(desktop === undefined ? undefined : reportFailure, {
+    mounted: () => { startup.mounted() },
+    failed: () => { startup.fail() },
+  })
 } catch (reason) {
+  startup.fail()
   reportFailure(reason)
 }

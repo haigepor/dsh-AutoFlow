@@ -19,6 +19,14 @@ import './base.css'
 /** Module transport hook replaced by jsdom tests. */
 export type BootSeams = Pick<ClientModuleCreateOptions, 'loadBundle' | 'resolveAsset'>
 
+/** Carrier-owned presentation observes boot without delaying plugin activation. */
+export interface BootPresentation {
+  /** Called after every plugin activates and the renderer mount is installed. */
+  mounted(): void
+  /** Called before the existing boot failure presentation; it receives no application ownership. */
+  failed(): void
+}
+
 /** Browser boot entry consumed by `apps/web`. */
 export class AppWebEntry {
   private readonly container: HTMLElement
@@ -44,9 +52,10 @@ export class AppWebEntry {
    * Load and activate every client entry, then hand the mount point to the
    * UI renderer. Plugin failures remain visible on the boot page.
    * @param onFailure - Optional carrier-owned fatal presentation; keeps the boot page visible.
+   * @param presentation - Optional carrier presentation notified at mount or failure; absent leaves boot unchanged.
    * @returns Resolves after application mount or failure reporting.
    */
-  async run(onFailure?: (reason: unknown) => void): Promise<void> {
+  async run(onFailure?: (reason: unknown) => void, presentation?: BootPresentation): Promise<void> {
     try {
       // Boot-readiness gate: whichever bootstrap applies the injection table
       // settles this deferred once every row has taken effect — the served
@@ -96,7 +105,9 @@ export class AppWebEntry {
       // renderer draws is the one the first frame measures.
       this.stopDragRecall = installWindowDragRecall({ document: this.container.ownerDocument })
       await mountClient(ctx, this.container)
+      presentation?.mounted()
     } catch (reason) {
+      presentation?.failed()
       console.error(reason)
       if (onFailure !== undefined) onFailure(reason)
       else this.page.fail(reason instanceof Error ? reason.message : String(reason))

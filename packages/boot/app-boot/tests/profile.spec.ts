@@ -391,6 +391,7 @@ describe('loadProfile', () => {
       'dsh-plugin-visual-curator',
       'dsh-plugin-style-prompt',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
+      'dsh-boot-animation',
     ])
     expect(PROFILE_TEMPLATES.acp).toEqual({
       bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app'],
@@ -411,11 +412,12 @@ describe('loadProfile', () => {
     { selected: ['dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater'] },
     { selected: ['dsh-plugin-visual-curator'] },
     { selected: ['dsh-plugin-style-prompt'] },
+    { selected: ['dsh-boot-animation'] },
   ])('preserves existing Web bundle selections $selected when defaults change', ({ selected }) => {
     const names = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
       'dsh-plugin-visual-curator',
       'dsh-plugin-style-prompt',
-      'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater']
+      'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater', 'dsh-boot-animation']
     const anchor = stageInstallation(Object.fromEntries(names.map(name => [name, { patch: '[]\n' }])))
     const home = tmp()
     const dir = resolveProfileDir('web', home)
@@ -427,6 +429,22 @@ describe('loadProfile', () => {
     const loaded = loadProfile('t', 'web', anchor, home)
     expect(loaded.layers.map(layer => layer.packageName)).toEqual(bundles)
     expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(manifest)
+    expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toBe(patch)
+  })
+
+  it('preserves the former Web tuple without re-enabling startup animation', () => {
+    const bundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
+      'dsh-plugin-visual-curator', 'dsh-plugin-style-prompt',
+      'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater']
+    const anchor = stageInstallation(Object.fromEntries([...bundles, 'dsh-boot-animation'].map(name => [name, { patch: '[]\n' }])))
+    const home = tmp()
+    const dir = resolveProfileDir('web', home)
+    initProfile(dir, bundles)
+    const patch = '- id: dsh-boot-animation\n  disabled: true\n'
+    writeFileSync(join(dir, PROFILE_PATCH_FILENAME), patch, 'utf8')
+    const loaded = loadProfile('t', 'web', anchor, home)
+    expect(loaded.layers.map(layer => layer.packageName)).toEqual(bundles)
+    expect(readProfileManifest('t', dir).dsh?.profile?.bundles).toEqual(bundles)
     expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toBe(patch)
   })
 

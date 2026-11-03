@@ -28,7 +28,7 @@ Edit this package when the installation's bundle selection or the plugin manager
 
 ### Profile templates
 
-`PROFILE_TEMPLATES` maps each shipped profile name (`web`, `headless`, `acp`, `sdk`, `sdk-minimal`) to its ordered bundle layer list. App-boot initializes a missing shipped profile from its template, and `dsh --profile <name> --from-default-profile <template>` copies one into a custom profile. `DEFAULT_PROFILE_BUNDLES` is the list `dsh plugin` uses for a profile name with no template. `INSTALLATION_OWNED_PROFILE_TUPLES` names bundle lists that an earlier release wrote into a shipped profile; app-boot replaces an exact match with the current template.
+`PROFILE_TEMPLATES` maps each shipped profile name (`web`, `headless`, `acp`, `sdk`, `sdk-minimal`) to its ordered bundle layer list. App-boot initializes a missing shipped profile from its template, and `dsh --profile <name> --from-default-profile <template>` copies one into a custom profile. `DEFAULT_PROFILE_BUNDLES` is the list `dsh plugin` uses for a profile name with no template. `INSTALLATION_OWNED_PROFILE_TUPLES` names bundle lists that an earlier release wrote into a shipped profile; app-boot replaces an exact match with the current template. New Web and Desktop profiles select `dsh-boot-animation`; existing Web and Desktop selections remain unchanged, including the former defaults after startup animation is disabled.
 
 ### Optional and retired bundles
 

@@ -29,6 +29,8 @@ Run `dsh --profile web` for browser chat, model and settings management, and ses
 <a id="use-this-package"></a>
 ## Use this package
 
+AutoFlow includes the [startup animation plugin](../../../custom-plugins/workspace/dsh-boot-animation/README.md). Its packaged cyberpunk video plays while the Host, plugins, renderer, and initial Session/Workspace lists initialize, with a skippable handoff to the ready application.
+
 Start the GUI, open your browser, and start talking to the agent. The flags fine-tune the invocation.
 
 ### Starting the Web GUI

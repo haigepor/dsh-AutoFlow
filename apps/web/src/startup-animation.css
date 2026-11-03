@@ -1,0 +1,53 @@
+.autoflow-startup {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #03060b;
+  color: #fff;
+  backdrop-filter: blur(18px);
+  transition: background-color .46s ease, backdrop-filter .46s ease;
+}
+
+.autoflow-startup video {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  object-fit: contain;
+  animation: autoflow-startup-enter .34s ease both;
+  transition: opacity .46s ease, filter .46s ease, transform .46s ease;
+}
+
+.autoflow-startup-skip {
+  position: absolute;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  padding: 8px 16px;
+  border: 1px solid #ffffff59;
+  border-radius: 999px;
+  color: inherit;
+  background: #0008;
+  font: inherit;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.autoflow-startup-skip:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.autoflow-startup-status { display: none; position: relative; align-self: end; margin-bottom: 32px; padding: 8px 16px; border-radius: 999px; background: #000b; }
+.autoflow-startup[data-dsh-startup-animation='waiting'] .autoflow-startup-status { display: block; }
+.autoflow-startup[data-dsh-startup-animation='leaving'] { pointer-events: none; background: transparent; backdrop-filter: blur(0); }
+.autoflow-startup[data-dsh-startup-animation='leaving'] video { animation: none; opacity: 0; filter: blur(16px); transform: scale(1.02); }
+.autoflow-startup[data-dsh-startup-animation='leaving'] button,
+.autoflow-startup[data-dsh-startup-animation='leaving'] .autoflow-startup-status { display: none; }
+
+@keyframes autoflow-startup-enter {
+  from { opacity: 0; filter: blur(14px); transform: scale(1.04); }
+  to { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .autoflow-startup, .autoflow-startup video { animation: none; transition: none; }
+}

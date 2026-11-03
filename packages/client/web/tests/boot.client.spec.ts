@@ -62,7 +62,10 @@ describe('bootstrap failure rendering', () => {
     document.body.append(container)
     const entry = new AppWebEntry(container)
     const failure = vi.fn()
-    await entry.run(failure)
+    const presentation = { mounted: vi.fn(), failed: vi.fn() }
+    await entry.run(failure, presentation)
+    expect(presentation.failed).toHaveBeenCalledOnce()
+    expect(presentation.mounted).not.toHaveBeenCalled()
     expect(failure).toHaveBeenCalledWith(new Error('web boot: window.__ModuleLoader__ bootstrap facade is missing'))
     expect(container.textContent).toContain('Loading plugins')
     expect(container.textContent).not.toContain('Failed to load plugins')

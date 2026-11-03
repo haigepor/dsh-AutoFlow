@@ -13,7 +13,7 @@ import {
   writeFileSync,
   writeSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import {
   DESKTOP_HOST_PACKAGE,
   desktopCorePackageOverrides,
@@ -25,6 +25,7 @@ import { readDesktopRuntime } from './runtime-tree.ts'
 import {
   initProfile, readProfileManifest, removeLinkProjections, sanitizeProfile,
   writeProfileBundles,
+  composeEntries, loadProfileDirectory, readProfilePatches,
 } from '@deepseek-ai/dsh-app-boot'
 import { PROFILE_TEMPLATES, type ProfileTemplate } from '@deepseek-ai/dsh-official-bundles'
 
@@ -93,6 +94,22 @@ export class DesktopProjectManager {
       createPluginProfile(this.paths.profile)
       removeLinkProjections(this.paths.profile)
     })
+  }
+
+  /**
+   * Read the effective startup row before loading the application document.
+   * @returns Whether the prepared profile permits startup animation, including feature and home overrides.
+   */
+  startupAnimationEnabled(): boolean {
+    const installAnchor = join(this.runtime.dsh, 'node_modules', '@deepseek-ai/dsh/package.json')
+    const profile = loadProfileDirectory('dsh', this.paths.profile, installAnchor)
+    const entries = composeEntries([readProfilePatches('dsh', {
+      name: 'desktop', dir: profile.dir, patchPath: profile.patchPath, installAnchor,
+      cwd: process.cwd(), home: resolve(this.paths.profile, '..', '..'),
+      startedBundles: profile.layers.map(layer => layer.packageName),
+      overlays: [], telemetryDisabledEnv: process.env.DSH_TELEMETRY_DISABLED,
+    }, profile)])
+    return entries.some(row => row.id === 'dsh-boot-animation' && !row.disabled)
   }
 
   private async withLock<T>(operation: () => T | Promise<T>): Promise<T> {

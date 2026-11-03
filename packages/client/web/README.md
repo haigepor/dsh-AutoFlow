@@ -39,6 +39,8 @@ Boot runs in two stages: the module stage adopts the parser-loaded bootstrap bat
 
 ### The boot page
 
+Carriers may pass a presentation observer as the second argument of `AppWebEntry.run`: `mounted()` follows plugin activation and renderer mounting, and `failed()` precedes the existing failure report. The observer never delays module loading. AutoFlow uses it to coordinate its independently playing startup clip with the startup plugin's Session and Workspace baseline readiness.
+
 The boot page uses plain DOM and local CSS, so bundle and plugin-activation failures remain visible: it shows one spinner node whose CSS arc grows as entries activate, and reports per-entry status. The spinner and its animation phase persist until the full UI replaces the boot page. A plugin that fails import or activation is reported by name with the reason (missing service, import failure, or state) instead of a blank page. The console contains the original import error.
 
 <a id="the-shared-module-table"></a>

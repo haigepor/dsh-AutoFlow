@@ -16,6 +16,7 @@ export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-plugin-afp',
       'dsh-plugin-visual-curator', 'dsh-plugin-style-prompt',
       'dsh-better-sidebar', 'dsh-plugin-better-sidebar-updater',
+      'dsh-boot-animation',
     ],
   },
   headless: {

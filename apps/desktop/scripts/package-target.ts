@@ -502,6 +502,7 @@ export async function packageTarget(
       'custom-plugins/workspace/dsh-plugin-afp',
       'custom-plugins/workspace/dsh-plugin-visual-curator',
       'custom-plugins/workspace/dsh-plugin-style-prompt',
+      'custom-plugins/workspace/dsh-boot-animation',
       'custom-plugins/workspace/dsh-plugin-codex-subscription',
       'custom-plugins/workspace/dsh-better-sidebar',
       'custom-plugins/workspace/dsh-better-sidebar/updater',
