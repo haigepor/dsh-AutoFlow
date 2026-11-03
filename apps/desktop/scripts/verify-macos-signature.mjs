@@ -144,7 +144,19 @@ export async function signMacOSAdHocUpdateBundle(path, identifier) {
   const requirement = `designated => identifier "${identifier}"`
   await runAppleCommandAsync('/usr/bin/codesign', ['--force', '--sign', '-', '--identifier', identifier,
     '--timestamp=none', '--preserve-metadata=entitlements', '--requirements', `=${requirement}`, path], 'codesign ad-hoc update')
+  verifyMacOSAdHocUpdateSignature(path, identifier)
+}
+
+/**
+ * Verify the assembled test app retains the stable requirement needed by its next Squirrel update.
+ * @param {string} path Already sealed application bundle.
+ * @param {string} identifier Isolated test application identifier.
+ * @returns {void} Rejects damaged nested code, certificate identities and per-build cdhash requirements.
+ */
+export function verifyMacOSAdHocUpdateSignature(path, identifier) {
   verifyMacOSAdHocSignature(path, true)
+  const requirement = runCodeSign(['--display', '-r-', path]).split(/\r?\n/u).find(line => line.startsWith('designated => '))
+  if (requirement !== `designated => identifier "${identifier}"`) throw new Error('desktop macOS update: stable ad-hoc identifier requirement is missing')
   runCodeSign(['--verify', '--strict', '-R', `=identifier "${identifier}"`, path])
 }
 

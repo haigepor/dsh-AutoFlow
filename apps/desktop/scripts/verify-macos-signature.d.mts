@@ -24,6 +24,13 @@ export function signMacOSAdHocCode(path: string, identifier: string, entitlement
 export function signMacOSAdHocUpdateBundle(path: string, identifier: string): Promise<void>
 
 /**
+ * Verify strict nested integrity and the stable requirement used by future Squirrel updates.
+ * @param path Assembled application bundle.
+ * @param identifier Isolated test application ID; no Apple publisher trust is asserted.
+ */
+export function verifyMacOSAdHocUpdateSignature(path: string, identifier: string): void
+
+/**
  * Verify integrity and an ad-hoc identity without asserting Apple trust.
  * @param path Runtime file or application bundle.
  * @param deep Whether to verify nested code.

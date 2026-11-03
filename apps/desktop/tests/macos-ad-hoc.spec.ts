@@ -4,10 +4,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { signMacOSAdHocCode, signMacOSAdHocUpdateBundle, verifyMacOSAdHocSignature } from '../scripts/verify-macos-signature.mjs'
+import { signMacOSAdHocCode, signMacOSAdHocUpdateBundle, verifyMacOSAdHocSignature, verifyMacOSAdHocUpdateSignature } from '../scripts/verify-macos-signature.mjs'
 import { signMacOSRuntime } from '../scripts/macos-runtime.ts'
 
-const apple = vi.hoisted(() => ({ code: 0, details: 'Signature=adhoc\nTeamIdentifier=not set\n' }))
+const apple = vi.hoisted(() => ({ code: 0, details: 'Signature=adhoc\nTeamIdentifier=not set\n', requirement: 'designated => identifier "com.example.desktop.unsigned"\n' }))
 vi.mock('node:child_process', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:child_process')>()
   const { EventEmitter } = await import('node:events')
@@ -18,7 +18,8 @@ vi.mock('node:child_process', async (importOriginal) => {
       queueMicrotask(() => { child.stdout.end(); child.stderr.end(); child.emit('close', apple.code, null) })
       return child
     }),
-    spawnSync: vi.fn(() => ({ status: apple.code, signal: null, error: undefined, stdout: '', stderr: apple.details })),
+    spawnSync: vi.fn((_file: string, args: readonly string[]) => ({ status: apple.code, signal: null, error: undefined,
+      stdout: '', stderr: args.includes('-r-') ? apple.requirement : apple.details })),
   }
 })
 
@@ -26,6 +27,7 @@ const roots: string[] = []
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
   apple.code = 0; apple.details = 'Signature=adhoc\nTeamIdentifier=not set\n'
+  apple.requirement = 'designated => identifier "com.example.desktop.unsigned"\n'
   vi.clearAllMocks()
 })
 
@@ -36,6 +38,11 @@ it('restricts updatable ad-hoc bundles to the isolated test application identity
   expect(spawn).toHaveBeenCalledOnce()
   expect(spawnSync).toHaveBeenCalledWith('/usr/bin/codesign', ['--verify', '--strict', '-R',
     '=identifier "com.example.desktop.unsigned"', '/fixture/App.app'], { encoding: 'utf8' })
+})
+
+it('refuses an assembled app sealed with a per-build ad-hoc hash instead of the stable update requirement', () => {
+  apple.requirement = 'designated => cdhash H"0123456789012345678901234567890123456789"\n'
+  expect(() => { verifyMacOSAdHocUpdateSignature('/fixture/App.app', 'com.example.desktop.unsigned') }).toThrow('stable ad-hoc')
 })
 
 it('signs without certificate discovery, a keychain or a timestamp service', async () => {

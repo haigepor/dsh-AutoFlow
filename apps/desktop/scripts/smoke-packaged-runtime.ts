@@ -1,11 +1,13 @@
 /** Validate the assembled application, including native Office conversion outside ASAR. */
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { desktopArtifactOutput, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 import { readDesktopRuntime, verifyDesktopRuntime } from '../src/runtime-tree.ts'
 import { verifyWindowsCode } from './windows-runtime-signature.mjs'
 import { smokePreparedRuntime } from './smoke-prepared-runtime.ts'
 import { resolveDesktopPackageTarget } from './package-target.ts'
+import { resolveDesktopAppId } from './desktop-release-environment.mjs'
+import { verifyMacOSAdHocUpdateSignature } from './verify-macos-signature.mjs'
 
 const paths = resolveDesktopTargetBuildPaths()
 const { values } = parseArgs({ options: { unsigned: { type: 'boolean', default: false }, 'skip-notarization': { type: 'boolean', default: false } }, allowPositionals: false })
@@ -19,4 +21,7 @@ const executable = windows ? join(application, 'DeepSeek Harness.exe') : join(ap
 const descriptor = await verifyDesktopRuntime(paths.dsh, readDesktopRuntime(paths.dsh).release.version,
   resolveDesktopPackageTarget(target))
 if (windows && !values.unsigned) await verifyWindowsCode(application)
+if (!windows && values.unsigned && process.env.DSH_DESKTOP_UNSIGNED_UPDATES === '1') {
+  verifyMacOSAdHocUpdateSignature(dirname(application), resolveDesktopAppId(process.env))
+}
 await smokePreparedRuntime(join(resources, 'app.asar', 'dsh'), executable, join(resources, 'runtime'), descriptor)
