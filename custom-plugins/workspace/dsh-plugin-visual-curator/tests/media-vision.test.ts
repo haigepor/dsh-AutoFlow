@@ -51,6 +51,29 @@ test('declares normalized region bounds in the model JSON schema instead of rely
   assert.match(descriptor.instructions, /Never return pixel coordinates/)
 })
 
+test('malformed review output retains field diagnostics and can use the owning task retry budget', async () => {
+  const output = { ruleResults: [], cropPotential: 'direct', preferenceScores: [] }
+  await assert.rejects(new CompatibleVisionProvider(config, new VisionFixture(output)).review(await bundle(), bounds), (error: unknown) => {
+    assert.ok(error instanceof MediaError)
+    assert.equal(error.code, 'vision-invalid-output')
+    assert.equal(error.retryable, true)
+    assert.deepEqual(error.diagnostics?.modelOutput, output)
+    assert.ok(error.diagnostics?.issues.some(issue => issue.includes('taskRelevance')))
+    return true
+  })
+})
+
+test('review evidence outside the admitted image bundle is rejected and diagnosed before a bounded retry', async () => {
+  const output = { ruleResults: [{ ruleId: 'subject', status: 'satisfied', source: 'inferred', reason: 'A subject.', evidenceImageVersionIds: ['another-private-image'] }], cropPotential: 'direct', preferenceScores: [], taskRelevance: 'relevant' }
+  await assert.rejects(new CompatibleVisionProvider(config, new VisionFixture(output)).review(await bundle(), bounds), (error: unknown) => {
+    assert.ok(error instanceof MediaError)
+    assert.equal(error.code, 'vision-invalid-output')
+    assert.equal(error.retryable, true)
+    assert.ok(error.diagnostics?.issues.includes('invalid-rule-coverage-or-image-evidence'))
+    return true
+  })
+})
+
 test('sends actual multi-image pixels and retains strict unknown as inferred evidence', async () => {
   const fixture = new VisionFixture({ ruleResults: [{ ruleId: 'subject', status: 'unknown', source: 'inferred', reason: 'Pixels cannot establish the subject.', evidenceImageVersionIds: ['subject-1'] }], cropPotential: 'crop-candidate', preferenceScores: [{ dimension: 'color', score: 0.8 }], taskRelevance: 'unknown' })
   const provider = new CompatibleVisionProvider(config, fixture, { authorization: 'Bearer secret-key' })

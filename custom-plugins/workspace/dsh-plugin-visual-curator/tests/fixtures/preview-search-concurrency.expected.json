@@ -1,0 +1,11 @@
+{
+  "concurrentReviews": 3,
+  "selectedSourceIds": [
+    "matching-car-a",
+    "matching-car-b",
+    "matching-car-c"
+  ],
+  "visionCalls": 3,
+  "downloadedOriginals": 0,
+  "outcome": "target-met"
+}

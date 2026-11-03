@@ -48,7 +48,7 @@ import { pickNativeDirectory, pickNativeImages, pickNativeReferences } from '@de
 import { createCropWorker, createCropProcessor } from './crop-workflow.ts'
 import { createSearchWorker } from './search-workflow.ts'
 import { createDataWorker } from './data-workflows.ts'
-import { compileStyleInstructions } from './style-execution.ts'
+import { compileStyleInstructions, executionStandard } from './style-execution.ts'
 import { projectSnapshot, projectStyle, projectStyles, projectRun, projectConfiguration, projectAnalysisTasks, projectProfileSelection } from './projection.ts'
 import { deleteTaskHistory, hiddenTaskIds } from './task-history.ts'
 import { analysisFollowResponse } from './analysis-follow.ts'
@@ -808,7 +808,7 @@ export class CuratorService {
         }
         this.engine.get(run.id, reader); history.push({ run, actor: reader })
       }
-      fixed.searchExclusions = toJson(this.domain.repository.readSnapshot(() => freezeSearchExclusions(this.domain, release, actor, history)))
+      fixed.searchExclusions = toJson(this.domain.repository.readSnapshot(() => freezeSearchExclusions(this.domain, executionStandard(release, fixed.executionRecipe), actor, history, input.taskBrief)))
     } else {
       const ids = input.imageVersionIds ?? (input.imageVersionId ? [input.imageVersionId] : [])
       if (!ids.length || ids.length > config.limits.maxCandidates) throw new CuratorError('invalid-input', 'resolve', 'Choose authorized saved image versions.')

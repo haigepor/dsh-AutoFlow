@@ -124,7 +124,7 @@ test('exact local negative pixels under another source id are skipped without sp
     await f.domain.repository.commit({ aggregateId: 'negative', expectedRevision: 0, operationId: 'negative', request: {}, records: negative.records, state: {} })
     const reference = referenceSnapshotSchema.parse({ reference: { ...base, id: 'negative-reference', kind: 'reference', styleId: release.styleId, imageVersionId: negative.image.id, role: 'negative', intent: { kind: 'overall' }, context: {}, feedbackThreadIds: [] }, imageDigest: negative.image.blob.digest, familyId: negative.asset.familyId, feedbackIds: [] })
     const standard = releaseSchema.parse({ ...release, references: [reference] })
-    f.context.spec.fixed.searchExclusions = toJson(freezeSearchExclusions(f.domain, standard, actor, []))
+    f.context.spec.fixed.searchExclusions = toJson(freezeSearchExclusions(f.domain, standard, actor, [], 'Check the frozen style.'))
     const fresh = await sharp({ create: { width: 100, height: 100, channels: 3, background: 'blue' } }).png().toBuffer()
     f.fixture.images.set('/fresh-bytes-original', fresh)
     assert.equal(await f.worker(f.context), 'target-met')

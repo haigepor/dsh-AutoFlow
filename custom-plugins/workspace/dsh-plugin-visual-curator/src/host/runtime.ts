@@ -342,11 +342,12 @@ export class RunEngine {
         if (spec.kind === 'analyze' && this.repository.get('run', id)!.status === 'pausing') live.pauseAdmissions.abort()
         admissionSignal.throwIfAborted()
       }
-      const save = async (stage: NonNullable<RunRecord['stage']>, patch: Partial<RunData>, records: CuratorRecord[] = [], beforeSave?: () => void) => {
+      const save = async (stage: NonNullable<RunRecord['stage']>, patch: Partial<RunData> | ((data: RunData) => Partial<RunData>), records: CuratorRecord[] = [], beforeSave?: () => void) => {
         executionSignal.throwIfAborted(); beforeSave?.()
         await this.update(id, old => {
           executionSignal.throwIfAborted(); beforeSave?.()
-          const data = { ...dataOf(old), ...patch, budget: ledger.snapshot(), ...(this.process(old) ? { process: this.process(old) } : {}) }
+          const current = dataOf(old)
+          const data = { ...current, ...typeof patch === 'function' ? patch(current) : patch, budget: ledger.snapshot(), ...(this.process(old) ? { process: this.process(old) } : {}) }
           return { run: { ...old, stage, data: toJson(data) }, records }
         })
         const committed = this.repository.get('run', id)!
@@ -387,7 +388,7 @@ export class RunEngine {
               }
               const requestId = randomUUID(), stamp = new Date().toISOString()
               const request = requestSchema.parse({ schemaVersion: 1, profileId: saved.profileId, id: requestId, createdAt: stamp, kind: 'request', runId: id, state: 'reserved', requestDigest: contentDigest(bundle), data: bundle })
-              await save(ctx.current().stage ?? 'planning', { requestIds: [...dataOf(ctx.current()).requestIds, requestId] }, [request], checkAdmission)
+              await save(ctx.current().stage ?? 'planning', data => ({ requestIds: [...data.requestIds, requestId] }), [request], checkAdmission)
               // 使用实际预留记录关联响应，重试和恢复不能按批次数或返回顺序猜测归属。
               if (kind === 'vision' && spec.kind === 'analyze') ctx.report({ phase: this.process(ctx.current())?.phase ?? 'preparing', requestId: request.id })
               let metadata: Json | undefined

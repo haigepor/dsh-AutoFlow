@@ -26,6 +26,12 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.5
+
+Preview searches use bounded concurrent reviews and reuse prepared native reference attachments. Invalid output fields or evidence identities retain diagnostics and retry within the original task budget. Later searches skip confirmed mismatches only for the same task, frozen style and review recipe; technical failures and uncertain results remain eligible. Pause and continuation reuse completed reviews and preserve call and download budgets.
+
+Restart after current tasks finish to activate the plugin update. Existing failed records do not trigger automatic paid retries. Hiding the task sidebar in narrow conversations requires the matching new desktop build.
+
 ## Visual Curator 0.2.3
 
 The installed plugin list and workbench use the updated artwork. Existing styles, references, tasks and feature choices remain; restart after updating.

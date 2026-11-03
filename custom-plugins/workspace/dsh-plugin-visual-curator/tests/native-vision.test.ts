@@ -1,5 +1,6 @@
 /** The production LLM seam, attachment admission and task-owned retry remain observable together. */
 import { it } from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -238,6 +239,51 @@ it('downloads authorized remote pixels before attachment admission and records b
     assert.equal(f.downloads, 1, 'Retries reuse verified admitted bytes rather than downloading mutable URLs again')
     assert.equal(f.adapter.calls.length, 2)
   } finally { await f.cleanup() }
+})
+
+it('parallel native requests prepare cold shared images once while their model streams overlap', async () => {
+  const f = await fixture(), release = Promise.withResolvers<void>(), started = Promise.withResolvers<void>()
+  const original = f.adapter.stream.bind(f.adapter)
+  let active = 0, peak = 0
+  f.adapter.stream = async function* (options: GenerateOptions): AsyncGenerator<StreamChunk> {
+    active++; peak = Math.max(peak, active)
+    if (active === 3) started.resolve()
+    try { await release.promise; yield* original(options) } finally { active-- }
+  }
+  const source = { providerId: 'unsplash' as const, photoId: 'shared', accountId: 'public', url: 'https://images.unsplash.com/shared?w=1080', thumbnailUrl: 'https://images.unsplash.com/shared?w=320' }
+  const image: VisionImage = { imageVersionId: 'image-one', digest: remoteReferenceDigest(source), mime: 'image/png', role: 'positive', remoteSource: source }
+  const calls = [1, 2, 3].map(index => f.provider.analyze({ ...f.input, requestId: `parallel-${index}`, images: [image] }, f.bounds))
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    // This deadline only bounds a deadlock regression; the model requests remain held by the gate.
+    const arrived = await Promise.race([started.promise.then(() => true), new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), 5000) })])
+    assert.equal(arrived, true, 'Image preparation must release its queue before model dispatch completes')
+    assert.equal(peak, 3)
+    assert.equal(f.downloads, 1, 'Concurrent requests must reuse already admitted reference bytes')
+    release.resolve(); await Promise.all(calls)
+  } finally { clearTimeout(timer); release.resolve(); await Promise.allSettled(calls); await f.cleanup() }
+})
+
+it('cancelling a queued image preparation keeps the active reader and later cached readers intact', async () => {
+  const f = await fixture(), ready = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController()
+  const original = f.media.request.bind(f.media)
+  f.media.request = async (location, bounds) => { ready.resolve(); await release.promise; return original(location, bounds) }
+  const source = { providerId: 'unsplash' as const, photoId: 'shared', accountId: 'public', url: 'https://images.unsplash.com/shared?w=1080', thumbnailUrl: 'https://images.unsplash.com/shared?w=320' }
+  const image: VisionImage = { imageVersionId: 'image-one', digest: remoteReferenceDigest(source), mime: 'image/png', role: 'positive', remoteSource: source }
+  const input = { ...f.input, images: [image] }, first = f.provider.analyze(input, f.bounds)
+  const calls: Promise<unknown>[] = [first]
+  try {
+    await ready.promise
+    let acknowledged = false
+    const cancelled = assert.rejects(f.provider.analyze(input, { ...f.bounds, signal: controller.signal }), { code: 'cancelled' }).then(() => { acknowledged = true })
+    calls.push(cancelled)
+    controller.abort(); await setImmediate()
+    assert.equal(acknowledged, true, 'A cancelled waiter must settle without waiting for another image transfer')
+    const third = f.provider.analyze(input, f.bounds); calls.push(third)
+    release.resolve(); await Promise.all(calls)
+    assert.equal(f.downloads, 1)
+    assert.equal(f.adapter.calls.length, 2)
+  } finally { controller.abort(); release.resolve(); await Promise.allSettled(calls); await f.cleanup() }
 })
 
 it('rejects text-only native routes before calling the model', async () => {

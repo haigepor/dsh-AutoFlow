@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { setImmediate } from 'node:timers/promises'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -34,17 +35,17 @@ test('known violations reject even when the remaining unknown rule cannot reach 
   assert.equal(matchStyle(profile, rules.map(rule => ({ ruleId: rule.ruleId, result: 'unknown' })), 0.75).verdict, 'unknown')
 })
 
-async function fixture(block = false, scenario: { queries?: string[]; targetCount?: number; maxSearchPages?: number; blockPhoto?: string; page?(query: string, page: number): { ids: string[]; totalPages: number } } = {}) {
+async function fixture(block = false, scenario: { queries?: string[]; targetCount?: number; maxSearchPages?: number; blockPhoto?: string; concurrency?: number; pageSize?: number; retryAttempts?: number; invalidReviewAttempts?: number; review?(url: string, signal: AbortSignal): Promise<void>; page?(query: string, page: number): { ids: string[]; totalPages: number } } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'visual-preview-flow-'))
   const repository = new DomainRepository(base.profileId, new MemoryDomainAdapter())
   const domain = new CuratorDomain(base.profileId, repository)
   const jobs = new FixtureJobs(), engine = new RunEngine(repository, jobs)
-  const config = resolveConfig({ source: { provider: 'unsplash' }, limits: { maxRetryAttempts: 0, maxSearchPages: scenario.maxSearchPages ?? 4, maxVisionCalls: 8, pageSize: 2 } })
+  const config = resolveConfig({ source: { provider: 'unsplash' }, limits: { maxRetryAttempts: scenario.retryAttempts ?? 0, retryDelayMs: 0, maxConcurrentRequests: scenario.concurrency ?? 1, maxSearchPages: scenario.maxSearchPages ?? 4, maxVisionCalls: 8, pageSize: scenario.pageSize ?? 2 } })
   const files = new AssetFiles(root, { maxFileBytes: 1000000, maxPixels: 1000000, maxDimension: 2000, previewMaxDimension: 200, maxStorageBytes: 10000000 })
   files.read = async () => { throw new Error('Preview flow must not read local subject pixels') }
   const queries: string[] = [], sourceCalls: { query: string; page: number }[] = [], remoteInputs: string[] = []
   const blocked = Promise.withResolvers<void>()
-  let downloads = 0
+  let downloads = 0, visionAttempts = 0
   let entered!: () => void
   const reviewing = new Promise<void>(resolve => { entered = resolve })
   const photo = (id: string) => ({ id, width: 1200, height: 800, premium: true, urls: { small: `https://images.unsplash.com/photo-${id}`, regular: `https://images.unsplash.com/photo-${id}` } })
@@ -65,13 +66,15 @@ async function fixture(block = false, scenario: { queries?: string[]; targetCoun
     const input = z.object({ input: z.object({ stage: z.string(), images: z.array(z.object({ imageVersionId: z.string(), remoteUrl: z.string() })), rules: z.array(z.object({ ruleId: z.string() })) }) }).parse(JSON.parse(content[0]!.text!)).input
     const subject = input.images[0]!
     remoteInputs.push(subject.remoteUrl); entered()
+    await scenario.review?.(subject.remoteUrl, request.signal!)
     if (block && (scenario.blockPhoto === undefined || subject.remoteUrl.includes(scenario.blockPhoto))) {
       blocked.resolve()
       await new Promise<void>((_resolve, reject) => { request.signal!.addEventListener('abort', () => reject(request.signal!.reason), { once: true }) })
     }
     const good = subject.remoteUrl.includes('matching-car')
     const output = { ruleResults: input.rules.map(rule => ({ ruleId: rule.ruleId, status: good ? 'satisfied' : rule.ruleId === 'composition' ? 'unknown' : 'violated', source: 'inferred', reason: good ? 'The complete vehicle matches the reference style.' : 'A person and camera dominate the image.', evidenceImageVersionIds: [subject.imageVersionId] })), cropPotential: 'unknown', preferenceScores: rules.map(rule => ({ dimension: rule.dimension, score: good ? 0.9 : 0.1 })), taskRelevance: good ? 'relevant' : 'irrelevant' }
-    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) }, finish_reason: 'stop' }] })) }
+    const response = ++visionAttempts <= (scenario.invalidReviewAttempts ?? 0) ? { ruleResults: output.ruleResults, cropPotential: output.cropPotential, preferenceScores: output.preferenceScores } : output
+    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(response) }, finish_reason: 'stop' }] })) }
   } }
   const vision = new CompatibleVisionProvider({ endpoint: 'https://vision.example.test/chat', model: 'fixture', supportsMultiImage: true, maxImages: 10, maxImageBytes: 1000000, maxRequestBytes: 1000000, maxOutputTokens: 2000, temperature: 0 }, http)
   const worker = createSearchWorker({ domain, files, source: async () => source, vision: async () => vision, media: () => ({ async request() { downloads++; throw new Error('Preview mode must not download originals') } }), crop: async () => { throw new Error('Preview mode must not crop') } })
@@ -83,11 +86,88 @@ async function fixture(block = false, scenario: { queries?: string[]; targetCoun
   return { root, repository, domain, engine, jobs, actor, worker, spec, queries, sourceCalls, remoteInputs, reviewing, blocked: blocked.promise, unblock: () => { block = false }, get downloads() { return downloads }, cleanup: async () => { await engine.dispose(); await rm(root, { recursive: true, force: true }) } }
 }
 
+test('preview reviews overlap within the configured limit and keep source-order selections', async () => {
+  const gate = Promise.withResolvers<void>()
+  let active = 0, peak = 0
+  const ids = ['matching-car-a', 'matching-car-b', 'matching-car-c']
+  const f = await fixture(false, { queries: ['cars'], targetCount: 3, concurrency: 3, pageSize: 3,
+    page: () => ({ ids, totalPages: 1 }), review: async () => { active++; peak = Math.max(peak, active); try { await gate.promise } finally { active-- } } })
+  try {
+    const started = await f.engine.create(f.spec, f.actor, f.worker, 'parallel-preview')
+    await f.reviewing; await setImmediate()
+    assert.equal(peak, 3, 'All admitted images must reach the model before one blocked review completes')
+    gate.resolve(); await f.jobs.drain()
+    const selected = f.repository.list('selection').filter(row => row.runId === started.id).sort((a, b) => a.rank - b.rank)
+    const observed = { concurrentReviews: peak, selectedSourceIds: selected.map(row => { const asset = f.domain.require('asset', f.domain.require('imageVersion', row.imageVersionId).assetId); return asset.source.kind === 'provider' ? asset.source.providerAssetId : '' }),
+      visionCalls: dataOf(f.domain.require('run', started.id)).budget.vision, downloadedOriginals: f.downloads, outcome: f.domain.require('run', started.id).outcome }
+    assert.deepEqual(observed, JSON.parse(await readFile(new URL('./fixtures/preview-search-concurrency.expected.json', import.meta.url), 'utf8')))
+    const receipts = f.repository.list('request').filter(row => row.runId === started.id)
+    assert.deepEqual(new Set(dataOf(f.domain.require('run', started.id)).requestIds), new Set(receipts.map(row => row.id)), 'Parallel request receipts must all remain attached to their task')
+    assert.equal(active, 0)
+  } finally { gate.resolve(); await f.jobs.drain(); await f.cleanup() }
+})
+
+test('a malformed preview review retries within one shared budget and does not become a failed image after recovery', async () => {
+  const f = await fixture(false, { queries: ['cars'], retryAttempts: 1, invalidReviewAttempts: 1, page: () => ({ ids: ['matching-car'], totalPages: 1 }) })
+  try {
+    const started = await f.engine.create(f.spec, f.actor, f.worker, 'retry-preview')
+    await f.jobs.drain()
+    const run = f.domain.require('run', started.id)
+    assert.equal(run.outcome, 'target-met')
+    assert.equal(dataOf(run).budget.vision, 2)
+    assert.equal(dataOf(run).counts.technicalFailed, 0)
+    const attempts = f.repository.list('request').filter(row => row.runId === run.id && row.state === 'outcome-unknown')
+    assert.equal(attempts.length, 1)
+    assert.ok(JSON.stringify(attempts[0]!.data).includes('taskRelevance'))
+    assert.equal(f.repository.list('selection').filter(row => row.runId === run.id).length, 1)
+  } finally { await f.cleanup() }
+})
+
+test('exhausted malformed reviews stop at the shared retry cap and are not learned as visual mismatches', async () => {
+  const f = await fixture(false, { queries: ['cars'], retryAttempts: 1, invalidReviewAttempts: 50, page: () => ({ ids: ['matching-car'], totalPages: 1 }) })
+  try {
+    const started = await f.engine.create(f.spec, f.actor, f.worker, 'exhaust-review-retries'); await f.jobs.drain()
+    const run = f.domain.require('run', started.id)
+    assert.equal(dataOf(run).budget.vision, 2)
+    assert.equal(dataOf(run).counts.technicalFailed, 1)
+    assert.equal(f.remoteInputs.length, 2)
+    assert.equal(f.repository.list('selection').length, 0)
+    assert.deepEqual(searchHistoryRuns(f.domain, profile.styleId), [])
+    assert.equal(f.repository.list('assessment')[0]!.technicalStatus, 'failed')
+  } finally { await f.cleanup() }
+})
+
+test('pausing a parallel batch reuses completed reviews and resumes the remaining image without skipping it', async () => {
+  const waiting = Promise.withResolvers<void>()
+  let hold = true
+  const f = await fixture(false, { queries: ['cars'], targetCount: 3, concurrency: 3, pageSize: 3,
+    page: () => ({ ids: ['matching-car-a', 'matching-car-b', 'matching-car-c'], totalPages: 1 }),
+    review: async (url, signal) => {
+      if (!hold || !url.endsWith('-c')) return
+      waiting.resolve()
+      await new Promise<void>((_resolve, reject) => { signal.addEventListener('abort', () => reject(signal.reason), { once: true }) })
+    } })
+  try {
+    const started = await f.engine.create(f.spec, f.actor, f.worker, 'pause-parallel-preview')
+    await waiting.promise; await setImmediate()
+    await f.engine.control(started.id, 'pause', f.actor)
+    assert.equal(f.domain.require('run', started.id).status, 'paused')
+    hold = false
+    await f.engine.control(started.id, 'resume', f.actor, f.worker); await f.jobs.drain()
+    assert.equal(f.domain.require('run', started.id).outcome, 'target-met')
+    assert.equal(f.remoteInputs.filter(url => url.endsWith('-a')).length, 1)
+    assert.equal(f.remoteInputs.filter(url => url.endsWith('-b')).length, 1)
+    assert.equal(f.remoteInputs.filter(url => url.endsWith('-c')).length, 2)
+    assert.equal(f.repository.list('selection').filter(row => row.runId === started.id).length, 3)
+    assert.equal(dataOf(f.domain.require('run', started.id)).budget.vision, 4)
+  } finally { hold = false; await f.cleanup() }
+})
+
 test('a new preview search skips exact selections from its collection without rejecting a different photo on the same host', async () => {
   const f = await fixture(false, { queries: ['cars'], targetCount: 1, page: () => ({ ids: ['matching-car-prior', 'matching-car-new'], totalPages: 1 }) })
   try {
     const first = await f.engine.create(f.spec, f.actor, f.worker, 'prior-search'); await f.jobs.drain()
-    const policy = freezeSearchExclusions(f.domain, profile, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })))
+    const policy = freezeSearchExclusions(f.domain, profile, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })), String(f.spec.input.taskBrief))
     const second = await f.engine.create({ ...f.spec, fixed: { ...f.spec.fixed, searchExclusions: toJson(policy) } }, f.actor, f.worker, 'novel-search'); await f.jobs.drain()
     assert.equal(f.domain.require('run', second.id).outcome, 'target-met')
     assert.equal(dataOf(f.domain.require('run', second.id)).counts.excludedPrevious, 1)
@@ -99,7 +179,42 @@ test('a new preview search skips exact selections from its collection without re
     assert.equal(dataOf(f.domain.require('run', second.id)).budget.vision, 1)
     const other = modelProfileSchema.parse({ ...profile, styleId: 'other-collection' })
     assert.deepEqual(searchHistoryRuns(f.domain, other.styleId), [])
-    assert.deepEqual(freezeSearchExclusions(f.domain, other, f.actor, []).sources, {})
+    assert.deepEqual(freezeSearchExclusions(f.domain, other, f.actor, [], String(f.spec.input.taskBrief)).sources, {})
+  } finally { await f.cleanup() }
+})
+
+test('repeated searches skip confirmed mismatches only for the same frozen rules and task', async () => {
+  const f = await fixture(false, { queries: ['cars'], page: (_query, page) => ({ ids: page === 1 ? ['portrait-a', 'portrait-b'] : ['matching-car-prior', 'matching-car-new'], totalPages: 2 }) })
+  try {
+    await f.engine.create(f.spec, f.actor, f.worker, 'learn-mismatches'); await f.jobs.drain()
+    const history = searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor }))
+    const brief = String(f.spec.input.taskBrief)
+    const policy = freezeSearchExclusions(f.domain, profile, f.actor, history, brief)
+    assert.equal(sourceExclusion(policy, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
+    const differentTask = freezeSearchExclusions(f.domain, profile, f.actor, history, 'Find portraits instead.')
+    assert.equal(sourceExclusion(differentTask, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), undefined)
+    const differentRules = freezeSearchExclusions(f.domain, modelProfileSchema.parse({ ...profile, contentDigest: `sha256-v1:${'c'.repeat(64)}` }), f.actor, history, brief)
+    assert.equal(sourceExclusion(differentRules, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), undefined)
+    const differentReviewer = freezeSearchExclusions(f.domain, modelProfileSchema.parse({ ...profile, recipe: { ...recipe, visionRevision: 'new-reviewer' } }), f.actor, history, brief)
+    assert.equal(sourceExclusion(differentReviewer, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), undefined)
+    const before = f.remoteInputs.length
+    const second = await f.engine.create({ ...f.spec, fixed: { ...f.spec.fixed, searchExclusions: toJson(policy) } }, f.actor, f.worker, 'skip-mismatches')
+    await f.jobs.drain()
+    assert.equal(f.domain.require('run', second.id).outcome, 'target-met')
+    assert.deepEqual(f.remoteInputs.slice(before).map(url => new URL(url).pathname), ['/photo-matching-car-new'])
+    assert.equal(dataOf(f.domain.require('run', second.id)).budget.vision, 1)
+  } finally { await f.cleanup() }
+})
+
+test('a search with no accepted images still contributes its confirmed mismatches to later searches', async () => {
+  const f = await fixture(false, { queries: ['cars'], page: () => ({ ids: ['portrait-a'], totalPages: 1 }) })
+  try {
+    const first = await f.engine.create(f.spec, f.actor, f.worker, 'all-mismatched'); await f.jobs.drain()
+    assert.equal(f.repository.list('selection').length, 0)
+    const history = searchHistoryRuns(f.domain, profile.styleId)
+    assert.deepEqual(history.map(run => run.id), [first.id])
+    const policy = freezeSearchExclusions(f.domain, profile, f.actor, history.map(run => ({ run, actor: f.actor })), String(f.spec.input.taskBrief))
+    assert.equal(sourceExclusion(policy, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
   } finally { await f.cleanup() }
 })
 
@@ -111,7 +226,7 @@ test('an exact negative photo is excluded across account and URL changes before 
     const image = imageVersionSchema.parse({ ...base, id: 'negative-image', kind: 'imageVersion', assetId: asset.id, versionKind: 'remote-reference', blob, geometry: { width: 1200, height: 800, colorSpace: 'unverified', processorVersion: 'fixture' } })
     const reference = referenceSnapshotSchema.parse({ reference: { ...base, id: 'negative-ref', kind: 'reference', styleId: profile.styleId, imageVersionId: image.id, role: 'negative', intent: { kind: 'overall' }, context: {}, feedbackThreadIds: [] }, imageDigest: blob.digest, familyId: asset.familyId, feedbackIds: [] })
     await f.repository.commit({ aggregateId: 'negative-ref', expectedRevision: 0, operationId: 'negative-ref', request: {}, records: [asset, image], state: {} })
-    const standard = modelProfileSchema.parse({ ...profile, references: [reference] }), policy = freezeSearchExclusions(f.domain, standard, f.actor, [])
+    const standard = modelProfileSchema.parse({ ...profile, references: [reference] }), policy = freezeSearchExclusions(f.domain, standard, f.actor, [], String(f.spec.input.taskBrief))
     const started = await f.engine.create({ ...f.spec, fixed: { ...f.spec.fixed, release: toJson(standard), searchExclusions: toJson(policy) } }, f.actor, f.worker, 'negative-search'); await f.jobs.drain()
     const run = f.domain.require('run', started.id)
     assert.equal(run.outcome, 'source-exhausted'); assert.equal(dataOf(run).counts.excludedNegative, 1)
@@ -127,7 +242,7 @@ test('a paused preview task retains its admitted exclusions when a selection and
   const f = await fixture(true, { queries: ['first'], targetCount: 1, blockPhoto: 'matching-car-new', page: query => ({ ids: query === 'first' ? ['matching-car-prior', 'matching-car-new'] : ['matching-car-new'], totalPages: 1 }) })
   try {
     await f.engine.create(f.spec, f.actor, f.worker, 'first-selection'); await f.jobs.drain()
-    const policy = freezeSearchExclusions(f.domain, profile, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })))
+    const policy = freezeSearchExclusions(f.domain, profile, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })), String(f.spec.input.taskBrief))
     const second = await f.engine.create({ ...f.spec, fixed: { ...f.spec.fixed, searchExclusions: toJson(policy) } }, f.actor, f.worker, 'paused-novel-search')
     await f.blocked; await f.engine.control(second.id, 'pause', f.actor)
     assert.equal(f.domain.require('run', second.id).status, 'paused')
@@ -137,7 +252,7 @@ test('a paused preview task retains its admitted exclusions when a selection and
     const reference = referenceSnapshotSchema.parse({ reference: { ...base, id: 'late-negative', kind: 'reference', styleId: profile.styleId, imageVersionId: image.id, role: 'negative', intent: { kind: 'overall' }, context: {}, feedbackThreadIds: [] }, imageDigest: image.blob.digest, familyId: asset.familyId, feedbackIds: [] })
     await f.repository.commit({ aggregateId: 'late-negative', expectedRevision: 0, operationId: 'late-negative', request: {}, records: [reference.reference], state: {} })
     const updated = modelProfileSchema.parse({ ...profile, id: 'later-profile', revision: 2, references: [reference] })
-    const refreshed = freezeSearchExclusions(f.domain, updated, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })))
+    const refreshed = freezeSearchExclusions(f.domain, updated, f.actor, searchHistoryRuns(f.domain, profile.styleId).map(run => ({ run, actor: f.actor })), String(f.spec.input.taskBrief))
     assert.equal(Object.keys(policy.sources).length, 1); assert.equal(Object.keys(refreshed.sources).length, 2)
     assert.equal(sourceExclusion(refreshed, { providerId: 'unsplash', providerAssetId: 'matching-car-new', accountIdentity: 'public' }), 'negative-reference')
     await f.engine.control(second.id, 'resume', f.actor, f.worker); await f.jobs.drain()

@@ -31,11 +31,21 @@ function mediaType(value: string | undefined): ImageMediaType {
   throw invalidInput('The image response has an unsupported media type.')
 }
 
+function waitForImagePreparation(previous: Promise<void>, signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted()
+  return new Promise<void>((resolve, reject) => {
+    const abort = () => { signal.removeEventListener('abort', abort); reject(signal.reason) }
+    signal.addEventListener('abort', abort, { once: true })
+    previous.then(() => { signal.removeEventListener('abort', abort); resolve() }, error => { signal.removeEventListener('abort', abort); reject(error) })
+  })
+}
+
 /** Uses the registered route and the same attachment normalization as ordinary AI conversations. */
 export class NativeVisionProvider extends StructuredVisionProvider {
   private readonly provider: string
   private readonly useModelDefaults: boolean
   private readonly imageCache = new Map<string, { byteDigest: string; attachment: ImageAttachmentRef }>()
+  private imagePreparation: Promise<void> = Promise.resolve()
   private readonly cacheLimit: number
   constructor(config: CuratorConfig, private readonly dependencies: NativeVisionDependencies) {
     super({ endpoint: '', model: config.vision.model, supportsMultiImage: config.vision.supportsMultipleImages,
@@ -76,7 +86,11 @@ export class NativeVisionProvider extends StructuredVisionProvider {
     const signal = AbortSignal.any(bounds.signal ? [bounds.signal] : [])
     let firstOutputMs: number | undefined, firstReasoningMs: number | undefined, firstTextMs: number | undefined, usage: TokenUsage | undefined, terminal = false, streamStarted = false
     const assembler = new BlockAssembler()
+    const preparedImages = Promise.withResolvers<void>(), previousPreparation = this.imagePreparation
+    this.imagePreparation = previousPreparation.then(() => preparedImages.promise)
     try {
+      // Warm shared reference attachments once, then let model streams proceed concurrently.
+      await waitForImagePreparation(previousPreparation, signal)
       const prepared = await this.prepare(signal), inputs: SaveImageAttachment[] = [], sources: { imageVersionId: string; sourceDigest: string; byteDigest: string }[] = []
       const refsByIndex = new Map<number, ImageAttachmentRef>(), missing: { index: number; key: string }[] = []
       let totalBytes = 0, downloadedBytes = 0
@@ -120,6 +134,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       }
       const refs = [...refsByIndex].sort(([left], [right]) => left - right).map(([, attachment]) => attachment)
       signal.throwIfAborted()
+      preparedImages.resolve()
       const content: ContentBlock[] = [{ type: 'text', text: descriptor.inputText }]
       for (let index = 0; index < refs.length; index++) {
         const image = input.images[index]!, attachment = refs[index]!
@@ -169,6 +184,6 @@ export class NativeVisionProvider extends StructuredVisionProvider {
         throw new MediaError(error.code, 'vision-images', retryable, 'An image attachment could not be prepared for analysis.', retryable ? 'Check attachment storage and continue within the saved task budget.' : 'Check image format, size and attachment integrity before starting an incremental analysis.', { modelOutput: null, issues: [error.code] })
       }
       throw error
-    }
+    } finally { preparedImages.resolve() }
   }
 }

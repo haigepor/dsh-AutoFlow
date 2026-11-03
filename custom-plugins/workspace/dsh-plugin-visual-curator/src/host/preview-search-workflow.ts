@@ -65,43 +65,61 @@ export function createPreviewSearchWorker(deps: SearchDependencies): Worker {
           state.nextQuery = (index + 1) % input.queries.length; await save(); continue
         }
       }
-      const photoId = page.ids[page.offset]
-      if (!photoId) { state.nextQuery = (index + 1) % input.queries.length; await save(); continue }
-      const identity = `${owner.providerId}:${owner.accountIdentity}:${photoId}`
-      if (!state.seenIds.includes(identity)) {
-        if (state.seenIds.length >= ctx.spec.config.limits.maxCandidates) return 'budget-exhausted'
-        state.seenIds.push(identity)
-      }
-      const excluded = sourceExclusion(exclusions, { ...owner, providerAssetId: photoId })
-      if (excluded) {
-        state.excluded![identity] = excluded; page.offset++; state.nextQuery = (index + 1) % input.queries.length; await save(); continue
-      }
-      let imageId = state.importedImages[identity]
-      try {
-        if (!imageId) {
-          const item = locations.get(photoId) ?? await ctx.request('search', toJson({ providerAssetId: photoId, operation: 'lookup' }), signal => source.lookup(photoId, { ...requestBounds(ctx.spec.config, ctx), signal }), () => ({ refreshed: true }))
-          const dimensions = z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).parse(item)
-          // 只保存经公开 URL 校验的预览引用；原图权限、下载结果和像素摘要均不冒充已核验。
-          const blob = remoteReferenceBlob({ providerId: 'unsplash', photoId, accountId: owner.accountIdentity, url: item.previewUrl, thumbnailUrl: item.thumbnailUrl ?? item.previewUrl })
-          const base = { schemaVersion: 1, profileId: actor.profileId, createdAt: new Date().toISOString() }
-          const asset = assetSchema.parse({ ...base, id: randomUUID(), kind: 'asset', familyId: `remote-unsplash:${contentDigest(photoId).slice(10)}`, source: { kind: 'provider', providerId: owner.providerId, providerAssetId: photoId, accountIdentity: owner.accountIdentity, description: photoId, obtainedAt: base.createdAt }, access: actor.sessionId ? { kind: 'session-run', sessionId: actor.sessionId } : { kind: 'profile-library' }, exportPermission: 'references-only', groupingStatus: 'unreviewed' })
-          const image = imageVersionSchema.parse({ ...base, id: randomUUID(), kind: 'imageVersion', assetId: asset.id, versionKind: 'remote-reference', blob, geometry: { ...dimensions, colorSpace: 'unverified', processorVersion: 'unsplash-url-reference-v1' } })
-          imageId = image.id; state.importedImages[identity] = image.id; await save([asset, image])
+      if (!page.ids[page.offset]) { state.nextQuery = (index + 1) % input.queries.length; await save(); continue }
+      const capacity = Math.min(ctx.spec.config.limits.maxConcurrentRequests, input.targetCount - selections().length)
+      const candidates: { photoId: string; identity: string }[] = []
+      for (const photoId of page.ids.slice(page.offset, page.offset + capacity)) {
+        const identity = `${owner.providerId}:${owner.accountIdentity}:${photoId}`
+        if (!state.seenIds.includes(identity)) {
+          if (state.seenIds.length >= ctx.spec.config.limits.maxCandidates) break
+          state.seenIds.push(identity)
         }
-        const image = deps.domain.authorizedImage(imageId, actor).image
-        const previous = deps.domain.repository.list('assessment').find(item => item.runId === ctx.runId && item.imageVersionId === image.id && item.stage === 'final')
-        const assessment = previous ?? (await reviewImage({ domain: deps.domain, files: deps.files, vision }, ctx, image, standard, 'final')).assessment
-        const records: CuratorRecord[] = previous ? [] : [assessment]
-        if (assessment.verdict === 'pass' && assessment.technicalStatus === 'completed' && !selections().some(item => item.imageVersionId === image.id)) records.push(selectionSchema.parse({ ...{ schemaVersion: 1, profileId: actor.profileId, createdAt: new Date().toISOString() }, kind: 'selection', id: `selection-${contentDigest({ runId: ctx.runId, imageId: image.id, output: 'preview' }).slice(10, 50)}`, runId: ctx.runId, imageVersionId: image.id, assessmentId: assessment.id, qualification: 'auto-qualified', rank: selections().length, warnings: [] }))
-        if (records.length) await save(records)
-      } catch (error) {
-        if (ctx.signal.aborted || error instanceof CuratorError && ['budget-exhausted', 'storage-commit-failed', 'owner-denied'].includes(error.code)) throw error
-        const issue: SearchIssue = { candidateId: photoId, stage: imageId ? 'final' : 'lookup', category: 'technical', code: safeFailure(error).code, ...(imageId ? { imageVersionId: imageId } : {}) }
-        state.issues.push(issue)
-        if (imageId) await save([assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: randomUUID(), createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: imageId, runId: ctx.runId, stage: 'final', standard: { kind: standard.kind, id: standard.id, contentDigest: standard.contentDigest }, recipeId: standard.recipe.id, reviewBundleId: randomUUID(), technicalStatus: 'failed', ruleResults: [], cropPotential: 'unknown', preferenceScores: {}, data: toJson({ error: safeFailure(error), reviewQueueReasons: ['technical-failure'] }) })])
+        candidates.push({ photoId, identity })
       }
-      // 持久化候选结果后才推进队列；中断恢复会继续同一图片，不遗漏尚未完成的复核。
-      page.offset++; state.nextQuery = (index + 1) % input.queries.length; await save()
+      if (!candidates.length) return 'budget-exhausted'
+      const results = await Promise.allSettled(candidates.map(async ({ photoId, identity }) => {
+        const excluded = sourceExclusion(exclusions, { ...owner, providerAssetId: photoId })
+        if (excluded) { state.excluded![identity] = excluded; return }
+        let imageId = state.importedImages[identity]
+        try {
+          if (!imageId) {
+            const item = locations.get(photoId) ?? await ctx.request('search', toJson({ providerAssetId: photoId, operation: 'lookup' }), signal => source.lookup(photoId, { ...requestBounds(ctx.spec.config, ctx), signal }), () => ({ refreshed: true }))
+            const dimensions = z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).parse(item)
+            // Only verified public descriptors enter preview searches; original bytes remain a separate operation.
+            const blob = remoteReferenceBlob({ providerId: 'unsplash', photoId, accountId: owner.accountIdentity, url: item.previewUrl, thumbnailUrl: item.thumbnailUrl ?? item.previewUrl })
+            const base = { schemaVersion: 1, profileId: actor.profileId, createdAt: new Date().toISOString() }
+            const asset = assetSchema.parse({ ...base, id: randomUUID(), kind: 'asset', familyId: `remote-unsplash:${contentDigest(photoId).slice(10)}`, source: { kind: 'provider', providerId: owner.providerId, providerAssetId: photoId, accountIdentity: owner.accountIdentity, description: photoId, obtainedAt: base.createdAt }, access: actor.sessionId ? { kind: 'session-run', sessionId: actor.sessionId } : { kind: 'profile-library' }, exportPermission: 'references-only', groupingStatus: 'unreviewed' })
+            const image = imageVersionSchema.parse({ ...base, id: randomUUID(), kind: 'imageVersion', assetId: asset.id, versionKind: 'remote-reference', blob, geometry: { ...dimensions, colorSpace: 'unverified', processorVersion: 'unsplash-url-reference-v1' } })
+            imageId = image.id; state.importedImages[identity] = image.id; await save([asset, image])
+          }
+          const image = deps.domain.authorizedImage(imageId, actor).image
+          const previous = deps.domain.repository.list('assessment').find(item => item.runId === ctx.runId && item.imageVersionId === image.id && item.stage === 'final')
+          const assessment = previous ?? (await reviewImage({ domain: deps.domain, files: deps.files, vision }, ctx, image, standard, 'final')).assessment
+          if (!previous) await save([assessment])
+          return { imageId: image.id, assessment }
+        } catch (error) {
+          if (ctx.signal.aborted || error instanceof CuratorError && ['budget-exhausted', 'storage-commit-failed', 'owner-denied'].includes(error.code)) throw error
+          const issue: SearchIssue = { candidateId: photoId, stage: imageId ? 'final' : 'lookup', category: 'technical', code: safeFailure(error).code, ...(imageId ? { imageVersionId: imageId } : {}) }
+          state.issues.push(issue)
+          if (imageId) await save([assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: randomUUID(), createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: imageId, runId: ctx.runId, stage: 'final', standard: { kind: standard.kind, id: standard.id, contentDigest: standard.contentDigest }, recipeId: standard.recipe.id, reviewBundleId: randomUUID(), technicalStatus: 'failed', ruleResults: [], cropPotential: 'unknown', preferenceScores: {}, data: toJson({ error: safeFailure(error), reviewQueueReasons: ['technical-failure'] }) })])
+        }
+      }))
+      ctx.signal.throwIfAborted()
+      const selected = new Set(selections().map(item => item.imageVersionId)), records: CuratorRecord[] = []
+      let rank = selected.size
+      // Selection ranks follow source order even when model responses complete out of order.
+      for (const result of results) {
+        if (result.status !== 'fulfilled' || !result.value) continue
+        const { assessment, imageId } = result.value
+        if (assessment.verdict !== 'pass' || assessment.technicalStatus !== 'completed' || selected.has(imageId)) continue
+        selected.add(imageId)
+        records.push(selectionSchema.parse({ schemaVersion: 1, profileId: actor.profileId, createdAt: new Date().toISOString(), kind: 'selection', id: `selection-${contentDigest({ runId: ctx.runId, imageId, output: 'preview' }).slice(10, 50)}`, runId: ctx.runId, imageVersionId: imageId, assessmentId: assessment.id, qualification: 'auto-qualified', rank: rank++, warnings: [] }))
+      }
+      if (records.length) await save(records)
+      const failed = results.find(result => result.status === 'rejected')
+      if (failed?.status === 'rejected') throw failed.reason
+      // Leave the page offset unchanged until every admitted result settles; replay reuses committed reviews.
+      page.offset += candidates.length; state.nextQuery = (index + 1) % input.queries.length; await save()
     }
     return 'target-met'
   }

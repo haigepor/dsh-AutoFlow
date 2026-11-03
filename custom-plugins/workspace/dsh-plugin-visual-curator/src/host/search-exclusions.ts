@@ -1,12 +1,14 @@
-/** Exact reference and prior-selection identities are fixed before a new search is accepted. */
+/** Exact reference and task-scoped search-history identities are fixed before a new search is accepted. */
 import { z } from 'zod'
 import { contentDigest } from '../domain/repository.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
-import type { Asset, DomainActor, ImageVersion, RunRecord, StyleStandard } from '../shared/model.ts'
+import { recipeSchema, styleStandardSchema, type Assessment, type Asset, type DomainActor, type ImageVersion, type RunRecord, type StyleStandard } from '../shared/model.ts'
 import { effectiveReviewReferenceRole } from './review-references.ts'
+import { executionStandard } from './style-execution.ts'
+import { toJson } from './runtime.ts'
 
-/** The exact source was a negative, another current reference, or a prior returned image. */
-export const searchExclusionReasonSchema = z.enum(['negative-reference', 'reference', 'previous-selection'])
+/** Exact sources can be current references, returned images, or task-scoped confirmed mismatches. */
+export const searchExclusionReasonSchema = z.enum(['negative-reference', 'reference', 'previous-selection', 'previous-rejection'])
 /** Exclusive reason retained with each skipped candidate. */
 export type SearchExclusionReason = z.infer<typeof searchExclusionReasonSchema>
 /** Missing policies on older specs retain their original search behavior. */
@@ -20,17 +22,22 @@ export function searchSourceKey(source: SourceIdentity): string {
   return contentDigest({ providerId: source.providerId, providerAssetId: source.providerAssetId, ...(source.providerId === 'unsplash' ? {} : { accountIdentity: source.accountIdentity }) })
 }
 
-/** @param domain Profile records. @param styleId Exact collection. @returns Existing search Runs with saved automatically qualified selections in that collection. */
+function confirmedRejection(assessment: Assessment): boolean {
+  return assessment.stage === 'final' && assessment.technicalStatus === 'completed' && assessment.verdict === 'reject'
+}
+
+/** @param domain Profile records. @param styleId Exact collection. @returns Search Runs with saved selections or confirmed final mismatches in that collection. */
 export function searchHistoryRuns(domain: CuratorDomain, styleId: string): RunRecord[] {
   const selected = new Set(domain.repository.list('selection').filter(row => row.qualification === 'auto-qualified').map(row => row.runId))
+  for (const assessment of domain.repository.list('assessment')) if (confirmedRejection(assessment)) selected.add(assessment.runId)
   const scope = z.object({ kind: z.literal('search'), fixed: z.object({ release: z.object({ styleId: z.literal(styleId) }) }) })
   return domain.repository.list('run').filter(run => selected.has(run.id) && scope.safeParse(run.spec).success)
 }
 
-/** @param domain Authorized records. @param standard Frozen references and rules. @param actor Reference reader. @param history Verified original readers for prior search Runs. @returns Detached exact identities; no private paths, pixels or historical task text enter the policy. */
-export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleStandard, actor: DomainActor, history: readonly { run: RunRecord; actor: DomainActor }[]): SearchExclusions {
+/** @param domain Authorized records. @param standard Effective frozen references, rules and review recipe. @param actor Reference reader. @param history Verified original readers for prior search Runs. @param taskBrief Current task; only identical tasks reuse confirmed mismatches. @returns Detached exact identities; no private paths, pixels or historical task text enter the policy. */
+export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleStandard, actor: DomainActor, history: readonly { run: RunRecord; actor: DomainActor }[], taskBrief: string): SearchExclusions {
   const sources = new Map<string, SearchExclusionReason>(), digests = new Map<string, SearchExclusionReason>()
-  const rank = { 'negative-reference': 0, reference: 1, 'previous-selection': 2 }
+  const rank = { 'negative-reference': 0, reference: 1, 'previous-selection': 2, 'previous-rejection': 3 }
   const put = (target: Map<string, SearchExclusionReason>, key: string, reason: SearchExclusionReason) => { const prior = target.get(key); if (prior === undefined || rank[reason] < rank[prior]) target.set(key, reason) }
   const add = (image: ImageVersion, asset: Asset, reason: SearchExclusionReason) => {
     if (image.blob.remoteSource) {
@@ -51,6 +58,20 @@ export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleSta
     const { image, asset } = domain.authorizedImage(selection.imageVersionId, reader)
     add(image, asset, 'previous-selection')
   }
+  const scope = z.object({ input: z.object({ taskBrief: z.string() }), fixed: z.object({ release: styleStandardSchema, executionRecipe: recipeSchema.optional() }) })
+  const matchingRuns = new Set<string>(), recipeDigest = contentDigest(standard.recipe)
+  for (const { run } of history) {
+    const saved = scope.safeParse(run.spec)
+    if (!saved.success || saved.data.input.taskBrief.trim() !== taskBrief.trim()) continue
+    const prior = executionStandard(saved.data.fixed.release, saved.data.fixed.executionRecipe === undefined ? undefined : toJson(saved.data.fixed.executionRecipe))
+    if (prior.contentDigest === standard.contentDigest && contentDigest(prior.recipe) === recipeDigest) matchingRuns.add(run.id)
+  }
+  for (const assessment of domain.repository.list('assessment')) {
+    if (!matchingRuns.has(assessment.runId) || !confirmedRejection(assessment) || assessment.standard?.contentDigest !== standard.contentDigest) continue
+    const reader = readers.get(assessment.runId)!
+    const { image, asset } = domain.authorizedImage(assessment.imageVersionId, reader)
+    add(image, asset, 'previous-rejection')
+  }
   const entries = (items: Map<string, SearchExclusionReason>) => Object.fromEntries([...items].sort(([left], [right]) => left.localeCompare(right, 'en')))
   return searchExclusionsSchema.parse({ version: 1, sources: entries(sources), digests: entries(digests) })
 }
@@ -63,11 +84,11 @@ export function imageExclusion(policy: SearchExclusions | undefined, image: Imag
   if (!policy) return undefined
   const source = asset.source.kind === 'provider' ? sourceExclusion(policy, asset.source) : undefined
   const reasons = [source, !image.blob.remoteSource ? policy.digests[image.blob.digest] : undefined, asset.originalBlob && !asset.originalBlob.remoteSource ? policy.digests[asset.originalBlob.digest] : undefined]
-  return (['negative-reference', 'reference', 'previous-selection'] as const).find(reason => reasons.includes(reason))
+  return (['negative-reference', 'reference', 'previous-selection', 'previous-rejection'] as const).find(reason => reasons.includes(reason))
 }
 
 /** @param excluded Saved per-candidate decisions. @returns Nonoverlapping exclusion counters, without changing technical or visual-failure counts. */
 export function exclusionCounts(excluded: Readonly<Record<string, SearchExclusionReason>>) {
   const reasons = Object.values(excluded)
-  return { excludedNegative: reasons.filter(reason => reason === 'negative-reference').length, excludedReference: reasons.filter(reason => reason === 'reference').length, excludedPrevious: reasons.filter(reason => reason === 'previous-selection').length }
+  return { excludedNegative: reasons.filter(reason => reason === 'negative-reference').length, excludedReference: reasons.filter(reason => reason === 'reference').length, excludedPrevious: reasons.filter(reason => reason === 'previous-selection' || reason === 'previous-rejection').length }
 }
