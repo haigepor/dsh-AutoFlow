@@ -1,61 +1,40 @@
-version: 0.2.2-alpha.2.20261103.4
+version: 0.2.2-alpha.2.20261104.1
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.4-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.4-win-x64-unsigned.exe
-    sha512: Kv7SsurswIYxL3bVO6/0QeJMQaevBWoQO2im4h0QpE0M6t4VVffnc8/Lj5P1NJWVP3EI8O19p/LlJzo9nYf3uw==
-    size: 414822994
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.4-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.4-win-x64-unsigned.exe
-sha512: Kv7SsurswIYxL3bVO6/0QeJMQaevBWoQO2im4h0QpE0M6t4VVffnc8/Lj5P1NJWVP3EI8O19p/LlJzo9nYf3uw==
-releaseDate: '2026-11-03T14:31:54.055Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.1-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.1-win-x64-unsigned.exe
+    sha512: 5tbQZJAm3tIMHys1yskczGJkJb9HI6G3zU5i8eBvNUoeZ4fD9Oh9a6jgbESCO0jOB6FSfVd1Tvlvcrd9DQYivA==
+    size: 414825081
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.1-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.1-win-x64-unsigned.exe
+sha512: 5tbQZJAm3tIMHys1yskczGJkJb9HI6G3zU5i8eBvNUoeZ4fD9Oh9a6jgbESCO0jOB6FSfVd1Tvlvcrd9DQYivA==
+releaseDate: '2026-11-03T17:00:35.637Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-alpha.2.20261103.4
+  version: 0.2.2-alpha.2.20261104.1
   items:
-    - id: conversation-dialog-layout
+    - id: hide-narrow-conversation-task
       category: improvements
       text:
-        en: Image search and question dialogs use settings-style groups and matching character illustrations. Conversation tasks remain available as the window narrows without adding a horizontal scrollbar.
-        zh-CN: 找图与提问弹窗采用与设置页一致的分组排版和角色插画；缩窄窗口时仍可查看会话任务，并避免底部出现横向滚动条。
-    - id: macos-test-updates
-      category: improvements
-      text:
-        en: Apple Silicon and Intel certificate-free macOS test packages can check and download updates through the isolated official channel, with installation requiring confirmation.
-        zh-CN: Apple Silicon 与 Intel 的无证书 macOS 测试包支持通过隔离的官方渠道检查和下载更新，安装仍需确认。
-    - id: plugin-update-index
+        en: Hide the conversation task sidebar when the conversation area is too narrow, keeping chat space available. Widening the area restores the task card and its state.
+        zh-CN: 会话区域较窄时隐藏任务侧栏，避免占用聊天空间；宽度恢复后重新显示，并保留任务卡片状态。
+    - id: visual-search-review-recovery
       category: fixes
       text:
-        en: Check bundled plugin versions through a shared official update index, respect rate-limit recovery times, and retain the last successful check when updates cannot be checked.
-        zh-CN: 随包插件通过共享官方索引检查更新，遵守限流恢复时间；检查暂不可用时保留上次成功结果，并区分检查、下载和安装失败。
-    - id: ready-install-confirmation
-      category: fixes
-      text:
-        en: Show installation confirmation as soon as a download is ready, even after closing its progress window. Check running tasks after approval so Host preparation cannot hide the confirmation.
-        zh-CN: 下载就绪后立即显示安装确认，关闭过下载进度弹窗也能收到提示；用户批准后再检查运行任务，避免确认弹窗被应用服务的准备等待阻塞。
-    - id: reopen-update-download-dialog
-      category: fixes
-      text:
-        en: Reopen update progress while a download or file verification continues, and keep the installation confirmation accessible after the package is ready.
-        zh-CN: 修复下载或文件校验期间关闭弹窗后无法重新打开，以及安装包就绪后按钮可能持续转圈、无法再次打开安装确认的问题。
+        en: Image search reviews use bounded concurrency, reuse prepared reference images, and retry invalid model output within the saved budget. Repeated searches skip confirmed mismatches when the task and rules are unchanged.
+        zh-CN: 找图复核采用受控并行并复用已准备的参考图片；模型输出异常按保存的预算重试，同一任务和规则下跳过已确认不匹配的历史照片。
 releaseNotes: |-
   ## 体验优化
 
-  - 找图与提问弹窗采用与设置页一致的分组排版和角色插画；缩窄窗口时仍可查看会话任务，并避免底部出现横向滚动条。
-  - Apple Silicon 与 Intel 的无证书 macOS 测试包支持通过隔离的官方渠道检查和下载更新，安装仍需确认。
+  - 会话区域较窄时隐藏任务侧栏，避免占用聊天空间；宽度恢复后重新显示，并保留任务卡片状态。
 
   ## 问题修复
 
-  - 随包插件通过共享官方索引检查更新，遵守限流恢复时间；检查暂不可用时保留上次成功结果，并区分检查、下载和安装失败。
-  - 下载就绪后立即显示安装确认，关闭过下载进度弹窗也能收到提示；用户批准后再检查运行任务，避免确认弹窗被应用服务的准备等待阻塞。
-  - 修复下载或文件校验期间关闭弹窗后无法重新打开，以及安装包就绪后按钮可能持续转圈、无法再次打开安装确认的问题。
+  - 找图复核采用受控并行并复用已准备的参考图片；模型输出异常按保存的预算重试，同一任务和规则下跳过已确认不匹配的历史照片。
 
   ---
 
   ## Improvements
 
-  - Image search and question dialogs use settings-style groups and matching character illustrations. Conversation tasks remain available as the window narrows without adding a horizontal scrollbar.
-  - Apple Silicon and Intel certificate-free macOS test packages can check and download updates through the isolated official channel, with installation requiring confirmation.
+  - Hide the conversation task sidebar when the conversation area is too narrow, keeping chat space available. Widening the area restores the task card and its state.
 
   ## Bug fixes
 
-  - Check bundled plugin versions through a shared official update index, respect rate-limit recovery times, and retain the last successful check when updates cannot be checked.
-  - Show installation confirmation as soon as a download is ready, even after closing its progress window. Check running tasks after approval so Host preparation cannot hide the confirmation.
-  - Reopen update progress while a download or file verification continues, and keep the installation confirmation accessible after the package is ready.
+  - Image search reviews use bounded concurrency, reuse prepared reference images, and retry invalid model output within the saved budget. Repeated searches skip confirmed mismatches when the task and rules are unchanged.
