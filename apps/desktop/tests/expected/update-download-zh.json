@@ -4,5 +4,6 @@
   "amount": "1 MiB / 10 MiB",
   "speed": "512 KiB/s",
   "eta": "预计剩余 18 秒",
-  "pause": "暂停下载"
+  "pause": "暂停下载",
+  "notes": "此版本暂未提供更新说明。"
 }

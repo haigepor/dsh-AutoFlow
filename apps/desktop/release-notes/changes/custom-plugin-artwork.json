@@ -1,0 +1,8 @@
+{
+  "id": "custom-plugin-artwork",
+  "category": "improvements",
+  "text": {
+    "en": "Refresh artwork across the built-in custom plugins and their workbenches.",
+    "zh-CN": "更新随包自定义插件及工作台图标。"
+  }
+}

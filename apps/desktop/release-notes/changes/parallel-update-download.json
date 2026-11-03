@@ -1,0 +1,8 @@
+{
+  "id": "parallel-update-download",
+  "category": "improvements",
+  "text": {
+    "en": "Windows installer downloads use bounded parallel requests on supported sources and retain verified progress across pauses, source changes and restarts.",
+    "zh-CN": "Windows 安装包在支持的线路使用有上限的并行下载，暂停、换源和重启后保留经过校验的进度。"
+  }
+}

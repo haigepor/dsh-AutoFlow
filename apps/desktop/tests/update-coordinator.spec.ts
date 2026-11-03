@@ -72,6 +72,19 @@ function fixture(channel: 'nightly' | 'latest' = 'nightly', version = '1.1.0-alp
   return { coordinator, updater, events, states, checkForUpdates, downloadUpdate, quitAndInstall, beforeRestart, downloadResult }
 }
 
+it('retains only version-bound official notes through download, progress and readiness', async () => {
+  const f = fixture()
+  const result = await f.checkForUpdates()
+  const notes = { schemaVersion: 1, version: result.updateInfo.version, items: [{ id: 'measured-download', category: 'improvements',
+    text: { en: 'Show measured download progress.', 'zh-CN': '显示真实下载进度。' } }] }
+  Object.assign(result.updateInfo, { dshReleaseNotes: notes })
+  f.checkForUpdates.mockResolvedValue(result)
+  expect((await f.coordinator.check()).releaseNotes).toEqual(notes)
+  expect((await f.coordinator.download(result.updateInfo.version)).releaseNotes).toEqual(notes)
+  expect(f.states.filter(state => state.phase === 'downloading').every(state => state.releaseNotes?.version === notes.version)).toBe(true)
+  expect(f.quitAndInstall).not.toHaveBeenCalled()
+})
+
 describe('desktop update coordinator', () => {
   it.each(['stop-failed', 'fullscreen-timeout'] as const)('keeps safe %s diagnostics separate and clears them on an explicit retry', async (kind) => {
     const f = fixture()

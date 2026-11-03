@@ -9,6 +9,7 @@ import type { DesktopUpdateState } from './ipc.ts'
 import { DesktopUpdateHttpExecutor } from './update-http-executor.ts'
 import { DesktopUpdatePreparationError } from './update-error.ts'
 import { DesktopDownloadPaused, type DesktopDownloadProgress, type DesktopUpdateDownload } from './update-download.ts'
+import { parseDesktopReleaseNotes, type DesktopReleaseNotes } from './update-release-notes.ts'
 
 const { autoUpdater, CancellationToken } = electronUpdater
 
@@ -16,6 +17,7 @@ const { autoUpdater, CancellationToken } = electronUpdater
 export class DesktopUpdateCoordinator {
   private current: DesktopUpdateState = { phase: 'idle' }
   private candidate: string | undefined
+  private releaseNotes: DesktopReleaseNotes | undefined
   private downloaded = false
   private disposed = false
   private checkOperation: Promise<DesktopUpdateState> | undefined
@@ -241,6 +243,9 @@ export class DesktopUpdateCoordinator {
   }
 
   private setState(state: DesktopUpdateState): DesktopUpdateState {
+    if (this.releaseNotes !== undefined && state.version === this.releaseNotes.version) {
+      state = { ...state, releaseNotes: this.releaseNotes }
+    }
     if (!this.disposed) {
       this.current = state
       this.publish(state)
@@ -272,6 +277,11 @@ export class DesktopUpdateCoordinator {
       if (valid(version) === null) throw new Error('desktop update: feed version is invalid')
       if (this.channel === 'latest' && version.includes('-')) throw new Error('desktop update: latest feed contains a prerelease')
       this.candidate = result.isUpdateAvailable && gt(version, this.currentVersion()) ? version : undefined
+      this.releaseNotes = undefined
+      if (this.candidate !== undefined && 'dshReleaseNotes' in result.updateInfo) {
+        try { this.releaseNotes = parseDesktopReleaseNotes(result.updateInfo.dshReleaseNotes, version) }
+        catch (error) { console.warn('desktop update: optional release notes rejected', error) }
+      }
       this.transport?.prepare({ version, files: result.updateInfo.files })
       return this.setState(this.candidate === undefined ? { phase: 'idle' } : { phase: 'available', version,
         ...(this.resumable === undefined ? {} : { download: this.resumable.state }) })

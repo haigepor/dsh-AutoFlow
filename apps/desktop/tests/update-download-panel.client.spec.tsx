@@ -28,7 +28,8 @@ it('renders measured progress and keeps custom source input stable during update
     amount: document.querySelector('[data-download-amount]')!.textContent,
     speed: document.querySelector('[data-download-speed]')!.textContent,
     eta: document.querySelector('[data-download-eta]')!.textContent,
-    pause: screen.getByRole('button', { name: '暂停下载' }).textContent }
+    pause: screen.getByRole('button', { name: '暂停下载' }).textContent,
+    notes: screen.getByRole('region', { name: '更新内容' }).textContent }
   expect(initial).toEqual(JSON.parse(readFileSync(join(import.meta.dirname, 'expected/update-download-zh.json'), 'utf8')))
   fireEvent.click(screen.getByRole('button', { name: '下载线路' }))
   fireEvent.click(await screen.findByRole('menuitem', { name: '自定义 HTTPS 代理' }))
@@ -54,6 +55,27 @@ it('lets ordinary downloads continue in the background without authorizing insta
   fireEvent.click(screen.getByRole('button', { name: '后台下载' }))
   expect(f.close).toHaveBeenCalledOnce()
   expect(f.control).not.toHaveBeenCalled()
+})
+
+it('groups localized release notes and retains the scroll position while byte progress changes', () => {
+  const f = fixture()
+  const releaseNotes = { schemaVersion: 1 as const, version: '2.0.0', items: [
+    { id: 'download-resume', category: 'fixes' as const, text: { en: 'Resume interrupted downloads.', 'zh-CN': '修复下载中断后无法继续的问题。' } },
+    { id: 'literal-content', category: 'features' as const, text: { en: '<img src=x onerror=alert(1)>', 'zh-CN': '显示更新内容。' } },
+  ] }
+  const state = { ...f.props.state, releaseNotes }
+  f.rerender(<UpdateDownloadPanel {...f.props} state={state} />)
+  expect(screen.getByRole('heading', { name: '新增功能' })).toBeTruthy()
+  expect(screen.getByText('修复下载中断后无法继续的问题。')).toBeTruthy()
+  const region = screen.getByRole('region', { name: '更新内容' })
+  region.scrollTop = 50
+  f.rerender(<UpdateDownloadPanel {...f.props} state={{ ...state, download: { ...f.download, transferred: 2048 } }} />)
+  expect(screen.getByRole('region', { name: '更新内容' })).toBe(region)
+  expect(region.scrollTop).toBe(50)
+  const en = resolveDesktopLocale('en')
+  f.rerender(<UpdateDownloadPanel {...f.props} state={state} messages={en.messages} locale={en.id} />)
+  expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeTruthy()
+  expect(region.querySelector('img')).toBeNull()
 })
 
 it('keeps mandatory download controls available without a dismiss action', () => {

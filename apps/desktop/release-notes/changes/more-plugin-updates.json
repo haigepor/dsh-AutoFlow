@@ -1,0 +1,8 @@
+{
+  "id": "more-plugin-updates",
+  "category": "features",
+  "text": {
+    "en": "Check for independent Style Prompt and Boot Animation plugin updates from the Plugins page.",
+    "zh-CN": "插件页支持检查风格提示词和启动动画的独立更新。"
+  }
+}

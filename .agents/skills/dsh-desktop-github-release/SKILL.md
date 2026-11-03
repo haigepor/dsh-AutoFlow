@@ -21,6 +21,8 @@ compatibility: Windows x64 打包需 Node.js、pnpm、Visual C++ 和 Windows SDK
 
 读取根 AGENTS、Desktop README、相关测试和发布配置。加载 `ponytail`、`windows-utf8-editing`；提交推送前使用 `dsh-pre-push-checks`。检查工作区、远程头和来源提交，保护用户其他改动，不使用 `git add .`。
 
+按[更新说明流程](../../../apps/desktop/release-notes/README.zh.md)检查日常条目，合并同一问题、删去未完成或无用户影响的内容，整理新增功能、体验优化、问题修复和其他变更。执行 `node --import tsx/esm apps/desktop/scripts/release-notes.ts <精确构建版本>` 后审阅对应 `releases/<版本>.json`，在用户授权的源码提交中包含它，再打包；没有提交授权时完成整理并报告待提交，不发布。已发布版本的说明不覆盖，需要纠正时使用新版本。
+
 不存在 `apps/desktop/.env.windows` 时复制 `.env.github.windows.example`；存在时先读取，保留配置和凭据。更新仓库与 Pages URL，策略 URL 必须是同目录 `policy.json`。无签名升级要求 `DSH_DESKTOP_UNSIGNED_UPDATES=1`、独立应用 ID 和 `/unsigned/` 目录；正式通道移除该开关，使用其他 Pages 目录及签名配置。
 
 不打印 PIN、密码、私钥、Token 或完整 credential-helper 输出。发布脚本读取进程 `GITHUB_TOKEN`／`GH_TOKEN` 或 Git Credential Manager；Token 不放入平台 dotenv、安装包或项目文件。
@@ -53,7 +55,7 @@ pnpm --dir apps/desktop run publish:github win-x64 --prepare-only
 pnpm --dir apps/desktop run publish:github win-x64
 ```
 
-准备步骤读取此前策略，校验 completion record、版本、目标、文件名、SHA-512 和附件。首次策略默认以首次安装包版本为最低支持版本；后续保留原最低版本。仅在用户明确要求淘汰旧版本时传入 `--minimum-supported-version <版本>`，不随普通发布提高强制阈值。
+准备步骤读取此前策略，校验 completion record、版本、目标、文件名、SHA-512 和附件，并从 completion record 的构建提交读取对应版本更新说明；缺失、未完成或版本不符时停止。Release 正文和官方 feed 的 `dshReleaseNotes` 来自同一份条目。首次策略默认以首次安装包版本为最低支持版本；后续保留原最低版本。仅在用户明确要求淘汰旧版本时传入 `--minimum-supported-version <版本>`，不随普通发布提高强制阈值。
 
 发布先上传并公开不可变附件，验证 GitHub SHA-256 和匿名下载地址，再将 feed 与策略共同提交到专用 `desktop-updates` 分支。遇到已有文档 Pages 站点时停止，不覆盖。正式标签为 `desktop-v<版本>`，无签名标签为 `desktop-v<版本>-unsigned`；不读取仓库 `releases/latest`，避免选中 AFP。
 

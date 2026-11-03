@@ -1,6 +1,8 @@
 /** Actual Electron HTTP/download qualification; installer execution is forbidden. */
 import { mandatoryFrame } from './mandatory-frame.mjs'
 import { setTimeout as delay } from 'node:timers/promises'
+import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import fs from 'node:fs'
@@ -21,6 +23,8 @@ import { DesktopUpdateHttpExecutor } from '../../lib/types/update-http-executor.
 import { DesktopUpdateDownload, desktopDownloadConfig } from '../../lib/types/update-download.js'
 import { DesktopUpdateOverlays } from '../../lib/types/update-overlay.js'
 import { qualifyUpdateDialogs } from './update-dialogs.mjs'
+import { qualifyUpdateNetwork } from './update-network.mjs'
+import { createDesktopUpdateFetch } from '../../lib/types/update-fetch.js'
 
 const root = process.env.DSH_LOCAL_UPDATE_TEST_ROOT
 assert.ok(root, 'The launcher must allocate a private test root')
@@ -32,6 +36,7 @@ const cases = []
 const presentations = []
 let screenshot = { captured: false, reason: 'not attempted' }
 let dialogScreenshots = []
+let dialogCaptureFailures = []
 const { NsisUpdater } = updaterModule
 const messages = resolveDesktopLocale('zh-CN').messages
 
@@ -40,7 +45,7 @@ async function main() {
   const server = await createUpdateServer()
   let serial = 0
   const fixtures = []
-  async function fixture(mode = 'healthy', timeoutMs = 60_000, resumable = false, reuseDirectory) {
+  async function fixture(mode = 'healthy', timeoutMs = 60_000, resumable = false, reuseDirectory, downloadSettings = {}) {
     server.select(mode)
     const directory = reuseDirectory ?? join(root, String(++serial))
     await mkdir(directory, { recursive: true })
@@ -56,8 +61,9 @@ async function main() {
     updater.logger = null
     let coordinator
     const transferred = Promise.withResolvers()
-    const download = resumable ? new DesktopUpdateDownload(desktopDownloadConfig(join(directory, 'resume'), {}),
-      (url, options) => getNetSession().fetch(url instanceof URL ? url.href : url, options), progress => coordinator.transfer(progress)) : undefined
+    const download = resumable ? new DesktopUpdateDownload(desktopDownloadConfig(join(directory, 'resume'), downloadSettings),
+      createDesktopUpdateFetch(getNetSession(), (auth, callback) => { if (!updater.emit('login', auth, callback)) callback() }),
+      progress => coordinator.transfer(progress)) : undefined
     await download?.initialize()
     const transport = new DesktopUpdateHttpExecutor(timeoutMs, undefined, download)
     updater.httpExecutor = transport
@@ -83,6 +89,9 @@ async function main() {
   }
   async function scenario(name, run) { await run(); cases.push(name); console.log(`local updater: ${name}`) }
   try {
+    await scenario('isolated-electron-proxy-and-certificate-qualification', async () => {
+      cases.push(...await qualifyUpdateNetwork(root))
+    })
     await scenario('native-updater-pause-cleanup-and-owner-recreation-preserve-resume', async () => {
       const f = await fixture('hold-download', 60_000, true)
       const available = await f.coordinator.check()
@@ -102,6 +111,98 @@ async function main() {
       assert.equal(next.installations.length, 0)
       const paths = await next.updater.downloadUpdate()
       assert.deepEqual(await readFile(paths[0]), server.payload)
+    })
+    await scenario('parallel-electron-intervals-pause-and-restart-before-native-preparation', async () => {
+      const settings = { DSH_DESKTOP_UPDATE_CONNECTIONS: '4', DSH_DESKTOP_UPDATE_PIECE_BYTES: '65536' }
+      const f = await fixture('hold-download', 60_000, true, undefined, settings)
+      const available = await f.coordinator.check()
+      const pending = f.coordinator.download(available.version)
+      await f.transferred()
+      await f.coordinator.pauseDownload()
+      assert.equal((await pending).download.stage, 'paused')
+      const name = (await readdir(join(f.directory, 'resume'))).find(name => /^ranges-.*\.json$/.test(name))
+      assert.ok(name)
+      const saved = JSON.parse(await readFile(join(f.directory, 'resume', name), 'utf8'))
+      assert.ok(saved.pieces.some(piece => piece.bytes > 0))
+      f.coordinator.dispose()
+      const before = server.ranges.length
+      const next = await fixture('healthy', 60_000, true, f.directory, settings)
+      await next.coordinator.check()
+      assert.equal((await next.coordinator.download(available.version)).phase, 'ready')
+      assert.ok(server.ranges.slice(before).every(range => /^bytes=\d+-\d+$/.test(range)))
+      assert.deepEqual(await readFile(next.updater.installerPath), server.payload)
+      assert.equal(next.installations.length, 0)
+    })
+    await scenario('parallel-forced-electron-exit-restores-only-journaled-intervals-in-a-new-process', async () => {
+      const directory = join(root, 'process-restart')
+      await mkdir(join(directory, 'chromium'), { recursive: true })
+      const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+        !/KEY|SECRET|TOKEN|PASSWORD|^NODE_OPTIONS$|^ELECTRON_RUN_AS_NODE$/i.test(key)))
+      const launch = () => {
+        const child = spawn(process.execPath, [fileURLToPath(new URL('./range-download-child.mjs', import.meta.url))], {
+          windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'], env: { ...environment,
+            DSH_RANGE_TEST_ROOT: directory, DSH_RANGE_TEST_URL: `${server.url}payload.exe`,
+            DSH_RANGE_TEST_SIZE: String(server.payload.length),
+            DSH_RANGE_TEST_SHA512: createHash('sha512').update(server.payload).digest('base64') },
+        })
+        let stderr = ''
+        child.stderr.on('data', chunk => { stderr += chunk.toString() })
+        const closed = new Promise((resolve, reject) => {
+          child.once('error', reject)
+          child.once('close', (code, signal) => resolve({ code, signal, stderr }))
+        })
+        return { child, closed }
+      }
+      server.select('hold-after-prefix')
+      const first = launch()
+      try {
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Child did not flush an interval')), 10000)
+          first.child.on('message', message => { if (message.kind === 'checkpoint') { clearTimeout(timeout); resolve() } })
+          first.closed.then(result => { clearTimeout(timeout); reject(new Error(`Child exited before interruption: ${JSON.stringify(result)}`)) }, reject)
+        })
+      } finally { first.child.kill(); await first.closed }
+      const name = (await readdir(join(directory, 'cache'))).find(name => /^ranges-.*\.json$/.test(name))
+      assert.ok(name)
+      const saved = JSON.parse(await readFile(join(directory, 'cache', name), 'utf8'))
+      const partial = saved.pieces.find(piece => piece.bytes === 65536 && piece.bytes < saved.pieceBytes)
+      assert.ok(partial)
+      const before = server.ranges.length
+      server.select('healthy')
+      const next = launch()
+      const result = await next.closed
+      assert.equal(result.code, 0, result.stderr)
+      assert.ok(server.ranges.slice(before).some(range => range.startsWith(`bytes=${partial.index * saved.pieceBytes + partial.bytes}-`)))
+      assert.deepEqual(await readFile(join(directory, 'verified.exe')), server.payload)
+    })
+    await scenario('parallel-partial-positional-write-enospc-never-reaches-installation-and-can-retry', async () => {
+      const f = await fixture('healthy', 60_000, true, undefined,
+        { DSH_DESKTOP_UPDATE_CONNECTIONS: '4', DSH_DESKTOP_UPDATE_PIECE_BYTES: '65536' })
+      const available = await f.coordinator.check()
+      const marker = await fs.promises.open(join(f.directory, 'handle-marker'), 'w')
+      const prototype = Object.getPrototypeOf(marker)
+      const original = prototype.write
+      await marker.close()
+      let written = 0
+      prototype.write = async function (buffer, offset, length, position) {
+        if (written === 0 && typeof position === 'number') {
+          const result = await original.call(this, buffer, offset, Math.min(length, 1024), position)
+          written += result.bytesWritten
+          throw Object.assign(new Error('ENOSPC: injected after a real partial positional write'), { code: 'ENOSPC' })
+        }
+        return original.call(this, buffer, offset, length, position)
+      }
+      try {
+        const result = await f.coordinator.download(available.version)
+        assert.equal(result.phase, 'error')
+        assert.match(result.message, /ENOSPC/)
+        assert.ok(written > 0)
+        assert.equal(f.updater.installerPath, null)
+        assert.equal(f.installations.length, 0)
+      } finally { prototype.write = original }
+      assert.equal((await f.coordinator.download(available.version)).phase, 'ready')
+      assert.deepEqual(await readFile(f.updater.installerPath), server.payload)
+      assert.equal(f.installations.length, 0)
     })
     await scenario('same-version-no-update', async () => {
       const f = await fixture()
@@ -260,7 +361,10 @@ async function main() {
       assert.equal(f.states.length, 0)
     })
     await scenario('ordinary-real-dialog-cancel-and-explicit-install', async () => {
-      dialogScreenshots = await qualifyUpdateDialogs(root, fixture)
+      const result = await qualifyUpdateDialogs(root, (mode, timeout, resumable, directory) => fixture(mode, timeout, resumable, directory,
+        { DSH_DESKTOP_UPDATE_CONNECTIONS: '4', DSH_DESKTOP_UPDATE_PIECE_BYTES: '65536' }))
+      dialogScreenshots = result.screenshots
+      dialogCaptureFailures = result.captureFailures
     })
     await scenario('mandatory-real-window-policy-download-retry-and-clear', async () => {
       protocol.handle('dsh-app', async request => {
@@ -420,8 +524,8 @@ async function main() {
     })
     assert.deepEqual(server.failures, [])
     console.log(`LOCAL_UPDATER_RESULT=${JSON.stringify({ cases, presentations, actualElectron: process.versions.electron,
-      actualTransport: 'DesktopUpdateHttpExecutor (ElectronHttpExecutor)', installerExecuted: false, screenshot, requests: server.requests.length })}`)
-    await writeFile(join(root, 'result.json'), `${JSON.stringify({ cases, presentations, installerExecuted: false, screenshot, dialogScreenshots }, null, 2)}\n`)
+      actualTransport: 'DesktopUpdateHttpExecutor (ElectronHttpExecutor)', installerExecuted: false, screenshot, dialogCaptureFailures, requests: server.requests.length })}`)
+    await writeFile(join(root, 'result.json'), `${JSON.stringify({ cases, presentations, installerExecuted: false, screenshot, dialogScreenshots, dialogCaptureFailures }, null, 2)}\n`)
   } finally {
     for (const f of fixtures) f.coordinator.dispose()
     await server.close()

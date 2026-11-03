@@ -19,6 +19,15 @@ async function rendered(window) {
   })`)
 }
 
+async function bounded(promise, label) {
+  let timer
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Update dialog qualification timed out: ${label}`)), 10000)
+    })])
+  } finally { clearTimeout(timer) }
+}
+
 /** Exercise cancellation and explicit installation through the production preload and renderer. */
 export async function qualifyUpdateDialogs(root, fixture) {
   const theme = nativeTheme.themeSource
@@ -26,6 +35,20 @@ export async function qualifyUpdateDialogs(root, fixture) {
   const locale = resolveDesktopLocale('zh-CN')
   const messages = locale.messages
   const screenshots = []
+  const captureFailures = []
+  async function capture(contents, name) {
+    try {
+      contents.setBackgroundThrottling(false)
+      await bounded(contents.executeJavaScript(`document.getAnimations().filter(animation => Number.isFinite(animation.effect.getComputedTiming().endTime)).forEach(animation => animation.finish())`), `${name} animations`)
+      await bounded(contents.executeJavaScript(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`), `${name} frame`)
+      const bitmap = await bounded(contents.capturePage(), `${name} capture`)
+      if (bitmap.isEmpty()) throw new Error('Electron returned an empty capture')
+      await writeFile(join(root, name), bitmap.toPNG())
+      screenshots.push(name)
+    } catch (error) {
+      captureFailures.push({ name, reason: error instanceof Error ? error.message : String(error) })
+    }
+  }
   protocol.handle('dsh-app', async request => {
     const name = new URL(request.url).pathname.slice(1)
     assert.ok(['design-platform.css', 'shell-theme.js', 'update-dialog.html', 'update-dialog.js', 'update-dialog.css',
@@ -36,7 +59,7 @@ export async function qualifyUpdateDialogs(root, fixture) {
       : ['download-controls.js', 'download-controls.css'].includes(name) ? '../../lib/shell' : '../../renderer'
     return new Response(await readFile(new URL(`${directory}/${name}`, import.meta.url)), { headers: { 'content-type': mime } })
   })
-  const parent = new BrowserWindow({ show: true, width: 900, height: 650 })
+  const parent = new BrowserWindow({ show: true, width: 900, height: 650, webPreferences: { backgroundThrottling: false } })
   let controlled
   let transfer
   const dialogs = new DesktopUpdateDialog(fileURLToPath(new URL('../../lib/preload-update-dialog.cjs', import.meta.url)), locale,
@@ -53,13 +76,34 @@ export async function qualifyUpdateDialogs(root, fixture) {
     controlled.observe(state => dialogs.updateDownload(state))
     await controlled.coordinator.check()
     const createdDownload = once(app, 'web-contents-created', { signal: AbortSignal.timeout(10_000) })
-    const downloadPrompt = dialogs.show(parent, { title: messages.updateTitle, message: messages.updateTitle,
+    let downloadPrompt = dialogs.show(parent, { title: messages.updateTitle, message: messages.updateTitle,
       detail: messages.updateDetail, buttons: [messages.updateClose], cancelId: 0, download: controlled.coordinator.state })
-    const [, downloadContents] = await createdDownload
+    let [, downloadContents] = await createdDownload
+    downloadContents.setBackgroundThrottling(false)
     await once(downloadContents, 'did-finish-load', { signal: AbortSignal.timeout(10_000) })
     await rendered({ webContents: downloadContents })
+    assert.ok(await downloadContents.executeJavaScript(`document.querySelector('[data-update-notes]').textContent.includes('更新内容')`))
+    assert.ok(await downloadContents.executeJavaScript(`document.querySelector('[data-update-notes]').textContent.includes('换源与重启后保留经过校验的下载进度。')`))
     await downloadContents.executeJavaScript(`document.querySelector('#download-controls button[data-action="resume"]').click()`)
     await controlled.transferred()
+    const retainedProgress = controlled.coordinator.state.download.transferred
+    const closedActive = once(downloadContents, 'destroyed', { signal: AbortSignal.timeout(10_000) })
+    dialogs.cancel()
+    await downloadPrompt
+    await closedActive
+    assert.equal(controlled.coordinator.state.phase, 'downloading')
+    assert.equal(controlled.download.isRunning, true)
+    assert.equal(controlled.installations.length, 0)
+    const reopened = once(app, 'web-contents-created', { signal: AbortSignal.timeout(10_000) })
+    downloadPrompt = dialogs.show(parent, { title: messages.updateTitle, message: messages.updateTitle,
+      detail: messages.updateDetail, buttons: [messages.updateClose], cancelId: 0, download: controlled.coordinator.state })
+    const reopenedContents = await reopened
+    downloadContents = reopenedContents[1]
+    downloadContents.setBackgroundThrottling(false)
+    await once(downloadContents, 'did-finish-load', { signal: AbortSignal.timeout(10_000) })
+    await rendered({ webContents: downloadContents })
+    assert.ok(controlled.coordinator.state.download.transferred >= retainedProgress)
+    assert.ok(await downloadContents.executeJavaScript(`document.querySelector('[data-download-amount]').textContent.includes('KiB')`))
     await downloadContents.executeJavaScript(`document.querySelector('#download-controls button[data-action="pause"]').click()`)
     await downloadContents.executeJavaScript(`new Promise((resolve, reject) => {
       const deadline = setTimeout(() => { observer.disconnect(); reject(new Error('Pause did not render')); }, 10000);
@@ -69,17 +113,15 @@ export async function qualifyUpdateDialogs(root, fixture) {
       observer.observe(document, {subtree:true, childList:true, characterData:true, attributes:true}); check();
     })`)
     assert.equal((await transfer).download.stage, 'paused')
+    console.log('local updater dialog: paused after closing and reopening the active download')
     assert.equal(controlled.installations.length, 0)
-    await downloadContents.executeJavaScript(`window.dshUpdateDialog.control('source', ${JSON.stringify(controlled.coordinator.state.version)}, {source:'github'})`)
+    await bounded(downloadContents.executeJavaScript(`window.dshUpdateDialog.control('source', ${JSON.stringify(controlled.coordinator.state.version)}, {source:'github'})`), 'paused source selection')
     assert.deepEqual(await downloadContents.executeJavaScript(`({source: document.getElementById('download-source').dataset.source,
       status: document.getElementById('download-status').textContent,
       button: document.querySelector('#download-controls button[data-action]').textContent})`), {
       source: 'github', status: messages.downloadPaused, button: messages.downloadResume,
     })
-    await downloadContents.executeJavaScript(`Promise.all(document.getAnimations().map(animation => animation.finished))`)
-    await downloadContents.executeJavaScript(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`)
-    await writeFile(join(root, 'download-paused.png'), (await downloadContents.capturePage()).toPNG())
-    screenshots.push('download-paused.png')
+    await capture(downloadContents, 'download-paused.png')
     nativeTheme.themeSource = 'dark'
     await downloadContents.executeJavaScript(`new Promise((resolve, reject) => {
       const deadline = setTimeout(() => { observer.disconnect(); reject(new Error('Download theme did not settle')); }, 10000);
@@ -87,10 +129,14 @@ export async function qualifyUpdateDialogs(root, fixture) {
       function check() { if (document.body.hasAttribute('data-ds-dark-theme')) { observer.disconnect(); clearTimeout(deadline); resolve(); } }
       observer.observe(document.body, {attributes:true}); check();
     })`)
-    await downloadContents.executeJavaScript(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`)
-    assert.equal(await downloadContents.executeJavaScript(`document.querySelector('main').scrollHeight <= document.querySelector('main').clientHeight + 1`), true)
-    await writeFile(join(root, 'download-paused-dark.png'), (await downloadContents.capturePage()).toPNG())
-    screenshots.push('download-paused-dark.png')
+    const layout = await downloadContents.executeJavaScript(`({height:innerHeight,main:document.querySelector('main').clientHeight,
+      scroll:document.querySelector('main').scrollHeight,notes:document.querySelector('[data-update-notes] [role="region"]').clientHeight,
+      actionsBottom:document.querySelector('#download-controls button[data-action]').getBoundingClientRect().bottom})`)
+    assert.ok(layout.scroll <= layout.main + 1, JSON.stringify(layout))
+    assert.ok(layout.actionsBottom <= layout.height, JSON.stringify(layout))
+    console.log(`local updater dialog layout: ${JSON.stringify(layout)}`)
+    assert.ok(layout.notes >= 80, JSON.stringify(layout))
+    await capture(downloadContents, 'download-paused-dark.png')
     await downloadContents.executeJavaScript(`document.getElementById('download-source').click()`)
     const menuBounds = await downloadContents.executeJavaScript(`new Promise((resolve, reject) => {
       const deadline = setTimeout(() => { observer.disconnect(); reject(new Error('Source menu did not open')); }, 10000);
@@ -149,8 +195,7 @@ export async function qualifyUpdateDialogs(root, fixture) {
         document.activeElement.textContent`), options.buttons.at(-1))
       await window.webContents.executeJavaScript("document.getElementById('dialog').focus()")
       const name = active ? 'update-active-tasks.png' : 'update-ready.png'
-      await writeFile(join(root, name), (await window.webContents.capturePage()).toPNG())
-      screenshots.push(name)
+      await capture(window.webContents, name)
       const closed = once(window.webContents, 'destroyed', { signal: AbortSignal.timeout(10_000) })
       if (active) {
         await window.webContents.executeJavaScript("setTimeout(() => document.querySelector('.primary').click(), 0); undefined")
@@ -185,14 +230,14 @@ export async function qualifyUpdateDialogs(root, fixture) {
         })()`), true)
       }
       const name = expanded ? 'update-error-expanded.png' : 'update-error-collapsed.png'
-      await writeFile(join(root, name), (await errorWindow.webContents.capturePage()).toPNG())
-      screenshots.push(name)
+      await capture(errorWindow.webContents, name)
     }
     assert.deepEqual(f.installations, [[true, true]])
+    const closedError = once(errorWindow.webContents, 'destroyed', { signal: AbortSignal.timeout(10_000) })
     errorWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
     assert.equal((await pending).response, 0)
     dialogs.cancel()
-    await once(errorWindow.webContents, 'destroyed', { signal: AbortSignal.timeout(10_000) })
+    await closedError
     const markerPath = join(root, 'background-close-confirmed')
     const notice = new DesktopBackgroundNotice({ markerPath, locale: () => locale,
       show: options => dialogs.show(parent, options), focus: () => dialogs.focus() })
@@ -216,9 +261,7 @@ export async function qualifyUpdateDialogs(root, fixture) {
         const closedNotice = once(noticeWindow.webContents, 'destroyed', { signal: AbortSignal.timeout(10_000) })
         if (confirm) {
           const name = 'background-close-confirmation.png'
-          await noticeWindow.webContents.executeJavaScript(`Promise.all(document.getAnimations().map(animation => animation.finished))`)
-          await writeFile(join(root, name), (await noticeWindow.webContents.capturePage()).toPNG())
-          screenshots.push(name)
+          await capture(noticeWindow.webContents, name)
           await noticeWindow.webContents.executeJavaScript("setTimeout(() => document.querySelector('.primary').click(), 0); undefined")
           await hidden.promise
         } else noticeWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
@@ -231,7 +274,7 @@ export async function qualifyUpdateDialogs(root, fixture) {
       assert.equal(parent.isVisible(), false)
       assert.equal(dialogs.isOpen, false)
     } finally { notice.dispose() }
-    return screenshots
+    return { screenshots, captureFailures }
   } finally {
     dialogs.dispose()
     parent.destroy()

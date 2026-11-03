@@ -1,0 +1,8 @@
+{
+  "id": "update-notes-panel",
+  "category": "features",
+  "text": {
+    "en": "Read new features, improvements and bug fixes in the desktop update dialog while the download continues.",
+    "zh-CN": "桌面更新弹窗新增更新说明，可在下载时查看新增功能、体验优化和问题修复。"
+  }
+}

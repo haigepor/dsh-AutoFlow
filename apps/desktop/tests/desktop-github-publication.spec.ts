@@ -26,13 +26,17 @@ async function fixture() {
     pagesUrl: environment.DSH_DESKTOP_GITHUB_PAGES_URL, publicUrl: `${environment.DSH_DESKTOP_GITHUB_PAGES_URL}feeds/win-x64/`,
     signing: 'unsigned', commit: 'a'.repeat(40), dirty: false }
   await writeFile(join(root, 'win-x64-release.json'), JSON.stringify(record))
-  const options = { environment, artifactsRoot: root, productVersion: '0.2.0-rc.2' }
+  const options = { environment, artifactsRoot: root, productVersion: '0.2.0-rc.2',
+    readReleaseNotes: async () => ({ schemaVersion: 1, version, items: [{ id: 'resume-download', category: 'fixes',
+      text: { en: 'Resume interrupted downloads.', 'zh-CN': '支持恢复中断的下载。' } }] }) }
   return { root, name, record, metadata, options, plan: await prepareDesktopGithubPublication('win-x64', options) }
 }
 
 it('builds a platform feed with explicit desktop Release URLs and retains the preceding minimum', async () => {
   const { options, plan } = await fixture()
   expect(plan.tag).toBe(`desktop-v${version}-unsigned`)
+  expect(load(plan.feed)).toMatchObject({ dshReleaseNotes: { version, items: [{ id: 'resume-download' }] } })
+  expect(plan.releaseNotes).toContain('支持恢复中断的下载。')
   expect(plan.policy.targets['win-x64']?.minimumSupportedVersion).toBe('0.0.0')
   expect(load(plan.feed)).toMatchObject({ version, files: [{ url: `https://github.com/owner/repository/releases/download/${plan.tag}/${plan.assets[0]!.name}` }] })
   const previous = { ...plan.policy, targets: { ...plan.policy.targets,
@@ -42,6 +46,14 @@ it('builds a platform feed with explicit desktop Release URLs and retains the pr
   await expect(prepareDesktopGithubPublication('win-x64', { ...options, previousPolicy: previous,
     minimumSupportedVersion: '0.2.0-rc.0' })).rejects.toThrow('lower the minimum')
   await expect(prepareDesktopGithubPublication('win-x64', { ...options, minimumSupportedVersion: '1.0.0' })).rejects.toThrow('exceeds latest')
+})
+
+it('refuses missing, placeholder and version-mismatched notes before remote publication', async () => {
+  const { options } = await fixture()
+  for (const notes of [undefined, { schemaVersion: 1, version: '9.0.0', items: [] },
+    { schemaVersion: 1, version, items: [{ id: 'unfinished', category: 'fixes', text: { en: 'TBD', 'zh-CN': '待补充' } }] }]) {
+    await expect(prepareDesktopGithubPublication('win-x64', { ...options, readReleaseNotes: async () => notes })).rejects.toThrow('release notes')
+  }
 })
 
 it('rejects altered payloads, signing mismatches and foreign asset filenames before publication', async () => {

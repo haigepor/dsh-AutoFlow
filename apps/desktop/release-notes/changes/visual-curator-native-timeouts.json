@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-native-timeouts",
+  "category": "fixes",
+  "text": {
+    "en": "Let the selected native model manage Visual Curator request timing, and refresh conversation cards when tasks finish.",
+    "zh-CN": "视觉策展的原生模型请求交由所选模型管理时序，并在任务结束时刷新会话卡片。"
+  }
+}

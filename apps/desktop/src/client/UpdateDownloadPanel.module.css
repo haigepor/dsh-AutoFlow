@@ -1,4 +1,5 @@
-.panel { display: grid; gap: 10px; color: var(--dsw-alias-label-primary); }
+.panel { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; gap: 10px; color: var(--dsw-alias-label-primary); }
+.panel > :not(.notes) { flex-shrink: 0; }
 .hero { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 12px; align-items: center; min-height: 108px; }
 .summary { min-width: 0; }
 .statusHeader { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
@@ -23,6 +24,14 @@
 .custom { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .route { color: var(--dsw-alias-label-tertiary); font-size: 12px; }
 .error { margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; line-height: 18px; }
+.notes { display: flex; flex-direction: column; min-width: 0; min-height: 72px; padding-top: 12px; border-top: 1px solid var(--dsw-alias-border-l4); }
+.notes h2 { flex: none; margin: 0 0 8px; font-size: 14px; line-height: 22px; font-weight: 500; }
+.notesScroll { min-height: 0; max-height: min(200px, 28vh); overflow: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-gutter: stable; }
+.noteGroup + .noteGroup { margin-top: 12px; }
+.noteGroup h3 { margin: 0 0 4px; font-size: 12px; line-height: 20px; font-weight: 500; color: var(--dsw-alias-label-primary); }
+.noteGroup ul { margin: 0; padding-left: 18px; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 21px; overflow-wrap: anywhere; }
+.noteGroup li + li { margin-top: 4px; }
+.notesEmpty { margin: 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 20px; }
 .footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-top: 8px; }
 .safety { display: flex; flex: 1; min-width: 120px; align-items: flex-start; gap: 6px; margin: 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
 .safety > svg { flex: none; margin-top: 1px; }
@@ -35,5 +44,15 @@
   .actions > button { flex: 1; min-width: 0; }
   .actions { width: 100%; }
   .percent { font-size: 36px; line-height: 44px; }
+}
+@media (max-height: 640px) {
+  .panel { gap: 8px; }
+  .hero { grid-template-columns: minmax(0, 1fr) 80px; min-height: 80px; }
+  .art { width: 80px; height: 80px; }
+  .percent { margin-top: 4px; font-size: 32px; line-height: 40px; }
+  .facts > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
+  .facts dd { margin: 0; }
+  .sourceHeader { padding-top: 6px; }
+  .footer { padding-top: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }

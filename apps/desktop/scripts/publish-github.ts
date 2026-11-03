@@ -78,7 +78,7 @@ export async function publishDesktopGithub(plan: DesktopGithubPublication, previ
   else if (object(object(tagRef).object).sha !== plan.commit) throw new Error('desktop GitHub: release tag names a different commit')
   let release = existing === undefined ? object(await request(`${prefix}/releases`, 'POST', {
     tag_name: plan.tag, target_commitish: plan.commit, name: `AutoFlow Desktop ${plan.version}${plan.signing === 'unsigned' ? '（无签名测试版）' : ''}`,
-    body: `桌面完整安装包，包含对应 dsh 运行时和 AFP 插件。\n\n${plan.signing === 'unsigned' ? '此版本未进行代码签名，仅用于无签名测试通道。' : '此版本使用发布环境完成签名。'}\n\n构建提交：${plan.commit}`,
+    body: `${plan.releaseNotes}\n\n${plan.signing === 'unsigned' ? '此版本未进行代码签名，仅用于无签名测试通道。' : '此版本使用发布环境完成签名。'}\n\n构建提交：${plan.commit}`,
     draft: true, prerelease: plan.signing === 'unsigned' || prerelease(plan.version) !== null, make_latest: 'false',
   })) : object(existing)
   if (typeof release.id !== 'number' || !Array.isArray(release.assets)) throw new Error('desktop GitHub: invalid release')

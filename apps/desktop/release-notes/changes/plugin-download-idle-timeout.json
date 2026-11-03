@@ -1,0 +1,8 @@
+{
+  "id": "plugin-download-idle-timeout",
+  "category": "fixes",
+  "text": {
+    "en": "Plugin downloads can continue while data is arriving instead of timing out after a fixed total duration, and show measured percentages in lists and details.",
+    "zh-CN": "修复插件安装包持续下载时仍因固定总时限而超时的问题，列表和详情同步显示真实下载百分比。"
+  }
+}

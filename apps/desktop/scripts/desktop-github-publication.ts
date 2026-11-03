@@ -8,6 +8,8 @@ import { gt } from 'semver'
 import { parseDesktopStaticUpdatePolicy, type DesktopStaticUpdatePolicy, type DesktopPolicyTarget } from '../src/static-update-policy.ts'
 import { desktopBuildRecordFilename, desktopUpdateMetadataFilename, resolveDesktopAutoUpdateConfig } from './desktop-auto-update-environment.mjs'
 import { validateDesktopBuildVersion } from './desktop-build-version.mjs'
+import { readCommittedReleaseNotes, releaseNotesMarkdown } from './release-notes.ts'
+import { parseDesktopReleaseNotes } from '../src/update-release-notes.ts'
 
 /** One immutable Release attachment, verified before any upload. */
 export interface DesktopGithubAsset {
@@ -24,6 +26,8 @@ export interface DesktopGithubPublication {
   readonly tag: string
   readonly commit: string
   readonly dirty: boolean
+  /** Reviewed bilingual release body, also included in the official update feed. */
+  readonly releaseNotes: string
   readonly pagesUrl: string
   readonly signing: 'signed' | 'unsigned'
   readonly assets: readonly DesktopGithubAsset[]
@@ -57,6 +61,8 @@ export async function prepareDesktopGithubPublication(target: DesktopPolicyTarge
   productVersion: string
   previousPolicy?: unknown
   minimumSupportedVersion?: string
+  /** Local source reader, replaceable by isolated publication tests. */
+  readReleaseNotes?: (commit: string, version: string) => Promise<unknown>
 }): Promise<DesktopGithubPublication> {
   const platform = target === 'win-x64' ? 'win32' : 'darwin'
   const arch = target === 'mac-arm64' ? 'arm64' : 'x64'
@@ -76,6 +82,8 @@ export async function prepareDesktopGithubPublication(target: DesktopPolicyTarge
     throw new Error('desktop GitHub publication: completion record does not match the selected release')
   }
   const tag = `desktop-v${version}${unsigned ? '-unsigned' : ''}`
+  const notes = parseDesktopReleaseNotes(await (options.readReleaseNotes ?? readCommittedReleaseNotes)(record.commit, version), version)
+  const releaseNotes = `${releaseNotesMarkdown(notes, 'zh-CN')}\n\n---\n\n${releaseNotesMarkdown(notes, 'en')}`
   const feedName = desktopUpdateMetadataFilename(version, platform)
   const feed = object(load(await readFile(join(options.artifactsRoot, feedName), 'utf8')), 'update metadata')
   if (feed.version !== version || !Array.isArray(feed.files) || feed.files.length !== 1) throw new Error('desktop GitHub publication: invalid feed version or files')
@@ -109,7 +117,7 @@ export async function prepareDesktopGithubPublication(target: DesktopPolicyTarge
       downloadPage: `https://github.com/${update.repository}/releases/tag/${tag}` } } })
   const payloadUrl = `https://github.com/${update.repository}/releases/download/${tag}/${encodeURIComponent(payloadName)}`
   return { repository: update.repository, version, tag, commit: record.commit, dirty: record.dirty,
-    pagesUrl: update.pagesUrl, signing, assets, feedName, target, policy,
-    feed: dump({ ...feed, files: [{ ...file, url: payloadUrl }],
+    pagesUrl: update.pagesUrl, signing, assets, feedName, target, policy, releaseNotes,
+    feed: dump({ ...feed, dshReleaseNotes: notes, releaseNotes, files: [{ ...file, url: payloadUrl }],
       ...(feed.path === undefined ? {} : { path: payloadUrl }) }, { lineWidth: -1 }) }
 }

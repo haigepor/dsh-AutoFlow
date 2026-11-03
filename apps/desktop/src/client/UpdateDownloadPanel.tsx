@@ -11,6 +11,7 @@ import { IconChevronDownOutlineRegular, IconClockOutlineRegular, IconDownloadOut
   IconGaugeOutlineRegular, IconGlobeOutlineRegular, IconInfoOutlineRegular, IconPauseOutlineRegular,
   IconPlayOutlineRegular, IconRefreshOutlineRegular, IconShieldOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives/src/icons/index.tsx'
 import type { DesktopUpdateState } from '../update-state.ts'
+import { DESKTOP_RELEASE_NOTE_CATEGORIES } from '../update-release-notes.ts'
 import { formatDesktopMessage, type DesktopMessages } from '../locale.ts'
 import s from './UpdateDownloadPanel.module.css'
 
@@ -36,6 +37,7 @@ export function UpdateDownloadPanel({ state, messages: m, locale, control, close
   const [error, setError] = useState(false)
   const command = useRef(false)
   const data = state.download
+  const notes = state.releaseNotes
   if (data === undefined) return null
   const paused = data.stage === 'paused'
   const active = state.phase === 'downloading'
@@ -113,6 +115,21 @@ export function UpdateDownloadPanel({ state, messages: m, locale, control, close
         onClick={() => { void act('source', { source: 'custom', customPrefix: prefix ?? data.choice.customPrefix ?? '' }) }}>{m.downloadApply}</Button>
     </div>}
     <p className={s.error} role="alert" hidden={!error}>{m.downloadControlFailed}</p>
+    <section className={s.notes} data-update-notes>
+      <h2 id="download-notes-title">{m.releaseNotesTitle}</h2>
+      <div className={s.notesScroll} tabIndex={0} role="region" aria-label={m.releaseNotesTitle}>
+        {notes === undefined ? <p className={s.notesEmpty}>{m.releaseNotesMissing}</p>
+          : DESKTOP_RELEASE_NOTE_CATEGORIES.map((category) => {
+            const items = notes.items.filter(item => item.category === category)
+            if (items.length === 0) return null
+            const heading = { features: m.releaseNotesFeatures, improvements: m.releaseNotesImprovements,
+              fixes: m.releaseNotesFixes, other: m.releaseNotesOther }[category]
+            return <div key={category} className={s.noteGroup}><h3>{heading}</h3><ul>{items.map(item => <li key={item.id}>
+              {locale.startsWith('zh') ? item.text['zh-CN'] : item.text.en}
+            </li>)}</ul></div>
+          })}
+      </div>
+    </section>
     <div className={s.footer}>
       <p className={s.safety}><IconShieldOutlineRegular />{m.downloadSafetyNote}</p>
       <div className={s.actions}>

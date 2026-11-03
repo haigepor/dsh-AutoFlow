@@ -1,0 +1,8 @@
+{
+  "id": "startup-animation",
+  "category": "features",
+  "text": {
+    "en": "Play the cyberpunk intro while the workspace and initial data load, with skip and reduced-motion support.",
+    "zh-CN": "启动时在工作区和首批数据加载期间播放赛博朋克片头，支持跳过和减少动态效果。"
+  }
+}
