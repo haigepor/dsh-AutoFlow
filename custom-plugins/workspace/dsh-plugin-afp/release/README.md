@@ -89,3 +89,7 @@ None.
 ## AFP 0.1.12
 
 Conversation feedback presents accepted previews and review details through the native image components, with bounded thumbnails and reusable report reads. The workbench retains report and collection controls while improving loading feedback and task status. Existing reports, account configuration and historical deduplication remain in place; restart after installing the update.
+
+## AFP 0.1.13
+
+The plugin list and workbench use the updated AFP artwork. Existing reports, credentials, configuration and feature choices remain; restart after installing the update.

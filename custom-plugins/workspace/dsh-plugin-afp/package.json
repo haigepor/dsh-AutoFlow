@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-afp",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/haigepor/dsh-AutoFlow.git",
@@ -45,7 +45,7 @@
     "cli/**",
     "docs/**"
   ],
-  "icon": "./assets/icons/afp.svg",
+  "icon": "./assets/plugin-logo-v2.webp",
   "dsh": {
     "bundle": {
       "update": {

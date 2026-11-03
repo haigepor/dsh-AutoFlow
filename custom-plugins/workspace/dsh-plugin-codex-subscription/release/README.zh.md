@@ -29,3 +29,7 @@ pnpm --filter dsh-plugin-codex-subscription run release:prepare --out .artifacts
 ## Codex Subscription 0.2.0
 
 本包在 Host 与工具之外包含会话图片卡片及实时图片任务状态。账号预检和额度报告区分账号不可用与请求失败，代理处理流式及 WebSocket 完成状态，不将未完成响应标为成功。已保存账号、凭据和任务保留在各自 profile 中；更新后需配套 AutoFlow 构建并重启。
+
+## Codex Subscription 0.2.1
+
+已安装插件列表使用更新后的图标。已有账号、凭据、任务和网关配置保留；更新后重启生效。

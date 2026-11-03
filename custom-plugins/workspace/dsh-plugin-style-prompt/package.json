@@ -1,15 +1,16 @@
 {
   "name": "dsh-plugin-style-prompt",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Analyze image styles with configured vision APIs and export differentiated generation prompts and reference plans",
   "license": "MIT",
   "type": "module",
   "engines": { "node": "^22.19.0 || >=24.0.0" },
   "exports": { ".": "./index.js", "./client": "./client.js", "./package.json": "./package.json", "./locale/*.json": "./locale/*.json" },
-  "files": ["index.js", "client.js", "cordis.patch.yml", "README.md", "README.zh.md", "locale", "assets/*.webp", "assets/*.prompt.txt"],
-  "icon": "./assets/reference-import-v1.webp",
+  "files": ["index.js", "client.js", "cordis.patch.yml", "README.md", "README.zh.md", "THIRD_PARTY_NOTICES.md", "release.config.json", "release", "locale", "assets/*.webp", "assets/*.prompt.txt"],
+  "icon": "./assets/plugin-logo-v2.webp",
   "dsh": {
     "bundle": {
+      "update": { "provider": "github", "repository": "haigepor/dsh-AutoFlow", "tagPrefix": "style-prompt-v", "metadataAsset": "style-prompt-update.json" },
       "patch": "./cordis.patch.yml",
       "features": [{
         "id": "workbench", "rowId": "style-prompt", "kind": "ui", "defaultEnabled": true,
@@ -21,9 +22,10 @@
     "client": { "platform": "web", "immediately": true, "inject": ["slots", "locale", "remote", "remote.pluginManager", "layout"] }
   },
   "scripts": {
-    "test": "node --import tsx/esm --test tests/*.test.ts",
+    "test": "node --import tsx/esm --test tests/*.test.ts tests/*.test.mjs",
     "check": "node scripts/check.mjs",
     "build": "node scripts/build.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs",
     "prepack": "pnpm run check && pnpm run build"
   },
   "dependencies": { "zod": "^4.4.3" },

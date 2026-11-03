@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "repository": "haigepor/dsh-AutoFlow",
+  "tagPrefix": "style-prompt-v",
+  "metadataAsset": "style-prompt-update.json",
+  "channel": "stable",
+  "makeLatest": false
+}

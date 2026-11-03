@@ -31,7 +31,7 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-style-prompt', factory(require) {
   const React = require<typeof import('react')>('react')
   const ui = require<typeof import('@deepseek-ai/dsh-client-ui-primitives')>('@deepseek-ai/dsh-client-ui-primitives')
   const { Workbench, Notice } = createWorkbench(React, ui)
-  function Icon() { return React.createElement(ui.IconPanelLeftOutlineRegular, { size: 18 }) }
+  function Icon({ size = 18 }: { size?: number }) { return React.createElement(ui.IconListPenOutlineRegular, { size }) }
   function OpenEntry({ open, label }: { open(): void; label: string }) { return React.createElement(ui.Button, { onClick: open }, label) }
   return { inject: ['slots', 'locale', 'remote', 'remote.pluginManager', 'layout'], apply(ctx) {
     const namespace = 'stylePrompt', panel = 'style-prompt-page'

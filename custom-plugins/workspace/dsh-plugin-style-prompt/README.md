@@ -31,6 +31,8 @@ Style Prompt ships with the CLI and Desktop runtime and appears under **Plugins 
 
 Build this workspace with `pnpm --filter dsh-plugin-style-prompt run build`. The package publishes `index.js`, `client.js`, [cordis.patch.yml](cordis.patch.yml), display locales and artwork. Its independent bundle row is `style-prompt`; Desktop packaging includes its local tarball in the production dependency set. Profiles that do not hot-load changed JavaScript need a restart after replacing an installed build.
 
+The Plugins page can check this bundle's independent GitHub releases; automatic installation is opt-in and updated code loads after restart. See the [release guide](release/README.md).
+
 ### Analyze and create prompts
 
 1. Configure an image-capable model in the project's model settings. Select that model in this workbench; no second API key or endpoint is needed.
@@ -63,7 +65,7 @@ A small [material-swatch illustration](assets/style-dimensions-v1.webp) decorate
 
 Style rules appear as selectable cards. English descriptions and visible evidence stay in expandable details. Those details and history use the shared disclosure animation and respect reduced motion.
 
-The image import area uses its own transparent [photo-tray artwork](assets/reference-import-v1.webp), generated with the built-in image tool using the saved [asset prompt](assets/reference-import-v1.prompt.txt). Drag feedback follows the active theme and clears when a drop or task admission ends the drag. File selection and drop handling share the active profile's format, count and byte checks.
+The image import area and plugin cards share the transparent [hand-painted pen and color swatches](assets/plugin-logo-v2.webp), generated with the built-in image tool using the saved [asset prompt](assets/plugin-logo-v2.prompt.txt). The sidebar uses the shared monochrome list-and-pen glyph at the navigation's requested size. Drag feedback follows the active theme and clears when a drop or task admission ends the drag. File selection and drop handling share the active profile's format, count and byte checks.
 
 </details>
 

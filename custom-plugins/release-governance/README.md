@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Plugins and Desktop share a source repository but publish independently. A version tag identifies one product's frozen source; a public Release contains that product's verified installable assets. Development milestones belong in Git history, PRs or Actions artifacts. Plugin publication follows the [AFP](../workspace/dsh-plugin-afp/release/README.md), [Codex Subscription](../workspace/dsh-plugin-codex-subscription/release/README.md) or [Visual Curator](../workspace/dsh-plugin-visual-curator/release/README.md) guide; the [Desktop guide](../../apps/desktop/README.md) owns packaging, signing and production uploads.
+Plugins and Desktop share a source repository but publish independently. A version tag identifies one product's frozen source; a public Release contains that product's verified installable assets. Development milestones belong in Git history, PRs or Actions artifacts. Plugin publication follows the [AFP](../workspace/dsh-plugin-afp/release/README.md), [Codex Subscription](../workspace/dsh-plugin-codex-subscription/release/README.md), [Visual Curator](../workspace/dsh-plugin-visual-curator/release/README.md), [Style Prompt](../workspace/dsh-plugin-style-prompt/release/README.md) or [Boot Animation](../workspace/dsh-boot-animation/release/README.md) guide; the [Desktop guide](../../apps/desktop/README.md) owns packaging, signing and production uploads.
 
 ## Product families
 
@@ -13,6 +13,8 @@ Plugins and Desktop share a source repository but publish independently. A versi
 | AFP | AFP `package.json` | `afp-v<semver>` | `.tgz`, `SHA256SUMS`, `afp-update.json`; plugin checks only its declared stable tag family |
 | Codex Subscription | Its package manifest | `codex-subscription-v<semver>` | `.tgz`, `SHA256SUMS`, `codex-subscription-update.json` |
 | Visual Curator | Its package manifest | `visual-curator-v<semver>` | `.tgz`, `SHA256SUMS`, `visual-curator-update.json` |
+| Style Prompt | Its package manifest | `style-prompt-v<semver>` | `.tgz`, `SHA256SUMS`, `style-prompt-update.json` |
+| Boot Animation | Its package manifest | `boot-animation-v<semver>` | `.tgz`, `SHA256SUMS`, `boot-animation-update.json` |
 | Another custom plugin | Its package manifest | `<plugin>-v<semver>` | Its own tarball, checksum and metadata asset |
 | Desktop | Desktop build version | `desktop-v<version>` | Signed installer, update manifest and matching update artifacts; current production delivery uses Tencent COS |
 | DSH npm packages | Existing upstream workflow | `dsh-v<version>` | npm package publication; this workflow does not publish Desktop installers |
@@ -24,10 +26,10 @@ AFP and Desktop may use different version numbers and release dates. Publishing 
 1. Select one product, new version and reviewed source commit. Check its existing tags and Releases; never reuse a public version or move its tag.
 2. Update that product's changelog, paired guides and version declaration. Run its focused tests and package checks; build the exact clean source to be released.
 3. Prepare a draft with explicit product name, version, source tag, changes, configuration/data migration, restart requirements, assets, supported platforms and known limitations. Verify hashes and byte counts before publication.
-4. Publish through that product's workflow. AFP tags trigger the AFP workflow; Codex Subscription and Visual Curator use the custom-plugin workflow. Desktop follows signing, package validation and production upload; its existing uploader records the Desktop tag after production upload succeeds. A GitHub Desktop Release is published only after installer assets are available and verified.
+4. Publish through that product's workflow. AFP tags trigger the AFP workflow; the other independent plugins use the custom-plugin workflow. Desktop follows signing, package validation and production upload; its existing uploader records the Desktop tag after production upload succeeds. A GitHub Desktop Release is published only after installer assets are available and verified.
 5. Plugin delivery finishes by default after the publication workflow succeeds and the public Release has the correct source tag and uploaded assets; download verification, isolated profiles and update rehearsals run only when requested or diagnosing failures. Desktop still follows its release guide for installer, signature and update-asset verification. Preserve frozen assets and correct defects with a new version.
 
-Release titles use `AFP <version>`, `Codex Subscription <version>`, `Visual Curator <version>` or `Desktop <version>`. Notes describe only the selected product; shared-source changes belong only when they affect its artifact. Do not publish an assetless Release for a code milestone, and do not treat GitHub's automatic source archives as plugin packages or installers. Preview builds use Actions artifacts; an explicitly distributed preview may use a clearly marked prerelease with real assets and a separate update channel.
+Release titles name the selected plugin or `Desktop` and its version. Notes describe only that product; shared-source changes belong only when they affect its artifact. Do not publish an assetless Release for a code milestone, and do not treat GitHub's automatic source archives as plugin packages or installers. Preview builds use Actions artifacts; an explicitly distributed preview may use a clearly marked prerelease with real assets and a separate update channel.
 
 The custom-plugin native checks use the canonical runner-owned temporary directory for `TMPDIR`, `TMP` and `TEMP`, so Windows short paths and macOS directory aliases do not change fixture path comparisons. A workflow-only recovery may dispatch the current workflow with an existing tag; every checkout and prepared asset still uses that tag's frozen source.
 

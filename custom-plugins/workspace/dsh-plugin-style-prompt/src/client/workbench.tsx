@@ -5,7 +5,7 @@
 import type { Workspace, WorkspaceState } from './workspace.ts'
 import type { Text } from './locale.ts'
 import { dimensionSchema, generationInputSchema, type Dimension, type RuleId, type Route } from '../shared/model.ts'
-import importArtwork from '../../assets/reference-import-v1.webp'
+import importArtwork from '../../assets/plugin-logo-v2.webp'
 import dimensionsArtwork from '../../assets/style-dimensions-v1.webp'
 import { acceptedImageTypes, validateImageSelection, type ImportIssue } from './import.ts'
 

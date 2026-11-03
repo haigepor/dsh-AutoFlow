@@ -26,6 +26,10 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.3
+
+The installed plugin list and workbench use the updated artwork. Existing styles, references, tasks and feature choices remain; restart after updating.
+
 ## Visual Curator 0.2.2
 
 Native LLM timing applies to reference analysis, image-search reviews, crop proposals, evaluation and context compaction. These paths no longer have plugin-imposed request or task wall-clock deadlines, including continuation of saved native tasks. Native connection and idle handling, explicit cancellation, call/page/byte quotas and bounded retries remain effective. Image-source and image-download requests retain network timeouts; explicitly selected compatible HTTP tasks retain their existing limits.

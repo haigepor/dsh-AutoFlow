@@ -31,6 +31,8 @@ kind: "package-bundle"
 
 使用 `pnpm --filter dsh-plugin-style-prompt run build` 构建此工作区。包中发布 `index.js`、`client.js`、[cordis.patch.yml](cordis.patch.yml)、展示文案和图片资源，独立组合包行为 `style-prompt`；Desktop 打包会将本地 tarball 加入生产依赖集合。无法热加载 JavaScript 变更的 profile 在替换安装构建后需要重启。
 
+插件页可以检查此组合包的独立 GitHub 版本；自动安装需明确开启，更新后的代码在重启后加载。详见[发布指南](release/README.zh.md)。
+
 ### 分析和创建提示词
 
 1. 在项目模型设置中配置支持图片的模型，再在工作台选择该模型；无需重复填写 API 密钥和端点。
@@ -63,7 +65,7 @@ Host 使用公共 LLM、附件和存储域服务。每个任务固定输入，�
 
 风格规则使用可选择的卡片，英文表述与可见依据放入可展开详情。详情与历史记录复用共享折叠动画，并适配减少动态效果设置。
 
-图片导入区使用独立的透明[图片收纳盒素材](assets/reference-import-v1.webp)，由内置图片工具按已保存的[素材提示词](assets/reference-import-v1.prompt.txt)生成。拖入高亮适配当前主题，并在放下图片或进入任务状态后清除。文件选择与拖拽共用当前 profile 的格式、数量与字节检查。
+图片导入区和插件卡片统一使用透明背景的[手绘钢笔与色卡](assets/plugin-logo-v2.webp)，由内置图片工具按已保存的[素材提示词](assets/plugin-logo-v2.prompt.txt)生成。侧栏使用现有的单色纸笔图标，尺寸由导航统一指定。拖入高亮适配当前主题，并在放下图片或进入任务状态后清除。文件选择与拖拽共用当前 profile 的格式、数量与字节检查。
 
 </details>
 

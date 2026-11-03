@@ -1,7 +1,7 @@
 ---
 name: dsh-custom-plugin-release
 description: >-
-  Prepare and publish an independent custom DSH plugin GitHub Release for AFP, Codex Subscription or Visual Curator: review source, validate the package-owned version and tag, build a tarball, publish checksums and update metadata, and confirm publication. Download verification and isolated installation are optional when requested or diagnosing failures. Use for first releases, subsequent releases, release-adapter configuration and failed release recovery. Do not use for runtime updater implementation, ordinary plugin installation, npm publication, AutoFlow application releases, or official upstream synchronization.
+  Prepare and publish an independent custom DSH plugin GitHub Release for AFP, Codex Subscription, Visual Curator, Style Prompt or Boot Animation: review source, validate the package-owned version and tag, build a tarball, publish checksums and update metadata, and confirm publication. Download verification and isolated installation are optional when requested or diagnosing failures. Use for first releases, subsequent releases, release-adapter configuration and failed release recovery. Do not use for runtime updater implementation, ordinary plugin installation, npm publication, AutoFlow application releases, or official upstream synchronization.
 compatibility: Requires Git, the repository Node.js/pnpm runtime and an authenticated GitHub CLI; publication requires explicit user authorization.
 ---
 
@@ -16,6 +16,8 @@ compatibility: Requires Git, the repository Node.js/pnpm runtime and an authenti
 | `dsh-plugin-afp` | [release.config.json](../../../custom-plugins/workspace/dsh-plugin-afp/release.config.json) | [AFP](../../../custom-plugins/workspace/dsh-plugin-afp/release/README.zh.md) | Host、Client、Skill、execute |
 | `dsh-plugin-codex-subscription` | [release.config.json](../../../custom-plugins/workspace/dsh-plugin-codex-subscription/release.config.json) | [Codex 订阅](../../../custom-plugins/workspace/dsh-plugin-codex-subscription/release/README.zh.md) | Host、tools；不要求 Client |
 | `dsh-plugin-visual-curator` | [release.config.json](../../../custom-plugins/workspace/dsh-plugin-visual-curator/release.config.json) | [视觉策展](../../../custom-plugins/workspace/dsh-plugin-visual-curator/release/README.zh.md) | Host、Client、tools、Skill、page |
+| `dsh-plugin-style-prompt` | [release.config.json](../../../custom-plugins/workspace/dsh-plugin-style-prompt/release.config.json) | [风格提示词](../../../custom-plugins/workspace/dsh-plugin-style-prompt/release/README.zh.md) | Host、Client、workbench |
+| `dsh-boot-animation` | [release.config.json](../../../custom-plugins/workspace/dsh-boot-animation/release.config.json) | [启动动画](../../../custom-plugins/workspace/dsh-boot-animation/release/README.zh.md) | Host、Client、媒体、上游许可 |
 
 仓库、稳定标签前缀、元数据资产名与 `latest=false` 由对应配置维护；发布前核对包清单 `dsh.bundle.update` 与配置一致。不能把 AFP 的资产名或必须存在 Client 的要求套给 Codex。运行时下载、摘要校验、配置保留和重启由既有插件管理器负责，本 Skill 配置发布来源而不另写更新器。
 
@@ -43,6 +45,8 @@ compatibility: Requires Git, the repository Node.js/pnpm runtime and an authenti
 pnpm --filter dsh-plugin-afp run release:prepare --out .artifacts/afp-release
 pnpm --filter dsh-plugin-codex-subscription run release:prepare --out .artifacts/codex-subscription-release
 pnpm --filter dsh-plugin-visual-curator run release:prepare --out .artifacts/visual-curator-release
+pnpm --filter dsh-plugin-style-prompt run release:prepare --out .artifacts/style-prompt-release
+pnpm --filter dsh-boot-animation run release:prepare --out .artifacts/boot-animation-release
 ```
 
 正式准备前提交审核后的完整源码。该命令负责测试、prepack 构建、包检查和资产元数据；不要重复运行已通过且未被后续编辑影响的检查。脏树演练可加 `--allow-dirty`，其产物不能上传发布。核对 `.tgz` 的声明入口、patch、featureConfig、图标、Skill 和 Client 文件，并检查没有 node_modules、测试、环境文件或本机凭据。
@@ -56,7 +60,7 @@ pnpm --filter dsh-plugin-visual-curator run release:prepare --out .artifacts/vis
 ## 3. 发布精确源码
 
 1. 检查提交后的 diff 与钩子产生的文件，确认只包含授权范围。推送不移动已有 tag，不使用 force；并发远程变化先重新评估，不能覆盖。
-2. 将经过验证的来源提交及新的配置前缀标签推送到目标仓库。AFP 使用 `release-afp.yml`；Codex 订阅和视觉策展使用 [release-custom-plugins.yml](../../../.github/workflows/release-custom-plugins.yml)，按各自配置标签选择包。两个工作流都执行原生平台检查、无写入凭据的准备和独立发布任务。发布自动化的动作不得通过 PR 评论或其他通知替代。
+2. 将经过验证的来源提交及新的配置前缀标签推送到目标仓库。AFP 使用 `release-afp.yml`；其他产品使用 [release-custom-plugins.yml](../../../.github/workflows/release-custom-plugins.yml)，按各自配置标签选择包。两个工作流都执行原生平台检查、无写入凭据的准备和独立发布任务。发布自动化的动作不得通过 PR 评论或其他通知替代。
 3. 等待该 tag 的 prepare/publish 任务完成；检查失败日志并修复其原因。发布任务保持 `latest=false`，防止 AFP 改变应用更新入口。仅有普通 Git tag 不等于有可下载 Release。
 4. 如果改用本地发布，使用已验证的干净来源产物，先建立 draft，上传并验证三项资产，再公开。草稿从 Releases 列表查到 ID 后，按 ID 校验与发布；不要把按 tag 查询的 404 当作草稿不存在。不得把 GitHub 自动生成的全仓库源码压缩包当成 AFP npm 包。
 5. 已存在公开 Release 时不覆盖资产；相同内容可以复验，不同内容必须发布新版本。恢复失败 draft 前，核对 tag、来源提交和已上传内容；只续传缺失的匹配资产，其他修改需要明确的范围依据。仅修正发布工作流时更新当前源码，不移动发布 tag；可从当前工作流手动传入已有 tag 复验其冻结源码。

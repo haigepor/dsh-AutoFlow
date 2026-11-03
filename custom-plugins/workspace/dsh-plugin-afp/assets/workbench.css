@@ -90,7 +90,7 @@
 .afp-wb-header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; }
 .afp-wb-brand, .afp-wb-header-actions, .afp-wb-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .afp-wb-brand { color: var(--dsw-alias-state-business-primary); }
-.afp-wb-brand > svg { flex: none; }
+.afp-wb-brand > img { flex: none; }
 .afp-wb-brand h1 { margin: 0; color: var(--dsw-alias-label-primary); font-size: 18px; font-weight: 500; white-space: nowrap; }
 .afp-wb-profile { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .afp-wb-tabstrip { position: relative; display: flex; flex: none; align-items: stretch; gap: 0; min-height: 42px; padding: 6px 8px 0; overflow-x: auto; scrollbar-width: thin; background: var(--dsw-alias-bg-module-platform); border: 1px solid var(--dsw-alias-border-l2); border-bottom: 0; border-radius: 12px 12px 0 0; }

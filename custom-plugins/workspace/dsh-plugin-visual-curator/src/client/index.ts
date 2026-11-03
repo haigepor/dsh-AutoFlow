@@ -5,7 +5,7 @@ import { createSearchBatchesStore } from './search-batches-store.ts'
 import type { ComponentType } from 'react'
 import css from './entry.css'
 import welcomeImage from '../../assets/welcome-photo-stack-v2.webp'
-import logoImage from '../../assets/visual-curator-logo-v1.png'
+import logoImage from '../../assets/plugin-logo-v2.webp'
 import executionEmptyImage from '../../assets/execution-empty-v1.webp'
 import taskMetricArtwork from '../../assets/task-metric-plates-v2.webp'
 import { createTaskToolView } from './task-tool-view.tsx'
@@ -64,7 +64,6 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require<typeof import('react')>('react')
     const ui = require<typeof import('@deepseek-ai/dsh-client-ui-primitives')>('@deepseek-ai/dsh-client-ui-primitives')
-    const { IconPanelLeftOutlineRegular } = ui
     const PageEntry = createWorkbench(React, ui)
     const TaskToolView = createTaskToolView(React, ui)
     const ConversationTaskDock = createConversationTaskDock(React, ui)
@@ -151,7 +150,7 @@ window.__ModuleLoader__.load({
           return () => { if (closed) return; closed = true; unsubscribe(); if (--workbenchObservers === 0) observationChanged() }
         }
         const face = () => ({ t, actions, welcomeImage, logoImage, hooks: { workbench: { getSnapshot: store.getSnapshot, subscribe: observeWorkbench }, visionModels: { getSnapshot: modelDirectory.getSnapshot, subscribe: modelDirectory.subscribe }, datasets: { getSnapshot: datasets.getSnapshot, subscribe: datasets.subscribe }, launches: { getSnapshot: launches.getSnapshot, subscribe: launches.subscribe }, searchBatches: { getSnapshot: batches.getSnapshot, subscribe: batches.subscribe } } })
-        function EntryIcon() { return React.createElement(IconPanelLeftOutlineRegular, { size: 18 }) }
+        function EntryIcon({ size = 18 }: { size?: number }) { return React.createElement(ui.IconInspectOutlineRegular, { size }) }
         const registrations = new Map<Page, () => void>()
         let stopped = false, sequence = 0
         function remove(page: Page) {

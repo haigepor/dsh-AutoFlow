@@ -4,7 +4,7 @@
 
 ## Summary
 
-插件与桌面端共用源码仓库，但独立发版。版本标签对应单个产品的冻结源码；公开 Release 包含该产品已验证的可安装资产。开发里程碑保存在 Git 历史、PR 或 Actions artifact 中。插件发布遵循 [AFP](../workspace/dsh-plugin-afp/release/README.zh.md)、[Codex 订阅](../workspace/dsh-plugin-codex-subscription/release/README.zh.md)或[视觉策展](../workspace/dsh-plugin-visual-curator/release/README.zh.md)指南；[桌面端指南](../../apps/desktop/README.zh.md)负责打包、签名和生产上传。
+插件与桌面端共用源码仓库，但独立发版。版本标签对应单个产品的冻结源码；公开 Release 包含该产品已验证的可安装资产。开发里程碑保存在 Git 历史、PR 或 Actions artifact 中。插件发布遵循 [AFP](../workspace/dsh-plugin-afp/release/README.zh.md)、[Codex 订阅](../workspace/dsh-plugin-codex-subscription/release/README.zh.md)、[视觉策展](../workspace/dsh-plugin-visual-curator/release/README.zh.md)、[风格提示词](../workspace/dsh-plugin-style-prompt/release/README.zh.md)或[启动动画](../workspace/dsh-boot-animation/release/README.zh.md)指南；[桌面端指南](../../apps/desktop/README.zh.md)负责打包、签名和生产上传。
 
 ## 产品版本族
 
@@ -13,6 +13,8 @@
 | AFP | AFP `package.json` | `afp-v<semver>` | `.tgz`、`SHA256SUMS`、`afp-update.json`；插件仅检查声明的稳定标签族 |
 | Codex 订阅 | 自身包清单 | `codex-subscription-v<semver>` | `.tgz`、`SHA256SUMS`、`codex-subscription-update.json` |
 | 视觉策展 | 自身包清单 | `visual-curator-v<semver>` | `.tgz`、`SHA256SUMS`、`visual-curator-update.json` |
+| 风格提示词 | 自身包清单 | `style-prompt-v<semver>` | `.tgz`、`SHA256SUMS`、`style-prompt-update.json` |
+| 启动动画 | 自身包清单 | `boot-animation-v<semver>` | `.tgz`、`SHA256SUMS`、`boot-animation-update.json` |
 | 其他自定义插件 | 各自包清单 | `<plugin>-v<semver>` | 各自 tarball、校验和与元数据资产 |
 | 桌面端 | 桌面构建版本 | `desktop-v<version>` | 已签名安装包、更新清单和匹配的更新产物；当前生产分发使用腾讯 COS |
 | DSH npm 包 | 既有上游工作流 | `dsh-v<version>` | npm 包发布；该流程不发布桌面端安装包 |
@@ -24,10 +26,10 @@ AFP 与桌面端可以使用不同版本号和发布日期。只发布 AFP 不�
 1. 选择一个产品、新版本及已审核源码提交。核对该产品已有标签和 Releases；不得复用公开版本或移动标签。
 2. 更新该产品的变更说明、双语指南和版本声明。运行相关测试及包检查；从待发布的干净、精确源码构建。
 3. 准备草稿，写明产品名、版本、源码标签、用户可见变化、配置或数据迁移、重启要求、资产、支持平台与已知限制。公开前校验哈希和字节数。
-4. 通过对应产品工作流发布。AFP 标签触发 AFP 工作流，Codex 订阅与视觉策展使用自定义插件工作流。桌面端执行签名、包验证和生产上传；既有上传器在生产上传成功后记录桌面端标签。桌面端 GitHub Release 仅在安装资产就绪且验证通过后公开。
+4. 通过对应产品工作流发布。AFP 标签触发 AFP 工作流，其他独立插件使用自定义插件工作流。桌面端执行签名、包验证和生产上传；既有上传器在生产上传成功后记录桌面端标签。桌面端 GitHub Release 仅在安装资产就绪且验证通过后公开。
 5. 插件默认在发布工作流成功、Release 公开、来源标签及资产齐备后完成交付；下载回验、隔离 profile 和更新演练仅在明确要求或诊断异常时执行。桌面端仍按其发布指南核验安装包、签名及更新资产。保留冻结资产，通过新版本修正问题。
 
-Release 标题使用 `AFP <version>`、`Codex Subscription <version>`、`Visual Curator <version>` 或 `Desktop <version>`。正文仅描述该产品；共享源码改动只有影响其产物时才写入。代码里程碑不发布无资产 Release；GitHub 自动生成的源码压缩包不能替代插件包或安装包。预览构建使用 Actions artifact；明确对外分发的预览可以使用带真实资产、标记清晰的 prerelease，并使用独立更新频道。
+Release 标题包含插件名或 `Desktop` 及其版本。正文仅描述该产品；共享源码改动只有影响其产物时才写入。代码里程碑不发布无资产 Release；GitHub 自动生成的源码压缩包不能替代插件包或安装包。预览构建使用 Actions artifact；明确对外分发的预览可以使用带真实资产、标记清晰的 prerelease，并使用独立更新频道。
 
 自定义插件的原生检查将 `TMPDIR`、`TMP` 和 `TEMP` 指向 runner 所属临时目录的规范路径，避免 Windows 短路径和 macOS 目录别名改变测试路径比较。仅修正工作流时可从当前工作流传入已有标签恢复发布；各任务检出和安装包仍来自该标签的冻结源码。
 

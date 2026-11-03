@@ -29,3 +29,7 @@ None.
 ## Codex Subscription 0.2.0
 
 The package includes conversation image cards and live image-task status alongside its Host and tools. Account preflight and quota reporting distinguish unavailable accounts from request failures, while the relay handles streaming and WebSocket completion without turning incomplete responses into success. Saved accounts, credentials and tasks remain in their profile; use the matching AutoFlow build and restart after updating.
+
+## Codex Subscription 0.2.1
+
+The installed plugin list uses the updated artwork. Existing accounts, credentials, tasks and gateway configuration remain; restart after updating.

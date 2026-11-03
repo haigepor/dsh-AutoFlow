@@ -7,6 +7,7 @@ import { createAfpConversationPhotos, registerAfpConversationPhotos, createAfpCo
 import zh from './locales/zh.json'
 import en from './locales/en.json'
 import css from '../../assets/workbench.css'
+import logoImage from '../../assets/plugin-logo-v2.webp'
 
 window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
   const React = require('react'), primitives = require('@deepseek-ai/dsh-client-ui-primitives')
@@ -35,7 +36,7 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
     })
     const ConfigurationForm = createConfigurationForm(React, { Input, Button, Menu, Switch, StateDot, Tag, Toast, Tooltip,
       Chevron: icons.IconChevronDownOutlineRegular, RefreshIcon: icons.IconRefreshOutlineRegular }, ctx, t)
-    const Workbench = createWorkbench(React, { Switch, Input, Button, StateDot, Tag, Checkbox, Toast, Menu, MenuSurface, createPortal, useDismissOnOutsidePointer, SegmentedControl, Tooltip, Modal, GlideHighlight }, ctx, t, store, ConfigurationForm, icons)
+    const Workbench = createWorkbench(React, { Switch, Input, Button, StateDot, Tag, Checkbox, Toast, Menu, MenuSurface, createPortal, useDismissOnOutsidePointer, SegmentedControl, Tooltip, Modal, GlideHighlight, logoImage }, ctx, t, store, ConfigurationForm, icons)
     const ConversationPhotos = createAfpConversationPhotos(React, { Button, Tag, Modal, Tooltip, DisclosureRow, AnimatedCollapse }, icons, t, store)
     registerAfpProgress(ctx, createAfpToolRow(React, { DisclosureRow, TextShimmer, Button, Tag, Modal, ToolIcon: icons.IconCodeOutlineRegular, ChevronIcon: icons.IconChevronDownOutlineRegular }, t, store), namespace)
     registerAfpConversationPhotos(ctx, ConversationPhotos, namespace)
@@ -52,10 +53,7 @@ window.__ModuleLoader__.load({ id: 'dsh-plugin-afp', factory(require) {
     ctx.effect(() => () => store.dispose(), 'AFP store')
     const registrations = new Map()
     function icon({ size = 18 }) {
-      return React.createElement('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true },
-        React.createElement('rect', { x: 3, y: 4, width: 18, height: 16, rx: 4, stroke: 'currentColor', strokeWidth: 1.6 }),
-        React.createElement('circle', { cx: 8.5, cy: 9, r: 1.5, fill: 'currentColor' }),
-        React.createElement('path', { d: 'm5 17 5-5 3 3 3-4 3 6', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }))
+      return React.createElement(icons.IconSearchOutlineRegular, { size })
     }
     function sync() {
       const status = store.getSnapshot().status

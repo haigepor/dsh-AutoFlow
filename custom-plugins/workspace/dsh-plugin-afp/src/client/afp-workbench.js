@@ -9,7 +9,7 @@ const tabs = ['search', 'collections', 'tasks', 'changes', 'account']
 
 /** Shared AFP workbench tabs, profile metadata and account form.
  * @param {object} React React client runtime.
- * @param {object} UI Existing DSH primitives.
+ * @param {object} UI Existing DSH primitives and the embedded logo URL.
  * @param {object} ctx Client context for localized feature metadata.
  * @param {Function} t Locale lookup function.
  * @param {object} store Shared AFP workbench state and actions.
@@ -76,10 +76,7 @@ export function createWorkbench(React, UI, ctx, t, store, ConfigurationForm, ico
   }
 
   function BrandGlyph() {
-    return h('svg', { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true },
-      h('rect', { x: 2.5, y: 3.5, width: 19, height: 17, rx: 4, stroke: 'currentColor', strokeWidth: 1.5 }),
-      h('circle', { cx: 8, cy: 9, r: 1.5, fill: 'currentColor' }),
-      h('path', { d: 'm5 17 4.5-4.5 3 3L16 11l3 6', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }))
+    return h('img', { src: UI.logoImage, width: 24, height: 24, alt: '', style: { objectFit: 'contain' } })
   }
 
   function ImageSkeleton() {

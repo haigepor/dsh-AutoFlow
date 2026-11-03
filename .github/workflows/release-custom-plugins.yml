@@ -1,12 +1,12 @@
-name: Release Codex subscription or Visual Curator
+name: Release custom plugins
 
 on:
   push:
-    tags: ['codex-subscription-v*', 'visual-curator-v*']
+    tags: ['codex-subscription-v*', 'visual-curator-v*', 'style-prompt-v*', 'boot-animation-v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing codex-subscription-v or visual-curator-v tag'
+        description: 'Existing custom plugin version tag'
         required: true
         type: string
 
@@ -44,11 +44,13 @@ jobs:
           import { execFileSync } from 'node:child_process'
           const tag = process.env.RELEASE_TAG
           const selected = [
-            ['codex-subscription', 'Codex Subscription'],
-            ['visual-curator', 'Visual Curator'],
+            ['codex-subscription', 'Codex Subscription', 'dsh-plugin-codex-subscription'],
+            ['visual-curator', 'Visual Curator', 'dsh-plugin-visual-curator'],
+            ['style-prompt', 'Style Prompt', 'dsh-plugin-style-prompt'],
+            ['boot-animation', 'Boot Animation', 'dsh-boot-animation'],
           ].find(([slug]) => tag.startsWith(`${slug}-v`))
           assert(selected, 'Supply an independent custom plugin tag')
-          const [slug, title] = selected, name = `dsh-plugin-${slug}`
+          const [slug, title, name] = selected
           const directory = `custom-plugins/workspace/${name}`
           const manifest = JSON.parse(fs.readFileSync(`${directory}/package.json`, 'utf8'))
           const config = JSON.parse(fs.readFileSync(`${directory}/release.config.json`, 'utf8'))

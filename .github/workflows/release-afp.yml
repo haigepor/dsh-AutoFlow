@@ -166,7 +166,7 @@ jobs:
           }
           release_id=$(find_release_id)
           if test "$release_id" = 0; then
-            gh release create "$RELEASE_TAG" ./*.tgz SHA256SUMS afp-update.json --verify-tag --draft --latest=false --title "AFP ${RELEASE_TAG#afp-v}" --notes 'Independent AFP plugin bundle. Includes package tarball, SHA-256 and version metadata. Runtime automatic updates are not enabled by this release.'
+            gh release create "$RELEASE_TAG" ./*.tgz SHA256SUMS afp-update.json --verify-tag --draft --latest=false --title "AFP ${RELEASE_TAG#afp-v}" --notes 'Independent AFP plugin bundle with its exact-version tarball, checksum and update metadata. Supported clients can check for updates; automatic installation is opt-in and requires a restart.'
             release_id=$(wait_for_created_release_id)
           fi
           test "$release_id" -gt 0
