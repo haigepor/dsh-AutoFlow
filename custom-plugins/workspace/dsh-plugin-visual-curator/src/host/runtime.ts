@@ -17,23 +17,23 @@ declare module '@deepseek-ai/dsh-jobs' { interface JobKindMap { visualCurator: '
 const countersSchema = z.strictObject({ vision: z.number().int().nonnegative(), search: z.number().int().nonnegative(), downloadBytes: z.number().int().nonnegative(), deadlineAt: z.number().finite() })
 export type BudgetCounters = z.infer<typeof countersSchema>
 
-/** Native analysis delegates timing to its LLM adapter; other tasks retain plugin deadlines. */
-export type TaskTiming = 'bounded' | 'native-analysis'
+/** Native model tasks delegate timing to their LLM adapter; compatible HTTP tasks retain plugin deadlines. */
+export type TaskTiming = 'bounded' | 'native-model'
 /** @param spec Frozen task kind and selected route. @returns The timing policy shared by execution, requests and continuation reads. */
 export function taskTiming(spec: Pick<ExecutionSpec, 'kind' | 'config'>): TaskTiming {
   const vision = spec.config.vision
-  return spec.kind === 'analyze' && (vision.backend === 'native' || vision.provider && vision.backend !== 'compatible') ? 'native-analysis' : 'bounded'
+  return vision.backend === 'native' || vision.provider && vision.backend !== 'compatible' ? 'native-model' : 'bounded'
 }
 
 /** Quota is spent before dispatch and is never refunded for an unknown response. */
 export class BudgetLedger {
   private counters: BudgetCounters
-  /** @param limits Frozen quotas. @param saved Existing counters, absent for a new task. @param now Current clock. @param timing Native analysis ignores saved time limits without changing its counters; absent retains bounded timing. */
+  /** @param limits Frozen quotas. @param saved Existing counters, absent for a new task. @param now Current clock. @param timing Native model tasks ignore saved time limits without changing their counters; absent retains bounded timing. */
   constructor(readonly limits: Limits, saved?: BudgetCounters, private readonly now: () => number = Date.now, readonly timing: TaskTiming = 'bounded') {
     this.counters = saved ? structuredClone(saved) : { vision: 0, search: 0, downloadBytes: 0, deadlineAt: now() + limits.deadlineMs }
   }
-  /** @returns Milliseconds until the saved deadline, or absence when the native adapter owns analysis timing. */
-  remainingTimeMs(): number | undefined { return this.timing === 'native-analysis' ? undefined : this.counters.deadlineAt - this.now() }
+  /** @returns Milliseconds until the saved deadline, or absence when the native adapter owns model timing. */
+  remainingTimeMs(): number | undefined { return this.timing === 'native-model' ? undefined : this.counters.deadlineAt - this.now() }
   /** @returns Whether a task with bounded timing has reached its saved deadline. */
   deadlineExpired(): boolean { const remaining = this.remainingTimeMs(); return remaining !== undefined && remaining <= 0 }
   /** @param kind Attempt category. @param bytes Actual bytes admitted. @returns Reserved counters. */
@@ -109,7 +109,7 @@ function jobProgress(stage: RunRecord['stage'], counts: RunData['counts'], targe
 /** @param run Authorized saved analysis. @param prepared Spec and data already validated from this record during the same read. @returns Explicit continuation eligibility under its original budget and terminal state. */
 export function analysisContinuation(run: RunRecord, prepared?: { spec: ExecutionSpec; data: RunData }): AnalysisContinuation {
   const spec = prepared?.spec ?? specOf(run), data = prepared?.data ?? dataOf(run)
-  return analysisContinuationFromFacts({ kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, deadlineAt: taskTiming(spec) === 'native-analysis' ? null : data.budget.deadlineAt,
+  return analysisContinuationFromFacts({ kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, deadlineAt: taskTiming(spec) === 'native-model' ? null : data.budget.deadlineAt,
     observed: data.counts.observed ?? 0, total: Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0, buildDataset: spec.input.buildDataset === true,
     hasSummary: data.checkpoint.styleAnalysis !== undefined, vision: data.budget.vision, maxVisionCalls: spec.config.limits.maxVisionCalls })
 }

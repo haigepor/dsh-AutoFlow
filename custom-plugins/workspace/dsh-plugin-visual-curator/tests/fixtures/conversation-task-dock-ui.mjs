@@ -27,6 +27,7 @@ installIconSprite({ effect(work) { themeDisposers.push(work()) }, on() { return 
 const style = document.createElement('style'); style.textContent = pluginCss.replace('__VC_TASK_METRIC_ART__', taskMetricArtwork); document.head.append(style)
 const { run } = window.feedbackFixtureData
 const state = { preparing: new URL(location.href).searchParams.has('launch'), launchStopped: false, launchAccepted: false, completed: false, session: 'a', view: 'chat', visible: true, processOpen: !new URL(location.href).searchParams.has('folded'), offline: false, calls: [], opened: [], qualified: 3, terminal: false }
+let releaseDetail
 const previews = Array.from({ length: 12 }, (_, index) => ({ ...run.results[0], imageVersionId: `preview-${index}` }))
 const task = (sessionId, runId) => ({ ...run, ...(runId === 'crop' ? {} : { outputKind: 'preview' }), results: previews.map((image, index) => ({ ...image, resultCategory: index < state.qualified ? 'selected' : index === 11 ? 'review' : 'rejected' })), owner: { kind: 'session', sessionId }, runId, kind: runId === 'crop' ? 'crop' : 'search', status: runId === 'crop' || state.completed ? 'completed' : state.terminal ? 'cancelled' : 'running', taskBrief: runId === 'crop' ? '海报裁剪结果' : sessionId === 'b' ? '另一个会话的找图任务' : '按固定画像寻找图片', counts: { candidates: 12, distinct: 12 }, resultSummary: { ...run.resultSummary, candidates: 12, selected: runId === 'crop' ? 3 : state.qualified, needsReview: 1, target: 10 } })
 const pendingLaunch = sessionId => ({ id: '949d1789-e443-4ba7-b3d0-9f34f7a3392e', input: { operationId: '949d1789-e443-4ba7-b3d0-9f34f7a3392e', workspaceId: 'photos', modelProfileId: 'profile', datasetId: 'profile-export-fixture', taskBrief: '寻找符合当前风格的山林与湖泊图片，保留自然光。', targetCount: 10, output: { kind: 'preview' } }, sessionId, status: state.launchStopped ? 'stopped' : state.launchAccepted ? 'accepted' : 'working', stage: state.launchStopped ? 'stopped' : state.launchAccepted ? 'accepted' : 'attaching', createdAt: '2026-10-31T00:00:00Z', updatedAt: '2026-10-31T00:00:00Z', runIds: [], qualified: 0 })
@@ -38,7 +39,12 @@ const store = createConversationFeedback({ invoke: async (operation, args) => {
   if (operation === 'conversation-runs' && state.preparing) return { sessionId: args.sessionId, tasks: [], launch: pendingLaunch(args.sessionId) }
   if (operation === 'conversation-runs') return { sessionId: args.sessionId, tasks: (args.sessionId === 'a' ? ['search', 'crop', 'search'] : ['other']).map(runId => { const row = task(args.sessionId, runId); return { runId, kind: row.kind, status: row.status, taskBrief: row.taskBrief } }) }
   const value = task(args.sessionId, args.runId), filter = args.resultFilter ?? 'all', images = value.results.filter(image => filter === 'all' || image.resultCategory === filter), offset = Number(args.pageToken ?? 0), end = offset + (args.pageSize ?? 4)
-  return { ...value, resultFilter: filter, results: images.slice(offset, end), ...(end < images.length ? { pageToken: String(end) } : {}) }
+  const response = { ...value, resultFilter: filter, results: images.slice(offset, end), ...(end < images.length ? { pageToken: String(end) } : {}) }
+  if (state.holdNextDetail && args.runId === 'search') {
+    state.holdNextDetail = false
+    return new Promise(resolve => { releaseDetail = () => resolve(response) })
+  }
+  return response
 } })
 const Dock = createConversationTaskDock(React, UI), Receipt = createTaskToolView(React, UI)
 function DockFixture() {
@@ -62,3 +68,17 @@ const root = createRoot(document.getElementById('root'))
 function render() { root.render(state.visible ? h(Conversation) : h('p', null, '会话已关闭')) }
 window.dockFixture = { state, feedback() { return store.sessionSource(state.session).getSnapshot() }, view(value) { state.view = value; render() }, session(id) { state.session = id; render() }, visible(value) { state.visible = value; render() }, fold() { state.processOpen = false; render() }, refresh() { store.reset() }, acceptLaunch() { state.launchAccepted = true; store.refresh(state.session) }, startSearch() { state.preparing = false; store.refresh(state.session) }, completeSearch() { state.completed = true; state.qualified = 10; store.refresh(state.session); store.refresh(state.session, 'search') }, theme(dark) { document.body.toggleAttribute('data-ds-dark-theme', dark) }, dispose() { root.unmount(); store.dispose(); for (const dispose of themeDisposers) dispose() } }
 render()
+if (new URL(location.href).searchParams.has('terminal-race')) {
+  const controls = document.createElement('nav')
+  controls.setAttribute('aria-label', '任务终态同步测试')
+  controls.style.cssText = 'position:fixed;left:12px;top:8px;z-index:1000;display:flex;gap:8px'
+  for (const [label, action] of [
+    ['暂挂旧详情', () => { state.holdNextDetail = true; store.refresh(state.session, 'search') }],
+    ['后台任务结束', () => { state.completed = true; state.qualified = 0; store.refresh(state.session) }],
+    ['返回旧详情', () => releaseDetail?.()],
+  ]) {
+    const button = document.createElement('button')
+    button.textContent = label; button.addEventListener('click', action); controls.append(button)
+  }
+  document.body.append(controls)
+}

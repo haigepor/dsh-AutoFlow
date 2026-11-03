@@ -26,6 +26,12 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.2
+
+Native LLM timing applies to reference analysis, image-search reviews, crop proposals, evaluation and context compaction. These paths no longer have plugin-imposed request or task wall-clock deadlines, including continuation of saved native tasks. Native connection and idle handling, explicit cancellation, call/page/byte quotas and bounded retries remain effective. Image-source and image-download requests retain network timeouts; explicitly selected compatible HTTP tasks retain their existing limits.
+
+When the task directory reports a newer status, the conversation card cancels its stale detail read and fetches the current result. A stalled or late running response cannot block terminal status or overwrite the refreshed view. Update the plugin and restart AutoFlow after current tasks finish. Saved data requires no migration; existing technical-failure records remain and are not automatically submitted as paid retries.
+
 ## Visual Curator 0.2.1
 
 Native reference analysis uses the selected LLM adapter's timing instead of plugin request and task wall-clock deadlines, including continuation of failed tasks. Cancellation, native connection and idle handling, call counts and byte budgets remain active. Continuing retains saved observations; image downloads, search, crop and compatible HTTP requests keep their existing time limits.

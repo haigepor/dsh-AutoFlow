@@ -147,8 +147,13 @@ export function createConversationFeedback(dependencies: Pick<ClientTransport, '
         const selectedId = session(item.sessionId).snapshot.selectedRunId
         const saved = selectedId ? session(item.sessionId).snapshot.runs[selectedId]?.run : undefined
         const selectedObservation = selectedId ? observations.get(key(item.sessionId, selectedId)) : undefined
-        // 暂停或终态任务仍可能由工作台恢复，轻量目录更新后重新读取所选任务。
-        if (saved && selectedObservation && list.tasks.some(task => task.runId === selectedId && task.status !== saved.status)) void read(selectedObservation)
+        const task = session(item.sessionId).snapshot.tasks?.items.find(task => task.runId === selectedId)
+        // 新状态撤回旧详情请求，终态和外部恢复不能被迟到或停滞的响应挡住。
+        if (saved && selectedObservation && task && task.status !== saved.status
+          && (task.revision === undefined || saved.revision === undefined || task.revision > saved.revision)) {
+          cancel(selectedObservation)
+          void read(selectedObservation)
+        }
         again = true
       }
     } catch (error) {

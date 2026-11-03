@@ -161,7 +161,7 @@ it('native summary records short model labels and restores complete canonical ev
   }
   try {
     const original = structuredClone(input), descriptor = f.provider.describeRequest(input, 'summarize')
-    const result = await f.provider.summarize(input, imageIds, { ...f.bounds, nativeModelTiming: true })
+    const result = await f.provider.summarize(input, imageIds, f.bounds)
     assert.deepEqual(input, original)
     assert.equal(descriptor.promptVersion, 'visual-curator-summary-v3')
     assert.deepEqual(descriptor.images.map(image => image.imageVersionId), imageIds.slice(0, 8))
@@ -225,7 +225,7 @@ it('downloads authorized remote pixels before attachment admission and records b
     const source = { providerId: 'unsplash' as const, photoId: 'photo', accountId: 'public', url: 'https://plus.unsplash.com/premium_photo-example?w=1080', thumbnailUrl: 'https://plus.unsplash.com/premium_photo-example?w=400' }
     const image: VisionImage = { imageVersionId: 'image-one', digest: remoteReferenceDigest(source), mime: 'image/jpeg', role: 'positive', remoteSource: source }
     let reserved = 0, settled = 0
-    await f.provider.analyze({ ...f.input, images: [image] }, { ...f.bounds, nativeModelTiming: true, reserveDownload: async limit => { reserved = limit; return { maxBytes: limit, settle: async bytes => { settled = bytes } } } })
+    await f.provider.analyze({ ...f.input, images: [image] }, { ...f.bounds, reserveDownload: async limit => { reserved = limit; return { maxBytes: limit, settle: async bytes => { settled = bytes } } } })
     assert.equal(f.downloads, 1)
     assert.deepEqual(downloadTimeouts, [f.bounds.timeoutMs])
     assert.ok(reserved >= f.pixels.byteLength)
@@ -308,21 +308,27 @@ it('completes native analysis while active output exceeds the plugin request tim
     yield { type: 'finish', reason: { kind: 'stop' } }
   }
   try {
-    const result = await f.provider.analyze(f.input, { ...f.bounds, timeoutMs: 10, nativeModelTiming: true })
+    const result = await f.provider.analyze(f.input, { ...f.bounds, timeoutMs: 10 })
     assert.equal(result.observations.length, 1)
     assert.equal(f.deltas.filter(delta => delta.content).length, 4)
     assert.equal(f.adapter.calls.length, 1)
   } finally { await f.cleanup() }
 })
 
-it('retains the plugin request timeout for native model calls outside native analysis', async context => {
-  const f = await fixture(), deadline = new AbortController(); f.adapter.mode = 'waiting'
+it('completes native search review after the former plugin request deadline', async context => {
+  const f = await fixture(), deadline = new AbortController()
   context.mock.method(AbortSignal, 'timeout', () => deadline.signal)
+  f.adapter.stream = async function* (options: GenerateOptions): AsyncGenerator<StreamChunk> {
+    f.adapter.calls.push(options)
+    yield { type: 'reasoning-delta', index: 0, text: 'Reviewing actual image pixels.' }
+    deadline.abort(new DOMException('Former plugin deadline.', 'TimeoutError'))
+    options.signal?.throwIfAborted()
+    yield { type: 'text-delta', index: 1, text: JSON.stringify({ ruleResults: [], cropPotential: 'direct', preferenceScores: [], taskRelevance: 'relevant' }) }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
   try {
-    const pending = f.provider.analyze(f.input, { ...f.bounds, timeoutMs: 10 })
-    await f.adapter.started.promise
-    deadline.abort(new DOMException('Plugin deadline.', 'TimeoutError'))
-    await assert.rejects(pending, { code: 'request-timeout' })
+    const result = await f.provider.review({ ...f.input, stage: 'final' }, { ...f.bounds, timeoutMs: 10 })
+    assert.equal(result.taskRelevance, 'relevant')
     assert.equal(f.adapter.calls.length, 1)
   } finally { await f.cleanup() }
 })
@@ -333,7 +339,7 @@ it('retains native adapter idle failures when analysis has no plugin time limit'
     yield { type: 'finish', reason: { kind: 'error', failure: { code: 'TIMEOUT', message: 'Native stream idle timeout.' } } }
   }
   try {
-    await assert.rejects(f.provider.analyze(f.input, { ...f.bounds, nativeModelTiming: true }), error => {
+    await assert.rejects(f.provider.analyze(f.input, f.bounds), error => {
       assert.equal(safeFailure(error).code, 'remote-request-failed')
       assert.equal(safeFailure(error).retryable, true)
       return true
@@ -344,7 +350,7 @@ it('retains native adapter idle failures when analysis has no plugin time limit'
 it('forwards cancellation to the native stream and never retries it', async () => {
   const f = await fixture(); f.adapter.mode = 'waiting'; const controller = new AbortController()
   try {
-    const pending = f.provider.analyze(f.input, { ...f.bounds, signal: controller.signal, nativeModelTiming: true })
+    const pending = f.provider.analyze(f.input, { ...f.bounds, signal: controller.signal })
     await Promise.race([f.adapter.started.promise, pending.then(() => { throw new Error('Stream unexpectedly completed before cancellation') })])
     controller.abort()
     await assert.rejects(pending, { code: 'cancelled' })

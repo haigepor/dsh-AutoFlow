@@ -92,7 +92,14 @@ async (page) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.setViewportSize({ width: 1920, height: 900 }); await page.evaluate(() => window.dockFixture.session('b')); await dock.getByText('另一个会话的找图任务', { exact: true }).waitFor()
   assert(await dock.getByRole('button', { name: '展开结果', exact: true }).getAttribute('aria-expanded') === 'false', 'Session expansion leaked')
-  const result = { singleDock: true, outsideProcess: true, fillsRemainingHeight: true, todoReflowsHeight: true, innerScroll: true, controlsRemainVisible: true, resizingRetained: true, collapseFocus: true, narrowHidden: true, metricFilters: true, equalMetricCards: true, iconFreeMetrics: true, selectedMetricThemes: true, valueFirstMetrics: true, containedMetricArtwork: true, allImagesPageable: true, loadedImagesRetained: true, alongsideConversation: true, chatViewOnly: true, nativeSlotWrapper: true, nestedChatIsolated: true, auxiliaryCopyHidden: true, minimumGutterFits: true, animatedVisibility: true, sessionIsolated: true, horizontalOverflow: false, errors }
+  await page.goto(new URL('?terminal-race', page.url()).href)
+  await dock.getByRole('button', { name: '展开结果', exact: true }).waitFor()
+  await page.getByRole('button', { name: '暂挂旧详情', exact: true }).click()
+  await page.getByRole('button', { name: '后台任务结束', exact: true }).click()
+  await dock.locator('.vc-conversation-task-status').getByText('已完成', { exact: true }).waitFor()
+  await page.getByRole('button', { name: '返回旧详情', exact: true }).click()
+  assert((await dock.locator('.vc-conversation-task-status').innerText()).trim() === '已完成', 'A delayed running reply must not restore an active task badge')
+  const result = { terminalStateReconciled: true, singleDock: true, outsideProcess: true, fillsRemainingHeight: true, todoReflowsHeight: true, innerScroll: true, controlsRemainVisible: true, resizingRetained: true, collapseFocus: true, narrowHidden: true, metricFilters: true, equalMetricCards: true, iconFreeMetrics: true, selectedMetricThemes: true, valueFirstMetrics: true, containedMetricArtwork: true, allImagesPageable: true, loadedImagesRetained: true, alongsideConversation: true, chatViewOnly: true, nativeSlotWrapper: true, nestedChatIsolated: true, auxiliaryCopyHidden: true, minimumGutterFits: true, animatedVisibility: true, sessionIsolated: true, horizontalOverflow: false, errors }
   const expected = await page.evaluate(async () => (await fetch('expected.json')).json()); assert(JSON.stringify(result) === JSON.stringify(expected), 'saved output differs')
   return { result, measurements: { desktop, expandedTodo, compact } }
 }

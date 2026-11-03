@@ -45,7 +45,7 @@ export async function compactStyleSummary(deps: SummaryCompactionDependencies, r
       const cached = repository.list('request').find(request => request.runId === ctx.runId && request.state === 'committed' && request.requestDigest === contentDigest(bundle))
       if (cached) return outputSchema.parse(z.object({ output: z.unknown() }).parse(cached.data).output)
       const startedAt = Date.now()
-      return ctx.request('vision', bundle, (signal, record) => work(ctx.ledger.timing === 'native-analysis' ? signal : AbortSignal.any([signal, AbortSignal.timeout(ctx.spec.config.limits.requestTimeoutMs)]), metadata => record(toJson({ transport: 'native-llm', provider: call.config.provider, model: call.config.model, request: { config: call.config, messages: call.messages }, timing: { elapsedMs: Date.now() - startedAt }, ...metadata }))))
+      return ctx.request('vision', bundle, (signal, record) => work(signal, metadata => record(toJson({ transport: 'native-llm', provider: call.config.provider, model: call.config.model, request: { config: call.config, messages: call.messages }, timing: { elapsedMs: Date.now() - startedAt }, ...metadata }))))
     }, ctx.signal)
     if (!result) return input
     const compacted = { ...input, taskBrief: JSON.stringify({ ...fixed, observationSummary: result.text }) }

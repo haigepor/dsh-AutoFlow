@@ -73,8 +73,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
   protected async invoke(input: VisionInput, operation: VisionRequestDescriptor['operation'], bounds: VisionBounds): Promise<unknown> {
     const descriptor = this.describeRequest(input, operation), startedAt = Date.now()
     bounds.onPhase?.('preparing')
-    const deadline = bounds.nativeModelTiming ? undefined : AbortSignal.timeout(bounds.timeoutMs)
-    const signal = AbortSignal.any([...(bounds.signal ? [bounds.signal] : []), ...(deadline ? [deadline] : [])])
+    const signal = AbortSignal.any(bounds.signal ? [bounds.signal] : [])
     let firstOutputMs: number | undefined, firstReasoningMs: number | undefined, firstTextMs: number | undefined, usage: TokenUsage | undefined, terminal = false, streamStarted = false
     const assembler = new BlockAssembler()
     try {
@@ -164,7 +163,6 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       }
     } catch (error) {
       if (bounds.signal?.aborted) throw new MediaError('cancelled', 'reviewing', false, 'Operation cancelled.', 'Resume explicitly when needed.')
-      if (deadline?.aborted) throw new MediaError('request-timeout', 'reviewing', true, 'The native model request timed out.', 'Continue within the saved task budget.')
       if (isAttachmentError(error)) {
         // 接纳采用按内容发布的原子写入；仅在进入模型流之前允许重试写入失败。
         const retryable = error.code === 'ATTACHMENT_WRITE_FAILED' && !streamStarted

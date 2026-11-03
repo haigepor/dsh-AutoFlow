@@ -22,7 +22,7 @@ export function requestBounds(config: CuratorConfig, context: WorkContext): Requ
 
 /** @param config Frozen limits. @param context Durable owner. @param signal Attempt cancellation. @param onMetadata Durable native request recorder. @returns Native and legacy bounds sharing one download budget. */
 export function visionBounds(config: CuratorConfig, context: WorkContext, signal: AbortSignal, onMetadata: (metadata: Json) => Promise<void>): VisionBounds {
-  return { ...requestBounds(config, context), signal, nativeModelTiming: context.ledger.timing === 'native-analysis', onMetadata, reserveDownload: async requested => {
+  return { ...requestBounds(config, context), signal, onMetadata, reserveDownload: async requested => {
     const maxBytes = Math.min(requested, context.ledger.remainingBytes())
     if (maxBytes <= 0) throw new CuratorError('budget-exhausted', 'vision-images', 'The saved image download budget is exhausted.')
     await context.ledger.reserve('download', maxBytes)

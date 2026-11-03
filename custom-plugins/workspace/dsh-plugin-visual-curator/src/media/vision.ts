@@ -50,8 +50,6 @@ export const visionCropProposalSchema = cropSchema
 const envelopeSchema = z.object({ choices: z.array(z.object({ message: z.object({ content: z.string(), reasoning_content: z.string().nullable().optional() }), finish_reason: z.string().nullable().optional() })).min(1).max(1) })
 /** Optional callbacks receive actual output before completion; absent callbacks retain normal JSON results. */
 export interface VisionBounds extends RequestBounds {
-  /** Native reference analysis uses the LLM runtime's own timeout and cancellation policy. */
-  nativeModelTiming?: boolean
   onOutput?: (delta: VisionDelta) => void
   onPhase?: (phase: 'preparing' | 'analyzing') => void
   /** Persist actual native inputs before dispatch and usage before settlement. */

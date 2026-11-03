@@ -287,6 +287,29 @@ test('a Session dock ignores late discovery and rejects a task list belonging to
   closeB(); store.dispose()
 })
 
+test('a terminal task summary replaces an in-flight stale detail read without waiting for it', async () => {
+  const late = Promise.withResolvers<unknown>()
+  let completed = false, detailReads = 0
+  const store = createConversationFeedback({ schedule: () => () => {}, invoke: async operation => {
+    if (operation === 'session-open') return { sessionToken: 'grant', expiresAt: Date.now() + 100000, pollIntervalMs: 17 }
+    if (operation === 'conversation-runs') return { sessionId: 'owner', tasks: [{ runId: 'run', kind: 'search', status: completed ? 'completed' : 'running', taskBrief: 'Vehicles', revision: completed ? 2 : 1 }] }
+    if (++detailReads === 2) return late.promise
+    return { ...report('owner', 'run', completed ? 'completed' : 'running'), revision: completed ? 2 : 1 }
+  } })
+  const source = store.sessionSource('owner'), close = source.subscribe(() => {})
+  try {
+    await setImmediate()
+    store.refresh('owner', 'run'); await setImmediate()
+    assert.equal(detailReads, 2)
+    completed = true
+    store.refresh('owner'); await setImmediate()
+    assert.equal(source.getSnapshot().runs.run?.run?.status, 'completed')
+    assert.equal(detailReads, 3)
+    late.resolve({ ...report('owner', 'run'), revision: 1 }); await setImmediate()
+    assert.equal(source.getSnapshot().runs.run?.run?.status, 'completed')
+  } finally { late.resolve(report('owner', 'run')); close(); store.dispose() }
+})
+
 test('one dock subscription owns discovery and the selected Run, including external resume and manual switching', async () => {
   const calls: string[] = [], timers = new Set<() => void>()
   let resumed = false

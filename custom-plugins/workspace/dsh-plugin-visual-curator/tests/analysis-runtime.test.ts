@@ -57,12 +57,14 @@ function analysisSpec(styleId = 'style-a', config = configuration.resolveConfig(
 }
 
 describe('background analysis lifecycle', () => {
-  for (const route of ['native', 'legacy-native', 'compatible', 'native-search'] as const) it(`${route} keeps its task timing policy while output crosses the saved deadline`, async t => {
-    const fixture = setup(), nativeAnalysis = route === 'native' || route === 'legacy-native'
+  for (const route of ['native', 'legacy-native', 'compatible', 'native-search', 'native-crop', 'native-evaluate'] as const) it(`${route} keeps its task timing policy while output crosses the saved deadline`, async t => {
+    const fixture = setup(), nativeModel = route !== 'compatible'
     t.after(() => fixture.engine.dispose())
     const config = configuration.resolveConfig({ vision: { provider: 'fixture', ...(route === 'legacy-native' ? {} : { backend: route === 'compatible' ? 'compatible' : 'native' }) }, limits: { deadlineMs: 10, maxRetryAttempts: 0 } })
     const spec = analysisSpec(`timing-${route}`, config)
     if (route === 'native-search') spec.kind = 'search'
+    if (route === 'native-crop') spec.kind = 'crop'
+    if (route === 'native-evaluate') spec.kind = 'evaluate'
     let now = Date.now()
     const deadline = new AbortController()
     t.mock.method(Date, 'now', () => now)
@@ -78,15 +80,20 @@ describe('background analysis lifecycle', () => {
         received++
         work.report({ phase: 'receiving', content: 'Active output.' })
       }
-      await work.request('vision', { operation: 'timing-probe' }, async signal => { signal.throwIfAborted(); return {} })
+      await work.request('vision', { operation: 'timing-probe' }, async (signal, metadata) => {
+        signal.throwIfAborted()
+        assert.equal(visionBounds(config, work, signal, metadata).signal, signal)
+        assert.equal(work.ledger.remainingTimeMs(), undefined)
+        return {}
+      })
       await work.save('finalizing', { counts: { observed: 24 } })
       return 'target-met'
     })
     await fixture.jobs.hooks[0]!.done
     const complete = fixture.engine.get(run.id, owner)
     assert.equal(complete.status, 'completed')
-    assert.equal(complete.outcome, nativeAnalysis ? 'target-met' : 'budget-exhausted')
-    assert.equal(received, nativeAnalysis ? 3 : 1)
+    assert.equal(complete.outcome, nativeModel ? 'target-met' : 'budget-exhausted')
+    assert.equal(received, nativeModel ? 3 : 1)
     assert.ok(Number.isFinite(dataOf(complete).budget.deadlineAt))
   })
 
@@ -110,7 +117,8 @@ describe('background analysis lifecycle', () => {
       await work.request('vision', { operation: 'resume-summary' }, async (signal, record) => {
         signal.throwIfAborted()
         const bounds = visionBounds(config, work, signal, record)
-        assert.equal(bounds.nativeModelTiming, true)
+        assert.equal(bounds.signal, signal)
+        assert.equal(work.ledger.remainingTimeMs(), undefined)
         assert.equal(requestBounds(config, work).timeoutMs, config.limits.requestTimeoutMs)
         await record({ transport: 'native-llm' })
         return { summary: 'Complete saved observations.' }
