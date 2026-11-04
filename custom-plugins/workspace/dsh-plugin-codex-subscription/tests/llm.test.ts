@@ -56,7 +56,8 @@ function fixture(reply?: (headers: Headers) => Response, directory?: (headers: H
     loginTimeoutMs: 1000, tokenTimeoutMs: 1000, sessionAffinityLimit: 8, modelCooldownLimit: 8, cooldownMs: 1000, baseUrl: 'https://chatgpt.fixture.invalid/backend-api', clientVersion: 'fixture', discoveryTtlMs: 5000 }
   const accounts = new CodexAccounts(options)
   const poolOptions: PoolAdapterOptions = { provider, displayName: 'Fixture subscription', baseUrl: options.baseUrl, timeoutMs: 1000, streamIdleTimeoutMs: 1000,
-    maxRequestImageBytes: 1000000, requestImagePixelBudget: 1000000, requestImageMaxBytes: 1000000 }
+    maxRequestImageBytes: 1000000, maxRequestImages: 50, imageOffloadCountQuantum: 10,
+    requestImagePixelBudget: 1000000, requestImageMaxBytes: 1000000 }
   const adapter = new CodexPoolAdapter(accounts, poolOptions)
   const seed = async (ids: string[]) => {
     const now = Date.now()

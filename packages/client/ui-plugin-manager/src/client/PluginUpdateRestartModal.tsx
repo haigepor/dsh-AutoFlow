@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { Button, IconCloseOutlineRegular, IconInfoOutlineRegular, IconRefreshOutlineRegular, Modal, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PluginManagerFace } from './manager-store.ts'
+import { hasPendingPluginUpdate } from './manager-store.ts'
 import { packageText } from './presentation.ts'
 import { PluginUpdateActivity } from './PluginUpdateActivity.tsx'
 import { PackageArtwork } from './PackageArtwork.tsx'
@@ -26,7 +27,7 @@ export function PluginUpdateRestartModal({ usePluginManager, ensure, dismissUpda
   InjectFace<PluginUpdateRestartFace> & PropsLocale<'pluginManager'>): ReactNode {
   const names = usePluginManager(state => state.updateRestarts ?? [])
   const packages = usePluginManager(state => state.packages)
-  const pending = packages.some(pkg => pkg.update?.restartRequired === true)
+  const pending = packages.some(hasPendingPluginUpdate)
   const [phase, setPhase] = useState<'restarting' | 'waiting' | 'failed'>('restarting')
   const [attempt, setAttempt] = useState(0)
   useEffect(() => { ensure() }, [ensure])
@@ -62,7 +63,7 @@ export function PluginUpdateRestartModal({ usePluginManager, ensure, dismissUpda
       <ul className={css.packages} aria-label={t('updatesRestartPackages')}>{names.map((name) => {
         const pkg = packages.find(pkg => pkg.name === name)
         const title = pkg === undefined ? name : packageText(pkg, resolveText).title
-        const version = pkg?.update?.version
+        const version = pkg?.update?.version ?? pkg?.version
         return <li className={css.package} key={name} aria-label={version === undefined ? title : t('updatesRestartPackage', { name: title, version })}>
           <span className={css.packageIcon} aria-hidden="true"><PackageArtwork src={pkg?.meta?.icon} size={30} /></span>
           <span className={css.packageName}>{title}</span>

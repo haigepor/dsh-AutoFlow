@@ -150,6 +150,16 @@ export const ja = {
   'active': '実行中',
   'failed': '起動に失敗',
   'unloading': 'アンロード中',
+  'readOnly': '読み取り専用の一覧',
+  'categoryFilter': 'プラグインを機能で絞り込む',
+  'categoryAll': 'すべて',
+  'categoryDevelopment': '開発ツール',
+  'categoryContext': '検索とコンテキスト',
+  'categoryAgent': 'エージェントと連携',
+  'categoryOther': 'その他と基盤',
+  'countUnit': 'プラグイン',
+  'viewInPreset': 'プリセットグループで表示',
+  'failedCountLabel': '失敗',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -193,6 +203,16 @@ export const es = {
   active: 'corriendo',
   failed: 'No se pudo iniciar',
   unloading: 'Descarga',
+  'readOnly': 'Inventario de solo lectura',
+  'categoryFilter': 'Filtrar plugins por función',
+  'categoryAll': 'Todos',
+  'categoryDevelopment': 'Herramientas de desarrollo',
+  'categoryContext': 'Búsqueda y contexto',
+  'categoryAgent': 'Agentes y colaboración',
+  'categoryOther': 'Otros e infraestructura',
+  'countUnit': 'plugins',
+  'viewInPreset': 'Ver en el grupo de preajustes',
+  'failedCountLabel': 'fallidos',
 } satisfies Record<keyof typeof en, string>
 
 /** French dictionary, checked against the English keys. */
@@ -236,6 +256,16 @@ export const fr = {
   active: 'Courir',
   failed: 'Échec du démarrage',
   unloading: 'Déchargement',
+  'readOnly': 'Inventaire en lecture seule',
+  'categoryFilter': 'Filtrer les extensions par fonction',
+  'categoryAll': 'Toutes',
+  'categoryDevelopment': 'Outils de développement',
+  'categoryContext': 'Recherche et contexte',
+  'categoryAgent': 'Agents et collaboration',
+  'categoryOther': 'Autres et infrastructure',
+  'countUnit': 'extensions',
+  'viewInPreset': 'Voir dans le groupe de préréglages',
+  'failedCountLabel': 'en échec',
 } satisfies Record<keyof typeof en, string>
 
 /** German dictionary, checked against the English keys. */
@@ -279,6 +309,16 @@ export const de = {
   active: 'Laufen',
   failed: 'Start fehlgeschlagen',
   unloading: 'Entladen',
+  'readOnly': 'Schreibgeschütztes Inventar',
+  'categoryFilter': 'Plugins nach Funktion filtern',
+  'categoryAll': 'Alle',
+  'categoryDevelopment': 'Entwicklerwerkzeuge',
+  'categoryContext': 'Suche und Kontext',
+  'categoryAgent': 'Agenten und Zusammenarbeit',
+  'categoryOther': 'Sonstiges und Infrastruktur',
+  'countUnit': 'Plugins',
+  'viewInPreset': 'In Vorlagengruppe anzeigen',
+  'failedCountLabel': 'fehlgeschlagen',
 } satisfies Record<keyof typeof en, string>
 
 /** Russian dictionary, checked against the English keys. */
@@ -322,6 +362,16 @@ export const ru = {
   active: 'Бег',
   failed: 'Не удалось запустить',
   unloading: 'Разгрузка',
+  'readOnly': 'Список только для чтения',
+  'categoryFilter': 'Фильтр плагинов по функциям',
+  'categoryAll': 'Все',
+  'categoryDevelopment': 'Инструменты разработки',
+  'categoryContext': 'Поиск и контекст',
+  'categoryAgent': 'Агенты и совместная работа',
+  'categoryOther': 'Прочее и инфраструктура',
+  'countUnit': 'плагинов',
+  'viewInPreset': 'Показать в группе предустановки',
+  'failedCountLabel': 'с ошибкой',
 } satisfies Record<keyof typeof en, string>
 
 /** Portuguese dictionary, checked against the English keys. */
@@ -365,4 +415,14 @@ export const pt = {
   active: 'Correndo',
   failed: 'Falha ao iniciar',
   unloading: 'Descarregando',
+  'readOnly': 'Inventário somente leitura',
+  'categoryFilter': 'Filtrar plugins por função',
+  'categoryAll': 'Todos',
+  'categoryDevelopment': 'Ferramentas de desenvolvimento',
+  'categoryContext': 'Pesquisa e contexto',
+  'categoryAgent': 'Agentes e colaboração',
+  'categoryOther': 'Outros e infraestrutura',
+  'countUnit': 'plugins',
+  'viewInPreset': 'Ver no grupo de predefinições',
+  'failedCountLabel': 'com falha',
 } satisfies Record<keyof typeof en, string>

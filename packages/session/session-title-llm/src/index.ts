@@ -6,6 +6,12 @@
  * @module @deepseek-ai/dsh-session-title-llm
  */
 
+declare module '@deepseek-ai/dsh-llm/types' {
+  interface LlmRequestPurposeMap {
+    'session-title': true
+  }
+}
+
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -328,7 +334,8 @@ export async function executeSessionTitleLlm(
       callDeadline.signal.throwIfAborted()
       const finish = terminalFinish(assembler.finish)
       const blocks = assembler.blocks()
-      if (finish.kind === 'stop' && !blocks.some(block => block.type === 'text' && block.text.trim() !== '')) {
+      if (finish.kind === 'stop' && !blocks.some(block => block.type === 'tool-call')
+        && !blocks.some(block => block.type === 'text' && block.text.trim() !== '')) {
         throw Object.assign(new Error('Title model produced no text'), { code: 'TITLE_EMPTY' })
       }
       record('succeeded')

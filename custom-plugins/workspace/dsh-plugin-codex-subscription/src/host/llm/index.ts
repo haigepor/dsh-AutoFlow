@@ -77,6 +77,7 @@ export class CodexPoolAdapter extends LlmAdapter {
       transport: 'sse', timeoutMs: this.config.timeoutMs, streamIdleTimeoutMs: this.config.streamIdleTimeoutMs,
       headers: { originator: 'codex_cli_rs', 'User-Agent': `codex_cli_rs/${this.accounts.options.clientVersion}` },
       maxRequestImageBytes: this.config.maxRequestImageBytes, requestImagePixelBudget: this.config.requestImagePixelBudget,
+      maxRequestImages: this.config.maxRequestImages, imageOffloadCountQuantum: this.config.imageOffloadCountQuantum,
       requestImageMaxBytes: this.config.requestImageMaxBytes, retryPolicy: this.retryPolicy,
       modelErrors: new Map(), configuredMaxTokens: new Map(), configuredReasoningEfforts: snapshot.defaults,
       configuredNativeWebSearch: new Map(snapshot.views.flatMap(view => nativeSearch || view.nativeWebSearch !== undefined

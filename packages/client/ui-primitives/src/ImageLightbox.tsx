@@ -1,3 +1,4 @@
+import type { HTMLAttributes } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from './Button.tsx'
@@ -37,19 +38,20 @@ export interface ImageLightboxNavigation {
   onNext?: (() => void) | undefined
 }
 
-function LightboxImage({ src, alt, labels, loadingImageSrc, onRetry }: {
+function LightboxImage({ src, alt, labels, loadingImageSrc, onRetry, contextMenuProps }: {
   src: string
   alt: string
   labels: ImageLightboxLoadingLabels | undefined
   loadingImageSrc: string | undefined
   onRetry: () => void
+  contextMenuProps: Pick<HTMLAttributes<HTMLElement>, 'onContextMenu' | 'onKeyDown' | 'tabIndex'> | undefined
 }) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading'), [attempt, setAttempt] = useState(0)
   const image = useRef<HTMLImageElement>(null)
   useEffect(() => { if (image.current?.complete && image.current.naturalWidth > 0) setStatus('ready') }, [attempt])
   return <>
     <img key={attempt} ref={image} className={css.image} src={src} alt={alt} data-state={labels ? status : undefined}
-      onLoad={() => { setStatus('ready') }} onError={() => { setStatus('error') }} />
+      onLoad={() => { setStatus('ready') }} onError={() => { setStatus('error') }} {...contextMenuProps} />
     {labels && status !== 'ready' && <div className={css.feedback} data-illustrated={status === 'loading' && !!loadingImageSrc}
       role={status === 'error' ? 'alert' : 'status'} aria-live="polite">
       {status === 'loading' && loadingImageSrc && <img className={css.artwork} src={loadingImageSrc} alt="" width={88} height={88} />}
@@ -72,10 +74,11 @@ function LightboxImage({ src, alt, labels, loadingImageSrc, onRetry }: {
  * @param props.loadingLabels - optional localized loading, failure and retry controls; omitted callers retain the plain image presentation.
  * @param props.loadingImageSrc - optional decorative artwork displayed above the loading caption.
  * @param props.navigation - optional gallery controls and arrow-key actions; changes retain the current focus.
+ * @param props.contextMenuProps - optional original-image gesture bindings.
  * @param props.onClose - dismiss callback owned by the opener.
  * @returns the modal preview dialog.
  */
-export function ImageLightbox({ src, alt, labels, loadingLabels, loadingImageSrc, navigation, onClose }: {
+export function ImageLightbox({ src, alt, labels, loadingLabels, loadingImageSrc, navigation, onClose, contextMenuProps }: {
   src: string
   alt: string
   labels: ImageLightboxLabels
@@ -83,6 +86,7 @@ export function ImageLightbox({ src, alt, labels, loadingLabels, loadingImageSrc
   loadingImageSrc?: string | undefined
   navigation?: ImageLightboxNavigation | undefined
   onClose: () => void
+  contextMenuProps?: Pick<HTMLAttributes<HTMLElement>, 'onContextMenu' | 'onKeyDown' | 'tabIndex'> | undefined
 }) {
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
@@ -94,6 +98,8 @@ export function ImageLightbox({ src, alt, labels, loadingLabels, loadingImageSrc
     restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     closeRef.current?.focus()
     const onKeyDown = (event: globalThis.KeyboardEvent): void => {
+      // A portaled image menu owns Escape and Tab until it returns focus.
+      if (event.defaultPrevented || document.activeElement?.closest('[role="menu"]')) return
       if (event.key === 'Escape') { event.stopPropagation(); onClose() }
       const currentNavigation = navigationRef.current
       if (currentNavigation && !event.altKey && !event.ctrlKey && !event.metaKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
@@ -125,7 +131,7 @@ export function ImageLightbox({ src, alt, labels, loadingLabels, loadingImageSrc
       <div ref={stageRef} className={css.stage}>
         <div className={css.mask} aria-hidden="true" onMouseDown={onClose} />
         <LightboxImage key={src} src={src} alt={alt} labels={loadingLabels} loadingImageSrc={loadingImageSrc}
-          onRetry={() => { closeRef.current?.focus() }} />
+          onRetry={() => { closeRef.current?.focus() }} contextMenuProps={contextMenuProps} />
         {navigation && <>
           <Button type="button" className={`${css.navigationControl} ${css.previous}`} aria-label={navigation.previousLabel} disabled={!navigation.onPrevious} onClick={navigation.onPrevious}><IconChevronLeftOutlineRegular size={20} /></Button>
           <Button type="button" className={`${css.navigationControl} ${css.next}`} aria-label={navigation.nextLabel} disabled={!navigation.onNext} onClick={navigation.onNext}><IconChevronRightOutlineRegular size={20} /></Button>

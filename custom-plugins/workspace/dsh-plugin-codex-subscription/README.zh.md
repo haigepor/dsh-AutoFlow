@@ -22,6 +22,8 @@ kind: "package-bundle"
 <a id="use"></a>
 ## 使用本包
 
+插件支持 DSH `0.2.2-alpha.2` 和 `0.2.2-rc.1`。旧桌面版安装插件后需手动重启；配套新桌面版会等待当前工作结束后自动重启，使已安装的更新生效。
+
 文本模型目录条目可设置 `nativeWebSearch` 覆盖值。发现阶段优先读取 Codex 的 `supports_search_tool` 元数据，再匹配已知模型规则；用户显式选择优先。账号能力分组包含搜索支持，因此开启搜索的路由会排除明确不支持它的账号。原生搜索持有选中账号的租约直至完成，复用 Codex 鉴权，并向现有网页搜索工具返回结构化来源。
 
 AutoFlow 将本包作为可选安装依赖分发，各默认 profile 均不启用。通过现有插件管理启用，或将包名加入 profile 的 bundles。插入的条目是 `codex-subscription` 和可独立开关的 `codex-subscription-tools`。停用会停止监听和工作，保留凭据与图片。
@@ -96,6 +98,8 @@ Plus、Pro 和 Business 共用 OAuth 和动态发现，套餐名不代表固定�
 ```
 
 默认值与限制由 [config.ts](src/host/config.ts) 定义。图片任务默认五分钟期限，可配置到一小时；原生工具和 MCP 的快速等待最多二十秒。`options.images.uiPollIntervalMs` 控制浏览器共享任务读取间隔，默认 1000 ms，范围 250–30000 ms。页面释放后会停止读取，不会取消任务。已接收任务保留自己的配置。网关限制请求体、响应、并发及签名地址有效期。
+
+在 DSH rc.1 中，`maxRequestImages` 默认允许单次模型请求保留 50 次图片出现。超出上限时，`imageOffloadCountQuantum` 控制每次省略多少个最早出现的图片，默认 10，并受图片上限约束；显式值不能超过该上限。alpha.2 宿主保留原有图片处理行为。
 
 `options.upstream.mode` 默认为 `auto`，设为 `sse` 可强制使用 HTTP。WebSocket 连接超时默认三十秒，不支持的主机及 1009 大小记忆默认十分钟，单消息限制为 16 MiB，队列字节限制为 32 MiB。每个连接保留接收时的配置。`options.models.fallbackMaxTokens` 默认为 8192，用于服务端未声明输出限制的新模型。`options.version` 控制本地元数据发现、默认十分钟的探测间隔及缓存读取上限。
 

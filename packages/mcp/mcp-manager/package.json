@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-mcp-manager",
   "description": "Persistent profile MCP server management and redacted connection status",
-  "version": "0.2.2-alpha.2",
+  "version": "0.2.2-rc.1",
   "type": "module",
   "license": "MIT",
   "publishConfig": {

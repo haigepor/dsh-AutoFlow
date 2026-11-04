@@ -257,6 +257,7 @@ export class AgentRegistry extends Service {
   private factory: FactorySlot | undefined
   private readonly initiators = new AsyncLocalStorage<Agent | undefined>()
   private readonly initiatorRuns = new AsyncLocalStorage<InitiatorRun>()
+  private readonly creationAnnouncements = new AsyncLocalStorage<AgentEntry>()
   private initiatorState: 'active' | 'closing' | 'disposed' = 'active'
   private activeInitiatorRuns = 0
   private initiatorDrain: PromiseWithResolvers<void> | undefined
@@ -572,11 +573,11 @@ export class AgentRegistry extends Service {
     entry.announcing = true
     entry.announced = true
     try {
-      await this.ctx.serial(entry.carrier, 'agent/created', {
+      await this.creationAnnouncements.run(entry, () => this.ctx.serial(entry.carrier, 'agent/created', {
         agent: entry.agent,
         source,
         ...signal === undefined ? {} : { signal },
-      })
+      }))
     } finally {
       entry.announcing = false
       if (entry.detachRequested) this.detachEntered(entry)
@@ -590,6 +591,16 @@ export class AgentRegistry extends Service {
    */
   get(id: SessionId): Agent | undefined {
     return this.store.get(id)?.agent
+  }
+
+  /**
+   * Test whether this async invocation belongs to an Agent's active creation listeners.
+   * @param agent - exact Agent whose initialization the caller intends to change.
+   * @returns true only inside that Agent's unsettled creation dispatch, never for unrelated requests.
+   */
+  isInCreationCallback(agent: Agent): boolean {
+    const entry = this.creationAnnouncements.getStore()
+    return entry !== undefined && entry.agent === agent && entry.announcing && this.store.get(agent.id) === entry
   }
 
   /**

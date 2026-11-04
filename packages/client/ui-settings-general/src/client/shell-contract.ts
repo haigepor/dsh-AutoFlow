@@ -92,7 +92,7 @@ export type SettingsRootComponentProps =
 /** Main-panel settings page with the existing section and action seats. */
 export type SettingsPageComponentProps =
   PropsRuntime<'main'>
-  & PropsRenderSlots<'settings.header' | 'settings.action' | 'settings.close' | 'settings.section'>
+  & PropsRenderSlots<'settings.header' | 'settings.action' | 'settings.close' | 'settings.section' | 'settings.section.icon'>
   & InjectFace<SettingsRootInjected>
   & PropsLocale<'settings'>
   & PropsStore<ReturnType<typeof createSettingsShellStore>>

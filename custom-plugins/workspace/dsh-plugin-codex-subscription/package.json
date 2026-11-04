@@ -11,7 +11,8 @@
   "icon": "./assets/plugin-logo-v2.webp",
   "type": "module",
   "engines": {
-    "node": "^22.19.0 || >=24.0.0"
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1"
   },
   "exports": {
     ".": "./index.js",

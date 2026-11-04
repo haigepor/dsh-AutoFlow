@@ -119,6 +119,8 @@ export interface PoolAdapterOptions {
   streamIdleTimeoutMs: number
   timeoutMs: number
   maxRequestImageBytes: number
+  maxRequestImages: number
+  imageOffloadCountQuantum: number
   requestImagePixelBudget: number
   requestImageMaxBytes: number
   resolveAttachments?: PiAiAdapterOptions['resolveAttachments']

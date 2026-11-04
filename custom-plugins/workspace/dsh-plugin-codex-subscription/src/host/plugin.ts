@@ -24,6 +24,8 @@ declare module '@deepseek-ai/cordis' {
  * @returns Completion after all services are ready.
  */
 export async function apply(ctx: Context, config: Config): Promise<void> {
+  const imageOffloadCountQuantum = config.imageOffloadCountQuantum ?? Math.min(10, config.maxRequestImages)
+  if (imageOffloadCountQuantum > config.maxRequestImages) throw new Error('imageOffloadCountQuantum must not exceed maxRequestImages')
   const settingsNs = ctx.fiber.entry?.options.id ?? 'codex-subscription'
   const service = new CodexSubscriptionService(ctx, settingsNs, config, config.options.get())
   ctx.effect(() => () => service.dispose(), 'Codex subscription shutdown')
@@ -43,6 +45,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     listModels: () => service.catalogModels(),
     baseUrl: 'https://chatgpt.com/backend-api/codex', streamIdleTimeoutMs: config.streamIdleTimeoutMs, timeoutMs: config.requestTimeoutMs,
     maxRequestImageBytes: config.maxRequestImageBytes, requestImagePixelBudget: config.requestImagePixelBudget, requestImageMaxBytes: config.requestImageMaxBytes,
+    maxRequestImages: config.maxRequestImages, imageOffloadCountQuantum,
     resolveAttachments: () => ctx.attachments,
     resolveImageAccess: (attachments, ref) => resolveImageAttachmentAccess(attachments, path => ctx.get('fs')?.processPathFromHostPath(path), ref),
   })

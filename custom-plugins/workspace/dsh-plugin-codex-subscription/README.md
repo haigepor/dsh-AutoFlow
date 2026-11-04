@@ -22,6 +22,8 @@ Use ChatGPT subscription accounts for AutoFlow model calls, image generation and
 <a id="use"></a>
 ## Use this package
 
+The package supports DSH `0.2.2-alpha.2` and `0.2.2-rc.1`. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
+
 Text catalog entries accept an optional `nativeWebSearch` override. Discovery reads Codex’s `supports_search_tool` metadata before matching known model rules; an explicit user choice wins. Account capability groups include search support, so a search-enabled route excludes accounts that deny it. Native searches hold the selected account lease until completion, reuse Codex authentication and return structured sources to the existing web-search tool.
 
 AutoFlow ships this bundle as an optional installation dependency. Shipped profile templates leave it disabled. Enable it through the existing plugin manager, or add its package name to the profile's selected bundles. The inserted rows are `codex-subscription` and the independently switchable `codex-subscription-tools`. Disabling the bundle stops listeners and work while retaining credentials and images.
@@ -96,6 +98,8 @@ The profile patch supplies deployment settings. This example keeps the relay off
 ```
 
 Defaults and accepted limits are defined in [config.ts](src/host/config.ts). Image tasks default to a five-minute deadline, configurable up to one hour; native/MCP quick waits are bounded to twenty seconds. `options.images.uiPollIntervalMs` controls shared browser task reads (default 1000 ms, range 250–30000 ms). Releasing a browser view stops its reads without cancelling the task. Accepted tasks retain their settings. Gateways enforce body, response, concurrency and signed-URL limits.
+
+On DSH rc.1, `maxRequestImages` limits a model request to 50 retained image occurrences by default. `imageOffloadCountQuantum` controls how many oldest occurrences are omitted when the count is exceeded; it defaults to 10, capped by the configured count limit, and an explicit value cannot exceed that limit. Alpha.2 hosts retain their existing image handling.
 
 `options.upstream.mode` defaults to `auto`; `sse` forces HTTP. WebSocket connection timeout defaults to 30 seconds, unsupported-host and 1009-size memory to ten minutes, message limit to 16 MiB and queued bytes to 32 MiB. Each socket retains its admission settings. `options.models.fallbackMaxTokens` defaults to 8192 when a new model has no server output limit. `options.version` controls local metadata discovery, its ten-minute probe interval and bounded cache reads.
 

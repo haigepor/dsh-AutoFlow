@@ -18,20 +18,6 @@ const root = resolve(import.meta.dirname, '..')
 const paths = translationPairPaths('docs/cli-help.md')
 const execFileAsync = promisify(execFile)
 
-/** Resolve the independent process budget for CLI help boots.
- * @param env Environment with an optional positive DSH_CLI_HELP_CONCURRENCY.
- * @returns Maximum simultaneously booted help processes.
- */
-export function cliHelpConcurrency(env: NodeJS.ProcessEnv = process.env): number {
-  const value = env.DSH_CLI_HELP_CONCURRENCY
-  if (value === undefined || value === '') return defaultParallelism(env)
-  const parsed = Number(value)
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || String(parsed) !== value) {
-    throw new Error(`DSH_CLI_HELP_CONCURRENCY must be a positive integer, got ${JSON.stringify(value)}`)
-  }
-  return parsed
-}
-
 /** Complete help text and the immediate subcommands it advertises. */
 export interface CliHelp {
   /** Complete help text with LF line endings. */
@@ -78,6 +64,22 @@ function addAlias(page: HelpPage, invocation: string, path: ReadonlySet<HelpPage
  */
 export function topLevelHelpArgs(profiles: readonly string[]): string[][] {
   return [[], ['plugin'], ...[...profiles].sort().flatMap(profile => [[profile], ['--profile', profile]])]
+}
+
+/**
+ * Resolve the child-process allowance before any help invocation starts.
+ * @param raw - optional DSH_CLI_HELP_CONCURRENCY override.
+ * @param fallback - worker budget for an invocation without an explicit allowance.
+ * @returns the maximum number of help children in flight.
+ * @throws when a supplied override is not a positive decimal integer.
+ */
+export function cliHelpConcurrency(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw === '') return fallback
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || String(parsed) !== raw) {
+    throw new Error(`gen-cli-help: DSH_CLI_HELP_CONCURRENCY must be a positive integer, got ${JSON.stringify(raw)}.`)
+  }
+  return parsed
 }
 
 /** Help reads started ahead of an in-order consumer. */
@@ -191,9 +193,10 @@ export async function collectCliHelp(
 }
 
 async function collectHelp(): Promise<HelpPage[]> {
+  const concurrency = cliHelpConcurrency(process.env.DSH_CLI_HELP_CONCURRENCY, defaultParallelism())
   const directory = mkdtempSync(join(tmpdir(), 'dsh-cli-help-'))
   const profiles = Object.keys(PROFILE_TEMPLATES)
-  // Concurrent profile boots share the repository worker budget.
+  // Aggregate callers allocate this leaf's children separately from the other running gates.
   const reader = prefetchHelp(async (args, signal) => {
     // Each invocation boots against its own empty Harness and agents homes.
     const home = mkdtempSync(join(directory, 'invocation-'))
@@ -221,7 +224,7 @@ async function collectHelp(): Promise<HelpPage[]> {
     } finally {
       signal.removeEventListener('abort', abort)
     }
-  }, topLevelHelpArgs(profiles), cliHelpConcurrency())
+  }, topLevelHelpArgs(profiles), concurrency)
   try {
     return await collectCliHelp(reader.readHelp, profiles)
   } finally {

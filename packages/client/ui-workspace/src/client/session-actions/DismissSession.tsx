@@ -9,9 +9,11 @@ import type { DismissSessionInjected, SessionMenuItemProps } from '../contract/s
  * @returns the menu action, disabled while the Session has active work.
  */
 export function DismissSessionMenuItem({
-  canDismiss = false, sessionId, useMenuOpenState, dismissSession, t,
+  canDismiss = false, sessionId, useMenuOpenState, dismissSession, useSessionAccess, t,
 }: SessionMenuItemProps<DismissSessionInjected>) {
   const [, setMenuOpen] = useMenuOpenState()
+  const canManage = useSessionAccess(sessionId, 'workspace/archiveSession')
+  if (!canManage) return null
   return (
     <MenuItemButton
       disabled={!canDismiss}

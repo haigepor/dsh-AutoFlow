@@ -63,6 +63,8 @@ export interface Config {
   streamIdleTimeoutMs: number
   requestTimeoutMs: number
   maxRequestImageBytes: number
+  maxRequestImages: number
+  imageOffloadCountQuantum?: number
   requestImagePixelBudget: number
   requestImageMaxBytes: number
   options: { get(): unknown }
@@ -80,6 +82,8 @@ export const Config = Schema.object({
   streamIdleTimeoutMs: Schema.natural().min(1000).default(120_000),
   requestTimeoutMs: Schema.natural().min(1000).max(3_600_000).default(3_600_000),
   maxRequestImageBytes: Schema.natural().min(1).default(32 * 1024 * 1024),
+  maxRequestImages: Schema.natural().min(1).max(Number.MAX_SAFE_INTEGER).default(50),
+  imageOffloadCountQuantum: Schema.natural().min(1).max(Number.MAX_SAFE_INTEGER),
   requestImagePixelBudget: Schema.natural().min(1).default(80_000_000),
   requestImageMaxBytes: Schema.natural().min(1).default(20 * 1024 * 1024),
   options: Schema.any().default({}).volatile(),

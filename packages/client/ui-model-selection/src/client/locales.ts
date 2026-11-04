@@ -104,6 +104,13 @@ export const ja = {
   'search.empty': '一致するモデルがありません。',
   'empty.models': '利用可能なモデルがありません。',
   'empty.efforts': 'このモデルには推論強度の設定がありません。',
+  'effort.off': 'オフ',
+  'effort.minimal': '最小',
+  'effort.low': '低',
+  'effort.medium': '中',
+  'effort.high': '高',
+  'effort.xhigh': '非常に高い',
+  'effort.max': '最大',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -133,6 +140,13 @@ export const es = {
   'search.empty': 'No hay modelos coincidentes.',
   'empty.models': 'No hay modelos disponibles.',
   'empty.efforts': 'Este modelo no proporciona niveles de esfuerzo de razonamiento.',
+  'effort.off': 'Desactivado',
+  'effort.minimal': 'Mínimo',
+  'effort.low': 'Bajo',
+  'effort.medium': 'Medio',
+  'effort.high': 'Alto',
+  'effort.xhigh': 'Muy alto',
+  'effort.max': 'Máximo',
 } satisfies Record<keyof typeof en, string>
 
 /** French dictionary, checked against the English keys. */
@@ -162,6 +176,13 @@ export const fr = {
   'search.empty': 'Aucun modèle correspondant.',
   'empty.models': 'Aucun modèle disponible.',
   'empty.efforts': 'Ce modèle ne fournit aucun niveau d’effort de raisonnement.',
+  'effort.off': 'Désactivé',
+  'effort.minimal': 'Minimal',
+  'effort.low': 'Faible',
+  'effort.medium': 'Moyen',
+  'effort.high': 'Élevé',
+  'effort.xhigh': 'Très élevé',
+  'effort.max': 'Maximal',
 } satisfies Record<keyof typeof en, string>
 
 /** German dictionary, checked against the English keys. */
@@ -191,6 +212,13 @@ export const de = {
   'search.empty': 'Keine passenden Modelle.',
   'empty.models': 'Keine Modelle verfügbar.',
   'empty.efforts': 'Dieses Modell liefert keine Argumentationsaufwandsstufen.',
+  'effort.off': 'Aus',
+  'effort.minimal': 'Minimal',
+  'effort.low': 'Niedrig',
+  'effort.medium': 'Mittel',
+  'effort.high': 'Hoch',
+  'effort.xhigh': 'Sehr hoch',
+  'effort.max': 'Maximal',
 } satisfies Record<keyof typeof en, string>
 
 /** Russian dictionary, checked against the English keys. */
@@ -220,6 +248,13 @@ export const ru = {
   'search.empty': 'Нет подходящих моделей.',
   'empty.models': 'Нет доступных моделей.',
   'empty.efforts': 'Эта модель не обеспечивает обоснования уровней усилий.',
+  'effort.off': 'Выключено',
+  'effort.minimal': 'Минимальный',
+  'effort.low': 'Низкий',
+  'effort.medium': 'Средний',
+  'effort.high': 'Высокий',
+  'effort.xhigh': 'Очень высокий',
+  'effort.max': 'Максимальный',
 } satisfies Record<keyof typeof en, string>
 
 /** Portuguese dictionary, checked against the English keys. */
@@ -249,4 +284,11 @@ export const pt = {
   'search.empty': 'Não há modelos correspondentes.',
   'empty.models': 'Nenhum modelo disponível.',
   'empty.efforts': 'Este modelo não fornece níveis de esforço de raciocínio.',
+  'effort.off': 'Desativado',
+  'effort.minimal': 'Mínimo',
+  'effort.low': 'Baixo',
+  'effort.medium': 'Médio',
+  'effort.high': 'Alto',
+  'effort.xhigh': 'Muito alto',
+  'effort.max': 'Máximo',
 } satisfies Record<keyof typeof en, string>

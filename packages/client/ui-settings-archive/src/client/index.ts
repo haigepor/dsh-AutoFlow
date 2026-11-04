@@ -11,7 +11,7 @@ import { ArchiveDeleteError, ArchiveOperations } from './operations.ts'
 import { ArchivePage } from './ArchivePage.tsx'
 import { ArchiveFeedback } from './ArchiveFeedback.tsx'
 import type { ArchiveInjected } from './contract.ts'
-import { en, zh } from './locales.ts'
+import { en, zh, ja, es, fr, de, ru, pt } from './locales.ts'
 import type { ArchivePreferences } from '../types.ts'
 
 /** Existing data owners and navigation provide all archive behavior. */
@@ -53,7 +53,7 @@ export function apply(ctx: Context): void {
     title: id => ctx.sessions.list.getSnapshot().byId[id]?.title ?? t('untitled'),
   })
   ctx.effect(() => () => { operations.dispose() }, 'archive-settings: operation lifetime')
-  ctx.effect(() => ctx.locale.register(namespace, { zh, en }), 'archive-settings: dictionaries')
+  ctx.effect(() => ctx.locale.register(namespace, { zh, en, ja, es, fr, de, ru, pt }), 'archive-settings: dictionaries')
   const injected = (): ArchiveInjected => ({
     hooks: { operation: operations.state, favorites },
     run: (operation, ids, openAfter) => operations.run(operation, ids, openAfter),

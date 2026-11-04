@@ -2,7 +2,25 @@
 
 English | [中文](autoflow-upstream-integration.zh.md)
 
-This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.2-alpha.2`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) stores current comparison references and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+This record owns AutoFlow's upstream integration decisions. The current target is `dsh-v0.2.2-rc.1`; earlier sections retain historical context. The [path manifest](autoflow-local-change-manifest.json) retains an earlier comparison snapshot and historical paths; the [maintenance map](cookbook/maintaining-autoflow-fork.md) locates custom implementations to protect.
+
+## `dsh-v0.2.2-rc.1` integration (2026-11-05)
+
+The official target is [dsh-v0.2.2-rc.1](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.1). The comparison starts at the previously integrated `dsh-v0.2.2-alpha.2`, rather than the release note's cumulative rc.5 range. Features already present in alpha.2, including additional locales, quoted input, attachment upload and provider controls, are retained rather than counted as new work.
+
+`codex/backup-main-before-rc1-20261104`, `codex/backup-mirror-before-rc1-20261104` and `codex/backup-local-before-rc1-20261104` retain the initial branch heads and pending local changes. Original files, the index and private platform configuration are also backed up outside Git. Existing user profiles and running services are excluded from verification.
+
+| Area | Integration decision |
+| --- | --- |
+| Navigation and appearance | Add the official narrow-screen drawer, touch and keyboard behavior while retaining local palettes, materials, spacing, sidebar motion and full-window Settings. Settings section icons render through the official extension slot inside the retained page. |
+| Menus and files | Adopt shared context menus and file actions. Preserve title regeneration, sidebar dismissal, complete Workspace bulk archive, skill references and image loading feedback. Bulk confirmations work independently of search, tree and flat views. |
+| Tasks and models | Integrate Host-wide scheduled-task management, request-header context, Gemini reasoning signatures and image-limit handling. Retain local native search and reasoning controls. |
+| Optional development tools | Integrate upstream change-request, worktree and file-tree improvements through their declared optional composition. |
+| Plugin activation | Publish actual Loader status and source-independent restart state, including the Better Sidebar updater. Wait for active agents, queued input, jobs and admitted writes before automatic activation. Desktop installer updates retain manual confirmation. |
+| Independent plugins | Visual Curator bundles its native picker and command helper for older hosts. Codex Subscription, Style Prompt and Boot Animation declare support for both alpha.2 and rc.1; AFP retains its unchanged version. |
+| Local extension compatibility | Complete local dictionaries and registrations for all eight shipped languages. Creation-time preset selection uses the owned initialization phase; title regeneration and sidebar cleanup stay on the Session management surface in shared pages. |
+
+Generated API, slot, configuration, dependency and persistence references are rebuilt from the combined source. Release verification belongs to the delivery commit and its Actions runs; previous alpha.2 or rc.5 results do not establish rc.1 acceptance.
 
 ## `dsh-v0.2.1-rc.5` reasoning backport (2026-11-02)
 

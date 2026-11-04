@@ -828,7 +828,7 @@ function docSyncLeafGates(options: {
   if (options.docTypecheckEnv !== undefined) docTypecheckOptions.env = options.docTypecheckEnv
   const cliHelp = pnpmScript('cli-help', 'verify-cli-help', {
     label: 'CLI help reference',
-    env: { DSH_CLI_HELP_CONCURRENCY: process.env.DSH_CLI_HELP_CONCURRENCY || '2' },
+    env: { DSH_CLI_HELP_CONCURRENCY: process.env.DSH_CLI_HELP_CONCURRENCY || '1' },
   })
   const gates = [
     // Stable FIFO starts the longest leaves first; only docs-site-build writes website/.generated.

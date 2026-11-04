@@ -5,6 +5,12 @@ import { describe, expect, it } from 'vitest'
 const css = readFileSync(new URL('../src/client/skeleton/ConversationRoot.module.css', import.meta.url), 'utf8')
 
 describe('conversation header geometry', () => {
+  it('removes the extra tab inset only in narrow Web windows', () => {
+    const narrow = /@media \(max-width: 767px\) \{([\s\S]*?)\n\}/.exec(css)?.[1]
+    expect(narrow).toContain(':global(html:not([data-platform])) .tabs')
+    expect(narrow).toContain('padding-left: 0')
+  })
+
   it('allows the header to shrink when the view row collapses', () => {
     expect(css.match(/\.header\s*\{([^}]*)\}/)?.[1]).toContain('min-height: 0')
     expect(css.match(/\.viewTabs\s*\{([^}]*)\}/)?.[1]).toContain('min-height: 25px')

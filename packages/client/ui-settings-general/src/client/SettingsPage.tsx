@@ -177,7 +177,11 @@ export function SettingsPage({
                       aria-label={row.label}
                       aria-current={row.id === active?.id ? 'page' : undefined}
                       onClick={() => { actions.select(row.id) }}>
-                      <span className={css.navGlyph} aria-hidden="true"><SettingsNavIcon id={row.id} /></span>
+                      <span className={css.navGlyph} aria-hidden="true">
+                        {renderSlot('settings.section.icon', { size: 16, active: active?.id === row.id }, {
+                          only: row.id, fallback: <SettingsNavIcon id={row.id} />,
+                        })}
+                      </span>
                       {wide && <span className={clsx(css.navLabel, css.wide)}>{row.label}</span>}
                     </button>
                   </Tooltip>

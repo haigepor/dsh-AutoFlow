@@ -163,6 +163,18 @@ export const ja = {
   'hostRelease.unknown': '不明',
   'hostRelease.reload': '再読み込みして新しいバージョンを読み込む',
   'hostRelease.later': '後で',
+  'back': '戻る',
+  'sidebar.expand': '設定サイドバーを展開',
+  'sidebar.collapse': '設定サイドバーを折りたたむ',
+  'group.preferences': '環境設定',
+  'group.agent': 'モデルとエージェント',
+  'group.apps': 'プラグインとアプリ',
+  'search.placeholder': '設定を検索…',
+  'search.label': '設定を検索',
+  'search.clear': '検索をクリア',
+  'search.empty': '一致する設定がありません',
+  'search.results': '検索結果',
+  'search.count': '一致: {count}',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -211,6 +223,18 @@ export const es = {
   'hostRelease.unknown': 'Desconocido',
   'hostRelease.reload': 'Recargar para cargar la nueva versión.',
   'hostRelease.later': 'Ahora no',
+  'back': 'Volver',
+  'sidebar.expand': 'Expandir barra lateral de ajustes',
+  'sidebar.collapse': 'Contraer barra lateral de ajustes',
+  'group.preferences': 'Preferencias',
+  'group.agent': 'Modelos y agentes',
+  'group.apps': 'Plugins y aplicaciones',
+  'search.placeholder': 'Buscar ajustes…',
+  'search.label': 'Buscar ajustes',
+  'search.clear': 'Borrar búsqueda',
+  'search.empty': 'No hay ajustes coincidentes',
+  'search.results': 'Resultados de búsqueda',
+  'search.count': 'Coincidencias: {count}',
 } satisfies Record<keyof typeof en, string>
 
 /** French dictionary, checked against the English keys. */
@@ -259,6 +283,18 @@ export const fr = {
   'hostRelease.unknown': 'Inconnu',
   'hostRelease.reload': 'Recharger pour charger la nouvelle version',
   'hostRelease.later': 'Pas maintenant',
+  'back': 'Retour',
+  'sidebar.expand': 'Développer le panneau des paramètres',
+  'sidebar.collapse': 'Réduire le panneau des paramètres',
+  'group.preferences': 'Préférences',
+  'group.agent': 'Modèles et agents',
+  'group.apps': 'Extensions et applications',
+  'search.placeholder': 'Rechercher des paramètres…',
+  'search.label': 'Rechercher des paramètres',
+  'search.clear': 'Effacer la recherche',
+  'search.empty': 'Aucun paramètre correspondant',
+  'search.results': 'Résultats de recherche',
+  'search.count': 'Correspondances : {count}',
 } satisfies Record<keyof typeof en, string>
 
 /** German dictionary, checked against the English keys. */
@@ -307,6 +343,18 @@ export const de = {
   'hostRelease.unknown': 'Unbekannt',
   'hostRelease.reload': 'Neu laden, um die neue Version zu laden',
   'hostRelease.later': 'Nicht jetzt',
+  'back': 'Zurück',
+  'sidebar.expand': 'Einstellungsseitenleiste ausklappen',
+  'sidebar.collapse': 'Einstellungsseitenleiste einklappen',
+  'group.preferences': 'Voreinstellungen',
+  'group.agent': 'Modelle und Agenten',
+  'group.apps': 'Plugins und Apps',
+  'search.placeholder': 'Einstellungen suchen…',
+  'search.label': 'Einstellungen suchen',
+  'search.clear': 'Suche löschen',
+  'search.empty': 'Keine passenden Einstellungen',
+  'search.results': 'Suchergebnisse',
+  'search.count': 'Treffer: {count}',
 } satisfies Record<keyof typeof en, string>
 
 /** Russian dictionary, checked against the English keys. */
@@ -355,6 +403,18 @@ export const ru = {
   'hostRelease.unknown': 'Неизвестно',
   'hostRelease.reload': 'Перезагрузите, чтобы загрузить новую версию',
   'hostRelease.later': 'Не сейчас',
+  'back': 'Назад',
+  'sidebar.expand': 'Развернуть панель настроек',
+  'sidebar.collapse': 'Свернуть панель настроек',
+  'group.preferences': 'Предпочтения',
+  'group.agent': 'Модели и агенты',
+  'group.apps': 'Плагины и приложения',
+  'search.placeholder': 'Поиск настроек…',
+  'search.label': 'Поиск настроек',
+  'search.clear': 'Очистить поиск',
+  'search.empty': 'Подходящих настроек нет',
+  'search.results': 'Результаты поиска',
+  'search.count': 'Найдено: {count}',
 } satisfies Record<keyof typeof en, string>
 
 /** Portuguese dictionary, checked against the English keys. */
@@ -403,4 +463,16 @@ export const pt = {
   'hostRelease.unknown': 'Desconhecido',
   'hostRelease.reload': 'Recarregue para carregar a nova versão',
   'hostRelease.later': 'Agora não',
+  'back': 'Voltar',
+  'sidebar.expand': 'Expandir barra lateral de configurações',
+  'sidebar.collapse': 'Recolher barra lateral de configurações',
+  'group.preferences': 'Preferências',
+  'group.agent': 'Modelos e agentes',
+  'group.apps': 'Plugins e aplicativos',
+  'search.placeholder': 'Pesquisar configurações…',
+  'search.label': 'Pesquisar configurações',
+  'search.clear': 'Limpar pesquisa',
+  'search.empty': 'Nenhuma configuração correspondente',
+  'search.results': 'Resultados da pesquisa',
+  'search.count': 'Correspondências: {count}',
 } satisfies Record<keyof typeof en, string>

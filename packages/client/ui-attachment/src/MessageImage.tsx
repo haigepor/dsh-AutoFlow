@@ -1,3 +1,4 @@
+import type { ContextMenuBindings } from '@deepseek-ai/dsh-client-ui-context-menu/client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { IconLoadingOutlineRegular, IconRefreshOutlineRegular, DraggableImage, ImageLightbox, type FileDragActions } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -69,12 +70,13 @@ function dimensionsOf(image: MessageImageSpec): { readonly width: number; readon
  * @param props.labels - resolved strings (tooltip, loading, retry, lightbox).
  * @returns the bounded thumbnail button, or the retry control on failure.
  */
-export function MessageImage({ image, load, variant, labels, fileDrag }: {
+export function MessageImage({ image, load, variant, labels, fileDrag, getTriggerProps }: {
   image: MessageImageSpec
   load: ImageLoader
   variant: 'single' | 'tile' | 'thumbnail'
   fileDrag: FileDragActions
   labels: MessageImageLabels
+  getTriggerProps: ContextMenuBindings['getTriggerProps']
 }) {
   const preview = 'preview' in image ? image.preview : undefined
   const attachment = 'attachment' in image ? image.attachment : undefined
@@ -114,6 +116,9 @@ export function MessageImage({ image, load, variant, labels, fileDrag }: {
   const thumbnailSrc = preview?.thumbnailUrl ?? src
   const label = ('attachment' in image ? image.label : undefined)
     ?? preview?.name ?? attachment?.name ?? labels.image
+  const contextMenuProps = getTriggerProps(src === null ? undefined : { kind: 'image', value: {
+    url: src, name: label, ...(attachment === undefined ? {} : { mediaType: attachment.mediaType }),
+  } })
   const loadingThumbnail = variant === 'thumbnail' && src === null
   const previewLoading = preview !== undefined && displayedPreview !== thumbnailSrc
   if (error && preview) return <span className={css.frame} data-variant={variant} data-state="failed" role="img" aria-label={labels.previewFailed ?? labels.loadFailed} title={labels.previewFailed ?? labels.loadFailed} style={fit === undefined ? undefined : { width: fit.width, height: fit.height }}><IconRefreshOutlineRegular aria-hidden="true" /></span>
@@ -142,6 +147,7 @@ export function MessageImage({ image, load, variant, labels, fileDrag }: {
         title={loadingThumbnail ? labels.loading : labels.open}
         aria-label={loadingThumbnail ? labels.loading : labels.openNamed(label)}
         aria-busy={loadingThumbnail || previewLoading || undefined}
+        {...contextMenuProps}
         onClick={() => { if (src !== null) setOpen(true) }}
       >
         {src === null
@@ -154,14 +160,15 @@ export function MessageImage({ image, load, variant, labels, fileDrag }: {
             loading="lazy" decoding="async" onLoad={() => { setDisplayedPreview(thumbnailSrc) }} onError={() => { setError(true) }}
             style={fit === undefined ? undefined : { objectPosition: fit.objectPosition }} />}
       </button>
-      {open && src !== null && <ImageLightbox src={src} alt={label} labels={labels.lightbox} onClose={close} />}
+      {open && src !== null && <ImageLightbox src={src} alt={label} labels={labels.lightbox} onClose={close}
+        contextMenuProps={contextMenuProps} />}
     </>
   )
 }
 
 /** Wrapping image group shared by user and assistant history: a lone image
  * renders large unless its owner requests compact tiles or contained list thumbnails. */
-export function ImageGallery({ images, load, align, compact = false, thumbnail = false, labels, fileDrag }: {
+export function ImageGallery({ images, load, align, compact = false, thumbnail = false, labels, fileDrag, getTriggerProps }: {
   images: readonly MessageImageSpec[]
   load: ImageLoader
   align: 'start' | 'end'
@@ -169,6 +176,7 @@ export function ImageGallery({ images, load, align, compact = false, thumbnail =
   thumbnail?: boolean
   fileDrag: FileDragActions
   labels: MessageImageLabels
+  getTriggerProps: ContextMenuBindings['getTriggerProps']
 }) {
   if (images.length === 0) return null
   const variant = thumbnail ? 'thumbnail' : compact || images.length > 1 ? 'tile' : 'single'
@@ -182,6 +190,7 @@ export function ImageGallery({ images, load, align, compact = false, thumbnail =
           variant={variant}
           fileDrag={fileDrag}
           labels={labels}
+          getTriggerProps={getTriggerProps}
         />
       ))}
     </div>

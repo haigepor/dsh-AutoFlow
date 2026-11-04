@@ -10,7 +10,8 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": "^22.19.0 || >=24.0.0"
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1"
   },
   "exports": {
     ".": "./index.js",
@@ -317,7 +318,6 @@
     "prepack": "pnpm run check && pnpm run build"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-native-command": "workspace:*",
     "@tanstack/virtual-core": "3.17.8",
     "eventsource-parser": "^3.1.0",
     "ipaddr.js": "2.5.0",
@@ -353,6 +353,7 @@
     "@deepseek-ai/dsh-session-title": "workspace:*"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-native-command": "workspace:*",
     "@deepseek-ai/dsh-host-directory-picker-native": "workspace:*",
     "@deepseek-ai/cordis-plugin-loader": "workspace:~",
     "@deepseek-ai/cordis-plugin-include": "workspace:~",

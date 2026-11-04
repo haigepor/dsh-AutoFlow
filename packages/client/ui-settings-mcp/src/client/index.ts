@@ -14,7 +14,7 @@ import { createMcpSettingsStore } from './store.ts'
 import { McpSettings } from './McpSettings.tsx'
 import { McpFeedback } from './McpFeedback.tsx'
 import { waitForConfigurationRestart } from './restart.ts'
-import { en, zh, type McpLocaleKey } from './locales.ts'
+import { en, zh, ja, es, fr, de, ru, pt, type McpLocaleKey } from './locales.ts'
 import { McpJsonError, parseConfigurationJson, type McpJsonSnapshot } from './configuration-json.ts'
 
 /** Services supplying the settings extension, live data and generated management namespaces. */
@@ -28,7 +28,7 @@ export function apply(ctx: Context): void {
   const refresh = (): void => { for (const listener of refreshers) listener() }
   let writing = false
   let restarting: AbortController | undefined
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'mcp-settings: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'mcp-settings: dictionaries')
   ctx.effect(() => () => { restarting?.abort() }, 'mcp-settings: restart lifetime')
 
   async function* frames<T>(read: () => Promise<RemoteResult<T>>, signal: AbortSignal): AsyncGenerator<RemoteResult<T>> {

@@ -42,14 +42,14 @@ it('rejects the shared boot wait when the Desktop Host cannot start', async () =
   await import('../src/main.ts')
   await rejected
   expect(boot.applyIndexInjections).not.toHaveBeenCalled()
-  expect(boot.run).toHaveBeenCalledWith(expect.any(Function))
+  expect(boot.run).toHaveBeenCalledWith(expect.any(Function), expect.any(Object))
 })
 
 it('leaves browser failure presentation with the Web boot kernel', async () => {
   document.body.innerHTML = '<div id="root"></div>'
   vi.stubGlobal('dshDesktopBoot', undefined)
   await import('../src/main.ts')
-  expect(boot.run).toHaveBeenCalledWith(undefined)
+  expect(boot.run).toHaveBeenCalledWith(undefined, expect.any(Object))
 })
 
 it.each(['root', 'readiness'])('reports missing %s before client plugin startup', async (missing) => {

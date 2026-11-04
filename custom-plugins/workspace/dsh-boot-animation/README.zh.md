@@ -2,6 +2,8 @@
 
 [English](README.md) | 中文
 
+插件支持 DSH `0.2.2-alpha.2` 和 `0.2.2-rc.1`。旧桌面版安装插件后需手动重启；配套新桌面版会等待当前工作结束后自动重启，使已安装的更新生效。
+
 本目录基于 [NativeDog1/dsh-boot-animation](https://github.com/NativeDog1/dsh-boot-animation) 做源码适配，保留上游 BSD-3-Clause 许可和 Host 片库。AutoFlow 默认使用「DeepSeek 赛博朋克片头」（`builtin:cyberpunk`）作为应用开屏。素材目录仅保留 `assets/cyberpunk.mp4`，生成的内嵌模块也仅包含这一段。原插件的会话重播和片库界面不属于此次启动集成。
 
 MP4 从上游内嵌字节无损还原，没有重新编码。构建根据 `src/clip.json` 校验其 SHA-256，再生成精简的 Host 媒体模块。Vite 随 Web 应用打包原始 1280×720 视频，使用 `object-fit: contain` 完整显示画面。Base64 只改变存储编码，不改变分辨率。渲染进程不导入或解析内嵌片库。开屏与 Host 启动、客户端插件激活、界面挂载及会话和工作区首批数据加载并行。视频结束且两个列表都报告 `phase: ready` 后退场，真实空列表也算就绪。插件拥有 `data-dsh-startup-state` 标记，应用启动入口拥有覆盖层和界面挂载信号。

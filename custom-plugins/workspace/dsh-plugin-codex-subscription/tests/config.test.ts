@@ -1,7 +1,20 @@
 /** Deployment settings reject unsafe listeners before opening sockets. */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { resolveOptions } from '../src/host/config.ts'
+import { Config, resolveOptions } from '../src/host/config.ts'
+import { Context } from '@deepseek-ai/cordis'
+import { apply } from '../src/host/plugin.ts'
+
+test('defaults the rc.1 image request count and rejects an oversized offload step before mounting', async () => {
+  const config = Config({})
+  assert.equal(config.maxRequestImages, 50)
+  assert.equal(config.imageOffloadCountQuantum, undefined)
+  const ctx = new Context()
+  try {
+    await assert.rejects(apply(ctx, Config({ maxRequestImages: 2, imageOffloadCountQuantum: 3 })), /must not exceed maxRequestImages/)
+    assert.equal(ctx.get('codexSubscription'), undefined)
+  } finally { await ctx.fiber.dispose() }
+})
 
 test('defaults keep relay private and opt-in with one image deadline', () => {
   const options = resolveOptions({})

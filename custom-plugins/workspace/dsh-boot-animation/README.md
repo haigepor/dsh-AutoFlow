@@ -2,6 +2,8 @@
 
 English | [中文](README.zh.md)
 
+The package supports DSH `0.2.2-alpha.2` and `0.2.2-rc.1`. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
+
 This source adaptation of [NativeDog1/dsh-boot-animation](https://github.com/NativeDog1/dsh-boot-animation) keeps the upstream BSD-3-Clause license and Host media library. AutoFlow uses **DeepSeek cyberpunk intro** (`builtin:cyberpunk`) for application startup. Only `assets/cyberpunk.mp4` is retained; the generated embedded module also contains only this clip. The upstream conversation replay and picker UI are outside this startup integration.
 
 The MP4 was restored without re-encoding from the upstream embedded bytes. The build verifies its SHA-256 against `src/clip.json` and generates the compact Host media module from it. Vite packages the original 1280×720 video with the Web application; `object-fit: contain` preserves its full frame. Base64 changes storage encoding rather than resolution. The renderer never imports or parses the embedded clip module. The early overlay runs alongside Host startup, client plugin activation, renderer mounting, and Session/Workspace baseline delivery. It leaves after the video ends and both lists report `phase: ready`, including genuinely empty lists. The plugin owns the `data-dsh-startup-state` marker; the application bootstrap owns the overlay and mounted signal.

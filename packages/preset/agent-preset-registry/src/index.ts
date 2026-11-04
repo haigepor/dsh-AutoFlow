@@ -363,6 +363,8 @@ export class AgentPresetRegistry extends TypertRemoteService {
    */
   @Remote('select')
   async select(agent: Agent, agentPreset: string): Promise<string> {
+    // Creation listeners already own the factory's maintenance phase.
+    if (this.owner.agents.isInCreationCallback(agent)) return this.commitSelection(agent, agentPreset)
     const turn = (this.switches.get(agent.id) ?? Promise.resolve()).then(async () => {
       for (;;) {
         await agent.whenIdle()
@@ -370,26 +372,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
         try {
           return await agent.runMaintenance(async (signal) => {
             claimed = true
-            agent.ctx.fiber.assertActive()
-            const boundary = this.owner.agents.turnBoundaryOf(agent.session)
-            if (boundary.openTurnStartSeq !== null) {
-              throw new RemoteError('agent-preset/locked', 'The current turn has not settled', { sessionId: agent.id, agentPreset })
-            }
-            const current = this.definitions.get(agentPreset)?.generation
-            if (current !== undefined && this.generationFor(agent.ctx) === current
-              && this.agentPresetProjectionHandle.stateOf(agent.session) === agentPreset) return agentPreset
-            const generation = await this.retain(agentPreset)
-            try {
-              signal.throwIfAborted()
-              await this.bind(agent.ctx, generation)
-              agent.session.append('agent-preset/selected', { agentPreset })
-              try { this.owner.emit('tools/change') }
-              catch (error) { this.owner.logger.warn(`Preset tools observer: ${String(error)}`) }
-              return agentPreset
-            } finally {
-              generation.users--
-              await this.collect(generation)
-            }
+            return this.commitSelection(agent, agentPreset, signal)
           })
         } catch (error) {
           // Input may claim the idle phase before maintenance does.
@@ -402,6 +385,31 @@ export class AgentPresetRegistry extends TypertRemoteService {
     this.switches.set(agent.id, guard)
     try { return await turn } finally {
       if (this.switches.get(agent.id) === guard) this.switches.delete(agent.id)
+    }
+  }
+
+  /** Commit selection while the caller owns creation or idle maintenance. */
+  private async commitSelection(agent: Agent, agentPreset: string, signal?: AbortSignal): Promise<string> {
+    agent.ctx.fiber.assertActive()
+    const boundary = this.owner.agents.turnBoundaryOf(agent.session)
+    if (boundary.openTurnStartSeq !== null) {
+      throw new RemoteError('agent-preset/locked', 'The current turn has not settled', { sessionId: agent.id, agentPreset })
+    }
+    const current = this.definitions.get(agentPreset)?.generation
+    if (current !== undefined && this.generationFor(agent.ctx) === current
+      && this.agentPresetProjectionHandle.stateOf(agent.session) === agentPreset) return agentPreset
+    const generation = await this.retain(agentPreset)
+    try {
+      signal?.throwIfAborted()
+      agent.ctx.fiber.assertActive()
+      await this.bind(agent.ctx, generation)
+      agent.session.append('agent-preset/selected', { agentPreset })
+      try { this.owner.emit('tools/change') }
+      catch (error) { this.owner.logger.warn(`Preset tools observer: ${String(error)}`) }
+      return agentPreset
+    } finally {
+      generation.users--
+      await this.collect(generation)
     }
   }
 

@@ -178,6 +178,11 @@ export const ja = {
   'createPluginChecking': 'クリエイターモードが利用可能か確認中',
   'createPluginUnavailable': '一時的に利用できません。このメニューを開き直して再試行してください',
   'createPluginMissing': 'この構成にはクリエイターモードが含まれていません',
+  'switching': '切り替え中…',
+  'loading': 'エージェントプリセットを読み込み中…',
+  'retryLoad': '再試行',
+  'presetAfpName': 'AFP キュレーター',
+  'presetAfpDescription': '写真の検索、画像カテゴリの選別、コレクションの整理、選択画像のダウンロード。確認前に変更内容と費用を表示します。',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -226,6 +231,11 @@ export const es = {
   createPluginUnavailable: 'Temporalmente no disponible. Vuelve a abrir este menú para volver a intentarlo.',
   createPluginMissing: 'El modo creador no está incluido en esta configuración.',
 
+  'switching': 'Cambiando…',
+  'loading': 'Cargando preajustes del agente…',
+  'retryLoad': 'Reintentar',
+  'presetAfpName': 'Curador AFP',
+  'presetAfpDescription': 'Busca fotos, filtra categorías visuales, organiza colecciones y descarga imágenes seleccionadas. Revisa los cambios y costes antes de confirmar.',
 } satisfies Record<keyof typeof en, string>
 
 /** French dictionary, checked against the English keys. */
@@ -274,6 +284,11 @@ export const fr = {
   createPluginUnavailable: 'Temporairement indisponible. Rouvrez ce menu pour réessayer',
   createPluginMissing: "Le mode Créateur n'est pas inclus dans cette configuration",
 
+  'switching': 'Changement…',
+  'loading': 'Chargement des préréglages de l’agent…',
+  'retryLoad': 'Réessayer',
+  'presetAfpName': 'Curateur AFP',
+  'presetAfpDescription': 'Recherchez des photos, filtrez des catégories visuelles, organisez des collections et téléchargez les images choisies. Vérifiez les changements et les coûts avant confirmation.',
 } satisfies Record<keyof typeof en, string>
 
 /** German dictionary, checked against the English keys. */
@@ -322,6 +337,11 @@ export const de = {
   createPluginUnavailable: 'Vorübergehend nicht verfügbar. Öffnen Sie dieses Menü erneut, um es erneut zu versuchen',
   createPluginMissing: 'Der Creator-Modus ist in dieser Konfiguration nicht enthalten',
 
+  'switching': 'Wechseln…',
+  'loading': 'Agentenvorlagen werden geladen…',
+  'retryLoad': 'Erneut versuchen',
+  'presetAfpName': 'AFP-Kurator',
+  'presetAfpDescription': 'Fotos suchen, visuelle Kategorien filtern, Sammlungen organisieren und ausgewählte Bilder herunterladen. Änderungen und Kosten vor der Bestätigung prüfen.',
 } satisfies Record<keyof typeof en, string>
 
 /** Russian dictionary, checked against the English keys. */
@@ -370,6 +390,11 @@ export const ru = {
   createPluginUnavailable: 'Временно недоступен. Откройте это меню еще раз, чтобы повторить попытку.',
   createPluginMissing: 'Режим Creator не включен в эту конфигурацию.',
 
+  'switching': 'Переключение…',
+  'loading': 'Загрузка предустановок агента…',
+  'retryLoad': 'Повторить',
+  'presetAfpName': 'Куратор AFP',
+  'presetAfpDescription': 'Поиск фотографий, визуальный отбор, организация коллекций и загрузка выбранных изображений. Изменения и стоимость показываются до подтверждения.',
 } satisfies Record<keyof typeof en, string>
 
 /** Portuguese dictionary, checked against the English keys. */
@@ -418,4 +443,9 @@ export const pt = {
   createPluginUnavailable: 'Temporariamente indisponível. Reabra este menu para tentar novamente',
   createPluginMissing: 'O modo criador não está incluído nesta configuração',
 
+  'switching': 'Alternando…',
+  'loading': 'Carregando predefinições do agente…',
+  'retryLoad': 'Tentar novamente',
+  'presetAfpName': 'Curador AFP',
+  'presetAfpDescription': 'Pesquise fotos, filtre categorias visuais, organize coleções e baixe imagens selecionadas. Confira as alterações e os custos antes de confirmar.',
 } satisfies Record<keyof typeof en, string>

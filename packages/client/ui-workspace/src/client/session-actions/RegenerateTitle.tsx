@@ -8,9 +8,11 @@ import type { RegenerateTitleInjected, SessionMenuItemProps } from '../contract/
  * @returns the menu entry, disabled while its request is active.
  */
 export function RegenerateTitleMenuItem({
-  sessionId, useTitleGenerating, regenerateTitle, t,
+  sessionId, useTitleGenerating, regenerateTitle, useSessionAccess, t,
 }: SessionMenuItemProps<RegenerateTitleInjected>) {
   const pending = useTitleGenerating(ids => ids.has(sessionId))
+  const allowed = useSessionAccess(sessionId, 'session/regenerateTitle')
+  if (!allowed) return null
   return <MenuItemButton disabled={pending} icon={<IconRefreshOutlineRegular />} onSelect={() => { regenerateTitle(sessionId) }}>
     {t(pending ? 'menu.regeneratingTitle' : 'menu.regenerateTitle')}
   </MenuItemButton>

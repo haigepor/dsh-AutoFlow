@@ -31,7 +31,7 @@ In Plugin Manager, enable **Visual Curator** to use the installation-owned copy 
 
 This bundle does not add itself to other profiles or change AFP. Turning it off removes its registrations, stops new work, cancels and drains active work, and retains saved data. A second Host writer for the same profile is refused; stop the first Host before reopening the writer.
 
-Release artifacts include the native image/reference picker implementation and its Windows worker.cjs; an older folder-only picker dependency cannot prevent plugin loading. koffi and the native-command runner remain declared dependencies. The worker starts only for a native chooser and belongs to that request's cancellation lifecycle.
+Release artifacts include the native image/reference picker, its command runner and Windows worker.cjs; an older folder-only picker dependency cannot prevent plugin loading. koffi remains a declared dependency. The worker starts only for a native chooser and belongs to that request's cancellation lifecycle. The package supports DSH `0.2.2-alpha.2` and `0.2.2-rc.1`; older desktop builds apply the fix after a manual restart, while updated desktop builds wait for current work before restarting automatically.
 
 ### Configure external services
 

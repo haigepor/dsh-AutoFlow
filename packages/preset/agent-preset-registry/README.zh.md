@@ -57,7 +57,7 @@ Web 内置定义来自 `dsh-web-app` bundle。定义使用普通插件行；注�
 
 preset 的服务提供方及其消费方必须共享同一个 `cordis:group` 隔离 realm。条目局部隔离不会沿 Agent 注册 scope 传播：组外的普通 Context 查找（包括 `agent.ctx`）仍选择 Host realm。`agentPresets.serviceFor()` 显式检查保留的组合，不改变普通服务查找。
 
-激活审计检查导入失败、缺失服务和向全局泄漏的服务。导入失败、激活失败和泄漏会拒绝挂载。等待 Host 服务的行保持挂载，每次读取和绑定都在 Host Loader 树结算后重新审计，因此启动顺序不决定结果。失败只禁用该定义的新绑定。`presetForSession(session)` 同步读取最新记录的预设 ID，未记录时返回 null。会话日志保存 preset ID 和后续切换记录；重启恢复使用该 ID 的当前定义，缺失时拒绝恢复。`select` 按 Agent 串行处理选择，等待空闲，并拒绝日志中尚未结算的轮次。成功时重新绑定组合，并在下一轮开始前追加 `agent-preset/selected`；已记录的预设正运行其当前版本时不做改动，也不追加事件。历史和新任务默认值保持原样。
+激活审计检查导入失败、缺失服务和向全局泄漏的服务。导入失败、激活失败和泄漏会拒绝挂载。等待 Host 服务的行保持挂载，每次读取和绑定都在 Host Loader 树结算后重新审计，因此启动顺序不决定结果。失败只禁用该定义的新绑定。`presetForSession(session)` 同步读取最新记录的预设 ID，未记录时返回 null。会话日志保存 preset ID 和后续切换记录；重启恢复使用该 ID 的当前定义，缺失时拒绝恢复。`select` 按 Agent 串行处理实时选择，等待空闲，并拒绝日志中尚未结算的轮次。串行 `agent/created` 监听器在工厂已持有的维护阶段内选择，不等待自身创建结束。成功时重新绑定组合，并在下一轮开始前追加 `agent-preset/selected`；已记录的预设正运行其当前版本时不做改动，也不追加事件。历史和新任务默认值保持原样。
 
 `inspectCompositions()` 读取本注册表仍保留的全部代际；传入 Agent 上下文时只选择它绑定的精确代际，在此没有绑定时返回空列表。每个 `AgentPresetInspection` 包含 preset ID、纯数据形式的活动模块引用及解析基址，以及泄漏的服务名。检查器查询运行中的服务，而不是模块级挂载表；结果不包含 Loader 树或 fiber。这些记录定义在 [composition-inventory.ts](src/composition-inventory.ts) 中。
 

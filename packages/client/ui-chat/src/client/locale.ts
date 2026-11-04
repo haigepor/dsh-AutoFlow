@@ -613,6 +613,11 @@ export const ja = {
   'json.truncated': '… 省略表示、全{total}文字',
   'clock.md': '{m}/{d}',
   'clock.ymd': '{y}-{m}-{d}',
+  'message.longText.title': '長文',
+  'message.longText.full': 'メッセージ全文',
+  'message.longText.open': 'サイドバーでメッセージ全文を読む',
+  'message.longText.read': '続きを読む',
+  'message.longText.reopen': '会話内の長文カードをクリックすると、ここに全文を表示します',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -814,6 +819,11 @@ export const es = {
   'json.truncated': '… truncado, caracteres {total} en total',
   'clock.md': '{m}/{d}',
   'clock.ymd': '{y}-{m}-{d}',
+  'message.longText.title': 'Texto largo',
+  'message.longText.full': 'Mensaje completo',
+  'message.longText.open': 'Leer el mensaje completo en la barra lateral',
+  'message.longText.read': 'Leer más',
+  'message.longText.reopen': 'Haz clic en una tarjeta de texto largo de la conversación para leer aquí el mensaje completo',
 } satisfies Record<keyof typeof en, string>
 
 /** French dictionary, checked against the English keys. */
@@ -1015,6 +1025,11 @@ export const fr = {
   'json.truncated': '… tronqué, nombre total de caractères {total}',
   'clock.md': '{m}/{d}',
   'clock.ymd': '{y}-{m}-{d}',
+  'message.longText.title': 'Texte long',
+  'message.longText.full': 'Message complet',
+  'message.longText.open': 'Lire le message complet dans le panneau latéral',
+  'message.longText.read': 'Lire la suite',
+  'message.longText.reopen': 'Cliquez sur une carte de texte long dans la conversation pour lire le message complet ici',
 } satisfies Record<keyof typeof en, string>
 
 /** German dictionary, checked against the English keys. */
@@ -1216,6 +1231,11 @@ export const de = {
   'json.truncated': '… gekürzt, {total} Zeichen insgesamt',
   'clock.md': '{m}/{d}',
   'clock.ymd': '{y}-{m}-{d}',
+  'message.longText.title': 'Langer Text',
+  'message.longText.full': 'Vollständige Nachricht',
+  'message.longText.open': 'Vollständige Nachricht in der Seitenleiste lesen',
+  'message.longText.read': 'Weiterlesen',
+  'message.longText.reopen': 'Auf eine Langtextkarte im Gespräch klicken, um hier die vollständige Nachricht zu lesen',
 } satisfies Record<keyof typeof en, string>
 
 /** Russian dictionary, checked against the English keys. */
@@ -1417,6 +1437,11 @@ export const ru = {
   'json.truncated': '… усечено, всего символов {total}',
   'clock.md': '{m}/{d}',
   'clock.ymd': '{y}-{m}-{d}',
+  'message.longText.title': 'Длинный текст',
+  'message.longText.full': 'Полное сообщение',
+  'message.longText.open': 'Прочитать полное сообщение на боковой панели',
+  'message.longText.read': 'Читать дальше',
+  'message.longText.reopen': 'Нажмите карточку длинного текста в разговоре, чтобы прочитать здесь полное сообщение',
 } satisfies Record<keyof typeof en, string>
 
 /** Portuguese dictionary, checked against the English keys. */
@@ -1618,4 +1643,9 @@ export const pt = {
   'json.truncated': '… truncado, {total} caracteres no total',
   'clock.md': '{m}/{d}',
   'clock.ymd': '{y}-{m}-{d}',
+  'message.longText.title': 'Texto longo',
+  'message.longText.full': 'Mensagem completa',
+  'message.longText.open': 'Ler a mensagem completa na barra lateral',
+  'message.longText.read': 'Ler mais',
+  'message.longText.reopen': 'Clique em um cartão de texto longo na conversa para ler a mensagem completa aqui',
 } satisfies Record<keyof typeof en, string>

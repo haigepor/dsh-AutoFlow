@@ -208,8 +208,8 @@ async function awaitTableLayout(target: Page): Promise<void> {
     const tracks = getComputedStyle(element).gridTemplateColumns.split(' ').map(Number.parseFloat)
     const body = element.querySelector<HTMLElement>('[data-conversation-content]')
     const scrollport = body?.querySelector<HTMLElement>(':scope > [data-conversation-scroll]')
-    // Mirrored from ui-layout's SIDEBAR_COLLAPSED; these tests use the Host compiler face.
-    return tracks[0] === 56 && tracks.at(-1) === 0
+    // Desktop retains the rail; the mobile drawer leaves the whole width to the transcript.
+    return tracks[0] === (element.hasAttribute('data-sidebar-drawer') ? 0 : 56) && tracks.at(-1) === 0
       && element.getAnimations().every(animation =>
         animation.playState === 'finished' || animation.playState === 'idle')
       && body !== null && scrollport !== undefined && scrollport !== null

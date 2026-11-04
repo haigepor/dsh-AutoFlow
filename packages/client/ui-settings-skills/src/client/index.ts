@@ -17,7 +17,7 @@ import { SkillFeedback } from './SkillFeedback.tsx'
 import type { SkillSettingsInjected } from './contract.ts'
 import { createSkillSettingsStore } from './store.ts'
 import { SkillSettings } from './SkillSettings.tsx'
-import { en, zh } from './locales.ts'
+import { en, zh, ja, es, fr, de, ru, pt } from './locales.ts'
 /** Services supplying settings, resources and generated management RPC. */
 export const inject = [
   'slots',
@@ -45,7 +45,7 @@ export function apply(ctx: Context): void {
   const store = createSkillSettingsStore()
   const refreshers = new Set<() => void>()
   let writing = false
-  ctx.effect(() => ctx.locale.register('settings.skills', { zh, en }), 'skill-settings: locale')
+  ctx.effect(() => ctx.locale.register('settings.skills', { zh, en, ja, es, fr, de, ru, pt }), 'skill-settings: locale')
   const refresh = (): void => {
     for (const changed of refreshers) changed()
   }

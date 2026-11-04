@@ -22,6 +22,7 @@ import { access } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 registerHooks({ resolve(specifier, context, next) {
   if (specifier === '@deepseek-ai/dsh-host-directory-picker-native') return { url: new URL('./old-picker.mjs', import.meta.url).href, shortCircuit: true };
+  if (specifier === '@deepseek-ai/dsh-native-command') throw new Error('Native command helper must be bundled for older hosts');
   return next(specifier, context);
 } });
 for (const entry of ['index', 'tools', 'skill', 'page']) {

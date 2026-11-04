@@ -25,6 +25,8 @@ Style Prompt analyzes reference images with a vision model already configured in
 <a id="use-this-package"></a>
 ## Use this package
 
+The package supports DSH `0.2.2-alpha.2` and `0.2.2-rc.1`. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
+
 ### Install into a profile
 
 Style Prompt ships with the CLI and Desktop runtime and appears under **Plugins → Installed plugins** with its own switch. New Web/Desktop profiles enable it by default; existing profiles keep their saved choices and can enable it on the Plugins page without installing an archive. Open **Style Prompt** from the sidebar after activation.

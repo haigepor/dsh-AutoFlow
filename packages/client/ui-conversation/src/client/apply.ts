@@ -1,3 +1,4 @@
+import type {} from '@deepseek-ai/dsh-client-ui-context-menu/client'
 /** Registers the target-neutral Conversation assembly, shell, input, and docks. */
 import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
 import type { Context } from '@deepseek-ai/cordis'
@@ -48,7 +49,11 @@ import { installStopShortcut } from './stop-shortcut.ts'
 import { TRAJECTORY_VIEW_ID, resolveActiveView } from './view-selection.ts'
 import { createViewPins } from './view-pins.ts'
 import { en, ja, es, fr, de, ru, pt, NS, zh, type ConversationKey } from './locales.ts'
-import { en as suggestionEn, SUGGESTIONS_NS, zh as suggestionZh, type HeroSuggestionsKey } from './suggestion-locales.ts'
+import {
+  en as suggestionEn, zh as suggestionZh, ja as suggestionJa, es as suggestionEs,
+  fr as suggestionFr, de as suggestionDe, ru as suggestionRu, pt as suggestionPt,
+  SUGGESTIONS_NS, type HeroSuggestionsKey,
+} from './suggestion-locales.ts'
 import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -191,7 +196,10 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
   ctx.effect(() => {
     const disposeConversation = ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt })
-    const disposeSuggestions = ctx.locale.register(SUGGESTIONS_NS, { zh: suggestionZh, en: suggestionEn })
+    const disposeSuggestions = ctx.locale.register(SUGGESTIONS_NS, {
+      zh: suggestionZh, en: suggestionEn, ja: suggestionJa, es: suggestionEs,
+      fr: suggestionFr, de: suggestionDe, ru: suggestionRu, pt: suggestionPt,
+    })
     return () => {
       disposeConversation()
       disposeSuggestions()

@@ -23,6 +23,7 @@ beforeEach(() => {
   vi.stubEnv('DSH_WEB_SNAPSHOT_WORKERS', undefined)
   vi.stubEnv('DSH_COVERAGE_MAX_WORKERS', undefined)
   vi.stubEnv('DSH_COVERAGE_PARTITIONS', undefined)
+  vi.stubEnv('DSH_CLI_HELP_CONCURRENCY', undefined)
 })
 afterEach(() => vi.unstubAllEnvs())
 
@@ -305,10 +306,12 @@ describe('gate graph validation', () => {
     expect(ids).toContain('public-repository-links')
   })
 
-  it('checks the complete CLI reference locally and in the static CI lane', () => {
-    for (const mode of ['doc-sync', 'ci-static'] as const) {
+  it.each([undefined, ''])('allocates one CLI help child inside each aggregate when its allowance is %j', (raw) => {
+    vi.stubEnv('DSH_CLI_HELP_CONCURRENCY', raw)
+    for (const mode of ['doc-sync', 'ci-static', 'ci-windows-observational-ready'] as const) {
       const gates = withPnpmEntrypoint(() => gatesForMode(mode))
-      expect(gates.find(gate => gate.id === 'cli-help')).toBeDefined()
+      expect(gates.find(gate => gate.id === 'cli-help')).toMatchObject({ env: { DSH_CLI_HELP_CONCURRENCY: '1' } })
+      expect(gates.filter(gate => gate.id !== 'cli-help').every(gate => gate.env?.DSH_CLI_HELP_CONCURRENCY === undefined)).toBe(true)
     }
   })
 
@@ -317,7 +320,7 @@ describe('gate graph validation', () => {
       vi.stubEnv('DSH_CLI_HELP_CONCURRENCY', configured)
       for (const mode of ['doc-sync', 'ci-static'] as const) {
         const gate = withPnpmEntrypoint(() => gatesForMode(mode).find(item => item.id === 'cli-help'))
-        expect(gate?.env?.DSH_CLI_HELP_CONCURRENCY).toBe(configured || '2')
+        expect(gate?.env?.DSH_CLI_HELP_CONCURRENCY).toBe(configured || '1')
       }
     }
   })
@@ -333,6 +336,12 @@ describe('gate graph validation', () => {
       expect(help?.needs).toBeUndefined()
     }
     expect(withPnpmEntrypoint(() => gatesForMode('doc-quick')).some(gate => gate.id === 'cli-help')).toBe(false)
+  })
+
+  it.each(['3', 'invalid'])('passes an explicit CLI help allowance %j to its owner', (raw) => {
+    vi.stubEnv('DSH_CLI_HELP_CONCURRENCY', raw)
+    const gates = withPnpmEntrypoint(() => gatesForMode('ci-windows-observational-ready'))
+    expect(gates.find(gate => gate.id === 'cli-help')).toMatchObject({ env: { DSH_CLI_HELP_CONCURRENCY: raw } })
   })
 
   it('keeps the concrete terminology policy in the documentation gate', () => {

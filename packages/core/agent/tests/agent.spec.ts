@@ -42,6 +42,39 @@ function stubAgent(rawId: string, overrides: Partial<Agent> = {}): Agent {
 }
 
 describe('AgentRegistry', () => {
+  it('identifies creation callbacks without granting unrelated or settled work initialization access', async () => {
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    await ctx.plugin(SessionProjectionRegistry)
+    await ctx.plugin(AgentRegistry)
+    const agent = stubAgent('initializing', { ctx })
+    const other = stubAgent('other', { ctx })
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const later = Promise.withResolvers<undefined>()
+    onTestFinished(() => { release.resolve(undefined); later.resolve(undefined) })
+    let settled!: Promise<boolean>
+    ctx.on('agent/created', async () => {
+      expect(ctx.agents.isInCreationCallback(agent)).toBe(true)
+      expect(ctx.agents.isInCreationCallback(other)).toBe(false)
+      settled = later.promise.then(() => ctx.agents.isInCreationCallback(agent))
+      entered.resolve(undefined)
+      await release.promise
+      expect(ctx.agents.isInCreationCallback(agent)).toBe(true)
+    })
+    const detach = ctx.agents.enter(agent, undefined)
+    expect(ctx.agents.isInCreationCallback(agent)).toBe(false)
+    const announcement = ctx.agents.announce(agent, 'startup')
+    await entered.promise
+    expect(ctx.agents.isInCreationCallback(agent)).toBe(false)
+    release.resolve(undefined)
+    await announcement
+    later.resolve(undefined)
+    await expect(settled).resolves.toBe(false)
+    expect(ctx.agents.isInCreationCallback(agent)).toBe(false)
+    detach()
+  })
+
   it('waits for its projection owner and reads turn positions without a loop', async () => {
     const ctx = new Context()
     onTestFinished(() => ctx.fiber.dispose())
@@ -61,9 +94,13 @@ describe('AgentRegistry', () => {
     })
     session.append('turn/end', { turn: 3, reason: { kind: 'completed' } })
     expect(ctx.agents.turnBoundaryOf(session)).toMatchObject({ openTurnStartSeq: null, lastTurn: 3 })
-    expect(ctx.sessionProjections.checkpoint(session).turnBoundary).toBeDefined()
+    const row = ctx.sessionProjections.checkpoint(session).turnBoundary
+    expect(row).toBeDefined()
     await fiber.dispose()
-    expect(ctx.sessionProjections.checkpoint(session).turnBoundary).toBeUndefined()
+    session.append('turn/start', { turn: 4 })
+    // The released unit keeps its last row and folds no event after the unload.
+    expect(ctx.sessionProjections.checkpoint(session)).toHaveProperty('turnBoundary', row)
+    expect(ctx.sessionProjections.checkpoint(Session.create(SessionId('turn-positions-after-unload')))).not.toHaveProperty('turnBoundary')
   })
 
   it('contributes Agent lookup and scoped Context providers while Typert is live', async () => {

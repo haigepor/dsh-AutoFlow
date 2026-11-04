@@ -73,7 +73,7 @@ function rowHalf(event: DragEvent<HTMLElement>): 'before' | 'after' {
 }
 
 /**
- * Render consistent model identity, capacity, and input-type controls.
+ * Render model fields with the display name in the expanded area of narrow rows.
  * @param props - drafted fields and their owning editor's actions.
  * @returns one model entry in its owning editor.
  */
@@ -115,6 +115,7 @@ export function ModelRow(props: ModelRowProps): ReactNode {
       const attributes: InputHTMLAttributes<HTMLInputElement> = {
         type: 'text', value: typeof model[field] === 'string' ? model[field] : '', placeholder: label,
         'aria-label': `${label} ${String(position)}`, disabled,
+        onFocus: !detailed && field === 'name' && !props.expanded ? props.onToggle : undefined,
         onChange: (event) => {
           const value = event.target.value
           props.onFieldChange(field, field === 'name' && value === '' ? undefined : value)
@@ -281,7 +282,7 @@ export function ModelRow(props: ModelRowProps): ReactNode {
   return (
     <div ref={entryRef} className={`${styles['modelEntry']} ${order.dragging ? styles['modelDragging'] : ''} ${order.target ? styles['modelDropTarget'] : ''}`}
       {...dragProps}>
-      <div className={styles['modelRow']}>
+      <div className={styles['modelRow']} data-expanded={props.expanded || undefined}>
         {orderControl}
         {identityFields}
         {defaultReasoning}
@@ -292,7 +293,7 @@ export function ModelRow(props: ModelRowProps): ReactNode {
           aria-expanded={props.expanded}
           aria-controls={panelId}
           title={t('modelAdvanced')}
-          onClick={props.onToggle}
+          onClick={(event) => { event.currentTarget.focus(); props.onToggle() }}
         >
           <span className={styles['modelChevron']} data-open={props.expanded}><IconChevronRightOutlineRegular /></span>
         </button>

@@ -229,7 +229,7 @@ describe('first-prompt LLM title provider', () => {
     ])
     const reasoningSession = reasoning.ctx.sessions.create(SessionId('first-reasoning'))
     appendHumanPrompt(reasoningSession, 'first input')
-    await expect(reasoning.ctx.sessionTitle.refresh(reasoningSession)).rejects.toThrow(/produced no text/)
+    await expect(reasoning.ctx.sessionTitle.refresh(reasoningSession)).rejects.toMatchObject({ code: 'TITLE_EMPTY' })
   })
 
   it('requires positive target settings and rejects unknown configuration keys', () => {

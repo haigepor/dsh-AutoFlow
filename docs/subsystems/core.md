@@ -450,12 +450,13 @@ declare module '@deepseek-ai/dsh-llm' {
 }
 ```
 
-Five canonical maps use this pattern; a plugin author extends these:
+Six canonical maps use this pattern; a plugin author extends these:
 
 | Map | Package | Derives | Catalog |
 |---|---|---|---|
 | `ContentBlockMap` | dsh-llm | `ContentBlock` | [llm-streaming.md](llm-streaming.md#content-blocks-and-messages) |
 | `MessageSourceMap` | dsh-llm | `MessageSource` | [llm-streaming.md](llm-streaming.md#content-blocks-and-messages) |
+| `LlmRequestPurposeMap` | dsh-llm | `LlmRequestPurpose` | [llm-streaming.md](llm-streaming.md#the-model-request-and-result) |
 | `FinishReasonMap` | dsh-llm | `FinishReason` | [llm-streaming.md](llm-streaming.md#the-model-request-and-result) |
 | `TurnEndReasonMap` | dsh-session | `TurnEndReason` | [session.md](session.md) |
 | `SessionEventMap` | dsh-session | `SessionEvent` | [session.md](session.md) |
@@ -833,6 +834,13 @@ async announce(agent: Agent, source: SessionStartSource, signal?: AbortSignal): 
  * @returns the agent, or undefined when no live agent has that id.
  */
 get(id: SessionId): Agent | undefined
+
+/**
+ * Test whether this async invocation belongs to an Agent's active creation listeners.
+ * @param agent - exact Agent whose initialization the caller intends to change.
+ * @returns true only inside that Agent's unsettled creation dispatch, never for unrelated requests.
+ */
+isInCreationCallback(agent: Agent): boolean
 
 /**
  * Test whether a live agent was created through one exact parent agent's

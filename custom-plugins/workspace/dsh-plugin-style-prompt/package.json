@@ -4,7 +4,7 @@
   "description": "Analyze image styles with configured vision APIs and export differentiated generation prompts and reference plans",
   "license": "MIT",
   "type": "module",
-  "engines": { "node": "^22.19.0 || >=24.0.0" },
+  "engines": { "node": "^22.19.0 || >=24.0.0", "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1" },
   "exports": { ".": "./index.js", "./client": "./client.js", "./package.json": "./package.json", "./locale/*.json": "./locale/*.json" },
   "files": ["index.js", "client.js", "cordis.patch.yml", "README.md", "README.zh.md", "THIRD_PARTY_NOTICES.md", "release.config.json", "release", "locale", "assets/*.webp", "assets/*.prompt.txt"],
   "icon": "./assets/plugin-logo-v2.webp",

@@ -498,6 +498,7 @@
 }
 
 .modelEntry {
+  container: model-row / inline-size;
   position: relative;
   min-width: 0;
   border-bottom: 0.5px solid var(--dsw-alias-border-l1);
@@ -512,12 +513,46 @@
   padding: 9px 12px;
 }
 
+.modelName {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.modelNameLabel {
+  display: none;
+}
+
+@container model-row (max-width: 440px) {
+  .modelRow {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+
+  .modelRow .modelName {
+    display: none;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 2px 4px 0;
+  }
+
+  .modelRow[data-expanded] .modelName {
+    display: flex;
+  }
+
+  .modelNameLabel {
+    display: block;
+  }
+}
+
 .modelDragHandle:not(:disabled) {
   cursor: grab;
 }
 
 .modelEntry[data-dragging] {
   opacity: 0.5;
+}
+
+.modelEntry[data-drop-target] {
+  z-index: 1;
 }
 
 .modelDragPreview {

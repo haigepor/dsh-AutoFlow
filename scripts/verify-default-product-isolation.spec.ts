@@ -203,11 +203,12 @@ describe('default product isolation', () => {
       name, icon: './icon.svg', exports: { './locale/*.json': './locale/*.json' },
       dsh: { bundle: { patch: './cordis.patch.yml' } },
     })
+    write(root, 'custom-plugins/workspace/custom-plugin/updater/cordis.patch.yml', [])
     write(root, profile, `export const PROFILE_TEMPLATES = { web: { bundles: ['${base}'] } }\n`
       + `export const DEFAULT_PROFILE_BUNDLES = ['${base}']\nexport const OPTIONAL_BUNDLES = ['${name}']\n`)
     expect(verifyDefaultProductIsolation(root).failures).toEqual([])
     manifest(root, 'custom-plugins/workspace/custom-plugin/updater/package.json', { icon: undefined })
-    expect(verifyDefaultProductIsolation(root).failures.join('\n')).toContain(`optional bundle ${name} must declare an icon`)
+    expect(verifyDefaultProductIsolation(root).failures.join('\n')).toContain(`optional bundle ${name} must declare icon or export ./icon`)
   })
 
   it.each(['dependencies', 'optionalDependencies', 'peerDependencies'])(

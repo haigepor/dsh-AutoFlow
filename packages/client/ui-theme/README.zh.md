@@ -94,7 +94,11 @@ Web 与 Desktop 默认使用蓝灰（`themeSet: official`），未明确选择�
 
 `corner-shape.css` 平滑所有圆角：在 `@supports (corner-shape: superellipse(1.5))` 内定义 `--dsw-corner-shape`，并通过通配选择器应用到所有元素及其 `::before`/`::after`，因此不支持 `corner-shape` 的引擎保持普通圆弧。正圆形状——`border-radius: 50%` 的圆与胶囊半径——因超级椭圆会使其变形，须在所属组件样式表中把 `corner-shape: round` 与半径声明配对；corner-shape 样式表 spec 跨全部包样式表强制这一配对。
 
-`gradient-shadow-text.css` 从 `--dsh-content-font-size` 派生 `--dsh-content-font-delta`，并以该增量移动 Markdown 标题与基础文本阶梯。它同时派生低一档变量 `--dsh-content-font-size-secondary`（设置 ≤14 时为设置值 −1，>14 时为设置值 −2；默认设置下为 13 px）及配套的 `--dsh-content-font-delta-secondary`，供表格变体与比正文低一档的流内行使用。紧凑的小号文本与代码变体保持固定字号。阶梯之外，用户气泡与 composer 草稿直接读取正文字号变量对，流内行的标题及摘要读取低一档变量对。该表还持有阴影阶（`--dsw-shadow-lv*`）、菜单/卡片毛玻璃滤镜（`blur(16px) saturate(108%)`）与 elevation token：每一档都组合可重绑的 0.5 px 发丝线、适配主题的内缘高光和柔和投影。菜单使用独立的亮暗发丝线和柔和投影；其他绘制 `--dsw-specific-menu` 的高层级卡片应用 `backdrop-filter: var(--dsw-menu-backdrop-filter)`。内层内容可以使用半透明染色底，但不重复模糊。设置弹窗另用 90–92% 的材质填充与 22px 模糊；内置亮暗配色以暖中性色表面搭配低饱和鸢尾紫强调色。不支持 blur 或用户减少透明度时使用不透明主题底色（[决定](../../../.agents/notes/implemented/feature/2026-09-17-compact-translucent-menu-surfaces.zh.md)）。
+`gradient-shadow-text.css` 从 `--dsh-content-font-size` 派生 `--dsh-content-font-delta`，并以该增量移动 Markdown 标题与基础文本阶梯。它同时派生低一档变量 `--dsh-content-font-size-secondary`（设置 ≤14 时为设置值 −1，>14 时为设置值 −2；默认设置下为 13 px）及配套的 `--dsh-content-font-delta-secondary`，供表格变体与比正文低一档的流内行使用。紧凑的小号文本保持固定字号。代码字号和行高跟随独立的 `--dsh-code-font-delta`。阶梯之外，用户气泡与 composer 草稿直接读取正文字号变量对，流内行的标题及摘要读取低一档变量对。该表还持有阴影阶（`--dsw-shadow-lv*`）、菜单/卡片毛玻璃滤镜（`blur(16px) saturate(108%)`）与 elevation token：每一档都组合可重绑的 0.5 px 发丝线、适配主题的内缘高光和柔和投影。菜单使用独立的亮暗发丝线和柔和投影；其他绘制 `--dsw-specific-menu` 的高层级卡片应用 `backdrop-filter: var(--dsw-menu-backdrop-filter)`。内层内容可以使用半透明染色底，但不重复模糊。设置弹窗另用 90–92% 的材质填充与 22px 模糊；内置亮暗配色以暖中性色表面搭配低饱和鸢尾紫强调色。不支持 blur 或用户减少透明度时使用不透明主题底色（[决定](../../../.agents/notes/implemented/feature/2026-09-17-compact-translucent-menu-surfaces.zh.md)）。
+
+`brand-font.css` 引用随包提供的 `montserrat-regular.woff2` / `montserrat-light.woff2` / `montserrat-medium.woff2`，其中包含 Montserrat Regular、Light 和 Medium 字体，SIL Open Font License 与样式表和 WOFF2 一同随包保存在 `lib/styles/`。`--dsw-font-family-brand` 为品牌文字选择该字体，普通界面仍使用系统字体栈。源文件来自 Google Fonts 的 Montserrat 发布。Web 入口导入包的 `./brand-font.css` 导出，由 Vite 输出并解析字体资源，Web 构建也包含其许可。Web 应用（包括 Desktop 引导）可离线加载字体；原生凭证欢迎页保留系统字体。
+
+`onboarding.css` 管理引导强调色、以紫色/蓝色/青色命名的渐变，以及卡片、复选框和次要操作的浅色与暗黑配色。卡片阴影的偏移与模糊尺寸由业务组件管理。
 
 ### 滚动条重新绑定
 

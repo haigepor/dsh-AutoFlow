@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-skill-manager",
   "description": "Profile skill inventory, invocation policy, imports and recoverable repository updates",
-  "version": "0.2.2-alpha.2",
+  "version": "0.2.2-rc.1",
   "type": "module",
   "license": "MIT",
   "publishConfig": {
