@@ -26,6 +26,12 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.11
+
+The reference dialog now places Bookmarked photos before named collections. Both sources support explicit selection, paged select-all, retry and positive or negative references. Changing the account clears the previous list and selection. An account without named collections can still open its bookmarks.
+
+Update the plugin and restart to load the new Client. Existing gallery credentials, image records and Desktop update settings remain unchanged.
+
 ## Visual Curator 0.2.10
 
 Completed reference datasets are scoped to their training collection and application profile rather than their creating conversation. Historical complete packages remain selectable across conversations and configured models without reanalysis, including packages saved by older Session-scoped versions. Each search retains the selected package and its checksums; partial observation exports remain supporting data. Existing Session task logs and private image permissions are unchanged.

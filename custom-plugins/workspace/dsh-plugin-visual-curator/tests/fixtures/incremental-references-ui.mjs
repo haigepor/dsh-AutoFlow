@@ -6,6 +6,7 @@ import { installIconSprite } from '../../../../../packages/client/ui-theme/src/c
 import { createWorkbench } from '../../src/client/workbench.tsx'
 import { createGalleryReferenceDialog } from '../../src/client/gallery-reference-dialog.tsx'
 import { zh } from '../../src/client/workbench-locale.ts'
+import bookmarksExpected from './gallery-reference-bookmarks.expected.json'
 import pluginCss from '../../src/client/entry.css'
 import searchLaunchArtwork from '../../assets/search-launch-whale-maid-v1.webp'
 import '../../../../../packages/client/ui-theme/src/styles/base.css'
@@ -43,8 +44,17 @@ const actions = {
   datasets: { start: asyncNoop, refresh: asyncNoop, loadMore: asyncNoop, filter: noop, open: asyncNoop, moreSamples: asyncNoop, closeDetail: noop, dismiss: noop }, launches: { start: asyncNoop, retry: asyncNoop, stop: asyncNoop, refresh: asyncNoop, loadOptions: asyncNoop, loadDatasets: asyncNoop, openSession: noop },
   publish: asyncNoop, saveCredential: asyncNoop, loadVisionModels: asyncNoop, reloadVisionModels: noop, openModelSettings: noop, pickLocalReferences: asyncNoop, listLocalReferences: asyncNoop,
   galleryRead: async (operation, args) => {
-    if (operation === 'gallery-collections') return { items: [folder], nextCursor: null }
+    (state.galleryReads ??= []).push({ operation, ...structuredClone(args) })
+    if (operation === 'gallery-collections') return { items: state.emptyCollections ? [] : [folder], nextCursor: null }
     if (operation === 'gallery-photos') {
+      if (args.scope.kind === 'bookmarks') {
+        if (state.bookmarkFailure) throw { code: 'source-request-timeout' }
+        if (state.failBookmarksOnce) { state.failBookmarksOnce = false; throw { code: 'source-request-timeout' } }
+        if (state.emptyBookmarks) return { items: [], nextCursor: null }
+        if (args.cursor && state.holdBookmarkPages) await new Promise(resolve => (state.bookmarkWaiters ??= []).push(resolve))
+        const ids = args.cursor ? [3] : [1, 2]
+        return { items: ids.map(index => ({ ...photos[1], id: `bookmark-${args.accountId}-${index}`, title: `bookmark-${args.accountId}-${index}` })), nextCursor: args.cursor ? null : 'bookmarks-next' }
+      }
       if (args.cursor) await new Promise(resolve => state.pageWaiters.push(resolve))
       return { items: args.cursor ? [photos[0], photos[3]] : photos.slice(0, 3), nextCursor: args.cursor ? null : 'next' }
     }
@@ -98,7 +108,7 @@ function showProfile(status = 'completed', referenceStatus = 'cancelled') {
   render()
 }
 function render() {
-  root.render(state.mode === 'gallery' ? h(Gallery, { config, style: collection, role: 'positive', actions, t: key => zh[key], onClose: noop, onManageAccounts: noop }) : h(Workbench, { useWorkbench: select => select(client), useVisionModels: select => select({ status: 'ready', value: { models: state.visionModels ?? [], unavailable: [] } }), useDatasets: select => select(state.datasetView ?? { styleId, entries: [], pageIds: [], total: 0, allTotal: 0, watched: [], dismissed: [], submissions: [], loading: false, error: false, detailId: '', detail: null }), useLaunches: select => select(state.launchView ?? { entries: [], loading: false, optionsLoading: false, error: '', options: null, submission: null }), actions, t: key => zh[key], welcomeImage: image, logoImage: image, renderFactorySlot: () => null }))
+  root.render(state.mode === 'gallery' ? h(Gallery, { config, style: collection, role: state.galleryRole ?? 'positive', actions, t: key => zh[key], onClose: noop, onManageAccounts: noop }) : h(Workbench, { useWorkbench: select => select(client), useVisionModels: select => select({ status: 'ready', value: { models: state.visionModels ?? [], unavailable: [] } }), useDatasets: select => select(state.datasetView ?? { styleId, entries: [], pageIds: [], total: 0, allTotal: 0, watched: [], dismissed: [], submissions: [], loading: false, error: false, detailId: '', detail: null }), useLaunches: select => select(state.launchView ?? { entries: [], loading: false, optionsLoading: false, error: '', options: null, submission: null }), actions, t: key => zh[key], welcomeImage: image, logoImage: image, renderFactorySlot: () => null }))
 }
 window.incrementalFixture = { state, showDiagnostics, showProfile, releaseResume: () => { state.holdResume = false; for (const resolve of state.resumeWaiters ?? []) resolve(); state.resumeWaiters = [] }, advanceAnalysisProgress: () => { const task = { ...analysisTask, ...collection.analysis, runId: 'fixture-analysis', status: 'running', phase: 'analyzing', observed: 4, total: 267 }; collection.analysis = { ...task, samples: [] }; client.analysisTasks = [task]; if (client.analysisDetail) client.analysisDetail = { ...client.analysisDetail, task }; render() }, getAnalysisRunId: () => client.analysisRunId, showAnalysis, releaseStart: () => { state.holdStart = false; for (const resolve of state.startWaiters ?? []) resolve(); state.startWaiters = [] }, releasePause: () => { state.holdPause = false; for (const resolve of state.pauseWaiters ?? []) resolve(); state.pauseWaiters = [] }, nextRequest: () => { client.analysisDetail = { ...client.analysisDetail, requests: [...client.analysisDetail.requests, { requestId: 'pending-next', createdAt: 'now', operation: 'analyze', state: 'reserved', model: 'fixture', imageIds: [], available: false }] }; render() }, show: mode => { state.mode = mode; render() }, advance: () => { collection.revision++; render() }, releasePages: () => state.pageWaiters.splice(0).forEach(resolve => resolve()), releaseStatus: () => { state.holdStatus = false; state.statusWaiters.splice(0).forEach(resolve => resolve()) }, changed: () => { plan.pending = 2; plan.reusable = 0; plan.changed = 1; plan.entries[0].state = 'needs-update'; render() }, theme: dark => document.body.toggleAttribute('data-ds-dark-theme', dark), dispose: () => { root.unmount(); iconDisposers.forEach(dispose => dispose()) } }
 render()
@@ -130,6 +140,13 @@ Object.assign(window.incrementalFixture, {
   },
 })
 Object.assign(window.incrementalFixture, {
+  bookmarksExpected,
+  showBookmarks(role = 'positive') {
+    state.mode = 'gallery'; state.galleryRole = role; state.galleryReads = []; state.imports = []
+    config.source.unsplash.accounts = [config.source.unsplash.accounts[0], { id: 'b', label: '图库 B', userId: 'user-b', username: 'other', name: 'Other', credentialRef: 'OTHER_FIXTURE' }]
+    render()
+  },
+  releaseBookmarkPages() { state.holdBookmarkPages = false; for (const resolve of state.bookmarkWaiters ?? []) resolve(); state.bookmarkWaiters = [] },
   preparePerformance(count) {
     const template = snapshot.images[0], sample = collection.modelProfile.samples[0]
     snapshot.images = Array.from({ length: count }, (_, index) => ({ ...template, imageVersionId: `performance-image-${index}`, referenceId: `performance-ref-${index}`, name: `vehicle ${index}`, role: index % 10 ? 'positive' : 'negative' }))

@@ -1,0 +1,10 @@
+{
+  "sourceOrder": ["收藏图片", "新增和已有图片"],
+  "initialSelection": 0,
+  "bookmarksScope": { "kind": "bookmarks" },
+  "positiveImport": { "accountId": "a", "role": "positive", "photoIds": ["bookmark-a-1"] },
+  "allBookmarkIds": ["bookmark-a-1", "bookmark-a-2", "bookmark-a-3"],
+  "negativeImport": { "accountId": "b", "role": "negative", "photoIds": ["bookmark-b-1"] },
+  "ordinaryScope": { "kind": "collection", "collectionId": "folder" },
+  "emptyBookmarks": "可以到 Unsplash 收藏图片，也可以直接搜索全站图库"
+}
