@@ -5,11 +5,13 @@
 ## 常规发布
 
 1. 保持应用 ID、渠道、平台架构及缓存目录稳定，选择未占用的精确构建版本，提交已审核的代码与更新说明。
-2. 通过现有原生 GitHub Actions 发布完整安装包、对应 blockmap 和官方清单，保留旧版本资产。Windows GitHub 的成品检查必须确认 `useMultipleRangeRequest: false`；安装包服务器拒绝多段 Range，不能仅凭单段 206 就启用 multipart 请求。
+2. 通过现有原生 GitHub Actions 发布完整安装包、对应 blockmap 和官方清单，保留旧版本资产。Windows 与 macOS GitHub 的成品检查必须确认 `useMultipleRangeRequest: false`；附件服务器可能拒绝多段 Range，不能仅凭单段 206 就启用 multipart 请求。
 3. 核验构建提交、附件大小、SHA256、清单 SHA512、Pages 生效情况及其他平台和插件索引保留。沿用既有最低版本策略，不为启用差分提高强制更新阈值。
 4. 让已有兼容客户端从“自动”或“GitHub”线路更新。缺少旧缓存、blockmap 失败、Range 失败或重建校验失败时保留原生完整包恢复；手动镜像不作为原生差分验收线路。
 
 差分减少的是网络传输。公开 EXE 本身仍是完整安装器，直接下载该附件得到完整包；应用内差分下载在缓存中重建完整文件后，继续执行原有安装确认。重大功能也可能具有可复用字节，不能单凭功能名称承诺下载比例或强制禁用差分。
+
+Mac 的 DMG 用于手动安装，原生更新器使用 ZIP 及 ZIP blockmap，并需要旧缓存中的 `update.zip` 才能复用字节。使用 generic Pages feed 时不能套用 GitHubProvider 自带的单段设置；[打包配置](../../../../apps/desktop/scripts/electron-builder-config.mjs)和[签名前配置写入器](../../../../apps/desktop/scripts/macos-app-update-config.mjs)必须共同保留 `useMultipleRangeRequest: false`，[成品 smoke](../../../../apps/desktop/scripts/smoke-packaged-runtime.ts)验证已封装的文件。无 Developer ID 的 ad-hoc 更新包也要经过签名后检查。
 
 ## 仅在需要时准备基线
 
@@ -24,3 +26,5 @@
 2026-11-04 的 Windows 验收对为 [基线 `.2`](https://github.com/haigepor/dsh-AutoFlow/releases/tag/desktop-v0.2.2-alpha.2.20261104.2-unsigned)与[目标 `.3`](https://github.com/haigepor/dsh-AutoFlow/releases/tag/desktop-v0.2.2-alpha.2.20261104.3-unsigned)，二者来自同一提交。官方 blockmap 计划为下载 131,647,707 字节、复用 283,204,102 字节，完整目标为 414,851,809 字节，另计 blockmap。用户在该轮测试后确认桌面更新成功；反馈未给出起始版本、实测传输量或耗时，因此不能把约 68.3% 的计划复用比例当作用户实测结果。
 
 该反馈不替代 macOS 两种芯片的运行时验收，也不授权以后自动执行用户电脑上的安装器。
+
+2026-11-04 对既有 Intel ZIP 的轻量探测中，`bytes=0-0` 返回 206，`bytes=0-0,2-2` 返回 501；读取响应头后取消正文，没有执行安装器。这验证了该附件当时的 Range 行为，不证明新 Mac 包的实际差分传输量。旧客户端仍使用旧内置配置，首次升级可以完整下载；安装新配置后再测下一版差分。
