@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -45,6 +45,24 @@ describe('macOS packaged updater configuration', () => {
     })
     await writeMacOSAppUpdateConfig(paths.resourcesDir, update, 'deepseek-harness-updater')
     await expect(verifyMacOSAppUpdateConfig(paths.appPath, update, 'deepseek-harness-updater')).resolves.toBeUndefined()
+  })
+
+  it('retains single-range requests in the Mac file and rejects a lost or changed setting', async () => {
+    const paths = await fixture()
+    const single = resolveMacOSAppUpdateFeed([{ provider: 'generic', url: update.publicUrl, channel: 'nightly', useMultipleRangeRequest: false }])
+    expect(single).toMatchObject({ useMultipleRangeRequest: false })
+    await writeMacOSAppUpdateConfig(paths.resourcesDir, single, 'fixture')
+    expect(await readFile(join(paths.resourcesDir, 'app-update.yml'), 'utf8')).toContain('useMultipleRangeRequest: false')
+    await expect(verifyMacOSAppUpdateConfig(paths.appPath, single)).resolves.toBeUndefined()
+    for (const setting of ['', 'useMultipleRangeRequest: true\n']) {
+      await writeFile(join(paths.resourcesDir, 'app-update.yml'), `provider: generic\nurl: ${update.publicUrl}\nchannel: nightly\nupdaterCacheDirName: fixture\n${setting}`, 'utf8')
+      await expect(verifyMacOSAppUpdateConfig(paths.appPath, single)).rejects.toThrow(/range/u)
+    }
+  })
+
+  it.each(['false', 0, null])('rejects a non-boolean multiple-range setting: %s', async (value) => {
+    expect(() => resolveMacOSAppUpdateFeed([{ provider: 'generic', url: update.publicUrl, channel: 'nightly', useMultipleRangeRequest: value }]))
+      .toThrow(/boolean/u)
   })
 
   it.each([

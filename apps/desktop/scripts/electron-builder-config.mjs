@@ -234,14 +234,14 @@ export function createElectronBuilderConfig(
       }
       if (context.electronPlatformName !== 'darwin') return
       const appPath = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
+      if (update !== undefined) {
+        await verifyMacOSAppUpdateConfig(appPath, resolveMacOSAppUpdateFeed(context.packager.config.publish),
+          context.packager.appInfo.updaterCacheDirName)
+      }
       if (unsigned) {
         if (env.DSH_DESKTOP_UNSIGNED_UPDATES === '1') await signMacOSAdHocUpdateBundle(appPath, resolveDesktopAppId(env))
         verifyMacOSAdHocSignature(appPath, true)
         return
-      }
-      if (update !== undefined) {
-        await verifyMacOSAppUpdateConfig(appPath, resolveMacOSAppUpdateFeed(context.packager.config.publish),
-          context.packager.appInfo.updaterCacheDirName)
       }
       verifyMacOSSignatureAfterSign(context, macOSSigning ?? resolveMacOSSigningEnvironment(env))
     },
@@ -286,6 +286,6 @@ export function createElectronBuilderConfig(
     detectUpdateChannel: false,
     // GitHub Release assets accept single ranges but reject multipart ranges, causing a full-download fallback.
     publish: update === undefined ? null : [{ provider: 'generic', url: update.publicUrl, channel: update.channel,
-      ...(packagesWindows && update.provider === 'github' ? { useMultipleRangeRequest: false } : {}) }],
+      ...(update.provider === 'github' ? { useMultipleRangeRequest: false } : {}) }],
   }
 }

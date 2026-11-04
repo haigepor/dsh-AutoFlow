@@ -107,6 +107,7 @@ describe('desktop macOS release signature', () => {
           ...RELEASE_ENVIRONMENT,
           DSH_DESKTOP_TARGET_ARCH: arch,
           DSH_DESKTOP_UNSIGNED: unsigned,
+          DSH_DESKTOP_AUTO_UPDATE_ENV: 'test',
         }, 'darwin', arch)
         expect(config.dmg.format).toBe('ULMO')
         await expect(validateConfiguration(config, { isEnabled: false })).resolves.toBeUndefined()
@@ -171,7 +172,7 @@ describe('desktop macOS release signature', () => {
     expect(portablePath(config.directories.output)).toContain('/mac-arm64/unsigned-artifacts')
     expect(config.artifactBuildCompleted({ file: '/does-not-exist/test.dmg' })).toBeUndefined()
     expect(() => createElectronBuilderConfig({ ...testEnv, DSH_DESKTOP_AUTO_UPDATE_ENV: 'production' }, 'darwin', 'arm64')).toThrow('explicit test')
-    expect(() => createElectronBuilderConfig({ ...testEnv, DSH_DESKTOP_UNSIGNED_UPDATES: '1' }, 'darwin', 'arm64')).toThrow('automatic updates')
+    expect(() => createElectronBuilderConfig({ ...testEnv, DSH_DESKTOP_UNSIGNED_UPDATES: '1' }, 'darwin', 'arm64')).toThrow('unsigned updates require GitHub')
     expect(() => createElectronBuilderConfig({ ...RELEASE_ENVIRONMENT, DSH_DESKTOP_UNSIGNED: 'yes' }))
       .toThrow(/must be 0 or 1/u)
   })

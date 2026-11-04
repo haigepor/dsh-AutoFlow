@@ -31,6 +31,18 @@ describe('installer preparation preserves application dependencies', () => {
     expect(config.extraMetadata).toMatchObject({ dshDesktopUpdateChannel: 'nightly' })
   })
 
+  it.each(['x64', 'arm64'] as const)('uses single ranges for GitHub macOS %s differential downloads', async (arch) => {
+    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+    const config = createElectronBuilderConfig({
+      DSH_DESKTOP_APP_ID: 'com.example.desktop.unsigned', DSH_DESKTOP_AUTO_UPDATE_ENV: 'test',
+      DSH_DESKTOP_UNSIGNED: '1', DSH_DESKTOP_UNSIGNED_UPDATES: '1', DSH_DESKTOP_UPDATE_PROVIDER: 'github',
+      DSH_DESKTOP_GITHUB_REPOSITORY: 'owner/repository', DSH_DESKTOP_GITHUB_PAGES_URL: 'https://owner.github.io/repository/desktop/unsigned/',
+      DSH_DESKTOP_MANDATORY_UPDATE_SOURCE: 'static-json', DSH_DESKTOP_MANDATORY_UPDATE_URL: 'https://owner.github.io/repository/desktop/unsigned/policy.json',
+    }, 'darwin', arch)
+    expect(config.publish).toEqual([{ provider: 'generic', url: `https://owner.github.io/repository/desktop/unsigned/feeds/mac-${arch}/`,
+      channel: 'nightly', useMultipleRangeRequest: false }])
+  })
+
   it.each(['win32', 'darwin'] as const)('rejects a missing production policy before signing on %s', async (platform) => {
     const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
     expect(() => createElectronBuilderConfig({ DSH_DESKTOP_APP_ID: 'com.example.installer',
