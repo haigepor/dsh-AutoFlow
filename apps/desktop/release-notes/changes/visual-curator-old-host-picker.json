@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-old-host-picker",
+  "category": "fixes",
+  "text": {
+    "en": "Fix Visual Curator loading on older desktop builds by shipping its native image picker and Windows dialog worker with the plugin.",
+    "zh-CN": "视觉策展随插件提供原生图片选择器和 Windows 对话框工作进程，修复旧桌面版加载失败的问题。"
+  }
+}

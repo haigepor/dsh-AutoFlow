@@ -1,7 +1,7 @@
-## Boot Animation 0.4.5
+## Boot Animation 0.4.6
 
-AutoFlow starts with the cyberpunk intro while the application and its initial data load. Skip, reduced motion and failure recovery remain available. This release adds the independent plugin update source and retains the upstream BSD license and media permission. Restart after updating the plugin; changes to the early startup display or packaged clip also require the matching Desktop/Web build.
+Supports DSH 0.2.2-alpha.2 and 0.2.2-rc.1 through an explicit compatibility range. The cyberpunk clip, skip control, reduced motion and failure recovery remain available. Older desktop builds require a manual restart after installation; the matching new desktop waits for current work before restarting automatically. Early startup display changes still require the matching Desktop/Web build.
 
-## 启动动画 0.4.5
+## 启动动画 0.4.6
 
-AutoFlow 在应用和首批数据加载时播放赛博朋克片头，继续支持跳过、减少动态效果及失败恢复。本版本新增独立插件更新来源，并保留上游 BSD 许可及媒体许可说明。更新插件后重启；早期启动界面或随包视频发生变化时，还需要配套 Desktop/Web 版本。
+通过明确的兼容范围支持 DSH 0.2.2-alpha.2 和 0.2.2-rc.1。赛博朋克片头、跳过、减少动态效果及失败恢复继续可用。旧桌面版安装后需手动重启；配套新桌面版会等待当前工作结束后自动重启生效。早期启动界面的变更仍需配套 Desktop/Web 版本。

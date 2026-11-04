@@ -1,6 +1,6 @@
 {
   "name": "dsh-boot-animation",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "AutoFlow startup animation with the DeepSeek cyberpunk clip and initial-data readiness",
   "type": "module",
   "engines": { "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1" },

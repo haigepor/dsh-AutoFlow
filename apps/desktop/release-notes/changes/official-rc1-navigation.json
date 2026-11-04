@@ -1,0 +1,8 @@
+{
+  "id": "official-rc1-navigation",
+  "category": "improvements",
+  "text": {
+    "en": "Improve narrow-screen navigation and touch menus, add shared context menus and file actions, and retain AutoFlow's theme and full-page settings.",
+    "zh-CN": "改善窄屏导航和触屏菜单，接入统一右键菜单与文件操作，保留 AutoFlow 的主题及全窗口设置。"
+  }
+}

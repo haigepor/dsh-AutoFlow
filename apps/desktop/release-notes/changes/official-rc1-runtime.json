@@ -1,0 +1,8 @@
+{
+  "id": "official-rc1-runtime",
+  "category": "features",
+  "text": {
+    "en": "Integrate DSH 0.2.2-rc.1 with Host-wide scheduled-task management, model request compatibility fixes and optional change-request/worktree tools.",
+    "zh-CN": "集成 DSH 0.2.2-rc.1，接入宿主级计划任务管理、模型请求兼容性修复及可选的变更请求与工作树工具。"
+  }
+}

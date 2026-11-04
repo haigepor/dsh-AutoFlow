@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-style-prompt",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Analyze image styles with configured vision APIs and export differentiated generation prompts and reference plans",
   "license": "MIT",
   "type": "module",

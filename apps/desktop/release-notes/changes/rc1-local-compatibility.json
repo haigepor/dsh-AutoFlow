@@ -1,0 +1,8 @@
+{
+  "id": "rc1-local-compatibility",
+  "category": "fixes",
+  "text": {
+    "en": "Fix preset selection during agent creation and title-output retries. Keep shared-session management menus within their granted access, and complete local settings copy for all eight interface languages.",
+    "zh-CN": "修复智能体创建时切换预设的等待问题及标题输出重试分类；分享会话只显示已获准的管理操作，并补齐八种界面语言的本地设置文案。"
+  }
+}

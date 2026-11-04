@@ -1,21 +1,13 @@
-## Visual Curator 0.2.8
+## Visual Curator 0.2.12
 
-- Collect 50/100 unique candidates across pages, screen batches of actual thumbnails, then fully review retained and uncertain candidates. Only full review qualifies an image; originals download after screening.
-- Reuse committed batches after pause or restart. Screening failures retry within the same budget before individual full-review fallback. Known references and rejected photos are skipped before downloading, and saved feedback guides later query pages.
-- Preserve valid negative-only rules and required exclusions within shared or alternative-group scope. Fix rejected source images being reviewed again after rewording a task or switching models. Technical failures and uncertain images remain retryable.
-- Configure pool size, batch count and thumbnail resolution in model settings. Task cards show separate screening and full-review counts; disable screening to restore individual reviews for new tasks.
+- Fix plugin loading on older desktop builds whose native picker exposes directory selection only. The package carries its image/reference picker, command runner and Windows dialog worker.
+- Declare support for DSH 0.2.2-alpha.2 and 0.2.2-rc.1. Existing tasks, references, datasets and activation choices remain in the profile.
 
-A bounded live comparison used the same 12 public images, native model and synthetic car/environment rules: 12 model calls and 98.976 seconds became 6 calls and 80.904 seconds. Both paths accepted one image; that baseline match was not discarded. This single sample does not establish a general speedup or false-rejection rate. The package includes the bilingual search-performance report and an opt-in diagnostic remains in the repository.
+The loading fix works without reinstalling the desktop application; older builds require a manual restart after updating the plugin. The matching new desktop refreshes actual plugin status, shows waiting and restart progress, and applies installed updates automatically after current work finishes. Desktop installer updates still require separate confirmation. Automatic plugin installation remains opt-in.
 
-Update the plugin and restart AutoFlow after current tasks finish; no desktop reinstall is needed. Existing tasks and datasets retain their frozen content. To recover negative rules omitted by older versions, choose All roles → Reuse and organize and use the new complete dataset. Compatible observations are reused; exporting the old profile alone does not restore rules. Explicitly disabled rules remain disabled. Automatic installation stays opt-in and does not restart the application.
+## 视觉策展 0.2.12
 
-## 视觉策展 0.2.8
+- 修复旧桌面版原生选择器仅提供目录选择时插件无法加载的问题；插件随包提供图片及参考素材选择器、命令执行辅助代码和 Windows 对话框工作进程。
+- 明确支持 DSH 0.2.2-alpha.2 和 0.2.2-rc.1。已有任务、参考图、数据集及启用选择继续保存在 profile 中。
 
-- 跨页积累 50/100 个唯一候选，使用真实缩略图分批初筛，再完整复核保留及不确定图片。只有完整复核才能入选，原图在初筛后下载。
-- 暂停或重启复用已提交批次，初筛失败在同一预算内有限重试，再转逐图完整复核。下载前跳过已知参考图和拒绝照片，后续翻页优先采用已有复核反馈较好的关键词。
-- 保留有效的仅反例规则及共享或备选组中的 required 排除，修复改写需求或切换模型后重复复核已拒绝源图的问题。技术失败和不确定图片仍可重试。
-- 模型设置可调整候选池、每批数量和初筛分辨率，任务卡分别显示初筛及完整复核数量。关闭初筛可让新任务恢复逐图完整复核。
-
-一次有界真实对比使用相同的 12 张公开图片、原生模型和合成汽车及环境规则：模型调用从 12 次减为 6 次，耗时从 98.976 秒降为 80.904 秒，两条路径均通过一张，该基线匹配图未被初筛排除。单次样本不能推导普遍提速或错杀率。发布包包含双语搜图性能报告，仓库保留须显式启用的诊断夹具。
-
-当前任务结束后更新插件并重启 AutoFlow，无需重新安装桌面包。已有任务和数据集保持固定内容；旧版遗漏反例规则时，选择“全部角色 → 复用并整理”，使用新生成的完整数据集。兼容观察直接复用，仅导出旧画像不能补回规则；用户明确关闭的规则不会自动开启。自动安装仍须明确开启，不会自动重启应用。
+加载修复无需重装桌面应用；旧版更新插件后需手动重启。配套新桌面版会刷新真实插件状态、显示等待及重启进度，并在当前工作结束后自动重启使已安装更新生效。桌面安装包更新仍需单独确认。插件自动安装仍需明确开启。
