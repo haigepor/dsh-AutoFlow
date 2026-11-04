@@ -4,15 +4,33 @@ import type { CuratorDomain } from './curator.ts'
 import { contentDigest, fileChecksum } from './repository.ts'
 import { analysisReferenceDigest } from './style-analysis.ts'
 import { styleAnalysisOf, type StyleAnalysis } from '../shared/style-analysis.ts'
-import { modelProfileSchema, profileExportSchema, recipeSchema, type DomainActor, type ModelProfile, type ProfileExport, type Rule, type RunRecord } from '../shared/model.ts'
+import { modelProfileSchema, profileExportSchema, recipeSchema, type DomainActor, type ModelProfile, type ProfileExport, type ReferenceSnapshot, type Rule, type RunRecord } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { DatasetProgress, DatasetScope } from '../shared/datasets.ts'
+import { effectiveReviewReferenceRole } from '../host/review-references.ts'
 
 /** Only selection and optional wording changes cross the Client wire; evidence stays Host-owned. */
 export const profileSaveSchema = z.strictObject({ operationId: z.string().min(1), styleId: z.string(), analysisRunId: z.string(), expectedProfileId: z.string(), changes: z.array(z.strictObject({ ruleId: z.string(), enabled: z.boolean(), statement: z.string().trim().min(1).max(4096).optional() })) })
 type Option = ModelProfile['options'][number]
 const identity = (kind: string, value: unknown) => `${kind}-${contentDigest(value).slice(10, 50)}`
+
+function ruleReferenceRole(rule: Rule, reference: ReferenceSnapshot) {
+  if (reference.reference.intent.kind === 'dimensions' && !reference.reference.intent.dimensions.includes(rule.dimension)) return undefined
+  return effectiveReviewReferenceRole({ rules: [rule] }, reference)
+}
+
+function hasNegativeRuleEvidence(rule: Rule, references: readonly ReferenceSnapshot[]): boolean {
+  return rule.counterRefs.length > 0
+    && rule.counterRefs.every(id => { const reference = references.find(ref => ref.reference.id === id); return reference !== undefined && ruleReferenceRole(rule, reference) === 'negative' })
+    && rule.supportRefs.every(id => { const reference = references.find(ref => ref.reference.id === id); return reference !== undefined && ruleReferenceRole(rule, reference) === 'positive' })
+}
+
+function hasCurrentRuleEvidence(rule: Rule, references: readonly ReferenceSnapshot[]): boolean {
+  const negativeEvidence = hasNegativeRuleEvidence(rule, references)
+  const supported = rule.strength === 'required' && rule.confirmation.status === 'suggested' && rule.counterRefs.length > 0 ? negativeEvidence : rule.supportRefs.length > 0 || negativeEvidence
+  return supported && [...rule.supportRefs, ...rule.counterRefs].every(id => references.some(ref => ref.reference.id === id))
+}
 
 /** @param operationId Accepted export operation. @returns Its existing deterministic package identity. */
 export function profileExportIdentity(operationId: string): ProfileExport['id'] { return brandString<ProfileExport['id']>(identity('profile-export', operationId)) }
@@ -102,18 +120,20 @@ export class ModelProfiles {
     })
     const recipe = z.object({ fixed: z.object({ recipe: recipeSchema }) }).parse(run.spec).fixed.recipe
     const options: Option[] = [], groups: ModelProfile['groups'] = analysis.summary.organization?.groups.map(group => ({ ...group })) ?? []
-    const positiveIds = new Set(references.filter(ref => ref.reference.role === 'positive').map(ref => ref.reference.imageVersionId))
     for (const [index, proposed] of analysis.summary.suggestedRules.entries()) {
       const ruleId = identity('auto-rule', { dimension: proposed.dimension, statement: proposed.statement.trim(), condition: proposed.condition, stage: proposed.stage })
       if (options.some(option => option.rule.ruleId === ruleId)) continue
+      const rule: Rule = { ruleId, dimension: proposed.dimension, statement: proposed.statement, strength: proposed.strength, stage: proposed.stage,
+        condition: proposed.condition.trim() ? { subjects: [proposed.condition] } : {}, exceptions: proposed.exceptions.map(text => ({ subjects: [text] })), check: { kind: 'visual', criterion: proposed.statement },
+        supportRefs: [], counterRefs: proposed.counterImageVersionIds.flatMap(id => { const ref = references.find(ref => ref.reference.imageVersionId === id); return ref ? [ref.reference.id] : [] }), confirmation: { status: 'suggested' } }
+      const positiveIds = new Set(references.filter(ref => ruleReferenceRole(rule, ref) === 'positive').map(ref => ref.reference.imageVersionId))
       const support = proposed.supportImageVersionIds.filter(id => {
         const ref = references.find(ref => ref.reference.imageVersionId === id)
-        if (!ref || ref.reference.intent.kind === 'dimensions' && !ref.reference.intent.dimensions.includes(proposed.dimension)) return false
-        const rows = ref.judgments ?? []
-        const judgments = rows.filter(item => item.dimension === proposed.dimension)
-        const values = judgments.length ? judgments : rows.filter(item => item.dimension === undefined)
-        return values.length ? values.every(item => item.value === 'accept') : ref.reference.role === 'positive'
+        return ref !== undefined && ruleReferenceRole(rule, ref) === 'positive'
       })
+      rule.supportRefs = support.map(id => references.find(ref => ref.reference.imageVersionId === id)!.reference.id)
+      const negativeEvidence = hasNegativeRuleEvidence(rule, references) && support.length === proposed.supportImageVersionIds.length
+      if (rule.strength === 'required' && !negativeEvidence) rule.strength = 'preferred'
       const selection = analysis.summary.organization?.selections.find(item => item.ruleIndex === index)
       let groupId = selection?.groupId ?? null
       if (!analysis.summary.organization && support.length && (support.length < positiveIds.size || proposed.condition.trim())) {
@@ -121,11 +141,8 @@ export class ModelProfiles {
         if (!groups.some(group => group.groupId === groupId)) groups.push({ groupId, name: '', description: proposed.condition, imageVersionIds: support })
       }
       const positiveCounter = proposed.counterImageVersionIds.some(id => positiveIds.has(id))
-      const subjectOnly = proposed.dimension === 'subject' && !references.some(ref => ref.reference.intent.kind === 'dimensions' && ref.reference.intent.dimensions.includes('subject'))
-      const reason: Option['reason'] = !support.length ? 'no-evidence' : positiveCounter ? 'counter-evidence' : subjectOnly ? 'subject-only' : proposed.strength === 'reference-only' || selection?.enabled === false ? 'reference-only' : groupId ? 'conditional' : 'consistent'
-      const rule: Rule = { ruleId, dimension: proposed.dimension, statement: proposed.statement, strength: proposed.strength === 'required' ? 'preferred' : proposed.strength, stage: proposed.stage,
-        condition: proposed.condition.trim() ? { subjects: [proposed.condition] } : {}, exceptions: proposed.exceptions.map(text => ({ subjects: [text] })), check: { kind: 'visual', criterion: proposed.statement },
-        supportRefs: support.map(id => references.find(ref => ref.reference.imageVersionId === id)!.reference.id), counterRefs: proposed.counterImageVersionIds.map(id => references.find(ref => ref.reference.imageVersionId === id)?.reference.id).filter((id): id is NonNullable<typeof id> => !!id), confirmation: { status: 'suggested' } }
+      const subjectOnly = proposed.dimension === 'subject' && !negativeEvidence && !references.some(ref => ref.reference.intent.kind === 'dimensions' && ref.reference.intent.dimensions.includes('subject'))
+      const reason: Option['reason'] = !support.length && !negativeEvidence ? 'no-evidence' : positiveCounter ? 'counter-evidence' : subjectOnly ? 'subject-only' : proposed.strength === 'reference-only' || selection?.enabled === false ? 'reference-only' : groupId ? 'conditional' : 'consistent'
       options.push({ rule, groupId, enabled: reason === 'consistent' || reason === 'conditional', selectionSource: 'model', sourceStatement: proposed.statement, reason })
     }
     const draft = this.domain.require('draft', this.domain.require('style', analysis.styleId).draftId)
@@ -133,7 +150,7 @@ export class ModelProfiles {
     // 用户的排除与措辞调整跨重新分析保留；失去引用的规则保留可见但不再启用。
     for (const option of previous?.options.filter(option => option.selectionSource === 'user') ?? []) {
       const present = options.findIndex(item => item.rule.ruleId === option.rule.ruleId)
-      const supported = option.rule.supportRefs.length > 0 && [...option.rule.supportRefs, ...option.rule.counterRefs].every(id => references.some(ref => ref.reference.id === id))
+      const supported = hasCurrentRuleEvidence(option.rule, references)
       const retained = { ...option, enabled: option.enabled && supported, groupId: groups.some(group => group.groupId === option.groupId) ? option.groupId : null, reason: supported ? option.reason : 'evidence-changed' as const }
       if (present >= 0) options[present] = retained; else options.push(retained)
     }
@@ -158,7 +175,7 @@ export class ModelProfiles {
       if (new Set(input.changes.map(change => change.ruleId)).size !== input.changes.length || input.changes.some(change => !current.options.some(option => option.rule.ruleId === change.ruleId))) throw new CuratorError('invalid-input', 'profile-save', 'A selection change references an unknown or repeated rule.')
       if (input.changes.some(change => {
         const option = current.options.find(option => option.rule.ruleId === change.ruleId)!
-        return change.enabled && option.rule.confirmation.status !== 'confirmed' && (!option.rule.supportRefs.length || option.rule.supportRefs.some(id => !current.references.some(ref => ref.reference.id === id)))
+        return change.enabled && option.rule.confirmation.status !== 'confirmed' && !hasCurrentRuleEvidence(option.rule, current.references)
       })) throw new CuratorError('constraint-conflict', 'profile-save', 'This model rule has no current supporting image evidence.')
       const options = current.options.map(option => {
         const change = input.changes.find(change => change.ruleId === option.rule.ruleId)
@@ -188,7 +205,7 @@ export class ModelProfiles {
     if (options.acceptedLaunchId) this.authorizeAccepted(profile, actor, options.acceptedLaunchId, options.shareWithLibrary)
     else this.assertFresh(profile, actor, options.finalizingAnalysisRunId)
     if (sampleScope === 'all' && !profile.rules.length) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one evidence-backed style rule before exporting.')
-    const references = profile.references.filter(ref => sampleScope === 'all' || ref.reference.role === sampleScope)
+    const references = profile.references.filter(ref => sampleScope === 'all' || effectiveReviewReferenceRole(profile, ref) === sampleScope)
     if (!references.length) throw new CuratorError('constraint-conflict', 'profile-export', 'There are no analyzed references in the selected export scope.')
     if (actor.kind === 'agent' && !actor.sessionId) throw new CuratorError('owner-denied', 'profile-export', 'An Agent export requires an owning Session.')
     await report('verifying', 0, profile.references.length, 'references')

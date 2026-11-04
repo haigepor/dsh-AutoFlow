@@ -6,10 +6,16 @@ import type { DomainActor, ModelProfile } from '../shared/model.ts'
 import { styleAnalysisOf } from '../shared/style-analysis.ts'
 import { searchNegativeReferencesSchema, type SearchNegativeReferences } from '../shared/search-reference-datasets.ts'
 import { readDatasetDirectory, type DatasetDirectory } from './datasets.ts'
+import { effectiveReviewReferenceRole } from './review-references.ts'
 
 function currentReferences(profile: ModelProfile) {
   const images = new Map<string, ModelProfile['references'][number]>()
-  for (const reference of profile.references) if (reference.reference.role === 'negative' && !images.has(reference.reference.imageVersionId)) images.set(reference.reference.imageVersionId, reference)
+  const conflicting = new Set<string>()
+  for (const reference of profile.references) {
+    const id = reference.reference.imageVersionId
+    if (effectiveReviewReferenceRole(profile, reference) !== 'negative') { conflicting.add(id); images.delete(id) }
+    else if (!conflicting.has(id) && !images.has(id)) images.set(id, reference)
+  }
   return images
 }
 
@@ -19,7 +25,8 @@ function sourcePackages(domain: CuratorDomain, profile: ModelProfile, directory?
   const records = directory ?? readDatasetDirectory(domain)
   const sources = new Map<string, ModelProfile>(records.profiles.filter(source => source.styleId === profile.styleId && source.access.kind === 'profile-library').map(source => [source.id, source]))
   return records.artifacts.filter(dataset => dataset.sampleScope === 'negative' && dataset.access.kind === 'profile-library' && sources.has(dataset.modelProfileId)).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)).flatMap(dataset => {
-    const source = sources.get(dataset.modelProfileId)!, references = source.references.filter(ref => ref.reference.role === 'negative' && current.get(ref.reference.imageVersionId)?.imageDigest === ref.imageDigest)
+    const source = sources.get(dataset.modelProfileId)!, resources = new Set(dataset.resources.map(resource => resource.imageVersionId))
+    const references = [...currentReferences(source).values()].filter(ref => resources.has(ref.reference.imageVersionId) && current.get(ref.reference.imageVersionId)?.imageDigest === ref.imageDigest)
     if (!references.length) return []
     if (dataset.files.some(file => fileChecksum(file.content) !== file.checksum)) throw new CuratorError('reference-unavailable', 'search-launch-negatives', 'A negative reference package failed checksum verification. Regenerate that package before starting.')
     return [{ exportId: dataset.id, imageVersionIds: [...new Set(references.map(ref => ref.reference.imageVersionId))] }]
@@ -41,7 +48,7 @@ export function freezeSearchNegatives(domain: CuratorDomain, profile: ModelProfi
     if (!sample) throw new CuratorError('reference-unavailable', 'search-launch-negatives', 'A current negative reference has no saved observation.')
     const observation = domain.require('observation', sample.observationId)
     if (observation.imageVersionId !== ref.reference.imageVersionId) throw new CuratorError('reference-unavailable', 'search-launch-negatives', 'A negative observation describes a different image.')
-    return { reference: ref.reference, imageDigest: ref.imageDigest, feedbackIds: ref.feedbackIds, judgments: ref.judgments ?? [], measured: observation.measured, inferred: observation.inferred }
+    return { reference: { ...ref.reference, role: 'negative' as const }, imageDigest: ref.imageDigest, feedbackIds: ref.feedbackIds, judgments: ref.judgments ?? [], measured: observation.measured, inferred: observation.inferred }
   })
   return searchNegativeReferencesSchema.parse({ version: 1, datasets: sourcePackages(domain, profile, directory), samples })
 }

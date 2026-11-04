@@ -26,6 +26,14 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.8
+
+Search adds a pool of 50/100 unique candidates and batch screening of actual thumbnails, followed by full review of retained and uncertain candidates. Screening cannot qualify a selection, and originals download afterward. Bounded screening retries fall back to individual review without treating technical failures as visual rejections. Pause, restart and the response/checkpoint commit gap reuse saved work within the same task budget. Model settings expose pool size, batch count and screening resolution; task cards show separate actual phase counts.
+
+Fixes rules supported only by negative examples being disabled, required exclusions being averaged away, and source-rejected images being reviewed again in later conversations. Stable photo identities exclude known images within the same collection even after rewording a task or changing models. Technical failures and uncertain images remain retryable. Query guidance reflects real Unsplash tests and retains current enabled subject and scene constraints. Multiple keywords are not strict AND; actual pixels still decide final results.
+
+Update the plugin and restart AutoFlow after current tasks finish; no desktop reinstall is required. Existing tasks retain their workflow and datasets retain their frozen content. To recover rules omitted by older versions, select All roles → Reuse and organize and use the newly generated complete dataset. Compatible observations need no repeated per-image analysis; exporting the old profile alone cannot restore missing rules.
+
 ## Visual Curator 0.2.7
 
 Saved reference observations, automatic style profiles and reference datasets can be used with a different configured vision model. Switching models preserves analyzed status, original model/request records and existing dataset files. New searches and crops freeze the selected reviewer; paused tasks continue with their original model after restart. Incremental analysis reuses committed observations across models, while full reanalysis requires explicit confirmation. Changes to images, rules, judgments or processing still invalidate affected observations.

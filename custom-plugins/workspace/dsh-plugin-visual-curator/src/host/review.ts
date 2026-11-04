@@ -67,7 +67,7 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
   const images = [subject, ...refs.filter(ref => ref.imageVersionId !== image.id)]
   const outputChoice = ctx.spec.fixed.output
   const preview = !!outputChoice && typeof outputChoice === 'object' && !Array.isArray(outputChoice) && outputChoice.kind === 'preview'
-  const rules = release.rules.filter(rule => rule.stage === stage || stage === 'final' && (preview || release.recipe.styleMatching && rule.strength === 'preferred' && rule.check.kind === 'visual'))
+  const rules = release.rules.filter(rule => rule.stage === stage || stage === 'final' && (preview || release.recipe.styleMatching && rule.strength !== 'reference-only' && rule.check.kind === 'visual'))
   const identity = contentDigest({ runId: ctx.runId, imageVersionId: image.id, standardDigest: release.contentDigest, stage }).slice(10)
   const brief = typeof ctx.spec.input.taskBrief === 'string' ? ctx.spec.input.taskBrief : 'Review supplied image against the frozen visual standard.'
   const taskBrief = styleReviewBrief(release, brief)
@@ -91,7 +91,8 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
     const inferred = checked.ruleResults.find(item => item.ruleId === rule.ruleId)!
     return { ruleId: rule.ruleId, result: inferred.status === 'not-applicable' ? 'unknown' as const : inferred.status, basis: 'inferred' as const, reason: inferred.reason, ...(inferred.region ? { region: inferred.region } : {}) }
   })
-  let verdict = decideAssessment(results.map(result => ({ strength: rules.find(rule => rule.ruleId === result.ruleId)!.strength, result: result.result })))
+  const alternativeRules = release.kind === 'modelProfile' && release.recipe.styleMatching ? new Set(release.options.filter(option => option.enabled && option.groupId !== null && option.rule.check.kind === 'visual').map(option => option.rule.ruleId)) : new Set<string>()
+  let verdict = decideAssessment(results.filter(result => !alternativeRules.has(result.ruleId)).map(result => ({ strength: rules.find(rule => rule.ruleId === result.ruleId)!.strength, result: result.result })))
   if (output.taskRelevance === 'irrelevant') verdict = 'reject'
   if (output.taskRelevance === 'unknown' && verdict === 'pass') verdict = 'needs-review'
   if (Object.entries(release.recipe.preferenceScale.weights).some(([dimension, weight]) => weight > 0 && !output.preferenceScores.some(score => score.dimension === dimension)) && verdict === 'pass') verdict = 'needs-review'

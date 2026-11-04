@@ -13,7 +13,7 @@ import { createResultPreview } from './result-preview.tsx'
 const kindKey = { analyze: 'analyzeKind', search: 'searchKind', crop: 'cropKind', evaluate: 'evaluateKind', export: 'exportKind' } as const
 const metrics = {
   analyze: [['observed', 'analysisProgress'], ['suggestions', 'suggestion'], ['summarized', 'summarizedImages']],
-  search: [['candidates', 'taskCandidates'], ['distinct', 'taskDistinct'], ['qualified', 'taskQualified'], ['unavailable', 'taskUnavailable'], ['technicalFailed', 'taskTechnical'], ['failedQueries', 'taskFailedQueries']],
+  search: [['candidates', 'taskCandidates'], ['distinct', 'taskDistinct'], ['screeningReviewed', 'taskScreeningReviewed'], ['screeningRejected', 'taskScreeningRejected'], ['screeningFallback', 'taskScreeningFallback'], ['deepReviewed', 'taskDeepReviewed'], ['qualified', 'taskQualified'], ['unavailable', 'taskUnavailable'], ['technicalFailed', 'taskTechnical'], ['failedQueries', 'taskFailedQueries']],
   crop: [['retrievedUnique', 'taskDistinct'], ['sourceReviewed', 'taskReviewed'], ['cropGenerated', 'taskCrops'], ['finalPassed', 'taskQualified']],
   evaluate: [['compared', 'taskCompared'], ['technicalFailed', 'taskTechnicalFailed'], ['unprocessed', 'taskPending']],
   export: [['files', 'taskFiles'], ['resources', 'taskResources']],

@@ -17,6 +17,7 @@ import { searchIssueSchema, type SearchIssue } from '../shared/search-feedback.t
 import { createPreviewSearchWorker } from './preview-search-workflow.ts'
 import { chooseSearchQuery } from './search-query-plan.ts'
 import { searchExclusionsSchema, searchExclusionReasonSchema, sourceExclusion, imageExclusion, exclusionCounts } from './search-exclusions.ts'
+import { createScreenedSearchWorker } from './search-screening.ts'
 
 const queryPageFields = { cursor: z.string().nullable(), seenCursors: z.array(z.string()), pageIds: z.array(z.string()), pageDone: z.array(z.string()), nextCursor: z.string().nullable(), pageLoaded: z.boolean(), pageRestrictedIds: z.array(z.string()).default([]) }
 const queryRemainderSchema = z.strictObject({ queryIndex: z.number().int().nonnegative(), ...queryPageFields })
@@ -44,6 +45,7 @@ export interface SearchDependencies {
 /** @param deps Shared owner services and crop subflow. @returns Search worker using the parent's quotas and snapshots. */
 export function createSearchWorker(deps: SearchDependencies): Worker {
   return async ctx => {
+    if (ctx.spec.fixed.searchScreening !== undefined) return createScreenedSearchWorker(deps)(ctx)
     const release = executionStandard(styleStandardSchema.parse(ctx.spec.fixed.release), ctx.spec.fixed.executionRecipe)
     const output = ctx.spec.fixed.output === undefined ? undefined : searchOutputSchema.parse(ctx.spec.fixed.output), original = output?.kind === 'original'
     if (output?.kind === 'preview') return createPreviewSearchWorker(deps)(ctx)

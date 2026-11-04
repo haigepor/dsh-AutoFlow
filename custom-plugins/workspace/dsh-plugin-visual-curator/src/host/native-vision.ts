@@ -85,12 +85,14 @@ export class NativeVisionProvider extends StructuredVisionProvider {
     bounds.onPhase?.('preparing')
     const signal = AbortSignal.any(bounds.signal ? [bounds.signal] : [])
     let firstOutputMs: number | undefined, firstReasoningMs: number | undefined, firstTextMs: number | undefined, usage: TokenUsage | undefined, terminal = false, streamStarted = false
+    let preparationQueueMs = 0, prepareImagesMs = 0, modelStartedAt: number | undefined
     const assembler = new BlockAssembler()
     const preparedImages = Promise.withResolvers<void>(), previousPreparation = this.imagePreparation
     this.imagePreparation = previousPreparation.then(() => preparedImages.promise)
     try {
       // Warm shared reference attachments once, then let model streams proceed concurrently.
       await waitForImagePreparation(previousPreparation, signal)
+      preparationQueueMs = Date.now() - startedAt
       const prepared = await this.prepare(signal), inputs: SaveImageAttachment[] = [], sources: { imageVersionId: string; sourceDigest: string; byteDigest: string }[] = []
       const refsByIndex = new Map<number, ImageAttachmentRef>(), missing: { index: number; key: string }[] = []
       let totalBytes = 0, downloadedBytes = 0
@@ -134,6 +136,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       }
       const refs = [...refsByIndex].sort(([left], [right]) => left - right).map(([, attachment]) => attachment)
       signal.throwIfAborted()
+      prepareImagesMs = Date.now() - startedAt - preparationQueueMs
       preparedImages.resolve()
       const content: ContentBlock[] = [{ type: 'text', text: descriptor.inputText }]
       for (let index = 0; index < refs.length; index++) {
@@ -142,11 +145,12 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       }
       const options: GenerateOptions = { ...prepared.config, system: descriptor.instructions, messages: [{ role: 'user', content }], signal }
       const base = { transport: 'native-llm', provider: this.provider, model: this.config.model, ...(prepared.context ? { context: prepared.context } : {}), request: { config: prepared.config, system: options.system, messages: options.messages }, images: sources.map((source, index) => ({ ...source, attachment: refs[index] })) }
-      const metadata = () => toJson({ ...base, ...(usage ? { usage } : {}), timing: { startedAt: new Date(startedAt).toISOString(), elapsedMs: Date.now() - startedAt, firstOutputMs, firstReasoningMs, firstTextMs }, ...(terminal ? { finish: assembler.finish } : {}) })
+      const metadata = () => toJson({ ...base, ...(usage ? { usage } : {}), timing: { startedAt: new Date(startedAt).toISOString(), elapsedMs: Date.now() - startedAt, preparationQueueMs, prepareImagesMs, ...(modelStartedAt === undefined ? {} : { modelElapsedMs: Date.now() - modelStartedAt }), firstOutputMs, firstReasoningMs, firstTextMs }, ...(terminal ? { finish: assembler.finish } : {}) })
       // 原生附件与实际参数先落盘，之后才允许发送模型请求。
       await bounds.onMetadata?.(metadata())
       bounds.onPhase?.('analyzing')
       let outputBytes = 0
+      modelStartedAt = Date.now()
       streamStarted = true
       for await (const chunk of prepared.stream(options)) {
         if (chunk.type === 'reasoning-delta' || chunk.type === 'text-delta') {

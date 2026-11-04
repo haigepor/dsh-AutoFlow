@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-visual-curator",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/haigepor/dsh-AutoFlow.git",
@@ -34,6 +34,7 @@
     "README.zh.md",
     "THIRD_PARTY_NOTICES.md",
     "release.config.json",
+    "docs",
     "release/README.md",
     "release/README.zh.md"
   ],

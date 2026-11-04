@@ -18,6 +18,12 @@ test('preparation discovers usages without writing records or dispatching reques
     const page = z.object({ items: z.array(z.object({ id: z.string() })) }).parse(await f.action('usage-list'))
     assert.equal(page.items[0]?.id, usage.id)
     const prepared = z.object({ status: z.literal('ready'), preparationDigest: z.string(), normalizedInput: z.record(z.string(), z.json()) }).parse(await f.action('task-prepare', { kind: 'search', releaseId: profile.id, usageRevisionId: usage.id, taskBrief: 'Green images', targetCount: 1 }))
+    const acceptedConfig = f.service.config
+    f.service.updateConfiguration({ ...acceptedConfig, searchScreening: { ...acceptedConfig.searchScreening, enabled: false } })
+    const directReview = z.object({ status: z.literal('ready'), summary: z.object({ searchScreening: z.json().optional() }) }).parse(await f.action('task-prepare', { kind: 'search', releaseId: profile.id, usageRevisionId: usage.id, taskBrief: 'Green images', targetCount: 1 }))
+    assert.equal(Object.hasOwn(directReview.summary, 'searchScreening'), false)
+    assert.equal(f.http.operations.length, requests)
+    f.service.updateConfiguration(acceptedConfig)
     assert.equal(f.http.operations.length, requests)
     await assert.rejects(f.action('search-start', { ...prepared.normalizedInput, operationId: 'changed', taskBrief: 'Red images', preparationDigest: prepared.preparationDigest }), { code: 'revision-conflict' })
     const args = { ...prepared.normalizedInput, operationId: 'start', preparationDigest: prepared.preparationDigest }

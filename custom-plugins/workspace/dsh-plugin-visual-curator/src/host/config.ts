@@ -4,8 +4,16 @@ import { z } from 'zod'
 import { createHash } from 'node:crypto'
 import { galleryAccountSchema, galleryAccountIdSchema } from '../shared/gallery.ts'
 import { defaultPreviewConcurrency, galleryCacheDefaults } from '../shared/gallery-cache.ts'
+import { searchScreeningPolicySchema } from '../shared/search-screening.ts'
+export { searchScreeningPolicySchema, type SearchScreeningPolicy } from '../shared/search-screening.ts'
 
 const positive = z.number().int().positive()
+const searchScreeningSettingsSchema = searchScreeningPolicySchema.omit({ version: true }).extend({
+  enabled: z.boolean().optional(),
+  candidatePoolSize: searchScreeningPolicySchema.shape.candidatePoolSize.default(50),
+  batchSize: searchScreeningPolicySchema.shape.batchSize.default(6),
+  maxScreeningImageEdge: searchScreeningPolicySchema.shape.maxScreeningImageEdge.default(384),
+})
 export const limitsSchema = z.object({
   maxVisionCalls: positive.default(100), maxSearchPages: positive.default(10), maxCandidates: positive.default(200),
   maxDownloadBytes: positive.default(200 * 1024 * 1024), maxCropCandidatesPerImage: positive.default(3),
@@ -73,11 +81,11 @@ export const visionSettingsSchema = z.strictObject({
   reasoningEffort: z.enum(['none', 'low', 'medium', 'high', 'max']).nullable().optional(),
   supportsStreaming: z.boolean().optional(),
 })
-export const settingsSchema = z.strictObject({ source: sourceSettingsSchema.default(() => sourceSettingsSchema.parse({})), vision: visionSettingsSchema.default(() => visionSettingsSchema.parse({})), limits: limitsSchema.default(() => limitsSchema.parse({})) })
+export const settingsSchema = z.strictObject({ source: sourceSettingsSchema.default(() => sourceSettingsSchema.parse({})), vision: visionSettingsSchema.default(() => visionSettingsSchema.parse({})), limits: limitsSchema.default(() => limitsSchema.parse({})), searchScreening: searchScreeningSettingsSchema.optional() })
 export type CuratorConfig = z.infer<typeof settingsSchema>
 
 /** Cordis validates the envelope; the owning parser validates nested deployment settings. */
-export const Config = Schema.object({ source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), compaction: Schema.any() })
+export const Config = Schema.object({ source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), searchScreening: Schema.any(), compaction: Schema.any() })
 /** @param input Saved deployment fields. @returns Complete validated settings. */
 export function resolveConfig(input: unknown): CuratorConfig {
   const config = settingsSchema.parse(input)
@@ -110,6 +118,7 @@ export function resolveConfig(input: unknown): CuratorConfig {
  */
 export function resolveCurrentConfig(input: unknown): CuratorConfig {
   const saved = settingsSchema.parse(input), config = resolveConfig(input)
+  config.searchScreening ??= searchScreeningSettingsSchema.parse({})
   config.vision.backend ??= 'native'
   if (config.vision.backend === 'native') config.vision.useModelDefaults ??= true
   if (config.vision.useModelDefaults === true) delete config.vision.reasoningEffort

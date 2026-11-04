@@ -238,6 +238,7 @@ export interface ConfigurationView {
     allowedMediaOrigins: string[]; lookupEndpoint: string
   }
   vision: { backend?: 'native' | 'compatible' | undefined; useModelDefaults?: boolean | undefined; provider?: string | undefined; endpoint: string; model: string; credentialRef: string; supportsMultipleImages: boolean; supportsJson: boolean; supportsStreaming?: boolean | undefined; localOrigin: string; vendorVersion: string | null; reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'max' | null | undefined }
+  searchScreening?: (Omit<import('../shared/search-screening.ts').SearchScreeningPolicy, 'version'> & { enabled?: boolean | undefined }) | undefined
   limits: { maxVisionCalls: number; maxSearchPages: number; maxCandidates: number; maxDownloadBytes: number; maxCropCandidatesPerImage: number; maxConcurrentRequests: number; maxRetryAttempts: number; requestTimeoutMs: number; maxVisionOutputTokens: number; deadlineMs: number; pollIntervalMs: number; processPollIntervalMs?: number; analysisCacheTtlMs?: number; analysisTaskCacheMaxEntries?: number; analysisTaskCacheMaxBytes?: number; batchCacheTtlMs?: number; batchCacheMaxViews?: number; datasetCacheTtlMs?: number; datasetCacheMaxViews?: number; datasetCacheMaxBytes?: number; sessionGrantTtlMs?: number; pageSize: number; maxImportFiles: number; maxImportBytes: number; maxGalleryReferenceFiles: number }
 }
 

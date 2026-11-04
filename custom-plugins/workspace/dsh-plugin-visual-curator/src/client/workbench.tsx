@@ -122,16 +122,17 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const [requestTimeoutMs, setRequestTimeoutMs] = React.useState(config.limits.requestTimeoutMs)
     const [maxRetryAttempts, setMaxRetryAttempts] = React.useState(config.limits.maxRetryAttempts)
     const [deadlineMs, setDeadlineMs] = React.useState(config.limits.deadlineMs)
+    const [screening, setScreening] = React.useState(config.searchScreening)
     const [sourceKey, setSourceKey] = React.useState('')
     const [panel, setPanel] = React.useState<'vision' | 'source'>(initialPanel)
     const [connectionOpen, setConnectionOpen] = React.useState(false), [advancedOpen, setAdvancedOpen] = React.useState(false)
     const settingsId = React.useId()
     React.useEffect(() => { if (panel === 'vision' && catalog.status === 'idle') void actions.loadVisionModels() }, [panel, catalog.status, actions])
-    React.useEffect(() => { setSource(config.source) }, [config.revision])
+    React.useEffect(() => { setSource(config.source); setScreening(config.searchScreening) }, [config.revision])
     const save = async (kind: 'vision' | 'source' = 'vision') => {
       try {
         if (kind === 'vision' && (catalog.status !== 'ready' || !catalog.value || !selectedModel)) return
-        await actions.saveConfiguration({ revision: config.revision, vision: kind === 'vision' ? { ...managedVision(vision, selectedKey, catalog.value!) } : {}, source: kind === 'source' ? { ...source } : {}, limits: kind === 'vision' ? { requestTimeoutMs, maxRetryAttempts, deadlineMs } : {} }, async () => {
+        await actions.saveConfiguration({ revision: config.revision, vision: kind === 'vision' ? { ...managedVision(vision, selectedKey, catalog.value!) } : {}, source: kind === 'source' ? { ...source } : {}, limits: kind === 'vision' ? { requestTimeoutMs, maxRetryAttempts, deadlineMs } : {}, ...(kind === 'vision' && screening ? { searchScreening: { candidatePoolSize: screening.candidatePoolSize, batchSize: screening.batchSize, maxScreeningImageEdge: screening.maxScreeningImageEdge, ...(screening.enabled === undefined ? {} : { enabled: screening.enabled }) } } : {}) }, async () => {
           if (kind === 'source' && sourceKey) { await actions.saveCredential(source.credentialRef, sourceKey); setSourceKey('') }
         })
         const saved = actions.getSnapshot().snapshot?.configuration; if (saved) { setVision(saved.vision); setSource(saved.source) }; if (kind === 'source') setAdvancedOpen(false)
@@ -152,6 +153,13 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
           <label>{t('requestTimeout')}<Input required type="number" min={1} step={1} value={requestTimeoutMs / 1000} onChange={event => setRequestTimeoutMs(Number(event.target.value) * 1000)} /></label>
           <label>{t('maxRetryAttempts')}<Input required type="number" min={0} max={5} step={1} value={maxRetryAttempts} onChange={event => setMaxRetryAttempts(Number(event.target.value))} /></label>
           <label>{t('analysisDeadline')}<Input required type="number" min={1} step={1} value={deadlineMs / 60_000} onChange={event => setDeadlineMs(Number(event.target.value) * 60_000)} /></label>
+          {screening && <>
+            <Checkbox label={t('searchScreeningEnabled')} checked={screening.enabled !== false} onChange={enabled => setScreening({ ...screening, enabled })} />
+            <label>{t('searchScreeningPool')}<SelectField label={t('searchScreeningPool')} disabled={screening.enabled === false} value={String(screening.candidatePoolSize)} options={[{ value: '50', label: '50' }, { value: '100', label: '100' }]} onChange={value => { if (value === '50' || value === '100') setScreening({ ...screening, candidatePoolSize: value === '50' ? 50 : 100 }) }} /></label>
+            <label>{t('searchScreeningBatch')}<Input required type="number" min={1} max={16} step={1} disabled={screening.enabled === false} value={screening.batchSize} onChange={event => setScreening({ ...screening, batchSize: Number(event.target.value) })} /></label>
+            <label>{t('searchScreeningEdge')}<Input required type="number" min={128} max={1024} step={1} disabled={screening.enabled === false} value={screening.maxScreeningImageEdge} onChange={event => setScreening({ ...screening, maxScreeningImageEdge: Number(event.target.value) })} /></label>
+            <p>{t(screening.enabled === false ? 'searchScreeningDisabledHint' : 'searchScreeningHint')}</p>
+          </>}
           <label>{t('modelContextWindow')}<Input readOnly value={selectedModel?.contextWindow?.toLocaleString() ?? t('providerDefault')} /></label>
           <label>{t('modelOutputDefault')}<Input readOnly value={selectedModel?.maxOutputTokens?.toLocaleString() ?? t('providerDefault')} /></label>
           <p>{t('requestLimitsHint')}</p>

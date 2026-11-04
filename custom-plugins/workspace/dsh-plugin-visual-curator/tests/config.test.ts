@@ -1,6 +1,20 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { resolveConfig, reviewerRevision } from '../src/host/config.ts'
+import { resolveConfig, resolveCurrentConfig, reviewerRevision, searchScreeningPolicySchema } from '../src/host/config.ts'
+
+test('new searches resolve bounded pools without changing legacy reviewer or frozen configuration', () => {
+  const legacy = resolveConfig({})
+  assert.equal('searchScreening' in legacy, false)
+  assert.deepEqual(resolveConfig(JSON.parse(JSON.stringify(legacy))), legacy)
+  const current = resolveCurrentConfig(legacy)
+  assert.deepEqual(current.searchScreening, { candidatePoolSize: 50, batchSize: 6, maxScreeningImageEdge: 384 })
+  const alternate = resolveCurrentConfig({ ...current, searchScreening: { candidatePoolSize: 100, batchSize: 4, maxScreeningImageEdge: 512 } })
+  assert.equal(reviewerRevision(alternate), reviewerRevision(current))
+  assert.equal(resolveCurrentConfig({ searchScreening: { enabled: false } }).searchScreening?.enabled, false)
+  assert.deepEqual(searchScreeningPolicySchema.parse({ version: 1, ...alternate.searchScreening }), { version: 1, candidatePoolSize: 100, batchSize: 4, maxScreeningImageEdge: 512 })
+  for (const searchScreening of [{ candidatePoolSize: 30 }, { batchSize: 0 }, { batchSize: 17 }, { maxScreeningImageEdge: 127 }, { maxScreeningImageEdge: 1025 }]) assert.throws(() => resolveCurrentConfig({ searchScreening }))
+  assert.throws(() => searchScreeningPolicySchema.parse({ version: 1 }))
+})
 
 test('batch view cache limits have validated deployment defaults and support disabling', () => {
   assert.equal(resolveConfig({}).limits.batchCacheTtlMs, 60000)

@@ -19,13 +19,14 @@ import type { ProfileSelection } from '../shared/profile-selection.ts'
 import type { ModelProfile } from '../shared/model.ts'
 import { searchOutputSchema, searchLaunchInputSchema } from '../shared/search-launch.ts'
 import { createAnalysisTaskReads, type AnalysisTaskReads } from './analysis-task-reads.ts'
+import { searchScreeningSummary } from './search-screening-state.ts'
 
 /** @param config Current defaults. @param credentialStatus Presence only, never secret values. @returns Lightweight settings projection. */
 export function projectConfiguration(config: CuratorConfig, credentialStatus: { source: boolean; vision: boolean }): ConfigurationView {
   const { reasoningEffort, ...vision } = config.vision
   return { revision: configRevision(config), sourceConfigured: config.source.provider === 'unsplash' ? credentialStatus.source : !!config.source.endpoint && (!config.source.credentialRef || credentialStatus.source),
     visionConfigured: !!config.vision.model && config.vision.supportsMultipleImages && config.vision.supportsJson && (config.vision.backend === 'native' || config.vision.provider && config.vision.backend !== 'compatible' ? !!config.vision.provider : !!config.vision.endpoint && (!config.vision.credentialRef || credentialStatus.vision)),
-    sourceCredentialConfigured: credentialStatus.source, visionCredentialConfigured: credentialStatus.vision, source: config.source, vision: { ...vision, ...(reasoningEffort ? { reasoningEffort } : {}) }, limits: config.limits }
+    sourceCredentialConfigured: credentialStatus.source, visionCredentialConfigured: credentialStatus.vision, source: config.source, vision: { ...vision, ...(reasoningEffort ? { reasoningEffort } : {}) }, limits: config.limits, ...(config.searchScreening ? { searchScreening: config.searchScreening } : {}) }
 }
 
 /** @param domain Saved collections. @param engine Task owner. @param actor Authenticated reader. @param reads Optional service-owned bounded summary reuse. @returns Authorized task summaries without image projection or full Run clones. */
@@ -265,7 +266,8 @@ function projectRunNow(domain: CuratorDomain, run: RunRecord, actor: DomainActor
   const spec = specOf(run), data = dataOf(run)
   const assessments = index.assessments.get(run.id) ?? []
   const imageIds = new Set(assessments.map(assessment => assessment.imageVersionId))
-  const search = z.object({ importedImages: z.record(z.string(), z.string()), issues: z.array(searchIssueSchema).default([]) }).safeParse(data.checkpoint.previewSearch ?? data.checkpoint.search)
+  const search = z.object({ importedImages: z.record(z.string(), z.string()), issues: z.array(searchIssueSchema).default([]) }).safeParse(data.checkpoint.searchScreening ?? data.checkpoint.previewSearch ?? data.checkpoint.search)
+  const screening = searchScreeningSummary(run)
   if (search.success) for (const id of Object.values(search.data.importedImages)) imageIds.add(id)
   for (const crop of index.crops.get(run.id) ?? []) {
     imageIds.add(crop.parentImageVersionId)
@@ -299,7 +301,7 @@ function projectRunNow(domain: CuratorDomain, run: RunRecord, actor: DomainActor
   const launchId = searchLaunchInputSchema.shape.operationId.safeParse(spec.fixed.searchLaunchId)
   return { runId: run.id, revision: run.revision, ...(output.success ? { outputKind: output.data.kind } : {}), ...(launchId.success ? { launchId: launchId.data } : {}), owner: run.owner, kind: spec.kind, status: run.status, ...(standard ? { styleId: standard.styleId } : typeof spec.input.styleId === 'string' ? { styleId: spec.input.styleId } : {}), issues, ...(output.data?.kind !== 'preview' && typeof spec.fixed.searchLaunchId === 'string' ? { delivery: delivery ? { status: 'delivered' as const, directory: delivery.directory, files: delivery.files.length } : { status: 'pending' as const, files: 0 } } : {}), resultSummary: { selected: categories.filter(value => value === 'selected').length, needsReview: categories.filter(value => value === 'review').length, rejected: categories.filter(value => value === 'rejected').length, failedImages: categories.filter(value => value === 'failed').length, technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, processing: categories.filter(value => value === 'processing').length, pending: categories.filter(value => value === 'pending').length, sourceImages: categories.filter(value => value === 'source').length, unavailable: issues.filter(issue => issue.category === 'unavailable').length, candidates: orderedIds.length, target: typeof spec.input.targetCount === 'number' ? spec.input.targetCount : null }, ...(data.jobId ? { jobId: data.jobId } : {}), ...(run.stage ? { stage: run.stage } : {}),
     ...(run.outcome ? { outcome: run.outcome } : {}), ...(releaseId ? { releaseId } : {}), ...(usageRevisionId ? { usageRevisionId } : {}),
-    taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', counts: spec.kind === 'search' || spec.kind === 'crop' ? { ...data.counts, technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, unavailable: issues.filter(issue => issue.category === 'unavailable').length } : data.counts, warnings: data.warnings,
+    taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', counts: spec.kind === 'search' || spec.kind === 'crop' ? { ...data.counts, ...(screening ? { screeningReviewed: screening.screeningReviewed, screeningRejected: screening.screeningRejected, screeningFallback: screening.screeningFallback, deepReviewed: screening.deepReviewed } : {}), technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, unavailable: issues.filter(issue => issue.category === 'unavailable').length } : data.counts, warnings: data.warnings,
     results: visibleImages.map(image => {
       const view = imageView(domain, image, actor, index, undefined, run, familyStatuses), ranked = ranks.get(image.id)
       if (view.selection?.kind === 'selected' && ranked) view.selection = { ...view.selection, rank: ranked.rank, rankScore: ranked.score }

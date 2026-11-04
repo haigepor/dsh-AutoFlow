@@ -24,6 +24,8 @@ test('the optional Agent row exposes one preparation read and eight execution/re
   const parameters = JSON.parse(JSON.stringify(search.parameters))
   assert.deepEqual(parameters.required, ['releaseId', 'sourceId', 'taskBrief', 'budgets'])
   assert.ok(parameters.properties.budgets.required.includes('maxRetryAttempts'))
+  assert.match(parameters.properties.queries.description, /short English queries with the subject first/)
+  assert.match(parameters.properties.output.properties.kind.description, /never substitutes a preview for an unavailable original/)
 })
 
 test('Agent tools reject a missing Session before reaching the shared service', async () => {

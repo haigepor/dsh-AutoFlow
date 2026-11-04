@@ -9,6 +9,9 @@ import type { CommitInput } from '../src/domain/repository.ts'
 import { dataOf } from '../src/host/runtime.ts'
 import { AssetFiles } from '../src/media/index.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
+import { importedRecords } from '../src/host/imports.ts'
+import { Context } from '@deepseek-ai/cordis'
+import { SessionStore, type SessionId } from '@deepseek-ai/dsh-session'
 
 const identified = z.object({ id: z.string() })
 type Fixture = Awaited<ReturnType<typeof serviceFixture>>
@@ -41,7 +44,11 @@ test('repeating an accepted task operation ID returns its original Run without a
 
 test('Agent-created Run and provider assets retain Session ownership; another Session cannot read or cancel them', async () => {
   const fixture = await serviceFixture(); await fixture.service.initialize()
+  const sessionContext = new Context()
   try {
+    const sessions = new SessionStore(sessionContext)
+    sessions.create(brandString<SessionId>('session-a'), { meta: { cwd: fixture.root } })
+    fixture.host.sessions = sessions
     const fixed = await standard(fixture)
     const actor = { kind: 'agent' as const, id: 'agent', profileId: fixture.profileId, sessionId: 'session-a' }
     const args = { operationId: 'agent-search', releaseId: fixed.releaseId, usageRevisionId: fixed.usageRevisionId, taskBrief: 'Muted image.', sourceId: 'images', targetCount: 1 }
@@ -56,7 +63,7 @@ test('Agent-created Run and provider assets retain Session ownership; another Se
     const before = fixture.jobs.hooks.length
     await assert.rejects(fixture.service.action({ operation: 'search-start', args: { ...args, operationId: 'unowned' } }, { kind: 'agent', id: 'agent', profileId: fixture.profileId }, new AbortController().signal), { code: 'owner-denied' })
     assert.equal(fixture.jobs.hooks.length, before)
-  } finally { await fixture.cleanup() }
+  } finally { await fixture.cleanup(); await sessionContext.fiber.dispose() }
 })
 
 test('human reads cannot authorize Session resources with only a Run/image ID, query Session ID or fabricated channel token', async () => {
@@ -64,6 +71,10 @@ test('human reads cannot authorize Session resources with only a Run/image ID, q
   try {
     const fixed = await standard(fixture)
     const actor = { kind: 'agent' as const, id: 'agent', profileId: fixture.profileId, sessionId: 'session-a' }
+    // Private resource authorization is independent of how early a missing Session stops a search.
+    const imported = await fixture.files.importBytes(fixture.http.image, 'image/png')
+    const privateImage = importedRecords(fixture.profileId, actor, imported, { kind: 'provider', providerId: 'images', accountIdentity: 'fixture', providerAssetId: 'private-image', description: 'Private fixture image', obtainedAt: new Date().toISOString() })
+    await fixture.repository.commit({ aggregateId: 'fixture:private-image', expectedRevision: 0, operationId: 'private-image', request: {}, records: privateImage.records, state: { imageVersionId: privateImage.image.id } })
     const args = { operationId: 'private-resource', releaseId: fixed.releaseId, usageRevisionId: fixed.usageRevisionId, taskBrief: 'Muted image.', sourceId: 'images', targetCount: 1 }
     const started = z.object({ runId: z.string() }).parse(await fixture.service.action({ operation: 'search-start', args }, actor, new AbortController().signal))
     await fixture.jobs.drain()

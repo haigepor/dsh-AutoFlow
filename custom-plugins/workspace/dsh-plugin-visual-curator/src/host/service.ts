@@ -32,7 +32,7 @@ import { readAnalysisInput } from './analysis-input.ts'
 import { readAnalysisDetail } from './analysis-detail.ts'
 import { assetSchema, imageVersionSchema, jsonSchema, recipeSchema, draftSchema, feedbackContextSchema, subjectSchema, styleStandardSchema, type DomainActor, type Json, type Rule, type EvaluationRecipe, type CuratorRecord, type ProfileExport, type ExportSnapshot, type StyleStandard, type RunRecord } from '../shared/model.ts'
 import { agentOperations, type ClientActionInput } from '../client/contract.ts'
-import { resolveConfig, resolveCurrentConfig, configRevision, reviewerRevision, type CuratorConfig } from './config.ts'
+import { resolveConfig, resolveCurrentConfig, configRevision, reviewerRevision, searchScreeningPolicySchema, type CuratorConfig } from './config.ts'
 import { RunEngine, executionSchema, dataOf, specOf, toJson, safeFailure, type ExecutionSpec, type Worker } from './runtime.ts'
 import { ProviderFactory, sourceIdentity } from './providers.ts'
 import { GalleryService } from './gallery.ts'
@@ -740,7 +740,7 @@ export class CuratorService {
     const usage = task.fixed.usage ? z.object({ presetId: z.string() }).parse(task.fixed.usage) : undefined
     const currentUsage = usage && !task.fixed.searchLaunchId ? this.domain.repository.manifest(`usage:${usage.presetId}`)?.state ?? null : null
     // Search history is sampled at Run admission; new results do not change the checked task or rules.
-    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage ?? null, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, currentProfileId: task.fixed.searchLaunchId ? null : new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
+    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage ?? null, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, ...(task.fixed.searchScreening ? { searchScreening: task.fixed.searchScreening } : {}), currentProfileId: task.fixed.searchLaunchId ? null : new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
   }
   private usagePage(args: Record<string, Json>): { items: import('../shared/model.ts').UsageRevision[]; pageToken?: string } {
     const input = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
@@ -764,7 +764,7 @@ export class CuratorService {
       const task = await this.resolveTask(`${kind}-start`, { ...args, operationId: 'prepare', sourceId: args.sourceId ?? sourceId }, actor)
       const normalizedInput: Record<string, Json> = { ...task.normalized, protectedContent: args.protectedContent ?? [], releaseId: args.releaseId!, ...(args.usageRevisionId ? { usageRevisionId: args.usageRevisionId } : {}), budgets: { targetCount: kind === 'search' ? task.normalized.targetCount ?? 1 : 1, ...Object.fromEntries(['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs'].map(key => [key, Reflect.get(task.config.limits, key)])) }, ...(kind === 'search' ? { sourceId } : {}) }
       if (kind === 'crop' && Array.isArray(normalizedInput.imageVersionIds) && normalizedInput.imageVersionIds.length === 1) { normalizedInput.imageVersionId = normalizedInput.imageVersionIds[0]!; delete normalizedInput.imageVersionIds }
-      return toJson({ status: 'ready', options, normalizedInput, preparationDigest: this.taskDigest(task, actor), warnings: [], summary: { executionInstructions: task.fixed.executionInstructions ?? null, executionRecipe: task.fixed.executionRecipe ?? null, release: task.fixed.release, usage: task.fixed.usage ?? null, budgets: task.config.limits } })
+      return toJson({ status: 'ready', options, normalizedInput, preparationDigest: this.taskDigest(task, actor), warnings: [], summary: { executionInstructions: task.fixed.executionInstructions ?? null, executionRecipe: task.fixed.executionRecipe ?? null, ...(task.fixed.searchScreening ? { searchScreening: task.fixed.searchScreening } : {}), release: task.fixed.release, usage: task.fixed.usage ?? null, budgets: task.config.limits } })
     } catch (error) {
       // 私有资源错误保留拒绝语义，准备结果不能代替所有者检查。
       if (error instanceof CuratorError && error.code === 'owner-denied') throw error
@@ -830,6 +830,10 @@ export class CuratorService {
       const hints = config.source.provider === 'unsplash' && release.kind === 'modelProfile' && !release.options.some(option => option.selectionSource === 'user') ? styleAnalysisOf(this.domain.require('run', release.analysisRunId))?.summary.searchHints : undefined
       const queries = z.array(z.string().trim().min(1).max(4096)).min(1).parse(input.queries ?? (hints?.length ? hints : [input.taskBrief]))
       Object.assign(normalized, { queries, targetCount })
+      if (config.searchScreening && config.searchScreening.enabled !== false) {
+        const { enabled: _enabled, ...screening } = config.searchScreening
+        fixed.searchScreening = toJson(searchScreeningPolicySchema.parse({ version: 1, ...screening }))
+      }
       fixed.searchExclusions = await this.searchHistoryPolicy(executionStandard(release, fixed.executionRecipe), actor, input.taskBrief, allowCollectionHistory, config.limits.requestTimeoutMs)
     } else {
       const ids = input.imageVersionIds ?? (input.imageVersionId ? [input.imageVersionId] : [])
@@ -943,9 +947,9 @@ export class CuratorService {
     return toJson({ exportId: snapshot.id, kind: snapshot.exportKind, status: 'ready', downloadPath: `/api/visual-curator/resource?exportId=${encodeURIComponent(id)}${actor.sessionId ? `&sessionId=${encodeURIComponent(actor.sessionId)}` : ''}`, checksum: contentDigest(snapshot.files), preview: snapshot.files.map(file => `${file.name}\n${file.content}`).join('\n\n'), exclusions: Object.entries(snapshot.exclusions).map(([reason, count]) => ({ reason, count })) })
   }
   private async saveConfig(args: Record<string, Json>): Promise<Json> {
-    const input = z.object({ revision: z.string(), source: z.record(z.string(), jsonSchema), vision: z.record(z.string(), jsonSchema), limits: z.record(z.string(), jsonSchema) }).parse(args)
+    const input = z.object({ revision: z.string(), source: z.record(z.string(), jsonSchema), vision: z.record(z.string(), jsonSchema), limits: z.record(z.string(), jsonSchema), searchScreening: z.record(z.string(), jsonSchema).optional() }).parse(args)
     if (input.revision !== configRevision(this.config)) throw new CuratorError('revision-conflict', 'configuration', 'Configuration changed; refresh before saving.')
-    const next = resolveCurrentConfig({ source: { ...this.config.source, ...input.source }, vision: { ...this.config.vision, reasoningEffort: this.config.vision.reasoningEffort ?? null, ...input.vision }, limits: { ...this.config.limits, ...input.limits } })
+    const next = resolveCurrentConfig({ source: { ...this.config.source, ...input.source }, vision: { ...this.config.vision, reasoningEffort: this.config.vision.reasoningEffort ?? null, ...input.vision }, limits: { ...this.config.limits, ...input.limits }, searchScreening: { ...this.config.searchScreening, ...input.searchScreening } })
     if (next.vision.backend === 'native' && (next.vision.backend !== this.config.vision.backend || next.vision.provider !== this.config.vision.provider || next.vision.model !== this.config.vision.model)) {
       await requireVisionModel(this.ctx.llm, next.vision.provider, next.vision.model, this.lifetime.signal)
     }
@@ -963,6 +967,7 @@ export class CuratorService {
       return { ...raw,
         ...(configRevision(previous.source) !== configRevision(next.source) ? { source: next.source } : {}),
         ...(configRevision(previous.limits) !== configRevision(next.limits) ? { limits: next.limits } : {}),
+        ...(configRevision(previous.searchScreening) !== configRevision(next.searchScreening) ? { searchScreening: next.searchScreening } : {}),
         ...(configRevision(previous.vision) !== configRevision(next.vision) ? { vision: { ...next.vision, reasoningEffort: next.vision.reasoningEffort ?? null } } : {}),
       }
     })

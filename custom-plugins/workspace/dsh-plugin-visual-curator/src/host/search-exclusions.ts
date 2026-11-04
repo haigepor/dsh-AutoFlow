@@ -1,13 +1,14 @@
-/** Exact reference and task-scoped search-history identities are fixed before a new search is accepted. */
+/** Exact reference and collection-scoped search-history identities are fixed before a new search is accepted. */
 import { z } from 'zod'
 import { contentDigest } from '../domain/repository.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
-import { recipeSchema, styleStandardSchema, type Assessment, type Asset, type DomainActor, type ImageVersion, type RunRecord, type StyleStandard } from '../shared/model.ts'
+import type { Assessment, Asset, DomainActor, ImageVersion, RunRecord, StyleStandard } from '../shared/model.ts'
 import { effectiveReviewReferenceRole } from './review-references.ts'
-import { executionStandard } from './style-execution.ts'
-import { toJson } from './runtime.ts'
+import { searchScreeningSummary } from './search-screening-state.ts'
+import { settingsSchema } from './config.ts'
+import { sourceIdentity } from './providers.ts'
 
-/** Exact sources can be current references, returned images, or task-scoped confirmed mismatches. */
+/** Exact sources can be current references, returned images, or previously rejected photos; no prior verdict is applied to a new image. */
 export const searchExclusionReasonSchema = z.enum(['negative-reference', 'reference', 'previous-selection', 'previous-rejection'])
 /** Exclusive reason retained with each skipped candidate. */
 export type SearchExclusionReason = z.infer<typeof searchExclusionReasonSchema>
@@ -23,19 +24,19 @@ export function searchSourceKey(source: SourceIdentity): string {
 }
 
 function confirmedRejection(assessment: Assessment): boolean {
-  return assessment.stage === 'final' && assessment.technicalStatus === 'completed' && assessment.verdict === 'reject'
+  return assessment.technicalStatus === 'completed' && assessment.verdict === 'reject'
 }
 
-/** @param domain Profile records. @param styleId Exact collection. @returns Search Runs with saved selections or confirmed final mismatches in that collection. */
+/** @param domain Profile records. @param styleId Exact collection. @returns Search Runs with saved selections, completed rejections, or conservative coarse exclusions in that collection. */
 export function searchHistoryRuns(domain: CuratorDomain, styleId: string): RunRecord[] {
   const selected = new Set(domain.repository.list('selection').filter(row => row.qualification === 'auto-qualified').map(row => row.runId))
   for (const assessment of domain.repository.list('assessment')) if (confirmedRejection(assessment)) selected.add(assessment.runId)
   const scope = z.object({ kind: z.literal('search'), fixed: z.object({ release: z.object({ styleId: z.literal(styleId) }) }) })
-  return domain.repository.list('run').filter(run => selected.has(run.id) && scope.safeParse(run.spec).success)
+  return domain.repository.list('run').filter(run => scope.safeParse(run.spec).success && (selected.has(run.id) || searchScreeningSummary(run)?.screenedSources.some(item => item.decision === 'obvious-reject')))
 }
 
-/** @param domain Authorized records. @param standard Effective frozen references, rules and review recipe. @param actor Reference reader. @param history Verified original readers for prior search Runs. @param taskBrief Current task; only identical tasks reuse confirmed mismatches. @returns Detached exact identities; no private paths, pixels or historical task text enter the policy. */
-export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleStandard, actor: DomainActor, history: readonly { run: RunRecord; actor: DomainActor }[], taskBrief: string): SearchExclusions {
+/** @param domain Authorized records. @param standard Effective frozen references and rules. @param actor Reference reader. @param history Verified original readers for prior search Runs. @param _taskBrief Caller task text; exact-photo novelty is independent of wording and reviewer. @returns Detached exact identities; no private paths, pixels or historical task text enter the policy. */
+export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleStandard, actor: DomainActor, history: readonly { run: RunRecord; actor: DomainActor }[], _taskBrief: string): SearchExclusions {
   const sources = new Map<string, SearchExclusionReason>(), digests = new Map<string, SearchExclusionReason>()
   const rank = { 'negative-reference': 0, reference: 1, 'previous-selection': 2, 'previous-rejection': 3 }
   const put = (target: Map<string, SearchExclusionReason>, key: string, reason: SearchExclusionReason) => { const prior = target.get(key); if (prior === undefined || rank[reason] < rank[prior]) target.set(key, reason) }
@@ -51,26 +52,26 @@ export function freezeSearchExclusions(domain: CuratorDomain, standard: StyleSta
     const { image, asset } = domain.authorizedImage(reference.reference.imageVersionId, actor)
     add(image, asset, effectiveReviewReferenceRole(standard, reference) === 'negative' ? 'negative-reference' : 'reference')
   }
-  const readers = new Map<string, DomainActor>(history.map(item => [item.run.id, item.actor]))
+  const scope = z.object({ kind: z.literal('search'), fixed: z.object({ release: z.object({ styleId: z.literal(standard.styleId) }) }) })
+  const scopedHistory = history.filter(item => scope.safeParse(item.run.spec).success)
+  const readers = new Map<string, DomainActor>(scopedHistory.map(item => [item.run.id, item.actor]))
   for (const selection of domain.repository.list('selection')) {
     const reader = readers.get(selection.runId)
     if (!reader || selection.qualification !== 'auto-qualified') continue
     const { image, asset } = domain.authorizedImage(selection.imageVersionId, reader)
     add(image, asset, 'previous-selection')
   }
-  const scope = z.object({ input: z.object({ taskBrief: z.string() }), fixed: z.object({ release: styleStandardSchema, executionRecipe: recipeSchema.optional() }) })
-  const matchingRuns = new Set<string>(), recipeDigest = contentDigest(standard.recipe)
-  for (const { run } of history) {
-    const saved = scope.safeParse(run.spec)
-    if (!saved.success || saved.data.input.taskBrief.trim() !== taskBrief.trim()) continue
-    const prior = executionStandard(saved.data.fixed.release, saved.data.fixed.executionRecipe === undefined ? undefined : toJson(saved.data.fixed.executionRecipe))
-    if (prior.contentDigest === standard.contentDigest && contentDigest(prior.recipe) === recipeDigest) matchingRuns.add(run.id)
-  }
   for (const assessment of domain.repository.list('assessment')) {
-    if (!matchingRuns.has(assessment.runId) || !confirmedRejection(assessment) || assessment.standard?.contentDigest !== standard.contentDigest) continue
-    const reader = readers.get(assessment.runId)!
+    const reader = readers.get(assessment.runId)
+    if (!reader || !confirmedRejection(assessment)) continue
     const { image, asset } = domain.authorizedImage(assessment.imageVersionId, reader)
     add(image, asset, 'previous-rejection')
+  }
+  for (const { run } of scopedHistory) {
+    const rejected = searchScreeningSummary(run)?.screenedSources.filter(item => item.decision === 'obvious-reject') ?? []
+    if (!rejected.length) continue
+    const owner = sourceIdentity(z.object({ config: settingsSchema }).parse(run.spec).config)
+    for (const item of rejected) put(sources, searchSourceKey({ ...owner, providerAssetId: item.providerAssetId }), 'previous-rejection')
   }
   const entries = (items: Map<string, SearchExclusionReason>) => Object.fromEntries([...items].sort(([left], [right]) => left.localeCompare(right, 'en')))
   return searchExclusionsSchema.parse({ version: 1, sources: entries(sources), digests: entries(digests) })

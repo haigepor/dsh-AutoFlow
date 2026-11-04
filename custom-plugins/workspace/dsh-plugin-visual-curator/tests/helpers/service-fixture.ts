@@ -11,7 +11,7 @@ import { CuratorDomain } from '../../src/domain/curator.ts'
 import { DomainRepository, MemoryDomainAdapter } from '../../src/domain/repository.ts'
 import { CuratorService, type CuratorHost, type CuratorServiceDependencies } from '../../src/host/service.ts'
 import { resolveConfig, type Limits, type CuratorConfig } from '../../src/host/config.ts'
-import { CompatibleVisionProvider, SourceHttpProvider, type HttpClient, type HttpRequest, type HttpResponse } from '../../src/media/index.ts'
+import { CompatibleVisionProvider, SourceHttpProvider, type AssetFiles, type HttpClient, type HttpRequest, type HttpResponse } from '../../src/media/index.ts'
 import type { DomainActor, Json } from '../../src/shared/model.ts'
 
 export class FixtureJobs implements Pick<JobRegistry, 'start'> {
@@ -44,6 +44,7 @@ export class FixtureHttp implements HttpClient {
     const dimensions = ['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth']
     let result: Json
     if (prompt.operation === 'analyze') result = { observations: prompt.images.map(image => ({ imageVersionId: image.imageVersionId, dimensions: [{ dimension: 'color', observation: 'A muted green palette is visible.', uncertain: false }] })), ...(prompt.analysisOutput === 'observations-only' ? {} : { suggestedRules: [{ statement: 'Use muted green colors.', dimension: 'color', strength: 'preferred', stage: 'source', supportImageVersionIds: prompt.images.map(image => image.imageVersionId), counterImageVersionIds: [], condition: '', exceptions: [] }] }) }
+    else if (prompt.operation === 'screen') result = { items: prompt.images.map(image => ({ imageVersionId: image.imageVersionId, decision: 'deep-review', reason: 'The thumbnail needs a full rule review.' })) }
     else if (prompt.operation === 'summarize') {
       this.summaryInputs.push(prompt.taskBrief)
       const samples = z.object({ samples: z.array(z.object({ imageVersionId: z.string() })) }).parse(JSON.parse(prompt.taskBrief)).samples
@@ -70,9 +71,10 @@ export async function serviceFixture(directory?: string, limits: Partial<Limits>
   const source = new SourceHttpProvider({ endpoint: config.source.endpoint, method: 'GET', request: { query: 'q', cursor: 'cursor', pageSize: 'limit' }, response: { items: '/items', id: '/id', previewUrl: '/previewUrl', originalUrl: '/originalUrl', nextCursor: '/nextCursor' }, maxPageSize: 20 }, http)
   const host: CuratorHost = { profileContext: { dir: root }, jobs, sessions: { get: () => undefined }, credentials: { resolve: async () => undefined, set: async () => { throw new Error('Fixture credential writes require an explicit observer') } }, storageDomain: { open: async () => { throw new Error('Fixture uses an explicit memory domain') } }, configEditor: { entries: () => [], edit: async () => { throw new Error('Profile editing is unavailable in this isolated fixture') } } }
   let domain!: CuratorDomain
+  let mediaFiles!: AssetFiles
   const providers = { source: async () => source, vision: async (config: CuratorConfig) => provider(config), media: () => http }
-  const service = new CuratorService(host, config, { ...selection, openDomain: async files => { domain = new CuratorDomain(profileId, repository, { verifyImage: async image => { await files.verifyReference(image.blob) } }); return domain }, providers })
+  const service = new CuratorService(host, config, { ...selection, openDomain: async files => { mediaFiles = files; domain = new CuratorDomain(profileId, repository, { verifyImage: async image => { await files.verifyReference(image.blob) } }); return domain }, providers })
   const actor: DomainActor = { kind: 'human', id: 'fixture-owner', profileId }
   const action = async (operation: string, args: Record<string, Json> = {}) => service.action({ operation, args }, actor, new AbortController().signal)
-  return { root, profileId, service, jobs, http, providers, adapter, referenceImage, repository, actor, action, host, get domain() { return domain }, cleanup: async () => { await service.dispose(); if (!directory) await rm(root, { recursive: true, force: true }) } }
+  return { root, profileId, service, jobs, http, providers, adapter, referenceImage, repository, actor, action, host, get domain() { return domain }, get files() { return mediaFiles }, cleanup: async () => { await service.dispose(); if (!directory) await rm(root, { recursive: true, force: true }) } }
 }

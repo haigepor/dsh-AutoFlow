@@ -11,6 +11,7 @@ import { dimensionSchema } from '../shared/model.ts'
 import { parseModelJson } from '../shared/model-json.ts'
 import type { Json } from '../shared/model.ts'
 import { encodeSummaryImages, restoreSummaryImages, summaryImageInstructions } from './summary-image-aliases.ts'
+import type { BlobRef } from './assets.ts'
 
 const text = z.string().trim().min(1).max(4096)
 const id = z.string().min(1).max(1024)
@@ -21,6 +22,18 @@ const reviewSchema = z.strictObject({ ruleResults: z.array(ruleResultSchema), cr
 const focusedReviewSchema = reviewSchema.extend({ subjectFocus: z.array(subjectFocusSchema) })
 /** Stored reviews retain legacy or v3 fields; decodeVisionReview also checks the exact request and candidate evidence. */
 export const visionReviewSchema = z.union([focusedReviewSchema, reviewSchema])
+/** Screening can discard an obvious mismatch; every other result still requires full review. */
+export const visionScreeningSchema = z.strictObject({ items: z.array(z.strictObject({ imageVersionId: id, decision: z.enum(['obvious-reject', 'deep-review', 'uncertain']), reason: text })) })
+/** A screening response never expresses qualification or a final rule verdict. */
+export type VisionScreening = z.infer<typeof visionScreeningSchema>
+/** @param raw Live or committed screening response. @param imageIds Exact candidate identities. @returns Complete, unique candidate decisions in request order. */
+export function decodeVisionScreening(raw: unknown, imageIds: readonly string[]): VisionScreening {
+  const parsed = visionScreeningSchema.safeParse(raw)
+  if (!parsed.success) throw invalidOutput(raw, parsed.error.issues.map(issue => `${issue.code}:${issue.path.join('.')}`), true)
+  const rows = new Map(parsed.data.items.map(item => [item.imageVersionId, item]))
+  if (rows.size !== imageIds.length || parsed.data.items.length !== imageIds.length || imageIds.some(imageId => !rows.has(imageId))) throw invalidOutput(raw, ['incomplete-or-duplicate-screening-candidates'], true)
+  return { items: imageIds.map(imageId => rows.get(imageId)!) }
+}
 const analysisSchema = z.strictObject({ observations: z.array(z.strictObject({ imageVersionId: id, dimensions: z.array(z.strictObject({ dimension: dimensionSchema, observation: text, uncertain: z.boolean(), region: rectSchema.optional() })).min(1).refine(rows => new Set(rows.map(row => row.dimension)).size === rows.length) })), suggestedRules: z.array(z.strictObject({ statement: text, dimension: dimensionSchema, strength: z.enum(['required', 'preferred', 'reference-only']), stage: z.enum(['source', 'final']), supportImageVersionIds: z.array(id), counterImageVersionIds: z.array(id), condition: z.string().max(4096), exceptions: z.array(text) })) })
 /** Replays validate committed analysis output with the remote response parser. */
 export const visionAnalysisSchema = analysisSchema
@@ -67,7 +80,7 @@ export type VisionCropProposal = z.infer<typeof cropSchema>
 /** Fixed compatible API and deployment-varying request limits. */
 export interface VisionConfig { endpoint: string; model: string; supportsMultiImage: boolean; maxImages: number; maxImageBytes: number; maxRequestBytes: number; maxOutputTokens: number; temperature: number; declaredModelVersion?: string; reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'max'; supportsStreaming?: boolean }
 /** Verified pixels or explicit provider URLs, in the same stable order as their saved request. */
-export type VisionImage = { imageVersionId: string; digest: string; mime: string; role: string } & ({ bytes: Uint8Array; remoteSource?: never } | { remoteSource: RemoteImageSource; bytes?: never })
+export type VisionImage = { imageVersionId: string; digest: string; mime: string; role: string; storedImage?: Pick<BlobRef, 'storageRef' | 'byteLength'> } & ({ bytes: Uint8Array; remoteSource?: never } | { remoteSource: RemoteImageSource; bytes?: never })
 /** Fields read by the visual reviewer; all other rule data remains part of the textual snapshot. */
 export interface VisionRule { ruleId: string; statement: string; dimension: string; strength: 'required' | 'preferred' | 'reference-only'; stage: 'source' | 'final' }
 /** Snapshot input; absent promptVersion uses legacy prompts, while rules-v3 requires candidate-grounded focal evidence. Optional usage/protectedContent are omitted when unused. */
@@ -78,17 +91,17 @@ export interface VisionInput { promptVersion?: 'visual-curator-rules-v2' | 'visu
 /** Exact textual messages and saved image identities, sufficient to rebuild the transmitted body. */
 export interface VisionRequestDescriptor {
   requestId: string
-  operation: 'analyze' | 'review' | 'propose-crop' | 'summarize'
+  operation: 'analyze' | 'review' | 'propose-crop' | 'summarize' | 'screen'
   model: string
   declaredModelVersion: string | null
   replayLimitation: string | null
-  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2'
+  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2' | 'visual-curator-screening-v1'
   schemaVersion: 1
   instructions: string
   inputText: string
   /** Canonical preview identities mapped to short model labels; the inverse dictionary is in inputText. */
   imageAliases?: Readonly<Record<string, string>>
-  images: { imageVersionId: string; digest: string; mime: string; role: string; remoteUrl?: string }[]
+  images: { imageVersionId: string; digest: string; mime: string; role: string; remoteUrl?: string; storedImage?: Pick<BlobRef, 'storageRef' | 'byteLength'> }[]
   maxOutputTokens: number
   temperature: number
   reasoningEffort?: VisionConfig['reasoningEffort']
@@ -104,6 +117,8 @@ function invalidOutput(modelOutput?: unknown, issues?: string[], retryable = fal
     retryable ? 'Retry the review within the saved task budget.' : 'Review the service capability and schema configuration before starting a new attempt.',
     issues === undefined ? undefined : { modelOutput, issues })
 }
+
+const screeningInstructions = 'Screen every supplied candidate independently using the frozen rules and task. Each supplied image is a separate candidate, not a reference for another candidate. Return exactly one item per imageVersionId. Return obvious-reject only for an immediately visible mismatch that rules out the candidate for every enabled alternative style group, or a clearly violated shared required rule. A rule in another alternative group is not a global requirement. Fine texture, small objects, subtle exclusions and uncertain focal evidence cannot be established at thumbnail resolution: use uncertain. Use deep-review for a plausible match. Never issue a pass, qualification, preference score or final aesthetic verdict. Do not reject merely because a preferred feature is absent or a low-resolution detail cannot be read. Full-size review makes all final decisions.'
 
 /** @param raw Live or committed model output. @param input Exact versioned request and candidate identities. @returns Validated per-rule evidence; v3 cannot accept a legacy response without subject coverage. */
 export function decodeVisionReview(raw: unknown, input: VisionInput): VisionReview {
@@ -166,15 +181,16 @@ export abstract class StructuredVisionProvider {
     if (new Set(input.rules.map(rule => rule.ruleId)).size !== input.rules.length) throw invalidInput('The vision bundle repeats a rule identifier.')
     if (operation === 'review' && input.stage === undefined) throw invalidInput('A review must declare source or final stage.')
     if (operation === 'propose-crop' && (!Number.isSafeInteger(input.maxCropCandidates) || input.maxCropCandidates === undefined || input.maxCropCandidates <= 0)) throw invalidInput('Crop proposals require an explicit positive candidate limit.')
-    const images = input.images.map(({ imageVersionId, digest, mime, role, remoteSource }) => ({ imageVersionId, digest, mime, role, ...(remoteSource ? { remoteUrl: remoteSource.url } : {}) }))
+    const images = input.images.map(({ imageVersionId, digest, mime, role, remoteSource, storedImage }) => ({ imageVersionId, digest, mime, role, ...(remoteSource ? { remoteUrl: remoteSource.url } : {}), ...(storedImage ? { storedImage } : {}) }))
+    const modelImages = images.map(({ storedImage: _storedImage, ...image }) => image)
     const summary = operation === 'summarize' ? encodeSummaryImages(input.taskBrief, images.map(image => image.imageVersionId), input.summaryEvidenceIds) : undefined
-    const payload = { operation, taskBrief: summary?.taskBrief ?? input.taskBrief, stage: input.stage, rules: input.rules, usage: input.usage, protectedContent: input.protectedContent, maxCropCandidates: input.maxCropCandidates, ...(input.analysisOutput ? { analysisOutput: input.analysisOutput } : {}), images: summary ? images.map(image => ({ ...image, imageVersionId: summary.imageAliases[image.imageVersionId] ?? image.imageVersionId })) : images, requestId: input.requestId }
+    const payload = { operation, taskBrief: summary?.taskBrief ?? input.taskBrief, stage: input.stage, rules: input.rules, usage: input.usage, protectedContent: input.protectedContent, maxCropCandidates: input.maxCropCandidates, ...(input.analysisOutput ? { analysisOutput: input.analysisOutput } : {}), images: summary ? modelImages.map(image => ({ ...image, imageVersionId: summary.imageAliases[image.imageVersionId] ?? image.imageVersionId })) : modelImages, requestId: input.requestId }
     const focusedReview = operation === 'review' && input.promptVersion === 'visual-curator-rules-v3'
-    const schema = operation === 'review' ? focusedReview ? focusedReviewSchema : reviewSchema : operation === 'analyze' ? input.analysisOutput === 'observations-only' ? analysisSchema.pick({ observations: true }) : analysisSchema : operation === 'summarize' ? styleSummarySchema : cropSchema
+    const schema = operation === 'screen' ? visionScreeningSchema : operation === 'review' ? focusedReview ? focusedReviewSchema : reviewSchema : operation === 'analyze' ? input.analysisOutput === 'observations-only' ? analysisSchema.pick({ observations: true }) : analysisSchema : operation === 'summarize' ? styleSummarySchema : cropSchema
     return {
       requestId: input.requestId, operation, model: this.config.model, declaredModelVersion: this.config.declaredModelVersion ?? null,
       replayLimitation: [this.config.declaredModelVersion === undefined ? 'The provider has not declared a fixed model version; deterministic model replay is unavailable.' : '', input.images.some(image => image.remoteSource) ? 'Remote URLs identify provider references, not verified pixel bytes; their content and vendor-side download cost cannot be pinned or measured by this Host.' : ''].filter(Boolean).join(' ') || null,
-      promptVersion: summary ? 'visual-curator-summary-v3' : input.promptVersion ?? 'visual-curator-v1', schemaVersion: 1, instructions: focusedReview ? `${instructions} ${subjectInstructions}` : summary ? `${instructions} ${summaryImageInstructions}` : instructions,
+      promptVersion: operation === 'screen' ? 'visual-curator-screening-v1' : summary ? 'visual-curator-summary-v3' : input.promptVersion ?? 'visual-curator-v1', schemaVersion: 1, instructions: operation === 'screen' ? `${instructions} ${screeningInstructions}` : focusedReview ? `${instructions} ${subjectInstructions}` : summary ? `${instructions} ${summaryImageInstructions}` : instructions,
       inputText: JSON.stringify({ outputSchema: z.toJSONSchema(schema, { unrepresentable: 'any' }), input: payload }), images,
       ...(summary ? { imageAliases: summary.imageAliases } : {}),
       maxOutputTokens: this.config.maxOutputTokens, temperature: this.config.temperature,
@@ -211,6 +227,15 @@ export abstract class StructuredVisionProvider {
    */
   async review(input: VisionInput, bounds: RequestBounds): Promise<VisionReview> {
     return decodeVisionReview(await this.invoke(input, 'review', bounds), input)
+  }
+
+  /** Screen independent thumbnails without qualifying an image.
+   * @param input Frozen rules and a bounded set of actual candidate pixels.
+   * @param bounds Shared attempt limits, metadata recorder and cancellation.
+   * @returns One conservative decision for every admitted candidate.
+   */
+  async screen(input: VisionInput, bounds: VisionBounds): Promise<VisionScreening> {
+    return decodeVisionScreening(await this.invoke(input, 'screen', bounds), input.images.map(image => image.imageVersionId))
   }
 
   /** Propose bounded normalized regions; caller resolves exact pixels and reviews actual outputs.

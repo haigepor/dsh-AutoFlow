@@ -14,6 +14,7 @@ import { reviewImage, runActor } from './review.ts'
 import type { SearchDependencies } from './search-workflow.ts'
 import { chooseSearchQuery } from './search-query-plan.ts'
 import { searchExclusionsSchema, searchExclusionReasonSchema, sourceExclusion, exclusionCounts } from './search-exclusions.ts'
+import { createScreenedSearchWorker } from './search-screening.ts'
 
 const stateSchema = z.strictObject({
   nextQuery: z.number().int().nonnegative(),
@@ -25,6 +26,7 @@ const stateSchema = z.strictObject({
 /** @param deps Existing source, vision, storage and owner services. @returns Resumable URL-only search whose query turns follow committed review quality. */
 export function createPreviewSearchWorker(deps: SearchDependencies): Worker {
   return async ctx => {
+    if (ctx.spec.fixed.searchScreening !== undefined) return createScreenedSearchWorker(deps)(ctx)
     if (ctx.spec.config.source.provider !== 'unsplash') throw new CuratorError('capability-unavailable', 'preview-search', 'Preview link searches currently require the Unsplash source.')
     const input = z.object({ queries: z.array(z.string().min(1)).min(1), targetCount: z.number().int().positive() }).parse(ctx.spec.input)
     const standard = executionStandard(styleStandardSchema.parse(ctx.spec.fixed.release), ctx.spec.fixed.executionRecipe)

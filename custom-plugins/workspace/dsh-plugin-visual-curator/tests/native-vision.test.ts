@@ -193,6 +193,9 @@ it('streams through the native LLM with admitted pixels and records disjoint usa
     assert.ok(saved && typeof saved === 'object' && !Array.isArray(saved))
     assert.deepEqual(saved.usage, { inputTokens: 40, outputTokens: 25, cacheReadTokens: 160, reasoningTokens: 10, totalTokens: 225 })
     assert.equal(saved.transport, 'native-llm')
+    const timing = z.object({ timing: z.object({ elapsedMs: z.number().nonnegative(), preparationQueueMs: z.number().nonnegative(), prepareImagesMs: z.number().nonnegative(), modelElapsedMs: z.number().nonnegative() }) }).parse(saved).timing
+    assert.ok(timing.elapsedMs >= timing.prepareImagesMs)
+    assert.equal(z.object({ timing: z.object({ modelElapsedMs: z.number().optional() }) }).parse(f.metadata[0]).timing.modelElapsedMs, undefined, 'The request is recorded before its model clock starts')
     assert.ok(!JSON.stringify(saved).includes('base64'))
     const expected = JSON.parse(await readFile(new URL('./fixtures/native-llm-call.expected.json', import.meta.url), 'utf8'))
     assert.deepEqual({ transport: saved.transport, provider: saved.provider, model: saved.model, inputRoles: f.adapter.calls[0]!.messages.map(message => message.role), images: f.adapter.calls[0]!.messages.flatMap(message => message.content).filter(block => block.type === 'image').length, reasoning: f.deltas.map(delta => delta.reasoning ?? '').join(''), observations: result.observations, usage: saved.usage, finish: saved.finish }, expected)

@@ -1,0 +1,10 @@
+{
+  "defaultPool": "50",
+  "defaultBatch": "6",
+  "defaultEdge": "384",
+  "savedPolicy": { "candidatePoolSize": 100, "batchSize": 4, "maxScreeningImageEdge": 512 },
+  "persistsAcrossTabs": true,
+  "disabledForNewTasks": true,
+  "narrowOverflow": false,
+  "pageErrors": []
+}

@@ -183,7 +183,7 @@ test('a new preview search skips exact selections from its collection without re
   } finally { await f.cleanup() }
 })
 
-test('repeated searches skip confirmed mismatches only for the same frozen rules and task', async () => {
+test('repeated searches skip exact rejected photos when task wording, rules or the reviewer change', async () => {
   const f = await fixture(false, { queries: ['cars'], page: (_query, page) => ({ ids: page === 1 ? ['portrait-a', 'portrait-b'] : ['matching-car-prior', 'matching-car-new'], totalPages: 2 }) })
   try {
     await f.engine.create(f.spec, f.actor, f.worker, 'learn-mismatches'); await f.jobs.drain()
@@ -192,11 +192,11 @@ test('repeated searches skip confirmed mismatches only for the same frozen rules
     const policy = freezeSearchExclusions(f.domain, profile, f.actor, history, brief)
     assert.equal(sourceExclusion(policy, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
     const differentTask = freezeSearchExclusions(f.domain, profile, f.actor, history, 'Find portraits instead.')
-    assert.equal(sourceExclusion(differentTask, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), undefined)
+    assert.equal(sourceExclusion(differentTask, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
     const differentRules = freezeSearchExclusions(f.domain, modelProfileSchema.parse({ ...profile, contentDigest: `sha256-v1:${'c'.repeat(64)}` }), f.actor, history, brief)
-    assert.equal(sourceExclusion(differentRules, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), undefined)
+    assert.equal(sourceExclusion(differentRules, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
     const differentReviewer = freezeSearchExclusions(f.domain, modelProfileSchema.parse({ ...profile, recipe: { ...recipe, visionRevision: 'new-reviewer' } }), f.actor, history, brief)
-    assert.equal(sourceExclusion(differentReviewer, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), undefined)
+    assert.equal(sourceExclusion(differentReviewer, { providerId: 'unsplash', accountIdentity: 'public', providerAssetId: 'portrait-a' }), 'previous-rejection')
     const before = f.remoteInputs.length
     const second = await f.engine.create({ ...f.spec, fixed: { ...f.spec.fixed, searchExclusions: toJson(policy) } }, f.actor, f.worker, 'skip-mismatches')
     await f.jobs.drain()

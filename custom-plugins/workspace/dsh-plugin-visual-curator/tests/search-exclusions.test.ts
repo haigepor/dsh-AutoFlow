@@ -8,11 +8,13 @@ import { z } from 'zod'
 import { CuratorDomain } from '../src/domain/curator.ts'
 import { DomainRepository, MemoryDomainAdapter } from '../src/domain/repository.ts'
 import { remoteReferenceBlob } from '../src/media/remote-reference.ts'
-import { assetSchema, imageVersionSchema, modelProfileSchema, recipeSchema, referenceSnapshotSchema, runSchema, selectionSchema, type DomainActor } from '../src/shared/model.ts'
+import { assetSchema, imageVersionSchema, modelProfileSchema, recipeSchema, referenceSnapshotSchema, runSchema, selectionSchema, assessmentSchema, type DomainActor, type CuratorRecord } from '../src/shared/model.ts'
 import { freezeSearchExclusions, imageExclusion, searchHistoryRuns, searchSourceKey, sourceExclusion } from '../src/host/search-exclusions.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { sourceIdentity } from '../src/host/providers.ts'
 import { dataOf, toJson } from '../src/host/runtime.ts'
+import { resolveConfig } from '../src/host/config.ts'
+import { searchScreeningCheckpointSchema } from '../src/host/search-screening-state.ts'
 
 const base = { schemaVersion: 1, profileId: 'exclusion-test', createdAt: '2026-11-02T00:00:00.000Z' }
 const actor: DomainActor = { kind: 'human', id: 'owner', profileId: base.profileId }
@@ -64,6 +66,51 @@ test('history is collection scoped, ignores unreviewed candidates and requires t
   const policy = freezeSearchExclusions(domain, profile, actor, [{ run, actor: { ...actor, sessionId: 'original-session' } }], 'Check the frozen style.')
   assert.equal(sourceExclusion(policy, { providerId: 'unsplash', providerAssetId: 'private-photo', accountIdentity: 'new-account' }), 'previous-selection')
   assert.equal(policy.digests[image.blob.digest], 'previous-selection')
+})
+
+test('source rejections exclude exact photos across task and reviewer changes without making unknown or technical failures permanent', async () => {
+  const domain = new CuratorDomain(base.profileId, new DomainRepository(base.profileId, new MemoryDomainAdapter())), records: CuratorRecord[] = []
+  const cases = [
+    { id: 'source-rejected', technicalStatus: 'completed', verdict: 'reject', styleId: profile.styleId },
+    { id: 'unknown', technicalStatus: 'completed', verdict: 'needs-review', styleId: profile.styleId },
+    { id: 'technical', technicalStatus: 'failed', styleId: profile.styleId },
+    { id: 'other-style', technicalStatus: 'completed', verdict: 'reject', styleId: 'other-style' },
+  ]
+  for (const [index, item] of cases.entries()) {
+    const asset = assetSchema.parse({ ...base, id: `asset-${item.id}`, kind: 'asset', familyId: item.id, source: { kind: 'provider', providerId: 'unsplash', providerAssetId: item.id, accountIdentity: 'old-account', description: 'Synthetic photo', obtainedAt: base.createdAt }, access: { kind: 'profile-library' }, exportPermission: 'references-only', groupingStatus: 'unreviewed' })
+    const image = imageVersionSchema.parse({ ...base, id: `image-${item.id}`, kind: 'imageVersion', assetId: asset.id, versionKind: 'normalized', blob: { digest: String(index + 1).repeat(64), byteLength: 1, mime: 'image/png', storageRef: `synthetic-${index}` }, geometry: { width: 1, height: 1, colorSpace: 'srgb', processorVersion: 'fixture' } })
+    const run = runSchema.parse({ ...base, id: `run-${item.id}`, kind: 'run', owner: { kind: 'profile' }, revision: 1, status: 'completed', stage: 'finalizing', spec: { kind: 'search', input: { taskBrief: 'Previous wording.' }, fixed: { release: { ...profile, styleId: item.styleId } } }, data: {} })
+    const assessment = assessmentSchema.parse({ ...base, id: `assessment-${item.id}`, kind: 'assessment', imageVersionId: image.id, runId: run.id, stage: 'source', standard: { kind: profile.kind, id: profile.id, contentDigest: profile.contentDigest }, recipeId: recipe.id, reviewBundleId: item.id, technicalStatus: item.technicalStatus, ...(item.verdict ? { verdict: item.verdict } : {}), ruleResults: [], cropPotential: 'unknown', preferenceScores: {}, data: {} })
+    records.push(asset, image, run, assessment)
+  }
+  await domain.repository.commit({ aggregateId: 'history', expectedRevision: 0, operationId: 'history', request: {}, records, state: {} })
+  assert.deepEqual(searchHistoryRuns(domain, profile.styleId).map(run => run.id), ['run-source-rejected'])
+  const updated = modelProfileSchema.parse({ ...profile, contentDigest: `sha256-v1:${'e'.repeat(64)}`, recipe: { ...recipe, visionRevision: 'another-reviewer' } })
+  const policy = freezeSearchExclusions(domain, updated, actor, domain.repository.list('run').map(run => ({ run, actor })), 'Rewritten request.')
+  const reason = (id: string) => sourceExclusion(policy, { providerId: 'unsplash', providerAssetId: id, accountIdentity: 'new-account' })
+  assert.equal(reason('source-rejected'), 'previous-rejection')
+  assert.equal(reason('unknown'), undefined)
+  assert.equal(reason('technical'), undefined)
+  assert.equal(reason('other-style'), undefined)
+  const image = domain.require('imageVersion', 'image-source-rejected')
+  const accepted = referenceSnapshotSchema.parse({ reference: { ...base, id: 'accepted-reference', kind: 'reference', styleId: profile.styleId, imageVersionId: image.id, role: 'negative', intent: { kind: 'overall' }, context: {}, feedbackThreadIds: [] }, imageDigest: image.blob.digest, familyId: 'accepted', feedbackIds: ['accepted'], judgments: [{ feedbackId: 'accepted', value: 'accept' }] })
+  const revised = freezeSearchExclusions(domain, modelProfileSchema.parse({ ...updated, references: [accepted] }), actor, searchHistoryRuns(domain, profile.styleId).map(run => ({ run, actor })), 'Rewritten request.')
+  assert.equal(sourceExclusion(revised, { providerId: 'unsplash', providerAssetId: 'source-rejected', accountIdentity: 'new-account' }), 'reference')
+})
+
+test('coarse obvious exclusions contribute only exact source novelty and preserve uncertain candidates', async () => {
+  const domain = new CuratorDomain(base.profileId, new DomainRepository(base.profileId, new MemoryDomainAdapter()))
+  const checkpoint = searchScreeningCheckpointSchema.parse({ version: 1, nextQuery: 0, nextPool: 1, pages: [], queryCandidates: [], seenIds: ['obvious', 'uncertain', 'deep'], candidateCount: 3, seenDigests: [], excluded: {}, screened: { obvious: { decision: 'obvious-reject', reason: 'A supported visual mismatch.' }, uncertain: { decision: 'uncertain', reason: 'Insufficient evidence.' }, deep: { decision: 'deep-review', reason: 'Requires full review.' } }, fallbacks: {}, importedImages: {}, deepDone: [], deepReviewed: 0, failedQueries: 0, sourceLimited: false, issues: [] })
+  const run = runSchema.parse({ ...base, id: 'coarse-run', kind: 'run', owner: { kind: 'profile' }, revision: 1, status: 'completed', stage: 'finalizing', spec: { kind: 'search', config: resolveConfig({ source: { provider: 'unsplash' } }), fixed: { release: profile } }, data: { checkpoint: { searchScreening: checkpoint } } })
+  await domain.repository.commit({ aggregateId: 'coarse', expectedRevision: 0, operationId: 'coarse', request: {}, records: [run], state: {} })
+  assert.deepEqual(searchHistoryRuns(domain, profile.styleId).map(item => item.id), [run.id])
+  const policy = freezeSearchExclusions(domain, profile, actor, [{ run, actor }], 'A new task.')
+  const reason = (id: string) => sourceExclusion(policy, { providerId: 'unsplash', providerAssetId: id, accountIdentity: 'another-account' })
+  assert.equal(reason('obvious'), 'previous-rejection')
+  assert.equal(reason('uncertain'), undefined)
+  assert.equal(reason('deep'), undefined)
+  assert.equal(domain.repository.list('assessment').length, 0)
+  assert.equal(Object.keys(policy.digests).length, 0)
 })
 
 test('the human preparation path may exclude readable collection history while a free Agent cannot acquire another Session’s images', async () => {

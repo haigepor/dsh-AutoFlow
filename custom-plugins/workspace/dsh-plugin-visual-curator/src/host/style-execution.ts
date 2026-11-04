@@ -8,7 +8,7 @@ import { focusRuleVerdict } from './subject-review.ts'
 export function compileStyleInstructions(profile: ModelProfile): string {
   const enabled = new Set(profile.rules.map(rule => rule.ruleId))
   const options = profile.options.filter(option => option.enabled && enabled.has(option.rule.ruleId))
-  return JSON.stringify({ instruction: 'Apply the current enabled rules below. Shared rules apply to every group. Groups are alternatives; do not require unrelated groups simultaneously. Report unknown when evidence is missing. Recheck visual preferences on actual final pixels. Historical summaries do not override these rules.',
+  return JSON.stringify({ instruction: 'Apply the current enabled rules below. Required rules are mandatory within their shared or alternative-group scope; other style preferences cannot compensate for a required violation. Shared rules apply to every group. Groups are alternatives; do not require unrelated groups simultaneously. Report unknown when evidence is missing. Recheck visual preferences and required exclusions on actual final pixels. Historical summaries do not override these rules.',
     rules: profile.rules, ruleGroups: options.map(option => ({ ruleId: option.rule.ruleId, groupId: option.groupId })), groups: profile.groups.filter(group => options.some(option => option.groupId === group.groupId)).map(group => ({ groupId: group.groupId })) })
 }
 
@@ -19,24 +19,25 @@ export function executionStandard(standard: StyleStandard, recipe?: Json): Style
 
 /** @param profile Fixed standard. @param results Actual final rule results. @param threshold Fixed positive acceptance ratio. @param focusRuleIds V3 focal requirements bypass averaging; omitted for frozen legacy reviews. @returns Shared and alternative-group matching with unknown preserved. */
 export function matchStyle(profile: ModelProfile, results: readonly { ruleId: string; result: string }[], threshold: number, focusRuleIds: readonly string[] = []): StyleMatch {
-  const rules = profile.rules.filter(rule => rule.strength === 'preferred' && rule.check.kind === 'visual')
+  const rules = profile.rules.filter(rule => rule.strength !== 'reference-only' && rule.check.kind === 'visual')
   const memberships = new Map(profile.options.filter(option => option.enabled).map(option => [option.rule.ruleId, option.groupId]))
   const evaluate = (items: Rule[]): { verdict: StyleMatch['verdict']; ratio: number | null } => {
-    if (!items.length) return { verdict: 'matched', ratio: null }
+    const mandatory = focusRuleVerdict(items.filter(rule => rule.strength === 'required' || focusRuleIds.includes(rule.ruleId)).map(rule => rule.ruleId), results)
+    const preferences = items.filter(rule => rule.strength === 'preferred')
+    if (!preferences.length) return { verdict: mandatory === 'matched' ? 'matched' : mandatory === 'unknown' ? 'unknown' : 'not-matched', ratio: null }
     let total = 0, satisfied = 0, unknownWeight = 0
-    for (const rule of items) {
-      const weight = (profile.recipe.preferenceScale.weights[rule.dimension] ?? 0) / items.filter(item => item.dimension === rule.dimension).length
+    for (const rule of preferences) {
+      const weight = (profile.recipe.preferenceScale.weights[rule.dimension] ?? 0) / preferences.filter(item => item.dimension === rule.dimension).length
       const result = results.find(item => item.ruleId === rule.ruleId)?.result
       total += weight
       if (result === 'satisfied') satisfied += weight
       else if (result !== 'violated') unknownWeight += weight
     }
-    if (total === 0) return { verdict: 'unknown', ratio: null }
+    if (total === 0) return { verdict: mandatory === 'not-matched' ? 'not-matched' : 'unknown', ratio: null }
     const ratio = Math.min(1, satisfied / total)
     // 即使未知项全满足也达不到阈值时，可直接拒绝，避免明显不匹配堆积为待复核。
     const impossible = (satisfied + unknownWeight) / total + Number.EPSILON < threshold
-    const focus = focusRuleVerdict(items.filter(rule => focusRuleIds.includes(rule.ruleId)).map(rule => rule.ruleId), results)
-    return { verdict: impossible || focus === 'not-matched' ? 'not-matched' : unknownWeight > 0 || focus === 'unknown' ? 'unknown' : ratio + Number.EPSILON >= threshold ? 'matched' : 'not-matched', ratio }
+    return { verdict: impossible || mandatory === 'not-matched' ? 'not-matched' : unknownWeight > 0 || mandatory === 'unknown' ? 'unknown' : ratio + Number.EPSILON >= threshold ? 'matched' : 'not-matched', ratio }
   }
   const shared = evaluate(rules.filter(rule => !memberships.get(rule.ruleId)))
   const groups = [...new Set(rules.flatMap(rule => memberships.get(rule.ruleId) ? [memberships.get(rule.ruleId)!] : []))]
