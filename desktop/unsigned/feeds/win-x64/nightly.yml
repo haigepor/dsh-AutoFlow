@@ -1,14 +1,14 @@
-version: 0.2.2-alpha.2.20261104.2
+version: 0.2.2-alpha.2.20261104.3
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.2-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.2-win-x64-unsigned.exe
-    sha512: PJkDbCL48EPW8ZLO5dpmbjKcB+IvacKuZBVO9t6lRgO3koUe9NH4vOEDMA/XUHxmKzWQwUKDUAIlXGi+feRjTg==
-    size: 414841485
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.2-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.2-win-x64-unsigned.exe
-sha512: PJkDbCL48EPW8ZLO5dpmbjKcB+IvacKuZBVO9t6lRgO3koUe9NH4vOEDMA/XUHxmKzWQwUKDUAIlXGi+feRjTg==
-releaseDate: '2026-11-04T03:54:45.936Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.3-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.3-win-x64-unsigned.exe
+    sha512: +B4sTe0or7+6nXnLVWffZxdvRTP9LreEUH5g1vpY4HJ0xTsVST5JqY02+ZFvi7oSkjWPA2io9jMqeu7h+hcPxQ==
+    size: 414851809
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.3-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.3-win-x64-unsigned.exe
+sha512: +B4sTe0or7+6nXnLVWffZxdvRTP9LreEUH5g1vpY4HJ0xTsVST5JqY02+ZFvi7oSkjWPA2io9jMqeu7h+hcPxQ==
+releaseDate: '2026-11-04T04:06:16.115Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-alpha.2.20261104.2
+  version: 0.2.2-alpha.2.20261104.3
   items:
     - id: github-differential-single-range
       category: fixes
@@ -25,12 +25,21 @@ dshReleaseNotes:
       text:
         en: Stopping a conversation cancels its Visual Curator tasks, and cancelled background tasks no longer restart an idle conversation.
         zh-CN: 停止会话时同步取消其视觉策展任务，已取消的后台任务不再自动唤醒会话。
+    - id: differential-download-qualification
+      category: other
+      text:
+        en: This Windows test build provides an update target for checking differential downloads from the single-Range baseline build; installation still requires confirmation.
+        zh-CN: 此 Windows 测试版本用于从单段 Range 基线版验证差分下载，安装仍需确认。
 releaseNotes: |-
   ## 问题修复
 
   - Windows GitHub 更新使用单段 Range 进行原生差分下载，避免多段请求被拒绝后回退为完整下载。
   - 新找图任务开始前重新读取已确认的不匹配历史，避免会话准备期间新增的排除结果遗漏。
   - 停止会话时同步取消其视觉策展任务，已取消的后台任务不再自动唤醒会话。
+
+  ## 其他变更
+
+  - 此 Windows 测试版本用于从单段 Range 基线版验证差分下载，安装仍需确认。
 
   ---
 
@@ -39,3 +48,7 @@ releaseNotes: |-
   - Windows GitHub updates use single Range requests for native differential downloads, avoiding full-download fallback when multipart ranges are rejected.
   - New image searches refresh confirmed mismatch history before starting, including results saved after conversation preparation.
   - Stopping a conversation cancels its Visual Curator tasks, and cancelled background tasks no longer restart an idle conversation.
+
+  ## Other changes
+
+  - This Windows test build provides an update target for checking differential downloads from the single-Range baseline build; installation still requires confirmation.
