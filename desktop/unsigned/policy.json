@@ -13,9 +13,9 @@
       "downloadPage": "https://github.com/haigepor/dsh-AutoFlow/releases/tag/desktop-v0.2.2-alpha.2.20261103.4-mac-arm64-unsigned"
     },
     "mac-x64": {
-      "latestVersion": "0.2.2-alpha.2.20261103.4",
+      "latestVersion": "0.2.2-alpha.2.20261104.5",
       "minimumSupportedVersion": "0.0.0",
-      "downloadPage": "https://github.com/haigepor/dsh-AutoFlow/releases/tag/desktop-v0.2.2-alpha.2.20261103.4-mac-x64-unsigned"
+      "downloadPage": "https://github.com/haigepor/dsh-AutoFlow/releases/tag/desktop-v0.2.2-alpha.2.20261104.5-mac-x64-unsigned"
     }
   }
 }
