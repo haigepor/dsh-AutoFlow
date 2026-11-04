@@ -1,61 +1,61 @@
-version: 0.2.2-alpha.2.20261103.4
+version: 0.2.2-alpha.2.20261104.7
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.4-mac-arm64-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.4-mac-arm64-unsigned.zip
-    sha512: dDmswU8j7VWwjkRHYyO64V/P5UY62QBMRzJ+c8g7s5oQpeQD0+Yk98qGo2nxTKCDRV7dpGNkvunHgmn7pG8xeQ==
-    size: 462501633
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261103.4-mac-arm64-unsigned/deepseek-harness-0.2.2-alpha.2.20261103.4-mac-arm64-unsigned.zip
-sha512: dDmswU8j7VWwjkRHYyO64V/P5UY62QBMRzJ+c8g7s5oQpeQD0+Yk98qGo2nxTKCDRV7dpGNkvunHgmn7pG8xeQ==
-releaseDate: '2026-11-03T14:53:05.924Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.7-mac-arm64-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.7-mac-arm64-unsigned.zip
+    sha512: EkiSimbXrGuUIAfQu0MTfYFXUNCne+CCJ/h2BnkuvVBme+MUsTTHuD/6qVBNY/CvswuodbLfW/EB8y1FMhb0Og==
+    size: 462409043
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.7-mac-arm64-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.7-mac-arm64-unsigned.zip
+sha512: EkiSimbXrGuUIAfQu0MTfYFXUNCne+CCJ/h2BnkuvVBme+MUsTTHuD/6qVBNY/CvswuodbLfW/EB8y1FMhb0Og==
+releaseDate: '2026-11-04T12:01:40.236Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-alpha.2.20261103.4
+  version: 0.2.2-alpha.2.20261104.7
   items:
-    - id: conversation-dialog-layout
+    - id: plugin-release-update-request
+      category: fixes
+      text:
+        en: Plugin updates start correctly from the update button. Failed requests identify the plugin and retain their reason in update details for retry.
+        zh-CN: 修复点击插件更新按钮后请求未发出的问题；失败提示显示插件名，并在更新详情中保留原因，方便查看和重试。
+    - id: visual-curator-candidate-screening
       category: improvements
       text:
-        en: Image search and question dialogs use settings-style groups and matching character illustrations. Conversation tasks remain available as the window narrows without adding a horizontal scrollbar.
-        zh-CN: 找图与提问弹窗采用与设置页一致的分组排版和角色插画；缩窄窗口时仍可查看会话任务，并避免底部出现横向滚动条。
-    - id: macos-test-updates
-      category: improvements
-      text:
-        en: Apple Silicon and Intel certificate-free macOS test packages can check and download updates through the isolated official channel, with installation requiring confirmation.
-        zh-CN: Apple Silicon 与 Intel 的无证书 macOS 测试包支持通过隔离的官方渠道检查和下载更新，安装仍需确认。
-    - id: plugin-update-index
+        en: Visual Curator screens candidate previews before detailed review and reuses known image exclusions to reduce repeated work.
+        zh-CN: 视觉策展先筛选候选预览，再深入复核，并复用已知图片排除记录，减少重复分析。
+    - id: visual-curator-dataset-scope
       category: fixes
       text:
-        en: Check bundled plugin versions through a shared official update index, respect rate-limit recovery times, and retain the last successful check when updates cannot be checked.
-        zh-CN: 随包插件通过共享官方索引检查更新，遵守限流恢复时间；检查暂不可用时保留上次成功结果，并区分检查、下载和安装失败。
-    - id: ready-install-confirmation
+        en: Saved Visual Curator datasets can be selected across conversations and configured models within their training collection, including completed packages created by older versions.
+        zh-CN: 修复已有完整数据集却无法选择的问题；视觉策展数据集按训练集管理，支持跨会话和模型复用旧版完整包。
+    - id: macos-github-single-range
       category: fixes
       text:
-        en: Show installation confirmation as soon as a download is ready, even after closing its progress window. Check running tasks after approval so Host preparation cannot hide the confirmation.
-        zh-CN: 下载就绪后立即显示安装确认，关闭过下载进度弹窗也能收到提示；用户批准后再检查运行任务，避免确认弹窗被应用服务的准备等待阻塞。
-    - id: reopen-update-download-dialog
+        en: macOS GitHub updates use single Range requests for subsequent differential downloads, avoiding full-download fallback when multipart requests are rejected. Older clients may still download this update in full.
+        zh-CN: 优化 macOS 后续差分更新的下载兼容性，避免下载线路拒绝多段请求时退回完整下载。旧版首次升级仍可能下载完整包。
+    - id: plugin-update-build-approval
       category: fixes
       text:
-        en: Reopen update progress while a download or file verification continues, and keep the installation confirmation accessible after the package is ready.
-        zh-CN: 修复下载或文件校验期间关闭弹窗后无法重新打开，以及安装包就绪后按钮可能持续转圈、无法再次打开安装确认的问题。
+        en: Plugin updates blocked by dependency scripts now show the exact packages and an explicit approval-and-retry action. Refreshing retains the pending decision, and automatic updates wait for approval.
+        zh-CN: 插件更新因依赖安装脚本受阻时，显示具体依赖并支持明确授权后重试；刷新保留待授权状态，自动更新等待授权。
 releaseNotes: |-
   ## 体验优化
 
-  - 找图与提问弹窗采用与设置页一致的分组排版和角色插画；缩窄窗口时仍可查看会话任务，并避免底部出现横向滚动条。
-  - Apple Silicon 与 Intel 的无证书 macOS 测试包支持通过隔离的官方渠道检查和下载更新，安装仍需确认。
+  - 视觉策展先筛选候选预览，再深入复核，并复用已知图片排除记录，减少重复分析。
 
   ## 问题修复
 
-  - 随包插件通过共享官方索引检查更新，遵守限流恢复时间；检查暂不可用时保留上次成功结果，并区分检查、下载和安装失败。
-  - 下载就绪后立即显示安装确认，关闭过下载进度弹窗也能收到提示；用户批准后再检查运行任务，避免确认弹窗被应用服务的准备等待阻塞。
-  - 修复下载或文件校验期间关闭弹窗后无法重新打开，以及安装包就绪后按钮可能持续转圈、无法再次打开安装确认的问题。
+  - 修复点击插件更新按钮后请求未发出的问题；失败提示显示插件名，并在更新详情中保留原因，方便查看和重试。
+  - 修复已有完整数据集却无法选择的问题；视觉策展数据集按训练集管理，支持跨会话和模型复用旧版完整包。
+  - 优化 macOS 后续差分更新的下载兼容性，避免下载线路拒绝多段请求时退回完整下载。旧版首次升级仍可能下载完整包。
+  - 插件更新因依赖安装脚本受阻时，显示具体依赖并支持明确授权后重试；刷新保留待授权状态，自动更新等待授权。
 
   ---
 
   ## Improvements
 
-  - Image search and question dialogs use settings-style groups and matching character illustrations. Conversation tasks remain available as the window narrows without adding a horizontal scrollbar.
-  - Apple Silicon and Intel certificate-free macOS test packages can check and download updates through the isolated official channel, with installation requiring confirmation.
+  - Visual Curator screens candidate previews before detailed review and reuses known image exclusions to reduce repeated work.
 
   ## Bug fixes
 
-  - Check bundled plugin versions through a shared official update index, respect rate-limit recovery times, and retain the last successful check when updates cannot be checked.
-  - Show installation confirmation as soon as a download is ready, even after closing its progress window. Check running tasks after approval so Host preparation cannot hide the confirmation.
-  - Reopen update progress while a download or file verification continues, and keep the installation confirmation accessible after the package is ready.
+  - Plugin updates start correctly from the update button. Failed requests identify the plugin and retain their reason in update details for retry.
+  - Saved Visual Curator datasets can be selected across conversations and configured models within their training collection, including completed packages created by older versions.
+  - macOS GitHub updates use single Range requests for subsequent differential downloads, avoiding full-download fallback when multipart requests are rejected. Older clients may still download this update in full.
+  - Plugin updates blocked by dependency scripts now show the exact packages and an explicit approval-and-retry action. Refreshing retains the pending decision, and automatic updates wait for approval.
