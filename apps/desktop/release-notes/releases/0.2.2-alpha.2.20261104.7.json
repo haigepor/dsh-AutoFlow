@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-alpha.2.20261104.7",
+  "items": [
+    {
+      "id": "plugin-release-update-request",
+      "category": "fixes",
+      "text": {
+        "en": "Plugin updates start correctly from the update button. Failed requests identify the plugin and retain their reason in update details for retry.",
+        "zh-CN": "修复点击插件更新按钮后请求未发出的问题；失败提示显示插件名，并在更新详情中保留原因，方便查看和重试。"
+      }
+    },
+    {
+      "id": "visual-curator-candidate-screening",
+      "category": "improvements",
+      "text": {
+        "en": "Visual Curator screens candidate previews before detailed review and reuses known image exclusions to reduce repeated work.",
+        "zh-CN": "视觉策展先筛选候选预览，再深入复核，并复用已知图片排除记录，减少重复分析。"
+      }
+    },
+    {
+      "id": "visual-curator-dataset-scope",
+      "category": "fixes",
+      "text": {
+        "en": "Saved Visual Curator datasets can be selected across conversations and configured models within their training collection, including completed packages created by older versions.",
+        "zh-CN": "修复已有完整数据集却无法选择的问题；视觉策展数据集按训练集管理，支持跨会话和模型复用旧版完整包。"
+      }
+    },
+    {
+      "id": "macos-github-single-range",
+      "category": "fixes",
+      "text": {
+        "en": "macOS GitHub updates use single Range requests for subsequent differential downloads, avoiding full-download fallback when multipart requests are rejected. Older clients may still download this update in full.",
+        "zh-CN": "优化 macOS 后续差分更新的下载兼容性，避免下载线路拒绝多段请求时退回完整下载。旧版首次升级仍可能下载完整包。"
+      }
+    },
+    {
+      "id": "plugin-update-build-approval",
+      "category": "fixes",
+      "text": {
+        "en": "Plugin updates blocked by dependency scripts now show the exact packages and an explicit approval-and-retry action. Refreshing retains the pending decision, and automatic updates wait for approval.",
+        "zh-CN": "插件更新因依赖安装脚本受阻时，显示具体依赖并支持明确授权后重试；刷新保留待授权状态，自动更新等待授权。"
+      }
+    }
+  ]
+}

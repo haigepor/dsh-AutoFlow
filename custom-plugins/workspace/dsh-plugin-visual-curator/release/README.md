@@ -26,7 +26,7 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
-## Visual Curator 0.2.9
+## Visual Curator 0.2.10
 
 Completed reference datasets are scoped to their training collection and application profile rather than their creating conversation. Historical complete packages remain selectable across conversations and configured models without reanalysis, including packages saved by older Session-scoped versions. Each search retains the selected package and its checksums; partial observation exports remain supporting data. Existing Session task logs and private image permissions are unchanged.
 

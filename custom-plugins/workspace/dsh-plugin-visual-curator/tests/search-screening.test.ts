@@ -25,7 +25,7 @@ const profile = modelProfileSchema.parse({ ...base, id: 'profile', kind: 'modelP
 const requestSchema = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ type: z.string(), text: z.string().optional(), image_url: z.object({ url: z.string() }).optional() }))]) })) })
 const payloadSchema = z.object({ input: z.object({ operation: z.string(), stage: z.string().optional(), requestId: z.string(), images: z.array(z.object({ imageVersionId: z.string() })), rules: z.array(z.object({ ruleId: z.string() })) }) })
 
-async function fixture(options: { count?: number; pool?: 50 | 100; target?: number; allReject?: boolean; rejectFinal?: boolean; malformed?: boolean; maxVisionCalls?: number; retryAttempts?: number; output?: 'preview' | 'original'; duplicatePages?: boolean; pauseScreen?: boolean; restrictedOriginals?: boolean; ruleStatus?(ruleId: string, stage?: string): 'satisfied' | 'violated' | 'unknown'; queries?: string[]; color?(id: string): 'green' | 'red' | 'blue'; page?(query: string, page: number): { ids: string[]; nextCursor: string | null } } = {}) {
+async function fixture(options: { count?: number; pool?: 50 | 100; target?: number; allReject?: boolean; rejectFinal?: boolean; malformed?: boolean; maxVisionCalls?: number; retryAttempts?: number; output?: 'preview' | 'original'; duplicatePages?: boolean; pauseScreen?: boolean; overlapScreening?: boolean; restrictedOriginals?: boolean; ruleStatus?(ruleId: string, stage?: string): 'satisfied' | 'violated' | 'unknown'; queries?: string[]; color?(id: string): 'green' | 'red' | 'blue'; page?(query: string, page: number): { ids: string[]; nextCursor: string | null } } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'visual-screening-'))
   const repository = new DomainRepository(base.profileId, new MemoryDomainAdapter()), domain = new CuratorDomain(base.profileId, repository)
   const jobs = new FixtureJobs(), engine = new RunEngine(repository, jobs)
@@ -41,6 +41,8 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
   const sourceQueries: { query: string; page: number }[] = []
   let active = 0, peak = 0, failCheckpoint = false, pauseScreen = options.pauseScreen === true
   const screeningEntered = Promise.withResolvers<void>()
+  const screeningOverlap = Promise.withResolvers<void>()
+  let screeningArrivals = 0, overlapDeadline: ReturnType<typeof setTimeout> | undefined
   const originalCommit = repository.commit.bind(repository)
   repository.commit = async input => {
     if (failCheckpoint && input.records.some(record => record.kind === 'run' && searchScreeningSummary(record)?.screeningReviewed)) {
@@ -70,6 +72,12 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
       })
       active++; peak = Math.max(peak, active)
       try {
+        if (options.overlapScreening && screeningArrivals < 3) {
+          screeningArrivals++
+          if (screeningArrivals === 1) overlapDeadline = setTimeout(() => screeningOverlap.reject(new Error('Three screening requests did not enter the fixture')), 30_000)
+          if (screeningArrivals === 3) { clearTimeout(overlapDeadline); screeningOverlap.resolve() }
+          await screeningOverlap.promise
+        }
         const colors = await Promise.all(imageUrls.map(async imageUrl => {
           assert.ok(imageUrl.startsWith('data:image/png;base64,'), 'Coarse screening receives actual independent thumbnail pixels')
           const bytes = Buffer.from(imageUrl.split(',')[1]!, 'base64'), image = sharp(bytes), metadata = await image.metadata(), stats = await image.stats()
@@ -97,12 +105,12 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
   const actor = { kind: 'human' as const, id: 'owner', profileId: base.profileId }
   await repository.commit({ aggregateId: 'fixture', expectedRevision: 0, operationId: 'seed', request: {}, records: [styleSchema.parse({ ...base, id: 'style', kind: 'style', name: 'Green', archived: false, draftId: 'draft', revision: 1, committedReleaseIds: [], defaultReleaseId: null, nextReleaseNumber: 1 }), draftSchema.parse({ ...base, id: 'draft', kind: 'draft', styleId: 'style', revision: 1, status: 'editing', rules: [], referenceIds: [], feedbackIds: [], conflicts: [] }), profile], state: {} })
   const spec: ExecutionSpec = { kind: 'search', config, input: { taskBrief: 'Find green color samples.', queries: options.queries ?? ['color samples'], targetCount: options.target ?? 1 }, fixed: { release: toJson(profile), output: { kind: options.output ?? 'preview' }, executionRecipe: toJson(recipe), searchScreening: { version: 1, candidatePoolSize: options.pool ?? 50, batchSize: 6, maxScreeningImageEdge: 384 } }, specDigest: 'fixture' }
-  return { root, repository, domain, files, jobs, engine, worker, actor, spec, ids, calls, sourcePages, sourceQueries, mediaRequests, screeningEntered: screeningEntered.promise, allowScreening() { pauseScreen = false }, get peak() { return peak }, interruptCheckpoint() { failCheckpoint = true }, async run(id = 'search') { const started = await engine.create(spec, actor, worker, id); await jobs.drain(); return domain.require('run', started.id) }, async cleanup() { await engine.dispose(); await rm(root, { recursive: true, force: true }) } }
+  return { root, repository, domain, files, jobs, engine, worker, actor, spec, ids, calls, sourcePages, sourceQueries, mediaRequests, screeningEntered: screeningEntered.promise, allowScreening() { pauseScreen = false }, get peak() { return peak }, interruptCheckpoint() { failCheckpoint = true }, async run(id = 'search') { const started = await engine.create(spec, actor, worker, id); await jobs.drain(); return domain.require('run', started.id) }, async cleanup() { clearTimeout(overlapDeadline); screeningOverlap.resolve(); await engine.dispose(); await rm(root, { recursive: true, force: true }) } }
 }
 
 test('collects 50 and 100 unique candidates across real source pages and only final review qualifies a result', async () => {
   for (const count of [50, 100] as const) {
-    const f = await fixture({ count, pool: count, duplicatePages: true })
+    const f = await fixture({ count, pool: count, duplicatePages: true, overlapScreening: true })
     try {
       const run = await f.run()
       assert.equal(run.outcome, 'target-met')
@@ -114,7 +122,7 @@ test('collects 50 and 100 unique candidates across real source pages and only fi
       assert.equal(f.calls.filter(call => call.operation === 'screen').length, Math.ceil(count / 6))
       assert.equal(f.calls.filter(call => call.operation === 'review').length, 2)
       assert.deepEqual(f.sourcePages, Array.from({ length: Math.ceil(count / 30) }, (_, index) => index))
-      assert.ok(f.peak > 1 && f.peak <= 3)
+      assert.equal(f.peak, 3, 'Screening fills the configured request slots while the first group is held')
       const selection = f.repository.list('selection')[0]!
       assert.equal(f.domain.require('assessment', selection.assessmentId).stage, 'final')
       assert.equal(f.domain.require('assessment', selection.assessmentId).verdict, 'pass')
