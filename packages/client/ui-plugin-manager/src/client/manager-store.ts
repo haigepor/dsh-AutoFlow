@@ -444,8 +444,8 @@ export interface PluginManagerFace {
   refresh: () => void
   /** Check newer stable versions without installing them. */
   checkUpdates: () => void
-  /** Install a checked release and require restart. */
-  updateBundle: (name: string) => void
+  /** Install a checked release; only an explicit approval action supplies pending script keys. */
+  updateBundle: (name: string, approvedBuilds?: readonly string[]) => void
   /** Reopen the restart instructions for a completed update. */
   showUpdateRestart: (name: string) => void
   /** Dismiss the current prompt without clearing Host restart requirements. */
@@ -792,8 +792,10 @@ export class PluginManagerController {
       ensure: () => { if (this.getSnapshot().status === 'idle') void this.load().then(() => this.checkUpdates()) },
       refresh: () => { void this.refresh() },
       checkUpdates: () => { void this.checkUpdates() },
-      updateBundle: (name) => { void this.run(name, { action: 'update', packageName: name }, async () => {
-        const answer = await this.ctx.remote.pluginManager.updateBundleRelease(name)
+      updateBundle: (name, approvedBuilds) => { void this.run(name, { action: 'update', packageName: name }, async () => {
+        const answer = approvedBuilds === undefined
+          ? await this.ctx.remote.pluginManager.updateBundleRelease(name)
+          : await this.ctx.remote.pluginManager.updateBundleRelease(name, { approvedBuilds: [...approvedBuilds] })
         if (answer.ok && answer.value.application === 'restart-required') this.announceUpdateRestart(name)
         else this.applied(answer, name)
       }) },

@@ -573,7 +573,7 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, newer, on
   readonly highlighted: boolean
   readonly onOpen: () => void
   readonly onSetEnabled: (enabled: boolean) => void
-  readonly onUpdate: () => void
+  readonly onUpdate: (approvedBuilds?: readonly string[]) => void
   readonly onRestart: () => void
 }): ReactNode {
   const { title, description, beta } = packageText(pkg, resolveText)
@@ -602,7 +602,7 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, newer, on
                 ? <span className={css.updateBadge} role="status" aria-busy="true"><Tag tone="info"><PluginUpdateActivity compact
                   label={bundleDownloadLabel(pkg.update, t)} percent={bundleDownloadPercent(pkg.update)} /></Tag></span>
                 : pkg.update?.status === 'available'
-                  ? <Button variant="ghost" size="sm" className={css.updateBadge} disabled={busy} onClick={onUpdate}>
+                  ? <Button variant="ghost" size="sm" className={css.updateBadge} disabled={busy} onClick={() => { onUpdate() }}>
                     <Tag tone="info">{t('updatesBadge', { version: pkg.update.version ?? '' })}</Tag>
                   </Button>
                   : pkg.update?.status === 'error'
@@ -821,7 +821,7 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
   readonly busy: boolean
   readonly checking: boolean
   readonly onCheck: () => void
-  readonly onUpdate: () => void
+  readonly onUpdate: (approvedBuilds?: readonly string[]) => void
   readonly onAutoUpdate: (enabled: boolean) => void
   readonly onRestart: () => void
 }): ReactNode {
@@ -831,6 +831,8 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
   if (update === undefined) return null
   const installing = update.status === 'installing' || busy && update.status === 'available'
   const metadataFailed = update.status === 'error' && update.failureStage === 'metadata'
+  const buildBlocked = update.status === 'error' && update.failureStage === 'install' && update.installFailure?.kind === 'build-blocked'
+  const pendingBuilds = buildBlocked ? update.installFailure?.pendingBuilds ?? [] : []
   const checkFailureKeys = {
     'rate-limited': 'updatesRateLimited', forbidden: 'updatesCheckForbidden', network: 'updatesCheckNetwork',
     'invalid-metadata': 'updatesCheckInvalid', cache: 'updatesCheckCache',
@@ -860,7 +862,7 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
             {t(checking ? 'updatesChecking' : 'updatesCheck')}
           </Button>
           {update.restartRequired ? <Button size="sm" onClick={onRestart}>{t('updatesRestartGuide')}</Button>
-            : update.status !== 'available' ? null : <Button size="sm" disabled={busy} onClick={onUpdate}>{t('updatesInstall')}</Button>}
+            : update.status !== 'available' ? null : <Button size="sm" disabled={busy} onClick={() => { onUpdate() }}>{t('updatesInstall')}</Button>}
         </div>
       </div>
       {metadataFailed ? <div role="status" aria-live="polite">
@@ -870,9 +872,21 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
         {update.diagnostic === undefined ? null : <details className={css.reason}>
           <summary>{t('updatesTechnicalDetails')}</summary><p>{update.diagnostic}</p>
         </details>}
-      </div> : update.status !== 'error' || update.diagnostic === undefined ? null : <p className={css.reason}>
-        {update.failureStage === undefined ? null : <span>{t(update.failureStage === 'metadata' ? 'updatesMetadataFailed'
-          : update.failureStage === 'download' ? 'updatesDownloadFailed' : 'updatesInstallFailed')} </span>}{update.diagnostic}</p>}
+      </div> : update.status !== 'error' ? null : <div>
+        {buildBlocked ? <div className={css.approval} role="status">
+          <p className={css.approvalTitle}>{t('installApprovalTitle')}</p>
+          <p>{t(pendingBuilds.length === 0 ? 'installFailureBuildBlockedManual' : 'installApprovalDescription')}</p>
+          {pendingBuilds.length === 0 ? null : <>
+            <ul>{pendingBuilds.map(name => <li key={name}><code>{name}</code></li>)}</ul>
+            <p>{t('installApprovalConsequence')}</p><p>{t('installApprovalCaution')}</p>
+            <Button size="sm" disabled={busy || checking} onClick={() => { onUpdate(pendingBuilds) }}>{t('installApproveAndRetry')}</Button>
+          </>}
+        </div> : update.failureStage === undefined ? null : <p className={css.reason}>
+          {t(update.failureStage === 'download' ? 'updatesDownloadFailed' : 'updatesInstallFailed')}</p>}
+        {update.diagnostic === undefined ? null : <details className={css.reason}>
+          <summary>{t('updatesTechnicalDetails')}</summary><p>{update.diagnostic}</p>
+        </details>}
+      </div>}
       {update.lastCheckedAt === undefined ? null : <p className={css.updateHint}>
         {t('updatesLastSuccess', { time: formatTime(update.lastCheckedAt) })}
         {update.lastKnownVersion === undefined ? null : <> · {t('updatesLastKnownVersion', { version: update.lastKnownVersion })}</>}
@@ -952,7 +966,7 @@ function PackageDetail({
   readonly onOpenExample: (prompt: string) => void
   readonly updateChecking: boolean
   readonly onCheckUpdates: () => void
-  readonly onUpdate: () => void
+  readonly onUpdate: (approvedBuilds?: readonly string[]) => void
   readonly onAutoUpdate: (enabled: boolean) => void
   readonly onRestart: () => void
   /** Check a package's versions unless a check already started. */
@@ -2143,7 +2157,10 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
               onOpenExample={(prompt) => { props.openExample(openPkg.name, prompt) }}
               updateChecking={state.busy.includes('updates:check')}
               onCheckUpdates={props.checkUpdates}
-              onUpdate={() => { props.updateBundle(openPkg.name) }}
+              onUpdate={(approvedBuilds) => {
+                if (approvedBuilds === undefined) props.updateBundle(openPkg.name)
+                else props.updateBundle(openPkg.name, approvedBuilds)
+              }}
               onAutoUpdate={(enabled) => { props.setAutoUpdate(openPkg.name, enabled) }}
               onRestart={() => { props.showUpdateRestart(openPkg.name) }}
               pkg={openPkg}

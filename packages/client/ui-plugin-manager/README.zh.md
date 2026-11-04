@@ -13,6 +13,8 @@ kind: "package-reference"
 
 公开组合包下载在列表徽标显示真实字节百分比，在详情显示带百分比的确定进度条。选源、安装包校验和安装使用分别本地化的状态；没有字节总量的检查和安装保持不确定进度。进度事件只更新现有组合包，不重读列表或重置已打开的详情。元数据、下载和安装失败分别显示本地化的阶段提示。
 
+更新因依赖脚本受阻时，列出等待决定的准确键，说明持久授权的影响，并提供**允许这些脚本并重试**；只有该明确操作会提交授权。安装技术日志默认折叠，刷新同一版本保留待决定状态。脚本许可与重试验证由 [Host 更新器](../../boot/plugin-manager/README.zh.md)负责。
+
 独立组合包更新面板安装完成后，可调用 `ctx.pluginNavigation.showUpdateRestart(packageName)`，复用保存工作提示与应用载体负责的重启恢复。
 
 独立更新器注册 `plugins.detail.updates`，将卡片放在组合包功能与组件列表之前，并保留自身操作与状态。插件页通过原生 details 元素上的 `data-plugin-update-card` 共享内置更新样式：summary 子元素使用 `data-update-title`、`data-update-version` 和 `data-update-summary`；展开内容使用 `data-update-body`、`data-update-release`、`data-update-status`、`data-update-actions` 和 `data-update-hint`。错误状态设置 `data-error="true"`。收起时仅在 summary 显示一个实时状态，展开时移到正文；检查使用共享的小号描边按钮，安装或重启使用默认按钮。

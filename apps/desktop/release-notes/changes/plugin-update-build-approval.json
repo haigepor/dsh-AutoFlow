@@ -1,0 +1,8 @@
+{
+  "id": "plugin-update-build-approval",
+  "category": "fixes",
+  "text": {
+    "en": "Plugin updates blocked by dependency scripts now show the exact packages and an explicit approval-and-retry action. Refreshing retains the pending decision, and automatic updates wait for approval.",
+    "zh-CN": "插件更新因依赖安装脚本受阻时，显示具体依赖并支持明确授权后重试；刷新保留待授权状态，自动更新等待授权。"
+  }
+}

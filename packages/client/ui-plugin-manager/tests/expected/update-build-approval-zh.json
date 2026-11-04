@@ -1,0 +1,5 @@
+{
+  "title": "需要允许安装脚本",
+  "action": "允许这些脚本并重试",
+  "dependency": "koffi@3.1.1"
+}

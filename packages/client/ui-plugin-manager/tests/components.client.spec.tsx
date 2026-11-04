@@ -160,6 +160,27 @@ it('keeps archive and installation failures distinct from unavailable metadata',
   expect(screen.getByText(en.updatesInstallFailed)).toBeTruthy()
 })
 
+it('requires an explicit script approval in update details, localizes it and hides raw logs by default', async () => {
+  const name = 'dsh-better-sidebar'
+  const b = renderTab({ packages: [pkg({ update: { name, repository: 'example/plugins', automatic: false, status: 'error',
+    version: '1.1.0', failureStage: 'install', restartRequired: false, diagnostic: 'ERR_PNPM_IGNORED_BUILDS: koffi@3.1.1',
+    installFailure: { kind: 'build-blocked', pendingBuilds: ['koffi@3.1.1'] } } })] })
+  fireEvent.click(screen.getByRole('button', { name: `View ${name}` }))
+  expect(screen.getByText('koffi@3.1.1')).toBeTruthy()
+  expect(screen.getByText(en.installApprovalConsequence)).toBeTruthy()
+  const diagnostic = screen.getByText(en.updatesTechnicalDetails).closest('details')!
+  expect(diagnostic.open).toBe(false)
+  expect(b.actions.updateBundle).not.toHaveBeenCalled()
+  await act(async () => { b.setLanguage(zh) })
+  expect(screen.getByText(zh.installApprovalCaution)).toBeTruthy()
+  expect({ title: screen.getByText(zh.installApprovalTitle).textContent,
+    action: screen.getByRole('button', { name: zh.installApproveAndRetry }).textContent,
+    dependency: screen.getByText('koffi@3.1.1').textContent }).toEqual(
+    JSON.parse(readFileSync(join(import.meta.dirname, 'expected/update-build-approval-zh.json'), 'utf8')))
+  fireEvent.click(screen.getByRole('button', { name: zh.installApproveAndRetry }))
+  expect(b.actions.updateBundle).toHaveBeenCalledExactlyOnceWith(name, ['koffi@3.1.1'])
+})
+
 function pkg(overrides: Partial<PackageView> = {}): PackageView {
   return {
     name: 'dsh-better-sidebar',

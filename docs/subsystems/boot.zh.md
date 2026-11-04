@@ -253,9 +253,10 @@ Manage profile files and apply their declared reload lifecycle.
 
 /** Recheck a declared release, verify its bytes and install into this profile without changing activation.
  * @param name Independently updateable bundle name; callers cannot supply an asset URL.
+ * @param options Pending script keys explicitly approved by the user; automatic updates never supply these.
  * @returns Existing installation diagnostics and restart-required after success.
  */
-@Remote updateBundleRelease(name: string): Promise<ChangeResult>
+@Remote updateBundleRelease(name: string, options?: Pick<InstallBundleOptions, 'approvedBuilds'>): Promise<ChangeResult>
 
 /**
  * Install a verified archive supplied by the bundle's declared independent updater.

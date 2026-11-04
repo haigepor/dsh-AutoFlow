@@ -636,13 +636,14 @@ export class PluginManager extends TypertRemoteService {
 
   /** Recheck a declared release, verify its bytes and install into this profile without changing activation.
    * @param name Independently updateable bundle name; callers cannot supply an asset URL.
+   * @param options Pending script keys explicitly approved by the user; automatic updates never supply these.
    * @returns Existing installation diagnostics and restart-required after success.
    */
   @Remote
-  updateBundleRelease(name: string): Promise<ChangeResult> {
+  updateBundleRelease(name: string, options?: Pick<InstallBundleOptions, 'approvedBuilds'>): Promise<ChangeResult> {
     const pending = this.updateInstalls.get(name)
     if (pending !== undefined) return pending
-    const task = this.performUpdate(name).finally(() => {
+    const task = this.performUpdate(name, options).finally(() => {
       this.updateInstalls.delete(name)
       this.packageOperations.delete(task)
     })
@@ -684,6 +685,13 @@ export class PluginManager extends TypertRemoteService {
         delete state.failureStage
         delete state.checkFailure
         delete state.transfer
+        delete state.installFailure
+        if (release !== undefined && latest?.installFailure?.kind === 'build-blocked' && latest.version === release.metadata.version) {
+          state.status = 'error'
+          state.failureStage = 'install'
+          state.installFailure = latest.installFailure
+          if (latest.failureStage === 'install' && latest.diagnostic !== undefined) state.diagnostic = latest.diagnostic
+        }
         if (release === undefined) { delete state.version; delete state.releaseUrl }
         this.updateStates.set(name, state)
         return state
@@ -703,7 +711,7 @@ export class PluginManager extends TypertRemoteService {
     return task
   }
 
-  private async performUpdate(name: string): Promise<ChangeResult> {
+  private async performUpdate(name: string, options?: Pick<InstallBundleOptions, 'approvedBuilds'>): Promise<ChangeResult> {
     let stage: 'metadata' | 'download' | 'install' = 'metadata'
     try {
       const source = resolveBundleUpdateSource(name, this.profile.installAnchor, this.profile.dir)
@@ -718,6 +726,7 @@ export class PluginManager extends TypertRemoteService {
       if (release === undefined) {
         const current: BundleUpdateInfo = { ...info, ...this.knownUpdate(name, source.repository), status: 'current' }
         delete current.checkFailure
+        delete current.installFailure
         delete current.diagnostic
         delete current.failureStage
         delete current.version
@@ -730,6 +739,7 @@ export class PluginManager extends TypertRemoteService {
       delete installing.failureStage
       delete installing.checkFailure
       delete installing.transfer
+      delete installing.installFailure
       this.updateStates.set(name, installing)
       this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
       stage = 'download'
@@ -743,15 +753,17 @@ export class PluginManager extends TypertRemoteService {
       this.updateStates.set(name, installing)
       this.ownerContext.emit('plugin-manager/bundle-update', installing)
       const enabled = readProfileManifest('dsh', this.profile.dir).dsh?.profile?.bundles?.includes(name) === true
-      const result = await this.install(cached.file, { enabled }, { name, version: release.metadata.version, before })
+      const result = await this.install(cached.file, { ...options, enabled }, { name, version: release.metadata.version, before })
       if (result.application === 'restart-required' && result.error === undefined) {
         this.restartBundles.add(name)
         this.updateStates.set(name, { name, repository: source.repository, automatic: readAutomaticUpdates(this.profile.dir)[name] === true,
           status: 'current', version: release.metadata.version, releaseUrl: release.releaseUrl, restartRequired: true })
         this.ownerContext.emit('plugin-manager/changed', { reason: 'install' })
       } else if (result.application === 'failed') {
-        this.updateStates.set(name, { name, repository: source.repository, automatic: readAutomaticUpdates(this.profile.dir)[name] === true,
-          status: 'error', diagnostic: result.error?.diagnostic ?? result.packageResult?.output ?? 'Plugin installation failed', failureStage: 'install', restartRequired: false })
+        this.updateStates.set(name, { ...installing,
+          status: 'error', diagnostic: result.error?.diagnostic ?? result.packageResult?.output ?? 'Plugin installation failed', failureStage: 'install', restartRequired: false,
+          installFailure: { kind: result.packageResult?.kind ?? 'unknown',
+            ...result.pendingBuilds === undefined ? {} : { pendingBuilds: result.pendingBuilds } } })
         this.ownerContext.emit('plugin-manager/changed', { reason: 'update' })
       }
       return result

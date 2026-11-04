@@ -154,6 +154,11 @@ export interface BundleUpdateInfo {
     kind: 'rate-limited' | 'forbidden' | 'network' | 'invalid-metadata' | 'cache'
     retryAt?: number
   }
+  /** Package installation failure; pending script keys require explicit approval before retry. */
+  installFailure?: {
+    kind: PluginInstallFailureKind
+    pendingBuilds?: string[]
+  }
   /** True byte progress for the verified archive; absent during metadata checks and package-manager installation. */
   transfer?: ArtifactDownloadProgress
   /** This process retains the old module generation until restart. */

@@ -2299,9 +2299,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'name', description: 'Bundle with a declared source.' }, { name: 'enabled', description: 'Whether checked newer versions may install without another action.' }],
       },
       {
-        signature: '@Remote updateBundleRelease(name: string): Promise<ChangeResult>',
+        signature: '@Remote updateBundleRelease(name: string, options?: Pick<InstallBundleOptions, \'approvedBuilds\'>): Promise<ChangeResult>',
         description: 'Recheck a declared release, verify its bytes and install into this profile without changing activation.',
-        parameters: [{ name: 'name', description: 'Independently updateable bundle name; callers cannot supply an asset URL.' }],
+        parameters: [{ name: 'name', description: 'Independently updateable bundle name; callers cannot supply an asset URL.' }, { name: 'options', description: 'Pending script keys explicitly approved by the user; automatic updates never supply these.' }],
         returns: 'Existing installation diagnostics and restart-required after success.',
       },
       {
@@ -6056,7 +6056,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'BundleUpdateInfo',
-    declaration: 'export interface BundleUpdateInfo {\n    name: string;\n    repository: string;\n    automatic: boolean;\n    status: \'unchecked\' | \'current\' | \'available\' | \'installing\' | \'error\';\n    version?: string;\n    releaseUrl?: string;\n    diagnostic?: string;\n    failureStage?: \'metadata\' | \'download\' | \'install\';\n    lastCheckedAt?: number;\n    lastKnownVersion?: string;\n    checkFailure?: {\n        kind: \'rate-limited\' | \'forbidden\' | \'network\' | \'invalid-metadata\' | \'cache\';\n        retryAt?: number;\n    };\n    transfer?: ArtifactDownloadProgress;\n    restartRequired: boolean;\n}',
+    declaration: 'export interface BundleUpdateInfo {\n    name: string;\n    repository: string;\n    automatic: boolean;\n    status: \'unchecked\' | \'current\' | \'available\' | \'installing\' | \'error\';\n    version?: string;\n    releaseUrl?: string;\n    diagnostic?: string;\n    failureStage?: \'metadata\' | \'download\' | \'install\';\n    lastCheckedAt?: number;\n    lastKnownVersion?: string;\n    checkFailure?: {\n        kind: \'rate-limited\' | \'forbidden\' | \'network\' | \'invalid-metadata\' | \'cache\';\n        retryAt?: number;\n    };\n    installFailure?: {\n        kind: PluginInstallFailureKind;\n        pendingBuilds?: string[];\n    };\n    transfer?: ArtifactDownloadProgress;\n    restartRequired: boolean;\n}',
   },
   {
     name: 'ButtonProps',

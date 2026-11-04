@@ -153,6 +153,18 @@ it('checks declared updates on page entry, saves opt-in permission and reports r
   expect(b.plugins.updateBundleRelease).toHaveBeenCalledWith(BUNDLE.name)
 })
 
+it('sends pending script keys only after the explicit update approval action', async () => {
+  const update = { name: BUNDLE.name, repository: 'example/plugins', automatic: false, status: 'error' as const,
+    failureStage: 'install' as const, restartRequired: false,
+    installFailure: { kind: 'build-blocked' as const, pendingBuilds: ['koffi@3.1.1'] } }
+  const b = bench({ listBundles: vi.fn(() => Promise.resolve(ok([{ ...BUNDLE, update }]))) })
+  await b.controller.load()
+  expect(b.plugins.updateBundleRelease).not.toHaveBeenCalled()
+  b.face.updateBundle(BUNDLE.name, ['koffi@3.1.1'])
+  await vi.waitFor(() => { expect(b.state().updateRestarts).toEqual([BUNDLE.name]) })
+  expect(b.plugins.updateBundleRelease).toHaveBeenCalledExactlyOnceWith(BUNDLE.name, { approvedBuilds: ['koffi@3.1.1'] })
+})
+
 describe('packageView', () => {
   it('carries the current inventory failure into a component row', () => {
     const plugins = PLUGINS.map(plugin => plugin.entryId === ROW_ENTRY

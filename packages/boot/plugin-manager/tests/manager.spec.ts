@@ -4,7 +4,7 @@ import { realpath } from 'node:fs/promises'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import type { Socket } from 'node:net'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { homedir, tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execa } from 'execa'
@@ -280,6 +280,66 @@ it('restores the package entry and profile files when an updater installation fa
   expect(await manager.updateBundleRelease('extra')).toMatchObject({ application: 'failed' })
   expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(original)
   expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.0.0')
+})
+
+it('retains blocked update scripts across checks and retries only the explicitly approved dependency with real pnpm', async () => {
+  const nativeDir = mkdtempSync(join(tmpdir(), 'plugin-update-build-'))
+  onTestFinished(() => { rmSync(nativeDir, { recursive: true, force: true }) })
+  const native = join(nativeDir, 'native.tgz')
+  writeFileSync(native, archive([
+    { path: 'package/package.json', body: JSON.stringify({ name: 'fixture-native', version: '1.0.0', scripts: { install: 'node build.cjs' } }) },
+    { path: 'package/build.cjs', body: 'require("node:fs").writeFileSync("built.txt", "approved")' },
+  ]))
+  githubFixture([
+    { path: 'package/package.json', body: JSON.stringify({ name: 'extra', version: '1.1.0', type: 'module',
+      dependencies: { 'fixture-native': `file:${native.replaceAll('\\', '/')}` },
+      dsh: { bundle: { patch: './cordis.patch.yml', update: updateSource } } }) },
+    { path: 'package/cordis.patch.yml', body: '[{"insert":[{"id":"managed","name":"./plugin.mjs"}]}]' },
+    { path: 'package/plugin.mjs', body: 'export function apply() {}' },
+  ])
+  const { manager, dir, profile, ctx } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const path = join(profileDir, 'node_modules/extra/package.json')
+    const manifest = readProfileManifest('test', join(profileDir, 'node_modules/extra'))
+    writeFileSync(path, JSON.stringify({ ...manifest, dsh: { bundle: { ...manifest.dsh?.bundle, update: updateSource } } }))
+  })
+  const policyPath = join(dir, 'pnpm-workspace.yaml')
+  const policy = parseDocument(readFileSync(policyPath, 'utf8'))
+  policy.set('offline', true); policy.set('storeDir', join(profile.cwd, 'store'))
+  policy.set('allowBuilds', { 'another-dependency': false })
+  writeFileSync(policyPath, String(policy))
+  const manifestBefore = readFileSync(join(dir, 'package.json'), 'utf8')
+  const activation = readProfileManifest('test', dir).dsh?.profile?.bundles
+  const buildKey = `fixture-native@file:${relative(dir, native).replaceAll('\\', '/')}`
+  const blocked = await manager.updateBundleRelease('extra')
+  expect(blocked, JSON.stringify(blocked)).toMatchObject({ application: 'failed', pendingBuilds: [buildKey],
+    packageResult: { kind: 'build-blocked' } })
+  expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(manifestBefore)
+  expect(readProfileManifest('test', join(dir, 'node_modules/extra')).version).toBe('1.0.0')
+  expect(existsSync(join(dir, 'node_modules/fixture-native/built.txt'))).toBe(false)
+  expect(await manager.checkBundleUpdates()).toMatchObject([{ status: 'error', failureStage: 'install',
+    installFailure: { kind: 'build-blocked', pendingBuilds: [buildKey] } }])
+  const run = vi.spyOn(operations, 'runProfilePnpm')
+  onTestFinished(() => { run.mockRestore() })
+  const swept = Promise.withResolvers<undefined>()
+  let notifications = 0
+  const remove = ctx.on('plugin-manager/changed', ({ reason }) => {
+    if (reason === 'bundle' && ++notifications === 2) swept.resolve(undefined)
+  })
+  onTestFinished(() => { remove() })
+  await manager.setBundleAutoUpdate('extra', true)
+  await swept.promise
+  expect(run).not.toHaveBeenCalled()
+  await manager.setBundleAutoUpdate('extra', false)
+  expect(await manager.updateBundleRelease('extra', { approvedBuilds: ['another-dependency'] })).toMatchObject({
+    application: 'failed', error: { code: 'stale-approval' },
+  })
+  expect(run).not.toHaveBeenCalled()
+  const updated = await manager.updateBundleRelease('extra', { approvedBuilds: [buildKey] })
+  expect(updated, JSON.stringify(updated)).toMatchObject({ application: 'restart-required', approvedBuilds: [buildKey] })
+  expect(readFileSync(join(dir, 'node_modules/fixture-native/built.txt'), 'utf8')).toBe('approved')
+  expect(parse(readFileSync(policyPath, 'utf8'))).toMatchObject({ allowBuilds: { [buildKey]: true, 'another-dependency': false } })
+  expect(readProfileManifest('test', dir).dsh?.profile?.bundles).toEqual(activation)
+  expect((await manager.listBundles()).find(item => item.name === 'extra')?.update).toMatchObject({ status: 'current', restartRequired: true })
 })
 
 it('reports archive download failures without changing the installed version', async () => {
