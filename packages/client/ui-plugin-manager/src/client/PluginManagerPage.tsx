@@ -601,12 +601,14 @@ function PackageCard({ pkg, t, resolveText, busy, target, highlighted, newer, on
               : pkg.update?.status === 'installing' || busy && pkg.update?.status === 'available'
                 ? <span className={css.updateBadge} role="status" aria-busy="true"><Tag tone="info"><PluginUpdateActivity compact
                   label={bundleDownloadLabel(pkg.update, t)} percent={bundleDownloadPercent(pkg.update)} /></Tag></span>
-                : pkg.update?.status === 'available'
-                  ? <Button variant="ghost" size="sm" className={css.updateBadge} disabled={busy} onClick={() => { onUpdate() }}>
-                    <Tag tone="info">{t('updatesBadge', { version: pkg.update.version ?? '' })}</Tag>
-                  </Button>
-                  : pkg.update?.status === 'error'
-                    ? <Tag tone="danger">{t(pkg.update.failureStage === 'metadata' ? 'updatesCheckUnavailable' : 'updatesError')}</Tag> : null}
+                : pkg.updateRequestError !== undefined
+                  ? <Tag tone="danger">{t('updatesRequestFailed')}</Tag>
+                  : pkg.update?.status === 'available'
+                    ? <Button variant="ghost" size="sm" className={css.updateBadge} disabled={busy} onClick={() => { onUpdate() }}>
+                      <Tag tone="info">{t('updatesBadge', { version: pkg.update.version ?? '' })}</Tag>
+                    </Button>
+                    : pkg.update?.status === 'error'
+                      ? <Tag tone="danger">{t(pkg.update.failureStage === 'metadata' ? 'updatesCheckUnavailable' : 'updatesError')}</Tag> : null}
             {pkg.availability === 'missing' ? <Tag className={css.statusTag}>{t(pkg.installed ? 'statusMissingFiles' : 'statusNotInstalled')}</Tag> : null}
             {updateAvailable(pkg) || newer !== undefined ? <Tag className={css.statusTag} tone="info">{t('statusUpdateAvailable')}</Tag> : null}
           </>
@@ -826,8 +828,10 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
   readonly onRestart: () => void
 }): ReactNode {
   const update = pkg.update
-  const [open, setOpen] = useState(update?.status === 'error')
-  useEffect(() => { if (update?.status === 'error') setOpen(true) }, [update?.status])
+  const requestFailed = pkg.updateRequestError !== undefined
+  const failed = update?.status === 'error' || requestFailed
+  const [open, setOpen] = useState(failed)
+  useEffect(() => { if (failed) setOpen(true) }, [failed])
   if (update === undefined) return null
   const installing = update.status === 'installing' || busy && update.status === 'available'
   const metadataFailed = update.status === 'error' && update.failureStage === 'metadata'
@@ -840,7 +844,7 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
   const formatTime = (value: number): string => new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }).format(value)
   const active = !update.restartRequired && (installing || checking)
   const status = update.restartRequired ? t('updatesRestart') : installing ? bundleDownloadLabel(update, t) : checking ? t('updatesChecking')
-    : update.status === 'available' ? t('releaseUpdateAvailable', { version: update.version ?? '' })
+    : requestFailed ? t('updatesRequestFailed') : update.status === 'available' ? t('releaseUpdateAvailable', { version: update.version ?? '' })
       : t(update.status === 'current' ? 'updatesCurrent' : metadataFailed ? 'updatesCheckUnavailable' : update.status === 'error' ? 'updatesError' : 'updatesUnchecked')
   return <details className={`${css.detailSection} ${css.updatesDisclosure}`} open={open}
     onToggle={(event) => { setOpen(event.currentTarget.open) }} data-plugin-updates>
@@ -848,13 +852,13 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
       <IconChevronRightOutlineRegular size={14} className={css.partsChevron} aria-hidden="true" />
       <span className={css.sectionTitle}>{t('updatesTitle')}</span>
       {pkg.version === undefined ? null : <span className={css.updateVersion}>{t('updatesVersion', { version: pkg.version })}</span>}
-      {open ? null : <span className={css.updateSummary} role="status" aria-live="polite" data-error={update.status === 'error'}>
+      {open ? null : <span className={css.updateSummary} role="status" aria-live="polite" data-error={failed}>
         {active ? <PluginUpdateActivity compact label={status} percent={bundleDownloadPercent(update)} /> : status}
       </span>}
     </summary>
     <div className={css.updatesBody}>
       <div className={css.updateRelease}>
-        {open ? <div className={css.updateStatus} role="status" aria-live="polite" data-error={update.status === 'error'}>
+        {open ? <div className={css.updateStatus} role="status" aria-live="polite" data-error={failed}>
           {active ? <PluginUpdateActivity label={status} percent={bundleDownloadPercent(update)} /> : status}
         </div> : null}
         <div className={css.updateActions}>
@@ -865,7 +869,9 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
             : update.status !== 'available' ? null : <Button size="sm" disabled={busy} onClick={() => { onUpdate() }}>{t('updatesInstall')}</Button>}
         </div>
       </div>
-      {metadataFailed ? <div role="status" aria-live="polite">
+      {requestFailed ? <details className={css.reason}>
+        <summary>{t('updatesTechnicalDetails')}</summary><p>{pkg.updateRequestError}</p>
+      </details> : metadataFailed ? <div role="status" aria-live="polite">
         <p className={css.reason}>{t(update.checkFailure === undefined ? 'updatesCheckUnavailable' : checkFailureKeys[update.checkFailure.kind])}
           {update.checkFailure?.retryAt === undefined ? null : <> {t('updatesRetryAt', { time: formatTime(update.checkFailure.retryAt) })}</>}
         </p>

@@ -1,0 +1,6 @@
+{
+  "toast": "更新 dsh-better-sidebar 失败",
+  "status": "更新请求失败，请重试",
+  "reason": "client api: pluginManager/updateBundleRelease expected 2 argument(s), got 1",
+  "retry": "立即更新"
+}

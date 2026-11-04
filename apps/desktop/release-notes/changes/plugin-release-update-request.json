@@ -1,0 +1,8 @@
+{
+  "id": "plugin-release-update-request",
+  "category": "fixes",
+  "text": {
+    "en": "Plugin updates start correctly from the update button. Failed requests identify the plugin and retain their reason in update details for retry.",
+    "zh-CN": "修复点击插件更新按钮后请求未发出的问题；失败提示显示插件名，并在更新详情中保留原因，方便查看和重试。"
+  }
+}

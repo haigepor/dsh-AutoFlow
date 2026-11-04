@@ -23,6 +23,7 @@ import type { PluginTab } from '../src/client/tab-ledger.ts'
 import type { ConfigLedger } from '../src/client/config-ledger.ts'
 import { rowKey, type InstallState, type PackageRow, type PackageView, type PluginManagerState, type UpdateState, type VersionCheck } from '../src/client/manager-store.ts'
 import { INSTALL_GIT_EXAMPLE, INSTALL_PATH_EXAMPLE, en, zh, type PluginManagerLocaleKey } from '../src/client/locales.ts'
+import { noticeText } from '../src/client/presentation.ts'
 import type { PluginActivationOwnerProps, PluginAddActionsProps, PluginDetailProps, PluginTabProps, PluginsSubject } from '../src/client/slot-contract.ts'
 
 beforeEach(() => { localStorage.clear() })
@@ -117,6 +118,32 @@ const translate = (dict: typeof en): PluginManagerPageProps['t'] => ((key: Plugi
   )) as PluginManagerPageProps['t']
 
 const t = translate(en)
+
+it('names a failed update and keeps its request error visible and retryable in details', async () => {
+  const name = 'dsh-better-sidebar'
+  const diagnostic = 'client api: pluginManager/updateBundleRelease expected 2 argument(s), got 1'
+  const b = renderTab({ packages: [pkg({ updateRequestError: diagnostic, update: {
+    name, repository: 'example/plugins', automatic: false, status: 'available', version: '1.0.0', restartRequired: false,
+  } })] })
+  expect(screen.getByText(en.updatesRequestFailed)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: `View ${name}` }))
+  await act(async () => { b.setLanguage(zh) })
+  const disclosure = screen.getByText(zh.updatesTitle).closest('details')!
+  expect(disclosure.open).toBe(true)
+  expect(screen.queryByText(zh.updatesCurrent)).toBeNull()
+  expect(screen.queryByText(zh.updatesDownloadFailed)).toBeNull()
+  const details = screen.getByText(zh.updatesTechnicalDetails).closest('details')!
+  expect(details.open).toBe(false)
+  expect({
+    toast: noticeText({ kind: 'failed', action: 'update', packageName: name, reason: diagnostic, seq: 1 }, translate(zh)),
+    status: within(disclosure).getByRole('status').textContent,
+    reason: within(details).getByText(diagnostic).textContent,
+    retry: within(disclosure).getByRole('button', { name: zh.updatesInstall }).textContent,
+  }).toEqual(JSON.parse(readFileSync(join(import.meta.dirname, 'expected/update-request-failure-zh.json'), 'utf8')))
+  expect(b.actions.updateBundle).not.toHaveBeenCalled()
+  fireEvent.click(within(disclosure).getByRole('button', { name: zh.updatesInstall }))
+  expect(b.actions.updateBundle).toHaveBeenCalledExactlyOnceWith(name)
+})
 
 it('keeps a rate-limited check separate from installed state and localizes its recovery information', async () => {
   const name = 'dsh-better-sidebar'

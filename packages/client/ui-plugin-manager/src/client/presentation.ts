@@ -194,7 +194,7 @@ export function noticeText(notice: ManagerNotice, t: Translate): string {
       const reason = notice.code === undefined ? notice.reason : managementText({
         code: notice.code, diagnostic: notice.reason, ...notice.incompatible === undefined ? {} : { incompatible: notice.incompatible },
       }, t)
-      return t(FAILED_KEYS[notice.action], { reason: reason === '' ? t('reasonOperationError') : reason })
+      return t(FAILED_KEYS[notice.action], { name: notice.packageName ?? '', reason: reason === '' ? t('reasonOperationError') : reason })
     }
   }
 }

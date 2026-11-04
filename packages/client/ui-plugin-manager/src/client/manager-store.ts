@@ -115,6 +115,8 @@ export interface PackageView {
   readonly updateManager?: string
   /** Source-specific update status and saved installation permission. */
   readonly update?: BundleUpdateInfo
+  /** A failed request for these installed and offered versions; retry or Host progress clears it. */
+  readonly updateRequestError?: string
   /** Official catalog identity is independent of installation and selection. */
   readonly official: boolean
   /** Readable package location, separately from the profile dependency declaration. */
@@ -553,6 +555,18 @@ function failedNotice(error: unknown, subject: { action: FailedAction; packageNa
   }
 }
 
+/** Keep a request diagnostic only while the same installed and offered versions still await installation. */
+function retainUpdateRequestError(current: PackageView, previous: PackageView | undefined): PackageView {
+  const result = { ...current }
+  delete result.updateRequestError
+  if (previous?.updateRequestError !== undefined && current.version === previous.version
+    && current.update?.status === 'available' && !current.update.restartRequired
+    && current.update.version === previous.update?.version) {
+    result.updateRequestError = previous.updateRequestError
+  }
+  return result
+}
+
 /** The runs with every one still open settled at `exitCode`. */
 function settledRuns(runs: readonly InstallRun[], exitCode: number | null): readonly InstallRun[] {
   return runs.map(run => run.exitCode === undefined ? { ...run, exitCode } : run)
@@ -793,11 +807,23 @@ export class PluginManagerController {
       refresh: () => { void this.refresh() },
       checkUpdates: () => { void this.checkUpdates() },
       updateBundle: (name, approvedBuilds) => { void this.run(name, { action: 'update', packageName: name }, async () => {
-        const answer = approvedBuilds === undefined
-          ? await this.ctx.remote.pluginManager.updateBundleRelease(name)
-          : await this.ctx.remote.pluginManager.updateBundleRelease(name, { approvedBuilds: [...approvedBuilds] })
-        if (answer.ok && answer.value.application === 'restart-required') this.announceUpdateRestart(name)
-        else this.applied(answer, name)
+        this.patch({ packages: this.getSnapshot().packages.map((pkg) => {
+          if (pkg.name !== name) return pkg
+          const cleared = { ...pkg }
+          delete cleared.updateRequestError
+          return cleared
+        }) })
+        try {
+          const answer = await this.ctx.remote.pluginManager.updateBundleRelease(name,
+            approvedBuilds === undefined ? {} : { approvedBuilds: [...approvedBuilds] })
+          if (answer.ok && answer.value.application === 'restart-required') this.announceUpdateRestart(name)
+          else this.applied(answer, name)
+        } catch (error) {
+          this.patch({ packages: this.getSnapshot().packages.map(pkg => pkg.name !== name ? pkg : {
+            ...pkg, updateRequestError: reasonOf(error),
+          }) })
+          throw error
+        }
       }) },
       showUpdateRestart: (name) => { this.patch({ updateRestarts: [...new Set([...this.getSnapshot().updateRestarts ?? [], name])] }) },
       dismissUpdateRestart: () => { this.patch({ updateRestarts: [] }) },
@@ -991,7 +1017,8 @@ export class PluginManagerController {
    */
   bundleUpdateProgress(update: BundleUpdateInfo): void {
     if (this.disposed) return
-    this.patch({ packages: this.getSnapshot().packages.map(pkg => pkg.name === update.name ? { ...pkg, update } : pkg) })
+    this.patch({ packages: this.getSnapshot().packages.map(pkg => pkg.name === update.name
+      ? retainUpdateRequestError({ ...pkg, update }, pkg) : pkg) })
   }
 
   /** Read one package's newer versions; a transport failure reads as an unknown refusal. */
@@ -1165,12 +1192,12 @@ export class PluginManagerController {
       if (!answer.ok) throw new RemoteAnswerError(answer.error.message)
       this.patch({ packages: this.getSnapshot().packages.map((pkg) => {
         const update = answer.value.find(item => item.name === pkg.name)
-        return update === undefined ? pkg : { ...pkg, update }
+        return update === undefined ? pkg : retainUpdateRequestError({ ...pkg, update }, pkg)
       }) })
     } catch (error) {
-      this.patch({ packages: this.getSnapshot().packages.map(pkg => pkg.update === undefined ? pkg : {
+      this.patch({ packages: this.getSnapshot().packages.map(pkg => pkg.update === undefined ? pkg : retainUpdateRequestError({
         ...pkg, update: { ...pkg.update, status: 'error', diagnostic: reasonOf(error), failureStage: 'metadata' },
-      }) })
+      }, pkg)) })
     } finally { this.finishSwitches([key]) }
   }
 
@@ -1211,7 +1238,10 @@ export class PluginManagerController {
           this.patch({ status: 'error' })
           continue
         }
-        const packages = sortPackages(bundles.value.map(bundle => packageView(bundle, plugins.value)))
+        const previous = this.getSnapshot().packages
+        const packages = sortPackages(bundles.value.map(bundle => retainUpdateRequestError(
+          packageView(bundle, plugins.value), previous.find(pkg => pkg.name === bundle.name),
+        )))
         for (const pkg of packages) {
           if (pkg.update?.restartRequired === true
             && this.getSnapshot().packages.find(previous => previous.name === pkg.name)?.update?.restartRequired !== true) {

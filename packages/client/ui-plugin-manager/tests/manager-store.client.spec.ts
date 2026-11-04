@@ -150,7 +150,89 @@ it('checks declared updates on page entry, saves opt-in permission and reports r
   await vi.waitFor(() => { expect(b.state().busy).toEqual([]) })
   b.face.updateBundle(BUNDLE.name)
   await vi.waitFor(() => { expect(b.state().updateRestarts).toEqual([BUNDLE.name]) })
-  expect(b.plugins.updateBundleRelease).toHaveBeenCalledWith(BUNDLE.name)
+  expect(b.plugins.updateBundleRelease).toHaveBeenCalledExactlyOnceWith(BUNDLE.name, {})
+})
+
+it.each(['throw', 'refusal'] as const)('retains a %s from an update request through refresh and toast dismissal until retry', async (failure) => {
+  const update = { name: BUNDLE.name, repository: 'example/plugins', automatic: false, status: 'available' as const,
+    version: '1.0.0', restartRequired: false }
+  const other = { ...BUNDLE, name: 'another-plugin', update: { ...update, name: 'another-plugin' } }
+  const updateBundleRelease = vi.fn<() => Promise<ReturnType<typeof ok<ChangeResult>> | ReturnType<typeof refused>>>(() => failure === 'throw'
+    ? Promise.reject(new Error('Update request unavailable'))
+    : Promise.resolve(refused('gateway/internal', 'Update request unavailable')))
+  const b = bench({ listBundles: vi.fn(async () => ok([{ ...BUNDLE, update }, other])), updateBundleRelease,
+    checkBundleUpdates: vi.fn(async () => ok([update, other.update])) })
+  await b.controller.load()
+  b.face.updateBundle(BUNDLE.name)
+  await vi.waitFor(() => {
+    expect(b.state().busy).toEqual([])
+    expect(b.state().packages.find(pkg => pkg.name === BUNDLE.name)?.updateRequestError).toBe('Update request unavailable')
+  })
+  expect(b.state().packages.find(pkg => pkg.name === other.name)?.updateRequestError).toBeUndefined()
+  expect(b.state().notice).toMatchObject({ kind: 'failed', action: 'update', packageName: BUNDLE.name })
+  b.face.dismissNotice()
+  await b.controller.load()
+  b.face.checkUpdates()
+  await vi.waitFor(() => { expect(b.state().busy).toEqual([]) })
+  expect(b.state().notice).toBeNull()
+  expect(b.state().packages.find(pkg => pkg.name === BUNDLE.name)?.updateRequestError).toBe('Update request unavailable')
+  updateBundleRelease.mockImplementation(async () => ok({ ...APPLIED, application: 'restart-required' as const }))
+  b.face.updateBundle(BUNDLE.name)
+  await vi.waitFor(() => { expect(b.state().updateRestarts).toEqual([BUNDLE.name]) })
+  expect(b.state().packages.find(pkg => pkg.name === BUNDLE.name)?.updateRequestError).toBeUndefined()
+})
+
+it.each([
+  { version: '1.1.0', status: 'available' },
+  { version: '1.0.0', status: 'current' },
+  { version: '1.0.0', status: 'installing' },
+] as const)('clears an update request error when the Host reports $version as $status', async (next) => {
+  const update = { name: BUNDLE.name, repository: 'example/plugins', automatic: false, status: 'available' as const,
+    version: '1.0.0', restartRequired: false }
+  const bundles = vi.fn(async () => ok([{ ...BUNDLE, update }]))
+  const checks = vi.fn(async () => ok([{ ...update, ...next }]))
+  const b = bench({ listBundles: bundles, checkBundleUpdates: checks,
+    updateBundleRelease: vi.fn(async () => { throw new Error('Old request failed') }) })
+  await b.controller.load()
+  b.face.updateBundle(BUNDLE.name)
+  await vi.waitFor(() => { expect(b.state().packages[0]?.updateRequestError).toBe('Old request failed') })
+  await vi.waitFor(() => { expect(b.state().busy).toEqual([]) })
+  b.face.checkUpdates()
+  await vi.waitFor(() => { expect(b.state().packages[0]?.update).toMatchObject(next) })
+  expect(b.state().packages[0]?.updateRequestError).toBeUndefined()
+})
+
+it('shows a new metadata failure instead of retaining an older update request error', async () => {
+  const update = { name: BUNDLE.name, repository: 'example/plugins', automatic: false, status: 'available' as const,
+    version: '1.0.0', restartRequired: false }
+  const b = bench({ listBundles: vi.fn(async () => ok([{ ...BUNDLE, update }])),
+    checkBundleUpdates: vi.fn(async () => refused('gateway/internal', 'Update metadata unavailable')),
+    updateBundleRelease: vi.fn(async () => { throw new Error('Old request failed') }) })
+  await b.controller.load()
+  b.face.updateBundle(BUNDLE.name)
+  await vi.waitFor(() => { expect(b.state().packages[0]?.updateRequestError).toBe('Old request failed') })
+  await vi.waitFor(() => { expect(b.state().busy).toEqual([]) })
+  b.face.checkUpdates()
+  await vi.waitFor(() => { expect(b.state().packages[0]?.update).toMatchObject({ status: 'error', failureStage: 'metadata',
+    diagnostic: 'Update metadata unavailable' }) })
+  expect(b.state().packages[0]?.updateRequestError).toBeUndefined()
+})
+
+it('clears a request failure when the Host publishes active download progress', async () => {
+  const update = { name: BUNDLE.name, repository: 'example/plugins', automatic: false, status: 'available' as const,
+    version: '1.0.0', restartRequired: false }
+  const b = bench({ listBundles: vi.fn(async () => ok([{ ...BUNDLE, update }])),
+    updateBundleRelease: vi.fn(async () => { throw new Error('Request reply lost') }) })
+  await b.controller.load()
+  b.face.updateBundle(BUNDLE.name)
+  await vi.waitFor(() => { expect(b.state().packages[0]?.updateRequestError).toBe('Request reply lost') })
+  await vi.waitFor(() => { expect(b.state().busy).toEqual([]) })
+  b.controller.bundleUpdateProgress({ ...update, status: 'installing', transfer: {
+    stage: 'downloading', choice: { source: 'auto' }, source: 'github', transferred: 42, total: 100, bytesPerSecond: 10,
+    sources: [{ id: 'github', name: 'GitHub' }],
+  } })
+  expect(b.state().packages[0]?.updateRequestError).toBeUndefined()
+  expect(b.state().packages[0]?.update?.transfer).toMatchObject({ stage: 'downloading', transferred: 42, total: 100 })
 })
 
 it('sends pending script keys only after the explicit update approval action', async () => {
