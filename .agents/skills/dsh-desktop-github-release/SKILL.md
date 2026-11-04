@@ -41,6 +41,16 @@ Windows Office helper 需要随包分发的 Microsoft x64 CRT，预检验证文�
 
 ## 2. GitHub 构建与打包
 
+### 默认差分更新
+
+后续常规、兼容的桌面更新默认沿用 electron-updater 原生差分。纯插件改动优先独立发版；Electron、应用 ID、更新渠道、架构或缓存格式等重大变化先评估旧客户端兼容性，再决定是否需要基线升级或完整下载。
+
+保持 Windows `nsis.differentialPackage=true`、GitHub 单段 Range 配置及成品 `app-update.yml` 检查。每次仍发布完整安装包、对应 blockmap 与官方清单；客户端复用旧缓存中的字节，重建后执行整文件 SHA512 和适用的签名验证。缓存缺失、blockmap 或 Range 失败时允许完整包回退，安装仍须用户确认，不能只上传差分数据或直接覆盖运行中的 app.asar。
+
+已有支持差分的客户端只需发布一个正常的新版本，不为每次常规更新额外构建“基线＋目标”两版。仅在旧客户端缺少所需配置、或用户明确要求受控验收时采用一次性基线流程。自动/GitHub 线路保留原生差分；手动镜像或途中换源使用完整文件传输。发布与验收细节见[差分更新参考](references/differential-updates.md)，运行时策略由 [Desktop 更新文档](../../../apps/desktop/README.zh.md#updates)维护。
+
+### 原生平台工作流
+
 沿用 [Publish Windows Desktop](../../../.github/workflows/desktop-release.yml)：传入精确 `version`，`publish=true` 构建并发布；`publish=false` 只保留 artifact。发布不传最低版本参数时保留已有策略，不自动提高强制更新阈值。
 
 macOS 沿用 [Build macOS Desktop artifacts](../../../.github/workflows/desktop-macos-build.yml)，分别选择 `target=mac-arm64` 和 `target=mac-x64`。版本和 `expected_commit` 必须精确对应已经推送到 `main` 的干净源码；运行器、Node.js 和 Xcode 由该工作流维护，pnpm 由根包清单锁定，不另填历史 pnpm 版本。
