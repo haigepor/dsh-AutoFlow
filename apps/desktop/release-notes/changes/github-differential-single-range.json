@@ -1,0 +1,8 @@
+{
+  "id": "github-differential-single-range",
+  "category": "fixes",
+  "text": {
+    "en": "Windows GitHub updates use single Range requests for native differential downloads, avoiding full-download fallback when multipart ranges are rejected.",
+    "zh-CN": "Windows GitHub 更新使用单段 Range 进行原生差分下载，避免多段请求被拒绝后回退为完整下载。"
+  }
+}

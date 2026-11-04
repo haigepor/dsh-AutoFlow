@@ -284,6 +284,8 @@ export function createElectronBuilderConfig(
       differentialPackage: true,
     },
     detectUpdateChannel: false,
-    publish: update === undefined ? null : [{ provider: 'generic', url: update.publicUrl, channel: update.channel }],
+    // GitHub Release assets accept single ranges but reject multipart ranges, causing a full-download fallback.
+    publish: update === undefined ? null : [{ provider: 'generic', url: update.publicUrl, channel: update.channel,
+      ...(packagesWindows && update.provider === 'github' ? { useMultipleRangeRequest: false } : {}) }],
   }
 }

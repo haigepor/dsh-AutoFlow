@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-alpha.2.20261104.2",
+  "items": [
+    {
+      "id": "github-differential-single-range",
+      "category": "fixes",
+      "text": {
+        "en": "Windows GitHub updates use single Range requests for native differential downloads, avoiding full-download fallback when multipart ranges are rejected.",
+        "zh-CN": "Windows GitHub 更新使用单段 Range 进行原生差分下载，避免多段请求被拒绝后回退为完整下载。"
+      }
+    },
+    {
+      "id": "search-history-admission-refresh",
+      "category": "fixes",
+      "text": {
+        "en": "New image searches refresh confirmed mismatch history before starting, including results saved after conversation preparation.",
+        "zh-CN": "新找图任务开始前重新读取已确认的不匹配历史，避免会话准备期间新增的排除结果遗漏。"
+      }
+    },
+    {
+      "id": "session-search-cancellation",
+      "category": "fixes",
+      "text": {
+        "en": "Stopping a conversation cancels its Visual Curator tasks, and cancelled background tasks no longer restart an idle conversation.",
+        "zh-CN": "停止会话时同步取消其视觉策展任务，已取消的后台任务不再自动唤醒会话。"
+      }
+    }
+  ]
+}

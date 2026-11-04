@@ -18,7 +18,7 @@ vi.mock('node:fs/promises', async importOriginal => ({
 }))
 
 describe('installer preparation preserves application dependencies', () => {
-  it('passes the default GitHub Nightly channel to the Windows metadata producer', async () => {
+  it('uses single ranges for GitHub Windows differential downloads on the default Nightly channel', async () => {
     const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
     const config = createElectronBuilderConfig({
       DSH_DESKTOP_APP_ID: 'com.example.desktop.unsigned', DSH_DESKTOP_UNSIGNED: '1', DSH_DESKTOP_UNSIGNED_UPDATES: '1',
@@ -26,7 +26,8 @@ describe('installer preparation preserves application dependencies', () => {
       DSH_DESKTOP_GITHUB_REPOSITORY: 'owner/repository', DSH_DESKTOP_GITHUB_PAGES_URL: 'https://owner.github.io/repository/desktop/unsigned/',
       DSH_DESKTOP_MANDATORY_UPDATE_SOURCE: 'static-json', DSH_DESKTOP_MANDATORY_UPDATE_URL: 'https://owner.github.io/repository/desktop/unsigned/policy.json',
     }, 'win32', 'x64')
-    expect(config.publish).toEqual([{ provider: 'generic', url: 'https://owner.github.io/repository/desktop/unsigned/feeds/win-x64/', channel: 'nightly' }])
+    expect(config.publish).toEqual([{ provider: 'generic', url: 'https://owner.github.io/repository/desktop/unsigned/feeds/win-x64/', channel: 'nightly', useMultipleRangeRequest: false }])
+    expect(config.nsis.differentialPackage).toBe(true)
     expect(config.extraMetadata).toMatchObject({ dshDesktopUpdateChannel: 'nightly' })
   })
 

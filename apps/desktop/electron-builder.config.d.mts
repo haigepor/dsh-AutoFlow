@@ -54,13 +54,15 @@ export interface DesktopElectronBuilderConfig {
     readonly allowElevation: false
     readonly allowToChangeInstallationDirectory: false
     readonly installerLanguages: readonly string[]
+    readonly differentialPackage: true
   }
   readonly beforeBuild: () => Promise<boolean>
   readonly beforePack: (context: BeforePackContext) => Promise<void>
   readonly afterPack: (context: AfterPackContext) => Promise<void>
   readonly afterSign: (context: AfterPackContext) => Promise<void>
   readonly artifactBuildCompleted: (artifact: { readonly file: string }) => Promise<void> | undefined
-  readonly publish: readonly [{ readonly provider: 'generic', readonly url: string }] | null
+  readonly publish: readonly [{ readonly provider: 'generic', readonly url: string,
+    readonly channel: 'nightly' | 'latest', readonly useMultipleRangeRequest?: false }] | null
 }
 
 /**
