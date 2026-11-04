@@ -34,7 +34,7 @@ Manage the current profile's plugins without editing configuration by hand. Enab
 <a id="use-this-package"></a>
 ## Use this package
 
-Plugin and bundle inventories load display metadata through the [asynchronous runtime reader](../app-boot/README.md#reading-plugin-display-metadata). Update checks omit localized display metadata; a check with no declared update sources emits no bundle-change notification.
+Plugin and bundle inventories load display metadata through the [asynchronous runtime reader](../app-boot/README.md#reading-plugin-display-metadata). Loader root-fiber status changes notify inventory consumers, including late dependency activation; nested task fibers do not invalidate the inventory. Update checks omit localized display metadata; a check with no declared update sources emits no bundle-change notification. Plugin restart readiness waits for startup and package operations; restart requests defer while agents, queued input or background jobs remain active.
 
 Bundle metadata may declare selectable features and example prompts. Feature choices persist in the profile, survive independent updates, and apply after the required restart. Row changes share a comment-preserving patch transaction that removes redundant enablement overrides against the selected bundle composition. Installation validates engine requirements together with peers; discovered official catalog targets do not install until requested.
 

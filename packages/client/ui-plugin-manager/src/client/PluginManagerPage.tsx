@@ -328,7 +328,7 @@ function RowsSection({ rows, t, resolveText, toggle, configure, targets = {} }: 
   const shown = query === '' ? localized : localized.filter(({ row, title, description }) =>
     [title, description, row.rowId, row.moduleName].some(value => value?.toLowerCase().includes(query)))
   return (
-    <details className={`${css.detailSection} ${css.partsDisclosure}`} data-plugin-rows>
+    <details className={`${css.detailSection} ${css.partsDisclosure}`} data-plugin-rows open={rows.some(row => row.phase === 'failed')}>
       <summary className={css.sectionHead}>
         <IconChevronRightOutlineRegular className={css.partsChevron} size={14} aria-hidden="true" />
         <span className={css.sectionTitle}>{t('partsLabel')}</span>
@@ -748,7 +748,7 @@ function RowDetail({ pkg, row, t, resolveText, onBack, renderSlot, form }: {
 }
 
 /** A feature keeps its confirmed runtime badge beside its pending switch value and configuration action. */
-function FeatureRow({ feature, row, t, resolveText, busy, checked, locked, configure, onChange }: {
+function FeatureRow({ feature, row, t, resolveText, busy, checked, locked, restartRequired, configure, onChange }: {
   readonly feature: BundleFeature
   readonly row: PackageRow | undefined
   readonly t: Translate
@@ -756,6 +756,7 @@ function FeatureRow({ feature, row, t, resolveText, busy, checked, locked, confi
   readonly busy: boolean
   readonly checked: boolean
   readonly locked: boolean
+  readonly restartRequired: boolean
   readonly configure: (() => void) | undefined
   readonly onChange: (enabled: boolean) => void
 }): ReactNode {
@@ -765,10 +766,11 @@ function FeatureRow({ feature, row, t, resolveText, busy, checked, locked, confi
   const detailsId = useId()
   const phase = row?.phase
   const statusKey = !feature.enabled ? 'featureOff' : phase === 'failed' ? 'rowPhaseFailed'
-    : phase === 'loading' ? 'rowPhaseLoading' : phase === 'unloading' ? 'rowPhaseUnloading'
+    : restartRequired ? 'featureRestart' : phase === 'pending' ? 'rowPhasePending'
+      : phase === 'loading' ? 'rowPhaseLoading' : phase === 'unloading' ? 'rowPhaseUnloading'
       : row?.enabled && phase === 'active' ? 'featureRunning' : 'featureSelected'
   const tone = statusKey === 'featureRunning' ? 'success' : statusKey === 'rowPhaseFailed' ? 'danger'
-    : statusKey === 'rowPhaseLoading' || statusKey === 'rowPhaseUnloading' ? 'info' : 'neutral'
+    : statusKey === 'rowPhaseLoading' || statusKey === 'rowPhaseUnloading' || statusKey === 'rowPhasePending' || statusKey === 'featureRestart' ? 'info' : 'neutral'
   return <li className={css.featureItem} {...feature.kind === undefined ? {} : { 'data-feature-kind': feature.kind }}>
     <div className={css.featureLine}>
       <span className={css.featureIcon} aria-hidden="true">{feature.icon === undefined || feature.icon === failedIcon
@@ -1100,6 +1102,7 @@ function PackageDetail({
                     return <FeatureRow key={feature.id} feature={feature} row={row} t={t} resolveText={resolveText}
                       busy={featureBusy(feature.id)} checked={targets[featureKey(pkg.name, feature.id)] ?? feature.enabled}
                       locked={pkg.readOnlyReason !== undefined || pkg.update?.restartRequired === true}
+                      restartRequired={pkg.update?.restartRequired === true}
                       configure={row !== undefined && configure.has(row)
                         ? () => { setEditing({ rowId: row.rowId, featureId: feature.id }) } : undefined}
                       onChange={(enabled) => { onSetFeature(feature.id, enabled) }} />

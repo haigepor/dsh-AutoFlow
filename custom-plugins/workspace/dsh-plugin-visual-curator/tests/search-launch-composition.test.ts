@@ -38,7 +38,10 @@ import sharp from 'sharp'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { CuratorService } from '../src/host/service.ts'
 import { mountCurator } from '../src/host/plugin.ts'
-import { createAgentTools } from '../src/host/tools.ts'
+import * as CuratorTools from '../src/host/tools.ts'
+import * as CuratorSkill from '../src/host/skill.ts'
+import * as CuratorPage from '../src/host/page.ts'
+import Skills from '@deepseek-ai/dsh-skill'
 import { searchLaunchViewSchema } from '../src/shared/search-launch.ts'
 import { nativeSearchSessions, type NativeSearchSessions } from '../src/host/native-search-session.ts'
 import { CompatibleVisionProvider, SourceHttpProvider } from '../src/media/index.ts'
@@ -86,7 +89,7 @@ for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-co
   }
   try {
     const path = join(root, 'cordis.yml')
-    await writeFile(path, '- name: cordis:native\n- name: cordis:defaults\n  config:\n    provider: fixture\n    model: fixture\n- name: cordis:api\n', 'utf8')
+    await writeFile(path, '- name: cordis:native\n- name: cordis:defaults\n  config:\n    provider: fixture\n    model: fixture\n- name: cordis:api\n- name: cordis:features\n', 'utf8')
     ctx.baseUrl = pathToFileURL(root).href + '/'
     await ctx.plugin(Loader)
     ctx.loader.builtins.include = Include
@@ -121,6 +124,7 @@ for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-co
       await owner.plugin(JobTools)
       await owner.plugin(ConfigEditor)
       await owner.plugin(PluginManager)
+      await owner.plugin(Skills)
       owner.on('tools/pre-execute', (exec, next) => { if (exec.name === 'job_output') waitingForJob.resolve(); return next() })
       await owner.inject(['llm'], adapterScope => { adapterScope.effect(() => adapterScope.llm.registerAdapter(['fixture'], new Adapter()), 'Native launch external model fixture') })
     } catch (error) { assemblyError = error; throw error } } }
@@ -149,11 +153,17 @@ for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-co
           ctx.sessionController.cancel({ sessionId: owningSessionId }); admissionStopped.resolve()
         }
       }), 'Stop at image job registration')
-      const shared = service
-      toolOwner = owner.plugin({ name: 'native-launch-visual-tools', inject: ['tools'], apply(tools: Context) { for (const tool of createAgentTools(shared)) tools.effect(() => tools.tools.register(tool), tool.name) } })
-      await toolOwner
     } catch (error) { assemblyError = error; throw error } } }
+    ctx.loader.builtins.features = { name: 'native-launch-visual-features', inject: ['visualCurator', 'tools', 'skills', 'pluginManager'], async apply(features: Context) {
+      toolOwner = features.fiber
+      for (const group of ['read', 'curate', 'export'] as const) await features.plugin(CuratorTools, { group })
+      for (const skill of ['visual-style-reference', 'visual-style-calibration', 'visual-image-search', 'visual-crop-composition', 'visual-human-feedback', 'visual-dataset-export'] as const) await features.plugin(CuratorSkill, { skill })
+      await features.plugin(CuratorPage, { page: 'panel' })
+    } }
     await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(path).href } }); await ctx.loader.await()
+    const skills = ctx.get('skills')
+    assert.ok(skills)
+    assert.equal((await skills.list()).filter(skill => skill.provider === 'dsh-plugin-visual-curator').length, 6)
     assert.ok(service, String(assemblyError) + JSON.stringify(['agentDefaultModel','agents','attachments','fileUploads','fs','llm','remoteAccess','sessions','sessionProjections','sessionQuery','typert','workspaceRegistry','jobs','configEditor'].map(name => [name,!!Reflect.get(ctx,name)]))); assert.ok(ctx.get('sessionController'), String(assemblyError))
     const actor = { kind: 'human' as const, id: 'owner', profileId: service.profileId }, invoke = (operation: string, args: Record<string, z.infer<typeof import('../src/shared/model.ts').jsonSchema>> = {}) => service!.action({ operation, args }, actor, new AbortController().signal)
     const { id: styleId } = z.object({ id: z.string() }).parse(await invoke('style-create', { operationId: 'style', name: 'Loader photos' }))

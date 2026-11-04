@@ -1,8 +1,34 @@
 /** Recovery requires a new ready Host, including when teardown drops the commit reply. */
 import { afterEach, expect, it, vi } from 'vitest'
-import { waitForUpdatedWebHost } from '../src/client/update-restart.ts'
+import { waitForUpdatedWebHost, waitForAutomaticPluginRestart } from '../src/client/update-restart.ts'
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
+
+it('defers automatic plugin restart while work is active and resumes without confirmation', async () => {
+  vi.useFakeTimers()
+  const attempt = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+  const waiting = vi.fn()
+  const result = waitForAutomaticPluginRestart(attempt, new AbortController().signal, waiting)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(waiting).toHaveBeenLastCalledWith(true)
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(await result).toBe(true)
+  expect(attempt).toHaveBeenCalledTimes(3)
+  expect(waiting).toHaveBeenLastCalledWith(false)
+})
+
+it('stops deferred attempts when its plugin lifetime ends', async () => {
+  vi.useFakeTimers()
+  const attempt = vi.fn(async () => false)
+  const lifetime = new AbortController()
+  const result = waitForAutomaticPluginRestart(attempt, lifetime.signal, () => {})
+  const rejected = expect(result).rejects.toThrow('Stopped')
+  await vi.advanceTimersByTimeAsync(0)
+  lifetime.abort(new Error('Stopped'))
+  await rejected
+  await vi.advanceTimersByTimeAsync(5000)
+  expect(attempt).toHaveBeenCalledOnce()
+})
 
 it('waits through the old generation and reloads only after a new ready Host', async () => {
   vi.useFakeTimers()

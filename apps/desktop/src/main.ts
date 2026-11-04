@@ -589,7 +589,7 @@ async function main(): Promise<void> {
           updateStopFailure = error
         }
       },
-      updateTasks: (action: 'inspect' | 'lock' | 'unlock') => host.updateTasks(action),
+      updateTasks: (action: 'inspect' | 'lock' | 'plugin-lock' | 'unlock') => host.updateTasks(action),
       inspectQuit: () => host.inspectQuit(),
       resolveDragResource: (address: string, signal?: AbortSignal) => host.resolveDragResource(address, signal),
     }
@@ -1170,10 +1170,25 @@ async function main(): Promise<void> {
     ...(process.platform === 'win32' ? { icon: nativeImage.createFromPath(trayIconPath) } : {}),
   })
 
+  let pluginRestartHost: typeof backend.host
   const pluginRestart = createPluginRestart({
-    allowed: () => !quitting && !shellInstallerOwnsQuit && !isMandatory() && promptOperation === undefined,
-    confirm: () => quitConfirmation.confirm(),
-    // 确认退出后才安排重启；取消确认不会在下次普通退出时意外拉起新实例。
+    allowed: () => !quitting && !shellInstallerOwnsQuit && !isMandatory() && promptOperation === undefined && updates.state.phase !== 'installing',
+    prepare: async () => {
+      const host = backend.host
+      if (host === undefined) throw new Error('plugin update: Host is unavailable')
+      if (await host.updateTasks('inspect')) return false
+      pluginRestartHost = host
+      try {
+        if (!await host.updateTasks('plugin-lock')) return true
+      } catch (error) {
+        await host.updateTasks('unlock').catch((unlockError: unknown) => { console.error(unlockError) })
+        throw error
+      }
+      await host.updateTasks('unlock')
+      return false
+    },
+    release: async () => { await pluginRestartHost?.updateTasks('unlock') },
+    // 自动重启只接收已完成安装且任务空闲的宿主；普通退出和桌面安装仍保留原确认。
     relaunch: () => { app.relaunch() }, quit: quitWithoutConfirmation,
   })
   ipcMain.handle(DESKTOP_IPC.restartAfterPluginUpdate, (event) => {

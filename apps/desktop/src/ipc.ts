@@ -66,7 +66,7 @@ export interface DesktopUpdatePresentation {
 /** Product documents cannot supply update versions, package URLs, or installation authorization. */
 export interface DshDesktopProductApi {
   readonly protocolVersion: 1
-  /** Native confirmation, orderly Host shutdown, and relaunch; false when the user cancels. */
+  /** Apply installed plugin updates with an idle admission check; false defers busy work. */
   readonly lifecycle: { restartAfterPluginUpdate(): Promise<boolean> }
   readonly browser: DesktopBrowserBridge
   readonly fileDrag: DesktopFileDrag

@@ -31,6 +31,8 @@ In Plugin Manager, enable **Visual Curator** to use the installation-owned copy 
 
 This bundle does not add itself to other profiles or change AFP. Turning it off removes its registrations, stops new work, cancels and drains active work, and retains saved data. A second Host writer for the same profile is refused; stop the first Host before reopening the writer.
 
+Release artifacts include the native image/reference picker implementation and its Windows worker.cjs; an older folder-only picker dependency cannot prevent plugin loading. koffi and the native-command runner remain declared dependencies. The worker starts only for a native chooser and belongs to that request's cancellation lifecycle.
+
 ### Configure external services
 
 Training collections and their completed reference datasets belong to the application profile. They can be selected from another conversation and used with a different configured model; older Session-scoped dataset records remain usable without changing their files or repeating analysis. Selecting a dataset freezes its own references, rules and matching prompt. Other profiles, private image permissions and Session task records keep their existing access checks.

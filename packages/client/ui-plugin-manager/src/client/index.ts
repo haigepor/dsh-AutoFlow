@@ -35,7 +35,7 @@ import { configLedgerSource } from './config-ledger.ts'
 import { tabLedgerSource } from './tab-ledger.ts'
 import { PluginManagerController } from './manager-store.ts'
 import { PluginUpdateRestartModal, type PluginUpdateRestartFace } from './PluginUpdateRestartModal.tsx'
-import { waitForUpdatedWebHost } from './update-restart.ts'
+import { waitForUpdatedWebHost, waitForAutomaticPluginRestart } from './update-restart.ts'
 import { en, ja, es, fr, de, ru, pt, zh, type PluginManagerLocaleKey } from './locales.ts'
 import { createNavigationStore } from './navigation-store.ts'
 import type {} from './slot-contract.ts'
@@ -177,15 +177,16 @@ export function apply(ctx: ClientContext): void {
         hooks: { pluginManager: face.hooks.pluginManager }, ensure: face.ensure,
         dismissUpdateRestart: face.dismissUpdateRestart,
         resolveText: face.resolveText,
-        restart: async (signal) => {
+        restart: async (signal, waiting) => {
           const desktop = (globalThis as { dshDesktop?: { lifecycle?: { restartAfterPluginUpdate(): Promise<boolean> } } }).dshDesktop
-          if (desktop?.lifecycle !== undefined) return desktop.lifecycle.restartAfterPluginUpdate()
+          if (desktop?.lifecycle !== undefined) return waitForAutomaticPluginRestart(() => desktop.lifecycle!.restartAfterPluginUpdate(), signal, waiting)
           const status = await ctx.remote.pluginManager.restartStatus()
           if (!status.ok) throw new Error(status.error.message)
-          await waitForUpdatedWebHost(status.value, async () => {
+          await waitForUpdatedWebHost(status.value, () => waitForAutomaticPluginRestart(async () => {
             const result = await ctx.remote.pluginManager.restartAfterUpdate(status.value.generation)
-            return result.ok ? result.value : undefined
-          }, signal)
+            if (!result.ok) throw new Error(result.error.message)
+            return result.value
+          }, signal, waiting), signal)
           signal.throwIfAborted()
           window.location.reload()
           return true

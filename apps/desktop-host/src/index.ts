@@ -114,11 +114,11 @@ async function main(): Promise<void> {
       return
     }
     if (message.type !== 'update-tasks' || !('requestId' in message) || !Number.isSafeInteger(message.requestId)
-      || !('action' in message) || !['inspect', 'lock', 'unlock'].includes(String(message.action))) return
+      || !('action' in message) || !['inspect', 'lock', 'plugin-lock', 'unlock'].includes(String(message.action))) return
     void (async () => {
       try {
         if (stopping !== undefined || control.updateTasks === undefined) throw new Error('desktop update: Host is unavailable')
-        const active = await control.updateTasks(message.action as 'inspect' | 'lock' | 'unlock')
+        const active = await control.updateTasks(message.action as 'inspect' | 'lock' | 'plugin-lock' | 'unlock')
         await send({ type: 'update-tasks', requestId: message.requestId, active })
       } catch (error) {
         await send({ type: 'update-tasks', requestId: message.requestId, active: true,

@@ -1,0 +1,8 @@
+{
+  "id": "plugin-automatic-activation",
+  "category": "improvements",
+  "text": {
+    "en": "Installed plugin updates apply automatically after current tasks finish. The completion card shows waiting and restart progress, while feature badges report their actual runtime state.",
+    "zh-CN": "插件更新安装完成后等待当前任务结束并自动重启生效；完成卡片显示等待和重启进度，功能标签及时反映真实运行状态。"
+  }
+}

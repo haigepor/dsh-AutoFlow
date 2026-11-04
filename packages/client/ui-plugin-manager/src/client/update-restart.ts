@@ -1,6 +1,26 @@
 /** Authenticated Web recovery after the owning launcher replaces its Host. */
 import { waitForAbortableDelay } from '@deepseek-ai/dsh-client-ui-primitives'
 
+/** Wait for work to finish before requesting one plugin restart; closing its card does not cancel this operation.
+ * @param attempt Carrier-owned idle check and restart request; false defers without interrupting work.
+ * @param signal Plugin lifetime, not dialog visibility.
+ * @param waiting Publish whether active work deferred the restart.
+ * @returns True after the carrier accepts one restart; failures remain retryable.
+ */
+export async function waitForAutomaticPluginRestart(
+  attempt: () => Promise<boolean>, signal: AbortSignal, waiting: (value: boolean) => void,
+): Promise<boolean> {
+  while (!signal.aborted) {
+    const accepted = await attempt()
+    signal.throwIfAborted()
+    waiting(!accepted)
+    if (accepted) return true
+    await waitForAbortableDelay(1000, signal)
+  }
+  signal.throwIfAborted()
+  return false
+}
+
 /** Public readiness response contains no process arguments or authentication credentials. */
 export interface UpdateRestartStatus {
   readonly generation: string

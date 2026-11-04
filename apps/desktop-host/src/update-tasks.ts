@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-jobs'
 import type {} from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/dsh-plugin-manager'
 
 /**
  * Whether stopping the Host now would interrupt work: a generating or tool-running
@@ -23,9 +24,9 @@ export function hasDesktopActiveTasks(liveAgents: ReturnType<Context['agents']['
 /**
  * Register update admission on the owning Host context.
  * @param ctx - Booted Desktop profile context; disposal removes the request listener.
- * @returns Task inspector whose lock refuses new API requests, drains admitted requests, and rechecks work.
+ * @returns Task inspector whose lock refuses new API requests, drains admitted requests, and rechecks work. Plugin locks also wait for package operations and startup readiness.
  */
-export function installDesktopUpdateTaskControl(ctx: Context): (action: 'inspect' | 'lock' | 'unlock') => Promise<boolean> {
+export function installDesktopUpdateTaskControl(ctx: Context): (action: 'inspect' | 'lock' | 'plugin-lock' | 'unlock') => Promise<boolean> {
   let locked = false
   let lockGeneration = 0
   let stopped = false
@@ -48,7 +49,8 @@ export function installDesktopUpdateTaskControl(ctx: Context): (action: 'inspect
     const agents = ctx.get('agents')
     const jobs = ctx.get('jobs')
     if (agents === undefined || jobs === undefined) throw new Error('desktop update: task services are unavailable')
-    if (action === 'lock') {
+    if (action === 'plugin-lock' && ctx.get('pluginManager')?.restartStatus().ready !== true) return true
+    if (action === 'lock' || action === 'plugin-lock') {
       locked = true
       const generation = ++lockGeneration
       // Read requests are not tasks; admitted writes must finish before the final work check.
@@ -58,5 +60,6 @@ export function installDesktopUpdateTaskControl(ctx: Context): (action: 'inspect
       if (generation !== lockGeneration) throw new Error('desktop update: admission lock was superseded')
     }
     return hasDesktopActiveTasks(agents.list(), jobs)
+      || action === 'plugin-lock' && ctx.get('pluginManager')?.restartStatus().ready !== true
   }
 }

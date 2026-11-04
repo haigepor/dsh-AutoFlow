@@ -8,6 +8,7 @@
     "src"
   ],
   "references": [
+    { "path": "../../jobs/jobs" },
     { "path": "../../client/connection/tsconfig.host.json" },
     { "path": "../cmdline" },
     { "path": "../../host/webserver" },
