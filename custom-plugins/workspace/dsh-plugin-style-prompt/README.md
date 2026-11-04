@@ -25,7 +25,7 @@ Style Prompt analyzes reference images with a vision model already configured in
 <a id="use-this-package"></a>
 ## Use this package
 
-The package supports DSH `0.2.2-alpha.2` and `0.2.2-rc.1`. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
+The package supports AutoFlow hosts based on DSH `0.2.2-alpha.2` and `0.2.2-rc.1`, using AutoFlow's plugin actions. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
 
 ### Install into a profile
 

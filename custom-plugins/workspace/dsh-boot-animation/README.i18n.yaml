@@ -3,5 +3,5 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-boot-animation/README.md
 /autoflow-boot-animation:
-  en: e818ec48fe9307e1
-  zh: 499c1246ae083d2b
+  en: 9bedba26bdefb5c7
+  zh: 0ed79abec837268c

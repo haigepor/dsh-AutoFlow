@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-插件支持 DSH `0.2.2-alpha.2` 和 `0.2.2-rc.1`。旧桌面版安装插件后需手动重启；配套新桌面版会等待当前工作结束后自动重启，使已安装的更新生效。
+插件支持基于 DSH `0.2.2-alpha.2` 和 `0.2.2-rc.1` 的 AutoFlow 宿主，使用 AutoFlow 的启动集成。旧桌面版安装插件后需手动重启；配套新桌面版会等待当前工作结束后自动重启，使已安装的更新生效。
 
 本目录基于 [NativeDog1/dsh-boot-animation](https://github.com/NativeDog1/dsh-boot-animation) 做源码适配，保留上游 BSD-3-Clause 许可和 Host 片库。AutoFlow 默认使用「DeepSeek 赛博朋克片头」（`builtin:cyberpunk`）作为应用开屏。素材目录仅保留 `assets/cyberpunk.mp4`，生成的内嵌模块也仅包含这一段。原插件的会话重播和片库界面不属于此次启动集成。
 

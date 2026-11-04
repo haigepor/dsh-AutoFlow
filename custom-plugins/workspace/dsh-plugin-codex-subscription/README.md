@@ -22,7 +22,7 @@ Use ChatGPT subscription accounts for AutoFlow model calls, image generation and
 <a id="use"></a>
 ## Use this package
 
-The package supports DSH `0.2.2-alpha.2` and `0.2.2-rc.1`. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
+The package supports AutoFlow hosts based on DSH `0.2.2-alpha.2` and `0.2.2-rc.1`, using AutoFlow's plugin actions and account/model interfaces. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
 
 Text catalog entries accept an optional `nativeWebSearch` override. Discovery reads Codex’s `supports_search_tool` metadata before matching known model rules; an explicit user choice wins. Account capability groups include search support, so a search-enabled route excludes accounts that deny it. Native searches hold the selected account lease until completion, reuse Codex authentication and return structured sources to the existing web-search tool.
 

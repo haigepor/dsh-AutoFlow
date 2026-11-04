@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-The package supports DSH `0.2.2-alpha.2` and `0.2.2-rc.1`. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
+The package supports AutoFlow hosts based on DSH `0.2.2-alpha.2` and `0.2.2-rc.1`, using AutoFlow's startup integration. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
 
 This source adaptation of [NativeDog1/dsh-boot-animation](https://github.com/NativeDog1/dsh-boot-animation) keeps the upstream BSD-3-Clause license and Host media library. AutoFlow uses **DeepSeek cyberpunk intro** (`builtin:cyberpunk`) for application startup. Only `assets/cyberpunk.mp4` is retained; the generated embedded module also contains only this clip. The upstream conversation replay and picker UI are outside this startup integration.
 
