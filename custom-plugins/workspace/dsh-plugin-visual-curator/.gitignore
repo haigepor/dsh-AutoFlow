@@ -4,5 +4,6 @@
 /skill.js
 /page.js
 /client.js
+/worker.cjs
 /*.tgz
 /tests/fixtures/browser-plugin.mjs
