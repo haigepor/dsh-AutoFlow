@@ -31,6 +31,7 @@ import type {} from '@deepseek-ai/dsh-cmdline'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type { PluginIcon, ProfileContext, ProfileManifest } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-jobs'
 import type { DshBundleExample, DshBundleFeature, DshBundleFeatureKind, LocalizedText } from '@deepseek-ai/dsh-package-manifest'
 import { bundleManifest, readProfileRegistry, registryArguments, runProfilePnpm, saveManifest, viewProfilePackage } from './operations.ts'
 import { classifyInstallFailure } from './install-failure.ts'
@@ -496,6 +497,11 @@ export class PluginManager extends TypertRemoteService {
     this.ownerContext = ctx
     this.profile = ctx.profileContext
     this.restartTimeoutMs = (config as Required<Config>).restartTimeoutMs
+    ctx.on('internal/status', (fiber) => {
+      const entry = fiber.entry
+      if (entry === undefined || fiber.parent.fiber?.entry === entry || this.abort.signal.aborted) return
+      this.ownerContext.emit('plugin-manager/changed', { reason: 'plugin' })
+    })
     ctx.inject(['connection'], (connectionCtx) => {
       connectionCtx.effect(() => connectionCtx.connection.fetch.register({
         path: '/api/plugins/restart-status', methods: ['GET'], requestBody: 'buffered',
@@ -573,17 +579,17 @@ export class PluginManager extends TypertRemoteService {
     })
   }
 
-  /** Read launcher support and process identity before an explicitly confirmed restart.
+  /** Read launcher support and process identity before applying installed plugin updates.
    * @returns Process-local identity, readiness and the configured recovery deadline; no launch credentials.
    */
   @Remote
   restartStatus(): { generation: PluginRestartGeneration; supported: boolean; ready: boolean; timeoutMs: number } {
     return { generation: this.restartGeneration, supported: this.profile.restart !== undefined,
-      ready: this.applicationReady && !this.restarting, timeoutMs: this.restartTimeoutMs }
+      ready: this.applicationReady && !this.restarting && this.packageOperations.size === 0, timeoutMs: this.restartTimeoutMs }
   }
 
   /** Ask the owning Web launcher to replace the Host; an active installation refuses the request.
-   * @param generation Process identity read before the user's confirmation.
+   * @param generation Process identity read before the restart request.
    * @returns False for unavailable, stale or busy launches; true once the owning launcher is notified.
    */
   @Remote
@@ -591,6 +597,10 @@ export class PluginManager extends TypertRemoteService {
     if (generation !== this.restartGeneration || this.profile.restart === undefined) return false
     if (this.restarting) return true
     if (this.restartBundles.size === 0 || this.packageOperations.size !== 0) return false
+    const agents = this.ownerContext.get('agents')?.list() ?? []
+    const jobs = this.ownerContext.get('jobs')
+    if (agents.some(agent => agent.status === 'running' || agent.inbox.nextTurn.length > 0 || agent.inbox.nextStep.length > 0)
+      || [undefined, ...agents].some(agent => jobs?.list(agent?.id).some(job => job.status === 'running' || job.status === 'stopping'))) return false
     this.restarting = true
     try { this.profile.restart() } catch (error) { this.restarting = false; throw error }
     return true

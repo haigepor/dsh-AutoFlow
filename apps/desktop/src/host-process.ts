@@ -275,7 +275,7 @@ export class DesktopHostProcess {
    * @returns Whether live tasks would be affected. Locking drains admitted API requests before inspecting tasks;
    * an unanswered drain fails at the control-request deadline without authorizing installation.
    */
-  async updateTasks(action: 'inspect' | 'lock' | 'unlock'): Promise<boolean> {
+  async updateTasks(action: 'inspect' | 'lock' | 'plugin-lock' | 'unlock'): Promise<boolean> {
     const response = await this.control({ type: 'update-tasks', action }, 10_000, 'desktop update: task inspection timed out', 'desktop update')
     if (response.type !== 'update-tasks') throw new Error('desktop update: Host answered with a different control response')
     return response.active
@@ -306,7 +306,7 @@ export class DesktopHostProcess {
   }
 
   private async control(
-    request: { readonly type: 'update-tasks'; readonly action: 'inspect' | 'lock' | 'unlock' } | { readonly type: 'quit-inspection' }
+    request: { readonly type: 'update-tasks'; readonly action: 'inspect' | 'lock' | 'plugin-lock' | 'unlock' } | { readonly type: 'quit-inspection' }
       | { readonly type: 'file-drag-resource'; readonly address: string },
     deadlineMs: number, deadlineMessage: string, operation: string, signal?: AbortSignal,
   ): Promise<DesktopHostControlResponse> {

@@ -96,6 +96,21 @@ async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, pre
   return { ctx, dir, manager: ctx.pluginManager, bundle, profile, stopHmr, overlays, connection }
 }
 
+it('publishes runtime activation after an optional feature finishes waiting for a dependency', async () => {
+  const { ctx, manager } = await fixture('startup', false, undefined, {}, undefined, (dir) => {
+    writeFileSync(join(dir, 'node_modules/extra/plugin.mjs'), 'export const inject = ["lateFeatureDependency"]; export function apply(ctx) { ctx.provide("managedProbe", true) }\n')
+  })
+  const before = (await manager.listPlugins()).find(row => row.entryId === 'include:managed')
+  expect(before).toMatchObject({ enabled: true, fiberPhase: 'pending' })
+  const changes: PluginChange[] = []
+  ctx.on('plugin-manager/changed', (change) => { changes.push(change) })
+  ctx.provide('lateFeatureDependency', true)
+  await ctx.loader.await()
+  expect(ctx.get('managedProbe')).toBe(true)
+  expect((await manager.listPlugins()).find(row => row.entryId === before?.entryId)?.fiberPhase).toBe('active')
+  expect(changes).toContainEqual({ reason: 'plugin' })
+})
+
 it('checks by default without installing, then installs verified release bytes through real pnpm and retains activation', async () => {
   githubFixture()
   const { manager, dir, ctx, profile } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
@@ -125,6 +140,20 @@ it('checks by default without installing, then installs verified release bytes t
   expect(manager.restartAfterUpdate(previous.generation)).toBe(false)
   Object.assign(profile, { restart })
   expect(manager.restartStatus()).toMatchObject({ supported: true, ready: true })
+  let working = true
+  let queued = false
+  let jobStatus = 'completed'
+  ctx.provide('agents', { list: () => [{ id: 'fixture-agent', status: working ? 'running' : 'idle', inbox: { nextTurn: queued ? [{}] : [], nextStep: [] } }] })
+  ctx.provide('jobs', { list: () => [{ status: jobStatus }] })
+  expect(manager.restartAfterUpdate(previous.generation)).toBe(false)
+  working = false; queued = true
+  expect(manager.restartAfterUpdate(previous.generation)).toBe(false)
+  queued = false; jobStatus = 'running'
+  expect(manager.restartAfterUpdate(previous.generation)).toBe(false)
+  jobStatus = 'stopping'
+  expect(manager.restartAfterUpdate(previous.generation)).toBe(false)
+  expect(restart).not.toHaveBeenCalled()
+  jobStatus = 'completed'
   expect(manager.restartAfterUpdate(previous.generation)).toBe(true)
   expect(manager.restartAfterUpdate(previous.generation)).toBe(true)
   expect(restart).toHaveBeenCalledOnce()

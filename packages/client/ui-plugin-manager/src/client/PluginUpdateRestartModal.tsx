@@ -1,7 +1,7 @@
-/** Update completion and explicit restart stay visible outside the Plugins panel. */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+/** Installed plugin updates apply automatically while their dismissible card reports progress. */
+import { useEffect, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { Button, IconCloseOutlineRegular, IconInfoOutlineRegular, IconRefreshOutlineRegular, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconCloseOutlineRegular, IconInfoOutlineRegular, IconRefreshOutlineRegular, Modal, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PluginManagerFace } from './manager-store.ts'
 import { packageText } from './presentation.ts'
@@ -13,36 +13,39 @@ import css from './PluginUpdateRestartModal.module.css'
 /** Shared completion state and carrier-owned restart action. */
 export type PluginUpdateRestartFace = Pick<PluginManagerFace, 'ensure' | 'dismissUpdateRestart' | 'resolveText'> & {
   hooks: Pick<PluginManagerFace['hooks'], 'pluginManager'>
-  /** False means native user confirmation was cancelled. */
-  restart(signal: AbortSignal): Promise<boolean>
+  /** Wait for idle work and apply installed plugins without a second confirmation. */
+  restart(signal: AbortSignal, waiting: (value: boolean) => void): Promise<boolean>
 }
 
 /**
- * Show installed versions awaiting restart, with a recoverable failure and a later action.
- * @param props - Shared controller, explicit restart and localized copy.
+ * Apply installed versions after work finishes and report progress outside the Plugins panel.
+ * @param props - Shared installed facts, carrier-owned automatic restart and localized copy.
  * @returns Completion modal, or null when no pending completion is selected.
  */
 export function PluginUpdateRestartModal({ usePluginManager, ensure, dismissUpdateRestart, resolveText, restart, t }:
   InjectFace<PluginUpdateRestartFace> & PropsLocale<'pluginManager'>): ReactNode {
   const names = usePluginManager(state => state.updateRestarts ?? [])
   const packages = usePluginManager(state => state.packages)
-  const [busy, setBusy] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const lifetime = useRef<AbortController>()
-  useEffect(() => { ensure(); return () => { lifetime.current?.abort() } }, [ensure])
-  const close = (): void => { if (!busy) { setFailed(false); dismissUpdateRestart() } }
-  const apply = async (): Promise<void> => {
-    if (busy) return
-    setBusy(true); setFailed(false)
+  const pending = packages.some(pkg => pkg.update?.restartRequired === true)
+  const [phase, setPhase] = useState<'restarting' | 'waiting' | 'failed'>('restarting')
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => { ensure() }, [ensure])
+  useEffect(() => {
+    if (!pending) return
     const controller = new AbortController()
-    lifetime.current = controller
-    try {
-      const accepted = await restart(controller.signal)
-      if (!accepted && !controller.signal.aborted) setBusy(false)
-    } catch (_restartFailed) {
-      if (!controller.signal.aborted) { setBusy(false); setFailed(true) }
-    }
-  }
+    setPhase('restarting')
+    void restart(controller.signal, (waiting) => {
+      if (!controller.signal.aborted) setPhase(waiting ? 'waiting' : 'restarting')
+    }).then((accepted) => {
+      if (!accepted && !controller.signal.aborted) setPhase('failed')
+    }, (_restartFailed: unknown) => {
+      if (!controller.signal.aborted) setPhase('failed')
+    })
+    return () => { controller.abort() }
+  }, [pending, restart, attempt])
+  const busy = phase === 'restarting' && pending
+  const failed = phase === 'failed'
+  const close = (): void => { if (!busy) dismissUpdateRestart() }
   return <Modal headless open={names.length > 0} onClose={close} title={t('updatesRestartTitle')} className={clsx(css.dialog)}>
     <div className={css.content}>
       <Button variant="ghost" size="sm" className={css.close} aria-label={t('close')} disabled={busy} onClick={close}>
@@ -51,6 +54,7 @@ export function PluginUpdateRestartModal({ usePluginManager, ensure, dismissUpda
       <div className={css.intro}>
         <img className={css.artwork} src={restartArtwork} width={104} height={116} alt="" />
         <div className={css.heading}>
+          <Tag tone="success">{t('updatesInstalled')}</Tag>
           <h2 className={css.title}>{t('updatesRestartTitle')}</h2>
           <p className={css.description}>{t('updatesRestartDetail')}</p>
         </div>
@@ -65,16 +69,17 @@ export function PluginUpdateRestartModal({ usePluginManager, ensure, dismissUpda
           {version === undefined ? null : <span className={css.version}>{t('versionTag', { version })}</span>}
         </li>
       })}</ul>
-      <div className={css.notice} data-restart-state={busy ? 'restarting' : failed ? 'failed' : 'ready'}>
-        {busy ? <div role="status" aria-live="polite"><PluginUpdateActivity label={t('updatesRestarting')} /></div>
+      <div className={css.notice} data-restart-state={failed ? 'failed' : phase}>
+        {pending && !failed ? <div role="status" aria-live="polite"><PluginUpdateActivity label={t(phase === 'waiting' ? 'updatesRestartWaiting' : 'updatesRestarting')} />
+          {phase === 'waiting' ? <p className={css.hint}>{t('updatesRestartWorkHint')}</p> : null}</div>
           : failed ? <p className={css.error} role="alert">{t('updatesRestartFailed')}</p>
             : <p className={css.hint}><IconInfoOutlineRegular size={16} /><span>{t('updatesRestartWorkHint')}</span></p>}
       </div>
     </div>
     <div className={css.footer}>
-      <Button variant="outline" disabled={busy} onClick={close}>{t('updatesRestartLater')}</Button>
-      <Button variant="primary" disabled={busy} aria-busy={busy} icon={busy ? undefined : <IconRefreshOutlineRegular size={16} />}
-        onClick={() => { void apply() }}>{t(busy ? 'updatesRestartBusyButton' : 'updatesRestartNow')}</Button>
+      {failed ? <Button variant="primary" icon={<IconRefreshOutlineRegular size={16} />}
+        onClick={() => { setAttempt(value => value + 1) }}>{t('updatesRestartRetry')}</Button> : null}
+      <Button variant="outline" disabled={busy} onClick={close}>{t('updatesRestartBackground')}</Button>
     </div>
   </Modal>
 }

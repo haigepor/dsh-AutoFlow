@@ -79,6 +79,7 @@
     "tar": "^7.5.0"
   },
   "peerDependencies": {
+    "@deepseek-ai/dsh-jobs": "workspace:*",
     "@deepseek-ai/dsh-cmdline": "workspace:*",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/cordis-plugin-loader": "workspace:~",
@@ -93,6 +94,9 @@
     "@deepseek-ai/dsh-user-approval": "workspace:*"
   },
   "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-jobs": {
+      "optional": true
+    },
     "@deepseek-ai/dsh-cmdline": {
       "optional": true
     },
@@ -104,6 +108,7 @@
     }
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-jobs": "workspace:*",
     "chokidar": "^4.0.3",
     "@types/semver": "^7.8.0",
     "@deepseek-ai/dsh-package-manifest": "workspace:*",

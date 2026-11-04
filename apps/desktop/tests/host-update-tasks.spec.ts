@@ -59,6 +59,37 @@ function request(next: () => Promise<void>) {
 }
 
 describe('Desktop Host update task protection', () => {
+  it('defers automatic plugin restart until package work and application startup are ready', async () => {
+    let ready = false
+    ctx.provide('pluginManager', { restartStatus: () => ({ ready }) })
+    expect(await inspect('plugin-lock')).toBe(true)
+    const next = vi.fn(async () => {})
+    await request(next).done
+    expect(next).toHaveBeenCalledOnce()
+    ready = true
+    expect(await inspect('plugin-lock')).toBe(false)
+    const refused = request(next)
+    await refused.done
+    expect(refused.response.writeHead).toHaveBeenCalledWith(503)
+    await inspect('unlock')
+    await request(next).done
+    expect(next).toHaveBeenCalledTimes(2)
+  })
+
+  it('rechecks new work admitted before an automatic plugin lock finishes draining', async () => {
+    ctx.provide('pluginManager', { restartStatus: () => ({ ready: true }) })
+    const finish = Promise.withResolvers<undefined>()
+    const pending = request(async () => { await finish.promise; jobs.set(undefined, ['running']) })
+    const locking = inspect('plugin-lock')
+    finish.resolve(undefined)
+    await pending.done
+    expect(await locking).toBe(true)
+    await inspect('unlock')
+    expect(jobs.get(undefined)).toEqual(['running'])
+    jobs.set(undefined, ['completed'])
+    expect(await inspect('plugin-lock')).toBe(false)
+  })
+
   it.each(['running', 'nextTurn', 'nextStep'] as const)('counts %s agent work without stopping it', async (kind) => {
     const agent = idleAgent()
     if (kind === 'running') agent.status = 'running'

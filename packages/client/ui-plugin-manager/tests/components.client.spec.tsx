@@ -44,14 +44,57 @@ it('shows measured percentages in plugin badges and accessible determinate detai
 it('keeps update completion outside the panel and leaves a failed restart retryable', async () => {
   const b = renderTab({ packages: [pkg()] })
   b.hidePage()
-  b.set({ updateRestarts: ['dsh-better-sidebar'] })
-  const modal = screen.getByRole('dialog', { name: en.updatesRestartTitle })
   b.actions.restart.mockRejectedValueOnce(new Error('Host unavailable'))
-  await act(async () => { fireEvent.click(within(modal).getByRole('button', { name: en.updatesRestartNow })) })
+  b.set({ updateRestarts: ['dsh-better-sidebar'], packages: [pendingPlugin()] })
+  const modal = screen.getByRole('dialog', { name: en.updatesRestartTitle })
+  await waitFor(() => { expect(within(modal).getByRole('alert').textContent).toBe(en.updatesRestartFailed) })
   expect(within(modal).getByRole('alert').textContent).toBe(en.updatesRestartFailed)
-  expect(within(modal).getByRole('button', { name: en.updatesRestartNow })).not.toHaveProperty('disabled', true)
-  fireEvent.click(within(modal).getByRole('button', { name: en.updatesRestartLater }))
+  expect(b.actions.restart).toHaveBeenCalledOnce()
+  fireEvent.click(within(modal).getByRole('button', { name: en.updatesRestartRetry }))
+  await waitFor(() => { expect(b.actions.restart).toHaveBeenCalledTimes(2) })
+})
+
+function pendingPlugin(): PackageView {
+  return pkg({ update: { name: 'dsh-better-sidebar', repository: 'example/plugins', automatic: false,
+    status: 'current', version: '0.1.1', restartRequired: true } })
+}
+
+it('continues waiting for automatic activation after the completion card is closed', async () => {
+  const b = renderTab({ packages: [pkg()] })
+  const result = Promise.withResolvers<boolean>()
+  b.actions.restart.mockImplementationOnce(async (_signal: AbortSignal, waiting: (value: boolean) => void) => {
+    waiting(true)
+    return result.promise
+  })
+  b.set({ updateRestarts: ['dsh-better-sidebar'], packages: [pendingPlugin()] })
+  const modal = screen.getByRole('dialog', { name: en.updatesRestartTitle })
+  expect(within(modal).getByText(en.updatesRestartWaiting)).toBeTruthy()
+  fireEvent.click(within(modal).getByRole('button', { name: en.updatesRestartBackground }))
   expect(b.actions.dismissUpdateRestart).toHaveBeenCalledOnce()
+  b.set({ updateRestarts: [] })
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(b.actions.restart.mock.calls[0]?.[0].aborted).toBe(false)
+  await act(async () => { result.resolve(true) })
+  expect(b.actions.restart).toHaveBeenCalledOnce()
+})
+
+it('shows localized automatic activation guidance without an install confirmation', () => {
+  const b = renderTab({ packages: [pkg()] })
+  b.setLanguage(zh)
+  b.actions.restart.mockImplementationOnce(async (_signal: AbortSignal, waiting: (value: boolean) => void) => {
+    waiting(true)
+    return new Promise<boolean>(() => {})
+  })
+  b.set({ updateRestarts: ['dsh-better-sidebar'], packages: [pendingPlugin()] })
+  const modal = screen.getByRole('dialog', { name: zh.updatesRestartTitle })
+  expect({
+    title: within(modal).getByRole('heading').textContent,
+    installed: within(modal).getByText(zh.updatesInstalled).textContent,
+    waiting: within(modal).getByText(zh.updatesRestartWaiting).textContent,
+    guidance: within(modal).getByText(zh.updatesRestartWorkHint).textContent,
+    action: within(modal).getByRole('button', { name: zh.updatesRestartBackground }).textContent,
+  }).toEqual(JSON.parse(readFileSync(join(import.meta.dirname, 'expected/automatic-plugin-update-zh.json'), 'utf8')))
+  expect(within(modal).queryByRole('button', { name: zh.updatesRestartNow })).toBeNull()
 })
 
 it('lists each installed version with its package identity and retains names absent from the refreshed inventory', () => {
@@ -64,21 +107,20 @@ it('lists each installed version with its package identity and retains names abs
   expect(within(list).getAllByRole('listitem')).toHaveLength(2)
   expect(within(list).getByRole('listitem', { name: 'Codex subscription · v0.1.1' }).querySelector('img')?.getAttribute('src')).toBe('/codex.svg')
   expect(within(list).getByRole('listitem', { name: 'missing-plugin' }).textContent).toBe('missing-plugin')
-  expect(within(modal).getByText(en.updatesRestartWorkHint)).toBeDefined()
+  expect(within(modal).getByText(en.updatesRestartDetail)).toBeDefined()
   fireEvent.error(within(list).getByRole('listitem', { name: 'Codex subscription · v0.1.1' }).querySelector('img')!)
   expect(within(list).getByRole('listitem', { name: 'Codex subscription · v0.1.1' }).querySelector('img')).toBeNull()
 })
 
 it('shows indeterminate recovery while restarting and removes it after a retryable failure', async () => {
   const b = renderTab({ packages: [pkg()] })
-  b.set({ updateRestarts: ['dsh-better-sidebar'] })
   const result = Promise.withResolvers<boolean>()
   b.actions.restart.mockReturnValueOnce(result.promise)
+  b.set({ updateRestarts: ['dsh-better-sidebar'], packages: [pendingPlugin()] })
   const modal = screen.getByRole('dialog', { name: en.updatesRestartTitle })
-  await act(async () => { fireEvent.click(within(modal).getByRole('button', { name: en.updatesRestartNow })) })
   const progress = within(modal).getByRole('progressbar', { name: en.updatesRestarting })
   expect(progress.hasAttribute('aria-valuenow')).toBe(false)
-  const button = within(modal).getByRole('button', { name: en.updatesRestartBusyButton })
+  const button = within(modal).getByRole('button', { name: en.updatesRestartBackground })
   expect(button).toHaveProperty('disabled', true)
   expect(within(modal).getByRole('button', { name: en.close })).toHaveProperty('disabled', true)
   expect(within(modal).queryByText(en.updatesRestartWorkHint)).toBeNull()
@@ -87,7 +129,7 @@ it('shows indeterminate recovery while restarting and removes it after a retryab
   await act(async () => { result.reject(new Error('Host did not recover')) })
   expect(within(modal).queryByRole('progressbar')).toBeNull()
   expect(within(modal).getByRole('alert').textContent).toBe(en.updatesRestartFailed)
-  expect(within(modal).getByRole('button', { name: en.updatesRestartNow })).not.toHaveProperty('disabled', true)
+  expect(within(modal).getByRole('button', { name: en.updatesRestartRetry })).not.toHaveProperty('disabled', true)
 })
 
 it('shows download activity in the list and detail until restart is required', async () => {
@@ -360,7 +402,7 @@ function renderTab(
     setAutoUpdate: vi.fn(),
     showUpdateRestart: vi.fn(),
     dismissUpdateRestart: vi.fn(),
-    restart: vi.fn(async () => false),
+    restart: vi.fn(async (_signal: AbortSignal, _waiting: (value: boolean) => void) => true),
     ensure: vi.fn(),
     refresh: vi.fn(),
     openInstall: vi.fn(),
@@ -1341,7 +1383,7 @@ describe('PluginManagerPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View dsh-better-sidebar' }))
     const components = document.querySelector('[data-plugin-rows]')!
     expect(components.hasAttribute('open')).toBe(false)
-    expect(within(document.querySelector('[data-plugin-features]')!).getByText(en.featureSelected)).toBeTruthy()
+    expect(within(document.querySelector('[data-plugin-features]')!).getByText(en.rowPhasePending)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: en.configureRow.replace('{name}', 'Read tools') }))
     expect(within(screen.getByRole('dialog')).getByRole('form', { name: 'AFP account' })).toBeTruthy()
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: en.close }))
