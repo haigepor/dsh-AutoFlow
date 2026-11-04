@@ -1,61 +1,67 @@
-version: 0.2.2-alpha.2.20261104.7
+version: 0.2.2-rc.1.20261105.1
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.7-mac-arm64-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.7-mac-arm64-unsigned.zip
-    sha512: EkiSimbXrGuUIAfQu0MTfYFXUNCne+CCJ/h2BnkuvVBme+MUsTTHuD/6qVBNY/CvswuodbLfW/EB8y1FMhb0Og==
-    size: 462409043
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-alpha.2.20261104.7-mac-arm64-unsigned/deepseek-harness-0.2.2-alpha.2.20261104.7-mac-arm64-unsigned.zip
-sha512: EkiSimbXrGuUIAfQu0MTfYFXUNCne+CCJ/h2BnkuvVBme+MUsTTHuD/6qVBNY/CvswuodbLfW/EB8y1FMhb0Og==
-releaseDate: '2026-11-04T12:01:40.236Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.1-mac-arm64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.1-mac-arm64-unsigned.zip
+    sha512: pp48MdiLpnBjthqNj/wvEGBeXFfkPBNdwotMVMMh64k3aqn098FNRxrWWN+A8zF3QytHaUGdzIslZss/bzRMBw==
+    size: 460933035
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.1-mac-arm64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.1-mac-arm64-unsigned.zip
+sha512: pp48MdiLpnBjthqNj/wvEGBeXFfkPBNdwotMVMMh64k3aqn098FNRxrWWN+A8zF3QytHaUGdzIslZss/bzRMBw==
+releaseDate: '2026-11-04T19:23:03.015Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-alpha.2.20261104.7
+  version: 0.2.2-rc.1.20261105.1
   items:
-    - id: plugin-release-update-request
-      category: fixes
-      text:
-        en: Plugin updates start correctly from the update button. Failed requests identify the plugin and retain their reason in update details for retry.
-        zh-CN: 修复点击插件更新按钮后请求未发出的问题；失败提示显示插件名，并在更新详情中保留原因，方便查看和重试。
-    - id: visual-curator-candidate-screening
+    - id: official-rc1-navigation
       category: improvements
       text:
-        en: Visual Curator screens candidate previews before detailed review and reuses known image exclusions to reduce repeated work.
-        zh-CN: 视觉策展先筛选候选预览，再深入复核，并复用已知图片排除记录，减少重复分析。
-    - id: visual-curator-dataset-scope
+        en: Improve narrow-screen navigation and touch menus, add shared context menus and file actions, and retain AutoFlow's theme and full-page settings.
+        zh-CN: 改善窄屏导航和触屏菜单，接入统一右键菜单与文件操作，保留 AutoFlow 的主题及全窗口设置。
+    - id: official-rc1-runtime
+      category: features
+      text:
+        en: Integrate DSH 0.2.2-rc.1 with Host-wide scheduled-task management, model request compatibility fixes and optional change-request/worktree tools.
+        zh-CN: 集成 DSH 0.2.2-rc.1，接入宿主级计划任务管理、模型请求兼容性修复及可选的变更请求与工作树工具。
+    - id: plugin-automatic-activation
+      category: improvements
+      text:
+        en: Installed plugin updates apply automatically after current tasks finish. The completion card shows waiting and restart progress, while feature badges report their actual runtime state.
+        zh-CN: 插件更新安装完成后等待当前任务结束并自动重启生效；完成卡片显示等待和重启进度，功能标签及时反映真实运行状态。
+    - id: rc1-local-compatibility
       category: fixes
       text:
-        en: Saved Visual Curator datasets can be selected across conversations and configured models within their training collection, including completed packages created by older versions.
-        zh-CN: 修复已有完整数据集却无法选择的问题；视觉策展数据集按训练集管理，支持跨会话和模型复用旧版完整包。
-    - id: macos-github-single-range
+        en: Fix preset selection during agent creation and title-output retries. Keep shared-session management menus within their granted access, and complete local settings copy for all eight interface languages.
+        zh-CN: 修复智能体创建时切换预设的等待问题及标题输出重试分类；分享会话只显示已获准的管理操作，并补齐八种界面语言的本地设置文案。
+    - id: visual-curator-old-host-picker
       category: fixes
       text:
-        en: macOS GitHub updates use single Range requests for subsequent differential downloads, avoiding full-download fallback when multipart requests are rejected. Older clients may still download this update in full.
-        zh-CN: 优化 macOS 后续差分更新的下载兼容性，避免下载线路拒绝多段请求时退回完整下载。旧版首次升级仍可能下载完整包。
-    - id: plugin-update-build-approval
-      category: fixes
-      text:
-        en: Plugin updates blocked by dependency scripts now show the exact packages and an explicit approval-and-retry action. Refreshing retains the pending decision, and automatic updates wait for approval.
-        zh-CN: 插件更新因依赖安装脚本受阻时，显示具体依赖并支持明确授权后重试；刷新保留待授权状态，自动更新等待授权。
+        en: Fix Visual Curator loading on older desktop builds by shipping its native image picker and Windows dialog worker with the plugin.
+        zh-CN: 视觉策展随插件提供原生图片选择器和 Windows 对话框工作进程，修复旧桌面版加载失败的问题。
 releaseNotes: |-
+  ## 新增功能
+
+  - 集成 DSH 0.2.2-rc.1，接入宿主级计划任务管理、模型请求兼容性修复及可选的变更请求与工作树工具。
+
   ## 体验优化
 
-  - 视觉策展先筛选候选预览，再深入复核，并复用已知图片排除记录，减少重复分析。
+  - 改善窄屏导航和触屏菜单，接入统一右键菜单与文件操作，保留 AutoFlow 的主题及全窗口设置。
+  - 插件更新安装完成后等待当前任务结束并自动重启生效；完成卡片显示等待和重启进度，功能标签及时反映真实运行状态。
 
   ## 问题修复
 
-  - 修复点击插件更新按钮后请求未发出的问题；失败提示显示插件名，并在更新详情中保留原因，方便查看和重试。
-  - 修复已有完整数据集却无法选择的问题；视觉策展数据集按训练集管理，支持跨会话和模型复用旧版完整包。
-  - 优化 macOS 后续差分更新的下载兼容性，避免下载线路拒绝多段请求时退回完整下载。旧版首次升级仍可能下载完整包。
-  - 插件更新因依赖安装脚本受阻时，显示具体依赖并支持明确授权后重试；刷新保留待授权状态，自动更新等待授权。
+  - 修复智能体创建时切换预设的等待问题及标题输出重试分类；分享会话只显示已获准的管理操作，并补齐八种界面语言的本地设置文案。
+  - 视觉策展随插件提供原生图片选择器和 Windows 对话框工作进程，修复旧桌面版加载失败的问题。
 
   ---
 
+  ## New features
+
+  - Integrate DSH 0.2.2-rc.1 with Host-wide scheduled-task management, model request compatibility fixes and optional change-request/worktree tools.
+
   ## Improvements
 
-  - Visual Curator screens candidate previews before detailed review and reuses known image exclusions to reduce repeated work.
+  - Improve narrow-screen navigation and touch menus, add shared context menus and file actions, and retain AutoFlow's theme and full-page settings.
+  - Installed plugin updates apply automatically after current tasks finish. The completion card shows waiting and restart progress, while feature badges report their actual runtime state.
 
   ## Bug fixes
 
-  - Plugin updates start correctly from the update button. Failed requests identify the plugin and retain their reason in update details for retry.
-  - Saved Visual Curator datasets can be selected across conversations and configured models within their training collection, including completed packages created by older versions.
-  - macOS GitHub updates use single Range requests for subsequent differential downloads, avoiding full-download fallback when multipart requests are rejected. Older clients may still download this update in full.
-  - Plugin updates blocked by dependency scripts now show the exact packages and an explicit approval-and-retry action. Refreshing retains the pending decision, and automatic updates wait for approval.
+  - Fix preset selection during agent creation and title-output retries. Keep shared-session management menus within their granted access, and complete local settings copy for all eight interface languages.
+  - Fix Visual Curator loading on older desktop builds by shipping its native image picker and Windows dialog worker with the plugin.
