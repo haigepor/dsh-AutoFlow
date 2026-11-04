@@ -2,7 +2,7 @@
 import { z } from 'zod'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { CuratorDomain } from '../domain/curator.ts'
-import { profileExportIdentity } from '../domain/model-profile.ts'
+import { ModelProfiles, profileExportIdentity } from '../domain/model-profile.ts'
 import { contentDigest, fileChecksum, type DomainRepository } from '../domain/repository.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { modelProfileSchema, ruleSchema, type DomainActor, type ModelProfile, type ProfileExport, type RunRecord } from '../shared/model.ts'
@@ -103,7 +103,10 @@ export function listDatasets(domain: CuratorDomain, engine: RunEngine, actor: Do
     const input = datasetListInputSchema.parse(args)
     domain.require('style', input.styleId)
     const all = records(domain, engine, actor, directory).filter(saved => saved.profile.styleId === input.styleId)
-    const filtered = all.filter(saved => {
+    const profiles = new ModelProfiles(domain), current = profiles.current(input.styleId, actor)
+    const final = all.find(saved => saved.artifact && (!saved.artifact.sampleScope || saved.artifact.sampleScope === 'all') && saved.profile.id === current?.id) ?? all.find(saved => saved.artifact && (!saved.artifact.sampleScope || saved.artifact.sampleScope === 'all'))
+    const ordered = final ? [final, ...all.filter(saved => saved !== final)] : all
+    const filtered = ordered.filter(saved => {
       if (input.modelProfileId && saved.profile.id !== input.modelProfileId) return false
       if (input.reusableOnly && (!saved.artifact || saved.artifact.sampleScope && saved.artifact.sampleScope !== 'all' || saved.profile.access.kind !== 'profile-library' || saved.artifact.access.kind !== 'profile-library')) return false
       const status = saved.artifact ? 'completed' : saved.key === 'run' ? saved.run.status : 'completed'
@@ -112,7 +115,7 @@ export function listDatasets(domain: CuratorDomain, engine: RunEngine, actor: Do
       return matches && (!query || `${domain.require('style', saved.profile.styleId).name} ${saved.profile.model} ${entryId(saved)} ${saved.artifact?.id ?? ''}`.toLocaleLowerCase().includes(query))
     })
     const scope = JSON.stringify([actor.profileId, actor.sessionId ?? null, input.styleId, input.status, input.query, ...(input.modelProfileId || input.reusableOnly ? [input.modelProfileId ?? null, input.reusableOnly] : [])]), start = offset(input.pageToken, scope, filtered.map(entryId)), window = filtered.slice(start, start + pageSize)
-    return { styleId: input.styleId, total: filtered.length, allTotal: all.length, entries: window.map(saved => entry(domain, saved, cache)), ...(start + pageSize < filtered.length ? { nextPageToken: continuation(entryId(window.at(-1)!), scope) } : {}) }
+    return { styleId: input.styleId, total: filtered.length, allTotal: all.length, entries: window.map(saved => ({ ...entry(domain, saved, cache), ...(saved === final ? { isFinal: true, stale: saved.profile.id !== current?.id || !profiles.isFresh(saved.profile, actor) } : {}) })), ...(start + pageSize < filtered.length ? { nextPageToken: continuation(entryId(window.at(-1)!), scope) } : {}) }
   })
 }
 

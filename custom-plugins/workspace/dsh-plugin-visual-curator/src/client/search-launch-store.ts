@@ -104,7 +104,7 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
     try {
       const page = searchLaunchDatasetsSchema.parse(await deps.invoke('search-launch-datasets', { styleId: requestedStyle, modelProfileId, ...(more && prior?.pageToken ? { pageToken: prior.pageToken } : {}) }, lifetime.signal))
       if (!current(captured) || request !== datasetVersion) return
-      if (page.styleId !== requestedStyle || page.entries.some(entry => entry.modelProfileId !== modelProfileId || entry.status !== 'completed' || !entry.exportId)) throw new Error('dataset-options-mismatch')
+      if (page.styleId !== requestedStyle || page.entries.some(entry => entry.styleId !== requestedStyle || entry.sampleScope !== 'all' || entry.status !== 'completed' || !entry.exportId)) throw new Error('dataset-options-mismatch')
       // 数据包不可变；刷新保留已加载页，返回详情时不丢失所选旧页，跨画像或作用域则不复用。
       const entries = [...new Map([...retained, ...page.entries].map(entry => [entry.exportId, entry])).values()]
       publish({ datasetOptions: { modelProfileId, entries, total: page.total, loading: false, error: '', negativeReferences: page.negativeReferences, ...(page.nextPageToken ? { pageToken: page.nextPageToken } : {}) } })

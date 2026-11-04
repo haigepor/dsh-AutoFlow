@@ -3,7 +3,7 @@ import { randomUUID, createHash } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import { z } from 'zod'
 import { ModelProfiles } from '../domain/model-profile.ts'
-import { contentDigest, fileChecksum } from '../domain/repository.ts'
+import { contentDigest } from '../domain/repository.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
 import { jsonSchema, type DomainActor, type Json, type ModelProfile } from '../shared/model.ts'
 import { searchLaunchInputSchema, searchLaunchViewSchema, type SearchLaunchInput, type SearchLaunchView } from '../shared/search-launch.ts'
@@ -26,7 +26,6 @@ const launchSchema = z.strictObject({
   stopRequested: z.boolean().optional(),
 })
 type Launch = z.infer<typeof launchSchema>
-const datasetProfileSchema = z.object({ formatVersion: z.literal(2), modelProfileId: z.string(), analysisRunId: z.string(), contentDigest: z.string() })
 
 /** Each launch holds frozen inputs; UI disconnects never own these promises. */
 export class SearchLaunches {
@@ -58,18 +57,7 @@ export class SearchLaunches {
   private all(): Launch[] { return this.deps.domain.repository.manifests().filter(item => item.aggregateId.startsWith('search-launch:')).map(item => launchSchema.parse(item.state)) }
   private actor(value: Launch): DomainActor { return { kind: 'agent', id: value.sessionId, sessionId: value.sessionId, profileId: this.deps.domain.profileId } }
   private dataset(id: string, profile: ModelProfile, actor: DomainActor) {
-    const dataset = this.deps.domain.repository.get('profileExport', id)
-    if (!dataset) throw new CuratorError('reference-unavailable', 'search-launch-dataset', 'Choose a completed dataset before starting this search.')
-    if (dataset.profileId !== actor.profileId || dataset.access.kind === 'session-run' && dataset.access.sessionId !== actor.sessionId) throw new CuratorError('owner-denied', 'search-launch-dataset', 'This dataset cannot be used by the search conversation.')
-    if (dataset.sampleScope && dataset.sampleScope !== 'all') throw new CuratorError('constraint-conflict', 'search-launch-dataset', 'Observation-only packages cannot be used as a style-search standard. Choose a complete style package.')
-    if (dataset.modelProfileId !== profile.id || dataset.analysisRunId !== profile.analysisRunId) throw new CuratorError('revision-conflict', 'search-launch-dataset', 'Choose a dataset matching the current profile version.')
-    const names = new Set(dataset.files.map(file => file.name))
-    if (names.size !== dataset.files.length || ['style-profile.json', 'samples.jsonl', 'references.json', 'SKILL.md', 'manifest.json'].some(name => !names.has(name)) || dataset.files.some(file => file.checksum !== fileChecksum(file.content))) throw new CuratorError('reference-unavailable', 'search-launch-dataset', 'The selected dataset is incomplete or failed checksum verification. Generate a new dataset.')
-    let frozen: z.infer<typeof datasetProfileSchema>
-    try { frozen = datasetProfileSchema.parse(JSON.parse(dataset.files.find(file => file.name === 'style-profile.json')!.content)) }
-    catch (cause) { throw new CuratorError('reference-unavailable', 'search-launch-dataset', 'The selected dataset profile cannot be read. Generate a new dataset.', { cause }) }
-    if (frozen.modelProfileId !== profile.id || frozen.analysisRunId !== profile.analysisRunId || frozen.contentDigest !== profile.contentDigest) throw new CuratorError('revision-conflict', 'search-launch-dataset', 'The selected dataset does not match the fixed profile.')
-    return dataset
+    return new ModelProfiles(this.deps.domain).authorizeDataset(profile, id, actor)
   }
   private async save(value: Launch): Promise<void> {
     const aggregateId = `search-launch:${value.input.operationId}`, revision = this.deps.domain.repository.manifest(aggregateId)?.revision ?? 0
@@ -95,7 +83,7 @@ export class SearchLaunches {
       if (profile.styleId !== input.styleId) throw new CuratorError('owner-denied', 'search-launch-dataset', 'The selected profile belongs to another collection.')
       new ModelProfiles(this.deps.domain).authorize(profile, actor)
       const directory = readDatasetDirectory(this.deps.domain)
-      return { ...listDatasets(this.deps.domain, this.deps.engine, actor, { ...input, status: 'completed', reusableOnly: true }, pageSize, this.deps.datasetReads, directory), negativeReferences: searchNegativeSummary(this.deps.domain, profile, directory) }
+      return { ...listDatasets(this.deps.domain, this.deps.engine, actor, { styleId: input.styleId, ...(input.pageToken ? { pageToken: input.pageToken } : {}), status: 'completed', reusableOnly: true }, pageSize, this.deps.datasetReads, directory), negativeReferences: searchNegativeSummary(this.deps.domain, profile, directory) }
     })
   }
   /** @param styleId Optional collection filter. @param pageSize Optional deployment-bounded recent window. @returns Durable launch progress with actual linked Run identities. */
@@ -137,7 +125,8 @@ export class SearchLaunches {
     const actor: DomainActor = { kind: 'agent', id: sessionId, sessionId, profileId: this.deps.domain.profileId }
     const profile = this.deps.domain.require('modelProfile', input.modelProfileId), profiles = new ModelProfiles(this.deps.domain)
     const { dataset, negativeReferences } = this.deps.domain.repository.readSnapshot(() => {
-      profiles.assertFresh(profile, actor)
+      if (input.datasetId) profiles.authorizeDataset(profile, input.datasetId, actor)
+      else profiles.assertFresh(profile, actor)
       const directory = input.includeNegativeDatasets !== false && profile.references.some(ref => ref.reference.role === 'negative') ? readDatasetDirectory(this.deps.domain) : undefined
       const automatic = input.datasetId ? undefined : (directory?.artifacts ?? this.deps.domain.repository.list('profileExport')).filter(item => (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id && item.access.kind === 'profile-library').sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
       return { dataset: input.datasetId || automatic ? this.dataset(input.datasetId ?? automatic!.id, profile, actor) : undefined, negativeReferences: input.includeNegativeDatasets !== false ? freezeSearchNegatives(this.deps.domain, profile, actor, directory) : undefined }

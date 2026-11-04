@@ -1,5 +1,6 @@
 import { runResultFilterSchema } from '../shared/search-feedback.ts'
 import { planReferenceAnalysis } from './reference-state.ts'
+import { selectAnalysisReferences } from '../shared/reference-state.ts'
 import { datasetScopeSchema } from '../shared/datasets.ts'
 import { importTaskReferences, readTaskReferences, referenceTask, validateTaskReferences } from './task-references.ts'
 import { taskReferenceReadSchema, taskReferenceImportSchema, type TaskReferenceImport } from '../shared/task-references.ts'
@@ -66,7 +67,7 @@ import { originalSearchResult } from './search-results.ts'
 import type {} from '@deepseek-ai/dsh-compaction'
 
 const actionSchema = z.strictObject({ operation: z.string().min(1), args: z.record(z.string(), jsonSchema) })
-const startSchema = z.object({ operationId: z.string().min(1), releaseId: z.string().min(1), usageRevisionId: z.string().min(1).optional(), output: searchOutputSchema.optional(), taskBrief: z.string().min(1).max(4000), budgets: z.record(z.string(), z.number()).optional(), sourceId: z.string().optional(), imageVersionId: z.string().optional(), imageVersionIds: z.array(z.string()).optional(), queries: z.array(z.string().min(1).max(4096)).optional(), targetCount: z.number().int().positive().optional(), protectedContent: z.array(z.string().min(1)).optional(), rect: z.unknown().optional(), includeInLearning: z.boolean().optional(), allowWarning: z.boolean().optional(), runId: z.string().optional() })
+const startSchema = z.object({ operationId: z.string().min(1), releaseId: z.string().min(1), datasetId: z.string().min(1).optional(), usageRevisionId: z.string().min(1).optional(), output: searchOutputSchema.optional(), taskBrief: z.string().min(1).max(4000), budgets: z.record(z.string(), z.number()).optional(), sourceId: z.string().optional(), imageVersionId: z.string().optional(), imageVersionIds: z.array(z.string()).optional(), queries: z.array(z.string().min(1).max(4096)).optional(), targetCount: z.number().int().positive().optional(), protectedContent: z.array(z.string().min(1)).optional(), rect: z.unknown().optional(), includeInLearning: z.boolean().optional(), allowWarning: z.boolean().optional(), runId: z.string().optional() })
 const uploadSchema = z.strictObject({ operationId: z.string().min(1), styleId: z.string().min(1), expectedRevision: z.number().int().positive(), bytesAllowed: z.boolean().default(false), files: z.array(z.strictObject({ name: z.string().min(1).max(1024), mime: z.string(), base64: z.string(), role: z.enum(['positive', 'negative', 'undecided']), intent: z.enum(['overall', 'dimensions']), dimensions: z.array(z.enum(['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth'])) })).min(1) })
 
 /** Same-process fixture dependencies never come from Client, tool or configuration JSON. */
@@ -154,7 +155,7 @@ export class CuratorService {
     this.launchesValue = new SearchLaunches({ domain: this.domain, files: this.files, engine: this.engine, signal: this.lifetime.signal, datasetReads: this.datasetReads,
       native: () => this.dependencies.nativeSessions ?? (this.ctx.get ? nativeSearchSessions({ get: this.ctx.get.bind(this.ctx) }) : undefined),
       freeze: async (input, actor) => {
-        const task = await this.resolveTask('search-start', toJson({ operationId: input.operationId, releaseId: input.modelProfileId, output: input.output, ...(input.output.kind === 'usage' ? { usageRevisionId: input.output.usageRevisionId } : {}), taskBrief: input.taskBrief, targetCount: input.targetCount, sourceId: sourceIdentity(this.config).providerId }) as Record<string, Json>, actor, true)
+        const task = await this.resolveTask('search-start', toJson({ operationId: input.operationId, releaseId: input.modelProfileId, ...(input.datasetId ? { datasetId: input.datasetId } : {}), output: input.output, ...(input.output.kind === 'usage' ? { usageRevisionId: input.output.usageRevisionId } : {}), taskBrief: input.taskBrief, targetCount: input.targetCount, sourceId: sourceIdentity(this.config).providerId }) as Record<string, Json>, actor, true)
         return this.spec(task.kind, task.normalized, task.fixed, task.config)
       } })
     // 旧的完整分析只补充模型档案，不重放模型请求，也不改写人工规则。
@@ -466,7 +467,7 @@ export class CuratorService {
           const run = this.engine.get(runId, effectiveActor)
           if (command === 'resume') {
             const fixed = specOf(run)
-            if (fixed.kind !== 'analyze' && (reviewerRevision(fixed.config) !== reviewerRevision(this.config) || fixed.kind === 'search' && configRevision(fixed.config.source) !== configRevision(this.config.source))) throw new CuratorError('constraint-conflict', 'resume', 'The provider configuration changed. Start a new task with an explicitly reviewed version.')
+            // 继续任务使用已接受的供应商与模型；当前设置只影响新任务。
             if (fixed.kind !== 'export') await this.providers.vision(fixed.config)
             if (fixed.kind === 'search') await this.providers.source(fixed.config)
             for (const reference of this.domain.repository.list('imageVersion').filter(image => image.id === fixed.input.imageVersionId || Array.isArray(fixed.input.imageVersionIds) && fixed.input.imageVersionIds.includes(image.id))) await this.files.read(this.domain.authorizedImage(reference.id, effectiveActor).image.blob)
@@ -539,13 +540,15 @@ export class CuratorService {
         case 'feedback-confirm': return await this.confirmFeedback(args, effectiveActor)
         case 'reference-analyze': {
           this.human(actor)
-          const { styleId, operationId, buildDataset, analysisMode, planDigest } = z.object({ styleId: z.string(), operationId: z.string(), buildDataset: z.boolean().default(false), analysisMode: z.enum(['pending', 'all']).default('pending'), planDigest: z.string().optional() }).parse(args)
+          const { styleId, operationId, buildDataset, analysisMode, analysisScope, planDigest } = z.object({ styleId: z.string(), operationId: z.string(), buildDataset: z.boolean().default(false), analysisMode: z.enum(['pending', 'all']).default('pending'), analysisScope: datasetScopeSchema.default('all'), planDigest: z.string().optional() }).parse(args)
           const { style, draft, plan } = this.domain.repository.readSnapshot(() => {
             const style = this.domain.require('style', styleId), draft = this.domain.require('draft', style.draftId)
             for (const id of draft.referenceIds) this.domain.assertLearningFamily(this.domain.authorizedImage(this.domain.require('reference', id).imageVersionId, effectiveActor).asset.familyId)
             const plan = buildDataset ? planReferenceAnalysis(this.domain, styleId, effectiveActor, this.recipe(operationId)) : undefined
             if (planDigest !== undefined && planDigest !== plan?.view.digest) throw new CuratorError('revision-conflict', 'analyze', 'The analysis selection changed; review the current image counts again.')
-            if ((analysisMode === 'all' || (plan?.view.changed ?? 0) > 0) && !planDigest) throw new CuratorError('constraint-conflict', 'analyze', 'Confirm reanalysis of previously analyzed images before starting.')
+            const selection = plan ? selectAnalysisReferences(plan.view, analysisScope) : undefined
+            if (selection?.total === 0) throw new CuratorError('invalid-input', 'analyze', 'There are no references in the selected analysis scope.')
+            if ((analysisMode === 'all' || (selection?.changed ?? 0) > 0) && !planDigest) throw new CuratorError('constraint-conflict', 'analyze', 'Confirm reanalysis of previously analyzed images before starting.')
             return { style, draft, plan }
           })
           const provider = await this.providers.vision(this.config)
@@ -558,9 +561,10 @@ export class CuratorService {
             const references = draft.referenceIds.map(id => this.domain.require('reference', id))
             const referenceThreads = new Set(references.flatMap(reference => reference.feedbackThreadIds))
             const feedback = this.domain.currentFeedback(effectiveActor).filter(item => item.scope === 'style-candidate' && item.context.styleId === style.id && (referenceThreads.has(item.threadId) || draft.feedbackIds.includes(item.id)))
-            return { invocationDigest: contentDigest({ operation, args }), ...(buildDataset ? { analysisOutput: 'observations-only', reuseObservations: toJson(analysisMode === 'pending' ? plan!.reused : []), analysisMode, ...(planDigest ? { planDigest } : {}) } : {}), draft: toJson(draft), references: toJson(references), feedback: toJson(feedback), recipe: toJson(this.recipe(operationId)), ...(splitId ? { split: toJson(this.domain.require('split', splitId)) } : {}) }
+            const selected = new Set(references.filter(ref => analysisScope === 'all' || ref.role === analysisScope).map(ref => ref.imageVersionId))
+            return { invocationDigest: contentDigest({ operation, args }), ...(buildDataset ? { analysisOutput: 'observations-only', referencePrompts: 'role-aware-v1', autoExportDataset: true, reuseObservations: toJson(plan!.reused.filter(link => analysisMode === 'pending' || !selected.has(link.imageVersionId))), analysisMode, ...(planDigest ? { planDigest } : {}) } : {}), draft: toJson(draft), references: toJson(references), feedback: toJson(feedback), recipe: toJson(this.recipe(operationId)), ...(splitId ? { split: toJson(this.domain.require('split', splitId)) } : {}) }
           })
-          return await this.launch('analyze', { styleId, buildDataset }, fixed, effectiveActor, operationId, signal)
+          return await this.launch('analyze', { styleId, buildDataset, analysisScope }, fixed, effectiveActor, operationId, signal)
         }
         case 'search-start': case 'crop-start': case 'manual-crop-confirm': return await this.startTask(operation, args, effectiveActor, signal)
         case 'library-save': this.human(actor); return await this.saveLibrary(args, effectiveActor)
@@ -783,7 +787,7 @@ export class CuratorService {
     const release = this.domain.repository.get('modelProfile', input.releaseId) ?? this.domain.require('release', input.releaseId), style = this.domain.require('style', release.styleId)
     if (release.kind === 'modelProfile' && !release.rules.length) throw new CuratorError('constraint-conflict', 'resolve', 'Enable at least one style rule before starting a model-profile task.')
     this.domain.resolveRelease(style.id, release.id)
-    await this.domain.verifyRelease(release, actor)
+    await this.domain.verifyRelease(release, actor, input.datasetId ? { datasetId: input.datasetId } : {})
     const output = input.output ?? (input.usageRevisionId ? { kind: 'usage' as const, usageRevisionId: input.usageRevisionId } : undefined)
     if (!output || operation !== 'search-start' && output.kind !== 'usage') throw new CuratorError('invalid-input', 'resolve', 'A fixed usage is required for legacy searches and crops; original output must be explicit.')
     const usage = output.kind === 'usage' ? this.domain.require('usage', output.usageRevisionId) : undefined
@@ -798,9 +802,9 @@ export class CuratorService {
       Reflect.set(limits, key, value)
     }
     const config = resolveConfig({ ...this.config, limits })
-    if (release.recipe.visionRevision !== reviewerRevision(config) || release.recipe.preprocessingVersion !== this.files.processorVersion) throw new CuratorError('constraint-conflict', 'resolve', 'The saved review recipe differs from this deployment. Publish a new reviewed version.')
+    if (release.kind === 'release' && (release.recipe.visionRevision !== reviewerRevision(config) || release.recipe.preprocessingVersion !== this.files.processorVersion)) throw new CuratorError('constraint-conflict', 'resolve', 'The saved review recipe differs from this deployment. Publish a new reviewed version.')
     const vision = await this.providers.vision(config)
-    vision.assertCapabilities(Math.min(release.references.length, release.recipe.referenceStrategy.maxImages) + (output.kind === 'usage' ? 2 : 1))
+    vision.assertCapabilities(Math.min(release.references.length, release.kind === 'modelProfile' ? config.limits.maxReferenceImages : release.recipe.referenceStrategy.maxImages) + (output.kind === 'usage' ? 2 : 1))
     for (const rule of release.rules.filter(rule => rule.strength === 'required' && rule.stage === 'final' && rule.check.kind === 'measured')) {
       if (!usage || rule.check.kind !== 'measured' || rule.check.field === 'byteLength') continue
       const value = rule.check.field === 'width' ? usage.output.targetWidth : rule.check.field === 'height' ? usage.output.targetHeight : usage.output.aspectP / usage.output.aspectQ
@@ -812,11 +816,12 @@ export class CuratorService {
       const dimensions = new Set(release.rules.filter(rule => rule.check.kind === 'visual' && rule.strength !== 'reference-only').map(rule => rule.dimension))
       const weights = Object.fromEntries(Object.entries(release.recipe.preferenceScale.weights).filter(([dimension]) => dimensions.has(dimension as Rule['dimension'])))
       const promptVersion = 'visual-curator-rules-v3'
-      fixed.executionRecipe = toJson(recipeSchema.parse({ ...release.recipe, id: `recipe-${contentDigest({ recipe: release.recipe, standardDigest: release.contentDigest, policy, weights, promptVersion }).slice(10, 50)}`, preferenceScale: { ...release.recipe.preferenceScale, weights }, promptVersion, styleMatching: policy }))
+      const reviewer = { visionRevision: reviewerRevision(config), model: config.vision.model, vendorVersion: config.vision.vendorVersion, preprocessingVersion: this.files.processorVersion, referenceStrategy: { maxImages: config.limits.maxReferenceImages, maxBytes: config.limits.maxReferenceBytes } }
+      fixed.executionRecipe = toJson(recipeSchema.parse({ ...release.recipe, ...reviewer, id: `recipe-${contentDigest({ recipe: release.recipe, reviewer, standardDigest: release.contentDigest, policy, weights, promptVersion }).slice(10, 50)}`, preferenceScale: { ...release.recipe.preferenceScale, weights }, promptVersion, styleMatching: policy }))
       fixed.executionInstructions = compileStyleInstructions(release)
     }
     const kind = operation === 'search-start' ? 'search' : 'crop'
-    const normalized: Record<string, Json> = { taskBrief: input.taskBrief, ...(input.output ? { output: toJson(output) } : {}) }
+    const normalized: Record<string, Json> = { taskBrief: input.taskBrief, ...(input.datasetId ? { datasetId: input.datasetId } : {}), ...(input.output ? { output: toJson(output) } : {}) }
     if (kind === 'search') {
       if (input.sourceId !== sourceIdentity(config).providerId) throw new CuratorError('invalid-input', 'resolve', 'The requested source is not configured.')
       await this.providers.source(config)

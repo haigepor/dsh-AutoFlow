@@ -5,6 +5,7 @@ import { contentDigest } from '../domain/repository.ts'
 import { analysisReferenceDigest } from '../domain/style-analysis.ts'
 import { styleAnalysisOf, type StyleAnalysis } from '../shared/style-analysis.ts'
 import { ModelProfiles } from '../domain/model-profile.ts'
+import { analysisSelectionProgress } from './analysis-selection.ts'
 import { dimensionSchema, styleStandardSchema, type Assessment, type DomainActor, type HumanFeedback, type ImageVersion, type RecordOf, type Reference, type RunRecord, type Rule } from '../shared/model.ts'
 import { executionStandard } from './style-execution.ts'
 import { styleMatchSchema } from '../shared/style-matching.ts'
@@ -370,7 +371,7 @@ function styleViews(domain: CuratorDomain, base: StyleBase, actor: DomainActor, 
       const references = draft.referenceIds.map(id => domain.require('reference', id))
       const threads = new Set(references.flatMap(ref => ref.feedbackThreadIds))
       const feedbackIds = base.feedback.filter(item => item.context.styleId === style.id && item.scope === 'style-candidate' && (threads.has(item.threadId) || draft.feedbackIds.includes(item.id))).map(item => item.id)
-      analysis = { runId: run.id, status: run.status, stage: run.stage, observed: data.counts.observed ?? 0, total: references.length, model: specOf(run).config.vision.model, continuation: analysisContinuation(run),
+      analysis = { runId: run.id, status: run.status, stage: run.stage, ...analysisSelectionProgress(specOf(run), data), model: specOf(run).config.vision.model, continuation: analysisContinuation(run),
         ...(run.outcome ? { outcome: run.outcome } : {}),
         stale: result ? result.referenceDigest !== analysisReferenceDigest(references, feedbackIds) : false,
         ...(result ? { summary: result.summary } : {}), ...(data.error ? { error: data.error } : {}),

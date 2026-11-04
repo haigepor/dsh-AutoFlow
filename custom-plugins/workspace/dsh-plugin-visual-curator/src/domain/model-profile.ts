@@ -18,7 +18,7 @@ const identity = (kind: string, value: unknown) => `${kind}-${contentDigest(valu
 export function profileExportIdentity(operationId: string): ProfileExport['id'] { return brandString<ProfileExport['id']>(identity('profile-export', operationId)) }
 
 /** Export cancellation and progress belong to the caller; observer failures stop dependent work. */
-export interface ProfileExportOptions { signal?: AbortSignal; progress?(value: DatasetProgress): Promise<void>; acceptedLaunchId?: string; sampleScope?: DatasetScope; shareWithLibrary?: boolean }
+export interface ProfileExportOptions { signal?: AbortSignal; progress?(value: DatasetProgress): Promise<void>; acceptedLaunchId?: string; finalizingAnalysisRunId?: string; sampleScope?: DatasetScope; shareWithLibrary?: boolean }
 
 /** Profile selection has its own revision; analysis and human drafts are never rewritten. */
 export class ModelProfiles {
@@ -40,9 +40,26 @@ export class ModelProfiles {
     })
   }
 
-  /** @param profile Frozen selection. @param actor Authenticated reader. @returns Completion only for current, complete reference evidence. */
-  assertFresh(profile: ModelProfile, actor: DomainActor): void {
-    if (!this.isFresh(profile, actor)) throw new CuratorError('revision-conflict', 'model-profile', 'The reference images or judgments changed; analyze the current collection again.')
+  /** @param profile Immutable profile selected by the dataset. @param id Completed full package. @param actor Authorized reader. @returns Verified saved package, independent of the current draft; images remain checked by verifyRelease. */
+  authorizeDataset(profile: ModelProfile, id: string, actor: DomainActor): ProfileExport {
+    this.authorize(profile, actor)
+    const dataset = this.domain.repository.get('profileExport', id)
+    if (!dataset) throw new CuratorError('reference-unavailable', 'search-launch-dataset', 'Choose a completed dataset before starting this search.')
+    if (dataset.profileId !== actor.profileId || dataset.access.kind === 'session-run' && dataset.access.sessionId !== actor.sessionId) throw new CuratorError('owner-denied', 'search-launch-dataset', 'This dataset cannot be used by the search conversation.')
+    if (dataset.sampleScope && dataset.sampleScope !== 'all') throw new CuratorError('constraint-conflict', 'search-launch-dataset', 'Observation-only packages cannot be used as a style-search standard. Choose a complete style package.')
+    if (dataset.modelProfileId !== profile.id || dataset.analysisRunId !== profile.analysisRunId) throw new CuratorError('revision-conflict', 'search-launch-dataset', 'Choose a dataset matching the selected profile version.')
+    const names = new Set(dataset.files.map(file => file.name))
+    if (names.size !== dataset.files.length || ['style-profile.json', 'samples.jsonl', 'references.json', 'SKILL.md', 'manifest.json'].some(name => !names.has(name)) || dataset.files.some(file => file.checksum !== fileChecksum(file.content))) throw new CuratorError('reference-unavailable', 'search-launch-dataset', 'The selected dataset is incomplete or failed checksum verification. Generate a new dataset.')
+    let frozen: { modelProfileId: string; analysisRunId: string; contentDigest: string }
+    try { frozen = z.object({ formatVersion: z.literal(2), modelProfileId: z.string(), analysisRunId: z.string(), contentDigest: z.string() }).parse(JSON.parse(dataset.files.find(file => file.name === 'style-profile.json')!.content)) }
+    catch (cause) { throw new CuratorError('reference-unavailable', 'search-launch-dataset', 'The selected dataset profile cannot be read. Generate a new dataset.', { cause }) }
+    if (frozen.modelProfileId !== profile.id || frozen.analysisRunId !== profile.analysisRunId || frozen.contentDigest !== profile.contentDigest) throw new CuratorError('revision-conflict', 'search-launch-dataset', 'The selected dataset does not match the fixed profile.')
+    return dataset
+  }
+
+  /** @param profile Frozen selection. @param actor Authenticated reader. @param finalizingAnalysisRunId Internal owner Run allowed to seal its saved final analysis; omission requires completion. @returns Completion only for current, complete reference evidence. */
+  assertFresh(profile: ModelProfile, actor: DomainActor, finalizingAnalysisRunId?: string): void {
+    if (!this.isFresh(profile, actor, finalizingAnalysisRunId)) throw new CuratorError('revision-conflict', 'model-profile', 'The reference images or judgments changed; analyze the current collection again.')
   }
 
   /** Verify an accepted search against its immutable profile rather than a newer draft.
@@ -56,12 +73,13 @@ export class ModelProfiles {
     this.authorize(profile, actor)
   }
 
-  /** @param profile Frozen selection. @param actor Authenticated reader. @returns Whether the original complete analysis still matches current references. */
-  isFresh(profile: ModelProfile, actor: DomainActor): boolean {
+  /** @param profile Frozen selection. @param actor Authenticated reader. @param finalizingAnalysisRunId Internal owner Run allowed to seal its saved final analysis; omission requires completion. @returns Whether complete saved evidence still matches current references. */
+  isFresh(profile: ModelProfile, actor: DomainActor, finalizingAnalysisRunId?: string): boolean {
     return this.domain.repository.readSnapshot(() => {
       this.authorize(profile, actor)
       const run = this.domain.require('run', profile.analysisRunId), result = styleAnalysisOf(run)
-      return run.status === 'completed' && run.outcome === 'target-met' && !!result && this.fresh(result, actor)
+      const finalizing = finalizingAnalysisRunId === run.id && run.stage === 'finalizing' && run.status === 'running' && (run.owner.kind !== 'session' || run.owner.sessionId === actor.sessionId)
+      return (run.status === 'completed' && run.outcome === 'target-met' || finalizing) && !!result && this.fresh(result, actor)
     })
   }
 
@@ -168,13 +186,13 @@ export class ModelProfiles {
     }
     if (options.shareWithLibrary && (!options.acceptedLaunchId || sampleScope !== 'all')) throw new CuratorError('owner-denied', 'profile-export', 'A reusable automatic complete package requires an accepted human launch.')
     if (options.acceptedLaunchId) this.authorizeAccepted(profile, actor, options.acceptedLaunchId, options.shareWithLibrary)
-    else this.assertFresh(profile, actor)
+    else this.assertFresh(profile, actor, options.finalizingAnalysisRunId)
     if (sampleScope === 'all' && !profile.rules.length) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one evidence-backed style rule before exporting.')
     const references = profile.references.filter(ref => sampleScope === 'all' || ref.reference.role === sampleScope)
     if (!references.length) throw new CuratorError('constraint-conflict', 'profile-export', 'There are no analyzed references in the selected export scope.')
     if (actor.kind === 'agent' && !actor.sessionId) throw new CuratorError('owner-denied', 'profile-export', 'An Agent export requires an owning Session.')
     await report('verifying', 0, profile.references.length, 'references')
-    await this.domain.verifyRelease(profile, actor, { ...(options.signal ? { signal: options.signal } : {}), ...(options.acceptedLaunchId ? { acceptedLaunchId: options.acceptedLaunchId } : {}), verified: (completed, total) => report('verifying', completed, total, 'references') })
+    await this.domain.verifyRelease(profile, actor, { ...(options.signal ? { signal: options.signal } : {}), ...(options.acceptedLaunchId ? { acceptedLaunchId: options.acceptedLaunchId } : {}), ...(options.finalizingAnalysisRunId ? { finalizingAnalysisRunId: options.finalizingAnalysisRunId } : {}), verified: (completed, total) => report('verifying', completed, total, 'references') })
     const analysis = styleAnalysisOf(this.domain.require('run', profile.analysisRunId))!
     const referenceIds = new Set(references.map(ref => ref.reference.id)), samples = analysis.samples.filter(sample => referenceIds.has(sample.reference.id))
     const sampleLines: string[] = []

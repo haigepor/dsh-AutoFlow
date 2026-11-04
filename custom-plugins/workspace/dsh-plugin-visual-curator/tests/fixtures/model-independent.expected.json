@@ -1,0 +1,14 @@
+{
+  "referenceStates": ["analyzed"],
+  "reusable": 1,
+  "pending": 0,
+  "changed": 0,
+  "profileModel": "fixture",
+  "executionModel": "review-model-b",
+  "actualRequestModels": ["review-model-b"],
+  "searchStatus": "completed",
+  "cropStatus": "completed",
+  "profileUnchanged": true,
+  "observationsUnchanged": true,
+  "exportFilesUnchanged": true
+}

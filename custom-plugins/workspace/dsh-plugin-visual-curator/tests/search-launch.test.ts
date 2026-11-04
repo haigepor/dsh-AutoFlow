@@ -55,7 +55,7 @@ async function setup(previewSource = false, negativeCount = 0) {
   await f.action('reference-analyze', { operationId: 'analysis', styleId, buildDataset: true }); await f.jobs.drain()
   const profile = f.repository.list('modelProfile')[0]!
   assert.ok(profile)
-  const datasetId = (await new ModelProfiles(f.domain).export(profile, 'selected-dataset', f.actor)).id
+  const datasetId = f.repository.list('profileExport').find(item => item.modelProfileId === profile.id && !item.sampleScope)!.id
   const input = { operationId: randomUUID(), workspaceId: 'workspace', modelProfileId: profile.id, datasetId, taskBrief: 'Find muted green landscapes.', targetCount: 1, output: { kind: 'original' } }
   const settled = async () => {
     for (let i = 0; i < 100; i++) {
@@ -100,7 +100,7 @@ test('automatic preparation creates a Session first and freezes all negative pac
     await profiles.export(profile, 'negative-private', { ...f.actor, sessionId: 'private' }, { sampleScope: 'negative' })
     const current = await profiles.save({ operationId: 'new-profile', styleId, analysisRunId: profile.analysisRunId, expectedProfileId: profile.id, changes: [{ ruleId: profile.options[0]!.rule.ruleId, enabled: true, statement: 'Prefer muted green with visible detail.' }] }, f.actor)
     const options = z.object({ entries: z.array(z.unknown()), negativeReferences: z.object({ datasets: z.number(), references: z.number() }) }).parse(await f.action('search-launch-datasets', { styleId, modelProfileId: current.id }))
-    assert.equal(options.entries.length, 0)
+    assert.equal(options.entries.length, 1, 'Previously completed full datasets remain selectable after profile changes')
     assert.deepEqual(options.negativeReferences, { datasets: 2, references: 2 })
     f.repository.commit = async request => { if (request.records.some(record => record.kind === 'profileExport' && record.modelProfileId === current.id)) { entered.resolve(); await release.promise }; return await commit(request) }
     const { datasetId: oldDataset, ...draft } = input
@@ -323,16 +323,20 @@ for (const failure of ['create-ack', 'attach', 'prompt-ack'] as const) test(`ret
   } finally { await f.cleanup() }
 })
 
-test('stale and private profiles fail before native conversation creation', async () => {
-  const { f, native, profile, input, styleId } = await setup()
+test('private profiles and unsealed stale drafts fail while a selected completed dataset remains usable', async () => {
+  const { f, native, profile, input, styleId, settled } = await setup()
   try {
     const privateProfile = modelProfileSchema.parse({ ...profile, id: 'private-profile', access: { kind: 'session-run', sessionId: 'another-session' } })
     await f.repository.commit({ aggregateId: 'private-profile', expectedRevision: 0, operationId: 'private-profile', request: {}, records: [privateProfile], state: {} })
     await assert.rejects(f.action('search-launch-start', { ...input, modelProfileId: privateProfile.id }), /another Session/)
     assert.equal(native.created.length, 0)
     await f.action('reference-import', { operationId: 'new-reference', styleId, expectedRevision: f.domain.require('draft', profile.draftId).revision, files: [{ name: 'new.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
-    await assert.rejects(f.action('search-launch-start', input), /analyze the current collection/)
+    const { datasetId, ...unsealed } = input
+    await assert.rejects(f.action('search-launch-start', { ...unsealed, autoPrepareDataset: true }), /analyze the current collection/)
     assert.equal(native.created.length, 0)
+    await f.action('search-launch-start', input)
+    assert.equal((await settled()).datasetId, datasetId)
+    assert.equal(native.created.length, 1)
     await assert.rejects(f.service.action({ operation: 'search-launch-start', args: input }, { kind: 'agent', id: 'foreign', sessionId: 'foreign', profileId: f.profileId }, new AbortController().signal), /authenticated workbench owner/)
   } finally { await f.cleanup() }
 })
@@ -363,13 +367,16 @@ test('an unknown stop acknowledgement remains recoverable and cannot admit new s
   } finally { await f.cleanup() }
 })
 
-test('an accepted search exports its exact profile after reference changes while a new launch stays blocked', async () => {
+test('accepted and explicitly selected dataset searches retain their exact profile after reference changes', async () => {
   const { f, input, profile, styleId, settled } = await setup()
   try {
     await f.action('search-launch-start', input); const launch = await settled()
     await f.action('reference-import', { operationId: 'later-reference', styleId, expectedRevision: f.domain.require('draft', profile.draftId).revision, files: [{ name: 'later.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
     const profiles = new ModelProfiles(f.domain), actor = { kind: 'agent' as const, id: launch.sessionId, sessionId: launch.sessionId, profileId: f.profileId }
-    await assert.rejects(f.action('search-launch-start', { ...input, operationId: randomUUID() }), /analyze the current collection/)
+    const { datasetId, ...unsealed } = input
+    await assert.rejects(f.action('search-launch-start', { ...unsealed, autoPrepareDataset: true, operationId: randomUUID() }), /analyze the current collection/)
+    const selected = searchLaunchViewSchema.parse(await f.action('search-launch-start', { ...input, operationId: randomUUID() }))
+    assert.equal(selected.datasetId, datasetId)
     const dataset = await profiles.export(profile, 'accepted-later-package', actor, { acceptedLaunchId: input.operationId })
     assert.equal(dataset.modelProfileId, profile.id); assert.equal(dataset.resources.length, profile.references.length)
     await assert.rejects(profiles.export(profile, 'unrelated-package', { ...actor, sessionId: 'foreign' }, { acceptedLaunchId: input.operationId }), /not authorized/)

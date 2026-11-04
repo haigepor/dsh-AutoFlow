@@ -134,12 +134,13 @@ export class CuratorDomain {
     return release
   }
   /** @param release Fixed standard. @param actor Host-created identity. @param options Owning cancellation and completed-reference observer. @returns Completion after every reference is verified. */
-  async verifyRelease(release: StyleStandard, actor: DomainActor, options: { signal?: AbortSignal; acceptedLaunchId?: string; verified?(completed: number, total: number): Promise<void> } = {}): Promise<void> {
+  async verifyRelease(release: StyleStandard, actor: DomainActor, options: { signal?: AbortSignal; acceptedLaunchId?: string; datasetId?: string; finalizingAnalysisRunId?: string; verified?(completed: number, total: number): Promise<void> } = {}): Promise<void> {
     options.signal?.throwIfAborted()
     if (release.kind === 'modelProfile') {
       const profiles = new ModelProfiles(this)
       if (options.acceptedLaunchId) profiles.authorizeAccepted(release, actor, options.acceptedLaunchId)
-      else profiles.assertFresh(release, actor)
+      else if (options.datasetId) profiles.authorizeDataset(release, options.datasetId, actor)
+      else profiles.assertFresh(release, actor, options.finalizingAnalysisRunId)
     }
     let completed = 0
     const verified = new Set<string>()

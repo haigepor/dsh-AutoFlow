@@ -144,9 +144,9 @@ test('an Agent export of a library profile remains Session-owned and cannot be r
     await recognized(f)
     const profile = f.repository.list('modelProfile')[0]!
     const actor = { kind: 'agent' as const, id: 'agent-a', profileId: f.profileId, sessionId: 'session-a' }
-    await f.service.action({ operation: 'export-start', args: { operationId: 'session-profile-export', kind: 'style', purpose: 'reference', releaseId: profile.id } }, actor, new AbortController().signal)
+    const { runId } = z.object({ runId: z.string() }).parse(await f.service.action({ operation: 'export-start', args: { operationId: 'session-profile-export', kind: 'style', purpose: 'reference', releaseId: profile.id } }, actor, new AbortController().signal))
     await f.jobs.drain()
-    const exported = f.repository.list('profileExport')[0]!
+    const exported = f.repository.list('profileExport').find(row => dataOf(f.domain.require('run', runId)).resultIds.includes(row.id))!
     assert.deepEqual(exported.access, { kind: 'session-run', sessionId: 'session-a' })
     await assert.rejects(f.service.action({ operation: 'export-get', args: { exportId: exported.id } }, { ...actor, sessionId: 'session-b' }, new AbortController().signal), { code: 'owner-denied' })
     assert.equal((await f.service.resource(new Request(`https://owner.example/api/visual-curator/resource?exportId=${exported.id}`))).status, 403)

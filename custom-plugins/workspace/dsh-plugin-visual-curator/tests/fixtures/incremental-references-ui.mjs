@@ -7,6 +7,7 @@ import { createWorkbench } from '../../src/client/workbench.tsx'
 import { createGalleryReferenceDialog } from '../../src/client/gallery-reference-dialog.tsx'
 import { zh } from '../../src/client/workbench-locale.ts'
 import pluginCss from '../../src/client/entry.css'
+import searchLaunchArtwork from '../../assets/search-launch-whale-maid-v1.webp'
 import '../../../../../packages/client/ui-theme/src/styles/base.css'
 import '../../../../../packages/client/ui-theme/src/styles/corner-shape.css'
 import '../../../../../packages/client/ui-theme/src/styles/design-platform.css'
@@ -18,7 +19,7 @@ import '../../../../../packages/client/ui-theme/src/styles/scrollbar.css'
 const h = React.createElement, Workbench = createWorkbench(React, UI), Gallery = createGalleryReferenceDialog(React, UI)
 const iconDisposers = []
 installIconSprite({ effect: register => { iconDisposers.push(register()) }, on: () => () => {} }, undefined)
-const css = document.createElement('style'); css.textContent = pluginCss; document.head.append(css)
+const css = document.createElement('style'); css.textContent = pluginCss.replace('__VC_SEARCH_LAUNCH_ART__', searchLaunchArtwork); document.head.append(css)
 const base = window.feedbackFixtureData.snapshot, styleId = base.styles[0].styleId
 const image = '/api/visual-curator/resource?imageVersionId=landscape'
 const config = { ...base.configuration, visionConfigured: true, source: { ...base.configuration.source, unsplash: { ...base.configuration.source.unsplash, accounts: [{ id: 'a', label: '图库 A', userId: 'user-a', username: 'owner', name: 'Owner', credentialRef: 'FIXTURE' }], defaultAccountId: 'a' } } }
@@ -97,13 +98,29 @@ function showProfile(status = 'completed', referenceStatus = 'cancelled') {
   render()
 }
 function render() {
-  root.render(state.mode === 'gallery' ? h(Gallery, { config, style: collection, role: 'positive', actions, t: key => zh[key], onClose: noop, onManageAccounts: noop }) : h(Workbench, { useWorkbench: select => select(client), useVisionModels: select => select({ status: 'ready', value: { models: [], unavailable: [] } }), useDatasets: select => select({ styleId, entries: [], pageIds: [], total: 0, allTotal: 0, watched: [], dismissed: [], submissions: [], loading: false, error: false, detailId: '', detail: null }), useLaunches: select => select({ entries: [], loading: false, optionsLoading: false, error: '', options: null, submission: null }), actions, t: key => zh[key], welcomeImage: image, logoImage: image, renderFactorySlot: () => null }))
+  root.render(state.mode === 'gallery' ? h(Gallery, { config, style: collection, role: 'positive', actions, t: key => zh[key], onClose: noop, onManageAccounts: noop }) : h(Workbench, { useWorkbench: select => select(client), useVisionModels: select => select({ status: 'ready', value: { models: [], unavailable: [] } }), useDatasets: select => select(state.datasetView ?? { styleId, entries: [], pageIds: [], total: 0, allTotal: 0, watched: [], dismissed: [], submissions: [], loading: false, error: false, detailId: '', detail: null }), useLaunches: select => select(state.launchView ?? { entries: [], loading: false, optionsLoading: false, error: '', options: null, submission: null }), actions, t: key => zh[key], welcomeImage: image, logoImage: image, renderFactorySlot: () => null }))
 }
 window.incrementalFixture = { state, showDiagnostics, showProfile, releaseResume: () => { state.holdResume = false; for (const resolve of state.resumeWaiters ?? []) resolve(); state.resumeWaiters = [] }, advanceAnalysisProgress: () => { const task = { ...analysisTask, ...collection.analysis, runId: 'fixture-analysis', status: 'running', phase: 'analyzing', observed: 4, total: 267 }; collection.analysis = { ...task, samples: [] }; client.analysisTasks = [task]; if (client.analysisDetail) client.analysisDetail = { ...client.analysisDetail, task }; render() }, getAnalysisRunId: () => client.analysisRunId, showAnalysis, releaseStart: () => { state.holdStart = false; for (const resolve of state.startWaiters ?? []) resolve(); state.startWaiters = [] }, releasePause: () => { state.holdPause = false; for (const resolve of state.pauseWaiters ?? []) resolve(); state.pauseWaiters = [] }, nextRequest: () => { client.analysisDetail = { ...client.analysisDetail, requests: [...client.analysisDetail.requests, { requestId: 'pending-next', createdAt: 'now', operation: 'analyze', state: 'reserved', model: 'fixture', imageIds: [], available: false }] }; render() }, show: mode => { state.mode = mode; render() }, advance: () => { collection.revision++; render() }, releasePages: () => state.pageWaiters.splice(0).forEach(resolve => resolve()), releaseStatus: () => { state.holdStatus = false; state.statusWaiters.splice(0).forEach(resolve => resolve()) }, changed: () => { plan.pending = 2; plan.reusable = 0; plan.changed = 1; plan.entries[0].state = 'needs-update'; render() }, theme: dark => document.body.toggleAttribute('data-ds-dark-theme', dark), dispose: () => { root.unmount(); iconDisposers.forEach(dispose => dispose()) } }
 render()
 
 Object.assign(window.incrementalFixture, { showGalleryRecovery, galleryTasks: () => client.galleryTasks, releaseGalleryControl() { state.holdGalleryControl = false; state.galleryWaiters?.splice(0).forEach(resolve => resolve()) } })
 Object.assign(window.incrementalFixture, { setScopeCounts(positive, negative) { plan.total = positive + negative; plan.reusable = positive; plan.pending = negative; plan.changed = 0; plan.entries = Array.from({ length: plan.total }, (_, index) => ({ referenceId: `scope-ref-${index}`, imageVersionId: `scope-image-${index}`, role: index < positive ? 'positive' : 'negative', state: index < positive ? 'analyzed' : 'pending' })); collection.referenceIds = plan.entries.map(entry => entry.referenceId); collection.revision++; render() } })
+
+Object.assign(window.incrementalFixture, {
+  configureRoleWorkflow(status = 'running') {
+    state.mode = 'workbench'
+    window.incrementalFixture.setScopeCounts(16, 15)
+    collection.modelProfile = { ...base.styles[0].modelProfile, stale: true }
+    collection.analysis = { ...analysisTask, status, observed: 16, total: 31, samples: [] }
+    const row = { id: 'latest-dataset', exportId: 'latest-dataset', styleId, name: collection.name, modelProfileId: collection.modelProfile.id, profileRevision: 8, model: 'analysis-model-b', contentDigest: 'fixture', sampleScope: 'all', status: 'completed', createdAt: '2026-11-04T00:00:00Z', isFinal: true, stale: true, counts: { references: 16, positive: 16, negative: 0, undecided: 0, rules: 8, candidates: 8, groups: 2, enabledGroups: 2, files: 5 }, downloadPath: '/api/visual-curator/resource?exportId=fixture', byteLength: 2048 }
+    const previous = { ...row, id: 'previous-dataset', exportId: 'previous-dataset', modelProfileId: 'previous-profile', profileRevision: 7, model: 'analysis-model-a', isFinal: false, stale: false }
+    state.datasetView = { styleId, entries: [row, previous], pageIds: [row.id, previous.id], query: '', status: 'all', total: 2, allTotal: 2, watched: [], dismissed: [], submissions: [], loading: false, error: false, detailId: '', detail: null }
+    state.launchView = { entries: [], loading: false, optionsLoading: false, error: '', options: { workspaces: [{ id: 'fixture-workspace', title: 'Isolated image workspace' }], conversationModels: [{ provider: 'fixture', model: 'conversation', label: 'Conversation model' }], defaultConversationModel: { provider: 'fixture', model: 'conversation' }, conversationModelSelection: true, automaticDatasetPreparation: true, negativeReferenceDatasets: true, datasetSelection: 'required', previewSearch: true, maxTargetCount: 100 }, submission: null }
+    actions.launches.loadDatasets = async modelProfileId => { state.launchView.datasetOptions = { modelProfileId, entries: [row, previous], total: 2, loading: false, error: '', negativeReferences: { datasets: 0, references: 0 } }; render() }
+    actions.launches.start = async input => { (state.searchLaunches ??= []).push(input) }
+    render()
+  },
+})
 Object.assign(window.incrementalFixture, {
   preparePerformance(count) {
     const template = snapshot.images[0], sample = collection.modelProfile.samples[0]

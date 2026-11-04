@@ -61,7 +61,8 @@ test('role-filtered packages retain only selected references and observations wi
     }
     assert.equal(f.http.operations.length, calls, 'Generating observations must not invoke the model again')
     const reusable = datasetListSchema.parse(await f.action('datasets-list', { styleId: profile.styleId, reusableOnly: true }))
-    assert.equal(reusable.total, 0)
+    assert.equal(reusable.total, 1, 'Analysis automatically saves the full package; role-only packages remain excluded')
+    assert.ok(reusable.entries.every(entry => entry.sampleScope === 'all'))
   } finally { await f.cleanup() }
 })
 
@@ -103,8 +104,8 @@ test('dataset reads join a completed task with its immutable package and bound f
     const profile = await recognized(f)
     await f.action('export-start', { operationId: 'listed-export', kind: 'style', purpose: 'reference', releaseId: profile.id, mode: 'references-only' }); await f.jobs.drain()
     const list = datasetListSchema.parse(await f.action('datasets-list', { styleId: profile.styleId }))
-    assert.equal(list.total, 1)
-    const entry = list.entries[0]!
+    assert.equal(list.total, 2)
+    const entry = list.entries.find(entry => entry.runId)!
     assert.ok(entry.runId && entry.exportId)
     assert.equal(entry.status, 'completed')
     assert.equal(entry.profileRevision, profile.revision)
@@ -124,7 +125,7 @@ test('dataset reads join a completed task with its immutable package and bound f
     assert.equal(historical.rules.find(item => item.id === rule.rule.ruleId)?.enabled, rule.enabled)
     const unmatched = datasetListSchema.parse(await f.action('datasets-list', { styleId: profile.styleId, query: 'not-present' }))
     assert.equal(unmatched.total, 0)
-    assert.equal(unmatched.allTotal, 1)
+    assert.equal(unmatched.allTotal, 2)
   } finally { await f.cleanup() }
 })
 
@@ -134,7 +135,7 @@ test('dataset pages bind their cursor to filters and frozen samples paginate ind
     const profile = await recognized(f, 2)
     for (const operationId of ['page-export-a', 'page-export-b']) await new ModelProfiles(f.domain).export(profile, operationId, f.actor)
     const first = datasetListSchema.parse(await f.action('datasets-list', { styleId: profile.styleId }))
-    assert.equal(first.total, 2); assert.equal(first.entries.length, 1); assert.ok(first.nextPageToken)
+    assert.equal(first.total, 3); assert.equal(first.entries.length, 1); assert.ok(first.nextPageToken)
     const second = datasetListSchema.parse(await f.action('datasets-list', { styleId: profile.styleId, pageToken: first.nextPageToken }))
     assert.equal(second.entries.length, 1); assert.notEqual(second.entries[0]?.id, first.entries[0]?.id)
     await assert.rejects(f.action('datasets-list', { styleId: profile.styleId, query: 'changed', pageToken: first.nextPageToken }), { code: 'invalid-input' })
@@ -151,16 +152,21 @@ test('dataset metadata and files remain owner-scoped, including private packages
   try {
     const profile = await recognized(f), engine = new RunEngine(f.repository, f.jobs), privateActor = { ...f.actor, sessionId: 'private-session' }
     const artifact = await new ModelProfiles(f.domain).export(profile, 'private-dataset', privateActor)
-    assert.equal(listDatasets(f.domain, engine, f.actor, { styleId: profile.styleId }, 10).total, 0)
+    const publicList = listDatasets(f.domain, engine, f.actor, { styleId: profile.styleId }, 10)
+    assert.equal(publicList.total, 1)
+    assert.ok(publicList.entries.every(entry => entry.exportId !== artifact.id))
     const privateList = listDatasets(f.domain, engine, privateActor, { styleId: profile.styleId }, 10)
-    assert.equal(privateList.total, 1)
-    assert.equal(readDataset(f.domain, engine, privateActor, { id: privateList.entries[0]!.id }, { pageSize: 10, maxExportPreviewChars: 64 }).files.length, 5)
+    assert.equal(privateList.total, 2)
+    const privateEntry = privateList.entries.find(entry => entry.exportId === artifact.id)!
+    assert.equal(readDataset(f.domain, engine, privateActor, { id: privateEntry.id }, { pageSize: 10, maxExportPreviewChars: 64 }).files.length, 5)
     await assert.rejects(f.action('dataset-get', { id: artifact.id }), { code: 'owner-denied' })
     await assert.rejects(f.service.action({ operation: 'datasets-list', args: { styleId: profile.styleId } }, { ...f.actor, profileId: 'foreign-profile' }, new AbortController().signal), { code: 'owner-denied' })
     assert.equal((await f.service.resource(new Request(`https://owner.example/api/visual-curator/resource?exportId=${artifact.id}`))).status, 403)
     const response = await f.service.data(new Request('https://owner.example/api/visual-curator/data', { method: 'POST', body: JSON.stringify({ operation: 'datasets-list', args: { styleId: profile.styleId } }) }))
     assert.equal(response.status, 200)
-    assert.equal(datasetListSchema.parse(z.object({ value: z.json() }).parse(await response.json()).value).total, 0)
+    const responseList = datasetListSchema.parse(z.object({ value: z.json() }).parse(await response.json()).value)
+    assert.equal(responseList.total, 1)
+    assert.ok(responseList.entries.every(entry => entry.exportId !== artifact.id))
   } finally { await f.cleanup() }
 })
 
@@ -175,11 +181,12 @@ test('a committed package joins its run even if the final run checkpoint failed'
     }
     await f.action('export-start', { operationId: 'orphan-checkpoint', kind: 'style', purpose: 'reference', releaseId: profile.id }); await f.jobs.drain()
     const list = datasetListSchema.parse(await f.action('datasets-list', { styleId: profile.styleId }))
-    assert.equal(list.total, 1)
-    assert.equal(list.entries[0]?.status, 'completed')
-    assert.equal(list.entries[0]?.error, undefined)
-    assert.ok(list.entries[0]?.runId && list.entries[0]?.exportId)
-    assert.equal(datasetDetailSchema.parse(await f.action('dataset-get', { id: list.entries[0]!.id })).files.length, 5)
+    assert.equal(list.total, 2)
+    const joined = list.entries.find(entry => entry.runId)!
+    assert.equal(joined.status, 'completed')
+    assert.equal(joined.error, undefined)
+    assert.ok(joined.runId && joined.exportId)
+    assert.equal(datasetDetailSchema.parse(await f.action('dataset-get', { id: joined.id })).files.length, 5)
   } finally { await f.cleanup() }
 })
 
@@ -206,6 +213,6 @@ test('profile package progress follows verified references, serialized samples a
     assert.ok(saved.files.every(file => fileChecksum(file.content) === file.checksum))
     const controller = new AbortController(); controller.abort(new Error('export stopped'))
     await assert.rejects(new ModelProfiles(f.domain).export(profile, 'aborted-export', f.actor, { signal: controller.signal }), /export stopped/)
-    assert.equal(f.repository.list('profileExport').length, 1)
+    assert.equal(f.repository.list('profileExport').length, 2)
   } finally { await f.cleanup() }
 })

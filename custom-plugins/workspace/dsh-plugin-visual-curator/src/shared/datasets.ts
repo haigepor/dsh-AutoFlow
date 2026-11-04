@@ -32,7 +32,7 @@ export type DatasetProgress = z.infer<typeof datasetProgressSchema>
 export const datasetEntrySchema = z.strictObject({
   id: identity, runId: runSchema.shape.id.optional(), exportId: profileExportSchema.shape.id.optional(),
   styleId: z.string(), name: z.string(), modelProfileId: modelProfileSchema.shape.id, profileRevision: count, model: z.string(), contentDigest: z.string(), sampleScope: datasetScopeSchema,
-  createdAt: z.string(), status: runSchema.shape.status, progress: datasetProgressSchema.optional(),
+  createdAt: z.string(), status: runSchema.shape.status, progress: datasetProgressSchema.optional(), isFinal: z.boolean().optional(), stale: z.boolean().optional(),
   counts: z.strictObject({ references: count, positive: count, negative: count, undecided: count, rules: count, candidates: count, groups: count, enabledGroups: count, files: count }),
   byteLength: count.optional(), downloadPath: z.string().optional(),
   error: z.object({ code: z.string(), safeMessage: z.string(), suggestedAction: z.string() }).optional(),

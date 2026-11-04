@@ -1,6 +1,6 @@
 import { createImageGallery } from './image-gallery.tsx'
 import { createReferenceStateHook } from './reference-state.ts'
-import { analysisRoleCounts, type ReferenceState } from '../shared/reference-state.ts'
+import { analysisRoleCounts, selectAnalysisReferences, type ReferenceState } from '../shared/reference-state.ts'
 /** @jsxRuntime classic */
 /** @jsx React.createElement */
 /** @jsxFrag React.Fragment */
@@ -234,7 +234,9 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const [analysisStarting, setAnalysisStarting] = React.useState(false)
     const [analysisStartMode, setAnalysisStartMode] = React.useState<'planning' | 'pending' | 'all' | null>(null)
     const [analysisPreference, setAnalysisPreference] = React.useState<'pending' | 'all'>('pending')
-    const [analysisPlan, setAnalysisPlan] = React.useState<ReferenceState | null>(null)
+    const [fullAnalysisPlan, setAnalysisPlan] = React.useState<ReferenceState | null>(null)
+    const [analysisScope, setAnalysisScope] = React.useState<'all' | 'positive' | 'negative'>('all')
+    const analysisPlan = fullAnalysisPlan ? selectAnalysisReferences(fullAnalysisPlan, analysisScope) : null
     const scopeDescriptionId = React.useId()
     const handledAnalysisRequest = React.useRef<number | undefined>(undefined)
     const referenceState = useReferenceState(actions.referenceState, style.styleId, style.revision, `${style.analysis?.runId ?? ''}:${style.analysis?.status ?? ''}:${style.analysis?.observed ?? 0}:${snapshot.configuration.revision}:${snapshot.workspaceRevision ?? ''}`, scopeSessionId, referencesView)
@@ -272,7 +274,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const launchAnalysis = async (plan: ReferenceState, analysisMode: 'pending' | 'all') => {
       analysisPlanning.current = null; setAnalysisStarting(true); setAnalysisStartMode(analysisMode); setPickerError('')
       try {
-        const result = await actions.startAnalysis({ operationId: id(), styleId: style.styleId, buildDataset: true, analysisMode, planDigest: plan.digest })
+        const result = await actions.startAnalysis({ operationId: id(), styleId: style.styleId, buildDataset: true, analysisMode, analysisScope, planDigest: plan.digest })
         // 切换素材集后不回写旧界面，已启动的任务仍由 Host 管理。
         if (!importLifetime.current.signal.aborted) { setAnalysisPlan(null); setInspectorOpen(true); actions.selectRun(resultId(result, 'runId')) }
       } catch (error) { if (!importLifetime.current.signal.aborted) { setAnalysisPlan(null); setPickerError(t('analysisPlanChanged')); referenceState.retry() } }
@@ -281,12 +283,11 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const startAnalysis = async (preference: 'pending' | 'all' = 'pending') => {
       const controller = new AbortController()
       analysisPlanning.current?.abort(); analysisPlanning.current = controller
-      setAnalysisPreference(preference); setAnalysisStarting(true); setAnalysisStartMode('planning'); setPickerError('')
+      setAnalysisPreference(preference); setAnalysisScope('all'); setAnalysisStarting(true); setAnalysisStartMode('planning'); setPickerError('')
       try {
         const plan = referenceState.plan ?? await referenceState.load(AbortSignal.any([importLifetime.current.signal, controller.signal]))
         if (controller.signal.aborted || importLifetime.current.signal.aborted) return
-        if (plan.reusable || plan.changed || preference === 'all') setAnalysisPlan(plan)
-        else await launchAnalysis(plan, 'pending')
+        setAnalysisPlan(plan)
       } catch (error) { if (!controller.signal.aborted && !importLifetime.current.signal.aborted) setPickerError(t('referenceStateError')) }
       finally { if (analysisPlanning.current === controller && !importLifetime.current.signal.aborted) { analysisPlanning.current = null; setAnalysisStarting(false); setAnalysisStartMode(null) } }
     }
@@ -428,11 +429,13 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
       <DatasetDialog useDatasets={useDatasets} onSearch={() => { setDatasetOpen(false); setInspectorModalOpen(false); onSearch() }} open={datasetOpen} onClose={() => setDatasetOpen(false)} onAnalyze={() => { setDatasetOpen(false); analyze() }} canAnalyze={!analysisDisabled && !analysisBusy} style={style} snapshot={snapshot} actions={actions} t={t} busy={busy} />
       <Modal open={!!analysisPlan || analysisStarting} onClose={cancelAnalysisStart} closeOnBackdropClick={false} title={t('analysisSelectionTitle')} closeLabel={t('close')} className="vc-analysis-start-modal" contentClassName="vc-analysis-scope-content" footer={<div className="vc-analysis-scope-footer"><span>{t('analysisScopeActionHint')}</span><Button variant="outline" disabled={analysisStarting && analysisStartMode !== 'planning'} onClick={cancelAnalysisStart}>{t('cancel')}</Button></div>}>
         {!analysisPlan && analysisStarting && <div className="vc-analysis-plan-loading" role="status" aria-label={t('analysisPreparing')}><span className="vc-skeleton-fill vc-skeleton-title" /><span className="vc-skeleton-fill" /><span className="vc-skeleton-fill" /></div>}{analysisPlan && <div className="vc-analysis-scope-body">
+          <div className="vc-row" role="group" aria-label={t('analysisRoleSelection')}>{(['all', 'positive', 'negative'] as const).map(scope => <Button key={scope} size="sm" variant={analysisScope === scope ? 'outline' : 'ghost'} aria-pressed={analysisScope === scope} disabled={analysisStarting} onClick={() => setAnalysisScope(scope)}>{t(scope === 'all' ? 'analysisAllRoles' : scope === 'positive' ? 'analysisOnlyPositive' : 'analysisOnlyNegative')} {fullAnalysisPlan ? selectAnalysisReferences(fullAnalysisPlan, scope).total : 0}</Button>)}</div>
+          <p className="vc-search-launch-hint">{t('analysisRoleHint')}</p>
           <div className="vc-analysis-scope-intro"><div><div className="vc-analysis-scope-status"><Tag tone="success">{t('referenceAnalyzed')} {analysisPlan.reusable}</Tag><Tag tone="info">{t('referencePending')} {analysisPlan.pending - analysisPlan.changed}</Tag>{analysisPlan.changed > 0 && <Tag tone="warning">{t('referenceNeedsUpdate')} {analysisPlan.changed}</Tag>}</div><p>{t('analysisReuseHint')}</p></div><img src={analysisScopeArtwork} alt="" className="vc-analysis-scope-art" width={480} height={377} aria-hidden="true" /></div>
           {analysisPlan.changed > 0 && <p className="vc-analysis-scope-changed">{t('analysisChangedHint')}</p>}
           <div className="vc-analysis-scope-options">
-            <Button variant="ghost" className="vc-analysis-scope-option" data-preferred={analysisPreference === 'pending'} aria-describedby={`${scopeDescriptionId}-pending`} aria-label={`${t(analysisPlan.pending ? 'analysisPendingOnly' : 'analysisReuseSummary')}${analysisPlan.pending ? ` ${analysisPlan.pending}` : ''}`} disabled={analysisStarting || analysisDisabled} aria-busy={analysisStartMode === 'pending' || undefined} onClick={() => { void launchAnalysis(analysisPlan, 'pending') }}><span className="vc-analysis-scope-option-top">{analysisStartMode === 'pending' ? <StateDot state="ongoing" /> : <ui.IconSparkleRegular size={18} />}<span className="vc-analysis-scope-option-recommended">{t('analysisScopeRecommended')}</span></span><strong className="vc-analysis-scope-option-title">{t(analysisPlan.pending ? 'analysisPendingOnly' : 'analysisReuseSummary')}</strong><span className="vc-analysis-scope-option-count"><strong>{analysisPlan.pending || analysisPlan.reusable}</strong> {t('analysisScopeImages')}</span><AnalysisScopeRoles id={`${scopeDescriptionId}-pending`} plan={analysisPlan} scope={analysisPlan.pending ? 'pending' : 'reusable'} t={t} /><span className="vc-analysis-scope-option-hint">{t('analysisScopePendingHint')}</span></Button>
-            <Button variant="ghost" className="vc-analysis-scope-option" data-preferred={analysisPreference === 'all'} aria-describedby={`${scopeDescriptionId}-all`} aria-label={`${t('analysisAllAgain')} ${analysisPlan.total}`} disabled={analysisStarting || analysisDisabled} aria-busy={analysisStartMode === 'all' || undefined} onClick={() => { void launchAnalysis(analysisPlan, 'all') }}><span className="vc-analysis-scope-option-top">{analysisStartMode === 'all' ? <StateDot state="ongoing" /> : <ui.IconRefreshOutlineRegular size={18} />}</span><strong className="vc-analysis-scope-option-title">{t('analysisAllAgain')}</strong><span className="vc-analysis-scope-option-count"><strong>{analysisPlan.total}</strong> {t('analysisScopeImages')}</span><AnalysisScopeRoles id={`${scopeDescriptionId}-all`} plan={analysisPlan} scope="all" t={t} /><span className="vc-analysis-scope-option-hint">{t('analysisScopeAllHint')}</span></Button>
+            <Button variant="ghost" className="vc-analysis-scope-option" data-preferred={analysisPreference === 'pending'} aria-describedby={`${scopeDescriptionId}-pending`} aria-label={`${t(analysisPlan.pending ? 'analysisPendingOnly' : 'analysisReuseSummary')}${analysisPlan.pending ? ` ${analysisPlan.pending}` : ''}`} disabled={analysisStarting || analysisDisabled || analysisPlan.total === 0} aria-busy={analysisStartMode === 'pending' || undefined} onClick={() => { void launchAnalysis(analysisPlan, 'pending') }}><span className="vc-analysis-scope-option-top">{analysisStartMode === 'pending' ? <StateDot state="ongoing" /> : <ui.IconSparkleRegular size={18} />}<span className="vc-analysis-scope-option-recommended">{t('analysisScopeRecommended')}</span></span><strong className="vc-analysis-scope-option-title">{t(analysisPlan.pending ? 'analysisPendingOnly' : 'analysisReuseSummary')}</strong><span className="vc-analysis-scope-option-count"><strong>{analysisPlan.pending || analysisPlan.reusable}</strong> {t('analysisScopeImages')}</span><AnalysisScopeRoles id={`${scopeDescriptionId}-pending`} plan={analysisPlan} scope={analysisPlan.pending ? 'pending' : 'reusable'} t={t} /><span className="vc-analysis-scope-option-hint">{t('analysisScopePendingHint')}</span></Button>
+            <Button variant="ghost" className="vc-analysis-scope-option" data-preferred={analysisPreference === 'all'} aria-describedby={`${scopeDescriptionId}-all`} aria-label={`${t(analysisScope === 'all' ? 'analysisAllAgain' : 'analysisSelectedAgain')} ${analysisPlan.total}`} disabled={analysisStarting || analysisDisabled || analysisPlan.total === 0} aria-busy={analysisStartMode === 'all' || undefined} onClick={() => { void launchAnalysis(analysisPlan, 'all') }}><span className="vc-analysis-scope-option-top">{analysisStartMode === 'all' ? <StateDot state="ongoing" /> : <ui.IconRefreshOutlineRegular size={18} />}</span><strong className="vc-analysis-scope-option-title">{t(analysisScope === 'all' ? 'analysisAllAgain' : 'analysisSelectedAgain')}</strong><span className="vc-analysis-scope-option-count"><strong>{analysisPlan.total}</strong> {t('analysisScopeImages')}</span><AnalysisScopeRoles id={`${scopeDescriptionId}-all`} plan={analysisPlan} scope="all" t={t} /><span className="vc-analysis-scope-option-hint">{t('analysisScopeAllHint')}</span></Button>
           </div>
         </div>}
       </Modal>
@@ -491,7 +494,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const style = snapshot?.styles.find(item => item.styleId === state.styleId && !item.archived)
     const styles = snapshot?.styles.filter(item => !item.archived) ?? []
     const collectionPreview = style && snapshot?.images.find(image => image.referenceId && style.referenceIds.includes(image.referenceId))
-    const canSearch = !!style?.modelProfile && !style.modelProfile.stale && style.modelProfile.options.some(option => option.enabled)
+    const canSearch = !!style?.modelProfile
     const referenceTask = state.galleryTasks.find(task => task.styleId === state.styleId)
     const referencing = !!referenceTask && galleryTaskActive(referenceTask.status)
     const headerAnalysis = state.analysisTasks.find(task => task.styleId === state.styleId && analysisActive(task.status)) ?? (style?.analysis && analysisActive(style.analysis.status) ? style.analysis : undefined)

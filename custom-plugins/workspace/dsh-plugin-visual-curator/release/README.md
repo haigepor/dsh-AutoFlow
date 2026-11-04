@@ -26,6 +26,14 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.7
+
+Saved reference observations, automatic style profiles and reference datasets can be used with a different configured vision model. Switching models preserves analyzed status, original model/request records and existing dataset files. New searches and crops freeze the selected reviewer; paused tasks continue with their original model after restart. Incremental analysis reuses committed observations across models, while full reanalysis requires explicit confirmation. Changes to images, rules, judgments or processing still invalidate affected observations.
+
+Analysis selects all references, positive examples only or counterexamples only, independently of reuse or reanalysis. Positive batches describe desired transferable traits; negative batches retain supported mismatch reasons and uncertainty without adopting them as target style. Other roles retain valid observations. Complete evidence is consolidated into a matching prompt and checksummed dataset automatically; partial results stay saved until the remaining references are analyzed. Failed package commits can retry without another model call. The latest complete package stays first, with historical complete versions available for search while a new analysis runs or is paused.
+
+The reference badge says “Needs reanalysis” when evidence changes. Update the plugin and restart after current tasks finish; no data migration or desktop installer is required. Human-published releases and controlled comparisons retain their reviewer qualification checks. Keyless checks do not validate paid model output.
+
 ## Visual Curator 0.2.6
 
 New image searches refresh readable mismatch history when the Run is admitted, including confirmed rejections saved after conversation or task preparation. Matching tasks retain their checked inputs, and known rejected photos are skipped before another review. Changed tasks, rules or review recipes remain eligible; technical failures do not become visual rejections.

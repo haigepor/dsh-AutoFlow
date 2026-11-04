@@ -1,0 +1,11 @@
+{
+  "observedRoles": ["positive", "negative"],
+  "perImageCalls": 2,
+  "summaryCalls": 1,
+  "retainedPositiveObservation": true,
+  "fullDatasetReferences": 2,
+  "finalRowScope": "all",
+  "finalRowPinned": true,
+  "laterObservationScope": "negative",
+  "matchingPromptSaved": true
+}

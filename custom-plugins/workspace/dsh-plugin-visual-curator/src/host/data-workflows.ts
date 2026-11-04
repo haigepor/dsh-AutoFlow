@@ -21,6 +21,7 @@ import { visionBounds } from './providers.ts'
 import { validObservationReuse } from './reference-state.ts'
 import { reusedObservationSchema } from '../shared/reference-state.ts'
 import { datasetScopeSchema, type DatasetProgress } from '../shared/datasets.ts'
+import { observationRole, referenceRoleInstruction } from './analysis-selection.ts'
 
 /** All I/O remains owned by the current Run and its shared budget. */
 export interface DataWorkerDependencies { domain: CuratorDomain; files: AssetFiles; vision: (config: CuratorConfig) => Promise<StructuredVisionProvider>; compactSummary?: (input: VisionInput, provider: StructuredVisionProvider, ctx: WorkContext) => Promise<VisionInput> }
@@ -58,6 +59,9 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
   const actor = runActor(ctx)
   const draft = draftSchema.parse(ctx.spec.fixed.draft)
   const references = z.array(referenceSchema).parse(ctx.spec.fixed.references)
+  const analysisScope = datasetScopeSchema.parse(ctx.spec.input.analysisScope ?? 'all')
+  const selectedImages = new Set(references.filter(reference => analysisScope === 'all' || reference.role === analysisScope).map(reference => reference.imageVersionId))
+  const roleAware = ctx.spec.fixed.referencePrompts === 'role-aware-v1'
   const feedback = z.array(feedbackSchema).parse(ctx.spec.fixed.feedback)
   const recipe = recipeSchema.parse(ctx.spec.fixed.recipe)
   // 新任务冻结观察模式；历史快照未记录该字段时，恢复原来的观察与建议格式。
@@ -103,21 +107,26 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
   const provider = await deps.vision(ctx.spec.config)
   const maxImages = Math.min(recipe.referenceStrategy.maxImages, ctx.spec.config.limits.maxReferenceImages)
   const maxBytes = Math.min(recipe.referenceStrategy.maxBytes, ctx.spec.config.limits.maxReferenceBytes)
-  const pending: { image: ImageVersion; role: string }[] = []
+  const pending: { image: ImageVersion; role: string; analysisRole: ReturnType<typeof observationRole> }[] = []
+  const referencesByImage = new Map<string, typeof references>()
+  for (const reference of references) { const rows = referencesByImage.get(reference.imageVersionId) ?? []; rows.push(reference); referencesByImage.set(reference.imageVersionId, rows) }
   for (const reference of [...references].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) {
-    if (checkpoint.analysisDoneImageIds.includes(reference.imageVersionId) || pending.some(p => p.image.id === reference.imageVersionId)) continue
+    if (!selectedImages.has(reference.imageVersionId) || checkpoint.analysisDoneImageIds.includes(reference.imageVersionId) || pending.some(p => p.image.id === reference.imageVersionId)) continue
     const { image, asset } = deps.domain.authorizedImage(reference.imageVersionId, actor)
     deps.domain.assertLearningFamily(asset.familyId)
     if (split?.assignments.some(a => deps.domain.familyOf(a.familyId) === asset.familyId && a.split === 'holdout')) throw new CuratorError('constraint-conflict', 'analyze', 'Holdout families cannot be used for rule induction.')
     if (image.blob.byteLength > maxBytes) throw new CuratorError('constraint-conflict', 'analyze', 'A reference image exceeds the fixed review bundle byte limit.')
     const judgments = feedback.filter(item => reference.feedbackThreadIds.includes(item.threadId)).map(item => ({ feedbackId: item.id, judgment: item.judgment, context: item.context }))
-    pending.push({ image, role: JSON.stringify({ originalIntent: { role: reference.role, intent: reference.intent }, context: reference.context, judgments }) })
+    const imageReferences = referencesByImage.get(image.id)!
+    pending.push({ image, analysisRole: observationRole(imageReferences), role: JSON.stringify(roleAware ? { references: imageReferences.map(item => ({ role: item.role, intent: item.intent, context: item.context })), judgments } : { originalIntent: { role: reference.role, intent: reference.intent }, context: reference.context, judgments }) })
   }
   if (!references.length) throw new CuratorError('invalid-input', 'analyze', 'Choose at least one learning reference before analysis.')
+  if (roleAware) { const order = { positive: 0, negative: 1, undecided: 2, mixed: 3 }; pending.sort((left, right) => order[left.analysisRole] - order[right.analysisRole]) }
   while (pending.length) {
+    const analysisRole = pending[0]!.analysisRole
     const batch: { image: ImageVersion; pixels: VisionImage }[] = []
     let bytes = 0
-    while (pending.length && batch.length < maxImages && bytes + pending[0]!.image.blob.byteLength <= maxBytes) {
+    while (pending.length && (!roleAware || pending[0]!.analysisRole === analysisRole) && batch.length < maxImages && bytes + pending[0]!.image.blob.byteLength <= maxBytes) {
       // 每批才读取本地原图，取消时不预读后续图片，也不同时保留整集 Buffer。
       ctx.signal.throwIfAborted()
       const item = pending.shift()!
@@ -127,7 +136,7 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
     const imageIds = new Set<string>(batch.map(item => item.image.id))
     // 每批只发送当前图片的判断；完整反馈留在冻结输入和最终归纳，避免逐批重复整个素材集。
     const applicableFeedback = feedback.filter(item => item.subject.kind === 'pair' ? imageIds.has(item.subject.leftImageVersionId) && imageIds.has(item.subject.rightImageVersionId) : imageIds.has(item.subject.imageVersionId))
-    const input: VisionInput = { requestId, promptVersion: 'visual-curator-reference-v2', ...(analysisOutput ? { analysisOutput } : {}), taskBrief: JSON.stringify({ instruction: 'Analyze only the selected reference dimensions. Describe color palette and saturation, light direction and contrast, material and grain, composition and negative space, density and depth. Separate subject content from style unless subject is selected. Record uncertainty, never infer hidden facts. Use the fixed human judgments; original import intent is historical context and does not override revised judgments. ' + (analysisOutput === 'observations-only' ? 'Return only per-image observations. Do not propose rules or a shared style profile in this stage; rule induction runs separately after all observations are saved. ' : 'Return observations and unconfirmed rule suggestions. ') + 'Write descriptions in Simplified Chinese.', styleId: draft.styleId, draftRevision: draft.revision, applicableFeedback: modelFeedback(applicableFeedback) }), rules: draft.rules, images: batch.map(i => i.pixels) }
+    const input: VisionInput = { requestId, promptVersion: 'visual-curator-reference-v2', ...(analysisOutput ? { analysisOutput } : {}), taskBrief: JSON.stringify({ instruction: (roleAware ? referenceRoleInstruction(analysisRole) + ' ' : '') + 'Analyze only the selected reference dimensions. Describe color palette and saturation, light direction and contrast, material and grain, composition and negative space, density and depth. Separate subject content from style unless subject is selected. Record uncertainty, never infer hidden facts. Use the fixed human judgments; original import intent is historical context and does not override revised judgments. ' + (analysisOutput === 'observations-only' ? 'Return only per-image observations. Do not propose rules or a shared style profile in this stage; rule induction runs separately after all observations are saved. ' : 'Return observations and unconfirmed rule suggestions. ') + 'Write descriptions in Simplified Chinese.', ...(roleAware ? { analysisRole } : {}), styleId: draft.styleId, draftRevision: draft.revision, applicableFeedback: modelFeedback(applicableFeedback) }), rules: draft.rules, images: batch.map(i => i.pixels) }
     const cached = savedResponse(deps, ctx, requestId)
     const descriptor = cached?.descriptor ?? toJson(provider.describeRequest(input, 'analyze'))
     ctx.report({ phase: 'analyzing', imageIds: batch.map(item => item.image.id), batch: Math.floor(checkpoint.analysisDoneImageIds.length / maxImages) + 1, resetOutput: true })
@@ -151,6 +160,12 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
     const record = deps.domain.repository.get('observation', id)
     return record ? [record] : []
   })
+  const observedImages = new Set(observations.map(observation => observation.imageVersionId))
+  const awaiting = references.filter(reference => !observedImages.has(reference.imageVersionId))
+  if (awaiting.length) {
+    await ctx.save('finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, analysisAwaitingImageIds: [...new Set(awaiting.map(reference => reference.imageVersionId))], analysisNeedsPositiveReferences: !references.some(reference => reference.role === 'positive') }, counts: { observed: observations.length, suggestions: 0, awaiting: new Set(awaiting.map(reference => reference.imageVersionId)).size } })
+    return
+  }
   const samples = references.map(reference => {
     const { image } = deps.domain.authorizedImage(reference.imageVersionId, actor)
     const observation = observations.find(item => item.imageVersionId === image.id)
@@ -169,7 +184,7 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
   }
   const requestId = `summary-${contentDigest({ runId: ctx.runId, samples }).slice(10, 50)}`
   const input: VisionInput = { requestId, rules: draft.rules, images: representatives, taskBrief: JSON.stringify({
-    instruction: 'Build one reusable style profile from ALL saved per-image observations and human judgments, not just the attached representative images. Positive examples indicate desired traits; negatives are counterexamples, never average them into the target. Undecided examples do not establish preferences. Respect dimension-only intent. Separate subject content from recurring style. Report conflicting substyles and insufficient evidence, cite exact imageVersionIds, and propose only evidence-backed candidate-photo criteria, not image-generation commands. Supply search hints and a matching prompt for a vision API to inspect actual candidate pixels. Also return organization: groups for distinct alternative styles, each with groupId, concise name, description and exact imageVersionIds; selections must contain exactly one entry per suggested rule with zero-based ruleIndex, enabled, nullable groupId and a reason. Use groupId null for shared rules. Enable clear transferable preferences by default; keep unsupported, conflicting or brand-specific content as disabled reference-only hints. Do not invent calibrated confidence scores or treat several angles of one scene as independent support. Groups are alternatives, not simultaneous requirements. Confirmed human rules override these model preferences. Write descriptions in Simplified Chinese.',
+    instruction: (roleAware ? 'Consolidate one final reusable dataset and candidate-matching prompt. Keep desired positive anchors separate from conditional counterexample exclusions. Negative references are never desired-style support; cite them as counterevidence only when the reason is supported. Unknown or conflicting traits remain explicit. The matching prompt must apply active rules, alternative groups, exclusions and uncertainty to actual candidate pixels. ' : '') + 'Build one reusable style profile from ALL saved per-image observations and human judgments, not just the attached representative images. Positive examples indicate desired traits; negatives are counterexamples, never average them into the target. Undecided examples do not establish preferences. Respect dimension-only intent. Separate subject content from recurring style. Report conflicting substyles and insufficient evidence, cite exact imageVersionIds, and propose only evidence-backed candidate-photo criteria, not image-generation commands. Supply search hints and a matching prompt for a vision API to inspect actual candidate pixels. Also return organization: groups for distinct alternative styles, each with groupId, concise name, description and exact imageVersionIds; selections must contain exactly one entry per suggested rule with zero-based ruleIndex, enabled, nullable groupId and a reason. Use groupId null for shared rules. Enable clear transferable preferences by default; keep unsupported, conflicting or brand-specific content as disabled reference-only hints. Do not invent calibrated confidence scores or treat several angles of one scene as independent support. Groups are alternatives, not simultaneous requirements. Confirmed human rules override these model preferences. Write descriptions in Simplified Chinese.',
     styleId: draft.styleId, applicableFeedback: modelFeedback(feedback),
     samples: samples.map(sample => ({ imageVersionId: sample.reference.imageVersionId, role: sample.reference.role, intent: sample.reference.intent, observation: observations.find(item => item.id === sample.observationId) })),
   }) }
@@ -183,7 +198,7 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
     referenceDigest: analysisReferenceDigest(references, feedback.map(item => item.id)), feedbackIds: feedback.map(item => item.id), recipeId: recipe.id, model: provider.config.model, declaredModelVersion: provider.config.declaredModelVersion ?? null,
     observationPromptVersion: 'visual-curator-v1', summaryPromptVersion: cached ? z.object({ promptVersion: z.enum(['visual-curator-summary-v1', 'visual-curator-summary-v2', 'visual-curator-summary-v3']) }).parse(cached.descriptor).promptVersion : 'visual-curator-summary-v3', summaryRequestId: requestId, samples, summary })
   const suggestions = summary.suggestedRules.map((rule, index) => suggestionSchema.parse({ ...recordBase(ctx, 'suggestion', { requestId, index }), kind: 'suggestion', status: 'pending', access: ctx.current().owner.kind === 'session' ? { kind: 'session-run', sessionId: actor.sessionId } : { kind: 'profile-library' }, author: { kind: 'model', sourceId: recipe.model }, text: JSON.stringify({ ...rule, requestId, draftId: draft.id, draftRevision: draft.revision, recipeId: recipe.id }), feedbackIds: feedback.map(item => item.id) }))
-  await ctx.save('finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, styleAnalysis: toJson(analysis) }, resultIds: [...checkpoint.analysisResultIds, ...suggestions.map(item => item.id)], counts: { observed: observations.length, suggestions: suggestions.length, summarized: samples.length } }, suggestions)
+  await ctx.save('finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, styleAnalysis: toJson(analysis), ...(roleAware && !references.some(reference => reference.role === 'positive') ? { analysisNeedsPositiveReferences: true } : {}) }, resultIds: [...checkpoint.analysisResultIds, ...suggestions.map(item => item.id)], counts: { observed: observations.length, suggestions: suggestions.length, summarized: samples.length } }, suggestions)
 }
 
 async function compareImage(deps: DataWorkerDependencies, ctx: WorkContext, provider: StructuredVisionProvider, image: ImageVersion, standard: StyleRelease | StyleCandidate, side: 'left' | 'right'): Promise<{ verdict: EvaluationReport['items'][number]['left']; records: Assessment[]; budgetExhausted: boolean }> {
@@ -307,7 +322,20 @@ async function exportData(deps: DataWorkerDependencies, ctx: WorkContext): Promi
 export function createDataWorker(deps: DataWorkerDependencies): Worker {
   return async ctx => {
     switch (ctx.spec.kind) {
-      case 'analyze': await analyze(deps, ctx); await new ModelProfiles(deps.domain).adopt(ctx.current(), runActor(ctx), true); break
+      case 'analyze': {
+        await analyze(deps, ctx)
+        const profiles = new ModelProfiles(deps.domain), actor = runActor(ctx)
+        const profile = await profiles.adopt(ctx.current(), actor, true)
+        if (profile?.rules.length && ctx.spec.fixed.autoExportDataset === true && dataOf(ctx.current()).checkpoint.analysisNeedsPositiveReferences !== true) {
+          const snapshot = await profiles.export(profile, `analysis-dataset:${ctx.runId}`, actor, { signal: ctx.signal, finalizingAnalysisRunId: ctx.runId,
+            progress: async progress => { await ctx.save('finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, datasetExportProgress: toJson(progress) } }) } }).catch(error => {
+              if (error instanceof CuratorError && error.code === 'storage-commit-failed') throw new CuratorError('storage-commit-failed', 'dataset-export', 'The analysis is saved, but its final dataset could not be committed. Continue this task to retry packaging without another model request.', { retryable: true, cause: error })
+              throw error
+            })
+          await ctx.save('finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, finalDatasetId: snapshot.id } })
+        }
+        break
+      }
       case 'evaluate': return await evaluate(deps, ctx)
       case 'export': await exportData(deps, ctx); break
       default: throw new CuratorError('invalid-input', 'data-workflow', 'This worker does not implement the task kind.')

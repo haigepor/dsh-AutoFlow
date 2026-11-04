@@ -13,6 +13,15 @@ export const referenceStateSchema = z.strictObject({
 /** Validated reference-state response shared by gallery and analysis controls. */
 export type ReferenceState = z.infer<typeof referenceStateSchema>
 
+/** @param plan Complete collection plan. @param scope Imported roles to observe; all includes undecided and conflicting roles. @returns Counts for selected unique images, retaining the original confirmation digest. */
+export function selectAnalysisReferences(plan: ReferenceState, scope: 'all' | 'positive' | 'negative'): ReferenceState {
+  if (scope === 'all') return plan
+  const selected = new Set(plan.entries.filter(entry => entry.role === scope).map(entry => entry.imageVersionId))
+  const entries = plan.entries.filter(entry => selected.has(entry.imageVersionId)), images = new Map(entries.map(entry => [entry.imageVersionId, entry]))
+  const reusable = [...images.values()].filter(entry => entry.state === 'analyzed').length
+  return { ...plan, entries, total: images.size, reusable, pending: images.size - reusable, changed: [...images.values()].filter(entry => entry.state === 'needs-update').length }
+}
+
 /** @param plan Confirmed current references. @param scope All images, unfinished observations or reusable observations. @returns Unique-image role counts; conflicting roles stay visible without counting an image twice. */
 export function analysisRoleCounts(plan: ReferenceState, scope: 'all' | 'pending' | 'reusable') {
   const images = new Map<string, Set<ReferenceState['entries'][number]['role']>>()

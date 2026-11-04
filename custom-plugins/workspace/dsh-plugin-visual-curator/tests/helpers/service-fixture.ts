@@ -62,16 +62,17 @@ export async function serviceFixture(directory?: string, limits: Partial<Limits>
   // Windows 临时目录可能使用 8.3 别名；夹具与生产预检使用相同的真实路径。
   const root = directory ?? await realpath(await mkdtemp(join(tmpdir(), 'visual-service-')))
   const profileId = createHash('sha256').update(resolve(root)).digest('hex')
-  const repository = new DomainRepository(profileId, new MemoryDomainAdapter()), jobs = new FixtureJobs(), http = new FixtureHttp()
+  const adapter = new MemoryDomainAdapter(), repository = new DomainRepository(profileId, adapter), jobs = new FixtureJobs(), http = new FixtureHttp()
   http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#536f53' } }).png().toBuffer()
   const referenceImage = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#617b61' } }).png().toBuffer()
   const config = resolveConfig({ source: { endpoint: 'https://source.example.test/search', credentialRef: '', ...sourceSettings }, vision: { backend: 'compatible', endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '', vendorVersion: 'fixture-v1' }, limits: { maxRetryAttempts: 0, maxImportBytes: 1_000_000, maxReferenceBytes: 1_000_000, maxVisionCalls: 40, maxSearchPages: 4, maxCropCandidatesPerImage: 2, ...limits } })
-  const provider = new CompatibleVisionProvider({ endpoint: config.vision.endpoint, model: config.vision.model, supportsMultiImage: true, maxImages: 10, maxImageBytes: 1_000_000, maxRequestBytes: 10_000_000, maxOutputTokens: 4000, temperature: 0, declaredModelVersion: 'fixture-v1' }, http)
+  const provider = (config: CuratorConfig) => new CompatibleVisionProvider({ endpoint: config.vision.endpoint, model: config.vision.model, supportsMultiImage: true, maxImages: 10, maxImageBytes: 1_000_000, maxRequestBytes: 10_000_000, maxOutputTokens: 4000, temperature: 0, declaredModelVersion: config.vision.vendorVersion ?? 'fixture-v1' }, http)
   const source = new SourceHttpProvider({ endpoint: config.source.endpoint, method: 'GET', request: { query: 'q', cursor: 'cursor', pageSize: 'limit' }, response: { items: '/items', id: '/id', previewUrl: '/previewUrl', originalUrl: '/originalUrl', nextCursor: '/nextCursor' }, maxPageSize: 20 }, http)
   const host: CuratorHost = { profileContext: { dir: root }, jobs, sessions: { get: () => undefined }, credentials: { resolve: async () => undefined, set: async () => { throw new Error('Fixture credential writes require an explicit observer') } }, storageDomain: { open: async () => { throw new Error('Fixture uses an explicit memory domain') } }, configEditor: { entries: () => [], edit: async () => { throw new Error('Profile editing is unavailable in this isolated fixture') } } }
   let domain!: CuratorDomain
-  const service = new CuratorService(host, config, { ...selection, openDomain: async files => { domain = new CuratorDomain(profileId, repository, { verifyImage: async image => { await files.verifyReference(image.blob) } }); return domain }, providers: { source: async () => source, vision: async () => provider, media: () => http } })
+  const providers = { source: async () => source, vision: async (config: CuratorConfig) => provider(config), media: () => http }
+  const service = new CuratorService(host, config, { ...selection, openDomain: async files => { domain = new CuratorDomain(profileId, repository, { verifyImage: async image => { await files.verifyReference(image.blob) } }); return domain }, providers })
   const actor: DomainActor = { kind: 'human', id: 'fixture-owner', profileId }
   const action = async (operation: string, args: Record<string, Json> = {}) => service.action({ operation, args }, actor, new AbortController().signal)
-  return { root, profileId, service, jobs, http, referenceImage, repository, actor, action, host, get domain() { return domain }, cleanup: async () => { await service.dispose(); if (!directory) await rm(root, { recursive: true, force: true }) } }
+  return { root, profileId, service, jobs, http, providers, adapter, referenceImage, repository, actor, action, host, get domain() { return domain }, cleanup: async () => { await service.dispose(); if (!directory) await rm(root, { recursive: true, force: true }) } }
 }

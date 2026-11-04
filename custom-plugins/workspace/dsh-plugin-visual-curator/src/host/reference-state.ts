@@ -25,8 +25,9 @@ function imageInputDigests(input: Inputs) {
     const imageIds = new Set([...(threadImages.get(item.threadId) ?? []), ...(item.subject.kind === 'pair' ? [item.subject.leftImageVersionId, item.subject.rightImageVersionId] : [item.subject.imageVersionId])])
     for (const imageId of imageIds) { const rows = feedback.get(imageId) ?? []; rows.push(item); feedback.set(imageId, rows) }
   }
-  // 规则与处理配置共用一次摘要；逐图意图与当前有效反馈仍分别比较。
-  const policy = contentDigest({ rules: input.draft.rules, recipe: recipeIdentity(input.recipe) })
+  // 已保存的观察可跨模型复用；原始模型与请求仍由来源 Run 保留，不能改写为新模型的输出。
+  const { id, createdAt, model, vendorVersion, visionRevision, ...processing } = input.recipe
+  const policy = contentDigest({ rules: input.draft.rules, recipe: processing })
   return (imageId: string) => {
     let digest = digests.get(imageId)
     if (!digest) {

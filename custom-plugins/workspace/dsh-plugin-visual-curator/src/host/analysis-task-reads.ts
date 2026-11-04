@@ -2,6 +2,7 @@
 import type { CuratorDomain } from '../domain/curator.ts'
 import type { DomainActor, RunRecord } from '../shared/model.ts'
 import type { AnalysisTask } from '../shared/analysis-process.ts'
+import { analysisSelectionProgress } from './analysis-selection.ts'
 import { analysisContinuationFromFacts, dataOf, specOf, taskTiming, type AnalysisContinuationFacts, type ExecutionSpec, type RunData, type RunEngine } from './runtime.ts'
 
 interface TaskFacts {
@@ -14,9 +15,10 @@ interface Prepared { spec: ExecutionSpec; data: RunData }
 function factsOf(run: Readonly<RunRecord>, prepared?: Prepared): TaskFacts | null {
   const spec = prepared?.spec ?? specOf(run)
   if (spec.kind !== 'analyze') return null
-  const data = prepared?.data ?? dataOf(run), total = Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0, observed = data.counts.observed ?? 0
+  const data = prepared?.data ?? dataOf(run), { observed, total } = analysisSelectionProgress(spec, data)
   return { task: { runId: run.id, styleId: String(spec.input.styleId), status: run.status, observed, total, model: spec.config.vision.model,
     reasoningEffort: spec.config.vision.reasoningEffort ?? null, attempts: data.attempts, startedAt: run.createdAt, autoResume: data.autoResume === true,
+    ...(data.counts.awaiting ? { awaitingReferences: data.counts.awaiting } : {}), ...(data.checkpoint.analysisNeedsPositiveReferences === true ? { needsPositiveReferences: true } : {}), ...(typeof data.checkpoint.finalDatasetId === 'string' ? { finalDatasetId: data.checkpoint.finalDatasetId } : {}),
     ...(run.outcome ? { outcome: run.outcome } : {}), ...(data.error ? { error: data.error } : {}) }, savedPhase: data.process?.phase,
     continuation: { kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, deadlineAt: taskTiming(spec) === 'native-model' ? null : data.budget.deadlineAt, observed, total,
       buildDataset: spec.input.buildDataset === true, hasSummary: data.checkpoint.styleAnalysis !== undefined, vision: data.budget.vision, maxVisionCalls: spec.config.limits.maxVisionCalls } }
