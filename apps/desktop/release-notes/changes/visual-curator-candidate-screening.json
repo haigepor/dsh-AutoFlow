@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-candidate-screening",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator screens candidate previews before detailed review and reuses known image exclusions to reduce repeated work.",
+    "zh-CN": "视觉策展先筛选候选预览，再深入复核，并复用已知图片排除记录，减少重复分析。"
+  }
+}

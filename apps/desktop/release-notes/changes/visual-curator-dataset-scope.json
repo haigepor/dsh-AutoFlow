@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-dataset-scope",
+  "category": "fixes",
+  "text": {
+    "en": "Saved Visual Curator datasets can be selected across conversations and configured models within their training collection, including completed packages created by older versions.",
+    "zh-CN": "修复已有完整数据集却无法选择的问题；视觉策展数据集按训练集管理，支持跨会话和模型复用旧版完整包。"
+  }
+}
