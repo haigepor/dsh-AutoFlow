@@ -26,6 +26,12 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.9
+
+Completed reference datasets are scoped to their training collection and application profile rather than their creating conversation. Historical complete packages remain selectable across conversations and configured models without reanalysis, including packages saved by older Session-scoped versions. Each search retains the selected package and its checksums; partial observation exports remain supporting data. Existing Session task logs and private image permissions are unchanged.
+
+Update the plugin and restart after current tasks finish. No user-data rewrite is required. A desktop whose plugin update button fails before sending the request needs the matching new Desktop host first.
+
 ## Visual Curator 0.2.8
 
 Search adds a pool of 50/100 unique candidates and batch screening of actual thumbnails, followed by full review of retained and uncertain candidates. Screening cannot qualify a selection, and originals download afterward. Bounded screening retries fall back to individual review without treating technical failures as visual rejections. Pause, restart and the response/checkpoint commit gap reuse saved work within the same task budget. Model settings expose pool size, batch count and screening resolution; task cards show separate actual phase counts.

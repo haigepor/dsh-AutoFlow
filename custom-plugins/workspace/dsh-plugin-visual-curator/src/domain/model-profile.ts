@@ -43,17 +43,17 @@ export class ModelProfiles {
   /** @param domain Owning profile's serialized, authorized record provider. */
   constructor(private readonly domain: CuratorDomain) {}
 
-  /** @param styleId Collection. @param actor Optional Session reader. @returns Its latest private selection, falling back to the shared library. */
-  current(styleId: string, actor?: DomainActor): ModelProfile | undefined {
-    const state = (actor?.sessionId ? this.domain.repository.manifest(`model-profiles:${styleId}:session:${actor.sessionId}`)?.state : undefined) ?? this.domain.repository.manifest(`model-profiles:${styleId}`)?.state
-    return state && !Array.isArray(state) && typeof state === 'object' && typeof state.profileId === 'string' ? this.domain.repository.get('modelProfile', state.profileId) : undefined
+  /** @param styleId Collection. @param actor Optional profile owner. @param candidates Directory records from the same read, when available. @returns The collection's latest immutable selection, including records created by older Session-scoped versions. */
+  current(styleId: string, actor?: DomainActor, candidates?: readonly ModelProfile[]): ModelProfile | undefined {
+    if (actor) this.domain.repository.assertProfile(actor.profileId)
+    return [...(candidates ?? this.domain.repository.list('modelProfile'))].filter(profile => profile.styleId === styleId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.revision - left.revision || right.id.localeCompare(left.id))[0]
   }
 
   /** @param profile Frozen model selection. @param actor Authenticated reader. @returns Completion after owner and image access checks. */
   authorize(profile: ModelProfile, actor: DomainActor): void {
     this.domain.repository.readSnapshot(() => {
       this.domain.repository.assertProfile(actor.profileId)
-      if (profile.access.kind === 'session-run' && profile.access.sessionId !== actor.sessionId) throw new CuratorError('owner-denied', 'model-profile', 'The model profile belongs to another Session.')
       for (const ref of profile.references) this.domain.authorizedImage(ref.reference.imageVersionId, actor)
     })
   }
@@ -63,7 +63,7 @@ export class ModelProfiles {
     this.authorize(profile, actor)
     const dataset = this.domain.repository.get('profileExport', id)
     if (!dataset) throw new CuratorError('reference-unavailable', 'search-launch-dataset', 'Choose a completed dataset before starting this search.')
-    if (dataset.profileId !== actor.profileId || dataset.access.kind === 'session-run' && dataset.access.sessionId !== actor.sessionId) throw new CuratorError('owner-denied', 'search-launch-dataset', 'This dataset cannot be used by the search conversation.')
+    if (dataset.profileId !== actor.profileId) throw new CuratorError('owner-denied', 'search-launch-dataset', 'This dataset belongs to another application profile.')
     if (dataset.sampleScope && dataset.sampleScope !== 'all') throw new CuratorError('constraint-conflict', 'search-launch-dataset', 'Observation-only packages cannot be used as a style-search standard. Choose a complete style package.')
     if (dataset.modelProfileId !== profile.id || dataset.analysisRunId !== profile.analysisRunId) throw new CuratorError('revision-conflict', 'search-launch-dataset', 'Choose a dataset matching the selected profile version.')
     const names = new Set(dataset.files.map(file => file.name))
@@ -87,7 +87,7 @@ export class ModelProfiles {
   authorizeAccepted(profile: ModelProfile, actor: DomainActor, launchId: string, shareWithLibrary = false): void {
     const pinned = z.object({ version: z.literal(1), sessionId: z.string(), input: z.object({ operationId: z.string(), modelProfileId: z.string(), autoPrepareDataset: z.boolean().optional() }), spec: z.object({ fixed: z.object({ release: modelProfileSchema }) }) }).safeParse(this.domain.repository.manifest(`search-launch:${launchId}`)?.state)
     if (!pinned.success || actor.kind !== 'agent' || pinned.data.sessionId !== actor.sessionId || pinned.data.input.operationId !== launchId || pinned.data.input.modelProfileId !== profile.id || contentDigest(pinned.data.spec.fixed.release) !== contentDigest(profile)) throw new CuratorError('owner-denied', 'model-profile', 'The frozen profile is not authorized by this Session’s accepted search.')
-    if (shareWithLibrary && (pinned.data.input.autoPrepareDataset !== true || profile.access.kind !== 'profile-library')) throw new CuratorError('owner-denied', 'profile-export', 'This launch did not authorize a reusable library package.')
+    if (shareWithLibrary && pinned.data.input.autoPrepareDataset !== true) throw new CuratorError('owner-denied', 'profile-export', 'This launch did not authorize a reusable library package.')
     this.authorize(profile, actor)
   }
 
@@ -155,7 +155,7 @@ export class ModelProfiles {
       if (present >= 0) options[present] = retained; else options.push(retained)
     }
     const fields = { styleId: analysis.styleId, draftId: analysis.draftId, draftRevision: analysis.draftRevision, analysisRunId: analysis.runId, referenceDigest: analysis.referenceDigest, model: analysis.model, matchingPrompt: analysis.summary.matchingPrompt, references, recipe, groups, options }
-    return await this.commit(fields, previous, `auto-profile:${run.id}`, { analysisRunId: run.id }, run.owner.kind === 'session' ? { kind: 'session-run', sessionId: run.owner.sessionId } : { kind: 'profile-library' })
+    return await this.commit(fields, previous, `auto-profile:${run.id}`, { analysisRunId: run.id })
   }
 
   /** @param input Revision-checked selection changes. @param actor Authenticated workbench owner. @returns New immutable selection, or original idempotent receipt. */
@@ -186,7 +186,7 @@ export class ModelProfiles {
       return { kind: 'save' as const, profile: current, options }
     })
     if (selection.kind === 'replay') return selection.profile
-    return await this.commit({ ...selection.profile, options: selection.options }, selection.profile, input.operationId, input, selection.profile.access)
+    return await this.commit({ ...selection.profile, options: selection.options }, selection.profile, input.operationId, input)
   }
 
   /** @param profile Frozen selection. @param operationId Accepted export identity. @param actor Authenticated exporter. @param options Owning cancellation and real work observer. @returns Committed, checksummed reference package; an existing receipt is reused. */
@@ -197,7 +197,6 @@ export class ModelProfiles {
     const id = profileExportIdentity(operationId), existing = this.domain.repository.get('profileExport', id)
     if (existing) {
       this.authorize(profile, actor)
-      if (existing.access.kind === 'session-run' && existing.access.sessionId !== actor.sessionId) throw new CuratorError('owner-denied', 'profile-export', 'The export belongs to another Session.')
       if (existing.modelProfileId !== profile.id || (existing.sampleScope ?? 'all') !== sampleScope) throw new CuratorError('operation-conflict', 'profile-export', 'The export identity already describes another profile or reference scope.')
       return existing
     }
@@ -238,7 +237,7 @@ export class ModelProfiles {
     const manifest = JSON.stringify({ formatVersion: 2, modelProfileId: profile.id, analysisRunId: profile.analysisRunId, sampleScope, mode: 'references-only', files: checksummed.map(({ name, checksum }) => ({ name, checksum })) }, null, 2) + '\n'
     checksummed.push({ name: 'manifest.json', content: manifest, checksum: fileChecksum(manifest) })
     await report('files', checksummed.length, checksummed.length, 'files')
-    const access: ProfileExport['access'] = options.shareWithLibrary ? profile.access : actor.sessionId ? { kind: 'session-run', sessionId: actor.sessionId } : profile.access
+    const access: ProfileExport['access'] = { kind: 'profile-library' }
     const record = profileExportSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id, kind: 'profileExport', createdAt: new Date().toISOString(), access, formatVersion: 2, modelProfileId: profile.id, analysisRunId: profile.analysisRunId, ...(sampleScope === 'all' ? {} : { sampleScope }), resources, files: checksummed })
     await report('saving', 0, 0, 'items')
     await this.domain.repository.commit({ aggregateId: `profile-export:${id}`, expectedRevision: 0, operationId, request: { profileId: profile.id, operationId }, records: [record], state: { id: record.id } })
@@ -253,8 +252,9 @@ export class ModelProfiles {
     return analysis.referenceDigest === analysisReferenceDigest(references, feedback.map(item => item.id))
   }
 
-  private async commit(fields: Pick<ModelProfile, 'styleId' | 'draftId' | 'draftRevision' | 'analysisRunId' | 'referenceDigest' | 'model' | 'matchingPrompt' | 'references' | 'recipe' | 'groups' | 'options'>, previous: ModelProfile | undefined, operationId: string, request: unknown, access: ModelProfile['access']): Promise<ModelProfile> {
-    const aggregateId = access.kind === 'session-run' ? `model-profiles:${fields.styleId}:session:${access.sessionId}` : `model-profiles:${fields.styleId}`, revision = this.domain.repository.manifest(aggregateId)?.revision ?? 0
+  private async commit(fields: Pick<ModelProfile, 'styleId' | 'draftId' | 'draftRevision' | 'analysisRunId' | 'referenceDigest' | 'model' | 'matchingPrompt' | 'references' | 'recipe' | 'groups' | 'options'>, previous: ModelProfile | undefined, operationId: string, request: unknown): Promise<ModelProfile> {
+    const aggregateId = `model-profiles:${fields.styleId}`, revision = this.domain.repository.manifest(aggregateId)?.revision ?? 0
+    const access: ModelProfile['access'] = { kind: 'profile-library' }
     const rules = fields.options.filter(option => option.enabled).map(option => option.rule)
     const content = { styleId: fields.styleId, draftId: fields.draftId, draftRevision: fields.draftRevision, analysisRunId: fields.analysisRunId, referenceDigest: fields.referenceDigest, model: fields.model, matchingPrompt: fields.matchingPrompt, references: fields.references, recipe: fields.recipe, groups: fields.groups, options: fields.options, rules }
     const record = modelProfileSchema.parse({ schemaVersion: 1, profileId: this.domain.profileId, id: identity('model-profile', { operationId, content }), kind: 'modelProfile', createdAt: new Date().toISOString(), ...content, access, revision: revision + 1, contentDigest: contentDigest(content), ...(previous ? { previousProfileId: previous.id } : {}) })

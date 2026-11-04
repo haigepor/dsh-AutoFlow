@@ -926,7 +926,6 @@ export class CuratorService {
     return this.domain.repository.readSnapshot(() => {
       const profileExport = this.domain.repository.get('profileExport', id)
       if (profileExport) {
-        if (profileExport.access.kind === 'session-run' && profileExport.access.sessionId !== actor.sessionId) throw new CuratorError('owner-denied', 'export-read', 'This export belongs to another Session.')
         new ModelProfiles(this.domain).authorize(this.domain.require('modelProfile', profileExport.modelProfileId), actor)
         return profileExport
       }

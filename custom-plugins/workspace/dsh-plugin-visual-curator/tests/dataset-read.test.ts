@@ -149,7 +149,7 @@ test('artifact and run ids resolve directly while hidden runs and foreign owners
     const cache = createDatasetReads(() => ({ ttlMs: 1000, maxViews: 2, maxBytes: 1024 * 1024 }))
     try {
       readDataset(f.domain, engine, privateActor, { id: privatePackage.id }, { pageSize: 20, maxExportPreviewChars: 64 }, cache)
-      assert.throws(() => readDataset(f.domain, engine, f.actor, { id: privatePackage.id }, { pageSize: 20, maxExportPreviewChars: 64 }, cache), { code: 'owner-denied' })
+      assert.equal(readDataset(f.domain, engine, f.actor, { id: privatePackage.id }, { pageSize: 20, maxExportPreviewChars: 64 }, cache).entry.exportId, privatePackage.id)
       assert.throws(() => readDataset(f.domain, engine, { ...f.actor, profileId: 'another-profile' }, { id: privatePackage.id }, { pageSize: 20, maxExportPreviewChars: 64 }, cache), { code: 'owner-denied' })
     } finally { cache.dispose() }
   } finally { await f.cleanup() }
@@ -169,8 +169,8 @@ test('export HEAD authorizes without generating preview or download JSON and GET
     assert.equal(downloaded.status, 200); assert.equal(packages(), 1); assert.equal(previews(), 0)
     assert.deepEqual(body, { formatVersion: 2, export: f.artifact.id, files: f.artifact.files, resources: [] })
     const privateActor = { ...f.actor, sessionId: 'private-head-session' }, privatePackage = await new ModelProfiles(f.domain).export(f.profile, 'private-head', privateActor)
-    const denied = await f.service.resource(new Request(`https://fixture.invalid/api/visual-curator/resource?exportId=${privatePackage.id}`, { method: 'HEAD' }))
-    assert.equal(denied.status, 403)
+    const shared = await f.service.resource(new Request(`https://fixture.invalid/api/visual-curator/resource?exportId=${privatePackage.id}`, { method: 'HEAD' }))
+    assert.equal(shared.status, 200)
   } finally { await f.cleanup() }
 })
 

@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { z } from 'zod'
 import { serviceFixture } from '../helpers/service-fixture.ts'
 import { ModelProfiles } from '../../src/domain/model-profile.ts'
+import { modelProfileSchema, profileExportSchema } from '../../src/shared/model.ts'
 import sharp from 'sharp'
 
 const output = process.argv[2]
@@ -16,12 +17,22 @@ try {
   await fixture.action('reference-analyze', { operationId: 'browser-analysis', styleId, buildDataset: true }); await fixture.jobs.drain()
   const profile = fixture.repository.list('modelProfile')[0]!, profiles = new ModelProfiles(fixture.domain)
   await profiles.export(profile, 'browser-dataset', fixture.actor)
+  const legacyProfile = modelProfileSchema.parse({ ...profile, id: 'browser-legacy-session-profile', revision: 4,
+    createdAt: new Date(Date.parse(profile.createdAt) + 1).toISOString(), access: { kind: 'session-run', sessionId: 'original-browser-session' } })
+  await fixture.repository.commit({ aggregateId: legacyProfile.id, expectedRevision: 0, operationId: legacyProfile.id, request: {}, records: [legacyProfile], state: {} })
+  const legacyDatasetIds: string[] = []
+  for (const operation of ['legacy-browser-a', 'legacy-browser-b', 'legacy-browser-c']) {
+    const original = await profiles.export(legacyProfile, operation, { ...fixture.actor, sessionId: 'original-browser-session' })
+    const saved = profileExportSchema.parse({ ...original, id: operation, access: legacyProfile.access })
+    await fixture.repository.commit({ aggregateId: saved.id, expectedRevision: 0, operationId: `${saved.id}:legacy-copy`, request: {}, records: [saved], state: {} })
+    legacyDatasetIds.push(saved.id)
+  }
   for (const operation of ['browser-negative-a', 'browser-negative-b']) await profiles.export(profile, operation, fixture.actor, { sampleScope: 'negative' })
   await fixture.action('usage-create', { operationId: 'browser-usage', name: '横图', output: { aspectP: 2, aspectQ: 1, targetWidth: 400, targetHeight: 200, acceptedFormats: ['png'], allowUpscale: false }, safeRegions: [], protectedContent: [] })
   const snapshot = z.object({ styles: z.array(z.unknown()) }).passthrough().parse(await fixture.action('snapshot'))
   if (!snapshot.styles[0]) throw new Error('The fixture profile is unavailable')
   const page = z.object({ items: z.array(z.object({ id: z.string(), name: z.string(), output: z.object({ targetWidth: z.number(), targetHeight: z.number() }) })) }).parse(await fixture.action('usage-list'))
   const usageOptions = page.items.map(item => ({ usageRevisionId: item.id, name: item.name, targetWidth: item.output.targetWidth, targetHeight: item.output.targetHeight }))
-  const datasetPage = await fixture.action('search-launch-datasets', { styleId, modelProfileId: profile.id })
-  await writeFile(output, `window.datasetFixtureData=${JSON.stringify({ snapshot, style: snapshot.styles[0], usageOptions, datasetPage })};\n`, 'utf8')
+  const datasetPage = await fixture.action('search-launch-datasets', { styleId, modelProfileId: legacyProfile.id })
+  await writeFile(output, `window.datasetFixtureData=${JSON.stringify({ snapshot, style: snapshot.styles[0], usageOptions, datasetPage, legacyDatasetIds })};\n`, 'utf8')
 } finally { await fixture.cleanup() }

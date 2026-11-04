@@ -128,7 +128,7 @@ export class SearchLaunches {
       if (input.datasetId) profiles.authorizeDataset(profile, input.datasetId, actor)
       else profiles.assertFresh(profile, actor)
       const directory = input.includeNegativeDatasets !== false && profile.references.some(ref => ref.reference.role === 'negative') ? readDatasetDirectory(this.deps.domain) : undefined
-      const automatic = input.datasetId ? undefined : (directory?.artifacts ?? this.deps.domain.repository.list('profileExport')).filter(item => (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id && item.access.kind === 'profile-library').sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
+      const automatic = input.datasetId ? undefined : (directory?.artifacts ?? this.deps.domain.repository.list('profileExport')).filter(item => (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
       return { dataset: input.datasetId || automatic ? this.dataset(input.datasetId ?? automatic!.id, profile, actor) : undefined, negativeReferences: input.includeNegativeDatasets !== false ? freezeSearchNegatives(this.deps.domain, profile, actor, directory) : undefined }
     })
     const target = await this.native().preflight(input.workspaceId, this.deps.signal, input.conversationModel), identity = await stat(target.path)
@@ -160,7 +160,7 @@ export class SearchLaunches {
       value.stage = value.datasetId ? 'attaching' : 'preparing-dataset'; await this.save(value)
       await native.name(value.sessionId, `${this.deps.domain.require('style', profile.styleId).name} · ${value.input.taskBrief}`.slice(0, 100))
       if (!value.datasetId) {
-        const existing = this.deps.domain.repository.list('profileExport').find(item => (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id && (item.access.kind === 'profile-library' || item.access.sessionId === value.sessionId))
+        const existing = this.deps.domain.repository.list('profileExport').find(item => (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id)
         const dataset = value.input.datasetId ? this.dataset(value.input.datasetId, profile, actor) : existing ?? await profiles.export(profile, `search-dataset:${value.input.autoPrepareDataset ? profile.id : id}`, actor, { signal, acceptedLaunchId: id, shareWithLibrary: value.input.autoPrepareDataset === true })
         value.datasetId = dataset.id; await this.save(value)
       }

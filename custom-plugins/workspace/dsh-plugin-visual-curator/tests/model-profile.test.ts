@@ -138,7 +138,7 @@ test('automatic profiles start style-guided search with the same immutable rules
   } finally { await f.cleanup() }
 })
 
-test('an Agent export of a library profile remains Session-owned and cannot be read through another Session or the unscoped resource route', async () => {
+test('an Agent dataset export is reusable across Sessions within its application profile', async () => {
   const f = await serviceFixture(); await f.service.initialize()
   try {
     await recognized(f)
@@ -147,9 +147,10 @@ test('an Agent export of a library profile remains Session-owned and cannot be r
     const { runId } = z.object({ runId: z.string() }).parse(await f.service.action({ operation: 'export-start', args: { operationId: 'session-profile-export', kind: 'style', purpose: 'reference', releaseId: profile.id } }, actor, new AbortController().signal))
     await f.jobs.drain()
     const exported = f.repository.list('profileExport').find(row => dataOf(f.domain.require('run', runId)).resultIds.includes(row.id))!
-    assert.deepEqual(exported.access, { kind: 'session-run', sessionId: 'session-a' })
-    await assert.rejects(f.service.action({ operation: 'export-get', args: { exportId: exported.id } }, { ...actor, sessionId: 'session-b' }, new AbortController().signal), { code: 'owner-denied' })
-    assert.equal((await f.service.resource(new Request(`https://owner.example/api/visual-curator/resource?exportId=${exported.id}`))).status, 403)
+    assert.deepEqual(exported.access, { kind: 'profile-library' })
+    assert.equal(z.object({ exportId: z.string() }).parse(await f.service.action({ operation: 'export-get', args: { exportId: exported.id } }, { ...actor, sessionId: 'session-b' }, new AbortController().signal)).exportId, exported.id)
+    assert.equal((await f.service.resource(new Request(`https://owner.example/api/visual-curator/resource?exportId=${exported.id}`))).status, 200)
+    await assert.rejects(f.service.action({ operation: 'export-get', args: { exportId: exported.id } }, { ...actor, profileId: 'foreign-profile' }, new AbortController().signal), { code: 'owner-denied' })
   } finally { await f.cleanup() }
 })
 

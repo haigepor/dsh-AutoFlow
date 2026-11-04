@@ -380,7 +380,7 @@ function styleViews(domain: CuratorDomain, base: StyleBase, actor: DomainActor, 
         samples: result && includeSamples ? sampleViews(domain, result, actor, familyStatuses, index) : [] }
     }
     const profile = new ModelProfiles(domain).current(style.id, actor)
-    const visibleProfile = profile && (profile.access.kind !== 'session-run' || profile.access.sessionId === actor.sessionId) && profile.references.every(ref => readableImage(domain, domain.require('imageVersion', ref.reference.imageVersionId), actor)) ? profile : undefined
+    const visibleProfile = profile && profile.references.every(ref => readableImage(domain, domain.require('imageVersion', ref.reference.imageVersionId), actor)) ? profile : undefined
     const profileAnalysis = visibleProfile ? styleAnalysisOf(domain.require('run', visibleProfile.analysisRunId)) : undefined
     return { styleId: style.id, ...(!includeSamples ? { evidenceLoaded: false } : {}), name: style.name, revision: style.revision, draftId: draft.id, draftRevision: draft.revision,
       archived: style.archived, ...(style.defaultReleaseId ? { defaultReleaseId: style.defaultReleaseId } : {}),

@@ -11,7 +11,6 @@ import { dataOf, specOf, type RunEngine } from './runtime.ts'
 import { hiddenTaskIds } from './task-history.ts'
 
 type Saved = { key: 'run'; run: RunRecord; profile: ModelProfile; artifact?: ProfileExport } | { key: 'artifact'; profile: ModelProfile; artifact: ProfileExport }
-const accessAllowed = (access: ModelProfile['access'], actor: DomainActor) => access.kind !== 'session-run' || access.sessionId === actor.sessionId
 const entryId = (saved: Saved): DatasetId => brandString<DatasetId>(saved.key === 'run' ? saved.run.id : saved.artifact.id)
 const stamp = (saved: Saved): string => saved.artifact?.createdAt ?? (saved.key === 'run' ? saved.run.createdAt : saved.artifact.createdAt)
 const unavailable = () => new CuratorError('owner-denied', 'dataset-read', 'This dataset is unavailable to the current owner.')
@@ -27,8 +26,8 @@ export function readDatasetDirectory(domain: CuratorDomain): DatasetDirectory {
 function records(domain: CuratorDomain, engine: RunEngine, actor: DomainActor, directory?: DatasetDirectory): Saved[] {
   domain.repository.assertProfile(actor.profileId)
   const committed = directory ?? readDatasetDirectory(domain)
-  const profiles = new Map<string, ModelProfile>(committed.profiles.filter(profile => accessAllowed(profile.access, actor)).map(profile => [profile.id, profile]))
-  const artifacts = committed.artifacts.filter(record => accessAllowed(record.access, actor) && profiles.has(record.modelProfileId))
+  const profiles = new Map<string, ModelProfile>(committed.profiles.map(profile => [profile.id, profile]))
+  const artifacts = committed.artifacts.filter(record => profiles.has(record.modelProfileId))
   const used = new Set<string>(), hidden = hiddenTaskIds(domain.repository), rows: Saved[] = []
   for (const run of domain.repository.list('run')) {
     if (hidden.has(run.id) || run.profileId !== actor.profileId || (run.owner.kind === 'session' ? run.owner.sessionId !== actor.sessionId : actor.kind !== 'human')) continue
@@ -52,7 +51,7 @@ function savedDataset(domain: CuratorDomain, engine: RunEngine, actor: DomainAct
   const artifact = domain.repository.get('profileExport', id)
   if (artifact) {
     const profile = domain.repository.get('modelProfile', artifact.modelProfileId)
-    if (!profile || !accessAllowed(artifact.access, actor) || !accessAllowed(profile.access, actor)) throw unavailable()
+    if (!profile) throw unavailable()
     domain.require('style', profile.styleId)
     return { key: 'artifact', artifact, profile }
   }
@@ -62,12 +61,12 @@ function savedDataset(domain: CuratorDomain, engine: RunEngine, actor: DomainAct
   const spec = specOf(run)
   if (spec.kind !== 'export' || typeof spec.input.modelProfileId !== 'string') throw unavailable()
   const profile = domain.repository.get('modelProfile', spec.input.modelProfileId)
-  if (!profile || !accessAllowed(profile.access, actor)) throw unavailable()
+  if (!profile) throw unavailable()
   const operationId = z.string().min(1).parse(spec.input.operationId)
   let saved: ProfileExport | undefined
   for (const artifactId of new Set([...dataOf(run).resultIds, profileExportIdentity(operationId)])) {
     const candidate = domain.repository.get('profileExport', artifactId)
-    if (candidate && candidate.modelProfileId === profile.id && accessAllowed(candidate.access, actor)) { saved = candidate; break }
+    if (candidate && candidate.modelProfileId === profile.id) { saved = candidate; break }
   }
   return { key: 'run', run, profile, ...(saved ? { artifact: saved } : {}) }
 }
@@ -102,13 +101,14 @@ export function listDatasets(domain: CuratorDomain, engine: RunEngine, actor: Do
   return domain.repository.readSnapshot(() => {
     const input = datasetListInputSchema.parse(args)
     domain.require('style', input.styleId)
-    const all = records(domain, engine, actor, directory).filter(saved => saved.profile.styleId === input.styleId)
-    const profiles = new ModelProfiles(domain), current = profiles.current(input.styleId, actor)
+    const committed = directory ?? readDatasetDirectory(domain)
+    const all = records(domain, engine, actor, committed).filter(saved => saved.profile.styleId === input.styleId)
+    const profiles = new ModelProfiles(domain), current = profiles.current(input.styleId, actor, committed.profiles)
     const final = all.find(saved => saved.artifact && (!saved.artifact.sampleScope || saved.artifact.sampleScope === 'all') && saved.profile.id === current?.id) ?? all.find(saved => saved.artifact && (!saved.artifact.sampleScope || saved.artifact.sampleScope === 'all'))
     const ordered = final ? [final, ...all.filter(saved => saved !== final)] : all
     const filtered = ordered.filter(saved => {
       if (input.modelProfileId && saved.profile.id !== input.modelProfileId) return false
-      if (input.reusableOnly && (!saved.artifact || saved.artifact.sampleScope && saved.artifact.sampleScope !== 'all' || saved.profile.access.kind !== 'profile-library' || saved.artifact.access.kind !== 'profile-library')) return false
+      if (input.reusableOnly && (!saved.artifact || saved.artifact.sampleScope && saved.artifact.sampleScope !== 'all')) return false
       const status = saved.artifact ? 'completed' : saved.key === 'run' ? saved.run.status : 'completed'
       const matches = input.status === 'all' || input.status === 'completed' && status === 'completed' || input.status === 'failed' && ['failed', 'interrupted', 'cancelled'].includes(status) || input.status === 'active' && ['created', 'running', 'pausing', 'paused', 'cancelling'].includes(status)
       const query = input.query.trim().toLocaleLowerCase()

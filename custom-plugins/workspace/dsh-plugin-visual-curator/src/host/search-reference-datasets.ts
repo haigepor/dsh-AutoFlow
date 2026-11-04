@@ -23,8 +23,8 @@ function sourcePackages(domain: CuratorDomain, profile: ModelProfile, directory?
   const current = currentReferences(profile)
   if (!current.size) return []
   const records = directory ?? readDatasetDirectory(domain)
-  const sources = new Map<string, ModelProfile>(records.profiles.filter(source => source.styleId === profile.styleId && source.access.kind === 'profile-library').map(source => [source.id, source]))
-  return records.artifacts.filter(dataset => dataset.sampleScope === 'negative' && dataset.access.kind === 'profile-library' && sources.has(dataset.modelProfileId)).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)).flatMap(dataset => {
+  const sources = new Map<string, ModelProfile>(records.profiles.filter(source => source.styleId === profile.styleId).map(source => [source.id, source]))
+  return records.artifacts.filter(dataset => dataset.sampleScope === 'negative' && sources.has(dataset.modelProfileId)).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)).flatMap(dataset => {
     const source = sources.get(dataset.modelProfileId)!, resources = new Set(dataset.resources.map(resource => resource.imageVersionId))
     const references = [...currentReferences(source).values()].filter(ref => resources.has(ref.reference.imageVersionId) && current.get(ref.reference.imageVersionId)?.imageDigest === ref.imageDigest)
     if (!references.length) return []

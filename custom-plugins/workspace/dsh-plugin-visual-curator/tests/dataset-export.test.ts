@@ -147,26 +147,26 @@ test('dataset pages bind their cursor to filters and frozen samples paginate ind
   } finally { await f.cleanup() }
 })
 
-test('dataset metadata and files remain owner-scoped, including private packages without task rows', async () => {
+test('dataset metadata and files are shared across Sessions while foreign application profiles remain unavailable', async () => {
   const f = await serviceFixture(); await f.service.initialize()
   try {
     const profile = await recognized(f), engine = new RunEngine(f.repository, f.jobs), privateActor = { ...f.actor, sessionId: 'private-session' }
     const artifact = await new ModelProfiles(f.domain).export(profile, 'private-dataset', privateActor)
     const publicList = listDatasets(f.domain, engine, f.actor, { styleId: profile.styleId }, 10)
-    assert.equal(publicList.total, 1)
-    assert.ok(publicList.entries.every(entry => entry.exportId !== artifact.id))
+    assert.equal(publicList.total, 2)
+    assert.ok(publicList.entries.some(entry => entry.exportId === artifact.id))
     const privateList = listDatasets(f.domain, engine, privateActor, { styleId: profile.styleId }, 10)
     assert.equal(privateList.total, 2)
     const privateEntry = privateList.entries.find(entry => entry.exportId === artifact.id)!
     assert.equal(readDataset(f.domain, engine, privateActor, { id: privateEntry.id }, { pageSize: 10, maxExportPreviewChars: 64 }).files.length, 5)
-    await assert.rejects(f.action('dataset-get', { id: artifact.id }), { code: 'owner-denied' })
+    assert.equal(datasetDetailSchema.parse(await f.action('dataset-get', { id: artifact.id })).entry.exportId, artifact.id)
     await assert.rejects(f.service.action({ operation: 'datasets-list', args: { styleId: profile.styleId } }, { ...f.actor, profileId: 'foreign-profile' }, new AbortController().signal), { code: 'owner-denied' })
-    assert.equal((await f.service.resource(new Request(`https://owner.example/api/visual-curator/resource?exportId=${artifact.id}`))).status, 403)
+    assert.equal((await f.service.resource(new Request(`https://owner.example/api/visual-curator/resource?exportId=${artifact.id}`))).status, 200)
     const response = await f.service.data(new Request('https://owner.example/api/visual-curator/data', { method: 'POST', body: JSON.stringify({ operation: 'datasets-list', args: { styleId: profile.styleId } }) }))
     assert.equal(response.status, 200)
     const responseList = datasetListSchema.parse(z.object({ value: z.json() }).parse(await response.json()).value)
-    assert.equal(responseList.total, 1)
-    assert.ok(responseList.entries.every(entry => entry.exportId !== artifact.id))
+    assert.equal(responseList.total, 2)
+    assert.ok(responseList.entries.some(entry => entry.exportId === artifact.id))
   } finally { await f.cleanup() }
 })
 

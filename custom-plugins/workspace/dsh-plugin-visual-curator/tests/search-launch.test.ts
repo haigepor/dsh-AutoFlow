@@ -15,7 +15,7 @@ import { AssetFiles } from '../src/media/index.ts'
 import { dataOf } from '../src/host/runtime.ts'
 import { SearchLaunches } from '../src/host/search-launch.ts'
 import { RunEngine } from '../src/host/runtime.ts'
-import { modelProfileSchema } from '../src/shared/model.ts'
+import { modelProfileSchema, profileExportSchema } from '../src/shared/model.ts'
 import { ModelProfiles } from '../src/domain/model-profile.ts'
 import { readFileSync } from 'node:fs'
 import sharp from 'sharp'
@@ -68,6 +68,35 @@ async function setup(previewSource = false, negativeCount = 0) {
   return { f, native, profile, styleId, input, settled }
 }
 
+test('legacy Session-scoped datasets remain selectable and reusable in another Session and model', async () => {
+  const { f, native, input, profile, styleId, settled } = await setup()
+  try {
+    const legacyProfile = modelProfileSchema.parse({ ...profile, id: 'legacy-session-profile',
+      createdAt: new Date(Date.parse(profile.createdAt) + 1).toISOString(),
+      access: { kind: 'session-run', sessionId: 'original-session' } })
+    await f.repository.commit({ aggregateId: 'legacy-session-profile', expectedRevision: 0, operationId: 'legacy-session-profile', request: {}, records: [legacyProfile], state: {} })
+    const profiles = new ModelProfiles(f.domain)
+    const exported = await profiles.export(legacyProfile, 'legacy-export-source', { ...f.actor, sessionId: 'original-session' })
+    const dataset = profileExportSchema.parse({ ...exported, id: 'legacy-session-export', access: legacyProfile.access })
+    await f.repository.commit({ aggregateId: 'legacy-session-export', expectedRevision: 0, operationId: 'legacy-session-export', request: {}, records: [dataset], state: {} })
+    assert.equal(profiles.current(styleId, { ...f.actor, sessionId: 'new-session' })?.id, legacyProfile.id)
+    const choices = z.object({ entries: z.array(z.object({ exportId: z.string(), styleId: z.string() })) }).parse(
+      await f.action('search-launch-datasets', { styleId, modelProfileId: legacyProfile.id }))
+    assert.ok(choices.entries.some(item => item.exportId === dataset.id))
+    assert.ok(choices.entries.every(item => item.styleId === styleId))
+    assert.equal(z.object({ exportId: z.string() }).parse(await f.action('export-get', { exportId: dataset.id })).exportId, dataset.id)
+    assert.equal((await f.service.resource(new Request(`https://fixture.invalid/api/visual-curator/resource?exportId=${dataset.id}`, { method: 'HEAD' }))).status, 200)
+    await f.action('search-launch-start', { ...input, modelProfileId: legacyProfile.id, datasetId: dataset.id,
+      conversationModel: { provider: 'fixture', model: 'alternate' } })
+    const accepted = await settled()
+    assert.equal(accepted.status, 'accepted'); assert.equal(accepted.datasetId, dataset.id)
+    assert.notEqual(accepted.sessionId, 'original-session')
+    assert.equal(native.selectedModels[0]?.model, 'alternate')
+    assert.equal(JSON.parse(Buffer.from(native.messages[0]!.bytes).toString('utf8')).export, dataset.id)
+    assert.throws(() => profiles.authorizeDataset(legacyProfile, dataset.id, { ...f.actor, profileId: 'foreign-profile' }), { code: 'owner-denied' })
+  } finally { await f.cleanup() }
+})
+
 test('a new Session samples completed mismatches at Run admission even when its launch and preparation were earlier', async () => {
   const { f, input, settled } = await setup()
   try {
@@ -90,7 +119,7 @@ test('a new Session samples completed mismatches at Run admission even when its 
   } finally { await f.cleanup() }
 })
 
-test('automatic preparation creates a Session first and freezes all negative packages without duplicate images', async () => {
+test('automatic preparation freezes collection negative datasets across Sessions without duplicate images', async () => {
   const { f, native, input, profile, styleId, settled } = await setup(false, 2), commit = f.repository.commit.bind(f.repository)
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>()
   try {
@@ -101,7 +130,7 @@ test('automatic preparation creates a Session first and freezes all negative pac
     const current = await profiles.save({ operationId: 'new-profile', styleId, analysisRunId: profile.analysisRunId, expectedProfileId: profile.id, changes: [{ ruleId: profile.options[0]!.rule.ruleId, enabled: true, statement: 'Prefer muted green with visible detail.' }] }, f.actor)
     const options = z.object({ entries: z.array(z.unknown()), negativeReferences: z.object({ datasets: z.number(), references: z.number() }) }).parse(await f.action('search-launch-datasets', { styleId, modelProfileId: current.id }))
     assert.equal(options.entries.length, 1, 'Previously completed full datasets remain selectable after profile changes')
-    assert.deepEqual(options.negativeReferences, { datasets: 2, references: 2 })
+    assert.deepEqual(options.negativeReferences, { datasets: 3, references: 2 })
     f.repository.commit = async request => { if (request.records.some(record => record.kind === 'profileExport' && record.modelProfileId === current.id)) { entered.resolve(); await release.promise }; return await commit(request) }
     const { datasetId: oldDataset, ...draft } = input
     const automatic = { ...draft, modelProfileId: current.id, autoPrepareDataset: true, includeNegativeDatasets: true }
@@ -117,7 +146,7 @@ test('automatic preparation creates a Session first and freezes all negative pac
     assert.equal(dataset.modelProfileId, current.id)
     assert.equal(dataset.access.kind, 'profile-library')
     const attachment = z.object({ negativeReferences: z.object({ datasets: z.array(z.object({ exportId: z.string() })), samples: z.array(z.object({ reference: z.object({ role: z.literal('negative'), imageVersionId: z.string() }), inferred: z.array(z.unknown()) })) }) }).parse(JSON.parse(Buffer.from(native.messages[0]!.bytes).toString('utf8')))
-    assert.equal(attachment.negativeReferences.datasets.length, 2, 'Late and private packages must not change admitted references')
+    assert.equal(attachment.negativeReferences.datasets.length, 3, 'Late packages must not change admitted references')
     assert.equal(attachment.negativeReferences.samples.length, 2)
     assert.equal(new Set(attachment.negativeReferences.samples.map(sample => sample.reference.imageVersionId)).size, 2)
     assert.ok(attachment.negativeReferences.samples.every(sample => sample.inferred.length > 0))
@@ -178,7 +207,7 @@ test('observation-only exports cannot start a style-search conversation', async 
     const observations = await new ModelProfiles(f.domain).export(profile, 'positive-observations', f.actor, { sampleScope: 'positive' })
     await assert.rejects(f.action('search-launch-start', { ...input, datasetId: observations.id }), { code: 'constraint-conflict' })
     const privateObservations = await new ModelProfiles(f.domain).export(profile, 'private-observations', { ...f.actor, sessionId: 'private' }, { sampleScope: 'positive' })
-    await assert.rejects(f.action('search-launch-start', { ...input, datasetId: privateObservations.id }), { code: 'owner-denied' })
+    await assert.rejects(f.action('search-launch-start', { ...input, datasetId: privateObservations.id }), { code: 'constraint-conflict' })
     assert.equal(native.created.length, 0)
   } finally { await f.cleanup() }
 })
@@ -328,12 +357,12 @@ for (const failure of ['create-ack', 'attach', 'prompt-ack'] as const) test(`ret
   } finally { await f.cleanup() }
 })
 
-test('private profiles and unsealed stale drafts fail while a selected completed dataset remains usable', async () => {
+test('mismatched datasets and unsealed stale drafts fail while a selected completed dataset remains usable', async () => {
   const { f, native, profile, input, styleId, settled } = await setup()
   try {
     const privateProfile = modelProfileSchema.parse({ ...profile, id: 'private-profile', access: { kind: 'session-run', sessionId: 'another-session' } })
     await f.repository.commit({ aggregateId: 'private-profile', expectedRevision: 0, operationId: 'private-profile', request: {}, records: [privateProfile], state: {} })
-    await assert.rejects(f.action('search-launch-start', { ...input, modelProfileId: privateProfile.id }), /another Session/)
+    await assert.rejects(f.action('search-launch-start', { ...input, modelProfileId: privateProfile.id }), /matching the selected profile/)
     assert.equal(native.created.length, 0)
     await f.action('reference-import', { operationId: 'new-reference', styleId, expectedRevision: f.domain.require('draft', profile.draftId).revision, files: [{ name: 'new.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
     const { datasetId, ...unsealed } = input
