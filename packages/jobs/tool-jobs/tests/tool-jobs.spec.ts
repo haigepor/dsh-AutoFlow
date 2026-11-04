@@ -816,6 +816,24 @@ describe('completion notice delivery', () => {
     )
   })
 
+  it('keeps a cancellation notice available without waking an idle owner', async () => {
+    const { ctx } = await setup()
+    const inject = vi.fn(), followup = vi.fn()
+    const owner = await fakeAgent(ctx, 'cancelled-owner', { inject, followup, status: 'idle' })
+    const p = producer({ owner: owner.id })
+    const id = ctx.jobs.start(p.spec)
+    const settled = Promise.withResolvers<undefined>()
+    ctx.jobs.events.subscribe({ owner: owner.id }, (event) => { if (event.type === 'settled' && event.job.id === id) settled.resolve(undefined) })
+    try {
+      ctx.jobs.kill(id, owner.id, 'cancelled by the user')
+      p.settle({ status: 'killed' })
+      await settled.promise
+      expect(followup).not.toHaveBeenCalled()
+      expect(inject).toHaveBeenCalledTimes(1)
+      expect(ctx.jobs.get(id, owner.id).status).toBe('killed')
+    } finally { p.settle({ status: 'killed' }); await ctx.fiber.dispose() }
+  })
+
   it('never wakes an idle owner under quiet delivery', async () => {
     const { ctx } = await setup({ completionDelivery: 'quiet' })
     const inject = vi.fn()

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `dsh-tool-jobs`，可通过 `job_output`、`job_list` 与 `job_kill` 检查和控制后台命令、PTY 工作与 subagent。读取可在配置的超时内等待，而等待会因用户 steer 提前结束；列表结果标识各任务的 kind 与状态，而取消只有在工作停止后才结算。归属明确的工作完成时，agent（智能体）会收到携带简短输出的会话内通知：繁忙的 agent 在下一步收到，空闲的 agent 则由 follow-up 轮次唤醒。配置控制等待上限、完成投递与可选的连续唤醒上限。流输出只有一个读取方，待领通知无法在所有者释放后存活。
+使用 `dsh-tool-jobs`，可通过 `job_output`、`job_list` 与 `job_kill` 检查和控制后台命令、PTY 工作与 subagent。读取可在配置的超时内等待，而等待会因用户 steer 提前结束；列表结果标识各任务的 kind 与状态，而取消只有在工作停止后才结算。归属明确的工作完成时，agent（智能体）会收到携带简短输出的会话内通知：繁忙的 agent 在下一步收到，空闲的 agent 则由 follow-up 轮次唤醒，已取消的任务除外。配置控制等待上限、完成投递与可选的连续唤醒上限。流输出只有一个读取方，待领通知无法在所有者释放后存活。
 
 ## 目录
 
@@ -37,7 +37,7 @@ kind: "package-reference"
 
 ### 完成通知
 
-任务完成时，拥有它的 agent 会收到 `background job <id> (<kind>: <label>) finished [status: ...]. Output:`，其后是它尚未读取的输出和任务的最终结果；没有输出时则以 `. No new output.` 结尾。只有完整文本同时不超过 `inlineOutputBytes`（默认 2048 字节）和生产方的 `outputLimitBytes` 时，通知才会内联；否则改以 `. Read its output with job_output.` 结尾，因此较大的输出和较大的最终结果会以 `job_output` 结果的形式抵达模型，由工具管线的 spill 策略限制其大小。label 取其首行，上限 120 个字符。在通知仍待领时收走该任务的 `job_output` 调用会撤回该通知；从未抵达模型的通知会把输出留给 `job_output`。繁忙的 agent 会在下一步收到注入的通知——inbox 尚有内容时轮次无法结束，因此同时结算的多个任务只花掉一步，而不是各占一轮。空闲的 agent 则被一个 follow-up 轮次唤醒，因为无人领取的通知就是模型永远不会知道的完成。模型已经收走的完成不再通知：注册表把释放了存活 `wait` 的结算报告为 `awaited`——无论是 `job_output` 的等待，还是 shell 工具在等待自己的前台命令——插件则记着模型经 `job_kill` 请求的杀停；所有者或服务 teardown 导致的结算会被跳过，因为没有人能读它。若结算发生在用户 steer 结束等待之后、该次调用的读取之前，终态由那次读取携带，插件因此不再发出通知，避免把同一个完成报告两次。
+任务完成时，拥有它的 agent 会收到 `background job <id> (<kind>: <label>) finished [status: ...]. Output:`，其后是它尚未读取的输出和任务的最终结果；没有输出时则以 `. No new output.` 结尾。只有完整文本同时不超过 `inlineOutputBytes`（默认 2048 字节）和生产方的 `outputLimitBytes` 时，通知才会内联；否则改以 `. Read its output with job_output.` 结尾，因此较大的输出和较大的最终结果会以 `job_output` 结果的形式抵达模型，由工具管线的 spill 策略限制其大小。label 取其首行，上限 120 个字符。在通知仍待领时收走该任务的 `job_output` 调用会撤回该通知；从未抵达模型的通知会把输出留给 `job_output`。繁忙的 agent 会在下一步收到注入的通知——inbox 尚有内容时轮次无法结束，因此同时结算的多个任务只花掉一步，而不是各占一轮。空闲的 agent 则被一个 follow-up 轮次唤醒。已取消（`killed`）任务的通知仅注入，不唤醒空闲所有者；下一次显式轮次或 `job_output` 仍可领取。模型已经收走的完成不再通知：注册表把释放了存活 `wait` 的结算报告为 `awaited`——无论是 `job_output` 的等待，还是 shell 工具在等待自己的前台命令——插件则记着模型经 `job_kill` 请求的杀停；所有者或服务 teardown 导致的结算会被跳过，因为没有人能读它。若结算发生在用户 steer 结束等待之后、该次调用的读取之前，终态由那次读取携带，插件因此不再发出通知，避免把同一个完成报告两次。
 
 唤醒默认不设上限：无人值守的 agent 连续串起后台命令与一次性 subagent 时，每次完成都会唤醒它。`maxConsecutiveWakes` 可以封顶：每个所有者最多被唤醒这么多次，此后的通知降级为注入；领取任何用户撰写的消息都会恢复预算。上限用来约束自激链——被唤醒的一轮可能启动某个后台任务，而它的完成又会唤醒同一个所有者——但超出上限的通知会静默等到用户下一次输入，依赖唤醒完成工作的会话会停在那里。`completionDelivery: quiet` 让空闲所有者也在注入通道上，确定性 transcript（文本记录）需要的正是这一点。
 

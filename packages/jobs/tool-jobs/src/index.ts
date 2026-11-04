@@ -395,7 +395,8 @@ export function apply(ctx: Context, config: Config): void {
     pending.set(event.job.id, {
       owner: event.job.owner, messageId: message.id, inline: inline !== undefined, ...held === undefined ? {} : { held },
     })
-    if (delivery === 'wakeup' && owner.status === 'idle') {
+    // Cancellation remains readable, but cannot restart an idle owner after the user stopped work.
+    if (event.job.status !== 'killed' && delivery === 'wakeup' && owner.status === 'idle') {
       if (wakeBudget === undefined) {
         owner.followup(message)
         return
