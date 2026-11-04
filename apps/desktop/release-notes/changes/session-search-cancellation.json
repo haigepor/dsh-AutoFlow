@@ -1,0 +1,8 @@
+{
+  "id": "session-search-cancellation",
+  "category": "fixes",
+  "text": {
+    "en": "Stopping a conversation cancels its Visual Curator tasks, and cancelled background tasks no longer restart an idle conversation.",
+    "zh-CN": "停止会话时同步取消其视觉策展任务，已取消的后台任务不再自动唤醒会话。"
+  }
+}

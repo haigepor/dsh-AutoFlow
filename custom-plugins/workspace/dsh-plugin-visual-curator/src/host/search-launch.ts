@@ -220,21 +220,21 @@ ${searchQueryGuidance}
     const pending = work().finally(() => this.admissions.delete(id)); this.admissions.set(id, pending)
     return pending
   }
-  /** @param id Durable launch. @returns Receipt after both cancellation requests; committed results remain. */
-  async stop(id: string): Promise<SearchLaunchView> {
+  /** @param id Durable launch. @param cancelSession Whether to request native Session cancellation; false when that Session already requested this stop. @returns Receipt after cancellation requests; committed results remain. */
+  async stop(id: string, cancelSession = true): Promise<SearchLaunchView> {
     const current = this.stopWork.get(id)
     if (current) return current
-    const work = this.stopNow(id).finally(() => { this.stopWork.delete(id); this.stopping.delete(id) })
+    const work = this.stopNow(id, cancelSession).finally(() => { this.stopWork.delete(id); this.stopping.delete(id) })
     this.stopWork.set(id, work)
     return work
   }
-  private async stopNow(id: string): Promise<SearchLaunchView> {
+  private async stopNow(id: string, cancelSession: boolean): Promise<SearchLaunchView> {
     this.read(id); this.stopping.add(id); this.controllers.get(id)?.abort()
     const pending = this.running.get(id); if (pending) await pending
     const admission = this.admissions.get(id); if (admission) await Promise.allSettled([admission])
     const value = this.read(id); value.stopRequested = true; value.status = 'working'; delete value.error
     await this.save(value)
-    const stops = await Promise.allSettled([Promise.resolve().then(() => this.native().cancel(value.sessionId)), ...this.view(value).runIds.map(async runId => {
+    const stops = await Promise.allSettled([...(cancelSession ? [Promise.resolve().then(() => this.native().cancel(value.sessionId))] : []), ...this.view(value).runIds.map(async runId => {
       const run = this.deps.engine.get(runId, this.actor(value))
       if (['created', 'running', 'paused', 'pausing', 'cancelling', 'interrupted'].includes(run.status)) await this.deps.engine.control(runId, 'cancel', this.actor(value), undefined, false)
       await this.deliver(runId)

@@ -26,6 +26,12 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.6
+
+New image searches refresh readable mismatch history when the Run is admitted, including confirmed rejections saved after conversation or task preparation. Matching tasks retain their checked inputs, and known rejected photos are skipped before another review. Changed tasks, rules or review recipes remain eligible; technical failures do not become visual rejections.
+
+Explicitly stopping a conversation cancels its accepted visual work and pending admissions. Closing a dialog or naturally completing a turn keeps background work active, and other Sessions and independent workbench tasks remain active. Saved results remain available. Preventing cancelled-job notices from waking an idle conversation also requires the matching AutoFlow host update. Restart after current tasks finish; saved profile data requires no migration.
+
 ## Visual Curator 0.2.5
 
 Preview searches use bounded concurrent reviews and reuse prepared native reference attachments. Invalid output fields or evidence identities retain diagnostics and retry within the original task budget. Later searches skip confirmed mismatches only for the same task, frozen style and review recipe; technical failures and uncertain results remain eligible. Pause and continuation reuse completed reviews and preserve call and download budgets.

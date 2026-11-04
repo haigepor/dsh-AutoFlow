@@ -68,6 +68,28 @@ async function setup(previewSource = false, negativeCount = 0) {
   return { f, native, profile, styleId, input, settled }
 }
 
+test('a new Session samples completed mismatches at Run admission even when its launch and preparation were earlier', async () => {
+  const { f, input, settled } = await setup()
+  try {
+    f.http.mode = 'reject-final'
+    const first = searchLaunchViewSchema.parse(await f.action('search-launch-start', input)); await settled()
+    const second = searchLaunchViewSchema.parse(await f.action('search-launch-start', { ...input, operationId: randomUUID() })); await settled()
+    assert.notEqual(first.sessionId, second.sessionId)
+    const actor = (sessionId: string) => ({ kind: 'agent' as const, id: sessionId, sessionId, profileId: f.profileId })
+    const args = { releaseId: input.modelProfileId, sourceId: 'images', taskBrief: input.taskBrief, targetCount: input.targetCount, output: input.output }
+    const prepared = z.object({ status: z.literal('ready'), preparationDigest: z.string() }).passthrough().parse(await f.service.action({ operation: 'task-prepare', args: { ...args, kind: 'search' } }, actor(second.sessionId), new AbortController().signal))
+    const firstRun = z.object({ runId: z.string() }).parse(await f.service.action({ operation: 'search-start', args: { ...args, operationId: 'first-review' } }, actor(first.sessionId), new AbortController().signal))
+    await f.jobs.drain()
+    assert.ok(f.repository.list('assessment').some(row => row.runId === firstRun.runId && row.stage === 'final' && row.technicalStatus === 'completed' && row.verdict === 'reject'))
+    const before = f.http.operations.filter(operation => operation.startsWith('review:')).length
+    const secondRun = z.object({ runId: z.string() }).parse(await f.service.action({ operation: 'search-start', args: { ...args, operationId: 'second-review', preparationDigest: prepared.preparationDigest } }, actor(second.sessionId), new AbortController().signal))
+    await f.jobs.drain()
+    assert.equal(f.http.operations.filter(operation => operation.startsWith('review:')).length, before, 'Already completed mismatches must be filtered before another paid review')
+    assert.equal(dataOf(f.domain.require('run', secondRun.runId)).counts.excludedPrevious, 1)
+    assert.equal(f.repository.list('selection').filter(row => row.runId === secondRun.runId).length, 0)
+  } finally { await f.cleanup() }
+})
+
 test('automatic preparation creates a Session first and freezes all negative packages without duplicate images', async () => {
   const { f, native, input, profile, styleId, settled } = await setup(false, 2), commit = f.repository.commit.bind(f.repository)
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>()

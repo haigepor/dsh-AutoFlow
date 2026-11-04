@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-visual-curator",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/haigepor/dsh-AutoFlow.git",
@@ -401,6 +401,7 @@
     "@deepseek-ai/dsh-api-remote-access": "workspace:*",
     "@deepseek-ai/dsh-commands": "workspace:*",
     "@deepseek-ai/dsh-jobs-local": "workspace:*",
+    "@deepseek-ai/dsh-tool-jobs": "workspace:*",
     "@deepseek-ai/dsh-session-title": "workspace:*",
     "@deepseek-ai/dsh-session-query-sqlite": "workspace:*",
     "@deepseek-ai/dsh-api-gateway": "workspace:*"

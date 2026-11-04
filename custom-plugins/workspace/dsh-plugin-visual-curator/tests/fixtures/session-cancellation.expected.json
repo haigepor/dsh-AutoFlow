@@ -1,0 +1,5 @@
+{
+  "normalCompletion": { "jobStatus": "running", "runStatus": "running", "modelRequests": 2, "turns": 1 },
+  "admission": { "jobStatus": "killed", "runStatus": "cancelled", "modelRequests": 1, "candidates": 0 },
+  "stopped": { "jobStatus": "killed", "runStatus": "cancelled", "modelRequests": 2, "turns": 1 }
+}

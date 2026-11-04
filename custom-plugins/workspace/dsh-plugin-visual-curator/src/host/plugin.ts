@@ -5,6 +5,7 @@ import { CuratorService } from './service.ts'
 import { Config } from './config.ts'
 import type { ClientActionInput } from '../client/contract.ts'
 import { CuratorError } from '../shared/errors.ts'
+import { bindSessionCancellation } from './session-cancellation.ts'
 import BasicCompactionEngine from '@deepseek-ai/dsh-compaction-basic'
 import type { BasicCompactionConfig } from '@deepseek-ai/dsh-compaction-basic'
 import type {} from '@deepseek-ai/dsh-plugin-manager'
@@ -77,6 +78,7 @@ export async function mountCurator(ctx: Context, service: CuratorService): Promi
   ctx.effect(() => () => service.dispose(), 'Visual Curator task drain')
   await service.initialize()
   ctx.provide('visualCurator', service)
+  bindSessionCancellation(ctx, service)
   ctx.effect(() => ctx.pluginManager.registerAction(name, 'workbench', async (input, signal) => {
     try {
       if (Object.keys(input).some(key => key !== 'operation' && key !== 'args') || !input.operation || !input.args) {

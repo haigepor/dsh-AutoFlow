@@ -29,7 +29,7 @@ import { AssetFiles, resolveCrop } from '../media/index.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { readAnalysisInput } from './analysis-input.ts'
 import { readAnalysisDetail } from './analysis-detail.ts'
-import { assetSchema, imageVersionSchema, jsonSchema, recipeSchema, draftSchema, feedbackContextSchema, subjectSchema, type DomainActor, type Json, type Rule, type EvaluationRecipe, type CuratorRecord, type ProfileExport, type ExportSnapshot } from '../shared/model.ts'
+import { assetSchema, imageVersionSchema, jsonSchema, recipeSchema, draftSchema, feedbackContextSchema, subjectSchema, styleStandardSchema, type DomainActor, type Json, type Rule, type EvaluationRecipe, type CuratorRecord, type ProfileExport, type ExportSnapshot, type StyleStandard, type RunRecord } from '../shared/model.ts'
 import { agentOperations, type ClientActionInput } from '../client/contract.ts'
 import { resolveConfig, resolveCurrentConfig, configRevision, reviewerRevision, type CuratorConfig } from './config.ts'
 import { RunEngine, executionSchema, dataOf, specOf, toJson, safeFailure, type ExecutionSpec, type Worker } from './runtime.ts'
@@ -119,6 +119,7 @@ export class CuratorService {
   private readonly datasetReads = createDatasetReads(() => ({ ttlMs: this.config.limits.datasetCacheTtlMs, maxViews: this.config.limits.datasetCacheMaxViews, maxBytes: this.config.limits.datasetCacheMaxBytes }))
   private readonly analysisTaskReads = createAnalysisTaskReads(() => ({ maxEntries: this.config.limits.analysisTaskCacheMaxEntries, maxBytes: this.config.limits.analysisTaskCacheMaxBytes }))
   private readonly foreground = new Set<Promise<unknown>>()
+  private readonly sessionAdmissions = new Map<SessionId, Set<Promise<RunRecord>>>()
   private readonly sessionGrants = new Map<string, { sessionId: string; expiresAt: number }>()
   constructor(private readonly ctx: CuratorHost, input: unknown, private readonly dependencies: CuratorServiceDependencies = {}) {
     this.configValue = resolveCurrentConfig(input)
@@ -224,12 +225,40 @@ export class CuratorService {
   private spec(kind: ExecutionSpec['kind'], input: Record<string, Json>, fixed: Record<string, Json>, config = this.config): ExecutionSpec {
     return executionSchema.parse({ kind, config, input, fixed, specDigest: contentDigest({ kind, config, input, fixed }) })
   }
-  private async launch(kind: ExecutionSpec['kind'], input: Record<string, Json>, fixed: Record<string, Json>, actor: DomainActor, operationId: string, config = this.config): Promise<Json> {
-    const run = await this.engine.create(this.spec(kind, input, fixed, config), actor, this.worker(kind), operationId)
-    return toJson({ runId: run.id, ...(dataOf(run).jobId ? { jobId: dataOf(run).jobId } : {}), status: run.status })
+  private async launch(kind: ExecutionSpec['kind'], input: Record<string, Json>, fixed: Record<string, Json>, actor: DomainActor, operationId: string, signal: AbortSignal, config = this.config): Promise<Json> {
+    signal.throwIfAborted()
+    const pending = this.engine.create(this.spec(kind, input, fixed, config), actor, this.worker(kind), operationId)
+    const sessionId = actor.sessionId === undefined ? undefined : brandString<SessionId>(actor.sessionId)
+    const admissions = sessionId === undefined ? undefined : this.sessionAdmissions.get(sessionId) ?? new Set<Promise<RunRecord>>()
+    if (sessionId !== undefined && admissions) { admissions.add(pending); this.sessionAdmissions.set(sessionId, admissions) }
+    try {
+      const run = await pending
+      return toJson({ runId: run.id, ...(dataOf(run).jobId ? { jobId: dataOf(run).jobId } : {}), status: run.status })
+    } finally {
+      if (sessionId !== undefined && admissions) { admissions.delete(pending); if (!admissions.size) this.sessionAdmissions.delete(sessionId) }
+    }
+  }
+  /** Cancel this Session's admitted visual work and admissions already in progress; later explicit work is independent.
+   * @param sessionId Session whose user requested cancellation.
+   * @returns After captured jobs settle and its native search launch is stopped; saved results remain available.
+   */
+  async stopSessionTasks(sessionId: SessionId): Promise<void> {
+    const actor: DomainActor = { kind: 'agent', id: sessionId, sessionId, profileId: this.profileId }
+    const pending = [...this.sessionAdmissions.get(sessionId) ?? []]
+    const ids = new Set(this.domain.repository.list('run').filter(run => run.owner.kind === 'session' && run.owner.sessionId === sessionId).map(run => run.id))
+    const cancel = async (id: string) => {
+      const run = this.engine.get(id, actor)
+      if (['created', 'running', 'paused', 'pausing', 'interrupted', 'cancelling'].includes(run.status)) await this.engine.control(id, 'cancel', actor)
+    }
+    const launch = this.launchesValue?.forSession(sessionId)
+    const stopping = Promise.allSettled([...ids].map(cancel).concat(launch ? [this.launchesValue!.stop(launch.id, false).then(() => {})] : []))
+    const admitted = await Promise.allSettled(pending)
+    const late = await Promise.allSettled(admitted.flatMap(item => item.status === 'fulfilled' && !ids.has(item.value.id) ? [cancel(item.value.id)] : []))
+    const failed = [...await stopping, ...late].find((item): item is PromiseRejectedResult => item.status === 'rejected')
+    if (failed) throw failed.reason
   }
   /** Validate external JSON once, then delegate to the same domain/workflows for both callers.
-   * @param input Client or tool JSON envelope. @param actor Identity created by the Host adapter. @param signal Request lifetime, independent of accepted background jobs. @returns Safe JSON result or typed rejection.
+   * @param input Client or tool JSON envelope. @param actor Identity created by the Host adapter. @param signal Request lifetime; disconnecting does not cancel accepted jobs. Explicit Session cancellation is handled by stopSessionTasks. @returns Safe JSON result or typed rejection.
    */
   action(input: ClientActionInput, actor: DomainActor, signal: AbortSignal): Promise<Json> {
     const work = this.actionNow(input, actor, AbortSignal.any([signal, this.lifetime.signal]))
@@ -531,13 +560,13 @@ export class CuratorService {
             const feedback = this.domain.currentFeedback(effectiveActor).filter(item => item.scope === 'style-candidate' && item.context.styleId === style.id && (referenceThreads.has(item.threadId) || draft.feedbackIds.includes(item.id)))
             return { invocationDigest: contentDigest({ operation, args }), ...(buildDataset ? { analysisOutput: 'observations-only', reuseObservations: toJson(analysisMode === 'pending' ? plan!.reused : []), analysisMode, ...(planDigest ? { planDigest } : {}) } : {}), draft: toJson(draft), references: toJson(references), feedback: toJson(feedback), recipe: toJson(this.recipe(operationId)), ...(splitId ? { split: toJson(this.domain.require('split', splitId)) } : {}) }
           })
-          return await this.launch('analyze', { styleId, buildDataset }, fixed, effectiveActor, operationId)
+          return await this.launch('analyze', { styleId, buildDataset }, fixed, effectiveActor, operationId, signal)
         }
-        case 'search-start': case 'crop-start': case 'manual-crop-confirm': return await this.startTask(operation, args, effectiveActor)
+        case 'search-start': case 'crop-start': case 'manual-crop-confirm': return await this.startTask(operation, args, effectiveActor, signal)
         case 'library-save': this.human(actor); return await this.saveLibrary(args, effectiveActor)
         case 'split-create': return await this.createSplit(args, actor)
-        case 'evaluate-start': return await this.startEvaluation(args, effectiveActor)
-        case 'export-start': return await this.startExport(args, effectiveActor)
+        case 'evaluate-start': return await this.startEvaluation(args, effectiveActor, signal)
+        case 'export-start': return await this.startExport(args, effectiveActor, signal)
         case 'export-get': {
           const { exportId } = z.object({ exportId: z.string() }).parse(args)
           return this.withSessionResources(this.exportView(exportId, effectiveActor), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
@@ -696,17 +725,18 @@ export class CuratorService {
     if (run && ids.some(id => !this.domain.repository.list('assessment').some(a => a.runId === run.id && a.imageVersionId === id))) throw new CuratorError('constraint-conflict', 'feedback-confirm', 'Feedback pixels were not reviewed by this task.')
     return await this.domain.action('feedback-confirm', { ...args, context: { ...context, taskBriefDigest: expectedDigest } }, actor)
   }
-  private async startTask(operation: string, args: Record<string, Json>, actor: DomainActor): Promise<Json> {
+  private async startTask(operation: string, args: Record<string, Json>, actor: DomainActor, signal: AbortSignal): Promise<Json> {
     const task = await this.resolveTask(operation, args, actor)
     if (args.preparationDigest !== undefined && args.preparationDigest !== this.taskDigest(task, actor)) throw new CuratorError('revision-conflict', 'task-prepare', 'The checked task changed; prepare it again before starting.')
-    const launch = () => this.launch(task.kind, task.normalized, task.fixed, actor, z.string().parse(args.operationId), task.config)
+    const launch = () => this.launch(task.kind, task.normalized, task.fixed, actor, z.string().parse(args.operationId), signal, task.config)
     return typeof task.fixed.searchLaunchId === 'string' ? await this.launchesValue!.admit(task.fixed.searchLaunchId, launch) : await launch()
   }
   private taskDigest(task: ResolvedTask, actor: DomainActor): string {
     const release = z.object({ id: z.string(), styleId: z.string() }).parse(task.fixed.release)
     const usage = task.fixed.usage ? z.object({ presetId: z.string() }).parse(task.fixed.usage) : undefined
     const currentUsage = usage && !task.fixed.searchLaunchId ? this.domain.repository.manifest(`usage:${usage.presetId}`)?.state ?? null : null
-    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage ?? null, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, searchExclusions: task.fixed.searchExclusions ?? null, currentProfileId: task.fixed.searchLaunchId ? null : new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
+    // Search history is sampled at Run admission; new results do not change the checked task or rules.
+    return contentDigest({ kind: task.kind, input: task.normalized, currentUsage, release: task.fixed.release, usage: task.fixed.usage ?? null, config: task.config, executionRecipe: task.fixed.executionRecipe ?? null, currentProfileId: task.fixed.searchLaunchId ? null : new ModelProfiles(this.domain).current(release.styleId, actor)?.id ?? null })
   }
   private usagePage(args: Record<string, Json>): { items: import('../shared/model.ts').UsageRevision[]; pageToken?: string } {
     const input = z.object({ pageSize: z.number().int().min(1).max(100).default(this.config.limits.pageSize), pageToken: z.string().optional() }).parse(args)
@@ -746,6 +776,7 @@ export class CuratorService {
       if (input.releaseId !== profile.id || input.taskBrief !== launched.input.taskBrief || (input.targetCount !== undefined && input.targetCount !== launched.input.targetCount) || (input.output !== undefined && contentDigest(input.output) !== contentDigest(launched.fixed.output))) throw new CuratorError('constraint-conflict', 'search-launch', 'Use this conversation launch’s frozen profile, task, quantity and output.')
       const preview = searchOutputSchema.parse(launched.fixed.output).kind === 'preview'
       if (preview && (!input.queries?.length || input.queries.length > launched.config.limits.maxSearchPages)) throw new CuratorError('invalid-input', 'search-query-plan', 'Preview search requires explicit queries within the frozen search-page budget. Include the intended subject and visual style in each query.')
+      launched.fixed.searchExclusions = await this.searchHistoryPolicy(executionStandard(styleStandardSchema.parse(launched.fixed.release), launched.fixed.executionRecipe), actor, input.taskBrief, true, launched.config.limits.requestTimeoutMs)
       launched.fixed.invocationDigest = contentDigest({ operation, args })
       return { kind: 'search', normalized: preview ? { ...launched.input, queries: input.queries! } : launched.input, fixed: launched.fixed, config: launched.config }
     }
@@ -794,21 +825,7 @@ export class CuratorService {
       const hints = config.source.provider === 'unsplash' && release.kind === 'modelProfile' && !release.options.some(option => option.selectionSource === 'user') ? styleAnalysisOf(this.domain.require('run', release.analysisRunId))?.summary.searchHints : undefined
       const queries = z.array(z.string().trim().min(1).max(4096)).min(1).parse(input.queries ?? (hints?.length ? hints : [input.taskBrief]))
       Object.assign(normalized, { queries, targetCount })
-      const history: { run: import('../shared/model.ts').RunRecord; actor: DomainActor }[] = [], readable = new Map<string, boolean>()
-      const signal = AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(config.limits.requestTimeoutMs)])
-      for (const run of searchHistoryRuns(this.domain, release.styleId)) {
-        let reader = actor
-        if (run.owner.kind === 'profile') { if (actor.kind !== 'human' && !allowCollectionHistory) continue; reader = { ...actor, kind: 'human' } }
-        else if (run.owner.sessionId !== actor.sessionId) {
-          if (actor.kind !== 'human' && !allowCollectionHistory) continue
-          const sessionId = run.owner.sessionId
-          if (!readable.has(sessionId)) readable.set(sessionId, await this.readableSession(sessionId, signal))
-          if (!readable.get(sessionId)) continue
-          reader = { ...actor, sessionId }
-        }
-        this.engine.get(run.id, reader); history.push({ run, actor: reader })
-      }
-      fixed.searchExclusions = toJson(this.domain.repository.readSnapshot(() => freezeSearchExclusions(this.domain, executionStandard(release, fixed.executionRecipe), actor, history, input.taskBrief)))
+      fixed.searchExclusions = await this.searchHistoryPolicy(executionStandard(release, fixed.executionRecipe), actor, input.taskBrief, allowCollectionHistory, config.limits.requestTimeoutMs)
     } else {
       const ids = input.imageVersionIds ?? (input.imageVersionId ? [input.imageVersionId] : [])
       if (!ids.length || ids.length > config.limits.maxCandidates) throw new CuratorError('invalid-input', 'resolve', 'Choose authorized saved image versions.')
@@ -822,6 +839,23 @@ export class CuratorService {
       }
     }
     return { kind, normalized, fixed, config }
+  }
+  private async searchHistoryPolicy(standard: StyleStandard, actor: DomainActor, taskBrief: string, allowCollectionHistory: boolean, timeoutMs: number): Promise<Json> {
+    const history: { run: import('../shared/model.ts').RunRecord; actor: DomainActor }[] = [], readable = new Map<string, boolean>()
+    const signal = AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(timeoutMs)])
+    for (const run of searchHistoryRuns(this.domain, standard.styleId)) {
+      let reader = actor
+      if (run.owner.kind === 'profile') { if (actor.kind !== 'human' && !allowCollectionHistory) continue; reader = { ...actor, kind: 'human' } }
+      else if (run.owner.sessionId !== actor.sessionId) {
+        if (actor.kind !== 'human' && !allowCollectionHistory) continue
+        const sessionId = run.owner.sessionId
+        if (!readable.has(sessionId)) readable.set(sessionId, await this.readableSession(sessionId, signal))
+        if (!readable.get(sessionId)) continue
+        reader = { ...actor, sessionId }
+      }
+      this.engine.get(run.id, reader); history.push({ run, actor: reader })
+    }
+    return toJson(this.domain.repository.readSnapshot(() => freezeSearchExclusions(this.domain, standard, actor, history, taskBrief)))
   }
   private async saveLibrary(args: Record<string, Json>, actor: DomainActor): Promise<Json> {
     const { imageVersionId, operationId } = z.object({ imageVersionId: z.string(), operationId: z.string() }).parse(args)
@@ -846,7 +880,7 @@ export class CuratorService {
     const uses = [...(old?.uses ?? []), ...(input.revealHoldout && old ? old.assignments.filter(item => item.split === 'holdout').map(item => ({ familyId: item.familyId, purpose: 'revealed' as const, at: new Date().toISOString() })) : [])]
     return await this.domain.action('split-create', { operationId: input.operationId, assignments: input.assignments, ...(input.supersedesSplitId ? { supersedesSplitId: input.supersedesSplitId } : {}), uses }, actor)
   }
-  private async startEvaluation(args: Record<string, Json>, actor: DomainActor): Promise<Json> {
+  private async startEvaluation(args: Record<string, Json>, actor: DomainActor, signal: AbortSignal): Promise<Json> {
     this.human(actor)
     const { operationId, leftId, rightId, splitId, usageRevisionId } = z.object({ operationId: z.string(), leftId: z.string(), rightId: z.string(), splitId: z.string(), usageRevisionId: z.string() }).parse(args)
     const standard = (id: string) => this.domain.repository.get('release', id) ?? this.domain.require('candidate', id)
@@ -861,9 +895,9 @@ export class CuratorService {
     await this.providers.vision(this.config)
     const selected = this.domain.repository.list('imageVersion').filter(image => image.versionKind === 'normalized' && split.assignments.some(assignment => assignment.split !== 'learning' && this.domain.familyOf(assignment.familyId) === this.domain.familyOf(this.domain.require('asset', image.assetId).familyId))).map(image => this.domain.authorizedImage(image.id, actor).image)
     const images = [...new Map(selected.map(image => [image.blob.digest, image])).values()]
-    return await this.launch('evaluate', { leftId, rightId, splitId, usageRevisionId }, { invocationDigest: contentDigest({ operation: 'evaluate-start', args }), left: toJson(left), right: toJson(right), split: toJson(split), usage: toJson(usage), feedback: toJson(this.domain.snapshot(actor).feedback), humanActor: toJson(actor), images: toJson(images) }, actor, operationId)
+    return await this.launch('evaluate', { leftId, rightId, splitId, usageRevisionId }, { invocationDigest: contentDigest({ operation: 'evaluate-start', args }), left: toJson(left), right: toJson(right), split: toJson(split), usage: toJson(usage), feedback: toJson(this.domain.snapshot(actor).feedback), humanActor: toJson(actor), images: toJson(images) }, actor, operationId, signal)
   }
-  private async startExport(args: Record<string, Json>, actor: DomainActor): Promise<Json> {
+  private async startExport(args: Record<string, Json>, actor: DomainActor, signal: AbortSignal): Promise<Json> {
     const { kind, operationId, sampleScope, ...rest } = z.object({ kind: z.enum(['style', 'classification', 'preference', 'crop', 'skill']), operationId: z.string(), purpose: z.enum(['training', 'development', 'holdout', 'reference']), releaseId: z.string(), splitId: z.string().optional(), mode: z.enum(['references-only', 'with-bytes']).default('references-only'), usageRevisionId: z.string().optional(), analysisRunId: z.string().optional(), sampleScope: datasetScopeSchema.default('all') }).parse(args)
     const profile = this.domain.repository.get('modelProfile', rest.releaseId)
     if (profile) {
@@ -871,13 +905,13 @@ export class CuratorService {
       new ModelProfiles(this.domain).assertFresh(profile, actor)
       if (sampleScope === 'all' && !profile.rules.length) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one style rule before exporting.')
       if (!profile.references.some(ref => sampleScope === 'all' || ref.reference.role === sampleScope)) throw new CuratorError('constraint-conflict', 'profile-export', 'There are no analyzed references in the selected export scope.')
-      return await this.launch('export', { operationId: `${operationId}:export`, modelProfileId: profile.id, sampleScope }, { invocationDigest: contentDigest({ operation: 'export-start', args }), actor: toJson(actor) }, actor, operationId)
+      return await this.launch('export', { operationId: `${operationId}:export`, modelProfileId: profile.id, sampleScope }, { invocationDigest: contentDigest({ operation: 'export-start', args }), actor: toJson(actor) }, actor, operationId, signal)
     }
     if (sampleScope !== 'all') throw new CuratorError('constraint-conflict', 'export', 'Role-filtered observation exports require an analyzed model profile.')
     if (!rest.splitId) throw new CuratorError('invalid-input', 'export', 'A supervised or human-release export requires its saved split.')
     this.domain.require('release', rest.releaseId); this.domain.require('split', rest.splitId)
     const exportInput = z.record(z.string(), jsonSchema).parse(toJson({ operationId: `${operationId}:export`, exportKind: kind, ...rest }))
-    return await this.launch('export', exportInput, { invocationDigest: contentDigest({ operation: 'export-start', args }), actor: toJson(actor), feedbackHeads: toJson(this.domain.snapshot(actor).feedback.map(feedback => feedback.id)) }, actor, operationId)
+    return await this.launch('export', exportInput, { invocationDigest: contentDigest({ operation: 'export-start', args }), actor: toJson(actor), feedbackHeads: toJson(this.domain.snapshot(actor).feedback.map(feedback => feedback.id)) }, actor, operationId, signal)
   }
   private authorizedExport(id: string, actor: DomainActor): ProfileExport | ExportSnapshot {
     return this.domain.repository.readSnapshot(() => {
