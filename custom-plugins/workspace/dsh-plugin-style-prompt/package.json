@@ -1,25 +1,74 @@
 {
   "name": "dsh-plugin-style-prompt",
-  "version": "0.1.3",
-  "description": "Analyze image styles with configured vision APIs and export differentiated generation prompts and reference plans",
+  "version": "0.2.0",
+  "description": "Build branching style, prompt and image workflows with configured project models",
   "license": "MIT",
   "type": "module",
-  "engines": { "node": "^22.19.0 || >=24.0.0", "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1" },
-  "exports": { ".": "./index.js", "./client": "./client.js", "./package.json": "./package.json", "./locale/*.json": "./locale/*.json" },
-  "files": ["index.js", "client.js", "cordis.patch.yml", "README.md", "README.zh.md", "THIRD_PARTY_NOTICES.md", "release.config.json", "release", "locale", "assets/*.webp", "assets/*.prompt.txt"],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "THIRD_PARTY_NOTICES.md",
+    "release.config.json",
+    "release",
+    "locale",
+    "assets/*.webp",
+    "assets/*.prompt.txt"
+  ],
   "icon": "./assets/plugin-logo-v2.webp",
   "dsh": {
     "bundle": {
-      "update": { "provider": "github", "repository": "haigepor/dsh-AutoFlow", "tagPrefix": "style-prompt-v", "metadataAsset": "style-prompt-update.json" },
+      "update": {
+        "provider": "github",
+        "repository": "haigepor/dsh-AutoFlow",
+        "tagPrefix": "style-prompt-v",
+        "metadataAsset": "style-prompt-update.json"
+      },
       "patch": "./cordis.patch.yml",
-      "features": [{
-        "id": "workbench", "rowId": "style-prompt", "kind": "ui", "defaultEnabled": true,
-        "title": { "en": "Style Prompt workbench", "zh": "风格提示词工作台" },
-        "description": { "en": "Analyze image styles, create differentiated prompts and export reference plans.", "zh": "分析图片风格，生成差异化提示词并导出参考图配置。" },
-        "details": { "en": "Uses the project's configured vision API. Turning this feature off stops its active tasks and keeps saved history.", "zh": "复用项目已配置的视觉 API。关闭此功能会停止插件中的进行中任务，保留已保存的历史记录。" }
-      }]
+      "features": [
+        {
+          "id": "workbench",
+          "rowId": "style-prompt",
+          "kind": "ui",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Style Prompt workbench",
+            "zh": "风格提示词工作台"
+          },
+          "description": {
+            "en": "Connect style analysis, prompts and image generation on an infinite canvas.",
+            "zh": "在无限画布上连接风格分析、提示词与生图节点，运行多个创作分支。"
+          },
+          "details": {
+            "en": "Uses the project's configured LLM providers. Image generation requires an image provider. Turning this feature off stops its active tasks and keeps saved history.",
+            "zh": "复用项目已配置的 LLM 提供方；生图需要支持图片生成的提供方。关闭此功能会停止进行中任务，保留已保存的历史记录。"
+          }
+        }
+      ]
     },
-    "client": { "platform": "web", "immediately": true, "inject": ["slots", "locale", "remote", "remote.pluginManager", "layout"] }
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "slots",
+        "locale",
+        "remote",
+        "remote.pluginManager",
+        "layout"
+      ]
+    }
   },
   "scripts": {
     "test": "node --import tsx/esm --test tests/*.test.ts tests/*.test.mjs",
@@ -28,10 +77,13 @@
     "release:prepare": "node scripts/prepare-release.mjs",
     "prepack": "pnpm run check && pnpm run build"
   },
-  "dependencies": { "zod": "^4.4.3" },
+  "dependencies": {
+    "@xyflow/react": "12.12.1",
+    "react-dom": "~18.3.1",
+    "zod": "^4.4.3"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
-    "@deepseek-ai/schemastery": "workspace:~",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
     "@deepseek-ai/dsh-attachment": "workspace:*",
@@ -39,11 +91,11 @@
     "@deepseek-ai/dsh-client-connection": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-plugin-manager": "workspace:*",
-    "@deepseek-ai/dsh-storage-domain": "workspace:*"
+    "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
-    "@deepseek-ai/schemastery": "workspace:~",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
     "@deepseek-ai/dsh-attachment": "workspace:*",
@@ -53,6 +105,7 @@
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-plugin-manager": "workspace:*",
     "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~",
     "@types/node": "^22.20.1",
     "@types/react": "~18.3.1",
     "esbuild": "0.28.1",

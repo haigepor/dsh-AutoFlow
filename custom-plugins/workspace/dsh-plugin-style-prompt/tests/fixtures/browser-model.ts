@@ -1,12 +1,12 @@
 /** Keyless browser-only adapter loaded by a scratch dsh profile, never by the published package. */
 import type { Context } from '@deepseek-ai/cordis'
 import { LlmAdapter, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
-import { observation, newInput } from '../fixture.ts'
+import { observation, newInput, pixels } from '../fixture.ts'
 import { compileQuick } from '../../src/shared/compose.ts'
 import type {} from '@deepseek-ai/dsh-client-connection'
 
 export const name = 'style-prompt-browser-model'
-export const inject = ['llm', 'connection']
+export const inject = ['llm', 'connection', 'attachments']
 class BrowserAdapter extends LlmAdapter {
   constructor(private readonly mode: () => string) { super() }
   override async listModels(provider: string) { return [{ provider, id: 'style-vision-fixture', name: 'Style Prompt · Keyless fixture' }] }
@@ -30,6 +30,17 @@ class BrowserAdapter extends LlmAdapter {
 export function apply(ctx: Context): void {
   let mode = 'success'
   ctx.effect(() => ctx.llm.registerAdapter(['style-prompt-fixture'], new BrowserAdapter(() => mode)), 'Style Prompt keyless browser model')
+  ctx.effect(() => ctx.llm.registerImageProvider('style-prompt-fixture', {
+    listModels: async () => [{ id: 'style-image-fixture', name: 'Style Prompt · Synthetic image' }],
+    async generate(request) {
+      request.signal.throwIfAborted()
+      if (mode === 'image-waiting') await new Promise<void>((_resolve, reject) => { request.signal.addEventListener('abort', () => reject(request.signal.reason), { once: true }) })
+      const name = 'synthetic-fixture.png'
+      const original = await ctx.attachments.saveFile({ data: pixels, name })
+      const preview = await ctx.attachments.saveImage({ data: pixels, name, mediaType: 'image/png' })
+      return [{ original, preview }]
+    },
+  }), 'Style Prompt synthetic browser images')
   ctx.effect(() => ctx.connection.fetch.register({ path: '/api/style-prompt/test-control', methods: ['POST'], requestBody: 'buffered', fetch: async request => {
     const value: unknown = await request.json()
     if (value && typeof value === 'object' && 'mode' in value && typeof value.mode === 'string') mode = value.mode

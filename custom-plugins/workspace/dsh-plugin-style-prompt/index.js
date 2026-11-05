@@ -1,6 +1,6 @@
 // src/host/plugin.ts
 import { join } from "node:path";
-import { z as z5 } from "zod";
+import { z as z6 } from "zod";
 
 // src/shared/model.ts
 import { z } from "zod";
@@ -114,8 +114,16 @@ var fields = z2.strictObject({
   maxConcurrentTasks: z2.number().int().min(1).max(8).default(2),
   maxStoredTasks: z2.number().int().min(1).max(1e4).default(200),
   maxHistoryItems: z2.number().int().min(1).max(200).default(50),
-  pollIntervalMs: z2.number().int().min(250).max(1e4).default(1e3)
-});
+  pollIntervalMs: z2.number().int().min(250).max(1e4).default(1e3),
+  maxCanvases: z2.number().int().min(1).max(1e3).default(50),
+  maxCanvasAssets: z2.number().int().min(1).max(1e4).default(500),
+  canvasAssetGraceMs: z2.number().int().min(1e3).max(864e5).default(9e5),
+  maxCanvasFileBytes: z2.number().int().positive().default(16 * 1024 * 1024),
+  maxCanvasRuns: z2.number().int().min(1).max(1e4).default(200),
+  maxConcurrentCanvasRuns: z2.number().int().min(1).max(8).default(2),
+  imageTimeoutMs: z2.number().int().min(1e3).max(36e5).default(6e5),
+  canvasSaveDelayMs: z2.number().int().min(100).max(1e4).default(600)
+}).transform((value) => ({ ...value, maxCanvasFileBytes: Math.min(value.maxCanvasFileBytes, Math.max(1, value.maxRequestBytes - 512)) }));
 var Config = fields.default(() => fields.parse({}));
 
 // src/host/repository.ts
@@ -147,14 +155,14 @@ async function openRepository(facility, profilePath, lockPath) {
   }
   const tasks = domain.table("tasks");
   return {
-    get(id2) {
-      const value = tasks.get(id2);
+    get(id3) {
+      const value = tasks.get(id3);
       return value ? structuredClone(value) : void 0;
     },
     list: () => [...tasks.entries()].map(([, value]) => structuredClone(value)),
     put: (record) => tasks.put(record.id, structuredClone(record)),
-    delete: async (id2) => {
-      await tasks.delete(id2);
+    delete: async (id3) => {
+      await tasks.delete(id3);
     },
     close: async () => {
       try {
@@ -196,7 +204,7 @@ variants \u5FC5\u987B\u4E3A3\u9879\uFF0C\u5185\u5BB9\u4E0D\u540C\uFF0C\u5176\u4E
 
 // src/shared/compose.ts
 function selectedRules(analysis, input) {
-  const rules = input.selectedRuleIds.map((id2) => analysis.rules.find((rule) => rule.id === id2));
+  const rules = input.selectedRuleIds.map((id3) => analysis.rules.find((rule) => rule.id === id3));
   if (rules.some((rule) => !rule || rule.scope === "scene" || rule.status === "unknown")) throw new StylePromptError("invalid-input");
   return rules.filter((rule) => rule !== void 0);
 }
@@ -216,7 +224,7 @@ function compileQuick(analysis, input) {
 }
 function validateGeneration(raw, analysis, input, count) {
   const result = generationSchema.parse(raw), expected = selectedRules(analysis, input).map((rule) => rule.id);
-  if (result.usedRuleIds.length !== expected.length || new Set(result.usedRuleIds).size !== expected.length || expected.some((id2) => !result.usedRuleIds.includes(id2)) || result.variants.length !== count || new Set(result.variants.map((item) => item.prompt.zh.trim().toLowerCase())).size !== count || new Set(result.variants.map((item) => item.prompt.en.trim().toLowerCase())).size !== count) throw new StylePromptError("invalid-output");
+  if (result.usedRuleIds.length !== expected.length || new Set(result.usedRuleIds).size !== expected.length || expected.some((id3) => !result.usedRuleIds.includes(id3)) || result.variants.length !== count || new Set(result.variants.map((item) => item.prompt.zh.trim().toLowerCase())).size !== count || new Set(result.variants.map((item) => item.prompt.en.trim().toLowerCase())).size !== count) throw new StylePromptError("invalid-output");
   return result;
 }
 function exportBundle(value) {
@@ -297,11 +305,16 @@ var NativeModel = class {
   }
   dependencies;
   config;
-  /** @param route Selected configured model. @param signal Admission lifetime. @returns Completion if image input is declared. */
-  async preflight(route, signal) {
+  /** Check model support before saving a task.
+   * @param route Selected configured model.
+   * @param signal Admission lifetime.
+   * @param requireImage Whether this operation sends image input.
+   * @returns Completion when the selected route supports this operation.
+   */
+  async preflight(route, signal, requireImage = true) {
     try {
       const prepared = await this.dependencies.llm.prepareCall({ ...route, maxTokens: this.config.maxOutputTokens, temperature: this.config.temperature }, signal);
-      if (!prepared.inputModalities?.includes("image")) throw new StylePromptError("capability-unavailable");
+      if (requireImage && !prepared.inputModalities?.includes("image")) throw new StylePromptError("capability-unavailable");
     } catch (error) {
       if (error instanceof LlmError) throw new StylePromptError("capability-unavailable");
       throw error;
@@ -370,8 +383,8 @@ var StylePromptService = class {
   async initialize() {
     for (const record of this.repository.list()) if (record.status === "running") await this.repository.put({ ...record, status: "interrupted", updatedAt: now(), failure: { code: "interrupted" } });
   }
-  require(id2) {
-    const record = this.repository.get(id2);
+  require(id3) {
+    const record = this.repository.get(id3);
     if (!record) throw new StylePromptError("missing-record");
     return record;
   }
@@ -459,7 +472,7 @@ var StylePromptService = class {
       this.launch(record.id, async (taskSignal) => {
         const raw = await this.model.call({ route: record.route, system: analysisInstructions, inputText: JSON.stringify({ task: "extract-transferable-style", referenceIds: references.map((ref) => ref.id), dimensions: record.dimensions, sampleCount: references.length }), references, templateVersion: ANALYSIS_TEMPLATE_VERSION }, (call) => this.saveCall(record.id, call), taskSignal);
         const parsed = analysisSchema.safeParse(raw);
-        if (!parsed.success || parsed.data.rules.some((rule) => rule.referenceIds.some((id2) => !references.some((ref) => ref.id === id2)) || !record.dimensions.includes(rule.dimension))) throw new StylePromptError("invalid-output");
+        if (!parsed.success || parsed.data.rules.some((rule) => rule.referenceIds.some((id3) => !references.some((ref) => ref.id === id3)) || !record.dimensions.includes(rule.dimension))) throw new StylePromptError("invalid-output");
         taskSignal.throwIfAborted();
         const current = this.require(record.id);
         if (current.kind !== "analysis") throw new StylePromptError("invalid-input");
@@ -468,56 +481,56 @@ var StylePromptService = class {
       return record;
     });
   }
-  async startGeneration(id2, input, signal) {
+  async startGeneration(id3, input, signal) {
     return this.serial(async () => {
       this.assertReady();
       const source = this.require(input.analysisId);
       if (source.kind !== "analysis" || source.status !== "succeeded" || !source.result) throw new StylePromptError("invalid-input");
       const rules = selectedRules(source.result, input), inputDigest = digest(input);
-      const previous = this.repository.get(id2);
+      const previous = this.repository.get(id3);
       if (previous) {
         if (previous.kind !== "generation" || previous.digest !== inputDigest) throw new StylePromptError("operation-conflict");
         return previous;
       }
       this.capacity();
       const route = input.route ?? source.route;
-      if (input.mode === "model") await this.model.preflight(route, signal);
-      const record = { formatVersion: 1, id: id2, kind: "generation", createdAt: now(), updatedAt: now(), digest: inputDigest, status: input.mode === "quick" ? "succeeded" : "running", failure: null, call: null, input, result: input.mode === "quick" ? compileQuick(source.result, input) : null };
+      if (input.mode === "model") await this.model.preflight(route, signal, false);
+      const record = { formatVersion: 1, id: id3, kind: "generation", createdAt: now(), updatedAt: now(), digest: inputDigest, status: input.mode === "quick" ? "succeeded" : "running", failure: null, call: null, input, result: input.mode === "quick" ? compileQuick(source.result, input) : null };
       signal.throwIfAborted();
       await this.repository.put(record);
-      if (input.mode === "model") this.launch(id2, async (taskSignal) => {
-        const raw = await this.model.call({ route, system: generationInstructions, inputText: JSON.stringify({ selectedRules: rules, sourceContent: source.result.sourceContent, sceneSpecific: source.result.sceneSpecific, targetBrief: input.brief, changes: input.changes, platform: input.platform }), references: [], templateVersion: GENERATION_TEMPLATE_VERSION }, (call) => this.saveCall(id2, call), taskSignal);
+      if (input.mode === "model") this.launch(id3, async (taskSignal) => {
+        const raw = await this.model.call({ route, system: generationInstructions, inputText: JSON.stringify({ selectedRules: rules, sourceContent: source.result.sourceContent, sceneSpecific: source.result.sceneSpecific, targetBrief: input.brief, changes: input.changes, platform: input.platform }), references: [], templateVersion: GENERATION_TEMPLATE_VERSION }, (call) => this.saveCall(id3, call), taskSignal);
         const result = validateGeneration(raw, source.result, input, 3);
         taskSignal.throwIfAborted();
-        const current = this.require(id2);
+        const current = this.require(id3);
         if (current.kind !== "generation") throw new StylePromptError("invalid-input");
         await this.repository.put({ ...current, status: "succeeded", result, updatedAt: now() });
       });
       return record;
     });
   }
-  async saveCall(id2, call) {
-    await this.repository.put({ ...this.require(id2), call, updatedAt: now() });
+  async saveCall(id3, call) {
+    await this.repository.put({ ...this.require(id3), call, updatedAt: now() });
   }
-  launch(id2, work) {
+  launch(id3, work) {
     const abort = new AbortController(), deadline = AbortSignal.timeout(this.config.requestTimeoutMs);
     const signal = AbortSignal.any([abort.signal, deadline, this.lifetime.signal]);
     const promise = Promise.resolve().then(() => work(signal)).catch(async (error) => {
       const code = this.lifetime.signal.aborted ? "interrupted" : abort.signal.aborted ? "cancelled" : deadline.aborted ? "request-timeout" : error instanceof z4.ZodError ? "invalid-output" : failureOf(error).code;
       try {
-        await this.repository.put({ ...this.require(id2), status: code === "cancelled" || code === "interrupted" ? code : "failed", failure: { code }, updatedAt: now() });
+        await this.repository.put({ ...this.require(id3), status: code === "cancelled" || code === "interrupted" ? code : "failed", failure: { code }, updatedAt: now() });
       } catch (storageError) {
         this.healthy = false;
         this.report();
       }
     }).finally(() => {
-      this.running.delete(id2);
+      this.running.delete(id3);
     });
-    this.running.set(id2, { abort, promise });
+    this.running.set(id3, { abort, promise });
   }
   /** @param id Owning analysis. @param referenceId Scoped reference. @param signal Read lifetime. @returns Validated saved image bytes. */
-  async image(id2, referenceId, signal) {
-    const record = this.require(id2);
+  async image(id3, referenceId, signal) {
+    const record = this.require(id3);
     if (record.kind !== "analysis") throw new StylePromptError("invalid-input");
     const reference = record.references.find((ref) => ref.id === referenceId);
     if (!reference) throw new StylePromptError("missing-record");
@@ -533,20 +546,682 @@ var StylePromptService = class {
   }
 };
 
+// src/host/canvas-service.ts
+import { createHash as createHash4, randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
+import { brandString as brandString3 } from "@deepseek-ai/dsh-brand";
+
+// src/shared/canvas.ts
+import { z as z5 } from "zod";
+import { brandString as brandString2 } from "@deepseek-ai/dsh-brand";
+var id2 = z5.string().min(1).max(100).regex(/^[\w.:-]+$/);
+var canvasId = id2.transform((value) => brandString2(value));
+var nodeId = id2.transform((value) => brandString2(value));
+var assetId = id2.transform((value) => brandString2(value));
+var runId = id2.transform((value) => brandString2(value));
+var bilingualDraft = z5.strictObject({ zh: z5.string().max(1600), en: z5.string().max(1600) });
+var position = z5.strictObject({ x: z5.number().finite(), y: z5.number().finite() });
+var common = { id: nodeId, title: z5.string().max(100), position, width: z5.number().min(260).max(1e3).optional(), height: z5.number().min(160).max(1600).optional() };
+var canvasNodeSchema = z5.discriminatedUnion("kind", [
+  z5.strictObject({ ...common, kind: z5.literal("reference"), assetIds: z5.array(assetId).max(8) }),
+  z5.strictObject({ ...common, kind: z5.literal("analysis"), route: routeSchema.nullable(), dimensions: z5.array(dimensionSchema).max(9), historyTaskId: taskIdSchema.nullable() }),
+  z5.strictObject({ ...common, kind: z5.literal("rules"), selectedRuleIds: z5.array(ruleIdSchema).max(20).nullable() }),
+  z5.strictObject({ ...common, kind: z5.literal("brief"), brief: bilingualDraft, changes: bilingualDraft }),
+  z5.strictObject({ ...common, kind: z5.literal("prompt"), route: routeSchema.nullable(), mode: z5.enum(["quick", "model"]), platform: z5.enum(["generic", "flux2"]), historyTaskId: taskIdSchema.nullable() }),
+  z5.strictObject({ ...common, kind: z5.literal("image"), route: routeSchema.nullable(), prompt: z5.string().max(8e3), variant: z5.number().int().min(-1).max(2), size: z5.enum(["auto", "1024x1024", "1536x1024", "1024x1536"]), quality: z5.enum(["auto", "low", "medium", "high"]) }),
+  z5.strictObject({ ...common, kind: z5.literal("output"), language: z5.enum(["zh", "en"]) })
+]);
+var edgeSchema = z5.strictObject({ id: id2, source: nodeId, sourceHandle: z5.string().max(50), target: nodeId, targetHandle: z5.string().max(50) });
+var canvasSchema = z5.strictObject({ formatVersion: z5.literal(1), id: canvasId, name: z5.string().trim().min(1).max(100), revision: z5.number().int().nonnegative(), updatedAt: z5.string(), nodes: z5.array(canvasNodeSchema).max(500), edges: z5.array(edgeSchema).max(1500), viewport: z5.strictObject({ ...position.shape, zoom: z5.number().min(0.1).max(4) }) });
+var assetSchema = z5.strictObject({ formatVersion: z5.literal(1), id: assetId, createdAt: z5.string(), reference: referenceSchema });
+var canvasExportSchema = z5.strictObject({ formatVersion: z5.literal(1), exportType: z5.literal("style-prompt-canvas"), document: canvasSchema, assets: z5.array(z5.strictObject({ id: assetId, name: z5.string().max(200), sha256: z5.string().regex(/^[a-f0-9]{64}$/) })).max(4e3) });
+var fileRef = z5.strictObject({ attachmentId: z5.string(), name: z5.string(), bytes: z5.number().int().nonnegative() });
+var nodeExecutionSchema = z5.strictObject({
+  nodeId,
+  fingerprint: z5.string(),
+  inputKey: z5.string(),
+  status: z5.enum(["queued", "running", "succeeded", "failed", "blocked", "cancelled", "interrupted"]),
+  taskId: taskIdSchema.nullable(),
+  analysisId: taskIdSchema.nullable(),
+  selectedRuleIds: z5.array(ruleIdSchema),
+  images: z5.array(referenceSchema).max(8),
+  originals: z5.array(fileRef).max(8),
+  failure: failureSchema.nullable(),
+  imageRequest: z5.strictObject({ route: routeSchema, prompt: z5.string(), size: z5.string(), quality: z5.string(), references: z5.array(referenceSchema) }).nullable(),
+  reused: z5.boolean().optional()
+});
+var canvasRunSchema = z5.strictObject({ formatVersion: z5.literal(1), id: runId, canvasId, createdAt: z5.string(), updatedAt: z5.string(), status: z5.enum(["running", "succeeded", "failed", "cancelled", "interrupted"]), document: canvasSchema, targets: z5.array(nodeId).min(1), nodes: z5.array(nodeExecutionSchema), failure: failureSchema.nullable() });
+var canvasAssetInventorySchema = z5.strictObject({ total: z5.number().int().nonnegative(), limit: z5.number().int().positive(), graceMs: z5.number().int().positive(), assets: z5.array(z5.strictObject({ asset: assetSchema, used: z5.boolean(), recent: z5.boolean() })) });
+var ports = {
+  reference: { inputs: {}, outputs: { images: "images" } },
+  analysis: { inputs: { images: "images" }, outputs: { analysis: "analysis" } },
+  rules: { inputs: { analysis: "analysis" }, outputs: { style: "style" } },
+  brief: { inputs: {}, outputs: { brief: "brief" } },
+  prompt: { inputs: { style: "style", brief: "brief" }, outputs: { prompt: "prompt" } },
+  image: { inputs: { prompt: "prompt", images: "images" }, outputs: { images: "images" } },
+  output: { inputs: { prompt: "prompt", images: "images" }, outputs: {} }
+};
+function canConnect(document, edge) {
+  const source = document.nodes.find((node) => node.id === edge.source), target = document.nodes.find((node) => node.id === edge.target);
+  if (!source || !target || source.id === target.id) return false;
+  const type = ports[source.kind].outputs[edge.sourceHandle];
+  if (!type || type !== ports[target.kind].inputs[edge.targetHandle]) return false;
+  if (document.edges.some((link) => link.target === edge.target && link.targetHandle === edge.targetHandle && (type !== "images" || link.source === edge.source && link.sourceHandle === edge.sourceHandle))) return false;
+  const visit = [edge.target], seen = /* @__PURE__ */ new Set();
+  while (visit.length) {
+    const next = visit.pop();
+    if (next === edge.source) return false;
+    if (seen.has(next)) continue;
+    seen.add(next);
+    visit.push(...document.edges.filter((link) => link.source === next).map((link) => link.target));
+  }
+  return true;
+}
+function validateCanvas(document) {
+  if (new Set(document.nodes.map((node) => node.id)).size !== document.nodes.length || new Set(document.edges.map((edge) => edge.id)).size !== document.edges.length) throw new StylePromptError("invalid-input");
+  const edges = [];
+  for (const edge of document.edges) {
+    if (!canConnect({ nodes: document.nodes, edges }, edge)) throw new StylePromptError("invalid-input");
+    edges.push(edge);
+  }
+  return document;
+}
+function executionOrder(document, targets) {
+  validateCanvas(document);
+  const ordered = [], seen = /* @__PURE__ */ new Set();
+  const visit = (id3) => {
+    if (seen.has(id3)) return;
+    const node = document.nodes.find((value) => value.id === id3);
+    if (!node) throw new StylePromptError("invalid-input");
+    seen.add(id3);
+    for (const edge of document.edges.filter((edge2) => edge2.target === id3)) visit(edge.source);
+    ordered.push(node);
+  };
+  targets.forEach(visit);
+  return ordered;
+}
+function nodeFingerprint(document, id3) {
+  return JSON.stringify(executionOrder(document, [id3]).map((node) => {
+    const { position: _position, title: _title, width: _width, height: _height, ...parameters } = node;
+    return { parameters, inputs: document.edges.filter((edge) => edge.target === node.id).map(({ id: _id, ...edge }) => edge).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) };
+  }));
+}
+function newNode(kind, id3, at = { x: 0, y: 0 }) {
+  const common2 = { id: id3, title: "", position: at };
+  switch (kind) {
+    case "reference":
+      return { ...common2, kind, assetIds: [] };
+    case "analysis":
+      return { ...common2, kind, route: null, dimensions: [...dimensionSchema.options], historyTaskId: null };
+    case "rules":
+      return { ...common2, kind, selectedRuleIds: null };
+    case "brief":
+      return { ...common2, kind, brief: { zh: "", en: "" }, changes: { zh: "", en: "" } };
+    case "prompt":
+      return { ...common2, kind, route: null, mode: "model", platform: "generic", historyTaskId: null };
+    case "image":
+      return { ...common2, kind, route: null, prompt: "", variant: -1, size: "1024x1024", quality: "auto" };
+    case "output":
+      return { ...common2, kind, language: "en" };
+  }
+}
+function starterCanvas(id3) {
+  const kinds = ["reference", "analysis", "rules", "brief", "prompt", "image", "output"];
+  const positions = [{ x: 0, y: 60 }, { x: 340, y: 60 }, { x: 680, y: 60 }, { x: 680, y: 420 }, { x: 1020, y: 60 }, { x: 1360, y: 60 }, { x: 1700, y: 60 }];
+  const nodes = kinds.map((kind, index) => newNode(kind, nodeId.parse(`node-${index + 1}`), positions[index]));
+  const links = [[0, "images", 1, "images"], [1, "analysis", 2, "analysis"], [2, "style", 4, "style"], [3, "brief", 4, "brief"], [4, "prompt", 5, "prompt"], [5, "images", 6, "images"]];
+  return { formatVersion: 1, id: id3, name: "Untitled", revision: 0, updatedAt: (/* @__PURE__ */ new Date()).toISOString(), nodes, edges: links.map(([source, sourceHandle, target, targetHandle], index) => ({ id: `edge-${index}`, source: nodes[source].id, sourceHandle, target: nodes[target].id, targetHandle })), viewport: { x: 60, y: 60, zoom: 0.65 } };
+}
+var canvasActionSchema = z5.discriminatedUnion("operation", [
+  z5.strictObject({ operation: z5.literal("canvas/list") }),
+  z5.strictObject({ operation: z5.literal("canvas/get"), id: canvasId }),
+  z5.strictObject({ operation: z5.literal("canvas/save"), document: canvasSchema, expectedRevision: z5.number().int().nonnegative() }),
+  z5.strictObject({ operation: z5.literal("canvas/delete"), id: canvasId }),
+  z5.strictObject({ operation: z5.literal("canvas/import-history"), id: taskIdSchema, canvasId }),
+  z5.strictObject({ operation: z5.literal("canvas/import"), bundle: canvasExportSchema, canvasId }),
+  z5.strictObject({ operation: z5.literal("canvas/upload"), assets: z5.array(z5.strictObject({ id: assetId, name: z5.string().min(1).max(200), mediaType: referenceSchema.shape.attachment.shape.mediaType, base64: z5.string() })).min(1).max(8) }),
+  z5.strictObject({ operation: z5.literal("canvas/run"), id: runId, document: canvasSchema, targets: z5.array(nodeId).min(1).max(500) }),
+  z5.strictObject({ operation: z5.literal("canvas/run-get"), id: runId }),
+  z5.strictObject({ operation: z5.literal("canvas/run-delete"), id: runId }),
+  z5.strictObject({ operation: z5.literal("canvas/cancel"), id: runId }),
+  z5.strictObject({ operation: z5.literal("canvas/models") }),
+  z5.strictObject({ operation: z5.literal("canvas/assets") }),
+  z5.strictObject({ operation: z5.literal("canvas/assets-prune"), ids: z5.array(assetId).min(1).max(1e4), keep: z5.array(assetId).max(4e3) })
+]);
+
+// src/shared/canvas-validation.ts
+function canvasInputIssues(document, targets) {
+  const issues = [];
+  const has = (id3, handle) => document.edges.some((edge) => edge.target === id3 && edge.targetHandle === handle);
+  for (const node of executionOrder(document, targets)) {
+    const issue = (kind, field = kind === "analysis" ? "dimensions" : kind === "style" ? "rules" : kind === "english" || kind === "brief" ? "brief.zh" : kind) => issues.push({ nodeId: node.id, kind, field });
+    switch (node.kind) {
+      case "reference":
+        if (!node.assetIds.length) issue("images");
+        break;
+      case "analysis":
+        if (!node.historyTaskId) {
+          if (!node.route) issue("model");
+          if (!has(node.id, "images")) issue("images");
+          if (!node.dimensions.length) issue("analysis");
+        }
+        ;
+        break;
+      case "rules":
+        if (!has(node.id, "analysis")) issue("analysis");
+        if (node.selectedRuleIds?.length === 0) issue("rules");
+        break;
+      case "brief":
+        if (!node.brief.zh.trim()) issue("brief", "brief.zh");
+        if (!node.changes.zh.trim()) issue("brief", "changes.zh");
+        break;
+      case "prompt": {
+        if (node.historyTaskId) break;
+        if (node.mode === "model" && !node.route) issue("model");
+        if (!has(node.id, "style")) issue("style");
+        const edge = document.edges.find((edge2) => edge2.target === node.id && edge2.targetHandle === "brief"), brief = document.nodes.find((node2) => node2.id === edge?.source);
+        if (brief?.kind !== "brief") issue("brief");
+        else if (node.mode === "quick") {
+          if (!brief.brief.en.trim()) issues.push({ nodeId: brief.id, kind: "english", field: "brief.en" });
+          if (!brief.changes.en.trim()) issues.push({ nodeId: brief.id, kind: "english", field: "changes.en" });
+        }
+        break;
+      }
+      case "image": {
+        if (!node.route) issue("model");
+        if (!has(node.id, "prompt") && !node.prompt.trim()) issue("prompt");
+        const edge = document.edges.find((edge2) => edge2.target === node.id && edge2.targetHandle === "prompt"), source = document.nodes.find((node2) => node2.id === edge?.source);
+        if (source?.kind === "prompt" && source.mode === "quick" && node.variant > 0) issue("variant");
+        break;
+      }
+      case "output":
+        if (!has(node.id, "images") && !has(node.id, "prompt")) issue("output");
+        break;
+    }
+  }
+  return issues;
+}
+
+// src/host/canvas-service.ts
+var now2 = () => (/* @__PURE__ */ new Date()).toISOString();
+var CanvasService = class {
+  constructor(repository, legacy, tasks, dependencies, config, report) {
+    this.repository = repository;
+    this.legacy = legacy;
+    this.tasks = tasks;
+    this.dependencies = dependencies;
+    this.config = config;
+    this.report = report;
+  }
+  repository;
+  legacy;
+  tasks;
+  dependencies;
+  config;
+  report;
+  lifetime = new AbortController();
+  active = /* @__PURE__ */ new Map();
+  writes = Promise.resolve();
+  healthy = true;
+  disposed = false;
+  /** Recover visibly without automatically resending model requests. */
+  async initialize() {
+    for (const run of this.repository.runs()) if (run.status === "running") await this.repository.saveRun({ ...run, status: "interrupted", updatedAt: now2(), nodes: run.nodes.map((node) => node.status === "running" || node.status === "queued" ? { ...node, status: "interrupted", failure: { code: "interrupted" } } : node), failure: { code: "interrupted" } });
+  }
+  serial(work) {
+    const next = this.writes.then(work);
+    this.writes = next.then(() => {
+    }, () => {
+    });
+    return next;
+  }
+  ready() {
+    if (this.disposed) throw new StylePromptError("not-ready");
+    if (!this.healthy) throw new StylePromptError("storage-error");
+  }
+  requireRun(id3) {
+    const run = this.repository.run(id3);
+    if (!run) throw new StylePromptError("missing-record");
+    return run;
+  }
+  /** @param id Legacy record identity. @returns Whether a canvas or retained execution still owns this task. */
+  referencesTask(id3) {
+    return this.repository.documents().some((document) => document.nodes.some((node) => (node.kind === "analysis" || node.kind === "prompt") && node.historyTaskId === id3)) || this.repository.runs().some((run) => run.nodes.some((node) => node.taskId === id3 || node.analysisId === id3));
+  }
+  /** @param action Parsed authenticated operation. @param signal Admission or read lifetime. @returns Saved canvas data or one admitted run. */
+  async action(action, signal) {
+    signal.throwIfAborted();
+    switch (action.operation) {
+      case "canvas/list":
+        return { healthy: this.healthy, limits: { saveDelayMs: this.config.canvasSaveDelayMs, pollIntervalMs: this.config.pollIntervalMs, maxCanvasFileBytes: this.config.maxCanvasFileBytes }, activeRuns: this.repository.runs().filter((run) => run.status === "running"), documents: this.repository.documents().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(({ nodes: _nodes, edges: _edges, ...document }) => document) };
+      case "canvas/get": {
+        const document = this.repository.document(action.id);
+        if (!document) throw new StylePromptError("missing-record");
+        const runs = this.repository.runs().filter((run) => run.canvasId === action.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, this.config.maxHistoryItems);
+        const ids = new Set([document, ...runs.map((run) => run.document)].flatMap((document2) => document2.nodes.flatMap((node) => node.kind === "reference" ? node.assetIds : [])));
+        return { document, assets: this.repository.assets().filter((asset) => ids.has(asset.id)), runs };
+      }
+      case "canvas/models": {
+        const failures = [];
+        const models = await Promise.all(this.dependencies.llm.listProviders().map(async (provider) => {
+          try {
+            if (typeof this.dependencies.llm.listImageModels !== "function") throw new StylePromptError("capability-unavailable");
+            return (await this.dependencies.llm.listImageModels(provider.id)).map((model) => ({ provider: provider.id, providerName: provider.name, id: model.id, name: model.name }));
+          } catch (error) {
+            if (signal.aborted) throw error;
+            failures.push({ provider: provider.name, code: failureOf(error).code });
+            return [];
+          }
+        }));
+        const textModels = await Promise.all(this.dependencies.llm.listProviders().map(async (provider) => {
+          try {
+            return await Promise.all((await this.dependencies.llm.listModels(provider.id)).map(async (model) => ({ provider: provider.id, providerName: provider.name, id: model.id, name: model.name, vision: (await this.dependencies.llm.resolveModelInfo(provider.id, model.id, signal)).inputModalities?.includes("image") ?? false })));
+          } catch (error) {
+            if (signal.aborted) throw error;
+            failures.push({ provider: provider.name, code: failureOf(error).code });
+            return [];
+          }
+        }));
+        return { models: models.flat(), textModels: textModels.flat(), failures: [...new Map(failures.map((failure) => [failure.provider, failure])).values()].sort((a, b) => a.provider.localeCompare(b.provider)) };
+      }
+      case "canvas/save":
+        return this.serial(async () => {
+          this.ready();
+          const document = validateCanvas(action.document), previous = this.repository.document(document.id);
+          if ((previous?.revision ?? 0) !== action.expectedRevision) throw new StylePromptError("operation-conflict");
+          if (!previous && this.repository.documents().length >= this.config.maxCanvases) throw new StylePromptError("busy");
+          for (const id3 of document.nodes.flatMap((node) => node.kind === "reference" ? node.assetIds : [])) if (!this.repository.asset(id3)) throw new StylePromptError("missing-record");
+          const saved = { ...document, revision: action.expectedRevision + 1, updatedAt: now2() };
+          await this.repository.saveDocument(saved);
+          return saved;
+        });
+      case "canvas/delete":
+        return this.serial(async () => {
+          this.ready();
+          if ([...this.active.keys()].some((id3) => this.repository.run(id3)?.canvasId === action.id)) throw new StylePromptError("operation-conflict");
+          await this.repository.deleteDocument(action.id);
+          for (const run of this.repository.runs().filter((run2) => run2.canvasId === action.id)) await this.repository.deleteRun(run.id);
+          return { deleted: true };
+        });
+      case "canvas/upload":
+        return this.serial(async () => {
+          this.ready();
+          if (this.repository.assets().length + action.assets.length > this.config.maxCanvasAssets || action.assets.length > this.config.maxImages) throw new StylePromptError("busy");
+          let bytes = 0;
+          const images = action.assets.map((asset) => {
+            if (asset.base64.length > Math.ceil(this.config.maxImageBytes / 3) * 4) throw new StylePromptError("invalid-input");
+            const data = Buffer.from(asset.base64, "base64");
+            bytes += data.length;
+            if (!data.length || data.length > this.config.maxImageBytes || bytes > this.config.maxUploadBytes || data.toString("base64") !== asset.base64) throw new StylePromptError("invalid-input");
+            return { data, mediaType: asset.mediaType, name: asset.name };
+          });
+          const refs = await this.dependencies.attachments.saveImages(images);
+          if (refs.length !== images.length) throw new StylePromptError("invalid-output");
+          const assets = [];
+          for (let index = 0; index < refs.length; index++) {
+            const image = await this.dependencies.attachments.readImage(refs[index], signal), input = action.assets[index];
+            const saved = assetSchema.parse({ formatVersion: 1, id: input.id, createdAt: now2(), reference: { id: input.id, name: input.name, sha256: createHash4("sha256").update(image.data).digest("hex"), attachment: image.ref } });
+            const previous = this.repository.asset(input.id);
+            if (previous && previous.reference.sha256 !== saved.reference.sha256) throw new StylePromptError("operation-conflict");
+            if (!previous) await this.repository.saveAsset(saved);
+            assets.push(previous ?? saved);
+          }
+          return { assets };
+        });
+      case "canvas/import-history":
+        return this.importHistory(action.id, action.canvasId, signal);
+      case "canvas/import": {
+        if (Buffer.byteLength(JSON.stringify(action.bundle), "utf8") > this.config.maxCanvasFileBytes) throw new StylePromptError("invalid-input");
+        const remap = /* @__PURE__ */ new Map();
+        if (new Set(action.bundle.assets.map((asset) => asset.id)).size !== action.bundle.assets.length) throw new StylePromptError("invalid-input");
+        for (const id3 of action.bundle.document.nodes.flatMap((node) => node.kind === "reference" ? node.assetIds : [])) {
+          const manifest = action.bundle.assets.find((asset) => asset.id === id3);
+          if (!manifest) throw new StylePromptError("invalid-input");
+          const existing = this.repository.assets().find((asset) => asset.reference.sha256 === manifest.sha256);
+          if (!existing) throw new StylePromptError("missing-record");
+          remap.set(id3, existing.id);
+        }
+        const document = { ...action.bundle.document, id: action.canvasId, revision: 0, nodes: action.bundle.document.nodes.map((node) => node.kind === "reference" ? { ...node, assetIds: node.assetIds.map((id3) => remap.get(id3)) } : node.kind === "analysis" || node.kind === "prompt" ? { ...node, historyTaskId: null } : node) };
+        return this.action({ operation: "canvas/save", document, expectedRevision: 0 }, signal);
+      }
+      case "canvas/run-get":
+        return this.requireRun(action.id);
+      case "canvas/assets":
+        return this.assetInventory();
+      case "canvas/assets-prune":
+        return this.serial(async () => {
+          this.ready();
+          const keep = new Set(action.keep), eligible = new Set(this.assetInventory().assets.filter((value) => !value.used && !value.recent).map((value) => value.asset.id));
+          let removed = 0;
+          for (const id3 of new Set(action.ids)) if (eligible.has(id3) && !keep.has(id3)) {
+            await this.repository.deleteAsset(id3);
+            removed++;
+          }
+          return { removed, inventory: this.assetInventory() };
+        });
+      case "canvas/run-delete":
+        return this.serial(async () => {
+          this.ready();
+          if (this.requireRun(action.id).status === "running") throw new StylePromptError("operation-conflict");
+          await this.repository.deleteRun(action.id);
+          return { deleted: true };
+        });
+      case "canvas/cancel": {
+        this.active.get(action.id)?.abort.abort();
+        await this.active.get(action.id)?.promise;
+        return this.requireRun(action.id);
+      }
+      case "canvas/run":
+        return this.serial(async () => {
+          this.ready();
+          validateCanvas(action.document);
+          if (canvasInputIssues(action.document, action.targets).length) throw new StylePromptError("invalid-input");
+          const previous = this.repository.run(action.id);
+          if (previous) {
+            if (JSON.stringify(previous.document) !== JSON.stringify(action.document) || JSON.stringify(previous.targets) !== JSON.stringify(action.targets)) throw new StylePromptError("operation-conflict");
+            return previous;
+          }
+          if (!this.repository.document(action.document.id)) throw new StylePromptError("missing-record");
+          if (this.active.size >= this.config.maxConcurrentCanvasRuns || this.repository.runs().length >= this.config.maxCanvasRuns) throw new StylePromptError("busy");
+          const requested = executionOrder(action.document, action.targets);
+          if (this.repository.runs().some((run2) => run2.canvasId === action.document.id && run2.status === "running" && requested.some((node) => (node.kind === "analysis" || node.kind === "prompt" || node.kind === "image") && run2.nodes.some((state) => state.nodeId === node.id && (state.status === "queued" || state.status === "running") && state.fingerprint === nodeFingerprint(action.document, node.id))))) throw new StylePromptError("busy");
+          const nodes = executionOrder(action.document, action.targets).map((node) => ({ nodeId: node.id, fingerprint: nodeFingerprint(action.document, node.id), inputKey: "", status: "queued", taskId: null, analysisId: null, selectedRuleIds: [], images: [], originals: [], imageRequest: null, failure: null }));
+          const run = { formatVersion: 1, id: action.id, canvasId: action.document.id, createdAt: now2(), updatedAt: now2(), status: "running", document: structuredClone(action.document), targets: action.targets, nodes, failure: null };
+          await this.repository.saveRun(run);
+          const abort = new AbortController(), taskSignal = AbortSignal.any([abort.signal, this.lifetime.signal]);
+          const promise = Promise.resolve().then(() => this.execute(run.id, taskSignal)).catch(async (error) => {
+            const code = this.lifetime.signal.aborted ? "interrupted" : abort.signal.aborted ? "cancelled" : failureOf(error).code;
+            try {
+              const current = this.requireRun(run.id);
+              await this.repository.saveRun({ ...current, status: code === "cancelled" || code === "interrupted" ? code : "failed", updatedAt: now2(), failure: { code }, nodes: current.nodes.map((node) => node.status === "queued" || node.status === "running" ? { ...node, status: code === "cancelled" || code === "interrupted" ? code : "failed", failure: { code } } : node) });
+            } catch (storageError) {
+              this.healthy = false;
+              this.report();
+            }
+          }).finally(() => {
+            this.active.delete(run.id);
+          });
+          this.active.set(run.id, { abort, promise });
+          return run;
+        });
+    }
+  }
+  assetInventory() {
+    const used = new Set([...this.repository.documents(), ...this.repository.runs().map((run) => run.document)].flatMap((document) => document.nodes.flatMap((node) => node.kind === "reference" ? node.assetIds : [])));
+    const cutoff = Date.now() - this.config.canvasAssetGraceMs;
+    return { total: this.repository.assets().length, limit: this.config.maxCanvasAssets, graceMs: this.config.canvasAssetGraceMs, assets: this.repository.assets().map((asset) => ({ asset, used: used.has(asset.id), recent: !Number.isFinite(Date.parse(asset.createdAt)) || Date.parse(asset.createdAt) >= cutoff })) };
+  }
+  async update(id3, nodeId2, patch) {
+    await this.serial(async () => {
+      const run = this.requireRun(id3);
+      await this.repository.saveRun({ ...run, updatedAt: now2(), nodes: run.nodes.map((node) => node.nodeId === nodeId2 ? { ...node, ...patch } : node) });
+    });
+  }
+  async execute(id3, signal) {
+    const initial = this.requireRun(id3), forced = /* @__PURE__ */ new Set();
+    const forceTarget = (nodeId2) => {
+      const node = initial.document.nodes.find((node2) => node2.id === nodeId2);
+      if (node.kind === "analysis" || node.kind === "prompt" || node.kind === "image") {
+        forced.add(node.id);
+        return;
+      }
+      initial.document.edges.filter((edge) => edge.target === nodeId2).forEach((edge) => forceTarget(edge.source));
+    };
+    initial.targets.forEach(forceTarget);
+    while (this.requireRun(id3).nodes.some((node) => node.status === "queued")) {
+      signal.throwIfAborted();
+      const run2 = this.requireRun(id3);
+      const ready = run2.nodes.filter((node) => node.status === "queued" && run2.document.edges.filter((edge) => edge.target === node.nodeId).every((edge) => run2.nodes.find((other) => other.nodeId === edge.source)?.status !== "queued" && run2.nodes.find((other) => other.nodeId === edge.source)?.status !== "running"));
+      if (!ready.length) throw new StylePromptError("invalid-input");
+      const settled = await Promise.allSettled(ready.slice(0, this.config.maxConcurrentTasks).map(async (state) => {
+        const parents = run2.document.edges.filter((edge) => edge.target === state.nodeId).map((edge) => run2.nodes.find((node) => node.nodeId === edge.source));
+        if (parents.some((parent) => parent.status !== "succeeded")) {
+          await this.update(id3, state.nodeId, { status: "blocked" });
+          return;
+        }
+        const inputKey = JSON.stringify(parents.map((parent) => ({ nodeId: parent.nodeId, taskId: parent.taskId, analysisId: parent.analysisId, selectedRuleIds: parent.selectedRuleIds, images: parent.images.map((image) => image.sha256) })));
+        const cached = !forced.has(state.nodeId) ? this.repository.runs().filter((other) => other.id !== id3 && other.canvasId === run2.canvasId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).flatMap((other) => other.nodes).find((other) => other.nodeId === state.nodeId && other.status === "succeeded" && other.fingerprint === state.fingerprint && other.inputKey === inputKey) : void 0;
+        if (cached) {
+          await this.update(id3, state.nodeId, { ...cached, reused: true });
+          return;
+        }
+        await this.update(id3, state.nodeId, { status: "running", inputKey });
+        try {
+          await this.executeNode(id3, run2.document.nodes.find((node) => node.id === state.nodeId), forced.has(state.nodeId), signal);
+        } catch (error) {
+          if (signal.aborted) throw error;
+          await this.update(id3, state.nodeId, { status: "failed", failure: failureOf(error) });
+        }
+      }));
+      for (const result of settled) if (result.status === "rejected") throw result.reason;
+    }
+    const run = this.requireRun(id3);
+    await this.repository.saveRun({ ...run, status: run.nodes.every((node) => node.status === "succeeded") ? "succeeded" : "failed", updatedAt: now2() });
+  }
+  async executeNode(id3, node, force, signal) {
+    const run = this.requireRun(id3);
+    const incoming = (handle) => run.document.edges.filter((edge) => edge.target === node.id && edge.targetHandle === handle).map((edge) => run.nodes.find((value) => value.nodeId === edge.source));
+    const images = () => incoming("images").flatMap((value) => value.images);
+    const finish = (patch = {}) => this.update(id3, node.id, { reused: false, ...patch, status: "succeeded" });
+    switch (node.kind) {
+      case "reference": {
+        const references = node.assetIds.map((id4) => this.repository.asset(id4)?.reference);
+        if (!references.length || references.some((value) => !value)) throw new StylePromptError("invalid-input");
+        await finish({ images: references.filter((value) => Boolean(value)) });
+        return;
+      }
+      case "brief":
+        await finish();
+        return;
+      case "analysis": {
+        if (node.historyTaskId && !force) {
+          const record2 = this.tasks.get(node.historyTaskId);
+          if (record2?.kind !== "analysis" || record2.status !== "succeeded") throw new StylePromptError("missing-record");
+          const references2 = images();
+          if (JSON.stringify(record2.route) === JSON.stringify(node.route) && JSON.stringify(record2.dimensions) === JSON.stringify(node.dimensions) && (!references2.length || references2.length === record2.references.length && references2.every((reference, index) => reference.sha256 === record2.references[index].sha256))) {
+            await finish({ taskId: record2.id, analysisId: record2.id, images: record2.references, reused: true });
+            return;
+          }
+        }
+        if (!node.route) throw new StylePromptError("capability-unavailable");
+        const references = images();
+        if (!references.length || references.length > this.config.maxImages) throw new StylePromptError("invalid-input");
+        const files = await Promise.all(references.map(async (reference) => {
+          const image = await this.dependencies.attachments.readImage(nativeRef(reference), signal);
+          return { name: reference.name, mediaType: image.ref.mediaType, base64: Buffer.from(image.data).toString("base64") };
+        }));
+        const taskId = taskIdSchema.parse(randomUUID());
+        await this.update(id3, node.id, { taskId });
+        await this.legacy.action({ operation: "analyze", input: { id: taskId, route: node.route, dimensions: node.dimensions, files } }, signal);
+        await this.waitTask(taskId, signal);
+        const record = this.tasks.get(taskId);
+        if (record?.kind !== "analysis") throw new StylePromptError("invalid-output");
+        await finish({ taskId, analysisId: taskId, images: record.references });
+        return;
+      }
+      case "rules": {
+        const source = incoming("analysis")[0], record = source?.analysisId ? this.tasks.get(source.analysisId) : void 0;
+        if (record?.kind !== "analysis" || !record.result) throw new StylePromptError("invalid-input");
+        const selected = node.selectedRuleIds ?? record.result.rules.filter((rule) => rule.status !== "unknown" && rule.scope !== "scene").map((rule) => rule.id);
+        if (!selected.length || selected.some((id4) => !record.result.rules.some((rule) => rule.id === id4 && rule.status !== "unknown" && rule.scope !== "scene"))) throw new StylePromptError("invalid-input");
+        await finish({ analysisId: record.id, selectedRuleIds: selected, images: record.references });
+        return;
+      }
+      case "prompt": {
+        const style = incoming("style")[0], briefEdge = run.document.edges.find((edge) => edge.target === node.id && edge.targetHandle === "brief");
+        const brief = run.document.nodes.find((value) => value.id === briefEdge?.source);
+        if (node.historyTaskId && !force) {
+          const record = this.tasks.get(node.historyTaskId);
+          if (record?.kind !== "generation" || record.status !== "succeeded") throw new StylePromptError("missing-record");
+          if (style?.analysisId === record.input.analysisId && brief?.kind === "brief" && JSON.stringify(brief.brief) === JSON.stringify(record.input.brief) && JSON.stringify(brief.changes) === JSON.stringify(record.input.changes) && JSON.stringify(style.selectedRuleIds) === JSON.stringify(record.input.selectedRuleIds) && record.input.mode === node.mode && record.input.platform === node.platform && (!record.input.route || JSON.stringify(record.input.route) === JSON.stringify(node.route))) {
+            await finish({ taskId: record.id, analysisId: record.input.analysisId, selectedRuleIds: record.input.selectedRuleIds, reused: true });
+            return;
+          }
+        }
+        if (!style?.analysisId || brief?.kind !== "brief" || node.mode === "model" && !node.route) throw new StylePromptError("invalid-input");
+        const taskId = taskIdSchema.parse(randomUUID());
+        await this.update(id3, node.id, { taskId });
+        await this.legacy.action({ operation: "generate", id: taskId, input: { analysisId: style.analysisId, selectedRuleIds: style.selectedRuleIds, brief: brief.brief, changes: brief.changes, platform: node.platform, mode: node.mode, ...node.route ? { route: node.route } : {} } }, signal);
+        await this.waitTask(taskId, signal);
+        await finish({ taskId, analysisId: style.analysisId, selectedRuleIds: style.selectedRuleIds });
+        return;
+      }
+      case "image": {
+        if (!node.route || typeof this.dependencies.llm.generateImages !== "function") throw new StylePromptError("capability-unavailable");
+        const source = incoming("prompt")[0], record = source?.taskId ? this.tasks.get(source.taskId) : void 0;
+        const prompt2 = record?.kind === "generation" && record.result ? node.variant < 0 ? record.result.fullPrompt.en : record.result.variants[node.variant]?.prompt.en : node.prompt;
+        const references = images();
+        if (!prompt2?.trim() || references.length > this.config.maxImages) throw new StylePromptError("invalid-input");
+        const requestId = taskIdSchema.parse(randomUUID());
+        await this.update(id3, node.id, { taskId: requestId, imageRequest: { route: node.route, prompt: prompt2, size: node.size, quality: node.quality, references } });
+        const imageSignal = AbortSignal.any([signal, AbortSignal.timeout(this.config.imageTimeoutMs)]);
+        const generated = await this.dependencies.llm.generateImages({ id: brandString3(requestId), ...node.route, prompt: prompt2, references: references.map(nativeRef), size: node.size, quality: node.quality, signal: imageSignal }).catch((error) => {
+          if (imageSignal.aborted && !signal.aborted) throw new StylePromptError("request-timeout");
+          throw error;
+        });
+        if (!generated.length || generated.length > this.config.maxImages) throw new StylePromptError("invalid-output");
+        const saved = await Promise.all(generated.map(async (image) => {
+          const stored = await this.dependencies.attachments.readImage(image.preview, signal);
+          return referenceSchema.parse({ id: randomUUID(), name: stored.ref.name ?? image.original.name, sha256: createHash4("sha256").update(stored.data).digest("hex"), attachment: stored.ref });
+        }));
+        await finish({ images: saved, originals: generated.map((image) => ({ attachmentId: image.original.attachmentId, name: image.original.name, bytes: image.original.bytes })) });
+        return;
+      }
+      case "output": {
+        const source = incoming("prompt")[0];
+        if (!source && !images().length) throw new StylePromptError("invalid-input");
+        const imageSource = incoming("images");
+        await finish({ taskId: source?.taskId ?? null, analysisId: source?.analysisId ?? null, images: images(), originals: imageSource.flatMap((node2) => node2.originals) });
+        return;
+      }
+    }
+  }
+  async waitTask(id3, signal) {
+    try {
+      for (; ; ) {
+        signal.throwIfAborted();
+        const task = this.tasks.get(id3);
+        if (!task) throw new StylePromptError("missing-record");
+        if (task.status !== "running") {
+          if (task.status !== "succeeded") throw new StylePromptError(task.failure?.code ?? "model-error");
+          return;
+        }
+        await delay(this.config.pollIntervalMs, void 0, { signal });
+      }
+    } catch (error) {
+      if (signal.aborted) await this.legacy.action({ operation: "cancel", id: id3 }, new AbortController().signal);
+      throw error;
+    }
+  }
+  async importHistory(id3, canvasId2, signal) {
+    this.ready();
+    const record = this.tasks.get(id3);
+    if (!record || record.status !== "succeeded") throw new StylePromptError("invalid-input");
+    const analysis = record.kind === "analysis" ? record : this.tasks.get(record.input.analysisId);
+    if (analysis?.kind !== "analysis" || !analysis.result) throw new StylePromptError("missing-record");
+    if (this.repository.assets().length + analysis.references.length > this.config.maxCanvasAssets) throw new StylePromptError("busy");
+    const document = starterCanvas(canvasId2), ids = [];
+    for (const reference of analysis.references) {
+      const id4 = assetId.parse(randomUUID());
+      ids.push(id4);
+      await this.repository.saveAsset({ formatVersion: 1, id: id4, createdAt: now2(), reference });
+    }
+    document.name = analysis.result.name;
+    document.nodes = document.nodes.filter((node) => node.kind !== "image").map((node) => {
+      if (node.kind === "reference") return { ...node, assetIds: ids };
+      if (node.kind === "analysis") return { ...node, historyTaskId: analysis.id, route: analysis.route, dimensions: analysis.dimensions };
+      if (record.kind === "generation") {
+        if (node.kind === "rules") return { ...node, selectedRuleIds: record.input.selectedRuleIds };
+        if (node.kind === "brief") return { ...node, brief: record.input.brief, changes: record.input.changes };
+        if (node.kind === "prompt") return { ...node, historyTaskId: record.id, mode: record.input.mode, platform: record.input.platform, route: record.input.route ?? analysis.route };
+      }
+      return node;
+    });
+    const kept = new Set(document.nodes.map((node) => node.id));
+    document.edges = document.edges.filter((edge) => kept.has(edge.source) && kept.has(edge.target));
+    document.edges.push({ id: randomUUID(), source: document.nodes.find((node) => node.kind === "prompt").id, sourceHandle: "prompt", target: document.nodes.find((node) => node.kind === "output").id, targetHandle: "prompt" });
+    return canvasSchema.parse(await this.action({ operation: "canvas/save", document, expectedRevision: 0 }, signal));
+  }
+  /** @param id Canvas asset identity. @param signal Read cancellation. @returns Profile-owned reference bytes. */
+  async image(id3, signal) {
+    const asset = this.repository.asset(id3);
+    if (!asset) throw new StylePromptError("missing-record");
+    return this.dependencies.attachments.readImage(nativeRef(asset.reference), signal);
+  }
+  /** Stop admission and drain graph work before the legacy writer lease is released. */
+  async dispose() {
+    this.disposed = true;
+    this.lifetime.abort();
+    await Promise.allSettled([...this.active.values()].map((item) => item.promise));
+    await this.writes;
+    await this.repository.close();
+  }
+};
+
+// src/host/canvas-repository.ts
+import { createHash as createHash5 } from "node:crypto";
+import { defineDomain as defineDomain2, domainTable as domainTable2 } from "@deepseek-ai/dsh-storage-domain";
+async function openCanvasRepository(facility, profilePath) {
+  const domain = await facility.open(defineDomain2({
+    name: `style_canvas_${createHash5("sha256").update(profilePath).digest("hex").slice(0, 24)}`,
+    version: 1,
+    tables: { documents: domainTable2(canvasSchema), assets: domainTable2(assetSchema), runs: domainTable2(canvasRunSchema) }
+  }));
+  const documents = domain.table("documents"), assets = domain.table("assets"), runs = domain.table("runs");
+  return {
+    documents: () => [...documents.entries()].map(([, value]) => structuredClone(value)),
+    document: (id3) => structuredClone(documents.get(id3)),
+    saveDocument: (value) => documents.put(value.id, structuredClone(value)),
+    deleteDocument: async (id3) => {
+      await documents.delete(id3);
+    },
+    assets: () => [...assets.entries()].map(([, value]) => structuredClone(value)),
+    asset: (id3) => structuredClone(assets.get(id3)),
+    saveAsset: (value) => assets.put(value.id, structuredClone(value)),
+    deleteAsset: async (id3) => {
+      await assets.delete(id3);
+    },
+    runs: () => [...runs.entries()].map(([, value]) => structuredClone(value)),
+    run: (id3) => structuredClone(runs.get(id3)),
+    saveRun: (value) => runs.put(value.id, structuredClone(value)),
+    deleteRun: async (id3) => {
+      await runs.delete(id3);
+    },
+    close: () => domain.close()
+  };
+}
+
 // src/host/plugin.ts
+import { AttachmentId as AttachmentId2 } from "@deepseek-ai/dsh-attachment";
 var name = "dsh-plugin-style-prompt";
 var inject = ["profileContext", "storageDomain", "attachments", "llm", "pluginManager", "connection"];
 async function apply(ctx, input) {
   const config = Config.parse(input);
   const repository = await openRepository(ctx.storageDomain, ctx.profileContext.dir, join(ctx.profileContext.dir, "style-prompt", "writer.lock"));
   const service = new StylePromptService(repository, { llm: ctx.llm, attachments: ctx.attachments }, config, () => ctx.logger.error("Style Prompt cannot commit task state; new work is stopped. Inspect profile storage before restarting."));
-  ctx.effect(() => () => service.dispose(), "Style Prompt task and storage drain");
+  const canvasRepository = await openCanvasRepository(ctx.storageDomain, ctx.profileContext.dir).catch(async (error) => {
+    await service.dispose();
+    throw error;
+  });
+  const canvas = new CanvasService(canvasRepository, service, repository, { llm: ctx.llm, attachments: ctx.attachments }, config, () => ctx.logger.error("Style Prompt cannot persist canvas state; new runs are stopped."));
+  ctx.effect(() => async () => {
+    try {
+      await canvas.dispose();
+    } finally {
+      await service.dispose();
+    }
+  }, "Style Prompt task and storage drain");
   await service.initialize();
+  await canvas.initialize();
   async function invoke(raw, signal) {
     try {
-      return { ok: true, value: await service.action(actionSchema.parse(raw), signal) };
+      const graphAction = canvasActionSchema.safeParse(raw);
+      if (graphAction.success) return { ok: true, value: await canvas.action(graphAction.data, signal) };
+      const action = actionSchema.parse(raw);
+      if (action.operation === "delete" && canvas.referencesTask(action.id)) throw new StylePromptError("operation-conflict");
+      return { ok: true, value: await service.action(action, signal) };
     } catch (error) {
-      return { ok: false, error: error instanceof z5.ZodError ? { code: "invalid-input" } : failureOf(error) };
+      return { ok: false, error: error instanceof z6.ZodError ? { code: "invalid-input" } : failureOf(error) };
     }
   }
   ctx.effect(() => ctx.pluginManager.registerAction(name, "workbench", async (fields2, signal) => {
@@ -586,13 +1261,42 @@ async function apply(ctx, input) {
   } }), "Style Prompt private data");
   ctx.effect(() => ctx.connection.fetch.register({ path: "/api/style-prompt/image", methods: ["GET"], requestBody: "buffered", fetch: async (request) => {
     try {
-      const url = new URL(request.url), id2 = taskIdSchema.parse(url.searchParams.get("id"));
-      const image = await service.image(id2, referenceIdSchema.parse(url.searchParams.get("reference")), request.signal);
+      const url = new URL(request.url), id3 = taskIdSchema.parse(url.searchParams.get("id"));
+      const image = await service.image(id3, referenceIdSchema.parse(url.searchParams.get("reference")), request.signal);
       return new Response(new Uint8Array(image.data), { headers: { "content-type": image.ref.mediaType, "cache-control": "private, no-store", "x-content-type-options": "nosniff" } });
     } catch (error) {
       return new Response(null, { status: 404 });
     }
   } }), "Style Prompt private reference images");
+  ctx.effect(() => ctx.connection.fetch.register({ path: "/api/style-prompt/canvas-image", methods: ["GET"], requestBody: "buffered", fetch: async (request) => {
+    try {
+      const params = new URL(request.url).searchParams, asset = params.get("asset");
+      if (asset) {
+        const image2 = await canvas.image(assetId.parse(asset), request.signal);
+        return new Response(new Uint8Array(image2.data), { headers: { "content-type": image2.ref.mediaType, "cache-control": "private, no-store", "x-content-type-options": "nosniff" } });
+      }
+      const run = canvasRepository.run(runId.parse(params.get("run"))), node = run?.nodes.find((node2) => node2.nodeId === nodeId.parse(params.get("node")));
+      const index = Number(params.get("index") ?? 0), reference = Number.isSafeInteger(index) && index >= 0 ? node?.images[index] : void 0;
+      if (!reference) throw new StylePromptError("missing-record");
+      if (params.get("original") === "1") {
+        const original = node?.originals[index];
+        if (!original) throw new StylePromptError("missing-record");
+        const iterator = ctx.attachments.readFileStream({ ...original, attachmentId: AttachmentId2(original.attachmentId) }, request.signal)[Symbol.asyncIterator]();
+        const stream = new ReadableStream({ async pull(controller) {
+          const next = await iterator.next();
+          if (next.done) controller.close();
+          else controller.enqueue(next.value);
+        }, async cancel() {
+          await iterator.return?.();
+        } });
+        return new Response(stream, { headers: { "content-type": "application/octet-stream", "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(original.name)}`, "cache-control": "private, no-store", "x-content-type-options": "nosniff" } });
+      }
+      const image = await ctx.attachments.readImage(nativeRef(reference), request.signal);
+      return new Response(new Uint8Array(image.data), { headers: { "content-type": image.ref.mediaType, "cache-control": "private, no-store", "x-content-type-options": "nosniff" } });
+    } catch (error) {
+      return new Response(null, { status: 404 });
+    }
+  } }), "Style Prompt private canvas images");
 }
 export {
   Config,

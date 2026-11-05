@@ -39,11 +39,16 @@ export async function listModels(dependencies: ModelDependencies, signal: AbortS
 export class NativeModel {
   constructor(private readonly dependencies: ModelDependencies, private readonly config: Config) {}
 
-  /** @param route Selected configured model. @param signal Admission lifetime. @returns Completion if image input is declared. */
-  async preflight(route: Route, signal: AbortSignal): Promise<void> {
+  /** Check model support before saving a task.
+   * @param route Selected configured model.
+   * @param signal Admission lifetime.
+   * @param requireImage Whether this operation sends image input.
+   * @returns Completion when the selected route supports this operation.
+   */
+  async preflight(route: Route, signal: AbortSignal, requireImage = true): Promise<void> {
     try {
       const prepared = await this.dependencies.llm.prepareCall({ ...route, maxTokens: this.config.maxOutputTokens, temperature: this.config.temperature }, signal)
-      if (!prepared.inputModalities?.includes('image')) throw new StylePromptError('capability-unavailable')
+      if (requireImage && !prepared.inputModalities?.includes('image')) throw new StylePromptError('capability-unavailable')
     } catch (error) {
       if (error instanceof LlmError) throw new StylePromptError('capability-unavailable')
       throw error

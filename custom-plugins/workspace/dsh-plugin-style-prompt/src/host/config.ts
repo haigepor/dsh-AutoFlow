@@ -14,6 +14,14 @@ const fields = z.strictObject({
   maxStoredTasks: z.number().int().min(1).max(10000).default(200),
   maxHistoryItems: z.number().int().min(1).max(200).default(50),
   pollIntervalMs: z.number().int().min(250).max(10000).default(1000),
-})
+  maxCanvases: z.number().int().min(1).max(1000).default(50),
+  maxCanvasAssets: z.number().int().min(1).max(10000).default(500),
+  canvasAssetGraceMs: z.number().int().min(1000).max(86_400_000).default(900_000),
+  maxCanvasFileBytes: z.number().int().positive().default(16 * 1024 * 1024),
+  maxCanvasRuns: z.number().int().min(1).max(10000).default(200),
+  maxConcurrentCanvasRuns: z.number().int().min(1).max(8).default(2),
+  imageTimeoutMs: z.number().int().min(1000).max(3_600_000).default(600000),
+  canvasSaveDelayMs: z.number().int().min(100).max(10000).default(600),
+}).transform(value => ({ ...value, maxCanvasFileBytes: Math.min(value.maxCanvasFileBytes, Math.max(1, value.maxRequestBytes - 512)) }))
 export const Config = fields.default(() => fields.parse({}))
 export type Config = z.infer<typeof Config>

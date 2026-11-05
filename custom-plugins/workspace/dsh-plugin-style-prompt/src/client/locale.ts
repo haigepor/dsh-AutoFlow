@@ -1,5 +1,7 @@
 /** Product strings are locale-owned; protocol identifiers and model-written content remain unchanged. */
+import { enCanvas, zhCanvas } from './canvas-locale.ts'
 export const en = {
+  ...enCanvas,
   workbench: 'Style workspace', referenceTab: 'References and style', promptTab: 'Prompts and export', analysisSettings: 'Style analysis', modelSelected: 'Model selected', analysisEmpty: 'Import references and analyze them to choose the style rules for your new scene.',
   title: 'Style Prompt', subtitle: 'Understand a reference. Keep its visual language. Create something new.',
   reference: 'Reference images', upload: 'Choose images', uploadHint: 'Images stay local until you start analysis.',
@@ -29,7 +31,7 @@ export const en = {
   'error.missing-record': 'This record is unavailable. Refresh the history.',
   'error.operation-conflict': 'The record has dependent prompts or conflicting work. Delete the dependent prompt records first, then retry.',
   'error.busy': 'Another task is running, or history is full. Stop a task or delete old records before retrying.',
-  'error.capability-unavailable': 'Choose an available project model that supports images.',
+  'error.capability-unavailable': 'The selected model does not support this node. Choose another configured model.',
   'error.invalid-output': 'The model returned incomplete or invalid data. Check its output budget before starting a new request.',
   'error.request-timeout': 'The model request timed out and may still be billed. Inspect this task before explicitly starting another request.',
   'error.model-error': 'The model request failed; a sent request may still be billed. Refresh the task and check the connection before starting another request.',
@@ -41,6 +43,7 @@ export const en = {
 export type TextKey = keyof typeof en
 export type Text = (key: TextKey) => string
 export const zh: Record<TextKey, string> = {
+  ...zhCanvas,
   workbench: '风格工作区', referenceTab: '参考与风格', promptTab: '提示词与导出', analysisSettings: '风格分析', modelSelected: '已选择模型', analysisEmpty: '导入参考图并运行分析后，在这里选择用于新画面的风格规则',
   title: '风格提示词', subtitle: '读懂参考图的视觉语言，保留风格，创作新的画面',
   reference: '参考图片', upload: '选择图片', uploadHint: '点击「分析风格」后才会发送给模型',
@@ -70,7 +73,7 @@ export const zh: Record<TextKey, string> = {
   'error.missing-record': '记录已不可用，请刷新历史记录',
   'error.operation-conflict': '记录有关联提示词或存在冲突，请先删除关联提示词记录后重试',
   'error.busy': '有任务进行中或历史已满，请停止任务或删除旧记录后重试',
-  'error.capability-unavailable': '请选择当前项目中可用且支持图片的模型',
+  'error.capability-unavailable': '所选模型不支持此节点，请选择具备对应能力的项目模型',
   'error.invalid-output': '模型返回的数据不完整或格式不正确，请检查输出预算后显式发起新请求',
   'error.request-timeout': '模型请求超时，远端仍可能计费；请先检查此任务，再决定是否重新请求',
   'error.model-error': '模型请求失败，已发送请求仍可能计费；请刷新任务并检查模型连接后再发起新请求',

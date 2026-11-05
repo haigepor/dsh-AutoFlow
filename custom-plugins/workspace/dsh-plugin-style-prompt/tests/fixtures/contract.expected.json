@@ -7,8 +7,8 @@
       "zh": "风格提示词"
     },
     "description": {
-      "en": "Analyze reference-image styles with your configured vision API and export differentiated prompts for manual image generation.",
-      "zh": "复用已配置的视觉 API 分析参考图风格，生成差异化提示词与参考图配置，供手动生图使用。"
+      "en": "Create branching style, prompt and image workflows on an infinite canvas using your configured models.",
+      "zh": "使用项目已配置的模型，在无限画布上连接风格分析、提示词与生图节点，运行多个创作分支。"
     }
   },
   "imageImport": {
@@ -248,5 +248,244 @@
       ]
     },
     "markdown": "# 柔和纸面\n\n暖色纸张与松散笔触\n\n## 中文提示词\n\n街角咖啡店。店面偏右，横向街景。纸张颗粒在背景可见，主体边缘局部渗化；低饱和暖灰与浅米色。参考图仅用于以上选定风格属性，新画面内容以本提示词为准。\n\n## English prompt\n\nA corner coffee shop. Place the shop on the right in a horizontal street scene. Visible paper grain in the background with locally bleeding subject edges; Muted warm greys and pale ivory. Use the reference only for these selected style attributes; use this prompt for the new scene content.\n\n## 新画面草稿 / New scene draft\n\n街角咖啡店。店面偏右，横向街景。纸张颗粒在背景可见，主体边缘局部渗化；低饱和暖灰与浅米色。参考图仅用于以上选定风格属性，新画面内容以本提示词为准。\n\nA corner coffee shop. Place the shop on the right in a horizontal street scene. Visible paper grain in the background with locally bleeding subject edges; Muted warm greys and pale ivory. Use the reference only for these selected style attributes; use this prompt for the new scene content.\n\n- 店面偏右，横向街景 / Place the shop on the right in a horizontal street scene\n\n## 参考图 / References\n\n- reference.png (ref-1, SHA-256: 8b2ed1c1f986b3f8ff3485c799ef996c42a6386ba2262897671afe1bb45839c4)\n\n在生图平台手动上传对应参考图；仅参考选定的视觉属性，主体和布局以配套新提示词为准。\n\nManually upload the corresponding references. Use only the selected visual attributes; follow the new prompt for subjects and layout.\n\n## 保留的风格 / Selected style\n\n- 纸张颗粒在背景可见，主体边缘局部渗化 / Visible paper grain in the background with locally bleeding subject edges\n- 低饱和暖灰与浅米色 / Muted warm greys and pale ivory\n\n请手动上传参考图；本草稿未经过实际生图验证。\n\nUpload the reference image manually. This draft has not been validated by generating images.\n"
+  },
+  "canvas": {
+    "export": {
+      "formatVersion": 1,
+      "exportType": "style-prompt-canvas",
+      "document": {
+        "formatVersion": 1,
+        "id": "portable-canvas",
+        "name": "Untitled",
+        "revision": 0,
+        "updatedAt": "2026-11-05T00:00:00.000Z",
+        "nodes": [
+          {
+            "id": "node-1",
+            "title": "",
+            "position": {
+              "x": 0,
+              "y": 60
+            },
+            "kind": "reference",
+            "assetIds": []
+          },
+          {
+            "id": "node-2",
+            "title": "",
+            "position": {
+              "x": 340,
+              "y": 60
+            },
+            "kind": "analysis",
+            "route": null,
+            "dimensions": [
+              "medium",
+              "rendering",
+              "shape",
+              "color",
+              "lighting",
+              "texture",
+              "detail",
+              "depth",
+              "composition"
+            ],
+            "historyTaskId": null
+          },
+          {
+            "id": "node-3",
+            "title": "",
+            "position": {
+              "x": 680,
+              "y": 60
+            },
+            "kind": "rules",
+            "selectedRuleIds": null
+          },
+          {
+            "id": "node-4",
+            "title": "",
+            "position": {
+              "x": 680,
+              "y": 420
+            },
+            "kind": "brief",
+            "brief": {
+              "zh": "",
+              "en": ""
+            },
+            "changes": {
+              "zh": "",
+              "en": ""
+            }
+          },
+          {
+            "id": "node-5",
+            "title": "",
+            "position": {
+              "x": 1020,
+              "y": 60
+            },
+            "kind": "prompt",
+            "route": null,
+            "mode": "model",
+            "platform": "generic",
+            "historyTaskId": null
+          },
+          {
+            "id": "node-6",
+            "title": "",
+            "position": {
+              "x": 1360,
+              "y": 60
+            },
+            "kind": "image",
+            "route": null,
+            "prompt": "",
+            "variant": -1,
+            "size": "1024x1024",
+            "quality": "auto"
+          },
+          {
+            "id": "node-7",
+            "title": "",
+            "position": {
+              "x": 1700,
+              "y": 60
+            },
+            "kind": "output",
+            "language": "en"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge-0",
+            "source": "node-1",
+            "sourceHandle": "images",
+            "target": "node-2",
+            "targetHandle": "images"
+          },
+          {
+            "id": "edge-1",
+            "source": "node-2",
+            "sourceHandle": "analysis",
+            "target": "node-3",
+            "targetHandle": "analysis"
+          },
+          {
+            "id": "edge-2",
+            "source": "node-3",
+            "sourceHandle": "style",
+            "target": "node-5",
+            "targetHandle": "style"
+          },
+          {
+            "id": "edge-3",
+            "source": "node-4",
+            "sourceHandle": "brief",
+            "target": "node-5",
+            "targetHandle": "brief"
+          },
+          {
+            "id": "edge-4",
+            "source": "node-5",
+            "sourceHandle": "prompt",
+            "target": "node-6",
+            "targetHandle": "prompt"
+          },
+          {
+            "id": "edge-5",
+            "source": "node-6",
+            "sourceHandle": "images",
+            "target": "node-7",
+            "targetHandle": "images"
+          }
+        ],
+        "viewport": {
+          "x": 60,
+          "y": 60,
+          "zoom": 0.65
+        }
+      },
+      "assets": []
+    },
+    "feedback": {
+      "canvas.help": {
+        "en": "Space + drag to pan · Scroll to zoom · Shift to select · Right-click to add nodes",
+        "zh": "空格 + 拖动平移 · 滚轮缩放 · Shift 多选 · 右键添加节点"
+      },
+      "canvas.notice.invalidConnection": {
+        "en": "Connect matching ports. Single inputs accept one link, and loops are not allowed.",
+        "zh": "请连接相同类型的端口；单输入只能连接一次，且不能形成循环"
+      },
+      "canvas.saveConflict": {
+        "en": "A newer version was saved elsewhere. Your draft is kept; save it as another canvas or reload the saved version.",
+        "zh": "其他页面已保存了更新版本，当前草稿仍保留；可另存为新画布，或重新载入已保存版本"
+      },
+      "canvas.issue.model": {
+        "en": "Select a project model for this node.",
+        "zh": "请为此节点选择对应的项目模型"
+      },
+      "canvas.issue.brief": {
+        "en": "Enter the new scene and the changes to make.",
+        "zh": "请填写新画面内容和希望改变的部分"
+      },
+      "canvas.notice.completedContext": {
+        "en": "{canvas}: workflow completed",
+        "zh": "{canvas}：工作流已完成"
+      },
+      "canvas.notice.failedContext": {
+        "en": "{canvas} · node {node} failed. Inputs and previous results are kept.",
+        "zh": "{canvas} · 节点 {node} 运行失败，输入与已有结果已保留"
+      },
+      "canvas.notice.stoppedContext": {
+        "en": "{canvas}: local execution stopped; a dispatched remote request may still complete",
+        "zh": "{canvas}：已停止本地执行，已发送的远端请求仍可能完成"
+      },
+      "canvas.saveFailed": {
+        "en": "Could not save. Your draft is kept; retry saving or export it first.",
+        "zh": "保存失败，当前草稿仍保留；请重试保存，或先导出草稿"
+      },
+      "canvas.saveRetry": {
+        "en": "Retry saving",
+        "zh": "重试保存"
+      },
+      "canvas.historyView": {
+        "en": "Historical snapshot · {time}",
+        "zh": "历史快照 · {time}"
+      },
+      "canvas.returnLive": {
+        "en": "Return to current draft",
+        "zh": "返回当前草稿"
+      },
+      "canvas.issue.sceneEnglish": {
+        "en": "Enter the English scene for quick composition.",
+        "zh": "快速组合需要填写英文画面内容"
+      },
+      "canvas.issue.changeEnglish": {
+        "en": "Enter the English changes for quick composition.",
+        "zh": "快速组合需要填写英文修改要求"
+      },
+      "canvas.connection.type": {
+        "en": "These ports carry different types of data.",
+        "zh": "这两个端口传递的数据类型不同"
+      },
+      "canvas.connection.occupied": {
+        "en": "This input already has a connection. Disconnect or reconnect it first.",
+        "zh": "此输入已连接，请先断开或调整原有连线"
+      },
+      "canvas.connection.cycle": {
+        "en": "This connection would create a loop.",
+        "zh": "此连接会形成循环，无法添加"
+      },
+      "canvas.assetHint": {
+        "en": "Saved canvases, runs and recent imports are protected. Save drafts in other windows before cleanup.",
+        "zh": "已保存画布、运行记录和最近导入的素材会受到保护；清理前请先保存其他窗口的草稿"
+      },
+      "canvas.assetGrace": {
+        "en": "Recent imports are protected for {minutes} minutes. Cleanup releases plugin asset slots; project attachments remain managed by the application.",
+        "zh": "最近导入的素材保护 {minutes} 分钟；清理会释放插件素材名额，项目附件仍由应用统一管理"
+      }
+    }
   }
 }

@@ -3,41 +3,41 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write custom-plugins/workspace/dsh-plugin-style-prompt/README.md
 /:
-  en: 96a56865d63e9dc1
-  zh: ec1aeb8eed318ce2
+  en: a6742723cecc7831
+  zh: ba72d4a1da46f82f
 /style-prompt:
   en: 71d6286db426b165
   zh: 4b66966e9e8c8680
 /style-prompt/summary:
-  en: 010531f7ba78247f
-  zh: 55f18fdf8ffefe87
+  en: 8a72e5ba19560e99
+  zh: de90bfbefdec59dd
 /style-prompt/table-of-contents:
-  en: d152484eb41ac6b4
-  zh: 62810149eb4c15f9
+  en: cf125ce7121fce8e
+  zh: 998d0f1e16b2c7d8
 /style-prompt/use-this-package:
-  en: 36d27555486d9edd
-  zh: f59fad5228c94301
+  en: bbff250eba0f1b89
+  zh: 0a618f05cc88ee2b
 /style-prompt/use-this-package/install-into-a-profile:
-  en: a0091457d712a829
-  zh: 527f19b83e2c96a2
+  en: e6734914c2f0bd98
+  zh: 8824cde2d728830c
 /style-prompt/use-this-package/analyze-and-create-prompts:
-  en: 88c74a59776af1a3
-  zh: 15081aa78fc9e113
-/style-prompt/use-this-package/deployment-configuration:
-  en: cd6e374692aebb9f
-  zh: d268a23787b7859e
+  en: 0fa129e8a4663b5d
+  zh: 38d13eb786062573
+/style-prompt/use-this-package/history-and-deployment-limits:
+  en: 39026f3bba086197
+  zh: 51d228a0b02e468c
 /style-prompt/understand-the-implementation:
-  en: c60f53c2f7037691
-  zh: ed48d6f3534189cb
+  en: 9626b1501c4a11ac
+  zh: 79003062c039d9e9
 /style-prompt/further-exploration:
-  en: cd4dffdd2b670cee
-  zh: 7eeb9b66913e6297
+  en: 48062602d3c4a32d
+  zh: af9ec77a5e67e455
 /style-prompt/model-experience:
-  en: 16a2e3119f7377e1
-  zh: 2db7a145e4f970d2
+  en: ed44228e203a656c
+  zh: 96ff4ba56a6dc89f
 /style-prompt/known-limitations-and-deferred-work:
-  en: 64e6159f3da444b6
-  zh: a2597096dd26c651
+  en: a149f322d8c39f6d
+  zh: 748d5337c65fe2c6
 /style-prompt/dev-note:
-  en: b75c8458928b72b9
-  zh: 02cbcc6baa338b07
+  en: c0e3cdb76f8af19e
+  zh: aa7963a16503d965

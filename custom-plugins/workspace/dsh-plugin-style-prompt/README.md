@@ -1,5 +1,5 @@
 ---
-description: "Extract reusable image styles through configured vision APIs and export new-scene prompts with manual reference guidance."
+description: "Build branching style and image workflows on a persistent node canvas using the project's configured models."
 kind: "package-bundle"
 ---
 
@@ -9,90 +9,77 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Style Prompt analyzes reference images with a vision model already configured in your DSH profile. Select transferable style rules, describe a new scene, and obtain bilingual prompts, differentiated variants and a reference-image plan. The workbench saves analysis and prompt history. You upload the reference images and prompts to your image generator manually; this bundle performs no image generation or model training.
+Style Prompt provides a React Flow canvas for reference images, style analysis, rule selection, new scenes, bilingual prompts and image generation. It uses the profile's configured LLM providers and attachments. Image generation requires an explicitly registered image provider; image input support alone does not imply image output. The canvas and Codex Subscription integration use the matching AutoFlow Host build.
 
 ## Table of Contents
 
 - [Use this package](#use-this-package)
 - [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
-
------
+- [Further exploration](#further-exploration)
+- [Model experience](#model-experience)
+- [Known limitations and deferred work](#known-limitations-and-deferred-work)
+- [Dev note](#dev-note)
 
 <a id="use-this-package"></a>
 ## Use this package
 
-The package supports AutoFlow hosts based on DSH `0.2.2-alpha.2` and `0.2.2-rc.1`, using AutoFlow's plugin actions. Older desktop builds require a manual restart after plugin installation; the matching new desktop waits for current work before applying installed updates automatically.
-
 ### Install into a profile
 
-Style Prompt ships with the CLI and Desktop runtime and appears under **Plugins → Installed plugins** with its own switch. New Web/Desktop profiles enable it by default; existing profiles keep their saved choices and can enable it on the Plugins page without installing an archive. Open **Style Prompt** from the sidebar after activation.
-
-Build this workspace with `pnpm --filter dsh-plugin-style-prompt run build`. The package publishes `index.js`, `client.js`, [cordis.patch.yml](cordis.patch.yml), display locales and artwork. Its independent bundle row is `style-prompt`; Desktop packaging includes its local tarball in the production dependency set. Profiles that do not hot-load changed JavaScript need a restart after replacing an installed build.
-
-The Plugins page can check this bundle's independent GitHub releases; automatic installation is opt-in and updated code loads after restart. See the [release guide](release/README.md).
+Style Prompt ships with the CLI and Desktop runtime. Enable it under **Plugins → Installed plugins**, then open **Style Prompt** from the sidebar. Existing profiles keep their saved feature choices. Build with `pnpm --filter dsh-plugin-style-prompt run build`; restart a profile after replacing JavaScript that it cannot hot-load. Independent release instructions live in the [release guide](release/README.md).
 
 ### Analyze and create prompts
 
-1. Configure an image-capable model in the project's model settings. Select that model in this workbench; no second API key or endpoint is needed.
-2. Drop local images into the import area or use **Choose images**, then choose analysis dimensions and select **Analyze style · API**. A valid batch replaces the current selection. Unsupported formats, empty files and batches exceeding profile limits are rejected together while preserving the previous selection. Importing only creates local previews; images are sent when analysis starts. The original subject, scene-specific relationships and uncertainty remain separate from reusable style rules.
-3. Select the rules to preserve. Unknown and scene-only rules cannot become transferable style requirements.
-4. Enter the new scene and the changes you want. **Generate 3 variants · API** makes one text-only request using the saved analysis and returns Chinese and English prompts. The optional English fields allow **Compose draft · no API call** without another model request.
-5. Download JSON or Markdown. The JSON reference plan records image names, checksums, selected rules and the manual-upload requirement. It contains neither image bytes nor provider credentials. Upload your references to the image platform yourself.
+1. Use the connected starter workflow or add nodes through **Add node**, the canvas context menu, or by dropping a connection onto empty space. Connections accept matching port types, reject cycles and allow multiple image sources.
+2. Import PNG, JPEG, WebP or GIF references into a reference node. Imports are saved to the active profile; external models receive images only when you run a node. Choose a vision model and analysis dimensions on the analysis node.
+3. Run the analysis, then select transferable rules. Unknown and scene-only observations cannot become style requirements. Enter the new scene and changes on the scene node.
+4. Select a text model for three bilingual prompt variants, or choose quick composition and supply both languages. A generation uses the selected rules without repeating image analysis.
+5. For images, select an advertised image model. The built-in Codex Subscription integration exposes its configured image catalog through `llm`; no separate ComfyUI server is required. Connect prompts or enter one directly. A connected prompt takes precedence, and its manual field is disabled. Connect image references explicitly when required.
+6. Run selected nodes or the workflow. Select the scene, prompt, image and output nodes with Shift and use **Duplicate branch** to reuse the existing analysis with another scene. Unchanged ancestors are reused; explicitly targeted generation runs create new requests.
+7. Preview results in nodes, inspect complete prompts and rule evidence, copy bilingual text, export prompt JSON/Markdown, download original images or export the canvas JSON.
 
-History is profile-local and survives restart. Stopping or unloading the plugin aborts local API work. A sent request may still be billed; interrupted work is marked visibly and is never automatically resubmitted. Repeating an admission whose response was lost reuses its task ID while that workbench remains open. Delete dependent prompt records before deleting their analysis.
+Space-drag pans, the wheel zooms and Shift selects multiple nodes. Arrow keys move selected nodes; Delete removes selected nodes and links. Pointer and keyboard edits autosave and support undo and redo. Run inputs are frozen separately from the draft, so editing cannot redirect a late result. Validation locates the missing field and expands English inputs when required. Models are grouped by provider and searchable when the list is long; unavailable selections keep their identity and offer the application settings entry. A failed branch blocks its descendants while independent branches continue. Stopping drains local work; a dispatched request may still complete remotely and is not automatically resent.
 
-### Deployment configuration
+Canvas edits, node sizes and the viewport autosave with revision checks. A failed save retains the draft with a retry action. A conflicting save offers **Save as new canvas** or **Reload saved canvas**. Transient operation results use the application Toast; persistent save errors, model-catalog failures and missing inputs stay visible beside their owning canvas or node. Deleting canvases or retained records requires a confirmation that states which data is removed.
 
-The bundle row accepts the validated fields in [config.ts](src/host/config.ts). Limits cover image count and bytes, upload/request/output bytes, model timeout and output tokens, concurrency, stored task count, history page size and polling interval. Defaults admit four images, up to 8 MiB each and 32 MiB in total, with a 180-second task deadline and 8192 output tokens. Model routes are selected from the profile registry. A missing route, a text-only route, invalid JSON or a truncated response never becomes successful analysis. A full task history rejects new work until records are deleted or the limit is changed.
+### History and deployment limits
 
------
+**More actions → Runs and history** opens read-only run snapshots without a persistent bottom bar. Return to the current draft to edit, or save a snapshot as a new canvas. Running a snapshot's node explicitly runs that node in the current draft. Other canvases continue running in the background, and their menu and completion notices return to the owning canvas. The original analysis and prompt history remains in its original storage domain. **Open as canvas** creates an additive graph referencing successful history; it does not rewrite or delete the old records. Existing JSON and Markdown prompt exports retain their format. Referenced tasks cannot be deleted while retained canvases or runs own them.
+
+[Config](src/host/config.ts) bounds images, request and response bytes, task concurrency, deadlines, stored tasks, canvases, assets and runs. Defaults allow four images of up to 8 MiB each, 32 MiB per upload, 180-second text work and 600-second image work. Canvas JSON import and export share a default 16 MiB file limit, bounded by the request byte limit. **More actions → Reference assets** shows asset usage and explicitly cleans unused entries. Saved canvases, retained run snapshots and imports from the last 15 minutes are protected; save drafts in other windows before cleanup. Cleanup releases plugin asset slots without deleting application attachments. Canvas exports include a reference hash manifest, without embedded pixels or credentials. Import matching images into the destination profile before importing its canvas; import remaps the image references and clears task identities from the source profile. The canvas JSON is this plugin's document format, not a ComfyUI executable workflow.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>Implementation details</summary>
 
-The Host uses the public LLM, attachment and storage-domain services. Each task freezes its inputs and saves its exact auxiliary model instructions, text, attachment references and resolved call settings before dispatch. Usage and terminal metadata are retained separately from private reasoning. One profile writer lease prevents competing processes from modifying the same domain. Shutdown drains admitted work before releasing storage. A failed terminal write stops new admission and reports an independent diagnostic.
+[Canvas documents](src/shared/canvas.ts) separate editable parameters and layout from immutable run snapshots. [Validation](src/shared/canvas-validation.ts) is shared by Client preflight and Host execution. [CanvasService](src/host/canvas-service.ts) owns dependency ordering, branch isolation, input-based reuse, cancellation and restart recovery. It delegates text analysis and prompt generation to the existing [task service](src/host/service.ts), and images to the public LLM image provider. Originals and normalized previews remain separate attachments.
 
-[Analysis instructions](src/shared/prompts.ts) separate content from transferable style; synthesis uses explicitly selected rules and the new brief. [Compilation and export](src/shared/compose.ts) reject absent, unknown or scene-only rule selections and do not invent backend strength controls. FLUX.2 exports use positive instructions rather than a negative-prompt API field. [The native workbench](src/client/workbench.tsx) uses the application's React runtime and UI primitives, with lifecycle-bound sidebar registration. Authenticated profile routes carry uploads, saved records and image previews.
+The additive canvas domain uses the existing profile writer lease. Legacy task records and their format version stay unchanged. Restarted active runs become interrupted without dispatch. Canvas results retain the exact submitted image prompt and reference metadata. Client teardown stops subscriptions; Host teardown drains graph work before closing legacy storage.
 
-The workbench follows Visual Curator's compact toolbar, main workspace, right-hand inspector and collapsible history. Reference images and prompt exports have separate tabs; model selection and style rules remain in the inspector. Analysis dimensions use shared Pill controls in two columns, with the long rendering option on its own final row. Check marks, a selection count and keyboard operation expose the state; running tasks lock the selection. It shares the application's Menu, SegmentedTabs, Button, Checkbox and theme tokens. The build embeds optimized artwork in the Client entry, so installed packages do not depend on workspace asset URLs.
-
-A small [material-swatch illustration](assets/style-dimensions-v1.webp) decorates the dimension heading. The built-in image tool generated it from the saved [asset prompts](assets/style-dimensions-v1.prompt.txt); its WebP preserves alpha for light and dark surfaces.
-
-Style rules appear as selectable cards. English descriptions and visible evidence stay in expandable details. Those details and history use the shared disclosure animation and respect reduced motion.
-
-The image import area and plugin cards share the transparent [hand-painted pen and color swatches](assets/plugin-logo-v2.webp), generated with the built-in image tool using the saved [asset prompt](assets/plugin-logo-v2.prompt.txt). The sidebar uses the shared monochrome list-and-pen glyph at the navigation's requested size. Drag feedback follows the active theme and clears when a drop or task admission ends the drag. File selection and drop handling share the active profile's format, count and byte checks.
+The Client bundles React Flow privately and resolves React, ReactDOM, the JSX runtime and UI primitives from the Host module table. Controls use the project's Menu, Input, Button, TextArea, Checkbox, Tooltip, ZoomControls, StateDot, AnimatedCollapse and Toast. CSS inherits application typography, radii, surfaces and semantic state colors. Third-party notices are distributed with the bundle.
 
 </details>
 
------
-
 <a id="further-exploration"></a>
-## Further Exploration
+## Further exploration
 
-- [Custom plugin architecture](../../architecture.md)
+- [Custom bundle architecture](../../architecture.md)
 - [Prompt-source research](../../docs/research/2026-10-28-image-style-prompt.md)
-- [API integration tests](tests/native.test.ts)
-
------
+- [Task integration tests](tests/native.test.ts)
+- [Canvas execution tests](tests/canvas.test.ts)
 
 <a id="model-experience"></a>
-## Model Experience
+## Model experience
 
-The workbench makes explicit auxiliary API calls; it installs no global instructions, Skills or Agent tools. Analysis receives real native image attachments and bounded structured-output instructions. Variant generation receives the selected style rules, original-content exclusions and new brief as text. Quick composition and export make no model requests. Main conversation behavior and Session formats are unchanged.
+Nodes explicitly initiate auxiliary LLM operations; the plugin installs no global instruction, Skill or Agent tool. Analysis sends native image attachments with bounded structured-output instructions. Prompt generation sends selected rules, source exclusions and the new scene as text. Quick composition, graph edits and exports do not call a model. Image generation sends the frozen prompt and explicitly connected reference attachments through the configured provider. The main conversation and Session format are unchanged.
 
 <a id="known-limitations-and-deferred-work"></a>
-## Known Limitations and Deferred Work
+## Known limitations and deferred work
 
-Schema validation and rule-ID checks cannot establish semantic accuracy or guarantee that a generated image preserves the intended style while differing enough from the reference. Single-image style remains provisional. Different model connections can return different observations; invalid or incomplete output requires an explicit new task. The generic reference plan is descriptive data, not a provider API payload. Exported reference checksums identify the saved attachment bytes, which can differ from the original upload after native normalization. Paid-provider quality evaluation and automatic generation are outside the keyless test fixtures.
+Style extraction and prompt validation cannot guarantee semantic accuracy or final-image quality. Generation providers must implement the public LLM image API; a conversational model is not automatically an image generator. This package does not execute diffusion locally or import native ComfyUI workflow JSON. Paid-provider output quality requires separate real-service evaluation; deterministic test images are only fixtures. Cross-profile canvas transfers require restoring referenced image attachments. Multi-analysis style blending is not supported: each prompt consumes one analysis and its selected rules.
 
 <a id="dev-note"></a>
-## Dev Note
+## Dev note
 
 None.

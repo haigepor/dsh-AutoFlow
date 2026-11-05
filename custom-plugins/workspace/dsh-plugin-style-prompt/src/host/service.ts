@@ -138,7 +138,7 @@ export class StylePromptService {
       }
       this.capacity()
       const route = input.route ?? source.route
-      if (input.mode === 'model') await this.model.preflight(route, signal)
+      if (input.mode === 'model') await this.model.preflight(route, signal, false)
       const record: GenerationRecord = { formatVersion: 1, id, kind: 'generation', createdAt: now(), updatedAt: now(), digest: inputDigest, status: input.mode === 'quick' ? 'succeeded' : 'running', failure: null, call: null, input, result: input.mode === 'quick' ? compileQuick(source.result, input) : null }
       signal.throwIfAborted()
       await this.repository.put(record)
