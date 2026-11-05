@@ -1,67 +1,60 @@
-version: 0.2.2-rc.1.20261105.1
+version: 0.2.2-rc.1.20261105.3
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.1-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.1-mac-x64-unsigned.zip
-    sha512: +50xF+XPjX4AwaNDNRVxL8x0/dXG5CSRj2GAjs4kyuYSDYy9BEa/M2bne4hglOe9jEbqEQPS2eUUnRj8LuOZYg==
-    size: 473822833
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.1-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.1-mac-x64-unsigned.zip
-sha512: +50xF+XPjX4AwaNDNRVxL8x0/dXG5CSRj2GAjs4kyuYSDYy9BEa/M2bne4hglOe9jEbqEQPS2eUUnRj8LuOZYg==
-releaseDate: '2026-11-04T19:30:03.554Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.3-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.3-mac-x64-unsigned.zip
+    sha512: bXzQl2AUFt3fPa7fwaX4g0dFKpHjHRhMtP9mg7IYniS6YaPcEUEkDaNT3l4DTIke54MxkLiv7Nb2/4VgOLqoFg==
+    size: 475226559
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.3-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.3-mac-x64-unsigned.zip
+sha512: bXzQl2AUFt3fPa7fwaX4g0dFKpHjHRhMtP9mg7IYniS6YaPcEUEkDaNT3l4DTIke54MxkLiv7Nb2/4VgOLqoFg==
+releaseDate: '2026-11-05T07:40:37.953Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261105.1
+  version: 0.2.2-rc.1.20261105.3
   items:
-    - id: official-rc1-navigation
-      category: improvements
+    - id: bundled-plugin-updates-20261105
+      category: other
       text:
-        en: Improve narrow-screen navigation and touch menus, add shared context menus and file actions, and retain AutoFlow's theme and full-page settings.
-        zh-CN: 改善窄屏导航和触屏菜单，接入统一右键菜单与文件操作，保留 AutoFlow 的主题及全窗口设置。
-    - id: official-rc1-runtime
+        en: Includes Visual Curator 0.2.13, Codex Subscription 0.2.3 and Style Prompt 0.2.0 while preserving saved profile data and activation choices.
+        zh-CN: 随附视觉策展 0.2.13、Codex 订阅 0.2.3、风格提示词 0.2.0，保留已有 profile 数据和启用选择。
+    - id: native-auxiliary-image-generation
       category: features
       text:
-        en: Integrate DSH 0.2.2-rc.1 with Host-wide scheduled-task management, model request compatibility fixes and optional change-request/worktree tools.
-        zh-CN: 集成 DSH 0.2.2-rc.1，接入宿主级计划任务管理、模型请求兼容性修复及可选的变更请求与工作树工具。
-    - id: plugin-automatic-activation
+        en: Configured Codex image models can generate original images and previews through the native model API for canvas workflows.
+        zh-CN: 已配置的 Codex 图片模型可通过原生模型接口供画布调用，分别保留生成原图和预览附件。
+    - id: style-prompt-node-canvas
+      category: features
+      text:
+        en: Style Prompt provides a persistent node canvas for reference analysis, bilingual prompts and image-generation branches, with autosave, history and import/export.
+        zh-CN: 风格提示词新增持久化节点画布，连接参考分析、双语提示词及生图分支，支持自动保存、历史和导入导出。
+    - id: visual-curator-organized-datasets
       category: improvements
       text:
-        en: Installed plugin updates apply automatically after current tasks finish. The completion card shows waiting and restart progress, while feature badges report their actual runtime state.
-        zh-CN: 插件更新安装完成后等待当前任务结束并自动重启生效；完成卡片显示等待和重启进度，功能标签及时反映真实运行状态。
-    - id: rc1-local-compatibility
-      category: fixes
-      text:
-        en: Fix preset selection during agent creation and title-output retries. Keep shared-session management menus within their granted access, and complete local settings copy for all eight interface languages.
-        zh-CN: 修复智能体创建时切换预设的等待问题及标题输出重试分类；分享会话只显示已获准的管理操作，并补齐八种界面语言的本地设置文案。
-    - id: visual-curator-old-host-picker
-      category: fixes
-      text:
-        en: Fix Visual Curator loading on older desktop builds by shipping its native image picker and Windows dialog worker with the plugin.
-        zh-CN: 视觉策展随插件提供原生图片选择器和 Windows 对话框工作进程，修复旧桌面版加载失败的问题。
+        en: Reference analysis automatically organizes and saves datasets, with consistent positive/negative roles, rule statistics and compact version history.
+        zh-CN: 参考分析自动整理并保存数据集，统一正反例角色与规则统计，紧凑展示数据集版本历史。
 releaseNotes: |-
   ## 新增功能
 
-  - 集成 DSH 0.2.2-rc.1，接入宿主级计划任务管理、模型请求兼容性修复及可选的变更请求与工作树工具。
+  - 已配置的 Codex 图片模型可通过原生模型接口供画布调用，分别保留生成原图和预览附件。
+  - 风格提示词新增持久化节点画布，连接参考分析、双语提示词及生图分支，支持自动保存、历史和导入导出。
 
   ## 体验优化
 
-  - 改善窄屏导航和触屏菜单，接入统一右键菜单与文件操作，保留 AutoFlow 的主题及全窗口设置。
-  - 插件更新安装完成后等待当前任务结束并自动重启生效；完成卡片显示等待和重启进度，功能标签及时反映真实运行状态。
+  - 参考分析自动整理并保存数据集，统一正反例角色与规则统计，紧凑展示数据集版本历史。
 
-  ## 问题修复
+  ## 其他变更
 
-  - 修复智能体创建时切换预设的等待问题及标题输出重试分类；分享会话只显示已获准的管理操作，并补齐八种界面语言的本地设置文案。
-  - 视觉策展随插件提供原生图片选择器和 Windows 对话框工作进程，修复旧桌面版加载失败的问题。
+  - 随附视觉策展 0.2.13、Codex 订阅 0.2.3、风格提示词 0.2.0，保留已有 profile 数据和启用选择。
 
   ---
 
   ## New features
 
-  - Integrate DSH 0.2.2-rc.1 with Host-wide scheduled-task management, model request compatibility fixes and optional change-request/worktree tools.
+  - Configured Codex image models can generate original images and previews through the native model API for canvas workflows.
+  - Style Prompt provides a persistent node canvas for reference analysis, bilingual prompts and image-generation branches, with autosave, history and import/export.
 
   ## Improvements
 
-  - Improve narrow-screen navigation and touch menus, add shared context menus and file actions, and retain AutoFlow's theme and full-page settings.
-  - Installed plugin updates apply automatically after current tasks finish. The completion card shows waiting and restart progress, while feature badges report their actual runtime state.
+  - Reference analysis automatically organizes and saves datasets, with consistent positive/negative roles, rule statistics and compact version history.
 
-  ## Bug fixes
+  ## Other changes
 
-  - Fix preset selection during agent creation and title-output retries. Keep shared-session management menus within their granted access, and complete local settings copy for all eight interface languages.
-  - Fix Visual Curator loading on older desktop builds by shipping its native image picker and Windows dialog worker with the plugin.
+  - Includes Visual Curator 0.2.13, Codex Subscription 0.2.3 and Style Prompt 0.2.0 while preserving saved profile data and activation choices.
