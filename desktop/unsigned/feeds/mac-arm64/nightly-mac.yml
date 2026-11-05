@@ -1,27 +1,60 @@
-version: 0.2.2-rc.1.20261105.2
+version: 0.2.2-rc.1.20261105.3
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.2-mac-arm64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.2-mac-arm64-unsigned.zip
-    sha512: XyL46SAh4DpYgRwyZ1FWr54/XZgTEvVyNmkHBymVD2ZZX2h1aqhJzQ0q6c0cbL976BHcqSTxZxrnE/GCz8O7SA==
-    size: 460915771
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.2-mac-arm64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.2-mac-arm64-unsigned.zip
-sha512: XyL46SAh4DpYgRwyZ1FWr54/XZgTEvVyNmkHBymVD2ZZX2h1aqhJzQ0q6c0cbL976BHcqSTxZxrnE/GCz8O7SA==
-releaseDate: '2026-11-05T02:45:50.344Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.3-mac-arm64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.3-mac-arm64-unsigned.zip
+    sha512: o2WB8TjCLM+HqMZtUtpQhtbGTkPV4W118oCtY6cRNgoLQqkQ6+jWAh4mMc7LdnUu6WBoWGV0vkDc6ueJQPDGoQ==
+    size: 462334468
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.3-mac-arm64-unsigned/deepseek-harness-0.2.2-rc.1.20261105.3-mac-arm64-unsigned.zip
+sha512: o2WB8TjCLM+HqMZtUtpQhtbGTkPV4W118oCtY6cRNgoLQqkQ6+jWAh4mMc7LdnUu6WBoWGV0vkDc6ueJQPDGoQ==
+releaseDate: '2026-11-05T07:08:47.807Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261105.2
+  version: 0.2.2-rc.1.20261105.3
   items:
-    - id: plugin-incompatible-update-recovery
-      category: fixes
+    - id: bundled-plugin-updates-20261105
+      category: other
       text:
-        en: Incompatible plugins keep their names, icons and release update controls so you can install a compatible version without allowing the old code to run.
-        zh-CN: 修复不兼容插件丢失名称、图标和更新入口的问题，可直接安装兼容版本，旧版代码仍受兼容性保护。
+        en: Includes Visual Curator 0.2.13, Codex Subscription 0.2.3 and Style Prompt 0.2.0 while preserving saved profile data and activation choices.
+        zh-CN: 随附视觉策展 0.2.13、Codex 订阅 0.2.3、风格提示词 0.2.0，保留已有 profile 数据和启用选择。
+    - id: native-auxiliary-image-generation
+      category: features
+      text:
+        en: Configured Codex image models can generate original images and previews through the native model API for canvas workflows.
+        zh-CN: 已配置的 Codex 图片模型可通过原生模型接口供画布调用，分别保留生成原图和预览附件。
+    - id: style-prompt-node-canvas
+      category: features
+      text:
+        en: Style Prompt provides a persistent node canvas for reference analysis, bilingual prompts and image-generation branches, with autosave, history and import/export.
+        zh-CN: 风格提示词新增持久化节点画布，连接参考分析、双语提示词及生图分支，支持自动保存、历史和导入导出。
+    - id: visual-curator-organized-datasets
+      category: improvements
+      text:
+        en: Reference analysis automatically organizes and saves datasets, with consistent positive/negative roles, rule statistics and compact version history.
+        zh-CN: 参考分析自动整理并保存数据集，统一正反例角色与规则统计，紧凑展示数据集版本历史。
 releaseNotes: |-
-  ## 问题修复
+  ## 新增功能
 
-  - 修复不兼容插件丢失名称、图标和更新入口的问题，可直接安装兼容版本，旧版代码仍受兼容性保护。
+  - 已配置的 Codex 图片模型可通过原生模型接口供画布调用，分别保留生成原图和预览附件。
+  - 风格提示词新增持久化节点画布，连接参考分析、双语提示词及生图分支，支持自动保存、历史和导入导出。
+
+  ## 体验优化
+
+  - 参考分析自动整理并保存数据集，统一正反例角色与规则统计，紧凑展示数据集版本历史。
+
+  ## 其他变更
+
+  - 随附视觉策展 0.2.13、Codex 订阅 0.2.3、风格提示词 0.2.0，保留已有 profile 数据和启用选择。
 
   ---
 
-  ## Bug fixes
+  ## New features
 
-  - Incompatible plugins keep their names, icons and release update controls so you can install a compatible version without allowing the old code to run.
+  - Configured Codex image models can generate original images and previews through the native model API for canvas workflows.
+  - Style Prompt provides a persistent node canvas for reference analysis, bilingual prompts and image-generation branches, with autosave, history and import/export.
+
+  ## Improvements
+
+  - Reference analysis automatically organizes and saves datasets, with consistent positive/negative roles, rule statistics and compact version history.
+
+  ## Other changes
+
+  - Includes Visual Curator 0.2.13, Codex Subscription 0.2.3 and Style Prompt 0.2.0 while preserving saved profile data and activation choices.
