@@ -1,0 +1,8 @@
+{
+  "id": "style-prompt-node-canvas",
+  "category": "features",
+  "text": {
+    "en": "Style Prompt provides a persistent node canvas for reference analysis, bilingual prompts and image-generation branches, with autosave, history and import/export.",
+    "zh-CN": "风格提示词新增持久化节点画布，连接参考分析、双语提示词及生图分支，支持自动保存、历史和导入导出。"
+  }
+}

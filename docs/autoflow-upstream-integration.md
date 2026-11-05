@@ -8,7 +8,7 @@ This record owns AutoFlow's upstream integration decisions. The current target i
 
 The official target is [dsh-v0.2.2-rc.1](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.1). The comparison starts at the previously integrated `dsh-v0.2.2-alpha.2`, rather than the release note's cumulative rc.5 range. Features already present in alpha.2, including additional locales, quoted input, attachment upload and provider controls, are retained rather than counted as new work.
 
-`codex/backup-main-before-rc1-20261104`, `codex/backup-mirror-before-rc1-20261104` and `codex/backup-local-before-rc1-20261104` retain the initial branch heads and pending local changes. Original files, the index and private platform configuration are also backed up outside Git. Existing user profiles and running services are excluded from verification.
+The initial branch heads and pending local changes were captured before rc.1 integration. Their adopted snapshot and later corrections are reachable from `main`; the temporary `codex/` backup branches are retired without changing the current source tree. Original files, the index and private platform configuration retain their separate backups. Existing user profiles and running services are excluded from verification.
 
 | Area | Integration decision |
 | --- | --- |

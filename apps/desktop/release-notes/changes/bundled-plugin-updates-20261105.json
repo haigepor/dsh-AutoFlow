@@ -1,0 +1,8 @@
+{
+  "id": "bundled-plugin-updates-20261105",
+  "category": "other",
+  "text": {
+    "en": "Includes Visual Curator 0.2.13, Codex Subscription 0.2.3 and Style Prompt 0.2.0 while preserving saved profile data and activation choices.",
+    "zh-CN": "随附视觉策展 0.2.13、Codex 订阅 0.2.3、风格提示词 0.2.0，保留已有 profile 数据和启用选择。"
+  }
+}

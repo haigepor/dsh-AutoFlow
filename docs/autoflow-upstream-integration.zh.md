@@ -8,7 +8,7 @@
 
 官方目标固定为 [dsh-v0.2.2-rc.1](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.1)。比较起点为此前已集成的 `dsh-v0.2.2-alpha.2`，与发布说明累积使用的 rc.5 范围区分。alpha.2 已具备的多语言、引用输入、附件上传和提供商控件继续保留，不重复计为本次新增。
 
-`codex/backup-main-before-rc1-20261104`、`codex/backup-mirror-before-rc1-20261104` 和 `codex/backup-local-before-rc1-20261104` 保留初始分支头及本地未提交改动。原始文件、索引和私有平台配置另有 Git 外备份。验证不使用已有用户 profile，也不操作运行中的服务。
+rc.1 集成前已保存初始分支头及本地未提交改动；已采用的快照与后续修正均可从 `main` 追溯，临时 `codex/` 备份分支已清理，当前源码文件树保持不变。原始文件、索引和私有平台配置另有独立备份。验证不使用已有用户 profile，也不操作运行中的服务。
 
 | 区域 | 集成决定 |
 | --- | --- |

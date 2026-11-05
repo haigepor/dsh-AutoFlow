@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.1.20261105.3",
+  "items": [
+    {
+      "id": "bundled-plugin-updates-20261105",
+      "category": "other",
+      "text": {
+        "en": "Includes Visual Curator 0.2.13, Codex Subscription 0.2.3 and Style Prompt 0.2.0 while preserving saved profile data and activation choices.",
+        "zh-CN": "随附视觉策展 0.2.13、Codex 订阅 0.2.3、风格提示词 0.2.0，保留已有 profile 数据和启用选择。"
+      }
+    },
+    {
+      "id": "native-auxiliary-image-generation",
+      "category": "features",
+      "text": {
+        "en": "Configured Codex image models can generate original images and previews through the native model API for canvas workflows.",
+        "zh-CN": "已配置的 Codex 图片模型可通过原生模型接口供画布调用，分别保留生成原图和预览附件。"
+      }
+    },
+    {
+      "id": "style-prompt-node-canvas",
+      "category": "features",
+      "text": {
+        "en": "Style Prompt provides a persistent node canvas for reference analysis, bilingual prompts and image-generation branches, with autosave, history and import/export.",
+        "zh-CN": "风格提示词新增持久化节点画布，连接参考分析、双语提示词及生图分支，支持自动保存、历史和导入导出。"
+      }
+    },
+    {
+      "id": "visual-curator-organized-datasets",
+      "category": "improvements",
+      "text": {
+        "en": "Reference analysis automatically organizes and saves datasets, with consistent positive/negative roles, rule statistics and compact version history.",
+        "zh-CN": "参考分析自动整理并保存数据集，统一正反例角色与规则统计，紧凑展示数据集版本历史。"
+      }
+    }
+  ]
+}

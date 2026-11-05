@@ -1,0 +1,8 @@
+{
+  "id": "native-auxiliary-image-generation",
+  "category": "features",
+  "text": {
+    "en": "Configured Codex image models can generate original images and previews through the native model API for canvas workflows.",
+    "zh-CN": "已配置的 Codex 图片模型可通过原生模型接口供画布调用，分别保留生成原图和预览附件。"
+  }
+}

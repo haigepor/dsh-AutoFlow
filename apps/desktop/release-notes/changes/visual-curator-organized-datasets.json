@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-organized-datasets",
+  "category": "improvements",
+  "text": {
+    "en": "Reference analysis automatically organizes and saves datasets, with consistent positive/negative roles, rule statistics and compact version history.",
+    "zh-CN": "参考分析自动整理并保存数据集，统一正反例角色与规则统计，紧凑展示数据集版本历史。"
+  }
+}
