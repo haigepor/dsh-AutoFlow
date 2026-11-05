@@ -361,6 +361,28 @@ it('shows update availability, explicit automatic permission and restart state i
   expect(screen.queryByRole('button', { name: en.updatesInstall })).toBeNull()
 })
 
+it('keeps an incompatible plugin recognizable and offers its compatible release', async () => {
+  const name = 'dsh-plugin-visual-curator'
+  const b = renderTab({ packages: [pkg({ name, version: '0.2.11', meta: { title: { en: 'Visual curator', zh: '视觉策展' }, icon: '/curator.svg' },
+    error: { code: 'incompatible-version', incompatible: [{ name, version: '0.2.11', runtimeVersion: '0.2.2-rc.1',
+      requirements: { '@deepseek-ai/dsh-session': '0.2.2-alpha.2' } }] },
+    update: { name, repository: 'example/plugins', automatic: false, status: 'available', version: '0.2.12', restartRequired: false },
+  })] })
+  fireEvent.click(screen.getByRole('button', { name: 'View Visual curator' }))
+  await act(async () => { b.setLanguage(zh) })
+  const detail = document.querySelector<HTMLElement>('[data-plugin-detail]')!
+  expect(detail.querySelector('img')?.getAttribute('src')).toBe('/curator.svg')
+  fireEvent.click(screen.getByText(zh.updatesTitle))
+  const updates = screen.getByText(zh.updatesTitle).closest('details')!
+  const install = within(updates).getByRole('button', { name: zh.updatesInstall })
+  expect({ title: within(detail).getByRole('heading', { name: '视觉策展' }).textContent,
+    reason: within(detail).getAllByRole('status').find(node => node.textContent?.includes('不兼容'))?.textContent,
+    status: within(updates).getByRole('status').textContent, action: install.textContent,
+  }).toEqual(JSON.parse(readFileSync(join(import.meta.dirname, 'expected/incompatible-update-recovery-zh.json'), 'utf8')))
+  fireEvent.click(install)
+  expect(b.actions.updateBundle).toHaveBeenCalledExactlyOnceWith(name)
+})
+
 it('keeps one update status visible when expanding and collapsing version settings', async () => {
   renderTab({ packages: [pkg({ update: { name: 'dsh-better-sidebar', repository: 'example/plugins', automatic: false, status: 'current', restartRequired: false } })] })
   fireEvent.click(screen.getByRole('button', { name: 'View dsh-better-sidebar' }))

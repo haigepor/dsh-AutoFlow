@@ -1017,6 +1017,8 @@ export class PluginManager extends TypertRemoteService {
       const readOnlyReason = this.protectsManager(name) ? 'management-required' as const : undefined
       let availability: BundleInfo['availability'] = 'missing'
       let version: string | undefined
+      let meta: BundleInfo['meta']
+      let update: BundleInfo['update']
       let listing: Pick<BundleInfo, 'listedByDefault'> = {}
       try {
         const info = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
@@ -1033,12 +1035,11 @@ export class PluginManager extends TypertRemoteService {
           if (typeof listedByDefault !== 'boolean') throw new Error('dsh.bundle.listedByDefault must be a boolean')
           listing = { listedByDefault }
         }
-        const compatibility = evaluatePluginCompatibility(info, exemptions)
-        if (compatibility !== undefined && !compatibility.exempted) throw new ManagementFailure('incompatible-version', [incompatiblePlugin(compatibility)])
+        update = this.updateInfo(name)
         const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
         const manifestPath = join(dir, 'package.json')
         const updateManager = resolveBundleUpdateManager(name, this.profile.installAnchor, this.profile.dir)
-        let meta = displayMetadata ? offered?.meta ?? await readPluginMetaAsync(name, pathToFileURL(manifestPath).href, iconURL) : undefined
+        meta = displayMetadata ? offered?.meta ?? await readPluginMetaAsync(name, pathToFileURL(manifestPath).href, iconURL) : undefined
         this.abort.signal.throwIfAborted()
         // 独立更新只替换实现；随应用提供的自定义图标继续由安装目录持有。
         if (displayMetadata && updateManager !== undefined && Object.hasOwn(installation.dependencies ?? {}, name)) {
@@ -1047,6 +1048,9 @@ export class PluginManager extends TypertRemoteService {
           this.abort.signal.throwIfAborted()
           if (shippedMeta?.icon !== undefined) meta = { ...meta, icon: shippedMeta.icon }
         }
+        // 静态展示和更新来源可供修复使用；不兼容插件仍不得初始化功能配置或加载代码。
+        const compatibility = evaluatePluginCompatibility(info, exemptions)
+        if (compatibility !== undefined && !compatibility.exempted) throw new ManagementFailure('incompatible-version', [incompatiblePlugin(compatibility)])
         // 待重启时继续展示旧选择，只有下一次启动才迁移新版功能文件。
         const selections = info.dsh?.bundle?.featureConfig !== undefined && !this.restartBundles.has(name)
           ? readBundleFeatureConfig(this.profile.dir, dir, name, info.dsh.bundle).features : undefined
@@ -1056,7 +1060,6 @@ export class PluginManager extends TypertRemoteService {
             enabled: selections?.[feature.id] ?? readPluginFeatureEnabled(this.profile.patchPath, feature.rowId, feature.defaultEnabled) }
         })
         const examples = declaredExamples(info)
-        const update = this.updateInfo(name)
         let platformError: ManagementError | undefined
         try { assertBundlePlatform(info.dsh?.bundle?.platforms, process.platform) }
         catch (error) { platformError = managementError(error) }
@@ -1077,6 +1080,8 @@ export class PluginManager extends TypertRemoteService {
         this.abort.signal.throwIfAborted()
         if (enabled || installed || optional || offered !== undefined) {
           bundles.push({ name, official, availability, ...listing, ...catalogMeta, ...target, ...(version === undefined ? {} : { version }),
+            ...meta === undefined ? {} : { meta },
+            ...update === undefined ? {} : { update },
             ...sourceOf(), enabled, installed, optional, removable: removable && readOnlyReason === undefined,
             ...(readOnlyReason === undefined ? {} : { readOnlyReason }),
             error: targetError ?? managementError(error), rows: [], overrides: [] })

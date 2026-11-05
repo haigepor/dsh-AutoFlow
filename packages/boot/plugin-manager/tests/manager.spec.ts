@@ -1,5 +1,5 @@
 /** Persistent manager behavior through a real profile Include and Loader. */
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import { once } from 'node:events'
 import { createServer, IncomingMessage, ServerResponse } from 'node:http'
@@ -187,6 +187,74 @@ it('checks by default without installing, then installs verified release bytes t
   await ctx.waterfall('connection/request', request, response, next)
   expect(response.statusCode).toBe(503)
   expect(next).not.toHaveBeenCalled()
+})
+
+it('recovers an incompatible profile override through its installation-owned release source', async () => {
+  githubFixture()
+  const icon = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M1 1h2"/></svg>'
+  const { manager, dir, ctx, profile } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
+    const installation = join(profileDir, '..', '..')
+    writeFileSync(join(installation, 'package.json'), JSON.stringify({ name: 'installation', dependencies: { core: '1.0.0', extra: '1.1.0' } }))
+    cpSync(join(profileDir, 'node_modules', 'core'), join(installation, 'node_modules', 'core'), { recursive: true })
+    const shipped = join(installation, 'node_modules', 'extra')
+    mkdirSync(shipped, { recursive: true })
+    writeFileSync(join(shipped, 'package.json'), JSON.stringify({ name: 'extra', version: '1.1.0',
+      dsh: { bundle: { patch: './cordis.patch.yml', update: updateSource } } }))
+    writeFileSync(join(shipped, 'cordis.patch.yml'), '[]\n')
+    const installed = join(profileDir, 'node_modules', 'extra')
+    const manifest = readProfileManifest('test', installed)
+    writeFileSync(join(installed, 'package.json'), JSON.stringify({ ...manifest, icon: './icon.svg',
+      peerDependencies: { '@deepseek-ai/dsh': '999.0.0' } }))
+    mkdirSync(join(installed, 'locale'))
+    writeFileSync(join(installed, 'locale', 'en.json'), JSON.stringify({ meta: { title: 'Recovery plugin' } }))
+    writeFileSync(join(installed, 'icon.svg'), icon)
+    writeFileSync(join(profileDir, 'library.json'), '{"savedItems":["keep-me"]}\n')
+  })
+  const row = (await manager.listBundles()).find(bundle => bundle.name === 'extra')
+  expect(row).toMatchObject({ version: '1.0.0', enabled: true, error: { code: 'incompatible-version' },
+    meta: { title: { en: 'Recovery plugin' }, icon: `data:image/svg+xml;base64,${Buffer.from(icon).toString('base64')}` },
+    update: { name: 'extra', repository: updateSource.repository, status: 'unchecked', automatic: false }, rows: [] })
+  expect(Reflect.get(ctx, 'managedProbe')).toBeUndefined()
+  expect(await manager.checkBundleUpdates()).toMatchObject([{ name: 'extra', status: 'available', version: '1.1.0' }])
+  expect(manager.listVersionExemptions()).toEqual({ exemptions: {}, warnings: [] })
+  const selection = readProfileManifest('test', dir).dsh?.profile?.bundles
+  const policy = parseDocument(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8'))
+  policy.set('offline', true)
+  policy.set('storeDir', join(profile.cwd, 'store'))
+  writeFileSync(join(dir, 'pnpm-workspace.yaml'), String(policy))
+  const result = await manager.updateBundleRelease('extra')
+  expect(result, JSON.stringify(result)).toMatchObject({ application: 'restart-required', packageResult: { exitCode: 0 } })
+  expect(readProfileManifest('test', join(dir, 'node_modules', 'extra')).version).toBe('1.1.0')
+  expect(readProfileManifest('test', dir).dsh?.profile?.bundles).toEqual(selection)
+  expect(readFileSync(join(dir, 'library.json'), 'utf8')).toBe('{"savedItems":["keep-me"]}\n')
+  expect(manager.listVersionExemptions()).toEqual({ exemptions: {}, warnings: [] })
+  expect((await manager.listBundles()).find(bundle => bundle.name === 'extra')).toMatchObject({ version: '1.1.0',
+    update: { restartRequired: true } })
+  expect(Reflect.get(ctx, 'managedProbe')).toBeUndefined()
+  let running = true
+  const restart = vi.fn()
+  Object.assign(profile, { restart })
+  ctx.provide('agents', { list: () => [{ id: 'recovery-task', status: running ? 'running' : 'idle',
+    inbox: { nextTurn: [], nextStep: [] } }] })
+  const generation = manager.restartStatus().generation
+  expect(manager.restartAfterUpdate(generation)).toBe(false)
+  running = false
+  expect(manager.restartAfterUpdate(generation)).toBe(true)
+  expect(restart).toHaveBeenCalledOnce()
+  await ctx.fiber.dispose()
+  let restarted: Context | undefined
+  try {
+    const nextProfile = { ...profile, startedBundles: loadProfileDirectory('test', dir, profile.installAnchor).layers.map(layer => layer.packageName) }
+    const next = await boot('test', join(dir, 'cordis.yml'), readProfilePatches('test', nextProfile), (root) => {
+      restarted = root
+      root.provide('appReady', { onReady: (listener: () => void) => { listener(); return () => {} } })
+      root.provide('profileContext', nextProfile)
+      root.loader.builtins.manager = PluginManager
+    })
+    expect(Reflect.get(next, 'managedProbe')).toBe('updated')
+    expect((await next.pluginManager.listBundles()).find(bundle => bundle.name === 'extra')?.error).toBeUndefined()
+    expect(readFileSync(join(dir, 'library.json'), 'utf8')).toBe('{"savedItems":["keep-me"]}\n')
+  } finally { await restarted?.fiber.dispose() }
 })
 
 it('installs an independent updater archive into the profile, retains activation and enables restart', async () => {
