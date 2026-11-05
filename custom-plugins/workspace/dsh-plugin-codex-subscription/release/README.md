@@ -26,6 +26,10 @@ The subscription settings page belongs to AutoFlow's Models package; this plugin
 
 None.
 
+## Codex Subscription 0.2.3
+
+Codex image models can register with AutoFlow's native LLM image API for canvas workflows. The bridge reuses saved accounts, image tasks and original/preview attachments, and cancellation stops the accepted task without resubmission. Older supported Hosts keep loading the existing subscription features and report that the new image registry needs a newer AutoFlow Desktop. The matching desktop release is 0.2.2-rc.1.20261105.3.
+
 ## Codex Subscription 0.2.0
 
 The package includes conversation image cards and live image-task status alongside its Host and tools. Account preflight and quota reporting distinguish unavailable accounts from request failures, while the relay handles streaming and WebSocket completion without turning incomplete responses into success. Saved accounts, credentials and tasks remain in their profile; use the matching AutoFlow build and restart after updating.

@@ -10,6 +10,8 @@ English | [中文](README.zh.md)
 
 Use ChatGPT subscription accounts for AutoFlow model calls, image generation and local OpenAI-compatible clients. Native image tools show generation cards and a gallery in the conversation; external clients can use the HTTP MCP server. An existing authenticated caller starts OAuth; account/login presentation belongs to model settings. The bundle adds no standalone settings page.
 
+The native image registry requires the matching AutoFlow Host. Older supported Hosts keep the subscription plugin available and log an upgrade notice for canvas image generation.
+
 ## Table of Contents
 
 - [Use this package](#use)
@@ -110,6 +112,8 @@ On DSH rc.1, `maxRequestImages` limits a model request to 50 retained image occu
 
 <details>
 <summary>Implementation details</summary>
+
+The matching AutoFlow Host also exposes the configured image catalog through `ctx.llm.registerImageProvider`. Auxiliary image consumers such as Style Prompt reuse the existing account scheduler, request limits and ImageService task lifecycle. Each auxiliary call owns its image task, resolves references from profile attachments, returns original and normalized-preview references, and cancels the same accepted task when its wait is aborted. It does not create a public relay key or add messages to a Session.
 
 [plugin.ts](src/host/plugin.ts) registers accounts, the provider, discovery and authenticated management. Internal model calls reuse `PiAiAdapter`; its SSE consumer and external Responses share [upstream.ts](src/host/upstream.ts). The pi-ai dependency must match the Harness adapter because stream instances and transcript types are shared. Only streaming POSTs to the fixed Codex Responses endpoint use WebSocket. Image REST and OAuth calls remain HTTP. [ImageService](src/host/images/service.ts) supplies native tools, MCP and Images routes from one durable task service.
 

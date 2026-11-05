@@ -10,6 +10,8 @@ kind: "package-bundle"
 
 使用 ChatGPT 订阅账号进行 AutoFlow 模型调用、生图和本地 OpenAI 兼容调用。原生图片工具在会话中显示生成卡片与图库，外部客户端可以使用 HTTP MCP 服务。授权由已有的已认证调用方发起，账号和登录交互由模型设置负责；本包不新增独立设置页面。
 
+原生图片注册能力需要配套 AutoFlow 宿主；旧版支持宿主继续加载订阅插件，并对画布生图记录明确的升级提示。
+
 ## 目录
 
 - [使用本包](#use)
@@ -110,6 +112,8 @@ Plus、Pro 和 Business 共用 OAuth 和动态发现，套餐名不代表固定�
 
 <details>
 <summary>实现细节</summary>
+
+配套 AutoFlow Host 还通过 `ctx.llm.registerImageProvider` 暴露已配置的图片模型目录。风格提示词等辅助图片消费方复用现有账号调度、请求限制与 ImageService 任务生命周期。每次辅助调用拥有自己的图片任务，从 profile 附件解析参考图，分别返回原图与规范化预览引用；等待被取消时中止同一个已受理任务。该能力不创建公开中转密钥，也不向 Session 添加消息。
 
 [plugin.ts](src/host/plugin.ts) 注册账号、模型、发现和已认证管理能力。内部模型调用复用 `PiAiAdapter`，其 SSE 消费方与外部 Responses 共用 [upstream.ts](src/host/upstream.ts)。pi-ai 依赖必须与 Harness 适配器使用同一版本，二者共享流实例与会话类型。仅发往固定 Codex Responses 地址的流式 POST 使用 WebSocket，图片 REST 和 OAuth 调用保留 HTTP。[ImageService](src/host/images/service.ts) 为原生工具、MCP 和 Images 路由提供统一持久任务服务。
 

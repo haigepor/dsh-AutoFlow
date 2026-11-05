@@ -107,6 +107,9 @@ export class CodexSubscriptionService {
   /** Current tool wait policy; accepted image tasks keep their own deadline. */
   get quickWaitMs(): number { return this.options.images.quickWaitMs }
 
+  /** Current validated image deadline for auxiliary provider result waits. */
+  get imageTimeoutMs(): number { return this.options.images.timeoutMs }
+
   /** Inspect protocol negotiation without network I/O or credential values.
    * @returns Current transport counters and version sources.
    */

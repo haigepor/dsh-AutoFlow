@@ -876,6 +876,8 @@ The [wire reference](../deepseek-llm-api-wire-extensions.md) defines the exact r
 
 ## Service and provider contracts
 
+Auxiliary image generation uses `registerImageProvider(provider, implementation)` alongside an existing text adapter. The registration is bound to that adapter's identity and its disposer withdraws the catalog and generator. `listImageModels(provider)` returns explicit image models; `generateImages(request)` rejects absent or unknown image models, honors pre-dispatch cancellation and calls the owning provider once without retries. Requests carry a caller-persisted `ImageGenerationId`, prompt, reference attachments, size, quality and signal. Results contain separate original-file and normalized-preview references. This API does not add image output to conversational streams or change Session data. [Image-generation types](../../packages/llm/llm/src/image-generation.ts) define the provider and consumer responsibilities.
+
 `LlmAdapter` is the provider contract: subclass, implement `stream()`, and register one adapter instance with `ctx.llm.registerAdapter(providers, adapter)`. `GenerateOptions.provider` selects the registered adapter; `GenerateOptions.model` is passed to that adapter and need not be registered at lifecycle start. Duplicate provider routes fail atomically. Optional `providerRetryPolicy()` is captured per route with normal defaults, while `providerInfo()` and asynchronous `listModels()` feed `LlmRuntime.listProviders()` / `listModels()` with detached selector metadata. That catalog is advisory rather than a request whitelist: the adapter remains authoritative and may accept unlisted model ids. One asynchronous `resolveModel()` query returns exact model identity plus optional correctness-sensitive context capacity, an adapter-configured `defaultMaxTokens`, and ordered model-owned reasoning ids with an optional deployment default; absent fields mean unavailable metadata or provider-owned behavior, not invalid catalog membership. The resolver receives optional cancellation and must settle promptly after abort. `LlmRuntime.resolveModelInfo()` validates and detaches the aggregate. At the final adapter boundary, `resolveCallConfig()` materializes the output default only when `maxTokens` is absent and validates and materializes reasoning, so direct calls cannot bypass either configured behavior; direct dispatch captures one registration before awaiting that resolution. The agent loop instead uses `prepareCall()` to keep the same registration across model resolution, durable header logging, and dispatch, retain detached context metadata from that exact lookup, and report which config fields the adapter defaulted. Adapter lookup happens at the terminal continuation of the `llm/stream` waterfall, so a listener may short-circuit the call or route a mutable one-shot request before lookup. AgentLoop observes a request attempt once the outer waterfall returns a stream handle; that limited boundary does not prove a lazy terminal adapter was constructed or began provider I/O. The `block-start` / `block-end` `index` correlation and the assembler together mean an adapter only has to emit well-formed chunks — block reassembly is not each adapter's problem. [architecture.md](../architecture.md#turn-flow) shows where `ctx.llm.stream()` and the `llm/stream` waterfall sit in one turn.
 
 ```ts type-equiv
@@ -1165,6 +1167,25 @@ async resolveModelInfo( provider: string, model: string, signal?: AbortSignal, )
  * @returns Results from the selected model's credentials and endpoint.
  */
 async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult>
+
+/** Register auxiliary image generation for an existing model route.
+ * @param provider Registered LLM provider identity.
+ * @param implementation Provider-owned image models, credentials and attachment persistence.
+ * @returns Disposer removing only this registration.
+ */
+registerImageProvider(provider: string, implementation: ImageGenerationProvider): () => void
+
+/** List configured image models without inferring image output from vision input.
+ * @param provider Existing provider route.
+ * @returns Configured image models; text-only routes return an empty list.
+ */
+async listImageModels(provider: string): Promise<readonly ImageGenerationModel[]>
+
+/** Execute one explicit image request without conversation streaming or automatic retries.
+ * @param request Input already persisted by its owning auxiliary task.
+ * @returns Durable original and preview attachments.
+ */
+async generateImages(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>
 
 /**
  * Validate a conversation call config against its exact model capability and

@@ -85,6 +85,8 @@ const configure = (maxTokens: number): ConfigureCall =>
 
 ### 你可以做什么
 
+- **辅助图片生成**——`registerImageProvider()` 为现有提供方路由注册明确的图片模型目录和执行器。`listImageModels()` 仅暴露该目录；`generateImages()` 校验模型后，通过提供方已配置账号执行一次，分别返回原图和规范化预览附件。调用方在派发前保存请求并负责取消。文本流或视觉输入支持不代表生图能力。
+
 - **流式发起一次模型调用**——`ctx.llm.stream(options)` 为任何已注册提供方与模型产出原始分片（token 级增量）；消费方用 `BlockAssembler` 组装。
 - **注册提供方适配器**——一个适配器拥有一个或多个提供方路由，其注册会捕获该路由的重试策略；重复注册同一路由会以 `DUPLICATE_ADAPTER` 失败。
 - **通过配置暴露并激活提供方**——适配器声明可配置提供方路由与 settings namespace，配置界面因此可以激活休眠提供方并编辑连接信息，无需重启。`LlmConfigurableProvider.error` 报告供修复的配置诊断；未受影响的模型仍可提供服务。条目还可携带 `defaultBaseURL`，即配置未设置端点时适配器使用的端点；以及 `nativeAuth`，即配置未指定凭据引用时适配器认证读取的环境变量与 OAuth 登录；`baseURLEnv` 列出配置端点所用的环境变量。配置界面直接从目录读取这些字段，无需调用适配器。

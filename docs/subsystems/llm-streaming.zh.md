@@ -882,6 +882,8 @@ interface LlmCallConfigAdapterDefaults {
 
 ## 服务与提供方约定
 
+辅助生图通过 `registerImageProvider(provider, implementation)` 注册到现有文本适配器旁。注册绑定该适配器的身份，释放时移除目录与执行器。`listImageModels(provider)` 返回明确的图片模型；`generateImages(request)` 拒绝缺失或未知模型，遵守派发前取消，并且只调用提供方一次、不自动重试。请求包含调用方预先持久化的 `ImageGenerationId`、提示词、参考附件、尺寸、质量和取消信号；结果分别返回原文件和规范化预览引用。此 API 不向对话流新增图片输出，也不改变 Session 数据。[图片生成类型](../../packages/llm/llm/src/image-generation.ts) 定义提供方与消费方职责。
+
 `LlmAdapter` 是提供方约定：创建子类、实现 `stream()`，再用 `ctx.llm.registerAdapter(providers, adapter)` 注册一个适配器实例。`GenerateOptions.provider` 选择已注册适配器；`GenerateOptions.model` 会传给该适配器，无需在生命周期启动时注册。重复提供方路由会原子失败。可选的 `providerRetryPolicy()` 会按路由捕获并填入 normal 默认值，`providerInfo()` 与异步 `listModels()` 方法则为 `LlmRuntime.listProviders()` / `listModels()` 提供分离的 selector 元数据。该目录仅供参考，不是请求白名单：适配器仍是权威，并可接受未列出的模型 id。单次异步 `resolveModel()` 查询返回确切模型身份，以及可选的对正确性敏感的上下文容量、适配器配置的 `defaultMaxTokens`、由模型持有的有序推理强度 ID 和可选的部署默认值；字段缺失表示元数据不可用或保留提供方持有的行为，而不表示目录成员关系无效。解析器会接收可选的取消信号，并且必须在信号中止后迅速完成结算。`LlmRuntime.resolveModelInfo()` 会校验聚合结果并返回分离值。在最终适配器边界，`resolveCallConfig()` 仅在 `maxTokens` 缺失时填入输出默认值，并校验和填入推理强度，因此直接调用也无法绕过任何一项已配置行为；直接分派会在等待解析前捕获一项适配器注册。agent loop 则使用 `prepareCall()`，使模型解析、请求头持久记录和分派全程使用同一项注册，保留来自同一次查询的分离上下文元数据，并报告适配器填入的配置字段。适配器查找发生在 `llm/stream` waterfall 的终端 continuation，因此 listener 可以在查找前短路调用，或路由一个可变的一次性请求。AgentLoop 在外层 waterfall 返回流句柄时观察到一次请求尝试；这个有限边界不能证明惰性终端适配器已构造完成或开始提供方 I/O。`block-start` / `block-end` 的 `index` 关联与 assembler 共同意味着适配器只需 emit 格式正确的分片——块重组不是每个适配器各自的问题。`ctx.llm.stream()` 与 `llm/stream` waterfall 在一个轮次中的位置见 [architecture.md](../architecture.zh.md#turn-flow)。
 
 ```ts type-equiv
@@ -1171,6 +1173,25 @@ async resolveModelInfo( provider: string, model: string, signal?: AbortSignal, )
  * @returns Results from the selected model's credentials and endpoint.
  */
 async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult>
+
+/** Register auxiliary image generation for an existing model route.
+ * @param provider Registered LLM provider identity.
+ * @param implementation Provider-owned image models, credentials and attachment persistence.
+ * @returns Disposer removing only this registration.
+ */
+registerImageProvider(provider: string, implementation: ImageGenerationProvider): () => void
+
+/** List configured image models without inferring image output from vision input.
+ * @param provider Existing provider route.
+ * @returns Configured image models; text-only routes return an empty list.
+ */
+async listImageModels(provider: string): Promise<readonly ImageGenerationModel[]>
+
+/** Execute one explicit image request without conversation streaming or automatic retries.
+ * @param request Input already persisted by its owning auxiliary task.
+ * @returns Durable original and preview attachments.
+ */
+async generateImages(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>
 
 /**
  * Validate a conversation call config against its exact model capability and

@@ -9,6 +9,7 @@ import { Config } from './config.ts'
 import { CodexSubscriptionService, GATEWAY_KEY, safeCode } from './service.ts'
 import { CodexPoolAdapter } from './llm/index.ts'
 import { codexDiscoveryView } from './models.ts'
+import { imageLlmProvider } from './images/llm.ts'
 
 export { Config }
 export const name = 'dsh-plugin-codex-subscription'
@@ -50,6 +51,11 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     resolveImageAccess: (attachments, ref) => resolveImageAttachmentAccess(attachments, path => ctx.get('fs')?.processPathFromHostPath(path), ref),
   })
   ctx.effect(() => ctx.llm.registerAdapter(['autoflow-codex'], adapter), 'Codex subscription model adapter')
+  // Older supported hosts lack the auxiliary image registry.
+  if (typeof ctx.llm.registerImageProvider === 'function') {
+    ctx.effect(() => ctx.llm.registerImageProvider('autoflow-codex', imageLlmProvider(service.images, ctx.attachments,
+      async () => (await service.modelCatalog()).entries.filter(entry => entry.kind === 'image').map(entry => ({ id: entry.id, name: entry.name })), () => service.imageTimeoutMs)), 'Codex subscription image provider')
+  } else ctx.logger.warn('Update AutoFlow Desktop to expose Codex image generation to canvas workflows.')
   ctx.effect(() => ctx.llm.registerConfigurableProviders([{ provider: 'autoflow-codex', displayName: 'ChatGPT / Codex', settingsNs, settingsPath: [],
     nativeAuth: { env: [], oauth: true } }]), 'Codex subscription model directory')
   ctx.effect(() => ctx.llm.registerModelDiscovery(settingsNs, async (_request, signal) => {

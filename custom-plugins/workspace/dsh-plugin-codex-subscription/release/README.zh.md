@@ -26,6 +26,10 @@ pnpm --filter dsh-plugin-codex-subscription run release:prepare --out .artifacts
 
 无。
 
+## Codex 订阅 0.2.3
+
+Codex 图片模型可通过 AutoFlow 原生 LLM 图片接口供节点画布调用。桥接复用已有账号、图片任务和原图/预览附件；取消会停止已受理任务，不会再次提交。旧版支持宿主继续加载已有订阅功能，并明确提示新图片注册能力需要更新 AutoFlow 桌面端。本次配套桌面版本为 0.2.2-rc.1.20261105.3。
+
 ## Codex Subscription 0.2.0
 
 本包在 Host 与工具之外包含会话图片卡片及实时图片任务状态。账号预检和额度报告区分账号不可用与请求失败，代理处理流式及 WebSocket 完成状态，不将未完成响应标为成功。已保存账号、凭据和任务保留在各自 profile 中；更新后需配套 AutoFlow 构建并重启。

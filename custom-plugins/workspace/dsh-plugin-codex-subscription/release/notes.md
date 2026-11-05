@@ -1,7 +1,11 @@
-## Codex Subscription 0.2.2
+## Codex Subscription 0.2.3
 
-Supports AutoFlow hosts based on DSH 0.2.2-alpha.2 and 0.2.2-rc.1 through an explicit compatibility range. On the matching rc.1 desktop, oversized image histories can omit the oldest images and continue the request. Existing account credentials, gateway keys, tasks, configuration and activation choices remain. Older desktop builds require a manual restart after installation; the matching new desktop waits for current work before restarting automatically. Automatic installation remains opt-in.
+Codex image models can register with AutoFlow's native LLM image API for canvas workflows. The bridge reuses saved accounts, image tasks and original/preview attachments, and cancellation stops the accepted task without resubmission. Older supported Hosts keep loading the existing subscription features and report that the new image registry needs a newer AutoFlow Desktop. The matching desktop release is 0.2.2-rc.1.20261105.3.
 
-## Codex 订阅 0.2.2
+Update after current work finishes, then restart AutoFlow. Existing accounts, credentials, gateway keys, tasks and activation choices remain. Keyless release tests do not establish live subscription image quality. Automatic installation remains opt-in.
 
-通过明确的兼容范围支持基于 DSH 0.2.2-alpha.2 和 0.2.2-rc.1 的 AutoFlow 宿主。配套 rc.1 桌面版可在图片过多时省略最早图片并继续请求。已有账号凭据、网关密钥、任务、配置和启用选择保留。旧桌面版安装后需手动重启；配套新桌面版会等待当前工作结束后自动重启生效。自动安装仍需明确开启。
+## Codex 订阅 0.2.3
+
+Codex 图片模型可通过 AutoFlow 原生 LLM 图片接口供节点画布调用。桥接复用已有账号、图片任务和原图/预览附件；取消会停止已受理任务，不会再次提交。旧版支持宿主继续加载已有订阅功能，并明确提示新图片注册能力需要更新 AutoFlow 桌面端。本次配套桌面版本为 0.2.2-rc.1.20261105.3。
+
+在当前工作结束后更新并重启 AutoFlow。保留账号、凭据、网关密钥、任务和启用选择。无密钥发布测试不代表真实订阅图片质量已验收。自动安装仍需明确开启。

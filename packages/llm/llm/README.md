@@ -85,6 +85,8 @@ const configure = (maxTokens: number): ConfigureCall =>
 
 ### What you can do
 
+- **Generate auxiliary images** — `registerImageProvider()` attaches an explicit image catalog and generator to an existing provider route. `listImageModels()` exposes only that catalog; `generateImages()` validates membership and delegates once through the provider's configured account, returning separate original and normalized-preview attachments. The caller persists its request before dispatch and owns cancellation. Text streaming and vision input support do not imply image generation.
+
 - **Stream one model call** — `ctx.llm.stream(options)` yields raw chunks (token-level deltas) for any registered provider and model; consumers assemble them with `BlockAssembler`.
 - **Register provider adapters** — an adapter owns one or more provider routes, and its registration captures that route's retry policy; registering the same route twice fails with `DUPLICATE_ADAPTER`.
 - **Expose and activate providers through configuration** — adapters declare configurable-provider routes plus a settings namespace, so configuration surfaces can activate dormant providers and edit connection facts without a restart. `LlmConfigurableProvider.error` reports a configuration diagnostic for repair; unaffected models can remain serviceable. An entry can also carry `defaultBaseURL`, the endpoint the adapter uses when the profile sets none, and `nativeAuth`, the environment variables and OAuth sign-in that the adapter's authentication reads when the profile names no credential reference; `baseURLEnv` lists environment variables used to configure the endpoint. Configuration UIs read these fields from the directory without calling the adapter.

@@ -38,6 +38,7 @@ import type { ConfigureCall, LlmCallConfig, LlmCallConfigAdapterDefaults } from 
 import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
 import { normalizeApiKey } from './api-key.ts'
+import type { ImageGenerationModel, ImageGenerationProvider, ImageGenerationRequest, GeneratedImage } from './image-generation.ts'
 import {
   contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModel, projectToolUpdates,
 } from './content.ts'
@@ -48,6 +49,7 @@ export * from './brand.ts'
 export * from './error.ts'
 export * from './api-key.ts'
 export * from './types.ts'
+export * from './image-generation.ts'
 export * from './content.ts'
 export * from './assistant-stream.ts'
 export * from './message.ts'
@@ -363,6 +365,7 @@ export interface DirectoryRegistrationHandle {
  */
 export class LlmRuntime extends TypertRemoteService {
   private adapters = new Map<string, AdapterRegistration>()
+  private readonly imageProviders = new Map<string, { adapter: LlmAdapter; implementation: ImageGenerationProvider }>()
   private directory = new Map<string, LlmConfigurableProvider>()
   private discoveries = new Map<
     string,
@@ -792,6 +795,45 @@ export class LlmRuntime extends TypertRemoteService {
     const model = await this.resolveModelInfoFor(registration, request.model, request.signal)
     if (model.nativeWebSearch !== true) throw new LlmError('Native web search is disabled for this model', 'UNSUPPORTED_OPTION')
     return registration.adapter.searchNative(request)
+  }
+
+  /** Register auxiliary image generation for an existing model route.
+   * @param provider Registered LLM provider identity.
+   * @param implementation Provider-owned image models, credentials and attachment persistence.
+   * @returns Disposer removing only this registration.
+   */
+  registerImageProvider(provider: string, implementation: ImageGenerationProvider): () => void {
+    const adapter = this.registration(provider).adapter
+    if (this.imageProviders.has(provider)) throw new LlmError('Image provider is already registered', 'DUPLICATE_PROVIDER')
+    const binding = { adapter, implementation }
+    this.imageProviders.set(provider, binding)
+    this.emitAdaptersUpdated()
+    return () => { if (this.imageProviders.get(provider) === binding) { this.imageProviders.delete(provider); this.emitAdaptersUpdated() } }
+  }
+
+  /** List configured image models without inferring image output from vision input.
+   * @param provider Existing provider route.
+   * @returns Configured image models; text-only routes return an empty list.
+   */
+  async listImageModels(provider: string): Promise<readonly ImageGenerationModel[]> {
+    const adapter = this.registration(provider).adapter, binding = this.imageProviders.get(provider)
+    if (!binding || binding.adapter !== adapter) return []
+    const models = await binding.implementation.listModels()
+    return structuredClone(this.imageProviders.get(provider) === binding && this.registration(provider).adapter === adapter ? models : [])
+  }
+
+  /** Execute one explicit image request without conversation streaming or automatic retries.
+   * @param request Input already persisted by its owning auxiliary task.
+   * @returns Durable original and preview attachments.
+   */
+  async generateImages(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]> {
+    request.signal.throwIfAborted()
+    const adapter = this.registration(request.provider).adapter, binding = this.imageProviders.get(request.provider)
+    const implementation = binding?.adapter === adapter ? binding.implementation : undefined
+    if (!implementation || !(await implementation.listModels()).some(model => model.id === request.model)) throw new LlmError('Image generation is unavailable for this model', 'UNSUPPORTED_OPTION')
+    request.signal.throwIfAborted()
+    if (this.imageProviders.get(request.provider) !== binding || this.registration(request.provider).adapter !== adapter) throw new LlmError('Image provider was removed before dispatch', 'UNSUPPORTED_OPTION')
+    return implementation.generate(request)
   }
 
   private async resolveModelInfoFor(

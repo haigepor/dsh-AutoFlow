@@ -2063,6 +2063,24 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Results from the selected model\'s credentials and endpoint.',
       },
       {
+        signature: 'registerImageProvider(provider: string, implementation: ImageGenerationProvider): () => void',
+        description: 'Register auxiliary image generation for an existing model route.',
+        parameters: [{ name: 'provider', description: 'Registered LLM provider identity.' }, { name: 'implementation', description: 'Provider-owned image models, credentials and attachment persistence.' }],
+        returns: 'Disposer removing only this registration.',
+      },
+      {
+        signature: 'async listImageModels(provider: string): Promise<readonly ImageGenerationModel[]>',
+        description: 'List configured image models without inferring image output from vision input.',
+        parameters: [{ name: 'provider', description: 'Existing provider route.' }],
+        returns: 'Configured image models; text-only routes return an empty list.',
+      },
+      {
+        signature: 'async generateImages(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>',
+        description: 'Execute one explicit image request without conversation streaming or automatic retries.',
+        parameters: [{ name: 'request', description: 'Input already persisted by its owning auxiliary task.' }],
+        returns: 'Durable original and preview attachments.',
+      },
+      {
         signature: 'async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig>',
         description: 'Validate a conversation call config against its exact model capability and materialize adapter-configured defaults. Unsupported explicit efforts reject before provider I/O; no clamping or aliasing is performed. This standalone query does not bind a later dispatch; use prepareCall when logging and streaming must share one adapter registration.',
         parameters: [{ name: 'config', description: 'provider/model route and optional request controls.' }, { name: 'signal', description: 'optional cancellation for adapter-owned capability lookup.' }],
@@ -6985,6 +7003,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface FsWriteOutcome {\n    operation: \'create\' | \'update\';\n    version: FsVersion;\n    before: string | null;\n    after: string;\n}',
   },
   {
+    name: 'GeneratedImage',
+    declaration: 'export interface GeneratedImage {\n    readonly original: FileAttachmentRef;\n    readonly preview: ImageAttachmentRef;\n}',
+  },
+  {
     name: 'GenerateOptions',
     declaration: 'export interface GenerateOptions<Purpose extends string = LlmRequestPurpose> {\n    provider: string;\n    model: string;\n    reasoningEffort?: ReasoningEffortId;\n    messages: RequestMessage[];\n    system?: string;\n    tools?: ToolSchema[];\n    toolHistory?: ToolHistory;\n    temperature?: number;\n    maxTokens?: number;\n    stop?: string[];\n    signal?: AbortSignal;\n    sessionId?: Branded<\'SessionId\'>;\n    purpose?: Purpose;\n}',
   },
@@ -7083,6 +7105,22 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ImageBlock',
     declaration: 'export interface ImageBlock {\n    type: \'image\';\n    attachment: ImageAttachmentRef;\n    offloaded?: true;\n}',
+  },
+  {
+    name: 'ImageGenerationId',
+    declaration: 'export type ImageGenerationId = Branded<\'Llm.ImageGenerationId\'>;',
+  },
+  {
+    name: 'ImageGenerationModel',
+    declaration: 'export interface ImageGenerationModel {\n    readonly id: string;\n    readonly name: string;\n}',
+  },
+  {
+    name: 'ImageGenerationProvider',
+    declaration: 'export interface ImageGenerationProvider {\n    listModels(): Promise<readonly ImageGenerationModel[]>;\n    generate(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>;\n}',
+  },
+  {
+    name: 'ImageGenerationRequest',
+    declaration: 'export interface ImageGenerationRequest {\n    readonly id: ImageGenerationId;\n    readonly provider: string;\n    readonly model: string;\n    readonly prompt: string;\n    readonly references: readonly ImageAttachmentRef[];\n    readonly size: string;\n    readonly quality: \'auto\' | \'low\' | \'medium\' | \'high\';\n    readonly signal: AbortSignal;\n}',
   },
   {
     name: 'ImageMediaType',
@@ -7418,7 +7456,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LlmRuntime',
-    declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    imageRequestTarget(provider: string, model: string, image: ImageAttachmentRef): ImageRequestTarget;\n    fileRequestText(ref: FileAttachmentRef): string;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult>;\n    async resolveCallConfig(config: /* …truncated — full shape in source */',
+    declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    imageRequestTarget(provider: string, model: string, image: ImageAttachmentRef): ImageRequestTarget;\n    fileRequestText(ref: FileAttachmentRef): string;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult>;\n    registerImageProvider(provider: /* …truncated — full shape in source */',
   },
   {
     name: 'LocalAtInput',
