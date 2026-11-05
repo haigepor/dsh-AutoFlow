@@ -1,67 +1,27 @@
-version: 0.2.2-rc.1.20261105.1
+version: 0.2.2-rc.1.20261105.2
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.1-unsigned/deepseek-harness-0.2.2-rc.1.20261105.1-win-x64-unsigned.exe
-    sha512: 7jEYtlmU4c3mhdHbrzHFT0Bbm6fCS7MAE17n1Pm3YUT4hi1g+deQ+Uw/kx3AMZ5UhA4RhtAzJI5+bEg7/14Yng==
-    size: 414376533
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.1-unsigned/deepseek-harness-0.2.2-rc.1.20261105.1-win-x64-unsigned.exe
-sha512: 7jEYtlmU4c3mhdHbrzHFT0Bbm6fCS7MAE17n1Pm3YUT4hi1g+deQ+Uw/kx3AMZ5UhA4RhtAzJI5+bEg7/14Yng==
-releaseDate: '2026-11-04T19:15:26.119Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.2-unsigned/deepseek-harness-0.2.2-rc.1.20261105.2-win-x64-unsigned.exe
+    sha512: n5l0qeFW/WjmX4pCD7ly4fDuG4myYd5iBaAOU6BWN4NnrouxxC0wQpMHlQeoeWTX9L+cJsIIEpqAySlUK59/bg==
+    size: 414372431
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.2-unsigned/deepseek-harness-0.2.2-rc.1.20261105.2-win-x64-unsigned.exe
+sha512: n5l0qeFW/WjmX4pCD7ly4fDuG4myYd5iBaAOU6BWN4NnrouxxC0wQpMHlQeoeWTX9L+cJsIIEpqAySlUK59/bg==
+releaseDate: '2026-11-05T02:42:01.128Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261105.1
+  version: 0.2.2-rc.1.20261105.2
   items:
-    - id: official-rc1-navigation
-      category: improvements
-      text:
-        en: Improve narrow-screen navigation and touch menus, add shared context menus and file actions, and retain AutoFlow's theme and full-page settings.
-        zh-CN: 改善窄屏导航和触屏菜单，接入统一右键菜单与文件操作，保留 AutoFlow 的主题及全窗口设置。
-    - id: official-rc1-runtime
-      category: features
-      text:
-        en: Integrate DSH 0.2.2-rc.1 with Host-wide scheduled-task management, model request compatibility fixes and optional change-request/worktree tools.
-        zh-CN: 集成 DSH 0.2.2-rc.1，接入宿主级计划任务管理、模型请求兼容性修复及可选的变更请求与工作树工具。
-    - id: plugin-automatic-activation
-      category: improvements
-      text:
-        en: Installed plugin updates apply automatically after current tasks finish. The completion card shows waiting and restart progress, while feature badges report their actual runtime state.
-        zh-CN: 插件更新安装完成后等待当前任务结束并自动重启生效；完成卡片显示等待和重启进度，功能标签及时反映真实运行状态。
-    - id: rc1-local-compatibility
+    - id: plugin-incompatible-update-recovery
       category: fixes
       text:
-        en: Fix preset selection during agent creation and title-output retries. Keep shared-session management menus within their granted access, and complete local settings copy for all eight interface languages.
-        zh-CN: 修复智能体创建时切换预设的等待问题及标题输出重试分类；分享会话只显示已获准的管理操作，并补齐八种界面语言的本地设置文案。
-    - id: visual-curator-old-host-picker
-      category: fixes
-      text:
-        en: Fix Visual Curator loading on older desktop builds by shipping its native image picker and Windows dialog worker with the plugin.
-        zh-CN: 视觉策展随插件提供原生图片选择器和 Windows 对话框工作进程，修复旧桌面版加载失败的问题。
+        en: Incompatible plugins keep their names, icons and release update controls so you can install a compatible version without allowing the old code to run.
+        zh-CN: 修复不兼容插件丢失名称、图标和更新入口的问题，可直接安装兼容版本，旧版代码仍受兼容性保护。
 releaseNotes: |-
-  ## 新增功能
-
-  - 集成 DSH 0.2.2-rc.1，接入宿主级计划任务管理、模型请求兼容性修复及可选的变更请求与工作树工具。
-
-  ## 体验优化
-
-  - 改善窄屏导航和触屏菜单，接入统一右键菜单与文件操作，保留 AutoFlow 的主题及全窗口设置。
-  - 插件更新安装完成后等待当前任务结束并自动重启生效；完成卡片显示等待和重启进度，功能标签及时反映真实运行状态。
-
   ## 问题修复
 
-  - 修复智能体创建时切换预设的等待问题及标题输出重试分类；分享会话只显示已获准的管理操作，并补齐八种界面语言的本地设置文案。
-  - 视觉策展随插件提供原生图片选择器和 Windows 对话框工作进程，修复旧桌面版加载失败的问题。
+  - 修复不兼容插件丢失名称、图标和更新入口的问题，可直接安装兼容版本，旧版代码仍受兼容性保护。
 
   ---
 
-  ## New features
-
-  - Integrate DSH 0.2.2-rc.1 with Host-wide scheduled-task management, model request compatibility fixes and optional change-request/worktree tools.
-
-  ## Improvements
-
-  - Improve narrow-screen navigation and touch menus, add shared context menus and file actions, and retain AutoFlow's theme and full-page settings.
-  - Installed plugin updates apply automatically after current tasks finish. The completion card shows waiting and restart progress, while feature badges report their actual runtime state.
-
   ## Bug fixes
 
-  - Fix preset selection during agent creation and title-output retries. Keep shared-session management menus within their granted access, and complete local settings copy for all eight interface languages.
-  - Fix Visual Curator loading on older desktop builds by shipping its native image picker and Windows dialog worker with the plugin.
+  - Incompatible plugins keep their names, icons and release update controls so you can install a compatible version without allowing the old code to run.
