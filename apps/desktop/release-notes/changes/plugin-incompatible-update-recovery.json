@@ -1,0 +1,8 @@
+{
+  "id": "plugin-incompatible-update-recovery",
+  "category": "fixes",
+  "text": {
+    "en": "Incompatible plugins keep their names, icons and release update controls so you can install a compatible version without allowing the old code to run.",
+    "zh-CN": "修复不兼容插件丢失名称、图标和更新入口的问题，可直接安装兼容版本，旧版代码仍受兼容性保护。"
+  }
+}
