@@ -89,7 +89,7 @@ test('analysis detail reads one manifest snapshot and verifies each saved depend
     const detail = analysisDetailSchema.parse(await f.action('analysis-detail', { runId: f.runId }))
     assert.equal(detail.images.length, 1)
     assert.equal(detail.observations.length, 1)
-    assert.equal(detail.requests.length, 1)
+    assert.equal(detail.requests.length, 2)
     assert.equal(f.adapter.manifestReads, 1)
     assert.ok([...f.adapter.reads.values()].every(count => count === 1))
     assert.ok(!JSON.stringify(detail.requests).includes('inputText'))

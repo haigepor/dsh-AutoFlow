@@ -10,6 +10,7 @@ import { createDatasetProgress, datasetNotice } from './dataset-progress.tsx'
 import { datasetActive } from './dataset-store.ts'
 import { createProfileSaveQueue, type ProfileSaveState } from './profile-save-queue.ts'
 import { datasetRoleCounts, type DatasetScope } from '../shared/datasets.ts'
+import { isMatchingRule } from '../shared/reference-semantics.ts'
 import { createGalleryMedia } from './gallery-media.tsx'
 
 interface Props {
@@ -30,7 +31,7 @@ export function createStyleProfileDialog(React: typeof import('react'), ui: type
     const datasets = useDatasets(value => value)
     const profile = style.modelProfile, analysis = style.analysis
     const [selectedId, setSelectedId] = React.useState(''), [mobileView, setMobileView] = React.useState<'rules' | 'evidence'>('rules')
-    const [sampleScope, setSampleScope] = React.useState<DatasetScope>('all')
+    const [sampleScope, setSampleScope] = React.useState<Exclude<DatasetScope, 'observations'>>('all')
     const [rolePage, setRolePage] = React.useState({ key: '', limit: 0 })
     const [saveState, setSaveState] = React.useState<ProfileSaveState>({ profileId: '', changes: [], saving: false, failed: false, error: undefined })
     const [intent, setIntent] = React.useState<'close' | 'search' | 'generate' | null>(null), [reconciling, setReconciling] = React.useState(false), [readError, setReadError] = React.useState(false), [retryAfterRead, setRetryAfterRead] = React.useState(false)
@@ -85,11 +86,11 @@ export function createStyleProfileDialog(React: typeof import('react'), ui: type
     if (!open) return null
     const summary = profile?.summary ?? analysis?.summary
     const pending = new Map(saveState.changes.map(change => [change.ruleId, change]))
-    const options = (profile?.options ?? []).map(option => { const change = pending.get(option.rule.ruleId); return change ? { ...option, enabled: change.enabled, rule: { ...option.rule, statement: change.statement ?? option.rule.statement } } : option }), active = options.filter(option => option.enabled)
+    const options = (profile?.options ?? []).map(option => { const change = pending.get(option.rule.ruleId); return change ? { ...option, enabled: change.enabled, rule: { ...option.rule, statement: change.statement ?? option.rule.statement } } : option }), active = options.filter(option => option.enabled && isMatchingRule(option.rule))
     const selected = options.find(option => option.rule.ruleId === selectedId) ?? active.find(option => option.groupId === null) ?? active[0] ?? options[0]
     const selectedGroup = profile?.groups.find(group => group.groupId === selected?.groupId)
     const samples = profile?.samples ?? analysis?.samples ?? []
-    const evidence = selected ? samples.filter(sample => selected.rule.supportRefs.includes(sample.referenceId) || selected.rule.counterRefs.includes(sample.referenceId)) : []
+    const evidence = selected ? samples.filter(sample => selected.rule.supportRefs.includes(sample.referenceId) || selected.rule.counterRefs.includes(sample.referenceId) || selected.rule.notApplicableRefs?.includes(sample.referenceId)) : []
     const roleKey = JSON.stringify([style.styleId, profile?.analysisRunId ?? analysis?.runId, sampleScope]), rolePageSize = snapshot.configuration.limits.pageSize
     const roleSamples = sampleScope === 'all' ? [] : samples.filter(sample => sample.role === sampleScope)
     const roleLimit = rolePage.key === roleKey ? rolePage.limit : rolePageSize, visibleRoleSamples = roleSamples.slice(0, roleLimit)
@@ -135,7 +136,7 @@ export function createStyleProfileDialog(React: typeof import('react'), ui: type
       await finish('generate', id => actions.datasets.start({ id, styleId: style.styleId, sampleScope }))
     }
     const pick = (option: Option) => { focusEvidence.current = true; setSelectedId(option.rule.ruleId); setMobileView('evidence'); setEditing(null) }
-    const selectScope = (scope: DatasetScope) => {
+    const selectScope = (scope: Exclude<DatasetScope, 'observations'>) => {
       if (scope === sampleScope) return
       setSampleScope(scope); setMobileView('evidence')
       evidencePane.current?.scrollTo({ top: 0 })
@@ -144,14 +145,15 @@ export function createStyleProfileDialog(React: typeof import('react'), ui: type
       const image = sample.image ?? snapshot.images.find(image => image.referenceId === sample.referenceId)
       const relevant = rule ? sample.observations.filter(row => row.dimension.toLowerCase().includes(rule.rule.dimension) || row.dimension.includes(t(rule.rule.dimension))) : sample.observations
       const counter = rule?.rule.counterRefs.includes(sample.referenceId)
+      const notApplicable = rule?.rule.notApplicableRefs?.includes(sample.referenceId)
       return <article className="vc-profile-evidence-item" key={sample.referenceId}>
         {image && <a href={resource(image.previewPath)} target="_blank" rel="noreferrer"><img src={resource(image.previewPath)} alt={image.name} loading="lazy" decoding="async" /></a>}
-        <div className="vc-profile-evidence-caption"><strong>{image?.name ?? sample.referenceId}</strong><Tag tone={rule ? counter ? 'warning' : 'neutral' : sample.role === 'negative' ? 'warning' : 'info'}>{t(rule ? counter ? 'counterEvidence' : 'supportEvidence' : sample.role)}</Tag></div>
+        <div className="vc-profile-evidence-caption"><strong>{image?.name ?? sample.referenceId}</strong><Tag tone={rule ? counter ? 'warning' : 'neutral' : sample.role === 'negative' ? 'warning' : 'info'}>{t(rule ? notApplicable ? 'datasetNotApplicable' : counter ? 'counterEvidence' : 'supportEvidence' : sample.role)}</Tag></div>
         {(relevant.length ? relevant : sample.observations.slice(0, 2)).map((row, index) => <p key={index}>{row.uncertain && <Tag tone="warning">{t('uncertain')}</Tag>}{row.description}</p>)}
       </article>
     }
     const renderRule = (option: Option) => <article className="vc-profile-rule" key={option.rule.ruleId} data-selected={selected?.rule.ruleId === option.rule.ruleId} data-enabled={option.enabled}>
-      <Checkbox className="vc-profile-check" checked={option.enabled} disabled={disabled || !!editing || !option.rule.confirmed && !option.rule.supportRefs.length} label={`${t('enableRule')}: ${t(option.rule.dimension)} · ${option.rule.statement}`} onChange={enabled => save(option, enabled)} />
+      <Checkbox className="vc-profile-check" checked={option.enabled} disabled={disabled || !!editing || !option.rule.confirmed && !option.rule.supportRefs.length && !option.rule.counterRefs.length} label={`${t('enableRule')}: ${t(option.rule.dimension)} · ${option.rule.statement}`} onChange={enabled => save(option, enabled)} />
       <Button variant="ghost" className="vc-profile-rule-button" aria-pressed={selected?.rule.ruleId === option.rule.ruleId} onClick={() => pick(option)}><span className="vc-profile-rule-meta"><strong>{t(option.rule.dimension)}</strong><span>{t(option.rule.strength)}</span>{!option.enabled && <Tag>{t('referenceRules')}</Tag>}{option.selectionSource === 'user' && <Tag>{t('userAdjusted')}</Tag>}</span><span className="vc-profile-rule-statement">{option.rule.statement}</span><small>{t('positiveEvidence')} {option.rule.supportRefs.length}</small></Button>
     </article>
     const renderActive = () => [{ groupId: null, name: t('sharedRules') }, ...(profile?.groups ?? []).map((group, index) => ({ groupId: group.groupId, name: group.name || `${t('styleGroup')} ${index + 1}` }))].map(group => {
@@ -159,7 +161,7 @@ export function createStyleProfileDialog(React: typeof import('react'), ui: type
       return rows.length ? <section className="vc-profile-rule-group" key={group.groupId ?? 'shared'}><h3>{group.name}<small>{rows.length}</small></h3>{rows.map(renderRule)}</section> : null
     })
     return <Modal open={open} onClose={closeDialog} title={t('styleProfile')} description={t('autoProfileHint')} closeLabel={t('close')} className="vc-dataset-modal vc-profile-dialog" contentClassName="vc-dataset-frame"
-      footer={<div className="vc-profile-footer"><div className="vc-profile-save-state" role="status">{saving || preparing || reading ? <StateDot state="ongoing" /> : profile ? <StateDot state={profile.stale || editing || saveState.failed || readError ? 'warning' : 'done'} /> : null}<span>{t(reading ? 'datasetProfileReading' : saving ? 'profileSaving' : preparing ? 'datasetPreparing' : saveState.failed || editing ? 'profileUnsaved' : profile?.stale ? 'needsAnalysis' : profile ? 'autoSaved' : 'profilePending')}</span>{profile && <small>{t('enabledRules')} {active.length} / {options.length}</small>}{latestExport?.downloadPath && <a href={resource(latestExport.downloadPath)} download>{t('downloadDataset')}</a>}</div><div className="vc-dataset-actions">{onSearch && <Button variant="primary" disabled={!searchReady || disabled || !!editing} onClick={() => { void finish('search', () => onSearch()) }}>{t('newTask')}</Button>}<Button variant="outline" disabled={!!intent} onClick={closeDialog}>{t('close')}</Button><Button variant="primary" disabled={!ready || disabled || !!editing} onClick={() => { void generate() }}>{t(preparing ? 'datasetPreparing' : notice.submission?.status === 'unknown' ? 'datasetRetryAck' : 'createDataset')}</Button></div></div>}>
+      footer={<div className="vc-profile-footer"><div className="vc-profile-save-state" role="status">{saving || preparing || reading ? <StateDot state="ongoing" /> : profile ? <StateDot state={profile.stale || editing || saveState.failed || readError ? 'warning' : 'done'} /> : null}<span>{t(reading ? 'datasetProfileReading' : saving ? 'profileSaving' : preparing ? 'datasetPreparing' : saveState.failed || editing ? 'profileUnsaved' : profile?.stale ? 'needsAnalysis' : profile ? 'autoSaved' : 'profilePending')}</span>{profile && <small>{t('enabledRules')} {active.length} / {options.filter(option => isMatchingRule(option.rule)).length}</small>}{latestExport?.downloadPath && <a href={resource(latestExport.downloadPath)} download>{t('downloadDataset')}</a>}</div><div className="vc-dataset-actions">{onSearch && <Button variant="primary" disabled={!searchReady || disabled || !!editing} onClick={() => { void finish('search', () => onSearch()) }}>{t('newTask')}</Button>}<Button variant="outline" disabled={!!intent} onClick={closeDialog}>{t('close')}</Button><Button variant="primary" disabled={!ready || disabled || !!editing} onClick={() => { void generate() }}>{t(preparing ? 'datasetPreparing' : notice.submission?.status === 'unknown' ? 'datasetRetryAck' : 'createDataset')}</Button></div></div>}>
       <div className="vc-profile-export-frame" aria-busy={preparing || undefined}>
       <div className="vc-profile-workspace" data-mobile-view={mobileView} ref={node => { if (node) node.inert = preparing }} aria-hidden={preparing || undefined}>
         <SegmentedTabs className="vc-profile-mobile-tabs" label={t('styleProfile')} items={tabs} value={mobileView} onChange={value => { setMobileView(value); setEditing(null) }} />

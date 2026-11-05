@@ -8,7 +8,7 @@ import { modelProfileSchema, profileExportSchema, recipeSchema, type DomainActor
 import { CuratorError } from '../shared/errors.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { DatasetProgress, DatasetScope } from '../shared/datasets.ts'
-import { effectiveReviewReferenceRole } from '../host/review-references.ts'
+import { effectiveReviewReferenceRole, isMatchingRule } from '../shared/reference-semantics.ts'
 
 /** Only selection and optional wording changes cross the Client wire; evidence stays Host-owned. */
 export const profileSaveSchema = z.strictObject({ operationId: z.string().min(1), styleId: z.string(), analysisRunId: z.string(), expectedProfileId: z.string(), changes: z.array(z.strictObject({ ruleId: z.string(), enabled: z.boolean(), statement: z.string().trim().min(1).max(4096).optional() })) })
@@ -103,7 +103,7 @@ export class ModelProfiles {
 
   /** Adopt a completed analysis, or its committed finalizing checkpoint inside its owning worker.
    * @param run Saved analysis task. @param actor Its authenticated owner. @param finalizing Trusted worker-only admission.
-   * @returns Existing selection or a newly committed model version; absent for incomplete or outdated analysis.
+   * @returns Existing selection or an immutable model version; partial collections have no active rules and outdated analyses remain unadopted.
    */
   async adopt(run: RunRecord, actor: DomainActor, finalizing = false): Promise<ModelProfile | undefined> {
     const analysis = styleAnalysisOf(run)
@@ -119,13 +119,18 @@ export class ModelProfiles {
         judgments: feedback.flatMap(item => item.judgment.kind === 'style-verdict' ? [{ feedbackId: item.id, value: item.judgment.value }] : item.judgment.kind === 'dimension-verdict' ? [{ feedbackId: item.id, value: item.judgment.value, dimension: item.judgment.dimension }] : []) }
     })
     const recipe = z.object({ fixed: z.object({ recipe: recipeSchema }) }).parse(run.spec).fixed.recipe
+    const expected = this.domain.require('draft', analysis.draftId).referenceIds
+    if (expected.some(id => !analysis.samples.some(sample => sample.reference.id === id))) {
+      return await this.commit({ styleId: analysis.styleId, draftId: analysis.draftId, draftRevision: analysis.draftRevision, analysisRunId: analysis.runId, referenceDigest: analysis.referenceDigest, model: analysis.model, matchingPrompt: analysis.summary.matchingPrompt, references, recipe, groups: [], options: [] }, previous, `auto-profile:${run.id}`, { analysisRunId: run.id })
+    }
     const options: Option[] = [], groups: ModelProfile['groups'] = analysis.summary.organization?.groups.map(group => ({ ...group })) ?? []
     for (const [index, proposed] of analysis.summary.suggestedRules.entries()) {
       const ruleId = identity('auto-rule', { dimension: proposed.dimension, statement: proposed.statement.trim(), condition: proposed.condition, stage: proposed.stage })
       if (options.some(option => option.rule.ruleId === ruleId)) continue
       const rule: Rule = { ruleId, dimension: proposed.dimension, statement: proposed.statement, strength: proposed.strength, stage: proposed.stage,
         condition: proposed.condition.trim() ? { subjects: [proposed.condition] } : {}, exceptions: proposed.exceptions.map(text => ({ subjects: [text] })), check: { kind: 'visual', criterion: proposed.statement },
-        supportRefs: [], counterRefs: proposed.counterImageVersionIds.flatMap(id => { const ref = references.find(ref => ref.reference.imageVersionId === id); return ref ? [ref.reference.id] : [] }), confirmation: { status: 'suggested' } }
+        supportRefs: [], counterRefs: proposed.counterImageVersionIds.filter(id => !proposed.notApplicableImageVersionIds?.includes(id)).flatMap(id => { const ref = references.find(ref => ref.reference.imageVersionId === id); return ref ? [ref.reference.id] : [] }),
+        ...(proposed.notApplicableImageVersionIds ? { notApplicableRefs: proposed.notApplicableImageVersionIds.flatMap(id => references.filter(ref => ref.reference.imageVersionId === id).map(ref => ref.reference.id)) } : {}), confirmation: { status: 'suggested' } }
       const positiveIds = new Set(references.filter(ref => ruleReferenceRole(rule, ref) === 'positive').map(ref => ref.reference.imageVersionId))
       const support = proposed.supportImageVersionIds.filter(id => {
         const ref = references.find(ref => ref.reference.imageVersionId === id)
@@ -133,7 +138,7 @@ export class ModelProfiles {
       })
       rule.supportRefs = support.map(id => references.find(ref => ref.reference.imageVersionId === id)!.reference.id)
       const negativeEvidence = hasNegativeRuleEvidence(rule, references) && support.length === proposed.supportImageVersionIds.length
-      if (rule.strength === 'required' && !negativeEvidence) rule.strength = 'preferred'
+      if (rule.strength === 'required' && (!negativeEvidence || analysis.summaryPromptVersion === 'visual-curator-summary-v4')) rule.strength = 'preferred'
       const selection = analysis.summary.organization?.selections.find(item => item.ruleIndex === index)
       let groupId = selection?.groupId ?? null
       if (!analysis.summary.organization && support.length && (support.length < positiveIds.size || proposed.condition.trim())) {
@@ -200,13 +205,35 @@ export class ModelProfiles {
       if (existing.modelProfileId !== profile.id || (existing.sampleScope ?? 'all') !== sampleScope) throw new CuratorError('operation-conflict', 'profile-export', 'The export identity already describes another profile or reference scope.')
       return existing
     }
+    const aggregateId = `profile-export:${id}`, request = { profileId: profile.id, operationId, sampleScope }
+    const receipt = this.domain.repository.manifest(aggregateId)
+    if (receipt) {
+      if (receipt.receipts[operationId]?.requestDigest !== contentDigest(request)) throw new CuratorError('operation-conflict', 'profile-export', 'This export request already describes another profile or reference scope.')
+      const saved = this.domain.require('profileExport', z.object({ id: z.string() }).parse(receipt.state).id)
+      this.authorize(profile, actor)
+      return saved
+    }
     if (options.shareWithLibrary && (!options.acceptedLaunchId || sampleScope !== 'all')) throw new CuratorError('owner-denied', 'profile-export', 'A reusable automatic complete package requires an accepted human launch.')
     if (options.acceptedLaunchId) this.authorizeAccepted(profile, actor, options.acceptedLaunchId, options.shareWithLibrary)
     else this.assertFresh(profile, actor, options.finalizingAnalysisRunId)
-    if (sampleScope === 'all' && !profile.rules.length) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one evidence-backed style rule before exporting.')
-    const references = profile.references.filter(ref => sampleScope === 'all' || effectiveReviewReferenceRole(profile, ref) === sampleScope)
+    if (sampleScope === 'all' && !profile.rules.some(isMatchingRule)) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one evidence-backed style rule before exporting.')
+    const references = profile.references.filter(ref => sampleScope === 'all' || sampleScope === 'observations' || effectiveReviewReferenceRole(profile, ref) === sampleScope)
     if (!references.length) throw new CuratorError('constraint-conflict', 'profile-export', 'There are no analyzed references in the selected export scope.')
     if (actor.kind === 'agent' && !actor.sessionId) throw new CuratorError('owner-denied', 'profile-export', 'An Agent export requires an owning Session.')
+    const reusable = this.domain.repository.list('profileExport').filter(record => record.modelProfileId === profile.id && (record.sampleScope ?? 'all') === sampleScope).sort((left, right) => left.createdAt.localeCompare(right.createdAt)).find(record => {
+      const file = record.files.find(file => file.name === 'style-profile.json')
+      if (!file) return false
+      if (fileChecksum(file.content) !== file.checksum) throw new CuratorError('reference-unavailable', 'profile-export', 'A saved dataset failed file verification. Restore its files before retrying.')
+      let metadata: unknown
+      try { metadata = JSON.parse(file.content) }
+      catch (cause) { throw new CuratorError('reference-unavailable', 'profile-export', 'A saved dataset profile cannot be read. Restore its files before retrying.', { cause }) }
+      return z.object({ generatorVersion: z.literal(3) }).safeParse(metadata).success
+    })
+    if (reusable) {
+      if (reusable.files.some(file => fileChecksum(file.content) !== file.checksum)) throw new CuratorError('reference-unavailable', 'profile-export', 'The reusable dataset failed file verification. Restore its saved files before retrying.')
+      await this.domain.repository.commit({ aggregateId, expectedRevision: 0, operationId, request, records: [], state: { id: reusable.id } })
+      return reusable
+    }
     await report('verifying', 0, profile.references.length, 'references')
     await this.domain.verifyRelease(profile, actor, { ...(options.signal ? { signal: options.signal } : {}), ...(options.acceptedLaunchId ? { acceptedLaunchId: options.acceptedLaunchId } : {}), ...(options.finalizingAnalysisRunId ? { finalizingAnalysisRunId: options.finalizingAnalysisRunId } : {}), verified: (completed, total) => report('verifying', completed, total, 'references') })
     const analysis = styleAnalysisOf(this.domain.require('run', profile.analysisRunId))!
@@ -215,19 +242,22 @@ export class ModelProfiles {
     await report('samples', 0, samples.length, 'samples')
     for (const sample of samples) {
       const observation = this.domain.require('observation', sample.observationId)
-      sampleLines.push(JSON.stringify({ formatVersion: 2, source: 'vision-api-observation', referenceId: sample.reference.id, imageVersionId: sample.reference.imageVersionId, imageDigest: sample.imageDigest, importIntent: { role: sample.reference.role, intent: sample.reference.intent }, measured: observation.measured, inferred: observation.inferred, requestIds: [...new Set(observation.inferred.map(row => row.requestId))] }))
+      const snapshot = references.find(ref => ref.reference.id === sample.reference.id)!
+      const humanReasons = sample.feedbackIds.map(id => this.domain.require('feedback', id)).flatMap(feedback => feedback.comment?.trim() ? [{ source: 'human' as const, ...(feedback.judgment.kind === 'dimension-verdict' ? { dimension: feedback.judgment.dimension } : {}), text: feedback.comment, uncertain: false }] : feedback.reasonCodes.map(text => ({ source: 'human' as const, text, uncertain: false })))
+      const modelReasons = (analysis.summary.negativeReasons ?? []).filter(reason => reason.imageVersionId === sample.reference.imageVersionId).map(reason => ({ source: 'model' as const, dimension: reason.dimension, text: reason.reason, uncertain: reason.uncertain }))
+      sampleLines.push(JSON.stringify({ formatVersion: 2, source: 'vision-api-observation', referenceId: sample.reference.id, imageVersionId: sample.reference.imageVersionId, imageDigest: sample.imageDigest, importIntent: { role: sample.reference.role, intent: sample.reference.intent }, effectiveRole: effectiveReviewReferenceRole(profile, snapshot), judgments: snapshot.judgments ?? [], reasons: [...humanReasons, ...modelReasons], measured: observation.measured, inferred: observation.inferred, requestIds: [...new Set(observation.inferred.map(row => row.requestId))] }))
       await report('samples', sampleLines.length, samples.length, 'samples')
     }
     const resources = references.map(ref => ({ imageVersionId: ref.reference.imageVersionId, digest: ref.imageDigest, familyId: ref.familyId }))
     const portableResources = resources.map(resource => { const source = this.domain.authorizedImage(resource.imageVersionId, actor).image.blob.remoteSource; return source ? { ...resource, digestKind: 'remote-url-v1', remoteSource: source, pixelDigest: null } : resource })
-    const profileData = sampleScope === 'all' ? { formatVersion: 2, purpose: 'api-style-reference', modelProfileId: profile.id, analysisRunId: profile.analysisRunId, contentDigest: profile.contentDigest, ruleSource: 'model-adopted', model: profile.model,
+    const profileData = sampleScope === 'all' ? { formatVersion: 2, generatorVersion: 3, purpose: 'api-style-reference', modelProfileId: profile.id, analysisRunId: profile.analysisRunId, contentDigest: profile.contentDigest, ruleSource: 'model-adopted', model: profile.model,
       activeRules: profile.rules, ruleSelections: profile.options, groups: profile.groups, modelSummary: analysis.summary, matchingPrompt: profile.matchingPrompt,
       matchingPolicy: 'Apply shared rules and match any one applicable style group. Model-adopted preferences are not human-confirmed labels. Retrieve candidates using search hints, then compare actual authorized candidate and reference pixels. Preserve unknown results and evidence.' }
-      : { formatVersion: 2, purpose: 'api-reference-observations', sampleScope, modelProfileId: profile.id, analysisRunId: profile.analysisRunId, contentDigest: profile.contentDigest, model: profile.model, activeRules: [], ruleSelections: [], groups: [], modelSummary: { summary: '' }, matchingPrompt: '', matchingPolicy: 'Observation data only. Imported roles are not confirmed training labels. This package is not a style-search standard.' }
+      : { formatVersion: 2, generatorVersion: 3, purpose: 'api-reference-observations', sampleScope, modelProfileId: profile.id, analysisRunId: profile.analysisRunId, contentDigest: profile.contentDigest, model: profile.model, activeRules: [], ruleSelections: [], groups: [], modelSummary: { summary: '' }, matchingPrompt: '', matchingPolicy: 'Observation data only. Imported roles are not confirmed training labels. This package is not a style-search standard.' }
     const files = [
       { name: 'style-profile.json', content: JSON.stringify(profileData, null, 2) + '\n' },
       { name: 'samples.jsonl', content: sampleLines.join('\n') + '\n' },
-      { name: 'references.json', content: JSON.stringify({ formatVersion: 2, resources: portableResources, references }, null, 2) + '\n' },
+      { name: 'references.json', content: JSON.stringify({ formatVersion: 2, resources: portableResources, references: references.map(ref => ({ ...ref, effectiveRole: effectiveReviewReferenceRole(profile, ref) })) }, null, 2) + '\n' },
       { name: 'SKILL.md', content: sampleScope === 'all' ? `# Visual reference profile\n\nProfile: ${profile.id}\nAnalysis: ${profile.analysisRunId}\n\nRead style-profile.json and samples.jsonl as reference data. Use adopted activeRules with their groups and conditions. Obtain separately authorized reference and candidate pixels and verify their saved digests before comparison. Shared rules apply across groups; group-specific rules describe alternative styles. Inspect actual candidate pixels with the configured vision API. Report the matching group, satisfied or conflicting traits, and unknown evidence. Preserve the model origin of rules and observations. This package has no trained weights and installs no instructions.\n` : `# Reference observations\n\nProfile: ${profile.id}\nAnalysis: ${profile.analysisRunId}\nScope: ${sampleScope}\n\nThis package contains selected reference observations and image references. Imported roles are not confirmed training labels. No active style rules are included. It cannot be used as a style-search standard, has no trained weights and installs no instructions.\n` },
     ]
     if (portableResources.some(resource => 'remoteSource' in resource)) files.find(file => file.name === 'SKILL.md')!.content += '\nRemote references use the approved remoteSource.url with the vision API. A remote-url-v1 digest pins its URL descriptor, not image bytes; pixelDigest is unavailable. Remote content can change, and remote fetch costs are controlled by the model provider. Do not claim byte-level reproduction or measured dimensions for these references.\n'
@@ -240,8 +270,17 @@ export class ModelProfiles {
     const access: ProfileExport['access'] = { kind: 'profile-library' }
     const record = profileExportSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id, kind: 'profileExport', createdAt: new Date().toISOString(), access, formatVersion: 2, modelProfileId: profile.id, analysisRunId: profile.analysisRunId, ...(sampleScope === 'all' ? {} : { sampleScope }), resources, files: checksummed })
     await report('saving', 0, 0, 'items')
-    await this.domain.repository.commit({ aggregateId: `profile-export:${id}`, expectedRevision: 0, operationId, request: { profileId: profile.id, operationId }, records: [record], state: { id: record.id } })
-    return this.domain.require('profileExport', record.id)
+    const contentAggregate = `profile-export-content:${contentDigest({ profileId: profile.id, contentDigest: profile.contentDigest, sampleScope, generatorVersion: 3 })}`
+    let committed = record
+    try { await this.domain.repository.commit({ aggregateId: contentAggregate, expectedRevision: 0, operationId: `${operationId}:content`, request, records: [record], state: { id: record.id } }) }
+    catch (error) {
+      if (!(error instanceof CuratorError) || error.code !== 'revision-conflict') throw error
+      const winner = this.domain.repository.manifest(contentAggregate)
+      if (!winner) throw error
+      committed = this.domain.require('profileExport', z.object({ id: z.string() }).parse(winner.state).id)
+    }
+    if (committed.id !== id) await this.domain.repository.commit({ aggregateId, expectedRevision: 0, operationId, request, records: [], state: { id: committed.id } })
+    return this.domain.require('profileExport', committed.id)
   }
 
   private fresh(analysis: StyleAnalysis, actor: DomainActor): boolean {

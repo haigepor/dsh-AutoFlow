@@ -26,6 +26,12 @@ The tarball requires the native LLM, attachment, jobs, storage and Client capabi
 
 None.
 
+## Visual Curator 0.2.13
+
+New reference analyses automatically organize and save a dataset, including provisional observation packages when references or matching rules are incomplete. Dataset lists group versions and identical exports, show compact role counts and changes, and retain every historical export ID. Effective roles, matching-rule totals, negative reasons and conditional applicability remain explicit.
+
+Update after current work finishes and restart AutoFlow. Existing data and frozen tasks retain their saved contents; new model explanations remain unconfirmed. Keyless release checks do not establish live paid-model output quality.
+
 ## Visual Curator 0.2.11
 
 The reference dialog now places Bookmarked photos before named collections. Both sources support explicit selection, paged select-all, retry and positive or negative references. Changing the account clears the previous list and selection. An account without named collections can still open its bookmarks.

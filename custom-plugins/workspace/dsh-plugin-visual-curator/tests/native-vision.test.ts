@@ -153,8 +153,8 @@ it('native summary records short model labels and restores complete canonical ev
     assert.equal(receipt.request.config.maxTokens, 65_536)
     const text = JSON.stringify({ name: 'Vehicle portraits', summary: 'Clear vehicle subjects with varied environments.', matchingPrompt: 'Inspect the candidate image for a clear vehicle subject.', searchHints: ['car portrait'], avoidTerms: [],
       dimensions: [{ dimension: 'subject', description: 'The vehicle commands attention.', consistency: 'mixed', supportImageVersionIds: labels.slice(0, 20), counterImageVersionIds: labels.slice(20) }],
-      conflicts: [{ description: 'Different environments.', imageVersionIds: labels }],
-      suggestedRules: [{ statement: 'Prefer a clear vehicle subject.', dimension: 'subject', strength: 'preferred', stage: 'source', supportImageVersionIds: labels.slice(0, 20), counterImageVersionIds: labels.slice(20), condition: '', exceptions: [] }],
+      conflicts: [{ description: 'Different environments.', imageVersionIds: labels }], negativeReasons: [],
+      suggestedRules: [{ statement: 'Prefer a clear vehicle subject.', dimension: 'subject', strength: 'preferred', stage: 'source', supportImageVersionIds: labels.slice(0, 20), counterImageVersionIds: labels.slice(20), notApplicableImageVersionIds: [], condition: '', exceptions: [] }],
       organization: { groups: [{ groupId: 'vehicle', name: 'Vehicle portraits', description: 'A supported alternative.', imageVersionIds: labels }], selections: [{ ruleIndex: 0, enabled: true, groupId: 'vehicle', reason: 'Supported reference observations.' }] } })
     yield { type: 'text-delta', index: 0, text: text.slice(0, 100) }
     yield { type: 'text-delta', index: 0, text: text.slice(100) }
@@ -164,7 +164,7 @@ it('native summary records short model labels and restores complete canonical ev
     const original = structuredClone(input), descriptor = f.provider.describeRequest(input, 'summarize')
     const result = await f.provider.summarize(input, imageIds, f.bounds)
     assert.deepEqual(input, original)
-    assert.equal(descriptor.promptVersion, 'visual-curator-summary-v3')
+    assert.equal(descriptor.promptVersion, 'visual-curator-summary-v4')
     assert.deepEqual(descriptor.images.map(image => image.imageVersionId), imageIds.slice(0, 8))
     assert.deepEqual(result.dimensions[0]!.supportImageVersionIds, imageIds.slice(0, 20))
     assert.deepEqual(result.dimensions[0]!.counterImageVersionIds, imageIds.slice(20))

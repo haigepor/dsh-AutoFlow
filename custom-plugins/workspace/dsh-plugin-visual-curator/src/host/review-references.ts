@@ -1,5 +1,7 @@
 /** Frozen rule evidence selects bounded, reproducible reference pixels without model requests. */
 import type { ModelProfile, ReferenceSnapshot, StyleStandard } from '../shared/model.ts'
+import { effectiveReviewReferenceRole } from '../shared/reference-semantics.ts'
+export { effectiveReviewReferenceRole } from '../shared/reference-semantics.ts'
 
 type Standard = Pick<StyleStandard, 'rules' | 'references' | 'recipe'> & Partial<Pick<ModelProfile, 'options' | 'groups'>>
 type Role = ReferenceSnapshot['reference']['role']
@@ -17,20 +19,6 @@ function compareIds(left: string, right: string): number { return left < right ?
 function effectiveVisualRules(standard: Pick<Standard, 'rules' | 'options'>) {
   const options = new Map(standard.options?.map(option => [option.rule.ruleId, option]))
   return standard.rules.filter(rule => rule.check.kind === 'visual' && rule.strength !== 'reference-only' && options.get(rule.ruleId)?.enabled !== false)
-}
-
-/** Resolve the same effective reference role for selection and model-visible image metadata.
- * @param standard Frozen effective rules and optional model-profile selections; only enabled visual-rule dimensions apply.
- * @param snapshot Frozen import intent and effective human judgments.
- * @returns Positive or negative for unanimous relevant judgments, undecided for mixed or unknown judgments, or the imported role when none apply.
- */
-export function effectiveReviewReferenceRole(standard: Pick<Standard, 'rules' | 'options'>, snapshot: ReferenceSnapshot): Role {
-  const dimensions = new Set(effectiveVisualRules(standard).map(rule => rule.dimension))
-  const judgments = snapshot.judgments?.filter(judgment => judgment.dimension === undefined || dimensions.has(judgment.dimension)) ?? []
-  if (!judgments.length) return snapshot.reference.role
-  if (judgments.every(judgment => judgment.value === 'accept')) return 'positive'
-  if (judgments.every(judgment => judgment.value === 'reject')) return 'negative'
-  return 'undecided'
 }
 
 /** Select positive anchors covering shared rules and enabled alternatives, reserving the last slot for a contrast example.

@@ -8,7 +8,7 @@ import { MediaError } from '../src/media/errors.ts'
 import { readFile } from 'node:fs/promises'
 import { z } from 'zod'
 
-test('profile analysis commits observations before inducing rules once while ordinary analysis retains suggestions', async () => {
+test('each analysis commits observations before induction and ordinary analysis reuses observations while saving a dataset', async () => {
   const f = await serviceFixture(undefined, { maxReferenceImages: 2 })
   try {
     await f.service.initialize()
@@ -24,7 +24,7 @@ test('profile analysis commits observations before inducing rules once while ord
       assert.ok(Array.isArray(content))
       const input = requestSchema.parse(JSON.parse(content[0]!.text!))
       if (collecting && input.input.operation === 'analyze') { batches.push(input.input.images.length); fields.push(Object.keys(input.outputSchema.properties)) }
-      if (input.input.operation === 'summarize') { observedBeforeSummary = f.repository.list('observation').length; rulesBeforeSummary = f.repository.list('suggestion').length }
+      if (collecting && input.input.operation === 'summarize') { observedBeforeSummary = f.repository.list('observation').length; rulesBeforeSummary = f.repository.list('suggestion').length }
       return send(url, request)
     }
     const started = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'staged-profile', styleId: created.id, buildDataset: true }))
@@ -37,6 +37,7 @@ test('profile analysis commits observations before inducing rules once while ord
     const ordinary = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'staged-ordinary', styleId: created.id, buildDataset: false }))
     await f.jobs.drain()
     assert.equal(f.domain.require('run', ordinary.runId).status, 'completed')
+    assert.ok(f.repository.list('profileExport').some(dataset => dataset.analysisRunId === ordinary.runId))
     const ordinaryRules = f.repository.list('request').filter(request => request.runId === ordinary.runId).map(request => z.object({ output: z.object({ suggestedRules: z.array(z.unknown()) }) }).parse(request.data).output.suggestedRules.length)
     const actual = { mode: specOf(run).fixed.analysisOutput, observationBatches: batches, observationFields: fields, observedBeforeSummary, rulesBeforeSummary, observed: dataOf(run).counts.observed, finalRules: summary.checkpoint.styleAnalysis.summary.suggestedRules.length, normalizedBatchRules: responses.filter(response => response.bundle.operation === 'analyze').map(response => response.output.suggestedRules.length), summaryCalls: responses.filter(response => response.bundle.operation === 'summarize').length, ordinaryRules }
     assert.deepEqual(actual, JSON.parse(await readFile(new URL('./fixtures/observation-stages.expected.json', import.meta.url), 'utf8')))

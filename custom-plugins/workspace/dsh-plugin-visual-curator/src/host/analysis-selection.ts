@@ -1,15 +1,17 @@
 /** Role-specific observation instructions retain uncertainty and separate rejection from visual facts. */
 import type { Reference } from '../shared/model.ts'
-import { referenceSchema } from '../shared/model.ts'
-import { datasetScopeSchema } from '../shared/datasets.ts'
+import { referenceSchema, draftSchema, feedbackSchema } from '../shared/model.ts'
+import { referenceFeedbackRole } from '../shared/reference-semantics.ts'
+import { analysisScopeSchema } from '../shared/datasets.ts'
 import { z } from 'zod'
 import type { ExecutionSpec, RunData } from './runtime.ts'
 
 /** @param spec Frozen reference selection. @param data Saved observations and reused inputs. @returns Actual observed and total counts for the selected role; legacy tasks retain collection counts. */
 export function analysisSelectionProgress(spec: ExecutionSpec, data: RunData) {
-  const scope = datasetScopeSchema.parse(spec.input.analysisScope ?? 'all')
+  const scope = analysisScopeSchema.parse(spec.input.analysisScope ?? 'all')
   if (scope === 'all') return { observed: data.counts.observed ?? 0, total: Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0 }
-  const references = z.array(referenceSchema).parse(spec.fixed.references), selected = new Set(references.filter(reference => reference.role === scope).map(reference => reference.imageVersionId))
+  const references = z.array(referenceSchema).parse(spec.fixed.references), rules = draftSchema.parse(spec.fixed.draft).rules, feedback = z.array(feedbackSchema).parse(spec.fixed.feedback)
+  const selected = new Set(references.filter(reference => referenceFeedbackRole(rules, reference, feedback) === scope).map(reference => reference.imageVersionId))
   const done = new Set(z.array(z.string()).parse(data.checkpoint.analysisDoneImageIds ?? []))
   return { observed: [...selected].filter(id => done.has(id)).length, total: selected.size }
 }

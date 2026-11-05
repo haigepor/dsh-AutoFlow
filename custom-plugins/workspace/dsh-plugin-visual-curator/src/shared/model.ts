@@ -66,7 +66,7 @@ export const ruleSchema = z.strictObject({
   ruleId: opaque, dimension: dimensionSchema, statement: z.string().min(1), condition: conditionSchema,
   strength: z.enum(['required', 'preferred', 'reference-only']), stage: z.enum(['source', 'final']),
   check: z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('visual'), criterion: z.string().min(1) }), z.strictObject({ kind: z.literal('measured'), field: z.enum(['width', 'height', 'aspect', 'byteLength']), unit: z.enum(['pixels', 'ratio', 'bytes']), min: z.number().finite().optional(), max: z.number().finite().optional(), tolerance: z.number().finite().nonnegative() })]),
-  exceptions: z.array(conditionSchema), supportRefs: z.array(opaque), counterRefs: z.array(opaque),
+  exceptions: z.array(conditionSchema), supportRefs: z.array(opaque), counterRefs: z.array(opaque), notApplicableRefs: z.array(opaque).optional(),
   confirmation: z.discriminatedUnion('status', [z.strictObject({ status: z.literal('suggested') }), z.strictObject({ status: z.literal('confirmed'), actor: humanActorSchema })]),
 })
 export type Rule = z.infer<typeof ruleSchema>
@@ -104,7 +104,7 @@ export type StyleStandard = z.infer<typeof styleStandardSchema>
 /** Version-two reference packages contain no training split or fabricated human confirmation. */
 export const profileExportSchema = z.strictObject({ ...base, id: brandedIdSchema<'VisualCurator.ProfileExportId'>(), kind: z.literal('profileExport'), access: accessSchema, formatVersion: z.literal(2), modelProfileId: opaque, analysisRunId: opaque,
   // 未标记范围的已有格式 2 数据包始终表示完整风格参考包。
-  sampleScope: z.enum(['all', 'positive', 'negative']).optional(),
+  sampleScope: z.enum(['all', 'positive', 'negative', 'observations']).optional(),
   resources: z.array(z.strictObject({ imageVersionId: opaque, digest: z.string(), familyId: opaque })), files: z.array(z.strictObject({ name: z.string(), content: z.string(), checksum: digestSchema })),
 })
 export type ProfileExport = z.infer<typeof profileExportSchema>

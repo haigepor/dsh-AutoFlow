@@ -1,13 +1,19 @@
-## Visual Curator 0.2.12
+## Visual Curator 0.2.13
 
-- Fix plugin loading on older desktop builds whose native picker exposes directory selection only. The package carries its image/reference picker, command runner and Windows dialog worker.
-- Declare support for AutoFlow hosts based on DSH 0.2.2-alpha.2 and 0.2.2-rc.1. Existing tasks, references, datasets and activation choices remain in the profile.
+- Every new reference analysis automatically organizes and saves a dataset. Compatible observations are reused; partial collections or collections without positive anchors or active matching rules save an observation package first.
+- Dataset rows group profile versions and identical exports, show compact reference counts and version changes, and keep model details in the read-only dialog. Historical export IDs and saved files remain readable.
+- Frozen effective roles now agree across package contents, role counts and sample filters. Reference-only guidance is excluded from matching-rule totals. Equivalent and concurrent exports reuse one package.
+- Model organization records scoped negative reasons and rule applicability, including references outside a conditional rule. Model explanations retain their source and uncertainty; they do not create human-confirmed labels.
+- Saved observations survive failed organization or packaging. Packaging can continue without another model request, and changing role filters keeps the sample list visible.
 
-The loading fix works without reinstalling the desktop application; older builds require a manual restart after updating the plugin. The matching new desktop refreshes actual plugin status, shows waiting and restart progress, and applies installed updates automatically after current work finishes. Desktop installer updates still require separate confirmation. Automatic plugin installation remains opt-in.
+Update after current work finishes, then restart AutoFlow to load the matching Host and Client. Existing data, settings and activation choices are retained. Existing frozen tasks keep their original behavior. Keyless tests do not establish live paid-model output quality. Automatic installation uses the existing opt-in plugin setting.
 
-## 视觉策展 0.2.12
+## 视觉策展 0.2.13
 
-- 修复旧桌面版原生选择器仅提供目录选择时插件无法加载的问题；插件随包提供图片及参考素材选择器、命令执行辅助代码和 Windows 对话框工作进程。
-- 明确支持基于 DSH 0.2.2-alpha.2 和 0.2.2-rc.1 的 AutoFlow 宿主。已有任务、参考图、数据集及启用选择继续保存在 profile 中。
+- 每次新的参考分析都会自动整理并保存数据集，复用兼容观察；尚未分析齐全、缺少正例或有效匹配规则时先保存观察包。
+- 数据集按档案版本归组、合并相同导出，紧凑呈现正反例数量和版本变化，模型详情移入只读弹窗。历史导出 ID 与已保存文件保持可读。
+- 数据包内容、角色计数和样本筛选统一使用冻结的有效角色；参考说明不再计入匹配规则。重复或并发导出复用同一份数据包。
+- 模型整理记录有维度范围的反例原因和规则适用性，区分条件不适用的参考图；保留模型来源和不确定性，不生成虚假的人工确认标签。
+- 整理或封装失败时保留已保存观察；封装可继续重试而无需再次调用模型，切换角色筛选后样本列表保持可见。
 
-加载修复无需重装桌面应用；旧版更新插件后需手动重启。配套新桌面版会刷新真实插件状态、显示等待及重启进度，并在当前工作结束后自动重启使已安装更新生效。桌面安装包更新仍需单独确认。插件自动安装仍需明确开启。
+在当前工作结束后更新并重启 AutoFlow，加载配套的 Host 与 Client。保留已有数据、设置和启用选择，历史冻结任务继续原有行为。无密钥检查不代表真实付费模型输出质量已验收。自动安装沿用已有的明确开启设置。

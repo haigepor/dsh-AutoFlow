@@ -1,7 +1,8 @@
+import { effectiveReviewReferenceRole, isMatchingRule, referenceFeedbackRole } from '../shared/reference-semantics.ts'
 import { runResultFilterSchema } from '../shared/search-feedback.ts'
 import { planReferenceAnalysis } from './reference-state.ts'
 import { selectAnalysisReferences } from '../shared/reference-state.ts'
-import { datasetScopeSchema } from '../shared/datasets.ts'
+import { analysisScopeSchema, datasetScopeSchema } from '../shared/datasets.ts'
 import { importTaskReferences, readTaskReferences, referenceTask, validateTaskReferences } from './task-references.ts'
 import { taskReferenceReadSchema, taskReferenceImportSchema, type TaskReferenceImport } from '../shared/task-references.ts'
 /** Shared business provider for authenticated workbench actions and the Agent tools. */
@@ -540,15 +541,15 @@ export class CuratorService {
         case 'feedback-confirm': return await this.confirmFeedback(args, effectiveActor)
         case 'reference-analyze': {
           this.human(actor)
-          const { styleId, operationId, buildDataset, analysisMode, analysisScope, planDigest } = z.object({ styleId: z.string(), operationId: z.string(), buildDataset: z.boolean().default(false), analysisMode: z.enum(['pending', 'all']).default('pending'), analysisScope: datasetScopeSchema.default('all'), planDigest: z.string().optional() }).parse(args)
+          const { styleId, operationId, analysisMode, analysisScope, planDigest } = z.object({ styleId: z.string(), operationId: z.string(), buildDataset: z.boolean().optional(), analysisMode: z.enum(['pending', 'all']).default('pending'), analysisScope: analysisScopeSchema.default('all'), planDigest: z.string().optional() }).parse(args)
           const { style, draft, plan } = this.domain.repository.readSnapshot(() => {
             const style = this.domain.require('style', styleId), draft = this.domain.require('draft', style.draftId)
             for (const id of draft.referenceIds) this.domain.assertLearningFamily(this.domain.authorizedImage(this.domain.require('reference', id).imageVersionId, effectiveActor).asset.familyId)
-            const plan = buildDataset ? planReferenceAnalysis(this.domain, styleId, effectiveActor, this.recipe(operationId)) : undefined
-            if (planDigest !== undefined && planDigest !== plan?.view.digest) throw new CuratorError('revision-conflict', 'analyze', 'The analysis selection changed; review the current image counts again.')
-            const selection = plan ? selectAnalysisReferences(plan.view, analysisScope) : undefined
-            if (selection?.total === 0) throw new CuratorError('invalid-input', 'analyze', 'There are no references in the selected analysis scope.')
-            if ((analysisMode === 'all' || (selection?.changed ?? 0) > 0) && !planDigest) throw new CuratorError('constraint-conflict', 'analyze', 'Confirm reanalysis of previously analyzed images before starting.')
+            const plan = planReferenceAnalysis(this.domain, styleId, effectiveActor, this.recipe(operationId))
+            if (planDigest !== undefined && planDigest !== plan.view.digest) throw new CuratorError('revision-conflict', 'analyze', 'The analysis selection changed; review the current image counts again.')
+            const selection = selectAnalysisReferences(plan.view, analysisScope)
+            if (selection.total === 0) throw new CuratorError('invalid-input', 'analyze', 'There are no references in the selected analysis scope.')
+            if ((analysisMode === 'all' || selection.changed > 0) && !planDigest) throw new CuratorError('constraint-conflict', 'analyze', 'Confirm reanalysis of previously analyzed images before starting.')
             return { style, draft, plan }
           })
           const provider = await this.providers.vision(this.config)
@@ -561,10 +562,10 @@ export class CuratorService {
             const references = draft.referenceIds.map(id => this.domain.require('reference', id))
             const referenceThreads = new Set(references.flatMap(reference => reference.feedbackThreadIds))
             const feedback = this.domain.currentFeedback(effectiveActor).filter(item => item.scope === 'style-candidate' && item.context.styleId === style.id && (referenceThreads.has(item.threadId) || draft.feedbackIds.includes(item.id)))
-            const selected = new Set(references.filter(ref => analysisScope === 'all' || ref.role === analysisScope).map(ref => ref.imageVersionId))
-            return { invocationDigest: contentDigest({ operation, args }), ...(buildDataset ? { analysisOutput: 'observations-only', referencePrompts: 'role-aware-v1', autoExportDataset: true, reuseObservations: toJson(plan!.reused.filter(link => analysisMode === 'pending' || !selected.has(link.imageVersionId))), analysisMode, ...(planDigest ? { planDigest } : {}) } : {}), draft: toJson(draft), references: toJson(references), feedback: toJson(feedback), recipe: toJson(this.recipe(operationId)), ...(splitId ? { split: toJson(this.domain.require('split', splitId)) } : {}) }
+            const selected = new Set(references.filter(ref => analysisScope === 'all' || referenceFeedbackRole(draft.rules, ref, feedback) === analysisScope).map(ref => ref.imageVersionId))
+            return { invocationDigest: contentDigest({ operation, args }), analysisOutput: 'observations-only', referencePrompts: 'role-aware-v1', autoExportDataset: true, reuseObservations: toJson(plan.reused.filter(link => analysisMode === 'pending' || !selected.has(link.imageVersionId))), analysisMode, ...(planDigest ? { planDigest } : {}), draft: toJson(draft), references: toJson(references), feedback: toJson(feedback), recipe: toJson(this.recipe(operationId)), ...(splitId ? { split: toJson(this.domain.require('split', splitId)) } : {}) }
           })
-          return await this.launch('analyze', { styleId, buildDataset, analysisScope }, fixed, effectiveActor, operationId, signal)
+          return await this.launch('analyze', { styleId, buildDataset: true, analysisScope }, fixed, effectiveActor, operationId, signal)
         }
         case 'search-start': case 'crop-start': case 'manual-crop-confirm': return await this.startTask(operation, args, effectiveActor, signal)
         case 'library-save': this.human(actor); return await this.saveLibrary(args, effectiveActor)
@@ -606,10 +607,10 @@ export class CuratorService {
     return existing ?? recipeSchema.parse({ schemaVersion: 1, profileId: this.profileId, id, createdAt: new Date().toISOString(), kind: 'recipe', visionRevision: reviewerRevision(this.config), model: this.config.vision.model || 'unconfigured', vendorVersion: this.config.vision.vendorVersion, promptVersion: 'visual-curator-v1', outputSchemaVersion: '1', preprocessingVersion: this.files.processorVersion, referenceStrategy: { maxImages: this.config.limits.maxReferenceImages, maxBytes: this.config.limits.maxReferenceBytes }, preferenceScale: { min: 0, max: 1, weights: Object.fromEntries(['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth'].map(dimension => [dimension, 1 / 7])) }, unknownPolicy: 'needs-review', tieBreak: 'stable-id' })
   }
   private ruleFromView(value: unknown, actor: DomainActor, previous: Rule[]): Rule {
-    const input = z.object({ ruleId: z.string(), dimension: z.enum(['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth']), statement: z.string().min(1), strength: z.enum(['required', 'preferred', 'reference-only']), stage: z.enum(['source', 'final']), confirmed: z.boolean(), condition: z.string(), exceptions: z.array(z.string()), supportRefs: z.array(z.string()), counterRefs: z.array(z.string()) }).parse(value)
+    const input = z.object({ ruleId: z.string(), dimension: z.enum(['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth']), statement: z.string().min(1), strength: z.enum(['required', 'preferred', 'reference-only']), stage: z.enum(['source', 'final']), confirmed: z.boolean(), condition: z.string(), exceptions: z.array(z.string()), supportRefs: z.array(z.string()), counterRefs: z.array(z.string()), notApplicableRefs: z.array(z.string()).optional() }).parse(value)
     const old = previous.find(rule => rule.ruleId === input.ruleId)
     const same = old && old.statement === input.statement && old.strength === input.strength && old.stage === input.stage && old.dimension === input.dimension
-    return { ruleId: input.ruleId, dimension: input.dimension, statement: input.statement, strength: input.strength, stage: input.stage, condition: { ...(old?.condition.usageRevisionIds ? { usageRevisionIds: old.condition.usageRevisionIds } : {}), ...(input.condition.trim() ? { subjects: input.condition.split(',').map(item => item.trim()).filter(Boolean) } : {}) }, exceptions: old && JSON.stringify(input.exceptions) === JSON.stringify(old.exceptions.map(condition => condition.subjects?.join(', ') ?? condition.usageRevisionIds?.join(', ') ?? '')) ? old.exceptions : input.exceptions.map(exception => ({ subjects: [exception] })), supportRefs: input.supportRefs, counterRefs: input.counterRefs, check: old?.check.kind === 'measured' ? old.check : { kind: 'visual', criterion: input.statement }, confirmation: input.confirmed ? same && old.confirmation.status === 'confirmed' ? old.confirmation : { status: 'confirmed', actor: { kind: 'authenticated-human', id: actor.id, confirmationMethod: 'client-action', confirmedAt: new Date().toISOString() } } : { status: 'suggested' } }
+    return { ruleId: input.ruleId, dimension: input.dimension, statement: input.statement, strength: input.strength, stage: input.stage, condition: { ...(old?.condition.usageRevisionIds ? { usageRevisionIds: old.condition.usageRevisionIds } : {}), ...(input.condition.trim() ? { subjects: input.condition.split(',').map(item => item.trim()).filter(Boolean) } : {}) }, exceptions: old && JSON.stringify(input.exceptions) === JSON.stringify(old.exceptions.map(condition => condition.subjects?.join(', ') ?? condition.usageRevisionIds?.join(', ') ?? '')) ? old.exceptions : input.exceptions.map(exception => ({ subjects: [exception] })), supportRefs: input.supportRefs, counterRefs: input.counterRefs, ...(input.notApplicableRefs ? { notApplicableRefs: input.notApplicableRefs } : {}), check: old?.check.kind === 'measured' ? old.check : { kind: 'visual', criterion: input.statement }, confirmation: input.confirmed ? same && old.confirmation.status === 'confirmed' ? old.confirmation : { status: 'confirmed', actor: { kind: 'authenticated-human', id: actor.id, confirmationMethod: 'client-action', confirmedAt: new Date().toISOString() } } : { status: 'suggested' } }
   }
   private async importReferences(args: Record<string, Json>, actor: DomainActor, signal: AbortSignal): Promise<Json> {
     const input = uploadSchema.parse(args)
@@ -785,7 +786,7 @@ export class CuratorService {
       return { kind: 'search', normalized: preview ? { ...launched.input, queries: input.queries! } : launched.input, fixed: launched.fixed, config: launched.config }
     }
     const release = this.domain.repository.get('modelProfile', input.releaseId) ?? this.domain.require('release', input.releaseId), style = this.domain.require('style', release.styleId)
-    if (release.kind === 'modelProfile' && !release.rules.length) throw new CuratorError('constraint-conflict', 'resolve', 'Enable at least one style rule before starting a model-profile task.')
+    if (release.kind === 'modelProfile' && !release.rules.some(isMatchingRule)) throw new CuratorError('constraint-conflict', 'resolve', 'Enable at least one style rule before starting a model-profile task.')
     this.domain.resolveRelease(style.id, release.id)
     await this.domain.verifyRelease(release, actor, input.datasetId ? { datasetId: input.datasetId } : {})
     const output = input.output ?? (input.usageRevisionId ? { kind: 'usage' as const, usageRevisionId: input.usageRevisionId } : undefined)
@@ -912,8 +913,8 @@ export class CuratorService {
     if (profile) {
       if (!['style', 'skill'].includes(kind) || rest.purpose !== 'reference' || rest.mode !== 'references-only') throw new CuratorError('constraint-conflict', 'profile-export', 'Model profiles export reference packages only; human supervision and image-byte permissions remain separate.')
       new ModelProfiles(this.domain).assertFresh(profile, actor)
-      if (sampleScope === 'all' && !profile.rules.length) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one style rule before exporting.')
-      if (!profile.references.some(ref => sampleScope === 'all' || ref.reference.role === sampleScope)) throw new CuratorError('constraint-conflict', 'profile-export', 'There are no analyzed references in the selected export scope.')
+      if (sampleScope === 'all' && !profile.rules.some(isMatchingRule)) throw new CuratorError('constraint-conflict', 'profile-export', 'Enable at least one style rule before exporting.')
+      if (!profile.references.some(ref => sampleScope === 'all' || sampleScope === 'observations' || effectiveReviewReferenceRole(profile, ref) === sampleScope)) throw new CuratorError('constraint-conflict', 'profile-export', 'There are no analyzed references in the selected export scope.')
       return await this.launch('export', { operationId: `${operationId}:export`, modelProfileId: profile.id, sampleScope }, { invocationDigest: contentDigest({ operation: 'export-start', args }), actor: toJson(actor) }, actor, operationId, signal)
     }
     if (sampleScope !== 'all') throw new CuratorError('constraint-conflict', 'export', 'Role-filtered observation exports require an analyzed model profile.')

@@ -108,7 +108,7 @@ export async function exportStyleDataset(actions: Pick<CuratorStore, 'execute'>,
  */
 export function draftArgs(style: StyleView, rules: RuleView[]): ActionArgs {
   return { operationId: crypto.randomUUID(), styleId: style.styleId, expectedRevision: style.revision,
-    rules: rules.map(rule => ({ ...rule, confirmed: true })), referenceIds: style.referenceIds,
+    rules: rules.map(rule => ({ ...rule, notApplicableRefs: rule.notApplicableRefs ?? [], confirmed: true })), referenceIds: style.referenceIds,
     feedbackIds: style.feedbackIds ?? [], conflicts: style.conflicts }
 }
 

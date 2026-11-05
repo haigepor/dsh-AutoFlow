@@ -113,7 +113,7 @@ test('immutable packages and their cursors stay distinct while storage tampering
       sample.inferred[0]!.value = 'updated frozen observation'; rows[0] = JSON.stringify(sample)
       const content = rows.join('\n') + '\n'; return { ...file, content, checksum: fileChecksum(content) }
     })
-    const immutable = profileExportSchema.parse({ ...f.artifact, files }), originalAggregate = `profile-export:${f.artifact.id}`
+    const immutable = profileExportSchema.parse({ ...f.artifact, files }), originalAggregate = f.repository.manifests().find(manifest => manifest.records.some(pointer => pointer.kind === 'profileExport' && pointer.id === f.artifact.id))!.aggregateId
     await assert.rejects(f.repository.commit({ aggregateId: originalAggregate, expectedRevision: f.repository.manifest(originalAggregate)!.revision, operationId: 'replace-immutable', request: {}, state: {}, records: [immutable] }), { code: 'constraint-conflict' })
     const changed = profileExportSchema.parse({ ...immutable, id: 'replacement-package' }), aggregateId = 'replacement-package'
     await f.repository.commit({ aggregateId, expectedRevision: 0, operationId: 'replace-package', request: {}, state: { id: changed.id }, records: [changed] })

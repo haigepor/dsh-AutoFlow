@@ -1,0 +1,9 @@
+{
+  "currentRows": 1,
+  "historicalRows": 3,
+  "organizationActions": 1,
+  "negativeSamplesRendered": true,
+  "positiveSamplesRendered": true,
+  "narrowThemesFit": true,
+  "reasonsRemainModelSuggestions": true
+}

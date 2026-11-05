@@ -1626,10 +1626,10 @@ body:has([role='dialog'][aria-modal='true']) .vc-analysis-complete::before { ani
 .vc-datasets-table th, .vc-datasets-table td { padding: 14px 16px; border-bottom: 1px solid var(--dsw-alias-border-l3); text-align: start; vertical-align: middle; }
 .vc-datasets-table thead th { padding-block: 12px; font-size: 12px; color: var(--dsw-alias-label-secondary); background: transparent; font-weight: 400; white-space: nowrap; }
 .vc-datasets-table thead th:first-child { width: 31%; }
-.vc-datasets-table thead th:nth-child(2) { width: 25%; }
-.vc-datasets-table thead th:nth-child(3) { width: 14%; }
-.vc-datasets-table thead th:nth-child(4) { width: 12%; }
-.vc-datasets-table thead th:last-child { width: 18%; text-align: end; }
+.vc-datasets-table thead th:nth-child(2) { width: 30%; }
+.vc-datasets-table thead th:nth-child(3) { width: 13%; }
+.vc-datasets-table thead th:nth-child(4) { width: 10%; }
+.vc-datasets-table thead th:last-child { width: 16%; text-align: end; }
 .vc-datasets-table tbody th { height: 88px; font-weight: 400; }
 .vc-datasets-table tbody tr:focus-within { background: var(--dsw-alias-interactive-bg-hover); }
 @media (hover: hover) {
@@ -1637,7 +1637,6 @@ body:has([role='dialog'][aria-modal='true']) .vc-analysis-complete::before { ani
 .vc-datasets-table tbody tr:last-child :is(td, th) { border-bottom: none; }
 .vc-datasets-table small { display: block; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 17px; }
 .vc-dataset-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.vc-dataset-mark { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); }
 .vc-dataset-identity-text { min-width: 0; }
 .vc-dataset-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .vc-workbench .vc-dataset-name { height: auto; padding: 0; justify-content: flex-start; text-align: start; white-space: normal; overflow-wrap: anywhere; font-size: 14px; line-height: 22px; font-weight: 500; }
@@ -1648,19 +1647,25 @@ body:has([role='dialog'][aria-modal='true']) .vc-analysis-complete::before { ani
 .vc-dataset-coverage .vc-dataset-file-size { margin-inline-start: auto; color: var(--dsw-alias-label-tertiary); font-size: 10px; white-space: nowrap; }
 .vc-dataset-coverage-body { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; }
 .vc-dataset-image-count { display: inline-flex; align-items: baseline; gap: 4px; color: var(--dsw-alias-label-secondary); font-size: 11px; white-space: nowrap; }
-.vc-dataset-image-count strong { color: var(--dsw-alias-label-primary); font-size: 20px; line-height: 24px; font-weight: 600; }
-.vc-dataset-role-counts { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
-.vc-dataset-role-counts > span { display: inline-flex; align-items: baseline; gap: 5px; }
-.vc-dataset-role-counts b { color: var(--dsw-alias-label-primary); font-size: 11px; font-weight: 500; }
-.vc-dataset-role-counts > [data-empty] { opacity: 0.6; }
-.vc-dataset-rule-counts { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--dsw-alias-label-tertiary); font-size: 10px; line-height: 16px; }
+.vc-dataset-image-count strong { color: var(--dsw-alias-label-primary); font-size: 20px; line-height: 24px; font-weight: 500; }
+.vc-dataset-role-counts { display: flex; flex-wrap: wrap; gap: 6px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.vc-dataset-role-counts > span { display: inline-flex; align-items: baseline; gap: 8px; padding-inline: 8px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-2); }
+.vc-dataset-role-counts b { color: var(--dsw-alias-label-primary); font-size: 13px; font-weight: 500; }
+.vc-dataset-rule-counts { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
 .vc-dataset-rule-counts > span { display: flex; flex-wrap: wrap; gap: 0 5px; }
-.vc-dataset-rule-counts b { color: var(--dsw-alias-label-secondary); font-weight: 400; }
+.vc-dataset-rule-counts b { color: var(--dsw-alias-label-primary); font-weight: 500; }
+.vc-dataset-rule-counts small { color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .vc-dataset-coverage small > span { color: var(--dsw-alias-label-primary); }
 .vc-dataset-coverage .vc-dataset-size { margin-inline-start: 8px; color: var(--dsw-alias-label-secondary); }
 .vc-dataset-row-state { display: inline-flex; align-items: center; gap: 6px; }
 .vc-dataset-created { display: flex; flex-direction: column; gap: 2px; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .vc-datasets-table .vc-dataset-actions { justify-content: flex-end; gap: 8px; }
+.vc-dataset-export-options { flex-basis: 100%; font-size: 12px; text-align: end; }
+.vc-dataset-export-options > summary { cursor: pointer; color: var(--dsw-alias-label-secondary); }
+.vc-dataset-export-options[open] { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.vc-dataset-version-change { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; white-space: normal; overflow-wrap: anywhere; }
+.vc-dataset-change-chip { padding-inline: 6px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-2); }
+.vc-dataset-observation-hint { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
 .vc-dataset-row-download { min-height: 28px; padding-inline: 8px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); color: var(--dsw-alias-label-primary); }
 @media (hover: hover) {
 .vc-dataset-row-download:hover { background: var(--dsw-alias-interactive-bg-hover); } }

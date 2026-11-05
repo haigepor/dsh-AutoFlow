@@ -62,6 +62,14 @@ test('explicit negative constraints retain required strength while positive-only
   assert.deepEqual(selectReviewReferences(profile, () => 1).map(ref => ref.reference.role), ['positive', 'negative'])
 })
 
+test('an inapplicable positive reference does not disable a scoped interaction rule', async () => {
+  const f = await fixture([{ role: 'positive', intent: { kind: 'dimensions', dimensions: ['subject'] } }, { role: 'positive' }, { role: 'negative', intent: { kind: 'dimensions', dimensions: ['subject'] } }])
+  const profile = await f.analyze('scoped-interaction', [{ ...preference, statement: 'Prefer interaction in two-person portraits.', dimension: 'subject', strength: 'preferred', condition: 'Two-person portraits only.', supportImageVersionIds: ['image-0'], counterImageVersionIds: ['image-2'], notApplicableImageVersionIds: ['image-1'] }])
+  assert.equal(profile.options[0]!.enabled, true)
+  assert.deepEqual(profile.options[0]!.rule.counterRefs, ['ref-2'])
+  assert.deepEqual(profile.options[0]!.rule.notApplicableRefs, ['ref-1'])
+})
+
 test('counter-only negative preferences remain enabled preferences through user edits and reanalysis', async () => {
   const f = await fixture()
   const rules: StyleSummary['suggestedRules'] = [preference,

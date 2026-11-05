@@ -55,7 +55,8 @@ export function restoreSummaryImages(summary: StyleSummary, aliases: Readonly<Re
   return { ...summary,
     dimensions: summary.dimensions.map(row => ({ ...row, supportImageVersionIds: restore(row.supportImageVersionIds), counterImageVersionIds: restore(row.counterImageVersionIds) })),
     conflicts: summary.conflicts.map(row => ({ ...row, imageVersionIds: restore(row.imageVersionIds) })),
-    suggestedRules: summary.suggestedRules.map(row => ({ ...row, supportImageVersionIds: restore(row.supportImageVersionIds), counterImageVersionIds: restore(row.counterImageVersionIds) })),
+    suggestedRules: summary.suggestedRules.map(row => ({ ...row, supportImageVersionIds: restore(row.supportImageVersionIds), counterImageVersionIds: restore(row.counterImageVersionIds), ...(row.notApplicableImageVersionIds ? { notApplicableImageVersionIds: restore(row.notApplicableImageVersionIds) } : {}) })),
+    ...(summary.negativeReasons ? { negativeReasons: summary.negativeReasons.map(reason => ({ ...reason, imageVersionId: canonical.get(reason.imageVersionId) ?? reason.imageVersionId })) } : {}),
     ...(summary.organization ? { organization: { ...summary.organization, groups: summary.organization.groups.map(group => ({ ...group, imageVersionIds: restore(group.imageVersionIds) })) } } : {}),
   }
 }

@@ -8,5 +8,5 @@
   "finalRules": 1,
   "normalizedBatchRules": [0, 0, 0],
   "summaryCalls": 1,
-  "ordinaryRules": [1, 1, 1]
+  "ordinaryRules": [1]
 }

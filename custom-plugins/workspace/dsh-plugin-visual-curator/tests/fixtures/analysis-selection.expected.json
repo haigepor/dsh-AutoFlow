@@ -1,7 +1,8 @@
 {
   "observedRoles": ["positive", "negative"],
   "perImageCalls": 2,
-  "summaryCalls": 1,
+  "summaryCalls": 2,
+  "partialPackageScope": "observations",
   "retainedPositiveObservation": true,
   "fullDatasetReferences": 2,
   "finalRowScope": "all",

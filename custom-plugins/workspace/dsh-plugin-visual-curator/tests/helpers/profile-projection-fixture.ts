@@ -32,7 +32,7 @@ export async function profileProjectionFixture(total = 329, collections = 1) {
       const historical = runSchema.parse({ ...run, id: runId, spec: toJson({ ...spec, input: { ...spec.input, styleId }, fixed: { ...spec.fixed, draft: current, references, feedback: [] } }),
         data: toJson({ ...data, counts: { ...data.counts, observed: total }, checkpoint: { ...data.checkpoint, styleAnalysis: result } }) })
       const selected = modelProfileSchema.parse({ ...profile, id: `projection-profile-${group}`, styleId, draftId, draftRevision: 1, analysisRunId: runId,
-        referenceDigest: result.referenceDigest, references: references.map(reference => ({ ...profile.references[0]!, reference, imageDigest: image.blob.digest, feedbackIds: [] })), contentDigest: contentDigest(result) })
+        referenceDigest: result.referenceDigest, references: references.map(reference => ({ ...profile.references[0]!, reference, imageDigest: image.blob.digest, feedbackIds: [], judgments: [] })), contentDigest: contentDigest(result) })
       await f.repository.commit({ aggregateId: `style:${styleId}`, expectedRevision: 0, operationId: `projection-records-${group}`, request: {}, state: {},
         records: [styleSchema.parse({ ...seed, id: styleId, draftId, revision: 1 }), current, ...images, ...references, ...observations, historical] })
       await f.repository.commit({ aggregateId: `model-profiles:${styleId}`, expectedRevision: 0, operationId: `projection-selection-${group}`, request: {}, state: { profileId: selected.id }, records: [selected] })

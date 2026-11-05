@@ -5,14 +5,23 @@ import { dimensionSchema, referenceSchema, observationSchema, runSchema, draftSc
 const text = z.string().trim().min(1).max(4096)
 const imageIds = z.array(z.string().min(1))
 /** Model proposals carry explicit positive and negative evidence; publication is a separate human action. */
-export const proposedRuleSchema = z.strictObject({ statement: text, dimension: dimensionSchema, strength: z.enum(['required', 'preferred', 'reference-only']), stage: z.enum(['source', 'final']), supportImageVersionIds: imageIds, counterImageVersionIds: imageIds, condition: z.string().max(4096), exceptions: z.array(text) })
+export const proposedRuleSchema = z.strictObject({ statement: text, dimension: dimensionSchema, strength: z.enum(['required', 'preferred', 'reference-only']), stage: z.enum(['source', 'final']), supportImageVersionIds: imageIds, counterImageVersionIds: imageIds, notApplicableImageVersionIds: imageIds.optional(), condition: z.string().max(4096), exceptions: z.array(text) })
+/** Model-inferred rejection explanations never create human feedback or change reference roles. */
+export const referenceReasonSchema = z.strictObject({ imageVersionId: z.string().min(1), dimension: dimensionSchema, reason: text, uncertain: z.boolean() })
 /** Cross-image induction includes disagreements and insufficient evidence instead of a single average style. */
 export const styleSummarySchema = z.strictObject({
   name: text, summary: text, matchingPrompt: text, searchHints: z.array(text).max(20), avoidTerms: z.array(text).max(20),
   dimensions: z.array(z.strictObject({ dimension: dimensionSchema, description: text, consistency: z.enum(['consistent', 'mixed', 'insufficient']), supportImageVersionIds: imageIds, counterImageVersionIds: imageIds })).min(1).max(7),
   conflicts: z.array(z.strictObject({ description: text, imageVersionIds: imageIds.min(1) })).max(30),
   suggestedRules: z.array(proposedRuleSchema).max(30),
+  negativeReasons: z.array(referenceReasonSchema).optional(),
   organization: z.strictObject({ groups: z.array(z.strictObject({ groupId: text, name: text, description: text, imageVersionIds: imageIds.min(1) })), selections: z.array(z.strictObject({ ruleIndex: z.number().int().nonnegative(), enabled: z.boolean(), groupId: z.string().nullable(), reason: text })) }).optional(),
+})
+/** New model organization explicitly explains negative references and distinguishes inapplicable evidence; historical summaries keep their original schema. */
+export const organizedStyleSummarySchema = styleSummarySchema.extend({
+  negativeReasons: z.array(referenceReasonSchema),
+  organization: styleSummarySchema.shape.organization.unwrap(),
+  suggestedRules: z.array(proposedRuleSchema.extend({ notApplicableImageVersionIds: imageIds })).max(30),
 })
 /** Immutable checkpoint result, pinned to all input references and the exact API request versions. */
 export const styleAnalysisSchema = z.strictObject({
@@ -20,7 +29,7 @@ export const styleAnalysisSchema = z.strictObject({
   draftId: draftSchema.shape.id, draftRevision: z.number().int().positive(), referenceDigest: z.string(),
   feedbackIds: z.array(z.string()), recipeId: recipeSchema.shape.id,
   model: z.string(), declaredModelVersion: z.string().nullable(),
-  observationPromptVersion: z.literal('visual-curator-v1'), summaryPromptVersion: z.enum(['visual-curator-summary-v1', 'visual-curator-summary-v2', 'visual-curator-summary-v3']),
+  observationPromptVersion: z.literal('visual-curator-v1'), summaryPromptVersion: z.enum(['visual-curator-summary-v1', 'visual-curator-summary-v2', 'visual-curator-summary-v3', 'visual-curator-summary-v4']),
   summaryRequestId: z.string(),
   samples: z.array(z.strictObject({ reference: referenceSchema, imageDigest: z.string(), observationId: observationSchema.shape.id, feedbackIds: z.array(z.string()) })).min(1),
   summary: styleSummarySchema,

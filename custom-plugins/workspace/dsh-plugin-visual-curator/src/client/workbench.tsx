@@ -1,3 +1,4 @@
+import { isMatchingRule } from '../shared/reference-semantics.ts'
 import { createImageGallery } from './image-gallery.tsx'
 import { createReferenceStateHook } from './reference-state.ts'
 import { analysisRoleCounts, selectAnalysisReferences, type ReferenceState } from '../shared/reference-state.ts'
@@ -227,7 +228,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const referencesView = workspaceView === 'references'
     const referencing = !!task && galleryTaskActive(task.status)
     const referenceProgress = task ? galleryTaskProgress(task) : undefined
-    const rules = style.modelProfile ? style.modelProfile.options.filter(option => option.enabled).map(option => option.rule) : style.rules
+    const rules = style.modelProfile ? style.modelProfile.options.filter(option => option.enabled && isMatchingRule(option.rule)).map(option => option.rule) : style.rules.filter(isMatchingRule)
     const [role, setRole] = React.useState<'positive' | 'negative'>('positive')
     const [filter, setFilter] = React.useState<'all' | 'positive' | 'negative' | 'undecided'>('all')
     const [view, setView] = React.useState<'grid' | 'list'>('grid'), [dragging, setDragging] = React.useState(false)
@@ -425,7 +426,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
       {!!refs.length && <p className="vc-reference-purpose"><ui.IconInfoOutlineRegular size={14} />{t('referencePurpose')}</p>}
       </>}</div>
       </div>
-      {workspaceView === 'datasets' && <div className="vc-datasets-panel" id={`${viewId}-datasets`} role="tabpanel" aria-labelledby={`${viewId}-datasets-tab`}><DatasetWorkspace useDatasets={useDatasets} actions={actions} t={t} currentProfile={style.modelProfile} canGenerate={!!style.modelProfile && !style.modelProfile.stale} onGenerate={() => setDatasetOpen(true)} /></div>}
+      {workspaceView === 'datasets' && <div className="vc-datasets-panel" id={`${viewId}-datasets`} role="tabpanel" aria-labelledby={`${viewId}-datasets-tab`}><DatasetWorkspace useDatasets={useDatasets} actions={actions} t={t} currentProfile={style.modelProfile} canGenerate={!!style.modelProfile && !style.modelProfile.stale} onGenerate={() => setDatasetOpen(true)} onOrganize={() => analyze()} canOrganize={!analysisDisabled && !analysisBusy} /></div>}
       <aside id={inspectorId} className="vc-profile-dock" hidden={!inspectorOpen || !referencesView} aria-label={t('profileInspector')} onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); closeInspector() } }}>
         <header className="vc-profile-header"><h2>{t('profileInspector')}</h2><Button size="sm" variant="ghost" onClick={closeInspector}>{t('collapse')}<ui.IconChevronRightOutlineRegular size={14} /></Button></header>
         <div className="vc-profile-content">{profileContent}</div>

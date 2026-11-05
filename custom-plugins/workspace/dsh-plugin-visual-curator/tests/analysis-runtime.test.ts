@@ -704,9 +704,10 @@ describe('background analysis lifecycle', () => {
         return outcome
       }, `cache-${point}`)
       await reached.promise
-      assert.equal(fixture.http.operations.length - before, 1)
+      const completedCalls = point === 'before-checkpoint' ? 1 : 2
+      assert.equal(fixture.http.operations.length - before, completedCalls)
       const committed = fixture.repository.list('request').filter(request => request.runId === interrupted.id)
-      assert.equal(committed.length, 1)
+      assert.equal(committed.length, completedCalls)
       assert.equal(committed[0]?.state, 'committed')
       await first.engine.dispose()
       assert.equal(first.engine.get(interrupted.id, fixture.actor).status, 'interrupted')
@@ -717,11 +718,11 @@ describe('background analysis lifecycle', () => {
       await restarted.jobs.hooks[0]!.done
       const complete = restarted.engine.get(interrupted.id, fixture.actor)
       assert.equal(complete.status, 'completed', JSON.stringify(dataOf(complete).error))
-      assert.equal(fixture.http.operations.length - before, 1)
-      assert.equal(dataOf(complete).budget.vision, 1)
+      assert.equal(fixture.http.operations.length - before, 2)
+      assert.equal(dataOf(complete).budget.vision, 2)
       assert.equal(dataOf(complete).counts.observed, 1)
       assert.equal(dataOf(complete).attempts, 2)
-      assert.equal(fixture.repository.list('request').filter(request => request.runId === interrupted.id).length, 1)
+      assert.equal(fixture.repository.list('request').filter(request => request.runId === interrupted.id).length, 2)
       assert.equal(fixture.repository.list('observation').filter(observation => dataOf(complete).resultIds.includes(observation.id)).length, 1)
     })
   })

@@ -44,12 +44,17 @@ test('positive-only then negative-only analysis retains both sets, uses distinct
       }
       return send(url, request)
     }
-    const positive = started.parse(await f.action('reference-analyze', { operationId: 'positive', styleId, buildDataset: true, analysisScope: 'positive' }))
+    const positive = started.parse(await f.action('reference-analyze', { operationId: 'positive', styleId, analysisScope: 'positive' }))
     await f.jobs.drain()
     const partial = f.domain.require('run', positive.runId)
     assert.equal(partial.status, 'completed', JSON.stringify(dataOf(partial).error))
-    assert.deepEqual(f.http.operations, ['analyze:'])
-    assert.equal(f.repository.list('profileExport').length, 0)
+    assert.deepEqual(f.http.operations, ['analyze:', 'summarize:'])
+    const observationPackage = f.repository.list('profileExport')[0]!
+    assert.equal(observationPackage.sampleScope, 'observations')
+    assert.equal(observationPackage.resources.length, 1)
+    assert.equal(dataOf(partial).checkpoint.observationDatasetId, observationPackage.id)
+    assert.equal(f.repository.list('modelProfile')[0]!.rules.length, 0)
+    assert.equal(datasetListSchema.parse(await f.action('datasets-list', { styleId, reusableOnly: true })).total, 0)
     const partialDetail = z.object({ task: z.object({ observed: z.number(), total: z.number(), awaitingReferences: z.number() }) }).parse(await f.action('analysis-detail', { runId: positive.runId }))
     assert.deepEqual(partialDetail.task, { observed: 1, total: 1, awaitingReferences: 1 })
     const firstObservation = structuredClone(f.repository.list('observation')[0]!)
@@ -61,15 +66,16 @@ test('positive-only then negative-only analysis retains both sets, uses distinct
     assert.match(instructions[0]!, /POSITIVE style references/); assert.match(instructions[1]!, /NEGATIVE counterexamples/)
     assert.doesNotMatch(instructions[0]!, /These are NEGATIVE/)
     assert.deepEqual(f.domain.require('observation', firstObservation.id), firstObservation)
-    assert.deepEqual(f.http.operations, ['analyze:', 'analyze:', 'summarize:'])
-    const profile = f.repository.list('modelProfile')[0]!, artifact = f.repository.list('profileExport')[0]!
+    assert.deepEqual(f.http.operations, ['analyze:', 'summarize:', 'analyze:', 'summarize:'])
+    const profile = f.repository.list('modelProfile').find(item => item.analysisRunId === negative.runId)!, artifact = f.repository.list('profileExport').find(item => item.modelProfileId === profile.id)!
     assert.ok(artifact, 'A completed full analysis must publish its checksummed dataset without another click')
     assert.equal(artifact.modelProfileId, profile.id)
     assert.equal(dataOf(complete).checkpoint.finalDatasetId, artifact.id)
     const exported = JSON.parse(artifact.files.find(file => file.name === 'style-profile.json')!.content)
     assert.ok(exported.matchingPrompt.length > 0)
     assert.equal(profile.references.length, 2)
-    assert.deepEqual(JSON.parse(f.http.summaryInputs[0]!).samples.map((sample: { role: string }) => sample.role).sort(), ['negative', 'positive'])
+    assert.deepEqual(JSON.parse(f.http.summaryInputs[1]!).samples.map((sample: { role: string }) => sample.role).sort(), ['negative', 'positive'])
+    assert.deepEqual(f.domain.require('profileExport', observationPackage.id), observationPackage)
     await f.action('export-start', { operationId: 'later-negative-observations', kind: 'style', purpose: 'reference', releaseId: profile.id, sampleScope: 'negative' }); await f.jobs.drain()
     const page = datasetListSchema.parse(await f.action('datasets-list', { styleId }))
     assert.equal(page.entries[0]!.exportId, artifact.id)
@@ -80,7 +86,7 @@ test('positive-only then negative-only analysis retains both sets, uses distinct
     assert.equal(selectAnalysisReferences(plan, 'positive').reusable, 1)
     assert.equal(selectAnalysisReferences(plan, 'negative').reusable, 1)
     assert.equal(new ModelProfiles(f.domain).isFresh(profile, f.actor, 'wrong-finalizing-run'), true)
-    const actual = { observedRoles: roles, perImageCalls: 2, summaryCalls: 1, retainedPositiveObservation: true, fullDatasetReferences: profile.references.length,
+    const actual = { observedRoles: roles, perImageCalls: 2, summaryCalls: f.http.summaryInputs.length, partialPackageScope: observationPackage.sampleScope, retainedPositiveObservation: true, fullDatasetReferences: profile.references.length,
       finalRowScope: page.entries[0]!.sampleScope, finalRowPinned: page.entries[0]!.isFinal, laterObservationScope: page.entries[1]!.sampleScope, matchingPromptSaved: !!exported.matchingPrompt }
     assert.deepEqual(actual, JSON.parse(await readFile(new URL('./fixtures/analysis-selection.expected.json', import.meta.url), 'utf8')))
   } finally { await f.cleanup() }
@@ -115,9 +121,31 @@ test('negative-only collections retain counterexamples without fabricating a tar
     assert.equal(f.domain.require('run', runId).status, 'completed')
     assert.equal(dataOf(f.domain.require('run', runId)).checkpoint.analysisNeedsPositiveReferences, true)
     assert.equal(f.repository.list('observation').length, 1)
-    assert.equal(f.repository.list('profileExport').length, 0)
+    const saved = f.repository.list('profileExport')[0]!
+    assert.equal(saved.sampleScope, 'observations')
+    assert.equal(saved.resources.length, 1)
+    assert.equal(dataOf(f.domain.require('run', runId)).checkpoint.observationDatasetId, saved.id)
+    assert.equal(datasetListSchema.parse(await f.action('datasets-list', { styleId, reusableOnly: true })).total, 0)
     assert.deepEqual(f.http.operations, ['analyze:', 'summarize:'])
   } finally { await f.cleanup() }
+})
+
+test('ordinary analysis automatically organizes and saves positive and undecided collections even with the legacy false flag', async () => {
+  for (const role of ['positive', 'undecided'] as const) {
+    const f = await serviceFixture(); await f.service.initialize()
+    try {
+      const styleId = identity.parse(await f.action('style-create', { operationId: 'ordinary-style', name: 'Automatic dataset' })).id
+      await f.action('reference-import', { operationId: 'ordinary-reference', styleId, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role, intent: 'overall', dimensions: [] }] })
+      const { runId } = started.parse(await f.action('reference-analyze', { operationId: 'ordinary-analysis', styleId, ...(role === 'undecided' ? { buildDataset: false } : {}) })); await f.jobs.drain()
+      const run = f.domain.require('run', runId), saved = f.repository.list('profileExport')[0]!
+      assert.equal(run.status, 'completed', JSON.stringify(dataOf(run).error))
+      assert.deepEqual(f.http.operations, ['analyze:', 'summarize:'])
+      assert.ok(saved)
+      assert.equal(saved.resources.length, 1)
+      assert.equal(saved.sampleScope ?? 'all', role === 'positive' ? 'all' : 'observations')
+      assert.equal(specOf(run).input.buildDataset, true)
+    } finally { await f.cleanup() }
+  }
 })
 
 test('failed automatic package commits resume from saved induction without another model call or duplicate dataset', async () => {
@@ -127,7 +155,7 @@ test('failed automatic package commits resume from saved induction without anoth
     const styleId = await collection(f)
     let fail = true
     f.repository.commit = async input => {
-      if (fail && input.aggregateId.startsWith('profile-export:')) { fail = false; throw new CuratorError('storage-commit-failed', 'storage-commit', 'Injected dataset write failure.') }
+      if (fail && input.records.some(record => record.kind === 'profileExport')) { fail = false; throw new CuratorError('storage-commit-failed', 'storage-commit', 'Injected dataset write failure.') }
       return commit(input)
     }
     const { runId } = started.parse(await f.action('reference-analyze', { operationId: 'retry-package', styleId, buildDataset: true })); await f.jobs.drain()
@@ -144,6 +172,29 @@ test('failed automatic package commits resume from saved induction without anoth
     assert.equal(f.repository.list('profileExport').length, 1)
     assert.ok(dataOf(f.domain.require('run', runId)).checkpoint.finalDatasetId)
   } finally { f.repository.commit = commit; await f.cleanup() }
+})
+
+test('a collection changed during analysis retains observations and reports that no current dataset was saved', async () => {
+  const f = await serviceFixture(); await f.service.initialize()
+  try {
+    const styleId = await collection(f), send = f.http.request.bind(f.http)
+    let changed = false
+    f.http.request = async (url, request) => {
+      if (!changed && url.startsWith('https://vision.example.test') && prompt(request.body!).operation === 'summarize') {
+        changed = true
+        await f.action('reference-import', { operationId: 'late-reference', styleId, expectedRevision: f.domain.require('style', styleId).revision, files: [{ name: 'late-positive.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+      }
+      return await send(url, request)
+    }
+    const { runId } = started.parse(await f.action('reference-analyze', { operationId: 'changed-collection', styleId })); await f.jobs.drain()
+    const run = f.domain.require('run', runId)
+    assert.equal(run.status, 'failed')
+    assert.equal(dataOf(run).error?.code, 'revision-conflict')
+    assert.equal(dataOf(run).error?.stage, 'dataset-export')
+    assert.equal(f.repository.list('observation').length, 2)
+    assert.ok(dataOf(run).checkpoint.styleAnalysis)
+    assert.equal(f.repository.list('profileExport').length, 0)
+  } finally { await f.cleanup() }
 })
 
 test('saved full datasets remain usable while a newer analysis is running or paused, with current model selection', async () => {

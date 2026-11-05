@@ -5,6 +5,7 @@ import { contentDigest } from '../domain/repository.ts'
 import { draftSchema, referenceSchema, feedbackSchema, recipeSchema, type DomainActor, type EvaluationRecipe, type Reference, type RunRecord } from '../shared/model.ts'
 import { referenceStateSchema, reusedObservationSchema } from '../shared/reference-state.ts'
 import { dataOf, specOf } from './runtime.ts'
+import { referenceFeedbackRole } from '../shared/reference-semantics.ts'
 
 const inputsSchema = z.object({ draft: draftSchema, references: z.array(referenceSchema), feedback: z.array(feedbackSchema), recipe: recipeSchema, analysisOutput: z.literal('observations-only') })
 const checkpointSchema = z.object({ analysisDoneImageIds: z.array(z.string()).default([]), analysisResultIds: z.array(z.string()).default([]) })
@@ -95,7 +96,7 @@ export function planReferenceAnalysis(domain: CuratorDomain, styleId: string, ac
   }
   const entries = current.references.map(ref => {
     const { asset, image } = domain.authorizedImage(ref.imageVersionId, actor)
-    return { referenceId: ref.id, imageVersionId: image.id, role: ref.role, state: reused.has(image.id) ? 'analyzed' as const : seen.has(image.id) ? 'needs-update' as const : 'pending' as const, ...(asset.source.kind === 'provider' ? { providerId: asset.source.providerId, photoId: asset.source.providerAssetId } : {}) }
+    return { referenceId: ref.id, imageVersionId: image.id, role: referenceFeedbackRole(current.draft.rules, ref, current.feedback), state: reused.has(image.id) ? 'analyzed' as const : seen.has(image.id) ? 'needs-update' as const : 'pending' as const, ...(asset.source.kind === 'provider' ? { providerId: asset.source.providerId, photoId: asset.source.providerAssetId } : {}) }
   })
   const links = [...reused.values()].sort((a, b) => a.imageVersionId.localeCompare(b.imageVersionId))
   const digest = contentDigest({ styleId, revision: current.style.revision, draft: current.draft, recipe: recipeIdentity(recipe), feedback: current.feedback, links })

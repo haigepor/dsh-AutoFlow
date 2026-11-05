@@ -26,3 +26,10 @@ test('malformed counters and foreign evidence still fail after empty-list compat
 test('unknown style-group selections cannot become adopted rules', () => {
   assert.throws(() => decodeStyleSummary({ ...output, organization: { groups: [], selections: [{ ruleIndex: 0, enabled: true, groupId: 'foreign-group', reason: 'Wrong group.' }] } }, ['reference-1']), error => error instanceof MediaError && error.diagnostics?.issues.includes('invalid-rule-organization') === true)
 })
+
+test('rule applicability and rejection reasons reject foreign evidence and contradictory membership', () => {
+  for (const notApplicableImageVersionIds of [['foreign-image'], ['reference-1']]) {
+    assert.throws(() => decodeStyleSummary({ ...output, suggestedRules: [{ ...output.suggestedRules[0], notApplicableImageVersionIds }] }, ['reference-1']), error => error instanceof MediaError && error.code === 'vision-invalid-output')
+  }
+  assert.throws(() => decodeStyleSummary({ ...output, negativeReasons: [{ imageVersionId: 'foreign-image', dimension: 'composition', reason: 'Unseen rejection.', uncertain: true }] }, ['reference-1']), error => error instanceof MediaError && error.code === 'vision-invalid-output')
+})

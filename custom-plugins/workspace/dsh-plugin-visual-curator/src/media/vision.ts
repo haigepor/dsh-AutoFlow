@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { VisionStream, type VisionDelta } from './vision-stream.ts'
 import { invalidInput, MediaError } from './errors.ts'
 import type { HttpClient, RequestBounds } from './network.ts'
-import { styleSummarySchema, type StyleSummary } from '../shared/style-analysis.ts'
+import { styleSummarySchema, organizedStyleSummarySchema, type StyleSummary } from '../shared/style-analysis.ts'
 import type { RemoteImageSource } from '../shared/gallery.ts'
 import { remoteReferenceDigest } from './remote-reference.ts'
 import { remoteImageSourceSchema } from '../shared/gallery.ts'
@@ -95,7 +95,7 @@ export interface VisionRequestDescriptor {
   model: string
   declaredModelVersion: string | null
   replayLimitation: string | null
-  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2' | 'visual-curator-screening-v1'
+  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-summary-v4' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2' | 'visual-curator-screening-v1'
   schemaVersion: 1
   instructions: string
   inputText: string
@@ -186,11 +186,11 @@ export abstract class StructuredVisionProvider {
     const summary = operation === 'summarize' ? encodeSummaryImages(input.taskBrief, images.map(image => image.imageVersionId), input.summaryEvidenceIds) : undefined
     const payload = { operation, taskBrief: summary?.taskBrief ?? input.taskBrief, stage: input.stage, rules: input.rules, usage: input.usage, protectedContent: input.protectedContent, maxCropCandidates: input.maxCropCandidates, ...(input.analysisOutput ? { analysisOutput: input.analysisOutput } : {}), images: summary ? modelImages.map(image => ({ ...image, imageVersionId: summary.imageAliases[image.imageVersionId] ?? image.imageVersionId })) : modelImages, requestId: input.requestId }
     const focusedReview = operation === 'review' && input.promptVersion === 'visual-curator-rules-v3'
-    const schema = operation === 'screen' ? visionScreeningSchema : operation === 'review' ? focusedReview ? focusedReviewSchema : reviewSchema : operation === 'analyze' ? input.analysisOutput === 'observations-only' ? analysisSchema.pick({ observations: true }) : analysisSchema : operation === 'summarize' ? styleSummarySchema : cropSchema
+    const schema = operation === 'screen' ? visionScreeningSchema : operation === 'review' ? focusedReview ? focusedReviewSchema : reviewSchema : operation === 'analyze' ? input.analysisOutput === 'observations-only' ? analysisSchema.pick({ observations: true }) : analysisSchema : operation === 'summarize' ? organizedStyleSummarySchema : cropSchema
     return {
       requestId: input.requestId, operation, model: this.config.model, declaredModelVersion: this.config.declaredModelVersion ?? null,
       replayLimitation: [this.config.declaredModelVersion === undefined ? 'The provider has not declared a fixed model version; deterministic model replay is unavailable.' : '', input.images.some(image => image.remoteSource) ? 'Remote URLs identify provider references, not verified pixel bytes; their content and vendor-side download cost cannot be pinned or measured by this Host.' : ''].filter(Boolean).join(' ') || null,
-      promptVersion: operation === 'screen' ? 'visual-curator-screening-v1' : summary ? 'visual-curator-summary-v3' : input.promptVersion ?? 'visual-curator-v1', schemaVersion: 1, instructions: operation === 'screen' ? `${instructions} ${screeningInstructions}` : focusedReview ? `${instructions} ${subjectInstructions}` : summary ? `${instructions} ${summaryImageInstructions}` : instructions,
+      promptVersion: operation === 'screen' ? 'visual-curator-screening-v1' : summary ? 'visual-curator-summary-v4' : input.promptVersion ?? 'visual-curator-v1', schemaVersion: 1, instructions: operation === 'screen' ? `${instructions} ${screeningInstructions}` : focusedReview ? `${instructions} ${subjectInstructions}` : summary ? `${instructions} ${summaryImageInstructions}` : instructions,
       inputText: JSON.stringify({ outputSchema: z.toJSONSchema(schema, { unrepresentable: 'any' }), input: payload }), images,
       ...(summary ? { imageAliases: summary.imageAliases } : {}),
       maxOutputTokens: this.config.maxOutputTokens, temperature: this.config.temperature,
@@ -217,7 +217,10 @@ export abstract class StructuredVisionProvider {
     const scoped = { ...input, summaryEvidenceIds: evidenceIds }
     const aliases = this.describeRequest(scoped, 'summarize').imageAliases!
     const raw = await this.invoke(scoped, 'summarize', bounds)
-    return decodeStyleSummary(restoreSummaryImages(decodeStyleSummary(raw, [...evidenceIds, ...Object.values(aliases)]), aliases), evidenceIds)
+    const result = decodeStyleSummary(restoreSummaryImages(decodeStyleSummary(raw, [...evidenceIds, ...Object.values(aliases)]), aliases), evidenceIds)
+    const organized = organizedStyleSummarySchema.safeParse(result)
+    if (!organized.success) throw new MediaError('vision-invalid-output', 'reviewing', false, 'The model did not return complete dataset organization.', 'Start organization again using the saved observations.', { modelOutput: raw, issues: organized.error.issues.map(issue => `${issue.code}:${issue.path.join('.')}`) })
+    return result
   }
 
   /** Review every rule for the declared stage; geometry remains a program-owned result.
@@ -320,9 +323,9 @@ export function decodeStyleSummary(raw: unknown, evidenceIds: readonly string[])
   const parsed = summaryResponseSchema.safeParse(raw)
   if (!parsed.success) throw rejected(parsed.error.issues.map(issue => `${issue.code}:${issue.path.join('.')}`))
   const result = parsed.data, allowed = new Set(evidenceIds)
-  const cited = [...result.dimensions.flatMap(row => [...row.supportImageVersionIds, ...row.counterImageVersionIds]), ...result.conflicts.flatMap(row => row.imageVersionIds), ...result.suggestedRules.flatMap(row => [...row.supportImageVersionIds, ...row.counterImageVersionIds])]
+  const cited = [...result.dimensions.flatMap(row => [...row.supportImageVersionIds, ...row.counterImageVersionIds]), ...result.conflicts.flatMap(row => row.imageVersionIds), ...result.suggestedRules.flatMap(row => [...row.supportImageVersionIds, ...row.counterImageVersionIds, ...row.notApplicableImageVersionIds ?? []]), ...(result.negativeReasons ?? []).map(reason => reason.imageVersionId)]
   if (cited.some(id => !allowed.has(id)) || new Set(result.dimensions.map(row => row.dimension)).size !== result.dimensions.length
-    || result.suggestedRules.some(rule => !rule.supportImageVersionIds.length && !rule.counterImageVersionIds.length)) throw rejected(['invalid-image-evidence-or-dimensions'])
+    || result.suggestedRules.some(rule => !rule.supportImageVersionIds.length && !rule.counterImageVersionIds.length || rule.notApplicableImageVersionIds?.some(id => rule.supportImageVersionIds.includes(id) || rule.counterImageVersionIds.includes(id)))) throw rejected(['invalid-image-evidence-or-dimensions'])
   if (result.organization) {
     const { groups, selections } = result.organization
     const ids = new Set(groups.map(group => group.groupId))

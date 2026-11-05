@@ -8,6 +8,7 @@ export interface DatasetSubmission { operationId: string; profileId: string; sty
 /** Owner-private list, read-only detail and background task observation. */
 export interface DatasetClientState {
   styleId: string; entries: DatasetEntry[]; pageIds: string[]; total: number; allTotal: number; nextPageToken?: string | undefined
+  versionTotal?: number | undefined; exportTotal?: number | undefined
   query: string; status: 'all' | 'active' | 'completed' | 'failed'; loading: boolean; error: boolean
   submissions: DatasetSubmission[]; watched: string[]; dismissed: string[]
   detailId: string; detail: DatasetDetail | null; detailLoading: boolean; detailError: boolean; sampleRole: DatasetRoleFilter
@@ -32,7 +33,7 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
   const current = (captured: number) => !disposed && scope === captured && dependencies.context().scope === captured
   const merged = (rows: DatasetEntry[]) => [...new Map([...state.entries, ...rows].map(row => [row.id, row])).values()]
   const detailKey = (id: string, role: DatasetRoleFilter) => JSON.stringify([id, role])
-  const entryRevision = (entry: DatasetEntry) => JSON.stringify([entry.exportId, entry.status, entry.styleId, entry.name, entry.model, entry.modelProfileId, entry.profileRevision, entry.contentDigest, entry.sampleScope, entry.counts])
+  const entryRevision = (entry: DatasetEntry) => JSON.stringify([entry.exportId, entry.status, entry.styleId, entry.name, entry.model, entry.modelProfileId, entry.profileRevision, entry.contentDigest, entry.sampleScope, entry.counts, entry.changes, entry.duplicateExports])
   function pruneDetails() {
     const policy = dependencies.cachePolicy?.(), time = now()
     if (!policy?.ttlMs || !policy.maxViews || !policy.maxBytes || !policy.resourceTtlMs) { details.clear(); return undefined }
@@ -65,8 +66,8 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
       if (page.styleId !== styleId) throw new Error('dataset-collection-mismatch')
       invalidateChanged(page.entries)
       const entries = merged(page.entries)
-      publish({ entries, pageIds: more ? [...new Set([...state.pageIds, ...page.entries.map(row => row.id)])] : page.entries.map(row => row.id), total: page.total, allTotal: page.allTotal, nextPageToken: page.nextPageToken,
-        submissions: state.submissions.filter(item => !page.entries.some(row => row.runId === item.runId)), loading: false })
+      publish({ entries, pageIds: more ? [...new Set([...state.pageIds, ...page.entries.map(row => row.id)])] : page.entries.map(row => row.id), total: page.total, allTotal: page.allTotal, versionTotal: page.versionTotal, exportTotal: page.exportTotal, nextPageToken: page.nextPageToken,
+        submissions: state.submissions.filter(item => !page.entries.some(row => row.runId === item.runId || row.duplicateExports?.some(copy => copy.runId === item.runId))), loading: false })
     }).catch(error => { if (current(captured) && !controller.signal.aborted && version === listVersion) publish({ loading: false, error: true }) })
     listWork = work
     try { await work } finally { if (listWork === work) { listWork = undefined; listController = undefined } }
@@ -82,7 +83,7 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
     }
     const expired = more && policy && now() >= detailReadAt + policy.resourceTtlMs
     if (expired) { more = false; details.delete(key) }
-    const captured = scope, version = ++detailVersion, controller = new AbortController(), prior = !expired && state.detailId === id && state.sampleRole === sampleRole ? state.detail : null
+    const captured = scope, version = ++detailVersion, controller = new AbortController(), prior = state.detailId === id ? state.detail : null
     const startedAt = now()
     detailController = controller
     publish({ detailId: id, detail: prior, sampleRole, detailLoading: true, detailError: false })
@@ -91,6 +92,10 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
       if (!current(captured) || controller.signal.aborted || version !== detailVersion) return
       const detail = datasetDetailSchema.parse(raw)
       if (detail.entry.id !== id || detail.entry.styleId !== state.styleId) throw new Error('dataset-detail-mismatch')
+      const listed = state.entries.find(entry => entry.id === id)
+      if (listed?.duplicateExports) detail.entry.duplicateExports = listed.duplicateExports
+      if (listed?.isFinal !== undefined) detail.entry.isFinal = listed.isFinal
+      if (listed?.stale !== undefined) detail.entry.stale = listed.stale
       if (!more) detailReadAt = startedAt
       const combined = more && prior ? { ...detail, samples: [...prior.samples, ...detail.samples] } : detail
       rememberDetail(combined, sampleRole, detail, more ? prior : null, cached)
@@ -106,6 +111,8 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
     const active = state.entries.find(row => row.modelProfileId === profile.id && row.sampleScope === sampleScope && datasetActive(row.status))
     if (active && !prior) { publish({ watched: [...new Set([...state.watched, active.id])], dismissed: state.dismissed.filter(id => id !== active.id) }); return }
     if (prior?.status === 'accepted') { await readPage(); return }
+    const completed = state.entries.find(row => row.modelProfileId === profile.id && row.sampleScope === sampleScope && row.status === 'completed')
+    if (completed && !prior) { publish({ watched: [...new Set([...state.watched, completed.id])], dismissed: state.dismissed.filter(id => id !== completed.id) }); return }
     const captured = scope, submission: DatasetSubmission = { operationId: prior?.operationId ?? dependencies.operationId?.() ?? crypto.randomUUID(), profileId: profile.id, styleId: profile.styleId, sampleScope, status: 'submitting' }
     publish({ submissions: [...state.submissions.filter(item => item.profileId !== profile.id || item.sampleScope !== sampleScope), submission] })
     const work = (async () => {
@@ -134,7 +141,7 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
         if (!current(captured) || styleId !== state.styleId) return
         const entries = merged(page.entries), unfiltered = state.status === 'all' && !state.query
         invalidateChanged(page.entries)
-        publish({ entries, allTotal: page.allTotal, error: false, submissions: state.submissions.filter(item => !page.entries.some(row => row.runId === item.runId)),
+        publish({ entries, allTotal: page.allTotal, versionTotal: page.versionTotal, exportTotal: page.exportTotal, error: false, submissions: state.submissions.filter(item => !page.entries.some(row => row.runId === item.runId || row.duplicateExports?.some(copy => copy.runId === item.runId))),
           ...(unfiltered ? { pageIds: [...new Set([...page.entries.map(row => row.id), ...state.pageIds])], total: page.total, nextPageToken: state.pageIds.length > page.entries.length ? state.nextPageToken : page.nextPageToken } : {}) })
         if (state.detail && state.detail.entry.status !== 'completed' && entries.find(row => row.id === state.detailId)?.status === 'completed') void readDetail(state.detailId)
         if (!unfiltered) await readPage()
@@ -149,7 +156,7 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
     sync() {
       const context = dependencies.context()
       if (context.scope !== scope) { clearReads(); details.clear(); detailReadAt = 0; scopeLifetime.abort(); scopeLifetime = new AbortController(); polling = undefined; scope = context.scope; submissions.clear(); publish(initial()) }
-      if (context.styleId !== state.styleId) { clearReads(); details.clear(); detailReadAt = 0; publish({ styleId: context.styleId, pageIds: [], query: '', status: 'all', total: 0, allTotal: 0, nextPageToken: undefined, loading: false, error: false, detailId: '', detail: null, detailLoading: false, detailError: false, sampleRole: 'all' }); void readPage() }
+      if (context.styleId !== state.styleId) { clearReads(); details.clear(); detailReadAt = 0; publish({ styleId: context.styleId, pageIds: [], query: '', status: 'all', total: 0, allTotal: 0, versionTotal: undefined, exportTotal: undefined, nextPageToken: undefined, loading: false, error: false, detailId: '', detail: null, detailLoading: false, detailError: false, sampleRole: 'all' }); void readPage() }
     },
     start: submit,
     refresh: () => { details.clear(); return readPage() },

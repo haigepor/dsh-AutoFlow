@@ -8,6 +8,7 @@ import { ModelProfiles } from '../domain/model-profile.ts'
 import { analysisSelectionProgress } from './analysis-selection.ts'
 import { dimensionSchema, styleStandardSchema, type Assessment, type DomainActor, type HumanFeedback, type ImageVersion, type RecordOf, type Reference, type RunRecord, type Rule } from '../shared/model.ts'
 import { executionStandard } from './style-execution.ts'
+import { effectiveReviewReferenceRole } from '../shared/reference-semantics.ts'
 import { styleMatchSchema } from '../shared/style-matching.ts'
 import { CuratorError } from '../shared/errors.ts'
 import type { ConfigurationView, CuratorSnapshot, FeedbackView, ImageView, RuleView, RunView, StyleView, StyleAnalysisView } from '../client/contract.ts'
@@ -40,7 +41,7 @@ function ruleView(rule: Rule): RuleView {
   return { ruleId: rule.ruleId, dimension: rule.dimension, statement: rule.statement, strength: rule.strength,
     stage: rule.stage, confirmed: rule.confirmation.status === 'confirmed', condition: rule.condition.subjects?.join(', ') ?? '',
     exceptions: rule.exceptions.map(condition => condition.subjects?.join(', ') ?? condition.usageRevisionIds?.join(', ') ?? ''),
-    supportRefs: rule.supportRefs, counterRefs: rule.counterRefs }
+    supportRefs: rule.supportRefs, counterRefs: rule.counterRefs, ...(rule.notApplicableRefs ? { notApplicableRefs: rule.notApplicableRefs } : {}) }
 }
 
 /** Project only mutable rule-selection fields; callers retain observations from the same analysis.
@@ -51,10 +52,11 @@ export function projectProfileSelection(domain: CuratorDomain, profile: ModelPro
     stale: !new ModelProfiles(domain).isFresh(profile, actor), options: profile.options.map(option => ({ ...option, rule: ruleView(option.rule) })) }
 }
 
-function sampleViews(domain: CuratorDomain, analysis: StyleAnalysis, actor: DomainActor, familyStatuses: ReadonlyMap<string, boolean>, index: ProjectionIndex): StyleAnalysisView['samples'] {
+function sampleViews(domain: CuratorDomain, analysis: StyleAnalysis, actor: DomainActor, familyStatuses: ReadonlyMap<string, boolean>, index: ProjectionIndex, profile?: ModelProfile): StyleAnalysisView['samples'] {
   return analysis.samples.map(sample => {
     const { asset } = domain.authorizedImage(sample.reference.imageVersionId, actor), observation = domain.require('observation', sample.observationId)
-    return { referenceId: sample.reference.id, imageVersionId: sample.reference.imageVersionId, familyId: asset.familyId, digest: sample.imageDigest, role: sample.reference.role,
+    const frozen = profile?.references.find(ref => ref.reference.id === sample.reference.id)
+    return { referenceId: sample.reference.id, imageVersionId: sample.reference.imageVersionId, familyId: asset.familyId, digest: sample.imageDigest, role: frozen && profile ? effectiveReviewReferenceRole(profile, frozen) : sample.reference.role,
       intent: sample.reference.intent.kind, dimensions: sample.reference.intent.kind === 'dimensions' ? sample.reference.intent.dimensions : [],
       image: imageView(domain, domain.require('imageVersion', sample.reference.imageVersionId), actor, index, sample.reference, undefined, familyStatuses),
       observations: observation.inferred.map(row => ({ dimension: row.field, description: typeof row.value === 'string' ? row.value : JSON.stringify(row.value), uncertain: row.uncertain, requestId: row.requestId })) }
@@ -385,7 +387,7 @@ function styleViews(domain: CuratorDomain, base: StyleBase, actor: DomainActor, 
     return { styleId: style.id, ...(!includeSamples ? { evidenceLoaded: false } : {}), name: style.name, revision: style.revision, draftId: draft.id, draftRevision: draft.revision,
       archived: style.archived, ...(style.defaultReleaseId ? { defaultReleaseId: style.defaultReleaseId } : {}),
       ...(analysis ? { analysis } : {}),
-      ...(visibleProfile && profileAnalysis ? { modelProfile: { id: visibleProfile.id, revision: visibleProfile.revision, analysisRunId: visibleProfile.analysisRunId, model: visibleProfile.model, stale: !new ModelProfiles(domain).isFresh(visibleProfile, actor), summary: profileAnalysis.summary, samples: includeSamples ? sampleViews(domain, profileAnalysis, actor, familyStatuses, index) : [], groups: visibleProfile.groups, options: visibleProfile.options.map(option => ({ ...option, rule: ruleView(option.rule) })) } } : {}),
+      ...(visibleProfile && profileAnalysis ? { modelProfile: { id: visibleProfile.id, revision: visibleProfile.revision, analysisRunId: visibleProfile.analysisRunId, model: visibleProfile.model, stale: !new ModelProfiles(domain).isFresh(visibleProfile, actor), summary: profileAnalysis.summary, samples: includeSamples ? sampleViews(domain, profileAnalysis, actor, familyStatuses, index, visibleProfile) : [], groups: visibleProfile.groups, options: visibleProfile.options.map(option => ({ ...option, rule: ruleView(option.rule) })) } } : {}),
       rules: draft.rules.map(ruleView), conflicts: draft.conflicts.filter(item => !item.resolved).map(item => item.reason), referenceIds: draft.referenceIds, feedbackIds: draft.feedbackIds,
       releases: base.releases.filter(item => item.styleId === style.id && style.committedReleaseIds.includes(item.id)).map(item => ({ id: item.id, label: `v${item.releaseNumber}`, contentDigest: item.contentDigest, draftRevision: item.draftRevision, validation: item.validation.status, evaluationIds: item.validation.evaluationIds, rules: item.rules.map(ruleView) })),
       candidates: base.candidates.filter(item => item.styleId === style.id).map(item => ({ id: item.id, label: item.id, contentDigest: item.contentDigest, rules: item.rules.map(ruleView) })),

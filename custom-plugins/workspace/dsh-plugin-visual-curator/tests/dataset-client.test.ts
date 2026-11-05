@@ -191,6 +191,31 @@ test('each export scope retains its own unknown acknowledgement and retry identi
   } finally { store.dispose() }
 })
 
+test('opening a saved package retains the latest-version marker from its list projection', async () => {
+  const store = createDatasetStore({ context: () => ({ scope: 1, styleId: 'collection' }), invoke: async operation => operation === 'datasets-list' ? { styleId: 'collection', total: 1, allTotal: 1, entries: [{ ...row('completed'), isFinal: true, stale: true }] } : cachedDetail('all') })
+  try {
+    store.sync(); await settle(); await store.open('dataset-run')
+    assert.equal(store.getSnapshot().entries[0]!.isFinal, true)
+    assert.equal(store.getSnapshot().detail!.entry.stale, true)
+  } finally { store.dispose() }
+})
+
+test('role changes retain the current samples and scroll container until the replacement page commits', async () => {
+  const pending = Promise.withResolvers<ReturnType<typeof cachedDetail>>()
+  const store = createDatasetStore({ context: () => ({ scope: 1, styleId: 'collection' }), invoke: async (operation, args) => operation === 'datasets-list' ? { styleId: 'collection', total: 1, allTotal: 1, entries: [row('completed')] } : args.sampleRole === 'negative' ? pending.promise : cachedDetail('all') })
+  try {
+    store.sync(); await settle(); await store.open('dataset-run')
+    const original = store.getSnapshot().detail
+    const changing = store.filterSamples('negative')
+    assert.equal(store.getSnapshot().detail, original)
+    assert.equal(store.getSnapshot().sampleRole, 'negative')
+    assert.equal(store.getSnapshot().detailLoading, true)
+    pending.resolve(cachedDetail('negative')); await changing
+    assert.equal(store.getSnapshot().sampleRole, 'negative')
+    assert.equal(store.getSnapshot().detail!.samples[0]!.role, 'negative')
+  } finally { store.dispose() }
+})
+
 test('changing a sample role discards a late page from the previous filter', async () => {
   const delayed = deferred<unknown>(), calls: unknown[] = []
   const detail = (role: 'positive' | 'negative') => ({ entry: row('completed'), summary: '', matchingPrompt: '', rules: [], groups: [], files: [], resources: { remote: 0, total: 1, pixelDigests: 0, humanAccepts: 0 }, sampleTotal: 1, samples: [{ referenceId: role, imageVersionId: role, role, unavailable: false, measuredCount: 0, observations: [] }] })

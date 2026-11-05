@@ -13,8 +13,8 @@ const canonicalIds = Array.from({ length: 24 }, (_, index) => `00000000-0000-400
 function summary(ids: string[]) {
   return styleSummarySchema.parse({ name: 'Vehicle portraits', summary: 'Vehicles remain the clear subjects.', matchingPrompt: 'Inspect the actual subject and environment.', searchHints: ['car forest road'], avoidTerms: [],
     dimensions: dimensions.map(dimension => ({ dimension, description: 'Supported visual trait.', consistency: 'mixed', supportImageVersionIds: ids.slice(0, 20), counterImageVersionIds: ids.slice(20) })),
-    conflicts: [{ description: 'Different backgrounds.', imageVersionIds: ids }],
-    suggestedRules: dimensions.map(dimension => ({ dimension, statement: 'Prefer the supported visual trait.', strength: 'preferred', stage: 'final', supportImageVersionIds: ids.slice(0, 20), counterImageVersionIds: ids.slice(20), condition: '', exceptions: [] })),
+    conflicts: [{ description: 'Different backgrounds.', imageVersionIds: ids }], negativeReasons: [],
+    suggestedRules: dimensions.map(dimension => ({ dimension, statement: 'Prefer the supported visual trait.', strength: 'preferred', stage: 'final', supportImageVersionIds: ids.slice(0, 20), counterImageVersionIds: ids.slice(20), notApplicableImageVersionIds: [], condition: '', exceptions: [] })),
     organization: { groups: [{ groupId: 'environment', name: 'Natural surroundings', description: 'Supported alternative.', imageVersionIds: ids }], selections: dimensions.map((_, ruleIndex) => ({ ruleIndex, enabled: true, groupId: 'environment', reason: 'Supported evidence.' })) },
   })
 }

@@ -5,7 +5,8 @@ import type { CuratorDomain } from '../domain/curator.ts'
 import { ModelProfiles, profileExportIdentity } from '../domain/model-profile.ts'
 import { contentDigest, fileChecksum, type DomainRepository } from '../domain/repository.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { modelProfileSchema, ruleSchema, type DomainActor, type ModelProfile, type ProfileExport, type RunRecord } from '../shared/model.ts'
+import { modelProfileSchema, referenceSnapshotSchema, ruleSchema, type DomainActor, type ModelProfile, type ProfileExport, type RunRecord } from '../shared/model.ts'
+import { effectiveReviewReferenceRole, isMatchingRule } from '../shared/reference-semantics.ts'
 import { datasetProgressSchema, datasetListInputSchema, datasetDetailInputSchema, datasetScopeSchema, datasetRoleCounts, type DatasetId, type DatasetPageToken, type DatasetEntry, type DatasetList, type DatasetDetail } from '../shared/datasets.ts'
 import { dataOf, specOf, type RunEngine } from './runtime.ts'
 import { hiddenTaskIds } from './task-history.ts'
@@ -14,6 +15,32 @@ type Saved = { key: 'run'; run: RunRecord; profile: ModelProfile; artifact?: Pro
 const entryId = (saved: Saved): DatasetId => brandString<DatasetId>(saved.key === 'run' ? saved.run.id : saved.artifact.id)
 const stamp = (saved: Saved): string => saved.artifact?.createdAt ?? (saved.key === 'run' ? saved.run.createdAt : saved.artifact.createdAt)
 const unavailable = () => new CuratorError('owner-denied', 'dataset-read', 'This dataset is unavailable to the current owner.')
+const savedReferenceSchema = referenceSnapshotSchema.extend({ effectiveRole: z.enum(['positive', 'negative', 'undecided']).optional() })
+
+function acceptedExportId(domain: CuratorDomain, operationId: string): string {
+  const id = profileExportIdentity(operationId), receipt = domain.repository.manifest(`profile-export:${id}`)
+  return receipt ? z.object({ id: z.string() }).parse(receipt.state).id : id
+}
+
+function selectedReferences(profile: ModelProfile, artifact?: ProfileExport, scope = 'all') {
+  if (!artifact) return profile.references.filter(ref => scope === 'all' || scope === 'observations' || effectiveReviewReferenceRole(profile, ref) === scope).map(ref => ({ ...ref, effectiveRole: effectiveReviewReferenceRole(profile, ref) }))
+  const file = artifact.files.find(file => file.name === 'references.json')
+  if (!file || fileChecksum(file.content) !== file.checksum) throw new CuratorError('reference-unavailable', 'dataset-read', 'The saved reference selection is unavailable or failed verification.')
+  return z.object({ references: z.array(savedReferenceSchema) }).parse(JSON.parse(file.content)).references.map(ref => ({ ...ref, effectiveRole: ref.effectiveRole ?? effectiveReviewReferenceRole(profile, ref) }))
+}
+
+function versionChanges(profile: ModelProfile, previous?: ModelProfile): DatasetEntry['changes'] {
+  if (!previous) return undefined
+  const before = new Map(previous.references.map(ref => [ref.reference.id, effectiveReviewReferenceRole(previous, ref)]))
+  const after = new Map(profile.references.map(ref => [ref.reference.id, effectiveReviewReferenceRole(profile, ref)]))
+  const oldRules = previous.rules.filter(isMatchingRule), rules = profile.rules.filter(isMatchingRule)
+  const positiveAdded = [...after].filter(([id, role]) => role === 'positive' && before.get(id) !== role).length
+  const negativeAdded = [...after].filter(([id, role]) => role === 'negative' && before.get(id) !== role).length
+  const removed = [...before.keys()].filter(id => !after.has(id)).length
+  const rulesAdded = rules.filter(rule => !oldRules.some(old => contentDigest(old) === contentDigest(rule))).length
+  const rulesRemoved = oldRules.filter(old => !rules.some(rule => contentDigest(old) === contentDigest(rule))).length
+  return { previousRevision: previous.revision, positiveAdded, negativeAdded, removed, rulesAdded, rulesRemoved, notesOnly: contentDigest([...before]) === contentDigest([...after]) && contentDigest(oldRules) === contentDigest(rules) && profile.analysisRunId === previous.analysisRunId }
+}
 
 /** Independent directory records may be shared by related projections within one synchronous read. */
 export interface DatasetDirectory { profiles: readonly ModelProfile[]; artifacts: readonly ProfileExport[] }
@@ -37,7 +64,7 @@ function records(domain: CuratorDomain, engine: RunEngine, actor: DomainActor, d
     if (!profile) continue
     engine.authorize(run, actor)
     const operationId = z.string().min(1).parse(spec.input.operationId)
-    const resultIds = new Set(dataOf(run).resultIds), expectedArtifact = profileExportIdentity(operationId)
+    const resultIds = new Set(dataOf(run).resultIds), expectedArtifact = acceptedExportId(domain, operationId)
     const artifact = artifacts.find(record => resultIds.has(record.id) || record.id === expectedArtifact)
     if (artifact) used.add(artifact.id)
     rows.push({ key: 'run', run, profile, ...(artifact ? { artifact } : {}) })
@@ -64,7 +91,7 @@ function savedDataset(domain: CuratorDomain, engine: RunEngine, actor: DomainAct
   if (!profile) throw unavailable()
   const operationId = z.string().min(1).parse(spec.input.operationId)
   let saved: ProfileExport | undefined
-  for (const artifactId of new Set([...dataOf(run).resultIds, profileExportIdentity(operationId)])) {
+  for (const artifactId of new Set([...dataOf(run).resultIds, acceptedExportId(domain, operationId)])) {
     const candidate = domain.repository.get('profileExport', artifactId)
     if (candidate && candidate.modelProfileId === profile.id) { saved = candidate; break }
   }
@@ -76,12 +103,14 @@ function entry(domain: CuratorDomain, saved: Saved, cache?: DatasetReads): Datas
   const progress = run ? datasetProgressSchema.safeParse(dataOf(run).checkpoint.datasetExportProgress) : undefined
   const error = run ? dataOf(run).error : undefined
   const sampleScope = datasetScopeSchema.parse(artifact?.sampleScope ?? (run ? specOf(run).input.sampleScope : undefined) ?? 'all')
-  const references = profile.references.filter(ref => sampleScope === 'all' || ref.reference.role === sampleScope), complete = sampleScope === 'all'
+  const references = selectedReferences(profile, artifact, sampleScope), complete = sampleScope === 'all'
+  const previous = profile.previousProfileId ? domain.repository.get('modelProfile', profile.previousProfileId) : undefined, changes = versionChanges(profile, previous)
   return { id: entryId(saved), ...(run ? { runId: run.id } : {}), ...(artifact ? { exportId: artifact.id, downloadPath: `/api/visual-curator/resource?exportId=${encodeURIComponent(artifact.id)}`, byteLength: cache ? cache.byteLength(artifact, domain.repository) : packageByteLength(artifact) } : {}),
     styleId: profile.styleId, name: domain.require('style', profile.styleId).name, modelProfileId: profile.id, profileRevision: profile.revision, model: profile.model, contentDigest: profile.contentDigest, sampleScope,
     createdAt: stamp(saved), status: artifact ? 'completed' : run!.status,
+    ...(changes ? { changes } : {}),
     ...(progress?.success ? { progress: progress.data } : {}), ...(error && !artifact ? { error } : {}),
-    counts: { references: references.length, ...datasetRoleCounts(references.map(ref => ref.reference)), rules: complete ? profile.rules.length : 0, candidates: complete ? profile.options.length : 0, groups: complete ? profile.groups.length : 0, enabledGroups: complete ? profile.groups.filter(group => profile.options.some(option => option.enabled && option.groupId === group.groupId)).length : 0, files: artifact?.files.length ?? 0 },
+    counts: { references: references.length, ...datasetRoleCounts(references.map(ref => ({ role: ref.effectiveRole }))), rules: complete ? profile.rules.filter(isMatchingRule).length : 0, candidates: complete ? profile.options.filter(option => isMatchingRule(option.rule)).length : 0, referenceNotes: complete ? profile.options.filter(option => option.enabled && !isMatchingRule(option.rule)).length : 0, unconfirmedRequired: complete ? profile.rules.filter(rule => rule.strength === 'required' && rule.confirmation.status !== 'confirmed').length : 0, groups: complete ? profile.groups.length : 0, enabledGroups: complete ? profile.groups.filter(group => profile.options.some(option => option.enabled && isMatchingRule(option.rule) && option.groupId === group.groupId)).length : 0, files: artifact?.files.length ?? 0 },
   }
 }
 
@@ -102,7 +131,14 @@ export function listDatasets(domain: CuratorDomain, engine: RunEngine, actor: Do
     const input = datasetListInputSchema.parse(args)
     domain.require('style', input.styleId)
     const committed = directory ?? readDatasetDirectory(domain)
-    const all = records(domain, engine, actor, committed).filter(saved => saved.profile.styleId === input.styleId)
+    const original = records(domain, engine, actor, committed).filter(saved => saved.profile.styleId === input.styleId)
+    const equivalent = new Map<string, Saved[]>()
+    for (const saved of original) {
+      const key = saved.artifact ? contentDigest([saved.profile.id, saved.artifact.sampleScope ?? 'all', saved.artifact.files.map(({ name, checksum }) => ({ name, checksum })).sort((left, right) => left.name.localeCompare(right.name))]) : entryId(saved)
+      const group = equivalent.get(key) ?? []; group.push(saved); equivalent.set(key, group)
+    }
+    const all = [...equivalent.values()].map(group => group[0]!)
+    const copies = new Map([...equivalent.values()].map(group => [entryId(group[0]!), group]))
     const profiles = new ModelProfiles(domain), current = profiles.current(input.styleId, actor, committed.profiles)
     const final = all.find(saved => saved.artifact && (!saved.artifact.sampleScope || saved.artifact.sampleScope === 'all') && saved.profile.id === current?.id) ?? all.find(saved => saved.artifact && (!saved.artifact.sampleScope || saved.artifact.sampleScope === 'all'))
     const ordered = final ? [final, ...all.filter(saved => saved !== final)] : all
@@ -112,15 +148,19 @@ export function listDatasets(domain: CuratorDomain, engine: RunEngine, actor: Do
       const status = saved.artifact ? 'completed' : saved.key === 'run' ? saved.run.status : 'completed'
       const matches = input.status === 'all' || input.status === 'completed' && status === 'completed' || input.status === 'failed' && ['failed', 'interrupted', 'cancelled'].includes(status) || input.status === 'active' && ['created', 'running', 'pausing', 'paused', 'cancelling'].includes(status)
       const query = input.query.trim().toLocaleLowerCase()
-      return matches && (!query || `${domain.require('style', saved.profile.styleId).name} ${saved.profile.model} ${entryId(saved)} ${saved.artifact?.id ?? ''}`.toLocaleLowerCase().includes(query))
+      return matches && (!query || `${domain.require('style', saved.profile.styleId).name} ${saved.profile.model} ${(copies.get(entryId(saved)) ?? [saved]).flatMap(item => [entryId(item), item.artifact?.id ?? '']).join(' ')}`.toLocaleLowerCase().includes(query))
     })
     const scope = JSON.stringify([actor.profileId, actor.sessionId ?? null, input.styleId, input.status, input.query, ...(input.modelProfileId || input.reusableOnly ? [input.modelProfileId ?? null, input.reusableOnly] : [])]), start = offset(input.pageToken, scope, filtered.map(entryId)), window = filtered.slice(start, start + pageSize)
-    return { styleId: input.styleId, total: filtered.length, allTotal: all.length, entries: window.map(saved => ({ ...entry(domain, saved, cache), ...(saved === final ? { isFinal: true, stale: saved.profile.id !== current?.id || !profiles.isFresh(saved.profile, actor) } : {}) })), ...(start + pageSize < filtered.length ? { nextPageToken: continuation(entryId(window.at(-1)!), scope) } : {}) }
+    return { styleId: input.styleId, total: filtered.length, allTotal: all.length, versionTotal: new Set(all.map(saved => saved.profile.id)).size, exportTotal: original.length, entries: window.map(saved => {
+      const duplicates = copies.get(entryId(saved))!.filter(item => item.artifact).map(item => ({ id: entryId(item), exportId: item.artifact!.id, ...(item.key === 'run' ? { runId: item.run.id } : {}), createdAt: stamp(item) }))
+      const previous = committed.profiles.find(profile => profile.id === saved.profile.previousProfileId), changes = versionChanges(saved.profile, previous)
+      return { ...entry(domain, saved, cache), ...(duplicates.length > 1 ? { duplicateExports: duplicates } : {}), ...(changes ? { changes } : {}), ...(saved === final ? { isFinal: true, stale: saved.profile.id !== current?.id || !profiles.isFresh(saved.profile, actor) } : {}) }
+    }), ...(start + pageSize < filtered.length ? { nextPageToken: continuation(entryId(window.at(-1)!), scope) } : {}) }
   })
 }
 
 const profileFileSchema = z.object({ modelSummary: z.object({ summary: z.string() }), matchingPrompt: z.string(), activeRules: z.array(ruleSchema), ruleSelections: modelProfileSchema.shape.options, groups: modelProfileSchema.shape.groups })
-const sampleFileSchema = z.object({ referenceId: z.string(), imageVersionId: z.string(), importIntent: z.object({ role: z.enum(['positive', 'negative', 'undecided']) }), measured: z.array(z.json()), inferred: z.array(z.object({ field: z.string(), value: z.json(), uncertain: z.boolean() })) })
+const sampleFileSchema = z.object({ referenceId: z.string(), imageVersionId: z.string(), importIntent: z.object({ role: z.enum(['positive', 'negative', 'undecided']) }), effectiveRole: z.enum(['positive', 'negative', 'undecided']).optional(), reasons: z.array(z.object({ source: z.enum(['human', 'model']), dimension: ruleSchema.shape.dimension.optional(), text: z.string(), uncertain: z.boolean() })).optional(), measured: z.array(z.json()), inferred: z.array(z.object({ field: z.string(), value: z.json(), uncertain: z.boolean() })) })
 const referencesFileSchema = z.object({ resources: z.array(z.object({ digestKind: z.string().optional(), pixelDigest: z.string().nullable().optional() })), references: z.array(z.object({ judgments: z.array(z.object({ value: z.string() })) })) })
 
 interface ParsedPackage {
@@ -134,8 +174,8 @@ function parsePackage(artifact: ProfileExport, previewChars: number): ParsedPack
   const profile = profileFileSchema.parse(JSON.parse(file('style-profile.json'))), samples = file('samples.jsonl').trim().split('\n').filter(Boolean).map(line => sampleFileSchema.parse(JSON.parse(line))), references = referencesFileSchema.parse(JSON.parse(file('references.json')))
   return { summary: profile.modelSummary.summary, matchingPrompt: profile.matchingPrompt, samples,
     identity: contentDigest(artifact.files.map(({ name, checksum }) => ({ name, checksum }))),
-    rules: profile.ruleSelections.map(option => ({ id: option.rule.ruleId, dimension: option.rule.dimension, statement: option.rule.statement, enabled: option.enabled, groupId: option.groupId, strength: option.rule.strength, confirmed: option.rule.confirmation.status === 'confirmed', source: option.selectionSource, supportCount: option.rule.supportRefs.length })),
-    groups: profile.groups.map(group => ({ id: group.groupId, name: group.name, imageCount: group.imageVersionIds.length, enabledRules: profile.ruleSelections.filter(option => option.enabled && option.groupId === group.groupId).length })),
+    rules: profile.ruleSelections.map(option => ({ id: option.rule.ruleId, dimension: option.rule.dimension, statement: option.rule.statement, enabled: option.enabled, groupId: option.groupId, strength: option.rule.strength, confirmed: option.rule.confirmation.status === 'confirmed', source: option.selectionSource, supportCount: option.rule.supportRefs.length, counterCount: option.rule.counterRefs.length, notApplicableCount: option.rule.notApplicableRefs?.length ?? 0, condition: option.rule.condition.subjects?.join('; ') ?? '' })),
+    groups: profile.groups.map(group => ({ id: group.groupId, name: group.name, imageCount: group.imageVersionIds.length, enabledRules: profile.ruleSelections.filter(option => option.enabled && isMatchingRule(option.rule) && option.groupId === group.groupId).length })),
     // Copy the bounded preview without retaining its source backing store or changing sliced UTF-16 code units.
     files: artifact.files.map(file => ({ name: file.name, bytes: Buffer.byteLength(file.content), checksum: file.checksum, verified: true, preview: Buffer.from(file.content.slice(0, previewChars), 'utf16le').toString('utf16le'), truncated: file.content.length > previewChars })),
     resources: { remote: references.resources.filter(resource => resource.digestKind === 'remote-url-v1').length, total: references.resources.length, pixelDigests: references.resources.filter(resource => typeof resource.pixelDigest === 'string').length, humanAccepts: references.references.flatMap(reference => reference.judgments).filter(judgment => judgment.value === 'accept').length },
@@ -208,14 +248,16 @@ export function readDataset(domain: CuratorDomain, engine: RunEngine, actor: Dom
     const artifact = saved.artifact
     if (!artifact) return { entry: entry(domain, saved, cache), summary: '', matchingPrompt: '', rules: [], groups: [], samples: [], sampleTotal: 0, files: [], resources: { remote: 0, total: 0, pixelDigests: 0, humanAccepts: 0 } }
     const parsed = cache ? cache.read(artifact, domain.repository, limits.maxExportPreviewChars) : parsePackage(artifact, limits.maxExportPreviewChars)
-    const filtered = input.sampleRole === 'all' ? parsed.samples : parsed.samples.filter(sample => sample.importIntent.role === input.sampleRole)
+    const selected = new Map<string, ReturnType<typeof selectedReferences>[number]>(selectedReferences(saved.profile, artifact).map(ref => [ref.reference.id, ref]))
+    const resolved = parsed.samples.map(sample => ({ ...sample, effectiveRole: sample.effectiveRole ?? selected.get(sample.referenceId)?.effectiveRole ?? sample.importIntent.role }))
+    const filtered = input.sampleRole === 'all' ? resolved : resolved.filter(sample => sample.effectiveRole === input.sampleRole)
     const scope = JSON.stringify([actor.profileId, actor.sessionId ?? null, input.id, input.sampleRole, parsed.identity]), start = offset(input.pageToken, scope, filtered.map(sample => sample.referenceId)), window = filtered.slice(start, start + limits.pageSize)
     return { entry: entry(domain, saved, cache), summary: parsed.summary, matchingPrompt: parsed.matchingPrompt, rules: parsed.rules.map(rule => ({ ...rule })), groups: parsed.groups.map(group => ({ ...group })),
       samples: window.map(sample => {
         let previewPath: string | undefined, previewSize: { width: number; height: number } | undefined
         try { const { image } = domain.authorizedImage(sample.imageVersionId, actor); previewSize = { width: image.geometry.width, height: image.geometry.height }; previewPath = `/api/visual-curator/resource?imageVersionId=${encodeURIComponent(sample.imageVersionId)}` }
         catch (error) { if (!(error instanceof CuratorError) || !['owner-denied', 'reference-unavailable'].includes(error.code)) throw error; /* 旧包文本保留，已不可读的像素不提供展示链接。 */ }
-        return { imageVersionId: sample.imageVersionId, referenceId: sample.referenceId, role: sample.importIntent.role, ...(previewPath ? { previewPath, previewSize } : {}), unavailable: !previewPath, measuredCount: sample.measured.length, observations: structuredClone(sample.inferred) }
+        return { imageVersionId: sample.imageVersionId, referenceId: sample.referenceId, role: sample.effectiveRole, importedRole: sample.importIntent.role, judgments: (selected.get(sample.referenceId)?.judgments ?? []).map(({ dimension, value }) => ({ ...(dimension ? { dimension } : {}), value })), reasons: structuredClone(sample.reasons ?? []), ...(previewPath ? { previewPath, previewSize } : {}), unavailable: !previewPath, measuredCount: sample.measured.length, observations: structuredClone(sample.inferred) }
       }), sampleTotal: filtered.length, ...(start + limits.pageSize < filtered.length ? { nextSamplePageToken: continuation(window.at(-1)!.referenceId, scope) } : {}),
       files: parsed.files.map(file => ({ ...file })), resources: { ...parsed.resources },
     }

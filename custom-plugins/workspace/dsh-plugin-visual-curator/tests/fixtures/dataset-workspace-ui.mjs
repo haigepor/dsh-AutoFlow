@@ -29,6 +29,7 @@ const h = React.createElement, t = key => zh[key], data = window.datasetFixtureD
 const { style, snapshot, list, detail } = data, original = list.entries[0]
 const originalProfileSamples = style.modelProfile.samples
 const originalAnalysisSamples = style.analysis?.samples
+let organizationStarts = 0
 const styleNode = document.createElement('style'); styleNode.textContent = pluginCss; document.head.append(styleNode)
 let synthetic, acknowledge, rejectLists = false, starts = 0, profileHold = false, loseProfileAck = false, profileRevision = 0, paging = false, failSamplePage = false, readHold = false
 const profileWaiters = [], profileCalls = [], profileReceipts = new Map(), sampleReads = [], exportedProfiles = [], exportedScopes = [], readWaiters = []
@@ -85,7 +86,7 @@ function App() {
   const state = useDatasets(value => value), notice = datasetNotice(state, style.styleId)
   return h('div', { className: 'vc-page-frame' }, h('section', { className: 'vc-workbench' }, h('div', { className: 'vc-image-workspace', 'data-view': view },
     h('div', { className: 'vc-execution-nav' }, h(SegmentedTabs, { variant: 'underline', label: t('workbench'), value: view, onChange: setView, items: [{ value: 'references', label: t('referencesView'), id: 'references-tab', panelId: 'references' }, { value: 'datasets', label: t('datasets'), id: 'datasets-tab', panelId: 'datasets' }] })),
-    view === 'datasets' ? h('div', { className: 'vc-datasets-panel' }, h(Datasets, { useDatasets, actions, t, currentProfile: style.modelProfile, canGenerate: true, onGenerate: () => setOpen(true) })) : h('div', { className: 'vc-reference-panel' }, h('div', { className: 'vc-library-pane' },
+    view === 'datasets' ? h('div', { className: 'vc-datasets-panel' }, h(Datasets, { useDatasets, actions, t, currentProfile: style.modelProfile, canGenerate: true, onGenerate: () => setOpen(true), onOrganize: () => { organizationStarts++ }, canOrganize: true })) : h('div', { className: 'vc-reference-panel' }, h('div', { className: 'vc-library-pane' },
       h(Progress, { ...notice, t, readError: state.error, onOpen: () => setOpen(true), onView: () => setView('datasets'), onRetry: () => store.start({ id: style.modelProfile.id, styleId: style.styleId }) }), h('div', { className: 'vc-profile-dock' }, h(Button, { onClick: () => setOpen(true) }, t('openProfile'))))),
     h(Dialog, { open, onClose: () => setOpen(false), onAnalyze: () => {}, canAnalyze: false, style, snapshot, actions, t, busy: false, useDatasets }))))
 }
@@ -94,6 +95,7 @@ const root = createRoot(document.getElementById('root')); root.render(h(App))
 const timer = setInterval(() => { if (store.needsPoll()) void store.poll() }, snapshot.configuration.limits.processPollIntervalMs)
 window.addEventListener('beforeunload', () => { clearInterval(timer); store.dispose(); root.unmount() }, { once: true })
 window.datasetQa = {
+  organizationStarts: () => organizationStarts,
   progress(status, phase, completed, total) {
     const { exportId, downloadPath, byteLength, ...base } = original
     synthetic = status === 'completed' ? { ...original, id: 'qa-dataset-run', runId: 'qa-dataset-run', createdAt: '2026-10-29T00:00:00Z' } : { ...base, id: 'qa-dataset-run', runId: 'qa-dataset-run', createdAt: '2026-10-29T00:00:00Z', status, counts: { ...base.counts, files: 0 }, progress: { phase, completed, total, unit: phase === 'files' ? 'files' : 'samples' } }

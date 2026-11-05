@@ -5,6 +5,7 @@ import { contentDigest } from '../domain/repository.ts'
 import type { DomainActor, Json } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { toJson } from './runtime.ts'
+import { referenceFeedbackRole } from '../shared/reference-semantics.ts'
 
 /** @param domain Authorized profile records. @param args Collection and bounded page cursor. @param actor Trusted workbench owner. @param defaultSize Deployment page size. @returns Reference-only page and authoritative collection counts. */
 export function referencePage(domain: CuratorDomain, args: Record<string, Json>, actor: DomainActor, defaultSize: number): Json {
@@ -19,15 +20,18 @@ export function referencePage(domain: CuratorDomain, args: Record<string, Json>,
     } catch (error) { throw new CuratorError('invalid-input', 'reference-pagination', 'The collection changed before this page; refresh the list.', { cause: error }) }
   }
   const references = ids.map(id => domain.require('reference', id))
+  const threads = new Set(references.flatMap(reference => reference.feedbackThreadIds))
+  const feedback = domain.currentFeedback(actor).filter(item => item.scope === 'style-candidate' && item.context.styleId === style.id && (threads.has(item.threadId) || draft.feedbackIds.includes(item.id)))
+  const roleOf = (reference: typeof references[number]) => referenceFeedbackRole(draft.rules, reference, feedback)
   const counts = { all: ids.length, positive: 0, negative: 0, undecided: 0 }
-  for (const reference of references) counts[reference.role]++
+  for (const reference of references) counts[roleOf(reference)]++
   const images = references.slice(offset, offset + input.pageSize).map(reference => {
     const { asset, image } = domain.authorizedImage(reference.imageVersionId, actor)
     return { imageVersionId: image.id, assetId: asset.id, familyId: asset.familyId, width: image.geometry.width, height: image.geometry.height, kind: image.versionKind,
       previewPath: `/api/visual-curator/resource?imageVersionId=${encodeURIComponent(image.id)}`, name: asset.source.description || asset.id, source: asset.source.kind,
       ...(image.blob.remoteSource ? { thumbnailPath: `/api/visual-curator/resource?imageVersionId=${encodeURIComponent(image.id)}&preview=thumbnail` } : {}),
       ...(actor.kind === 'human' && image.blob.localSource ? { localPath: image.blob.localSource.path } : {}), exportPermission: asset.exportPermission, groupingStatus: asset.groupingStatus,
-      referenceId: reference.id, styleId: style.id, role: reference.role, intent: reference.intent.kind, dimensions: reference.intent.kind === 'dimensions' ? reference.intent.dimensions : [] }
+      referenceId: reference.id, styleId: style.id, role: roleOf(reference), intent: reference.intent.kind, dimensions: reference.intent.kind === 'dimensions' ? reference.intent.dimensions : [] }
   })
   const next = offset + images.length
   const cursor = (position: number) => Buffer.from(JSON.stringify({ v: 1, styleId: style.id, offset: position, prefixDigest: contentDigest(ids.slice(0, position)) })).toString('base64url')

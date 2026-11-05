@@ -80,9 +80,9 @@ test('legacy Session-scoped datasets remain selectable and reusable in another S
     const dataset = profileExportSchema.parse({ ...exported, id: 'legacy-session-export', access: legacyProfile.access })
     await f.repository.commit({ aggregateId: 'legacy-session-export', expectedRevision: 0, operationId: 'legacy-session-export', request: {}, records: [dataset], state: {} })
     assert.equal(profiles.current(styleId, { ...f.actor, sessionId: 'new-session' })?.id, legacyProfile.id)
-    const choices = z.object({ entries: z.array(z.object({ exportId: z.string(), styleId: z.string() })) }).parse(
+    const choices = z.object({ entries: z.array(z.object({ exportId: z.string(), styleId: z.string(), duplicateExports: z.array(z.object({ exportId: z.string() })).optional() })) }).parse(
       await f.action('search-launch-datasets', { styleId, modelProfileId: legacyProfile.id }))
-    assert.ok(choices.entries.some(item => item.exportId === dataset.id))
+    assert.ok(choices.entries.some(item => item.exportId === dataset.id || item.duplicateExports?.some(copy => copy.exportId === dataset.id)))
     assert.ok(choices.entries.every(item => item.styleId === styleId))
     assert.equal(z.object({ exportId: z.string() }).parse(await f.action('export-get', { exportId: dataset.id })).exportId, dataset.id)
     assert.equal((await f.service.resource(new Request(`https://fixture.invalid/api/visual-curator/resource?exportId=${dataset.id}`, { method: 'HEAD' }))).status, 200)
@@ -130,8 +130,8 @@ test('automatic preparation freezes collection negative datasets across Sessions
     const current = await profiles.save({ operationId: 'new-profile', styleId, analysisRunId: profile.analysisRunId, expectedProfileId: profile.id, changes: [{ ruleId: profile.options[0]!.rule.ruleId, enabled: true, statement: 'Prefer muted green with visible detail.' }] }, f.actor)
     const options = z.object({ entries: z.array(z.unknown()), negativeReferences: z.object({ datasets: z.number(), references: z.number() }) }).parse(await f.action('search-launch-datasets', { styleId, modelProfileId: current.id }))
     assert.equal(options.entries.length, 1, 'Previously completed full datasets remain selectable after profile changes')
-    assert.deepEqual(options.negativeReferences, { datasets: 3, references: 2 })
-    f.repository.commit = async request => { if (request.records.some(record => record.kind === 'profileExport' && record.modelProfileId === current.id)) { entered.resolve(); await release.promise }; return await commit(request) }
+    assert.deepEqual(options.negativeReferences, { datasets: 1, references: 2 })
+    f.repository.commit = async request => { if (request.records.some(record => record.kind === 'profileExport' && record.modelProfileId === current.id && !record.sampleScope)) { entered.resolve(); await release.promise }; return await commit(request) }
     const { datasetId: oldDataset, ...draft } = input
     const automatic = { ...draft, modelProfileId: current.id, autoPrepareDataset: true, includeNegativeDatasets: true }
     const receipt = searchLaunchViewSchema.parse(await f.action('search-launch-start', automatic))
@@ -140,13 +140,13 @@ test('automatic preparation freezes collection negative datasets across Sessions
     assert.equal(preparing.stage, 'preparing-dataset')
     assert.deepEqual(native.created, [receipt.sessionId])
     assert.equal(native.messages.length, 0)
-    await profiles.export(profile, 'negative-after-admission', f.actor, { sampleScope: 'negative' })
+    await profiles.export(current, 'negative-after-admission', f.actor, { sampleScope: 'negative' })
     release.resolve()
     const accepted = await settled(), dataset = f.domain.require('profileExport', accepted.datasetId!)
     assert.equal(dataset.modelProfileId, current.id)
     assert.equal(dataset.access.kind, 'profile-library')
     const attachment = z.object({ negativeReferences: z.object({ datasets: z.array(z.object({ exportId: z.string() })), samples: z.array(z.object({ reference: z.object({ role: z.literal('negative'), imageVersionId: z.string() }), inferred: z.array(z.unknown()) })) }) }).parse(JSON.parse(Buffer.from(native.messages[0]!.bytes).toString('utf8')))
-    assert.equal(attachment.negativeReferences.datasets.length, 3, 'Late packages must not change admitted references')
+    assert.equal(attachment.negativeReferences.datasets.length, 1, 'Late packages must not change admitted references')
     assert.equal(attachment.negativeReferences.samples.length, 2)
     assert.equal(new Set(attachment.negativeReferences.samples.map(sample => sample.reference.imageVersionId)).size, 2)
     assert.ok(attachment.negativeReferences.samples.every(sample => sample.inferred.length > 0))

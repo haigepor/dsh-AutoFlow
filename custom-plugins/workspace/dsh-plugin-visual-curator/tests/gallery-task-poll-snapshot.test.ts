@@ -27,7 +27,9 @@ test('task polling keeps hidden and Session ownership filters while reading one 
     const started = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'poll-analysis', styleId: style.id }))
     await f.jobs.drain()
     const adapter = new PollAdapter(), original = f.domain.require('run', started.runId)
-    const records = [f.domain.require('style', style.id), original, runSchema.parse({ ...original, id: 'hidden-analysis' }), runSchema.parse({ ...original, id: 'foreign-analysis', owner: { kind: 'session', sessionId: 'foreign-session' } })]
+    for (const [key, record] of f.adapter.records) adapter.records.set(key, structuredClone(record))
+    for (const [key, manifest] of f.adapter.commits) adapter.commits.set(key, structuredClone(manifest))
+    const records = [runSchema.parse({ ...original, id: 'hidden-analysis' }), runSchema.parse({ ...original, id: 'foreign-analysis', owner: { kind: 'session', sessionId: 'foreign-session' } })]
     const pointers = records.map(record => {
       const digest = contentDigest(record), key = `${record.kind}-${digest.slice(10)}`
       adapter.records.set(key, record)

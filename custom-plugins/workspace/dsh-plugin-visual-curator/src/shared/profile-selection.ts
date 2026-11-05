@@ -7,7 +7,7 @@ export const ruleViewSchema = z.object({
   ruleId: z.string(), dimension: dimensionSchema, statement: z.string(),
   strength: z.enum(['required', 'preferred', 'reference-only']), stage: z.enum(['source', 'final']),
   confirmed: z.boolean(), condition: z.string(), exceptions: z.array(z.string()),
-  supportRefs: z.array(z.string()), counterRefs: z.array(z.string()),
+  supportRefs: z.array(z.string()), counterRefs: z.array(z.string()), notApplicableRefs: z.array(z.string()).optional(),
 })
 
 /** A rule projection with evidence; pixel observations are carried separately. */
