@@ -1,22 +1,22 @@
 {
   "schemaVersion": 1,
   "repository": "haigepor/dsh-AutoFlow",
-  "generatedAt": "2026-11-06T12:21:04.630Z",
+  "generatedAt": "2026-11-06T12:21:37.036Z",
   "plugins": [
     {
       "schemaVersion": 1,
       "package": "dsh-boot-animation",
-      "version": "0.4.6",
+      "version": "0.4.7",
       "repository": "haigepor/dsh-AutoFlow",
       "channel": "stable",
-      "tag": "boot-animation-v0.4.6",
-      "sourceCommit": "031fadb20adb02656128886c0150a9d049f4ec7b",
+      "tag": "boot-animation-v0.4.7",
+      "sourceCommit": "f4c03f7c93dbeb7f248111f5a0587be43cd01d43",
       "sourceDirty": false,
       "asset": {
-        "name": "dsh-boot-animation-0.4.6.tgz",
-        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/boot-animation-v0.4.6/dsh-boot-animation-0.4.6.tgz",
-        "sha256": "2efc5e94c88407a95f31c4cb46e5c4bd410e4a7bcf38a5f0aeac4b0863697c48",
-        "size": 3814130
+        "name": "dsh-boot-animation-0.4.7.tgz",
+        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/boot-animation-v0.4.7/dsh-boot-animation-0.4.7.tgz",
+        "sha256": "32bc831036d02d2b462bb32574ccf194e93f4417e7ff9e8861e173260ef1a92e",
+        "size": 3814227
       }
     },
     {
