@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "haigepor/dsh-AutoFlow",
-  "generatedAt": "2026-11-05T06:57:01.152Z",
+  "generatedAt": "2026-11-06T12:10:52.195Z",
   "plugins": [
     {
       "schemaVersion": 1,
@@ -22,17 +22,17 @@
     {
       "schemaVersion": 1,
       "package": "dsh-plugin-afp",
-      "version": "0.1.13",
+      "version": "0.1.14",
       "repository": "haigepor/dsh-AutoFlow",
       "channel": "stable",
-      "tag": "afp-v0.1.13",
-      "sourceCommit": "707cde061deec845c86c40ac9cee33f81ae352be",
+      "tag": "afp-v0.1.14",
+      "sourceCommit": "f4c03f7c93dbeb7f248111f5a0587be43cd01d43",
       "sourceDirty": false,
       "asset": {
-        "name": "dsh-plugin-afp-0.1.13.tgz",
-        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/afp-v0.1.13/dsh-plugin-afp-0.1.13.tgz",
-        "sha256": "6badba959cb38b7daba8d5e6a1828ce143b85705214da44b1375c11ba39b7168",
-        "size": 650223
+        "name": "dsh-plugin-afp-0.1.14.tgz",
+        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/afp-v0.1.14/dsh-plugin-afp-0.1.14.tgz",
+        "sha256": "de71df77d847a695e63359850d14ef06ca51d97adcf49c7f23460f1292036606",
+        "size": 650507
       }
     },
     {
