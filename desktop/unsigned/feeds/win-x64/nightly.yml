@@ -1,60 +1,87 @@
-version: 0.2.2-rc.1.20261105.3
+version: 0.2.2-rc.1.20261106.1
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.3-unsigned/deepseek-harness-0.2.2-rc.1.20261105.3-win-x64-unsigned.exe
-    sha512: PRl69oZRycUOeVd44LTnfg0kWJhLTRJQov/6moHnkXC3HSW4gdEghERV70Ta016wAwuOj0MciGHv2THqkr7zdw==
-    size: 415274128
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261105.3-unsigned/deepseek-harness-0.2.2-rc.1.20261105.3-win-x64-unsigned.exe
-sha512: PRl69oZRycUOeVd44LTnfg0kWJhLTRJQov/6moHnkXC3HSW4gdEghERV70Ta016wAwuOj0MciGHv2THqkr7zdw==
-releaseDate: '2026-11-05T06:59:22.558Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261106.1-unsigned/deepseek-harness-0.2.2-rc.1.20261106.1-win-x64-unsigned.exe
+    sha512: edFNd1O9bLeAJqlyV1My+Hl+rOiDC75OZwUxv5hYabtGI9q5zkregtzhrW7Zs43HGp06a5/I/tj1Esc4XztAyw==
+    size: 415256626
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261106.1-unsigned/deepseek-harness-0.2.2-rc.1.20261106.1-win-x64-unsigned.exe
+sha512: edFNd1O9bLeAJqlyV1My+Hl+rOiDC75OZwUxv5hYabtGI9q5zkregtzhrW7Zs43HGp06a5/I/tj1Esc4XztAyw==
+releaseDate: '2026-11-06T12:11:47.613Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261105.3
+  version: 0.2.2-rc.1.20261106.1
   items:
-    - id: bundled-plugin-updates-20261105
+    - id: native-image-mask-task-recovery
+      category: features
+      text:
+        en: Native image editing supports masks and persistent task handles, allowing Codex Subscription and Style Prompt to recover accepted image operations.
+        zh-CN: 原生图片编辑支持蒙版和持久化任务句柄，Codex 订阅与风格提示词可恢复已受理的图片操作。
+    - id: plugin-isolated-local-packaging
       category: other
       text:
-        en: Includes Visual Curator 0.2.13, Codex Subscription 0.2.3 and Style Prompt 0.2.0 while preserving saved profile data and activation choices.
-        zh-CN: 随附视觉策展 0.2.13、Codex 订阅 0.2.3、风格提示词 0.2.0，保留已有 profile 数据和启用选择。
-    - id: native-auxiliary-image-generation
-      category: features
-      text:
-        en: Configured Codex image models can generate original images and previews through the native model API for canvas workflows.
-        zh-CN: 已配置的 Codex 图片模型可通过原生模型接口供画布调用，分别保留生成原图和预览附件。
-    - id: style-prompt-node-canvas
-      category: features
-      text:
-        en: Style Prompt provides a persistent node canvas for reference analysis, bilingual prompts and image-generation branches, with autosave, history and import/export.
-        zh-CN: 风格提示词新增持久化节点画布，连接参考分析、双语提示词及生图分支，支持自动保存、历史和导入导出。
-    - id: visual-curator-organized-datasets
+        en: Update the five bundled custom plugins and provide a consistent isolated local packaging path for manual desktop import.
+        zh-CN: 更新随附的五个自定义插件，并统一隔离本地打包流程，便于在桌面端手动导入测试。
+    - id: visual-curator-manual-analysis-datasets
       category: improvements
       text:
-        en: Reference analysis automatically organizes and saves datasets, with consistent positive/negative roles, rule statistics and compact version history.
-        zh-CN: 参考分析自动整理并保存数据集，统一正反例角色与规则统计，紧凑展示数据集版本历史。
+        en: Keep analysis manual after image import, organize datasets automatically after analysis, and retain explicit model selection with required-field validation.
+        zh-CN: 导入图片后由用户手动启动分析；分析完成后自动整理数据集，保留手动模型选择并完善必填校验。
+    - id: visual-curator-save-continuation
+      category: fixes
+      text:
+        en: Preserve stop intent and saved checkpoints during concurrent writes, and show diagnostic codes when batch results cannot be read.
+        zh-CN: 并发保存时保留停止意图和已保存进度，批次读取失败时显示诊断代码，便于恢复和定位。
+    - id: visual-curator-wallpaper-workflow
+      category: features
+      text:
+        en: Visual Curator connects search, original downloads, subject and safe-area planning, crop or background expansion, and visual review in a resumable wallpaper workflow.
+        zh-CN: 视觉策展串联找图、原图下载、主体与安全区规划、裁剪或背景扩图、视觉复审及返工，支持壁纸任务断点续跑。
+    - id: visual-curator-workflow-canvas
+      category: improvements
+      text:
+        en: Improve multi-batch canvas layouts, flowing connections, reference galleries, dataset dialogs, and selected-node deletion.
+        zh-CN: 完善多批次画布布局、连接线动画、参考图片列表、数据集弹窗及节点选择删除。
+    - id: workflow-session-visibility-stop
+      category: fixes
+      text:
+        en: Show workflow conversations with native background jobs in the sidebar, and offer conversation navigation after creation is confirmed. Stop and delete cancel dependent work before waiting for completion.
+        zh-CN: 修复后台工作流会话被侧栏当作空会话隐藏的问题，确认会话创建后才提供打开入口；停止并删除时先取消依赖任务，再等待收尾。
 releaseNotes: |-
   ## 新增功能
 
-  - 已配置的 Codex 图片模型可通过原生模型接口供画布调用，分别保留生成原图和预览附件。
-  - 风格提示词新增持久化节点画布，连接参考分析、双语提示词及生图分支，支持自动保存、历史和导入导出。
+  - 原生图片编辑支持蒙版和持久化任务句柄，Codex 订阅与风格提示词可恢复已受理的图片操作。
+  - 视觉策展串联找图、原图下载、主体与安全区规划、裁剪或背景扩图、视觉复审及返工，支持壁纸任务断点续跑。
 
   ## 体验优化
 
-  - 参考分析自动整理并保存数据集，统一正反例角色与规则统计，紧凑展示数据集版本历史。
+  - 导入图片后由用户手动启动分析；分析完成后自动整理数据集，保留手动模型选择并完善必填校验。
+  - 完善多批次画布布局、连接线动画、参考图片列表、数据集弹窗及节点选择删除。
+
+  ## 问题修复
+
+  - 并发保存时保留停止意图和已保存进度，批次读取失败时显示诊断代码，便于恢复和定位。
+  - 修复后台工作流会话被侧栏当作空会话隐藏的问题，确认会话创建后才提供打开入口；停止并删除时先取消依赖任务，再等待收尾。
 
   ## 其他变更
 
-  - 随附视觉策展 0.2.13、Codex 订阅 0.2.3、风格提示词 0.2.0，保留已有 profile 数据和启用选择。
+  - 更新随附的五个自定义插件，并统一隔离本地打包流程，便于在桌面端手动导入测试。
 
   ---
 
   ## New features
 
-  - Configured Codex image models can generate original images and previews through the native model API for canvas workflows.
-  - Style Prompt provides a persistent node canvas for reference analysis, bilingual prompts and image-generation branches, with autosave, history and import/export.
+  - Native image editing supports masks and persistent task handles, allowing Codex Subscription and Style Prompt to recover accepted image operations.
+  - Visual Curator connects search, original downloads, subject and safe-area planning, crop or background expansion, and visual review in a resumable wallpaper workflow.
 
   ## Improvements
 
-  - Reference analysis automatically organizes and saves datasets, with consistent positive/negative roles, rule statistics and compact version history.
+  - Keep analysis manual after image import, organize datasets automatically after analysis, and retain explicit model selection with required-field validation.
+  - Improve multi-batch canvas layouts, flowing connections, reference galleries, dataset dialogs, and selected-node deletion.
+
+  ## Bug fixes
+
+  - Preserve stop intent and saved checkpoints during concurrent writes, and show diagnostic codes when batch results cannot be read.
+  - Show workflow conversations with native background jobs in the sidebar, and offer conversation navigation after creation is confirmed. Stop and delete cancel dependent work before waiting for completion.
 
   ## Other changes
 
-  - Includes Visual Curator 0.2.13, Codex Subscription 0.2.3 and Style Prompt 0.2.0 while preserving saved profile data and activation choices.
+  - Update the five bundled custom plugins and provide a consistent isolated local packaging path for manual desktop import.
