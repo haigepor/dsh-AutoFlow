@@ -1,6 +1,6 @@
 /** Dataset observation outlives dialogs and never refreshes image workspace contents. */
 import { z } from 'zod'
-import { datasetListSchema, datasetDetailSchema, type DatasetEntry, type DatasetDetail, type DatasetScope, type DatasetRoleFilter } from '../shared/datasets.ts'
+import { datasetListSchema, datasetDetailSchema, datasetDeleteReceiptSchema, type DatasetEntry, type DatasetDetail, type DatasetScope, type DatasetRoleFilter } from '../shared/datasets.ts'
 import type { ClientTransport } from './store.ts'
 
 /** A failed submission keeps its operation identity because the Host may have accepted it. */
@@ -20,14 +20,16 @@ export function datasetActive(status: DatasetEntry['status']): boolean { return 
 interface CachedDetail { detail: DatasetDetail; at: number; resourceReadAt: number; bytes: number }
 
 /** @param dependencies Scoped transport, live owner/collection identity and optional bounded cache policy; omitted policy disables reuse. @returns A dialog-independent store; completed pages may be reused within their original resource lifetime, while closing a view never cancels generation. */
-export function createDatasetStore(dependencies: { invoke: ClientTransport['invoke']; context(): { scope: number; styleId: string }; operationId?(): string; cachePolicy?(): { ttlMs: number; maxViews: number; maxBytes: number; resourceTtlMs: number }; now?(): number }) {
+export function createDatasetStore(dependencies: { invoke: ClientTransport['invoke']; context(): { scope: number; styleId: string; workspaceRevision?: string | undefined }; operationId?(): string; cachePolicy?(): { ttlMs: number; maxViews: number; maxBytes: number; resourceTtlMs: number }; now?(): number }) {
   const initial = (): DatasetClientState => ({ styleId: '', entries: [], pageIds: [], total: 0, allTotal: 0, query: '', status: 'all', loading: false, error: false, submissions: [], watched: [], dismissed: [], detailId: '', detail: null, detailLoading: false, detailError: false, sampleRole: 'all' })
-  let state = initial(), scope = dependencies.context().scope, disposed = false, listVersion = 0, detailVersion = 0
+  let state = initial(), scope = dependencies.context().scope, disposed = false, listVersion = 0, detailVersion = 0, mutationVersion = 0
+  const removals = new Map<string, { operationId: string; work?: Promise<void> }>()
   let listWork: Promise<void> | undefined, listController: AbortController | undefined, detailController: AbortController | undefined
   const submissions = new Map<string, Promise<void>>(), lifetime = new AbortController(), listeners = new Set<() => void>()
   const details = new Map<string, CachedDetail>(), now = dependencies.now ?? Date.now, encoder = new TextEncoder()
   let detailReadAt = 0
   let polling: Promise<void> | undefined
+  let workspaceRevision = dependencies.context().workspaceRevision, refreshRequested = false
   let scopeLifetime = new AbortController()
   function publish(update: Partial<DatasetClientState>) { if (disposed) return; state = { ...state, ...update }; for (const listener of listeners) listener() }
   const current = (captured: number) => !disposed && scope === captured && dependencies.context().scope === captured
@@ -70,7 +72,7 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
         submissions: state.submissions.filter(item => !page.entries.some(row => row.runId === item.runId || row.duplicateExports?.some(copy => copy.runId === item.runId))), loading: false })
     }).catch(error => { if (current(captured) && !controller.signal.aborted && version === listVersion) publish({ loading: false, error: true }) })
     listWork = work
-    try { await work } finally { if (listWork === work) { listWork = undefined; listController = undefined } }
+    try { await work } finally { if (listWork === work) { listWork = undefined; listController = undefined; refreshChanged() } }
   }
 
   async function readDetail(id: string, more = false, sampleRole: DatasetRoleFilter = id === state.detailId ? state.sampleRole : 'all'): Promise<void> {
@@ -132,33 +134,61 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
   }
 
   function clearReads() { ++listVersion; ++detailVersion; listController?.abort(); detailController?.abort(); listWork = undefined; listController = undefined; detailController = undefined }
+  function refreshChanged() {
+    if (!refreshRequested || listWork || polling || disposed) return
+    refreshRequested = false
+    void poll()
+  }
   async function poll(): Promise<void> {
     if (polling || !state.styleId) return polling
-    const captured = scope, styleId = state.styleId
+    const captured = scope, styleId = state.styleId, version = mutationVersion
     const work = (async () => {
       try {
         const page = datasetListSchema.parse(await dependencies.invoke('datasets-list', { styleId, status: 'all', query: '' }, AbortSignal.any([lifetime.signal, scopeLifetime.signal])))
-        if (!current(captured) || styleId !== state.styleId) return
+        if (!current(captured) || styleId !== state.styleId || version !== mutationVersion) return
         const entries = merged(page.entries), unfiltered = state.status === 'all' && !state.query
         invalidateChanged(page.entries)
         publish({ entries, allTotal: page.allTotal, versionTotal: page.versionTotal, exportTotal: page.exportTotal, error: false, submissions: state.submissions.filter(item => !page.entries.some(row => row.runId === item.runId || row.duplicateExports?.some(copy => copy.runId === item.runId))),
           ...(unfiltered ? { pageIds: [...new Set([...page.entries.map(row => row.id), ...state.pageIds])], total: page.total, nextPageToken: state.pageIds.length > page.entries.length ? state.nextPageToken : page.nextPageToken } : {}) })
         if (state.detail && state.detail.entry.status !== 'completed' && entries.find(row => row.id === state.detailId)?.status === 'completed') void readDetail(state.detailId)
         if (!unfiltered) await readPage()
-      } catch (error) { if (current(captured) && styleId === state.styleId) publish({ error: true }) }
+      } catch (error) { if (current(captured) && styleId === state.styleId && version === mutationVersion) publish({ error: true }) }
     })()
     polling = work
-    try { await work } finally { if (polling === work) polling = undefined }
+    try { await work } finally { if (polling === work) { polling = undefined; refreshChanged() } }
+  }
+
+  async function remove(id: string): Promise<void> {
+    if (!state.styleId) return
+    const removal: { operationId: string; work?: Promise<void> } = removals.get(id) ?? { operationId: dependencies.operationId?.() ?? crypto.randomUUID() }
+    if (removal.work) return removal.work
+    removals.set(id, removal)
+    const captured = scope, styleId = state.styleId
+    const work = (async () => {
+      const receipt = datasetDeleteReceiptSchema.parse(await dependencies.invoke('dataset-delete', { id, styleId, operationId: removal.operationId }))
+      if (!current(captured) || styleId !== state.styleId) return
+      if (receipt.styleId !== styleId || !receipt.ids.some(key => key === id)) throw new Error('dataset-removal-mismatch')
+      ++mutationVersion; clearReads(); details.clear()
+      const ids = new Set<string>(receipt.ids)
+      publish({ entries: state.entries.filter(entry => !ids.has(entry.id)), pageIds: state.pageIds.filter(key => !ids.has(key)), watched: state.watched.filter(key => !ids.has(key)), submissions: state.submissions.filter(item => !item.runId || !ids.has(item.runId)), loading: false,
+        ...(ids.has(state.detailId) ? { detailId: '', detail: null, detailLoading: false, detailError: false } : {}) })
+      removals.delete(id)
+      await readPage()
+    })()
+    removal.work = work
+    try { await work } finally { delete removal.work }
   }
   return {
     getSnapshot: () => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
     sync() {
       const context = dependencies.context()
-      if (context.scope !== scope) { clearReads(); details.clear(); detailReadAt = 0; scopeLifetime.abort(); scopeLifetime = new AbortController(); polling = undefined; scope = context.scope; submissions.clear(); publish(initial()) }
-      if (context.styleId !== state.styleId) { clearReads(); details.clear(); detailReadAt = 0; publish({ styleId: context.styleId, pageIds: [], query: '', status: 'all', total: 0, allTotal: 0, versionTotal: undefined, exportTotal: undefined, nextPageToken: undefined, loading: false, error: false, detailId: '', detail: null, detailLoading: false, detailError: false, sampleRole: 'all' }); void readPage() }
+      if (context.scope !== scope) { clearReads(); details.clear(); removals.clear(); detailReadAt = 0; scopeLifetime.abort(); scopeLifetime = new AbortController(); polling = undefined; refreshRequested = false; scope = context.scope; submissions.clear(); publish(initial()) }
+      if (context.styleId !== state.styleId) { clearReads(); details.clear(); detailReadAt = 0; refreshRequested = false; workspaceRevision = context.workspaceRevision; publish({ styleId: context.styleId, pageIds: [], query: '', status: 'all', total: 0, allTotal: 0, versionTotal: undefined, exportTotal: undefined, nextPageToken: undefined, loading: false, error: false, detailId: '', detail: null, detailLoading: false, detailError: false, sampleRole: 'all' }); void readPage(); return }
+      if (context.workspaceRevision !== workspaceRevision) { workspaceRevision = context.workspaceRevision; refreshRequested = true; refreshChanged() }
     },
     start: submit,
+    remove,
     refresh: () => { details.clear(); return readPage() },
     poll,
     loadMore: () => readPage(true),
@@ -168,7 +198,7 @@ export function createDatasetStore(dependencies: { invoke: ClientTransport['invo
     filterSamples(role: DatasetRoleFilter) { if (!state.detailId || role === state.sampleRole) return; return readDetail(state.detailId, false, role) },
     closeDetail() { ++detailVersion; detailController?.abort(); publish({ detailId: '', detail: null, detailLoading: false, detailError: false, sampleRole: 'all' }) },
     dismiss(id: string) { publish({ dismissed: [...state.dismissed, id] }) },
-    needsPoll: () => state.submissions.some(item => item.styleId === state.styleId && item.status === 'accepted') || state.entries.some(row => row.styleId === state.styleId && datasetActive(row.status)),
+    needsPoll: () => state.error || refreshRequested || state.submissions.some(item => item.styleId === state.styleId && item.status === 'accepted') || state.entries.some(row => row.styleId === state.styleId && datasetActive(row.status)),
     dispose() { clearReads(); details.clear(); lifetime.abort(); scopeLifetime.abort(); disposed = true; listeners.clear() },
   }
 }

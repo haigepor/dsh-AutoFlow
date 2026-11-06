@@ -21,6 +21,12 @@ async page => {
   try {
     await page.setViewportSize({ width: 1440, height: 900 })
     await links.first().waitFor()
+    assert(!await modal.locator('.vc-process-context').isVisible(), 'Analysis details must be hidden by default')
+    await modal.getByRole('button', { name: '展开分析信息', exact: true }).click()
+    assert(await modal.locator('.vc-process-context').isVisible(), 'Batch navigation must expand analysis details')
+    await modal.getByRole('button', { name: '收起分析信息', exact: true }).click()
+    assert(!await modal.locator('.vc-process-context').isVisible(), 'Analysis details must collapse again')
+    await modal.getByRole('button', { name: '展开分析信息', exact: true }).click()
     const before = await countRequests(), count = await links.count()
     const art = modal.locator('.vc-process-context-heading img')
     await page.waitForFunction(() => { const img = document.querySelector('.vc-process-context-heading img'); return img?.complete && img.naturalWidth > 0 })
@@ -50,7 +56,7 @@ async page => {
     assert(!overflow, 'Narrow navigation must not overflow')
     await modal.screenshot({ path: '.playwright-mcp/analysis-sidebar-v2-mobile.png', scale: 'css' })
     assert(await countRequests() === before, 'Navigation must never dispatch another model request')
-    return { targets: count, selectedAndFocused: count, artworkLoaded: true, summaryCollapsed, logToResponse: true, narrowPicker: true, narrowOverflow: overflow, modelRequestsUnchanged: true, actualDataWritten: false }
+    return { targets: count, selectedAndFocused: count, artworkLoaded: true, summaryCollapsed, logToResponse: true, narrowPicker: true, narrowOverflow: overflow, modelRequestsUnchanged: true, actualDataWritten: false, contextDefaultCollapsed: true, contextToggle: true }
   } finally {
     await page.evaluate(value => document.body.toggleAttribute('data-ds-dark-theme', value), dark)
     await page.setViewportSize({ width: 1440, height: 900 })

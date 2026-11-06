@@ -4,7 +4,22 @@ English | [中文](README.zh.md)
 
 ## Summary
 
+Release 0.2.14: Connect reference analysis, organized datasets, search results, original downloads, composition planning, crop or background expansion, and visual review in one recoverable wallpaper workflow. Improve batch layouts, reference galleries, dataset dialogs, node selection and deletion. Keep imports manual, generate datasets after analysis, and retain manual model selection. Persist stop intent before cancellation and protect saved progress during concurrent writes.
+
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
+
+## Local tests and formal releases
+
+Run from the repository root:
+
+```sh
+pnpm run dsh-plugin-visual-curator:local
+pnpm run dsh-plugin-visual-curator
+```
+
+`:local` builds a uniquely versioned local archive for manual Desktop installation, permits uncommitted edits and retains the stable update source. The command without a suffix publishes the reviewed stable manifest version through the existing native Actions and waits for the official update index. Bump the stable version and release notes, commit and push before formal publication. Neither command commits a branch, installs a plugin or restarts Desktop.
+
+The [local testing guide](../../../release-governance/local-development/README.md) owns the shared five-plugin commands, progress and check options, manual archive replacement, local-version precedence, Desktop source preview and the proposed common importer. The old `--prepare-only --allow-dirty` invocation remains a local-only alias.
 
 ## Prepare and publish
 

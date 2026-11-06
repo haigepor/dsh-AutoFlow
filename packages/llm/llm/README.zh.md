@@ -85,7 +85,7 @@ const configure = (maxTokens: number): ConfigureCall =>
 
 ### 你可以做什么
 
-- **辅助图片生成**——`registerImageProvider()` 为现有提供方路由注册明确的图片模型目录和执行器。`listImageModels()` 仅暴露该目录；`generateImages()` 校验模型后，通过提供方已配置账号执行一次，分别返回原图和规范化预览附件。调用方在派发前保存请求并负责取消。文本流或视觉输入支持不代表生图能力。
+- **辅助图片生成**——`registerImageProvider()` 为现有路由注册明确的图片模型目录和执行器。`listImageModels()` 暴露该目录，`generateImages()` 保留单次调用方式。可选的 `startImageGeneration()`、`getImageGeneration()` 和 `cancelImageGeneration()` 使用提供方持久任务；不支持时在派发前失败。调用方在受理前保存操作 ID，通过原句柄恢复已受理工作，不重复派发结果未知的请求。可选 PNG `mask` 使用文件附件，与首张参考图等尺寸并保留透明通道。结果分别返回原文件和规范化预览。[任务语义](../../../docs/subsystems/llm-streaming.zh.md#service-and-provider-contracts)定义所有权及恢复行为。文本或视觉输入支持不代表生图能力。
 
 - **流式发起一次模型调用**——`ctx.llm.stream(options)` 为任何已注册提供方与模型产出原始分片（token 级增量）；消费方用 `BlockAssembler` 组装。
 - **注册提供方适配器**——一个适配器拥有一个或多个提供方路由，其注册会捕获该路由的重试策略；重复注册同一路由会以 `DUPLICATE_ADAPTER` 失败。

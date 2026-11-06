@@ -97,7 +97,7 @@ export interface ImageView {
   familyId: string
   width: number
   height: number
-  kind: 'normalized' | 'preview' | 'crop' | 'remote-reference'
+  kind: 'normalized' | 'preview' | 'crop' | 'remote-reference' | 'composition'
   previewPath: string
   originalDownloadPath?: string
   thumbnailPath?: string
@@ -162,6 +162,7 @@ export interface UsageView {
 
 /** Durable run state is independent of its current process job. */
 export interface RunView {
+  continuation?: import('../shared/run-continuation.ts').RunContinuation
   revision?: number
   outputKind?: import('../shared/search-launch.ts').SearchLaunchInput['output']['kind']
   launchId?: import('../shared/search-launch.ts').SearchLaunchView['id']
@@ -230,7 +231,7 @@ export interface ConfigurationView {
   visionCredentialConfigured: boolean
   source: {
     provider: 'generic' | 'unsplash'
-    unsplash: { accounts: GalleryAccount[]; defaultAccountId: string | null; curlBinary: string; userAgent: string; readRetryAttempts?: number; readRetryDelayMs?: number; previewConcurrency?: number; cache?: import('../shared/gallery-cache.ts').GalleryCachePolicy; login: { browser: 'auto' | 'msedge' | 'chrome'; executablePath: string; timeoutMs: number; launchTimeoutMs: number; pollIntervalMs: number } }
+    unsplash: { accounts: GalleryAccount[]; defaultAccountId: string | null; curlBinary: string; userAgent: string; readRetryAttempts?: number; readRetryDelayMs?: number; previewConcurrency?: number; previewCache?: import('../shared/gallery-cache.ts').PreviewCachePolicy; cache?: import('../shared/gallery-cache.ts').GalleryCachePolicy; login: { browser: 'auto' | 'msedge' | 'chrome'; executablePath: string; timeoutMs: number; launchTimeoutMs: number; pollIntervalMs: number } }
     id: string; endpoint: string; method: 'GET' | 'POST'; credentialRef: string
     queryField: string; cursorField: string; pageSizeField: string
     itemsPointer: string; idPointer: string; previewPointer: string; originalPointer: string

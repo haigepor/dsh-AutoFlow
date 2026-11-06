@@ -9,6 +9,14 @@ import type { ClientState } from './store.ts'
 import { safeResourcePath } from './store.ts'
 import type { WorkbenchText } from './workbench-locale.ts'
 import { createAnalysisIcon } from './analysis-icons.tsx'
+import { z } from 'zod'
+
+function summaryCoverage(text: string) {
+  try {
+    const message = z.object({ input: z.object({ taskBrief: z.string() }) }).parse(JSON.parse(text))
+    return z.object({ coverage: z.object({ observed: z.number().int().nonnegative(), total: z.number().int().nonnegative() }) }).parse(JSON.parse(message.input.taskBrief)).coverage
+  } catch (error) { return undefined }
+}
 
 function taskInstruction(text: string): string {
   let payload: unknown
@@ -36,6 +44,7 @@ export function createAnalysisInput(React: typeof import('react'), ui: typeof im
     const detailId = React.useId()
     const input = state.analysisInputs[request.requestId], error = state.analysisInputErrors[request.requestId]
     const instruction = input ? taskInstruction(input.inputText) : ''
+    const coverage = request.operation === 'summarize' && input ? summaryCoverage(input.inputText) : undefined
     // 只读取进入阅读区的已保存输入；不会发送模型请求，也不改变用户的滚动跟随状态。
     React.useEffect(() => {
       if (!request.available || !row.current || requested.current === request.requestId) return
@@ -60,6 +69,7 @@ export function createAnalysisInput(React: typeof import('react'), ui: typeof im
     const activeTab = tabs.find(item => item.value === (detailView ?? 'instruction'))!
     const detailText = !input ? '' : detailView === 'user' ? input.inputText : detailView === 'system' ? input.instructions : detailView === 'images' ? JSON.stringify(input.images.map(({ name, imageVersionId, digest, mime, role }) => ({ name, imageVersionId, digest, mime, role })), null, 2) : taskInstruction(input.inputText)
     return <section ref={row} className="vc-request-input" data-request-id={request.requestId} aria-label={t('processModelInput')}>
+      {coverage && <p className="vc-input-detail-note" role="note">{t('inputSummaryCoverage').replace('{observed}', String(coverage.observed)).replace('{total}', String(coverage.total)).replace('{pixels}', String(input?.images.length ?? request.imageIds.length))}</p>}
       <div className="vc-user-stack">
         {input ? renderFactorySlot('conversation.chat.user.preview', {
           content: { text: expanded || instruction.length <= 180 ? instruction : `${instruction.slice(0, 180)}…`, attachments: images.map(image => ({ type: 'image' as const, image })), extraBlocks: [] },

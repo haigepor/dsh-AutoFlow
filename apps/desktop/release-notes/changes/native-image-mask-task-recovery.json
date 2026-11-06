@@ -1,0 +1,8 @@
+{
+  "id": "native-image-mask-task-recovery",
+  "category": "features",
+  "text": {
+    "en": "Native image editing supports masks and persistent task handles, allowing Codex Subscription and Style Prompt to recover accepted image operations.",
+    "zh-CN": "原生图片编辑支持蒙版和持久化任务句柄，Codex 订阅与风格提示词可恢复已受理的图片操作。"
+  }
+}

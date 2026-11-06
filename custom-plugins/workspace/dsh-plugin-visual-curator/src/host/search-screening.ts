@@ -19,6 +19,7 @@ import { searchExclusionsSchema, sourceExclusion, imageExclusion, exclusionCount
 import { importedRecords } from './imports.ts'
 import { chooseSearchQuery } from './search-query-plan.ts'
 import { searchScreeningCheckpointSchema, searchScreeningState, type SearchScreeningCheckpoint } from './search-screening-state.ts'
+import { createSearchCheckpointWriter, removeUncommittedSearchImports } from './search-checkpoint.ts'
 import type { SearchDependencies } from './search-workflow.ts'
 
 type Candidate = NonNullable<SearchScreeningCheckpoint['pool']>['candidates'][number]
@@ -38,24 +39,24 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
     const exclusions = ctx.spec.fixed.searchExclusions === undefined ? undefined : searchExclusionsSchema.parse(ctx.spec.fixed.searchExclusions)
     const state = searchScreeningState(ctx.current()) ?? searchScreeningCheckpointSchema.parse({ version: 1, nextQuery: 0, nextPool: 0, pages: input.queries.map(() => ({ cursor: null, pageCursor: null, seenCursors: [], ids: [], exhausted: false })), queryCandidates: input.queries.map(() => []), seenIds: [], candidateCount: 0, seenDigests: [], excluded: {}, screened: {}, fallbacks: {}, importedImages: {}, deepDone: [], deepReviewed: 0, failedQueries: 0, sourceLimited: false, issues: [] })
     if (state.pages.length !== input.queries.length || state.queryCandidates.length !== input.queries.length || state.pool?.candidates.some(item => item.queryIndex >= input.queries.length)) throw new CuratorError('reference-unavailable', 'screening', 'The saved candidate pool does not match its query plan.')
+    const uncommitted = new Set(removeUncommittedSearchImports(deps.domain, state.importedImages))
+    if (uncommitted.size) {
+      state.deepDone = state.deepDone.filter(id => !uncommitted.has(id))
+      state.seenDigests = [...new Set(Object.values(state.importedImages).map(id => deps.domain.authorizedImage(id, actor).image.blob.digest))]
+    }
     const locations = new Map<string, SourceItem>()
     const selections = () => deps.domain.repository.list('selection').filter(item => item.runId === ctx.runId && item.qualification === 'auto-qualified')
-    let saving = Promise.resolve()
-    const save = (records: CuratorRecord[] = [], stage: 'retrieving' | 'screening' | 'reviewing' = 'screening'): Promise<void> => {
-      const pending = saving.then(async () => {
-        const data = dataOf(ctx.current())
-        state.deepReviewed = new Set([...deps.domain.repository.list('assessment'), ...records.filter((record): record is Assessment => record.kind === 'assessment')].filter(item => item.runId === ctx.runId && item.technicalStatus === 'completed').map(item => item.imageVersionId)).size
-        const newSelections = records.flatMap(record => record.kind === 'selection' && record.runId === ctx.runId && record.qualification === 'auto-qualified' ? [record.imageVersionId] : [])
-        const qualified = new Set([...selections().map(record => record.imageVersionId), ...newSelections]).size
-        const counts = { ...data.counts, candidates: state.seenIds.length, distinct: state.candidateCount, qualified,
-          screeningReviewed: Object.keys(state.screened).length, screeningRejected: Object.values(state.screened).filter(item => item.decision === 'obvious-reject').length,
-          screeningFallback: Object.keys(state.fallbacks).length, deepReviewed: state.deepReviewed, failedQueries: state.failedQueries,
-          technicalFailed: state.issues.filter(issue => issue.category === 'technical').length, unavailable: state.issues.filter(issue => issue.category === 'unavailable').length, ...exclusionCounts(state.excluded) }
-        await ctx.save(stage, { checkpoint: { ...data.checkpoint, searchScreening: toJson(state) }, counts }, records)
-      })
-      saving = pending.catch(error => { void error /* Only restore queue admission; the original pending promise still rejects its caller. */ })
-      return pending
-    }
+    const save = createSearchCheckpointWriter(state, async (snapshot, records, stage) => {
+      const data = dataOf(ctx.current())
+      snapshot.deepReviewed = new Set([...deps.domain.repository.list('assessment'), ...records.filter((record): record is Assessment => record.kind === 'assessment')].filter(item => item.runId === ctx.runId && item.technicalStatus === 'completed').map(item => item.imageVersionId)).size
+      const newSelections = records.flatMap(record => record.kind === 'selection' && record.runId === ctx.runId && record.qualification === 'auto-qualified' ? [record.imageVersionId] : [])
+      const qualified = new Set([...selections().map(record => record.imageVersionId), ...newSelections]).size
+      const counts = { ...data.counts, candidates: snapshot.seenIds.length, distinct: snapshot.candidateCount, qualified,
+        screeningReviewed: Object.keys(snapshot.screened).length, screeningRejected: Object.values(snapshot.screened).filter(item => item.decision === 'obvious-reject').length,
+        screeningFallback: Object.keys(snapshot.fallbacks).length, deepReviewed: snapshot.deepReviewed, failedQueries: snapshot.failedQueries,
+        technicalFailed: snapshot.issues.filter(issue => issue.category === 'technical').length, unavailable: snapshot.issues.filter(issue => issue.category === 'unavailable').length, ...exclusionCounts(snapshot.excluded) }
+      await ctx.save(stage, { checkpoint: { ...data.checkpoint, searchScreening: toJson(snapshot) }, counts }, records)
+    })
     const fatal = (error: unknown) => ctx.signal.aborted || ['budget-exhausted', 'storage-commit-failed', 'owner-denied', 'reference-unavailable'].includes(safeFailure(error).code)
     const locate = async (candidate: Candidate): Promise<SourceItem> => {
       const cached = locations.get(candidate.providerAssetId)

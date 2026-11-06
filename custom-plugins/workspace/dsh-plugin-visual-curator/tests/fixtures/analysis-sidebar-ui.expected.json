@@ -7,5 +7,7 @@
   "narrowPicker": true,
   "narrowOverflow": false,
   "modelRequestsUnchanged": true,
-  "actualDataWritten": false
+  "actualDataWritten": false,
+  "contextDefaultCollapsed": true,
+  "contextToggle": true
 }

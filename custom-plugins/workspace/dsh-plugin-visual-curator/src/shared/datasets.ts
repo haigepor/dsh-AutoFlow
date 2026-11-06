@@ -68,3 +68,9 @@ export const datasetDetailSchema = z.strictObject({
 export type DatasetDetail = z.infer<typeof datasetDetailSchema>
 /** Detail identity and optional frozen-sample continuation. */
 export const datasetDetailInputSchema = z.object({ id: identity, pageToken: pageToken.optional(), sampleRole: datasetRoleFilterSchema.default('all') })
+/** Confirmed removal names its collection and retains one identity across uncertain responses. */
+export const datasetDeleteInputSchema = z.strictObject({ id: identity, styleId: z.string().min(1), operationId: z.string().min(1) })
+/** Catalog removal includes all equivalent displayed exports, without deleting frozen task inputs. */
+export const datasetDeleteReceiptSchema = z.strictObject({ styleId: z.string(), ids: z.array(identity), deleted: z.literal(true) })
+/** Acknowledged removal used to invalidate loaded rows and detail caches. */
+export type DatasetDeleteReceipt = z.infer<typeof datasetDeleteReceiptSchema>

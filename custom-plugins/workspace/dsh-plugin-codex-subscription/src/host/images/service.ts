@@ -58,17 +58,29 @@ export class ImageService implements ImagesFacade {
    * @param owner Identity required for later reads and cancellation.
    * @returns The durable queued task, not a claim that generation completed.
    */
-  submit(input: ImageInput, owner: ImageOwner): Promise<ImageTask> {
+  submit(input: ImageInput, owner: ImageOwner, operation?: { id: string; digest: string }, admissionSignal?: AbortSignal): Promise<ImageTask> {
     return this.serialize(async () => {
+      admissionSignal?.throwIfAborted()
       this.assertOpen()
       const settings = structuredClone(this.settings)
       const resolved = this.validate(input, settings)
+      if (operation) {
+        const existing = (await this.options.repository.list()).find(task => task.operation?.id === operation.id && task.owner.kind === owner.kind && (task.owner.kind === 'gateway' && owner.kind === 'gateway' ? task.owner.keyId === owner.keyId : task.owner.kind === 'session' && owner.kind === 'session' && task.owner.sessionId === owner.sessionId))
+        if (existing) {
+          if (existing.operation?.digest !== operation.digest) throw new ImageServiceError('image-operation-conflict', 'The image operation identity was used with different input.')
+          return structuredClone(existing)
+        }
+      }
       if (this.operations.size >= settings.maxQueued + settings.maxConcurrent) throw new ImageServiceError('image-queue-full', 'The image task queue is full. Wait for an existing task to finish.')
-      if ((await this.options.repository.list()).length >= settings.maxHistoryTasks) throw new ImageServiceError('image-history-full', 'Image task history is full. Remove completed tasks from settings before starting a new task.')
+      if ((await this.options.repository.list()).filter(task => !task.pruned).length >= settings.maxHistoryTasks) throw new ImageServiceError('image-history-full', 'Image task history is full. Remove completed tasks from settings before starting a new task.')
       const now = this.now()
       const task: ImageTaskRecord = { id: parseImageTaskId(this.id()), owner: structuredClone(owner), state: 'queued', prompt: resolved.prompt,
-        model: resolved.model!, createdAt: now, updatedAt: now, deadlineAt: now + settings.timeoutMs, assets: [] }
+        model: resolved.model!, createdAt: now, updatedAt: now, deadlineAt: now + settings.timeoutMs, assets: [], ...(operation ? { operation: { ...operation } } : {}) }
       await this.options.repository.put(task)
+      if (admissionSignal?.aborted) {
+        const cancelled: ImageTaskRecord = { ...task, state: 'cancelled', updatedAt: this.now() }
+        await this.options.repository.put(cancelled); return structuredClone(cancelled)
+      }
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(new ImageServiceError('image-deadline', 'The image task exceeded its configured deadline.')), Math.max(1, task.deadlineAt - this.now()))
       timer.unref()
@@ -123,7 +135,7 @@ export class ImageService implements ImagesFacade {
   /** Read all task metadata for the authenticated profile owner; never expose this through relay/MCP.
    * @returns Detached task history newest first.
    */
-  async listAll(): Promise<ImageTask[]> { return (await this.options.repository.list()).sort((a, b) => b.createdAt - a.createdAt) }
+  async listAll(): Promise<ImageTask[]> { return (await this.options.repository.list()).filter(task => !task.pruned).sort((a, b) => b.createdAt - a.createdAt) }
 
   /** Read one task for the Host's authenticated owner settings surface.
    * @param id Task identifier.
@@ -150,7 +162,11 @@ export class ImageService implements ImagesFacade {
     return this.serialize(async () => {
       let removed = 0
       for (const task of await this.options.repository.list()) {
-        if (terminal(task) && task.createdAt < before) { await this.options.repository.delete(task.id); removed++ }
+        if (!task.pruned && terminal(task) && task.createdAt < before) {
+          if (task.operation) await this.options.repository.put({ ...task, prompt: '', assets: [], pruned: true, error: { code: 'image-operation-pruned', message: 'The image history was cleared. Its operation receipt is retained; generation will not be repeated.' } })
+          else await this.options.repository.delete(task.id)
+          removed++
+        }
       }
       return removed
     })

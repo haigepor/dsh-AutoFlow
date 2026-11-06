@@ -1,19 +1,11 @@
-## Visual Curator 0.2.13
+## Visual Curator 0.2.14
 
-- Every new reference analysis automatically organizes and saves a dataset. Compatible observations are reused; partial collections or collections without positive anchors or active matching rules save an observation package first.
-- Dataset rows group profile versions and identical exports, show compact reference counts and version changes, and keep model details in the read-only dialog. Historical export IDs and saved files remain readable.
-- Frozen effective roles now agree across package contents, role counts and sample filters. Reference-only guidance is excluded from matching-rule totals. Equivalent and concurrent exports reuse one package.
-- Model organization records scoped negative reasons and rule applicability, including references outside a conditional rule. Model explanations retain their source and uncertainty; they do not create human-confirmed labels.
-- Saved observations survive failed organization or packaging. Packaging can continue without another model request, and changing role filters keeps the sample list visible.
+Connect reference analysis, organized datasets, search results, original downloads, composition planning, crop or background expansion, and visual review in one recoverable wallpaper workflow. Improve batch layouts, reference galleries, dataset dialogs, node selection and deletion. Keep imports manual, generate datasets after analysis, and retain manual model selection. Persist stop intent before cancellation and protect saved progress during concurrent writes.
 
-Update after current work finishes, then restart AutoFlow to load the matching Host and Client. Existing data, settings and activation choices are retained. Existing frozen tasks keep their original behavior. Keyless tests do not establish live paid-model output quality. Automatic installation uses the existing opt-in plugin setting.
+Use AutoFlow Desktop 0.2.2-rc.1.20261106.1 for the matching native workflow capabilities. Update after active tasks finish and restart AutoFlow. Existing settings, accounts, reference data and saved results are retained.
 
-## 视觉策展 0.2.13
+## Visual Curator 0.2.14 更新说明
 
-- 每次新的参考分析都会自动整理并保存数据集，复用兼容观察；尚未分析齐全、缺少正例或有效匹配规则时先保存观察包。
-- 数据集按档案版本归组、合并相同导出，紧凑呈现正反例数量和版本变化，模型详情移入只读弹窗。历史导出 ID 与已保存文件保持可读。
-- 数据包内容、角色计数和样本筛选统一使用冻结的有效角色；参考说明不再计入匹配规则。重复或并发导出复用同一份数据包。
-- 模型整理记录有维度范围的反例原因和规则适用性，区分条件不适用的参考图；保留模型来源和不确定性，不生成虚假的人工确认标签。
-- 整理或封装失败时保留已保存观察；封装可继续重试而无需再次调用模型，切换角色筛选后样本列表保持可见。
+串联参考图分析、数据集整理、找图结果、原图下载、主体与安全区规划、裁剪或背景扩图、视觉复审及返工，形成可断点续跑的壁纸工作流。完善多批次画布、参考图片列表、数据集弹窗、节点选择与删除；导入后手动启动分析，分析完成后自动整理数据集，并保留手动模型选择。停止前先保存停止意图，改善并发保存与任务恢复。
 
-在当前工作结束后更新并重启 AutoFlow，加载配套的 Host 与 Client。保留已有数据、设置和启用选择，历史冻结任务继续原有行为。无密钥检查不代表真实付费模型输出质量已验收。自动安装沿用已有的明确开启设置。
+配套原生工作流能力请使用 AutoFlow Desktop 0.2.2-rc.1.20261106.1。请在当前任务结束后更新并重启；保留现有设置、账号、参考数据和已保存结果。

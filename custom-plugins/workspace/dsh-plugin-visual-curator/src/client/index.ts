@@ -3,7 +3,11 @@ import { resolvePreviewConcurrency, sharedPreviewLoader } from './preview-loader
 import { createSearchBatchesStore } from './search-batches-store.ts'
 /** Optional native page entries; the plugin detail itself stays entirely owned by Plugin Manager. */
 import type { ComponentType } from 'react'
+import * as React from 'react'
+import * as ui from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './entry.css'
+import flowCss from '@xyflow/react/dist/style.css'
+import workflowCss from './workflow-canvas.css'
 import welcomeImage from '../../assets/welcome-photo-stack-v2.webp'
 import logoImage from '../../assets/plugin-logo-v2.webp'
 import executionEmptyImage from '../../assets/execution-empty-v1.webp'
@@ -14,7 +18,7 @@ import { createConversationTaskDock } from './conversation-task-dock.tsx'
 import { createCuratorStore } from './store.ts'
 import { createCuratorTransport } from './transport.ts'
 import { createGalleryCache } from './gallery-cache.ts'
-import { resolveGalleryCachePolicy } from '../shared/gallery-cache.ts'
+import { resolveGalleryCachePolicy, resolvePreviewCachePolicy } from '../shared/gallery-cache.ts'
 import { createWorkbench, type WorkbenchProps } from './workbench.tsx'
 import { publishStyle } from './workbench-actions.ts'
 import { en, zh } from './workbench-locale.ts'
@@ -55,22 +59,13 @@ interface EntryContext {
   layout: { panelInfo: { getSnapshot(): { activePanelId: string | null } }; selectPanel(id: string | null, options?: { fullWindow?: boolean }): void }
   uiConversation: { views: { register(view: { target: string; create(): { empty: null; replace(): null; apply(): null } }): () => void } }
 }
-interface ModuleLoader {
-  load(module: { id: string; factory(require: <T>(name: string) => T): { inject: string[]; apply(ctx: EntryContext): void } }): void
-}
-declare global { interface Window { __ModuleLoader__: ModuleLoader } }
-
-window.__ModuleLoader__.load({
-  id: 'dsh-plugin-visual-curator',
-  factory(require) {
-    const React = require<typeof import('react')>('react')
-    const ui = require<typeof import('@deepseek-ai/dsh-client-ui-primitives')>('@deepseek-ai/dsh-client-ui-primitives')
+function createEntry() {
     const PageEntry = createWorkbench(React, ui)
     const TaskToolView = createTaskToolView(React, ui)
     const ConversationTaskDock = createConversationTaskDock(React, ui)
     return {
       inject: ['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.credentials', 'layout', 'uiConversation'],
-      apply(ctx) {
+      apply(ctx: EntryContext) {
         const namespace = 'visualCuratorEntry', panel = 'visual-curator-page'
         ctx.effect(() => ctx.locale.register(namespace, { en, zh }), 'Visual Curator entry locale')
         const t = ctx.locale.bind(namespace)
@@ -84,7 +79,7 @@ window.__ModuleLoader__.load({
         })
         const store = createCuratorStore(transport)
         ctx.effect(() => {
-          const configure = () => sharedPreviewLoader.configure(resolvePreviewConcurrency(store.getSnapshot().snapshot?.configuration.source.unsplash.previewConcurrency))
+          const configure = () => { const options = store.getSnapshot().snapshot?.configuration.source.unsplash; sharedPreviewLoader.configure(resolvePreviewConcurrency(options?.previewConcurrency), resolvePreviewCachePolicy(options?.previewCache), store.getOwnerScopeId()) }
           const follow = store.subscribe(configure); configure()
           return () => { follow(); void sharedPreviewLoader.dispose() }
         }, 'Visual Curator bounded preview loading')
@@ -95,7 +90,7 @@ window.__ModuleLoader__.load({
         ctx.effect(() => () => batches.dispose(), 'Visual Curator collection search batches')
         const feedback = createConversationFeedback(transport)
         ctx.effect(() => () => feedback.dispose(), 'Visual Curator conversation feedback')
-        const datasets = createDatasetStore({ invoke: store.invoke, context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '' }), cachePolicy() {
+        const datasets = createDatasetStore({ invoke: (operation, args, signal) => operation === 'dataset-delete' ? store.execute(operation, args) : store.invoke(operation, args, signal), context: () => ({ scope: store.getScopeId(), styleId: store.getSnapshot().snapshot ? store.getSnapshot().styleId : '', workspaceRevision: store.getSnapshot().snapshot?.workspaceRevision }), cachePolicy() {
           const limits = store.getSnapshot().snapshot?.configuration.limits
           return { ttlMs: limits?.datasetCacheTtlMs ?? 0, maxViews: limits?.datasetCacheMaxViews ?? 0, maxBytes: limits?.datasetCacheMaxBytes ?? 0, resourceTtlMs: limits?.sessionGrantTtlMs ?? 0 }
         } })
@@ -130,7 +125,7 @@ window.__ModuleLoader__.load({
           return { namespace: `${new URL(document.baseURI).origin}:${store.getSnapshot().scopeSessionId}`, revision: configuration.revision, accounts: configuration.source.unsplash.accounts.map(({ id, userId, credentialRef }) => ({ id, userId, credentialRef })), policy: resolveGalleryCachePolicy(configuration.source.unsplash.cache) }
         }, read: (operation, args, signal) => transport.invoke(operation, { ...args, ...(store.getSnapshot().sessionToken ? { sessionToken: store.getSnapshot().sessionToken } : {}) }, signal) })
         ctx.effect(() => () => gallery.dispose(), 'Visual Curator gallery cache')
-        const actions: WorkbenchProps['actions'] = { selectWorkspace: store.selectWorkspace, openSession: store.openSession, closeSession: store.closeSession, openTask: store.openTask, prepareTask: store.prepareTask, startAnalysis: store.startAnalysis, referenceState: store.referenceState, stopAnalysis: store.stopAnalysis, pauseAnalysis: store.pauseAnalysis, resumeAnalysis: store.resumeAnalysis, openAnalysis: store.openAnalysis, closeAnalysis: store.closeAnalysis, refreshAnalysisDetail: store.refreshAnalysisDetail, loadAnalysisInput: store.loadAnalysisInput, saveConfiguration: store.saveConfiguration, execute: store.execute, reload: store.reload, getSnapshot: store.getSnapshot, reconcileProfile: store.reconcileProfile,
+        const actions: WorkbenchProps['actions'] = { wallpaper: (operation, args, signal) => store.invoke(operation, args, signal), selectWorkspace: store.selectWorkspace, openSession: store.openSession, closeSession: store.closeSession, openTask: store.openTask, prepareTask: store.prepareTask, startAnalysis: store.startAnalysis, referenceState: store.referenceState, stopAnalysis: store.stopAnalysis, pauseAnalysis: store.pauseAnalysis, resumeAnalysis: store.resumeAnalysis, openAnalysis: store.openAnalysis, closeAnalysis: store.closeAnalysis, refreshAnalysisDetail: store.refreshAnalysisDetail, loadAnalysisInput: store.loadAnalysisInput, saveConfiguration: store.saveConfiguration, execute: store.execute, reload: store.reload, getSnapshot: store.getSnapshot, reconcileProfile: store.reconcileProfile,
           selectStyle: store.selectStyle, selectRun: store.selectRun, loadMoreImages: store.loadMoreImages, loadRun: store.loadRun, loadReferences: store.loadReferences, startGalleryReferences: store.startGalleryReferences, resumeGalleryReferences: store.resumeGalleryReferences, stopGalleryReferences: store.stopGalleryReferences,
           datasets, launches, batches,
           publish: style => publishStyle(store, style),
@@ -198,7 +193,7 @@ window.__ModuleLoader__.load({
           }
         }
         ctx.effect(() => {
-          const style = document.createElement('style'); style.textContent = css.replace('__VC_EXECUTION_EMPTY_ART__', executionEmptyImage).replace('__VC_TASK_METRIC_ART__', taskMetricArtwork).replace('__VC_SEARCH_LAUNCH_ART__', searchLaunchArtwork); document.head.append(style)
+          const style = document.createElement('style'); style.textContent = flowCss + '\n' + css.replace('__VC_EXECUTION_EMPTY_ART__', executionEmptyImage).replace('__VC_TASK_METRIC_ART__', taskMetricArtwork).replace('__VC_SEARCH_LAUNCH_ART__', searchLaunchArtwork) + '\n' + workflowCss; document.head.append(style)
           return () => style.remove()
         }, 'Visual Curator entry styles')
         ctx.effect(() => {
@@ -258,7 +253,12 @@ window.__ModuleLoader__.load({
         }, 'Visual Curator optional entry lifecycle')
       },
     }
-  },
-})
+}
 
-export {}
+const entry = createEntry()
+/** Client services required by the existing native page registrations. */
+export const inject = entry.inject
+/** Register the existing workbench with the application React runtime.
+ * @param ctx Native client services. @returns Completion after lifecycle registrations.
+ */
+export const apply = entry.apply

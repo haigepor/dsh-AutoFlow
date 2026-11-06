@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-manual-analysis-datasets",
+  "category": "improvements",
+  "text": {
+    "en": "Keep analysis manual after image import, organize datasets automatically after analysis, and retain explicit model selection with required-field validation.",
+    "zh-CN": "导入图片后由用户手动启动分析；分析完成后自动整理数据集，保留手动模型选择并完善必填校验。"
+  }
+}

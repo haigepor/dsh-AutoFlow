@@ -15,29 +15,32 @@
   en: d152484eb41ac6b4
   zh: 91957bb5fa1bd8c5
 /dsh-plugin-visual-curator/use-this-package:
-  en: bbff250eba0f1b89
-  zh: 0a618f05cc88ee2b
+  en: 23cb5150a79b4b54
+  zh: 3d81e6c16491a6d9
 /dsh-plugin-visual-curator/use-this-package/enable-the-profile-layer:
   en: 6055e92448b6d6c6
   zh: 424dee6cac46bd6f
 /dsh-plugin-visual-curator/use-this-package/configure-external-services:
-  en: 521d7fd783a8a932
-  zh: 2e186aa17144e123
+  en: 30026e196efcec68
+  zh: b562ec6b27c42cfe
+/dsh-plugin-visual-curator/use-this-package/wallpaper-workflow:
+  en: 9f8c286e28fd210d
+  zh: 8fef772fe2a921df
 /dsh-plugin-visual-curator/use-this-package/establish-a-fixed-style:
-  en: 21dfa3e8c4a78b33
-  zh: 2b02f408fa75a6da
+  en: e908c028e96a807e
+  zh: e33d2cb18062ec98
 /dsh-plugin-visual-curator/use-this-package/review-results-and-corrections:
-  en: 50426f9de1e02b75
-  zh: fdf468f02cd514db
+  en: 641283319d82cfb5
+  zh: 156e8eb32b6a87d8
 /dsh-plugin-visual-curator/use-this-package/scope-and-recover-work:
-  en: 1ab8e40f9e88bcc4
-  zh: 7730f4643030c97a
+  en: bef0360e82439ec1
+  zh: 1950f967e1a0e716
 /dsh-plugin-visual-curator/use-this-package/split-compare-and-export:
   en: bef602aea876f282
   zh: efa98faa21274d92
 /dsh-plugin-visual-curator/understand-the-implementation:
-  en: b7271e2927d7be43
-  zh: 59e8189a62f0b5de
+  en: b3f62d734cdd2aaa
+  zh: 08e6a504daeec322
 /dsh-plugin-visual-curator/further-exploration:
   en: fa88edfac2729df6
   zh: 7ced494d03baa8ab
@@ -48,8 +51,8 @@
   en: 5f185240b036bb1d
   zh: aa96ffcddd825a2e
 /dsh-plugin-visual-curator/known-limitations-and-deferred-work:
-  en: a943f88844fef0b0
-  zh: b3c36a92065a9524
+  en: f5afb5ae7339f410
+  zh: cd1e1093871031d5
 /dsh-plugin-visual-curator/dev-note:
-  en: 5de1d6304e00c58f
-  zh: e090bc658d949fd3
+  en: b0fcb5447bf13116
+  zh: b0b9ace197efb5a0

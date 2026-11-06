@@ -1,9 +1,17 @@
 import { feedbackEn, feedbackZh } from './search-feedback-locale.ts'
 import { datasetEn, datasetZh } from './dataset-locale.ts'
+import { workflowCanvasEn, workflowCanvasZh } from './workflow-canvas-locale.ts'
+import { wallpaperEn, wallpaperZh } from './wallpaper-locale.ts'
 /** Workbench copy is owned by the plugin locale, including native control labels. */
 import { executionEn, executionZh } from './execution-locale.ts'
 export const en = {
+  inputSummaryCoverage: 'Saved observations: {observed}/{total} images. This request attaches {pixels} representative images for visual comparison; the attachments are not the full observation scope.',
+  searchLaunchRequired: 'Choose or enter {field}',
+  searchLaunchModelConfigured: 'Configured route · {model}',
+  searchLaunchModelPlaceholder: 'Choose a vision model',
   ...datasetEn,
+  ...workflowCanvasEn,
+  ...wallpaperEn,
   analysisResumeBudget: 'The original task budget is exhausted. A new task can reuse saved observations.',
   analysisRequestsTab: 'Requests', analysisDiagnosticsTab: 'Failure diagnostics', analysisHistoricalFailure: 'Earlier failure', analysisHistoricalInterrupted: 'Earlier interruption',
   analysisRecoveredHint: 'This task completed successfully. Earlier failed or interrupted attempts remain below for inspection.', analysisNoFailures: 'No failed attempts were recorded.', analysisRequestsEmpty: 'No model requests have been saved.',
@@ -53,6 +61,7 @@ export const en = {
   inputDetails: 'Input details', inputExpand: 'Show full message', inputCollapse: 'Collapse message', inputImageOrder: 'Images in the saved request order',
   processModelInput: 'Model input', inputInspect: 'Inspect saved prompt and images', inputUserText: 'Task instruction', inputRawText: 'Complete user message', inputSystemText: 'System instructions', inputImageDetails: 'Image identities and order', inputReturned: 'Response saved', inputReserved: 'Recorded · receipt unconfirmed', inputOutcomeUnknown: 'Outcome unknown', inputUnavailable: 'This historical request has no saved input.', inputReadFailed: 'Could not read this saved input. Try again.', inputRemoteHint: 'These are the submitted remote image references. The preview does not verify which pixels the provider received.', inputHistory: 'Saved requests', inputHistoryHint: 'These historical inputs have no explicit link to an output message and are listed separately.', inputCopy: 'Copy original text', inputCopyFailed: 'Copy failed. Select the original text to copy it.',
   processModelOutput: 'Model conversation', processReasoning: 'Model reasoning', processSaved: 'Saved', processObservations: 'image observations', processCancelledHint: 'Cancelled · saved observations are kept.', processBatchDetails: 'Expand unfinished batch', processBatchUnfinished: 'This response was not committed. Any partial output is retained below.', processNoSavedOutput: 'No model output has been saved for this task.', processNoActivity: 'No activity has been recorded yet.',
+  analysisShowContext: 'Show analysis details', analysisHideContext: 'Hide analysis details',
   analysisContext: 'Analysis details', analysisBatches: 'Batches', analysisInvalidOutput: 'The model response does not match the analysis format. Saved results and the original response remain available.', analysisTruncated: 'The model reached its output limit. This batch was not saved; completed results are retained.',
   taskDelete: 'Delete record', taskDeleteHint: 'Delete this history entry; saved analysis and image results are kept.', taskDeleteActive: 'Stop this task before deleting its record.', taskResize: 'Resize task history',
   taskDetails: 'Task details', taskCandidates: 'Search candidates', taskDistinct: 'Distinct images', taskQualified: 'Qualified', taskFailedQueries: 'Failed queries', taskReviewed: 'Reviewed', taskCrops: 'Crops', taskCompared: 'Compared', taskTechnicalFailed: 'Technical failures', taskPending: 'Pending', taskFiles: 'Files', taskResources: 'Resources', taskNoImageResults: 'This task has no image previews.',
@@ -187,7 +196,7 @@ export const en = {
   workbench: 'Image workspace', search: 'Expand collection', exports: 'Export materials', settings: 'Model & source',
   renameCollection: 'Rename image set', renameCollectionChanged: 'The image set changed. Refresh and try again.', renameCollectionFailed: 'Unable to rename this image set. Your images are kept.',
   profileDiscardClose: 'Close without retrying', profileCloseUnconfirmedHint: 'Saved adjustments are kept. Reopen the profile to check unconfirmed results.', profileReadError: 'Unable to refresh the profile. Retry before changing rules.',
-  searchLaunchModel: 'Conversation model', searchLaunchModelChoose: 'Choose a model', searchLaunchModelUnavailable: 'The selected model is unavailable. Refresh and choose an available model.', searchLaunchModelLegacy: 'This saved task has no recorded model selection',
+  searchLaunchModel: 'Model route', searchLaunchWorkflowModel: 'Freeze this vision route for search planning, screening and automatic wallpaper processing without changing global settings', searchLaunchModelChoose: 'Choose a model', searchLaunchModelUnavailable: 'The selected model is unavailable. Refresh and choose an available model.', searchLaunchModelLegacy: 'This saved task has no recorded model selection',
   refresh: 'Refresh', create: 'New image set', name: 'Image set name', nameHint: 'e.g. Low-saturation film',
   styles: 'Training image sets', noStyles: 'Build your first image collection', startHint: 'Create a collection, import positive and negative examples, then define the visual rules.',
   references: 'Reference images', referenceHint: 'Keep positive and negative references together to establish a consistent visual standard.',
@@ -339,7 +348,13 @@ export const en = {
 }
 /** Chinese text has exactly the same keys as the English dictionary. */
 export const zh: typeof en = {
+  inputSummaryCoverage: '逐图观察已覆盖 {observed}/{total} 张；本次附带 {pixels} 张代表图供视觉比对，附图数量不代表完整观察范围',
+  searchLaunchRequired: '请填写或选择{field}',
+  searchLaunchModelConfigured: '当前配置 · {model}',
+  searchLaunchModelPlaceholder: '请选择视觉模型',
   ...datasetZh,
+  ...workflowCanvasZh,
+  ...wallpaperZh,
   analysisResumeBudget: '原任务预算已耗尽，新任务可以复用已保存观察。',
   analysisRequestsTab: '请求记录', analysisDiagnosticsTab: '失败诊断', analysisHistoricalFailure: '此前失败', analysisHistoricalInterrupted: '此前中断',
   analysisRecoveredHint: '本次任务已成功完成；以下是此前失败或中断的尝试，保留供追查。', analysisNoFailures: '暂无失败尝试记录。', analysisRequestsEmpty: '尚未保存模型请求。',
@@ -389,6 +404,7 @@ export const zh: typeof en = {
   inputDetails: '输入详情', inputExpand: '展开全文', inputCollapse: '收起全文', inputImageOrder: '按本次请求的图片顺序排列',
   processModelInput: '模型输入', inputInspect: '查看保存的提示词与图片', inputUserText: '本次任务指令', inputRawText: '完整用户消息（原文）', inputSystemText: '系统提示词', inputImageDetails: '图片身份与发送顺序', inputReturned: '响应已保存', inputReserved: '已记录 · 接收未确认', inputOutcomeUnknown: '结果未知', inputUnavailable: '此历史请求未保存输入，无法补回', inputReadFailed: '暂时无法读取已保存输入，请重试', inputRemoteHint: '图片为当时提交的远程引用；当前预览不代表已核验供应商当时读取的像素', inputHistory: '已保存请求', inputHistoryHint: '这些历史输入没有明确关联到某条输出，单独列出供核对', inputCopy: '复制原文', inputCopyFailed: '复制失败，请选择原文后手动复制',
   processModelOutput: '模型对话', processReasoning: '模型推理', processSaved: '已保存', processObservations: '张图片观察', processCancelledHint: '本次分析已取消，已完成观察已保留。', processBatchDetails: '展开未完成批次', processBatchUnfinished: '该响应未保存为观察，已返回的部分内容仍保留在下方。', processNoSavedOutput: '此任务暂无已保存的模型输出。', processNoActivity: '暂时没有运行记录。',
+  analysisShowContext: '展开分析信息', analysisHideContext: '收起分析信息',
   analysisContext: '分析信息', analysisBatches: '批次导航', analysisInvalidOutput: '模型返回的字段不符合分析格式要求，已保存结果和响应原文仍保留。', analysisTruncated: '模型输出达到长度上限，本批未保存；已完成的分析结果仍保留。',
   taskDelete: '删除记录', taskDeleteHint: '删除任务记录，保留已保存的分析和图片结果', taskDeleteActive: '请先结束任务，再删除记录', taskResize: '调整任务记录高度',
   taskDetails: '任务详情', taskCandidates: '检索候选', taskDistinct: '去重图片', taskQualified: '符合风格', taskFailedQueries: '失败查询', taskReviewed: '已复核', taskCrops: '裁图方案', taskCompared: '已比较', taskTechnicalFailed: '技术失败', taskPending: '待处理', taskFiles: '文件', taskResources: '引用资源', taskNoImageResults: '此任务没有图片预览结果。',
@@ -523,7 +539,7 @@ export const zh: typeof en = {
   workbench: '图片工作区', search: '扩充素材', exports: '资料导出', settings: '模型与图库',
   renameCollection: '重命名训练集', renameCollectionChanged: '训练集已发生变化，请刷新后重试', renameCollectionFailed: '暂时无法重命名，已有图片会保留',
   profileDiscardClose: '暂时关闭', profileCloseUnconfirmedHint: '已保存的调整会保留，未确认结果可在重新打开后核对', profileReadError: '暂时无法刷新档案，请重试后再调整规则',
-  searchLaunchModel: '选择模型', searchLaunchModelChoose: '请选择模型', searchLaunchModelUnavailable: '所选模型不可用，请刷新后重新选择', searchLaunchModelLegacy: '此历史任务未记录所选模型',
+  searchLaunchModel: '模型路由', searchLaunchWorkflowModel: '本批找图规划、筛选及自动壁纸处理使用所选视觉模型，不修改全局配置', searchLaunchModelChoose: '请选择模型', searchLaunchModelUnavailable: '所选模型不可用，请刷新后重新选择', searchLaunchModelLegacy: '此历史任务未记录所选模型',
   refresh: '刷新', create: '新建训练集', name: '训练集名称', nameHint: '例如：低饱和胶片摄影',
   styles: '图片训练集', noStyles: '建立你的第一个图片素材集', startHint: '创建素材集，导入正反例图片，再整理需要保留的视觉特征',
   references: '参考图片', referenceHint: '集中管理正例与反例，为这一组图片建立一致的视觉标准',

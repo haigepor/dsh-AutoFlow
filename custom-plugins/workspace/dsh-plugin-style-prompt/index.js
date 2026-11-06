@@ -109,8 +109,9 @@ var fields = z2.strictObject({
   maxRequestBytes: z2.number().int().positive().default(48 * 1024 * 1024),
   maxResponseBytes: z2.number().int().positive().default(256 * 1024),
   requestTimeoutMs: z2.number().int().min(1e3).max(36e5).default(18e4),
-  maxOutputTokens: z2.number().int().min(256).max(32768).default(8192),
-  temperature: z2.number().min(0).max(2).default(0.2),
+  // Existing profile patches may contain these keys; resolved limits discard them.
+  maxOutputTokens: z2.number().int().min(256).max(32768).optional(),
+  temperature: z2.number().min(0).max(2).optional(),
   maxConcurrentTasks: z2.number().int().min(1).max(8).default(2),
   maxStoredTasks: z2.number().int().min(1).max(1e4).default(200),
   maxHistoryItems: z2.number().int().min(1).max(200).default(50),
@@ -123,7 +124,7 @@ var fields = z2.strictObject({
   maxConcurrentCanvasRuns: z2.number().int().min(1).max(8).default(2),
   imageTimeoutMs: z2.number().int().min(1e3).max(36e5).default(6e5),
   canvasSaveDelayMs: z2.number().int().min(100).max(1e4).default(600)
-}).transform((value) => ({ ...value, maxCanvasFileBytes: Math.min(value.maxCanvasFileBytes, Math.max(1, value.maxRequestBytes - 512)) }));
+}).transform(({ maxOutputTokens: _legacyMaxOutputTokens, temperature: _legacyTemperature, ...value }) => ({ ...value, maxCanvasFileBytes: Math.min(value.maxCanvasFileBytes, Math.max(1, value.maxRequestBytes - 512)) }));
 var Config = fields.default(() => fields.parse({}));
 
 // src/host/repository.ts
@@ -313,7 +314,7 @@ var NativeModel = class {
    */
   async preflight(route, signal, requireImage = true) {
     try {
-      const prepared = await this.dependencies.llm.prepareCall({ ...route, maxTokens: this.config.maxOutputTokens, temperature: this.config.temperature }, signal);
+      const prepared = await this.dependencies.llm.prepareCall(route, signal);
       if (requireImage && !prepared.inputModalities?.includes("image")) throw new StylePromptError("capability-unavailable");
     } catch (error) {
       if (error instanceof LlmError) throw new StylePromptError("capability-unavailable");
@@ -322,7 +323,7 @@ var NativeModel = class {
   }
   /** @param input Exact auxiliary prompt. @param persist Persists the request before I/O and terminal metadata before return. @param signal Task deadline and cancellation. @returns Parsed model JSON. */
   async call(input, persist, signal) {
-    const prepared = await this.dependencies.llm.prepareCall({ ...input.route, maxTokens: this.config.maxOutputTokens, temperature: this.config.temperature }, signal);
+    const prepared = await this.dependencies.llm.prepareCall(input.route, signal);
     if (input.references.length && !prepared.inputModalities?.includes("image")) throw new StylePromptError("capability-unavailable");
     const content = [{ type: "text", text: input.inputText }];
     for (const ref of input.references) {

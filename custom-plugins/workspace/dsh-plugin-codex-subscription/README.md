@@ -10,7 +10,7 @@ English | [中文](README.zh.md)
 
 Use ChatGPT subscription accounts for AutoFlow model calls, image generation and local OpenAI-compatible clients. Native image tools show generation cards and a gallery in the conversation; external clients can use the HTTP MCP server. An existing authenticated caller starts OAuth; account/login presentation belongs to model settings. The bundle adds no standalone settings page.
 
-The native image registry requires the matching AutoFlow Host. Older supported Hosts keep the subscription plugin available and log an upgrade notice for canvas image generation.
+The native image registry requires the matching AutoFlow Host. Older supported Hosts keep the subscription plugin available and log an upgrade notice for canvas image generation. Recoverable masked editing additionally requires the matching LLM task interface. The adapter preserves PNG file-mask alpha, validates the first-canvas dimensions, and stores an input digest with the caller operation ID. Reusing that owner/ID recovers the same task or rejects different input. Task reads never dispatch, and uncertain vendor outcomes are not retried automatically. Clearing auxiliary history retains a minimal operation receipt with unavailable outputs so the same paid operation cannot be silently recreated. Existing one-shot image consumers, including Style Prompt, remain supported.
 
 ## Table of Contents
 

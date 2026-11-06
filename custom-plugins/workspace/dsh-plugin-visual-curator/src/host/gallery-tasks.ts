@@ -93,8 +93,8 @@ export class GalleryReferenceTasks {
 
   /** @param actor Authenticated owner. @returns Lightweight progress without image, model or export projections. */
   list(actor: DomainActor): GalleryTaskView[] { return [...this.tasks.values()].filter(task => task.profileId === actor.profileId && task.sessionId === actor.sessionId).sort((a, b) => b.ordinal - a.ordinal || b.id.localeCompare(a.id)).map(task => this.view(task, actor)) }
-  /** @param styleId Target being modified. @returns Whether any task is still writing this collection. */
-  busy(styleId: string): boolean { return [...this.tasks.values()].some(task => task.styleId === styleId && galleryTaskActive(task.status)) }
+  /** @param styleId Target being modified. @returns Whether a task can still write references; saving-only handoffs allow analysis admission. */
+  busy(styleId: string): boolean { return [...this.tasks.values()].some(task => task.styleId === styleId && galleryTaskActive(task.status) && (task.phase !== 'saving' || task.batch !== undefined || task.referenceBatch !== undefined)) }
 
   /** @param args Explicit, fully enumerated selection. @param actor Trusted initiating owner. @returns Durable acceptance independent of the caller's AbortSignal. */
   start(args: Record<string, Json>, actor: DomainActor): Promise<GalleryTaskView> {
@@ -158,10 +158,11 @@ export class GalleryReferenceTasks {
         const { source, ...selection } = originalInput
         await this.completed.validate(selection, actor)
         const images = pendingTaskReferences(this.domain, selection)
-        if (images.length && this.live.size >= this.config.limits.maxConcurrentRequests) throw new CuratorError('constraint-conflict', 'gallery-task', 'The configured background reference capacity is in use.')
+        const needsWork = images.length > 0 || selection.analyzeAfter === true && task.total > 0
+        if (needsWork && this.live.size >= this.config.limits.maxConcurrentRequests) throw new CuratorError('constraint-conflict', 'gallery-task', 'The configured background reference capacity is in use.')
         const referenceBatch = images.length ? { ...selection, images, expectedRevision: style.revision, operationId: randomUUID() } : undefined
-        await this.update(id, { status: images.length ? 'queued' : 'completed', phase: images.length ? 'verifying' : 'saving', completed: task.total - images.length, failed: 0, registered: 0, referenceBatch, errorCode: undefined })
-        if (images.length) await this.schedule(id, actor)
+        await this.update(id, { status: needsWork ? 'queued' : 'completed', phase: images.length ? 'verifying' : 'saving', completed: task.total - images.length, failed: 0, registered: 0, referenceBatch, errorCode: undefined })
+        if (needsWork) await this.schedule(id, actor)
         return this.view(this.tasks.get(id)!, actor)
       }
       const draft = this.domain.require('draft', style.draftId), imported = new Set<string>()
@@ -170,10 +171,11 @@ export class GalleryReferenceTasks {
         if (asset.source.kind === 'provider' && asset.source.providerId === 'unsplash') imported.add(asset.source.providerAssetId)
       }
       const input = originalInput, pendingPhotoIds = input.photoIds.filter(photoId => !imported.has(photoId))
-      if (pendingPhotoIds.length && this.live.size >= this.config.limits.maxConcurrentRequests) throw new CuratorError('constraint-conflict', 'gallery-task', 'The configured background reference capacity is in use.')
+      const needsWork = pendingPhotoIds.length > 0 || input.analyzeAfter && input.photoIds.length > 0
+      if (needsWork && this.live.size >= this.config.limits.maxConcurrentRequests) throw new CuratorError('constraint-conflict', 'gallery-task', 'The configured background reference capacity is in use.')
       // 新执行只包含未提交的图片；新批次身份不能复用已保存的失败回执。
-      await this.update(id, { status: pendingPhotoIds.length ? 'queued' : 'completed', phase: pendingPhotoIds.length ? 'verifying' : 'saving', completed: input.photoIds.length - pendingPhotoIds.length, failed: 0, registered: 0, offset: 0, batch: undefined, pendingPhotoIds, attemptId: randomUUID(), errorCode: undefined })
-      if (pendingPhotoIds.length) await this.schedule(id, actor)
+      await this.update(id, { status: needsWork ? 'queued' : 'completed', phase: pendingPhotoIds.length ? 'verifying' : 'saving', completed: input.photoIds.length - pendingPhotoIds.length, failed: 0, registered: 0, offset: 0, batch: undefined, pendingPhotoIds, attemptId: randomUUID(), errorCode: undefined })
+      if (needsWork) await this.schedule(id, actor)
       return this.view(this.tasks.get(id)!, actor)
     })
     this.admissions = result.catch(() => {})
@@ -196,6 +198,15 @@ export class GalleryReferenceTasks {
     if (receipt.results.length !== batch.photoIds.length || receipt.results.some((row, index) => row.name !== batch.photoIds[index])) throw new CuratorError('reference-unavailable', 'gallery-task', 'The saved batch receipt is incomplete.')
     await this.update(id, { completed: task.completed + receipt.results.filter(row => row.ok).length, failed: task.failed + receipt.results.filter(row => !row.ok && row.error?.code !== 'cancelled').length, offset: task.offset + batch.photoIds.length, registered: 0, batch: undefined })
   }
+  private async finish(id: string, actor: DomainActor, signal: AbortSignal): Promise<void> {
+    await this.update(id, { phase: 'saving' })
+    signal.throwIfAborted()
+    const input = this.inputs.get(id)!, task = this.tasks.get(id)!
+    // 整理意图确认前保留运行态；中断后，即使图片已全部导入也能补交接。
+    if (input.analyzeAfter && task.completed > 0) await this.analyze(input.styleId, actor)
+    signal.throwIfAborted()
+    await this.update(id, { status: task.failed ? task.completed ? 'partial' : 'failed' : 'completed' })
+  }
   private async execute(id: string, actor: DomainActor, controller: AbortController, report: (view: GalleryTaskView) => void): Promise<JobOutcome> {
     const input = this.inputs.get(id)!
     if ('images' in input) { const { source, ...selection } = input; return this.executeCompleted(id, selection, actor, controller, report) }
@@ -212,12 +223,10 @@ export class GalleryReferenceTasks {
         const response = await this.gallery('gallery-import', { ...batch, transferId: id, mode: 'remote-reference', styleId: task.styleId, role: input.role, ...(input.accountId ? { accountId: input.accountId } : {}) }, actor, signal)
         await this.acceptReceipt(id, response); report(this.view(this.tasks.get(id)!, actor))
       }
-      const task = this.tasks.get(id)!
-      await this.update(id, { status: signal.aborted ? this.stopping ? 'interrupted' : 'cancelled' : task.failed ? task.completed ? 'partial' : 'failed' : 'completed', phase: 'saving' })
-      if (input.analyzeAfter && this.tasks.get(id)!.status === 'completed') await this.analyze(input.styleId, actor)
+      await this.finish(id, actor, signal)
     } catch (error) {
       const failure = safeFailure(error), task = this.tasks.get(id)!
-      await this.update(id, { status: this.stopping ? 'interrupted' : controller.signal.aborted ? 'cancelled' : task.status === 'completed' ? 'partial' : task.batch ? 'needs-review' : 'failed', completed: task.completed + this.published(task), registered: 0, batch: undefined, errorCode: deadline.aborted ? 'budget-exhausted' : failure.code })
+      await this.update(id, { status: this.stopping ? 'interrupted' : controller.signal.aborted ? 'cancelled' : task.batch ? 'needs-review' : task.completed ? 'partial' : 'failed', completed: task.completed + this.published(task), registered: 0, batch: undefined, errorCode: deadline.aborted ? 'budget-exhausted' : failure.code })
     } finally { this.live.delete(id) }
     const task = this.tasks.get(id)!
     return { status: task.status === 'cancelled' ? 'killed' : 'completed', result: JSON.stringify(this.view(task, actor)) }
@@ -226,16 +235,21 @@ export class GalleryReferenceTasks {
   private async executeCompleted(id: string, input: TaskReferenceImport, actor: DomainActor, controller: AbortController, report: (view: GalleryTaskView) => void): Promise<JobOutcome> {
     const deadline = AbortSignal.timeout(this.config.limits.deadlineMs), signal = AbortSignal.any([controller.signal, deadline])
     try {
-      const task = this.tasks.get(id)!, referenceBatch = task.referenceBatch ?? input
-      await this.update(id, { status: 'running', phase: 'referencing', referenceBatch })
-      const receipt = await this.completed.import(referenceBatch, actor, signal)
-      if (receipt.results.length !== referenceBatch.images.length || receipt.results.some((row, index) => row.sourceImageVersionId !== referenceBatch.images[index]?.imageVersionId)) throw new CuratorError('reference-unavailable', 'task-reference', 'The saved reference receipt is incomplete.')
-      const failed = receipt.results.filter(row => row.status === 'failed').length, completed = task.completed + receipt.results.length - failed
-      await this.update(id, { completed, failed, registered: 0, referenceBatch: undefined, status: controller.signal.aborted ? this.stopping ? 'interrupted' : 'cancelled' : failed ? completed ? 'partial' : 'failed' : 'completed', phase: 'saving', ...(failed ? { errorCode: receipt.results.find(row => row.status === 'failed')?.code } : {}) })
+      const task = this.tasks.get(id)!
+      await this.update(id, { status: 'running' })
+      if (task.completed < task.total) {
+        const referenceBatch = task.referenceBatch ?? input
+        await this.update(id, { phase: 'referencing', referenceBatch })
+        const receipt = await this.completed.import(referenceBatch, actor, signal)
+        if (receipt.results.length !== referenceBatch.images.length || receipt.results.some((row, index) => row.sourceImageVersionId !== referenceBatch.images[index]?.imageVersionId)) throw new CuratorError('reference-unavailable', 'task-reference', 'The saved reference receipt is incomplete.')
+        const failed = receipt.results.filter(row => row.status === 'failed').length, completed = task.completed + receipt.results.length - failed
+        await this.update(id, { completed, failed, registered: 0, referenceBatch: undefined, phase: 'saving', ...(failed ? { errorCode: receipt.results.find(row => row.status === 'failed')?.code } : {}) })
+      }
+      await this.finish(id, actor, signal)
       report(this.view(this.tasks.get(id)!, actor))
     } catch (error) {
       const task = this.tasks.get(id)!
-      await this.update(id, { status: this.stopping ? 'interrupted' : controller.signal.aborted ? 'cancelled' : task.referenceBatch ? 'needs-review' : 'failed', completed: task.completed + this.published(task), registered: 0, referenceBatch: undefined, errorCode: deadline.aborted ? 'budget-exhausted' : safeFailure(error).code })
+      await this.update(id, { status: this.stopping ? 'interrupted' : controller.signal.aborted ? 'cancelled' : task.referenceBatch ? 'needs-review' : task.completed ? 'partial' : 'failed', completed: task.completed + this.published(task), registered: 0, referenceBatch: undefined, errorCode: deadline.aborted ? 'budget-exhausted' : safeFailure(error).code })
     } finally { this.live.delete(id) }
     const task = this.tasks.get(id)!
     return { status: task.status === 'cancelled' ? 'killed' : 'completed', result: JSON.stringify(this.view(task, actor)) }

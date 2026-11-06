@@ -10,10 +10,13 @@ import { effectiveReviewReferenceRole, isMatchingRule } from '../shared/referenc
 import { datasetProgressSchema, datasetListInputSchema, datasetDetailInputSchema, datasetScopeSchema, datasetRoleCounts, type DatasetId, type DatasetPageToken, type DatasetEntry, type DatasetList, type DatasetDetail } from '../shared/datasets.ts'
 import { dataOf, specOf, type RunEngine } from './runtime.ts'
 import { hiddenTaskIds } from './task-history.ts'
+import { datasetRemoval, recordDatasetRemoval, removedDatasetIds } from '../domain/dataset-removal.ts'
+import { datasetDeleteInputSchema, type DatasetDeleteReceipt } from '../shared/datasets.ts'
 
 type Saved = { key: 'run'; run: RunRecord; profile: ModelProfile; artifact?: ProfileExport } | { key: 'artifact'; profile: ModelProfile; artifact: ProfileExport }
 const entryId = (saved: Saved): DatasetId => brandString<DatasetId>(saved.key === 'run' ? saved.run.id : saved.artifact.id)
 const stamp = (saved: Saved): string => saved.artifact?.createdAt ?? (saved.key === 'run' ? saved.run.createdAt : saved.artifact.createdAt)
+const equivalentKey = (saved: Saved): string => saved.artifact ? contentDigest([saved.profile.id, saved.artifact.sampleScope ?? 'all', saved.artifact.files.map(({ name, checksum }) => ({ name, checksum })).sort((left, right) => left.name.localeCompare(right.name))]) : entryId(saved)
 const unavailable = () => new CuratorError('owner-denied', 'dataset-read', 'This dataset is unavailable to the current owner.')
 const savedReferenceSchema = referenceSnapshotSchema.extend({ effectiveRole: z.enum(['positive', 'negative', 'undecided']).optional() })
 
@@ -47,14 +50,18 @@ export interface DatasetDirectory { profiles: readonly ModelProfile[]; artifacts
 
 /** @param domain Committed package owner. @returns Verified, independent directory records; callers must not retain them beyond the current synchronous read. */
 export function readDatasetDirectory(domain: CuratorDomain): DatasetDirectory {
-  return domain.repository.readSnapshot(() => ({ profiles: domain.repository.list('modelProfile'), artifacts: domain.repository.list('profileExport') }))
+  return domain.repository.readSnapshot(() => {
+    const removed = removedDatasetIds(domain.repository)
+    return { profiles: domain.repository.list('modelProfile'), artifacts: domain.repository.list('profileExport').filter(artifact => !removed.exports.has(artifact.id)) }
+  })
 }
 
 function records(domain: CuratorDomain, engine: RunEngine, actor: DomainActor, directory?: DatasetDirectory): Saved[] {
   domain.repository.assertProfile(actor.profileId)
   const committed = directory ?? readDatasetDirectory(domain)
   const profiles = new Map<string, ModelProfile>(committed.profiles.map(profile => [profile.id, profile]))
-  const artifacts = committed.artifacts.filter(record => profiles.has(record.modelProfileId))
+  const removed = removedDatasetIds(domain.repository)
+  const artifacts = committed.artifacts.filter(record => profiles.has(record.modelProfileId) && !removed.exports.has(record.id))
   const used = new Set<string>(), hidden = hiddenTaskIds(domain.repository), rows: Saved[] = []
   for (const run of domain.repository.list('run')) {
     if (hidden.has(run.id) || run.profileId !== actor.profileId || (run.owner.kind === 'session' ? run.owner.sessionId !== actor.sessionId : actor.kind !== 'human')) continue
@@ -65,6 +72,7 @@ function records(domain: CuratorDomain, engine: RunEngine, actor: DomainActor, d
     engine.authorize(run, actor)
     const operationId = z.string().min(1).parse(spec.input.operationId)
     const resultIds = new Set(dataOf(run).resultIds), expectedArtifact = acceptedExportId(domain, operationId)
+    if (removed.runs.has(run.id) || removed.exports.has(expectedArtifact) || [...resultIds].some(id => removed.exports.has(id))) continue
     const artifact = artifacts.find(record => resultIds.has(record.id) || record.id === expectedArtifact)
     if (artifact) used.add(artifact.id)
     rows.push({ key: 'run', run, profile, ...(artifact ? { artifact } : {}) })
@@ -96,6 +104,29 @@ function savedDataset(domain: CuratorDomain, engine: RunEngine, actor: DomainAct
     if (candidate && candidate.modelProfileId === profile.id) { saved = candidate; break }
   }
   return { key: 'run', run, profile, ...(saved ? { artifact: saved } : {}) }
+}
+
+/** @param domain Committed package owner. @param engine Run authorization. @param actor Authenticated human. @param args Confirmed dataset and retained action identity. @returns Removal of the selected package and equivalent exports; existing task inputs remain addressable. */
+export async function deleteDataset(domain: CuratorDomain, engine: RunEngine, actor: DomainActor, args: unknown): Promise<DatasetDeleteReceipt> {
+  if (actor.kind !== 'human') throw unavailable()
+  const input = datasetDeleteInputSchema.parse(args)
+  const selection = domain.repository.readSnapshot(() => {
+    const selected = savedDataset(domain, engine, actor, input.id)
+    if (selected.profile.styleId !== input.styleId) throw unavailable()
+    new ModelProfiles(domain).authorize(selected.profile, actor)
+    const prior = datasetRemoval(domain.repository, input.id)
+    if (prior) return { prior: true, value: prior }
+    const key = equivalentKey(selected)
+    const group = [...new Map([selected, ...records(domain, engine, actor)].filter(saved => equivalentKey(saved) === key).map(saved => [entryId(saved), saved])).values()]
+    if (group.some(saved => saved.key === 'run' && ['created', 'running', 'pausing', 'paused', 'cancelling'].includes(saved.run.status))) {
+      throw new CuratorError('constraint-conflict', 'dataset-delete', 'Stop the dataset task before deleting this package.')
+    }
+    const exportIds = [...new Set(group.flatMap(saved => saved.artifact ? [saved.artifact.id] : []))]
+    const runIds = group.flatMap(saved => saved.key === 'run' ? [saved.run.id] : [])
+    return { prior: false, value: { ids: [...new Set([...group.map(entryId), ...exportIds])], exportIds, runIds } }
+  })
+  if (!selection.prior) await recordDatasetRemoval(domain.repository, input.id, input.operationId, selection.value)
+  return { styleId: input.styleId, ids: selection.value.ids.map(id => brandString<DatasetId>(id)), deleted: true }
 }
 
 function entry(domain: CuratorDomain, saved: Saved, cache?: DatasetReads): DatasetEntry {
@@ -134,7 +165,7 @@ export function listDatasets(domain: CuratorDomain, engine: RunEngine, actor: Do
     const original = records(domain, engine, actor, committed).filter(saved => saved.profile.styleId === input.styleId)
     const equivalent = new Map<string, Saved[]>()
     for (const saved of original) {
-      const key = saved.artifact ? contentDigest([saved.profile.id, saved.artifact.sampleScope ?? 'all', saved.artifact.files.map(({ name, checksum }) => ({ name, checksum })).sort((left, right) => left.name.localeCompare(right.name))]) : entryId(saved)
+      const key = equivalentKey(saved)
       const group = equivalent.get(key) ?? []; group.push(saved); equivalent.set(key, group)
     }
     const all = [...equivalent.values()].map(group => group[0]!)
@@ -245,6 +276,8 @@ export type DatasetReads = ReturnType<typeof createDatasetReads>
 export function readDataset(domain: CuratorDomain, engine: RunEngine, actor: DomainActor, args: unknown, limits: { pageSize: number; maxExportPreviewChars: number }, cache?: DatasetReads): DatasetDetail {
   return domain.repository.readSnapshot(() => {
     const input = datasetDetailInputSchema.parse(args), saved = savedDataset(domain, engine, actor, input.id)
+    const removed = removedDatasetIds(domain.repository)
+    if (removed.ids.has(input.id) || saved.artifact && removed.exports.has(saved.artifact.id)) throw unavailable()
     const artifact = saved.artifact
     if (!artifact) return { entry: entry(domain, saved, cache), summary: '', matchingPrompt: '', rules: [], groups: [], samples: [], sampleTotal: 0, files: [], resources: { remote: 0, total: 0, pixelDigests: 0, humanAccepts: 0 } }
     const parsed = cache ? cache.read(artifact, domain.repository, limits.maxExportPreviewChars) : parsePackage(artifact, limits.maxExportPreviewChars)

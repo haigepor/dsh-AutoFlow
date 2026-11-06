@@ -4,6 +4,8 @@
 
 ## 准备与发布
 
+0.4.7：支持隔离构建输出，便于插件本地打包和桌面集成。
+
 AutoFlow 适配保留上游 BSD 3-Clause [许可](../LICENSE)，包括内置媒体的许可说明，使用独立的 `boot-animation-v<version>` 标签族。安装包包含 Host、Client、所选视频、图标和 profile patch。审阅并提交精确源码后运行 `pnpm --filter dsh-boot-animation run release:prepare --out .artifacts/boot-animation-release`。共享发布工作流检查原生平台，并以 `latest=false` 发布 tarball、SHA-256 列表和更新元数据。
 
 ## 运行时更新

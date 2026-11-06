@@ -1,0 +1,8 @@
+{
+  "id": "plugin-isolated-local-packaging",
+  "category": "other",
+  "text": {
+    "en": "Update the five bundled custom plugins and provide a consistent isolated local packaging path for manual desktop import.",
+    "zh-CN": "更新随附的五个自定义插件，并统一隔离本地打包流程，便于在桌面端手动导入测试。"
+  }
+}

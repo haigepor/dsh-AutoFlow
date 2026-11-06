@@ -1,9 +1,11 @@
 {
   "name": "dsh-boot-animation",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "AutoFlow startup animation with the DeepSeek cyberpunk clip and initial-data readiness",
   "type": "module",
-  "engines": { "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1" },
+  "engines": {
+    "dsh": "0.2.2-alpha.2 || 0.2.2-rc.1"
+  },
   "license": "BSD-3-Clause",
   "icon": "./assets/plugin-logo-v2.webp",
   "repository": "https://github.com/NativeDog1/dsh-boot-animation",
@@ -14,7 +16,18 @@
     "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
-  "files": ["lib", "assets", "locale", "cordis.patch.yml", "README.md", "README.zh.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "release.config.json", "release"],
+  "files": [
+    "lib",
+    "assets",
+    "locale",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "release.config.json",
+    "release"
+  ],
   "scripts": {
     "build": "node scripts/prepare.mjs && tsdown --config-loader native",
     "check": "pnpm run build",
@@ -24,20 +37,42 @@
   },
   "dsh": {
     "bundle": {
-      "update": { "provider": "github", "repository": "haigepor/dsh-AutoFlow", "tagPrefix": "boot-animation-v", "metadataAsset": "boot-animation-update.json" },
+      "update": {
+        "provider": "github",
+        "repository": "haigepor/dsh-AutoFlow",
+        "tagPrefix": "boot-animation-v",
+        "metadataAsset": "boot-animation-update.json"
+      },
       "patch": "./cordis.patch.yml",
       "listedByDefault": true,
-      "features": [{
-        "id": "startup", "rowId": "dsh-boot-animation", "kind": "ui", "defaultEnabled": true,
-        "title": { "en": "Startup animation", "zh": "启动动画" },
-        "description": { "en": "Play the cyberpunk intro while plugins and your workspace initialize.", "zh": "播放赛博朋克片头，同时加载插件与工作区。" },
-        "details": { "en": "The intro finishes after playback and the first Session and Workspace lists arrive. Skip and reduced motion remain available.", "zh": "片头播放完成且会话、工作区首批列表就绪后退场，支持跳过和减少动态效果。" }
-      }]
+      "features": [
+        {
+          "id": "startup",
+          "rowId": "dsh-boot-animation",
+          "kind": "ui",
+          "defaultEnabled": true,
+          "title": {
+            "en": "Startup animation",
+            "zh": "启动动画"
+          },
+          "description": {
+            "en": "Play the cyberpunk intro while plugins and your workspace initialize.",
+            "zh": "播放赛博朋克片头，同时加载插件与工作区。"
+          },
+          "details": {
+            "en": "The intro finishes after playback and the first Session and Workspace lists arrive. Skip and reduced motion remain available.",
+            "zh": "片头播放完成且会话、工作区首批列表就绪后退场，支持跳过和减少动态效果。"
+          }
+        }
+      ]
     },
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-api-session-controller", "@deepseek-ai/dsh-api-workspace-controller"]
+      "inject": [
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-api-workspace-controller"
+      ]
     }
   },
   "devDependencies": {
@@ -48,5 +83,8 @@
     "tsdown": "^0.22.2",
     "tsx": "^4.23.13"
   },
-  "peerDependencies": { "@deepseek-ai/cordis": "workspace:~", "@deepseek-ai/dsh-app-boot": "workspace:*" }
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-app-boot": "workspace:*"
+  }
 }

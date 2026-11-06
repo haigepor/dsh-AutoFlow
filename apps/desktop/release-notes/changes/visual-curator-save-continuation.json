@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-save-continuation",
+  "category": "fixes",
+  "text": {
+    "en": "Preserve stop intent and saved checkpoints during concurrent writes, and show diagnostic codes when batch results cannot be read.",
+    "zh-CN": "并发保存时保留停止意图和已保存进度，批次读取失败时显示诊断代码，便于恢复和定位。"
+  }
+}

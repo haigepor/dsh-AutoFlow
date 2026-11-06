@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.1.20261106.1",
+  "items": [
+    {
+      "id": "native-image-mask-task-recovery",
+      "category": "features",
+      "text": {
+        "en": "Native image editing supports masks and persistent task handles, allowing Codex Subscription and Style Prompt to recover accepted image operations.",
+        "zh-CN": "原生图片编辑支持蒙版和持久化任务句柄，Codex 订阅与风格提示词可恢复已受理的图片操作。"
+      }
+    },
+    {
+      "id": "plugin-isolated-local-packaging",
+      "category": "other",
+      "text": {
+        "en": "Update the five bundled custom plugins and provide a consistent isolated local packaging path for manual desktop import.",
+        "zh-CN": "更新随附的五个自定义插件，并统一隔离本地打包流程，便于在桌面端手动导入测试。"
+      }
+    },
+    {
+      "id": "visual-curator-manual-analysis-datasets",
+      "category": "improvements",
+      "text": {
+        "en": "Keep analysis manual after image import, organize datasets automatically after analysis, and retain explicit model selection with required-field validation.",
+        "zh-CN": "导入图片后由用户手动启动分析；分析完成后自动整理数据集，保留手动模型选择并完善必填校验。"
+      }
+    },
+    {
+      "id": "visual-curator-save-continuation",
+      "category": "fixes",
+      "text": {
+        "en": "Preserve stop intent and saved checkpoints during concurrent writes, and show diagnostic codes when batch results cannot be read.",
+        "zh-CN": "并发保存时保留停止意图和已保存进度，批次读取失败时显示诊断代码，便于恢复和定位。"
+      }
+    },
+    {
+      "id": "visual-curator-wallpaper-workflow",
+      "category": "features",
+      "text": {
+        "en": "Visual Curator connects search, original downloads, subject and safe-area planning, crop or background expansion, and visual review in a resumable wallpaper workflow.",
+        "zh-CN": "视觉策展串联找图、原图下载、主体与安全区规划、裁剪或背景扩图、视觉复审及返工，支持壁纸任务断点续跑。"
+      }
+    },
+    {
+      "id": "visual-curator-workflow-canvas",
+      "category": "improvements",
+      "text": {
+        "en": "Improve multi-batch canvas layouts, flowing connections, reference galleries, dataset dialogs, and selected-node deletion.",
+        "zh-CN": "完善多批次画布布局、连接线动画、参考图片列表、数据集弹窗及节点选择删除。"
+      }
+    },
+    {
+      "id": "workflow-session-visibility-stop",
+      "category": "fixes",
+      "text": {
+        "en": "Show workflow conversations with native background jobs in the sidebar, and offer conversation navigation after creation is confirmed. Stop and delete cancel dependent work before waiting for completion.",
+        "zh-CN": "修复后台工作流会话被侧栏当作空会话隐藏的问题，确认会话创建后才提供打开入口；停止并删除时先取消依赖任务，再等待收尾。"
+      }
+    }
+  ]
+}

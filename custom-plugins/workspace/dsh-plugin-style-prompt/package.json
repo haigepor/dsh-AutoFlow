@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-style-prompt",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Build branching style, prompt and image workflows with configured project models",
   "license": "MIT",
   "type": "module",

@@ -4,7 +4,22 @@
 
 ## Summary
 
+0.2.14：串联参考图分析、数据集整理、找图结果、原图下载、主体与安全区规划、裁剪或背景扩图、视觉复审及返工，形成可断点续跑的壁纸工作流。完善多批次画布、参考图片列表、数据集弹窗、节点选择与删除；导入后手动启动分析，分析完成后自动整理数据集，并保留手动模型选择。停止前先保存停止意图，改善并发保存与任务恢复。
+
 本包随 AutoFlow 分发，在已安装插件中展示，保留已有启用选择。[release.config.json](../release.config.json) 负责稳定的 `visual-curator-v<version>` 标签族和 `visual-curator-update.json` 元数据，与 AFP、应用分别发版。
+
+## 本地测试与正式发布
+
+在仓库根目录执行：
+
+```sh
+pnpm run dsh-plugin-visual-curator:local
+pnpm run dsh-plugin-visual-curator
+```
+
+`:local` 构建版本唯一的本地包，用于手动安装到桌面端，允许未提交修改并保留稳定更新来源；无后缀命令通过已有原生 Actions 发布审核后的稳定清单版本，并等待官方更新索引。正式发布前先更新稳定版本及说明，提交并推送。两个命令均不提交分支、不安装插件、不重启桌面端。
+
+[本地测试规范](../../../release-governance/local-development/README.zh.md)统一负责五个插件的命令、进度与检查参数、手动替换包、本地版本优先级、桌面源码预览和通用导入方案。旧 `--prepare-only --allow-dirty` 调用保留为仅本地打包别名。
 
 ## 准备与发布
 

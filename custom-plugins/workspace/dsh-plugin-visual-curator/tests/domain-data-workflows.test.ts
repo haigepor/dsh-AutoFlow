@@ -42,7 +42,7 @@ class ObservationFailureAdapter extends MemoryDomainAdapter {
   override async writeManifest(manifest: AggregateManifest): Promise<void> {
     if (this.failObservation && manifest.records.some(record => record.kind === 'observation')) {
       this.failObservation = false
-      throw new Error('Crash after model response commit and before observation checkpoint')
+      throw Object.assign(new Error('Storage busy after model response commit and before observation checkpoint'), { code: 'EBUSY' })
     }
     await super.writeManifest(manifest)
   }

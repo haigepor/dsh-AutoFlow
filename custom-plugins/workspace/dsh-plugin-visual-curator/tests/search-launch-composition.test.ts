@@ -163,7 +163,7 @@ for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-co
     await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(path).href } }); await ctx.loader.await()
     const skills = ctx.get('skills')
     assert.ok(skills)
-    assert.equal((await skills.list()).filter(skill => skill.provider === 'dsh-plugin-visual-curator').length, 6)
+    assert.equal((await skills.list()).filter(skill => skill.provider === 'dsh-plugin-visual-curator').length, 7)
     assert.ok(service, String(assemblyError) + JSON.stringify(['agentDefaultModel','agents','attachments','fileUploads','fs','llm','remoteAccess','sessions','sessionProjections','sessionQuery','typert','workspaceRegistry','jobs','configEditor'].map(name => [name,!!Reflect.get(ctx,name)]))); assert.ok(ctx.get('sessionController'), String(assemblyError))
     const actor = { kind: 'human' as const, id: 'owner', profileId: service.profileId }, invoke = (operation: string, args: Record<string, z.infer<typeof import('../src/shared/model.ts').jsonSchema>> = {}) => service!.action({ operation, args }, actor, new AbortController().signal)
     const { id: styleId } = z.object({ id: z.string() }).parse(await invoke('style-create', { operationId: 'style', name: 'Loader photos' }))

@@ -1,9 +1,13 @@
 /** A visible collection's read-only batch pages never change the workbench Session scope. */
-import { searchBatchPageSchema, type SearchBatchPage } from '../shared/search-batches.ts'
+import { searchBatchDetailSchema, searchBatchPageSchema, type SearchBatchPage } from '../shared/search-batches.ts'
 import type { ClientTransport } from './store.ts'
+import { workflowHistoryReceiptSchema, type workflowHistoryDeleteSchema } from '../shared/workflow-history.ts'
+import { z } from 'zod'
+
+const readFailureSchema = z.object({ code: z.string().min(1).max(128), stage: z.string().min(1).max(128).optional() })
 
 /** Viewing state is separate from execution ownership and the active conversation. */
-export interface SearchBatchesState { styleId: string; batchId: string; page: SearchBatchPage | null; loading: boolean; error: boolean; deleting: string[] }
+export interface SearchBatchesState { styleId: string; batchId: string; page: SearchBatchPage | null; loading: boolean; error: boolean; failure?: z.infer<typeof readFailureSchema> | undefined; deleting: string[] }
 
 interface CachedView { page: SearchBatchPage; firstPageToken: string | undefined; imageFirstTokens: Map<string, string | undefined>; cachedAt: number; resourceReadAt: number; expiresAt: number; failed?: boolean }
 
@@ -17,9 +21,9 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
   const cache = new Map<string, CachedView>(), now = dependencies.now ?? Date.now
   let ownerScope = dependencies.scope?.(), resourceReadAt = 0
   const cacheKey = (styleId: string, batchId: string) => JSON.stringify([styleId, batchId])
-  const publish = (patch: Partial<SearchBatchesState>) => { if (Object.entries(patch).every(([key, value]) => Object.is(state[key as keyof SearchBatchesState], value))) return; state = { ...state, ...patch }; for (const listener of listeners) listener() }
+  const publish = (patch: Partial<SearchBatchesState>) => { if (patch.error === false) patch.failure = undefined; if (Object.entries(patch).every(([key, value]) => Object.is(state[key as keyof SearchBatchesState], value))) return; state = { ...state, ...patch }; for (const listener of listeners) listener() }
   const publishPage = (page: SearchBatchPage) => { if (!state.page || JSON.stringify(state.page) !== JSON.stringify(page)) publish({ page }) }
-  const pollDelay = () => state.error || !state.page || state.page.batches.some(batch => ['created', 'running', 'pausing', 'cancelling'].includes(batch.status)) ? dependencies.pollMs() : Math.max(dependencies.pollMs(), Math.min(dependencies.cachePolicy?.().ttlMs || dependencies.pollMs(), dependencies.cachePolicy?.().resourceTtlMs || dependencies.pollMs()))
+  const pollDelay = () => state.error || !state.page || state.page.batches.some(batch => ['created', 'running', 'pausing', 'cancelling'].includes(batch.status) || !!batch.wallpaper && ['created', 'running', 'pausing', 'cancelling'].includes(batch.wallpaper.status) || batch.wallpaperRequested && batch.status === 'completed' && batch.matched > 0 && !batch.wallpaper && !batch.postProcessingError) ? dependencies.pollMs() : Math.max(dependencies.pollMs(), Math.min(dependencies.cachePolicy?.().ttlMs || dependencies.pollMs(), dependencies.cachePolicy?.().resourceTtlMs || dependencies.pollMs()))
   const cancel = () => { ++version; controller?.abort(); controller = undefined; if (timer) clearTimeout(timer); timer = undefined }
   const clearPages = () => { firstPageToken = undefined; imageFirstTokens.clear(); resourceReadAt = 0 }
   function syncScope() {
@@ -111,7 +115,8 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
       if (!request.signal.aborted && !disposed && current === version) {
         const key = cacheKey(styleId, batchId), saved = cache.get(key)
         if (saved) cache.set(key, { ...saved, failed: true })
-        publish({ error: true })
+        const diagnostic = readFailureSchema.safeParse(error)
+        publish({ error: true, failure: diagnostic.success ? diagnostic.data : { code: error instanceof z.ZodError ? 'invalid-response' : 'connection-unavailable' } })
       }
     }
     finally {
@@ -129,7 +134,32 @@ export function createSearchBatchesStore(dependencies: Pick<ClientTransport, 'in
     },
     select(batchId: string, styleId = state.styleId) { syncScope(); if (styleId !== state.styleId || batchId !== state.batchId) resumeView(selectView(styleId, batchId)); else if (!state.page) void read() },
     refresh() { syncScope(); invalidateCollection(state.styleId); cancel(); publish({ loading: false }); void read() },
+    async detail(runId: string, signal: AbortSignal) {
+      syncScope()
+      const styleId = state.styleId, owner = ownerScope
+      const value = searchBatchDetailSchema.parse(await dependencies.invoke('search-batch-detail', { styleId, runId }, signal))
+      if (signal.aborted || disposed || owner !== dependencies.scope?.() || styleId !== state.styleId || value.runId !== runId) throw new DOMException('Batch detail read cancelled', 'AbortError')
+      return value
+    },
     more: () => read('more'), moreImages: (runId: string) => read('images', runId),
+    async removeWorkflow(input: z.input<typeof workflowHistoryDeleteSchema>) {
+      syncScope()
+      if (disposed || state.deleting.length) throw new Error('workflow-delete-in-progress')
+      const styleId = state.styleId, scope = scopeVersion, owner = ownerScope
+      if (input.styleId !== styleId) throw new Error('workflow-delete-scope-changed')
+      invalidateCollection(styleId); cancel(); publish({ deleting: [input.target.id], loading: false })
+      try {
+        const receipt = workflowHistoryReceiptSchema.parse(await dependencies.invoke('workflow-delete', input))
+        if (disposed || scope !== scopeVersion || owner !== dependencies.scope?.()) throw new DOMException('Workflow removal scope changed', 'AbortError')
+        const ids = new Set<string>(receipt.runIds), removed = state.page?.batches.filter(batch => ids.has(batch.runId)) ?? []
+        invalidateCollection(styleId); cancel(); clearPages()
+        publish({ batchId: ids.has(state.batchId) ? '' : state.batchId, page: state.page ? { ...state.page, batches: state.page.batches.filter(batch => !ids.has(batch.runId)), totalBatches: Math.max(0, state.page.totalBatches - removed.length), totalMatches: Math.max(0, state.page.totalMatches - removed.reduce((total, batch) => total + batch.matched, 0)) } : null, deleting: [], loading: false })
+        void read('refresh', undefined, true)
+        return receipt
+      } finally {
+        if (!disposed && scope === scopeVersion && owner === dependencies.scope?.()) publish({ deleting: [] })
+      }
+    },
     async remove(runId: string): Promise<void> {
       if (disposed || state.deleting.length) return
       syncScope()

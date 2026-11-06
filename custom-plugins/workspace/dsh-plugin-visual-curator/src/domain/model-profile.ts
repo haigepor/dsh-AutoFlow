@@ -2,6 +2,7 @@
 import { z } from 'zod'
 import type { CuratorDomain } from './curator.ts'
 import { contentDigest, fileChecksum } from './repository.ts'
+import { removedDatasetIds } from './dataset-removal.ts'
 import { analysisReferenceDigest } from './style-analysis.ts'
 import { styleAnalysisOf, type StyleAnalysis } from '../shared/style-analysis.ts'
 import { modelProfileSchema, profileExportSchema, recipeSchema, type DomainActor, type ModelProfile, type ProfileExport, type ReferenceSnapshot, type Rule, type RunRecord } from '../shared/model.ts'
@@ -220,7 +221,8 @@ export class ModelProfiles {
     const references = profile.references.filter(ref => sampleScope === 'all' || sampleScope === 'observations' || effectiveReviewReferenceRole(profile, ref) === sampleScope)
     if (!references.length) throw new CuratorError('constraint-conflict', 'profile-export', 'There are no analyzed references in the selected export scope.')
     if (actor.kind === 'agent' && !actor.sessionId) throw new CuratorError('owner-denied', 'profile-export', 'An Agent export requires an owning Session.')
-    const reusable = this.domain.repository.list('profileExport').filter(record => record.modelProfileId === profile.id && (record.sampleScope ?? 'all') === sampleScope).sort((left, right) => left.createdAt.localeCompare(right.createdAt)).find(record => {
+    const removed = removedDatasetIds(this.domain.repository)
+    const reusable = this.domain.repository.list('profileExport').filter(record => !removed.exports.has(record.id) && record.modelProfileId === profile.id && (record.sampleScope ?? 'all') === sampleScope).sort((left, right) => left.createdAt.localeCompare(right.createdAt)).find(record => {
       const file = record.files.find(file => file.name === 'style-profile.json')
       if (!file) return false
       if (fileChecksum(file.content) !== file.checksum) throw new CuratorError('reference-unavailable', 'profile-export', 'A saved dataset failed file verification. Restore its files before retrying.')

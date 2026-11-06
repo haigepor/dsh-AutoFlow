@@ -7,6 +7,40 @@ const row = (status = 'running') => datasetEntrySchema.parse({ id: 'dataset-run'
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(accept => { resolve = accept }); return { promise, resolve } }
 const settle = async () => { await new Promise<void>(resolve => setImmediate(resolve)) }
 
+test('background analysis exports appear automatically when the workspace changes without a manual submission', async () => {
+  let workspaceRevision = 'before', available = false
+  const store = createDatasetStore({ context: () => ({ scope: 1, styleId: 'collection', workspaceRevision }), invoke: async () => ({ styleId: 'collection', total: available ? 1 : 0, allTotal: available ? 1 : 0, entries: available ? [row('completed')] : [] }) })
+  try {
+    store.sync(); await settle()
+    assert.equal(store.needsPoll(), false)
+    assert.equal(store.getSnapshot().allTotal, 0)
+    available = true; workspaceRevision = 'after'; store.sync(); await settle()
+    assert.equal(store.getSnapshot().allTotal, 1)
+    assert.deepEqual(store.getSnapshot().pageIds, ['dataset-run'])
+  } finally { store.dispose() }
+})
+
+test('workspace changes during a dataset read queue a fresh page while retaining the current filters', async () => {
+  let workspaceRevision = 'before', reads = 0
+  const first = deferred<unknown>()
+  const store = createDatasetStore({ context: () => ({ scope: 1, styleId: 'collection', workspaceRevision }), invoke: async (_operation, args) => {
+    if (++reads === 1) return first.promise
+    return { styleId: 'collection', total: 1, allTotal: 1, entries: [row('completed')] }
+  } })
+  try {
+    store.sync()
+    workspaceRevision = 'changed'; store.sync(); workspaceRevision = 'latest'; store.sync()
+    first.resolve({ styleId: 'collection', total: 0, allTotal: 0, entries: [] }); await settle()
+    assert.equal(store.getSnapshot().allTotal, 1)
+    assert.equal(reads, 2)
+    store.filter('collection', 'completed'); await settle()
+    workspaceRevision = 'next'; store.sync(); await settle()
+    assert.equal(store.getSnapshot().query, 'collection')
+    assert.equal(store.getSnapshot().status, 'completed')
+    assert.deepEqual(store.getSnapshot().pageIds, ['dataset-run'])
+  } finally { store.dispose() }
+})
+
 function cachedDetail(role: 'all' | 'negative', more = false) {
   return { entry: { ...row('completed'), exportId: 'frozen-export' }, summary: '', matchingPrompt: '', rules: [], groups: [], files: [], resources: { remote: 0, total: 2, pixelDigests: 0, humanAccepts: 0 }, sampleTotal: role === 'all' ? 2 : 1,
     samples: [{ referenceId: role === 'negative' ? 'negative' : more ? 'second' : 'first', imageVersionId: 'image', role: role === 'negative' ? 'negative' : 'positive', unavailable: false, measuredCount: 0, observations: [] }], ...(role === 'all' && !more ? { nextSamplePageToken: 'tail' } : {}) }

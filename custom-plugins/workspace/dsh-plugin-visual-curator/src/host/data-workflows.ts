@@ -4,7 +4,7 @@ import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
 import { analysisReferenceDigest } from '../domain/style-analysis.ts'
 import { ModelProfiles } from '../domain/model-profile.ts'
-import { styleAnalysisSchema, styleSummarySchema, organizedStyleSummarySchema } from '../shared/style-analysis.ts'
+import { styleAnalysisSchema, styleSummarySchema, organizedStyleSummarySchema, type StyleSummary } from '../shared/style-analysis.ts'
 import { referenceFeedbackRole, isMatchingRule } from '../shared/reference-semantics.ts'
 import {
   candidateSchema, releaseSchema, draftSchema, referenceSchema, recipeSchema, usageSchema, splitSchema, evaluationSchema,
@@ -23,6 +23,7 @@ import { validObservationReuse } from './reference-state.ts'
 import { reusedObservationSchema } from '../shared/reference-state.ts'
 import { analysisScopeSchema, datasetScopeSchema, type DatasetProgress } from '../shared/datasets.ts'
 import { observationRole, referenceRoleInstruction } from './analysis-selection.ts'
+import { datasetOrganizationInstruction } from './dataset-organization-prompt.ts'
 
 /** All I/O remains owned by the current Run and its shared budget. */
 export interface DataWorkerDependencies { domain: CuratorDomain; files: AssetFiles; vision: (config: CuratorConfig) => Promise<StructuredVisionProvider>; compactSummary?: (input: VisionInput, provider: StructuredVisionProvider, ctx: WorkContext) => Promise<VisionInput> }
@@ -31,8 +32,21 @@ const standardSchema = z.union([releaseSchema, candidateSchema])
 const checkpointSchema = z.object({ analysisDoneImageIds: z.array(z.string()).default([]), analysisResultIds: z.array(z.string()).default([]), evaluationItems: z.array(z.string()).default([]) })
 const exportArgsSchema = z.strictObject({ operationId: z.string(), exportKind: z.enum(['style', 'classification', 'preference', 'crop', 'skill']), purpose: z.enum(['training', 'development', 'holdout', 'reference']), releaseId: z.string(), splitId: z.string(), mode: z.enum(['references-only', 'with-bytes']).optional(), usageRevisionId: z.string().optional(), analysisRunId: z.string().optional() })
 
+function spreadReferences<T>(items: readonly T[]): T[] {
+  if (items.length < 3) return [...items]
+  const result = [items[0]!, items.at(-1)!], ranges = [{ start: 1, end: items.length - 1 }]
+  for (let index = 0; index < ranges.length; index++) {
+    const { start, end } = ranges[index]!
+    if (start >= end) continue
+    const middle = Math.floor((start + end) / 2)
+    result.push(items[middle]!)
+    ranges.push({ start, end: middle }, { start: middle + 1, end })
+  }
+  return result
+}
+
 function recordBase(ctx: WorkContext, kind: string, identity: unknown) { return { schemaVersion: 1 as const, profileId: ctx.current().profileId, id: `${kind}-${contentDigest({ runId: ctx.runId, identity }).slice(10, 50)}`, createdAt: new Date().toISOString() } }
-function modelFeedback(items: z.infer<typeof feedbackSchema>[]) { return items.map(item => ({ feedbackId: item.id, subject: item.subject, judgment: item.judgment, context: item.context })) }
+function modelFeedback(items: z.infer<typeof feedbackSchema>[]) { return items.map(item => ({ feedbackId: item.id, subject: item.subject, judgment: item.judgment, context: item.context, reasonCodes: item.reasonCodes, ...(item.comment ? { comment: item.comment } : {}) })) }
 function fixedActor(ctx: WorkContext, key: 'actor' | 'humanActor'): DomainActor {
   const actor = actorSchema.parse(ctx.spec.fixed[key])
   const owner = ctx.current().owner
@@ -46,7 +60,7 @@ async function imagePixels(deps: DataWorkerDependencies, image: ImageVersion, ro
 }
 /** A committed auxiliary response is replayed after a crash before the owner checkpoint. */
 function savedResponse(deps: DataWorkerDependencies, ctx: WorkContext, requestId: string): { output: Json; descriptor: Json } | undefined {
-  for (const request of deps.domain.repository.list('request')) {
+  for (const request of deps.domain.repository.list('request').reverse()) {
     if (request.runId !== ctx.runId || request.state !== 'committed') continue
     const data = z.object({ bundle: z.object({ requestId: z.string() }).passthrough(), output: z.json() }).safeParse(request.data)
     if (data.success && data.data.bundle.requestId === requestId) return { output: data.data.output, descriptor: toJson(data.data.bundle) }
@@ -174,9 +188,10 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
     if (!observation) throw new CuratorError('vision-invalid-output', 'analyze', 'The analysis is missing an input image observation.')
     return { reference, imageDigest: image.blob.digest, observationId: observation.id, feedbackIds: feedback.filter(item => reference.feedbackThreadIds.includes(item.threadId)).map(item => item.id) }
   })
-  // 交替取正反例作为像素复核；归纳输入仍包含所有批次，不能把最后一批当成整个素材集。
+  // 角色内分散取样并交替取正反例，避免像素预算只覆盖最先导入的图片；完整观察仍全部发送。
   const positive = observedReferences.filter(ref => roleOf(ref) === 'positive'), negative = observedReferences.filter(ref => roleOf(ref) === 'negative')
-  const ordered = Array.from({ length: Math.max(positive.length, negative.length) }, (_, index) => [positive[index], negative[index]].filter(ref => ref !== undefined)).flat().concat(observedReferences.filter(ref => roleOf(ref) === 'undecided'))
+  const groups = [spreadReferences(positive), spreadReferences(negative), spreadReferences(observedReferences.filter(ref => roleOf(ref) === 'undecided'))]
+  const ordered = Array.from({ length: Math.max(...groups.map(group => group.length)) }, (_, index) => groups.flatMap(group => group[index] ? [group[index]!] : [])).flat()
   const representatives: VisionImage[] = []
   let totalBytes = 0
   for (const reference of ordered) {
@@ -186,20 +201,34 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
   }
   const requestId = `summary-${contentDigest({ runId: ctx.runId, samples }).slice(10, 50)}`
   const input: VisionInput = { requestId, rules: draft.rules, images: representatives, taskBrief: JSON.stringify({
-    instruction: (awaiting.length ? 'Only part of the collection has observations. Organize the supplied observations as a provisional observation package; state the missing coverage and do not claim a complete style. ' : '') + (roleAware ? 'Consolidate one final reusable dataset and candidate-matching prompt. Keep desired positive anchors separate from conditional counterexample exclusions. Negative references are never desired-style support; cite them as counterevidence only when the reason is supported. Unknown or conflicting traits remain explicit. The matching prompt must apply active rules, alternative groups, exclusions and uncertainty to actual candidate pixels. ' : '') + 'Automatically organize the dataset, including negativeReasons: for each negative reference explain the relevant visible mismatch by dimension, mark uncertain when human reasons or comparison evidence are missing, and never fabricate human confirmation. Each suggested rule must include notApplicableImageVersionIds for references outside its condition or alternative group. An inapplicable single-person portrait is not counterevidence against a two-person interaction rule. Keep these ids disjoint from supportImageVersionIds and counterImageVersionIds. Build one reusable style profile from ALL saved per-image observations and human judgments, not just the attached representative images. Positive examples indicate desired traits; negatives are counterexamples, never average them into the target. Undecided examples do not establish preferences. Respect dimension-only intent. Separate subject content from recurring style. Report conflicting substyles and insufficient evidence, cite exact imageVersionIds, and propose only evidence-backed candidate-photo criteria, not image-generation commands. Supply search hints and a matching prompt for a vision API to inspect actual candidate pixels. Also return organization: groups for distinct alternative styles, each with groupId, concise name, description and exact imageVersionIds; selections must contain exactly one entry per suggested rule with zero-based ruleIndex, enabled, nullable groupId and a reason. Use groupId null for shared rules. Enable clear transferable preferences by default; keep unsupported, conflicting or brand-specific content as disabled reference-only hints. Do not invent calibrated confidence scores or treat several angles of one scene as independent support. Groups are alternatives, not simultaneous requirements. Confirmed human rules override these model preferences. Write descriptions in Simplified Chinese.',
-    styleId: draft.styleId, coverage: { observed: observedImages.size, total: new Set(references.map(reference => reference.imageVersionId)).size, partial: awaiting.length > 0 },
+    instruction: datasetOrganizationInstruction(awaiting.length > 0, roleAware),
+    styleId: draft.styleId, coverage: { observed: observedImages.size, total: new Set(references.map(reference => reference.imageVersionId)).size, partial: awaiting.length > 0, representativePixels: representatives.length, representativeImageIds: representatives.map(image => image.imageVersionId), pixelLimits: { maxImages, maxBytes } },
     applicableFeedback: modelFeedback(feedback.filter(item => item.subject.kind === 'pair' ? observedImages.has(item.subject.leftImageVersionId) && observedImages.has(item.subject.rightImageVersionId) : observedImages.has(item.subject.imageVersionId))),
     samples: samples.map(sample => ({ imageVersionId: sample.reference.imageVersionId, role: roleOf(sample.reference), importedRole: sample.reference.role, intent: sample.reference.intent, observation: observations.find(item => item.id === sample.observationId) })),
   }) }
-  const cached = savedResponse(deps, ctx, requestId)
+  const negativeIds = new Set(negative.map(ref => ref.imageVersionId))
+  const organizationOf = (summary: StyleSummary) => {
+    const organized = organizedStyleSummarySchema.safeParse(summary)
+    if (!organized.success || negative.some(ref => !organized.data.negativeReasons.some(reason => reason.imageVersionId === ref.imageVersionId)) || organized.data.negativeReasons.some(reason => !negativeIds.has(reason.imageVersionId))) return undefined
+    return organized.data
+  }
+  const validateOrganization = (summary: StyleSummary): StyleSummary => {
+    const organized = organizationOf(summary)
+    if (!organized) throw new CuratorError('vision-invalid-output', 'analyze', 'The model organization is missing scoped rejection reasons or rule applicability. Continue with the retained observations to retry organization.', { retryable: true })
+    return { ...summary, negativeReasons: organized.negativeReasons.map(reason => ({ ...reason, uncertain: reason.uncertain || !feedback.some(item => item.subject.kind !== 'pair' && item.subject.imageVersionId === reason.imageVersionId && (item.judgment.kind === 'style-verdict' && item.judgment.value === 'reject' || item.judgment.kind === 'dimension-verdict' && item.judgment.dimension === reason.dimension && item.judgment.value === 'reject') && (!!item.comment?.trim() || item.reasonCodes.length > 0)) })) }
+  }
+  let cached = savedResponse(deps, ctx, requestId)
+  if (cached) {
+    const saved = styleSummarySchema.safeParse(cached.output)
+    // Old requests could commit a response before its rejection coverage was checked.
+    if (!saved.success || z.object({ promptVersion: z.string() }).parse(cached.descriptor).promptVersion === 'visual-curator-summary-v4' && !organizationOf(saved.data)) cached = undefined
+  }
   ctx.report({ phase: 'summarizing', imageIds: representatives.map(image => image.imageVersionId), resetOutput: true })
   const summaryInput = !cached && deps.compactSummary ? await deps.compactSummary(input, provider, ctx) : input
   if (summaryInput !== input) ctx.report({ phase: 'summarizing', imageIds: representatives.map(image => image.imageVersionId), resetOutput: true })
-  const summary = cached ? styleSummarySchema.parse(cached.output) : await ctx.request('vision', toJson(provider.describeRequest(summaryInput, 'summarize')), (signal, recordMetadata) => provider.summarize(summaryInput, samples.map(sample => sample.reference.imageVersionId), { ...visionBounds(ctx.spec.config, ctx, signal, recordMetadata), onPhase: phase => ctx.report({ phase: phase === 'analyzing' ? 'summarizing' : phase }), onOutput: delta => ctx.report({ phase: 'receiving', ...delta }) }))
-  if (!cached || z.object({ promptVersion: z.string() }).parse(cached.descriptor).promptVersion === 'visual-curator-summary-v4') {
-    const organized = organizedStyleSummarySchema.safeParse(summary), negativeIds = new Set(negative.map(ref => ref.imageVersionId))
-    if (!organized.success || negative.some(ref => !summary.negativeReasons?.some(reason => reason.imageVersionId === ref.imageVersionId)) || summary.negativeReasons?.some(reason => !negativeIds.has(reason.imageVersionId))) throw new CuratorError('vision-invalid-output', 'analyze', 'The model organization is missing scoped rejection reasons or rule applicability. Continue with the retained observations to retry organization.')
-    summary.negativeReasons = organized.data.negativeReasons.map(reason => ({ ...reason, uncertain: reason.uncertain || !feedback.some(item => item.subject.kind !== 'pair' && item.subject.imageVersionId === reason.imageVersionId && (item.judgment.kind === 'style-verdict' && item.judgment.value === 'reject' || item.judgment.kind === 'dimension-verdict' && item.judgment.dimension === reason.dimension && item.judgment.value === 'reject') && (!!item.comment?.trim() || item.reasonCodes.length > 0)) }))
+  let summary = cached ? styleSummarySchema.parse(cached.output) : await ctx.request('vision', toJson(provider.describeRequest(summaryInput, 'summarize')), async (signal, recordMetadata) => validateOrganization(await provider.summarize(summaryInput, samples.map(sample => sample.reference.imageVersionId), { ...visionBounds(ctx.spec.config, ctx, signal, recordMetadata), onPhase: phase => ctx.report({ phase: phase === 'analyzing' ? 'summarizing' : phase }), onOutput: delta => ctx.report({ phase: 'receiving', ...delta }) })))
+  if (cached && z.object({ promptVersion: z.string() }).parse(cached.descriptor).promptVersion === 'visual-curator-summary-v4') {
+    summary = validateOrganization(summary)
   }
   ctx.report({ phase: 'saving' })
   const analysis = styleAnalysisSchema.parse({ formatVersion: 1, runId: ctx.runId, styleId: draft.styleId, draftId: draft.id, draftRevision: draft.revision,
@@ -339,7 +368,7 @@ export function createDataWorker(deps: DataWorkerDependencies): Worker {
           const complete = profile.rules.some(isMatchingRule) && dataOf(ctx.current()).checkpoint.analysisNeedsPositiveReferences !== true
           const snapshot = await profiles.export(profile, `analysis-dataset:${ctx.runId}`, actor, { sampleScope: complete ? 'all' : 'observations', signal: ctx.signal, finalizingAnalysisRunId: ctx.runId,
             progress: async progress => { await ctx.save('finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, datasetExportProgress: toJson(progress) } }) } }).catch(error => {
-              if (error instanceof CuratorError && error.code === 'storage-commit-failed') throw new CuratorError('storage-commit-failed', 'dataset-export', 'The analysis is saved, but its final dataset could not be committed. Continue this task to retry packaging without another model request.', { retryable: true, cause: error })
+              if (error instanceof CuratorError && error.code === 'storage-commit-failed') throw new CuratorError('storage-commit-failed', 'dataset-export', 'The analysis is saved, but its final dataset could not be committed. Continue this task after resolving the storage failure to retry packaging without another model request.', { retryable: error.retryable, cause: error, ...(error.storage ? { storage: error.storage } : {}), ...(error.suggestedAction ? { suggestedAction: error.suggestedAction } : {}) })
               throw error
             })
           await ctx.save('finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, ...(complete ? { finalDatasetId: snapshot.id } : { observationDatasetId: snapshot.id }) } })

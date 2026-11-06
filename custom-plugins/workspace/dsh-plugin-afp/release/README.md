@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 ## Summary
 
+Release 0.1.14: Complete update metadata and support isolated local packaging for the shared plugin workflow.
+
 Publish an independent AFP package from this repository to GitHub Releases. The package version owns the `afp-v<version>` tag; AFP does not share the application's release version or latest marker. [release.config.json](../release.config.json) owns the repository, tag prefix and stable channel. Use the [release Skill](../../../../.agents/skills/dsh-custom-plugin-release/SKILL.md) for the complete execution and verification procedure.
 
 ## Prepare the source

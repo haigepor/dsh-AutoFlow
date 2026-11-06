@@ -38,7 +38,7 @@ import type { ConfigureCall, LlmCallConfig, LlmCallConfigAdapterDefaults } from 
 import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
 import { normalizeApiKey } from './api-key.ts'
-import type { ImageGenerationModel, ImageGenerationProvider, ImageGenerationRequest, GeneratedImage } from './image-generation.ts'
+import type { ImageGenerationModel, ImageGenerationProvider, ImageGenerationRequest, GeneratedImage, ImageGenerationHandle, ImageGenerationTask, ImageGenerationReadOptions } from './image-generation.ts'
 import {
   contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModel, projectToolUpdates,
 } from './content.ts'
@@ -834,6 +834,46 @@ export class LlmRuntime extends TypertRemoteService {
     request.signal.throwIfAborted()
     if (this.imageProviders.get(request.provider) !== binding || this.registration(request.provider).adapter !== adapter) throw new LlmError('Image provider was removed before dispatch', 'UNSUPPORTED_OPTION')
     return implementation.generate(request)
+  }
+
+  /** Accept a recoverable image operation; providers without task support fail before dispatch.
+   * @param request Frozen input with a stable caller-owned ID.
+   * @returns Durable task receipt.
+   */
+  async startImageGeneration(request: ImageGenerationRequest): Promise<ImageGenerationTask> {
+    request.signal.throwIfAborted()
+    const implementation = this.imageTaskProvider(request.provider)
+    if (!implementation.start || !(await implementation.listModels()).some(model => model.id === request.model)) throw new LlmError('Recoverable image generation is unavailable for this model', 'UNSUPPORTED_OPTION')
+    request.signal.throwIfAborted()
+    if (this.imageTaskProvider(request.provider) !== implementation) throw new LlmError('Image provider changed before dispatch', 'UNSUPPORTED_OPTION')
+    return implementation.start(request)
+  }
+
+  /** Read an accepted image operation without dispatching new work.
+   * @param handle Saved receipt.
+   * @param options Optional bounded wait.
+   * @returns Current task and preserved originals.
+   */
+  async getImageGeneration(handle: ImageGenerationHandle, options?: ImageGenerationReadOptions): Promise<ImageGenerationTask> {
+    const implementation = this.imageTaskProvider(handle.provider)
+    if (!implementation.get) throw new LlmError('Image task reads are unavailable', 'UNSUPPORTED_OPTION')
+    return implementation.get(handle, options)
+  }
+
+  /** Cancel one accepted image operation.
+   * @param handle Saved receipt.
+   * @returns Settled task state without removing outputs.
+   */
+  async cancelImageGeneration(handle: ImageGenerationHandle): Promise<ImageGenerationTask> {
+    const implementation = this.imageTaskProvider(handle.provider)
+    if (!implementation.cancel) throw new LlmError('Image task cancellation is unavailable', 'UNSUPPORTED_OPTION')
+    return implementation.cancel(handle)
+  }
+
+  private imageTaskProvider(provider: string): ImageGenerationProvider {
+    const adapter = this.registration(provider).adapter, binding = this.imageProviders.get(provider)
+    if (!binding || binding.adapter !== adapter) throw new LlmError('Image generation provider is unavailable', 'UNSUPPORTED_OPTION')
+    return binding.implementation
   }
 
   private async resolveModelInfoFor(

@@ -1,0 +1,8 @@
+{
+  "id": "workflow-session-visibility-stop",
+  "category": "fixes",
+  "text": {
+    "en": "Show workflow conversations with native background jobs in the sidebar, and offer conversation navigation after creation is confirmed. Stop and delete cancel dependent work before waiting for completion.",
+    "zh-CN": "修复后台工作流会话被侧栏当作空会话隐藏的问题，确认会话创建后才提供打开入口；停止并删除时先取消依赖任务，再等待收尾。"
+  }
+}

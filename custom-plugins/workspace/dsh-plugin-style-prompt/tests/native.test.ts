@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
-import LlmRuntime, { LlmAdapter, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { LlmAdapter, ReasoningEffortId, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import { StylePromptService } from '../src/host/service.ts'
 import { Config } from '../src/host/config.ts'
@@ -17,7 +17,8 @@ class Adapter extends LlmAdapter {
   readonly started = Promise.withResolvers<void>()
   mode: 'success' | 'invalid' | 'truncated' | 'waiting' | 'text' = 'success'
   generation = false
-  override async resolveModel() { return { provider: route.provider, id: route.model, name: 'Fixture vision', inputModalities: this.mode === 'text' ? ['text'] as const : ['image', 'text'] as const } }
+  maxTokens: number | undefined
+  override async resolveModel() { return { provider: route.provider, id: route.model, name: 'Fixture vision', inputModalities: this.mode === 'text' ? ['text'] as const : ['image', 'text'] as const, ...(this.maxTokens === undefined ? {} : { defaultMaxTokens: this.maxTokens }), reasoning: { efforts: [{ id: ReasoningEffortId('high'), name: 'High' }], defaultEffort: ReasoningEffortId('high') } } }
   async *stream(options: GenerateOptions): AsyncGenerator<StreamChunk> {
     this.calls.push(options); this.started.resolve()
     if (this.mode === 'waiting') {
@@ -73,6 +74,51 @@ for (const mode of ['invalid', 'truncated'] as const) test(`does not commit ${mo
   const f = fixture(); f.adapter.mode = mode
   try { await f.start(); const record = await f.settle(); assert.equal(record.status, 'failed'); assert.equal(record.failure?.code, 'invalid-output') }
   finally { await f.cleanup() }
+})
+
+test('analysis and synthesis inherit the selected model settings without plugin controls', async t => {
+  const f = fixture()
+  const prepare = t.mock.method(f.dependencies.llm, 'prepareCall')
+  try {
+    f.adapter.maxTokens = 65_536
+    await f.start()
+    const analysis = await f.settle()
+    assert.equal(analysis.status, 'succeeded')
+    assert.equal(f.adapter.calls[0]?.maxTokens, 65_536)
+    assert.equal(f.adapter.calls[0]?.temperature, undefined)
+    assert.equal(f.adapter.calls[0]?.reasoningEffort, 'high')
+    assert.deepEqual(analysis.call?.config, { ...route, maxTokens: 65_536, reasoningEffort: 'high' })
+
+    f.adapter.maxTokens = 4096
+    f.adapter.generation = true
+    const id = taskIdSchema.parse('inherited-generation')
+    await f.service.action({ operation: 'generate', id, input: { ...newInput(), mode: 'model' } }, new AbortController().signal)
+    const generation = await f.settle(id)
+    assert.equal(generation.status, 'succeeded')
+    assert.equal(f.adapter.calls[1]?.maxTokens, 4096)
+    assert.equal(f.adapter.calls[1]?.temperature, undefined)
+    assert.deepEqual(generation.call?.config, { ...route, maxTokens: 4096, reasoningEffort: 'high' })
+    assert.deepEqual(prepare.mock.calls.map(call => call.arguments[0]), [route, route, route, route])
+  } finally { await f.cleanup() }
+})
+
+test('a model with no output default is not assigned a plugin output limit', async () => {
+  const f = fixture()
+  try {
+    await f.start()
+    const analysis = await f.settle()
+    assert.equal(analysis.status, 'succeeded')
+    assert.equal(f.adapter.calls[0]?.maxTokens, undefined)
+    assert.equal(f.adapter.calls[0]?.temperature, undefined)
+    assert.deepEqual(analysis.call?.config, { ...route, reasoningEffort: 'high' })
+  } finally { await f.cleanup() }
+})
+
+test('legacy plugin generation controls are accepted and omitted from resolved limits', () => {
+  const config = Config.parse({ maxOutputTokens: 256, temperature: 1.8 })
+  assert.equal('maxOutputTokens' in config, false)
+  assert.equal('temperature' in config, false)
+  assert.equal(config.maxResponseBytes, 256 * 1024)
 })
 
 test('text-only models are rejected before saving a task or dispatching', async () => {

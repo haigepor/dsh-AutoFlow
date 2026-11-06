@@ -115,7 +115,7 @@ test('preflights multi-image capability, actual digests and request byte bounds 
   const input = await bundle()
   await assert.rejects(new CompatibleVisionProvider({ ...config, supportsMultiImage: false }, fixture).review(input, bounds), hasCode('capability-unavailable'))
   const corrupt = { ...input, images: input.images.map((i, index) => index === 0 ? { ...i, digest: 'a'.repeat(64) } : i) }
-  await assert.rejects(new CompatibleVisionProvider(config, fixture).review(corrupt, bounds), hasCode('invalid-input'))
+  await assert.rejects(new CompatibleVisionProvider(config, fixture).review(corrupt, bounds), hasCode('vision-image-digest-mismatch'))
   await assert.rejects(new CompatibleVisionProvider({ ...config, maxRequestBytes: 10 }, fixture).review(input, bounds), hasCode('invalid-input'))
   assert.equal(fixture.requests.length, 0)
 })

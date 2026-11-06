@@ -1,10 +1,14 @@
 /** Collection-scoped history reads use the authenticated human's existing Session authority. */
 import { z } from 'zod'
 import type { CuratorDomain } from '../domain/curator.ts'
-import { styleSchema, runSchema, type DomainActor, type RunRecord, type RecordOf } from '../shared/model.ts'
+import { styleSchema, runSchema, modelProfileSchema, type DomainActor, type RunRecord, type RecordOf } from '../shared/model.ts'
+import { effectiveReviewReferenceRole } from '../shared/reference-semantics.ts'
+import { datasetRoleCounts } from '../shared/datasets.ts'
 import type { SearchBatchPage } from '../shared/search-batches.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { specOf } from './runtime.ts'
+import { specOf, dataOf, runContinuation } from './runtime.ts'
+import { wallpaperProgress } from '../shared/wallpaper.ts'
+import { wallpaperRunState } from './wallpaper-state.ts'
 import { hiddenTaskIds, deleteTaskHistory } from './task-history.ts'
 import { rankedRunSelections } from './projection.ts'
 
@@ -43,10 +47,19 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
   domain.require('style', input.styleId)
   return domain.repository.readSnapshot(() => {
     const hidden = hiddenTaskIds(domain.repository)
+    const wallpaperRuns = new Map<string, RunRecord>()
+    for (const run of domain.repository.list('run')) {
+      if (run.profileId !== actor.profileId || hidden.has(run.id)) continue
+      const spec = specOf(run), source = spec.input.sourceRunId
+      if (spec.input.workflow !== 'wallpaper-v1' || typeof source !== 'string') continue
+      const previous = wallpaperRuns.get(source)
+      if (!previous || run.createdAt > previous.createdAt || run.createdAt === previous.createdAt && run.id > previous.id) wallpaperRuns.set(source, run)
+    }
     const runs = domain.repository.list('run').filter(run => {
       if (run.profileId !== actor.profileId || hidden.has(run.id)) return false
       const spec = specOf(run)
       if (spec.kind !== 'search' && spec.kind !== 'crop') return false
+      if (spec.input.workflow === 'wallpaper-v1') return false
       const standard = z.object({ styleId: z.string() }).safeParse(spec.fixed.release)
       return standard.success && standard.data.styleId === input.styleId
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
@@ -65,6 +78,19 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
     const start = input.batchId ? 0 : offset(input.pageToken, scope, selected.map(run => run.id)), page = selected.slice(start, start + pageSize)
     const batches = page.map(run => {
       const reader = read(run), spec = specOf(run)
+      const data = dataOf(run), child = reader ? wallpaperRuns.get(run.id) : undefined
+      const childData = child ? dataOf(child) : undefined
+      const saved = child ? wallpaperRunState(domain, child) : undefined
+      const wallpaper = child && saved ? { runId: child.id, status: child.status, total: saved.items.length,
+        planned: saved.items.filter(item => item.attempts.at(-1) && !item.attempts.at(-1)!.checks.length).length,
+        rendered: saved.items.filter(item => item.attempts.at(-1)?.outputId).length, reviewed: saved.items.filter(item => item.attempts.at(-1)?.review).length,
+        passed: saved.items.filter(item => item.status === 'passed').length, attention: saved.items.filter(item => ['needs-review', 'technical-failed', 'rejected'].includes(item.status)).length,
+        budgetStopped: saved.budgetStopped, counts: wallpaperProgress(saved), ...(childData?.error ? { errorCode: childData.error.code } : {}) } : undefined
+      const postProcessing = z.object({ code: z.string() }).safeParse(data.checkpoint.postProcessingFailure)
+      const frozen = reader ? modelProfileSchema.safeParse(spec.fixed.release) : undefined
+      const workflowSource = frozen?.success ? { modelProfileId: frozen.data.id, analysisRunId: frozen.data.analysisRunId, revision: frozen.data.revision, references: frozen.data.references.length,
+        ...datasetRoleCounts(frozen.data.references.map(reference => ({ role: effectiveReviewReferenceRole(frozen.data, reference) }))) } : undefined
+      const output = z.object({ kind: z.enum(['preview', 'original', 'usage']) }).safeParse(spec.fixed.output)
       const order = reader ? rankedRunSelections(run, selections.get(run.id) ?? [], id => domain.repository.get('assessment', id)) : []
       const imageIds = [...new Set(order.map(item => item.id))]
       const imageScope = `${scope}:images:${run.id}`, imageStart = input.batchId ? offset(input.pageToken, imageScope, imageIds) : 0
@@ -73,7 +99,11 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
         try { return [domain.authorizedImage(id, reader!.actor)] }
         catch (error) { if (error instanceof CuratorError && error.code === 'owner-denied') return []; throw error }
       })
-      return { runId: run.id, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}), kind: spec.kind === 'crop' ? 'crop' as const : 'search' as const, status: run.status, createdAt: run.createdAt, taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', matched: matches.get(run.id)?.size ?? 0, unavailable: !reader,
+      return { runId: run.id, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}), kind: spec.kind === 'crop' ? 'crop' as const : 'search' as const, status: run.status, ...(reader ? { continuation: runContinuation(run, domain.repository.list('request')) } : {}), createdAt: run.createdAt, taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', matched: matches.get(run.id)?.size ?? 0, unavailable: !reader,
+        ...(workflowSource ? { workflowSource } : {}), ...(reader && typeof spec.input.datasetId === 'string' ? { datasetId: spec.input.datasetId } : {}),
+        ...(typeof spec.input.targetCount === 'number' && spec.input.targetCount > 0 ? { targetCount: spec.input.targetCount } : {}), ...(output.success ? { previewOnly: output.data.kind === 'preview' } : {}),
+        ...(typeof spec.fixed.searchLaunchId === 'string' ? { launchId: spec.fixed.searchLaunchId } : {}), wallpaperRequested: spec.fixed.wallpaperAuto === true,
+        ...(wallpaper ? { wallpaper } : {}), ...(reader && postProcessing.success ? { postProcessingError: postProcessing.data.code } : {}), ...(reader && data.error ? { errorCode: data.error.code } : {}), ...(run.outcome ? { outcome: run.outcome } : {}),
         images: visible.map(({ image, asset }) => {
           const previewPath = `/api/visual-curator/resource?${new URLSearchParams({ imageVersionId: image.id, ...(reader?.sessionToken ? { sessionToken: reader.sessionToken } : {}) })}`
           return { imageVersionId: image.id, name: asset.source.description || asset.id, width: image.geometry.width, height: image.geometry.height, previewPath,

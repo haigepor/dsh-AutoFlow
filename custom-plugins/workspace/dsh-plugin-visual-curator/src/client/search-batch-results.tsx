@@ -10,8 +10,9 @@ import { createImageGallery } from './image-gallery.tsx'
 import { createReferencePreview } from './reference-preview.tsx'
 import { createReferenceVirtualGrid } from './reference-virtual-grid.ts'
 import type { SearchBatch } from '../shared/search-batches.ts'
+import { createAutomaticWorkflowCanvas, type AutomaticWorkflowContext } from './workflow-canvas.tsx'
 
-interface Props { styleId: string; pageSize?: number; t: WorkbenchText; useBatches<T>(select: (state: SearchBatchesState) => T): T; actions: Pick<SearchBatchesStore, 'watch' | 'select' | 'refresh' | 'more' | 'moreImages' | 'remove'>; onOpen(runId: string, sessionId?: string): Promise<void> }
+interface Props { styleId: string; pageSize?: number; t: WorkbenchText; workflow?: AutomaticWorkflowContext; useBatches<T>(select: (state: SearchBatchesState) => T): T; actions: Pick<SearchBatchesStore, 'watch' | 'select' | 'refresh' | 'more' | 'moreImages' | 'remove' | 'removeWorkflow'>; onOpen(runId: string, sessionId?: string): Promise<void> }
 
 /** @param React Shared runtime. @returns Decorative batch placeholders using the existing loading tokens and caller-owned accessible label. */
 export function createSearchBatchSkeleton(React: typeof import('react')) {
@@ -24,6 +25,7 @@ export function createSearchBatchSkeleton(React: typeof import('react')) {
 
 /** @param React Shared runtime. @param ui Native controls. @returns Collection-scoped batch gallery with all batches selected initially. */
 export function createSearchBatchResults(React: typeof import('react'), ui: typeof import('@deepseek-ai/dsh-client-ui-primitives')) {
+  const AutomaticCanvas = createAutomaticWorkflowCanvas(React, ui)
   const SelectField = createSelectField(React, ui), ImageGallery = createImageGallery(React, ui), BatchSkeleton = createSearchBatchSkeleton(React), ReferencePreview = createReferencePreview(React, ui)
   const useVirtualGrid = createReferenceVirtualGrid(React)
   const resource = (path: string) => { const safe = safeResourcePath(path); return safe ? new URL(safe.slice(1), document.baseURI).href : undefined }
@@ -80,5 +82,5 @@ export function createSearchBatchResults(React: typeof import('react'), ui: type
       <ImageGallery images={previewBatch?.images.flatMap(image => { const path = resource(image.previewPath); return path ? [{ id: image.imageVersionId, path, name: image.name }] : [] }) ?? []} selectedId={preview?.imageId ?? null} onSelect={imageId => { if (preview) setPreview({ ...preview, imageId }) }} onClose={closePreview} t={t} />
     </section>
   }
-  return function SearchBatchResults(props: Props) { return <BatchResults key={props.styleId} {...props} /> }
+  return function SearchBatchResults(props: Props) { return props.workflow ? <AutomaticCanvas {...props} workflow={props.workflow} /> : <BatchResults key={props.styleId} {...props} /> }
 }

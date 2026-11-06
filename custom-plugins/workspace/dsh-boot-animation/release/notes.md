@@ -1,7 +1,11 @@
-## Boot Animation 0.4.6
+## Boot Animation 0.4.7
 
-Supports AutoFlow hosts based on DSH 0.2.2-alpha.2 and 0.2.2-rc.1 through an explicit compatibility range. The cyberpunk clip, skip control, reduced motion and failure recovery remain available. Older desktop builds require a manual restart after installation; the matching new desktop waits for current work before restarting automatically. Early startup display changes still require the matching Desktop/Web build.
+Support isolated build output for local plugin packaging and desktop integration.
 
-## 启动动画 0.4.6
+Use AutoFlow Desktop 0.2.2-rc.1.20261106.1 for the matching native workflow capabilities. Update after active tasks finish and restart AutoFlow. Existing settings, accounts, reference data and saved results are retained.
 
-通过明确的兼容范围支持基于 DSH 0.2.2-alpha.2 和 0.2.2-rc.1 的 AutoFlow 宿主。赛博朋克片头、跳过、减少动态效果及失败恢复继续可用。旧桌面版安装后需手动重启；配套新桌面版会等待当前工作结束后自动重启生效。早期启动界面的变更仍需配套 Desktop/Web 版本。
+## Boot Animation 0.4.7 更新说明
+
+支持隔离构建输出，便于插件本地打包和桌面集成。
+
+配套原生工作流能力请使用 AutoFlow Desktop 0.2.2-rc.1.20261106.1。请在当前任务结束后更新并重启；保留现有设置、账号、参考数据和已保存结果。

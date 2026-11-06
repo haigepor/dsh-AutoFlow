@@ -29,6 +29,8 @@ const recordSchema = z.object({
   state: z.enum(['queued', 'sent', 'succeeded', 'failed', 'cancelled', 'outcome-unknown']),
   prompt: z.string(), model: id, createdAt: z.number().finite(), updatedAt: z.number().finite(), deadlineAt: z.number().finite(),
   accountKey: id.optional(),
+  operation: z.object({ id, digest: z.string().min(1) }).strict().optional(),
+  pruned: z.boolean().optional(),
   assets: z.array(z.object({ id: opaqueId, mimeType: mediaType, original: fileRef, preview: imageRef }).strict()).max(4),
   error: z.object({ code: id, message: z.string().max(1024), status: z.number().int().optional(), retryAt: z.number().finite().optional(), requestId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/).optional() }).strict().optional(),
 }).strict()

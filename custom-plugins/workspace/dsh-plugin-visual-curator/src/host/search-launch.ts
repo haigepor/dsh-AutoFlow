@@ -5,17 +5,21 @@ import { z } from 'zod'
 import { ModelProfiles } from '../domain/model-profile.ts'
 import { contentDigest } from '../domain/repository.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
-import { jsonSchema, type DomainActor, type Json, type ModelProfile } from '../shared/model.ts'
+import { jsonSchema, type DomainActor, type Json, type ModelProfile, type RunRecord } from '../shared/model.ts'
 import { searchLaunchInputSchema, searchLaunchViewSchema, type SearchLaunchInput, type SearchLaunchView } from '../shared/search-launch.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { executionSchema, safeFailure, specOf, toJson, type ExecutionSpec, type RunEngine } from './runtime.ts'
+import { executionSchema, safeFailure, specOf, dataOf, runFailure, runContinuation, toJson, type ExecutionSpec, type RunEngine, type Worker } from './runtime.ts'
 import type { NativeSearchSessions } from './native-search-session.ts'
 import type { AssetFiles } from '../media/index.ts'
 import { deliverSearchResults } from './search-results.ts'
 import { searchQueryGuidance, searchToolGuidance } from './search-guidance.ts'
 import { searchNegativeReferencesSchema } from '../shared/search-reference-datasets.ts'
+import { hiddenLaunchIds, hiddenTaskIds } from './task-history.ts'
 import { freezeSearchNegatives, searchNegativeSummary } from './search-reference-datasets.ts'
 import { listDatasets, readDatasetDirectory, type DatasetReads } from './datasets.ts'
+import { removedDatasetIds } from '../domain/dataset-removal.ts'
+import { wallpaperProgress } from '../shared/wallpaper.ts'
+import { wallpaperRunState } from './wallpaper-state.ts'
 
 const launchSchema = z.strictObject({
   version: z.literal(1), input: searchLaunchInputSchema, requestDigest: z.string(), sessionId: z.string(), requestId: z.string(),
@@ -24,6 +28,7 @@ const launchSchema = z.strictObject({
   datasetId: z.string().optional(), createdAt: z.string(), updatedAt: z.string(), error: jsonSchema.optional(),
   negativeReferences: searchNegativeReferencesSchema.optional(),
   stopRequested: z.boolean().optional(),
+  sessionReady: z.boolean().optional(),
 })
 type Launch = z.infer<typeof launchSchema>
 
@@ -36,9 +41,11 @@ export class SearchLaunches {
   private readonly admissions = new Map<string, Promise<Json>>()
   private readonly faults = new Map<string, Json>()
   private readonly stopWork = new Map<string, Promise<SearchLaunchView>>()
+  private readonly writes = new Map<string, Promise<void>>()
   constructor(private readonly deps: {
     domain: CuratorDomain; files: AssetFiles; engine: RunEngine; signal: AbortSignal; native(): NativeSearchSessions | undefined
     freeze(input: SearchLaunchInput, actor: DomainActor): Promise<ExecutionSpec>
+    searchWorker?: () => Worker
     datasetReads?: DatasetReads
   }) {}
 
@@ -55,23 +62,60 @@ export class SearchLaunches {
     return launchSchema.parse(state)
   }
   private all(): Launch[] { return this.deps.domain.repository.manifests().filter(item => item.aggregateId.startsWith('search-launch:')).map(item => launchSchema.parse(item.state)) }
+  private visible(): Launch[] {
+    const hidden = hiddenTaskIds(this.deps.domain.repository), removed = hiddenLaunchIds(this.deps.domain.repository)
+    const runs = this.deps.domain.repository.list('run')
+    return this.all().filter(value => {
+      if (removed.has(value.input.operationId)) return false
+      const linked = runs.filter(run => run.owner.kind === 'session' && run.owner.sessionId === value.sessionId && specOf(run).kind === 'search' && specOf(run).fixed.searchLaunchId === value.input.operationId)
+      return !linked.length || linked.some(run => !hidden.has(run.id))
+    })
+  }
+  /** @param id Confirmed launch. @param styleId Selected collection. @returns Its owner metadata after any in-flight initial admission. */
+  async deletionTarget(id: string, styleId: string): Promise<SearchLaunchView> {
+    await this.starting.get(id)?.work
+    const value = this.read(id)
+    if (this.deps.domain.require('modelProfile', value.input.modelProfileId).styleId !== styleId) throw new CuratorError('owner-denied', 'workflow-delete', 'This launch belongs to another collection.')
+    return this.view(value)
+  }
   private actor(value: Launch): DomainActor { return { kind: 'agent', id: value.sessionId, sessionId: value.sessionId, profileId: this.deps.domain.profileId } }
   private dataset(id: string, profile: ModelProfile, actor: DomainActor) {
     return new ModelProfiles(this.deps.domain).authorizeDataset(profile, id, actor)
   }
-  private async save(value: Launch): Promise<void> {
-    const aggregateId = `search-launch:${value.input.operationId}`, revision = this.deps.domain.repository.manifest(aggregateId)?.revision ?? 0
-    value.updatedAt = new Date().toISOString()
-    await this.deps.domain.repository.commit({ aggregateId, expectedRevision: revision, operationId: `${aggregateId}:${revision + 1}`, request: value, records: [], state: toJson(value) })
+  private save(value: Launch): Promise<void> {
+    const id = value.input.operationId, aggregateId = `search-launch:${id}`
+    const write = async () => {
+      const saved = this.deps.domain.repository.manifest(aggregateId)
+      const current = saved ? launchSchema.parse(saved.state) : undefined
+      if (current?.stopRequested || this.stopping.has(id)) value.stopRequested = true
+      if (current?.sessionReady) value.sessionReady = true
+      const revision = saved?.revision ?? 0
+      value.updatedAt = new Date().toISOString()
+      await this.deps.domain.repository.commit({ aggregateId, expectedRevision: revision, operationId: `${aggregateId}:${revision + 1}`, request: value, records: [], state: toJson(value) })
+    }
+    const pending = this.writes.get(id) ?? Promise.resolve()
+    const work = pending.then(write, write).finally(() => { if (this.writes.get(id) === work) this.writes.delete(id) })
+    this.writes.set(id, work)
+    return work
+  }
+  private searchRuns(value: Launch, saved = this.deps.domain.repository.list('run')): RunRecord[] {
+    return saved.filter(run => run.owner.kind === 'session' && run.owner.sessionId === value.sessionId && specOf(run).kind === 'search' && specOf(run).fixed.searchLaunchId === value.input.operationId)
   }
   private view(value: Launch): SearchLaunchView {
-    const runs = this.deps.domain.repository.list('run').filter(run => run.owner.kind === 'session' && run.owner.sessionId === value.sessionId && specOf(run).fixed.searchLaunchId === value.input.operationId)
+    const savedRuns = this.deps.domain.repository.list('run')
+    const hidden = hiddenTaskIds(this.deps.domain.repository)
+    const runs = this.searchRuns(value, savedRuns).filter(run => !hidden.has(run.id))
     const runIds: string[] = runs.map(run => run.id), qualified = this.deps.domain.repository.list('selection').filter(item => runIds.includes(item.runId) && item.qualification === 'auto-qualified').length
     const runStatus = runs.length ? runs.every(run => run.status === 'completed') ? 'completed' : runs.some(run => run.status === 'running') ? 'running' : runs[0]!.status : undefined
     const delivery = this.deps.domain.repository.manifests().find(item => item.aggregateId.startsWith(`search-delivery:${value.input.operationId}:`))
     const directory = delivery ? z.object({ directory: z.string() }).parse(delivery.state).directory : undefined
-    const fault = this.faults.get(value.input.operationId) ?? value.error
-    return searchLaunchViewSchema.parse({ id: value.input.operationId, input: value.input, sessionId: value.sessionId, stage: value.stage, status: fault ? 'failed' : value.status, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.datasetId ? { datasetId: value.datasetId } : {}), ...(value.negativeReferences ? { negativeReferences: { datasets: value.negativeReferences.datasets.length, references: value.negativeReferences.samples.length } } : {}), runIds, qualified, ...(value.stopRequested && value.status !== 'stopped' ? { stopping: true } : {}), ...(runStatus ? { runStatus } : {}), ...(directory ? { directory } : {}), ...(fault ? { error: fault } : {}) })
+    const wallpaperRun = savedRuns.filter(run => specOf(run).input.workflow === 'wallpaper-v1' && runIds.includes(String(specOf(run).input.sourceRunId))).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
+    const state = wallpaperRun ? wallpaperRunState(this.deps.domain, wallpaperRun) : undefined
+    const progress = state ? wallpaperProgress(state) : undefined
+    const wallpaper = wallpaperRun && state && progress ? { runId: wallpaperRun.id, status: wallpaperRun.status, total: state.items.length, passed: progress.passed ?? 0, attention: (progress['needs-review'] ?? 0) + (progress['technical-failed'] ?? 0) + (progress.rejected ?? 0) } : undefined
+    const fault = value.status === 'stopped' ? undefined : this.faults.get(value.input.operationId) ?? value.error ?? (runs[0] ? runFailure(runs[0]) : undefined)
+    const sessionReady = value.sessionReady ?? (runs.length > 0 || ['preparing-dataset', 'attaching', 'submitting', 'accepted'].includes(value.stage))
+    return searchLaunchViewSchema.parse({ sessionReady, id: value.input.operationId, input: value.input, sessionId: value.sessionId, stage: value.stage, status: fault ? 'failed' : value.status, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.datasetId ? { datasetId: value.datasetId } : {}), ...(value.negativeReferences ? { negativeReferences: { datasets: value.negativeReferences.datasets.length, references: value.negativeReferences.samples.length } } : {}), runIds, qualified, ...(wallpaper ? { wallpaper } : {}), ...(runs[0] ? { continuation: runContinuation(runs[0], this.deps.domain.repository.list('request')) } : {}), ...(value.stopRequested && value.status !== 'stopped' ? { stopping: true } : {}), ...(runStatus ? { runStatus } : {}), ...(directory ? { directory } : {}), ...(fault ? { error: fault } : {}) })
   }
   /** @returns Existing native Workspace choices, or an explicit unavailable capability. */
   options() { return { workspaces: this.native().workspaces() } }
@@ -88,18 +132,19 @@ export class SearchLaunches {
   }
   /** @param styleId Optional collection filter. @param pageSize Optional deployment-bounded recent window. @returns Durable launch progress with actual linked Run identities. */
   list(styleId?: string, pageSize?: number): SearchLaunchView[] {
-    return this.deps.domain.repository.readSnapshot(() => this.all().filter(value => !styleId || this.deps.domain.require('modelProfile', value.input.modelProfileId).styleId === styleId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, pageSize).map(value => this.view(value)))
+    return this.deps.domain.repository.readSnapshot(() => this.visible().filter(value => !styleId || this.deps.domain.require('modelProfile', value.input.modelProfileId).styleId === styleId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, pageSize).map(value => this.view(value)))
   }
   /** @param sessionId Session whose access the caller has already authenticated and authorized. @returns Only that Session's public launch progress, or undefined when it has no launch. */
   forSession(sessionId: string): SearchLaunchView | undefined {
     return this.deps.domain.repository.readSnapshot(() => {
-      const value = this.all().find(item => item.sessionId === sessionId)
+      const value = this.visible().find(item => item.sessionId === sessionId)
       return value ? this.view(value) : undefined
     })
   }
   /** @param raw Validated owner wire input. @returns Durable receipt; remaining work continues under the Host lifetime. */
   async start(raw: unknown): Promise<SearchLaunchView> {
     const input = searchLaunchInputSchema.parse(raw), digest = contentDigest(input), active = this.starting.get(input.operationId)
+    if (hiddenLaunchIds(this.deps.domain.repository).has(input.operationId)) throw new CuratorError('reference-unavailable', 'search-launch', 'This launch was removed. Start a new explicit task.')
     if (active) {
       if (active.digest !== digest) throw new CuratorError('operation-conflict', 'search-launch', 'The pending launch has different task settings.')
       return active.work
@@ -125,18 +170,20 @@ export class SearchLaunches {
     const actor: DomainActor = { kind: 'agent', id: sessionId, sessionId, profileId: this.deps.domain.profileId }
     const profile = this.deps.domain.require('modelProfile', input.modelProfileId), profiles = new ModelProfiles(this.deps.domain)
     const { dataset, negativeReferences } = this.deps.domain.repository.readSnapshot(() => {
+      const removed = removedDatasetIds(this.deps.domain.repository)
+      if (input.datasetId && removed.exports.has(input.datasetId)) throw new CuratorError('reference-unavailable', 'search-launch-dataset', 'This dataset was deleted. Choose another package or prepare a new one.')
       if (input.datasetId) profiles.authorizeDataset(profile, input.datasetId, actor)
       else profiles.assertFresh(profile, actor)
       const directory = input.includeNegativeDatasets !== false && profile.references.some(ref => ref.reference.role === 'negative') ? readDatasetDirectory(this.deps.domain) : undefined
-      const automatic = input.datasetId ? undefined : (directory?.artifacts ?? this.deps.domain.repository.list('profileExport')).filter(item => (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
+      const automatic = input.datasetId ? undefined : (directory?.artifacts ?? this.deps.domain.repository.list('profileExport')).filter(item => !removed.exports.has(item.id) && (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
       return { dataset: input.datasetId || automatic ? this.dataset(input.datasetId ?? automatic!.id, profile, actor) : undefined, negativeReferences: input.includeNegativeDatasets !== false ? freezeSearchNegatives(this.deps.domain, profile, actor, directory) : undefined }
     })
-    const target = await this.native().preflight(input.workspaceId, this.deps.signal, input.conversationModel), identity = await stat(target.path)
+    const target = await this.native().preflight(input.workspaceId, this.deps.signal, input.conversationModel, input.executionMode), identity = await stat(target.path)
     const workspace = { ...target, device: String(identity.dev), inode: String(identity.ino) }
     const spec = await this.deps.freeze(input, actor)
     spec.fixed.searchLaunchId = input.operationId
     spec.specDigest = contentDigest({ kind: spec.kind, config: spec.config, input: spec.input, fixed: spec.fixed })
-    const now = new Date().toISOString(), value: Launch = { version: 1, input, requestDigest: contentDigest(input), sessionId, requestId: randomUUID(), workspace, spec, ...(dataset ? { datasetId: dataset.id } : {}), ...(negativeReferences ? { negativeReferences } : {}), stage: 'preparing', status: 'working', createdAt: now, updatedAt: now }
+    const now = new Date().toISOString(), value: Launch = { version: 1, input, requestDigest: contentDigest(input), sessionId, requestId: randomUUID(), sessionReady: false, workspace, spec, ...(dataset ? { datasetId: dataset.id } : {}), ...(negativeReferences ? { negativeReferences } : {}), stage: 'preparing', status: 'working', createdAt: now, updatedAt: now }
     await this.save(value)
     this.schedule(input.operationId)
     return this.view(value)
@@ -151,17 +198,21 @@ export class SearchLaunches {
   private async run(id: string, signal: AbortSignal): Promise<void> {
     let value = this.read(id)
     try {
-      if (value.status === 'stopped') return
+      if (value.status === 'stopped' || value.stopRequested) return
       const native = this.native(), actor = this.actor(value), profile = this.deps.domain.require('modelProfile', value.input.modelProfileId), profiles = new ModelProfiles(this.deps.domain)
       value.status = 'working'; delete value.error; await this.save(value)
       if (value.datasetId) this.dataset(value.datasetId, profile, actor)
       value.stage = 'creating-session'; await this.save(value)
       await native.ensure(value.workspace, value.sessionId, signal)
+      signal.throwIfAborted()
+      value.sessionReady = true
       value.stage = value.datasetId ? 'attaching' : 'preparing-dataset'; await this.save(value)
       await native.name(value.sessionId, `${this.deps.domain.require('style', profile.styleId).name} · ${value.input.taskBrief}`.slice(0, 100))
+      signal.throwIfAborted()
       if (!value.datasetId) {
-        const existing = this.deps.domain.repository.list('profileExport').find(item => (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id)
-        const dataset = value.input.datasetId ? this.dataset(value.input.datasetId, profile, actor) : existing ?? await profiles.export(profile, `search-dataset:${value.input.autoPrepareDataset ? profile.id : id}`, actor, { signal, acceptedLaunchId: id, shareWithLibrary: value.input.autoPrepareDataset === true })
+        const removed = removedDatasetIds(this.deps.domain.repository)
+        const existing = this.deps.domain.repository.list('profileExport').find(item => !removed.exports.has(item.id) && (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id)
+        const dataset = value.input.datasetId ? this.dataset(value.input.datasetId, profile, actor) : existing ?? await profiles.export(profile, `search-dataset:${id}`, actor, { signal, acceptedLaunchId: id, shareWithLibrary: value.input.autoPrepareDataset === true })
         value.datasetId = dataset.id; await this.save(value)
       }
       if (value.input.datasetId && value.input.datasetId !== value.datasetId) throw new CuratorError('operation-conflict', 'search-launch-dataset', 'The saved search references a different dataset.')
@@ -169,7 +220,18 @@ export class SearchLaunches {
       signal.throwIfAborted()
       value.stage = 'attaching'; await this.save(value)
       signal.throwIfAborted()
-      if (await native.accepted(value.sessionId, value.requestId)) { value.stage = 'accepted'; value.status = 'accepted'; await this.save(value); return }
+      if (value.input.executionMode === 'workflow') {
+        if (!this.deps.searchWorker) throw new CuratorError('capability-unavailable', 'search-launch', 'The structured search workflow is unavailable in this Host.')
+        value.stage = 'submitting'; await this.save(value)
+        await this.admit(id, async () => toJson(await this.deps.engine.create(value.spec, actor, this.deps.searchWorker!(), value.input.operationId)))
+        const runId = this.view(value).runIds[0], run = runId ? this.deps.engine.get(runId, actor) : undefined
+        if (run?.status === 'interrupted' && dataOf(run).autoResume === true && runContinuation(run, this.deps.domain.repository.list('request')).allowed) await this.deps.engine.control(run.id, 'resume', actor, this.deps.searchWorker(), false)
+        await this.reconcileDownstream(value)
+        signal.throwIfAborted()
+        value.stage = 'accepted'; value.status = 'accepted'; await this.save(value)
+        return
+      }
+      if (await native.accepted(value.sessionId, value.requestId)) { await this.reconcileDownstream(value); value.stage = 'accepted'; value.status = 'accepted'; await this.save(value); return }
       if (value.input.conversationModel) await native.selectModel(value.sessionId, value.input.conversationModel, signal)
       const supplement = value.negativeReferences?.samples.length ? value.negativeReferences : undefined
       const bytes = Buffer.from(JSON.stringify({ formatVersion: 2, export: dataset.id, files: dataset.files, resources: [], ...(supplement ? { negativeReferences: supplement } : {}) }), 'utf8')
@@ -186,11 +248,26 @@ ${searchQueryGuidance}
       signal.throwIfAborted()
       const negativeGuidance = supplement ? `\n附件的 negativeReferences 合并了 ${supplement.datasets.length} 个反例数据集及当前档案中的 ${supplement.samples.length} 张去重反例观察。按需读取这些观察，并通过主包 references.json 查阅对应授权像素；不要把反例当作正向检索目标或人工硬性否定标签。当前启用规则优先，视觉比较仍遵守固定图片及字节预算。` : ''
       await native.submit(value.sessionId, value.requestId, text + negativeGuidance + `\n素材集 styleId：${profile.styleId}。\n${searchToolGuidance}`, `visual-curator-${dataset.id}.json`, bytes, signal)
+      signal.throwIfAborted()
       value.stage = 'accepted'; value.status = 'accepted'; await this.save(value)
     } catch (error) {
-      if (this.stopping.has(id) || this.read(id).status === 'stopped') return
+      if (this.stopping.has(id) || this.read(id).stopRequested) return
       value.status = this.deps.signal.aborted ? 'working' : 'failed'; value.error = toJson(safeFailure(error)); await this.save(value)
     }
+  }
+  private async reconcileDownstream(value: Launch): Promise<void> {
+    if (!value.input.wallpaper || !this.allowsDownstream(value.input.operationId)) return
+    const view = this.view(value)
+    if (!view.qualified || view.wallpaper && !view.error) return
+    for (const id of view.runIds) {
+      const run = this.deps.engine.get(id, this.actor(value))
+      if (run.status === 'completed') await this.deps.engine.control(id, 'resume', this.actor(value))
+    }
+  }
+  /** @param id Source launch. @returns Whether its owner still permits downstream admission. */
+  allowsDownstream(id: string): boolean {
+    const value = this.read(id)
+    return !hiddenLaunchIds(this.deps.domain.repository).has(id) && !value.stopRequested && value.status !== 'stopped' && !this.stopping.has(id) && !this.deps.signal.aborted
   }
   /** @param actor Authenticated tool caller. @returns Frozen accepted task for its execution Session, when present. */
   task(actor: DomainActor): ExecutionSpec | undefined {
@@ -209,28 +286,62 @@ ${searchQueryGuidance}
     const pending = work().finally(() => this.admissions.delete(id)); this.admissions.set(id, pending)
     return pending
   }
-  /** @param id Durable launch. @param cancelSession Whether to request native Session cancellation; false when that Session already requested this stop. @returns Receipt after cancellation requests; committed results remain. */
-  async stop(id: string, cancelSession = true): Promise<SearchLaunchView> {
+  /** @param id Owner-authorized launch. @returns The existing task after continuing its saved checkpoint; accepted prompts are never resubmitted. */
+  async resume(id: string): Promise<SearchLaunchView> {
+    const value = this.read(id)
+    if (value.stopRequested || value.status === 'stopped' || this.stopping.has(id)) throw new CuratorError('cancelled', 'search-launch', 'This image search was stopped.')
+    const runId = this.view(value).runIds[0]
+    if (!runId) return this.start(value.input)
+    if (!this.deps.searchWorker) throw new CuratorError('capability-unavailable', 'search-resume', 'Search continuation is unavailable in this Host.')
+    await this.native().ensure(value.workspace, value.sessionId, this.deps.signal)
+    const run = this.deps.engine.get(runId, this.actor(value))
+    if (!['created', 'running', 'pausing', 'cancelling'].includes(run.status)) await this.deps.engine.control(runId, 'resume', this.actor(value), this.deps.searchWorker(), false)
+    delete value.error; this.faults.delete(id)
+    value.stage = 'accepted'; value.status = 'accepted'; await this.save(value)
+    return this.view(value)
+  }
+  /** @param id Durable launch. @param cancelSession Whether to request native Session cancellation; false when that Session already requested this stop. @param deliverResults Whether to deliver saved results; history removal stops work without writing output folders. @returns Receipt after cancellation requests; committed results remain. */
+  async stop(id: string, cancelSession = true, deliverResults = true): Promise<SearchLaunchView> {
     const current = this.stopWork.get(id)
     if (current) return current
-    const work = this.stopNow(id, cancelSession).finally(() => { this.stopWork.delete(id); this.stopping.delete(id) })
+    const work = this.stopNow(id, cancelSession, deliverResults).finally(() => { this.stopWork.delete(id); this.stopping.delete(id) })
     this.stopWork.set(id, work)
     return work
   }
-  private async stopNow(id: string, cancelSession: boolean): Promise<SearchLaunchView> {
-    this.read(id); this.stopping.add(id); this.controllers.get(id)?.abort()
+  private async stopNow(id: string, cancelSession: boolean, deliverResults: boolean): Promise<SearchLaunchView> {
+    let value = this.read(id)
+    this.stopping.add(id); this.controllers.get(id)?.abort()
+    const cancelAfterAdmission = this.running.has(id) || this.admissions.has(id) || value.sessionReady === false
+    value.stopRequested = true; value.status = 'working'; delete value.error
+    await this.save(value)
+    const children = (runIds: string[]) => this.deps.domain.repository.list('run').filter(run => specOf(run).input.workflow === 'wallpaper-v1' && runIds.includes(String(specOf(run).input.sourceRunId)))
+    const stopChildren = (runIds: string[], wait: boolean) => children(runIds).map(run => this.deps.engine.control(run.id, 'cancel', { kind: 'human', id: 'profile-owner', profileId: this.deps.domain.profileId, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}) }, undefined, wait))
+    const initialIds = this.searchRuns(value).map(run => run.id)
+    // Cancel admitted work before joining launch preparation or a downstream handoff.
+    const initialStops = await Promise.allSettled([
+      ...(cancelSession ? [this.native().cancel(value.sessionId)] : []),
+      ...initialIds.map(runId => this.deps.engine.control(runId, 'cancel', this.actor(value), undefined, false)),
+      ...stopChildren(initialIds, false),
+    ])
+    const earlyFailure = initialStops.find((item): item is PromiseRejectedResult => item.status === 'rejected')
+    if (earlyFailure) {
+      value = this.read(id); value.status = 'failed'; value.error = toJson(safeFailure(earlyFailure.reason)); await this.save(value)
+      return this.view(value)
+    }
     const pending = this.running.get(id); if (pending) await pending
     const admission = this.admissions.get(id); if (admission) await Promise.allSettled([admission])
-    const value = this.read(id); value.stopRequested = true; value.status = 'working'; delete value.error
-    await this.save(value)
-    const stops = await Promise.allSettled([...(cancelSession ? [Promise.resolve().then(() => this.native().cancel(value.sessionId))] : []), ...this.view(value).runIds.map(async runId => {
-      const run = this.deps.engine.get(runId, this.actor(value))
-      if (['created', 'running', 'paused', 'pausing', 'cancelling', 'interrupted'].includes(run.status)) await this.deps.engine.control(runId, 'cancel', this.actor(value), undefined, false)
-      await this.deliver(runId)
+    value = this.read(id)
+    const runIds = this.searchRuns(value).map(run => run.id)
+    // Re-read after admission settles so a late-created Session, Run or child is also stopped.
+    const stops = await Promise.allSettled([...(cancelSession && cancelAfterAdmission ? [this.native().cancel(value.sessionId)] : []), ...stopChildren(runIds, true), ...runIds.map(async runId => {
+      await this.deps.engine.control(runId, 'cancel', this.actor(value))
+      if (deliverResults) await this.deliver(runId)
     })])
     const failed = stops.find((item): item is PromiseRejectedResult => item.status === 'rejected')
-    value.status = failed ? 'failed' : 'stopped'
+    const unfinished = [...this.searchRuns(value), ...children(runIds)].some(run => !['completed', 'failed', 'cancelled'].includes(run.status))
+    value.status = failed || unfinished ? 'failed' : 'stopped'
     if (failed) value.error = toJson(safeFailure(failed.reason))
+    else if (unfinished) value.error = toJson(safeFailure(new CuratorError('constraint-conflict', 'search-stop', 'Some workflow steps are still stopping. Their saved history remains visible.', { retryable: true })))
     else value.stage = 'stopped'
     await this.save(value)
     this.faults.delete(id)
@@ -245,7 +356,7 @@ ${searchQueryGuidance}
     await deliverSearchResults({ domain: this.deps.domain, files: this.deps.files, launchId: id, sessionId: value.sessionId, workspace: value.workspace, runId, original: value.input.output.kind === 'original' })
   }
   /** Resume unfinished admission using original identities, including an accepted but not logged inbox item. */
-  recover(): void { if (this.deps.native()) for (const value of this.all()) if (value.status !== 'stopped' && value.status !== 'failed') { if (value.stopRequested) { void this.stop(value.input.operationId).catch(error => this.faults.set(value.input.operationId, toJson(safeFailure(error)))) } else this.schedule(value.input.operationId) } }
+  recover(): void { if (this.deps.native()) for (const value of this.visible()) if (value.status !== 'stopped' && value.status !== 'failed') { if (value.stopRequested) { void this.stop(value.input.operationId).catch(error => this.faults.set(value.input.operationId, toJson(safeFailure(error)))) } else this.schedule(value.input.operationId) } }
   /** @returns Settlement of Host-owned preparation before storage is closed. */
-  async drain(): Promise<void> { await Promise.allSettled([...this.running.values(), ...this.stopWork.values(), ...this.admissions.values(), ...[...this.starting.values()].map(item => item.work)]) }
+  async drain(): Promise<void> { await Promise.allSettled([...this.running.values(), ...this.stopWork.values(), ...this.admissions.values(), ...[...this.starting.values()].map(item => item.work)]); await Promise.allSettled(this.writes.values()) }
 }

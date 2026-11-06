@@ -13,9 +13,9 @@ function fixture() {
   let submitted = 0, cancelled = 0, waiting = false
   let captured: Parameters<ImagesFacade['submit']>[0] | undefined
   const owner = { kind: 'gateway' as const, keyId: 'llm-operation:operation' }
-  const task: ImageTask = { id: 'image-task', owner, state: 'sent', prompt: 'A cup', model: 'image-model', createdAt: 0, updatedAt: 0, deadlineAt: 10000, assets: [] }
+  let task: ImageTask = { id: 'image-task', owner, state: 'sent', prompt: 'A cup', model: 'image-model', createdAt: 0, updatedAt: 0, deadlineAt: 10000, assets: [] }
   const facade: ImagesFacade = {
-    submit: async (input, actualOwner) => { assert.deepEqual(actualOwner, owner); captured = input; submitted++; return task },
+    submit: async (input, actualOwner, operation) => { assert.deepEqual(actualOwner, owner); assert.equal(operation?.id, 'operation'); task = { ...task, ...(operation ? { operation } : {}) }; captured = input; submitted++; return task },
     getResult: async (_id, actualOwner, options) => { assert.deepEqual(actualOwner, owner); assert.equal(options?.waitMs, 20000); if (waiting) await new Promise<void>((_resolve, reject) => { options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true }) }); return { ...task, state: 'succeeded', assets: [{ id: 'asset', mimeType: 'image/png', preview, original }] } },
     cancel: async () => { cancelled++; return { ...task, state: 'cancelled' } }, list: async () => [], readAsset: async () => ({ data: new Uint8Array([1, 2, 3]), mimeType: 'image/png' }),
   }

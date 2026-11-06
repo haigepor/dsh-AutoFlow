@@ -2081,6 +2081,24 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Durable original and preview attachments.',
       },
       {
+        signature: 'async startImageGeneration(request: ImageGenerationRequest): Promise<ImageGenerationTask>',
+        description: 'Accept a recoverable image operation; providers without task support fail before dispatch.',
+        parameters: [{ name: 'request', description: 'Frozen input with a stable caller-owned ID.' }],
+        returns: 'Durable task receipt.',
+      },
+      {
+        signature: 'async getImageGeneration(handle: ImageGenerationHandle, options?: ImageGenerationReadOptions): Promise<ImageGenerationTask>',
+        description: 'Read an accepted image operation without dispatching new work.',
+        parameters: [{ name: 'handle', description: 'Saved receipt.' }, { name: 'options', description: 'Optional bounded wait.' }],
+        returns: 'Current task and preserved originals.',
+      },
+      {
+        signature: 'async cancelImageGeneration(handle: ImageGenerationHandle): Promise<ImageGenerationTask>',
+        description: 'Cancel one accepted image operation.',
+        parameters: [{ name: 'handle', description: 'Saved receipt.' }],
+        returns: 'Settled task state without removing outputs.',
+      },
+      {
         signature: 'async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig>',
         description: 'Validate a conversation call config against its exact model capability and materialize adapter-configured defaults. Unsupported explicit efforts reject before provider I/O; no clamping or aliasing is performed. This standalone query does not bind a later dispatch; use prepareCall when logging and streaming must share one adapter registration.',
         parameters: [{ name: 'config', description: 'provider/model route and optional request controls.' }, { name: 'signal', description: 'optional cancellation for adapter-owned capability lookup.' }],
@@ -7107,6 +7125,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ImageBlock {\n    type: \'image\';\n    attachment: ImageAttachmentRef;\n    offloaded?: true;\n}',
   },
   {
+    name: 'ImageGenerationHandle',
+    declaration: 'export interface ImageGenerationHandle {\n    readonly id: ImageGenerationId;\n    readonly provider: string;\n    readonly model: string;\n    readonly taskId?: ImageGenerationTaskId;\n}',
+  },
+  {
     name: 'ImageGenerationId',
     declaration: 'export type ImageGenerationId = Branded<\'Llm.ImageGenerationId\'>;',
   },
@@ -7116,11 +7138,23 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ImageGenerationProvider',
-    declaration: 'export interface ImageGenerationProvider {\n    listModels(): Promise<readonly ImageGenerationModel[]>;\n    generate(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>;\n}',
+    declaration: 'export interface ImageGenerationProvider {\n    listModels(): Promise<readonly ImageGenerationModel[]>;\n    generate(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>;\n    start?(request: ImageGenerationRequest): Promise<ImageGenerationTask>;\n    get?(handle: ImageGenerationHandle, options?: ImageGenerationReadOptions): Promise<ImageGenerationTask>;\n    cancel?(handle: ImageGenerationHandle): Promise<ImageGenerationTask>;\n}',
+  },
+  {
+    name: 'ImageGenerationReadOptions',
+    declaration: 'export interface ImageGenerationReadOptions {\n    readonly waitMs?: number;\n    readonly signal?: AbortSignal;\n}',
   },
   {
     name: 'ImageGenerationRequest',
-    declaration: 'export interface ImageGenerationRequest {\n    readonly id: ImageGenerationId;\n    readonly provider: string;\n    readonly model: string;\n    readonly prompt: string;\n    readonly references: readonly ImageAttachmentRef[];\n    readonly size: string;\n    readonly quality: \'auto\' | \'low\' | \'medium\' | \'high\';\n    readonly signal: AbortSignal;\n}',
+    declaration: 'export interface ImageGenerationRequest {\n    readonly id: ImageGenerationId;\n    readonly provider: string;\n    readonly model: string;\n    readonly prompt: string;\n    readonly references: readonly ImageAttachmentRef[];\n    readonly mask?: FileAttachmentRef;\n    readonly size: string;\n    readonly quality: \'auto\' | \'low\' | \'medium\' | \'high\';\n    readonly signal: AbortSignal;\n}',
+  },
+  {
+    name: 'ImageGenerationTask',
+    declaration: 'export interface ImageGenerationTask extends ImageGenerationHandle {\n    readonly taskId: ImageGenerationTaskId;\n    readonly state: \'queued\' | \'sent\' | \'succeeded\' | \'failed\' | \'cancelled\' | \'outcome-unknown\';\n    readonly images: readonly GeneratedImage[];\n    readonly error?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}',
+  },
+  {
+    name: 'ImageGenerationTaskId',
+    declaration: 'export type ImageGenerationTaskId = Branded<\'Llm.ImageGenerationTaskId\'>;',
   },
   {
     name: 'ImageMediaType',

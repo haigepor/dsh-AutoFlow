@@ -1,0 +1,31 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write custom-plugins/release-governance/local-development/README.md
+/local-plugin-and-desktop-testing:
+  en: 786c9ba6feeeb11f
+  zh: e0bc032c0d97736f
+/local-plugin-and-desktop-testing/summary:
+  en: 429bd9ab7f792fe4
+  zh: 2c82e59061fba700
+/local-plugin-and-desktop-testing/choose-a-command:
+  en: 374d832edde50562
+  zh: a1d42a692faad784
+/local-plugin-and-desktop-testing/test-in-an-installed-desktop:
+  en: 0e44963976075448
+  zh: 72e42796aaeac8b0
+/local-plugin-and-desktop-testing/local-versions-and-official-updates:
+  en: 6646b9644073d159
+  zh: 93436db4d58a7c24
+/local-plugin-and-desktop-testing/publish-the-formal-version:
+  en: c4aa3d824aa52631
+  zh: 75511fb2a3880bd9
+/local-plugin-and-desktop-testing/preview-desktop-source:
+  en: c6d739dc8273dd13
+  zh: 0a9974af3ee7a3af
+/local-plugin-and-desktop-testing/verify-a-local-test:
+  en: fa245430274d719a
+  zh: 66554826402fffaf
+/local-plugin-and-desktop-testing/dev-note:
+  en: 584b76a1016370b1
+  zh: 25e017ac80d3f443

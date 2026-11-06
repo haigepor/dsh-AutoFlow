@@ -4,9 +4,10 @@ import { searchConversationModelSchema, searchLaunchInputSchema, searchLaunchVie
 import type { DatasetEntry } from '../shared/datasets.ts'
 import { searchLaunchDatasetsSchema } from '../shared/search-reference-datasets.ts'
 import type { ClientTransport } from './store.ts'
+import { visionModelsSchema } from '../shared/vision-models.ts'
 
 export type SearchLaunchDraft = z.input<typeof searchLaunchInputSchema>
-const optionsSchema = z.object({ workspaces: z.array(z.object({ id: z.string(), title: z.string(), path: z.string() })), datasetSelection: z.literal('required').optional(), automaticDatasetPreparation: z.literal(true).optional(), negativeReferenceDatasets: z.literal(true).optional(), previewSearch: z.boolean().optional(), conversationModelSelection: z.literal(true).optional(), conversationModels: z.array(searchConversationModelSchema.extend({ label: z.string() })).default([]), defaultConversationModel: searchConversationModelSchema.optional(), usages: z.array(z.object({ usageRevisionId: z.string(), name: z.string(), targetWidth: z.number().positive(), targetHeight: z.number().positive() })).default([]), usagePageToken: z.string().optional(), defaultTargetCount: z.number().int().positive(), maxTargetCount: z.number().int().positive() })
+const optionsSchema = z.object({ workspaces: z.array(z.object({ id: z.string(), title: z.string(), path: z.string() })), datasetSelection: z.literal('required').optional(), automaticDatasetPreparation: z.literal(true).optional(), negativeReferenceDatasets: z.literal(true).optional(), previewSearch: z.boolean().optional(), wallpaperWorkflow: z.literal(true).optional(), workflowExecution: z.literal(true).optional(), conversationModelSelection: z.literal(true).optional(), conversationModels: z.array(searchConversationModelSchema.extend({ label: z.string() })).default([]), defaultConversationModel: searchConversationModelSchema.optional(), visionModelSelection: z.literal(true).optional(), visionModels: visionModelsSchema.shape.models.default([]), usages: z.array(z.object({ usageRevisionId: z.string(), name: z.string(), targetWidth: z.number().positive(), targetHeight: z.number().positive() })).default([]), usagePageToken: z.string().optional(), defaultTargetCount: z.number().int().positive(), maxTargetCount: z.number().int().positive() })
 /** Owner-private launch state; unknown acknowledgements preserve the original input and identity. */
 export interface SearchLaunchState {
   entries: SearchLaunchView[]; options: z.infer<typeof optionsSchema> | null; optionsLoading: boolean; loading: boolean; error: string
@@ -21,10 +22,11 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
   const initial = (): SearchLaunchState => ({ entries: [], options: null, optionsLoading: false, loading: false, error: '', failure: undefined, submission: null, datasetOptions: null })
   let state = initial(), scope = deps.context().scope, styleId = deps.context().styleId, workspaceRevision = deps.context().workspaceRevision, disposed = false, version = 0, datasetVersion = 0, epoch = 0
   const listeners = new Set<() => void>(), lifetime = new AbortController()
-  let timer: ReturnType<typeof setTimeout> | undefined, reading: Promise<void> | undefined, submitting: Promise<SearchLaunchView | undefined> | undefined, refreshQueued = false
+  const removed = new Set<string>()
+  let timer: ReturnType<typeof setTimeout> | undefined, reading: Promise<void> | undefined, submitting: Promise<SearchLaunchView | undefined> | undefined, refreshQueued = false, datasetRefreshQueued = false
   const publish = (patch: Partial<SearchLaunchState>) => { if (disposed) return; state = { ...state, ...patch }; for (const listener of listeners) listener(); schedulePoll() }
   const current = (captured: number) => !disposed && captured === epoch && scope === deps.context().scope && styleId === deps.context().styleId
-  const code = (error: unknown) => error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'connection-unavailable'
+  const code = (error: unknown) => error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : error instanceof z.ZodError ? 'invalid-response' : 'connection-unavailable'
   const diagnostic = (error: unknown) => { const parsed = searchLaunchViewSchema.shape.error.unwrap().safeParse(error); return parsed.success ? parsed.data : undefined }
   async function refresh() {
     if (disposed || reading || !styleId) return reading
@@ -32,7 +34,7 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
     publish({ loading: true })
     const work = (async () => {
       try {
-        const entries = z.array(searchLaunchViewSchema).parse(await deps.invoke('search-launch-list', { styleId: requestedStyle }, lifetime.signal))
+        const entries = z.array(searchLaunchViewSchema).parse(await deps.invoke('search-launch-list', { styleId: requestedStyle }, lifetime.signal)).filter(item => !removed.has(item.id))
         if (current(captured) && request === version && requestedRevision === workspaceRevision) publish({ entries, loading: false, error: '', failure: undefined, submission: state.submission && entries.some(item => item.id === state.submission?.input.operationId) ? null : state.submission })
       } catch (error) { if (current(captured) && request === version && requestedRevision === workspaceRevision) publish({ loading: false, error: code(error), failure: diagnostic(error) }) }
     })()
@@ -52,22 +54,23 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
     const captured = epoch, prior = state.options
     publish({ optionsLoading: true, error: '', failure: undefined })
     try {
-      const options = optionsSchema.parse(await deps.invoke('search-launch-options', more && prior?.usagePageToken ? { usagePageToken: prior.usagePageToken } : {}, lifetime.signal))
+      const options = optionsSchema.parse(await deps.invoke('search-launch-options', { executionMode: 'workflow', ...(more && prior?.usagePageToken ? { usagePageToken: prior.usagePageToken } : {}) }, lifetime.signal))
       if (current(captured)) publish({ options: more && prior ? { ...options, usages: [...new Map([...prior.usages, ...options.usages].map(item => [item.usageRevisionId, item])).values()] } : options, optionsLoading: false })
     } catch (error) { if (current(captured)) publish({ optionsLoading: false, error: code(error), failure: diagnostic(error) }) }
   }
   async function start(input: SearchLaunchDraft): Promise<SearchLaunchView | undefined> {
+    if (removed.has(input.operationId)) return undefined
     if (submitting) return submitting
     const captured = epoch, parsed = searchLaunchInputSchema.parse(input), uncertain = state.submission?.input.operationId === input.operationId && state.submission.status === 'unknown'
     publish({ submission: { input: parsed, status: 'submitting' }, error: '', failure: undefined })
     const work = (async () => {
       let dispatching = false
       try {
-        if (parsed.datasetId || parsed.output.kind === 'preview' || parsed.conversationModel || parsed.autoPrepareDataset || parsed.includeNegativeDatasets) {
+        if (parsed.executionMode === 'workflow' || parsed.wallpaper || parsed.datasetId || parsed.output.kind === 'preview' || parsed.conversationModel || parsed.visionModel || parsed.autoPrepareDataset || parsed.includeNegativeDatasets) {
           // 页面资源可先于常驻 Host 更新；只读确认能力，不能向旧 Host 降级发送无数据集任务。
-          const options = optionsSchema.parse(await deps.invoke('search-launch-options', {}, lifetime.signal))
+          const options = optionsSchema.parse(await deps.invoke('search-launch-options', { executionMode: parsed.executionMode ?? 'conversation' }, lifetime.signal))
           if (!current(captured)) return undefined
-          if (parsed.datasetId && options.datasetSelection !== 'required' || parsed.output.kind === 'preview' && options.previewSearch === undefined || parsed.conversationModel && options.conversationModelSelection !== true || parsed.autoPrepareDataset && options.automaticDatasetPreparation !== true || parsed.includeNegativeDatasets && options.negativeReferenceDatasets !== true) {
+          if (parsed.executionMode === 'workflow' && options.workflowExecution !== true || parsed.wallpaper && options.wallpaperWorkflow !== true || parsed.datasetId && options.datasetSelection !== 'required' || parsed.output.kind === 'preview' && options.previewSearch === undefined || parsed.conversationModel && options.conversationModelSelection !== true || parsed.visionModel && options.visionModelSelection !== true || parsed.visionModel && options.visionModelSelection !== true || parsed.autoPrepareDataset && options.automaticDatasetPreparation !== true || parsed.includeNegativeDatasets && options.negativeReferenceDatasets !== true) {
             publish({ submission: { input: parsed, status: uncertain ? 'unknown' : 'rejected', error: 'launch-update-required' } })
             return undefined
           }
@@ -77,16 +80,16 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
           }
         }
         dispatching = true
-        const { datasetId, conversationModel, autoPrepareDataset, includeNegativeDatasets, ...settings } = parsed
+        const { datasetId, conversationModel, visionModel, autoPrepareDataset, includeNegativeDatasets, wallpaper, executionMode, ...settings } = parsed
         const modelFields: Record<string, string> | undefined = conversationModel ? { provider: conversationModel.provider, model: conversationModel.model } : undefined
         if (modelFields && conversationModel?.reasoningEffort) modelFields.reasoningEffort = conversationModel.reasoningEffort
-        const value = searchLaunchViewSchema.parse(await deps.invoke('search-launch-start', { ...settings, ...(datasetId ? { datasetId } : {}), ...(modelFields ? { conversationModel: modelFields } : {}), ...(autoPrepareDataset === undefined ? {} : { autoPrepareDataset }), ...(includeNegativeDatasets === undefined ? {} : { includeNegativeDatasets }) }, lifetime.signal))
-        if (current(captured)) publish({ entries: [value, ...state.entries.filter(item => item.id !== value.id)], submission: null })
+        const value = searchLaunchViewSchema.parse(await deps.invoke('search-launch-start', { ...settings, ...(executionMode ? { executionMode } : {}), ...(datasetId ? { datasetId } : {}), ...(modelFields ? { conversationModel: modelFields } : {}), ...(visionModel ? { visionModel } : {}), ...(autoPrepareDataset === undefined ? {} : { autoPrepareDataset }), ...(includeNegativeDatasets === undefined ? {} : { includeNegativeDatasets }), ...(wallpaper === undefined ? {} : { wallpaper }) }, lifetime.signal))
+        if (current(captured) && !removed.has(value.id)) publish({ entries: [value, ...state.entries.filter(item => item.id !== value.id)], submission: null })
         return value
       } catch (error) {
         const failure = code(error), rejected = !dispatching ? !uncertain : ['invalid-input', 'configuration-required', 'owner-denied', 'constraint-conflict', 'reference-unavailable', 'capability-unavailable', 'revision-conflict'].includes(failure)
         // 新提交的只读准备失败可修改字段；已有未知回执或启动发出后的断线保留原操作。
-        if (current(captured)) publish({ submission: { input: parsed, status: rejected ? 'rejected' : 'unknown', error: failure, failure: diagnostic(error) } })
+        if (current(captured) && !removed.has(parsed.operationId)) publish({ submission: { input: parsed, status: rejected ? 'rejected' : 'unknown', error: failure, failure: diagnostic(error) } })
         return undefined
       }
     })()
@@ -110,7 +113,14 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
       publish({ datasetOptions: { modelProfileId, entries, total: page.total, loading: false, error: '', negativeReferences: page.negativeReferences, ...(page.nextPageToken ? { pageToken: page.nextPageToken } : {}) } })
     } catch (error) {
       if (current(captured) && request === datasetVersion) publish({ datasetOptions: { modelProfileId, entries: retained, total, loading: false, error: code(error), negativeReferences, ...(prior?.pageToken ? { pageToken: prior.pageToken } : {}) } })
+    } finally {
+      if (current(captured) && request === datasetVersion && datasetRefreshQueued) { datasetRefreshQueued = false; refreshDatasets() }
     }
+  }
+  function refreshDatasets() {
+    if (!listeners.size || !state.datasetOptions) return
+    if (state.datasetOptions.loading) { datasetRefreshQueued = true; return }
+    void loadDatasets(state.datasetOptions.modelProfileId)
   }
   async function stop(id: string) {
     const captured = epoch
@@ -121,7 +131,7 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
   }
   function schedulePoll() {
     clearTimeout(timer); timer = undefined
-    const unfinished = state.submission?.status === 'submitting' || state.submission?.status === 'unknown' || state.entries.some(entry => entry.status === 'working' || entry.status === 'accepted' && (entry.stopping || !entry.runStatus || ['created', 'running', 'pausing', 'cancelling'].includes(entry.runStatus)))
+    const unfinished = state.submission?.status === 'submitting' || state.submission?.status === 'unknown' || state.entries.some(entry => entry.wallpaper && ['created', 'running', 'pausing', 'cancelling'].includes(entry.wallpaper.status) || entry.input.wallpaper && entry.runStatus === 'completed' && entry.qualified > 0 && !entry.wallpaper && entry.status !== 'failed' && entry.status !== 'stopped' || entry.status === 'working' || entry.status === 'accepted' && (entry.stopping || !entry.runStatus || ['created', 'running', 'pausing', 'cancelling'].includes(entry.runStatus)))
     if (disposed || !listeners.size || !styleId || reading || state.loading || !unfinished && !state.error) return
     timer = setTimeout(() => { timer = undefined; void refresh() }, deps.context().pollMs)
   }
@@ -131,10 +141,10 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
     if (next.scope === scope && next.styleId === styleId) {
       if (next.workspaceRevision === workspaceRevision) return
       workspaceRevision = next.workspaceRevision
-      if (listeners.size) { if (reading) refreshQueued = true; else void refresh() }
+      if (listeners.size) { if (reading) refreshQueued = true; else void refresh(); refreshDatasets() }
       return
     }
-    scope = next.scope; styleId = next.styleId; workspaceRevision = next.workspaceRevision; ++epoch; ++version; reading = undefined; submitting = undefined; refreshQueued = false; publish(initial())
+    scope = next.scope; styleId = next.styleId; workspaceRevision = next.workspaceRevision; ++epoch; ++version; reading = undefined; submitting = undefined; refreshQueued = false; datasetRefreshQueued = false; removed.clear(); publish(initial())
     if (listeners.size) void refresh()
   }
   return {
@@ -147,8 +157,22 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
       return () => { listeners.delete(listener); schedulePoll() }
     },
     sync,
+    forget(ids: readonly string[]) {
+      for (const id of ids) removed.add(id)
+      ++version; refreshQueued = !!reading
+      publish({ entries: state.entries.filter(item => !removed.has(item.id)), submission: state.submission && removed.has(state.submission.input.operationId) ? null : state.submission, loading: false })
+      if (!reading && listeners.size) void refresh()
+    },
     refresh, loadOptions, loadDatasets, start, stop,
-    async retry(id: string) { const entry = state.entries.find(item => item.id === id); if (entry) return start(entry.input); return undefined },
+    async retry(id: string) {
+      const entry = state.entries.find(item => item.id === id), captured = epoch
+      if (!entry?.runIds.length) return entry ? start(entry.input) : undefined
+      try {
+        const value = searchLaunchViewSchema.parse(await deps.invoke('search-launch-resume', { id }, lifetime.signal))
+        if (current(captured)) publish({ entries: state.entries.map(item => item.id === id ? value : item), error: '', failure: undefined })
+        return value
+      } catch (error) { if (current(captured)) publish({ error: code(error), failure: diagnostic(error) }); return undefined }
+    },
     openSession(id: string) { try { deps.openSession(id); return true } catch (error) { publish({ error: 'navigation-unavailable' }); return false } },
     dispose() { disposed = true; lifetime.abort(); clearTimeout(timer); listeners.clear() },
   }

@@ -102,10 +102,10 @@ export function createTaskReferenceDialog(React: typeof import('react'), ui: typ
     }
     const submit = async () => {
       if (saving || selectingAll || !chosen.size || !runId) return
-      const input = submission.current ?? taskReferenceImportSchema.parse({ operationId: crypto.randomUUID(), styleId: style.styleId, expectedRevision: style.revision, role, images: [...chosen.values()].map(choice => ({ runId: choice.runId, imageVersionId: choice.image.imageVersionId })) })
+      const input = submission.current ?? taskReferenceImportSchema.parse({ operationId: crypto.randomUUID(), styleId: style.styleId, expectedRevision: style.revision, role, analyzeAfter: false, images: [...chosen.values()].map(choice => ({ runId: choice.runId, imageVersionId: choice.image.imageVersionId })) })
       submission.current = input; setSaving(true); setError('')
       try {
-        await actions.startGalleryReferences(input, 'completed-search')
+        await actions.startGalleryReferences({ ...input, analyzeAfter: input.analyzeAfter ?? false }, 'completed-search')
         if (lifetime.current?.signal.aborted) return
         submission.current = null; setUncertain(false); onClose()
       } catch (error) {

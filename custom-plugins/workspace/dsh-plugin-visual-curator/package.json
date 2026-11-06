@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-visual-curator",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/haigepor/dsh-AutoFlow.git",
@@ -318,6 +318,7 @@
     "prepack": "pnpm run check && pnpm run build"
   },
   "dependencies": {
+    "@xyflow/react": "12.12.1",
     "@tanstack/virtual-core": "3.17.8",
     "eventsource-parser": "^3.1.0",
     "ipaddr.js": "2.5.0",
@@ -392,6 +393,7 @@
     "@types/react": "~18.3.1",
     "esbuild": "0.28.1",
     "react": "~18.3.1",
+    "react-dom": "~18.3.1",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "@deepseek-ai/dsh-api-session-controller": "workspace:*",

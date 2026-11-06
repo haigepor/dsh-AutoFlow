@@ -15,6 +15,7 @@ import type { SearchDependencies } from './search-workflow.ts'
 import { chooseSearchQuery } from './search-query-plan.ts'
 import { searchExclusionsSchema, searchExclusionReasonSchema, sourceExclusion, exclusionCounts } from './search-exclusions.ts'
 import { createScreenedSearchWorker } from './search-screening.ts'
+import { createSearchCheckpointWriter, removeUncommittedSearchImports } from './search-checkpoint.ts'
 
 const stateSchema = z.strictObject({
   nextQuery: z.number().int().nonnegative(),
@@ -35,12 +36,19 @@ export function createPreviewSearchWorker(deps: SearchDependencies): Worker {
     const exclusions = ctx.spec.fixed.searchExclusions === undefined ? undefined : searchExclusionsSchema.parse(ctx.spec.fixed.searchExclusions)
     if (exclusions && !state.excluded) state.excluded = {}
     if (state.pages.length !== input.queries.length) throw new CuratorError('reference-unavailable', 'preview-search', 'The saved preview query plan changed.')
+    const uncommitted = new Set(removeUncommittedSearchImports(deps.domain, state.importedImages))
+    for (const page of state.pages) {
+      const offset = page.ids.findIndex(id => uncommitted.has(`${owner.providerId}:${owner.accountIdentity}:${id}`))
+      if (offset >= 0) page.offset = Math.min(page.offset, offset)
+    }
     const locations = new Map<string, SourceItem>()
     const selections = () => deps.domain.repository.list('selection').filter(item => item.runId === ctx.runId && item.qualification === 'auto-qualified')
-    const save = async (records: CuratorRecord[] = []) => {
+    const save = createSearchCheckpointWriter(state, async (snapshot, records, stage) => {
       const data = dataOf(ctx.current())
-      await ctx.save('screening', { checkpoint: { ...data.checkpoint, previewSearch: toJson(state) }, counts: { candidates: state.seenIds.length, distinct: Object.keys(state.importedImages).length, qualified: selections().length, failedQueries: state.failedQueries, technicalFailed: state.issues.filter(issue => issue.category === 'technical').length, unavailable: 0, ...(state.excluded ? exclusionCounts(state.excluded) : {}) } }, records)
-    }
+      const selected = records.flatMap(record => record.kind === 'selection' && record.runId === ctx.runId && record.qualification === 'auto-qualified' ? [record.imageVersionId] : [])
+      const qualified = new Set([...selections().map(record => record.imageVersionId), ...selected]).size
+      await ctx.save(stage, { checkpoint: { ...data.checkpoint, previewSearch: toJson(snapshot) }, counts: { candidates: snapshot.seenIds.length, distinct: Object.keys(snapshot.importedImages).length, qualified, failedQueries: snapshot.failedQueries, technicalFailed: snapshot.issues.filter(issue => issue.category === 'technical').length, unavailable: 0, ...(snapshot.excluded ? exclusionCounts(snapshot.excluded) : {}) } }, records)
+    })
     while (selections().length < input.targetCount) {
       ctx.signal.throwIfAborted()
       const searchAvailable = ctx.ledger.snapshot().search < ctx.spec.config.limits.maxSearchPages

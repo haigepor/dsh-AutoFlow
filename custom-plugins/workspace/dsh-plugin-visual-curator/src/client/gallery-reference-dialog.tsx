@@ -114,7 +114,7 @@ export function createGalleryReferenceDialog(React: typeof import('react'), ui: 
       ++sequence.current; request.current?.abort(); prefetch.current?.abort(); setLoading(false); setAppending(false); setAllIntent(false)
       setSaving(true); setError('')
       try {
-        await actions.startGalleryReferences({ operationId: crypto.randomUUID(), styleId: style.styleId, expectedRevision: actions.getSnapshot().snapshot?.styles.find(item => item.styleId === style.styleId)?.revision ?? style.revision, accountId, role, photoIds })
+        await actions.startGalleryReferences({ operationId: crypto.randomUUID(), styleId: style.styleId, expectedRevision: actions.getSnapshot().snapshot?.styles.find(item => item.styleId === style.styleId)?.revision ?? style.revision, accountId, role, photoIds, analyzeAfter: false })
         if (alive.current) setSelected(new Set())
       } catch (failure) { if (alive.current) setError(t('importUnknown')) }
       finally { if (alive.current) setSaving(false) }

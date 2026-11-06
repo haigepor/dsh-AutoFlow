@@ -1,6 +1,7 @@
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
+import { writeFile } from 'node:fs/promises'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const output = process.argv[2] === '--outdir' && process.argv[3] ? resolve(process.argv[3]) : root
@@ -14,4 +15,5 @@ await build({ absWorkingDir: root, entryPoints: { index: 'src/host/plugin.ts', t
   } }],
 })
 await build({ absWorkingDir: root, entryPoints: [fileURLToPath(new URL('win32-dialog-worker.ts', pickerRoot))], outfile: resolve(output, 'worker.cjs'), bundle: true, packages: 'external', platform: 'node', format: 'cjs', target: 'node22.19', sourcemap: false })
-await build({ absWorkingDir: root, entryPoints: ['src/client/index.ts'], outfile: resolve(output, 'client.js'), bundle: true, format: 'iife', platform: 'browser', loader: { '.css': 'text', '.webp': 'dataurl', '.png': 'dataurl' }, target: 'es2022', minify: true, legalComments: 'none' })
+const client = await build({ absWorkingDir: root, entryPoints: ['src/client/index.ts'], outfile: 'client.js', bundle: true, write: false, format: 'cjs', external: ['react', 'react-dom', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'], platform: 'browser', loader: { '.css': 'text', '.webp': 'dataurl', '.png': 'dataurl' }, target: 'es2022', minify: true, legalComments: 'none' })
+await writeFile(resolve(output, 'client.js'), `window.__ModuleLoader__.load({id:'dsh-plugin-visual-curator',factory(require){const module={exports:{}};const exports=module.exports;\n${client.outputFiles[0].text}\nreturn module.exports;}});\n`, 'utf8')

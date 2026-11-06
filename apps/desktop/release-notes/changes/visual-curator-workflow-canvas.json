@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-workflow-canvas",
+  "category": "improvements",
+  "text": {
+    "en": "Improve multi-batch canvas layouts, flowing connections, reference galleries, dataset dialogs, and selected-node deletion.",
+    "zh-CN": "完善多批次画布布局、连接线动画、参考图片列表、数据集弹窗及节点选择删除。"
+  }
+}

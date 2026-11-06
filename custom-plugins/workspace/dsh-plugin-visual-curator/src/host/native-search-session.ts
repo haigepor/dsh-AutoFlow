@@ -21,8 +21,8 @@ export interface NativeSearchSessions {
   workspaces(): SearchWorkspace[]
   /** @returns Native catalog choices and the currently available default. */
   models(): Promise<{ conversationModels: SearchConversationModelOption[]; defaultConversationModel?: SearchConversationModel }>
-  /** @param workspaceId Selected native Workspace. @param signal Preparation lifetime. @param model Explicit conversation route, or the existing default when absent. @returns Writable Workspace after route and tool validation. */
-  preflight(workspaceId: string, signal: AbortSignal, model?: SearchConversationModel): Promise<SearchWorkspace>
+  /** @param workspaceId Selected native Workspace. @param signal Preparation lifetime. @param model Explicit conversation route, or the existing default when absent. @param mode Workflow execution uses the saved vision route; absent retains conversation admission. @returns Writable Workspace after required capability validation. */
+  preflight(workspaceId: string, signal: AbortSignal, model?: SearchConversationModel, mode?: 'workflow' | 'conversation'): Promise<SearchWorkspace>
   ensure(workspace: SearchWorkspace, sessionId: string, signal: AbortSignal): Promise<void>
   /** @param sessionId Existing native Session. @param requestId Frozen prompt identity. @returns Whether the prompt is logged, pending, or claimed by its still-running turn. */
   accepted(sessionId: string, requestId: string): Promise<boolean>
@@ -35,8 +35,8 @@ export interface NativeSearchSessions {
 
 /** @param ctx Scoped public service lookup. @returns Optional native adapter; absence is reported at launch, not plugin load. */
 export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSessions | undefined {
-  const controller = ctx.get('sessionController'), registry = ctx.get('workspaceRegistry'), uploads = ctx.get('fileUploads'), tools = ctx.get('tools')
-  if (!controller || !registry || !uploads || !tools) return undefined
+  const controller = ctx.get('sessionController'), registry = ctx.get('workspaceRegistry'), uploads = ctx.get('fileUploads'), tools = ctx.get('tools'), agents = ctx.get('agents')
+  if (!controller || !registry || !uploads || !tools || !agents) return undefined
   const workspace = (id: string) => {
     const value = registry.get(brandString<WorkspaceId>(id))
     if (!value) throw new CuratorError('reference-unavailable', 'search-launch', 'The selected Workspace is unavailable. Select an existing Workspace.')
@@ -61,11 +61,12 @@ export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSes
       }))
       return { conversationModels, ...(conversationModels.some(model => model.provider === catalog.default.provider && model.model === catalog.default.model) ? { defaultConversationModel: { ...catalog.default } } : {}) }
     },
-    async preflight(id, signal, selection) {
+    async preflight(id, signal, selection, mode) {
       signal.throwIfAborted()
       if (!ctx.get('sessionTitle')) throw new CuratorError('capability-unavailable', 'search-launch', 'The native conversation naming service is unavailable in this deployment.')
       const value = workspace(id)
       await access(value.path, constants.W_OK)
+      if (mode === 'workflow') return { id: value.id, title: value.title, path: await realpath(value.path) }
       if (selection) await resolveModel(selection)
       else {
         const catalog = await controller.modelCatalog()
@@ -75,18 +76,23 @@ export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSes
       return { id: value.id, title: value.title, path: await realpath(value.path) }
     },
     async ensure(target, id, signal) {
+      signal.throwIfAborted()
       const sessionId = brandString<import('@deepseek-ai/dsh-session').SessionId>(id), value = workspace(target.id)
       if (resolve(await realpath(value.path)) !== resolve(target.path)) throw new CuratorError('owner-denied', 'search-launch', 'The selected Workspace directory changed.')
       const listed = await controller.list({}, signal)
+      signal.throwIfAborted()
       const existing = listed.items.find(item => item.sessionId === sessionId)
       if (existing) {
         if (!existing.cwd || resolve(await realpath(existing.cwd)) !== resolve(target.path)) throw new CuratorError('owner-denied', 'search-launch', 'The saved conversation belongs to another directory.')
         // 创建后的归属写入可能单独失败；恢复只补归属，不能再调用会另建会话的 create。
         if (!value.sessionIds.includes(sessionId)) await value.attachSession(sessionId)
+        signal.throwIfAborted()
         return
       }
+      signal.throwIfAborted()
       const created = await controller.create({ workspaceId: value.id, sessionId })
       if (created.sessionId !== sessionId) throw new CuratorError('operation-conflict', 'search-launch', 'The reserved conversation identity was not created. Inspect the saved launch before retrying.')
+      signal.throwIfAborted()
     },
     async accepted(id, requestId) {
       const matches = (message: UserMessage) => message.source.kind === 'user' && 'rpcId' in message.source && message.source.rpcId === requestId
@@ -129,11 +135,8 @@ export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSes
     },
     async cancel(id) {
       const sessionId = brandString<SessionId>(id)
-      if ((await controller.list({}, new AbortController().signal)).items.some(item => item.sessionId === sessionId)) {
-        const resolved = await controller.resolveAgent(sessionId)
-        if ('error' in resolved) throw resolved.error
-        controller.cancel({ sessionId })
-      }
+      // A cold Session has no native turn to cancel; stopping must not activate it.
+      if (agents.get(sessionId)) controller.cancel({ sessionId })
     },
   }
 }

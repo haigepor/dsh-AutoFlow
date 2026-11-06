@@ -3,10 +3,53 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import sharp from 'sharp'
 import { serviceFixture } from './helpers/service-fixture.ts'
-import { dataOf, specOf } from '../src/host/runtime.ts'
+import { dataOf, specOf, toJson } from '../src/host/runtime.ts'
 import { MediaError } from '../src/media/errors.ts'
 import { readFile } from 'node:fs/promises'
 import { z } from 'zod'
+
+for (const failure of ['legacy-invalid-organization', 'missing-negative-reasons'] as const) test(`${failure} continues the saved task through dataset export without repeating observed images`, async () => {
+  const f = await serviceFixture(undefined, { maxRetryAttempts: 0 })
+  try {
+    await f.service.initialize()
+    const style = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: `style-${failure}`, name: 'Continuation' }))
+    const files = await Promise.all(['red', 'blue'].map(async (color, index) => ({ name: `${color}.png`, mime: 'image/png', base64: (await sharp({ create: { width: 16, height: 16, channels: 3, background: color } }).png().toBuffer()).toString('base64'), role: index ? 'negative' : 'positive', intent: 'overall', dimensions: [] })))
+    await f.action('reference-import', { operationId: `images-${failure}`, styleId: style.id, expectedRevision: 1, files })
+    const send = f.http.request.bind(f.http)
+    let broken = true
+    f.http.request = async (url, request) => {
+      const response = await send(url, request)
+      if (broken && f.http.operations.at(-1) === 'summarize:') {
+        const body = JSON.parse(Buffer.from(response.bytes).toString('utf8'))
+        const summary = JSON.parse(body.choices[0].message.content)
+        if (failure === 'missing-negative-reasons') summary.negativeReasons = []
+        else summary.organization.selections = []
+        body.choices[0].message.content = JSON.stringify(summary)
+        return { ...response, bytes: Buffer.from(JSON.stringify(body)) }
+      }
+      return response
+    }
+    const started = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: `analyze-${failure}`, styleId: style.id }))
+    await f.jobs.drain()
+    const failed = f.domain.require('run', started.runId), saved = dataOf(failed)
+    assert.equal(failed.status, 'failed')
+    assert.equal(saved.counts.observed, 2)
+    assert.equal(f.repository.list('profileExport').length, 0)
+    if (failure === 'legacy-invalid-organization') {
+      const old = { ...failed, data: toJson({ ...saved, error: { ...saved.error, retryable: false } }) }
+      await f.repository.commit({ aggregateId: `run:${failed.id}`, expectedRevision: failed.revision, operationId: `legacy-${failure}`, request: {}, records: [old], state: {} })
+    }
+    const observedRequests = f.http.operations.filter(operation => operation.startsWith('analyze:')).length
+    broken = false
+    const detail = z.object({ task: z.object({ continuation: z.object({ allowed: z.boolean() }) }) }).parse(await f.action('analysis-detail', { runId: started.runId }))
+    assert.equal(detail.task.continuation.allowed, true)
+    await f.action('analysis-resume', { runId: started.runId }); await f.jobs.drain()
+    assert.equal(f.domain.require('run', started.runId).status, 'completed')
+    assert.equal(f.http.operations.filter(operation => operation.startsWith('analyze:')).length, observedRequests)
+    assert.equal(f.http.operations.filter(operation => operation.startsWith('summarize:')).length, 2)
+    assert.ok(f.repository.list('profileExport').some(dataset => dataset.analysisRunId === started.runId))
+  } finally { await f.cleanup() }
+})
 
 test('each analysis commits observations before induction and ordinary analysis reuses observations while saving a dataset', async () => {
   const f = await serviceFixture(undefined, { maxReferenceImages: 2 })

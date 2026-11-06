@@ -393,9 +393,12 @@ export async function createRuntimeResolution(
   const { packageNames, packageDirs, declarers, versions } = collectInstallationScopePackages(
     installAnchor, new Set(profile?.skippedBundles.map(skipped => skipped.packageName)),
   )
-  // 独立更新的内置业务包只向当前 profile 提供新版，基础依赖仍由安装目录提供。
-  const updatedBundles = profile?.layers.filter(layer => packageNames.has(layer.packageName)
-    && resolveBundleDir('dsh', layer.packageName, installAnchor, profile.dir) !== packageDirs.get(layer.packageName)) ?? []
+  // 以真实目录区分独立更新与工作区链接别名；新版业务包仅供当前 profile 使用，基础依赖仍由安装目录提供。
+  const updatedBundles = profile?.layers.filter((layer) => {
+    const installedDirectory = packageDirs.get(layer.packageName)
+    return installedDirectory !== undefined
+      && realModuleDirectory(resolveBundleDir('dsh', layer.packageName, installAnchor, profile.dir)) !== realModuleDirectory(installedDirectory)
+  }) ?? []
   const installationNames = new Set(packageNames)
   const installationPackages = new Map(packageDirs)
   for (const layer of updatedBundles) {

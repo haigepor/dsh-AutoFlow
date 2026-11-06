@@ -10,6 +10,7 @@ import BasicCompactionEngine from '@deepseek-ai/dsh-compaction-basic'
 import type { BasicCompactionConfig } from '@deepseek-ai/dsh-compaction-basic'
 import type {} from '@deepseek-ai/dsh-plugin-manager'
 import type {} from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/dsh-skill'
 
 export { Config }
 export const name = 'dsh-plugin-visual-curator'
@@ -78,6 +79,16 @@ export async function mountCurator(ctx: Context, service: CuratorService): Promi
   ctx.effect(() => () => service.dispose(), 'Visual Curator task drain')
   await service.initialize()
   ctx.provide('visualCurator', service)
+  ctx.inject(['skills'], owner => owner.effect(() => {
+    let current = service.wallpaperSkill(), dispose = owner.skills.register({ name: 'visual-wallpaper-composition', source: 'bundled', provider: 'dsh-plugin-visual-curator', description: 'Identify arbitrary visual subjects, plan lock-screen wallpaper layouts, preserve originals and inspect actual final pixels.', content: current.content })
+    const stop = service.subscribeWallpaperSkill(() => {
+      const next = service.wallpaperSkill()
+      if (next.id === current.id) return
+      dispose(); current = next
+      dispose = owner.skills.register({ name: 'visual-wallpaper-composition', source: 'bundled', provider: 'dsh-plugin-visual-curator', description: 'Source-grounded wallpaper composition with profile-private evaluated case guidance.', content: current.content })
+    })
+    return () => { stop(); dispose() }
+  }, 'Visual Curator profile wallpaper Skill'))
   bindSessionCancellation(ctx, service)
   ctx.effect(() => ctx.pluginManager.registerAction(name, 'workbench', async (input, signal) => {
     try {

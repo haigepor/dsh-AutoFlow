@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { setTimeout as wait } from 'node:timers/promises'
 import { z } from 'zod'
 import { defineDomain, domainTable, type Domain, type DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
@@ -118,8 +119,8 @@ export class DomainRepository {
   private chain: Promise<void> = Promise.resolve()
   private closed = false
   private readScope: { identity: object; pointers: Map<string, AggregateManifest['records'][number]>; idsByKind: Map<string, string[]>; records: Map<string, CuratorRecord | undefined>; revisionDigest: string } | undefined
-  /** @param profileId Owning profile. @param adapter Storage-domain or deterministic fixture. */
-  constructor(readonly profileId: string, private readonly adapter: DomainAdapter) {
+  /** @param profileId Owning profile. @param adapter Storage-domain or deterministic fixture. @param commitRetry Current finite retry policy for acknowledged-safe file replacement failures. */
+  constructor(readonly profileId: string, private readonly adapter: DomainAdapter, private readonly commitRetry?: () => { attempts: number; delayMs: number }) {
     for (const manifest of adapter.manifests()) {
       manifestSchema.parse(manifest)
       this.assertProfile(manifest.profileId)
@@ -138,10 +139,11 @@ export class DomainRepository {
     for (const manifest of this.adapter.manifests()) if (manifest.receipts[operationId]) return structuredClone(manifest.receipts[operationId])
     return undefined
   }
-  /** @param prefix Optional aggregate-ID prefix applied before cloning private receipts. @returns Independent matching commit manifests, or all manifests when no prefix is supplied. */
-  manifests(prefix?: string): AggregateManifest[] {
+  /** @param prefix Optional aggregate-ID prefix or prefixes applied before cloning private receipts. @returns Independent matching commit manifests, or all manifests when no prefix is supplied. */
+  manifests(prefix?: string | readonly string[]): AggregateManifest[] {
     const manifests = this.adapter.manifests()
-    return structuredClone(prefix === undefined ? manifests : manifests.filter(manifest => manifest.aggregateId.startsWith(prefix)))
+    const prefixes = typeof prefix === 'string' ? [prefix] : prefix
+    return structuredClone(prefixes === undefined ? manifests : manifests.filter(manifest => prefixes.some(value => manifest.aggregateId.startsWith(value))))
   }
   /** @returns Revision-only cache identity without copying historical requests or responses. */
   revisionDigest(): string { return this.readScope?.revisionDigest ?? contentDigest(this.adapter.manifests().map(manifest => [manifest.aggregateId, manifest.revision])) }
@@ -254,17 +256,31 @@ export class DomainRepository {
     }
     const revision = input.expectedRevision + 1
     const manifest = manifestSchema.parse({ schemaVersion: 1, profileId: this.profileId, aggregateId: input.aggregateId, revision, records: pointers, state, receipts: { ...current?.receipts, [input.operationId]: { requestDigest, revision, state } } })
-    try {
-      for (let i = 0; i < parsed.length; i++) {
-        const record = parsed[i]!
-        const pointer = pointers.find(p => p.kind === record.kind && p.id === record.id)!
-        if (!this.adapter.readRecord(pointer.key)) await this.adapter.writeRecord(pointer.key, record)
-      }
-      await this.adapter.writeManifest(manifest)
-    } catch (cause) {
-      throw new CuratorError('storage-commit-failed', 'storage-commit', 'The change was not committed; the previous state remains active.', { cause, retryable: true, suggestedAction: 'Retry with the same operation ID.' })
+    for (let i = 0; i < parsed.length; i++) {
+      const record = parsed[i]!
+      const pointer = pointers.find(p => p.kind === record.kind && p.id === record.id)!
+      if (!this.adapter.readRecord(pointer.key)) await this.writeCommitted('record', () => this.adapter.writeRecord(pointer.key, record))
     }
+    await this.writeCommitted('manifest', () => this.adapter.writeManifest(manifest))
     return { revision, state: structuredClone(state) }
+  }
+  private async writeCommitted(operation: 'record' | 'manifest', write: () => Promise<void>): Promise<void> {
+    const policy = this.commitRetry?.() ?? { attempts: 0, delayMs: 0 }
+    for (let attempt = 0; ; attempt++) {
+      try { await write(); return }
+      catch (cause) {
+        const parsed = z.object({ code: z.string().max(64).regex(/^[A-Za-z0-9-]+$/) }).safeParse(cause)
+        const code = parsed.success ? parsed.data.code : 'unclassified'
+        const transient = ['EACCES', 'EPERM', 'EBUSY', 'EAGAIN', 'EMFILE', 'ENFILE'].includes(code)
+        if (transient && attempt < policy.attempts) { await wait(policy.delayMs * (attempt + 1)); continue }
+        const retryable = transient || ['ENOENT', 'ENOSPC', 'EDQUOT', 'EROFS'].includes(code)
+        const disposition = retryable ? 'retryable' : ['unknown-state', 'unclassified', 'EIO'].includes(code) ? 'restart-required' : 'blocked'
+        throw new CuratorError('storage-commit-failed', 'storage-commit', `Saving the ${operation} was not acknowledged (${code}). Previously acknowledged checkpoints are retained.`, {
+          cause, retryable, storage: { operation, code, attempts: attempt + 1, disposition },
+          suggestedAction: retryable ? 'Resolve the storage error, then continue this task from its saved checkpoint. Starting it again only returns the original receipt.' : 'Restart the Host to verify storage before continuing; do not repeat external requests while durability is unknown.',
+        })
+      }
+    }
   }
   /** @param profileId Record owner. */
   assertProfile(profileId: string): void { if (profileId !== this.profileId) throw new CuratorError('owner-denied', 'authorization', 'This record belongs to another profile.') }
@@ -287,7 +303,7 @@ export async function acquireProfileWriter(lockPath: string): Promise<() => Prom
   return async () => { release(); await holding }
 }
 /** Acquire the writer before opening a second storage cache. */
-export async function openCuratorRepository(options: { profileId: string; facility: Pick<DomainFacility, 'open'>; lockPath: string }): Promise<{ repository: DomainRepository; close: () => Promise<void> }> {
+export async function openCuratorRepository(options: { profileId: string; facility: Pick<DomainFacility, 'open'>; lockPath: string; commitRetry?: () => { attempts: number; delayMs: number } }): Promise<{ repository: DomainRepository; close: () => Promise<void> }> {
   const release = await acquireProfileWriter(options.lockPath)
   let handle: StorageHandle | undefined, incremental: IncrementalHandle | undefined
   try {
@@ -298,7 +314,7 @@ export async function openCuratorRepository(options: { profileId: string; facili
     if (marker.baseDigest !== null && marker.baseDigest !== baseDigest) throw new CuratorError('reference-unavailable', 'storage-open', 'The frozen curator base changed after incremental storage was enabled.', { suggestedAction: 'Restore the matching base and incremental directory from the same backup; do not merge files manually.' })
     if (marker.baseDigest === null && (incremental.table('records').size || incremental.table('manifests').size)) throw new CuratorError('reference-unavailable', 'storage-open', 'Incremental records have no confirmed base identity.', { suggestedAction: 'Restore a complete curator storage backup.' })
     // 不搬迁或覆盖旧单文件；新记录仍按“依赖先落盘、清单后可见”的顺序提交。
-    const repository = new DomainRepository(options.profileId, new StorageDomainAdapter(handle, incremental))
+    const repository = new DomainRepository(options.profileId, new StorageDomainAdapter(handle, incremental), options.commitRetry)
     if (marker.baseDigest === null) await incremental.global.set({ ...marker, baseDigest })
     return { repository, close: async () => { try { await repository.close() } finally { await release() } } }
   } catch (error) {

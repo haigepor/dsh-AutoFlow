@@ -10,7 +10,7 @@ export const inject = ['llm', 'connection', 'attachments']
 class BrowserAdapter extends LlmAdapter {
   constructor(private readonly mode: () => string) { super() }
   override async listModels(provider: string) { return [{ provider, id: 'style-vision-fixture', name: 'Style Prompt · Keyless fixture' }] }
-  override async resolveModel(provider: string, model: string) { return { provider, id: model, name: 'Style Prompt · Keyless fixture', inputModalities: ['text', 'image'] as const } }
+  override async resolveModel(provider: string, model: string) { return { provider, id: model, name: 'Style Prompt · Keyless fixture', inputModalities: ['text', 'image'] as const, defaultMaxTokens: 65_536 } }
   override async *stream(options: GenerateOptions): AsyncGenerator<StreamChunk> {
     options.signal?.throwIfAborted()
     if (this.mode() === 'waiting') {

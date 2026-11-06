@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "repository": "haigepor/dsh-AutoFlow",
   "tagPrefix": "afp-v",
+  "metadataAsset": "afp-update.json",
   "channel": "stable",
   "makeLatest": false
 }

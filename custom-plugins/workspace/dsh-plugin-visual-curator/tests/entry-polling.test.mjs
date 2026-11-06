@@ -9,14 +9,14 @@ import { serviceFixture } from './helpers/service-fixture.ts'
 
 let bundledEntry
 async function entrySource() {
-  bundledEntry ??= build({ entryPoints: [fileURLToPath(new URL('../src/client/index.ts', import.meta.url))], bundle: true, write: false, platform: 'browser', format: 'iife', plugins: [{ name: 'unrendered-entry-views', setup(api) {
+  bundledEntry ??= build({ entryPoints: [fileURLToPath(new URL('../src/client/index.ts', import.meta.url))], bundle: true, write: false, platform: 'browser', format: 'cjs', external: ['react', 'react-dom', 'react/jsx-runtime', '@deepseek-ai/dsh-client-ui-primitives'], plugins: [{ name: 'unrendered-entry-views', setup(api) {
     api.onLoad({ filter: /src[\\/]client[\\/](workbench|task-tool-view|conversation-task-dock)\.tsx$/ }, args => {
       const name = args.path.includes('conversation-task-dock') ? 'createConversationTaskDock' : args.path.includes('task-tool-view') ? 'createTaskToolView' : 'createWorkbench'
       return { contents: `export function ${name}(){return function UnrenderedFixtureView(){return null}}`, loader: 'js' }
     })
-    api.onLoad({ filter: /entry\.css$/ }, () => ({ contents: 'export default ""', loader: 'js' }))
+    api.onLoad({ filter: /\.css$/ }, () => ({ contents: 'export default ""', loader: 'js' }))
     api.onLoad({ filter: /assets[\\/].*\.(webp|png)$/ }, () => ({ contents: 'export default "fixture-art"', loader: 'js' }))
-  } }] }).then(result => result.outputFiles[0].text)
+  } }] }).then(result => `window.__ModuleLoader__.load({id:'dsh-plugin-visual-curator',factory(require){const module={exports:{}};const exports=module.exports;\n${result.outputFiles[0].text}\nreturn module.exports;}});`)
   return bundledEntry
 }
 

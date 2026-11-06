@@ -30,6 +30,7 @@ const initialLength = content.indexOf('Visible observation 18')
 const message = { sequence: 0, kind: 'analysis', batch: 1, imageIds, state: 'streaming', reasoning: 'Synthetic reasoning for the supplied reference.', content: content.slice(0, initialLength), at, updatedAt: at }
 let detail = { task, observations: [], images: [{ imageVersionId: imageIds[0], name: 'Synthetic reference' }], requests: [], process: { messages: [message], events: [], content: '', reasoning: '', truncated: false, updatedAt: at, phase: 'receiving' } }
 let receive, endFollow, position = initialLength, revision = 0
+let resumeCalls = 0
 const store = createCuratorStore({
   invoke: async operation => { if (operation !== 'analysis-detail') throw new Error(`Unexpected fixture operation: ${operation}`); return detail },
   followAnalysis: async (_args, callback, signal) => { receive = callback; await new Promise(resolve => { endFollow = resolve; signal.addEventListener('abort', resolve, { once: true }) }) },
@@ -40,7 +41,7 @@ function renderFactorySlot(name, props) {
 }
 function App() {
   const state = React.useSyncExternalStore(store.subscribe, store.getSnapshot)
-  return h(Dialog, { state, t, onClose: noop, onStop: noop, onPause: noop, onResume: noop, onRetry: noop, onReadInput: noop, renderFactorySlot })
+  return h(Dialog, { state, t, onClose: noop, onStop: noop, onPause: noop, onResume: () => { resumeCalls++ }, onRetry: noop, onReadInput: noop, renderFactorySlot })
 }
 store.openAnalysis(task.runId)
 await store.refreshAnalysisDetail()
@@ -55,8 +56,9 @@ window.analysisStreamStability = {
     return { position, total: content.length }
   },
   raw() { return detail.process.messages[0].content },
+  resumeCalls() { return resumeCalls },
   fail() {
-    detail = { ...detail, task: { ...detail.task, status: 'failed', phase: 'failed' }, process: { ...detail.process, phase: 'failed', messages: [{ ...detail.process.messages[0], state: 'failed' }] } }
+    detail = { ...detail, task: { ...detail.task, status: 'failed', phase: 'failed', continuation: { allowed: true, reason: 'ready' } }, process: { ...detail.process, phase: 'failed', messages: [{ ...detail.process.messages[0], state: 'failed' }] } }
     receive({ runId: task.runId, status: 'failed', process: detail.process, checkpoint: true })
     endFollow()
   },

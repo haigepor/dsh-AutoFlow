@@ -876,7 +876,7 @@ The [wire reference](../deepseek-llm-api-wire-extensions.md) defines the exact r
 
 ## Service and provider contracts
 
-Auxiliary image generation uses `registerImageProvider(provider, implementation)` alongside an existing text adapter. The registration is bound to that adapter's identity and its disposer withdraws the catalog and generator. `listImageModels(provider)` returns explicit image models; `generateImages(request)` rejects absent or unknown image models, honors pre-dispatch cancellation and calls the owning provider once without retries. Requests carry a caller-persisted `ImageGenerationId`, prompt, reference attachments, size, quality and signal. Results contain separate original-file and normalized-preview references. This API does not add image output to conversational streams or change Session data. [Image-generation types](../../packages/llm/llm/src/image-generation.ts) define the provider and consumer responsibilities.
+Auxiliary image generation uses `registerImageProvider(provider, implementation)` alongside an existing text adapter. The registration belongs to that adapter generation and its disposer withdraws the catalog and generator. `listImageModels(provider)` advertises explicit image models; `generateImages(request)` remains available for one-shot consumers. Providers may implement `start`, `get` and `cancel` for the corresponding `LlmRuntime` task methods. Absent task support fails with `UNSUPPORTED_OPTION` before dispatch. A caller persists `ImageGenerationId` and exact input before starting; the provider durably deduplicates that owner/ID, rejects different input under the same identity, and returns an `ImageGenerationTask`. Its `ImageGenerationHandle` pins provider, model and optional provider task ID; omitting the task ID finds an accepted operation and never creates work. A missing accepted operation reports `IMAGE_GENERATION_NOT_FOUND`. Reads can wait within provider limits and carry separate read cancellation. Task states are `queued`, `sent`, `succeeded`, `failed`, `cancelled` and `outcome-unknown`; an unknown outcome must not cause automatic resubmission. Cancellation retains saved outputs and does not promise reversal of an already sent vendor operation. An optional `mask` is a PNG file attachment with alpha and the same dimensions as the first reference canvas; transparent pixels permit editing. Original-file and normalized-preview references remain separate. This API adds no conversational output or Session-format changes. [Image-generation types](../../packages/llm/llm/src/image-generation.ts) define the provider and consumer fields.
 
 `LlmAdapter` is the provider contract: subclass, implement `stream()`, and register one adapter instance with `ctx.llm.registerAdapter(providers, adapter)`. `GenerateOptions.provider` selects the registered adapter; `GenerateOptions.model` is passed to that adapter and need not be registered at lifecycle start. Duplicate provider routes fail atomically. Optional `providerRetryPolicy()` is captured per route with normal defaults, while `providerInfo()` and asynchronous `listModels()` feed `LlmRuntime.listProviders()` / `listModels()` with detached selector metadata. That catalog is advisory rather than a request whitelist: the adapter remains authoritative and may accept unlisted model ids. One asynchronous `resolveModel()` query returns exact model identity plus optional correctness-sensitive context capacity, an adapter-configured `defaultMaxTokens`, and ordered model-owned reasoning ids with an optional deployment default; absent fields mean unavailable metadata or provider-owned behavior, not invalid catalog membership. The resolver receives optional cancellation and must settle promptly after abort. `LlmRuntime.resolveModelInfo()` validates and detaches the aggregate. At the final adapter boundary, `resolveCallConfig()` materializes the output default only when `maxTokens` is absent and validates and materializes reasoning, so direct calls cannot bypass either configured behavior; direct dispatch captures one registration before awaiting that resolution. The agent loop instead uses `prepareCall()` to keep the same registration across model resolution, durable header logging, and dispatch, retain detached context metadata from that exact lookup, and report which config fields the adapter defaulted. Adapter lookup happens at the terminal continuation of the `llm/stream` waterfall, so a listener may short-circuit the call or route a mutable one-shot request before lookup. AgentLoop observes a request attempt once the outer waterfall returns a stream handle; that limited boundary does not prove a lazy terminal adapter was constructed or began provider I/O. The `block-start` / `block-end` `index` correlation and the assembler together mean an adapter only has to emit well-formed chunks — block reassembly is not each adapter's problem. [architecture.md](../architecture.md#turn-flow) shows where `ctx.llm.stream()` and the `llm/stream` waterfall sit in one turn.
 
@@ -1186,6 +1186,25 @@ async listImageModels(provider: string): Promise<readonly ImageGenerationModel[]
  * @returns Durable original and preview attachments.
  */
 async generateImages(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>
+
+/** Accept a recoverable image operation; providers without task support fail before dispatch.
+ * @param request Frozen input with a stable caller-owned ID.
+ * @returns Durable task receipt.
+ */
+async startImageGeneration(request: ImageGenerationRequest): Promise<ImageGenerationTask>
+
+/** Read an accepted image operation without dispatching new work.
+ * @param handle Saved receipt.
+ * @param options Optional bounded wait.
+ * @returns Current task and preserved originals.
+ */
+async getImageGeneration(handle: ImageGenerationHandle, options?: ImageGenerationReadOptions): Promise<ImageGenerationTask>
+
+/** Cancel one accepted image operation.
+ * @param handle Saved receipt.
+ * @returns Settled task state without removing outputs.
+ */
+async cancelImageGeneration(handle: ImageGenerationHandle): Promise<ImageGenerationTask>
 
 /**
  * Validate a conversation call config against its exact model capability and

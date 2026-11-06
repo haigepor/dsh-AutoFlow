@@ -6,6 +6,8 @@
 
 插件与桌面端共用源码仓库，但独立发版。版本标签对应单个产品的冻结源码；公开 Release 包含该产品已验证的可安装资产。开发里程碑保存在 Git 历史、PR 或 Actions artifact 中。插件发布遵循 [AFP](../workspace/dsh-plugin-afp/release/README.zh.md)、[Codex 订阅](../workspace/dsh-plugin-codex-subscription/release/README.zh.md)、[视觉策展](../workspace/dsh-plugin-visual-curator/release/README.zh.md)、[风格提示词](../workspace/dsh-plugin-style-prompt/release/README.zh.md)或[启动动画](../workspace/dsh-boot-animation/release/README.zh.md)指南；[桌面端指南](../../apps/desktop/README.zh.md)负责打包、签名和生产上传。
 
+快速本地打包、桌面手动替换与源码预览遵循[本地测试规范](local-development/README.zh.md)。不带 `:local` 的命令发布正式版本，本地命令不发布。
+
 ## 产品版本族
 
 | 产品 | 版本来源 | 标签 | 资产与更新选择 |

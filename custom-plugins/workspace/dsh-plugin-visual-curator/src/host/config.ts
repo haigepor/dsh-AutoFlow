@@ -1,9 +1,10 @@
 /** Deployment configuration has explicit, validated limits; credentials remain references. */
 import Schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
+import { wallpaperSettingsSchema } from '../shared/wallpaper.ts'
 import { createHash } from 'node:crypto'
 import { galleryAccountSchema, galleryAccountIdSchema } from '../shared/gallery.ts'
-import { defaultPreviewConcurrency, galleryCacheDefaults } from '../shared/gallery-cache.ts'
+import { defaultPreviewConcurrency, galleryCacheDefaults, previewCacheDefaults } from '../shared/gallery-cache.ts'
 import { searchScreeningPolicySchema } from '../shared/search-screening.ts'
 export { searchScreeningPolicySchema, type SearchScreeningPolicy } from '../shared/search-screening.ts'
 
@@ -57,11 +58,12 @@ export const sourceSettingsSchema = z.strictObject({
     mediaConnectAttempts: positive.max(16).default(6), mediaConnectTimeoutMs: positive.default(2000), mediaDnsCacheEntries: positive.max(1000).default(64), mediaDnsCacheTtlMs: positive.default(60_000), mediaDnsFailureTtlMs: positive.default(60_000),
     previewTransport: z.enum(['host', 'redirect']).default('host'),
     previewConcurrency: positive.max(4).default(defaultPreviewConcurrency),
+    previewCache: z.strictObject({ ttlMs: positive.default(previewCacheDefaults.ttlMs), maxEntries: positive.default(previewCacheDefaults.maxEntries), maxBytes: positive.default(previewCacheDefaults.maxBytes) }).default(() => ({ ...previewCacheDefaults })),
     identityCacheTtlMs: z.number().int().nonnegative().default(180_000),
     cache: z.strictObject({ ttlMs: positive.default(galleryCacheDefaults.ttlMs), maxPages: positive.default(galleryCacheDefaults.maxPages), maxBytes: positive.default(galleryCacheDefaults.maxBytes) }).default(() => ({ ...galleryCacheDefaults })),
     login: galleryLoginSchema.default(() => galleryLoginSchema.parse({})),
     userAgent: z.string().min(1).max(1024).regex(/^[^\r\n\0]+$/).default('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'),
-  }).default(() => ({ accounts: [], defaultAccountId: null, curlBinary: 'curl', connectTimeoutMs: 5000, readRetryAttempts: 1, readRetryDelayMs: 1000, mediaDnsResolvers: ['https://dns.google/resolve', 'https://cloudflare-dns.com/dns-query'], mediaConnectAttempts: 6, mediaConnectTimeoutMs: 2000, mediaDnsCacheEntries: 64, mediaDnsCacheTtlMs: 60_000, mediaDnsFailureTtlMs: 60_000, previewTransport: 'host' as const, previewConcurrency: defaultPreviewConcurrency, identityCacheTtlMs: 180_000, cache: { ...galleryCacheDefaults }, login: galleryLoginSchema.parse({}), userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36' })),
+  }).default(() => ({ accounts: [], defaultAccountId: null, curlBinary: 'curl', connectTimeoutMs: 5000, readRetryAttempts: 1, readRetryDelayMs: 1000, mediaDnsResolvers: ['https://dns.google/resolve', 'https://cloudflare-dns.com/dns-query'], mediaConnectAttempts: 6, mediaConnectTimeoutMs: 2000, mediaDnsCacheEntries: 64, mediaDnsCacheTtlMs: 60_000, mediaDnsFailureTtlMs: 60_000, previewTransport: 'host' as const, previewConcurrency: defaultPreviewConcurrency, previewCache: { ...previewCacheDefaults }, identityCacheTtlMs: 180_000, cache: { ...galleryCacheDefaults }, login: galleryLoginSchema.parse({}), userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36' })),
   id: z.string().min(1).default('images'), endpoint: z.string().default(''), method: z.enum(['GET', 'POST']).default('GET'),
   credentialRef: z.string().regex(/^$|^[A-Za-z_][A-Za-z0-9_]*$/).default('VISUAL_CURATOR_SOURCE_KEY'),
   queryField: z.string().min(1).default('q'), cursorField: z.string().min(1).default('cursor'), pageSizeField: z.string().min(1).default('limit'),
@@ -81,11 +83,11 @@ export const visionSettingsSchema = z.strictObject({
   reasoningEffort: z.enum(['none', 'low', 'medium', 'high', 'max']).nullable().optional(),
   supportsStreaming: z.boolean().optional(),
 })
-export const settingsSchema = z.strictObject({ source: sourceSettingsSchema.default(() => sourceSettingsSchema.parse({})), vision: visionSettingsSchema.default(() => visionSettingsSchema.parse({})), limits: limitsSchema.default(() => limitsSchema.parse({})), searchScreening: searchScreeningSettingsSchema.optional() })
+export const settingsSchema = z.strictObject({ source: sourceSettingsSchema.default(() => sourceSettingsSchema.parse({})), vision: visionSettingsSchema.default(() => visionSettingsSchema.parse({})), limits: limitsSchema.default(() => limitsSchema.parse({})), searchScreening: searchScreeningSettingsSchema.optional(), wallpaper: wallpaperSettingsSchema.default(() => wallpaperSettingsSchema.parse({})) })
 export type CuratorConfig = z.infer<typeof settingsSchema>
 
 /** Cordis validates the envelope; the owning parser validates nested deployment settings. */
-export const Config = Schema.object({ source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), searchScreening: Schema.any(), compaction: Schema.any() })
+export const Config = Schema.object({ source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), searchScreening: Schema.any(), wallpaper: Schema.any(), compaction: Schema.any() })
 /** @param input Saved deployment fields. @returns Complete validated settings. */
 export function resolveConfig(input: unknown): CuratorConfig {
   const config = settingsSchema.parse(input)

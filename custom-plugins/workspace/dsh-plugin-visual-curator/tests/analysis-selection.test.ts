@@ -155,7 +155,7 @@ test('failed automatic package commits resume from saved induction without anoth
     const styleId = await collection(f)
     let fail = true
     f.repository.commit = async input => {
-      if (fail && input.records.some(record => record.kind === 'profileExport')) { fail = false; throw new CuratorError('storage-commit-failed', 'storage-commit', 'Injected dataset write failure.') }
+      if (fail && input.records.some(record => record.kind === 'profileExport')) { fail = false; throw new CuratorError('storage-commit-failed', 'storage-commit', 'Injected dataset write failure before publication.', { retryable: true, storage: { operation: 'manifest', code: 'EBUSY', attempts: 1, disposition: 'retryable' } }) }
       return commit(input)
     }
     const { runId } = started.parse(await f.action('reference-analyze', { operationId: 'retry-package', styleId, buildDataset: true })); await f.jobs.drain()

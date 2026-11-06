@@ -485,6 +485,10 @@
       "canvas.assetGrace": {
         "en": "Recent imports are protected for {minutes} minutes. Cleanup releases plugin asset slots; project attachments remain managed by the application.",
         "zh": "最近导入的素材保护 {minutes} 分钟；清理会释放插件素材名额，项目附件仍由应用统一管理"
+      },
+      "error.invalid-output": {
+        "en": "The model returned incomplete or invalid data. Check the output limit in model settings before starting a new request.",
+        "zh": "模型返回的数据不完整或格式不正确，请在模型页检查输出限制后显式发起新请求"
       }
     }
   }

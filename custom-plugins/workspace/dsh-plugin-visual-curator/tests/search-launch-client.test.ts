@@ -85,6 +85,23 @@ test('workspace changes recheck idle launch directories only while observed', as
   } finally { store.dispose() }
 })
 
+test('workspace changes refresh an open launch form dataset directory and negative counts', async () => {
+  let workspaceRevision = 'before', references = 0, reads = 0
+  const store = createSearchLaunchStore({ context: () => ({ scope: 1, styleId: 'style', pollMs: 60000, workspaceRevision }), openSession() {}, invoke: async operation => {
+    if (operation !== 'search-launch-datasets') return []
+    reads++
+    return { styleId: 'style', entries: [], total: 0, allTotal: references ? 1 : 0, negativeReferences: { datasets: references ? 1 : 0, references } }
+  } })
+  const close = store.subscribe(() => {})
+  try {
+    await setImmediate(); await store.loadDatasets('profile')
+    references = 4; workspaceRevision = 'after'; store.sync(); await setImmediate()
+    assert.equal(reads, 2)
+    assert.deepEqual(store.getSnapshot().datasetOptions?.negativeReferences, { datasets: 1, references: 4 })
+    store.sync(); await setImmediate(); assert.equal(reads, 2)
+  } finally { close(); store.dispose() }
+})
+
 test('workspace changes during a directory read queue one fresh result and discard its obsolete response', async () => {
   let workspaceRevision = 'first', reads = 0, releaseStale: (value: object[]) => void = () => {}, releaseLatest: (value: object[]) => void = () => {}
   const before = draft(), after = draft()

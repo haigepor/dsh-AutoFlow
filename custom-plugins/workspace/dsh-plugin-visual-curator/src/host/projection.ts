@@ -13,7 +13,7 @@ import { styleMatchSchema } from '../shared/style-matching.ts'
 import { CuratorError } from '../shared/errors.ts'
 import type { ConfigurationView, CuratorSnapshot, FeedbackView, ImageView, RuleView, RunView, StyleView, StyleAnalysisView } from '../client/contract.ts'
 import { configRevision, type CuratorConfig } from './config.ts'
-import { dataOf, rankedSelections, specOf, analysisContinuation, type RunEngine } from './runtime.ts'
+import { dataOf, rankedSelections, specOf, analysisContinuation, runContinuation, runFailure, type RunEngine } from './runtime.ts'
 import type { AnalysisTask } from '../shared/analysis-process.ts'
 import { resultCategory, searchIssueSchema, type RunResultFilter } from '../shared/search-feedback.ts'
 import type { ProfileSelection } from '../shared/profile-selection.ts'
@@ -301,7 +301,8 @@ function projectRunNow(domain: CuratorDomain, run: RunRecord, actor: DomainActor
   const delivery = deliveryManifest ? z.object({ directory: z.string(), files: z.array(z.json()) }).parse(deliveryManifest.state) : undefined
   const output = searchOutputSchema.safeParse(spec.fixed.output)
   const launchId = searchLaunchInputSchema.shape.operationId.safeParse(spec.fixed.searchLaunchId)
-  return { runId: run.id, revision: run.revision, ...(output.success ? { outputKind: output.data.kind } : {}), ...(launchId.success ? { launchId: launchId.data } : {}), owner: run.owner, kind: spec.kind, status: run.status, ...(standard ? { styleId: standard.styleId } : typeof spec.input.styleId === 'string' ? { styleId: spec.input.styleId } : {}), issues, ...(output.data?.kind !== 'preview' && typeof spec.fixed.searchLaunchId === 'string' ? { delivery: delivery ? { status: 'delivered' as const, directory: delivery.directory, files: delivery.files.length } : { status: 'pending' as const, files: 0 } } : {}), resultSummary: { selected: categories.filter(value => value === 'selected').length, needsReview: categories.filter(value => value === 'review').length, rejected: categories.filter(value => value === 'rejected').length, failedImages: categories.filter(value => value === 'failed').length, technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, processing: categories.filter(value => value === 'processing').length, pending: categories.filter(value => value === 'pending').length, sourceImages: categories.filter(value => value === 'source').length, unavailable: issues.filter(issue => issue.category === 'unavailable').length, candidates: orderedIds.length, target: typeof spec.input.targetCount === 'number' ? spec.input.targetCount : null }, ...(data.jobId ? { jobId: data.jobId } : {}), ...(run.stage ? { stage: run.stage } : {}),
+  const failure = runFailure(run, data)
+  return { runId: run.id, continuation: runContinuation(run, domain.repository.list('request')), revision: run.revision, ...(output.success ? { outputKind: output.data.kind } : {}), ...(launchId.success ? { launchId: launchId.data } : {}), owner: run.owner, kind: spec.kind, status: run.status, ...(standard ? { styleId: standard.styleId } : typeof spec.input.styleId === 'string' ? { styleId: spec.input.styleId } : {}), issues, ...(output.data?.kind !== 'preview' && typeof spec.fixed.searchLaunchId === 'string' ? { delivery: delivery ? { status: 'delivered' as const, directory: delivery.directory, files: delivery.files.length } : { status: 'pending' as const, files: 0 } } : {}), resultSummary: { selected: categories.filter(value => value === 'selected').length, needsReview: categories.filter(value => value === 'review').length, rejected: categories.filter(value => value === 'rejected').length, failedImages: categories.filter(value => value === 'failed').length, technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, processing: categories.filter(value => value === 'processing').length, pending: categories.filter(value => value === 'pending').length, sourceImages: categories.filter(value => value === 'source').length, unavailable: issues.filter(issue => issue.category === 'unavailable').length, candidates: orderedIds.length, target: typeof spec.input.targetCount === 'number' ? spec.input.targetCount : null }, ...(data.jobId ? { jobId: data.jobId } : {}), ...(run.stage ? { stage: run.stage } : {}),
     ...(run.outcome ? { outcome: run.outcome } : {}), ...(releaseId ? { releaseId } : {}), ...(usageRevisionId ? { usageRevisionId } : {}),
     taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', counts: spec.kind === 'search' || spec.kind === 'crop' ? { ...data.counts, ...(screening ? { screeningReviewed: screening.screeningReviewed, screeningRejected: screening.screeningRejected, screeningFallback: screening.screeningFallback, deepReviewed: screening.deepReviewed } : {}), technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, unavailable: issues.filter(issue => issue.category === 'unavailable').length } : data.counts, warnings: data.warnings,
     results: visibleImages.map(image => {
@@ -310,7 +311,7 @@ function projectRunNow(domain: CuratorDomain, run: RunRecord, actor: DomainActor
       if (view.selection?.kind === 'selected' && view.selection.qualification === 'auto-qualified' && typeof spec.fixed.searchLaunchId === 'string' && z.object({ kind: z.literal('original') }).safeParse(spec.fixed.output).success) view.originalDownloadPath = `/api/visual-curator/resource?selectionId=${encodeURIComponent(view.selection.selectionId)}&sessionId=${encodeURIComponent(actor.sessionId ?? '')}`
       return view
     }),
-    ...(data.error ? { error: data.error } : {}) }
+    ...(failure ? { error: failure } : {}) }
 }
 
 /** Select a validated image window before building cards, independently of full task-detail reads. */
@@ -410,7 +411,7 @@ function snapshotNow(domain: CuratorDomain, engine: RunEngine, config: CuratorCo
   const referenced = new Set(references.map(reference => reference.imageVersionId))
   const entries: { image: ImageVersion; reference?: Reference }[] = references.map(reference => ({ image: domain.require('imageVersion', reference.imageVersionId), reference }))
   for (const image of domain.repository.list('imageVersion')) {
-    if (referenced.has(image.id) || image.versionKind === 'preview' || !readableImage(domain, image, actor)) continue
+    if (referenced.has(image.id) || image.versionKind === 'preview' || image.processing?.wallpaperArtifact && image.processing.wallpaperArtifact !== 'final' || !readableImage(domain, image, actor)) continue
     const asset = domain.require('asset', image.assetId)
     if (asset.access.kind === 'profile-library') entries.push({ image })
   }

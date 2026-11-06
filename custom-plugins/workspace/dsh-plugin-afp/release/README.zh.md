@@ -4,6 +4,8 @@
 
 ## Summary
 
+0.1.14：完善更新元数据，支持统一插件流程中的隔离本地打包。
+
 从本仓库向 GitHub Releases 发布独立 AFP 包。包版本决定 `afp-v<version>` 标签；AFP 不与应用共用发布版本或 latest 标记。[release.config.json](../release.config.json) 负责维护仓库、标签前缀与稳定频道。完整执行和验证流程使用[发布 Skill](../../../../.agents/skills/dsh-custom-plugin-release/SKILL.md)。
 
 ## 准备源码

@@ -6,6 +6,8 @@ English | [中文](README.zh.md)
 
 Plugins and Desktop share a source repository but publish independently. A version tag identifies one product's frozen source; a public Release contains that product's verified installable assets. Development milestones belong in Git history, PRs or Actions artifacts. Plugin publication follows the [AFP](../workspace/dsh-plugin-afp/release/README.md), [Codex Subscription](../workspace/dsh-plugin-codex-subscription/release/README.md), [Visual Curator](../workspace/dsh-plugin-visual-curator/release/README.md), [Style Prompt](../workspace/dsh-plugin-style-prompt/release/README.md) or [Boot Animation](../workspace/dsh-boot-animation/release/README.md) guide; the [Desktop guide](../../apps/desktop/README.md) owns packaging, signing and production uploads.
 
+For fast local plugin archives, manual Desktop replacement and source preview, follow the [local testing guide](local-development/README.md). Commands without `:local` publish formal versions; local commands never publish.
+
 ## Product families
 
 | Product | Version authority | Tag | Assets and update selection |

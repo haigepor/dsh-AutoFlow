@@ -38,7 +38,8 @@ async function backgroundInput(f: Awaited<ReturnType<typeof fixture>>, operation
   const first = f.domain.require('imageVersion', f.assessment.imageVersionId), second = imageVersionSchema.parse({ ...first, id: `${operationId}-second-image` })
   const secondRun = runSchema.parse({ ...f.run, id: `${operationId}-second-run` })
   await f.repository.commit({ aggregateId: `${operationId}-seed`, expectedRevision: 0, operationId: `${operationId}-seed`, request: {}, state: {}, records: [second, secondRun, assessmentSchema.parse({ ...f.assessment, id: `${operationId}-assessment`, imageVersionId: second.id, runId: secondRun.id })] })
-  return taskReferenceImportSchema.parse({ operationId, styleId: f.styleId, expectedRevision: f.domain.require('style', f.styleId).revision, role: 'negative', images: [{ runId: f.run.id, imageVersionId: first.id }, { runId: secondRun.id, imageVersionId: second.id }] })
+  const { analyzeAfter, ...input } = taskReferenceImportSchema.parse({ operationId, styleId: f.styleId, expectedRevision: f.domain.require('style', f.styleId).revision, role: 'negative', images: [{ runId: f.run.id, imageVersionId: first.id }, { runId: secondRun.id, imageVersionId: second.id }] })
+  return analyzeAfter === undefined ? input : { ...input, analyzeAfter }
 }
 
 test('accepted task references outlive the request, publish each committed image and complete on the collection page', { timeout: 10000 }, async () => {

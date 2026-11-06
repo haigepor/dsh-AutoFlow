@@ -47,7 +47,7 @@ export class NativeModel {
    */
   async preflight(route: Route, signal: AbortSignal, requireImage = true): Promise<void> {
     try {
-      const prepared = await this.dependencies.llm.prepareCall({ ...route, maxTokens: this.config.maxOutputTokens, temperature: this.config.temperature }, signal)
+      const prepared = await this.dependencies.llm.prepareCall(route, signal)
       if (requireImage && !prepared.inputModalities?.includes('image')) throw new StylePromptError('capability-unavailable')
     } catch (error) {
       if (error instanceof LlmError) throw new StylePromptError('capability-unavailable')
@@ -57,7 +57,7 @@ export class NativeModel {
 
   /** @param input Exact auxiliary prompt. @param persist Persists the request before I/O and terminal metadata before return. @param signal Task deadline and cancellation. @returns Parsed model JSON. */
   async call(input: { route: Route; system: string; inputText: string; references: Reference[]; templateVersion: string }, persist: (call: CallRecord) => Promise<void>, signal: AbortSignal): Promise<unknown> {
-    const prepared = await this.dependencies.llm.prepareCall({ ...input.route, maxTokens: this.config.maxOutputTokens, temperature: this.config.temperature }, signal)
+    const prepared = await this.dependencies.llm.prepareCall(input.route, signal)
     if (input.references.length && !prepared.inputModalities?.includes('image')) throw new StylePromptError('capability-unavailable')
     const content: ContentBlock[] = [{ type: 'text', text: input.inputText }]
     for (const ref of input.references) {

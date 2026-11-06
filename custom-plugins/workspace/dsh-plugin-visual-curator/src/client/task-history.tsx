@@ -58,7 +58,7 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
     const nameOf = (run: RunView) => snapshot.styles.find(style => style.analysis?.runId === run.runId || style.styleId === run.styleId)?.name ?? (run.taskBrief.trim() || t(kindKey[run.kind]))
     const valuesOf = (run: RunView) => metrics[run.kind].filter(([key]) => run.counts[key] !== undefined)
     const active = (run: Pick<RunView, 'status'>) => ['created', 'running', 'pausing', 'cancelling'].includes(run.status)
-    const recoverable = (run: Pick<RunView, 'status'>) => ['paused', 'interrupted'].includes(run.status)
+    const recoverable = (run: Pick<RunView, 'status' | 'continuation'>) => run.continuation?.allowed ?? ['paused', 'interrupted'].includes(run.status)
     const Icon = selected ? icons[selected.kind] : ui.IconClockOutlineRegular
     const requesting = (command: string) => !!selected && pending.includes(`run-control:${selected.runId}:${command}`)
     const control = (command: 'pause' | 'resume' | 'cancel') => {

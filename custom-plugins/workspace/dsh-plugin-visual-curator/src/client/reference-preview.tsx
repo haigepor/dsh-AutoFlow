@@ -26,7 +26,7 @@ export function createReferencePreview(React: typeof import('react'), ui: typeof
     React.useEffect(() => {
       const target = frame.current
       if (!target) return
-      return sharedPreviewVisibility.observe(target, setVisible)
+      return sharedPreviewVisibility.observe(target, value => { if (value) setVisible(true) })
     }, [])
     React.useEffect(() => {
       setLoaded(null)
@@ -44,12 +44,12 @@ export function createReferencePreview(React: typeof import('react'), ui: typeof
       return () => { active = false; controller.abort(); acquired?.release(); if (currentUrl.current === acquired?.url) currentUrl.current = '' }
     }, [visible, imageSrc, attempt])
     return <div ref={frame} className="vc-reference-preview" data-preview-state={state}>
-      <ui.Button type="button" variant="ghost" className="vc-image-preview" onClick={onSelect ? () => { if (!selectionDisabled) onSelect() } : onPreview ?? (() => setPreviewOpen(true))} disabled={!href && !onSelect} aria-disabled={onSelect && selectionDisabled || undefined} aria-pressed={onSelect ? selected : undefined} aria-label={`${t(onSelect ? 'gallerySelectPhoto' : 'taskOpenPreview')} · ${alt}`} title={state === 'failed' ? t('referencePreviewFailed') : undefined} aria-busy={state === 'loading' || undefined}>
-        <img key={loaded?.url ?? attempt} src={loaded?.url} alt={alt} width={width} height={height} decoding="async" referrerPolicy="no-referrer" onLoad={() => { if (loaded && currentUrl.current === loaded.url) setDisplay(current => current.attempt === attempt ? { ...current, state: 'ready' } : current) }} onError={() => { if (loaded && currentUrl.current === loaded.url) { failedAttempt.current = attempt; currentUrl.current = ''; loaded.release(); setLoaded(null); setDisplay(current => current.attempt === attempt ? { ...current, state: 'failed' } : current) } }} />
+      <ui.Button type="button" variant="ghost" className="vc-image-preview nodrag nopan" onClick={onSelect ? () => { if (!selectionDisabled) onSelect() } : onPreview ?? (() => setPreviewOpen(true))} disabled={!href && !onSelect} aria-disabled={onSelect && selectionDisabled || undefined} aria-pressed={onSelect ? selected : undefined} aria-label={`${t(onSelect ? 'gallerySelectPhoto' : 'taskOpenPreview')} · ${alt}`} title={state === 'failed' ? t('referencePreviewFailed') : undefined} aria-busy={state === 'loading' || undefined}>
+        <img draggable={false} key={loaded?.url ?? attempt} src={loaded?.url} alt={alt} width={width} height={height} decoding="async" referrerPolicy="no-referrer" onLoad={() => { if (loaded && currentUrl.current === loaded.url) setDisplay(current => current.attempt === attempt ? { ...current, state: 'ready' } : current) }} onError={() => { if (loaded && currentUrl.current === loaded.url) { failedAttempt.current = attempt; currentUrl.current = ''; loaded.release(); setLoaded(null); setDisplay(current => current.attempt === attempt ? { ...current, state: 'failed' } : current) } }} />
       </ui.Button>
       {state !== 'ready' && <span className="vc-reference-preview-state" aria-hidden="true">{state === 'failed' && <img className="vc-preview-unavailable" src={unavailableArtwork} alt="" width={64} height={48} />}</span>}
-      {previewOpen && <ui.ImageLightbox src={href} alt={alt} labels={{ dialog: t('galleryPreview'), close: t('close') }} loadingLabels={{ loading: t('galleryPreviewLoading'), error: t('galleryPreviewError'), retry: t('retry') }} onClose={closePreview} />}
+      {previewOpen && <ui.ImageLightbox src={href === src && loaded ? loaded.url : href} alt={alt} labels={{ dialog: t('galleryPreview'), close: t('close') }} loadingLabels={{ loading: t('galleryPreviewLoading'), error: t('galleryPreviewError'), retry: t('retry') }} onClose={closePreview} />}
     </div>
   }
-  return function ReferencePreview(props: Props) { return <Preview key={props.src} {...props} /> }
+  return React.memo(function ReferencePreview(props: Props) { return <Preview key={props.src} {...props} /> })
 }

@@ -69,24 +69,36 @@ function linkDirectory(source: string, destination: string): void {
   symlinkSync(realpathSync(source), destination, process.platform === 'win32' ? 'junction' : 'dir')
 }
 
+/** Stale pnpm links can outlive removed packages; declared workspace dependencies are checked separately. */
+function hoistedDirectory(source: string, symbolicLink: boolean): string | undefined {
+  try {
+    return realpathSync(source)
+  } catch (error) {
+    if (symbolicLink && error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
+    throw error
+  }
+}
+
 function mirrorDependencyLinks(sourceRoot: string, destinationRoot: string): string[] {
   const names: string[] = []
   for (const entry of readdirSync(sourceRoot, { withFileTypes: true })) {
     if (entry.name === '.bin') continue
-    const source = join(sourceRoot, entry.name)
-    if (entry.name.startsWith('@') && (entry.isDirectory() || entry.isSymbolicLink())) {
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
+    const source = hoistedDirectory(join(sourceRoot, entry.name), entry.isSymbolicLink())
+    if (source === undefined) continue
+    if (entry.name.startsWith('@')) {
       mkdirSync(join(destinationRoot, entry.name), { recursive: true })
       for (const scoped of readdirSync(source, { withFileTypes: true })) {
         if (!scoped.isDirectory() && !scoped.isSymbolicLink()) continue
-        linkDirectory(join(source, scoped.name), join(destinationRoot, entry.name, scoped.name))
+        const target = hoistedDirectory(join(source, scoped.name), scoped.isSymbolicLink())
+        if (target === undefined) continue
+        linkDirectory(target, join(destinationRoot, entry.name, scoped.name))
         names.push(`${entry.name}/${scoped.name}`)
       }
       continue
     }
-    if (entry.isDirectory() || entry.isSymbolicLink()) {
-      linkDirectory(source, join(destinationRoot, entry.name))
-      names.push(entry.name)
-    }
+    linkDirectory(source, join(destinationRoot, entry.name))
+    names.push(entry.name)
   }
   return names
 }
