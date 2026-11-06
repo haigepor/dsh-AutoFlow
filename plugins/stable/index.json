@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "haigepor/dsh-AutoFlow",
-  "generatedAt": "2026-11-06T12:21:37.036Z",
+  "generatedAt": "2026-11-06T12:26:43.897Z",
   "plugins": [
     {
       "schemaVersion": 1,
@@ -54,17 +54,17 @@
     {
       "schemaVersion": 1,
       "package": "dsh-plugin-style-prompt",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "repository": "haigepor/dsh-AutoFlow",
       "channel": "stable",
-      "tag": "style-prompt-v0.2.0",
-      "sourceCommit": "4b9f58b55d8d30bad4d8c7ffad3f79e7f9f9fb12",
+      "tag": "style-prompt-v0.2.1",
+      "sourceCommit": "f4c03f7c93dbeb7f248111f5a0587be43cd01d43",
       "sourceDirty": false,
       "asset": {
-        "name": "dsh-plugin-style-prompt-0.2.0.tgz",
-        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/style-prompt-v0.2.0/dsh-plugin-style-prompt-0.2.0.tgz",
-        "sha256": "061bbd7a5ce3b8869d0ac40786c75d7f6afb50f19861a296b0e571cc6727b4ec",
-        "size": 440140
+        "name": "dsh-plugin-style-prompt-0.2.1.tgz",
+        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/style-prompt-v0.2.1/dsh-plugin-style-prompt-0.2.1.tgz",
+        "sha256": "bfada698f2f8154738ecc9416dcc2f9b73ca751c7785bb0fe48ad50caae91b77",
+        "size": 440368
       }
     },
     {
