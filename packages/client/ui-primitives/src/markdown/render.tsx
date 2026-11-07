@@ -143,6 +143,22 @@ function freshImageUrl(url: string, load: number): string {
   return fresh.href
 }
 
+/** Display a bounded local file preview while preserving the original URL for explicit file actions. */
+function previewImageUrl(url: string): string {
+  try {
+    const preview = new URL(url)
+    const desktop = preview.protocol === 'dsh-app:' && preview.host === 'app'
+    const web = (preview.protocol === 'http:' || preview.protocol === 'https:')
+      && typeof document !== 'undefined' && preview.origin === new URL(document.baseURI).origin
+    if ((!desktop && !web) || !preview.pathname.endsWith('/api/file') || preview.searchParams.has('preview')) return url
+    preview.search = `${preview.search === '' ? '?' : `${preview.search}&`}preview=1`
+    return preview.href
+  } catch {
+    // Owner-supplied sources outside the local file route retain their existing display behavior.
+    return url
+  }
+}
+
 /** Link/image reference targets collected from a document (first definition per identifier wins, as in CommonMark). */
 export interface ReferenceTargets {
   /** Link/image definitions keyed by upper-cased identifier. */
@@ -647,7 +663,7 @@ function MarkdownFileLink({ file, glyph, children }: {
   if (src === undefined || preview === undefined) return anchor
   return <HoverCard inline anchor={anchor}
     content={<>
-      <ImagePreview src={src} alt={file.path} loadingLabel={preview.labels.loading} failedLabel={preview.labels.failed} />
+      <ImagePreview src={previewImageUrl(src)} alt={file.path} loadingLabel={preview.labels.loading} failedLabel={preview.labels.failed} />
       <span className={css.previewName}>{file.path.split(/[\\/]/u).pop()}</span>
     </>} />
 }
@@ -698,18 +714,23 @@ function LoadedMarkdownImage({ src, alt, destination, preview }: {
   const [failed, setFailed] = useState(false)
   const [open, setOpen] = useState(false)
   const close = useCallback(() => { setOpen(false) }, [])
-  if (failed) return <span className={css.imageAlt}>{preview === undefined ? '' : `${preview.labels.failed} · `}{alt || destination}</span>
+  const displaySrc = previewImageUrl(src), thumbnail = displaySrc !== src
+  const failureText = `${preview === undefined ? '' : `${preview.labels.failed} · `}${alt || destination}`
+  if (failed && !thumbnail) return <span className={css.imageAlt}>{failureText}</span>
   const file = parseFileLink(destination)
   const contextMenuProps = getTriggerProps?.({ kind: 'image', url: src, ...(file === undefined ? {} : { path: file.path }) })
-  const imageProps = { className: css.image, src, alt, onError: () => { setFailed(true) },
+  const imageProps = { className: css.image, src: displaySrc, alt, onError: () => { setFailed(true) },
     loading: 'lazy' as const, decoding: 'async' as const, referrerPolicy: 'no-referrer' as const }
-  if (preview === undefined) return <img {...imageProps} {...contextMenuProps} />
+  if (preview === undefined) return failed
+    ? <span className={css.imageAlt} {...contextMenuProps}>{failureText}</span>
+    : <img {...imageProps} {...contextMenuProps} />
   const localFileName = file?.path.split(/[\\/]/u).at(-1)
   const urlFileName = destination.split('/').at(-1)?.split(/[?#]/u)[0]
   const exportName = localFileName || urlFileName || 'image'
-  const img = <DraggableImage
+  const img = failed ? <span className={css.imageAlt}>{failureText}</span> : <DraggableImage
     fileDrag={preview.fileDrag}
     {...imageProps}
+    originalSrc={thumbnail ? src : undefined}
     resourceAddress={file === undefined ? undefined : preview.resourceAddress?.(file.path)}
     name={exportName}
   />

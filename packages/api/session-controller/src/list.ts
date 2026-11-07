@@ -49,7 +49,7 @@ export function applySessionListMetadata(
   state: SessionListMetadata,
   event: SessionEvent,
 ): SessionListMetadata {
-  const blank = state.blank && event.type !== 'turn/start' && event.type !== 'job/registered'
+  const blank = state.blank && event.type !== 'turn/start' && event.type !== 'job/registered' && event.type !== 'session/task'
   const lastPromptAt = event.type === 'user/message' && event.data.source.kind === 'user'
     ? event.time
     : state.lastPromptAt
@@ -96,7 +96,7 @@ export class ApiSessionList {
       init: () => ({ blank: true, lastPromptAt: null }),
       apply: applySessionListMetadata,
       wire: { viewSchema: sessionListMetadataSchema, view: state => state },
-      stateVersion: 2,
+      stateVersion: 3,
     })
     await this.ctx.sessionProjections.register<'imageLimits', null>({
       key: 'imageLimits',

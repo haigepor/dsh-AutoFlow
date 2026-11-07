@@ -62,6 +62,8 @@ kind: "package-reference"
 
 -----
 
+选择性读取可枚举键而不打开记录正文。在 `per-record` 中，`loadSelected` 仅按既有并发上限读取指定的安全键。在 `single` 中，后端仍须保留完整解析快照以保证写回不丢记录，领域仅收到选定值。只有旧整文件且尚未物化目录树时，选择性读取会在任何写入前以 `legacy-bootstrap-required` 拒绝；须先运行既有的完整 `loadAll` 引导，保留源文件、已声明记录与非空全局值。引导不具备整个目录树的原子性。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

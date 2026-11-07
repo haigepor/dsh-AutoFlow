@@ -60,6 +60,8 @@ Every nonempty batch delete uses one transaction, including its version update w
 
 -----
 
+Selective reads use key-only enumeration and bound per-key queries before JSON decoding; unselected rows are not parsed or copied into a domain. This affects memory loading only and does not change the database layout version or record format.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

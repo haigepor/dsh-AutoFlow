@@ -14,6 +14,7 @@ import { DomainError } from './error.ts'
 import { descriptorOf } from './spec.ts'
 import type { DomainSpec } from './spec.ts'
 import { DomainImpl } from './domain.ts'
+import { parseRecord } from './validation.ts'
 import type { Domain } from './domain.ts'
 
 export { DomainError } from './error.ts'
@@ -87,11 +88,13 @@ export class DomainFacility {
    * (`backend-not-found` passes through from the hub); require its `kv` facet
    * (`facet-unsupported`); open the unit projected from the spec (backend
    * `version-mismatch`/`malformed-medium` pass through); load and validate
-   * every stored record against the spec's zod schemas (`invalid-record`
+   * eager records and the global against the spec's zod schemas (`invalid-record`
    * with the offending table and key — unless the spec declares
    * `invalidRecords: 'backup-and-skip'` and the unit can move documents aside, in
    * which case the failing record is backed up, logged, and skipped);
-   * construct the domain.
+   * construct the domain. Manual tables require selective provider reads
+   * (`facet-unsupported` when unavailable) and start with physical keys only;
+   * their values validate during explicit hydration.
    *
    * Lifecycle: the CALLER owns the returned handle and closes it via
    * `Domain.close()` (typically as its own `ctx.effect` disposer) — the
@@ -116,7 +119,16 @@ export class DomainFacility {
       }
       const unit = await backend.kv.open(descriptorOf(spec))
       try {
-        const snapshot = await unit.loadAll()
+        const manual = Object.entries(spec.tables).filter(([, table]) => table.loading === 'manual').map(([name]) => name)
+        const inventory = new Map<string, Set<string>>()
+        let snapshot: Awaited<ReturnType<typeof unit.loadAll>>
+        if (manual.length) {
+          if (!unit.loadSelected || !unit.listKeys) {
+            throw new DomainError('facet-unsupported', `backend '${backendName}' cannot load manual tables selectively`)
+          }
+          snapshot = await unit.loadSelected(Object.fromEntries(Object.keys(spec.tables).map(name => [name, manual.includes(name) ? [] : 'all'])))
+          for (const table of manual) inventory.set(table, new Set(await unit.listKeys(table)))
+        } else snapshot = await unit.loadAll()
         const tables = new Map<string, Map<string, unknown>>()
         for (const [table, tableSpec] of Object.entries(spec.tables)) {
           const records = new Map<string, unknown>()
@@ -155,7 +167,7 @@ export class DomainFacility {
         const domain: DomainImpl = new DomainImpl(this.ctx, spec, unit, tables, globalValue, () => {
           this.domains.delete(spec.name)
           this.reserved.delete(spec.name)
-        })
+        }, inventory)
         this.domains.set(spec.name, domain)
         // The single type-erasure point: DomainImpl is the untyped runtime,
         // Domain<S> the spec-typed view; the unknown hop is required because
@@ -191,20 +203,6 @@ export class DomainFacility {
    */
   async closeAll(): Promise<void> {
     await Promise.all([...this.domains.values()].map(domain => domain.close()))
-  }
-}
-
-/** Run one zod parse, translating failure to `invalid-record` with its location. */
-function parseRecord<T>(domain: string, table: string, key: string, parse: () => T): T {
-  try {
-    return parse()
-  } catch (error) {
-    const slot = table === '' ? 'global' : `record '${key}' in table '${table}'`
-    throw new DomainError(
-      'invalid-record',
-      `domain '${domain}': stored ${slot} does not match its schema`,
-      { detail: { table, key }, cause: error },
-    )
   }
 }
 

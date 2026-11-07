@@ -9,6 +9,8 @@ import type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
   ImageRequestTarget,
+  ImagePreviewSource,
+  ImagePreviewAttachment,
   RequestImageAttachment,
   SaveFileAttachment,
   SaveFileStreamAttachment,
@@ -23,6 +25,7 @@ import {
   readFileStreamVerbatim, saveFileStreamVerbatim, saveFileVerbatim, storedFilePath,
 } from './file-store.ts'
 import { readRequestImageFile, requestImageVariantId } from './request-image.ts'
+import { imagePreviewVersion, readPreviewImage } from './preview-image.ts'
 
 export { canPassThroughNormalization, normalizeImage } from './normalization.ts'
 export type { NormalizedImage, NormalizationPolicy } from './normalization.ts'
@@ -60,6 +63,12 @@ export const DEFAULT_NORMALIZED_IMAGE_MAX_BYTES = 4 * 1024 * 1024
 export const DEFAULT_IMAGE_COMPRESSION_CONCURRENCY = 2
 /** Maximum configurable native image transformations per store. */
 export const MAX_IMAGE_COMPRESSION_CONCURRENCY = 8
+/** Default static display pixel budget. */
+export const DEFAULT_PREVIEW_IMAGE_MAX_PIXELS = 1024 * 1024
+/** Default longest edge of static display previews. */
+export const DEFAULT_PREVIEW_IMAGE_MAX_DIMENSION = 1024
+/** Default encoded byte ceiling of static display previews. */
+export const DEFAULT_PREVIEW_IMAGE_MAX_BYTES = 1024 * 1024
 
 /** Local attachment backend configuration. */
 export interface Config {
@@ -86,6 +95,12 @@ export interface Config {
   normalizedImageMaxBytes?: number
   /** Maximum simultaneous normalization or request-image transformations in this service instance. */
   imageCompressionConcurrency?: number
+  /** Static display preview pixel budget. */
+  previewImageMaxPixels?: number
+  /** Static display preview longest edge. */
+  previewImageMaxDimension?: number
+  /** Static display preview encoded byte ceiling; unmet targets reject without original fallback. */
+  previewImageMaxBytes?: number
 }
 
 function abortReason(signal: AbortSignal): Error {
@@ -159,6 +174,9 @@ export class LocalAttachmentStore extends AttachmentStore {
     normalizedImageMaxPixels: z.number().step(1).min(1).default(DEFAULT_NORMALIZED_IMAGE_MAX_PIXELS),
     normalizedImageMaxDimension: z.number().step(1).min(1).default(DEFAULT_NORMALIZED_IMAGE_MAX_DIMENSION),
     normalizedImageMaxBytes: z.number().step(1).min(1).default(DEFAULT_NORMALIZED_IMAGE_MAX_BYTES),
+    previewImageMaxPixels: z.number().step(1).min(1).default(DEFAULT_PREVIEW_IMAGE_MAX_PIXELS),
+    previewImageMaxDimension: z.number().step(1).min(1).default(DEFAULT_PREVIEW_IMAGE_MAX_DIMENSION),
+    previewImageMaxBytes: z.number().step(1).min(1).default(DEFAULT_PREVIEW_IMAGE_MAX_BYTES),
     imageCompressionConcurrency: z.number().step(1).min(1).max(MAX_IMAGE_COMPRESSION_CONCURRENCY)
       .default(DEFAULT_IMAGE_COMPRESSION_CONCURRENCY),
   })
@@ -168,11 +186,15 @@ export class LocalAttachmentStore extends AttachmentStore {
   readonly imageLimits: ImageAttachmentLimits
   /** Resolved provider-independent normalization policy. */
   readonly normalizationPolicy: Readonly<NormalizationPolicy>
+  /** Resolved static display bounds, independent of durable prompt normalization. */
+  readonly previewPolicy: Readonly<NormalizationPolicy>
+  override readonly imagePreviewVersion: string
   /** Resolved instance-level compression limit. */
   readonly imageCompressionConcurrency: number
   private readonly cacheRoot: string
   private readonly compression: CompressionLimiter
   private readonly requestInflight = new Map<string, SharedRequest<RequestImageAttachment>>()
+  private readonly previewInflight = new Map<string, SharedRequest<ImagePreviewAttachment>>()
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
@@ -192,6 +214,12 @@ export class LocalAttachmentStore extends AttachmentStore {
       maxDimension: config.normalizedImageMaxDimension ?? DEFAULT_NORMALIZED_IMAGE_MAX_DIMENSION,
       maxBytes: config.normalizedImageMaxBytes ?? DEFAULT_NORMALIZED_IMAGE_MAX_BYTES,
     })
+    this.previewPolicy = Object.freeze({
+      maxPixels: config.previewImageMaxPixels ?? DEFAULT_PREVIEW_IMAGE_MAX_PIXELS,
+      maxDimension: config.previewImageMaxDimension ?? DEFAULT_PREVIEW_IMAGE_MAX_DIMENSION,
+      maxBytes: config.previewImageMaxBytes ?? DEFAULT_PREVIEW_IMAGE_MAX_BYTES,
+    })
+    this.imagePreviewVersion = imagePreviewVersion(this.imageLimits, this.previewPolicy)
     const compressionConcurrency = config.imageCompressionConcurrency ?? DEFAULT_IMAGE_COMPRESSION_CONCURRENCY
     if (!Number.isSafeInteger(compressionConcurrency)
       || compressionConcurrency < 1
@@ -255,6 +283,21 @@ export class LocalAttachmentStore extends AttachmentStore {
     signal?: AbortSignal,
   ): Promise<RequestImageAttachment> {
     return this.requestVersion(ref, target, undefined, signal)
+  }
+
+  override readImagePreview(source: ImagePreviewSource, signal?: AbortSignal): Promise<ImagePreviewAttachment> {
+    signal?.throwIfAborted()
+    let operation = this.previewInflight.get(source.cacheKey)
+    if (operation?.controller.signal.aborted) { this.previewInflight.delete(source.cacheKey); operation = undefined }
+    if (!operation) {
+      const shared = new SharedRequest<ImagePreviewAttachment>(sharedSignal => this.compression.run(() =>
+        readPreviewImage(this.cacheRoot, this.imagePreviewVersion, source, this.imageLimits, this.previewPolicy, sharedSignal)))
+      operation = shared; this.previewInflight.set(source.cacheKey, shared)
+      void shared.promise.finally(() => {
+        if (this.previewInflight.get(source.cacheKey) === shared) this.previewInflight.delete(source.cacheKey)
+      }).catch(() => {})
+    }
+    return operation.wait(signal)
   }
 
   private requestVersion(

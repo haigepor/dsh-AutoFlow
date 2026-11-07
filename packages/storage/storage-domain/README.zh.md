@@ -57,6 +57,8 @@ domain.table('workspaces').update(id, (r) => ({ ...r, path: newPath }))
 
 调用方拥有句柄的生命周期，并在功能关闭时用 `domain.close()` 释放它（通常作为其自身的 `ctx.effect` 资源释放函数）；插件卸载时，设施会关闭仍处于打开状态的领域。
 
+表声明可通过 `loading: 'manual'` 显式选择手动加载；默认领域仍在打开时加载并验证所有值。[手动加载参考](../../../docs/subsystems/storage.zh.md#manual-table-loading)定义了预载、物理键清单、未加载键错误和仅释放内存缓存的语义。此策略不改变持久描述符或格式。
+
 ### 把领域路由到后端
 
 哪个后端服务哪个领域由领域插件的配置决定——绝非枢纽。`backend` 指定默认路由；`routes` 按领域名覆盖。路由到未注册后端的领域会在打开时以 `backend-not-found` 明确报错。

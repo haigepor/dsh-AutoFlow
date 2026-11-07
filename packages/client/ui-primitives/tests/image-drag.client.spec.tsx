@@ -15,6 +15,19 @@ function fixture(src = '/image.png') {
   return { prepared, actions, open, view, image }
 }
 
+it('displays a bounded preview but prepares the original URL and resource identity for all drag transports', async () => {
+  vi.stubGlobal('PointerEvent', MouseEvent)
+  const f = fixture(), original = '/api/file?path=large.png&load=4', preview = `${original}&preview=1`, resourceAddress = 'dsh-resource://file/session/s/large.png'
+  f.view.rerender(<DraggableImage fileDrag={f.actions} src={preview} originalSrc={original} resourceAddress={resourceAddress} name="large.png" alt="source" />)
+  const image = f.view.getByRole('img')
+  expect(image.getAttribute('src')).toBe(preview)
+  expect(image.hasAttribute('originalSrc')).toBe(false)
+  await act(async () => { fireEvent.pointerDown(image, { button: 0 }) })
+  expect(f.actions.prepare).toHaveBeenCalledWith({ kind: 'url', url: original, resourceAddress, name: 'large.png', mediaType: '' }, expect.any(AbortSignal))
+  fireEvent.dragStart(image, { dataTransfer: {} })
+  expect(f.prepared.start).toHaveBeenCalledOnce()
+})
+
 it('prepares only on intent, releases on leave and reprepares for another drag', async () => {
   const f = fixture()
   expect(f.actions.prepare).not.toHaveBeenCalled()

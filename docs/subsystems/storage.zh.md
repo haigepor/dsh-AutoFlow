@@ -142,6 +142,127 @@ interface Domain<S extends DomainSpec> {
 
 读取是同步的，来自权威的内存态：`KvTable` 暴露 `get`/`entries`/`keys`/`size`（快照迭代器，在排队写入落地期间保持稳定），global 句柄的 `get()` 在第一次 `set` 将 slot 物化到介质之前一直返回 spec 的 `initial`。每次写入——`put`、`delete`、`deleteMany`、`update`、`global.set`——都在同一条逐领域写链上排队，先在后端完成持久化，再更新内存，最后发出 `domain/changed`；后端写入被拒时不会发布领域变更；持久化结果未知时必须重新打开后才能继续使用该快照；若后端报告 `unknown-state`，领域会被隔离，读取与后续写入都会拒绝，直到 `close()` 释放它。`update(key, fn)` 在其写链 slot 上是一次原子的读-改-写（键缺失时拒绝 `missing-key`）；`delete` 一个不存在的键 resolve 为 `false`，不产生写入也不产生事件。`deleteMany(keys)` 在一个写链 slot 内把存在的键作为一次后端批量删除移除，resolve 为移除数量，并为每个被移除的键发一次 `domain/changed`；后端写入被拒时所有记录保持原样，也不发事件；`unknown-state` 拒绝会隔离整个领域。返回的记录就是存储的对象本身，不是副本——请经 `put`/`update` 整体替换，绝不要就地修改。
 
+<a id="manual-table-loading"></a>
+## 手动加载表
+
+表声明中的 `loading: 'manual'` 让打开操作仅保留该表的物理键清单；全局值与其他表仍完整加载。`open` 要求提供方同时具备 `loadSelected` 与 `listKeys`，否则以 `facet-unsupported` 拒绝。默认声明仍加载并验证所有已存值。加载策略不进入持久描述符、记录格式或数据库版本。
+
+`hydrate(keys)` 在领域写入队列中仅读取尚未确认的键，整个批次验证成功后才发布值或确认缺失。不存在的键会变成 `isLoaded(key) === true`，同时 `get(key) === undefined`。无效值以 `invalid-record` 拒绝整个批次，缓存保持原状；手动加载不能与 `invalidRecords: 'backup-and-skip'` 组合，因为预载不写盘。`release(keys)` 仅忘记指定缓存项与缺失确认，不改变已持有对象、物理键清单、持久字节，也不发变更事件。它与写入串行执行，遵循相同的关闭与 `unknown-state` 隔离规则；完整加载表以 `not-manual` 拒绝释放。
+
+`keys` 与 `size` 枚举物理候选，而非已验证记录。预载前读取或修改已存在的物理键会以 `unloaded-key` 拒绝；只要还有未预载的物理候选，`entries()` 就拒绝。这避免把尚未读取的历史值当作不存在并覆盖；新键仍可写入。逐记录单元若须先从旧整文件引导，会在任何写入前以 `legacy-bootstrap-required` 拒绝选择性启动；[JSON 后端行为](../../packages/storage/storage-json/README.zh.md#use-this-package)定义了该引导。
+
+```ts type-equiv
+/**
+ * One table declaration. `K` is a phantom key type (typically a branded
+ * string) carried for compile-time projection only; keys are plain strings on
+ * the medium.
+ */
+interface DomainTableSpec<K extends string = string, V = unknown> {
+  /** Validates every stored record at the durable boundary. */
+  readonly valueSchema: ZodType<V>
+  /** Key-only startup; hydrate values explicitly. In-memory only, incompatible with backup-and-skip. */
+  readonly loading?: 'manual'
+  /** Phantom carrier for the key type; never present at runtime. */
+  readonly __key?: K
+}
+```
+
+```ts type-equiv
+/**
+ * Handle on one declared table. Records are plain immutable data: returned
+ * values are the stored objects themselves (no defensive copies) and must not
+ * be mutated in place — replace via `put`/`update`.
+ */
+interface KvTable<K extends string, V> {
+  /**
+   * Check whether a key's value or absence has been hydrated.
+   * @param key - Record key.
+   * @returns true for a confirmed key or for every key in an eager table.
+   */
+  isLoaded(key: K): boolean
+  /**
+   * Read new keys on the domain write chain; already loaded keys are reused.
+   * All requested values validate before any value or absence is published.
+   * Eager tables do nothing. No durable writes or change events occur.
+   * @param keys - Exact keys to read, including absent keys.
+   * @returns completion after atomic cache publication; invalid values reject invalid-record.
+   */
+  hydrate(keys: readonly K[]): Promise<void>
+  /**
+   * Release explicit keys on the domain write chain without mutating held values.
+   * Physical inventory and durable data remain unchanged; no change event occurs.
+   * Released keys become unconfirmed, including previously confirmed absences.
+   * @param keys - Exact cached keys to release.
+   * @returns completion after cache release; eager tables reject not-manual.
+   */
+  release(keys: readonly K[]): Promise<void>
+  /**
+   * Read one record, synchronously from memory.
+   * @param key - Record key.
+   * @returns the record, or `undefined` when absent. A manual table rejects unloaded-key for an unhydrated physical key.
+   */
+  get(key: K): V | undefined
+
+  /**
+   * Snapshot iterator over `[key, record]` pairs. A snapshot, not a live
+   * view: iteration stays stable while queued writes land.
+   * @returns the pair iterator. A manual table with any unhydrated physical keys rejects unloaded-key.
+   */
+  entries(): IterableIterator<[K, V]>
+
+  /**
+   * Snapshot iterator over keys.
+   * @returns the key iterator; manual tables enumerate physical candidates, including unhydrated or unreadable documents.
+   */
+  keys(): IterableIterator<K>
+
+  /** Current record count; manual tables count physical candidates rather than hydrated values. */
+  readonly size: number
+
+  /**
+   * Insert or overwrite one record durably.
+   * @param key - Record key.
+   * @param value - The full new record (no partial merge).
+   * @returns resolution after durability and event emission; existing unhydrated manual keys reject unloaded-key.
+   */
+  put(key: K, value: V): Promise<void>
+
+  /**
+   * Delete one record durably.
+   * @param key - Record key.
+   * @returns `true` when the record existed, `false` when it was already
+   * absent (no write and no event in that case). Existing unhydrated manual keys reject unloaded-key.
+   */
+  delete(key: K): Promise<boolean>
+
+  /**
+   * Delete several records durably in one write slot.
+   *
+   * The batch is one job on the domain's write chain: it runs at its slot, not
+   * at call time, so an earlier queued write of the same domain is visible to
+   * it and no other write interleaves. Missing keys are ignored. The in-memory
+   * records reach the committed state before any `domain/changed` listener
+   * runs. A backend failure normally rejects with the batch unapplied, leaving
+   * every record in place. A backend that cannot establish or restore the
+   * batch's state rejects with `unknown-state` and quarantines the domain:
+   * synchronous reads and every later write reject with that error, while
+   * `close()` still works.
+   * @param keys - Record keys; duplicates are harmless.
+   * @returns the number of keys that existed and were removed; existing unhydrated manual keys reject unloaded-key.
+   */
+  deleteMany(keys: readonly K[]): Promise<number>
+
+  /**
+   * Atomic read-modify-write on the domain's write chain: `fn` sees the
+   * value current at its queue slot, so concurrent updates never interleave.
+   * @param key - Record key; a missing key rejects with `missing-key`.
+   * @param fn - Synchronous pure transform from current to next record.
+   * @returns the stored next record; existing unhydrated manual keys reject unloaded-key.
+   */
+  update(key: K, fn: (current: V) => V): Promise<V>
+}
+```
+
 ## 领域 facility：`ctx.storageDomain`
 
 `DomainFacility`（[签名](#ctxstoragedomain--domainfacility)）在经过路由的后端之上打开已声明的领域。路由是领域插件的配置，绝不属于枢纽：`backend` 指定必填的默认路由，`routes` 按领域名逐个覆盖。`open(spec)` 按严格顺序执行，每一步失败都使整个调用失败：拒绝已打开或仍在关闭中的名称（`already-open`），解析路由（`backend-not-found`），要求后端具备 `kv` facet（`facet-unsupported`），打开 unit（后端的 `version-mismatch`/`malformed-medium` 原样透传），并按 spec 的 zod schema 校验每条已存储记录和 global（`invalid-record`，附带出错的表与键）。调用方拥有返回的句柄，并用 `Domain.close()` 释放它；插件卸载时仍处于打开状态的领域由 facility 负责关闭，已关闭领域的名称只有在拆除完全结束后才释放出来供重新打开。`get(name)` 是无类型的诊断查找，命中的是每个类型化句柄背后包内私有的 `DomainImpl` 运行时；`closeAll()` 是卸载路径。
@@ -216,11 +337,13 @@ The mounted domain facility. Opens declared domains over routed backends; one fa
  * (`backend-not-found` passes through from the hub); require its `kv` facet
  * (`facet-unsupported`); open the unit projected from the spec (backend
  * `version-mismatch`/`malformed-medium` pass through); load and validate
- * every stored record against the spec's zod schemas (`invalid-record`
+ * eager records and the global against the spec's zod schemas (`invalid-record`
  * with the offending table and key — unless the spec declares
  * `invalidRecords: 'backup-and-skip'` and the unit can move documents aside, in
  * which case the failing record is backed up, logged, and skipped);
- * construct the domain.
+ * construct the domain. Manual tables require selective provider reads
+ * (`facet-unsupported` when unavailable) and start with physical keys only;
+ * their values validate during explicit hydration.
  *
  * Lifecycle: the CALLER owns the returned handle and closes it via
  * `Domain.close()` (typically as its own `ctx.effect` disposer) — the

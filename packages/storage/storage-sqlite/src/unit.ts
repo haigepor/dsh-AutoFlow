@@ -18,6 +18,8 @@ interface TableStatements {
   upsert: StatementSync
   remove: StatementSync
   selectAll: StatementSync
+  selectOne: StatementSync
+  selectKeys: StatementSync
 }
 
 /**
@@ -59,6 +61,8 @@ export class SqliteKvUnit implements KvUnit {
         ),
         remove: db.prepare(`DELETE FROM "${physical}" WHERE key = ?`),
         selectAll: db.prepare(`SELECT key, value FROM "${physical}"`),
+        selectOne: db.prepare(`SELECT key, value FROM "${physical}" WHERE key = ?`),
+        selectKeys: db.prepare(`SELECT key FROM "${physical}"`),
       })
     }
     this.globalUpsert = descriptor.hasGlobal
@@ -90,6 +94,27 @@ export class SqliteKvUnit implements KvUnit {
       }
       return { tables, global }
     })
+  }
+
+  loadSelected(tables: Readonly<Record<string, 'all' | readonly string[]>>): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }> {
+    return this.settle(() => {
+      for (const table of Object.keys(tables)) this.statementsFor(table)
+      const selected: Record<string, Record<string, unknown>> = {}
+      for (const [table, keys] of Object.entries(tables)) {
+        const statements = this.statementsFor(table)
+        const rows = keys === 'all' ? statements.selectAll.all() : [...new Set(keys)].flatMap((key) => {
+          const row = statements.selectOne.get(key)
+          return row === undefined ? [] : [row]
+        })
+        selected[table] = Object.fromEntries((rows as Array<{ key: string; value: string }>).map(row => [row.key, this.parseValue(row.value, `table '${table}' key '${row.key}'`)]))
+      }
+      const row = this.globalSelect?.get(this.descriptor.name) as { value: string } | undefined
+      return { tables: selected, global: row === undefined ? null : this.parseValue(row.value, 'global slot') }
+    })
+  }
+
+  listKeys(table: string): Promise<readonly string[]> {
+    return this.settle(() => (this.statementsFor(table).selectKeys.all() as Array<{ key: string }>).map(row => row.key))
   }
 
   /** Parse one stored value column, mapping bad JSON to `malformed-medium`. */

@@ -83,7 +83,10 @@ describe('MarkdownText local-path images', () => {
     const view = render(<MarkdownText text={LOCAL_IMAGE} streaming pathImages={{ resolve: () => src }} />)
     expect(view.container.querySelector('img')).toBeNull()
     view.rerender(<MarkdownText text={LOCAL_IMAGE} pathImages={{ resolve: () => src }} />)
-    expect(resolverSrc(view.getByRole('img'))).toBe(src)
+    const thumbnail = new URL(view.getByRole('img').getAttribute('src')!)
+    expect(thumbnail.searchParams.get('preview')).toBe('1')
+    thumbnail.searchParams.delete('preview'); thumbnail.searchParams.delete('load')
+    expect(thumbnail.href).toBe(src)
     const detail = 'dsh-app://app/api/plugin-market/detail-file?document=d&path=a.png'
     const bundle = 'dsh-app://app/api/plugin-manager/detail-file?bundle=b&document=README.md&path=a.png'
     for (const route of [detail, bundle]) {
@@ -118,6 +121,25 @@ describe('MarkdownText local-path images', () => {
     const pathImages: MarkdownPathImages = { resolve: () => 'https://cdn.example.com/b.png' }
     const { container } = render(<MarkdownText text={remote} pathImages={pathImages} />)
     expect(container.querySelector('img')?.getAttribute('src')).toBe('https://example.com/a.png')
+  })
+
+  it('uses same-origin file previews on every mount and keeps external file-shaped URLs unchanged', () => {
+    const local = new URL('api/file?path=%2Fwork%2Flarge.png', document.baseURI).href
+    const pathImages = { resolve: () => local }
+    const first = render(<MarkdownText text={LOCAL_IMAGE} pathImages={pathImages} />)
+    const src = first.getByRole('img').getAttribute('src')!
+    expect(new URL(src).searchParams.get('preview')).toBe('1')
+    first.rerender(<MarkdownText text={LOCAL_IMAGE} pathImages={pathImages} />)
+    expect(first.getByRole('img').getAttribute('src')).toBe(src)
+    first.unmount()
+    const retry = render(<MarkdownText text={LOCAL_IMAGE} pathImages={pathImages} />)
+    const next = new URL(retry.getByRole('img').getAttribute('src')!)
+    expect(next.searchParams.get('preview')).toBe('1')
+    expect(next.searchParams.get('load')).not.toBe(new URL(src).searchParams.get('load'))
+    retry.unmount()
+    const remote = 'https://remote.example/api/file?path=photo.png'
+    const external = render(<MarkdownText text={`![Remote](${remote})`} />)
+    expect(external.getByRole('img').getAttribute('src')).toBe(remote)
   })
 
   it('rewrites reference-style local image destinations', () => {

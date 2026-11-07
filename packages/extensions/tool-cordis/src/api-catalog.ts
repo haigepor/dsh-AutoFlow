@@ -476,6 +476,17 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [],
       },
       {
+        signature: 'readonly imagePreviewVersion: string | undefined = undefined',
+        description: 'Version of the provider\'s static display encoding and bounds; undefined means unsupported.',
+        parameters: [],
+      },
+      {
+        signature: 'readImagePreview(source: ImagePreviewSource, signal?: AbortSignal): Promise<ImagePreviewAttachment>',
+        description: 'Read cached static preview pixels without changing the source or publishing a prompt attachment.',
+        parameters: [{ name: 'source', description: 'Authorized immutable version and deferred bounded read; every caller authorizes before calling.' }, { name: 'signal', description: 'Independent caller cancellation; shared native work continues for other callers.' }],
+        returns: 'Display-sized verified pixels, or an explicit unsupported/validation failure without original-byte fallback.',
+      },
+      {
         signature: 'abstract validateImage(input: SaveImageAttachment): Promise<void>',
         description: 'Validate one image without persisting it. Batch callers validate every member before saving any member.',
         parameters: [{ name: 'input', description: 'encoded bytes, declared media type, and optional display name.' }],
@@ -2873,6 +2884,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the live Agent or the stable Session-domain failure.',
       },
       {
+        signature: 'recordTask(sessionId: SessionId, snapshot: SessionTaskSnapshot): Promise<SessionTaskRecord>',
+        description: 'Record a Host-owned background task without submitting inbox input or starting a model turn.',
+        parameters: [{ name: 'sessionId', description: 'Session whose ownership the producer has already checked.' }, { name: 'snapshot', description: 'Complete, independently revisioned display checkpoint.' }],
+        returns: 'Current checkpoint after the Session durability barrier.',
+      },
+      {
         signature: '@Remote(\'list\') async list(_request: SessionListRequest, signal: AbortSignal): Promise<SessionListValue>',
         description: 'Read all visible Session rows without resuming an Agent.',
         parameters: [{ name: '_request', description: 'reserved empty list request.' }, { name: 'signal', description: 'cancellation for persistence reads and summary generation.' }],
@@ -4003,7 +4020,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     methods: [
       {
         signature: 'async open<S extends DomainSpec>(spec: S): Promise<Domain<S>>',
-        description: 'Open one declared domain. Steps, each failing the whole call: reject a name that is already open (`already-open`); resolve the backend route (`backend-not-found` passes through from the hub); require its `kv` facet (`facet-unsupported`); open the unit projected from the spec (backend `version-mismatch`/`malformed-medium` pass through); load and validate every stored record against the spec\'s zod schemas (`invalid-record` with the offending table and key — unless the spec declares `invalidRecords: \'backup-and-skip\'` and the unit can move documents aside, in which case the failing record is backed up, logged, and skipped); construct the domain.\n\nLifecycle: the CALLER owns the returned handle and closes it via `Domain.close()` (typically as its own `ctx.effect` disposer) — the facility does not tie the domain to any consumer fiber. Domains still open when the facility unmounts are closed by the plugin disposer.',
+        description: 'Open one declared domain. Steps, each failing the whole call: reject a name that is already open (`already-open`); resolve the backend route (`backend-not-found` passes through from the hub); require its `kv` facet (`facet-unsupported`); open the unit projected from the spec (backend `version-mismatch`/`malformed-medium` pass through); load and validate eager records and the global against the spec\'s zod schemas (`invalid-record` with the offending table and key — unless the spec declares `invalidRecords: \'backup-and-skip\'` and the unit can move documents aside, in which case the failing record is backed up, logged, and skipped); construct the domain. Manual tables require selective provider reads (`facet-unsupported` when unavailable) and start with physical keys only; their values validate during explicit hydration.\n\nLifecycle: the CALLER owns the returned handle and closes it via `Domain.close()` (typically as its own `ctx.effect` disposer) — the facility does not tie the domain to any consumer fiber. Domains still open when the facility unmounts are closed by the plugin disposer.',
         parameters: [{ name: 'spec', description: 'The domain declaration, typically from `defineDomain`.' }],
         returns: 'the opened domain handle, typed by the spec.',
       },
@@ -6710,7 +6727,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'DomainImpl',
-    declaration: 'export class DomainImpl {\n    readonly name: string;\n    constructor(private readonly ctx: Context, spec: DomainSpec, private readonly unit: KvUnit, records: Map<string, Map<string, unknown>>, globalValue: unknown, private readonly onClosed: () => void);\n    get global(): DomainGlobal<unknown>;\n    table(name: string): KvTable<string, unknown>;\n    close(): Promise<void>;\n}',
+    declaration: 'export class DomainImpl {\n    readonly name: string;\n    constructor(private readonly ctx: Context, spec: DomainSpec, private readonly unit: KvUnit, records: Map<string, Map<string, unknown>>, globalValue: unknown, private readonly onClosed: () => void, inventory: Map<string, Set<string>> = new Map());\n    get global(): DomainGlobal<unknown>;\n    table(name: string): KvTable<string, unknown>;\n    close(): Promise<void>;\n}',
   },
   {
     name: 'DomainSpec',
@@ -6718,7 +6735,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'DomainTableSpec',
-    declaration: 'export interface DomainTableSpec<K extends string = string, V = unknown> {\n    readonly valueSchema: ZodType<V>;\n    readonly __key?: K;\n}',
+    declaration: 'export interface DomainTableSpec<K extends string = string, V = unknown> {\n    readonly valueSchema: ZodType<V>;\n    readonly loading?: \'manual\';\n    readonly __key?: K;\n}',
   },
   {
     name: 'DshBundleExample',
@@ -7161,6 +7178,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ImageMediaType = \'image/png\' | \'image/jpeg\' | \'image/webp\' | \'image/gif\';',
   },
   {
+    name: 'ImagePreviewAttachment',
+    declaration: 'export interface ImagePreviewAttachment {\n    data: Uint8Array;\n    mediaType: ImageMediaType;\n    width: number;\n    height: number;\n    bytes: number;\n}',
+  },
+  {
+    name: 'ImagePreviewSource',
+    declaration: 'export interface ImagePreviewSource {\n    cacheKey: string;\n    load: (signal: AbortSignal) => Promise<SaveImageAttachment>;\n}',
+  },
+  {
     name: 'ImageRequestTarget',
     declaration: 'export interface ImageRequestTarget {\n    width: number;\n    height: number;\n    maxBytes: number;\n}',
   },
@@ -7386,11 +7411,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'KvTable',
-    declaration: 'export interface KvTable<K extends string, V> {\n    get(key: K): V | undefined;\n    entries(): IterableIterator<[\n        K,\n        V\n    ]>;\n    keys(): IterableIterator<K>;\n    readonly size: number;\n    put(key: K, value: V): Promise<void>;\n    delete(key: K): Promise<boolean>;\n    deleteMany(keys: readonly K[]): Promise<number>;\n    update(key: K, fn: (current: V) => V): Promise<V>;\n}',
+    declaration: 'export interface KvTable<K extends string, V> {\n    isLoaded(key: K): boolean;\n    hydrate(keys: readonly K[]): Promise<void>;\n    release(keys: readonly K[]): Promise<void>;\n    get(key: K): V | undefined;\n    entries(): IterableIterator<[\n        K,\n        V\n    ]>;\n    keys(): IterableIterator<K>;\n    readonly size: number;\n    put(key: K, value: V): Promise<void>;\n    delete(key: K): Promise<boolean>;\n    deleteMany(keys: readonly K[]): Promise<number>;\n    update(key: K, fn: (current: V) => V): Promise<V>;\n}',
   },
   {
     name: 'KvUnit',
-    declaration: 'export interface KvUnit {\n    loadAll(): Promise<{\n        tables: Record<string, Record<string, unknown>>;\n        global: unknown;\n    }>;\n    putRecord(table: string, key: string, value: unknown): Promise<void>;\n    deleteRecord(table: string, key: string): Promise<void>;\n    deleteRecords(table: string, keys: readonly string[]): Promise<void>;\n    backupRecord?(table: string, key: string): Promise<string>;\n    setGlobal(value: unknown): Promise<void>;\n    close(): Promise<void>;\n}',
+    declaration: 'export interface KvUnit {\n    loadAll(): Promise<{\n        tables: Record<string, Record<string, unknown>>;\n        global: unknown;\n    }>;\n    loadSelected?(tables: Readonly<Record<string, \'all\' | readonly string[]>>): Promise<{\n        tables: Record<string, Record<string, unknown>>;\n        global: unknown;\n    }>;\n    listKeys?(table: string): Promise<readonly string[]>;\n    putRecord(table: string, key: string, value: unknown): Promise<void>;\n    deleteRecord(table: string, key: string): Promise<void>;\n    deleteRecords(table: string, keys: readonly string[]): Promise<void>;\n    backupRecord?(table: string, key: string): Promise<string>;\n    setGlobal(value: unknown): Promise<void>;\n    close(): Promise<void>;\n}',
   },
   {
     name: 'KvUnitDescriptor',
@@ -9315,6 +9340,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionSurfaceSnapshot',
     declaration: 'export interface SessionSurfaceSnapshot {\n    session: SessionHeader;\n    inheritedEventCount: SessionLogOffset;\n    capturedThroughSeq: OptionalSessionSeq;\n    events: SurfaceEvent[];\n}',
+  },
+  {
+    name: 'SessionTaskEvent',
+    declaration: 'export interface SessionTaskEvent extends SessionTaskSnapshot {\n    readonly owner: SessionId;\n}',
+  },
+  {
+    name: 'SessionTaskId',
+    declaration: 'export type SessionTaskId = Branded<\'SessionTaskId\'>;',
+  },
+  {
+    name: 'SessionTaskRecord',
+    declaration: 'export interface SessionTaskRecord extends SessionTaskEvent {\n    readonly eventSeq: SessionSeq;\n}',
+  },
+  {
+    name: 'SessionTaskSnapshot',
+    declaration: 'export interface SessionTaskSnapshot {\n    readonly schemaVersion: 1;\n    readonly provider: string;\n    readonly taskId: SessionTaskId;\n    readonly sourceId: SessionTaskSourceId;\n    readonly revision: number;\n    readonly title: string;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n    readonly data: JsonValue;\n}',
+  },
+  {
+    name: 'SessionTaskSourceId',
+    declaration: 'export type SessionTaskSourceId = Branded<\'SessionTaskSourceId\'>;',
   },
   {
     name: 'SessionTelemetryRecord',

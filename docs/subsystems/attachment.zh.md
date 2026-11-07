@@ -131,6 +131,29 @@ interface StoredImageAttachment {
 }
 ```
 
+静态显示预览使用已授权的不可变来源版本及延迟字节读取函数。派生像素不替换原文件或持久化提示词附件；`imagePreviewVersion` 标识提供方的显示编码与限额。
+
+```ts type-equiv
+/** Authorized immutable source whose bytes are loaded only after a native processing slot is available. */
+interface ImagePreviewSource {
+  /** Caller-owned identity including the source version; callers authorize every cache read separately. */
+  cacheKey: string
+  /** Read the same immutable source version with the shared operation's cancellation signal. */
+  load: (signal: AbortSignal) => Promise<SaveImageAttachment>
+}
+```
+
+```ts type-equiv
+/** Read-only static display pixels; this reference never replaces an original image or a model attachment. */
+interface ImagePreviewAttachment {
+  data: Uint8Array
+  mediaType: ImageMediaType
+  width: number
+  height: number
+  bytes: number
+}
+```
+
 ```ts type-equiv
 /** Deterministic request-image target selected by one exact model route for one attachment. */
 interface ImageRequestTarget {
@@ -190,6 +213,14 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 Immutable binary attachment service. Implementations validate bytes before publishing a reference.
 
 ```ts cordis-catalog
+/**
+ * Read cached static preview pixels without changing the source or publishing a prompt attachment.
+ * @param source Authorized immutable version and deferred bounded read; every caller authorizes before calling.
+ * @param signal Independent caller cancellation; shared native work continues for other callers.
+ * @returns Display-sized verified pixels, or an explicit unsupported/validation failure without original-byte fallback.
+ */
+readImagePreview(source: ImagePreviewSource, signal?: AbortSignal): Promise<ImagePreviewAttachment>
+
 /**
  * Validate one image without persisting it.
  * Batch callers validate every member before saving any member.

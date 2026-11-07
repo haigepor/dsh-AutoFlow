@@ -62,6 +62,8 @@ A synchronous serialization failure restores the open `single` unit's previous m
 
 -----
 
+Selective reads enumerate keys without opening record bodies. In `per-record`, `loadSelected` reads only requested safe keys under the existing concurrency limit. In `single`, the backend necessarily retains its full parsed snapshot for lossless writes, while the domain receives only selected values. A legacy whole-unit file without a materialized tree rejects selective reads with `legacy-bootstrap-required` before writing anything; the existing eager `loadAll` bootstrap must run first and preserves the source file, declared records, and non-null global. Bootstrap is not atomic across the whole tree.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

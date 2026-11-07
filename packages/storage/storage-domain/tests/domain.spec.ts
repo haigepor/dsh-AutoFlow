@@ -26,6 +26,11 @@ const bareSpec = defineDomain({
   tables: { rows: domainTable<string, Item>(itemSchema) },
 })
 
+const manualSpec = defineDomain({
+  ...spec,
+  tables: { items: { ...domainTable<string, Item>(itemSchema), loading: 'manual' as const } },
+})
+
 /** Boot a context with the storage hub, one KV backend, and a facility over it. */
 async function harness(options?: { pool?: MemoryMediaPool; config?: Partial<Config>; backend?: StorageBackend }) {
   const ctx = new Context()
@@ -38,6 +43,97 @@ async function harness(options?: { pool?: MemoryMediaPool; config?: Partial<Conf
   ctx.on('domain/changed', (change) => { changes.push(change) })
   return { ctx, backend, facility, changes }
 }
+
+describe('manual table hydration', () => {
+  async function seeded() {
+    const pool = new MemoryMediaPool()
+    const seed = await harness({ pool })
+    const domain = await seed.facility.open(spec)
+    await domain.table('items').put('a', { label: 'first', count: 1 })
+    await domain.table('items').put('b', { label: 'second', count: 2 })
+    await domain.close()
+    const opened = await harness({ pool })
+    return { ...opened, pool, domain: await opened.facility.open(manualSpec) }
+  }
+
+  it('changes memory policy without changing the durable descriptor', () => {
+    expect(descriptorOf(manualSpec)).toEqual(descriptorOf(spec))
+    expect(() => defineDomain({ ...manualSpec, invalidRecords: 'backup-and-skip' })).toThrow(/manual loading cannot use backup-and-skip/)
+  })
+
+  it('enumerates physical keys, confirms missing keys, and releases only cached values', async () => {
+    const { domain, changes, pool } = await seeded()
+    const table = domain.table('items')
+    expect([...table.keys()]).toEqual(['a', 'b'])
+    expect(table.size).toBe(2)
+    expect(table.isLoaded('a')).toBe(false)
+    expect(() => table.get('a')).toThrow(expect.objectContaining({ code: 'unloaded-key' }))
+    expect(() => table.entries()).toThrow(expect.objectContaining({ code: 'unloaded-key' }))
+    expect(table.get('missing')).toBeUndefined()
+    expect(table.isLoaded('missing')).toBe(false)
+    await table.hydrate(['a', 'missing', 'a'])
+    expect(table.isLoaded('missing')).toBe(true)
+    const held = table.get('a')
+    expect(held).toEqual({ label: 'first', count: 1 })
+    await table.release(['a', 'missing'])
+    expect(table.isLoaded('a')).toBe(false)
+    expect(table.isLoaded('missing')).toBe(false)
+    expect(held).toEqual({ label: 'first', count: 1 })
+    expect(pool.media.get('demo')!.tables.get('items')!.size).toBe(2)
+    expect(changes).toEqual([])
+    await table.hydrate([...table.keys()])
+    expect([...table.entries()]).toEqual([['a', held], ['b', { label: 'second', count: 2 }]])
+    await domain.close()
+    expect(() => table.isLoaded('a')).toThrow(/closed/)
+    await expect(table.hydrate(['a'])).rejects.toMatchObject({ code: 'closed' })
+    await expect(table.release(['a'])).rejects.toMatchObject({ code: 'closed' })
+  })
+
+  it('validates a hydration batch before publishing any values or confirmed absences', async () => {
+    const { domain, pool, changes } = await seeded()
+    const medium = pool.media.get('demo')!.tables.get('items')!
+    medium.set('b', { label: 'invalid', count: 'bad' })
+    const table = domain.table('items')
+    await expect(table.hydrate(['a', 'missing', 'b'])).rejects.toMatchObject({ code: 'invalid-record', detail: { table: 'items', key: 'b' } })
+    expect(table.isLoaded('a')).toBe(false)
+    expect(table.isLoaded('missing')).toBe(false)
+    expect(table.isLoaded('b')).toBe(false)
+    medium.set('b', { label: 'repaired', count: 3 })
+    await table.hydrate(['a', 'b'])
+    medium.set('a', { label: 'changed on medium', count: 9 })
+    await table.hydrate(['a'])
+    expect(table.get('a')).toEqual({ label: 'first', count: 1 })
+    expect(changes).toEqual([])
+    await domain.close()
+  })
+
+  it('refuses writes to unseen existing keys and serializes hydration, writes and release', async () => {
+    const { domain, changes, pool } = await seeded()
+    const table = domain.table('items')
+    await expect(table.put('a', { label: 'overwrite', count: 9 })).rejects.toMatchObject({ code: 'unloaded-key' })
+    await expect(table.delete('a')).rejects.toMatchObject({ code: 'unloaded-key' })
+    await expect(table.deleteMany(['a', 'b'])).rejects.toMatchObject({ code: 'unloaded-key' })
+    await expect(table.update('a', value => value)).rejects.toMatchObject({ code: 'unloaded-key' })
+    expect(changes).toEqual([])
+    const loading = table.hydrate(['a'])
+    const updating = table.update('a', value => ({ ...value, count: value.count + 1 }))
+    const releasing = table.release(['a'])
+    const adding = table.put('new', { label: 'staged', count: 4 })
+    const closing = domain.close()
+    await Promise.all([loading, updating, releasing, adding, closing])
+    expect(pool.media.get('demo')!.tables.get('items')!.get('a')).toEqual({ label: 'first', count: 2 })
+    expect(changes.map(change => change.key)).toEqual(['a', 'new'])
+  })
+
+  it('keeps eager values loaded and rejects release without changing them', async () => {
+    const { facility } = await harness()
+    const domain = await facility.open(spec)
+    expect(domain.table('items').isLoaded('absent')).toBe(true)
+    await domain.table('items').hydrate(['absent'])
+    await expect(domain.table('items').release(['absent'])).rejects.toMatchObject({ code: 'not-manual' })
+    await domain.close()
+  })
+})
 
 describe('defineDomain', () => {
   it('rejects invalid names and versions loudly', () => {

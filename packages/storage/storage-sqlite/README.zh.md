@@ -60,6 +60,8 @@ kind: "package-reference"
 
 -----
 
+选择性读取先仅枚举键，再通过绑定参数按键查询，然后才解码 JSON；未选中的行不会被解析或复制到领域中。此行为仅影响内存加载，不改变数据库布局版本或记录格式。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

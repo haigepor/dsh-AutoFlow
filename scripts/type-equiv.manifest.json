@@ -1888,6 +1888,16 @@
     },
     {
       "doc": "docs/subsystems/storage.md",
+      "symbol": "DomainTableSpec",
+      "source": "packages/storage/storage-domain/src/spec.ts"
+    },
+    {
+      "doc": "docs/subsystems/storage.md",
+      "symbol": "KvTable",
+      "source": "packages/storage/storage-domain/src/domain.ts"
+    },
+    {
+      "doc": "docs/subsystems/storage.md",
       "symbol": "DomainSpec",
       "source": "packages/storage/storage-domain/src/spec.ts"
     },
@@ -2811,6 +2821,41 @@
       "doc": "docs/subsystems/forge.md",
       "symbol": "ForgeReviewResult",
       "source": "packages/experimental/forge/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/attachment.md",
+      "symbol": "ImagePreviewSource",
+      "source": "packages/attachment/attachment/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/attachment.md",
+      "symbol": "ImagePreviewAttachment",
+      "source": "packages/attachment/attachment/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/session.md",
+      "symbol": "SessionTaskId",
+      "source": "packages/api/session-controller/src/task-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/session.md",
+      "symbol": "SessionTaskSourceId",
+      "source": "packages/api/session-controller/src/task-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/session.md",
+      "symbol": "SessionTaskSnapshot",
+      "source": "packages/api/session-controller/src/task-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/session.md",
+      "symbol": "SessionTaskEvent",
+      "source": "packages/api/session-controller/src/task-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/session.md",
+      "symbol": "SessionTaskRecord",
+      "source": "packages/api/session-controller/src/task-types.ts"
     }
   ]
 }

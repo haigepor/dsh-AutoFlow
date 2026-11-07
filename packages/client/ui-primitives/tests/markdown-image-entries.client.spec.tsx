@@ -2,11 +2,12 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { fileMediaUrl } from '@deepseek-ai/dsh-util-workspace-path'
-import { MarkdownDelegateProvider } from '../src/markdown/MarkdownDelegate.tsx'
+import { MarkdownDelegateProvider, type MarkdownMenuTarget } from '../src/markdown/MarkdownDelegate.tsx'
 import { MarkdownText } from './markdown-test-components.tsx'
 import { parseGfm, parseGfmWithMath } from '../src/markdown/parse.ts'
+import type { FileDragActions } from '../src/file-drag-actions.ts'
 
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 const fileDrag = { prepare: vi.fn(async () => ({ start: () => true, release: () => {} })), reportFailure: vi.fn() }
 const labels = { dragFailed: 'Image drag failed', open: 'View full image', dialog: 'Image preview', close: 'Close preview', loading: 'Loading image', failed: 'Image unavailable' }
 const fileImages = { fileDrag, resolve: (path: string) => `https://example.com/api/file?path=${encodeURIComponent('/workspace/' + path)}`, labels }
@@ -18,7 +19,7 @@ function mount(text: string, streaming = false) {
   return { ...view, openFile }
 }
 
-it('loads Desktop inline and hover previews through the file route after streaming settles', () => {
+it('loads Desktop inline and hover previews through the file route after streaming settles', async () => {
   vi.useFakeTimers()
   const path = '/work/测试 图片#100%.png'
   const src = fileMediaUrl('dsh-app://app/', path)!
@@ -32,22 +33,77 @@ it('loads Desktop inline and hover previews through the file route after streami
   expect(view.container.querySelector('img')).toBeNull()
   view.rerender(content(false))
   const inline = screen.getByRole('img').getAttribute('src')
-  expect(inline?.replace(/&load=\d+$/u, '')).toBe(src)
+  const inlineUrl = new URL(inline!)
+  expect(inlineUrl.searchParams.get('preview')).toBe('1')
+  expect(inlineUrl.searchParams.get('path')).toBe(path)
   const trigger = screen.getByRole('button', { name: 'View full image: 图片' })
   trigger.focus()
   fireEvent.click(trigger)
-  expect(screen.getByRole('dialog').querySelector('img')?.getAttribute('src')).toBe(inline)
+  const originalUrl = new URL(screen.getByRole('dialog').querySelector('img')!.getAttribute('src')!)
+  expect(originalUrl.searchParams.has('preview')).toBe(false)
+  expect(originalUrl.searchParams.get('path')).toBe(path)
+  expect(originalUrl.searchParams.get('load')).toBe(inlineUrl.searchParams.get('load'))
   fireEvent.keyDown(window, { key: 'Escape' })
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(document.activeElement).toBe(trigger)
   const link = screen.getByRole('button', { name: '打开图片' })
   fireEvent.pointerEnter(link.parentElement!)
   act(() => { vi.advanceTimersByTime(500) })
-  expect(screen.getByAltText(path).getAttribute('src')?.replace(/&load=\d+$/u, '')).toBe(src)
+  const hoverUrl = new URL(screen.getByAltText(path).getAttribute('src')!)
+  expect(hoverUrl.searchParams.get('preview')).toBe('1')
+  expect(hoverUrl.searchParams.get('path')).toBe(new URL(src).searchParams.get('path'))
+  await expect(JSON.stringify({ inlineVariant: inlineUrl.searchParams.get('preview'), hoverVariant: hoverUrl.searchParams.get('preview'), originalVariant: originalUrl.searchParams.get('preview'), originalPath: originalUrl.searchParams.get('path'), sameLoadForOriginal: originalUrl.searchParams.get('load') === inlineUrl.searchParams.get('load') }, null, 2) + '\n')
+    .toMatchFileSnapshot('./fixtures/markdown-local-preview.expected.json')
   fireEvent.error(screen.getByAltText(path))
   expect(screen.getByText(labels.failed)).toBeTruthy()
   fireEvent.click(link)
   expect(openFile).toHaveBeenCalledWith(path, undefined)
+})
+
+it('keeps original lightbox, menu and drag identity when the local thumbnail cannot be decoded', async () => {
+  vi.stubGlobal('PointerEvent', MouseEvent)
+  const path = '/work/high-resolution.tiff', original = fileMediaUrl(document.baseURI, path)!
+  const address = 'dsh-resource://file/session/s/high-resolution.tiff'
+  const menu = vi.fn(), getTriggerProps = (target: MarkdownMenuTarget) => ({ onContextMenu: () => { menu(target) } })
+  const prepare = vi.fn<FileDragActions['prepare']>(async () => ({ start: () => true, release: () => {} }))
+  const images = { ...fileImages, resolve: () => original, resourceAddress: () => address, fileDrag: { prepare, reportFailure: vi.fn() } }
+  const view = render(<MarkdownDelegateProvider fileImages={images} getTriggerProps={getTriggerProps}>
+    <MarkdownText text={`![High resolution](${path})`} />
+  </MarkdownDelegateProvider>)
+  const image = screen.getByRole('img'), thumbnail = new URL(image.getAttribute('src')!)
+  expect(thumbnail.searchParams.get('preview')).toBe('1')
+  await act(async () => { fireEvent.pointerDown(image, { button: 0 }) })
+  expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ kind: 'url', resourceAddress: address }), expect.any(AbortSignal))
+  const dragged = prepare.mock.calls[0]![0]
+  if (dragged.kind !== 'url') throw new Error('Expected an original URL drag source')
+  expect(dragged.url).not.toContain('preview=')
+  expect(new URL(dragged.url).searchParams.get('load')).toBe(thumbnail.searchParams.get('load'))
+  const trigger = screen.getByRole('button', { name: 'View full image: High resolution' })
+  fireEvent.contextMenu(trigger)
+  expect(menu).toHaveBeenLastCalledWith({ kind: 'image', url: dragged.url, path })
+  fireEvent.error(image)
+  expect(screen.queryByRole('img')).toBeNull()
+  expect(screen.getByText('Image unavailable · High resolution')).toBeTruthy()
+  fireEvent.contextMenu(trigger)
+  expect(menu).toHaveBeenLastCalledWith({ kind: 'image', url: dragged.url, path })
+  fireEvent.click(trigger)
+  expect(screen.getByRole('dialog').querySelector('img')?.getAttribute('src')).toBe(dragged.url)
+  view.unmount()
+})
+
+it.each(['svg', 'gif'])('retains explicit original activation after a %s preview fails without automatically loading the original', (extension) => {
+  const path = `/work/source.${extension}`, openFile = vi.fn()
+  render(<MarkdownDelegateProvider fileImages={{ ...fileImages, resolve: value => fileMediaUrl('dsh-app://app/', value) }} openFile={openFile}>
+    <MarkdownText text={`![Source](${path})\n\n[Open original](${path})`} />
+  </MarkdownDelegateProvider>)
+  const image = screen.getByRole('img')
+  expect(new URL(image.getAttribute('src')!).searchParams.get('preview')).toBe('1')
+  fireEvent.error(image)
+  expect(document.querySelector('img')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Open original' }))
+  expect(openFile).toHaveBeenCalledWith(path, undefined)
+  fireEvent.click(screen.getByRole('button', { name: 'View full image: Source' }))
+  expect(new URL(screen.getByRole('dialog').querySelector('img')!.getAttribute('src')!).searchParams.has('preview')).toBe(false)
 })
 
 it('opens inline images in the shared lightbox, restores focus, and never opens the sidebar', () => {

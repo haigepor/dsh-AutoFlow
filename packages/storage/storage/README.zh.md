@@ -59,6 +59,8 @@ kind: "package-reference"
 
 -----
 
+提供方可通过 `loadSelected` 提供选择性读取，通过 `listKeys` 提供仅键清单；领域形式的[手动加载表](../../../docs/subsystems/storage.zh.md#manual-table-loading)要求两者同时可用。这些方法不增加描述符字段，也不改变默认完整读取。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

@@ -30,6 +30,19 @@ runKvBackendContract('json', async () => {
 describe('json backend specifics', () => {
   const descriptor = { name: 'shape', version: 1, tables: ['t'], hasGlobal: true }
 
+  it('preserves unselected single-file records when a selected record is replaced', async () => {
+    const root = await freshRoot()
+    const backend = new JsonStorageBackend(root)
+    const unit = await backend.kv.open(descriptor)
+    onTestFinished(() => backend.close())
+    await unit.putRecord('t', 'history', { keep: 'unchanged' })
+    await unit.putRecord('t', 'current', { n: 1 })
+    expect(await unit.listKeys!('t')).toEqual(['history', 'current'])
+    expect((await unit.loadSelected!({ t: ['current', 'absent'] })).tables['t']).toEqual({ current: { n: 1 } })
+    await unit.putRecord('t', 'current', { n: 2 })
+    expect((await unit.loadAll()).tables['t']).toEqual({ history: { keep: 'unchanged' }, current: { n: 2 } })
+  })
+
   it('publishes a human-readable pretty-printed file', async () => {
     const root = await freshRoot()
     const backend = new JsonStorageBackend(root)

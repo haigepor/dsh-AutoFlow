@@ -1,4 +1,5 @@
 /** Browser-safe request, result, and lifecycle vocabulary for the Session Remote service. */
+export type { SessionTaskId, SessionTaskSourceId, SessionTaskSnapshot, SessionTaskEvent, SessionTaskRecord, SessionTaskPublisher } from './task-types.ts'
 
 import type {} from '@deepseek-ai/dsh-agent/types'
 import type { NativeFileApplication } from '@deepseek-ai/dsh-native-command/types'

@@ -31,6 +31,8 @@ import { buildModelCatalog, hasProviderApiKey } from './catalog.ts'
 import { SessionSkillCatalog } from './skill-catalog.ts'
 import { SessionMediaReferences } from './media-references.ts'
 import { ArchivedSessionGate } from './archived-session-gate.ts'
+import { SessionTaskJournal } from './task-journal.ts'
+import type { SessionTaskRecord, SessionTaskSnapshot } from './task-types.ts'
 import { SessionDeletion } from './deletion.ts'
 import type {
   ModelCatalog,
@@ -111,6 +113,8 @@ function resolveSessionResource({ args, parameters }: TypertResourceResolveInput
 
 /** Session Controller deployment policy. */
 export interface Config {
+  /** Maximum UTF-8 bytes of one display-only task checkpoint; defaults to 131072. */
+  readonly taskSnapshotMaxBytes?: number
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
   /** Positive integral milliseconds of list work before yielding between complete rows. */
@@ -118,7 +122,7 @@ export interface Config {
 }
 
 /** Deployment policy after schema defaults have been applied. */
-type ResolvedConfig = Config & { readonly listWorkSliceMs: number }
+type ResolvedConfig = Config & { readonly listWorkSliceMs: number; readonly taskSnapshotMaxBytes: number }
 
 /** Host integrations replaceable by direct unit tests. */
 export interface SessionControllerInternals {
@@ -153,6 +157,7 @@ export class SessionController extends TypertRemoteService {
   ]
 
   static Config: z<Config, ResolvedConfig> = z.object({
+    taskSnapshotMaxBytes: z.natural().min(1).default(131072),
     nativeOpen: z.boolean(),
     listWorkSliceMs: z.natural().min(1).default(16),
   })
@@ -165,6 +170,8 @@ export class SessionController extends TypertRemoteService {
   private commands!: SessionCommandController
   private controlState!: SessionControlController
   private listState!: ApiSessionList
+  private tasks!: SessionTaskJournal
+  private readonly taskSnapshotMaxBytes: number
   private readonly openPath: (path: string, signal: AbortSignal) => Promise<void>
   private readonly fileApplications: typeof nativeFileApplications
   private readonly openFileApplication: typeof openNativeFileApplication
@@ -181,6 +188,7 @@ export class SessionController extends TypertRemoteService {
   constructor(ctx: Context, config: Config, internals: SessionControllerInternals = {}) {
     super(ctx, 'sessionController', { namespace: 'session' })
     this.listWorkSliceMs = SessionController.Config(config).listWorkSliceMs
+    this.taskSnapshotMaxBytes = SessionController.Config(config).taskSnapshotMaxBytes
     this.fileApplications = internals.fileApplications ?? nativeFileApplications
     this.openFileApplication = internals.openFileApplication ?? openNativeFileApplication
     this.openPath = internals.openPath ?? openNativeAssociatedPath
@@ -194,6 +202,12 @@ export class SessionController extends TypertRemoteService {
     ctx.typert.resources.register('session', { resolve: resolveSessionResource })
     this.agents = new ApiSessionAgentController(ctx)
     this.agents.initialize()
+    this.tasks = new SessionTaskJournal(ctx, async (id) => {
+      const result = await this.agents.resolveAgent(id)
+      if ('error' in result) throw result.error
+      return result.agent.session
+    }, this.taskSnapshotMaxBytes)
+    await this.tasks.initialize()
     this.commands = new SessionCommandController(ctx, this.agents, process.cwd())
     ctx.effect(() => ctx.fileUploads.registerAgentResolver(async (sessionId) => {
       const result = await this.agents.resolveAgent(sessionId)
@@ -276,6 +290,16 @@ export class SessionController extends TypertRemoteService {
    */
   resolveAgent(sessionId: SessionId): Promise<ApiSessionAgentResult> {
     return this.agents.resolveAgent(sessionId)
+  }
+
+  /**
+   * Record a Host-owned background task without submitting inbox input or starting a model turn.
+   * @param sessionId Session whose ownership the producer has already checked.
+   * @param snapshot Complete, independently revisioned display checkpoint.
+   * @returns Current checkpoint after the Session durability barrier.
+   */
+  recordTask(sessionId: SessionId, snapshot: SessionTaskSnapshot): Promise<SessionTaskRecord> {
+    return this.tasks.publish(sessionId, snapshot)
   }
 
   /**

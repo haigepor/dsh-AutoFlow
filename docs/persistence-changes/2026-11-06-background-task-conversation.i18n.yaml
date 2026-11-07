@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-11-06-background-task-conversation.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-11-06-background-task-conversation.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-11-06-background-task-conversation:
+  en: 6eaaa3ea33672d0c
+  zh: c8983b26b37214c1
+/2026-11-06-background-task-conversation/summary:
+  en: b4b507c37899f6ec
+  zh: 25589d261e740800
+/2026-11-06-background-task-conversation/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-11-06-background-task-conversation/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-11-06-background-task-conversation/compatibility:
+  en: 6bfa41c8c512da64
+  zh: bdb9a1a5bbe084ce
+/2026-11-06-background-task-conversation/verification:
+  en: 6415cc7824779092
+  zh: d15e4afb7cd3333b
+/2026-11-06-background-task-conversation/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

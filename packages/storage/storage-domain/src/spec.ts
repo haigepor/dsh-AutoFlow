@@ -27,6 +27,8 @@ export interface DomainGlobalSpec<G> {
 export interface DomainTableSpec<K extends string = string, V = unknown> {
   /** Validates every stored record at the durable boundary. */
   readonly valueSchema: ZodType<V>
+  /** Key-only startup; hydrate values explicitly. In-memory only, incompatible with backup-and-skip. */
+  readonly loading?: 'manual'
   /** Phantom carrier for the key type; never present at runtime. */
   readonly __key?: K
 }
@@ -135,6 +137,11 @@ export function defineDomain<S extends DomainSpec>(spec: S): S {
   for (const table of Object.keys(spec.tables)) {
     if (!UNIT_NAME_RE.test(table)) {
       throw new Error(`domain '${spec.name}' table name '${table}' must match ${UNIT_NAME_RE}`)
+    }
+    const loading: string | undefined = spec.tables[table]?.loading
+    if (loading !== undefined && loading !== 'manual') throw new Error(`domain '${spec.name}' table '${table}' loading must be 'manual' when present`)
+    if (loading === 'manual' && spec.invalidRecords === 'backup-and-skip') {
+      throw new Error(`domain '${spec.name}' manual loading cannot use backup-and-skip: hydration must not write durable records`)
     }
   }
   if (spec.global !== undefined && spec.global.schema.safeParse(null).success) {

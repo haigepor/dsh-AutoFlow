@@ -840,6 +840,50 @@ interface SessionLogUploadRequest {
 type SessionLogUploadExclusion = (request: SessionLogUploadRequest) => boolean
 ```
 
+## Background task checkpoints
+
+Host-only `SessionController.recordTask()` records producer-owned display checkpoints without dispatching a model turn. Revisions are compared within one source; the accepted record retains its execution owner and exact Session event position.
+
+```ts type-equiv
+/** Stable producer-owned task identity, retained across execution attempts. */
+type SessionTaskId = Branded<'SessionTaskId'>
+```
+
+```ts type-equiv
+/** Identity of one independently revisioned source within a task. */
+type SessionTaskSourceId = Branded<'SessionTaskSourceId'>
+```
+
+```ts type-equiv
+/** One complete producer checkpoint. Source revisions are compared only within the same source. */
+interface SessionTaskSnapshot {
+  readonly schemaVersion: 1
+  readonly provider: string
+  readonly taskId: SessionTaskId
+  readonly sourceId: SessionTaskSourceId
+  readonly revision: number
+  readonly title: string
+  readonly createdAt: string
+  readonly updatedAt: string
+  /** Producer-owned JSON, validated by its renderer rather than interpreted by the Session driver. */
+  readonly data: JsonValue
+}
+```
+
+```ts type-equiv
+/** Original execution owner; copying a Session does not transfer its task controls. */
+interface SessionTaskEvent extends SessionTaskSnapshot {
+  readonly owner: SessionId
+}
+```
+
+```ts type-equiv
+/** A checkpoint and the exact Session position that accepted it. */
+interface SessionTaskRecord extends SessionTaskEvent {
+  readonly eventSeq: SessionSeq
+}
+```
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -861,6 +905,14 @@ Host service backing the generated `ctx.remote.session` namespace.
  * @returns the live Agent or the stable Session-domain failure.
  */
 resolveAgent(sessionId: SessionId): Promise<ApiSessionAgentResult>
+
+/**
+ * Record a Host-owned background task without submitting inbox input or starting a model turn.
+ * @param sessionId Session whose ownership the producer has already checked.
+ * @param snapshot Complete, independently revisioned display checkpoint.
+ * @returns Current checkpoint after the Session durability barrier.
+ */
+recordTask(sessionId: SessionId, snapshot: SessionTaskSnapshot): Promise<SessionTaskRecord>
 
 /**
  * Read all visible Session rows without resuming an Agent.

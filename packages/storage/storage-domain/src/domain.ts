@@ -13,7 +13,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { StorageError, type KvUnit } from '@deepseek-ai/dsh-storage'
 import { DomainError } from './error.ts'
-import type { DomainSpec, DomainGlobalSpec, TableKeyOf, TableValueOf } from './spec.ts'
+import { parseRecord } from './validation.ts'
+import type { DomainSpec, DomainGlobalSpec, DomainTableSpec, TableKeyOf, TableValueOf } from './spec.ts'
 import type { DomainChanged } from './events.ts'
 
 /** Handle on a domain's global singleton. */
@@ -42,33 +43,55 @@ export interface DomainGlobal<G> {
  */
 export interface KvTable<K extends string, V> {
   /**
+   * Check whether a key's value or absence has been hydrated.
+   * @param key - Record key.
+   * @returns true for a confirmed key or for every key in an eager table.
+   */
+  isLoaded(key: K): boolean
+  /**
+   * Read new keys on the domain write chain; already loaded keys are reused.
+   * All requested values validate before any value or absence is published.
+   * Eager tables do nothing. No durable writes or change events occur.
+   * @param keys - Exact keys to read, including absent keys.
+   * @returns completion after atomic cache publication; invalid values reject invalid-record.
+   */
+  hydrate(keys: readonly K[]): Promise<void>
+  /**
+   * Release explicit keys on the domain write chain without mutating held values.
+   * Physical inventory and durable data remain unchanged; no change event occurs.
+   * Released keys become unconfirmed, including previously confirmed absences.
+   * @param keys - Exact cached keys to release.
+   * @returns completion after cache release; eager tables reject not-manual.
+   */
+  release(keys: readonly K[]): Promise<void>
+  /**
    * Read one record, synchronously from memory.
    * @param key - Record key.
-   * @returns the record, or `undefined` when absent.
+   * @returns the record, or `undefined` when absent. A manual table rejects unloaded-key for an unhydrated physical key.
    */
   get(key: K): V | undefined
 
   /**
    * Snapshot iterator over `[key, record]` pairs. A snapshot, not a live
    * view: iteration stays stable while queued writes land.
-   * @returns the pair iterator.
+   * @returns the pair iterator. A manual table with any unhydrated physical keys rejects unloaded-key.
    */
   entries(): IterableIterator<[K, V]>
 
   /**
    * Snapshot iterator over keys.
-   * @returns the key iterator.
+   * @returns the key iterator; manual tables enumerate physical candidates, including unhydrated or unreadable documents.
    */
   keys(): IterableIterator<K>
 
-  /** Current record count. */
+  /** Current record count; manual tables count physical candidates rather than hydrated values. */
   readonly size: number
 
   /**
    * Insert or overwrite one record durably.
    * @param key - Record key.
    * @param value - The full new record (no partial merge).
-   * @returns resolution after durability and event emission.
+   * @returns resolution after durability and event emission; existing unhydrated manual keys reject unloaded-key.
    */
   put(key: K, value: V): Promise<void>
 
@@ -76,7 +99,7 @@ export interface KvTable<K extends string, V> {
    * Delete one record durably.
    * @param key - Record key.
    * @returns `true` when the record existed, `false` when it was already
-   * absent (no write and no event in that case).
+   * absent (no write and no event in that case). Existing unhydrated manual keys reject unloaded-key.
    */
   delete(key: K): Promise<boolean>
 
@@ -93,7 +116,7 @@ export interface KvTable<K extends string, V> {
    * synchronous reads and every later write reject with that error, while
    * `close()` still works.
    * @param keys - Record keys; duplicates are harmless.
-   * @returns the number of keys that existed and were removed.
+   * @returns the number of keys that existed and were removed; existing unhydrated manual keys reject unloaded-key.
    */
   deleteMany(keys: readonly K[]): Promise<number>
 
@@ -102,7 +125,7 @@ export interface KvTable<K extends string, V> {
    * value current at its queue slot, so concurrent updates never interleave.
    * @param key - Record key; a missing key rejects with `missing-key`.
    * @param fn - Synchronous pure transform from current to next record.
-   * @returns the stored next record.
+   * @returns the stored next record; existing unhydrated manual keys reject unloaded-key.
    */
   update(key: K, fn: (current: V) => V): Promise<V>
 }
@@ -152,7 +175,7 @@ const noop = () => {}
 
 /**
  * The single domain implementation behind the {@link Domain} interface. The
- * facility constructs it from a validated `loadAll` snapshot and erases it to
+ * facility constructs it from a validated open snapshot and erases it to
  * `Domain<S>`; nothing outside this package constructs one.
  */
 export class DomainImpl {
@@ -177,13 +200,14 @@ export class DomainImpl {
    * @param ctx - Context that carries `domain/changed` emissions.
    * @param spec - The domain declaration.
    * @param unit - The opened backend unit; this instance owns its lifecycle.
-   * @param records - Validated records from the unit's `loadAll`, one entry
+   * @param records - Validated eager records from the unit's open snapshot, one entry
    * per declared table (empty maps included) — the facility builds it from
    * the spec, so the entry set IS the table set.
    * @param globalValue - Validated stored global, or the spec's `initial`
    * when the medium held none; `undefined` when the spec declares no global.
    * @param onClosed - Facility hook run once after teardown completes; frees
    * the domain name for a later open.
+   * @param inventory - Physical key candidates for manual tables; omitted tables load eagerly.
    */
   constructor(
     private readonly ctx: Context,
@@ -192,6 +216,7 @@ export class DomainImpl {
     records: Map<string, Map<string, unknown>>,
     globalValue: unknown,
     private readonly onClosed: () => void,
+    inventory: Map<string, Set<string>> = new Map(),
   ) {
     this.name = spec.name
     const host: TableHost = {
@@ -202,7 +227,9 @@ export class DomainImpl {
       emitChanged: (change) => { this.emitChanged(change) },
     }
     for (const [table, tableRecords] of records) {
-      this.tables.set(table, new KvTableImpl(host, table, tableRecords))
+      const tableSpec = spec.tables[table]
+      if (tableSpec === undefined) throw new Error(`domain '${spec.name}' snapshot contains undeclared table '${table}'`)
+      this.tables.set(table, new KvTableImpl(host, table, tableRecords, tableSpec, inventory.get(table)))
     }
     if (spec.global !== undefined) {
       this.globalValue = globalValue
@@ -311,47 +338,96 @@ export class DomainImpl {
 
 /** Table handle bound to one in-memory record map and its domain's write chain. */
 class KvTableImpl<K extends string, V> implements KvTable<K, V> {
+  private readonly loaded: Set<string> | undefined
   constructor(
     private readonly host: TableHost,
     private readonly tableName: string,
     private readonly records: Map<string, unknown>,
-  ) {}
+    private readonly spec: DomainTableSpec,
+    private readonly inventory?: Set<string>,
+  ) { this.loaded = inventory === undefined ? undefined : new Set(records.keys()) }
+
+  isLoaded(key: K): boolean {
+    this.host.assertReadable()
+    return this.loaded === undefined || this.loaded.has(key)
+  }
+
+  hydrate(keys: readonly K[]): Promise<void> {
+    const requested = [...new Set(keys)]
+    return this.host.enqueue(async () => {
+      const loaded = this.loaded
+      if (loaded === undefined) return
+      const pending = requested.filter(key => !loaded.has(key))
+      if (!pending.length) return
+      const unit = this.host.unit
+      if (!unit.loadSelected) throw new DomainError('facet-unsupported', `domain '${this.host.domainName}' requires selective reads`)
+      const snapshot = await unit.loadSelected({ [this.tableName]: pending })
+      const staged = new Map<string, unknown>()
+      for (const key of pending) {
+        const values = snapshot.tables[this.tableName]
+        if (values && Object.hasOwn(values, key)) {
+          staged.set(key, parseRecord(this.host.domainName, this.tableName, key, () => this.spec.valueSchema.parse(values[key])))
+        }
+      }
+      for (const [key, value] of staged) { this.records.set(key, value); this.inventory?.add(key) }
+      for (const key of pending) loaded.add(key)
+    })
+  }
+
+  release(keys: readonly K[]): Promise<void> {
+    const requested = [...new Set(keys)]
+    return this.host.enqueue(() => {
+      if (this.loaded === undefined) throw new DomainError('not-manual', `domain '${this.host.domainName}' table '${this.tableName}' is not manually loaded`)
+      for (const key of requested) { this.records.delete(key); this.loaded.delete(key) }
+      return Promise.resolve()
+    })
+  }
+
+  private assertLoaded(key: string): void {
+    if (this.inventory?.has(key) && !this.loaded?.has(key)) throw new DomainError('unloaded-key', `domain '${this.host.domainName}' table '${this.tableName}' key '${key}' requires hydration`)
+  }
 
   get(key: K): V | undefined {
     this.host.assertReadable()
+    this.assertLoaded(key)
     return this.records.get(key) as V | undefined
   }
 
   entries(): IterableIterator<[K, V]> {
     this.host.assertReadable()
+    if (this.inventory) for (const key of this.inventory) this.assertLoaded(key)
     return ([...this.records.entries()] as [K, V][])[Symbol.iterator]()
   }
 
   keys(): IterableIterator<K> {
     this.host.assertReadable()
-    return ([...this.records.keys()] as K[])[Symbol.iterator]()
+    return ([...(this.inventory ?? this.records).keys()] as K[])[Symbol.iterator]()
   }
 
   get size(): number {
     this.host.assertReadable()
-    return this.records.size
+    return this.inventory?.size ?? this.records.size
   }
 
   put(key: K, value: V): Promise<void> {
     return this.host.enqueue(async () => {
+      this.assertLoaded(key)
       await this.host.unit.putRecord(this.tableName, key, value)
       this.records.set(key, value)
+      this.inventory?.add(key); this.loaded?.add(key)
       this.emitPut(key, value)
     })
   }
 
   delete(key: K): Promise<boolean> {
     return this.host.enqueue(async () => {
+      this.assertLoaded(key)
       // Existence is decided at this job's chain slot, not at call time: an
       // earlier queued put of the same key makes this delete observe it.
       if (!this.records.has(key)) return false
       await this.host.unit.deleteRecord(this.tableName, key)
       this.records.delete(key)
+      this.inventory?.delete(key); this.loaded?.add(key)
       this.emitDeleted(key)
       return true
     })
@@ -359,6 +435,7 @@ class KvTableImpl<K extends string, V> implements KvTable<K, V> {
 
   deleteMany(keys: readonly K[]): Promise<number> {
     return this.host.enqueue(async () => {
+      for (const key of keys) this.assertLoaded(key)
       // Existence and the backend write happen at this job's chain slot, so an
       // earlier queued put of a key is observed and the batch is one unit call.
       const present = [...new Set(keys)].filter(key => this.records.has(key))
@@ -366,7 +443,7 @@ class KvTableImpl<K extends string, V> implements KvTable<K, V> {
       await this.host.unit.deleteRecords(this.tableName, present)
       // Memory reaches the committed batch state before the first listener runs,
       // so every `domain/changed` observes the same removed set as the medium.
-      for (const key of present) this.records.delete(key)
+      for (const key of present) { this.records.delete(key); this.inventory?.delete(key); this.loaded?.add(key) }
       for (const key of present) this.emitDeleted(key)
       return present.length
     })
@@ -374,6 +451,7 @@ class KvTableImpl<K extends string, V> implements KvTable<K, V> {
 
   update(key: K, fn: (current: V) => V): Promise<V> {
     return this.host.enqueue(async () => {
+      this.assertLoaded(key)
       if (!this.records.has(key)) {
         throw new DomainError(
           'missing-key',

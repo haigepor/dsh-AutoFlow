@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import AttachmentStore, {
   AttachmentError,
   AttachmentId,
@@ -153,6 +153,10 @@ describe('AttachmentStore.saveImages', () => {
 describe('AttachmentStore.readImageRequest', () => {
   it('reports unsupported request projection while preserving cancellation', async () => {
     const store = new UnsupportedProjectionStore(new Context())
+    const load = vi.fn(async () => ({ data: new Uint8Array(), mediaType: 'image/png' as const }))
+    expect(store.imagePreviewVersion).toBeUndefined()
+    await expect(store.readImagePreview({ cacheKey: 'authorized-source-v1', load })).rejects.toMatchObject({ code: 'ATTACHMENT_PROJECTION_UNSUPPORTED' })
+    expect(load).not.toHaveBeenCalled()
     const ref = await new RecordingStore(new Context()).saveImage(image(1))
     await expect(store.readImageRequest(ref, { width: 1, height: 1, maxBytes: 1 }))
       .rejects.toMatchObject({ code: 'ATTACHMENT_PROJECTION_UNSUPPORTED' })

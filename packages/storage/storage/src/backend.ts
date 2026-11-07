@@ -94,6 +94,24 @@ export interface KvUnit {
   loadAll(): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }>
 
   /**
+   * Read only the requested table values, plus the declared global singleton.
+   * Omitted tables and empty key lists load no values. `all` selects one complete table.
+   * Missing keys remain absent; implementations filter before value I/O where the medium permits it.
+   * An unmaterialized per-record unit with a legacy file rejects legacy-bootstrap-required
+   * without writing; the existing eager loadAll bootstrap must run first.
+   * @param tables Declared table names and either all records or exact keys.
+   * @returns Selected values and the global, with the same version and malformed-record rules as loadAll.
+   */
+  loadSelected?(tables: Readonly<Record<string, 'all' | readonly string[]>>): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }>
+
+  /**
+   * Enumerate physical key candidates without parsing their values; this does not establish record validity.
+   * @param table Declared table name.
+   * @returns An independent key snapshot; absent tables yield an empty list.
+   */
+  listKeys?(table: string): Promise<readonly string[]>
+
+  /**
    * Upsert one record durably. Overwrite semantics: an existing key is replaced.
    * @param table - Declared table name.
    * @param key - Record key. In the `per-record` layout a key becomes a path

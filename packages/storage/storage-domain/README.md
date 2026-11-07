@@ -29,7 +29,7 @@ Use this package when a host package keeps durable, schema-validated records —
 
 ### When to use it
 
-Choose it for any host-side data that must survive restarts and stay valid against a schema: the domain form validates every stored record at open, and every write is durable before it resolves. Avoid it when the data belongs in a session event log — the session persistence seam owns that surface.
+Choose it for any host-side data that must survive restarts and stay valid against a schema: by default, the domain form validates every stored record at open, and every write is durable before it resolves. Avoid it when the data belongs in a session event log — the session persistence seam owns that surface.
 
 ### Declaring a domain
 
@@ -56,6 +56,8 @@ domain.table('workspaces').update(id, (r) => ({ ...r, path: newPath }))
 ```
 
 The caller owns the handle's lifecycle and releases it with `domain.close()` when the feature shuts down (typically its own `ctx.effect` disposer); domains still open when the plugin unmounts are closed by the facility.
+
+Manual tables opt in with `loading: 'manual'` on their table declaration; default domains still load and validate every value at open. The [manual loading reference](../../../docs/subsystems/storage.md#manual-table-loading) defines hydration, physical-key inventory, unloaded-key errors, and cache-only release. This policy never changes the durable descriptor or format.
 
 ### Routing domains to backends
 

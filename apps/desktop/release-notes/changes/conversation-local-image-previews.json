@@ -1,0 +1,8 @@
+{
+  "id": "conversation-local-image-previews",
+  "category": "fixes",
+  "text": {
+    "en": "Replies and hover cards display bounded previews of local images, while opening, downloading and dragging retain the original files.",
+    "zh-CN": "对话正文和悬浮卡片使用有界本地图片预览，打开、下载和拖拽仍使用原文件。"
+  }
+}

@@ -70,6 +70,8 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
+静态文件预览与现有图片压缩共用原生处理队列，源字节读取也在队列内进行。`previewImageMaxPixels`、`previewImageMaxDimension`、`previewImageMaxBytes` 默认分别为 1024² 像素、1024px、1 MiB。预览沿用 EXIF、透明通道和单帧归一化，无法满足字节上限时拒绝，并按来源版本和编码策略将派生像素保存在附件缓存目录；原文件保持不变。
+
 本节解释存储背后的持久性与校验设计，以及实现它的写入与读取路径；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
 ### 设计决策

@@ -12,6 +12,8 @@ import type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
   ImageRequestTarget,
+  ImagePreviewSource,
+  ImagePreviewAttachment,
   PromptContentPart,
   RequestImageAttachment,
   SaveFileAttachment,
@@ -36,6 +38,8 @@ export type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
   ImageRequestTarget,
+  ImagePreviewSource,
+  ImagePreviewAttachment,
   ImageMediaType,
   PromptContentPart,
   RequestImageAttachment,
@@ -81,6 +85,21 @@ export abstract class AttachmentStore extends Service {
 
   /** Deployment-resolved image policy used by authoritative and fast-path validation. */
   abstract readonly imageLimits: ImageAttachmentLimits
+
+  /** Version of the provider's static display encoding and bounds; undefined means unsupported. */
+  readonly imagePreviewVersion: string | undefined = undefined
+
+  /**
+   * Read cached static preview pixels without changing the source or publishing a prompt attachment.
+   * @param source Authorized immutable version and deferred bounded read; every caller authorizes before calling.
+   * @param signal Independent caller cancellation; shared native work continues for other callers.
+   * @returns Display-sized verified pixels, or an explicit unsupported/validation failure without original-byte fallback.
+   */
+  readImagePreview(source: ImagePreviewSource, signal?: AbortSignal): Promise<ImagePreviewAttachment> {
+    signal?.throwIfAborted()
+    void source
+    return Promise.reject(new AttachmentError('The mounted attachment provider cannot derive display previews.', 'ATTACHMENT_PROJECTION_UNSUPPORTED'))
+  }
 
   /**
    * Validate one image without persisting it.

@@ -132,6 +132,23 @@ export interface SaveImageAttachment {
   name?: string
 }
 
+/** Authorized immutable source whose bytes are loaded only after a native processing slot is available. */
+export interface ImagePreviewSource {
+  /** Caller-owned identity including the source version; callers authorize every cache read separately. */
+  cacheKey: string
+  /** Read the same immutable source version with the shared operation's cancellation signal. */
+  load: (signal: AbortSignal) => Promise<SaveImageAttachment>
+}
+
+/** Read-only static display pixels; this reference never replaces an original image or a model attachment. */
+export interface ImagePreviewAttachment {
+  data: Uint8Array
+  mediaType: ImageMediaType
+  width: number
+  height: number
+  bytes: number
+}
+
 /** Stored image bytes returned after reference and digest verification. */
 export interface StoredImageAttachment {
   ref: ImageAttachmentRef

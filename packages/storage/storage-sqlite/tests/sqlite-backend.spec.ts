@@ -55,6 +55,23 @@ function mutateUnit(unit: KvUnit, operation: 'putRecord' | 'deleteRecords'): Pro
 }
 
 describe('sqlite backend specifics', () => {
+  it('enumerates keys without decoding historical values and reads only requested rows', async () => {
+    const path = await freshDbPath()
+    const backend = backendAt(path)
+    const unit = await backend.kv.open(DESCRIPTOR)
+    await unit.putRecord('records', 'current', { n: 1 })
+    await unit.putRecord('records', 'history', { n: 0 })
+    const db = new DatabaseSync(path)
+    try {
+      db.exec("UPDATE u_specimen_records SET value = 'not-json' WHERE key = 'history'")
+      expect(await unit.listKeys!('records')).toEqual(['current', 'history'])
+      expect((await unit.loadSelected!({ records: ['current', "x' OR 1=1 --", 'current'] })).tables['records']).toEqual({ current: { n: 1 } })
+      await expect(unit.loadSelected!({ records: ['history'] })).rejects.toMatchObject({ code: 'malformed-medium' })
+      await expect(unit.loadAll()).rejects.toMatchObject({ code: 'malformed-medium' })
+      expect(db.prepare('SELECT value FROM u_specimen_records WHERE key = ?').get('history')?.['value']).toBe('not-json')
+    } finally { db.close() }
+  })
+
   it('opens an in-memory database', async () => {
     const backend = backendAt(':memory:')
     const unit = await backend.kv.open(DESCRIPTOR)

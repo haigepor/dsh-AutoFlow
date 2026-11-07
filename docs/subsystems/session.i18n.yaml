@@ -71,3 +71,6 @@
 /sessions/session-log-upload-exclusions:
   en: cfe3323aade972be
   zh: 8423b490c47c5013
+/sessions/background-task-checkpoints:
+  en: 244266ce4a3c145e
+  zh: bc387edc2c843a91

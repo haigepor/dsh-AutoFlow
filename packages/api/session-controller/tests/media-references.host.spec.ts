@@ -6,6 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { FsError, FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
 import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
 import { SessionMediaReferences } from '../src/media-references.ts'
+import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])
 const DEFAULT_LIMIT = 20 * 1024 * 1024
@@ -27,7 +28,7 @@ describe('SessionMediaReferences /api/file', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  async function mount(maxBytes = DEFAULT_LIMIT) {
+  async function mount(maxBytes = DEFAULT_LIMIT, previews = false) {
     const ctx = new Context()
     contexts.push(ctx)
     let handler: ((request: Request) => Promise<Response>) | undefined
@@ -40,7 +41,8 @@ describe('SessionMediaReferences /api/file', () => {
         },
       },
     } as never)
-    ctx.provide('attachments', { imageLimits: { maxImageBytes: maxBytes } } as never)
+    if (previews) await ctx.plugin(LocalAttachmentStore, { dshHome: root, maxImageBytes: maxBytes }).await()
+    else ctx.provide('attachments', { imageLimits: { maxImageBytes: maxBytes } } as never)
     await ctx.plugin(LocalFileSystem, { cwd: root }).await()
     await ctx.plugin(SessionMediaReferences).await()
     const raw = (url: string, init?: RequestInit) => {
@@ -58,6 +60,7 @@ describe('SessionMediaReferences /api/file', () => {
       url,
       raw,
       fs: ctx.fs as LocalFileSystem,
+      attachments: ctx.attachments,
       unregister,
       dispose: () => ctx.fiber.dispose(),
     }
@@ -253,5 +256,67 @@ describe('SessionMediaReferences /api/file', () => {
     const route = await mount()
     await route.dispose()
     expect(route.unregister).toHaveBeenCalledTimes(1)
+  })
+
+  it('serves explicit static previews with variant-preserving version redirects, actual MIME and HEAD headers', async () => {
+    const route = await mount(DEFAULT_LIMIT, true), path = join(root, 'preview.png')
+    const data = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWNgZGIGAAAOAAeCcsnOAAAAAElFTkSuQmCC', 'base64')
+    await writeFile(path, data)
+    const first = await route.raw(`${route.url(path)}&preview=1&load=9`)
+    expect(first.status).toBe(302)
+    const url = new URL(first.headers.get('location')!, route.url(path))
+    expect(url.searchParams.get('preview')).toBe('1'); expect(url.searchParams.get('pv')).toBeTruthy()
+    const get = await route.raw(url.href), bytes = await responseBytes(get)
+    expect(get.status).toBe(200); expect(get.headers.get('content-type')).toBe('image/png')
+    expect(get.headers.get('content-length')).toBe(String(bytes.length))
+    expect(get.headers.get('cache-control')).toBe('private, max-age=31536000, immutable')
+    const read = vi.spyOn(route.fs, 'readBytes')
+    const head = await route.raw(url.href, { method: 'HEAD' })
+    expect(head.status).toBe(200); expect(head.body).toBeNull()
+    expect(head.headers.get('content-length')).toBe(String(bytes.length))
+    expect(read).not.toHaveBeenCalled()
+    expect({ redirectQuery: [...url.searchParams.keys()], contentType: get.headers.get('content-type'), cacheControl: get.headers.get('cache-control'), headHasBody: head.body !== null }).toMatchInlineSnapshot(`
+      {
+        "cacheControl": "private, max-age=31536000, immutable",
+        "contentType": "image/png",
+        "headHasBody": false,
+        "redirectQuery": [
+          "path",
+          "v",
+          "preview",
+          "pv",
+        ],
+      }
+    `)
+    expect(await responseBytes(await route.call(path))).toEqual(new Uint8Array(data))
+    await writeFile(path, data)
+    const stale = await route.raw(url.href)
+    expect(stale.status).toBe(302)
+    expect(new URL(stale.headers.get('location')!, url).searchParams.get('preview')).toBe('1')
+    const anotherMount = await mount(DEFAULT_LIMIT, true)
+    const redirected = await anotherMount.raw(url.href)
+    expect(redirected.status).toBe(302)
+    expect(new URL(redirected.headers.get('location')!, url).searchParams.get('pv')).not.toBe(url.searchParams.get('pv'))
+  })
+
+  it('keeps current filesystem authorization on preview cache hits and refuses unsupported or invalid previews without original fallback', async () => {
+    const route = await mount(DEFAULT_LIMIT, true), path = join(root, 'not-image.png')
+    await writeFile(path, PNG_BYTES)
+    const request = async (path: string, init?: RequestInit) => {
+      const url = `${route.url(path)}&preview=1`, first = await route.raw(url, init), location = first.headers.get('location')
+      return location ? route.raw(new URL(location, url).href, init) : first
+    }
+    expect((await request(path)).status).toBe(415)
+    expect(await responseBytes(await route.call(path))).toEqual(PNG_BYTES)
+    const svg = join(root, 'image.svg'); await writeFile(svg, '<svg/>')
+    expect((await request(svg)).status).toBe(415)
+    expect((await route.call(svg)).status).toBe(200)
+    expect((await request(path, { signal: AbortSignal.abort() })).status).toBe(499)
+    await writeFile(path, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWNgZGIGAAAOAAeCcsnOAAAAAElFTkSuQmCC', 'base64'))
+    expect((await request(path)).status).toBe(200)
+    const range = vi.spyOn(route.fs, 'readByteRange').mockRejectedValue(new FsError('read denied', 'FS_PERMISSION_DENIED'))
+    expect((await request(path)).status).toBe(403)
+    expect(range).toHaveBeenCalled()
+    expect((await route.raw(`${route.url(path)}&preview=other`)).status).toBe(400)
   })
 })

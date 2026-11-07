@@ -47,6 +47,47 @@ it('loads every record across large tables without exceeding the configured read
   expect(active).toBe(0)
 })
 
+it('lists physical candidates and reads selected values without opening historical bodies', async () => {
+  const f = await fixture(3)
+  for (let index = 0; index < 120; index++) await f.put('alpha', `history_${index}`, { payload: 'historical'.repeat(8192) })
+  await f.put('alpha', 'current', { id: 'current' })
+  await f.put('beta', 'manifest', { key: 'current' })
+  const reads: string[] = []
+  hooks.read = (path, read) => {
+    reads.push(path)
+    if (path.includes('history_')) throw new Error('Unselected historical body was opened')
+    return read()
+  }
+  const unit = await f.backend.kv.open(f.descriptor)
+  expect(await unit.listKeys!('alpha')).toHaveLength(121)
+  expect(reads).toEqual([])
+  expect(await unit.loadSelected!({ alpha: [], beta: 'all' })).toEqual({ tables: { alpha: {}, beta: { manifest: { key: 'current' } } }, global: null })
+  expect((await unit.loadSelected!({ alpha: ['current', 'missing', 'current'] })).tables['alpha']).toEqual({ current: { id: 'current' } })
+  expect(reads.filter(path => path.endsWith('current.json'))).toHaveLength(1)
+  expect(reads.some(path => path.includes('history_'))).toBe(false)
+  const before = reads.length
+  await expect(unit.loadSelected!({ alpha: ['../escape'] })).rejects.toThrow(/key/)
+  expect(reads).toHaveLength(before)
+})
+
+it('refuses selective legacy bootstrap without writing and leaves eager bootstrap available', async () => {
+  const f = await fixture()
+  await rm(join(f.root, 'reads'), { recursive: true })
+  const marker = { baseDigest: 'confirmed-base', profileId: 'profile' }
+  const legacy = JSON.stringify({ unit: { name: 'reads', version: 1 }, global: marker, tables: { alpha: { saved: { id: 1 } } } })
+  await writeFile(join(f.root, 'reads.json'), legacy, 'utf8')
+  const unit = await f.backend.kv.open(f.descriptor)
+  await expect(unit.loadSelected!({ alpha: [] })).rejects.toMatchObject({ code: 'legacy-bootstrap-required' })
+  await expect(unit.listKeys!('alpha')).rejects.toMatchObject({ code: 'legacy-bootstrap-required' })
+  expect(await readdir(f.root)).toEqual(['reads.json'])
+  expect(await readFile(join(f.root, 'reads.json'), 'utf8')).toBe(legacy)
+  expect(await unit.loadAll()).toMatchObject({ tables: { alpha: { saved: { id: 1 } } }, global: marker })
+  await unit.close()
+  const reopened = await f.backend.kv.open(f.descriptor)
+  expect(await reopened.loadSelected!({ alpha: ['saved'] })).toMatchObject({ tables: { alpha: { saved: { id: 1 } } }, global: marker })
+  expect(await readFile(join(f.root, 'reads.json'), 'utf8')).toBe(legacy)
+})
+
 it.each(['EMFILE', 'EACCES', 'EIO'])('rejects %s from a record read without bootstrapping legacy data', async (code) => {
   const f = await fixture()
   await f.put('alpha', 'kept', { value: 'current' })

@@ -27,7 +27,7 @@
  * @module @deepseek-ai/dsh-storage-json/src/per-record-unit
  */
 
-import { mkdir, readFile, readdir, rename, rm } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { Dirent } from 'node:fs'
 import { StorageError } from '@deepseek-ai/dsh-storage'
@@ -135,9 +135,9 @@ async function bootstrapLegacyUnit(descriptor: KvUnitDescriptor, dir: string, st
   // The legacy document is runtime data: only `unit.name`, `unit.version`,
   // and the tables map shape are checked here — the record values are
   // migrated as-is and the domain layer's schemas judge them.
-  let document: { unit?: { name?: unknown; version?: unknown }; tables?: unknown }
+  let document: { unit?: { name?: unknown; version?: unknown }; tables?: unknown; global?: unknown }
   try {
-    document = JSON.parse(text) as { unit?: { name?: unknown; version?: unknown }; tables?: unknown }
+    document = JSON.parse(text) as { unit?: { name?: unknown; version?: unknown }; tables?: unknown; global?: unknown }
   } catch {
     return // Malformed legacy file: not ours to interpret or delete.
   }
@@ -157,6 +157,11 @@ async function bootstrapLegacyUnit(descriptor: KvUnitDescriptor, dir: string, st
       target.set(key, value)
     }
   }
+  if (descriptor.hasGlobal && document.global !== null && document.global !== undefined) {
+    await mkdir(dir, { recursive: true, mode: 0o700 })
+    await writeAtomic(join(dir, 'global.json'), serializeRecord(descriptor.version, document.global))
+    state.global = document.global
+  }
 }
 
 /**
@@ -164,8 +169,9 @@ async function bootstrapLegacyUnit(descriptor: KvUnitDescriptor, dir: string, st
  */
 async function loadTableRecords(
   records: Map<string, unknown>, versions: readonly number[], dir: string, readConcurrency: number,
+  keys?: readonly string[],
 ): Promise<void> {
-  const files = await readdir(dir, { withFileTypes: true })
+  const files = keys === undefined ? await readdir(dir, { withFileTypes: true }) : [...new Set(keys)].map(key => ({ name: `${key}.json` }))
   const loaded = new Array<readonly [string, unknown] | undefined>(files.length)
   const pending = files.entries()
   let stopped = false
@@ -231,6 +237,48 @@ export class PerRecordJsonUnit implements KvUnit {
       tables[table] = Object.fromEntries(records)
     }
     return { tables, global: state.global }
+  }
+
+  async loadSelected(tables: Readonly<Record<string, 'all' | readonly string[]>>): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }> {
+    this.assertOpen()
+    for (const [table, keys] of Object.entries(tables)) {
+      this.tableDir(table)
+      if (keys !== 'all') for (const key of keys) assertSafeKey(this.descriptor.name, key)
+    }
+    await this.assertSelectiveTree()
+    const selected: Record<string, Record<string, unknown>> = {}, versions = acceptedStamps(this.descriptor)
+    for (const [table, keys] of Object.entries(tables)) {
+      const records = new Map<string, unknown>()
+      if (keys === 'all') {
+        try { await loadTableRecords(records, versions, this.tableDir(table), this.readConcurrency) }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+      } else if (keys.length) await loadTableRecords(records, versions, this.tableDir(table), this.readConcurrency, keys)
+      selected[table] = Object.fromEntries(records)
+    }
+    const global = this.descriptor.hasGlobal ? await readRecord(join(this.dir, 'global.json'), versions) : undefined
+    return { tables: selected, global: global ?? null }
+  }
+
+  async listKeys(table: string): Promise<readonly string[]> {
+    this.assertOpen()
+    const directory = this.tableDir(table)
+    await this.assertSelectiveTree()
+    try {
+      return (await readdir(directory)).filter(file => file.endsWith('.json') && SAFE_KEY_RE.test(file.slice(0, -5))).map(file => file.slice(0, -5))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+      throw error
+    }
+  }
+
+  private async assertSelectiveTree(): Promise<void> {
+    let entries: Dirent[] = []
+    try { entries = await readdir(this.dir, { withFileTypes: true }) }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+    if (entries.some(entry => entry.isDirectory() && this.descriptor.tables.includes(entry.name) || entry.name === 'global.json' && this.descriptor.hasGlobal)) return
+    try { await stat(join(dirname(this.dir), `${this.descriptor.name}.json`)) }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error }
+    throw new StorageError('legacy-bootstrap-required', `unit '${this.descriptor.name}' requires its existing eager legacy bootstrap before selective reads`)
   }
 
   /** Durably replace one record: its own document, atomically. */

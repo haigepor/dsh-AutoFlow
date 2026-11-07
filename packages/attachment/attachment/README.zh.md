@@ -59,6 +59,8 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
+显示组件可通过 `readImagePreview()` 提供已授权的不可变来源版本和延迟字节读取函数。提供方通过 `imagePreviewVersion` 标识缓存策略，不支持预览时明确拒绝；派生显示像素不替换原文件或持久化提示词附件。
+
 本节解释 seam 背后的设计决策，以及实现用户可见行为的服务操作；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
 ### 设计决策

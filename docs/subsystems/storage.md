@@ -142,9 +142,129 @@ interface Domain<S extends DomainSpec> {
 
 Reads are synchronous from authoritative in-memory state: `KvTable` exposes `get`/`entries`/`keys`/`size` (snapshot iterators that stay stable while queued writes land), and the global handle's `get()` serves the spec's `initial` until the first `set` materializes the slot on the medium. Every write — `put`, `delete`, `deleteMany`, `update`, `global.set` — queues on one per-domain chain and reaches backend durability first, then mutates memory, then emits `domain/changed`; a rejected backend write does not publish a domain change; an unknown durable outcome requires reopening before further use of that snapshot; a backend that reports `unknown-state` instead quarantines the domain, and its reads and later writes reject until `close()` releases it. `update(key, fn)` is an atomic read-modify-write at its chain slot (a missing key rejects `missing-key`); `delete` of an absent key resolves `false` with no write and no event. `deleteMany(keys)` removes the present keys as one backend batch in one chain slot, resolves the removed count, and emits one `domain/changed` per removed key; a rejected backend write leaves every record in place and emits nothing; an `unknown-state` rejection quarantines the domain. Returned records are the stored objects themselves, not copies — replace via `put`/`update`, never mutate in place.
 
+## Manual table loading
+
+A table declaration with `loading: 'manual'` retains only its physical key inventory at open; the global and other tables remain eager. `open` requires both provider methods `loadSelected` and `listKeys`, otherwise rejects `facet-unsupported`. The default declaration still loads and validates every stored value. Loading policy is excluded from the durable descriptor, record format, and database version.
+
+`hydrate(keys)` reads only previously unconfirmed keys on the domain write chain and validates the entire batch before publishing any value or confirmed absence. Missing keys become `isLoaded(key) === true` with `get(key) === undefined`. Invalid values reject the whole batch with `invalid-record`, leaving its cache unchanged; manual loading cannot combine with `invalidRecords: 'backup-and-skip'` because hydration never writes. `release(keys)` forgets only those cache entries and confirmations, without changing held objects, physical inventory, durable bytes, or change events. It is serialized with writes and obeys the same close and unknown-state quarantine rules; eager tables reject release with `not-manual`.
+
+`keys` and `size` enumerate physical candidates, not validated records. Reading or mutating an existing physical key before hydration rejects `unloaded-key`; `entries()` rejects while any physical candidate remains unhydrated. This prevents an unseen historical value from being treated as missing and overwritten. A new key can still be written. A per-record legacy unit requiring eager bootstrap rejects selective startup with `legacy-bootstrap-required` before writing; [JSON backend behavior](../../packages/storage/storage-json/README.md#use-this-package) defines that bootstrap.
+
+```ts type-equiv
+/**
+ * One table declaration. `K` is a phantom key type (typically a branded
+ * string) carried for compile-time projection only; keys are plain strings on
+ * the medium.
+ */
+interface DomainTableSpec<K extends string = string, V = unknown> {
+  /** Validates every stored record at the durable boundary. */
+  readonly valueSchema: ZodType<V>
+  /** Key-only startup; hydrate values explicitly. In-memory only, incompatible with backup-and-skip. */
+  readonly loading?: 'manual'
+  /** Phantom carrier for the key type; never present at runtime. */
+  readonly __key?: K
+}
+```
+
+```ts type-equiv
+/**
+ * Handle on one declared table. Records are plain immutable data: returned
+ * values are the stored objects themselves (no defensive copies) and must not
+ * be mutated in place — replace via `put`/`update`.
+ */
+interface KvTable<K extends string, V> {
+  /**
+   * Check whether a key's value or absence has been hydrated.
+   * @param key - Record key.
+   * @returns true for a confirmed key or for every key in an eager table.
+   */
+  isLoaded(key: K): boolean
+  /**
+   * Read new keys on the domain write chain; already loaded keys are reused.
+   * All requested values validate before any value or absence is published.
+   * Eager tables do nothing. No durable writes or change events occur.
+   * @param keys - Exact keys to read, including absent keys.
+   * @returns completion after atomic cache publication; invalid values reject invalid-record.
+   */
+  hydrate(keys: readonly K[]): Promise<void>
+  /**
+   * Release explicit keys on the domain write chain without mutating held values.
+   * Physical inventory and durable data remain unchanged; no change event occurs.
+   * Released keys become unconfirmed, including previously confirmed absences.
+   * @param keys - Exact cached keys to release.
+   * @returns completion after cache release; eager tables reject not-manual.
+   */
+  release(keys: readonly K[]): Promise<void>
+  /**
+   * Read one record, synchronously from memory.
+   * @param key - Record key.
+   * @returns the record, or `undefined` when absent. A manual table rejects unloaded-key for an unhydrated physical key.
+   */
+  get(key: K): V | undefined
+
+  /**
+   * Snapshot iterator over `[key, record]` pairs. A snapshot, not a live
+   * view: iteration stays stable while queued writes land.
+   * @returns the pair iterator. A manual table with any unhydrated physical keys rejects unloaded-key.
+   */
+  entries(): IterableIterator<[K, V]>
+
+  /**
+   * Snapshot iterator over keys.
+   * @returns the key iterator; manual tables enumerate physical candidates, including unhydrated or unreadable documents.
+   */
+  keys(): IterableIterator<K>
+
+  /** Current record count; manual tables count physical candidates rather than hydrated values. */
+  readonly size: number
+
+  /**
+   * Insert or overwrite one record durably.
+   * @param key - Record key.
+   * @param value - The full new record (no partial merge).
+   * @returns resolution after durability and event emission; existing unhydrated manual keys reject unloaded-key.
+   */
+  put(key: K, value: V): Promise<void>
+
+  /**
+   * Delete one record durably.
+   * @param key - Record key.
+   * @returns `true` when the record existed, `false` when it was already
+   * absent (no write and no event in that case). Existing unhydrated manual keys reject unloaded-key.
+   */
+  delete(key: K): Promise<boolean>
+
+  /**
+   * Delete several records durably in one write slot.
+   *
+   * The batch is one job on the domain's write chain: it runs at its slot, not
+   * at call time, so an earlier queued write of the same domain is visible to
+   * it and no other write interleaves. Missing keys are ignored. The in-memory
+   * records reach the committed state before any `domain/changed` listener
+   * runs. A backend failure normally rejects with the batch unapplied, leaving
+   * every record in place. A backend that cannot establish or restore the
+   * batch's state rejects with `unknown-state` and quarantines the domain:
+   * synchronous reads and every later write reject with that error, while
+   * `close()` still works.
+   * @param keys - Record keys; duplicates are harmless.
+   * @returns the number of keys that existed and were removed; existing unhydrated manual keys reject unloaded-key.
+   */
+  deleteMany(keys: readonly K[]): Promise<number>
+
+  /**
+   * Atomic read-modify-write on the domain's write chain: `fn` sees the
+   * value current at its queue slot, so concurrent updates never interleave.
+   * @param key - Record key; a missing key rejects with `missing-key`.
+   * @param fn - Synchronous pure transform from current to next record.
+   * @returns the stored next record; existing unhydrated manual keys reject unloaded-key.
+   */
+  update(key: K, fn: (current: V) => V): Promise<V>
+}
+```
+
 ## The domain facility: `ctx.storageDomain`
 
-`DomainFacility` ([signatures](#ctxstoragedomain--domainfacility)) opens declared domains over routed backends. Routing is the domain plugin's configuration, never the hub's: `backend` names the required default route and `routes` overrides it per domain name. `open(spec)` runs a strict sequence, each step failing the whole call: it rejects a name already open or still closing (`already-open`), resolves the route (`backend-not-found`), requires the backend's `kv` facet (`facet-unsupported`), opens the unit (backend `version-mismatch`/`malformed-medium` pass through), and validates every stored record and global against the spec's zod schemas (`invalid-record` with the offending table and key). The caller owns the returned handle and releases it with `Domain.close()`; domains still open when the plugin unmounts are closed by the facility, and a closed domain's name frees for reopening only after teardown fully completes. `get(name)` is an untyped diagnostic lookup onto the package-private `DomainImpl` runtime behind every typed handle; `closeAll()` is the unmount path.
+`DomainFacility` ([signatures](#ctxstoragedomain--domainfacility)) opens declared domains over routed backends. Routing is the domain plugin's configuration, never the hub's: `backend` names the required default route and `routes` overrides it per domain name. `open(spec)` runs a strict sequence, each step failing the whole call: it rejects a name already open or still closing (`already-open`), resolves the route (`backend-not-found`), requires the backend's `kv` facet (`facet-unsupported`), opens the unit (backend `version-mismatch`/`malformed-medium` pass through), and validates every eager record and global against the spec's zod schemas (`invalid-record` with the offending table and key). The caller owns the returned handle and releases it with `Domain.close()`; domains still open when the plugin unmounts are closed by the facility, and a closed domain's name frees for reopening only after teardown fully completes. `get(name)` is an untyped diagnostic lookup onto the package-private `DomainImpl` runtime behind every typed handle; `closeAll()` is the unmount path.
 
 ## The change event: `domain/changed`
 
@@ -216,11 +336,13 @@ The mounted domain facility. Opens declared domains over routed backends; one fa
  * (`backend-not-found` passes through from the hub); require its `kv` facet
  * (`facet-unsupported`); open the unit projected from the spec (backend
  * `version-mismatch`/`malformed-medium` pass through); load and validate
- * every stored record against the spec's zod schemas (`invalid-record`
+ * eager records and the global against the spec's zod schemas (`invalid-record`
  * with the offending table and key — unless the spec declares
  * `invalidRecords: 'backup-and-skip'` and the unit can move documents aside, in
  * which case the failing record is backed up, logged, and skipped);
- * construct the domain.
+ * construct the domain. Manual tables require selective provider reads
+ * (`facet-unsupported` when unavailable) and start with physical keys only;
+ * their values validate during explicit hydration.
  *
  * Lifecycle: the CALLER owns the returned handle and closes it via
  * `Domain.close()` (typically as its own `ctx.effect` disposer) — the

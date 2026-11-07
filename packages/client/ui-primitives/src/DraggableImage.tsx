@@ -7,6 +7,8 @@ import type { FileDragActions } from './file-drag-actions.ts'
 export interface DraggableImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'draggable' | 'onDragStart' | 'onDragEnd' | 'onPointerEnter' | 'onPointerLeave' | 'onPointerDown' | 'onPointerUp' | 'onClickCapture'> {
   readonly fileDrag: FileDragActions
   readonly src: string
+  /** Original content URL when src displays a bounded preview. Resource identity remains available for native borrowing. */
+  readonly originalSrc?: string | undefined
   readonly name: string
   readonly resourceAddress?: string | undefined
   readonly original?: File | undefined
@@ -19,8 +21,8 @@ export interface DraggableImageProps extends Omit<ImgHTMLAttributes<HTMLImageEle
  * @returns a draggable image that suppresses only the mouse click following its drag.
  */
 export const DraggableImage = forwardRef<HTMLImageElement, DraggableImageProps>(function DraggableImage(
-  { fileDrag, src, name, original, resourceAddress, ...props }, ref,
+  { fileDrag, src, originalSrc, name, original, resourceAddress, ...props }, ref,
 ) {
-  const drag = useImageDrag(fileDrag, src, name, original, resourceAddress)
+  const drag = useImageDrag(fileDrag, originalSrc ?? src, name, original, resourceAddress)
   return <img {...props} {...drag} src={src} ref={ref} draggable />
 })

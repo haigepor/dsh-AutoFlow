@@ -59,6 +59,8 @@ An image can be refused when you attach it — unsupported format, over the size
 <details>
 <summary>Implementation internals — click to expand</summary>
 
+Display consumers may call `readImagePreview()` with an authorized, immutable source version and a deferred byte reader. Providers expose `imagePreviewVersion` for cache identity and reject unsupported previews explicitly; display pixels do not replace original files or durable prompt attachments.
+
 This section explains the design decisions behind the seam and the service operations that realize the user-visible behavior; observable behavior is fully covered in [Use this package](#use-this-package).
 
 ### Design decisions

@@ -74,6 +74,23 @@ class SingleJsonUnit implements KvUnit {
     return { tables, global: this.state.global }
   }
 
+  // oxlint-disable-next-line typescript/require-await -- async preserves the unit's rejection contract
+  async loadSelected(selection: Readonly<Record<string, 'all' | readonly string[]>>): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }> {
+    this.assertOpen()
+    const tables: Record<string, Record<string, unknown>> = {}
+    for (const [table, keys] of Object.entries(selection)) {
+      const records = this.records(table)
+      tables[table] = Object.fromEntries(keys === 'all' ? records : [...new Set(keys)].flatMap(key => records.has(key) ? [[key, records.get(key)]] : []))
+    }
+    return { tables, global: this.state.global }
+  }
+
+  // oxlint-disable-next-line typescript/require-await -- async preserves the unit's rejection contract
+  async listKeys(table: string): Promise<readonly string[]> {
+    this.assertOpen()
+    return [...this.records(table).keys()]
+  }
+
   async putRecord(table: string, key: string, value: unknown): Promise<void> {
     this.assertOpen()
     const records = this.records(table)

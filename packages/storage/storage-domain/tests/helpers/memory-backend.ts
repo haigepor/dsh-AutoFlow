@@ -79,6 +79,21 @@ class MemoryKvUnit implements KvUnit {
     return { tables, global: this.medium.global }
   }
 
+  async loadSelected(selection: Readonly<Record<string, 'all' | readonly string[]>>): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }> {
+    this.assertOpen()
+    const tables: Record<string, Record<string, unknown>> = {}
+    for (const [table, keys] of Object.entries(selection)) {
+      const records = this.medium.tables.get(table) ?? new Map<string, unknown>()
+      tables[table] = Object.fromEntries(keys === 'all' ? records : keys.filter(key => records.has(key)).map(key => [key, records.get(key)]))
+    }
+    return { tables, global: this.medium.global }
+  }
+
+  async listKeys(table: string): Promise<readonly string[]> {
+    this.assertOpen()
+    return [...this.medium.tables.get(table)?.keys() ?? []]
+  }
+
   async putRecord(table: string, key: string, value: unknown): Promise<void> {
     this.assertOpen()
     this.pool.consumeInjectedFailure()

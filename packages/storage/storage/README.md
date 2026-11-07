@@ -59,6 +59,8 @@ With these rows, the `json` backend registers itself and the `domain` data form 
 
 -----
 
+Providers may expose selective reads through `loadSelected` and key-only `listKeys`; the domain form requires both for [manual tables](../../../docs/subsystems/storage.md#manual-table-loading). These methods do not add descriptor fields or change default eager reads.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

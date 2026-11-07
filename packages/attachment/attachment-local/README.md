@@ -70,6 +70,8 @@ An image can be refused when you attach it: unsupported format, over the byte, p
 <details>
 <summary>Implementation internals — click to expand</summary>
 
+Static file previews share the existing native image-compression queue, including source-byte loading. `previewImageMaxPixels`, `previewImageMaxDimension` and `previewImageMaxBytes` default to 1024² pixels, 1024px and 1 MiB. They use the existing EXIF, alpha and single-frame normalization, reject unmet byte limits, and cache derived pixels under the attachment cache by source version and encoding policy; original files remain unchanged.
+
 This section explains the durability and verification design behind the storage, and the write and read paths that realize it; observable behavior is fully covered in [Use this package](#use-this-package).
 
 ### Design decisions

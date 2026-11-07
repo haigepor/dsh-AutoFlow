@@ -31,6 +31,8 @@ Session Remote 的 regenerateTitle 合并同会话并发请求，通过 sessionT
 
 控制器通过可选服务方法 `agentPresets.presetForSession(session)` 读取 Session 已记录的预设。null 结果表示未记录预设；服务缺席表示控制器无法获知预设身份。
 
+Host 生产者确认所属会话的权限后调用 `recordTask(sessionId, snapshot)`。此方法仅供 Host 使用，写入必需的 `session/task` 检查点，不提交 inbox 输入或启动模型轮次。每个 provider/task/source 的版本独立递增：相同版本必须内容相同，旧版本保留最新检查点。确认等待 `sessions.flush`；持久化回执不确定时重试会刷新已接收事件，不重复追加。结构化 `session/task-checkpoint-failed` 原因区分数据无效、字节上限、正在关闭、继承所有权、版本冲突及未确认的持久化。副本保留原所有者。`sessionTasks` 投影向已打开的会话提供当前记录，在列表摘要中排除载荷，并将任务会话标记为非空。生产者负责载荷校验、展示和控制，回放不得派发执行。参见[配套更新 Host 与插件](../../../docs/upgrade-guide/v0.2.2-rc.1/background-task-conversation/guide.zh.md)。
+
 历史页与 follow opening 快照为每个持久 Session 事件携带一条 `{ type: 'event', event: SessionWireEvent }` record。Client 把每条已接受 record 保留为一个持久 `SessionEventLikeEntry`；Assistant token 边界保留在 `assistant/message` 或 `assistant/attempt` 的紧凑流内。工具参数、结果内容、失败信息和 `tool/result.data.meta` 原样通过；控制器不解析工具定义、不运行展示转换器，也不附加 UI 数据。
 
 Client journal 在发布 follow 快照、live entry 或历史页之前验证当前 Session 事件 envelope。它复用浏览器安全的 Session validator，检查必需的 surface marker、精确的 replacement endpoint、更早且唯一的 source seq、内嵌 Assistant 提供方元数据、request header 可选字段的省略规则以及工具错误一致性。无效 record 直接失败，不删除字段或归一化；范围成员与来源存在性仍由 Host 的持久日志检查。
@@ -94,6 +96,8 @@ Client 的首次 `follow`、重连首屏与 `loadOlder()` 至少请求 50 条以
 <a id="session-media-references"></a>
 ## 会话媒体引用
 
+`/api/file?path=…&preview=1` 通过附件提供方返回尺寸受限的静态栅格图。版本重定向保留预览模式并加入 `pv` 策略标识。每次 Host 请求在使用派生缓存前检查当前文件来源及读取权限，缓存命名空间隔离不同挂载的文件系统提供方。版本化响应仍为私有不可变缓存，HEAD 只返回派生响应头而无正文。不支持或无效的预览明确失败；不带预览模式的请求保留原字节和既有 GET/HEAD 行为。
+
 当 `connection`、`fs` 与 `attachments` 均被组合时，`SessionMediaReferences` 在鉴权 `connection.fetch` 通道上挂载 `GET|HEAD /api/file?path=<绝对路径>`。它通过 `ctx.fs` 读取普通文件，包括已注册工作区之外的临时路径与远程提供方中的文件。目录包含关系与 MIME 类别均不限制访问；`mime-types` 提供响应类型，未知扩展名使用 `application/octet-stream`。GET 复用 `readBytes` 执行读取前及读取中的字节限制；HEAD 只读取元数据。所有文件均使用 `ctx.attachments.imageLimits.maxImageBytes`（通常为 50 MiB）；超过此上限返回 413。`v` 参数与文件当前 `ctx.fs` 版本不同（包括没有该参数）的请求，会收到 `private, no-store` 的 302，跳转到只含 `path` 与当前 `v` 的同一路由；版本化响应为 `private, max-age=31536000, immutable`，因此浏览器在文件变化前复用缓存内容，私有文件内容可能进入浏览器磁盘缓存。响应包含完整文件，忽略 Range，并携带 `nosniff` 与沙箱 CSP，使直接打开的 HTML/SVG 无法以 API 源身份执行脚本。客户端重写位于 `ui-chat`（`AssistantMarkdown`）；音视频文件响应已可用，Markdown 音视频播放器节点仍是独立工作。
 
 GUI 模型选择要求确切提供方／模型对出现在可用目录中；不可用的选择以 `session/model-unavailable` 拒绝。提示词准入保留已保存的路由，不按目录可用性阻断发送，由请求执行报告凭据缺失或模型不可用。`initializeDefaultModel()` 在账号登录后、其他提供方均未配置 API key 时，将第一个可用账号模型保存为默认模型；凭据检查使用已配置的引用，不依赖模型是否可用。提供方没有可用模型时，初始化以 `session/provider-models-unavailable` 拒绝。可用性变化不会替换模型或改写会话选择。
@@ -109,6 +113,7 @@ GUI 模型选择要求确切提供方／模型对出现在可用目录中；不�
 |---|---:|---|
 | `nativeOpen` | 平台探测 | 是否能把 Session 工作区路径交给原生桌面打开器 |
 | `listWorkSliceMs` | `16` | 列表工作时间片，单位为毫秒，取正整数；在完整条目之间检查 |
+| `taskSnapshotMaxBytes` | `131072` | 单份 Host 任务检查点的序列化字节上限 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-api-session-controller)是所有受支持字段及其 JSDoc 的完整来源。
 

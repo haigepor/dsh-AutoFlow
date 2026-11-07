@@ -157,11 +157,20 @@ async function verifyRequestImage(
   return { ...image, hasAlpha: detected.hasAlpha }
 }
 
-async function writeCached(path: string, data: Uint8Array): Promise<void> {
+/**
+ * Publish complete derived pixels through a private temporary file and atomic rename.
+ * @param path Provider-private cache path.
+ * @param data Verified encoded pixels.
+ * @param signal Optional cancellation.
+ * @returns Atomic publication of a complete derived image.
+ */
+export async function writeImageCache(path: string, data: Uint8Array, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted()
   await mkdir(dirname(path), { recursive: true, mode: 0o700 })
   const temporary = `${path}.${randomUUID()}.tmp`
   try {
-    await writeFile(temporary, data, { mode: 0o600, flag: 'wx' })
+    await writeFile(temporary, data, { mode: 0o600, flag: 'wx', signal })
+    signal?.throwIfAborted()
     await rename(temporary, path)
   } finally {
     await rm(temporary, { force: true })
@@ -194,7 +203,7 @@ export async function readRequestImageFile(
     ? { ...created, hasAlpha: source.hasAlpha }
     : await verifyRequestImage(created, source.hasAlpha))
   signal?.throwIfAborted()
-  if (cached === undefined && version.data !== attachment.data) await writeCached(path, version.data)
+  if (cached === undefined && version.data !== attachment.data) await writeImageCache(path, version.data)
   return {
     variantId,
     attachment: attachment.ref,
