@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for visual-curator-2026-11-07.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/handoffs/visual-curator-2026-11-07.md
+/visual-curator-device-handoff:
+  en: 526af1c6d1428d29
+  zh: 5db567d6a1644eeb
+/visual-curator-device-handoff/contents:
+  en: 0dab8b5bfda18621
+  zh: d2c8329e18114561
+/visual-curator-device-handoff/source-and-launch:
+  en: ecb8433c2e4deff3
+  zh: 12aee949cb800210
+/visual-curator-device-handoff/implemented-behavior:
+  en: e07357e0deefe8c8
+  zh: 9339bf3fafaedc95
+/visual-curator-device-handoff/verification-and-limits:
+  en: bc2493ecba691b35
+  zh: ece3b7685b9bfde1
+/visual-curator-device-handoff/local-data-transfer:
+  en: b4defd28cead9ec9
+  zh: f458257c584b3dc8
+/visual-curator-device-handoff/continuation-prompt:
+  en: 4edcd641561e161c
+  zh: 94bb5d642cee1ddf
