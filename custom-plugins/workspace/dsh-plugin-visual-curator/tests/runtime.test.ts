@@ -1,10 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { BudgetLedger, RunEngine, dataOf, decideAssessment, rankedSelections, type ExecutionSpec } from '../src/host/runtime.ts'
+import { BudgetLedger, RunEngine, dataOf, decideAssessment, rankedSelections, readRunContinuation, runContinuation, type ExecutionSpec } from '../src/host/runtime.ts'
 import { resolveConfig } from '../src/host/config.ts'
 import { DomainRepository, MemoryDomainAdapter, contentDigest } from '../src/domain/repository.ts'
 import { JobId, type JobOutcome, type JobRegistry } from '@deepseek-ai/dsh-jobs'
 import { readFile } from 'node:fs/promises'
+import { requestSchema, runSchema } from '../src/shared/model.ts'
+import { MediaError } from '../src/media/index.ts'
 
 function progressFixture() {
   const adapter = new MemoryDomainAdapter(), repository = new DomainRepository('progress-profile', adapter)
@@ -34,6 +36,42 @@ test('required failures and unknown cannot be averaged away by preferred scores'
 })
 test('saved assessments have stable deterministic ranking', () => {
   assert.deepEqual(rankedSelections([{ id: 'b', score: 4 }, { id: 'a', score: 4 }, { id: 'c', score: 5 }]).map(x => x.id), ['c', 'a', 'b'])
+})
+
+test('continuation list reads retain exact outcome policy without cloning heavy or unrelated request bodies', async context => {
+  const f = progressFixture(), now = Date.now(), payload = 'Synthetic context. '.repeat(16384)
+  const cases = [
+    { state: 'reserved', data: { operation: 'review', payload }, reason: 'outcome-unknown' },
+    { state: 'outcome-unknown', data: { bundle: { operation: 'review', payload }, error: { outcome: 'unknown', code: 'remote-timeout' } }, reason: 'outcome-unknown' },
+    { state: 'outcome-unknown', data: { bundle: { operation: 'review', payload }, error: { outcome: 'unknown', code: 'cancelled' } }, reason: 'ready' },
+    { state: 'outcome-unknown', data: { bundle: { operation: 'review', payload }, error: { code: 'vision-invalid-output' } }, reason: 'ready' },
+    { state: 'reserved', data: { operation: 'wallpaper-review', payload }, reason: 'ready' },
+    { state: 'outcome-unknown', data: { bundle: { operation: 123 }, error: { outcome: 'unknown' }, payload }, reason: 'ready' },
+    { state: 'committed', data: { bundle: { operation: 'review', payload }, output: { pass: true } }, reason: 'ready' },
+  ]
+  const requests = cases.map((row, index) => requestSchema.parse({ schemaVersion: 1, profileId: f.repository.profileId, id: `target-${index}`, createdAt: '2026-11-07T00:00:00.000Z', kind: 'request', runId: `run-${index}`, state: row.state, requestDigest: contentDigest(index), data: row.data }))
+  const foreign = requestSchema.parse({ ...requests[0], id: 'foreign', runId: 'another-run' })
+  try {
+    await f.repository.commit({ aggregateId: 'continuation-history', expectedRevision: 0, operationId: 'history', request: {}, records: [...requests, foreign], state: {} })
+    let requestClones = 0
+    const clone = structuredClone
+    context.mock.method(globalThis, 'structuredClone', <T>(value: T): T => { if (value && typeof value === 'object' && 'kind' in value && value.kind === 'request') requestClones++; return clone(value) })
+    for (const [index, request] of requests.entries()) {
+      const run = runSchema.parse({ schemaVersion: 1, profileId: f.repository.profileId, id: request.runId, createdAt: request.createdAt, kind: 'run', owner: { kind: 'profile' }, revision: 1, status: 'paused', stage: 'reviewing', spec: f.spec, data: { attemptId: 'saved', attempts: 1, budget: { ...new BudgetLedger(f.spec.config.limits).snapshot(), deadlineAt: now + 60000 }, checkpoint: {}, counts: {}, warnings: [], resultIds: [], requestIds: [request.id, foreign.id] } })
+      const expected = { allowed: cases[index]!.reason === 'ready', reason: cases[index]!.reason }
+      assert.deepEqual(readRunContinuation(run, f.repository, now), expected)
+      assert.deepEqual(runContinuation(run, [request, foreign], now), expected)
+      for (const status of ['running', 'completed', 'cancelled'] as const) {
+        const before = f.adapter.readRecord.bind(f.adapter)
+        let reads = 0; f.adapter.readRecord = key => { reads++; return before(key) }
+        try {
+          assert.deepEqual(readRunContinuation({ ...run, status }, f.repository, now), runContinuation({ ...run, status }, [request, foreign], now))
+          assert.equal(reads, 0, `${status} does not inspect request outcomes`)
+        } finally { f.adapter.readRecord = before }
+      }
+    }
+    assert.equal(requestClones, 0)
+  } finally { await f.engine.dispose() }
 })
 
 test('job progress reports saved image-search stages, candidates and matches', async () => {
@@ -78,4 +116,53 @@ test('job progress waits for persistence and never announces a rejected checkpoi
     assert.deepEqual(f.updates.map(update => update.counts), [{ candidates: 12, qualified: 3 }])
     assert.ok(f.updates.every(update => !update.text.includes('99') && !update.text.includes('9/10')))
   } finally { release.resolve(); rejectNext.resolve(); await Promise.all(f.completions); await f.engine.dispose() }
+})
+
+test('request retries inspect only their task receipts and preserve the shared call budget', async () => {
+  const f = progressFixture()
+  const foreign = requestSchema.parse({ schemaVersion: 1, profileId: f.repository.profileId, id: 'foreign-request', createdAt: '2026-11-07T00:00:00.000Z', kind: 'request', runId: 'foreign-run', state: 'outcome-unknown', requestDigest: contentDigest({ operation: 'review' }), data: { error: { code: 'remote-timeout', stage: 'fixture', retryable: true, safeMessage: 'Synthetic timeout', suggestedAction: 'Retry' } } })
+  await f.repository.commit({ aggregateId: 'foreign-history', expectedRevision: 0, operationId: 'foreign', request: {}, records: [foreign], state: {} })
+  const foreignKeys = new Set(f.adapter.manifests().flatMap(manifest => manifest.records.filter(pointer => pointer.id === foreign.id).map(pointer => pointer.key)))
+  const read = f.adapter.readRecord.bind(f.adapter)
+  let foreignReads = 0, dispatched = 0
+  f.adapter.readRecord = key => { if (foreignKeys.has(key)) foreignReads++; return read(key) }
+  f.spec.config = resolveConfig({ limits: { maxRetryAttempts: 1, retryDelayMs: 0 } })
+  try {
+    const run = await f.engine.create(f.spec, f.actor, async ctx => {
+      await ctx.request('vision', { operation: 'review' }, async () => {
+        if (++dispatched === 1) throw new MediaError('remote-timeout', 'fixture', true, 'Synthetic timeout', 'Retry')
+        return { pass: true }
+      })
+      return 'target-met'
+    })
+    await Promise.all(f.completions)
+    assert.equal(f.engine.get(run.id, f.actor).outcome, 'target-met')
+    assert.equal(dispatched, 2)
+    assert.equal(dataOf(f.engine.get(run.id, f.actor)).budget.vision, 2)
+    assert.equal(dataOf(f.engine.get(run.id, f.actor)).requestIds.length, 2)
+    assert.equal(foreignReads, 0, 'Retry admission must not load unrelated request bodies')
+  } finally { f.adapter.readRecord = read; await f.engine.dispose() }
+})
+
+test('missing and foreign saved request receipts stop before another paid dispatch', async () => {
+  for (const mode of ['missing', 'foreign'] as const) {
+    const f = progressFixture()
+    const receipt = requestSchema.parse({ schemaVersion: 1, profileId: f.repository.profileId, id: 'saved-request', createdAt: '2026-11-07T00:00:00.000Z', kind: 'request', runId: 'different-run', state: 'committed', requestDigest: contentDigest({ operation: 'review' }), data: {} })
+    if (mode === 'foreign') await f.repository.commit({ aggregateId: 'foreign-history', expectedRevision: 0, operationId: 'foreign', request: {}, records: [receipt], state: {} })
+    let dispatched = 0
+    try {
+      const run = await f.engine.create(f.spec, f.actor, async ctx => {
+        await ctx.save('planning', { requestIds: [receipt.id] })
+        await ctx.request('vision', { operation: 'review' }, async () => { dispatched++; return { pass: true } })
+        return 'target-met'
+      })
+      await Promise.all(f.completions)
+      const saved = f.engine.get(run.id, f.actor)
+      assert.equal(saved.status, 'failed', mode)
+      assert.equal(dataOf(saved).error?.code, 'reference-unavailable', mode)
+      assert.equal(dataOf(saved).error?.stage, 'request-history', mode)
+      assert.equal(dispatched, 0, mode)
+      assert.equal(dataOf(saved).budget.vision, 0, mode)
+    } finally { await f.engine.dispose() }
+  }
 })

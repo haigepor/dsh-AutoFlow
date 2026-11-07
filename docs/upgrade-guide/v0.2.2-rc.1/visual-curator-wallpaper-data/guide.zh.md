@@ -13,6 +13,8 @@ description: 保存新合成派生图后，Visual Curator 壁纸数据需要更�
 
 可恢复蒙版扩图还需要配套的原生 LLM 任务接口及 Codex Subscription 适配器。只将 Visual Curator 导入旧桌面不会增加这些能力。纯裁剪仍可执行，需要扩图的图片会停止并提示能力缺失。
 
+新任务还保存提示词标识 `wallpaper-plan-v2`、`wallpaper-outpaint-v3` 及合成模式 `protected-context-v2`。更新后的读取器保留旧任务提示词与生成回执；旧读取器不支持这些新标识。重新合成复用已有生成结果，不能声称该结果使用了不同的生成蒙版；显式手动修正仍保留累计编辑限制。
+
 ## 迁移
 
 1. 本地测试前先停止 Profile，备份其数据目录，并与活跃写入目录分开保存。

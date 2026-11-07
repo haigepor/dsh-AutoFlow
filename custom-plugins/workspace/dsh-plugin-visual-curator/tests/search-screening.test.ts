@@ -1,6 +1,7 @@
 /** Real search workers, image decoding and persistence with only external source/model boundaries scripted. */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,6 +18,7 @@ import { AssetFiles, CompatibleVisionProvider, type HttpClient } from '../src/me
 import type { SourceQuery } from '../src/media/source.ts'
 import { modelProfileSchema, recipeSchema, styleSchema, draftSchema, type RunRecord } from '../src/shared/model.ts'
 import { FixtureJobs } from './helpers/service-fixture.ts'
+import { CuratorError } from '../src/shared/errors.ts'
 
 const base = { schemaVersion: 1, profileId: 'screening-test', createdAt: '2026-11-04T00:00:00.000Z' }
 const rule = { ruleId: 'green', statement: 'Use a green palette.', dimension: 'color', condition: {}, strength: 'preferred', stage: 'source', check: { kind: 'visual', criterion: 'Green colors dominate.' }, exceptions: [], supportRefs: [], counterRefs: [], confirmation: { status: 'suggested' } }
@@ -25,7 +27,7 @@ const profile = modelProfileSchema.parse({ ...base, id: 'profile', kind: 'modelP
 const requestSchema = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ type: z.string(), text: z.string().optional(), image_url: z.object({ url: z.string() }).optional() }))]) })) })
 const payloadSchema = z.object({ input: z.object({ operation: z.string(), stage: z.string().optional(), requestId: z.string(), images: z.array(z.object({ imageVersionId: z.string() })), rules: z.array(z.object({ ruleId: z.string() })) }) })
 
-async function fixture(options: { count?: number; pool?: 50 | 100; target?: number; allReject?: boolean; rejectFinal?: boolean; malformed?: boolean; maxVisionCalls?: number; retryAttempts?: number; output?: 'preview' | 'original'; duplicatePages?: boolean; pauseScreen?: boolean; overlapScreening?: boolean; restrictedOriginals?: boolean; ruleStatus?(ruleId: string, stage?: string): 'satisfied' | 'violated' | 'unknown'; queries?: string[]; color?(id: string): 'green' | 'red' | 'blue'; page?(query: string, page: number): { ids: string[]; nextCursor: string | null } } = {}) {
+async function fixture(options: { count?: number; pool?: 50 | 100; target?: number; allReject?: boolean; rejectFinal?: boolean; malformed?: boolean; maxVisionCalls?: number; retryAttempts?: number; output?: 'preview' | 'original'; duplicatePages?: boolean; pauseScreen?: boolean; overlapScreening?: boolean; restrictedOriginals?: boolean; ruleStatus?(ruleId: string, stage?: string): 'satisfied' | 'violated' | 'unknown'; queries?: string[]; color?(id: string): 'green' | 'red' | 'blue'; page?(query: string, page: number): { ids: string[]; nextCursor: string | null }; media?(id: string, signal: AbortSignal | undefined): Promise<void> } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'visual-screening-'))
   const repository = new DomainRepository(base.profileId, new MemoryDomainAdapter()), domain = new CuratorDomain(base.profileId, repository)
   const jobs = new FixtureJobs(), engine = new RunEngine(repository, jobs)
@@ -37,7 +39,7 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
   const blue = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#0000dd' } }).png().toBuffer()
   const pixels = (id: string) => ({ green, red, blue })[options.color?.(id) ?? (!options.allReject && id === ids.at(-1) ? 'green' : !options.allReject && id === ids.at(-2) ? 'blue' : 'red')]
   const item = (id: string) => ({ providerAssetId: id, width: 1200, height: 800, previewUrl: `https://images.unsplash.com/${id}/regular`, thumbnailUrl: `https://images.unsplash.com/${id}/small`, ...(options.restrictedOriginals ? { originalUnavailable: 'restricted' as const } : { originalUrl: `https://images.unsplash.com/${id}/original` }) })
-  const sourcePages: number[] = [], mediaRequests: string[] = [], calls: { operation: string; imageIds: string[]; requestId: string }[] = []
+  const sourcePages: number[] = [], mediaRequests: string[] = [], calls: { operation: string; imageIds: string[]; requestId: string; screeningDecisions?: string[] }[] = []
   const sourceQueries: { query: string; page: number }[] = []
   let active = 0, peak = 0, failCheckpoint = false, pauseScreen = options.pauseScreen === true
   const screeningEntered = Promise.withResolvers<void>()
@@ -55,13 +57,17 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
     request.signal?.throwIfAborted()
     if (url.startsWith('https://images.unsplash.com/')) {
       mediaRequests.push(url)
-      return { status: 200, headers: { 'content-type': 'image/png' }, bytes: pixels(new URL(url).pathname.split('/')[1]!) }
+      const id = new URL(url).pathname.split('/')[1]!
+      await options.media?.(id, request.signal)
+      request.signal?.throwIfAborted()
+      return { status: 200, headers: { 'content-type': 'image/png' }, bytes: pixels(id) }
     }
     const messages = requestSchema.parse(JSON.parse(Buffer.from(request.body ?? []).toString('utf8'))).messages
     const content = messages.find(message => message.role === 'user')!.content
     assert.ok(Array.isArray(content))
     const input = payloadSchema.parse(JSON.parse(content[0]!.text!)).input
-    calls.push({ operation: input.operation, imageIds: input.images.map(image => image.imageVersionId), requestId: input.requestId })
+    const call: (typeof calls)[number] = { operation: input.operation, imageIds: input.images.map(image => image.imageVersionId), requestId: input.requestId }
+    calls.push(call)
     const imageUrls = content.flatMap(part => part.image_url ? [part.image_url.url] : [])
     let result: unknown
     if (input.operation === 'screen') {
@@ -84,6 +90,7 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
           assert.ok(metadata.width! <= 384 && metadata.height! <= 384)
           return stats.channels[0]!.mean > 150 ? 'obvious-reject' : stats.channels[2]!.mean > 150 ? 'uncertain' : 'deep-review'
         }))
+        call.screeningDecisions = colors
         result = { items: input.images.map((image, index) => ({ imageVersionId: image.imageVersionId, decision: colors[index], reason: 'Decision from the candidate thumbnail pixels.' })) }
         if (options.malformed) result = { items: [] }
       } finally { active-- }
@@ -107,6 +114,61 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
   const spec: ExecutionSpec = { kind: 'search', config, input: { taskBrief: 'Find green color samples.', queries: options.queries ?? ['color samples'], targetCount: options.target ?? 1 }, fixed: { release: toJson(profile), output: { kind: options.output ?? 'preview' }, executionRecipe: toJson(recipe), searchScreening: { version: 1, candidatePoolSize: options.pool ?? 50, batchSize: 6, maxScreeningImageEdge: 384 } }, specDigest: 'fixture' }
   return { root, repository, domain, files, jobs, engine, worker, actor, spec, ids, calls, sourcePages, sourceQueries, mediaRequests, screeningEntered: screeningEntered.promise, allowScreening() { pauseScreen = false }, get peak() { return peak }, interruptCheckpoint() { failCheckpoint = true }, async run(id = 'search') { const started = await engine.create(spec, actor, worker, id); await jobs.drain(); return domain.require('run', started.id) }, async cleanup() { clearTimeout(overlapDeadline); screeningOverlap.resolve(); await engine.dispose(); await rm(root, { recursive: true, force: true }) } }
 }
+
+test('thumbnail preparation overlaps within one batch, retains pixel order and shares three slots across the Run', async () => {
+  const gates = Array.from({ length: 3 }, () => Promise.withResolvers<void>()), entered = Promise.withResolvers<void>()
+  const starts: string[] = [], finishes: string[] = [], palette = ['red', 'green', 'blue'] as const
+  let active = 0, peak = 0
+  const f = await fixture({ count: 18, color: id => palette[Number(id.slice(6)) % 3]!, async media(id) {
+    starts.push(id); active++; peak = Math.max(peak, active)
+    try { if (starts.length === 3) entered.resolve(); const gate = gates[Number(id.slice(6))]; if (gate) await gate.promise }
+    finally { active--; finishes.push(id) }
+  } })
+  const running = f.run(), timeout = setTimeout(() => entered.reject(new Error('The first thumbnail batch did not overlap')), 30_000)
+  try {
+    await entered.promise
+    assert.deepEqual(starts, ['photo-0', 'photo-1', 'photo-2'])
+    for (const gate of gates.slice().reverse()) gate.resolve()
+    const run = await running
+    assert.equal(run.outcome, 'target-met')
+    assert.deepEqual(finishes.slice(0, 3), ['photo-2', 'photo-1', 'photo-0'])
+    assert.equal(peak, 3, 'All batches share the configured preparation limit')
+    assert.equal(dataOf(run).counts.screeningReviewed, 18)
+    const screens = f.calls.filter(call => call.operation === 'screen')
+    assert.equal(screens.length, 3)
+    for (const screen of screens) assert.deepEqual(screen.screeningDecisions, ['obvious-reject', 'deep-review', 'uncertain', 'obvious-reject', 'deep-review', 'uncertain'])
+  } finally { clearTimeout(timeout); for (const gate of gates) gate.resolve(); await running; await f.cleanup() }
+})
+
+test('failed or cancelled preparation drains started thumbnails before the Run settles and never dispatches a partial batch', async () => {
+  for (const cancel of [false, true]) {
+    const gates = Array.from({ length: 3 }, () => Promise.withResolvers<void>()), entered = Promise.withResolvers<void>(), failed = Promise.withResolvers<void>()
+    let arrivals = 0, settled = false
+    const f = await fixture({ count: 6, async media(id) {
+      const index = Number(id.slice(6)); if (++arrivals === 3) entered.resolve()
+      await gates[index]?.promise
+      if (!cancel && index === 0) { failed.resolve(); throw new CuratorError('reference-unavailable', 'fixture-thumbnail', 'The source thumbnail is unavailable.') }
+    } })
+    const timeout = setTimeout(() => entered.reject(new Error('The draining fixture did not reach three thumbnails')), 30_000)
+    try {
+      const started = await f.engine.create(f.spec, f.actor, f.worker, `drain-${cancel}`)
+      await entered.promise
+      const settlement = cancel ? f.engine.control(started.id, 'cancel', f.actor) : f.jobs.drain()
+      void settlement.then(() => { settled = true }, () => { settled = true })
+      if (!cancel) { gates[0]!.resolve(); await failed.promise }
+      await setImmediate()
+      assert.equal(settled, false, 'An admitted sibling thumbnail still owns unfinished work')
+      for (const gate of gates) gate.resolve()
+      await settlement; await f.jobs.drain()
+      assert.equal(f.domain.require('run', started.id).status, cancel ? 'cancelled' : 'failed')
+      assert.equal(f.mediaRequests.length, 3, 'Queued preparation does not start after failure or cancellation')
+      assert.equal(f.calls.length, 0)
+      const revision = f.repository.revisionDigest()
+      await setImmediate()
+      assert.equal(f.repository.revisionDigest(), revision)
+    } finally { clearTimeout(timeout); for (const gate of gates) gate.resolve(); await f.cleanup() }
+  }
+})
 
 test('collects 50 and 100 unique candidates across real source pages and only final review qualifies a result', async () => {
   for (const count of [50, 100] as const) {

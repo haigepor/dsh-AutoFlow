@@ -3,9 +3,29 @@ import assert from 'node:assert/strict'
 import { z } from 'zod'
 import { profileProjectionFixture } from './helpers/profile-projection-fixture.ts'
 import { createCuratorStore } from '../src/client/store.ts'
+import { runSchema, requestSchema } from '../src/shared/model.ts'
+import { contentDigest } from '../src/domain/repository.ts'
+import { dataOf, specOf, toJson } from '../src/host/runtime.ts'
 
 const samples = z.object({ samples: z.array(z.json()) })
 const style = z.object({ styleId: z.string(), evidenceLoaded: z.boolean().optional(), analysis: samples.optional(), modelProfile: samples.optional() })
+
+test('workspace task summaries do not read unrelated model history for completed continuations', async context => {
+  const f = await profileProjectionFixture(1)
+  try {
+    const seed = f.repository.list('run')[0]!, spec = specOf(seed)
+    const runs = Array.from({ length: 10 }, (_, index) => runSchema.parse({ ...seed, id: `completed-summary-${index}`, owner: { kind: 'profile' }, status: 'completed', outcome: 'target-met', spec: toJson({ ...spec, kind: 'search', input: { targetCount: 1 }, fixed: {} }), data: toJson({ ...dataOf(seed), requestIds: [] }) }))
+    const request = requestSchema.parse({ schemaVersion: 1, profileId: f.profileId, id: 'heavy-unrelated-review', createdAt: seed.createdAt, kind: 'request', runId: 'unrelated-history', state: 'committed', requestDigest: contentDigest('unrelated'), data: { bundle: { operation: 'review', inputText: 'Saved synthetic context. '.repeat(8192) }, output: {} } })
+    await f.repository.commit({ aggregateId: 'summary-fixture', expectedRevision: 0, operationId: 'summary-fixture', request: {}, records: [...runs, request], state: {} })
+    let requestClones = 0
+    const clone = structuredClone
+    context.mock.method(globalThis, 'structuredClone', <T>(value: T): T => { if (value && typeof value === 'object' && 'kind' in value && value.kind === 'request') requestClones++; return clone(value) })
+    const snapshot = z.object({ runs: z.array(z.object({ runId: z.string(), continuation: z.object({ allowed: z.boolean(), reason: z.string() }) })) }).parse(await f.action('snapshot', { includeStyleSamples: false, includeRunResults: false }))
+    assert.equal(snapshot.runs.filter(run => run.runId.startsWith('completed-summary-')).length, 10)
+    assert.ok(snapshot.runs.filter(run => run.runId.startsWith('completed-summary-')).every(run => run.continuation.reason === 'completed' && !run.continuation.allowed))
+    assert.equal(requestClones, 0)
+  } finally { await f.cleanup() }
+})
 
 test('workspace summaries omit image observations while style details retain every positive and negative sample', async () => {
   const f = await profileProjectionFixture(40, 2)

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-background-recovery",
+  "category": "fixes",
+  "text": {
+    "en": "Saved image edits can be recomposed and reviewed without generating again. Wallpaper style review follows the task's fixed rule weights, and resumed work retains planning failures and reports storage limits.",
+    "zh-CN": "支持复用已保存扩图结果重新合成和复审，避免重复生图；壁纸风格复核遵守固定规则权重，恢复任务保留规划失败依据并明确报告存储上限。"
+  }
+}

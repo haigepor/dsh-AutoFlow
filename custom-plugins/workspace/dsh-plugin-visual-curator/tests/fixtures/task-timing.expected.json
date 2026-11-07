@@ -1,0 +1,12 @@
+{
+  "bounded": {
+    "policy": "bounded",
+    "deadlineEnforced": true,
+    "configuredDeadlineMs": 600000
+  },
+  "native": {
+    "policy": "native-model",
+    "deadlineEnforced": false,
+    "configuredDeadlineMs": 600000
+  }
+}

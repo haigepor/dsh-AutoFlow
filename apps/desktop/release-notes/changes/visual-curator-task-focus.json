@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-task-focus",
+  "category": "improvements",
+  "text": {
+    "en": "Image searches use one start flow with explicit wallpaper output. The canvas focuses the current task with compact previews and separate search and wallpaper progress.",
+    "zh-CN": "统一找图启动入口并明确壁纸输出，画布默认聚焦当前任务，收紧图片预览，分别展示找图与壁纸进度。"
+  }
+}

@@ -37,6 +37,7 @@ export const searchLaunchViewSchema = z.object({
   continuation: runContinuationSchema.optional(),
   wallpaper: z.object({ runId: z.string(), status: runSchema.shape.status, total: z.number().int().nonnegative(), passed: z.number().int().nonnegative(), attention: z.number().int().nonnegative() }).optional(),
   stopping: z.boolean().optional(),
+  presentation: z.object({ state: z.enum(['pending', 'current', 'failed', 'unavailable']), code: z.string().optional() }).optional(),
   error: z.object({ code: z.string(), stage: z.string().optional(), safeMessage: z.string(), suggestedAction: z.string() }).optional(),
 })
 /** Public durable admission and real Run progress. */

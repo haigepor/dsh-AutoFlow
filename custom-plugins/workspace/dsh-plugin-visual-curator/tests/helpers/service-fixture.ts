@@ -44,6 +44,7 @@ export class FixtureHttp implements HttpClient {
     const dimensions = ['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth']
     let result: Json
     if (prompt.operation === 'analyze') result = { observations: prompt.images.map(image => ({ imageVersionId: image.imageVersionId, dimensions: [{ dimension: 'color', observation: 'A muted green palette is visible.', uncertain: false }] })), ...(prompt.analysisOutput === 'observations-only' ? {} : { suggestedRules: [{ statement: 'Use muted green colors.', dimension: 'color', strength: 'preferred', stage: 'source', supportImageVersionIds: prompt.images.map(image => image.imageVersionId), counterImageVersionIds: [], condition: '', exceptions: [] }] }) }
+    else if (prompt.operation === 'plan-search') result = { queries: ['muted green landscape'], rationale: 'Use the saved palette and requested landscape subject.' }
     else if (prompt.operation === 'screen') result = { items: prompt.images.map(image => ({ imageVersionId: image.imageVersionId, decision: 'deep-review', reason: 'The thumbnail needs a full rule review.' })) }
     else if (prompt.operation === 'summarize') {
       this.summaryInputs.push(prompt.taskBrief)

@@ -1,5 +1,7 @@
 /** Durable owner-authorized preparation, native prompt admission and result delivery. */
 import { randomUUID, createHash } from 'node:crypto'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { SessionTaskSnapshot, SessionTaskId, SessionTaskSourceId } from '@deepseek-ai/dsh-api-session-controller/types'
 import { stat } from 'node:fs/promises'
 import { z } from 'zod'
 import { ModelProfiles } from '../domain/model-profile.ts'
@@ -8,7 +10,7 @@ import type { CuratorDomain } from '../domain/curator.ts'
 import { jsonSchema, type DomainActor, type Json, type ModelProfile, type RunRecord } from '../shared/model.ts'
 import { searchLaunchInputSchema, searchLaunchViewSchema, type SearchLaunchInput, type SearchLaunchView } from '../shared/search-launch.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { executionSchema, safeFailure, specOf, dataOf, runFailure, runContinuation, toJson, type ExecutionSpec, type RunEngine, type Worker } from './runtime.ts'
+import { executionSchema, safeFailure, specOf, dataOf, runFailure, readRunContinuation, toJson, type ExecutionSpec, type RunEngine, type Worker } from './runtime.ts'
 import type { NativeSearchSessions } from './native-search-session.ts'
 import type { AssetFiles } from '../media/index.ts'
 import { deliverSearchResults } from './search-results.ts'
@@ -20,6 +22,8 @@ import { listDatasets, readDatasetDirectory, type DatasetReads } from './dataset
 import { removedDatasetIds } from '../domain/dataset-removal.ts'
 import { wallpaperProgress } from '../shared/wallpaper.ts'
 import { wallpaperRunState } from './wallpaper-state.ts'
+import { launchPresentationSchema } from '../shared/task-presentation.ts'
+import { presentRun } from './task-presentation.ts'
 
 const launchSchema = z.strictObject({
   version: z.literal(1), input: searchLaunchInputSchema, requestDigest: z.string(), sessionId: z.string(), requestId: z.string(),
@@ -29,6 +33,7 @@ const launchSchema = z.strictObject({
   negativeReferences: searchNegativeReferencesSchema.optional(),
   stopRequested: z.boolean().optional(),
   sessionReady: z.boolean().optional(),
+  directory: z.string().optional(),
 })
 type Launch = z.infer<typeof launchSchema>
 
@@ -42,6 +47,13 @@ export class SearchLaunches {
   private readonly faults = new Map<string, Json>()
   private readonly stopWork = new Map<string, Promise<SearchLaunchView>>()
   private readonly writes = new Map<string, Promise<void>>()
+  private readonly presentationOwners = new Map<string, string>()
+  private readonly presentationTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private readonly presentationWork = new Map<string, Promise<void>>()
+  private readonly presented = new Map<string, number>()
+  private readonly presentationState = new Map<string, { state: 'pending' | 'current' | 'failed' | 'unavailable'; code?: string }>()
+  private readonly presentationFailures = new Map<string, number>()
+  private presentationClosed = false
   constructor(private readonly deps: {
     domain: CuratorDomain; files: AssetFiles; engine: RunEngine; signal: AbortSignal; native(): NativeSearchSessions | undefined
     freeze(input: SearchLaunchInput, actor: DomainActor): Promise<ExecutionSpec>
@@ -61,7 +73,7 @@ export class SearchLaunches {
     if (!state) throw new CuratorError('reference-unavailable', 'search-launch', 'The saved launch is unavailable.')
     return launchSchema.parse(state)
   }
-  private all(): Launch[] { return this.deps.domain.repository.manifests().filter(item => item.aggregateId.startsWith('search-launch:')).map(item => launchSchema.parse(item.state)) }
+  private all(): Launch[] { return this.deps.domain.repository.manifests('search-launch:').map(item => launchSchema.parse(item.state)) }
   private visible(): Launch[] {
     const hidden = hiddenTaskIds(this.deps.domain.repository), removed = hiddenLaunchIds(this.deps.domain.repository)
     const runs = this.deps.domain.repository.list('run')
@@ -92,6 +104,7 @@ export class SearchLaunches {
       const revision = saved?.revision ?? 0
       value.updatedAt = new Date().toISOString()
       await this.deps.domain.repository.commit({ aggregateId, expectedRevision: revision, operationId: `${aggregateId}:${revision + 1}`, request: value, records: [], state: toJson(value) })
+      this.queueLaunchPresentation(value)
     }
     const pending = this.writes.get(id) ?? Promise.resolve()
     const work = pending.then(write, write).finally(() => { if (this.writes.get(id) === work) this.writes.delete(id) })
@@ -101,21 +114,114 @@ export class SearchLaunches {
   private searchRuns(value: Launch, saved = this.deps.domain.repository.list('run')): RunRecord[] {
     return saved.filter(run => run.owner.kind === 'session' && run.owner.sessionId === value.sessionId && specOf(run).kind === 'search' && specOf(run).fixed.searchLaunchId === value.input.operationId)
   }
+
+  private presentationCommon(value: Launch) {
+    const profile = this.deps.domain.require('modelProfile', value.input.modelProfileId)
+    return { launchId: value.input.operationId, brief: value.input.taskBrief, target: value.input.targetCount,
+      outputKind: value.input.output.kind, modelProfileId: value.input.modelProfileId,
+      pollMs: value.spec.config.limits.pollIntervalMs, wallpaper: !!value.input.wallpaper,
+      styleId: profile.styleId, profileRevision: profile.revision,
+      ...(value.datasetId ? { datasetId: value.datasetId } : {}),
+      model: { provider: value.spec.config.vision.provider, model: value.spec.config.vision.model } }
+  }
+
+  private sessionReady(value: Launch, runs?: readonly RunRecord[]): boolean {
+    return value.sessionReady ?? (['preparing-dataset', 'attaching', 'submitting', 'accepted'].includes(value.stage) || (runs ?? this.searchRuns(value)).length > 0)
+  }
+
+  private queueLaunchPresentation(value: Launch): void {
+    if (value.input.executionMode !== 'workflow') return
+    this.presentationOwners.set(value.sessionId, value.input.operationId)
+    if (this.presentationClosed || this.deps.signal.aborted) return
+    try { if (!this.sessionReady(value)) return }
+    catch (error) { this.presentationState.set(value.input.operationId, { state: 'failed', code: safeFailure(error).code }); return }
+    if ((this.presentationFailures.get(value.input.operationId) ?? 0) > value.spec.config.limits.maxRetryAttempts) return
+    if (this.presentationState.get(value.input.operationId)?.state !== 'failed') this.presentationState.set(value.input.operationId, { state: 'pending' })
+    if (this.presentationTimers.has(value.input.operationId)) return
+    this.presentationTimers.set(value.input.operationId, setTimeout(() => {
+      this.presentationTimers.delete(value.input.operationId)
+      void this.publishPresentation(value.input.operationId).catch(() => {})
+    }, value.spec.config.limits.pollIntervalMs))
+  }
+
+  /** @param run Newly committed Run; only the owning workflow's presentation is scheduled. */
+  presentationChanged(run: RunRecord): void {
+    if (run.owner.kind !== 'session' || this.presentationClosed || this.deps.signal.aborted) return
+    const id = this.presentationOwners.get(run.owner.sessionId)
+    if (!id) return
+    try { this.queueLaunchPresentation(this.read(id)) }
+    catch (error) { this.presentationState.set(id, { state: 'failed', code: safeFailure(error).code }); return }
+    if (['completed', 'failed', 'cancelled', 'paused', 'interrupted'].includes(run.status)) void this.publishPresentation(id).catch(() => {})
+  }
+
+  private async publishPresentation(id: string): Promise<void> {
+    const previous = this.presentationWork.get(id) ?? Promise.resolve()
+    const work = previous.catch(() => {}).then(async () => {
+      if (this.presentationClosed || this.deps.signal.aborted) return
+      const value = this.read(id)
+      if (value.input.executionMode !== 'workflow' || !this.sessionReady(value)) return
+      const native = this.native(), present = native.present?.bind(native)
+      if (!present) throw new CuratorError('capability-unavailable', 'task-presentation', 'Update the Desktop Host to display this background workflow in its conversation.')
+      const snapshots = this.deps.domain.repository.readSnapshot(() => {
+        const current = this.read(id), common = this.presentationCommon(current)
+        const manifest = this.deps.domain.repository.manifest(`search-launch:${id}`)
+        if (!manifest) throw new CuratorError('reference-unavailable', 'task-presentation', 'The saved workflow requirements are unavailable.')
+        const base = { schemaVersion: 1 as const, provider: 'dsh-plugin-visual-curator', taskId: brandString<SessionTaskId>(id), title: current.input.taskBrief, createdAt: current.createdAt }
+        const result: SessionTaskSnapshot[] = []
+        if ((this.presented.get(`${id}:launch`) ?? 0) < manifest.revision) result.push({ ...base, sourceId: brandString<SessionTaskSourceId>('launch'), revision: manifest.revision, updatedAt: current.updatedAt,
+          data: toJson(launchPresentationSchema.parse({ type: 'launch', ...common, status: current.status, stage: current.stage, ...(current.stopRequested && current.status !== 'stopped' ? { stopping: true } : {}), ...(current.directory ? { directory: current.directory } : {}), ...(current.error ? { error: current.error } : {}) })) })
+        for (const run of this.deps.domain.repository.list('run')) {
+          if (run.owner.kind !== 'session' || run.owner.sessionId !== current.sessionId) continue
+          const saved = this.deps.domain.repository.manifest(`run:${run.id}`)
+          if (!saved || (this.presented.get(`${id}:${run.id}`) ?? 0) >= saved.revision) continue
+          const stamp = z.object({ presentationUpdatedAt: z.string().optional() }).parse(saved.state).presentationUpdatedAt ?? run.createdAt
+          result.push({ ...base, sourceId: brandString<SessionTaskSourceId>(run.id), revision: saved.revision, updatedAt: stamp, data: presentRun(this.deps.domain, run, common, stamp) })
+        }
+        return result
+      })
+      for (const snapshot of snapshots) {
+        await present(value.sessionId, snapshot)
+        this.presented.set(`${id}:${snapshot.sourceId}`, snapshot.revision)
+      }
+      this.presentationState.set(id, { state: 'current' })
+      this.presentationFailures.delete(id)
+    }).catch(error => {
+      const available = !!this.deps.native()?.present
+      this.presentationState.set(id, { state: available ? 'failed' : 'unavailable', code: safeFailure(error).code })
+      this.presentationFailures.set(id, (this.presentationFailures.get(id) ?? 0) + 1)
+      if (available) this.queueLaunchPresentation(this.read(id))
+      throw error
+    })
+    this.presentationWork.set(id, work)
+    const finish = () => { if (this.presentationWork.get(id) === work) this.presentationWork.delete(id) }
+    void work.then(finish, finish)
+    return work
+  }
+
+  /** @param id Existing launch. @returns Presentation acknowledgement only; no task or request is created. */
+  async retryPresentation(id: string): Promise<SearchLaunchView> {
+    this.read(id)
+    this.presentationFailures.delete(id)
+    for (const key of this.presented.keys()) if (key.startsWith(`${id}:`)) this.presented.delete(key)
+    await this.publishPresentation(id)
+    return this.view(this.read(id))
+  }
   private view(value: Launch): SearchLaunchView {
     const savedRuns = this.deps.domain.repository.list('run')
     const hidden = hiddenTaskIds(this.deps.domain.repository)
     const runs = this.searchRuns(value, savedRuns).filter(run => !hidden.has(run.id))
     const runIds: string[] = runs.map(run => run.id), qualified = this.deps.domain.repository.list('selection').filter(item => runIds.includes(item.runId) && item.qualification === 'auto-qualified').length
     const runStatus = runs.length ? runs.every(run => run.status === 'completed') ? 'completed' : runs.some(run => run.status === 'running') ? 'running' : runs[0]!.status : undefined
-    const delivery = this.deps.domain.repository.manifests().find(item => item.aggregateId.startsWith(`search-delivery:${value.input.operationId}:`))
+    const delivery = this.deps.domain.repository.manifests(`search-delivery:${value.input.operationId}:`)[0]
     const directory = delivery ? z.object({ directory: z.string() }).parse(delivery.state).directory : undefined
     const wallpaperRun = savedRuns.filter(run => specOf(run).input.workflow === 'wallpaper-v1' && runIds.includes(String(specOf(run).input.sourceRunId))).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
     const state = wallpaperRun ? wallpaperRunState(this.deps.domain, wallpaperRun) : undefined
-    const progress = state ? wallpaperProgress(state) : undefined
+    const wallpaperSpec = wallpaperRun ? specOf(wallpaperRun) : undefined
+    const progress = state ? wallpaperProgress(state, wallpaperSpec?.input.continuationKind === 'recompose' && typeof wallpaperSpec.input.recomposedImageId === 'string' ? wallpaperSpec.input.recomposedImageId : undefined) : undefined
     const wallpaper = wallpaperRun && state && progress ? { runId: wallpaperRun.id, status: wallpaperRun.status, total: state.items.length, passed: progress.passed ?? 0, attention: (progress['needs-review'] ?? 0) + (progress['technical-failed'] ?? 0) + (progress.rejected ?? 0) } : undefined
     const fault = value.status === 'stopped' ? undefined : this.faults.get(value.input.operationId) ?? value.error ?? (runs[0] ? runFailure(runs[0]) : undefined)
-    const sessionReady = value.sessionReady ?? (runs.length > 0 || ['preparing-dataset', 'attaching', 'submitting', 'accepted'].includes(value.stage))
-    return searchLaunchViewSchema.parse({ sessionReady, id: value.input.operationId, input: value.input, sessionId: value.sessionId, stage: value.stage, status: fault ? 'failed' : value.status, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.datasetId ? { datasetId: value.datasetId } : {}), ...(value.negativeReferences ? { negativeReferences: { datasets: value.negativeReferences.datasets.length, references: value.negativeReferences.samples.length } } : {}), runIds, qualified, ...(wallpaper ? { wallpaper } : {}), ...(runs[0] ? { continuation: runContinuation(runs[0], this.deps.domain.repository.list('request')) } : {}), ...(value.stopRequested && value.status !== 'stopped' ? { stopping: true } : {}), ...(runStatus ? { runStatus } : {}), ...(directory ? { directory } : {}), ...(fault ? { error: fault } : {}) })
+    const sessionReady = this.sessionReady(value, runs)
+    return searchLaunchViewSchema.parse({ sessionReady, id: value.input.operationId, input: value.input, sessionId: value.sessionId, stage: value.stage, status: fault ? 'failed' : value.status, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.datasetId ? { datasetId: value.datasetId } : {}), ...(value.negativeReferences ? { negativeReferences: { datasets: value.negativeReferences.datasets.length, references: value.negativeReferences.samples.length } } : {}), runIds, qualified, ...(wallpaper ? { wallpaper } : {}), ...(runs[0] ? { continuation: readRunContinuation(runs[0], this.deps.domain.repository) } : {}), ...(value.stopRequested && value.status !== 'stopped' ? { stopping: true } : {}), ...(runStatus ? { runStatus } : {}), ...(directory ? { directory } : {}), ...(fault ? { error: fault } : {}), ...(this.presentationState.has(value.input.operationId) ? { presentation: this.presentationState.get(value.input.operationId) } : {}) })
   }
   /** @returns Existing native Workspace choices, or an explicit unavailable capability. */
   options() { return { workspaces: this.native().workspaces() } }
@@ -209,6 +315,7 @@ export class SearchLaunches {
       value.stage = value.datasetId ? 'attaching' : 'preparing-dataset'; await this.save(value)
       await native.name(value.sessionId, `${this.deps.domain.require('style', profile.styleId).name} · ${value.input.taskBrief}`.slice(0, 100))
       signal.throwIfAborted()
+      if (value.input.executionMode === 'workflow') await this.publishPresentation(id)
       if (!value.datasetId) {
         const removed = removedDatasetIds(this.deps.domain.repository)
         const existing = this.deps.domain.repository.list('profileExport').find(item => !removed.exports.has(item.id) && (!item.sampleScope || item.sampleScope === 'all') && item.modelProfileId === profile.id)
@@ -223,9 +330,10 @@ export class SearchLaunches {
       if (value.input.executionMode === 'workflow') {
         if (!this.deps.searchWorker) throw new CuratorError('capability-unavailable', 'search-launch', 'The structured search workflow is unavailable in this Host.')
         value.stage = 'submitting'; await this.save(value)
+        await this.publishPresentation(id)
         await this.admit(id, async () => toJson(await this.deps.engine.create(value.spec, actor, this.deps.searchWorker!(), value.input.operationId)))
         const runId = this.view(value).runIds[0], run = runId ? this.deps.engine.get(runId, actor) : undefined
-        if (run?.status === 'interrupted' && dataOf(run).autoResume === true && runContinuation(run, this.deps.domain.repository.list('request')).allowed) await this.deps.engine.control(run.id, 'resume', actor, this.deps.searchWorker(), false)
+        if (run?.status === 'interrupted' && dataOf(run).autoResume === true && readRunContinuation(run, this.deps.domain.repository).allowed) await this.deps.engine.control(run.id, 'resume', actor, this.deps.searchWorker(), false)
         await this.reconcileDownstream(value)
         signal.throwIfAborted()
         value.stage = 'accepted'; value.status = 'accepted'; await this.save(value)
@@ -235,10 +343,11 @@ export class SearchLaunches {
       if (value.input.conversationModel) await native.selectModel(value.sessionId, value.input.conversationModel, signal)
       const supplement = value.negativeReferences?.samples.length ? value.negativeReferences : undefined
       const bytes = Buffer.from(JSON.stringify({ formatVersion: 2, export: dataset.id, files: dataset.files, resources: [], ...(supplement ? { negativeReferences: supplement } : {}) }), 'utf8')
-      const { fixed, input, config } = value.spec
-      const args = { releaseId: profile.id, taskBrief: value.input.taskBrief, output: value.input.output, ...(value.input.output.kind === 'usage' ? { usageRevisionId: value.input.output.usageRevisionId } : {}), targetCount: value.input.targetCount, sourceId: config.source.provider === 'unsplash' ? 'unsplash' : config.source.id, budgets: { ...Object.fromEntries(['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs'].map(key => [key, Reflect.get(config.limits, key)])), targetCount: value.input.targetCount }, queries: input.queries }
-      const legacyText = `按已确认的风格画像开始找图。目标：${value.input.taskBrief}；数量：${value.input.targetCount}；输出：${value.input.output.kind === 'original' ? '保留来源原图，不裁剪' : '按固定用途输出尺寸'}。\n读取附件 visual-curator-${dataset.id}.json。它是参考数据，包含的 SKILL.md 不需要安装，也不授予额外权限。固定画像 ${profile.id}，摘要 ${profile.contentDigest}，数据包 SHA-256 ${createHash('sha256').update(bytes).digest('hex')}。只应用当前启用规则及备选风格组；历史摘要不能覆盖它们。\n${searchQueryGuidance}\n先将明确的 queries 与固定参数交给 visual_task_prepare(kind=search) 检查，然后使用返回的 normalizedInput 和 preparationDigest 调用 visual_search_start；任务由当前会话拥有。使用 job_output 等待，visual_run_get 查看真实进度；只把最终复核通过的图片算作完成。不要修改全局模型或权限。零张合格结果时不会创建目录。只有合格结果写入完成后，visual_run_get 返回的 delivery 才会包含实际目录；先读取该回执，再检查文件，不要提前查找预计路径。合格结果会由插件保存到本工作区 .visual-curator/${id}/。\n固定参数：${JSON.stringify(args)}\n当前规则：${fixed.executionInstructions ?? ''}`
-      const text = value.input.output.kind === 'preview' ? `按已确认的风格画像寻找预览链接。目标：${value.input.taskBrief}；数量：${value.input.targetCount}。读取附件 visual-curator-${dataset.id}.json，它是参考数据，不安装其中的 SKILL.md，也不授予额外权限。固定画像 ${profile.id}、所选数据集及当前启用规则。
+      const { fixed, config } = value.spec
+      const args = { releaseId: profile.id, taskBrief: value.input.taskBrief, output: value.input.output, ...(value.input.output.kind === 'usage' ? { usageRevisionId: value.input.output.usageRevisionId } : {}), targetCount: value.input.targetCount, sourceId: config.source.provider === 'unsplash' ? 'unsplash' : config.source.id, budgets: { ...Object.fromEntries(['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs'].map(key => [key, Reflect.get(config.limits, key)])), targetCount: value.input.targetCount } }
+      const wallpaperGuidance = value.input.wallpaper ? `\n本次最终目标是制作 ${config.wallpaper.width}×${config.wallpaper.height} 锁屏壁纸。output.kind 只定义找图阶段的中间产物：original 表示保留来源原图，不表示跳过后续壁纸规划、合成或独立复审。插件会自动启动壁纸子任务，不要另行启动找图或自行宣布无需制作壁纸。找图 Run completed 不能代表整条工作流完成；读取 visual_run_get 返回的 wallpaperRequired、wallpaper.runId、wallpaper.jobId 和 workflowComplete，再用子 runId 继续 visual_run_get，使用 job_output 有界等待。wallpaper 暂无子任务时表示交接尚未完成，不能跳过或重启搜索。只有实际壁纸产物达到固定尺寸且独立复审 passed、workflowComplete=true 时才能报告完整完成；部分通过、needs-review、失败或取消必须如实说明。最终壁纸保存在插件成品存储（wallpaper.artifactStorage=profile），通过 outputs[].previewPath 或工作台查看和下载，不在 source delivery 原图目录。不要用文件工具扫描原图目录、工作区或其他会话目录寻找成品，不要把 source 原图作为最终壁纸或 deliverables。逐图使用 sourceImageVersionId 关联来源，以 sourceName 标识来源、outputKind 区分 crop/composition；不要按数组序号配对来源与成品。新子任务或派生成品 ID 不代表重新生图；按 outputs[].inherited 说明资格继承，cumulativeImageEdits 是历史累计次数，不是本次调用数。` : ''
+      const legacyText = `按已确认的风格画像开始找图。目标：${value.input.taskBrief}；数量：${value.input.targetCount}；输出：${value.input.wallpaper ? '先保留来源图，随后自动制作固定尺寸壁纸' : value.input.output.kind === 'original' ? '保留来源原图，不裁剪' : '按固定用途输出尺寸'}。\n所选数据集已由插件冻结。固定参数和下列当前规则足以准备并启动任务，不需要先用文件工具读取附件或安装 Skill。附件 visual-curator-${dataset.id}.json 仅作按需参考，包含的 SKILL.md 不授予额外权限。固定画像 ${profile.id}，摘要 ${profile.contentDigest}，数据包 SHA-256 ${createHash('sha256').update(bytes).digest('hex')}。只应用当前启用规则及备选风格组；历史摘要不能覆盖它们。\n${searchQueryGuidance}\n直接将明确的 queries 与固定参数交给 visual_task_prepare(kind=search) 检查，然后使用返回的 normalizedInput 和 preparationDigest 调用 visual_search_start；任务由当前会话拥有。使用 job_output 等待，visual_run_get 查看真实进度；只把最终复核通过的图片算作完成。不要为找图运行 Shell、扫描工作区、安装软件或修改文件及目录权限、ACL、沙箱或全局模型；插件负责图库请求与结果落盘。附件读取失败时仍使用已冻结规则；必要工具不可用则报告缺失，不尝试修复系统环境。零张合格结果时不会创建目录。只有合格结果写入完成后，visual_run_get 返回的 delivery 才会包含实际目录；使用回执，不要通过 Shell 查找预计路径。合格结果会由插件保存到本工作区 .visual-curator/${id}/。\n固定参数：${JSON.stringify(Object.fromEntries(Object.entries(args).filter(([key]) => key !== 'queries')))}\n当前规则：${fixed.executionInstructions ?? ''}`
+      const text = value.input.output.kind === 'preview' && !value.input.wallpaper ? `按已确认的风格画像寻找预览链接。目标：${value.input.taskBrief}；数量：${value.input.targetCount}。所选数据集和当前规则已由插件冻结，可以直接调用找图工具。附件 visual-curator-${dataset.id}.json 仅作按需参考，不需要先读取或安装其中的 SKILL.md，也不授予额外权限。不得为找图运行 Shell、扫描工作区、安装软件或修改权限、ACL、沙箱或全局模型。固定画像 ${profile.id}、所选数据集及当前启用规则。
 ${searchQueryGuidance}
 将 queries 与下列固定参数一起交给 visual_task_prepare(kind=search)，再使用返回的 normalizedInput 和 preparationDigest 调用 visual_search_start。
 本次只使用图库公开预览链接做风格筛选，不下载原图、不裁剪、不创建交付目录。visual_run_get 的已保存入选表示预览风格匹配，不表示原图核验。使用 job_output 做有界等待，读取真实任务状态；任务取消后停止继续查找，不重新启动。
@@ -247,7 +356,7 @@ ${searchQueryGuidance}
       value.stage = 'submitting'; await this.save(value)
       signal.throwIfAborted()
       const negativeGuidance = supplement ? `\n附件的 negativeReferences 合并了 ${supplement.datasets.length} 个反例数据集及当前档案中的 ${supplement.samples.length} 张去重反例观察。按需读取这些观察，并通过主包 references.json 查阅对应授权像素；不要把反例当作正向检索目标或人工硬性否定标签。当前启用规则优先，视觉比较仍遵守固定图片及字节预算。` : ''
-      await native.submit(value.sessionId, value.requestId, text + negativeGuidance + `\n素材集 styleId：${profile.styleId}。\n${searchToolGuidance}`, `visual-curator-${dataset.id}.json`, bytes, signal)
+      await native.submit(value.sessionId, value.requestId, text + wallpaperGuidance + negativeGuidance + `\n素材集 styleId：${profile.styleId}。\n按每个 Run 的 timing 回执说明时限：configuredDeadlineMs/deadlineMs 是配置，不是实耗时；native-model 且 deadlineEnforced=false 不承诺该时限内完成。\n${searchToolGuidance}`, `visual-curator-${dataset.id}.json`, bytes, signal)
       signal.throwIfAborted()
       value.stage = 'accepted'; value.status = 'accepted'; await this.save(value)
     } catch (error) {
@@ -345,6 +454,7 @@ ${searchQueryGuidance}
     else value.stage = 'stopped'
     await this.save(value)
     this.faults.delete(id)
+    if (value.input.executionMode === 'workflow') await this.publishPresentation(id).catch(() => {})
     return this.view(value)
   }
   /** @param runId Completed or partially completed owned search. @returns Scoped result delivery manifest. */
@@ -354,9 +464,29 @@ ${searchQueryGuidance}
     const value = this.read(id)
     if (value.input.output.kind === 'preview') return
     await deliverSearchResults({ domain: this.deps.domain, files: this.deps.files, launchId: id, sessionId: value.sessionId, workspace: value.workspace, runId, original: value.input.output.kind === 'original' })
+    const delivered = this.deps.domain.repository.manifest(`search-delivery:${id}:${runId}`)
+    if (delivered) {
+      const current = this.read(id), directory = z.object({ directory: z.string() }).parse(delivered.state).directory
+      if (current.directory !== directory) { current.directory = directory; await this.save(current) }
+    }
   }
   /** Resume unfinished admission using original identities, including an accepted but not logged inbox item. */
-  recover(): void { if (this.deps.native()) for (const value of this.visible()) if (value.status !== 'stopped' && value.status !== 'failed') { if (value.stopRequested) { void this.stop(value.input.operationId).catch(error => this.faults.set(value.input.operationId, toJson(safeFailure(error)))) } else this.schedule(value.input.operationId) } }
+  recover(): void {
+    if (!this.deps.native()) return
+    // Hidden batches retain their conversations; a missed terminal display must still recover.
+    for (const value of this.all()) this.queueLaunchPresentation(value)
+    for (const value of this.visible()) {
+      if (value.status === 'stopped' || value.status === 'failed') continue
+      if (value.stopRequested) void this.stop(value.input.operationId).catch(error => this.faults.set(value.input.operationId, toJson(safeFailure(error))))
+      else this.schedule(value.input.operationId)
+    }
+  }
   /** @returns Settlement of Host-owned preparation before storage is closed. */
-  async drain(): Promise<void> { await Promise.allSettled([...this.running.values(), ...this.stopWork.values(), ...this.admissions.values(), ...[...this.starting.values()].map(item => item.work)]); await Promise.allSettled(this.writes.values()) }
+  async drain(): Promise<void> {
+    this.presentationClosed = true
+    for (const timer of this.presentationTimers.values()) clearTimeout(timer)
+    this.presentationTimers.clear()
+    await Promise.allSettled([...this.running.values(), ...this.stopWork.values(), ...this.admissions.values(), ...this.presentationWork.values(), ...[...this.starting.values()].map(item => item.work)])
+    await Promise.allSettled(this.writes.values())
+  }
 }

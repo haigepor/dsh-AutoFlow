@@ -5,6 +5,7 @@ import { contentDigest } from '../domain/repository.ts'
 import { analysisReferenceDigest } from '../domain/style-analysis.ts'
 import { ModelProfiles } from '../domain/model-profile.ts'
 import { styleAnalysisSchema, styleSummarySchema, organizedStyleSummarySchema, type StyleSummary } from '../shared/style-analysis.ts'
+import { observationPromptVersion } from './observation-prompt-version.ts'
 import { referenceFeedbackRole, isMatchingRule } from '../shared/reference-semantics.ts'
 import {
   candidateSchema, releaseSchema, draftSchema, referenceSchema, recipeSchema, usageSchema, splitSchema, evaluationSchema,
@@ -233,7 +234,7 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
   ctx.report({ phase: 'saving' })
   const analysis = styleAnalysisSchema.parse({ formatVersion: 1, runId: ctx.runId, styleId: draft.styleId, draftId: draft.id, draftRevision: draft.revision,
     referenceDigest: analysisReferenceDigest(references, feedback.map(item => item.id)), feedbackIds: feedback.map(item => item.id), recipeId: recipe.id, model: provider.config.model, declaredModelVersion: provider.config.declaredModelVersion ?? null,
-    observationPromptVersion: 'visual-curator-v1', summaryPromptVersion: cached ? z.object({ promptVersion: z.enum(['visual-curator-summary-v1', 'visual-curator-summary-v2', 'visual-curator-summary-v3', 'visual-curator-summary-v4']) }).parse(cached.descriptor).promptVersion : 'visual-curator-summary-v4', summaryRequestId: requestId, samples, summary })
+    observationPromptVersion: observationPromptVersion(observations, deps.domain.repository.list('request')), summaryPromptVersion: cached ? z.object({ promptVersion: z.enum(['visual-curator-summary-v1', 'visual-curator-summary-v2', 'visual-curator-summary-v3', 'visual-curator-summary-v4']) }).parse(cached.descriptor).promptVersion : 'visual-curator-summary-v4', summaryRequestId: requestId, samples, summary })
   const suggestions = summary.suggestedRules.map((rule, index) => suggestionSchema.parse({ ...recordBase(ctx, 'suggestion', { requestId, index }), kind: 'suggestion', status: 'pending', access: ctx.current().owner.kind === 'session' ? { kind: 'session-run', sessionId: actor.sessionId } : { kind: 'profile-library' }, author: { kind: 'model', sourceId: recipe.model }, text: JSON.stringify({ ...rule, requestId, draftId: draft.id, draftRevision: draft.revision, recipeId: recipe.id }), feedbackIds: feedback.map(item => item.id) }))
   await ctx.save('finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, styleAnalysis: toJson(analysis), ...(roleAware && !references.some(reference => roleOf(reference) === 'positive') ? { analysisNeedsPositiveReferences: true } : {}) }, resultIds: [...checkpoint.analysisResultIds, ...suggestions.map(item => item.id)], counts: { ...dataOf(ctx.current()).counts, observed: observations.length, suggestions: suggestions.length, summarized: samples.length } }, suggestions)
 }

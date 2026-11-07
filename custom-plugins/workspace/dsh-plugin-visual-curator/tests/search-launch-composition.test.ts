@@ -192,7 +192,7 @@ for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-co
     })
     const negativeExport = z.object({ runId: z.string() }).parse(await invoke('export-start', { operationId: 'negative-dataset', kind: 'style', purpose: 'reference', releaseId: modelProfileId, sampleScope: 'negative' }))
     await wait(async () => z.object({ status: z.string() }).parse(await invoke('run-get', { runId: negativeExport.runId })).status === 'completed')
-    const workspace = await ctx.workspaceRegistry.create(root, 'Photos'), input = { operationId: randomUUID(), workspaceId: workspace.id, modelProfileId, datasetId, includeNegativeDatasets: true, conversationModel: { provider: 'fixture', model: 'alternate' }, taskBrief: 'Muted green landscape.', targetCount: 1, output: { kind: 'original' } }
+    const workspace = await ctx.workspaceRegistry.create(root, 'Photos'), input = { operationId: randomUUID(), workspaceId: workspace.id, modelProfileId, datasetId, includeNegativeDatasets: true, executionMode: 'conversation', conversationModel: { provider: 'fixture', model: 'alternate' }, taskBrief: 'Muted green landscape.', targetCount: 1, output: { kind: 'original' } }
     await assert.rejects(invoke('search-launch-start', { ...input, operationId: randomUUID(), conversationModel: { provider: 'fixture', model: 'disabled' } }), { code: 'configuration-required', stage: 'search-launch-model' })
     searchArgs = { releaseId: modelProfileId, taskBrief: input.taskBrief, targetCount: 1, output: input.output, sourceId: 'images', budgets: { targetCount: 1, ...Object.fromEntries(['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs'].map(key => [key, Reflect.get(service!.config.limits, key)])) } }
     const defaultSelection = ctx.agentDefaultModel.currentSelection()
@@ -267,6 +267,8 @@ for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-co
     const inspection = { events: resolved.agent.session.snapshotEvents() }, prompt = inspection.events.find(event => event.type === 'user/message' && event.data.source.kind === 'user')
     assert.equal(inspection.events.filter(event => event.type === 'user/message' && event.data.source.kind === 'user').length, 1)
     assert.ok(prompt?.type === 'user/message'); assert.ok(prompt.data.content.some(part => part.type === 'file'))
+    assert.ok(prompt.data.content.some(part => part.type === 'text' && part.text.includes(input.taskBrief)))
+    assert.ok(inspection.events.some(event => event.type === 'assistant/message'))
     assert.ok(workspace.sessionIds.includes(importSessionId(receipt.sessionId)))
     assert.ok(inspection.events.some(event => event.type === 'tool/call' && event.data.name === 'visual_search_start'))
     assert.equal(launch.qualified, 1); assert.deepEqual(ctx.agentDefaultModel.currentSelection(), defaultSelection)

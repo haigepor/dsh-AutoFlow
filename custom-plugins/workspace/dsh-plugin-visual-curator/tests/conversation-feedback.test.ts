@@ -7,7 +7,7 @@ import { resultCategory } from '../src/shared/search-feedback.ts'
 const report = (sessionId: string, runId: string, status = 'running') => ({ runId, owner: { kind: 'session', sessionId }, kind: 'search', status, stage: 'retrieving', counts: { candidates: 3, qualified: 0 }, warnings: [], results: [], resultSummary: { selected: 0, needsReview: 1, candidates: 2, target: 10 } })
 
 test('conversation pagination reads only new results while refresh revalidates the complete loaded window', async () => {
-  const images = Array.from({ length: 127 }, (_, index) => ({ imageVersionId: `image-${index}`, name: `Image ${index}`, previewPath: '/preview', resultCategory: index < 6 ? 'selected' : index < 9 ? 'review' : 'rejected' }))
+  const images = Array.from({ length: 127 }, (_, index) => ({ imageVersionId: `image-${index}`, name: `Image ${index}`, previewPath: '/preview', thumbnailPath: `/thumbnail-${index}`, resultCategory: index < 6 ? 'selected' : index < 9 ? 'review' : 'rejected' }))
   const requests: { filter: string; size: number; offset: number }[] = []
   const store = createConversationFeedback({ schedule: () => () => {}, invoke: async (operation, args) => {
     if (operation === 'session-open') return { sessionToken: 'owner-grant', expiresAt: Date.now() + 100000, pollIntervalMs: 10 }
@@ -20,6 +20,7 @@ test('conversation pagination reads only new results while refresh revalidates t
   const close = store.watch('owner', 'run'), entry = () => store.source('owner').getSnapshot().runs.run
   try {
     await setImmediate(); assert.equal(entry()?.run?.results.length, 4)
+    assert.equal(entry()?.run?.results[0]?.thumbnailPath, '/thumbnail-0')
     for (let page = 0; page < 7; page++) {
       const previousCount = entry()!.run!.results.length, before = requests.length
       store.loadMore('owner', 'run'); await setImmediate()

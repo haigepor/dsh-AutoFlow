@@ -412,6 +412,10 @@
 .vc-select { display: block; min-width: 0; width: 100%; }
 .vc-workbench .vc-select-trigger { justify-content: space-between; gap: 8px; width: 100%; min-height: 36px; padding: 0 10px; background: var(--dsw-alias-bg-layer-1); }
 .vc-select-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vc-menu { width: max-content; min-width: min(280px, var(--dsh-anchored-max-width, calc(100vw - 24px))); max-width: min(480px, var(--dsh-anchored-max-width, calc(100vw - 24px))); max-height: min(480px, var(--dsh-anchored-max-height, calc(100dvh - 24px))); padding: 6px; font: 14px/22px var(--dsw-font-family); }
+.vc-menu [role='menuitem'] { min-height: 40px; gap: 8px; padding: 8px 12px; font-size: 14px; line-height: 22px; }
+.vc-menu [role='menuitem'] svg { flex: none; width: 16px; height: 16px; }
+.vc-workbench .vc-select-trigger, .vc-workbench .vc-collection-trigger { min-height: 40px; height: 40px; padding-inline: 12px; font-size: 14px; }
 .vc-workbench a:focus-visible, .vc-workbench button:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 2px; }
 .vc-inline-field { flex-direction: row !important; align-items: center; flex-wrap: wrap; color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .vc-inline-field .vc-select { width: auto; min-width: 112px; }
@@ -1896,3 +1900,28 @@ body:has([role='dialog'][aria-modal='true']) .vc-analysis-complete::before { ani
 }
 
 .vc-search-launch-modal::before { background: var(--dsw-specific-dialog); backdrop-filter: var(--dsw-dialog-backdrop-filter); }
+
+.vc-task-transcript { display: grid; gap: 16px; min-width: 0; padding: 20px; border: .5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font-size: 14px; }
+.vc-task-transcript-header, .vc-task-transcript-run > header, .vc-task-transcript-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.vc-task-transcript-header > strong { flex: 1; }
+.vc-task-transcript h3 { margin: 0 0 8px; font-size: 13px; color: var(--dsw-alias-label-secondary); font-weight: 500; }
+.vc-task-transcript p { margin: 6px 0; overflow-wrap: anywhere; line-height: 1.65; }
+.vc-task-transcript dl { display: grid; gap: 8px; margin: 12px 0 0; }
+.vc-task-transcript dl > div { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.vc-task-transcript dt, .vc-task-transcript small, .vc-task-transcript-run > header > span { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.vc-task-transcript dt { flex: none; }
+.vc-task-transcript dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.vc-task-transcript-run { min-width: 0; padding: 14px 16px; border: .5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); }
+.vc-task-transcript-run[data-active] { border-color: var(--dsw-alias-link); }
+.vc-task-transcript .vc-task-transcript-metrics { grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); margin-block: 12px; gap: 10px 14px; }
+.vc-task-transcript .vc-task-transcript-metrics > div { flex-direction: column; gap: 4px; }
+.vc-task-transcript-metrics dd { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.vc-task-transcript-actions { margin-top: 12px; }
+.vc-task-transcript-requests { display: grid; gap: 10px; padding: 0; list-style: none; margin: 12px 0 0; }
+.vc-task-transcript-requests > li { display: grid; gap: 6px; min-width: 0; padding: 12px; border: .5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
+.vc-task-transcript-requests > li > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+.vc-task-transcript pre { max-height: 280px; overflow: auto; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.vc-task-transcript-notice { padding: 10px 12px; border: .5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); font-size: 13px; }
+.vc-task-transcript-delivery { display: grid; gap: 8px; min-width: 0; }
+.vc-task-transcript code { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .vc-task-transcript { padding: 14px; gap: 12px; } .vc-task-transcript-run { padding: 12px; } .vc-task-transcript-requirements dl > div { flex-wrap: wrap; gap: 4px 12px; } }

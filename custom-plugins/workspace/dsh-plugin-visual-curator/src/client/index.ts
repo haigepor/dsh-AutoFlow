@@ -3,14 +3,16 @@ import { resolvePreviewConcurrency, sharedPreviewLoader } from './preview-loader
 import { createSearchBatchesStore } from './search-batches-store.ts'
 /** Optional native page entries; the plugin detail itself stays entirely owned by Plugin Manager. */
 import type { ComponentType } from 'react'
+import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { z } from 'zod'
 import * as React from 'react'
 import * as ui from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './entry.css'
 import flowCss from '@xyflow/react/dist/style.css'
 import workflowCss from './workflow-canvas.css'
+import wallpaperPlanEditorCss from './wallpaper-plan-editor.css'
 import welcomeImage from '../../assets/welcome-photo-stack-v2.webp'
 import logoImage from '../../assets/plugin-logo-v2.webp'
-import executionEmptyImage from '../../assets/execution-empty-v1.webp'
 import taskMetricArtwork from '../../assets/task-metric-plates-v2.webp'
 import searchLaunchArtwork from '../../assets/search-launch-whale-maid-v1.webp'
 import { createTaskToolView } from './task-tool-view.tsx'
@@ -27,6 +29,7 @@ import { galleryTaskActive } from '../shared/gallery-task.ts'
 import { createVisionModelDirectory } from './vision-models.ts'
 import { createDatasetStore } from './dataset-store.ts'
 import { createSearchLaunchStore } from './search-launch-store.ts'
+import { searchBatchDetailSchema } from '../shared/search-batches.ts'
 
 type Page = 'settings' | 'panel' | 'conversation'
 type Result<T> = { ok: true; value: T } | { ok: false; error: object }
@@ -57,7 +60,10 @@ interface EntryContext {
     credentials: { set(ref: string, value: string): Promise<Result<object>> }
   }
   layout: { panelInfo: { getSnapshot(): { activePanelId: string | null } }; selectPanel(id: string | null, options?: { fullWindow?: boolean }): void }
-  uiConversation: { views: { register(view: { target: string; create(): { empty: null; replace(): null; apply(): null } }): () => void } }
+  uiConversation: {
+    views: { register(view: { target: string; create(): { empty: null; replace(): null; apply(): null } }): () => void }
+    events: { register<State>(definition: ConversationNodeDefinition<State>): () => void }
+  }
 }
 function createEntry() {
     const PageEntry = createWorkbench(React, ui)
@@ -115,8 +121,20 @@ function createEntry() {
           return () => { for (const dispose of disposers) dispose(); modelDirectory.dispose() }
         }, 'Visual Curator project model catalog')
         for (const toolName of ['visual_search_start', 'visual_crop_start', 'visual_run_get']) ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({ name: 'tool.call.toolview', key: toolName, locale: namespace, inject: () => ({ t }) }, TaskToolView))
-        const taskDockFace = (sessionId: string) => ({ t, hooks: { feedback: feedback.sessionSource(sessionId) }, selectTask: (runId: string) => feedback.select(sessionId, runId), refreshTask: (runId?: string) => feedback.refresh(sessionId, runId), stopTask: (runId: string) => feedback.stop(sessionId, runId), stopLaunch: (launchId: string) => feedback.stopLaunch(sessionId, launchId), filterTask: (runId: string, filter: import('../shared/search-feedback.ts').RunResultFilter) => feedback.filterResults(sessionId, runId, filter), loadMoreTask: (runId: string) => feedback.loadMore(sessionId, runId), async openTask(runId: string) { if (!registrations.has('panel')) throw new Error('panel-disabled'); const opening = store.openTask(runId, sessionId); ctx.layout.selectPanel(panel); await opening } })
+        const taskDockFace = (sessionId: string) => ({ t, hooks: { feedback: feedback.sessionSource(sessionId) }, selectTask: (runId: string) => feedback.select(sessionId, runId), refreshTask: (runId?: string) => feedback.refresh(sessionId, runId), stopTask: (runId: string) => feedback.stop(sessionId, runId), stopLaunch: (launchId: string) => feedback.stopLaunch(sessionId, launchId), retryPresentation: (launchId: string) => taskPresentationFace(sessionId).operate('sync', launchId), filterTask: (runId: string, filter: import('../shared/search-feedback.ts').RunResultFilter) => feedback.filterResults(sessionId, runId, filter), loadMoreTask: (runId: string) => feedback.loadMore(sessionId, runId), async openTask(runId: string) { if (!registrations.has('panel')) throw new Error('panel-disabled'); const opening = store.openTask(runId, sessionId); ctx.layout.selectPanel(panel); await opening } })
         ctx.slots.inject('conversation.body.overlay', () => ctx.slots.register({ name: 'conversation.body.overlay', id: 'visual-curator-task', order: 30, locale: namespace, inject: taskDockFace }, ConversationTaskDock))
+        const taskPresentationFace = (sessionId: string) => ({ t,
+          async operate(operation: 'stop' | 'resume' | 'sync', launchId: string, runId?: string) {
+            const grant = z.object({ sessionToken: z.string() }).parse(await transport.invoke('session-open', { sessionId }))
+            const args = { sessionId, sessionToken: grant.sessionToken }
+            if (operation === 'resume' && runId) await transport.invoke('run-control', { ...args, runId, command: 'resume', waitForCompletion: false })
+            else await transport.invoke(operation === 'stop' ? 'search-launch-stop' : operation === 'resume' ? 'search-launch-resume' : 'search-launch-presentation', { ...args, id: launchId })
+            feedback.refresh(sessionId)
+          },
+          async readTask(styleId: string, runId: string, signal: AbortSignal) {
+            return searchBatchDetailSchema.parse(await transport.invoke('search-batch-detail', { styleId, runId }, signal))
+          },
+        })
         let sessionCache: Storage | undefined
         try { sessionCache = window.sessionStorage } catch (error) { /* 浏览器禁用本地存储时，仅使用内存缓存。 */ }
         const gallery = createGalleryCache({ ...(sessionCache ? { storage: sessionCache } : {}), context: () => {
@@ -193,7 +211,8 @@ function createEntry() {
           }
         }
         ctx.effect(() => {
-          const style = document.createElement('style'); style.textContent = flowCss + '\n' + css.replace('__VC_EXECUTION_EMPTY_ART__', executionEmptyImage).replace('__VC_TASK_METRIC_ART__', taskMetricArtwork).replace('__VC_SEARCH_LAUNCH_ART__', searchLaunchArtwork) + '\n' + workflowCss; document.head.append(style)
+          const executionEmptyImage = new URL('api/visual-curator/artwork/execution-empty-v1.webp', document.baseURI).href
+          const style = document.createElement('style'); style.textContent = flowCss + '\n' + css.replace('__VC_EXECUTION_EMPTY_ART__', executionEmptyImage).replace('__VC_TASK_METRIC_ART__', taskMetricArtwork).replace('__VC_SEARCH_LAUNCH_ART__', searchLaunchArtwork) + '\n' + workflowCss + '\n' + wallpaperPlanEditorCss; document.head.append(style)
           return () => style.remove()
         }, 'Visual Curator entry styles')
         ctx.effect(() => {

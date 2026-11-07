@@ -55,6 +55,41 @@ test('equivalent export requests reuse one package and preserve scope-bound retr
   } finally { await f.cleanup() }
 })
 
+test('Agent packages prioritize edited active rules over historical model prose and retain earlier generators unchanged', async () => {
+  const f = await serviceFixture(); await f.service.initialize()
+  try {
+    const profile = await recognized(f), profiles = new ModelProfiles(f.domain), original = f.repository.list('profileExport')[0]!
+    const edited = await profiles.save({ operationId: 'edit-color-rule', styleId: profile.styleId, expectedProfileId: profile.id, analysisRunId: profile.analysisRunId, changes: [{ ruleId: profile.rules[0]!.ruleId, enabled: true, statement: 'Prefer warm amber colors.' }] }, f.actor)
+    const legacyFiles = original.files.map(file => {
+      if (file.name !== 'style-profile.json') return { ...file }
+      const data = z.object({ generatorVersion: z.number() }).passthrough().parse(JSON.parse(file.content))
+      const content = JSON.stringify({ ...data, generatorVersion: 3, modelProfileId: edited.id, contentDigest: edited.contentDigest, activeRules: edited.rules, ruleSelections: edited.options }) + '\n'
+      return { ...file, content, checksum: fileChecksum(content) }
+    })
+    const manifest = legacyFiles.find(file => file.name === 'manifest.json')!
+    const manifestData = z.object({ files: z.array(z.object({ name: z.string(), checksum: z.string() })) }).passthrough().parse(JSON.parse(manifest.content))
+    manifest.content = JSON.stringify({ ...manifestData, modelProfileId: edited.id, files: legacyFiles.filter(file => file.name !== 'manifest.json').map(({ name, checksum }) => ({ name, checksum })) }) + '\n'
+    manifest.checksum = fileChecksum(manifest.content)
+    const legacy = profileExportSchema.parse({ ...original, id: 'historical-generator-three', modelProfileId: edited.id, files: legacyFiles })
+    await f.repository.commit({ aggregateId: legacy.id, expectedRevision: 0, operationId: legacy.id, request: {}, records: [legacy], state: {} })
+    const saved = await profiles.export(edited, 'edited-generator-four', f.actor)
+    assert.notEqual(saved.id, legacy.id)
+    const content = (name: string) => saved.files.find(file => file.name === name)!.content
+    const data = z.object({ generatorVersion: z.number(), purpose: z.string(), activeRules: z.array(z.object({ statement: z.string() })), ruleSelections: z.array(z.object({ enabled: z.boolean(), rule: z.object({ statement: z.string() }) })), modelSummary: styleSummarySchema, matchingPrompt: z.string(), matchingPolicy: z.string() }).parse(JSON.parse(content('style-profile.json')))
+    const expected = JSON.parse(await readFile(new URL('./fixtures/dataset-agent-priority.expected.json', import.meta.url), 'utf8'))
+    assert.deepEqual({ generatorVersion: data.generatorVersion, purpose: data.purpose, activeStatements: data.activeRules.map(rule => rule.statement), selectedStatements: data.ruleSelections.filter(option => option.enabled).map(option => option.rule.statement), historicalStatement: data.modelSummary.suggestedRules[0]!.statement, historicalMatchingPrompt: data.matchingPrompt, sampleCount: content('samples.jsonl').trim().split('\n').length, files: saved.files.map(file => file.name) }, expected)
+    assert.match(data.matchingPolicy, /take precedence over historical modelSummary, sourceStatement and matchingPrompt/)
+    assert.match(content('SKILL.md'), /disabled rules remain reference notes and must not become matching requirements/)
+    assert.match(content('SKILL.md'), /references.json for saved roles, judgments and authorized image locations/)
+    assert.deepEqual(f.domain.require('profileExport', legacy.id), legacy)
+    assert.deepEqual(f.domain.require('profileExport', original.id), original)
+    assert.equal((await profiles.export(edited, 'same-generator-four', f.actor)).id, saved.id)
+    const detail = datasetDetailSchema.parse(await f.action('dataset-get', { id: saved.id }))
+    assert.equal(detail.rules[0]!.statement, 'Prefer warm amber colors.')
+    assert.equal(datasetDetailSchema.parse(await f.action('dataset-get', { id: legacy.id })).sampleTotal, 1)
+  } finally { await f.cleanup() }
+})
+
 test('concurrent equivalent exports publish one immutable package with independent retry receipts', async () => {
   const f = await serviceFixture(); await f.service.initialize()
   try {

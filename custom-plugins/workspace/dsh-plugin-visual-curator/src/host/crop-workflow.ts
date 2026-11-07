@@ -4,7 +4,7 @@ import { executionStandard, matchStyle } from './style-execution.ts'
 import { contentDigest } from '../domain/repository.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
 import { AssetFiles, StructuredVisionProvider, parseRect, resolveCrop, visionCropProposalSchema, visionReviewSchema } from '../media/index.ts'
-import type { VisionImage, VisionInput, VisionRule } from '../media/index.ts'
+import type { VisionImage, VisionInput, VisionRule, VisionReview } from '../media/index.ts'
 import { visionBounds } from './providers.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { assessmentSchema, cropCandidateSchema, dimensionSchema, humanActorSchema, imageVersionSchema, jsonSchema, styleStandardSchema, selectionSchema, usageSchema } from '../shared/model.ts'
@@ -12,7 +12,10 @@ import type { Assessment, CuratorRecord, DomainActor, ImageVersion, Json, Rule, 
 import type { CuratorConfig } from './config.ts'
 import { dataOf, decideAssessment, rankedSelections, safeFailure, toJson } from './runtime.ts'
 import type { WorkContext, Worker } from './runtime.ts'
-import { styleReviewBrief, visionImageInput } from './review.ts'
+import { referenceImages, styleReviewBrief, visionImageInput } from './review.ts'
+import { decodeVisionReview } from '../media/vision.ts'
+import { subjectReviewResults, subjectFocusVerdict } from './subject-review.ts'
+import { wallpaperVisionInput } from './wallpaper-vision.ts'
 
 const progressSchema = z.strictObject({
   sourceAssessmentId: z.string().optional(), proposal: visionCropProposalSchema.optional(),
@@ -61,6 +64,7 @@ async function pixels(files: AssetFiles, image: ImageVersion, role: string, sign
 }
 
 async function referencePixels(deps: CropWorkerDependencies, ctx: WorkContext, release: StyleStandard): Promise<VisionImage[]> {
+  if (ctx.spec.fixed.cropReviewPolicy === 'candidate-focus-v1' && release.recipe.promptVersion === 'visual-curator-rules-v3') return referenceImages(deps.domain, deps.files, release, actorOf(ctx), ctx.signal)
   const references: VisionImage[] = []
   const maxImages = Math.min(release.recipe.referenceStrategy.maxImages, ctx.spec.config.limits.maxReferenceImages)
   const maxBytes = Math.min(release.recipe.referenceStrategy.maxBytes, ctx.spec.config.limits.maxReferenceBytes)
@@ -109,10 +113,20 @@ export function createCropWorker(deps: CropWorkerDependencies): Worker {
     if (ctx.spec.kind === 'crop' && dataOf(ctx.current()).checkpoint.cropDoneImageIds === undefined) checkpoint.cropDoneImageIds = z.array(z.string()).parse(dataOf(ctx.current()).checkpoint.doneImageIds ?? [])
     const provider = await deps.vision(ctx.spec.config)
     const references = await referencePixels(deps, ctx, release)
-    const finalRules: VisionRule[] = [...release.rules.filter(rule => rule.check.kind === 'visual' && (rule.stage === 'final' || release.recipe.styleMatching && rule.strength === 'preferred')).map(rule => ({ ...rule, stage: 'final' as const })), ...usageRules(usage)]
+    // Runs admitted before this policy keep their original review requests on resume.
+    const focused = ctx.spec.fixed.cropReviewPolicy === 'candidate-focus-v1' && release.recipe.promptVersion === 'visual-curator-rules-v3'
+    const finalRules: VisionRule[] = [...release.rules.filter(rule => rule.check.kind === 'visual' && (rule.stage === 'final' || release.recipe.styleMatching && (focused ? rule.strength !== 'reference-only' : rule.strength === 'preferred'))).map(rule => ({ ...rule, stage: 'final' as const })), ...usageRules(usage)]
     const sourceRules = release.rules.filter(rule => rule.stage === 'source' && rule.check.kind === 'visual')
     const warnings = new Set(dataOf(ctx.current()).warnings)
     const allSelections = () => deps.domain.repository.list('selection').filter(selection => selection.runId === ctx.runId)
+    const modelInput = async (input: VisionInput): Promise<VisionInput> => {
+      if (ctx.spec.fixed.cropModelViews !== 'bounded-v1') return input
+      const local = input.images.filter(image => image.bytes !== undefined)
+      if (!local.length) return input
+      const prepared = await wallpaperVisionInput({ ...input, images: local }, deps.files, provider, ctx.spec.config.limits.previewMaxDimension, ctx.signal)
+      let index = 0
+      return { ...prepared, images: input.images.map(image => image.bytes === undefined ? image : prepared.images[index++]!) }
+    }
 
     const save = async (records: CuratorRecord[] = [], stage: 'cropping' | 'reviewing' | 'finalizing' = 'cropping') => {
       const progress = Object.values(checkpoint.cropProgress)
@@ -131,12 +145,15 @@ export function createCropWorker(deps: CropWorkerDependencies): Worker {
 
     const review = async (image: ImageVersion, images: VisionImage[], stage: 'source' | 'final', rules: VisionRule[], parentId?: string): Promise<Assessment> => {
       const identity = recordBase(ctx, 'assessment', { imageId: image.id, stage })
-      const input: VisionInput = { ...(release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId: identity.id, taskBrief, stage, rules, images: uniqueImages(images), usage: toJson({ ...usage, evaluationRecipe: release.recipe }), protectedContent: usage.protectedContent }
+      const reviewBrief = focused ? styleReviewBrief(release, z.string().min(1).parse(ctx.spec.input.taskBrief), rules.map(rule => rule.ruleId)) : taskBrief
+      const input = await modelInput({ ...(focused ? { promptVersion: 'visual-curator-rules-v3' as const } : release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId: identity.id, taskBrief: reviewBrief, stage, rules, images: uniqueImages(images), usage: toJson({ ...usage, evaluationRecipe: release.recipe }), protectedContent: usage.protectedContent })
       const descriptor = provider.describeRequest(input, 'review')
       const bundle = toJson(descriptor), replay = committedOutput(deps, ctx, bundle)
       const output = replay === undefined ? await ctx.request('vision', bundle, (signal, recordMetadata) => provider.review(input, visionBounds(ctx.spec.config, ctx, signal, recordMetadata))) : visionReviewSchema.parse(replay)
+      const validated: VisionReview = focused ? decodeVisionReview(output, input) : output
+      const checked = focused ? subjectReviewResults(release.rules, validated) : { ruleResults: validated.ruleResults, focusRuleIds: [] }
       const results: Assessment['ruleResults'] = [
-        ...output.ruleResults.map(result => {
+        ...checked.ruleResults.map(result => {
           const rule = release.rules.find(rule => rule.ruleId === result.ruleId)
           const conditional = rule !== undefined && (rule.condition.subjects?.length || rule.condition.usageRevisionIds?.some(id => id !== usage.id) || rule.exceptions.length > 0)
           return { ruleId: result.ruleId, result: result.status === 'not-applicable' && !conditional ? 'unknown' as const : result.status, basis: 'inferred' as const, reason: result.reason, ...(result.region === undefined ? {} : { region: result.region }) }
@@ -144,7 +161,11 @@ export function createCropWorker(deps: CropWorkerDependencies): Worker {
         ...release.rules.filter(rule => rule.stage === stage && rule.check.kind === 'measured').map(rule => measured(rule, image, usage)),
       ]
       const strengths = new Map([...release.rules, ...usageRules(usage)].map(rule => [rule.ruleId, rule.strength]))
-      let verdict = decideAssessment(results.map(result => ({ result: result.result, strength: strengths.get(result.ruleId) ?? 'required' })))
+      const alternatives = focused && release.kind === 'modelProfile' ? new Set(release.options.filter(option => option.enabled && option.groupId !== null).map(option => option.rule.ruleId)) : new Set<string>()
+      let verdict = decideAssessment(results.filter(result => !alternatives.has(result.ruleId)).map(result => ({ result: result.result, strength: strengths.get(result.ruleId) ?? 'required' })))
+      const focusVerdict = focused ? subjectFocusVerdict(release, results, checked.focusRuleIds) : 'matched'
+      if (focusVerdict === 'not-matched') verdict = 'reject'
+      else if (focusVerdict === 'unknown' && verdict === 'pass') verdict = 'needs-review'
       if (output.taskRelevance === 'irrelevant') verdict = 'reject'
       else if (output.taskRelevance === 'unknown' && verdict === 'pass') verdict = 'needs-review'
       const scores: Partial<Record<z.infer<typeof dimensionSchema>, number>> = {}
@@ -154,10 +175,10 @@ export function createCropWorker(deps: CropWorkerDependencies): Worker {
         scores[dimension.data] = release.recipe.preferenceScale.min + score.score * (release.recipe.preferenceScale.max - release.recipe.preferenceScale.min)
       }
       if (stage === 'final' && Object.entries(release.recipe.preferenceScale.weights).some(([dimension, weight]) => weight > 0 && !Object.hasOwn(scores, dimension)) && verdict === 'pass') verdict = 'needs-review'
-      const styleMatch = stage === 'final' && release.kind === 'modelProfile' && release.recipe.styleMatching ? matchStyle(release, results, release.recipe.styleMatching.minSatisfiedRatio) : undefined
+      const styleMatch = stage === 'final' && release.kind === 'modelProfile' && release.recipe.styleMatching ? matchStyle(release, results, release.recipe.styleMatching.minSatisfiedRatio, checked.focusRuleIds) : undefined
       if (styleMatch?.verdict === 'not-matched') verdict = 'reject'
       else if (styleMatch?.verdict === 'unknown' && verdict === 'pass') verdict = 'needs-review'
-      return assessmentSchema.parse({ ...identity, kind: 'assessment', imageVersionId: image.id, runId: ctx.runId, stage, releaseId: release.id, recipeId: release.recipe.id, reviewBundleId: identity.id, technicalStatus: 'completed', verdict, ruleResults: results, cropPotential: output.cropPotential, preferenceScores: scores, data: toJson({ ...(styleMatch ? { styleMatch } : {}), requestId: descriptor.requestId, taskRelevance: output.taskRelevance, ...(parentId === undefined ? {} : { parentImageVersionId: parentId }) }) })
+      return assessmentSchema.parse({ ...identity, kind: 'assessment', imageVersionId: image.id, runId: ctx.runId, stage, releaseId: release.id, recipeId: release.recipe.id, reviewBundleId: identity.id, technicalStatus: 'completed', verdict, ruleResults: results, cropPotential: output.cropPotential, preferenceScores: scores, data: toJson({ ...(styleMatch ? { styleMatch } : {}), ...(focused ? { subjectFocus: validated.subjectFocus, subjectFocusVerdict: focusVerdict } : {}), requestId: descriptor.requestId, taskRelevance: output.taskRelevance, ...(parentId === undefined ? {} : { parentImageVersionId: parentId }) }) })
     }
 
     for (const imageId of ids) {
@@ -190,7 +211,7 @@ export function createCropWorker(deps: CropWorkerDependencies): Worker {
             state.proposal = { feasibility: 'feasible', reason: 'The human explicitly completed this requested region; visual preservation still requires review.', candidates: [{ requestedRect: manualRect, reason: 'Explicit manual crop completion.', protectedContent: 'unknown' }] }
           } else {
             const identity = recordBase(ctx, 'proposal', imageId)
-            const input: VisionInput = { ...(release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId: identity.id, taskBrief, rules: release.rules, images: uniqueImages([parentPixels, ...references]), usage: toJson({ ...usage, evaluationRecipe: release.recipe }), protectedContent: usage.protectedContent, maxCropCandidates: ctx.spec.config.limits.maxCropCandidatesPerImage }
+            const input = await modelInput({ ...(release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId: identity.id, taskBrief, rules: release.rules, images: uniqueImages([parentPixels, ...references]), usage: toJson({ ...usage, evaluationRecipe: release.recipe }), protectedContent: usage.protectedContent, maxCropCandidates: ctx.spec.config.limits.maxCropCandidatesPerImage })
             const descriptor = provider.describeRequest(input, 'propose-crop')
             const bundle = toJson(descriptor), replay = committedOutput(deps, ctx, bundle)
             state.proposal = replay === undefined ? await ctx.request('vision', bundle, (signal, recordMetadata) => provider.proposeCrop(input, visionBounds(ctx.spec.config, ctx, signal, recordMetadata))) : visionCropProposalSchema.parse(replay)

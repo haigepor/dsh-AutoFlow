@@ -1,0 +1,10 @@
+{
+  "generatorVersion": 4,
+  "purpose": "api-style-reference",
+  "activeStatements": ["Prefer warm amber colors."],
+  "selectedStatements": ["Prefer warm amber colors."],
+  "historicalStatement": "Use muted green colors.",
+  "historicalMatchingPrompt": "Prefer muted green palettes and soft light; inspect actual candidate pixels.",
+  "sampleCount": 1,
+  "files": ["style-profile.json", "samples.jsonl", "references.json", "SKILL.md", "manifest.json"]
+}

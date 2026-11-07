@@ -15,7 +15,7 @@ export const conversationRunSchema = z.object({
   resultSummary: z.object({ selected: z.number(), needsReview: z.number(), candidates: z.number(), target: z.number().nullable(), rejected: z.number().optional(), technicalFailed: z.number().optional(), processing: z.number().optional(), pending: z.number().optional(), sourceImages: z.number().optional(), unavailable: z.number().optional() }).optional(),
   issues: z.array(searchIssueSchema).default([]),
   delivery: z.object({ status: z.enum(['pending', 'delivered']), directory: z.string().optional(), files: z.number() }).optional(),
-  results: z.array(z.object({ imageVersionId: z.string(), name: z.string(), previewPath: z.string(), previewUrl: galleryMediaUrlSchema.optional(), resultCategory: runResultFilterSchema.exclude(['all']).optional(), verdict: z.enum(['pass', 'reject', 'needs-review']).optional() })),
+  results: z.array(z.object({ imageVersionId: z.string(), name: z.string(), previewPath: z.string(), thumbnailPath: z.string().optional(), previewUrl: galleryMediaUrlSchema.optional(), resultCategory: runResultFilterSchema.exclude(['all']).optional(), verdict: z.enum(['pass', 'reject', 'needs-review']).optional() })),
 })
 export type ConversationRun = z.infer<typeof conversationRunSchema>
 export interface ConversationFeedbackEntry { run?: ConversationRun; freshness: 'loading' | 'current' | 'stale'; resultFilter?: RunResultFilter; loadingMore?: boolean; error?: string }

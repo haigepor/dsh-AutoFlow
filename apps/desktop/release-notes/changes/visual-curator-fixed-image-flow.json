@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-fixed-image-flow",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator reuses six fixed image-processing nodes when switching images, retaining the layout and camera, with a resizable thumbnail sidebar and clearer image selection.",
+    "zh-CN": "视觉策展切换图片时复用六个固定处理节点，保留布局与视角，提供可调整宽度的缩略图侧栏和更清晰的图片选择菜单。"
+  }
+}

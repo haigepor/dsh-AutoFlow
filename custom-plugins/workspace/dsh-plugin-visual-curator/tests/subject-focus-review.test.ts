@@ -80,3 +80,57 @@ test('new image-search tasks persist focal evidence and reject a contradictory s
     assert.deepEqual(f.domain.require('modelProfile', frozen.id), frozen)
   } finally { await f.cleanup() }
 })
+
+test('original search scopes source and final style context to the exact requested rule IDs', async () => {
+  const f = await serviceFixture(); await f.service.initialize()
+  const scopes: { stage: string; expected: string[]; context: string[] }[] = []
+  let taskRelevance: 'relevant' | 'irrelevant' | 'unknown' = 'relevant'
+  const request = f.http.request.bind(f.http)
+  f.http.request = async (url, input) => {
+    if (url.startsWith('https://source.example.test')) return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ items: [{ id: taskRelevance, previewUrl: `https://images.example.test/${taskRelevance}`, originalUrl: `https://images.example.test/${taskRelevance}` }], nextCursor: null })) }
+    const response = await request(url, input)
+    if (!url.startsWith('https://vision.example.test')) return response
+    const body = JSON.parse(Buffer.from(response.bytes).toString('utf8')), result = JSON.parse(body.choices[0].message.content)
+    if (f.http.operations.at(-1)?.startsWith('summarize:')) result.suggestedRules[0].stage = 'final'
+    if (f.http.operations.at(-1)?.startsWith('review:')) {
+      const wire = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ text: z.string().optional() }))]) })) }).parse(JSON.parse(Buffer.from(input.body ?? []).toString('utf8')))
+      const content = wire.messages.find(message => message.role === 'user')?.content
+      assert.ok(Array.isArray(content))
+      const prompt = z.object({ input: z.object({ stage: z.string(), taskBrief: z.string(), rules: z.array(z.object({ ruleId: z.string() })), images: z.array(z.object({ imageVersionId: z.string() })) }) }).parse(JSON.parse(content[0]?.text ?? '{}')).input
+      const style = z.object({ currentStyle: z.object({ rules: z.array(z.object({ ruleId: z.string() })) }), reviewScope: z.object({ ruleIds: z.array(z.string()) }) }).parse(JSON.parse(prompt.taskBrief))
+      scopes.push({ stage: prompt.stage, expected: prompt.rules.map(rule => rule.ruleId), context: style.currentStyle.rules.map(rule => rule.ruleId) })
+      assert.deepEqual(style.reviewScope.ruleIds, prompt.rules.map(rule => rule.ruleId))
+      result.ruleResults = style.currentStyle.rules.map(rule => ({ ruleId: rule.ruleId, status: 'satisfied', source: 'inferred', reason: 'The model followed the supplied currentStyle.', evidenceImageVersionIds: [prompt.images[0]!.imageVersionId] }))
+      result.subjectFocus = []
+      result.taskRelevance = taskRelevance
+      if (prompt.stage === 'source') result.preferenceScores = []
+    }
+    body.choices[0].message.content = JSON.stringify(result)
+    return { ...response, bytes: Buffer.from(JSON.stringify(body)) }
+  }
+  try {
+    const { id } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'scope-style', name: 'Scoped review' }))
+    await f.action('reference-import', { operationId: 'scope-reference', styleId: id, expectedRevision: 1, files: [{ name: 'ref.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    await f.action('reference-analyze', { operationId: 'scope-analysis', styleId: id, buildDataset: true }); await f.jobs.drain()
+    const profile = f.repository.list('modelProfile')[0]!
+    assert.equal(profile.rules[0]?.stage, 'final')
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('search-start', { operationId: 'scope-search', releaseId: profile.id, output: { kind: 'original' }, sourceId: 'images', taskBrief: 'Find green photography, excluding unrelated subjects.', queries: ['green landscape'], targetCount: 1 }))
+    await f.jobs.drain()
+    assert.deepEqual(scopes, [{ stage: 'source', expected: [], context: [] }, { stage: 'final', expected: [profile.rules[0]!.ruleId], context: [profile.rules[0]!.ruleId] }])
+    assert.equal(f.domain.require('run', runId).status, 'completed')
+    assert.equal(f.repository.list('selection').filter(selection => selection.runId === runId).length, 1)
+    assert.ok(f.repository.list('assessment').filter(assessment => assessment.runId === runId).every(assessment => assessment.technicalStatus === 'completed'))
+    const accepted = f.repository.list('assessment').filter(assessment => assessment.runId === runId)
+    const recorded: { taskRelevance: VisionReview['taskRelevance']; verdict: 'pass' | 'reject' | 'needs-review'; selected: number; finalReviewed: boolean }[] = [{ taskRelevance, verdict: accepted[0]!.verdict!, selected: f.repository.list('selection').filter(selection => selection.runId === runId).length, finalReviewed: accepted.some(assessment => assessment.stage === 'final') }]
+    for (const relevance of ['irrelevant', 'unknown'] as const) {
+      taskRelevance = relevance
+      f.http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: relevance === 'irrelevant' ? '#234799' : '#716f53' } }).png().toBuffer()
+      const started = z.object({ runId: z.string() }).parse(await f.action('search-start', { operationId: `scope-${relevance}`, releaseId: profile.id, output: { kind: 'original' }, sourceId: 'images', taskBrief: 'Find real green photography; exclude game screenshots and CGI.', queries: ['green landscape'], targetCount: 1 }))
+      await f.jobs.drain()
+      const assessments = f.repository.list('assessment').filter(item => item.runId === started.runId)
+      assert.equal(assessments[0]?.ruleResults.length, 0)
+      recorded.push({ taskRelevance, verdict: assessments[0]!.verdict!, selected: f.repository.list('selection').filter(selection => selection.runId === started.runId).length, finalReviewed: assessments.some(assessment => assessment.stage === 'final') })
+    }
+    assert.deepEqual(recorded, JSON.parse(await readFile(new URL('./fixtures/scoped-task-review.expected.json', import.meta.url), 'utf8')))
+  } finally { await f.cleanup() }
+})

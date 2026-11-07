@@ -1,0 +1,28 @@
+/** Locale-owned graphical wallpaper planning controls. */
+export const wallpaperPlanEditorEn = {
+  wallpaperEditorTitle: 'Visual layout', wallpaperEditorHelp: 'Drag the image or an annotation. Drag the selected corner to resize. Escape cancels a drag; changes are applied when you release.',
+  wallpaperEditorPlacement: 'Image placement', wallpaperEditorLeft: 'Left (px)', wallpaperEditorTop: 'Top (px)', wallpaperEditorScale: 'Scale',
+  wallpaperEditorRegions: 'Source annotations', wallpaperEditorAddRegion: 'Add protected region', wallpaperEditorDeleteRegion: 'Delete selected region',
+  wallpaperEditorRegionName: 'Region name', wallpaperEditorRole: 'Region role', wallpaperEditorSubject: 'Subject', wallpaperEditorCritical: 'Protected detail', wallpaperEditorAnchor: 'Anchor',
+  wallpaperEditorX: 'Source x', wallpaperEditorY: 'Source y', wallpaperEditorWidth: 'Source width', wallpaperEditorHeight: 'Source height',
+  wallpaperEditorSafe: 'Fixed safe area', wallpaperEditorClock: 'Clock area', wallpaperEditorBuffer: 'Top buffer', wallpaperEditorCenter: 'Center guides',
+  wallpaperEditorOverflow: 'Subject edge allowance', wallpaperEditorOverflowHelp: 'The outer dashed box permits only non-critical subject edges. Protected details and anchors stay inside the safe area; every marked region stays below the top buffer.',
+  wallpaperEditorImageFailed: 'The source preview could not load. Check the image and retry.', wallpaperEditorRetryImage: 'Retry preview',
+  wallpaperEditorNoRegion: 'Select an annotation to edit its source coordinates.', wallpaperEditorNewRegion: 'Protected region {number}',
+  wallpaperEditorEvidence: 'Saved scene evidence', wallpaperEditorUncertainties: 'This plan contains unresolved scene evidence. Editing placement does not resolve it.',
+  wallpaperEditorNoUpscale: 'Scale stays at or below 1. Source regions use normalized coordinates from 0 to 1; rendering retains the full-size source.',
+}
+/** Chinese controls use the same keys as English. */
+export const wallpaperPlanEditorZh: typeof wallpaperPlanEditorEn = {
+  wallpaperEditorTitle: '图形规划', wallpaperEditorHelp: '拖动图片或标注，拖动选中框的右下角调整大小。按 Escape 取消拖动，松开后提交修改。',
+  wallpaperEditorPlacement: '图片定位', wallpaperEditorLeft: '左侧位置（px）', wallpaperEditorTop: '顶部位置（px）', wallpaperEditorScale: '等比缩放',
+  wallpaperEditorRegions: '原图标注', wallpaperEditorAddRegion: '添加保护框', wallpaperEditorDeleteRegion: '删除选中区域',
+  wallpaperEditorRegionName: '区域名称', wallpaperEditorRole: '区域用途', wallpaperEditorSubject: '主体', wallpaperEditorCritical: '保护细节', wallpaperEditorAnchor: '构图锚点',
+  wallpaperEditorX: '原图 x', wallpaperEditorY: '原图 y', wallpaperEditorWidth: '原图宽度', wallpaperEditorHeight: '原图高度',
+  wallpaperEditorSafe: '固定安全区', wallpaperEditorClock: '时间区', wallpaperEditorBuffer: '顶部缓冲区', wallpaperEditorCenter: '中心参考线',
+  wallpaperEditorOverflow: '主体边缘容差', wallpaperEditorOverflowHelp: '外层虚线仅允许非关键主体边缘延伸；保护细节和构图锚点仍须在安全区内，全部标注均须避开顶部缓冲区。',
+  wallpaperEditorImageFailed: '原图预览加载失败，请检查图片后重试', wallpaperEditorRetryImage: '重试预览',
+  wallpaperEditorNoRegion: '选中标注后可编辑其原图坐标', wallpaperEditorNewRegion: '保护区域 {number}',
+  wallpaperEditorEvidence: '已保存的场景依据', wallpaperEditorUncertainties: '规划仍有未确认的场景依据，调整位置不会自动消除这些不确定项',
+  wallpaperEditorNoUpscale: '缩放比例不超过 1。标注使用 0 到 1 的原图归一化坐标，实际输出保留完整尺寸的原图。',
+}

@@ -2,9 +2,12 @@ import { feedbackEn, feedbackZh } from './search-feedback-locale.ts'
 import { datasetEn, datasetZh } from './dataset-locale.ts'
 import { workflowCanvasEn, workflowCanvasZh } from './workflow-canvas-locale.ts'
 import { wallpaperEn, wallpaperZh } from './wallpaper-locale.ts'
+import { wallpaperPlanEditorEn, wallpaperPlanEditorZh } from './wallpaper-plan-editor-locale.ts'
 /** Workbench copy is owned by the plugin locale, including native control labels. */
 import { executionEn, executionZh } from './execution-locale.ts'
+import { presentationEn, presentationZh } from './task-presentation-locale.ts'
 export const en = {
+  ...presentationEn,
   inputSummaryCoverage: 'Saved observations: {observed}/{total} images. This request attaches {pixels} representative images for visual comparison; the attachments are not the full observation scope.',
   searchLaunchRequired: 'Choose or enter {field}',
   searchLaunchModelConfigured: 'Configured route · {model}',
@@ -12,6 +15,7 @@ export const en = {
   ...datasetEn,
   ...workflowCanvasEn,
   ...wallpaperEn,
+  ...wallpaperPlanEditorEn,
   analysisResumeBudget: 'The original task budget is exhausted. A new task can reuse saved observations.',
   analysisRequestsTab: 'Requests', analysisDiagnosticsTab: 'Failure diagnostics', analysisHistoricalFailure: 'Earlier failure', analysisHistoricalInterrupted: 'Earlier interruption',
   analysisRecoveredHint: 'This task completed successfully. Earlier failed or interrupted attempts remain below for inspection.', analysisNoFailures: 'No failed attempts were recorded.', analysisRequestsEmpty: 'No model requests have been saved.',
@@ -41,7 +45,7 @@ export const en = {
   analysisPlanChanged: 'Analysis could not start. Refresh the image counts and check the model settings before retrying.',
 
   ...feedbackEn,
-  searchLaunchTitle: 'Find images from this profile', searchLaunchWorkspace: 'Workspace', searchLaunchNoWorkspace: 'Choose an existing native Workspace to create the conversation.',
+  searchLaunchTitle: 'Start image search', searchLaunchOnlySearch: 'Find images only (preview links)', searchLaunchWallpaper: 'Make wallpapers', searchLaunchWorkspace: 'Workspace', searchLaunchNoWorkspace: 'Choose an existing native Workspace to create the conversation.', searchLaunchWorkspaceUnavailable: 'The original Workspace is unavailable. Choose a Workspace to start a new task.', searchLaunchChooseWorkspace: 'Choose another Workspace',
   searchLaunchDefaultBrief: 'Find images matching {name} using the selected dataset.', searchLaunchOutput: 'Output', searchLaunchOriginal: 'Keep original images', searchLaunchSized: 'Use a size preset',
   searchLaunchDatasetAuto: 'Use the confirmed profile and selected dataset', searchLaunchAutoHint: 'Start creates a new conversation, attaches the selected dataset and sends this task.',
   searchLaunchPreparing: 'Preparing image search…', searchLaunchPlanning: 'Conversation accepted · no search started', searchLaunchExecuting: 'Image search', searchLaunchCompleted: 'Image search completed', searchLaunchPartial: 'Search ended · fewer matches', searchLaunchStopping: 'Stopping this search…', searchLaunchStopFailed: 'Search stop needs attention', searchLaunchFailed: 'Image search needs attention', searchLaunchStopped: 'Image search stopped',
@@ -348,6 +352,7 @@ export const en = {
 }
 /** Chinese text has exactly the same keys as the English dictionary. */
 export const zh: typeof en = {
+  ...presentationZh,
   inputSummaryCoverage: '逐图观察已覆盖 {observed}/{total} 张；本次附带 {pixels} 张代表图供视觉比对，附图数量不代表完整观察范围',
   searchLaunchRequired: '请填写或选择{field}',
   searchLaunchModelConfigured: '当前配置 · {model}',
@@ -355,6 +360,7 @@ export const zh: typeof en = {
   ...datasetZh,
   ...workflowCanvasZh,
   ...wallpaperZh,
+  ...wallpaperPlanEditorZh,
   analysisResumeBudget: '原任务预算已耗尽，新任务可以复用已保存观察。',
   analysisRequestsTab: '请求记录', analysisDiagnosticsTab: '失败诊断', analysisHistoricalFailure: '此前失败', analysisHistoricalInterrupted: '此前中断',
   analysisRecoveredHint: '本次任务已成功完成；以下是此前失败或中断的尝试，保留供追查。', analysisNoFailures: '暂无失败尝试记录。', analysisRequestsEmpty: '尚未保存模型请求。',
@@ -384,7 +390,7 @@ export const zh: typeof en = {
   analysisPlanChanged: '分析未能启动，请刷新图片数量并检查模型设置后重试',
 
   ...feedbackZh,
-  searchLaunchTitle: '按此画像找图', searchLaunchWorkspace: '工作区', searchLaunchNoWorkspace: '请选择已有原生工作区，新会话将在其中创建。',
+  searchLaunchTitle: '开始找图', searchLaunchOnlySearch: '仅找图（预览链接）', searchLaunchWallpaper: '制作壁纸', searchLaunchWorkspace: '工作区', searchLaunchNoWorkspace: '请选择已有原生工作区，新会话将在其中创建。', searchLaunchWorkspaceUnavailable: '原任务工作区不可用，请重新选择工作区后发起新任务', searchLaunchChooseWorkspace: '重新选择工作区',
   searchLaunchDefaultBrief: '按照所选数据集寻找符合「{name}」风格的图片。', searchLaunchOutput: '输出方式', searchLaunchOriginal: '保留原图', searchLaunchSized: '按用途预设尺寸',
   searchLaunchDatasetAuto: '使用已确认的画像与所选数据集', searchLaunchAutoHint: '开始后会新建会话、附加所选数据集并按本次需求执行找图。',
   searchLaunchPreparing: '正在准备找图任务…', searchLaunchPlanning: '会话已受理 · 尚未开始找图', searchLaunchExecuting: '正在找图', searchLaunchCompleted: '找图已完成', searchLaunchPartial: '找图已结束 · 结果不足', searchLaunchStopping: '正在停止本次找图…', searchLaunchStopFailed: '停止找图需要处理', searchLaunchFailed: '找图任务需要处理', searchLaunchStopped: '找图任务已停止',

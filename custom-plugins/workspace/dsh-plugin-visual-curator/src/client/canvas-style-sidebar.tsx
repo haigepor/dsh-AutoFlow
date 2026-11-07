@@ -71,7 +71,7 @@ export function createCanvasStyleSidebar(React: typeof import('react'), ui: type
         </section>
         <section id={`${panelId}-brief`} role="tabpanel" aria-labelledby={`${panelId}-brief-tab`} hidden={tab !== 'brief'} className="vc-canvas-style-section"><h3>{t('workflowNextBrief')}</h3><p>{t('workflowNextBriefHint')}</p><ui.TextArea rows={8} maxLength={2000} value={notes} onChange={event => onNotes(event.currentTarget.value)} aria-label={t('workflowNextBrief')} placeholder={t('workflowBriefPlaceholder')} /><figure className="vc-canvas-style-cover"><img src={cover} alt="" width={640} height={320} draggable={false} /><figcaption>{t('workflowIllustration')}</figcaption></figure></section>
       </div>
-      <footer><div className="vc-canvas-style-tools"><ui.Button size="sm" variant="ghost" disabled={!!editing || save.saving} onClick={() => { void finish(onProfile) }}>{t('workflowFullProfile')}</ui.Button><ui.Button size="sm" variant="ghost" onClick={onReferences}>{t('workflowCurrentReferences')}</ui.Button></div><ui.Button variant="primary" disabled={!!editing || save.saving || save.failed || disabled} onClick={() => { void finish(() => onSearch(notes)) }}>{t('wallpaperStartSearch')}</ui.Button></footer>
+      <footer><div className="vc-canvas-style-tools"><ui.Button size="sm" variant="ghost" disabled={!!editing || save.saving} onClick={() => { void finish(onProfile) }}>{t('workflowFullProfile')}</ui.Button><ui.Button size="sm" variant="ghost" onClick={onReferences}>{t('workflowCurrentReferences')}</ui.Button></div><ui.Button variant="primary" disabled={!!editing || save.saving || save.failed || disabled} onClick={() => { void finish(() => onSearch(notes)) }}>{t('workflowNewSearch')}</ui.Button></footer>
     </aside></div>
 
   }

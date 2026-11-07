@@ -14,6 +14,8 @@ import { CuratorError } from '../shared/errors.ts'
 import type { SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { SessionTaskSnapshot, SessionTaskPublisher } from '@deepseek-ai/dsh-api-session-controller/types'
+import { z } from 'zod'
 import type {} from '@deepseek-ai/dsh-session-title'
 
 /** Optional GUI capability; the independent headless provider never requires it. */
@@ -31,12 +33,16 @@ export interface NativeSearchSessions {
   name(sessionId: string, title: string): Promise<void>
   submit(sessionId: string, requestId: string, text: string, filename: string, bytes: Uint8Array, signal: AbortSignal): Promise<void>
   cancel(sessionId: string): Promise<void>
+  /** @param sessionId Owning Session. @param snapshot Display-only checkpoint. @returns Durable acknowledgement; absent on an older Host. */
+  present?(sessionId: string, snapshot: SessionTaskSnapshot): Promise<void>
 }
 
 /** @param ctx Scoped public service lookup. @returns Optional native adapter; absence is reported at launch, not plugin load. */
 export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSessions | undefined {
   const controller = ctx.get('sessionController'), registry = ctx.get('workspaceRegistry'), uploads = ctx.get('fileUploads'), tools = ctx.get('tools'), agents = ctx.get('agents')
   if (!controller || !registry || !uploads || !tools || !agents) return undefined
+  const supportsPresentation = (value: object): value is SessionTaskPublisher => 'recordTask' in value && typeof value.recordTask === 'function'
+  const publisher = supportsPresentation(controller) ? controller : undefined
   const workspace = (id: string) => {
     const value = registry.get(brandString<WorkspaceId>(id))
     if (!value) throw new CuratorError('reference-unavailable', 'search-launch', 'The selected Workspace is unavailable. Select an existing Workspace.')
@@ -66,7 +72,10 @@ export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSes
       if (!ctx.get('sessionTitle')) throw new CuratorError('capability-unavailable', 'search-launch', 'The native conversation naming service is unavailable in this deployment.')
       const value = workspace(id)
       await access(value.path, constants.W_OK)
-      if (mode === 'workflow') return { id: value.id, title: value.title, path: await realpath(value.path) }
+      if (mode === 'workflow') {
+        if (!publisher) throw new CuratorError('capability-unavailable', 'task-presentation', 'This workflow requires a Host with durable task presentation. Open the updated local desktop preview before starting.')
+        return { id: value.id, title: value.title, path: await realpath(value.path) }
+      }
       if (selection) await resolveModel(selection)
       else {
         const catalog = await controller.modelCatalog()
@@ -138,5 +147,14 @@ export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSes
       // A cold Session has no native turn to cancel; stopping must not activate it.
       if (agents.get(sessionId)) controller.cancel({ sessionId })
     },
+    ...(publisher ? { async present(id: string, snapshot: SessionTaskSnapshot) {
+      try { await publisher.recordTask(brandString<SessionId>(id), snapshot) }
+      catch (cause) {
+        const failure = z.object({ code: z.literal('session/task-checkpoint-failed'), details: z.object({ reason: z.string() }) }).safeParse(cause)
+        if (!failure.success) throw cause
+        const reason = failure.data.details.reason
+        throw new CuratorError(reason === 'persistence-unconfirmed' ? 'storage-commit-failed' : reason === 'revision-conflict' ? 'operation-conflict' : 'capability-unavailable', 'task-presentation', `Conversation checkpoint was not confirmed (${reason}). Execution checkpoints remain saved.`, { cause, retryable: reason === 'persistence-unconfirmed' || reason === 'closing', suggestedAction: 'Retry display synchronization; do not create another task to restore its display.' })
+      }
+    } } : {}),
   }
 }

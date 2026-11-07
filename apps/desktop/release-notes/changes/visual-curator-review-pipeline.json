@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-review-pipeline",
+  "category": "fixes",
+  "text": {
+    "en": "Original-image searches retain their current query plan. Reviews use stage-specific rules and recheck focal content after cropping; canvas status distinguishes failed work from results needing review. Thumbnail preparation runs within a shared concurrency limit.",
+    "zh-CN": "修复原图搜索检索词被覆盖和审核阶段规则混淆的问题，裁剪后重新核对主体，画布区分失败与待复核，并在共享并发上限内准备缩略图。"
+  }
+}

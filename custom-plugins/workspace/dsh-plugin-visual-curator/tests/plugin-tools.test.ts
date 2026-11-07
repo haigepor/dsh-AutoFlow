@@ -26,6 +26,14 @@ test('the optional Agent row exposes one preparation read and eight execution/re
   assert.ok(parameters.properties.budgets.required.includes('maxRetryAttempts'))
   assert.match(parameters.properties.queries.description, /short English queries with the subject first/)
   assert.match(parameters.properties.output.properties.kind.description, /never substitutes a preview for an unavailable original/)
+  const report = tools.find(tool => tool.name === 'visual_run_get')!
+  assert.match(tools.find(tool => tool.name === 'visual_task_prepare')!.description, /Read timing.*not elapsed time or a native-model completion guarantee/)
+  assert.match(report.description, /native-model timing from enforced bounded deadlines.*not elapsed time/)
+  assert.match(report.description, /completed search is intermediate/)
+  assert.match(report.description, /No child yet means pending handoff/)
+  assert.match(report.description, /independently reviewed wallpaper artifacts at the frozen target dimensions/)
+  assert.match(report.description, /profile artifact storage.*previewPath.*never scan source delivery/)
+  assert.match(report.description, /sourceImageVersionId.*sourceName.*outputKind, not array order/)
 })
 
 test('Agent tools reject a missing Session before reaching the shared service', async () => {

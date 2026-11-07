@@ -34,7 +34,7 @@ import { readAnalysisDetail } from './analysis-detail.ts'
 import { assetSchema, imageVersionSchema, jsonSchema, recipeSchema, draftSchema, feedbackContextSchema, subjectSchema, styleStandardSchema, type DomainActor, type Json, type Rule, type EvaluationRecipe, type CuratorRecord, type ProfileExport, type ExportSnapshot, type StyleStandard, type RunRecord } from '../shared/model.ts'
 import { agentOperations, type ClientActionInput } from '../client/contract.ts'
 import { resolveConfig, resolveCurrentConfig, configRevision, reviewerRevision, searchScreeningPolicySchema, type CuratorConfig } from './config.ts'
-import { RunEngine, executionSchema, dataOf, specOf, toJson, safeFailure, type ExecutionSpec, type Worker } from './runtime.ts'
+import { RunEngine, executionSchema, dataOf, specOf, toJson, safeFailure, taskTiming, type ExecutionSpec, type Worker } from './runtime.ts'
 import { ProviderFactory, sourceIdentity } from './providers.ts'
 import { GalleryService } from './gallery.ts'
 import { GalleryReferenceTasks } from './gallery-tasks.ts'
@@ -69,7 +69,8 @@ import { nativeSearchSessions, type NativeSearchSessions } from './native-search
 import { originalSearchResult } from './search-results.ts'
 import { WallpaperWorkflows, isWallpaperRun } from './wallpaper-workflow.ts'
 import { WallpaperExperienceStore } from './wallpaper-experience.ts'
-import { wallpaperSettingsSchema, wallpaperStateSchema } from '../shared/wallpaper.ts'
+import { wallpaperSettingsSchema, wallpaperStateSchema, wallpaperProgress, wallpaperVerdict } from '../shared/wallpaper.ts'
+import { canReadWallpaperChild, wallpaperRunState } from './wallpaper-state.ts'
 import type {} from '@deepseek-ai/dsh-compaction'
 
 const actionSchema = z.strictObject({ operation: z.string().min(1), args: z.record(z.string(), jsonSchema) })
@@ -163,7 +164,7 @@ export class CuratorService {
       if (this.stopping || specOf(run).kind !== 'analyze') return
       try { await this.organizationValue?.settled(run) }
       catch (error) { await this.engine.addWarning(run.id, { kind: 'human', id: 'profile-owner', profileId: this.profileId, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}) }, `Automatic organization requires attention: ${safeFailure(error).code}.`) }
-    })
+    }, run => this.launchesValue?.presentationChanged(run))
     await this.engineValue.recover()
     this.experienceValue = new WallpaperExperienceStore({ domain: this.domain, engine: this.engine, config: () => this.config, vision: config => this.providers.vision(config), evaluate: (ctx, sample, content, variant) => this.wallpaperValue!.evaluate(ctx, sample, content, variant) })
     this.wallpaperValue = new WallpaperWorkflows({ domain: this.domain, files: this.files, engine: this.engine, config: () => this.config, vision: config => this.providers.vision(config), source: config => this.providers.source(config), media: config => this.providers.media(config), ...(this.ctx.llm ? { llm: this.ctx.llm } : {}), ...(this.ctx.attachments ? { attachments: this.ctx.attachments } : {}), skill: () => this.experienceValue!.skill() })
@@ -376,13 +377,15 @@ export class CuratorService {
         }
         if (operation === 'wallpaper-start' || operation === 'wallpaper-read') {
           const input = z.object({ sourceRunId: z.string(), offset: z.number().int().nonnegative().default(0) }).parse(args), source = this.domain.require('run', input.sourceRunId)
+          const limit = operation === 'wallpaper-read' ? z.number().int().min(1).max(this.config.limits.pageSize).default(this.config.limits.pageSize).parse(args.limit) : this.config.limits.pageSize
           let token: string | undefined
           if (source.owner.kind === 'session') {
             const reader = { ...actor, sessionId: source.owner.sessionId }; this.engine.get(source.id, reader)
             token = await this.wallpaperResourceToken(source.owner.sessionId, signal)
           } else this.engine.get(source.id, actor)
           if (operation === 'wallpaper-start') return toJson(await workflows.start(args, actor))
-          return toJson(workflows.read(input.sourceRunId, actor, input.offset, this.config.limits.pageSize, token))
+          const view = workflows.read(input.sourceRunId, actor, input.offset, limit, token)
+          return toJson(view && token ? { ...view, resourceExpiresAt: this.sessionGrants.get(token)!.expiresAt } : view)
         }
         throw new CuratorError('invalid-input', 'wallpaper', 'Unknown wallpaper operation.')
       }
@@ -398,6 +401,7 @@ export class CuratorService {
         if (operation === 'search-launch-list') return toJson(launches.list(z.object({ styleId: z.string().optional() }).parse(args).styleId, this.config.limits.pageSize))
         if (operation === 'search-launch-start') return toJson(await launches.start(args))
         if (operation === 'search-launch-resume') return toJson(await launches.resume(z.object({ id: z.string().uuid() }).parse(args).id))
+        if (operation === 'search-launch-presentation') return toJson(await launches.retryPresentation(z.object({ id: z.string().uuid() }).parse(args).id))
         if (operation === 'search-launch-stop') return toJson(await launches.stop(z.object({ id: z.string().uuid() }).parse(args).id))
         throw new CuratorError('invalid-input', 'search-launch', 'Unknown search launch operation.')
       }
@@ -568,15 +572,31 @@ export class CuratorService {
         }
         case 'run-get': {
           const { runId, pageSize, pageToken, resultFilter } = z.object({ runId: z.string(), pageSize: z.number().int().min(1).max(100).default(20), pageToken: z.string().optional(), resultFilter: runResultFilterSchema.default('all') }).parse(args)
+          const requested = this.domain.require('run', runId)
+          const requestedSpec = specOf(requested), wallpaperRequired = isWallpaperRun(requested) || requestedSpec.fixed.wallpaperAuto === true
+          let reader = effectiveActor
+          if (wallpaperRequired && reader.kind === 'human' && !reader.sessionId) {
+            const source = isWallpaperRun(requested) ? this.domain.require('run', wallpaperRunState(this.domain, requested).sourceRunId) : requested
+            if (source.owner.kind === 'session') { reader = { ...reader, sessionId: source.owner.sessionId }; this.engine.get(source.id, reader) }
+          }
+          if (!canReadWallpaperChild(this.domain, requested, reader)) this.engine.get(runId, reader)
+          const resourceToken = wallpaperRequired ? await this.wallpaperResourceToken(reader.sessionId, signal) : typeof sessionToken === 'string' ? sessionToken : undefined
           return this.domain.repository.readSnapshot(() => {
             let ids: string[] = [], offset = 0
             const scope = resultFilter === 'all' ? runId : `${runId}:${resultFilter}`
-            const run = projectRun(this.domain, this.engine.get(runId, effectiveActor), effectiveActor, undefined, true, { resultFilter, imageWindow: imageIds => {
+            const current = this.domain.require('run', runId)
+            if (!canReadWallpaperChild(this.domain, current, reader)) this.engine.get(runId, reader)
+            const currentSpec = specOf(current), timingPolicy = taskTiming(currentSpec)
+            const run = projectRun(this.domain, current, reader, undefined, true, { resultFilter, imageWindow: imageIds => {
               ids = imageIds; offset = this.pageOffset(pageToken, scope, ids)
               return { offset, size: pageSize }
             } })
             run.resultFilter = resultFilter
-            return this.withSessionResources(toJson({ ...run, ...(offset + pageSize < ids.length ? { pageToken: this.pageToken(scope, offset + pageSize, ids) } : {}) }), effectiveActor, typeof sessionToken === 'string' ? sessionToken : undefined)
+            const child = isWallpaperRun(current) ? current : wallpaperRequired ? this.domain.repository.list('run').filter(candidate => isWallpaperRun(candidate) && specOf(candidate).input.sourceRunId === current.id)
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0] : undefined
+            const wallpaper = child ? this.wallpaperRunReport(child, reader, pageSize) : null
+            const source = isWallpaperRun(current) ? this.domain.require('run', wallpaperRunState(this.domain, current).sourceRunId) : current, target = specOf(source).input.targetCount
+            return this.withSessionResources(toJson({ ...run, timing: { policy: timingPolicy, deadlineEnforced: timingPolicy === 'bounded', configuredDeadlineMs: currentSpec.config.limits.deadlineMs, ...(timingPolicy === 'bounded' ? { deadlineAt: dataOf(current).budget.deadlineAt } : {}) }, ...(wallpaperRequired ? { wallpaperRequired: true, wallpaper, workflowComplete: current.status === 'completed' && source.status === 'completed' && !!wallpaper && wallpaper.complete === true && typeof target === 'number' && Number(wallpaper.passed) >= target } : {}), ...(offset + pageSize < ids.length ? { pageToken: this.pageToken(scope, offset + pageSize, ids) } : {}), ...(resourceToken ? { resourceExpiresAt: this.sessionGrants.get(resourceToken)!.expiresAt } : {}) }), reader, resourceToken)
           })
         }
         case 'run-delete': {
@@ -592,6 +612,9 @@ export class CuratorService {
           const run = this.engine.get(runId, effectiveActor)
           if (command === 'resume') {
             const fixed = specOf(run)
+            const source = typeof fixed.input.sourceRunId === 'string' ? this.domain.repository.get('run', fixed.input.sourceRunId) : undefined
+            const launchId = fixed.fixed.searchLaunchId ?? (source ? specOf(source).fixed.searchLaunchId : undefined)
+            if (typeof launchId === 'string' && !this.launchesValue!.allowsDownstream(launchId)) throw new CuratorError('cancelled', 'run-resume', 'This workflow was stopped or removed. Start a new explicit task instead.')
             // 继续任务使用已接受的供应商与模型；当前设置只影响新任务。
             if (fixed.kind !== 'export') await this.providers.vision(fixed.config)
             if (fixed.kind === 'search') await this.providers.source(fixed.config)
@@ -719,11 +742,37 @@ export class CuratorService {
     }
   }
   private withSessionResources(value: Json, actor: DomainActor, token: string | undefined): Json {
-    if (!token || actor.kind !== 'human' || !actor.sessionId) return value
+    if (!token || !actor.sessionId || this.sessionGrants.get(token)?.sessionId !== actor.sessionId || this.sessionGrants.get(token)!.expiresAt <= Date.now()) return value
     if (typeof value === 'string') return value.startsWith('/api/visual-curator/resource?') ? `${value}&sessionToken=${encodeURIComponent(token)}` : value
     if (Array.isArray(value)) return value.map(item => this.withSessionResources(item, actor, token))
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.withSessionResources(item, actor, token)]))
     return value
+  }
+  private wallpaperRunReport(run: RunRecord, actor: DomainActor, pageSize: number): Record<string, Json> {
+    if (!canReadWallpaperChild(this.domain, run, actor)) this.engine.get(run.id, actor)
+    const spec = specOf(run), state = wallpaperRunState(this.domain, run), settings = wallpaperSettingsSchema.parse(spec.fixed.wallpaper), data = dataOf(run)
+    const selected = new Map(this.domain.repository.list('selection').filter(row => row.runId === run.id && row.qualification === 'auto-qualified').map(row => [row.imageVersionId, row]))
+    const attentionItems = state.items.filter(item => item.status === 'needs-review' || item.status === 'technical-failed' || item.status === 'rejected')
+    const attention = attentionItems.slice(0, pageSize).map(item => {
+      const source = this.domain.authorizedImage(item.imageVersionId, actor).asset, attempt = item.attempts.at(-1)
+      return { sourceImageVersionId: item.imageVersionId, sourceName: source.source.description || source.id, status: item.status, ...(item.reason ? { reason: item.reason } : {}), ...(item.errorCode ? { errorCode: item.errorCode } : {}), ...(item.failedStep ? { failedStep: item.failedStep } : {}), ...(attempt ? { revision: attempt.revision, checks: attempt.checks } : {}) }
+    })
+    const outputs = state.items.flatMap(item => {
+      const attempt = item.attempts.at(-1)
+      if (!attempt?.outputId) return []
+      const image = this.domain.authorizedImage(attempt.outputId, actor).image
+      const source = this.domain.authorizedImage(item.imageVersionId, actor).asset
+      const review = attempt.review ? wallpaperVerdict(attempt.review) : null
+      const selection = selected.get(image.id), saved = selection ? this.domain.repository.get('assessment', selection.assessmentId) : undefined
+      const assessment = saved?.runId === run.id && saved.imageVersionId === image.id ? saved : undefined
+      const inherited = z.object({ reusedQualification: z.object({ runId: z.string(), assessmentId: z.string(), selectionId: z.string() }) }).safeParse(assessment?.data)
+      return [{ imageVersionId: image.id, sourceImageVersionId: item.imageVersionId, sourceName: source.source.description || source.id, outputKind: image.versionKind, cumulativeImageEdits: item.edits, ...(assessment ? { assessmentId: assessment.id, inherited: inherited.success ? inherited.data.reusedQualification : null } : {}), status: item.status, width: image.geometry.width, height: image.geometry.height, review, passed: item.status === 'passed' && review === 'pass' && selected.has(image.id) && image.geometry.width === settings.width && image.geometry.height === settings.height, previewPath: `/api/visual-curator/resource?${new URLSearchParams({ imageVersionId: image.id })}` }]
+    })
+    const requestedCount = specOf(this.domain.require('run', state.sourceRunId)).input.targetCount
+    const parentRunId = spec.input.continuationOf, kind = spec.input.continuationKind
+    const changedImageVersionId = kind === 'replan' ? spec.input.replacementImageId : kind === 'recompose' ? spec.input.recomposedImageId : undefined
+    const continuation = typeof parentRunId === 'string' && (kind === 'replan' || kind === 'recompose' || kind === 'continue') ? { parentRunId, kind, ...(typeof changedImageVersionId === 'string' ? { changedImageVersionId } : {}) } : undefined
+    return { runId: run.id, sourceRunId: state.sourceRunId, artifactStorage: 'profile', ...(continuation ? { continuation } : {}), status: run.status, ...(run.stage ? { stage: run.stage } : {}), ...(run.outcome ? { outcome: run.outcome } : {}), ...(data.jobId ? { jobId: data.jobId } : {}), targetWidth: settings.width, targetHeight: settings.height, requestedCount: typeof requestedCount === 'number' ? requestedCount : null, total: state.items.length, passed: outputs.filter(output => output.passed).length, complete: run.status === 'completed' && state.items.length > 0 && outputs.filter(output => output.passed).length === state.items.length, counts: wallpaperProgress(state, spec.input.continuationKind === 'recompose' && typeof spec.input.recomposedImageId === 'string' ? spec.input.recomposedImageId : undefined), budgetStopped: state.budgetStopped, attentionTotal: attentionItems.length, attention, outputs: outputs.slice(0, pageSize), ...(data.error ? { errorCode: data.error.code } : {}) }
   }
   private async credentialStatus(): Promise<{ source: boolean; vision: boolean }> {
     const { credentialRef } = await import('@deepseek-ai/dsh-credentials')
@@ -893,7 +942,8 @@ export class CuratorService {
       const task = await this.resolveTask(`${kind}-start`, { ...args, operationId: 'prepare', sourceId: args.sourceId ?? sourceId }, actor)
       const normalizedInput: Record<string, Json> = { ...task.normalized, protectedContent: args.protectedContent ?? [], releaseId: args.releaseId!, ...(args.usageRevisionId ? { usageRevisionId: args.usageRevisionId } : {}), budgets: { targetCount: kind === 'search' ? task.normalized.targetCount ?? 1 : 1, ...Object.fromEntries(['maxVisionCalls', 'maxSearchPages', 'maxCandidates', 'maxDownloadBytes', 'maxCropCandidatesPerImage', 'maxConcurrentRequests', 'maxRetryAttempts', 'deadlineMs'].map(key => [key, Reflect.get(task.config.limits, key)])) }, ...(kind === 'search' ? { sourceId } : {}) }
       if (kind === 'crop' && Array.isArray(normalizedInput.imageVersionIds) && normalizedInput.imageVersionIds.length === 1) { normalizedInput.imageVersionId = normalizedInput.imageVersionIds[0]!; delete normalizedInput.imageVersionIds }
-      return toJson({ status: 'ready', options, normalizedInput, preparationDigest: this.taskDigest(task, actor), warnings: [], summary: { executionInstructions: task.fixed.executionInstructions ?? null, executionRecipe: task.fixed.executionRecipe ?? null, ...(task.fixed.searchScreening ? { searchScreening: task.fixed.searchScreening } : {}), release: task.fixed.release, usage: task.fixed.usage ?? null, budgets: task.config.limits } })
+      const timingPolicy = taskTiming(task)
+      return toJson({ status: 'ready', options, normalizedInput, timing: { policy: timingPolicy, deadlineEnforced: timingPolicy === 'bounded', configuredDeadlineMs: task.config.limits.deadlineMs }, preparationDigest: this.taskDigest(task, actor), warnings: [], summary: { executionInstructions: task.fixed.executionInstructions ?? null, executionRecipe: task.fixed.executionRecipe ?? null, ...(task.fixed.searchScreening ? { searchScreening: task.fixed.searchScreening } : {}), release: task.fixed.release, usage: task.fixed.usage ?? null, budgets: task.config.limits } })
     } catch (error) {
       // 私有资源错误保留拒绝语义，准备结果不能代替所有者检查。
       if (error instanceof CuratorError && error.code === 'owner-denied') throw error
@@ -908,10 +958,10 @@ export class CuratorService {
       const profile = z.object({ id: z.string() }).parse(launched.fixed.release)
       if (input.releaseId !== profile.id || input.taskBrief !== launched.input.taskBrief || (input.targetCount !== undefined && input.targetCount !== launched.input.targetCount) || (input.output !== undefined && contentDigest(input.output) !== contentDigest(launched.fixed.output))) throw new CuratorError('constraint-conflict', 'search-launch', 'Use this conversation launch’s frozen profile, task, quantity and output.')
       const preview = searchOutputSchema.parse(launched.fixed.output).kind === 'preview'
-      if (preview && (!input.queries?.length || input.queries.length > launched.config.limits.maxSearchPages)) throw new CuratorError('invalid-input', 'search-query-plan', 'Preview search requires explicit queries within the frozen search-page budget. Include the intended subject and visual style in each query.')
+      if (preview && !input.queries?.length || input.queries && input.queries.length > launched.config.limits.maxSearchPages) throw new CuratorError('invalid-input', 'search-query-plan', 'Use explicit queries within the frozen search-page budget. Include the intended subject and visual style in each query.')
       launched.fixed.searchExclusions = await this.searchHistoryPolicy(executionStandard(styleStandardSchema.parse(launched.fixed.release), launched.fixed.executionRecipe), actor, input.taskBrief, true, launched.config.limits.requestTimeoutMs)
       launched.fixed.invocationDigest = contentDigest({ operation, args })
-      return { kind: 'search', normalized: preview ? { ...launched.input, queries: input.queries! } : launched.input, fixed: launched.fixed, config: launched.config }
+      return { kind: 'search', normalized: { ...launched.input, ...(input.queries ? { queries: input.queries } : {}) }, fixed: launched.fixed, config: launched.config }
     }
     const release = this.domain.repository.get('modelProfile', input.releaseId) ?? this.domain.require('release', input.releaseId), style = this.domain.require('style', release.styleId)
     if (release.kind === 'modelProfile' && !release.rules.some(isMatchingRule)) throw new CuratorError('constraint-conflict', 'resolve', 'Enable at least one style rule before starting a model-profile task.')
@@ -948,6 +998,10 @@ export class CuratorService {
       const reviewer = { visionRevision: reviewerRevision(config), model: config.vision.model, vendorVersion: config.vision.vendorVersion, preprocessingVersion: this.files.processorVersion, referenceStrategy: { maxImages: config.limits.maxReferenceImages, maxBytes: config.limits.maxReferenceBytes } }
       fixed.executionRecipe = toJson(recipeSchema.parse({ ...release.recipe, ...reviewer, id: `recipe-${contentDigest({ recipe: release.recipe, reviewer, standardDigest: release.contentDigest, policy, weights, promptVersion }).slice(10, 50)}`, preferenceScale: { ...release.recipe.preferenceScale, weights }, promptVersion, styleMatching: policy }))
       fixed.executionInstructions = compileStyleInstructions(release)
+    }
+    if (executionStandard(release, fixed.executionRecipe).recipe.promptVersion === 'visual-curator-rules-v3') {
+      fixed.cropReviewPolicy = 'candidate-focus-v1'
+      fixed.cropModelViews = 'bounded-v1'
     }
     const kind = operation === 'search-start' ? 'search' : 'crop'
     const normalized: Record<string, Json> = { taskBrief: input.taskBrief, ...(input.datasetId ? { datasetId: input.datasetId } : {}), ...(input.output ? { output: toJson(output) } : {}) }
@@ -1174,7 +1228,7 @@ export class CuratorService {
    * @param request Authenticated same-origin JSON request. @returns Validated workspace data or a safe command result.
    */
   async data(request: Request): Promise<Response> {
-    return await this.workspaceData(request, ['task-reference-list', 'task-reference-import', 'task-reference-start', 'search-launch-options', 'search-launch-datasets', 'search-launch-list', 'search-launch-start', 'search-launch-resume', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'search-batch-detail', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'workflow-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'dataset-delete', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-organize', 'reference-analyze', 'vision-models', 'config-read', 'config-save', 'profile-save', 'profile-current', 'style-get'])
+    return await this.workspaceData(request, ['wallpaper-read', 'wallpaper-start', 'wallpaper-options', 'wallpaper-control', 'wallpaper-continue', 'wallpaper-plan-update', 'wallpaper-experience', 'wallpaper-experience-action', 'wallpaper-case', 'task-reference-list', 'task-reference-import', 'task-reference-start', 'search-launch-options', 'search-launch-datasets', 'search-launch-list', 'search-launch-start', 'search-launch-resume', 'search-launch-presentation', 'search-launch-stop', 'task-prepare', 'usage-list', 'snapshot', 'search-batches', 'search-batch-detail', 'conversation-runs', 'run-get', 'run-control', 'run-delete', 'workflow-delete', 'export-get', 'export-start', 'datasets-list', 'dataset-get', 'dataset-delete', 'local-files-list', 'references-list', 'reference-state', 'analysis-detail', 'analysis-input', 'analysis-pause', 'analysis-resume', 'analysis-stop', 'reference-organize', 'reference-analyze', 'vision-models', 'config-read', 'config-save', 'profile-save', 'profile-current', 'style-get'])
   }
   /** @param request Authenticated account check, listing or selected-photo import. @returns Bounded JSON without action-text truncation. */
   async gallery(request: Request): Promise<Response> {

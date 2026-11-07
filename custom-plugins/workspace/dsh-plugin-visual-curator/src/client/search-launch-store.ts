@@ -54,7 +54,7 @@ export function createSearchLaunchStore(deps: { invoke: ClientTransport['invoke'
     const captured = epoch, prior = state.options
     publish({ optionsLoading: true, error: '', failure: undefined })
     try {
-      const options = optionsSchema.parse(await deps.invoke('search-launch-options', { executionMode: 'workflow', ...(more && prior?.usagePageToken ? { usagePageToken: prior.usagePageToken } : {}) }, lifetime.signal))
+      const options = optionsSchema.parse(await deps.invoke('search-launch-options', { executionMode: 'conversation', ...(more && prior?.usagePageToken ? { usagePageToken: prior.usagePageToken } : {}) }, lifetime.signal))
       if (current(captured)) publish({ options: more && prior ? { ...options, usages: [...new Map([...prior.usages, ...options.usages].map(item => [item.usageRevisionId, item])).values()] } : options, optionsLoading: false })
     } catch (error) { if (current(captured)) publish({ optionsLoading: false, error: code(error), failure: diagnostic(error) }) }
   }

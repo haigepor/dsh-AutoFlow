@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-launch-capabilities",
+  "category": "fixes",
+  "text": {
+    "en": "Starting an image search reads native conversation capabilities and no longer incorrectly asks to update an already current service.",
+    "zh-CN": "修复开始找图时因读取模式不一致而误报应用服务需要更新的问题。"
+  }
+}

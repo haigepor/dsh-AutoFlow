@@ -84,6 +84,15 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
       if (response.status < 200 || response.status >= 300) throw new MediaError('source-download-http', 'download', response.status === 429 || response.status >= 500, 'A source image could not be downloaded.', 'Continue within the saved retry budget.')
       return response
     }, response => ({ status: response.status, byteLength: response.bytes.byteLength }))
+    // The shared permit includes download, decoding and persisted thumbnails across batches.
+    let preparing = 0
+    const preparationQueue: (() => void)[] = []
+    const withThumbnailSlot = async (work: () => Promise<VisionImage>): Promise<VisionImage> => {
+      if (preparing < ctx.spec.config.limits.maxConcurrentRequests) preparing++
+      else await new Promise<void>(resolve => preparationQueue.push(resolve))
+      try { ctx.signal.throwIfAborted(); return await work() }
+      finally { const next = preparationQueue.shift(); if (next) next(); else preparing-- }
+    }
     const screeningId = (id: string) => `screening-${contentDigest({ runId: ctx.runId, ...owner, providerAssetId: id }).slice(10, 50)}`
     const screen = async (candidates: Candidate[], sequence: number): Promise<VisionScreening> => {
       const ids = candidates.map(item => screeningId(item.providerAssetId))
@@ -99,18 +108,24 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
         if (contentDigest(stored.bundle) !== saved.requestDigest) throw new CuratorError('reference-unavailable', 'screening', 'The committed screening response does not match its request.')
         return decodeVisionScreening(stored.output, ids)
       }
-      const images: VisionImage[] = []
-      for (const candidate of candidates) {
-        ctx.signal.throwIfAborted()
-        const item = await locate(candidate), response = await download(candidate, item.thumbnailUrl ?? item.previewUrl, 'screening-preview')
-        const image = sharp(response.bytes, { limitInputPixels: ctx.spec.config.limits.maxPixels, animated: true })
-        const metadata = await image.metadata()
-        if (metadata.pages !== undefined && metadata.pages !== 1 || !['jpeg', 'png', 'webp'].includes(metadata.format ?? '')) throw new MediaError('invalid-input', 'screening', false, 'A screening preview is not a supported static image.', 'Use a supported image source.')
-        const bytes = await image.autoOrient().resize({ width: policy.maxScreeningImageEdge, height: policy.maxScreeningImageEdge, fit: 'inside', withoutEnlargement: true }).toColourspace('srgb').png().toBuffer()
-        ctx.signal.throwIfAborted()
-        const stored = await deps.files.importBytes(bytes, 'image/png', ctx.signal)
-        images.push({ imageVersionId: screeningId(candidate.providerAssetId), digest: stored.originalBlob.digest, mime: 'image/png', role: 'screening-candidate', bytes, storedImage: { storageRef: stored.originalBlob.storageRef, byteLength: stored.originalBlob.byteLength } })
-      }
+      let preparationFailure: { error: unknown } | undefined
+      const prepared = await Promise.allSettled(candidates.map(candidate => withThumbnailSlot(async () => {
+        if (preparationFailure) throw preparationFailure.error
+        try {
+          const item = await locate(candidate), response = await download(candidate, item.thumbnailUrl ?? item.previewUrl, 'screening-preview')
+          const image = sharp(response.bytes, { limitInputPixels: ctx.spec.config.limits.maxPixels, animated: true })
+          const metadata = await image.metadata()
+          if (metadata.pages !== undefined && metadata.pages !== 1 || !['jpeg', 'png', 'webp'].includes(metadata.format ?? '')) throw new MediaError('invalid-input', 'screening', false, 'A screening preview is not a supported static image.', 'Use a supported image source.')
+          const bytes = await image.autoOrient().resize({ width: policy.maxScreeningImageEdge, height: policy.maxScreeningImageEdge, fit: 'inside', withoutEnlargement: true }).toColourspace('srgb').png().toBuffer()
+          ctx.signal.throwIfAborted()
+          const stored = await deps.files.importBytes(bytes, 'image/png', ctx.signal)
+          return { imageVersionId: screeningId(candidate.providerAssetId), digest: stored.originalBlob.digest, mime: 'image/png', role: 'screening-candidate', bytes, storedImage: { storageRef: stored.originalBlob.storageRef, byteLength: stored.originalBlob.byteLength } }
+        } catch (error) { preparationFailure ??= { error }; throw error }
+      })))
+      ctx.signal.throwIfAborted()
+      const failed = prepared.find(result => result.status === 'rejected')
+      if (failed?.status === 'rejected') throw failed.reason
+      const images = prepared.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
       const bundleInput: VisionInput = { requestId, taskBrief, rules, images }
       const bundle = toJson(vision.describeRequest(bundleInput, 'screen'))
       return ctx.request('vision', bundle, (signal, recordMetadata) => vision.screen(bundleInput, visionBounds(ctx.spec.config, ctx, signal, recordMetadata)))

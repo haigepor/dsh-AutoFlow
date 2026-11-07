@@ -47,7 +47,7 @@ test('only mounted workbenches read and poll, and reopening or reconnecting refr
     slots: { inject(_name, register) { disposers.push(register()) }, register(options) { registered.push(options); return () => { const index = registered.indexOf(options); if (index >= 0) registered.splice(index, 1) } } },
     locale: { register: () => () => {}, bind: () => key => key },
     layout: { panelInfo: { getSnapshot: () => ({ activePanelId: null }) }, selectPanel() {} },
-    uiConversation: { views: { register: () => () => {} } },
+    uiConversation: { views: { register: () => () => {} }, events: { register: () => () => {} } },
     remote: { $on: () => () => {}, credentials: { async set() { throw new Error('The polling fixture cannot write credentials') } }, pluginManager: {
       async listBundles() { return { ok: true, value: [{ name: 'dsh-plugin-visual-curator', enabled: true, rows: [{ rowId: 'panel-row', entryId: 'fixture-entry' }], features: [{ id: 'ui-panel', rowId: 'panel-row', enabled: true }] }] } },
       async listPlugins() { return { ok: true, value: [{ entryId: 'fixture-entry', enabled: true, fiberPhase: 'active' }] } },
@@ -61,6 +61,7 @@ test('only mounted workbenches read and poll, and reopening or reconnecting refr
     definition.factory(() => ({})).apply(scope(effects))
     await flush()
     assert.equal(registered.filter(item => item.name === 'main').length, 1)
+    assert.equal(registered.filter(item => item.name === 'conversation.chat.node').length, 0, 'task checkpoints must not replace native AI dialogue with a transcript card')
     await advance(60)
     assert.deepEqual(counts, {}, 'registering an unopened entry must not read owner data')
 

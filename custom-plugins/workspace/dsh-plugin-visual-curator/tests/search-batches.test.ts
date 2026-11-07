@@ -137,7 +137,7 @@ test('a large selected batch reads only the current image page', async context =
   } finally { await f.cleanup() }
 })
 
-test('remote batch thumbnails keep the preview grant without reading either image representation', async () => {
+test('batch thumbnails use saved local previews and retain Session grants without media requests', async () => {
   const f = await fixture()
   try {
     const selection = f.repository.list('selection').find(item => item.runId === f.original.id)!
@@ -163,7 +163,14 @@ test('remote batch thumbnails keep the preview grant without reading either imag
     assert.equal(thumbnail.searchParams.get('imageVersionId'), preview.searchParams.get('imageVersionId'))
     assert.ok(preview.searchParams.get('sessionToken'))
     assert.equal(thumbnail.searchParams.get('sessionToken'), preview.searchParams.get('sessionToken'))
-    assert.equal(page.batches[0]!.images.find(item => item.imageVersionId === image.id)?.thumbnailPath, undefined)
+    const local = page.batches[0]!.images.find(item => item.imageVersionId === image.id)!
+    assert.ok(local.thumbnailPath)
+    const localPreview = f.domain.require('imageVersion', new URL(local.thumbnailPath, 'http://fixture.test').searchParams.get('imageVersionId')!)
+    assert.equal(localPreview.versionKind, 'preview')
+    assert.equal(localPreview.parentImageVersionId, image.id)
+    assert.equal(localPreview.assetId, image.assetId)
+    assert.equal(new URL(local.previewPath, 'http://fixture.test').searchParams.get('imageVersionId'), image.id)
+    assert.equal(new URL(local.thumbnailPath, 'http://fixture.test').searchParams.get('sessionToken'), preview.searchParams.get('sessionToken'))
     assert.equal(mediaRequests, 0)
   } finally { await f.cleanup() }
 })
@@ -188,7 +195,8 @@ test('Run result pages retain global summaries and order while review tables are
     const page = z.object({ results: z.array(z.object({ imageVersionId: z.string() })), pageToken: z.string(), resultSummary: z.object({ selected: z.number() }) }).parse(await f.action('run-get', { runId: f.original.id, resultFilter: 'selected', pageSize: 2 }))
     assert.deepEqual(page.results.map(item => item.imageVersionId), expected.slice(0, 2))
     assert.equal(page.resultSummary.selected, 8)
-    assert.equal(imageReads, 10, 'all eight images need authorization, while only two need result-card metadata')
+    const pageHasSavedPreview = page.results.some(row => row.imageVersionId === image.id)
+    assert.equal(imageReads, 10 + Number(pageHasSavedPreview), 'eight sources and two cards need authorization; only the original fixture image has a saved thumbnail')
     for (const kind of ['assessment', 'selection', 'cropCandidate', 'feedback', 'feedbackThread']) assert.ok((tableReads.get(kind) ?? 0) <= 1, `${kind} was enumerated ${tableReads.get(kind)} times for a two-image page`)
     const next = z.object({ results: z.array(z.object({ imageVersionId: z.string() })), resultSummary: z.object({ selected: z.number() }) }).parse(await f.action('run-get', { runId: f.original.id, resultFilter: 'selected', pageSize: 2, pageToken: page.pageToken }))
     assert.deepEqual(next.results.map(item => item.imageVersionId), expected.slice(2, 4))

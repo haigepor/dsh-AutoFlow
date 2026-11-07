@@ -8,7 +8,7 @@ import type { RemoteImageSource } from '../shared/gallery.ts'
 import { remoteReferenceDigest } from './remote-reference.ts'
 import { remoteImageSourceSchema } from '../shared/gallery.ts'
 import { dimensionSchema } from '../shared/model.ts'
-import { wallpaperPlanSchema, wallpaperReviewSchema, wallpaperDistillationSchema } from '../shared/wallpaper.ts'
+import { wallpaperPlanSchema, wallpaperReviewOutputSchema, wallpaperDistillationSchema } from '../shared/wallpaper.ts'
 import { wallpaperPrompts } from '../shared/wallpaper-prompts.ts'
 import { parseModelJson } from '../shared/model-json.ts'
 import type { Json } from '../shared/model.ts'
@@ -92,7 +92,7 @@ export interface VisionInput { promptVersion?: 'visual-curator-rules-v2' | 'visu
   /** Complete canonical image scope supplied by summary dispatch, including images represented only by observations. */
   summaryEvidenceIds?: readonly string[]
   /** Task-frozen instructions used only by the wallpaper operation family. */
-  wallpaperPrompt?: { version: 'wallpaper-plan-v1' | 'wallpaper-review-v1' | 'wallpaper-distill-v1'; text: string }
+  wallpaperPrompt?: { version: 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-distill-v1'; text: string }
 }
 /** Exact textual messages and saved image identities, sufficient to rebuild the transmitted body. */
 export interface VisionRequestDescriptor {
@@ -101,7 +101,7 @@ export interface VisionRequestDescriptor {
   model: string
   declaredModelVersion: string | null
   replayLimitation: string | null
-  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-summary-v4' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2' | 'visual-curator-screening-v1' | 'visual-curator-search-plan-v1' | 'wallpaper-plan-v1' | 'wallpaper-review-v1' | 'wallpaper-distill-v1'
+  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-summary-v4' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2' | 'visual-curator-screening-v1' | 'visual-curator-search-plan-v1' | 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-distill-v1'
   schemaVersion: 1
   instructions: string
   inputText: string
@@ -194,7 +194,7 @@ export abstract class StructuredVisionProvider {
     const summary = operation === 'summarize' ? encodeSummaryImages(input.taskBrief, images.map(image => image.imageVersionId), input.summaryEvidenceIds) : undefined
     const payload = { operation, taskBrief: summary?.taskBrief ?? input.taskBrief, stage: input.stage, rules: input.rules, usage: input.usage, protectedContent: input.protectedContent, maxCropCandidates: input.maxCropCandidates, ...(input.analysisOutput ? { analysisOutput: input.analysisOutput } : {}), images: summary ? modelImages.map(image => ({ ...image, imageVersionId: summary.imageAliases[image.imageVersionId] ?? image.imageVersionId })) : modelImages, requestId: input.requestId }
     const focusedReview = operation === 'review' && input.promptVersion === 'visual-curator-rules-v3'
-    const wallpaperSchema = operation === 'wallpaper-plan' ? wallpaperPlanSchema : operation === 'wallpaper-review' ? wallpaperReviewSchema : operation === 'wallpaper-distill' ? wallpaperDistillationSchema : undefined
+    const wallpaperSchema = operation === 'wallpaper-plan' ? wallpaperPlanSchema : operation === 'wallpaper-review' ? wallpaperReviewOutputSchema(input.wallpaperPrompt?.version ?? 'wallpaper-review-v1', input.rules.map(rule => rule.ruleId), input.images.map(image => image.imageVersionId), input.images.find(image => image.role === 'actual-wallpaper')?.imageVersionId) : operation === 'wallpaper-distill' ? wallpaperDistillationSchema : undefined
     const schema = operation === 'plan-search' ? visionSearchPlanSchema : wallpaperSchema ?? (operation === 'screen' ? visionScreeningSchema : operation === 'review' ? focusedReview ? focusedReviewSchema : reviewSchema : operation === 'analyze' ? input.analysisOutput === 'observations-only' ? analysisSchema.pick({ observations: true }) : analysisSchema : operation === 'summarize' ? organizedStyleSummarySchema : cropSchema)
     const wallpaperInstructions = operation === 'wallpaper-plan' || operation === 'wallpaper-review' || operation === 'wallpaper-distill' ? input.wallpaperPrompt?.text ?? wallpaperPrompts[operation] : undefined
     const wallpaperVersion = wallpaperInstructions ? input.wallpaperPrompt?.version ?? (operation === 'wallpaper-plan' ? 'wallpaper-plan-v1' : operation === 'wallpaper-review' ? 'wallpaper-review-v1' : 'wallpaper-distill-v1') : undefined
@@ -222,7 +222,7 @@ export abstract class StructuredVisionProvider {
    */
   async wallpaper(input: VisionInput, operation: keyof typeof wallpaperPrompts, bounds: VisionBounds) {
     const raw = await this.invoke(input, operation, bounds)
-    const result = operation === 'wallpaper-plan' ? wallpaperPlanSchema.safeParse(raw) : operation === 'wallpaper-review' ? wallpaperReviewSchema.safeParse(raw) : wallpaperDistillationSchema.safeParse(raw)
+    const result = operation === 'wallpaper-plan' ? wallpaperPlanSchema.safeParse(raw) : operation === 'wallpaper-review' ? wallpaperReviewOutputSchema(input.wallpaperPrompt?.version ?? 'wallpaper-review-v1', input.rules.map(rule => rule.ruleId), input.images.map(image => image.imageVersionId), input.images.find(image => image.role === 'actual-wallpaper')?.imageVersionId).safeParse(raw) : wallpaperDistillationSchema.safeParse(raw)
     if (!result.success) throw invalidOutput(raw, result.error.issues.map(issue => `${issue.code}:${issue.path.join('.')}`), true)
     if (operation === 'wallpaper-plan' && 'imageVersionId' in result.data && result.data.imageVersionId !== input.images[0]?.imageVersionId) throw invalidOutput(raw, ['wallpaper-source-mismatch'], false)
     return result.data
@@ -355,7 +355,8 @@ export function decodeStyleSummary(raw: unknown, evidenceIds: readonly string[])
   const result = parsed.data, allowed = new Set(evidenceIds)
   const cited = [...result.dimensions.flatMap(row => [...row.supportImageVersionIds, ...row.counterImageVersionIds]), ...result.conflicts.flatMap(row => row.imageVersionIds), ...result.suggestedRules.flatMap(row => [...row.supportImageVersionIds, ...row.counterImageVersionIds, ...row.notApplicableImageVersionIds ?? []]), ...(result.negativeReasons ?? []).map(reason => reason.imageVersionId)]
   if (cited.some(id => !allowed.has(id)) || new Set(result.dimensions.map(row => row.dimension)).size !== result.dimensions.length
-    || result.suggestedRules.some(rule => !rule.supportImageVersionIds.length && !rule.counterImageVersionIds.length || rule.notApplicableImageVersionIds?.some(id => rule.supportImageVersionIds.includes(id) || rule.counterImageVersionIds.includes(id)))) throw rejected(['invalid-image-evidence-or-dimensions'])
+    || result.dimensions.some(row => row.supportImageVersionIds.some(id => row.counterImageVersionIds.includes(id)))
+    || result.suggestedRules.some(rule => !rule.supportImageVersionIds.length && !rule.counterImageVersionIds.length || rule.supportImageVersionIds.some(id => rule.counterImageVersionIds.includes(id)) || rule.notApplicableImageVersionIds?.some(id => rule.supportImageVersionIds.includes(id) || rule.counterImageVersionIds.includes(id)))) throw rejected(['invalid-image-evidence-or-dimensions'])
   if (result.organization) {
     const { groups, selections } = result.organization
     const ids = new Set(groups.map(group => group.groupId))

@@ -36,11 +36,11 @@ export function curatorDomainSpecFor(profileId: string) {
 /** Default declaration for consumers whose host already isolates storage by profile. */
 export const curatorDomainSpec = curatorDomainSpecFor('default')
 type StorageHandle = Domain<ReturnType<typeof curatorDomainSpecFor>>
-function incrementalDomainSpecFor(profileId: string) {
+function incrementalDomainSpecFor(profileId: string, loading: 'manual' | 'eager' = 'manual') {
   const base = curatorDomainSpecFor(profileId)
   return defineDomain({ name: `${base.name}_delta_v1`, version: 1, layout: 'per-record',
     global: { schema: z.strictObject({ profileId: z.literal(profileId), baseDigest: z.string().nullable() }), initial: { profileId, baseDigest: null as string | null } },
-    tables: base.tables })
+    tables: { ...base.tables, records: loading === 'manual' ? { ...base.tables.records, loading: 'manual' } : base.tables.records } })
 }
 type IncrementalHandle = Domain<ReturnType<typeof incrementalDomainSpecFor>>
 const manifestStorageKey = (id: string) => createHash('sha256').update(id).digest('hex')
@@ -64,7 +64,14 @@ export class StorageDomainAdapter implements DomainAdapter {
   constructor(private readonly domain: StorageHandle, private readonly incremental?: IncrementalHandle) {
     for (const [key, manifest] of incremental?.table('manifests').entries() ?? []) if (key !== manifestStorageKey(manifest.aggregateId)) throw new CuratorError('reference-unavailable', 'storage-open', 'An incremental manifest has a mismatched physical key.')
   }
-  readRecord(key: string): CuratorRecord | undefined { return this.incremental?.table('records').get(key) ?? this.domain.table('records').get(key) }
+  /** Unloaded incremental keys stay absent for asynchronous write admission and never fall back to the base.
+   * @param key Immutable dependency key. @returns Materialized record; current manifest dependencies must already be hydrated.
+   */
+  readRecord(key: string): CuratorRecord | undefined {
+    const incremental = this.incremental?.table('records')
+    if (incremental && !incremental.isLoaded(key)) return undefined
+    return incremental?.get(key) ?? this.domain.table('records').get(key)
+  }
   manifests(): AggregateManifest[] {
     const manifests = new Map(this.domain.table('manifests').entries())
     for (const [, manifest] of this.incremental?.table('manifests').entries() ?? []) {
@@ -72,11 +79,33 @@ export class StorageDomainAdapter implements DomainAdapter {
     }
     return [...manifests.values()]
   }
-  async writeRecord(key: string, record: CuratorRecord): Promise<void> { await (this.incremental ?? this.domain).table('records').put(key, record) }
+  async writeRecord(key: string, record: CuratorRecord): Promise<void> {
+    if (!this.incremental) { await this.domain.table('records').put(key, record); return }
+    const records = this.incremental.table('records')
+    if (!records.isLoaded(key)) await records.hydrate([key])
+    const saved = records.get(key) ?? this.domain.table('records').get(key)
+    if (saved) {
+      if (contentDigest(saved) !== contentDigest(record)) throw new CuratorError('reference-unavailable', 'storage-write', 'An existing immutable record does not match its content key.')
+      return
+    }
+    await records.put(key, record)
+  }
   async writeManifest(manifest: AggregateManifest): Promise<void> {
     // 业务聚合 ID 含冒号，按记录存储的文件名使用固定 SHA-256 编码。
-    if (this.incremental) await this.incremental.table('manifests').put(manifestStorageKey(manifest.aggregateId), manifest)
-    else await this.domain.table('manifests').put(manifest.aggregateId, manifest)
+    if (!this.incremental) { await this.domain.table('manifests').put(manifest.aggregateId, manifest); return }
+    const records = this.incremental.table('records'), unloaded = manifest.records.filter(pointer => !records.isLoaded(pointer.key))
+    if (unloaded.length) {
+      await records.hydrate(unloaded.map(pointer => pointer.key))
+      for (const pointer of unloaded) {
+        const value = this.readRecord(pointer.key)
+        if (!value || contentDigest(value) !== pointer.digest) throw new CuratorError('reference-unavailable', 'storage-write', 'A manifest dependency is missing or does not match its content key.')
+      }
+    }
+    const previous = this.manifests().find(value => value.aggregateId === manifest.aggregateId)
+    await this.incremental.table('manifests').put(manifestStorageKey(manifest.aggregateId), manifest)
+    const current = new Set(this.manifests().flatMap(value => value.records.map(pointer => pointer.key)))
+    const replaced = previous?.records.filter(pointer => !current.has(pointer.key)).map(pointer => pointer.key) ?? []
+    if (replaced.length) await this.incremental.table('records').release(replaced)
   }
   async close(): Promise<void> {
     const results = await Promise.allSettled([this.incremental?.close(), this.domain.close()])
@@ -308,13 +337,22 @@ export async function openCuratorRepository(options: { profileId: string; facili
   let handle: StorageHandle | undefined, incremental: IncrementalHandle | undefined
   try {
     handle = await options.facility.open(curatorDomainSpecFor(options.profileId))
-    incremental = await options.facility.open(incrementalDomainSpecFor(options.profileId))
+    try { incremental = await options.facility.open(incrementalDomainSpecFor(options.profileId)) }
+    catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'legacy-bootstrap-required')) throw error
+      // Only the backend's explicit legacy-tree requirement permits its existing bootstrap path.
+      incremental = await options.facility.open(incrementalDomainSpecFor(options.profileId, 'eager'))
+      await incremental.close(); incremental = undefined
+      incremental = await options.facility.open(incrementalDomainSpecFor(options.profileId))
+    }
     const baseDigest = contentDigest({ keys: [...handle.table('records').keys()].sort(), manifests: [...handle.table('manifests').entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0) })
     const marker = incremental.global.get()
     if (marker.baseDigest !== null && marker.baseDigest !== baseDigest) throw new CuratorError('reference-unavailable', 'storage-open', 'The frozen curator base changed after incremental storage was enabled.', { suggestedAction: 'Restore the matching base and incremental directory from the same backup; do not merge files manually.' })
     if (marker.baseDigest === null && (incremental.table('records').size || incremental.table('manifests').size)) throw new CuratorError('reference-unavailable', 'storage-open', 'Incremental records have no confirmed base identity.', { suggestedAction: 'Restore a complete curator storage backup.' })
     // 不搬迁或覆盖旧单文件；新记录仍按“依赖先落盘、清单后可见”的顺序提交。
-    const repository = new DomainRepository(options.profileId, new StorageDomainAdapter(handle, incremental), options.commitRetry)
+    const adapter = new StorageDomainAdapter(handle, incremental)
+    await incremental.table('records').hydrate([...new Set(adapter.manifests().flatMap(manifest => manifest.records.map(pointer => pointer.key)))])
+    const repository = new DomainRepository(options.profileId, adapter, options.commitRetry)
     if (marker.baseDigest === null) await incremental.global.set({ ...marker, baseDigest })
     return { repository, close: async () => { try { await repository.close() } finally { await release() } } }
   } catch (error) {

@@ -13,6 +13,8 @@ The wallpaper workflow adds the `composition` image-version discriminator, wallp
 
 Recoverable masked outpainting also requires the matching native LLM task interface and Codex Subscription adapter. Importing Visual Curator alone into an old desktop does not add those capabilities. Pure crop processing remains available; images needing extension stop with a capability notice.
 
+New tasks also save the prompt tags `wallpaper-plan-v2` and `wallpaper-outpaint-v3` and the composition mode `protected-context-v2`. Updated readers preserve legacy task prompts and generation receipts; older readers do not support these new tags. Recomposition reuses an existing generation and cannot claim a different generation mask. Explicit manual corrections preserve cumulative edit limits.
+
 ## Migration
 
 1. Back up the stopped Profile data directory before local testing. Keep the backup separate from the live writer.

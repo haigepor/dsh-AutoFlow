@@ -3,7 +3,7 @@ import { defaultPreviewConcurrency, previewCacheDefaults } from '../shared/galle
 
 /** @param value Host-validated image concurrency. @returns Explicit UI image lane size. */
 export function resolvePreviewConcurrency(value: number | undefined): number { return value ?? defaultPreviewConcurrency }
-/** A consumer owns its object URL until release or cancellation. */
+/** A consumer retains its shared object URL until release or cancellation. */
 export interface PreviewLease { url: string; release(): void }
 interface Consumer { signal: AbortSignal; resolve(value: PreviewLease): void; reject(error: unknown): void; detach(): void }
 interface Job { src: string; controller: AbortController; consumers: Set<Consumer> }
@@ -15,6 +15,7 @@ interface Job { src: string; controller: AbortController; consumers: Set<Consume
 export function createPreviewLoader(dependencies: { concurrency: number; fetch?: typeof fetch; createObjectURL?: (blob: Blob) => string; revokeObjectURL?: (url: string) => void }) {
   const queued = new Set<Job>(), active = new Set<Job>(), work = new Set<Promise<void>>(), leases = new Set<PreviewLease>()
   const pending = new Map<string, Job>(), cache = new Map<string, { blob: Blob; expires: number }>()
+  const resources = new WeakMap<Blob, { url: string; consumers: number }>()
   const request = dependencies.fetch ?? ((input, init) => fetch(input, init))
   const create = dependencies.createObjectURL ?? (blob => URL.createObjectURL(blob)), revoke = dependencies.revokeObjectURL ?? (url => URL.revokeObjectURL(url))
   let concurrency = dependencies.concurrency, policy = previewCacheDefaults, bytes = 0, disposed = false, owner: string | number | undefined
@@ -27,15 +28,20 @@ export function createPreviewLoader(dependencies: { concurrency: number; fetch?:
   }
   function lease(blob: Blob, signal: AbortSignal): PreviewLease {
     signal.throwIfAborted()
-    const url = create(blob)
+    let resource = resources.get(blob)
+    if (!resource || resource.consumers === 0) { resource = { url: create(blob), consumers: 0 }; resources.set(blob, resource) }
+    const shared = resource
+    shared.consumers++
     let released = false
-    const value: PreviewLease = { url, release() {
+    const value: PreviewLease = { url: shared.url, release() {
       if (released) return
-      released = true; signal.removeEventListener('abort', value.release); leases.delete(value); revoke(url)
+      released = true; signal.removeEventListener('abort', value.release); leases.delete(value)
+      if (--shared.consumers === 0) revoke(shared.url)
     } }
     leases.add(value); signal.addEventListener('abort', value.release, { once: true }); return value
   }
   function reject(job: Job, error: unknown) {
+    if (pending.get(job.src) === job) pending.delete(job.src)
     for (const consumer of job.consumers) { consumer.detach(); consumer.reject(error) }
     job.consumers.clear()
   }
@@ -56,6 +62,8 @@ export function createPreviewLoader(dependencies: { concurrency: number; fetch?:
         const blob = await response.blob()
         job.controller.signal.throwIfAborted()
         if (policy.ttlMs > 0 && blob.size <= policy.maxBytes) { forget(job.src); cache.set(job.src, { blob, expires: Date.now() + policy.ttlMs }); bytes += blob.size; trim() }
+        // A resumed consumer can request this source before the completed job's finally runs.
+        if (pending.get(job.src) === job) pending.delete(job.src)
         for (const consumer of job.consumers) {
           consumer.detach()
           try { consumer.resolve(lease(blob, consumer.signal)) } catch (error) { consumer.reject(error) }

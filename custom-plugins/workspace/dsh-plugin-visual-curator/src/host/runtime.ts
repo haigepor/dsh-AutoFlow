@@ -113,16 +113,16 @@ function jobProgress(stage: RunRecord['stage'], counts: RunData['counts'], targe
   if (typeof target === 'number' && counts[matchKey] === undefined) parts.push(`Target ${target}`)
   return parts.join(' · ')
 }
-/** @param run Authorized saved analysis. @param prepared Spec and data already validated from this record during the same read. @returns Explicit continuation eligibility under its original budget and terminal state. */
-export function analysisContinuation(run: RunRecord, prepared?: { spec: ExecutionSpec; data: RunData }): AnalysisContinuation {
+/** @param run Authorized saved analysis. @param prepared Spec and data already validated from this record during the same read. @param now Evaluation time; live controls use the current clock. @returns Explicit continuation eligibility under its original budget and terminal state. */
+export function analysisContinuation(run: RunRecord, prepared?: { spec: ExecutionSpec; data: RunData }, now = Date.now()): AnalysisContinuation {
   const spec = prepared?.spec ?? specOf(run), data = prepared?.data ?? dataOf(run)
   return analysisContinuationFromFacts({ kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, errorCode: data.error?.code, deadlineAt: taskTiming(spec) === 'native-model' ? null : data.budget.deadlineAt,
     observed: data.counts.observed ?? 0, total: Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0, buildDataset: spec.input.buildDataset === true,
-    hasSummary: data.checkpoint.styleAnalysis !== undefined, vision: data.budget.vision, maxVisionCalls: spec.config.limits.maxVisionCalls })
+    hasSummary: data.checkpoint.styleAnalysis !== undefined, vision: data.budget.vision, maxVisionCalls: spec.config.limits.maxVisionCalls }, now)
 }
 /** Minimal continuation inputs; a null deadline delegates analysis timing to the native model adapter. */
 export interface AnalysisContinuationFacts { kind: ExecutionSpec['kind']; status: RunRecord['status']; retryable: boolean; errorCode?: string | undefined; deadlineAt: number | null; observed: number; total: number; buildDataset: boolean; hasSummary: boolean; vision: number; maxVisionCalls: number }
-/** @param facts Current validated run facts. @param now Current wall clock; eligibility is never cached across deadline changes. @returns The same continuation decision used by task controls and read-only summaries. */
+/** @param facts Validated run facts. @param now Evaluation clock; live task controls evaluate eligibility afresh. @returns The same continuation decision used by task controls and read-only summaries. */
 export function analysisContinuationFromFacts(facts: AnalysisContinuationFacts, now = Date.now()): AnalysisContinuation {
   const denied = (reason: AnalysisContinuation['reason']): AnalysisContinuation => ({ allowed: false, reason })
   if (facts.kind !== 'analyze') return denied('unavailable')
@@ -138,20 +138,48 @@ export function analysisContinuationFromFacts(facts: AnalysisContinuationFacts, 
   return { allowed: true, reason: 'ready' }
 }
 
-/** @param run Saved authorized task. @param requests Its request receipts. @returns Recovery under the original quota; unresolved outcomes other than cancelled read-only calls require attention. */
-export function runContinuation(run: RunRecord, requests: readonly RecordOf<'request'>[]): RunContinuation {
+/** @param run Saved authorized task. @param requests Its request receipts. @param now Evaluation time; display checkpoints use their saved time, live controls use the current clock. @returns Recovery under the original quota; unresolved outcomes other than cancelled read-only calls require attention. */
+export function runContinuation(run: RunRecord, requests: readonly RecordOf<'request'>[], now = Date.now()): RunContinuation {
+  return runContinuationWithRequests(run, () => requests, now)
+}
+
+const continuationRequestSchema = z.object({ bundle: z.object({ operation: z.string() }).passthrough().optional(), operation: z.string().optional(), error: z.object({ outcome: z.literal('unknown'), code: z.string().optional() }).passthrough().optional() })
+type ContinuationRequest = Pick<RecordOf<'request'>, 'runId' | 'state' | 'data'>
+
+/** Read continuation facts only when the saved lifecycle requires request-outcome inspection.
+ * @param run Saved authorized task.
+ * @param repository Owning profile's committed records.
+ * @param now Evaluation clock, shared with {@link runContinuation}.
+ * @returns The original continuation decision without copying model context or unrelated history.
+ */
+export function readRunContinuation(run: RunRecord, repository: DomainRepository, now = Date.now()): RunContinuation {
+  return repository.readSnapshot(() => runContinuationWithRequests(run, data => data.requestIds.flatMap(id => {
+    const fact = repository.project('request', id, request => {
+      if (request.runId !== run.id) return undefined
+      const saved = request.state === 'committed' ? undefined : continuationRequestSchema.safeParse(request.data)
+      return { runId: request.runId, state: request.state, data: saved?.success ? {
+        ...(saved.data.bundle ? { bundle: { operation: saved.data.bundle.operation } } : {}),
+        ...(saved.data.operation !== undefined ? { operation: saved.data.operation } : {}),
+        ...(saved.data.error ? { error: { outcome: saved.data.error.outcome, ...(saved.data.error.code !== undefined ? { code: saved.data.error.code } : {}) } } : {}),
+      } : null }
+    })
+    return fact ? [fact] : []
+  }), now))
+}
+
+function runContinuationWithRequests(run: RunRecord, requests: (data: RunData) => readonly ContinuationRequest[], now: number): RunContinuation {
   const spec = specOf(run), data = dataOf(run)
   if (runFailure(run, data)?.storage?.disposition === 'restart-required') return { allowed: false, reason: 'storage-restart' }
-  if (spec.kind === 'analyze') return analysisContinuation(run)
+  if (spec.kind === 'analyze') return analysisContinuation(run, undefined, now)
   if (['created', 'running', 'pausing', 'cancelling'].includes(run.status)) return { allowed: false, reason: 'active' }
   if (run.status === 'cancelled') return { allowed: false, reason: 'cancelled' }
   if (run.status === 'completed') return { allowed: spec.kind === 'search' && data.checkpoint.postProcessingFailure !== undefined, reason: spec.kind === 'search' && data.checkpoint.postProcessingFailure !== undefined ? 'ready' : 'completed' }
   if (!['paused', 'interrupted', 'failed'].includes(run.status)) return { allowed: false, reason: 'unavailable' }
   if (run.status === 'failed' && (spec.kind !== 'search' || !data.error?.retryable)) return { allowed: false, reason: 'not-retryable' }
-  if (taskTiming(spec) === 'bounded' && Date.now() >= data.budget.deadlineAt) return { allowed: false, reason: 'deadline' }
-  const unknown = requests.some(request => {
+  if (taskTiming(spec) === 'bounded' && now >= data.budget.deadlineAt) return { allowed: false, reason: 'deadline' }
+  const unknown = requests(data).some(request => {
     if (request.runId !== run.id || !['reserved', 'outcome-unknown'].includes(request.state)) return false
-    const saved = z.object({ bundle: z.object({ operation: z.string() }).passthrough().optional(), operation: z.string().optional(), error: z.object({ outcome: z.literal('unknown'), code: z.string().optional() }).passthrough().optional() }).safeParse(request.data)
+    const saved = continuationRequestSchema.safeParse(request.data)
     // An explicitly paused read-only call may be retried within its original spent quota.
     if (saved.success && request.state === 'outcome-unknown' && saved.data.error?.code === 'cancelled' && ['paused', 'interrupted'].includes(run.status)) return false
     return saved.success && (request.state === 'reserved' || saved.data.error?.outcome === 'unknown') && ['analyze', 'review', 'screen', 'summarize', 'plan-search', 'propose-crop'].includes(saved.data.bundle?.operation ?? saved.data.operation ?? '')
@@ -188,8 +216,8 @@ export class RunEngine {
   private admissions: Promise<void> = Promise.resolve()
   private drainTail: Promise<void> = Promise.resolve()
   private readonly completionReplays = new Map<string, Promise<RunRecord>>()
-  /** @param repository Durable task owner. @param jobs Host job dispatch. @param audit Optional Session request logger. @param capacity Current Host admission limits; standalone engines without them use frozen task limits. @param onCompleted Idempotent downstream handoff after a completed checkpoint. @param onSettled Organization callback after terminal workers release their execution slot. */
-  constructor(readonly repository: DomainRepository, private readonly jobs: Pick<JobRegistry, 'start'>, private readonly audit?: (run: RunRecord, request: RecordOf<'request'>) => void, private readonly capacity?: Pick<Limits, 'maxConcurrentAnalyses' | 'maxConcurrentRequests'>, private readonly onCompleted?: (run: RunRecord) => Promise<void>, private readonly onSettled?: (run: RunRecord) => Promise<void>) {}
+  /** @param repository Durable task owner. @param jobs Host job dispatch. @param audit Optional Session request logger. @param capacity Current Host admission limits; standalone engines without them use frozen task limits. @param onCompleted Idempotent downstream handoff after a completed checkpoint. @param onSettled Organization callback after terminal workers release their execution slot. @param onCommitted Schedules presentation from durable facts without dispatching work. */
+  constructor(readonly repository: DomainRepository, private readonly jobs: Pick<JobRegistry, 'start'>, private readonly audit?: (run: RunRecord, request: RecordOf<'request'>) => void, private readonly capacity?: Pick<Limits, 'maxConcurrentAnalyses' | 'maxConcurrentRequests'>, private readonly onCompleted?: (run: RunRecord) => Promise<void>, private readonly onSettled?: (run: RunRecord) => Promise<void>, private readonly onCommitted?: (run: RunRecord) => void) {}
   authorize(run: RunRecord, actor: DomainActor): void {
     if (actor.profileId !== run.profileId || (run.owner.kind === 'profile' && actor.kind === 'agent') || (run.owner.kind === 'session' && actor.sessionId !== run.owner.sessionId)) throw new CuratorError('owner-denied', 'authorization', 'This task belongs to another owner.')
   }
@@ -205,10 +233,11 @@ export class RunEngine {
       if (!current) throw new CuratorError('reference-unavailable', 'run-update', 'The saved task is unavailable.')
       const updated = transform(current), revision = this.repository.manifest(`run:${id}`)?.revision ?? 0
       const run = runSchema.parse({ ...updated.run, revision: revision + 1 })
-      await this.repository.commit({ aggregateId: `run:${id}`, expectedRevision: revision, operationId: randomUUID(), request: run, records: [run, ...(updated.records ?? [])], state: { runId: id } })
+      await this.repository.commit({ aggregateId: `run:${id}`, expectedRevision: revision, operationId: randomUUID(), request: run, records: [run, ...(updated.records ?? [])], state: { runId: id, presentationUpdatedAt: new Date().toISOString() } })
       const live = this.live.get(id)
       if (live) live.run = run
       this.broadcast(run, true)
+      this.onCommitted?.(run)
     })
     this.chains.set(id, next.catch(() => {})); await next
   }
@@ -341,7 +370,8 @@ export class RunEngine {
     }
     if (spec.kind === 'analyze' && this.repository.list('run').some(run => specOf(run).kind === 'analyze' && specOf(run).input.styleId === spec.input.styleId && ['created', 'running', 'pausing', 'paused', 'cancelling', 'interrupted'].includes(run.status))) throw new CuratorError('constraint-conflict', 'analysis-start', 'This collection already has an unfinished analysis. Resume or cancel it before starting another.')
     const run = runSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id, createdAt: now, kind: 'run', owner: actor.sessionId ? { kind: 'session', sessionId: actor.sessionId } : { kind: 'profile' }, revision: 1, status: 'created', stage: null, spec: toJson(spec), data: toJson({ attemptId: randomUUID(), attempts: 1, budget: new BudgetLedger(spec.config.limits, undefined, Date.now, taskTiming(spec)).snapshot(), checkpoint: {}, counts: {}, warnings: [], resultIds: [], requestIds: [], ...(spec.kind === 'analyze' || spec.kind === 'search' && spec.fixed.workflowExecution === true || spec.input.workflow === 'wallpaper-v1' || spec.fixed.wallpaperLearning === true ? { autoResume: true } : {}) }) })
-    await this.repository.commit({ aggregateId: `run:${id}`, expectedRevision: 0, operationId: id, request: run, records: [run], state: { runId: id } })
+    await this.repository.commit({ aggregateId: `run:${id}`, expectedRevision: 0, operationId: id, request: run, records: [run], state: { runId: id, presentationUpdatedAt: now } })
+    this.onCommitted?.(run)
     if (this.closed) {
       await this.update(id, old => ({ run: { ...old, status: 'cancelled' } }))
       throw new CuratorError('capability-unavailable', 'run-start', 'The plugin stopped while accepting this task.')
@@ -403,7 +433,10 @@ export class RunEngine {
           const markerIndex = marker === undefined ? -1 : currentData.requestIds.indexOf(marker)
           if (marker !== undefined && markerIndex < 0) throw new CuratorError('reference-unavailable', 'analysis-resume', 'The saved continuation request is unavailable.')
           const retryIds = marker === undefined ? undefined : new Set(currentData.requestIds.slice(markerIndex + 1))
-          const previousFailures = this.repository.list('request').filter(request => request.runId === id && (!retryIds || retryIds.has(request.id)) && request.requestDigest === digest && request.state === 'outcome-unknown').flatMap(request => {
+          const previousFailures = currentData.requestIds.flatMap(requestId => {
+            const request = this.repository.get('request', requestId)
+            if (!request || request.runId !== id) throw new CuratorError('reference-unavailable', 'request-history', 'A saved task request receipt is unavailable or belongs to another task.')
+            if ((retryIds && !retryIds.has(request.id)) || request.requestDigest !== digest || request.state !== 'outcome-unknown') return []
             const parsed = z.object({ error: runDataSchema.shape.error.unwrap() }).safeParse(request.data)
             return parsed.success && parsed.data.error.code !== 'cancelled' ? [parsed.data.error] : []
           })

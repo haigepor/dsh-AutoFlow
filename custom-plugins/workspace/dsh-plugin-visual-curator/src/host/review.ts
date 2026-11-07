@@ -43,8 +43,14 @@ export function runActor(ctx: WorkContext): DomainActor {
   return { kind: run.owner.kind === 'session' ? 'agent' : 'human', id: 'workflow', profileId: run.profileId, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}) }
 }
 
-/** @param standard Frozen style and its model-selected alternatives. @param brief Caller task. @returns The same style instructions for screening, crop planning and final review. */
-export function styleReviewBrief(standard: StyleStandard | StyleCandidate, brief: string): string {
+/** @param standard Frozen style and its model-selected alternatives. @param brief Caller task. @param ruleIds Exact visual rules requested by a policy-scoped review; omission retains the frozen legacy brief. @returns Style context limited to the requested review, or complete context for planning and screening. */
+export function styleReviewBrief(standard: StyleStandard | StyleCandidate, brief: string, ruleIds?: readonly string[]): string {
+  if (ruleIds !== undefined) {
+    const requested = new Set(ruleIds)
+    const currentStyle = standard.kind === 'modelProfile' ? JSON.parse(compileStyleInstructions({ ...standard, rules: standard.rules.filter(rule => requested.has(rule.ruleId)), options: standard.options.filter(option => requested.has(option.rule.ruleId)) })) : undefined
+    return JSON.stringify({ task: brief, ...(currentStyle ? { currentStyle } : {}), reviewScope: { ruleIds,
+      instruction: 'Return exactly the rule IDs requested in input.rules, once each. Never create rule IDs from the task or reference text. subjectFocus covers only requested subject-dimension rules. When ruleIds is empty, return ruleResults=[] and subjectFocus=[]. Independently assess every explicit task requirement through taskRelevance, including subject completeness, exclusions and requested medium. A real-photography request excludes recognizable game screenshots, CGI, illustrations and simulated scenes even when their subject and style match. Inspect rendering, material, lighting and scene evidence rather than accepting photorealism or a matching object alone; report irrelevant for a visible contradiction and unknown for material ambiguity. Weighted style preferences cannot compensate for a task mismatch. Other stages are not part of this review.' } })
+  }
   if (standard.kind === 'modelProfile' && standard.recipe.styleMatching) return JSON.stringify({ task: brief, currentStyle: JSON.parse(compileStyleInstructions(standard)) })
   return standard.kind === 'modelProfile' ? JSON.stringify({ task: brief, matchingPrompt: standard.matchingPrompt,
     instruction: 'Inspect the actual candidate and reference images. Shared rules apply globally; style groups are alternatives, so match one applicable group instead of requiring every group at once. Subject-only hints do not impose a required subject. Report irrelevant when no group matches, unknown when evidence is missing, and not-applicable for rules of another group.',
@@ -70,7 +76,7 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
   const rules = release.rules.filter(rule => rule.stage === stage || stage === 'final' && (preview || release.recipe.styleMatching && rule.strength !== 'reference-only' && rule.check.kind === 'visual'))
   const identity = contentDigest({ runId: ctx.runId, imageVersionId: image.id, standardDigest: release.contentDigest, stage }).slice(10)
   const brief = typeof ctx.spec.input.taskBrief === 'string' ? ctx.spec.input.taskBrief : 'Review supplied image against the frozen visual standard.'
-  const taskBrief = styleReviewBrief(release, brief)
+  const taskBrief = styleReviewBrief(release, brief, ctx.spec.fixed.cropReviewPolicy === 'candidate-focus-v1' ? rules.filter(rule => rule.check.kind === 'visual').map(rule => rule.ruleId) : undefined)
   const focused = release.recipe.promptVersion === 'visual-curator-rules-v3'
   const requestId = `review-${identity}`, input = { ...(focused ? { promptVersion: 'visual-curator-rules-v3' as const } : release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId, taskBrief, rules: rules.filter(rule => rule.check.kind === 'visual').map(rule => ({ ...rule, stage })), stage, images, ...(ctx.spec.fixed.usage ? { usage: ctx.spec.fixed.usage } : {}) }
   const descriptor = dependencies.vision.describeRequest(input, 'review')
@@ -95,7 +101,7 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
   let verdict = decideAssessment(results.filter(result => !alternativeRules.has(result.ruleId)).map(result => ({ strength: rules.find(rule => rule.ruleId === result.ruleId)!.strength, result: result.result })))
   if (output.taskRelevance === 'irrelevant') verdict = 'reject'
   if (output.taskRelevance === 'unknown' && verdict === 'pass') verdict = 'needs-review'
-  if (Object.entries(release.recipe.preferenceScale.weights).some(([dimension, weight]) => weight > 0 && !output.preferenceScores.some(score => score.dimension === dimension)) && verdict === 'pass') verdict = 'needs-review'
+  if ((stage === 'final' || ctx.spec.fixed.cropReviewPolicy !== 'candidate-focus-v1') && Object.entries(release.recipe.preferenceScale.weights).some(([dimension, weight]) => weight > 0 && !output.preferenceScores.some(score => score.dimension === dimension)) && verdict === 'pass') verdict = 'needs-review'
   const focusVerdict = subjectFocusVerdict(release, results, checked.focusRuleIds)
   if (focusVerdict === 'not-matched') verdict = 'reject'
   else if (focusVerdict === 'unknown' && verdict === 'pass') verdict = 'needs-review'
@@ -105,6 +111,6 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
   const weights = release.recipe.preferenceScale.weights, scores = Object.fromEntries(Object.keys(weights).map(key => [key, output.preferenceScores.find(score => score.dimension === key)?.score ?? 0]))
   const score = Object.entries(weights).reduce((sum, [key, weight]) => sum + weight * (scores[key] ?? 0), 0)
   const sampled = Number.parseInt(image.blob.digest.slice(0, 8), 16) / 0xffffffff < ctx.spec.config.limits.reviewSampleRate
-  const assessment = assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: `assessment-${identity}`, createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: image.id, runId: ctx.runId, stage, ...(release.kind === 'release' ? { releaseId: release.id } : {}), standard: { kind: release.kind, id: release.id, contentDigest: release.contentDigest }, recipeId: release.recipe.id, reviewBundleId: requestId, technicalStatus: 'completed', verdict, ruleResults: results, cropPotential: output.cropPotential, preferenceScores: scores, data: toJson({ descriptor, taskRelevance: output.taskRelevance, score, ...(focused ? { subjectFocus: output.subjectFocus, subjectFocusVerdict: focusVerdict } : {}), reviewQueueReasons: [...(verdict === 'needs-review' ? ['unknown'] : []), ...(sampled ? ['random-sample'] : [])] }) })
+  const assessment = assessmentSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id: `assessment-${identity}`, createdAt: new Date().toISOString(), kind: 'assessment', imageVersionId: image.id, runId: ctx.runId, stage, ...(release.kind === 'release' ? { releaseId: release.id } : {}), standard: { kind: release.kind, id: release.id, contentDigest: release.contentDigest }, recipeId: release.recipe.id, reviewBundleId: requestId, technicalStatus: 'completed', verdict, ruleResults: results, cropPotential: output.cropPotential, preferenceScores: scores, data: toJson({ descriptor, ...(styleMatch ? { styleMatch } : {}), taskRelevance: output.taskRelevance, score, ...(focused ? { subjectFocus: output.subjectFocus, subjectFocusVerdict: focusVerdict } : {}), reviewQueueReasons: [...(verdict === 'needs-review' ? ['unknown'] : []), ...(sampled ? ['random-sample'] : [])] }) })
   return { assessment, score }
 }

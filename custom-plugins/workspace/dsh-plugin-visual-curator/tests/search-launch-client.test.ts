@@ -7,6 +7,18 @@ import { setImmediate } from 'node:timers/promises'
 const draft = () => ({ operationId: randomUUID(), workspaceId: 'photos', modelProfileId: 'profile', taskBrief: 'Muted green photos.', targetCount: 10, output: { kind: 'original' as const } })
 const view = (input: ReturnType<typeof draft>) => ({ id: input.operationId, input, sessionId: 'native-session', status: 'accepted', stage: 'accepted', createdAt: '2026-10-29T00:00:00Z', updatedAt: '2026-10-29T00:00:00Z', runIds: [], qualified: 0 })
 
+test('the launch form loads native conversation capabilities including later usage pages', async () => {
+  const store = createSearchLaunchStore({ context: () => ({ scope: 1, styleId: 'style', pollMs: 2000 }), openSession() {}, async invoke(_operation, args) {
+    return { workspaces: [], defaultTargetCount: 10, maxTargetCount: 10, usagePageToken: 'next', ...(args.executionMode === 'conversation' ? { conversationModelSelection: true } : {}) }
+  } })
+  try {
+    await store.loadOptions()
+    assert.equal(store.getSnapshot().options?.conversationModelSelection, true)
+    await store.loadOptions(true)
+    assert.equal(store.getSnapshot().options?.conversationModelSelection, true)
+  } finally { store.dispose() }
+})
+
 test('empty and terminal launch directories stay idle while observed active launches keep refreshing', async context => {
   context.mock.timers.enable({ apis: ['setTimeout'] })
   let kind: 'empty' | 'active' | 'settled' = 'empty', calls = 0

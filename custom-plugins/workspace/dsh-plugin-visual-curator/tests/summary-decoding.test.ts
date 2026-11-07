@@ -37,3 +37,14 @@ test('rule applicability and rejection reasons reject foreign evidence and contr
   }
   assert.throws(() => decodeStyleSummary({ ...output, negativeReasons: [{ imageVersionId: 'foreign-image', dimension: 'composition', reason: 'Unseen rejection.', uncertain: true }] }, ['reference-1']), error => error instanceof MediaError && error.code === 'vision-invalid-output')
 })
+
+test('the same image cannot both support and contradict one rule or dimension', () => {
+  for (const result of [
+    { ...output, suggestedRules: [{ ...output.suggestedRules[0], counterImageVersionIds: ['reference-1'] }] },
+    { ...output, dimensions: [{ ...output.dimensions[0], counterImageVersionIds: ['reference-1'] }] },
+  ]) assert.throws(() => decodeStyleSummary(result, ['reference-1']), error => error instanceof MediaError && error.code === 'vision-invalid-output' && error.retryable && error.diagnostics?.issues.includes('invalid-image-evidence-or-dimensions') === true)
+  const valid = decodeStyleSummary({ ...output, suggestedRules: [{ ...output.suggestedRules[0], counterImageVersionIds: ['reference-2'], notApplicableImageVersionIds: ['reference-3'] }] }, ['reference-1', 'reference-2', 'reference-3'])
+  assert.deepEqual(valid.suggestedRules[0]!.supportImageVersionIds, ['reference-1'])
+  assert.deepEqual(valid.suggestedRules[0]!.counterImageVersionIds, ['reference-2'])
+  assert.deepEqual(valid.suggestedRules[0]!.notApplicableImageVersionIds, ['reference-3'])
+})

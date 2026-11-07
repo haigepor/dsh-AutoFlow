@@ -6,6 +6,7 @@ import { Config } from './config.ts'
 import type { ClientActionInput } from '../client/contract.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { bindSessionCancellation } from './session-cancellation.ts'
+import { createExecutionArtwork } from './artwork.ts'
 import BasicCompactionEngine from '@deepseek-ai/dsh-compaction-basic'
 import type { BasicCompactionConfig } from '@deepseek-ai/dsh-compaction-basic'
 import type {} from '@deepseek-ai/dsh-plugin-manager'
@@ -74,6 +75,7 @@ export async function nativeContextScope(ctx: Context, config?: BasicCompactionC
  * @returns Settles when storage and all profile entry points are ready.
  */
 export async function mountCurator(ctx: Context, service: CuratorService): Promise<void> {
+  const executionArtwork = createExecutionArtwork()
   // 初始化可能立即恢复任务，必须先注册可控制这些任务的能力。
   ctx.effect(() => ctx.jobs.attachController('visual-curator'), 'Visual Curator profile jobs')
   ctx.effect(() => () => service.dispose(), 'Visual Curator task drain')
@@ -104,6 +106,9 @@ export async function mountCurator(ctx: Context, service: CuratorService): Promi
       return JSON.stringify({ ok: false, error: safeFailure(error) })
     }
   }), 'Visual Curator workbench actions')
+  ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
+    path: '/api/visual-curator/artwork/execution-empty-v1.webp', methods: ['GET', 'HEAD'], requestBody: 'buffered', fetch: executionArtwork,
+  }), 'Visual Curator execution artwork'))
   ctx.inject(['connection'], route => route.effect(() => route.connection.fetch.register({
     path: '/api/visual-curator/resource', methods: ['GET', 'HEAD'], requestBody: 'buffered', fetch: request => service.resource(request),
   }), 'Visual Curator private media and exports'))

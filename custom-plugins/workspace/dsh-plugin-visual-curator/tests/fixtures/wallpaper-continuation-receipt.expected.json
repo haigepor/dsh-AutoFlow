@@ -1,0 +1,22 @@
+{
+  "recompose": {
+    "kind": "recompose",
+    "cumulativeImageEdits": 2,
+    "inherited": false,
+    "newGenerations": 0
+  },
+  "replan": {
+    "kind": "replan",
+    "inheritedOutputs": 1,
+    "currentRunReviewedOutputs": 1,
+    "inheritedCumulativeImageEdits": 2,
+    "newGenerations": 0
+  },
+  "continue": {
+    "kind": "continue",
+    "inheritedOutputs": 1,
+    "currentRunReviewedOutputs": 1,
+    "inheritedCumulativeImageEdits": 2,
+    "newGenerations": 0
+  }
+}

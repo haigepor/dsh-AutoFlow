@@ -44,6 +44,8 @@ test('current rules replace the old prompt and zero-style candidates cannot beco
     await f.jobs.drain()
     assert.equal(f.repository.list('selection').filter(row => row.runId === started.runId).length, 0)
     assert.ok(f.repository.list('assessment').some(row => row.runId === started.runId && row.stage === 'final' && row.verdict === 'reject'))
+    const final = f.repository.list('assessment').find(row => row.runId === started.runId && row.stage === 'final')!
+    assert.equal(z.object({ styleMatch: z.object({ policyVersion: z.literal('rule-coverage-v2'), verdict: z.literal('not-matched') }) }).parse(final.data).styleMatch.verdict, 'not-matched')
     const current = f.domain.require('run', started.runId), spec = specOf(current)
     const { executionRecipe, executionInstructions, ...legacyFixed } = spec.fixed
     assert.ok(executionRecipe); assert.ok(executionInstructions)

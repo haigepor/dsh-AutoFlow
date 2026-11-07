@@ -33,8 +33,14 @@ test('local API analysis summarizes every batch and exports traceable machine ob
     assert.equal(run.status, 'completed', JSON.stringify(dataOf(run).error))
     assert.deepEqual(f.http.operations, ['analyze:', 'analyze:', 'analyze:', 'summarize:'])
     const analysis = styleAnalysisSchema.parse(dataOf(run).checkpoint.styleAnalysis)
+    assert.equal(analysis.observationPromptVersion, 'visual-curator-reference-v2')
     assert.equal(analysis.samples.length, 10)
     assert.equal(JSON.parse(f.http.summaryInputs[0]!).samples.length, 10)
+    const instruction = z.object({ instruction: z.string() }).parse(JSON.parse(f.http.summaryInputs[0]!)).instruction
+    assert.match(instruction, /临床场景采用柔和均匀光.*condition 仅限临床.*暗场戏剧光分支未触发条件，应记入 notApplicableImageVersionIds/)
+    assert.match(instruction, /只有临床分支内适用且违反柔光判据的图片才是反证/)
+    assert.match(instruction, /只有人工确认且 strength=required 的已启用规则才可表述为硬性检查/)
+    assert.match(instruction, /不得在 matchingPrompt 新增硬性条件或把 preferred 升级为必选/)
     assert.equal(f.repository.list('suggestion').length, 1)
     assert.equal(f.domain.require('draft', f.domain.require('style', styleId).draftId).rules.length, 0)
     const snapshot = z.object({ styles: z.array(z.object({ analysis: z.object({ runId: z.string(), stale: z.boolean(), samples: z.array(z.unknown()) }) })) }).parse(await f.action('snapshot'))
@@ -54,9 +60,11 @@ test('local API analysis summarizes every batch and exports traceable machine ob
     assert.equal(content('samples.jsonl').trim().split('\n').length, 10)
     const profile = JSON.parse(content('style-profile.json'))
     assert.equal(profile.analysisRunId, run.id)
+    assert.equal(profile.observationPromptVersion, 'visual-curator-reference-v2')
     assert.equal(profile.confirmedRules[0].ruleId, 'human-green')
     assert.equal(profile.modelSummary.status, 'unconfirmed')
     const rows = content('samples.jsonl').trim().split('\n').map(line => JSON.parse(line))
+    assert.ok(rows.every(row => row.observationPromptVersion === 'visual-curator-reference-v2'))
     const expected = JSON.parse(await readFile(new URL('./fixtures/style-dataset.expected.json', import.meta.url), 'utf8'))
     assert.deepEqual({ formatVersion: profile.formatVersion, purpose: profile.purpose, modelSummaryStatus: profile.modelSummary.status, model: profile.model, declaredModelVersion: profile.declaredModelVersion, validationStatus: profile.validation.status,
       files: exp.files.map(file => file.name), sampleCount: rows.length, sampleSources: [...new Set(rows.map(row => row.source))], roleCounts: { positive: rows.filter(row => row.importIntent.role === 'positive').length, negative: rows.filter(row => row.importIntent.role === 'negative').length },

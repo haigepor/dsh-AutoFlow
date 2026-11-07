@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-conversation-progress",
+  "category": "fixes",
+  "text": {
+    "en": "Image workflow conversations show confirmed requirements, saved execution progress, request failures and result directories, with controls for the original task and recoverable display synchronization.",
+    "zh-CN": "修复图片工作流会话正文为空的问题，展示确认需求、已保存进度、请求失败和结果目录，并支持控制原任务及恢复展示同步。"
+  }
+}

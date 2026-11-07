@@ -1,0 +1,33 @@
+{
+  "total": 100,
+  "overviewNodes": 6,
+  "imageNodes": 6,
+  "steps": [
+    "downloading",
+    "planning",
+    "planning",
+    "rendering",
+    "reviewing",
+    "reviewing"
+  ],
+  "thumbnailLimit": 12,
+  "requests": [
+    [
+      0,
+      1
+    ],
+    [
+      99,
+      1
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      99,
+      1
+    ]
+  ],
+  "editedSource": "source-99"
+}

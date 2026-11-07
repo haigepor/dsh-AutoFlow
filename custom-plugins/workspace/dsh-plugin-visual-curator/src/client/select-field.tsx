@@ -5,13 +5,13 @@
 /** @param React Shell React. @param ui Existing primitives. @returns Stable field component using the shared Menu. */
 export function createSelectField(React: typeof import('react'), ui: typeof import('@deepseek-ai/dsh-client-ui-primitives')) {
   const { Menu, Button } = ui
-  return function SelectField({ label, value, options, disabled = false, required = false, validationMessage, onChange }: {
-    label: string; value: string; options: readonly { value: string; label: string }[]; disabled?: boolean; required?: boolean; validationMessage?: string; onChange(value: string): void
+  return function SelectField({ label, value, options, disabled = false, required = false, validationMessage, menuClassName, matchAnchorWidth = true, onChange }: {
+    label: string; value: string; options: readonly { value: string; label: string }[]; disabled?: boolean; required?: boolean; validationMessage?: string; menuClassName?: string; matchAnchorWidth?: boolean; onChange(value: string): void
   }) {
     const [open, setOpen] = React.useState(false), [attempted, setAttempted] = React.useState(false)
     const trigger = React.useRef<HTMLButtonElement>(null), errorId = React.useId()
     const valid = options.some(option => option.value === value && option.value !== ''), invalid = required && attempted && !valid && !disabled
-    return <React.Fragment><Menu className="vc-select" open={open} onClose={() => setOpen(false)} portal compact autoFocus selectedId={value}
+    return <React.Fragment><Menu className="vc-select" listClassName={menuClassName ? `vc-menu ${menuClassName}` : 'vc-menu'} open={open} onClose={() => setOpen(false)} portal autoFocus selectedId={value} minWidthFromAnchor={matchAnchorWidth}
       items={options.map(option => ({ id: option.value, label: option.label, disabled }))}
       onSelect={next => { setOpen(false); setAttempted(false); onChange(next) }}
       anchor={<Button ref={trigger} className="vc-select-trigger" variant="outline" disabled={disabled} aria-label={label} aria-haspopup="menu" aria-expanded={open} aria-invalid={invalid || undefined} aria-describedby={invalid ? errorId : undefined}

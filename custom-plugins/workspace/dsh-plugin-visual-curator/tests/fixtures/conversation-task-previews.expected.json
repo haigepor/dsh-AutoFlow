@@ -1,0 +1,6 @@
+{
+  "displayedImages": ["preview-a", "preview-b"],
+  "originalLinks": ["source-a", "source-b", "legacy", "unsafe"],
+  "legacyOriginalInImgSrc": false,
+  "normalAI": "Normal AI answer stays visible."
+}

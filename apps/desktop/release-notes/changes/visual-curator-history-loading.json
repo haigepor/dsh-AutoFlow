@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-history-loading",
+  "category": "improvements",
+  "text": {
+    "en": "Image workspaces load task history more efficiently and release cached superseded records while retaining saved data. Continued tasks distinguish inherited results, the current change and images needing attention, while image paging keeps the editor on the selected image.",
+    "zh-CN": "提升图片工作台历史任务的加载效率，释放已替代版本的内存缓存并保留保存的数据；续跑任务区分复用成品、当前修改和需处理图片，翻页时编辑器始终对应选中的图片。"
+  }
+}

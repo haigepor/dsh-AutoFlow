@@ -1,0 +1,5 @@
+[
+  { "taskRelevance": "relevant", "verdict": "pass", "selected": 1, "finalReviewed": true },
+  { "taskRelevance": "irrelevant", "verdict": "reject", "selected": 0, "finalReviewed": false },
+  { "taskRelevance": "unknown", "verdict": "needs-review", "selected": 0, "finalReviewed": false }
+]

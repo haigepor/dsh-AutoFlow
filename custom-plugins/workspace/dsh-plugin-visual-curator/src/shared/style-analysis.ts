@@ -29,7 +29,8 @@ export const styleAnalysisSchema = z.strictObject({
   draftId: draftSchema.shape.id, draftRevision: z.number().int().positive(), referenceDigest: z.string(),
   feedbackIds: z.array(z.string()), recipeId: recipeSchema.shape.id,
   model: z.string(), declaredModelVersion: z.string().nullable(),
-  observationPromptVersion: z.literal('visual-curator-v1'), summaryPromptVersion: z.enum(['visual-curator-summary-v1', 'visual-curator-summary-v2', 'visual-curator-summary-v3', 'visual-curator-summary-v4']),
+  // Existing checkpoints retain their recorded value; new summaries aggregate the committed source requests, including reused observations.
+  observationPromptVersion: z.enum(['visual-curator-v1', 'visual-curator-reference-v2', 'mixed', 'unknown']), summaryPromptVersion: z.enum(['visual-curator-summary-v1', 'visual-curator-summary-v2', 'visual-curator-summary-v3', 'visual-curator-summary-v4']),
   summaryRequestId: z.string(),
   samples: z.array(z.strictObject({ reference: referenceSchema, imageDigest: z.string(), observationId: observationSchema.shape.id, feedbackIds: z.array(z.string()) })).min(1),
   summary: styleSummarySchema,

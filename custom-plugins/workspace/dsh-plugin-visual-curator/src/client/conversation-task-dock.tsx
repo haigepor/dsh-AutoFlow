@@ -15,6 +15,7 @@ export interface ConversationTaskDockProps {
   selectTask(runId: string): void; refreshTask(runId?: string): void; openTask(runId: string): Promise<void>
   stopTask?(runId: string): Promise<void>
   stopLaunch?(launchId: string): Promise<void>
+  retryPresentation?(launchId: string): Promise<void>
   filterTask(runId: string, resultFilter: RunResultFilter): void
   loadMoreTask(runId: string): void
 }
@@ -24,7 +25,11 @@ const DEFAULT_WIDTH = 300, MIN_WIDTH = 280, MAX_WIDTH = 640
 /** @param React Shared runtime. @param ui Native accessible controls. @returns One Session-keyed task card with bounded pointer and keyboard width adjustment. */
 export function createConversationTaskDock(React: typeof import('react'), ui: typeof import('@deepseek-ai/dsh-client-ui-primitives')) {
   const SelectField = createSelectField(React, ui)
-  function TaskDock({ t, useFeedback, selectTask, refreshTask, openTask, stopTask, stopLaunch, filterTask, loadMoreTask }: ConversationTaskDockProps) {
+  function Thumbnail({ src, name }: { src: string | undefined; name: string }) {
+    const [failed, setFailed] = React.useState(false)
+    return src && !failed ? <img src={src} alt={name} loading="lazy" decoding="async" onError={() => setFailed(true)} /> : null
+  }
+  function TaskDock({ t, useFeedback, selectTask, refreshTask, openTask, stopTask, stopLaunch, retryPresentation, filterTask, loadMoreTask }: ConversationTaskDockProps) {
     const state = useFeedback(value => value), tasks = state.tasks
     const runId = state.selectedRunId, task = tasks?.items.find(item => item.runId === runId)
     const entry = runId ? state.runs[runId] : undefined, run = entry?.run
@@ -37,6 +42,14 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
     const card = React.useRef<HTMLElement>(null), toggle = React.useRef<HTMLButtonElement>(null)
     const drag = React.useRef<{ pointerId: number; x: number; width: number; previous: number | null; max: number } | null>(null)
     const detailsId = React.useId()
+    const [syncing, setSyncing] = React.useState(false), [syncError, setSyncError] = React.useState(false)
+    const presentation = tasks?.launch?.presentation
+    const presentationNotice = presentation?.state === 'failed' || presentation?.state === 'unavailable' || syncError ? <div className="vc-conversation-task-notice" role="alert">{t('taskPresentationSyncFailed')}{tasks?.launch && retryPresentation && <ui.Button size="sm" variant="ghost" disabled={syncing} onClick={async () => {
+      const id = tasks.launch?.id
+      if (!id || syncing) return
+      setSyncing(true); setSyncError(false)
+      try { await retryPresentation(id) } catch (error) { setSyncError(true) } finally { setSyncing(false) }
+    }}>{t('taskPresentationSync')}</ui.Button>}</div> : null
     const visible = !!task || !!launch || !!tasks?.error
     React.useLayoutEffect(() => {
       const node = card.current
@@ -73,6 +86,7 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
         <div className="vc-conversation-launch-target"><span>{t('taskLaunchTarget')}</span><strong>{launch.input.targetCount}</strong></div>
         {active && <p className="vc-conversation-launch-phase" role="status">{t(launch.status === 'accepted' ? 'taskLaunchAcceptedHint' : launch.stage === 'preparing-dataset' ? 'searchLaunchDatasetPreparing' : launch.stage === 'submitting' ? 'taskLaunchSubmittingHint' : 'taskLaunchAttachingHint')}</p>}
         {launch.error && <p className="vc-conversation-task-notice" role="alert">{launch.error.safeMessage}</p>}
+        {presentationNotice}
         {tasks?.error && <p className="vc-conversation-task-notice" role="alert">{t('taskReadFailed')}</p>}
         {stopFailed && <p className="vc-conversation-task-notice" role="alert">{t('taskStopFailed')}</p>}
         <footer className="vc-conversation-task-actions"><ui.Button ref={toggle} size="sm" variant="ghost" aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(!expanded)}>{t(expanded ? 'taskLaunchCollapse' : 'taskRunInformation')}<ui.IconChevronDownOutlineRegular size={12} /></ui.Button>
@@ -154,6 +168,7 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
         </button>}
       </div>}
       {(tasks?.error || entry?.error) && <p className="vc-conversation-task-notice" role="status">{t('taskReadFailed')} <ui.Button size="sm" variant="ghost" onClick={refresh}>{t('taskRefresh')}</ui.Button></p>}
+      {presentationNotice}
       <div className="vc-conversation-task-actions">
         {runId && <ui.Button size="sm" variant="outline" disabled={opening} onClick={() => { setOpening(true); setOpenFailed(false); void openTask(runId).catch(() => setOpenFailed(true)).finally(() => setOpening(false)) }}>{t('taskOpen')}</ui.Button>}
         {active && runId && stopTask && <ui.Button size="sm" variant="ghost" disabled={stopping || status === 'cancelling'} onClick={() => { setStopping(true); setStopFailed(false); void stopTask(runId).catch(() => setStopFailed(true)).finally(() => setStopping(false)) }}>{t(stopping || status === 'cancelling' ? 'cancelling' : 'taskStopBackground')}</ui.Button>}
@@ -165,7 +180,8 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
         <div className="vc-conversation-task-results-heading"><span>{t(resultFilter === 'selected' ? run?.outputKind === 'preview' ? 'taskPreviewMatched' : 'taskFinal' : resultFilter === 'review' ? 'taskReview' : selectedMetric === 'unique' ? run?.outputKind === 'preview' ? 'taskUniqueLinks' : 'taskDistinct' : 'taskPreview')}</span><small>{resultCount} / {resultTotal ?? resultCount}</small></div>
         {run && resultCount > 0 && entry?.error !== 'owner-denied' && <div className="vc-conversation-task-previews">{run.results.map(image => {
           const path = resource(image.previewPath)
-          return path ? <a key={image.imageVersionId} href={path} target="_blank" rel="noreferrer"><span className="vc-conversation-task-media"><img src={path} alt={image.name} loading="lazy" /></span><ui.Tag tone={categoryTone[image.resultCategory ?? 'processing']}>{t(categoryKey[image.resultCategory ?? 'processing'])}</ui.Tag></a> : null
+          const thumbnail = image.thumbnailPath ? resource(image.thumbnailPath) : undefined
+          return path ? <a key={image.imageVersionId} href={path} aria-label={image.name} target="_blank" rel="noreferrer"><span className="vc-conversation-task-media"><Thumbnail key={thumbnail ?? ''} src={thumbnail} name={image.name} /></span><ui.Tag tone={categoryTone[image.resultCategory ?? 'processing']}>{t(categoryKey[image.resultCategory ?? 'processing'])}</ui.Tag></a> : null
         })}</div>}
         {!resultCount && <p className="vc-conversation-task-notice">{t(!run || entry?.freshness === 'loading' ? 'taskReading' : 'taskDockNoResults')}</p>}
         {run?.pageToken && runId && <ui.Button className="vc-conversation-task-more" size="sm" variant="outline" disabled={entry?.loadingMore} onClick={() => loadMoreTask(runId)}>{entry?.loadingMore && <ui.StateDot state="ongoing" />}{t('taskMoreResults')}</ui.Button>}

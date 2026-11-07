@@ -6,7 +6,7 @@ import { effectiveReviewReferenceRole } from '../shared/reference-semantics.ts'
 import { datasetRoleCounts } from '../shared/datasets.ts'
 import type { SearchBatchPage } from '../shared/search-batches.ts'
 import { CuratorError } from '../shared/errors.ts'
-import { specOf, dataOf, runContinuation } from './runtime.ts'
+import { specOf, dataOf, readRunContinuation } from './runtime.ts'
 import { wallpaperProgress } from '../shared/wallpaper.ts'
 import { wallpaperRunState } from './wallpaper-state.ts'
 import { hiddenTaskIds, deleteTaskHistory } from './task-history.ts'
@@ -76,16 +76,23 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
     if (input.batchId && !selected.length) throw new CuratorError('owner-denied', 'search-batches', 'This batch is unavailable in the selected collection.')
     const scope = JSON.stringify([actor.profileId, input.styleId, input.batchId ?? null])
     const start = input.batchId ? 0 : offset(input.pageToken, scope, selected.map(run => run.id)), page = selected.slice(start, start + pageSize)
+    let previews: Map<string, RecordOf<'imageVersion'>> | undefined
+    const previewOf = (image: RecordOf<'imageVersion'>) => {
+      if (!previews) previews = new Map(domain.repository.list('imageVersion').flatMap(row => row.versionKind === 'preview' && row.parentImageVersionId ? [[row.parentImageVersionId, row] as const] : []))
+      const preview = previews.get(image.id)
+      return preview?.assetId === image.assetId ? preview : undefined
+    }
     const batches = page.map(run => {
       const reader = read(run), spec = specOf(run)
       const data = dataOf(run), child = reader ? wallpaperRuns.get(run.id) : undefined
       const childData = child ? dataOf(child) : undefined
+      const childSpec = child ? specOf(child) : undefined
       const saved = child ? wallpaperRunState(domain, child) : undefined
       const wallpaper = child && saved ? { runId: child.id, status: child.status, total: saved.items.length,
         planned: saved.items.filter(item => item.attempts.at(-1) && !item.attempts.at(-1)!.checks.length).length,
         rendered: saved.items.filter(item => item.attempts.at(-1)?.outputId).length, reviewed: saved.items.filter(item => item.attempts.at(-1)?.review).length,
         passed: saved.items.filter(item => item.status === 'passed').length, attention: saved.items.filter(item => ['needs-review', 'technical-failed', 'rejected'].includes(item.status)).length,
-        budgetStopped: saved.budgetStopped, counts: wallpaperProgress(saved), ...(childData?.error ? { errorCode: childData.error.code } : {}) } : undefined
+        budgetStopped: saved.budgetStopped, counts: wallpaperProgress(saved, childSpec?.input.continuationKind === 'recompose' && typeof childSpec.input.recomposedImageId === 'string' ? childSpec.input.recomposedImageId : undefined), ...(childData?.error ? { errorCode: childData.error.code } : {}) } : undefined
       const postProcessing = z.object({ code: z.string() }).safeParse(data.checkpoint.postProcessingFailure)
       const frozen = reader ? modelProfileSchema.safeParse(spec.fixed.release) : undefined
       const workflowSource = frozen?.success ? { modelProfileId: frozen.data.id, analysisRunId: frozen.data.analysisRunId, revision: frozen.data.revision, references: frozen.data.references.length,
@@ -99,15 +106,17 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
         try { return [domain.authorizedImage(id, reader!.actor)] }
         catch (error) { if (error instanceof CuratorError && error.code === 'owner-denied') return []; throw error }
       })
-      return { runId: run.id, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}), kind: spec.kind === 'crop' ? 'crop' as const : 'search' as const, status: run.status, ...(reader ? { continuation: runContinuation(run, domain.repository.list('request')) } : {}), createdAt: run.createdAt, taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', matched: matches.get(run.id)?.size ?? 0, unavailable: !reader,
+      return { runId: run.id, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}), kind: spec.kind === 'crop' ? 'crop' as const : 'search' as const, status: run.status, ...(reader ? { continuation: readRunContinuation(run, domain.repository) } : {}), createdAt: run.createdAt, taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', matched: matches.get(run.id)?.size ?? 0, unavailable: !reader,
         ...(workflowSource ? { workflowSource } : {}), ...(reader && typeof spec.input.datasetId === 'string' ? { datasetId: spec.input.datasetId } : {}),
         ...(typeof spec.input.targetCount === 'number' && spec.input.targetCount > 0 ? { targetCount: spec.input.targetCount } : {}), ...(output.success ? { previewOnly: output.data.kind === 'preview' } : {}),
         ...(typeof spec.fixed.searchLaunchId === 'string' ? { launchId: spec.fixed.searchLaunchId } : {}), wallpaperRequested: spec.fixed.wallpaperAuto === true,
         ...(wallpaper ? { wallpaper } : {}), ...(reader && postProcessing.success ? { postProcessingError: postProcessing.data.code } : {}), ...(reader && data.error ? { errorCode: data.error.code } : {}), ...(run.outcome ? { outcome: run.outcome } : {}),
         images: visible.map(({ image, asset }) => {
           const previewPath = `/api/visual-curator/resource?${new URLSearchParams({ imageVersionId: image.id, ...(reader?.sessionToken ? { sessionToken: reader.sessionToken } : {}) })}`
+          const preview = image.blob.remoteSource ? undefined : previewOf(image)
+          const thumbnailPath = image.blob.remoteSource ? `${previewPath}&preview=thumbnail` : preview ? `/api/visual-curator/resource?${new URLSearchParams({ imageVersionId: preview.id, ...(reader?.sessionToken ? { sessionToken: reader.sessionToken } : {}) })}` : undefined
           return { imageVersionId: image.id, name: asset.source.description || asset.id, width: image.geometry.width, height: image.geometry.height, previewPath,
-            ...(image.blob.remoteSource ? { thumbnailPath: `${previewPath}&preview=thumbnail` } : {}) }
+            ...(thumbnailPath ? { thumbnailPath } : {}) }
         }),
         ...(imageStart + pageSize < imageIds.length ? { nextImagePageToken: continuation(imageScope, window.at(-1)!) } : {}) }
     })
