@@ -9,6 +9,7 @@ import AuthorizationService from '@deepseek-ai/dsh-authorization'
 import { CodexAccounts, ACCOUNTS_KEY, AccountError, type AccountsOptions } from '../src/host/accounts/index.ts'
 import { createOAuthAttempt, exchangeTokens } from '../src/host/accounts/oauth.ts'
 import { AccountRejected, readGrant } from '../src/host/accounts/record.ts'
+import { readFile } from 'node:fs/promises'
 import { readBoundedJson } from '../src/host/accounts/json.ts'
 import { CodexResponsesTransport } from '../src/host/relay/transport.ts'
 import { startRelay } from '../src/host/relay/server.ts'
@@ -53,16 +54,35 @@ async function fixture(network?: typeof fetch, now?: () => number) {
   return { ctx, options, accounts, seed, close: async () => { await unmount(); await ctx.fiber.dispose() } }
 }
 
-test('images skip accounts forbidding credits without treating text allowance as image allowance', async () => {
+test('image admission respects account availability without requiring extra text credits', async () => {
   const f = await fixture()
   try {
     await f.seed(['a', 'b'])
     await f.accounts.update(keyFor('a'), { revision: 1, allowCredits: false, priority: 100 })
     const chosen = await f.accounts.withAccount({ kind: 'image' }, async lease => lease.accountKey)
-    assert.equal(chosen, keyFor('b'))
+    assert.equal(chosen, keyFor('a'))
     await f.accounts.update(keyFor('b'), { revision: 1, allowCredits: false })
-    await assert.rejects(f.accounts.withAccount({ kind: 'image' }, async () => true), { code: 'IMAGE_CREDITS_DISABLED' })
+    assert.equal(await f.accounts.withAccount({ kind: 'image' }, async lease => lease.accountKey), keyFor('a'))
     assert.equal(await f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol' }, async () => true), true)
+    await f.accounts.update(keyFor('a'), { revision: 2, enabled: false })
+    assert.equal(await f.accounts.withAccount({ kind: 'image' }, async lease => lease.accountKey), keyFor('b'))
+    await f.accounts.update(keyFor('b'), { revision: 2, enabled: false })
+    await assert.rejects(f.accounts.withAccount({ kind: 'image' }, async () => true), { code: 'NO_AVAILABLE_ACCOUNT' })
+  } finally { await f.close() }
+})
+
+test('spent text quota does not imply image entitlement or change the saved credits policy', async () => {
+  const f = await fixture(async input => String(input).includes('/codex/models')
+    ? Response.json({ models: [{ slug: 'gpt-6.1-sol' }] })
+    : Response.json({ rate_limit: { allowed: false, primary_window: { used_percent: 100, reset_at: 2000000000 } } }))
+  try {
+    await f.seed(['a']); await f.accounts.update(keyFor('a'), { revision: 1, allowCredits: false })
+    const imageAdmitted = await f.accounts.withAccount({ kind: 'image' }, async () => true)
+    let textBlocked = false
+    try { await f.accounts.withAccount({ kind: 'text', model: 'gpt-6.1-sol' }, async () => true) } catch (error) { assert.ok(error instanceof AccountError); assert.equal(error.code, 'NO_AVAILABLE_ACCOUNT'); textBlocked = true }
+    await assert.rejects(f.accounts.withAccount({ kind: 'image', accountKey: keyFor('a') }, async () => { throw new AccountRejected(403) }), { status: 403 })
+    const creditsUnchanged = (await f.accounts.list())[0]!.allowCredits === false
+    assert.deepEqual({ imageAdmitted, textBlocked, creditsUnchanged }, JSON.parse(await readFile(new URL('./fixtures/image-account-policy.expected.json', import.meta.url), 'utf8')))
   } finally { await f.close() }
 })
 

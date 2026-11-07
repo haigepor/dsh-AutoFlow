@@ -150,6 +150,7 @@ const harness = await vi.hoisted(async () => {
     }
   }
   class FakeHost {
+    readonly bootInjections = vi.fn(async (): Promise<readonly unknown[]> => [])
     readonly updateTasks = vi.fn(async (_action: 'inspect' | 'lock' | 'unlock') => false)
     readonly inspectQuit = vi.fn(async () => ({ activeTasks: false, scheduledTasks: false }))
     url = 'http://127.0.0.1:3080/?token=test'
@@ -1250,6 +1251,41 @@ describe('desktop main startup', () => {
     harness.hosts[0]!.ready.resolve()
     await expect(boot).resolves.toEqual({ injections: [], streamBaseUrl: 'http://127.0.0.1:3080' })
     expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
+  })
+
+  it('reads the current Host boot graph on every document reload and reports collection failures', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    harness.prepared.resolve()
+    await applicationDocument()
+    await harness.hostStarted.promise
+    const host = harness.hosts[0]!
+    host.ready.resolve()
+    const handler = harness.handlers.get(DESKTOP_IPC.boot)!
+    host.bootInjections.mockResolvedValueOnce([{ kind: 'script', content: 'old graph' }])
+    await expect(handler({ senderFrame: { url: 'dsh-app://app/' } })).resolves.toMatchObject({ injections: [{ kind: 'script', content: 'old graph' }] })
+    host.bootInjections.mockResolvedValueOnce([{ kind: 'script', content: 'current graph' }])
+    await expect(handler({ senderFrame: { url: 'dsh-app://app/' } })).resolves.toMatchObject({ injections: [{ kind: 'script', content: 'current graph' }] })
+    host.bootInjections.mockRejectedValueOnce(new Error('Current graph unavailable'))
+    await expect(handler({ senderFrame: { url: 'dsh-app://app/' } })).rejects.toThrow('Current graph unavailable')
+  })
+
+  it('rejects boot injections collected from a Host that became unavailable during the request', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    harness.prepared.resolve()
+    await applicationDocument()
+    await harness.hostStarted.promise
+    const host = harness.hosts[0]!, collecting = Promise.withResolvers<readonly unknown[]>()
+    host.ready.resolve()
+    host.bootInjections.mockReturnValueOnce(collecting.promise)
+    const pending = Promise.resolve(harness.handlers.get(DESKTOP_IPC.boot)!({ senderFrame: { url: 'dsh-app://app/' } }))
+    const rejected = expect(pending).rejects.toThrow('Desktop Host changed while preparing boot injections')
+    await vi.waitFor(() => { expect(host.bootInjections).toHaveBeenCalledOnce() })
+    host.onFailure!(new Error('Host exited during boot collection'))
+    collecting.resolve([{ kind: 'script', content: 'obsolete graph' }])
+    await rejected
+    host.exited.resolve()
   })
 
   it('retains macOS native editing actions on right-click and only copy for selected read-only text', async () => {

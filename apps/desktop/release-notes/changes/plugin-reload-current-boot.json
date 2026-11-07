@@ -1,0 +1,8 @@
+{
+  "id": "plugin-reload-current-boot",
+  "category": "fixes",
+  "text": {
+    "en": "Reloading the window after a plugin update loads the current plugin interface instead of requesting outdated files.",
+    "zh-CN": "修复插件更新后刷新窗口仍请求旧文件，导致插件界面无法加载的问题。"
+  }
+}

@@ -138,7 +138,7 @@ The `autoflow-codex` provider preserves AutoFlow's logged system instructions. `
 
 For editing, `referenceAttachmentIds` accepts image IDs visible in the current Session or returned by its image tasks; `latest` selects the most recent visible image, then an owned generated image when none is visible. Generated IDs resolve to preserved originals. `maskAttachmentId` resolves a mask through the same authorization and byte limits. Unknown or foreign IDs fail before dispatch; external HTTP/MCP inputs do not gain access to Session attachments. Safe retry timestamps and request IDs remain in canonical error results.
 
-Image requests use only accounts with `allowCredits` enabled: the image backend provides no verified subscription-only spending control. Disabling credits excludes that account from image dispatch with `IMAGE_CREDITS_DISABLED`; text requests retain their window-based policy. Text quota percentages do not represent image entitlement, and enabling credits does not guarantee image access.
+Image requests use enabled, authorized accounts without requiring `allowCredits`. The image backend determines image access and quota; text quota percentages do not represent image entitlement. `allowCredits` controls local text scheduling after known subscription windows are exhausted, and is not sent as an image billing option. The image backend provides no verified subscription-only spending control, so image billing follows the account and workspace policy. Existing failed tasks remain saved and require explicit resubmission.
 
 <a id="limitations"></a>
 ## Known Limitations

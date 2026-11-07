@@ -459,8 +459,6 @@ export class CodexAccounts implements AccountsFacade {
     const eligible = Object.values(grant.accounts).filter(account => account.enabled && (allowed === undefined || allowed.has(account.accountKey))
       && this.authFailure(account) === undefined
       && (request.accountKey === undefined || request.accountKey === account.accountKey)
-      // 图片接口未提供可验证的“仅用订阅”选项；禁止积分的账号不派发生图，不能拿文字额度代替图片额度。
-      && (request.kind !== 'image' || account.allowCredits)
       && (this.cooldowns.get(account.accountKey)?.[request.kind] ?? 0) <= now
       && (this.modelWait(account.accountKey, request, wireModel ?? request.model)?.until ?? 0) <= now
       && !(request.kind === 'text' && quotaBlocks(this.usageCache.get(account.accountKey), account.allowCredits, now)))
@@ -470,11 +468,6 @@ export class CodexAccounts implements AccountsFacade {
       || ((this.usageCache.get(a.accountKey)?.primary?.usedPercent ?? 0) - (this.usageCache.get(b.accountKey)?.primary?.usedPercent ?? 0)))
     const account = eligible.find(account => account.accountKey === sticky) ?? eligible[0]
     if (!account) {
-      const imageAccounts = request.kind === 'image' ? Object.values(grant.accounts).filter(account => account.enabled && this.authFailure(account) === undefined
-        && (allowed === undefined || allowed.has(account.accountKey)) && (request.accountKey === undefined || request.accountKey === account.accountKey)) : []
-      if (imageAccounts.length > 0 && imageAccounts.every(account => !account.allowCredits)) {
-        throw new AccountError('图片接口无法保证仅消耗订阅额度。请为用于生图的账号开启允许额外积分，或使用其他图片提供商。', 'IMAGE_CREDITS_DISABLED')
-      }
       const waiting = Object.values(grant.accounts).filter(account => account.enabled && this.authFailure(account) === undefined
         && (allowed === undefined || allowed.has(account.accountKey)) && (request.accountKey === undefined || request.accountKey === account.accountKey)
         && Math.max(this.cooldowns.get(account.accountKey)?.[request.kind] ?? 0, this.modelWait(account.accountKey, request, wireModel ?? request.model)?.until ?? 0) > now)

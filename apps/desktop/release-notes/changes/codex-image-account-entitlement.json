@@ -1,0 +1,8 @@
+{
+  "id": "codex-image-account-entitlement",
+  "category": "fixes",
+  "text": {
+    "en": "Codex image requests use enabled, authorized accounts without requiring extra text credits. Image access and quota are determined by the image backend; saved failed tasks are retained.",
+    "zh-CN": "修复 Codex 生图强制要求开启文字额外积分的问题，使用已启用且授权有效的账号派发，由图片后端判断生图权限与额度，并保留已有失败任务。"
+  }
+}

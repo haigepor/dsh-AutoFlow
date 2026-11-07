@@ -69,9 +69,27 @@ async function main(): Promise<void> {
     // deadline; a startup failure keeps its own diagnostic exit.
     if (running !== undefined) process.exit()
   })()
+  const assertRunning = (): void => {
+    if (stopping !== undefined) throw new Error('Desktop Host is stopping')
+  }
   process.on('message', (message: unknown) => {
     if (typeof message !== 'object' || message === null || !('type' in message)) return
     if (message.type === 'shutdown') { void stop(); return }
+    if (message.type === 'boot-injections') {
+      if (!('requestId' in message) || !Number.isSafeInteger(message.requestId)) return
+      const requestId = message.requestId
+      void (async () => {
+        try {
+          assertRunning()
+          const { ctx } = await application
+          assertRunning()
+          await send({ type: 'boot-injections', requestId, injections: ctx.webServer.collectIndexInjections(ctx.connection.browserPeer) })
+        } catch (error) {
+          await send({ type: 'boot-injections', requestId, injections: [], error: error instanceof Error ? error.message : String(error) })
+        }
+      })().catch((error: unknown) => { console.error(error) })
+      return
+    }
     if (message.type === 'file-drag-cancel') {
       if ('requestId' in message && typeof message.requestId === 'number') dragReads.get(message.requestId)?.abort()
       return
@@ -140,7 +158,7 @@ async function main(): Promise<void> {
     if (process.connected) process.send?.({ type: 'platform-session', session })
   })
   const url = ctx.connection.authenticatedUrl(`${ctx.webServer.protocol}//127.0.0.1:${String(ctx.webServer.port)}`)
-  if (process.connected) process.send?.({ type: 'ready', url, injections: ctx.webServer.collectIndexInjections(ctx.connection.browserPeer) }, (error) => { if (error !== null) console.error(error) })
+  if (process.connected) process.send?.({ type: 'ready', url }, (error) => { if (error !== null) console.error(error) })
 }
 
 if (import.meta.main) {

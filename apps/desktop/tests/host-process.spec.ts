@@ -33,6 +33,15 @@ server.listen(0, '127.0.0.1', () => {
   process.send({ type: 'ready', url: 'http://127.0.0.1:' + server.address().port + '/?token=fixture' })
 })
 process.on('message', message => {
+  if (message.type === 'boot-injections') {
+    if (message.requestId === 3) {
+      process.send({ type: 'boot-injections', requestId: message.requestId, injections: [], error: 'Current boot graph unavailable' })
+      return
+    }
+    const currentInjections = [{ kind: 'global', name: 'fixture-graph', value: message.requestId }]
+    process.send({ type: 'boot-injections', requestId: message.requestId, injections: currentInjections })
+    return
+  }
   if (message.type === 'file-drag-cancel') {
     process.send({ type: 'file-drag-resource', requestId: message.requestId, resource: null })
     return
@@ -178,6 +187,26 @@ ${HTTP_HOST}`)
     await expect(host.resolveDragResource('denied')).rejects.toThrow('File read denied')
     await host.stop(true)
     await expect(host.resolveDragResource('local')).rejects.toThrow('file drag: Host is unavailable')
+  })
+
+  it('collects fresh correlated boot injections over real child IPC and never reuses an earlier graph on failure', async () => {
+    const host = hostProcess(projectWithHost())
+    await expect(host.bootInjections()).rejects.toThrow('Host is unavailable')
+    await host.start()
+    expect(await Promise.all([host.bootInjections(), host.bootInjections()])).toEqual([
+      [{ kind: 'global', name: 'fixture-graph', value: 1 }],
+      [{ kind: 'global', name: 'fixture-graph', value: 2 }],
+    ])
+    await expect(host.bootInjections()).rejects.toThrow('Current boot graph unavailable')
+    await expect(host.bootInjections()).resolves.toEqual([{ kind: 'global', name: 'fixture-graph', value: 4 }])
+    await host.stop(true)
+    await expect(host.bootInjections()).rejects.toThrow('Host is unavailable')
+  })
+
+  it('rejects malformed boot injection responses before they reach the renderer', async () => {
+    const host = hostProcess(projectWithHost(HTTP_HOST.replace('injections: currentInjections', 'injections: null')))
+    await host.start()
+    await expect(host.bootInjections()).rejects.toThrow('invalid IPC event')
   })
 
   it('cancels a pending resource request without invalidating later Host requests', async () => {
