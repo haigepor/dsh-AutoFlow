@@ -689,6 +689,7 @@ export function resolveBundleUpdateManager(name: string, installAnchor: string, 
 /**
  * Resolve one bundle package's directory: installation anchor first, then the
  * profile directory, except explicitly updateable custom bundles whose profile owns a direct dependency.
+ * Passing the installation directory as the profile reads its shipped package without profile overrides.
  * The installation-first order is the contract that
  * `@deepseek-ai/dsh-base` (and every other in-box bundle) always comes from
  * the same installation as the running dsh, never from a profile-local copy.
@@ -707,7 +708,7 @@ export function resolveBundleDir(
     const bundle = readProfileManifest(binName, installation).dsh?.bundle
     const source = parseBundleUpdateSource(packageName, bundle?.update)
     const managed = resolveBundleUpdateManager(packageName, installAnchor, profileDir) !== undefined
-    if (source !== undefined || managed) {
+    if ((source !== undefined || managed) && resolve(profileDir) !== dirname(resolve(installAnchor))) {
       const profile = readProfileManifest(binName, profileDir)
       if (Object.hasOwn(profile.dependencies ?? {}, packageName)) {
         const local = join(profileDir, 'node_modules', packageName)

@@ -300,12 +300,13 @@ it('installs an independent updater archive into the profile, retains activation
   expect(restart).toHaveBeenCalledOnce()
 })
 
-it('keeps installation artwork while an independently managed profile successor supplies its own version and title', async () => {
+it.each([false, true])('keeps installation artwork while an independently managed profile successor supplies its own version and title (source installation: %s)', async (sourceInstallation) => {
   const shippedIcon = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M1 1h2"/></svg>'
   const successorIcon = '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="2" cy="2" r="1"/></svg>'
   const { manager, dir, profile } = await fixture('startup', false, undefined, {}, undefined, (profileDir) => {
     const installation = join(profileDir, '..', '..')
-    writeFileSync(join(installation, 'package.json'), JSON.stringify({ name: 'installation', dependencies: { extra: '1.0.0' } }))
+    const anchor = sourceInstallation ? join(installation, 'apps', 'cli', 'package.json') : join(installation, 'package.json')
+    writeFileSync(anchor, JSON.stringify({ name: sourceInstallation ? '@deepseek-ai/dsh' : 'installation', dependencies: { extra: '1.0.0' } }))
     const shipped = join(installation, 'node_modules', 'extra')
     mkdirSync(shipped, { recursive: true })
     writeFileSync(join(shipped, 'package.json'), JSON.stringify({ name: 'extra', version: '1.0.0', icon: './icon.svg',
@@ -317,8 +318,9 @@ it('keeps installation artwork while an independently managed profile successor 
     mkdirSync(join(successor, 'locale'))
     writeFileSync(join(successor, 'locale', 'en.json'), JSON.stringify({ meta: { title: 'Successor sidebar' } }))
     writeFileSync(join(successor, 'icon.svg'), successorIcon)
-  })
+  }, sourceInstallation)
   const readBundle = async () => (await manager.listBundles()).find(item => item.name === 'extra')
+  expect((await readBundle())?.error).toBeUndefined()
   expect(await readBundle()).toMatchObject({ version: '1.1.0', updateManager: 'independent-updater',
     meta: { title: { en: 'Successor sidebar' }, icon: `data:image/svg+xml;base64,${Buffer.from(shippedIcon).toString('base64')}` } })
   await manager.setBundleEnabled('extra', false)
@@ -329,6 +331,8 @@ it('keeps installation artwork while an independently managed profile successor 
   writeFileSync(shippedManifestPath, JSON.stringify(shippedManifest))
   expect((await readBundle())?.meta?.icon).toBe(`data:image/svg+xml;base64,${Buffer.from(successorIcon).toString('base64')}`)
   expect(readProfileManifest('test', join(dir, 'node_modules', 'extra')).version).toBe('1.1.0')
+  rmSync(join(dir, 'node_modules', 'extra'), { recursive: true })
+  expect((await readBundle())?.error?.diagnostic).toContain('updated bundle extra is not installed')
 })
 
 it('refuses a stale independent update when another installation changed the version during archive validation', async () => {

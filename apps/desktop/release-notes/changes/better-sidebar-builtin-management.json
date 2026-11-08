@@ -1,0 +1,8 @@
+{
+  "id": "better-sidebar-builtin-management",
+  "category": "fixes",
+  "text": {
+    "en": "Better Sidebar and other independently updated built-in plugins remain visible in Plugins, without a false missing-package error in development installations.",
+    "zh-CN": "修复开发环境中 Better Sidebar 误报插件包未安装的问题，并保留这类内置插件及其更新器的管理入口。"
+  }
+}

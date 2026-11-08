@@ -50,7 +50,9 @@ function visionResponse(bytes: Buffer, operations: string[]) {
     matchingPrompt: 'Prefer muted green palettes and soft light; inspect actual candidate pixels.',
     searchHints: ['muted green landscape'], avoidTerms: ['neon'], conflicts: [],
     dimensions: [{ dimension: 'color', description: 'Muted greens are shared across positive examples.', consistency: 'consistent', supportImageVersionIds, counterImageVersionIds: [] }],
-    suggestedRules: [{ statement: 'Use muted green colors.', dimension: 'color', strength: 'preferred', stage: 'source', supportImageVersionIds, counterImageVersionIds: [], condition: '', exceptions: [] }],
+    suggestedRules: [{ statement: 'Use muted green colors.', dimension: 'color', strength: 'preferred', stage: 'source', supportImageVersionIds, counterImageVersionIds: [], notApplicableImageVersionIds: [], condition: '', exceptions: [] }],
+    negativeReasons: [],
+    organization: { groups: [], selections: [{ ruleIndex: 0, enabled: true, groupId: null, reason: 'Supported by the positive reference.' }] },
   }
 }
 

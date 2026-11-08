@@ -278,10 +278,10 @@ function row(overrides: Partial<PackageRow> = {}): PackageRow {
   return { entryId: 'include:sidebar' as PluginEntryId, rowId: 'sidebar', moduleName: 'dsh-better-sidebar', enabled: true, phase: 'active', ...overrides }
 }
 
-it('groups an independent updater into one entry while keeping both bundle switches independent', () => {
+it.each([true, false])('groups an independent updater into one entry while keeping both bundle switches independent (profile-installed: %s)', (installed) => {
   const manager = 'dsh-plugin-better-sidebar-updater'
-  const b = renderTab({ packages: [pkg({ updateManager: manager, rows: [row()] }), pkg({ name: manager, version: '0.1.0',
-    optional: true, installed: false, rows: [row({ rowId: 'better-sidebar-updater', moduleName: manager })] })] })
+  const b = renderTab({ packages: [pkg({ installed, updateManager: manager, rows: [row()] }), pkg({ name: manager, version: '0.1.0',
+    installed, rows: [row({ rowId: 'better-sidebar-updater', moduleName: manager })] })] })
   expect(screen.queryByRole('button', { name: `View ${manager}` })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'View dsh-better-sidebar' }))
   expect(document.querySelector('[data-plugin-detail]')?.hasAttribute('data-managed-bundle')).toBe(true)

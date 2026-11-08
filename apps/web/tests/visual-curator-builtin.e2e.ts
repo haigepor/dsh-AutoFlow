@@ -41,7 +41,7 @@ it('shows native Visual Curator details and artwork without mounting the removed
   await page.setViewportSize({ width: 390, height: 844 })
   await expect.poll(() => detail.evaluate(element => element.scrollWidth <= element.clientWidth), settle).toBe(true)
   await page.setViewportSize({ width: 1440, height: 960 })
-  await page.getByRole('button', { name: '插件', exact: true }).click()
+  await detail.getByRole('button', { name: '返回插件', exact: true }).click()
   await card.waitFor()
   await card.getByRole('switch').click()
   await expect.poll(() => card.getByRole('switch').getAttribute('aria-checked'), settle).toBe('false')

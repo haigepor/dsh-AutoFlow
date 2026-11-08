@@ -1945,10 +1945,12 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   }, [highlight, clearHighlight])
   const noticeLine = state.notice === null || state.notice.kind === 'refresh-failed' ? null : noticeText(state.notice, t)
 
-  // 随安装交付且声明功能开关的业务组合包也进入管理列表；基础 profile 组合包保留在只读清单。
+  const managedPackages = new Set(state.packages.flatMap(pkg => pkg.updateManager === undefined ? [] : [pkg.name, pkg.updateManager]))
+  // 随安装交付的功能组合包、独立更新插件及其更新器进入管理列表；基础 profile 组合包保留在只读清单。
   const available = state.packages.filter(pkg => !HIDDEN_BUNDLES.has(pkg.name)
     && (pkg.listedByDefault !== false || pkg.enabled || pkg.installed || rowsRunning(pkg))
-    && (pkg.installed || pkg.official || pkg.optional || (pkg.features?.length ?? 0) > 0 || pkg.error !== undefined))
+    && (pkg.installed || pkg.official || pkg.optional || managedPackages.has(pkg.name)
+      || (pkg.features?.length ?? 0) > 0 || pkg.error !== undefined))
   // 仅合并唯一所属且没有独立功能页的更新器；共享更新器和失去主插件的更新器仍保留入口。
   const updaterOwners = new Map<string, PackageView>()
   for (const candidate of available) {
