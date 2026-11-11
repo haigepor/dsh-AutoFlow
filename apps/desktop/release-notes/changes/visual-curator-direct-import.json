@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-direct-import",
+  "category": "fixes",
+  "text": {
+    "en": "Direct crop shows local file size and import limits before starting, retains failed selections for retry, and places its entry next to image search.",
+    "zh-CN": "直接裁剪在开始前显示本地图片大小与导入限制，失败后保留所选原图供重试，并将入口移至开始找图旁。"
+  }
+}

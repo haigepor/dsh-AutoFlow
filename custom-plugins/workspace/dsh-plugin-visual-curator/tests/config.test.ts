@@ -2,6 +2,20 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveConfig, resolveCurrentConfig, reviewerRevision, searchScreeningPolicySchema } from '../src/host/config.ts'
 
+test('current wallpaper limits upgrade the former defaults once and retain explicit later choices', () => {
+  const legacy = resolveConfig({ wallpaper: { maxEditsPerImage: 2, maxReworks: 2 } })
+  const current = resolveCurrentConfig(legacy)
+  assert.equal(current.wallpaper.maxEditsPerImage, 5)
+  assert.equal(current.wallpaper.maxReworks, 5)
+  assert.equal(legacy.wallpaper.maxEditsPerImage, 2)
+  assert.deepEqual(resolveCurrentConfig(current), current)
+  const chosen = resolveCurrentConfig({ ...current, wallpaper: { ...current.wallpaper, maxEditsPerImage: 2, maxReworks: 1 } })
+  assert.equal(chosen.wallpaper.maxEditsPerImage, 2)
+  assert.equal(chosen.wallpaper.maxReworks, 1)
+  assert.equal(resolveCurrentConfig({ wallpaper: { maxEditsPerImage: 0 } }).wallpaper.maxEditsPerImage, 0)
+  assert.throws(() => resolveConfig({ wallpaper: { maxEditsPerImage: 6 } }))
+})
+
 test('new searches resolve bounded pools without changing legacy reviewer or frozen configuration', () => {
   const legacy = resolveConfig({})
   assert.equal('searchScreening' in legacy, false)

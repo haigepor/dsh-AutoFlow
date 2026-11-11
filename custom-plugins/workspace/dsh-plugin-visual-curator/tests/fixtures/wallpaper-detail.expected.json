@@ -1,0 +1,12 @@
+{
+  "operations": [
+    "wallpaper-plan",
+    "wallpaper-plan",
+    "wallpaper-review"
+  ],
+  "revisions": 2,
+  "firstUncertaintyRetained": true,
+  "detailOutcome": "resolved",
+  "finalStatus": "passed",
+  "independentReview": true
+}

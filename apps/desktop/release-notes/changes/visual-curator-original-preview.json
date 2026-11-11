@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-original-preview",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator creates bounded previews for saved originals without preview records, separates image loading from generation animation, and keeps card facts clear of action dividers.",
+    "zh-CN": "视觉策展为缺少预览记录的历史原图提供受限尺寸预览，区分图片加载与生图动画，并修复卡片信息挤压操作分隔线的问题。"
+  }
+}

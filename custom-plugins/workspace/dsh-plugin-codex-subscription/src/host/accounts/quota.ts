@@ -82,3 +82,17 @@ export function quotaBlocks(usage: AccountUsage | undefined, allowCredits: boole
   if (usage.heldReason === 'workspace-limit' || usage.heldReason === 'spending-limit') return true
   return windows.length === 0 || windows.some(window => (window.resetAt ?? Infinity) > now)
 }
+
+/** Require positively observed subscription capacity before an automatic image probe.
+ * @param usage Fresh successful quota observation.
+ * @param allowCredits Current account setting; probes require it to remain disabled.
+ * @param minimumRemainingPercent Reserved subscription capacity.
+ * @returns Whether an automatic probe may dispatch without paid-credit fallback.
+ */
+export function imageProbeQuotaAllowed(usage: AccountUsage | undefined, allowCredits: boolean, minimumRemainingPercent: number): boolean {
+  if (allowCredits || usage?.status !== 'ready' || usage.freshness !== 'fresh' || usage.allowed !== true || usage.held === true || usage.spendControlReached === true
+    || usage.credits?.hasCredits !== false || usage.credits.unlimited !== false || usage.credits.usable === true
+    || usage.credits.balance !== undefined && Number(usage.credits.balance) !== 0) return false
+  const windows = [usage.primary, usage.secondary].filter(window => window !== undefined)
+  return windows.length > 0 && windows.every(window => window.usedPercent <= 100 - minimumRemainingPercent)
+}

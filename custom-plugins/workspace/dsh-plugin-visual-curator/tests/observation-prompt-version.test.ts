@@ -8,7 +8,7 @@ import { dataOf, toJson } from '../src/host/runtime.ts'
 import { styleAnalysisOf } from '../src/shared/style-analysis.ts'
 import { observationPromptVersion } from '../src/host/observation-prompt-version.ts'
 
-test('new observations record reference-v2 while historical v1 checkpoints retain their literal value', async () => {
+test('new observations record reference-v4 while historical v1 checkpoints retain their literal value', async () => {
   const f = await serviceFixture()
   try {
     await f.service.initialize()
@@ -17,13 +17,13 @@ test('new observations record reference-v2 while historical v1 checkpoints retai
     const { runId } = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'audit-analysis', styleId, buildDataset: true }))
     await f.jobs.drain()
     const run = f.domain.require('run', runId), analysis = styleAnalysisOf(run)!
-    assert.equal(analysis.observationPromptVersion, 'visual-curator-reference-v2')
+    assert.equal(analysis.observationPromptVersion, 'visual-curator-reference-v4')
     const legacyData = toJson({ ...dataOf(run), checkpoint: { ...dataOf(run).checkpoint, styleAnalysis: { ...analysis, observationPromptVersion: 'visual-curator-v1' } } })
     const before = JSON.stringify(legacyData)
     assert.equal(styleAnalysisOf({ ...run, data: legacyData })!.observationPromptVersion, 'visual-curator-v1')
     assert.equal(JSON.stringify(legacyData), before)
     const observations = f.repository.list('observation'), requests = f.repository.list('request')
-    assert.equal(observationPromptVersion(observations, requests), 'visual-curator-reference-v2')
+    assert.equal(observationPromptVersion(observations, requests), 'visual-curator-reference-v4')
     assert.equal(observationPromptVersion(observations, []), 'unknown')
     assert.equal(observationPromptVersion(observations, requests.map(request => ({ ...request, state: 'outcome-unknown' }))), 'unknown')
     const requestId = observations[0]!.inferred[0]!.requestId
@@ -34,7 +34,7 @@ test('new observations record reference-v2 while historical v1 checkpoints retai
   } finally { await f.cleanup() }
 })
 
-test('incremental summaries identify mixed v1 and reference-v2 requests without relabeling reused observations', async context => {
+test('incremental summaries identify mixed v1 and current reference requests without relabeling reused observations', async context => {
   const f = await serviceFixture()
   try {
     await f.service.initialize()

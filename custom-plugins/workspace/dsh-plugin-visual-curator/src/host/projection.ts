@@ -13,6 +13,7 @@ import { styleMatchSchema } from '../shared/style-matching.ts'
 import { CuratorError } from '../shared/errors.ts'
 import type { ConfigurationView, CuratorSnapshot, FeedbackView, ImageView, RuleView, RunView, StyleView, StyleAnalysisView } from '../client/contract.ts'
 import { canReadWallpaperChild } from './wallpaper-state.ts'
+import { wallpaperStateSchema, wallpaperStoredReviewSchema } from '../shared/wallpaper.ts'
 import { configRevision, type CuratorConfig } from './config.ts'
 import { dataOf, rankedSelections, specOf, analysisContinuation, readRunContinuation, runFailure, type RunEngine } from './runtime.ts'
 import type { AnalysisTask } from '../shared/analysis-process.ts'
@@ -151,7 +152,7 @@ function projectionIndex(domain: CuratorDomain): ProjectionIndex {
   }
   return {
     get previews() {
-      if (!previews) previews = new Map(domain.repository.list('imageVersion').flatMap(image => image.versionKind === 'preview' && image.parentImageVersionId ? [[JSON.stringify([image.assetId, image.parentImageVersionId]), image] as const] : []))
+      if (!previews) previews = new Map(domain.repository.list('imageVersion').flatMap(image => image.versionKind === 'preview' && image.parentImageVersionId && !image.processing?.requestedRect ? [[JSON.stringify([image.assetId, image.parentImageVersionId]), image] as const] : []))
       return previews
     },
     get assessments() { return assessments().assessments }, get assessmentsByImage() { return assessments().assessmentsByImage }, get assessmentById() { return assessments().assessmentById },
@@ -223,6 +224,7 @@ function imageView(domain: CuratorDomain, image: ImageVersion, actor: DomainActo
   if (spec && assessment?.technicalStatus === 'completed' && (assessment.verdict === 'pass' || assessment.verdict === 'reject') && sample < spec.config.limits.reviewSampleRate) reviewQueueReasons.push('ordinary-sample')
   const parameters = new URLSearchParams({ imageVersionId: image.id })
   const thumbnail = image.blob.remoteSource ? undefined : image.versionKind === 'preview' ? image : index.previews.get(JSON.stringify([image.assetId, image.id]))
+  const wallpaperReview = z.object({ wallpaperReview: wallpaperStoredReviewSchema }).safeParse(assessment?.data)
   const failure = z.object({ error: z.object({ code: z.string() }) }).safeParse(assessment?.data)
   return { imageVersionId: image.id, assetId: asset.id, familyId: asset.familyId,
     ...(run ? { resultCategory: resultCategory({ selected: !!selection, technicalFailed: assessment?.technicalStatus === 'failed', verdict: assessment?.verdict, settled: !['created', 'running', 'pausing', 'cancelling'].includes(run.status), source: index.cropSources.has(key!) }) } : {}),
@@ -243,7 +245,7 @@ function imageView(domain: CuratorDomain, image: ImageVersion, actor: DomainActo
     ...(crop?.effectivePixelRect ? { candidateId: crop.id, effectivePixelRect: crop.effectivePixelRect } : {}),
     ...(assessment?.verdict ? { verdict: assessment.verdict } : {}),
     ...(assessment?.technicalStatus === 'failed' ? { technicalFailure: failure.success ? failure.data.error.code : 'vision-invalid-output' } : {}),
-    ...(assessment ? { reason: assessment.ruleResults.map(item => item.reason).filter(Boolean).join(' · ') } : {}),
+    ...(assessment ? { reason: wallpaperReview.success ? [...wallpaperReview.data.wallpaperReview.issues.map(issue => issue.reason), wallpaperReview.data.wallpaperReview.checks.subject.reason].filter((reason, index, all) => all.indexOf(reason) === index).join(' · ') : assessment.ruleResults.map(item => item.reason).filter(Boolean).join(' · ') } : {}),
     ...(context ? { feedbackContext: context } : {}),
     feedbackHeads: Object.fromEntries(current.map(item => [item.judgment.kind + (item.judgment.kind === 'dimension-verdict' ? `:${item.judgment.dimension}` : ''), item.id])),
     feedbackHistory: feedback.map(feedbackView),
@@ -308,16 +310,20 @@ function projectRunNow(domain: CuratorDomain, run: RunRecord, actor: DomainActor
   const deliveryManifest = typeof spec.fixed.searchLaunchId === 'string' ? domain.repository.manifest(`search-delivery:${spec.fixed.searchLaunchId}:${run.id}`) : undefined
   const delivery = deliveryManifest ? z.object({ directory: z.string(), files: z.array(z.json()) }).parse(deliveryManifest.state) : undefined
   const output = searchOutputSchema.safeParse(spec.fixed.output)
-  const launchId = searchLaunchInputSchema.shape.operationId.safeParse(spec.fixed.searchLaunchId)
+  const sourceTask = spec.input.workflow === 'wallpaper-v1' && typeof spec.input.sourceRunId === 'string' ? domain.repository.get('run', spec.input.sourceRunId) : undefined
+  const launchId = searchLaunchInputSchema.shape.operationId.safeParse(spec.fixed.searchLaunchId ?? (sourceTask ? specOf(sourceTask).fixed.searchLaunchId : undefined))
+  const wallpaper = spec.input.workflow === 'wallpaper-v1' ? wallpaperStateSchema.parse(data.checkpoint.wallpaper) : undefined
+  const workflowImages = new Map(wallpaper?.items.flatMap(item => [item.imageVersionId, item.originalId, ...item.attempts.flatMap(attempt => [attempt.outputId, attempt.analysisId, attempt.simulationId])].filter((id): id is string => !!id).map(id => [id, item.imageVersionId] as const)))
   const failure = runFailure(run, data)
-  return { runId: run.id, continuation: readRunContinuation(run, domain.repository), revision: run.revision, ...(output.success ? { outputKind: output.data.kind } : {}), ...(launchId.success ? { launchId: launchId.data } : {}), owner: run.owner, kind: spec.kind, status: run.status, ...(standard ? { styleId: standard.styleId } : typeof spec.input.styleId === 'string' ? { styleId: spec.input.styleId } : {}), issues, ...(output.data?.kind !== 'preview' && typeof spec.fixed.searchLaunchId === 'string' ? { delivery: delivery ? { status: 'delivered' as const, directory: delivery.directory, files: delivery.files.length } : { status: 'pending' as const, files: 0 } } : {}), resultSummary: { selected: categories.filter(value => value === 'selected').length, needsReview: categories.filter(value => value === 'review').length, rejected: categories.filter(value => value === 'rejected').length, failedImages: categories.filter(value => value === 'failed').length, technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, processing: categories.filter(value => value === 'processing').length, pending: categories.filter(value => value === 'pending').length, sourceImages: categories.filter(value => value === 'source').length, unavailable: issues.filter(issue => issue.category === 'unavailable').length, candidates: orderedIds.length, target: typeof spec.input.targetCount === 'number' ? spec.input.targetCount : null }, ...(data.jobId ? { jobId: data.jobId } : {}), ...(run.stage ? { stage: run.stage } : {}),
+  return { runId: run.id, ...(spec.input.workflow === 'wallpaper-v1' ? { wallpaperTask: true } : {}), continuation: readRunContinuation(run, domain.repository), revision: run.revision, ...(output.success ? { outputKind: output.data.kind } : {}), ...(launchId.success ? { launchId: launchId.data } : {}), owner: run.owner, kind: spec.kind, status: run.status, ...(standard ? { styleId: standard.styleId } : typeof spec.input.styleId === 'string' ? { styleId: spec.input.styleId } : {}), issues, ...(output.data?.kind !== 'preview' && typeof spec.fixed.searchLaunchId === 'string' ? { delivery: delivery ? { status: 'delivered' as const, directory: delivery.directory, files: delivery.files.length } : { status: 'pending' as const, files: 0 } } : {}), resultSummary: { selected: categories.filter(value => value === 'selected').length, needsReview: categories.filter(value => value === 'review').length, rejected: categories.filter(value => value === 'rejected').length, failedImages: categories.filter(value => value === 'failed').length, technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, processing: categories.filter(value => value === 'processing').length, pending: categories.filter(value => value === 'pending').length, sourceImages: categories.filter(value => value === 'source').length, unavailable: issues.filter(issue => issue.category === 'unavailable').length, candidates: orderedIds.length, target: typeof spec.input.targetCount === 'number' ? spec.input.targetCount : null }, ...(data.jobId ? { jobId: data.jobId } : {}), ...(run.stage ? { stage: run.stage } : {}),
     ...(run.outcome ? { outcome: run.outcome } : {}), ...(releaseId ? { releaseId } : {}), ...(usageRevisionId ? { usageRevisionId } : {}),
     taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', counts: spec.kind === 'search' || spec.kind === 'crop' ? { ...data.counts, ...(screening ? { screeningReviewed: screening.screeningReviewed, screeningRejected: screening.screeningRejected, screeningFallback: screening.screeningFallback, deepReviewed: screening.deepReviewed } : {}), technicalFailed: categories.filter(value => value === 'failed').length + issues.filter(issue => issue.category === 'technical' && !issue.imageVersionId).length, unavailable: issues.filter(issue => issue.category === 'unavailable').length } : data.counts, warnings: data.warnings,
     results: visibleImages.map(image => {
       const view = imageView(domain, image, actor, index, undefined, run, familyStatuses), ranked = ranks.get(image.id)
       if (view.selection?.kind === 'selected' && ranked) view.selection = { ...view.selection, rank: ranked.rank, rankScore: ranked.score }
       if (view.selection?.kind === 'selected' && view.selection.qualification === 'auto-qualified' && typeof spec.fixed.searchLaunchId === 'string' && z.object({ kind: z.literal('original') }).safeParse(spec.fixed.output).success) view.originalDownloadPath = `/api/visual-curator/resource?selectionId=${encodeURIComponent(view.selection.selectionId)}&sessionId=${encodeURIComponent(actor.sessionId ?? '')}`
-      return view
+      const workflowImageVersionId = workflowImages.get(image.id)
+      return workflowImageVersionId ? { ...view, workflowImageVersionId } : view
     }),
     ...(failure ? { error: failure } : {}) }
 }
@@ -408,7 +414,7 @@ function snapshotNow(domain: CuratorDomain, engine: RunEngine, config: CuratorCo
   const base = domain.snapshot(actor)
   const index = projectionIndex(domain)
   const familyStatuses = domain.familyConfirmationStatuses()
-  const runs = domain.repository.list('run').filter(run => canReadRun(domain, run, actor))
+  const runs = domain.repository.list('run').filter(run => canReadRun(domain, run, actor) && specOf(run).input.workflow !== 'wallpaper-direct-v1')
   const modelExports = domain.repository.list('profileExport').filter(record => (record.access.kind !== 'session-run' || record.access.sessionId === actor.sessionId) && record.resources.every(resource => readableImage(domain, domain.require('imageVersion', resource.imageVersionId), actor)))
   const views = [base]
   const unique = <T extends { id: string }>(values: T[]) => [...new Map(values.map(item => [item.id, item])).values()]
@@ -430,7 +436,7 @@ function snapshotNow(domain: CuratorDomain, engine: RunEngine, config: CuratorCo
   // Invocation through engine.get enforces the same task ownership used by control and tool reads.
   const runViews = runs.map(run => projectRunNow(domain, engine.get(run.id, actor), actor, familyStatuses, projection.includeRunResults !== false, {}, index))
   const latestUsages = [...new Map(base.usages.sort((left, right) => left.revision - right.revision).map(usage => [usage.presetId, usage])).values()]
-  return { styles, images, usages: latestUsages.map(usage => ({ usageRevisionId: usage.id, presetId: usage.presetId, revision: usage.revision, name: usage.name, ...usage.output,
+  return { ownerScopeId: domain.profileId, styles, images, usages: latestUsages.map(usage => ({ usageRevisionId: usage.id, presetId: usage.presetId, revision: usage.revision, name: usage.name, ...usage.output,
     protectedContent: usage.protectedContent, safeRegions: usage.safeRegions.map(region => ({ ...region.rect, strength: region.strength, description: region.interference })) })),
     runs: runViews, splits: base.splits.map(split => ({ splitId: split.id, label: split.id, assignments: split.assignments })),
     evaluations: evaluations.map(report => ({ reportId: report.id, leftId: report.left.id, rightId: report.right.id, splitId: report.splitId,

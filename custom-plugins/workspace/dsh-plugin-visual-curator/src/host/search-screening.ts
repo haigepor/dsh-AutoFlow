@@ -171,7 +171,7 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
           const excluded = sourceExclusion(exclusions, { ...owner, providerAssetId: id })
           const location = locations.get(id)
           if (excluded) state.excluded[id] = excluded
-          else if (!preview && location && (location.originalUnavailable || !location.originalUrl && !source.config.lookup)) {
+          else if ((!preview || ctx.spec.fixed.wallpaperAuto === true) && location && (location.originalUnavailable || !location.originalUrl && !source.config.lookup)) {
             state.issues.push({ candidateId: id, stage: 'download', category: 'unavailable', code: location.originalUnavailable ? 'source-original-restricted' : 'source-original-unavailable' })
           } else { pool.candidates.push({ providerAssetId: id, queryIndex: index, pageCursor: page.pageCursor }); state.queryCandidates[index]!.push(id); state.candidateCount++ }
         }
@@ -184,6 +184,13 @@ export function createScreenedSearchWorker(deps: SearchDependencies): Worker {
       const existing = state.importedImages[candidate.providerAssetId]
       if (existing) return deps.domain.authorizedImage(existing, actor).image
       let item = await locate(candidate)
+      if (preview && ctx.spec.fixed.wallpaperAuto === true) {
+        if (!item.originalUrl && !item.originalUnavailable && source.config.lookup) { locations.delete(candidate.providerAssetId); item = await locate(candidate) }
+        if (item.originalUnavailable || !item.originalUrl) {
+          state.issues.push({ candidateId: candidate.providerAssetId, stage: 'download', category: 'unavailable', code: item.originalUnavailable ? 'source-original-restricted' : 'source-original-unavailable' })
+          return undefined
+        }
+      }
       if (preview) {
         const dimensions = z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).parse(item)
         const base = { schemaVersion: 1, profileId: actor.profileId, createdAt: new Date().toISOString() }

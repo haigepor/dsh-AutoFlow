@@ -42,12 +42,23 @@ export interface SubscriptionLogin { loginId: string; state: 'waiting' | 'exchan
 export interface SubscriptionModel { id: string; name: string; nativeWebSearch?: boolean }
 /** Profile-level choices share the account pool; image entries use the image tools and MCP. */
 export interface SubscriptionCatalogEntry extends SubscriptionModel { kind: 'text' | 'image' }
+/** Official publication does not imply that a connected subscription can execute the model. */
+export interface SubscriptionImageDiscovery {
+  sourceUrl: string
+  status: 'idle' | 'refreshing' | 'ready' | 'error'
+  autoProbe: boolean
+  pollIntervalMs: number
+  checkedAt?: number
+  errorCode?: string
+  entries: readonly { id: string; name: string; url: string; checks: readonly { accountKey: string; label: string; state: 'untested' | 'checking' | 'verified' | 'rejected' | 'indeterminate' | 'blocked' | 'outcome-unknown'; taskId?: string; errorCode?: string }[] }[]
+}
 /** Explicit model configuration with its compare-and-swap settings revision. */
 export interface SubscriptionCatalog {
   revision: number
   entries: readonly SubscriptionCatalogEntry[]
   candidates: readonly SubscriptionModel[]
   defaultImageModel: string
+  imageDiscovery?: SubscriptionImageDiscovery
 }
 /** The subscription feature can be present while its optional Host bundle is disabled. */
 export type SubscriptionAvailability = 'active' | 'disabled' | 'missing' | 'restart-required'
@@ -138,8 +149,23 @@ export function subscriptionModels(value: unknown): SubscriptionModel[] {
 export function subscriptionCatalog(value: unknown): SubscriptionCatalog {
   const record = object(value)
   return { revision: number(record['revision']), defaultImageModel: text(record['defaultImageModel']), candidates: subscriptionModels(record['candidates']),
+    ...(record['imageDiscovery'] === undefined ? {} : { imageDiscovery: imageDiscovery(record['imageDiscovery']) }),
     entries: list(record['entries']).map((item) => { const entry = object(item); return { id: text(entry['id']), name: text(entry['name']), kind: choice(entry['kind'], ['text', 'image']),
       ...entry['nativeWebSearch'] === undefined ? {} : { nativeWebSearch: boolean(entry['nativeWebSearch']) } } }) }
+}
+
+function imageDiscovery(value: unknown): SubscriptionImageDiscovery {
+  const record = object(value)
+  const sourceUrl = new URL(text(record['sourceUrl']))
+  if (sourceUrl.origin !== 'https://developers.openai.com' || sourceUrl.pathname !== '/api/docs/models') throw new SubscriptionFailure('INVALID_RESPONSE')
+  return { sourceUrl: sourceUrl.href, status: choice(record['status'], ['idle', 'refreshing', 'ready', 'error']), autoProbe: boolean(record['autoProbe']), pollIntervalMs: number(record['pollIntervalMs']),
+    ...(record['checkedAt'] === undefined ? {} : { checkedAt: number(record['checkedAt']) }), ...(record['errorCode'] === undefined ? {} : { errorCode: text(record['errorCode']) }),
+    entries: list(record['entries']).map((item) => { const entry = object(item), id = text(entry['id']), url = new URL(text(entry['url']))
+      if (url.origin !== sourceUrl.origin || url.pathname !== '/api/docs/models/' + id || url.search || url.hash) throw new SubscriptionFailure('INVALID_RESPONSE')
+      return { id, name: text(entry['name']), url: url.href, checks: list(entry['checks']).map((value) => { const check = object(value); return { accountKey: text(check['accountKey']), label: text(check['label']),
+        state: choice(check['state'], ['untested', 'checking', 'verified', 'rejected', 'indeterminate', 'blocked', 'outcome-unknown']),
+        ...(check['taskId'] === undefined ? {} : { taskId: text(check['taskId']) }), ...(check['errorCode'] === undefined ? {} : { errorCode: text(check['errorCode']) }) } }) }
+    }) }
 }
 
 /** Bind the optional bundle through the existing generated Remote, without a browser dependency on its Host code.

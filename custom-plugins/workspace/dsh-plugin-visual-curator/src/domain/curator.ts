@@ -28,7 +28,8 @@ const archiveSchema = z.strictObject(styleMutation)
 const usageCreateSchema = z.strictObject({ ...op, presetId: z.string().optional(), expectedCurrentRevisionId: z.string().optional(), name: z.string().min(1), output: usageOutputSchema, safeRegions: z.array(z.strictObject({ rect: normalizedRectSchema, interference: z.string(), strength: z.enum(['required', 'preferred']) })), protectedContent: z.array(z.string()) })
 const feedbackInputSchema = z.strictObject({ ...op, subject: subjectSchema, context: feedbackContextSchema, judgment: judgmentSchema, viewEvidence: viewEvidenceSchema, scope: z.enum(['task-only', 'style-candidate']).optional(), reasonCodes: z.array(z.string()).optional(), comment: z.string().optional(), expectedHead: z.string().nullable() })
 const suggestionInputSchema = z.strictObject({ ...op, text: z.string().min(1), feedbackIds: z.array(z.string()).optional(), context: feedbackContextSchema.optional() })
-const referenceInputSchema = z.strictObject({ ...op, styleId: z.string(), imageVersionId: z.string(), role: z.enum(['positive', 'negative', 'undecided']), intent: z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('overall') }), z.strictObject({ kind: z.literal('dimensions'), dimensions: z.array(z.enum(['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth'])).min(1) })]), context: z.strictObject({ subjects: z.array(z.string()).optional(), usageRevisionId: z.string().optional() }), viewEvidence: viewEvidenceSchema })
+const referenceInputSchema = z.strictObject({ ...op, styleId: z.string(), imageVersionId: z.string(), role: z.enum(['positive', 'negative', 'undecided']), intent: z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('overall') }), z.strictObject({ kind: z.literal('dimensions'), dimensions: z.array(z.enum(['color', 'lighting', 'texture', 'subject', 'composition', 'density', 'depth'])).min(1) })]), context: z.strictObject({ subjects: z.array(z.string()).optional(), usageRevisionId: z.string().optional() }), viewEvidence: viewEvidenceSchema, comment: z.string().trim().max(4096).optional() })
+const referenceEditSchema = referenceInputSchema.pick({ operationId: true, styleId: true, role: true, intent: true, comment: true }).extend({ referenceId: z.string().min(1), expectedRevision: z.number().int().positive() })
 const splitInputSchema = z.strictObject({ ...op, assignments: z.array(z.strictObject({ familyId: z.string(), split: z.enum(['learning', 'development', 'holdout']), groupingConfirmed: z.literal(true) })), supersedesSplitId: z.string().optional(), uses: z.array(z.strictObject({ familyId: z.string(), purpose: z.enum(['revealed', 'evaluation', 'learning']), at: z.string().datetime({ offset: true }) })).optional() })
 const familyInputSchema = z.strictObject({ ...op, familyIds: z.array(z.string()).min(1) })
 const evaluationInputSchema = z.strictObject({ ...op, executionOutcome: z.enum(['completed', 'budget-exhausted']).optional(), left: standardRefSchema, right: standardRefSchema, splitId: z.string(), usageRevisionId: z.string(), recipeId: z.string(), budgetDigest: z.string(), items: z.array(evaluationItemSchema), assessment: z.enum(['unassessed', 'accepted', 'rejected']).optional(), notes: z.array(z.string()).optional() })
@@ -79,6 +80,10 @@ export class CuratorDomain {
         case 'style-archive': return toJson(await this.archiveStyle(archiveSchema.parse(args), actor))
         case 'usage-save': case 'usage-create': return toJson(await this.createUsage(usageCreateSchema.parse(args), actor))
         case 'reference-confirm': return toJson(await this.confirmReference(referenceInputSchema.parse(args), actor))
+        case 'reference-edit': {
+          const draft = await this.editReference(referenceEditSchema.parse(args), actor)
+          return { id: draft.id, revision: draft.revision }
+        }
         case 'feedback-confirm': return toJson(await this.confirmFeedback(feedbackInputSchema.parse(args), actor))
         case 'feedback-suggest': return toJson(await this.addSuggestion(suggestionInputSchema.parse(args), actor))
         case 'split-save': case 'split-create': return toJson(await this.createSplit(splitInputSchema.parse(args), actor))
@@ -395,12 +400,31 @@ export class CuratorDomain {
     const judgments = input.intent.kind === 'overall' ? [{ kind: 'style-verdict' as const, value: input.role === 'positive' ? 'accept' as const : input.role === 'negative' ? 'reject' as const : 'unknown' as const }] : input.intent.dimensions.map(dimension => ({ kind: 'dimension-verdict' as const, dimension, value: input.role === 'positive' ? 'accept' as const : input.role === 'negative' ? 'reject' as const : 'unknown' as const }))
     const threads: string[] = []
     for (const [index, judgment] of judgments.entries()) {
-      const feedback = await this.confirmFeedback({ operationId: `${input.operationId}:intent:${index}`, subject: { kind: 'image', imageVersionId: input.imageVersionId }, context, judgment, viewEvidence: input.viewEvidence, scope: 'style-candidate', expectedHead: null }, actor)
+      const feedback = await this.confirmFeedback({ operationId: `${input.operationId}:intent:${index}`, subject: { kind: 'image', imageVersionId: input.imageVersionId }, context, judgment, viewEvidence: input.viewEvidence, scope: 'style-candidate', expectedHead: null, ...(input.comment ? { comment: input.comment } : {}) }, actor)
       threads.push(feedback.threadId)
     }
     const reference: Reference = { ...this.base('reference', this.id('reference', input.operationId)), styleId: style.id, imageVersionId: input.imageVersionId, role: input.role, intent: input.intent, context: input.context, feedbackThreadIds: threads }
     await this.repository.commit({ aggregateId: `reference:${reference.id}`, expectedRevision: 0, operationId: input.operationId, request: input, records: [reference], state: { id: reference.id, record: toJson(reference) } })
     return this.require('reference', reference.id)
+  }
+  /** Revise one current reference without replacing historical references, feedback or analysis.
+   * @param input Human role, selected dimensions and optional explanation at the displayed collection revision.
+   * @param actor Authenticated human reviewer.
+   * @returns New draft association; repeating the same operation recovers its committed receipt.
+   */
+  async editReference(input: z.infer<typeof referenceEditSchema>, actor: DomainActor): Promise<StyleDraft> {
+    this.human(actor)
+    const replay = this.recover('draft', input, actor)
+    if (replay) return replay
+    const style = this.require('style', input.styleId), draft = this.require('draft', style.draftId)
+    if (style.archived || style.revision !== input.expectedRevision) throw new CuratorError('revision-conflict', 'reference-edit', 'Refresh the active collection before changing this reference.')
+    const prior = this.require('reference', input.referenceId)
+    if (prior.styleId !== style.id || !draft.referenceIds.includes(prior.id)) throw new CuratorError('owner-denied', 'reference-edit', 'Choose a current reference from this collection.')
+    const { image } = this.authorizedImage(prior.imageVersionId, actor)
+    const reference = await this.confirmReference({ operationId: `${input.operationId}:reference`, styleId: style.id, imageVersionId: image.id, role: input.role, intent: input.intent, context: prior.context, viewEvidence: [{ imageVersionId: image.id, versionKind: image.versionKind }], ...(input.comment ? { comment: input.comment } : {}) }, actor)
+    const next: StyleDraft = { ...draft, revision: draft.revision + 1, status: 'editing', referenceIds: draft.referenceIds.map(id => id === prior.id ? reference.id : id) }
+    await this.styleCommit(style, input, [next], { id: next.id })
+    return this.require('draft', next.id)
   }
   async addSuggestion(input: z.infer<typeof suggestionInputSchema>, actor: DomainActor): Promise<RecordOf<'suggestion'>> {
     this.assertActor(actor)

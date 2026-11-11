@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-batch-cards",
+  "category": "improvements",
+  "text": {
+    "en": "Direct crop batches use a compact table with row selection and confirmed bulk removal that retains unstopped work, saved images and planning history.",
+    "zh-CN": "直接裁剪批次改为紧凑表格，支持勾选与确认后批量移除记录，保留未停止任务、原图、成品及历史规划。"
+  }
+}

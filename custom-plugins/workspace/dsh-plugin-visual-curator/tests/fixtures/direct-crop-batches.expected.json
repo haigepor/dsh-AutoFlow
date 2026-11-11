@@ -1,0 +1,29 @@
+{
+  "columns": ["选择", "批次名称", "来源", "处理状态", "已通过", "需要处理", "创建时间", "操作"],
+  "bulk": {
+    "deletionIds": ["batch-a", "batch-c", "batch-c", "batch-e"],
+    "retainedIds": ["batch-b", "batch-d", "batch-f"],
+    "summary": "已移除 3 条记录，本次保留 2 个批次。"
+  },
+  "batches": [
+    {
+      "runId": "finished",
+      "name": "Finished crop batch",
+      "status": "completed"
+    },
+    {
+      "runId": "running",
+      "name": "Active crop batch",
+      "status": "running"
+    },
+    {
+      "runId": "paused",
+      "name": "Paused crop batch",
+      "status": "paused"
+    }
+  ],
+  "remainingNames": [
+    "Active crop batch",
+    "Paused crop batch"
+  ]
+}

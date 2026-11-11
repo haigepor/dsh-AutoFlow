@@ -1,4 +1,7 @@
+import { serverQueueEn, serverQueueZh } from './server-queue-locale.ts'
+import { directCropEn, directCropZh } from './direct-crop-locale.ts'
 import { feedbackEn, feedbackZh } from './search-feedback-locale.ts'
+import { referenceEditEn, referenceEditZh } from './reference-edit-locale.ts'
 import { datasetEn, datasetZh } from './dataset-locale.ts'
 import { workflowCanvasEn, workflowCanvasZh } from './workflow-canvas-locale.ts'
 import { wallpaperEn, wallpaperZh } from './wallpaper-locale.ts'
@@ -7,6 +10,9 @@ import { wallpaperPlanEditorEn, wallpaperPlanEditorZh } from './wallpaper-plan-e
 import { executionEn, executionZh } from './execution-locale.ts'
 import { presentationEn, presentationZh } from './task-presentation-locale.ts'
 export const en = {
+  ...directCropEn,
+  ...serverQueueEn,
+  ...referenceEditEn,
   ...presentationEn,
   inputSummaryCoverage: 'Saved observations: {observed}/{total} images. This request attaches {pixels} representative images for visual comparison; the attachments are not the full observation scope.',
   searchLaunchRequired: 'Choose or enter {field}',
@@ -352,6 +358,9 @@ export const en = {
 }
 /** Chinese text has exactly the same keys as the English dictionary. */
 export const zh: typeof en = {
+  ...directCropZh,
+  ...serverQueueZh,
+  ...referenceEditZh,
   ...presentationZh,
   inputSummaryCoverage: '逐图观察已覆盖 {observed}/{total} 张；本次附带 {pixels} 张代表图供视觉比对，附图数量不代表完整观察范围',
   searchLaunchRequired: '请填写或选择{field}',

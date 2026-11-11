@@ -14,7 +14,7 @@ import { PackageArtwork } from './PackageArtwork.tsx'
 import type { PluginInstallFailureKind, Registry } from '@deepseek-ai/dsh-api-remotes/client'
 import type { DshBundleFeatureKind } from '@deepseek-ai/dsh-package-manifest'
 import {
-  Button, IconCheckCircleFillRegular, IconChevronDownOutlineRegular, IconChevronLeftOutlineMedium,
+  AnimatedCollapse, Button, Checkbox, IconCheckCircleFillRegular, IconChevronDownOutlineRegular, IconChevronLeftOutlineMedium,
   IconChevronRightOutlineRegular, IconCloseOutlineMedium, IconCodeOutlineRegular,
   IconInfoOutlineRegular, IconPlusOutlineRegular, IconRefreshOutlineRegular, IconTrashOutlineRegular,
   IconPanelLeftOutlineRegular, IconSkillOutlineRegular, IconSparkleRegular, IconDownloadOutlineRegular,
@@ -45,6 +45,7 @@ import badgeSkillPreview from './assets/badge-skill-preview.svg'
 import badgeSkillPreviewZh from './assets/badge-skill-preview.zh.svg'
 import voiceInputPreview from './assets/voice-input-preview.svg'
 import voiceInputPreviewZh from './assets/voice-input-preview.zh.svg'
+import installArtwork from './assets/plugin-install-whale-maid-v1.png'
 
 /** Full component props assembled by the main slot renderer. */
 export type PluginManagerPageProps =
@@ -1318,7 +1319,11 @@ function SubjectBlock({ lines, t }: { readonly lines: SubjectLines; readonly t: 
       <p className={css.subjectName}>{lines.title}</p>
       {lines.description === undefined ? null : <p className={css.subjectDesc}>{lines.description}</p>}
       {lines.version === undefined ? null : <p className={css.subjectMeta}>{t('installVersion', { version: lines.version })}</p>}
-      {lines.showSpec ? <p className={css.subjectSpec}>{lines.spec}</p> : null}
+      {lines.showSpec ? (
+        <Tooltip label={lines.spec} portal onlyWhenClipped>
+          <p className={css.subjectSpec} tabIndex={0}>{lines.spec}</p>
+        </Tooltip>
+      ) : null}
     </div>
   )
 }
@@ -1330,13 +1335,17 @@ function SubjectCard({ subject, confirmed, t }: {
   readonly t: Translate
 }): ReactNode {
   const kindKey = SUBJECT_KIND_KEYS[subject.kind]
+  const sourceTitle = subject.kind === 'path' || subject.kind === 'tarball'
+    ? subject.spec.replaceAll('\\', '/').replace(/\/+$/, '').split('/').at(-1) ?? subject.spec
+    : subject.spec
+  const title = confirmed?.title ?? subject.name ?? sourceTitle
   return (
     <SubjectBlock t={t} lines={{
       spec: subject.spec,
-      title: confirmed?.title ?? subject.name ?? subject.spec,
+      title,
       description: subject.description ?? (kindKey === undefined ? undefined : t(kindKey)),
       version: subject.version ?? confirmed?.version,
-      showSpec: confirmed !== undefined,
+      showSpec: confirmed !== undefined || title !== subject.spec,
     }} />
   )
 }
@@ -1385,6 +1394,7 @@ function InstallDialog({
   const errorId = useId()
   const templateHintId = useId()
   const guideId = useId()
+  const detailsId = useId()
   const approvalId = useId()
   const registryId = useId()
   const registryErrorId = useId()
@@ -1499,7 +1509,6 @@ function InstallDialog({
         onClose={onClose}
         title={t('installTitle')}
         closeLabel={t('close')}
-        {...install.mirrorRecovery ? {} : { description: t('installDescription') }}
         className={css.installDialog as string}
         contentClassName={css.installContent as string}
         footer={(
@@ -1511,16 +1520,39 @@ function InstallDialog({
                 <span>{t('installUpgradeNotice')}</span>
               </span>
             </p>
-            <Button variant="primary" className={css.wide} disabled={checking || empty} aria-busy={checking} onClick={onRun}>
-              {checking ? <StateDot state="ongoing" /> : null}
-              {t(checking ? 'installChecking' : 'installRun')}
-            </Button>
+            <div className={css.installFooterActions}><Button variant="outline" onClick={onClose}>{t('cancel')}</Button>
+              <Button variant="primary" disabled={checking || empty} aria-busy={checking} onClick={onRun}>
+                {checking ? <StateDot state="ongoing" /> : null}
+                {t(checking ? 'installChecking' : 'installRun')}
+              </Button></div>
           </div>
         )}
       >
         <div className={css.installBody}>
+          <div className={css.installIntroduction} data-mirror-recovery={install.mirrorRecovery || undefined}>
+            {!install.mirrorRecovery && <>
+              <p>{t('installDescription')}</p>
+              <img src={installArtwork} width={144} height={144} alt="" aria-hidden="true" draggable={false} decoding="async" />
+            </>}
+            <button
+              ref={registryToggleRef}
+              type="button"
+              className={css.registryToggle}
+              aria-expanded={install.registryOpen}
+              aria-controls={registryId}
+              aria-haspopup="dialog"
+              disabled={checking}
+              onClick={onToggleRegistry}
+            >
+              <span>{t('registryToggle')}</span>
+              {' '}
+              <span className={css.registryChosen}>{chosenTitle}</span>
+              <IconChevronDownOutlineRegular className={css.guideChevron} aria-hidden="true" />
+            </button>
+          </div>
           <div className={css.installField}>
-            <input
+            <label htmlFor={errorId + '-spec'}>{t(install.mirrorRecovery ? 'installPackageLabel' : 'installSpecLabel')}</label>
+            <Input id={errorId + '-spec'} className={css.installSpecInput as string}
               type="text"
               autoFocus={install.mirrorRecovery === true}
               data-modal-autofocus
@@ -1546,62 +1578,49 @@ function InstallDialog({
           {inputSentence === null && templateHint !== null
             ? <p id={templateHintId} className={css.templateHint} role="status">{templateHint}</p>
             : null}
-          <div className={css.optionsRow}>
-            <button
-              type="button"
-              className={css.guideToggle}
-              aria-expanded={guideOpen}
-              aria-controls={guideId}
-              onClick={() => { setGuideOpen(open => !open) }}
-            >
-              <IconChevronDownOutlineRegular className={css.guideChevron} aria-hidden="true" />
-              <span>{t(guideOpen ? 'installGuideHide' : 'installGuideToggle')}</span>
-            </button>
-            <button
-              ref={registryToggleRef}
-              type="button"
-              className={css.registryToggle}
-              aria-expanded={install.registryOpen}
-              aria-controls={registryId}
-              aria-haspopup="dialog"
-              disabled={checking}
-              onClick={onToggleRegistry}
-            >
-              <span>{t('registryToggle')}</span>
-              {' '}
-              <span className={css.registryChosen}>{chosenTitle}</span>
-              <IconChevronDownOutlineRegular className={css.guideChevron} aria-hidden="true" />
-            </button>
-          </div>
-          {guideOpen
-            ? (
-              <div id={guideId} className={css.guide} data-install-guide>
-                <ol className={css.guideList}>
-                  {GUIDE_EXAMPLES.map(({ key, titleKey, exampleKey, hintKey }) => (
-                    <li key={key} className={css.guideItem}>
-                      <div className={css.guideMain}>
-                        <span className={css.guideTitle}>{t(titleKey)}</span>
-                        <span className={css.guideHint}>{t(hintKey)}</span>
-                        <span className={css.guideExample}>
-                          <span className={css.guideExampleLabel}>{t('installGuideExampleLabel')}</span>
-                          <code>{t(exampleKey)}</code>
-                        </span>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        aria-label={t('installGuideFillAria', { example: t(exampleKey) })}
-                        disabled={checking}
-                        onClick={() => { onEditSpec(t(exampleKey)) }}
-                      >
-                        {t('installGuideFill')}
-                      </Button>
-                    </li>
-                  ))}
-                </ol>
+          <div className={css.installGuide}>
+            <div className={css.optionsRow}>
+              <button
+                type="button"
+                className={css.guideToggle}
+                aria-expanded={guideOpen}
+                aria-controls={guideId}
+                onClick={() => { setGuideOpen(open => !open) }}
+              >
+                <IconChevronDownOutlineRegular className={css.guideChevron} aria-hidden="true" />
+                <span>{t(guideOpen ? 'installGuideHide' : 'installGuideToggle')}</span>
+              </button>
+            </div>
+            <AnimatedCollapse id={guideId} open={guideOpen}>
+              <div className={css.installGuideContent}>
+                <div className={css.guide} data-install-guide>
+                  <ol className={css.guideList}>
+                    {GUIDE_EXAMPLES.map(({ key, titleKey, exampleKey, hintKey }) => (
+                      <li key={key} className={css.guideItem}>
+                        <div className={css.guideMain}>
+                          <span className={css.guideTitle}>{t(titleKey)}</span>
+                          <span className={css.guideHint}>{t(hintKey)}</span>
+                          <span className={css.guideExample}>
+                            <span className={css.guideExampleLabel}>{t('installGuideExampleLabel')}</span>
+                            <code>{t(exampleKey)}</code>
+                          </span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={t('installGuideFillAria', { example: t(exampleKey) })}
+                          disabled={checking}
+                          onClick={() => { onEditSpec(t(exampleKey)) }}
+                        >
+                          {t('installGuideFill')}
+                        </Button>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               </div>
-            )
-            : null}
+            </AnimatedCollapse>
+          </div>
           {registryShown
             ? createPortal(
               <fieldset
@@ -1719,6 +1738,19 @@ function InstallDialog({
   // Another registry is worth offering only for a failure the Host laid at the one it asked.
   const changeable = phase === 'failed' && !approvable && install.failure?.failedAt === 'registry' && install.confirmed === undefined
   const subject = install.subject
+  const subjectKind = subject === null ? undefined : SUBJECT_KIND_KEYS[subject.kind]
+  const resultScreen = phase === 'done' || phase === 'failed'
+  const subjectCard = subject === null
+    ? null
+    : phase === 'done' && installedPackage !== undefined
+      ? <SubjectBlock t={t} lines={{
+        spec: subject.spec,
+        title: packageText(installedPackage, resolveText).title,
+        description: subject.description ?? (subjectKind === undefined ? undefined : t(subjectKind)),
+        version: install.installedVersion ?? subject.version ?? install.confirmed?.version,
+        showSpec: true,
+      }} />
+      : <SubjectCard subject={phase === 'done' && install.installedVersion !== null ? { ...subject, version: install.installedVersion } : subject} confirmed={install.confirmed} t={t} />
   return (
     <Modal open={install.open} onClose={onClose} title={heading} headless className={css.installDialog as string}>
       <div className={css.wizard} data-install-phase={phase}>
@@ -1742,80 +1774,122 @@ function InstallDialog({
           </button>
         </div>
         <div className={css.wizardScroll}>
-          <div className={css.wizardHero}>
-            <span className={css.wizardIcon} data-state={pending ? 'ongoing' : phase === 'done' ? 'done' : 'error'} aria-hidden="true">
-              {pending
-                ? <StateDot state="ongoing" size={28} />
-                : phase === 'done'
-                  ? <IconCheckCircleFillRegular size={28} />
-                  : <IconWarningOutlineRegular size={28} />}
-            </span>
-            <h2 className={css.wizardTitle} role={phase === 'failed' ? 'alert' : 'status'}>{heading}</h2>
-            {phase === 'done' && subject?.bundled ? <p className={css.wizardSub}>{t('installBundledDescription')}</p> : null}
-            {phase === 'failed' ? <p className={css.wizardSub}>{failureText(install.failure, t, install)}</p> : null}
-            {phase === 'failed' && failure?.stage === 'enable' && failure.enabled === true
-              && (failure.code !== undefined || failure.reason !== '')
-              ? <p className={css.wizardSub}>{t('installFailedEnabling')}</p>
+          <div className={css.wizardMain}>
+            <div className={css.wizardHero} data-result={resultScreen || undefined}>
+              <div className={css.wizardHeading}>
+                <span className={css.wizardIcon} data-state={pending ? 'ongoing' : phase === 'done' ? 'done' : 'error'} aria-hidden="true">
+                  {pending
+                    ? <StateDot state="ongoing" size={28} />
+                    : phase === 'done'
+                      ? <IconCheckCircleFillRegular size={28} />
+                      : <IconWarningOutlineRegular size={28} />}
+                </span>
+                <h2 className={css.wizardTitle} role={phase === 'failed' ? 'alert' : 'status'}>{heading}</h2>
+              </div>
+              {phase === 'done' && subject?.bundled ? <p className={css.wizardSub}>{t('installBundledDescription')}</p> : null}
+              {phase === 'failed' ? <p className={`${css.wizardSub} ${css.wizardFailure}`}>{failureText(install.failure, t, install)}</p> : null}
+              {phase === 'failed' && failure?.stage === 'enable' && failure.enabled === true
+                && (failure.code !== undefined || failure.reason !== '')
+                ? <p className={css.wizardSub}>{t('installFailedEnabling')}</p>
+                : null}
+              {attemptLine === null ? null : <p className={css.wizardSub}>{attemptLine}</p>}
+              {uncertaintyText === null ? null : <p className={css.wizardSub} role="alert">{uncertaintyText}</p>}
+              {phase === 'unknown' ? <p className={css.wizardSub}>{t('installUnknownDescription')}</p> : null}
+              {resultScreen ? subjectCard : null}
+            </div>
+            {resultScreen ? null : subjectCard}
+            {approvable
+              ? (
+                <section className={css.approval} role="group" aria-labelledby={approvalId} data-install-approval>
+                  <h3 id={approvalId} className={css.approvalTitle}>{t('installApprovalTitle')}</h3>
+                  <p className={css.approvalText}>{t('installApprovalDescription')}</p>
+                  <ul className={css.approvalList}>
+                    {pendingBuilds.map(name => <li key={name}><code>{name}</code></li>)}
+                  </ul>
+                  <p className={css.approvalText}>{t('installApprovalConsequence')}</p>
+                  <p className={css.approvalCaution}>{t('installApprovalCaution')}</p>
+                  <Button variant="primary" className={css.wide} onClick={onApproveBuilds}>{t('installApproveAndRetry')}</Button>
+                </section>
+              )
               : null}
-            {attemptLine === null ? null : <p className={css.wizardSub}>{attemptLine}</p>}
-            {uncertaintyText === null ? null : <p className={css.wizardSub} role="alert">{uncertaintyText}</p>}
-            {phase === 'unknown' ? <p className={css.wizardSub}>{t('installUnknownDescription')}</p> : null}
+            {phase === 'done' && install.installed === null
+              ? <p className={css.result} role="status">{t('installDoneNothing')}</p>
+              : null}
+            {phase === 'done' && install.restartRequired
+              ? <p className={css.resultWarn} role="status">{restartText('installDoneRestart', install.restartReason, t)}</p>
+              : null}
+            {phase === 'done' && subject?.kind === 'registry' && subject.name !== undefined && subject.version !== undefined
+              && install.installedVersion !== null && install.installedVersion !== subject.version
+              // A fallback registry can serve another release than the one inspected, so only a single-registry run is explained.
+              && (install.attempts?.registries.length ?? 1) === 1
+              ? (
+                <p className={css.resultWarn} role="status">
+                  {t('installDoneOtherVersion', {
+                    installed: install.installedVersion, version: subject.version, exact: `${subject.name}@${subject.version}`,
+                  })}
+                </p>
+              )
+              : null}
+            {phase === 'done' && install.approvedBuilds.length > 0
+              ? <p className={css.result} role="status">{t('installDoneApproved', { names: install.approvedBuilds.join(', ') })}</p>
+              : null}
+            {phase === 'done' && installedPackage?.features !== undefined ? (
+              <fieldset className={css.installFeatures}>
+                <legend>{t('installFeaturesTitle')}</legend>
+                <p>{t('installFeaturesDescription')}</p>
+                <div className={css.installFeatureGroups}>{featureGroups(installedPackage.features).map(group => <section key={group.kind ?? 'legacy'} className={css.installFeatureGroup} role="group" aria-label={t(group.kind === undefined ? 'featuresLabel' : FEATURE_KIND_KEYS[group.kind])}>
+                  <h3><FeatureKindIcon kind={group.kind} /><span>{t(group.kind === undefined ? 'featuresLabel' : FEATURE_KIND_KEYS[group.kind])}</span><Tag>{group.features.length}</Tag></h3>
+                  <div>{group.features.map(feature => (
+                    <Checkbox
+                      key={feature.id}
+                      className={css.installFeatureChoice}
+                      label={resolveText(feature.title)}
+                      checked={selectedFeatures.includes(feature.id)}
+                      disabled={install.enabling}
+                      onChange={checked => setSelectedFeatures(current =>
+                        checked ? [...current, feature.id] : current.filter(id => id !== feature.id))}
+                    />
+                  ))}</div>
+                </section>)}</div>
+              </fieldset>
+            ) : null}
           </div>
-          {subject === null
-            ? null
-            : <SubjectCard subject={phase === 'done' && install.installedVersion !== null ? { ...subject, version: install.installedVersion } : subject} confirmed={install.confirmed} t={t} />}
-          {approvable
-            ? (
-              <section className={css.approval} role="group" aria-labelledby={approvalId} data-install-approval>
-                <h3 id={approvalId} className={css.approvalTitle}>{t('installApprovalTitle')}</h3>
-                <p className={css.approvalText}>{t('installApprovalDescription')}</p>
-                <ul className={css.approvalList}>
-                  {pendingBuilds.map(name => <li key={name}><code>{name}</code></li>)}
-                </ul>
-                <p className={css.approvalText}>{t('installApprovalConsequence')}</p>
-                <p className={css.approvalCaution}>{t('installApprovalCaution')}</p>
-                <Button variant="primary" className={css.wide} onClick={onApproveBuilds}>{t('installApproveAndRetry')}</Button>
-              </section>
-            )
-            : null}
-          {phase === 'done' && install.installed === null
-            ? <p className={css.result} role="status">{t('installDoneNothing')}</p>
-            : null}
-          {phase === 'done' && install.restartRequired
-            ? <p className={css.resultWarn} role="status">{restartText('installDoneRestart', install.restartReason, t)}</p>
-            : null}
-          {phase === 'done' && subject?.kind === 'registry' && subject.name !== undefined && subject.version !== undefined
-            && install.installedVersion !== null && install.installedVersion !== subject.version
-            // A fallback registry can serve another release than the one inspected, so only a single-registry run is explained.
-            && (install.attempts?.registries.length ?? 1) === 1
-            ? (
-              <p className={css.resultWarn} role="status">
-                {t('installDoneOtherVersion', {
-                  installed: install.installedVersion, version: subject.version, exact: `${subject.name}@${subject.version}`,
-                })}
-              </p>
-            )
-            : null}
-          {phase === 'done' && install.approvedBuilds.length > 0
-            ? <p className={css.result} role="status">{t('installDoneApproved', { names: install.approvedBuilds.join(', ') })}</p>
-            : null}
-          {phase === 'done' && installedPackage?.features !== undefined ? (
-            <fieldset className={css.installFeatures}>
-              <legend>{t('installFeaturesTitle')}</legend>
-              <p>{t('installFeaturesDescription')}</p>
-              {installedPackage.features.map(feature => <label key={feature.id}>
-                <input type="checkbox" checked={selectedFeatures.includes(feature.id)}
-                  onChange={(event) => {
-                    const checked = event.currentTarget.checked
-                    setSelectedFeatures(current => checked ? [...current, feature.id] : current.filter(id => id !== feature.id))
-                  }} />
-                <span>{resolveText(feature.title)}</span>
-              </label>)}
-            </fieldset>
-          ) : null}
+          <AnimatedCollapse id={detailsId} open={install.detailsOpen} className={css.installDetailsCollapse}>
+            <div className={css.detailsBody}>
+              {firstRun !== undefined
+                ? <p className={css.installLocation}>{t('installLocation', { dir: firstRun.cwd })}</p>
+                : settledDetails
+                  ? <p className={css.installLocation}>{t('installDetailsNoOutput')}</p>
+                  : null}
+              {install.runs.map((run, index) => {
+                const registry = asked?.registries[index]
+                return (
+                  <div key={run.jobId} className={css.run}>
+                    {registry === undefined
+                      ? null
+                      : <p className={css.attemptBadge}>{t('installAttemptBadge', { index: String(index + 1), registry: registryText(registry, t, resolved).name })}</p>}
+                    <TerminalBlock
+                      command={run.command}
+                      output={run.output}
+                      running={run.exitCode === undefined}
+                      exitCode={run.exitCode}
+                      maxLines={INSTALL_TERMINAL_LINES}
+                      labels={{ ...terminalLabels(t), ...phase === 'cancelling' ? { failed: t('installCancelledShort') } : {} }}
+                      className={css.terminal}
+                    />
+                  </div>
+                )
+              })}
+              {install.logPath === null
+                ? null
+                : <p className={css.installLocation}>{t('installLogPath', { path: install.logPath })}</p>}
+            </div>
+          </AnimatedCollapse>
+        </div>
+        <div className={css.wizardFooter}>
           <div className={css.wizardFoot}>
             {subject?.bundled ? null : (
-              <button type="button" className={css.detailsToggle} aria-expanded={install.detailsOpen} onClick={onToggleDetails}>
+              <button type="button" className={css.detailsToggle} aria-expanded={install.detailsOpen} aria-controls={detailsId} onClick={onToggleDetails}>
                 <span>{t(install.detailsOpen ? 'installDetailsHide' : 'installDetailsShow')}</span>
                 <IconChevronDownOutlineRegular className={css.detailsChevron} aria-hidden="true" />
               </button>
@@ -1831,6 +1905,7 @@ function InstallDialog({
             {phase === 'failed' && !approvable
               ? (
                 <span className={css.wizardActions}>
+                  <Button variant="outline" size="sm" className={css.footAction} onClick={onClose}>{t('close')}</Button>
                   {changeable
                     ? <Button variant="outline" size="sm" className={css.footAction} onClick={onChangeRegistry}>{t('installChangeRegistry')}</Button>
                     : null}
@@ -1839,45 +1914,12 @@ function InstallDialog({
               )
               : null}
           </div>
-          {install.detailsOpen
-            ? (
-              <div className={css.detailsBody}>
-                {firstRun !== undefined
-                  ? <p className={css.installLocation}>{t('installLocation', { dir: firstRun.cwd })}</p>
-                  : settledDetails
-                    ? <p className={css.installLocation}>{t('installDetailsNoOutput')}</p>
-                    : null}
-                {install.runs.map((run, index) => {
-                  const registry = asked?.registries[index]
-                  return (
-                    <div key={run.jobId} className={css.run}>
-                      {registry === undefined
-                        ? null
-                        : <p className={css.attemptBadge}>{t('installAttemptBadge', { index: String(index + 1), registry: registryText(registry, t, resolved).name })}</p>}
-                      <TerminalBlock
-                        command={run.command}
-                        output={run.output}
-                        running={run.exitCode === undefined}
-                        exitCode={run.exitCode}
-                        maxLines={INSTALL_TERMINAL_LINES}
-                        labels={{ ...terminalLabels(t), ...phase === 'cancelling' ? { failed: t('installCancelledShort') } : {} }}
-                        className={css.terminal}
-                      />
-                    </div>
-                  )
-                })}
-                {install.logPath === null
-                  ? null
-                  : <p className={css.installLocation}>{t('installLogPath', { path: install.logPath })}</p>}
-              </div>
-            )
-            : null}
           {phase !== 'done'
             ? null
             : install.installed !== null && install.subject?.selection === undefined
-              ? <Button variant="primary" className={css.wide} disabled={install.enabling}
+              ? <Button variant="primary" className={css.footAction} disabled={install.enabling}
                 aria-busy={install.enabling} onClick={() => { onEnableNow(installedPackage?.features === undefined ? undefined : selectedFeatures) }}>{t('installEnableNow')}</Button>
-              : <Button variant="primary" className={css.wide} onClick={onClose}>{t('installClose')}</Button>}
+              : <Button variant="primary" className={css.footAction} onClick={onClose}>{t('installClose')}</Button>}
         </div>
       </div>
     </Modal>

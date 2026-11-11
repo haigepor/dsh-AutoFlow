@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto'
 import sharp from 'sharp'
 import { z } from 'zod'
 import { Context } from '@deepseek-ai/cordis'
-import LlmRuntime, { LlmAdapter } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { LlmAdapter, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import LocalAttachmentStore from '../../../../packages/attachment/attachment-local/src/index.ts'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
@@ -122,6 +122,19 @@ it('inherits the registered output and reasoning defaults and records its contex
     assert.equal(f.adapter.calls[0]!.maxTokens, 65_536)
     assert.equal(f.adapter.calls[0]!.reasoningEffort, undefined)
     assert.equal(JSON.parse(JSON.stringify(f.metadata.at(-1))).context.contextWindow, 1_000_000)
+  } finally { await f.cleanup() }
+})
+
+it('applies supported request-only reasoning without changing later model defaults', async () => {
+  const f = await fixture(true)
+  f.adapter.resolveModel = async () => ({ provider: 'native-fixture', id: 'vision-model', name: 'Vision fixture', inputModalities: ['text', 'image'], reasoning: { efforts: [{ id: ReasoningEffortId('medium'), name: 'Medium' }, { id: ReasoningEffortId('high'), name: 'High' }], defaultEffort: ReasoningEffortId('medium') } })
+  try {
+    await f.provider.analyze({ ...f.input, reasoningEffort: 'high' }, f.bounds)
+    await f.provider.analyze(f.input, f.bounds)
+    assert.deepEqual(f.adapter.calls.map(call => call.reasoningEffort), ['high', 'medium'])
+    assert.equal(JSON.parse(JSON.stringify(f.metadata[0])).request.config.reasoningEffort, 'high')
+    await assert.rejects(f.provider.analyze({ ...f.input, reasoningEffort: 'unsupported' }, f.bounds), error => safeFailure(error).code === 'capability-unavailable')
+    assert.equal(f.adapter.calls.length, 2)
   } finally { await f.cleanup() }
 })
 

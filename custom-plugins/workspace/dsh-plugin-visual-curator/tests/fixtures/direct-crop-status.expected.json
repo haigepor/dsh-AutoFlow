@@ -1,0 +1,11 @@
+{
+  "phase": "attention",
+  "reason": "车轮在暗部中轮廓模糊，保护范围已按车身下缘保守外扩包含",
+  "approved": "0/1",
+  "hint": "需处理 1",
+  "recovery": {
+    "retry": "重试此步骤",
+    "inspect": "局部放大复核",
+    "edit": "修改规划"
+  }
+}

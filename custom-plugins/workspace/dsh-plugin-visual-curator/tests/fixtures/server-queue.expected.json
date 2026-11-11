@@ -1,0 +1,10 @@
+{
+  "pending": [
+    { "serverId": "11", "processing": "waiting", "upload": null },
+    { "serverId": "12", "processing": "waiting", "upload": null }
+  ],
+  "accepted": [
+    { "serverId": "11", "processing": "approved", "upload": "uploaded" },
+    { "serverId": "12", "processing": "approved", "upload": "uploaded" }
+  ]
+}

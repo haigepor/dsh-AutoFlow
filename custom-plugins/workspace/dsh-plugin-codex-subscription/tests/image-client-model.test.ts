@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { imageEstimate, recordedImageTask, selectImageTask, sessionGallery } from '../src/client/model.ts'
-import { loadingRegions } from '../src/client/motion.ts'
 import type { ImageSessionView, ImageViewTask } from '../src/shared/image-view.ts'
 
 const task: ImageViewTask = { taskId: 'one', callId: 'call-one', state: 'sent', createdAt: 100, updatedAt: 200, deadlineAt: 300100, assets: [] }
@@ -45,11 +44,4 @@ test('elapsed time alone never completes a running task', () => {
   assert.equal(imageEstimate({ ...task, state: 'queued' }, 10000000), 0)
   assert.equal(imageEstimate({ ...task, state: 'succeeded' }, 100), 100)
   assert.equal(imageEstimate({ ...task, state: 'failed' }, 10000000), 0)
-})
-
-test('steady regions retain their radius while moving or holding a split', () => {
-  for (const [start, end] of [[0, 2], [4, 6], [8, 10]] as const) {
-    const radius = loadingRegions(start)[0]?.radius
-    for (let time = start; time < end; time += .1) for (const field of loadingRegions(time)) assert.equal(field.radius, radius)
-  }
 })

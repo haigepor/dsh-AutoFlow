@@ -1,0 +1,8 @@
+{
+  "id": "desktop-welcome-cookie-header",
+  "category": "fixes",
+  "text": {
+    "en": "Desktop can start when cookies from previous local launches exceed the request header limit.",
+    "zh-CN": "修复历史本地 Cookie 累积导致请求头过大、桌面启动认证失败的问题。"
+  }
+}

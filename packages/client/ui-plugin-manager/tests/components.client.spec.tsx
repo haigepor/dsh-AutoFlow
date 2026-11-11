@@ -2590,8 +2590,9 @@ describe('PluginManagerPage', () => {
     expect(screen.getByRole('button', { name: zh.installRun })).toHaveProperty('disabled', true)
     expect(form.getAllByRole('button')).toEqual([
       form.getByRole('button', { name: zh.close }),
-      form.getByRole('button', { name: zh.installGuideToggle }),
       form.getByRole('button', { name: '安装源 中国大陆镜像源' }),
+      form.getByRole('button', { name: zh.installGuideToggle }),
+      form.getByRole('button', { name: zh.cancel }),
       form.getByRole('button', { name: zh.installRun }),
     ])
   })
@@ -3504,4 +3505,35 @@ describe('registry versions and updates', () => {
     expect(within(dialog()).getByText(en.updateLost)).toBeTruthy()
     expect([...dialog().querySelectorAll('li')].map(item => item.getAttribute('data-state'))).toEqual(['done', 'unknown'])
   })
+})
+
+it('groups installed features, retains existing choices and keeps the complete source available', () => {
+  const expected: { packageTitle: string; source: string; groups: string[]; features: Array<{ id: string; kind: 'skill' | 'script' | 'ui'; title: string; enabled: boolean }>; selectedAfterSettings: string[] } = JSON.parse(readFileSync(join(import.meta.dirname, 'expected', 'install-dialog-layout-zh.json'), 'utf8'))
+  const name = 'dsh-plugin-visual-curator'
+  const bundle = pkg({
+    name,
+    meta: { title: expected.packageTitle },
+    features: expected.features.map(feature => ({
+      ...feature,
+      rowId: feature.id,
+      defaultEnabled: feature.enabled,
+      description: feature.title,
+    })),
+  })
+  const subject = { spec: expected.source, status: 'accepted', kind: 'tarball', bundle: true, registry: null } as const
+  const b = renderTab({ packages: [bundle], install: { ...IDLE_INSTALL, open: true, phase: 'done', spec: expected.source, subject, installed: name, installedVersion: '0.2.14' } })
+  b.setLanguage(zh)
+  const modal = within(screen.getByRole('dialog', { name: zh.installedTitle }))
+  expect(modal.getByText(expected.packageTitle)).toBeTruthy()
+  expect(modal.getByText(expected.source)).toHaveProperty('tabIndex', 0)
+  const choices = modal.getByRole('group', { name: zh.installFeaturesTitle })
+  expect(within(choices).getAllByRole('group').map(group => group.getAttribute('aria-label'))).toEqual(expected.groups)
+  for (const feature of expected.features) expect(modal.getByRole('checkbox', { name: feature.title })).toHaveProperty('checked', feature.enabled)
+  expect(b.actions.enableInstalled).not.toHaveBeenCalled()
+  fireEvent.click(modal.getByRole('checkbox', { name: '设置侧栏' }))
+  fireEvent.click(modal.getByRole('button', { name: zh.installEnableNow }))
+  expect(b.actions.enableInstalled).toHaveBeenCalledExactlyOnceWith(expected.selectedAfterSettings)
+  b.set({ install: { ...IDLE_INSTALL, open: true, phase: 'done', spec: expected.source, subject, installed: name, installedVersion: '0.2.14', enabling: true } })
+  expect(modal.getByRole('button', { name: zh.installEnableNow })).toHaveProperty('disabled', true)
+  expect(modal.getAllByRole('checkbox').every(input => (input as HTMLInputElement).disabled)).toBe(true)
 })

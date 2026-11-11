@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-inspection-routing",
+  "category": "fixes",
+  "text": {
+    "en": "Wallpaper decisions can automatically inspect saved source details and show the inspection progress, result and retry action on the canvas.",
+    "zh-CN": "壁纸决策可自动复核已保存的原图局部，并在画布显示复核进度、结果和重试入口。"
+  }
+}

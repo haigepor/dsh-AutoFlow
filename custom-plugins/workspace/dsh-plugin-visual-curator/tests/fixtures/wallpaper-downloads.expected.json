@@ -1,0 +1,20 @@
+{
+  "waitingSteps": ["original", "planning"],
+  "savedSteps": ["original", "planning", "geometry"],
+  "known": {
+    "percent": 42,
+    "caption": "已接收 3.2 MB / 7.6 MB",
+    "thumbnail": "42%"
+  },
+  "unknown": {
+    "caption": "已接收 2.5 MB",
+    "thumbnail": "下载中"
+  },
+  "saving": "校验与保存中",
+  "saved": "观察与规划",
+  "restricted": "来源受限",
+  "measured": {
+    "width": 380,
+    "height": 430
+  }
+}

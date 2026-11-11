@@ -1,0 +1,10 @@
+{
+  "pickerError": "本地文件选择器暂不可用，请在 Desktop 中重新打开此页面后重试",
+  "oversized": {
+    "name": "large.png",
+    "size": "35 MiB",
+    "reason": "超过每张 20 MiB 的导入上限，请移除此图并选择其他原图",
+    "startDisabled": true
+  },
+  "startError": "批次未能启动，已保留所选原图，可直接重试"
+}

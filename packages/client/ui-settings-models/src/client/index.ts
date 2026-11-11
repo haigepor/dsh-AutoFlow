@@ -107,8 +107,8 @@ export function apply(ctx: ClientContext): void {
     hooks: { subscription: subscription.store }, t,
     ensure: () => subscription.ensure(), activate: () => subscription.activate(), startLogin: () => subscription.startLogin(),
     completeLogin: url => subscription.completeLogin(url), cancelLogin: () => subscription.cancelLogin(),
-    loadCatalog: () => subscription.loadCatalog(),
-    saveCatalog: (entries, defaultImageModel) => subscription.saveCatalog(entries, defaultImageModel),
+    loadCatalog: quiet => subscription.loadCatalog(quiet),
+    saveCatalog: (entries, defaultImageModel, autoProbeImages) => subscription.saveCatalog(entries, defaultImageModel, autoProbeImages),
     update: (account, patch) => subscription.update(account, patch), remove: account => subscription.remove(account),
     refresh: () => subscription.refresh(), dismissNotice: () => { subscription.dismissNotice() },
   })

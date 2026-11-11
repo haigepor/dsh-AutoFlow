@@ -1,33 +1,72 @@
-.vc-plan-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, 0.7fr); gap: 16px; min-width: 0; color: var(--dsw-alias-label-primary); font-size: 13px; }
-.vc-plan-editor-preview { min-width: 0; }
-.vc-plan-editor-preview svg { display: block; width: 100%; max-height: 65vh; aspect-ratio: 1845 / 3280; background: var(--dsw-alias-bg-layer-1); border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); touch-action: none; }
-.vc-plan-editor-preview svg:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 2px; }
+.vc-wallpaper-modal.vc-plan-modal { width: min(1100px, 100%); height: min(860px, 100%); max-height: 100%; gap: 16px; overflow: hidden; }
+.vc-plan-modal-shell { flex: 1; min-height: 0; overflow: hidden; }
+.vc-plan-modal-shell > :first-child { flex: none; }
+.vc-plan-modal-shell > :last-child { flex: 1; min-height: 0; gap: 12px; margin-top: 4px; overflow: hidden; }
+.vc-plan-modal-context { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; flex: none; }
+.vc-plan-modal-context > span { font-weight: 500; }
+.vc-plan-modal-context p { color: var(--dsw-alias-label-secondary); }
+.vc-plan-modal-advanced { flex: none; min-height: 0; max-height: 240px; overflow: auto; scrollbar-gutter: stable; }
+.vc-plan-modal-advanced textarea { box-sizing: border-box; width: 100%; min-height: 120px; resize: vertical; }
+.vc-plan-modal-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; width: 100%; }
+.vc-plan-modal-validation { display: flex; align-items: center; gap: 8px; flex: 1 1 250px; min-width: 0; color: var(--dsw-alias-label-secondary); }
+.vc-plan-modal-validation > :first-child { flex: none; }
+.vc-plan-modal-actions { display: flex; flex: none; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.vc-plan-editor { --vc-plan-safe: var(--dsw-alias-state-success-secondary); --vc-plan-clock: var(--dsw-alias-state-error-secondary); --vc-plan-buffer: var(--dsw-alias-state-warn-primary); --vc-plan-center: var(--dsw-alias-label-secondary); --vc-plan-subject: var(--dsw-alias-link); display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr); gap: 20px; flex: 1; min-height: 0; min-width: 0; color: var(--dsw-alias-label-primary); font-size: 13px; }
+.vc-plan-editor-preview { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+.vc-plan-editor-preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.vc-plan-editor-preview-heading strong { font-weight: 500; }
+.vc-plan-editor-preview-heading span { color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
+.vc-plan-editor-stage { display: grid; place-items: center; flex: 1; min-height: 0; overflow: hidden; background: var(--dsw-alias-bg-layer-1); border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
+.vc-plan-editor-preview svg { display: block; width: 100%; height: 100%; min-height: 0; touch-action: none; }
+.vc-plan-editor-preview svg:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: -3px; }
+.vc-plan-editor-zoom { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; color: var(--dsw-alias-label-secondary); }
+.vc-plan-editor-zoom > span { font-size: 12px; }
+.vc-plan-editor-zoom > div { display: flex; align-items: center; gap: 4px; margin-inline-start: auto; }
+.vc-plan-editor-zoom output { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-primary); }
 .vc-plan-editor-image { cursor: move; }
 .vc-plan-editor-guides { pointer-events: none; }
-.vc-plan-editor-clock { fill: var(--dsw-alias-state-error-secondary); fill-opacity: 0.16; }
-.vc-plan-editor-safe { fill: var(--dsw-alias-state-success-secondary); fill-opacity: 0.08; stroke: var(--dsw-alias-state-success-secondary); }
-.vc-plan-editor-safe-lines { stroke: var(--dsw-alias-state-success-secondary); }
-.vc-plan-editor-overflow { stroke: var(--dsw-alias-link); stroke-dasharray: 10 10; }
-.vc-plan-editor-buffer { fill: var(--dsw-alias-state-warning-secondary); fill-opacity: 0.2; }
-.vc-plan-editor-guide { stroke: var(--dsw-alias-label-secondary); stroke-dasharray: 8 8; }
-.vc-plan-editor-region { fill: var(--dsw-alias-link); fill-opacity: 0.08; stroke: var(--dsw-alias-link); cursor: move; }
-.vc-plan-editor-region[data-role='critical'] { stroke: var(--dsw-alias-state-warning-secondary); }
-.vc-plan-editor-region[data-role='anchor'] { stroke: var(--dsw-alias-state-success-secondary); }
+.vc-plan-editor-clock { fill: var(--vc-plan-clock); fill-opacity: 0.16; }
+.vc-plan-editor-safe { fill: var(--vc-plan-safe); fill-opacity: 0.08; stroke: var(--vc-plan-safe); }
+.vc-plan-editor-safe-lines { stroke: var(--vc-plan-safe); }
+.vc-plan-editor-overflow { stroke: var(--vc-plan-subject); stroke-dasharray: 10 10; }
+.vc-plan-editor-buffer { fill: var(--vc-plan-buffer); fill-opacity: 0.2; }
+.vc-plan-editor-guide { stroke: var(--vc-plan-center); stroke-dasharray: 8 8; }
+.vc-plan-editor-region { fill: var(--vc-plan-subject); fill-opacity: 0.08; stroke: var(--vc-plan-subject); cursor: move; }
+.vc-plan-editor-region[data-role='critical'] { stroke: var(--vc-plan-buffer); }
+.vc-plan-editor-region[data-role='anchor'] { stroke: var(--vc-plan-safe); }
 .vc-plan-editor-region[data-selected] { fill-opacity: 0.2; stroke-width: 3; }
 .vc-plan-editor-region:focus-visible { outline: none; stroke-width: 4; }
 .vc-plan-editor-label { fill: var(--dsw-alias-label-primary); stroke: var(--dsw-alias-bg-base); stroke-width: 7px; paint-order: stroke; pointer-events: none; font-size: 34px; }
-.vc-plan-editor-handle { fill: var(--dsw-alias-link); stroke: var(--dsw-alias-bg-base); stroke-width: 2px; cursor: nwse-resize; }
-.vc-plan-editor-controls { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.vc-plan-editor-controls fieldset { display: grid; gap: 10px; min-width: 0; padding: 12px; margin: 0; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
+.vc-plan-editor-handle { fill: var(--vc-plan-subject); stroke: var(--dsw-alias-bg-base); stroke-width: 2px; cursor: nwse-resize; }
+.vc-plan-editor-controls { display: flex; flex-direction: column; gap: 14px; min-height: 0; min-width: 0; padding-right: 6px; overflow: auto; scrollbar-gutter: stable; }
+.vc-plan-editor-controls fieldset, .vc-plan-editor-key { display: grid; gap: 10px; min-width: 0; padding: 12px; margin: 0; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); }
 .vc-plan-editor-controls legend { padding-inline: 4px; font-weight: 500; }
+.vc-plan-editor-key summary, .vc-plan-editor-evidence summary { cursor: pointer; font-weight: 500; }
+.vc-plan-editor-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.vc-plan-editor-legend-item { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.vc-plan-editor-legend-item strong { display: block; font-weight: 500; }
+.vc-plan-editor-legend-item small { display: block; color: var(--dsw-alias-label-secondary); font-size: inherit; line-height: 1.5; }
+.vc-plan-editor-swatch { --vc-plan-ink: var(--vc-plan-subject); display: flex; align-items: center; justify-content: space-between; gap: 4px; flex: none; width: 32px; height: 20px; color: var(--vc-plan-ink); }
+.vc-plan-editor-swatch i { width: 5px; height: 5px; flex: none; border-radius: 50%; background: currentColor; }
+.vc-plan-editor-swatch b { width: 21px; border-top: 2px solid currentColor; }
+.vc-plan-editor-swatch[data-kind='safe'], .vc-plan-editor-swatch[data-kind='anchor'] { --vc-plan-ink: var(--vc-plan-safe); }
+.vc-plan-editor-swatch[data-kind='clock'] { --vc-plan-ink: var(--vc-plan-clock); }
+.vc-plan-editor-swatch[data-kind='buffer'], .vc-plan-editor-swatch[data-kind='critical'] { --vc-plan-ink: var(--vc-plan-buffer); }
+.vc-plan-editor-swatch[data-kind='center'] { --vc-plan-ink: var(--vc-plan-center); }
+.vc-plan-editor-swatch[data-kind='center'] b, .vc-plan-editor-swatch[data-kind='overflow'] b { border-top-style: dashed; }
+.vc-plan-editor-swatch[data-kind='clock'] b, .vc-plan-editor-swatch[data-kind='buffer'] b { height: 10px; border: 1px solid currentColor; background: currentColor; opacity: 0.35; }
+.vc-plan-editor-swatch[data-kind='subject'] b, .vc-plan-editor-swatch[data-kind='critical'] b, .vc-plan-editor-swatch[data-kind='anchor'] b { height: 10px; border: 2px solid currentColor; }
 .vc-plan-editor-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.vc-plan-editor-placement { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .vc-plan-editor-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.vc-plan-editor-field input { width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-base); color: inherit; font: inherit; }
+.vc-plan-editor-field input { box-sizing: border-box; width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-base); color: inherit; font: inherit; }
 .vc-plan-editor-field input:focus-visible { outline: 2px solid var(--dsw-alias-link); outline-offset: 1px; }
-.vc-plan-editor-actions, .vc-plan-editor-legend { display: flex; flex-wrap: wrap; gap: 8px; }
-.vc-plan-editor-help { margin: 8px 0; color: var(--dsw-alias-label-secondary); line-height: 1.6; }
-.vc-plan-editor-error { padding: 10px; border: 1px solid var(--dsw-alias-state-warning-secondary); border-radius: var(--dsw-radius-sm); }
+.vc-plan-editor-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.vc-plan-editor-help { margin: 0; color: var(--dsw-alias-label-secondary); line-height: 1.6; }
+.vc-plan-editor-key > .vc-plan-editor-help { margin-top: 12px; }
+.vc-plan-editor-error { padding: 10px; border: 1px solid var(--dsw-alias-state-warn-primary); border-radius: var(--dsw-radius-sm); }
 .vc-plan-editor-evidence { white-space: pre-wrap; overflow-wrap: anywhere; }
 .vc-plan-editor[data-disabled] .vc-plan-editor-image, .vc-plan-editor[data-disabled] .vc-plan-editor-region, .vc-plan-editor[data-disabled] .vc-plan-editor-handle { cursor: default; }
-@media (max-width: 600px) { .vc-plan-editor { grid-template-columns: minmax(0, 1fr); } .vc-plan-editor-preview svg { max-height: 55vh; } }
-@media (pointer: coarse) { .vc-plan-editor-field input { font-size: 16px; } }
+@media (max-width: 760px) { .vc-plan-modal-shell > :last-child { overflow: auto; padding-bottom: 4px; } .vc-plan-editor { grid-template-columns: minmax(0, 1fr); flex: none; } .vc-plan-editor-stage { height: 420px; flex: none; } .vc-plan-editor-controls { overflow: visible; padding-right: 0; } .vc-plan-modal-advanced { overflow: visible; max-height: none; } }
+@media (max-width: 440px) { .vc-plan-editor-legend { grid-template-columns: minmax(0, 1fr); } .vc-plan-editor-placement { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (pointer: coarse) { .vc-plan-editor-field input, .vc-plan-modal-advanced textarea { font-size: 16px; } }

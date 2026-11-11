@@ -28,6 +28,7 @@ export class SubscriptionController {
   private readonly lifetime = new AbortController()
   private readonly tasks = new Set<Promise<unknown>>()
   private loading: Promise<void> | undefined
+  private catalogLoading: Promise<void> | undefined
   private pollTimer: ReturnType<typeof setTimeout> | undefined
   private loginEpoch = 0
   private noticeId = 0
@@ -89,29 +90,33 @@ export class SubscriptionController {
   private async reload(): Promise<void> { await this.loading; await this.load() }
 
   /** Read model choices only when their management dialog is opened.
+   * @param quiet Preserve the ready editor during automatic progress reads.
    * @returns Completion after candidates or a localized failure are available.
    */
-  loadCatalog(): Promise<void> {
-    return this.track((async () => {
-      this.patch((state) => { state.catalogStatus = 'loading'; state.catalogError = null })
+  loadCatalog(quiet = false): Promise<void> {
+    if (this.catalogLoading) return this.catalogLoading
+    this.catalogLoading = this.track((async () => {
+      if (!quiet) this.patch((state) => { state.catalogStatus = 'loading'; state.catalogError = null })
       try {
         const catalog = subscriptionCatalog(await this.invoke('model-catalog'))
-        this.patch((state) => { state.catalog = catalog; state.catalogStatus = 'ready' })
+        this.patch((state) => { state.catalog = catalog; state.catalogStatus = 'ready'; state.catalogError = null })
       } catch (error) { this.patch((state) => { state.catalogStatus = 'error'; state.catalogError = this.code(error) === 'INVALID_INPUT' ? 'CATALOG_UPDATE_REQUIRED' : this.code(error) }) }
-    })())
+    })()).finally(() => { this.catalogLoading = undefined })
+    return this.catalogLoading
   }
 
   /** Persist explicit model choices; sign-in never calls this operation or changes defaults.
    * @param entries Complete profile-level text/image choices from the current editor.
    * @param defaultImageModel Explicitly chosen new image default, when requested.
+   * @param autoProbeImages Explicit automatic subscription-check preference, independent from model defaults.
    * @returns Whether saving and refreshing the shared directories completed.
    */
-  saveCatalog(entries: readonly SubscriptionCatalogEntry[], defaultImageModel?: string): Promise<boolean> {
+  saveCatalog(entries: readonly SubscriptionCatalogEntry[], defaultImageModel?: string, autoProbeImages?: boolean): Promise<boolean> {
     return this.track(this.run('models', async () => {
       const current = this.store.getSnapshot().catalog
       if (current === null) throw new SubscriptionFailure('INVALID_RESPONSE')
       let saved: unknown
-      try { saved = await this.invoke('model-catalog-save', { revision: current.revision, entries, ...(defaultImageModel === undefined ? {} : { defaultImageModel }) }) }
+      try { saved = await this.invoke('model-catalog-save', { revision: current.revision, entries, ...(defaultImageModel === undefined ? {} : { defaultImageModel }), ...(autoProbeImages === undefined ? {} : { autoProbeImages }) }) }
       catch (error) { if (this.code(error) === 'REVISION_CONFLICT') await this.loadCatalog(); throw error }
       const catalog = subscriptionCatalog(saved)
       this.patch((state) => { state.catalog = catalog; state.catalogStatus = 'ready'; state.catalogError = null })

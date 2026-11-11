@@ -31,9 +31,14 @@ function environment() {
   Object.assign(globalThis, { document, window: { matchMedia: () => preference, localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } }, getComputedStyle: () => { styleReads++; return { getPropertyValue: () => '0.3s' } }, requestAnimationFrame: callback => { const id = ++nextFrame; frames.set(id, callback); return id }, cancelAnimationFrame: id => frames.delete(id) })
   return { document, preference, get styleReads() { return styleReads }, frame() { const current = [...frames.values()]; frames.clear(); for (const callback of current) callback(0) }, restore() { for (const [key, descriptor] of Object.entries(previous)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key] } } }
 }
+const animations = []
+let curveLength = 320
 function componentFixture(create, initialProps, React = {
-  memo: component => component, Fragment: Symbol('fixture-fragment'),
-  createElement(type, attributes, ...children) { if (attributes?.ref && typeof attributes.ref === 'object') attributes.ref.current ??= { focus() {} }; return { type, props: { ...attributes, children } } },
+  memo: component => component, Fragment: Symbol('fixture-fragment'), createRef: () => ({ current: null }),
+  createElement(type, attributes, ...children) { if (attributes?.ref && typeof attributes.ref === 'object') attributes.ref.current ??= { focus() {}, style: {}, setAttribute() {}, getTotalLength: () => curveLength, getPointAtLength: at => ({ x: at, y: 0 }), animate() {
+      const motion = { currentTime: 0, playState: 'running', effect: { updateTiming() {}, setKeyframes() {} }, play() { this.playState = 'running' }, pause() { this.playState = 'paused' }, cancel() { this.playState = 'idle' } }
+      animations.push(motion); return motion
+    } }; return { type, props: { ...attributes, children } } },
 }) {
   const cells = [], effects = [], pending = []
   let cursor = 0, dirty = false, value, props = initialProps
@@ -63,28 +68,31 @@ function elements(value, predicate) {
   if (!value || typeof value !== 'object') return []
   return [...predicate(value) ? [value] : [], ...elements(value.props?.children, predicate)]
 }
-const particleCount = fixture => elements(fixture.value, element => element.type === 'animateMotion').length
-
-test('static edges avoid motion listeners; active motion pauses for interaction, hidden pages and reduced motion', () => {
+test('active edge geometry and content updates retain one timeline; task, visibility and motion preference pause it', () => {
   const env = environment(), props = { id: 'edge', sourceX: 0, sourceY: 0, targetX: 300, targetY: 100, sourcePosition: 'right', targetPosition: 'left', markerEnd: 'saved-arrow', data: { phase: 'completed', flowing: false } }
+  animations.length = 0
   const fixture = componentFixture(React => createWorkflowEdge(React), props)
   try {
-    assert.equal(particleCount(fixture), 0); assert.equal(env.document.count + env.preference.count, 0); assert.equal(env.styleReads, 0)
+    assert.equal(animations.length, 0); assert.equal(env.document.count + env.preference.count, 0)
     fixture.update({ ...props, data: { phase: 'running', flowing: true } })
-    assert.equal(particleCount(fixture), 3); assert.equal(env.document.count + env.preference.count, 2)
-    fixture.update({ ...props, data: { phase: 'running', flowing: true, motionPaused: true } })
-    assert.equal(particleCount(fixture), 0); assert.equal(env.document.count + env.preference.count, 0)
-    assert.equal(fixture.value.props['data-flowing'], true)
+    assert.equal(animations.length, 6); assert.equal(env.document.count + env.preference.count, 2)
+    const motion = animations[0]; for (const item of animations) item.currentTime = 650
+    curveLength = 800
+    fixture.update({ ...props, label: 'Updated progress', targetY: 200, data: { phase: 'running', flowing: true } })
+    assert.equal(animations.length, 6); assert.equal(motion.currentTime, 650); assert.equal(motion.playState, 'running')
     assert.equal(elements(fixture.value, element => element.props?.markerEnd === 'saved-arrow').length, 1)
+    fixture.update({ ...props, data: { phase: 'paused', flowing: false } })
+    assert.equal(animations.length, 6); assert.equal(motion.currentTime, 650); assert.equal(motion.playState, 'paused')
     fixture.update({ ...props, data: { phase: 'running', flowing: true } })
-    env.document.hidden = true; env.document.dispatchEvent(new Event('visibilitychange')); fixture.flush(); assert.equal(particleCount(fixture), 0)
-    env.document.hidden = false; env.document.dispatchEvent(new Event('visibilitychange')); fixture.flush(); assert.equal(particleCount(fixture), 3)
-    env.preference.matches = true; env.preference.dispatchEvent(new Event('change')); fixture.flush(); assert.equal(particleCount(fixture), 0)
-    env.preference.matches = false; env.preference.dispatchEvent(new Event('change')); fixture.flush(); assert.equal(particleCount(fixture), 3)
-    for (const phase of ['idle', 'failed', 'blocked', 'paused', 'cancelled', 'completed']) {
-      fixture.update({ ...props, data: { phase, flowing: false } })
-      assert.equal(particleCount(fixture), 0); assert.equal(env.document.count + env.preference.count, 0)
-    }
+    assert.equal(animations.length, 6); assert.equal(motion.playState, 'running')
+    env.document.hidden = true; env.document.dispatchEvent(new Event('visibilitychange')); assert.equal(motion.playState, 'paused')
+    env.document.hidden = false; env.document.dispatchEvent(new Event('visibilitychange')); assert.equal(motion.playState, 'running')
+    env.preference.matches = true; env.preference.dispatchEvent(new Event('change')); assert.equal(motion.playState, 'paused')
+    env.preference.matches = false; env.preference.dispatchEvent(new Event('change')); assert.equal(motion.playState, 'running')
+    fixture.update(props); assert.equal(motion.playState, 'paused'); assert.equal(env.document.count + env.preference.count, 0)
+    fixture.update({ ...props, data: { phase: 'queued', flowing: false } })
+    fixture.update({ ...props, data: { phase: 'running', flowing: true } })
+    assert.equal(animations.length, 6); assert.equal(motion.currentTime, 650); assert.equal(motion.playState, 'running')
   } finally { fixture.dispose(); assert.equal(env.document.count + env.preference.count, 0); env.restore() }
 })
 
@@ -214,15 +222,15 @@ test('ReactFlow keeps folded reference and dataset headers and ports visible aft
   }
 })
 
-test('automatic focus keeps following stages until user navigation and every viewport movement pauses particles', () => {
+test('automatic focus follows stages until user navigation without pausing edge motion', () => {
   const f = canvasFixture()
   try {
     f.frames(); assert.equal(f.fits.length, 1, 'The first launch has one automatic fit')
     const first = f.fits[0]
     f.flow().props.onMoveStart(null); f.fixture.flush()
-    assert.ok(f.flow().props.edges.every(edge => edge.data.motionPaused))
+    assert.ok(f.flow().props.edges.every(edge => !('motionPaused' in edge.data)))
     f.flow().props.onMoveEnd(null, f.viewport); f.fixture.flush()
-    assert.ok(f.flow().props.edges.every(edge => !edge.data.motionPaused))
+    assert.ok(f.flow().props.edges.every(edge => !('motionPaused' in edge.data)))
     f.stage('downloading'); f.frames(); assert.equal(f.fits.length, 2); assert.notDeepEqual(f.fits[1], first)
     f.flow().props.onMoveStart({ type: 'pointerdown' }); f.fixture.flush()
     f.flow().props.onMoveEnd({ type: 'pointerup' }, f.viewport); f.fixture.flush()
@@ -267,4 +275,17 @@ test('only the node entrance animation clears its marker and virtualization does
     node.dispose(); node = undefined
     replay = componentFixture(() => Component, { data, selected: false }, f.fixture.React); assert.equal(replay.value.props['data-entering'], undefined)
   } finally { node?.dispose(); replay?.dispose(); f.dispose() }
+})
+
+test('stacked workflow nodes switch to bottom and top ports without moving the nodes', () => {
+  const f = canvasFixture()
+  try {
+    f.stage('completed'); f.batches.page.batches[0].workflowSource = { modelProfileId: 'profile', references: 5, revision: 1 }; f.fixture.update()
+    f.flow().props.onNodesChange([{type:'position',id:'launch:dataset',position:{x:0,y:600}},{type:'position',id:'launch:results',position:{x:0,y:1200}}]); f.fixture.flush()
+    const flow=f.flow(), edge=flow.props.edges.find(edge=>edge.source==='launch:dataset'&&edge.target==='launch:results')
+    const source=flow.props.nodes.find(node=>node.id===edge.source), target=flow.props.nodes.find(node=>node.id===edge.target)
+    assert.equal(source.data.ports.find(port=>port.id===edge.sourceHandle).side,'bottom')
+    assert.equal(target.data.ports.find(port=>port.id===edge.targetHandle).side,'top')
+    assert.deepEqual(source.position,{x:0,y:600});assert.deepEqual(target.position,{x:0,y:1200})
+  } finally { f.dispose() }
 })

@@ -35,9 +35,10 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Authenticate the native HTTP client through the Web application's launch URL.
- * @param authenticatedUrl - URL supplied by the running Desktop Host.
- * @param send - Electron session fetch, retaining the Web authentication cookie.
+ * Authenticate the native HTTP client through the owned Web Host.
+ * @param authenticatedUrl - Host URL; the transport may already hold its browser cookie.
+ * @param send - Native HTTP transport carrying the Host's authentication cookie.
+ * @param cookies - Host-owned cookie header for the native account stream.
  * @returns metadata reads and write-only credential operations over standard RPC.
  */
 export async function connectDesktopWelcome(
@@ -48,7 +49,7 @@ export async function connectDesktopWelcome(
   const origin = new URL(authenticatedUrl).origin
   const authenticated = await send(authenticatedUrl, { credentials: 'include' })
   await authenticated.body?.cancel()
-  if (!authenticated.ok) throw new Error('desktop welcome: Web authentication failed')
+  if (!authenticated.ok) throw new Error(`desktop welcome: Web authentication failed (HTTP ${String(authenticated.status)})`)
   const invoke = async (
     request: { namespace: string; method: string; args: Record<string, unknown> },
     signal?: AbortSignal,

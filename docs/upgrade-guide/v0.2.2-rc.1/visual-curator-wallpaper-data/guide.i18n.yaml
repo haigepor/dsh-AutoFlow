@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.1/visual-curator-wallpaper-data/guide.md
 /:
-  en: 963d6bc2b3fc5cc8
-  zh: 1e18fc0c19ed771d
+  en: aa3acff424d77858
+  zh: 15ef19ac58ed7598
 /visual-curator-wallpaper-data:
   en: 0279fe321399ce08
   zh: 209bbc3ecb666fc3
 /visual-curator-wallpaper-data/change:
-  en: aaf451810828a7f1
-  zh: f2743be87fb6243e
+  en: 566e8af2ad20161d
+  zh: 04627f20cad8d251
 /visual-curator-wallpaper-data/migration:
-  en: a89366b353658924
-  zh: d9bf94e9c0297c10
+  en: 2aff9d37c88472bc
+  zh: 37ab81cafe50af10

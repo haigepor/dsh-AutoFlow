@@ -1,5 +1,6 @@
 /** Search feedback copy uses the existing typed locale dictionary. */
 export const feedbackEn = {
+  taskMinimize: 'Minimize to a floating capsule', taskRestore: 'Expand task card',
   searchLaunchDatasetAutomatic: 'Automatic · current complete package', searchLaunchDatasetAutomaticHint: 'Reuses the current complete package. If missing, it is prepared before search starts.',
   searchLaunchDatasetAutoSelected: 'Selected automatically', searchLaunchDatasetReady: 'Ready to use', searchLaunchDatasetPrepareTitle: 'Prepare the current package', searchLaunchDatasetPrepareHint: 'A complete package will be prepared in the new conversation before search starts.', searchLaunchDatasetRoles: 'Positive {positive} · Negative {negative}', searchLaunchDatasetUpdated: 'Saved {date}',
   searchLaunchNegativesAutomatic: 'Include valid negative references', searchLaunchNegativesSummary: '{datasets} negative datasets · {references} unique negative images', searchLaunchNegativesHint: 'Uses the current collection’s saved observations. Repeated images appear once; removed references and images now marked positive are excluded.', searchLaunchNegativesFailed: 'A negative dataset could not be verified. Refresh or regenerate the affected package, then continue the same task.',
@@ -24,7 +25,7 @@ export const feedbackEn = {
   taskResizeWidth: 'Resize task card', taskResizeWidthHint: 'Drag the left edge to resize; double-click to reset. Arrow keys, Home and End also adjust width.', taskDockNoResults: 'No saved image results yet', taskDockDeliveryPending: 'No delivery receipt yet',
   taskConversation: 'Visual Curator task', taskSwitch: 'Choose a task', taskExpand: 'Show results', taskCollapse: 'Hide results', taskCallReturned: 'Call returned',
   taskLaunchTarget: 'Target images', taskLaunchPendingHint: 'Your search requirements are saved. Image progress appears here after the model starts the search.',
-  taskLaunchAwaitingSearch: 'Preparing search', taskLaunchCollapse: 'Hide details',
+  taskLaunchAwaitingSearch: 'Conversation preparing search', taskLaunchCollapse: 'Hide details',
   taskLaunchAttachingHint: 'Preparing the profile and conversation task', taskLaunchSubmittingHint: 'Submitting the task to the conversation', taskLaunchAcceptedHint: 'Conversation started; image search has not started yet',
   taskMoreResults: 'Load more images', taskSavedCandidatesHint: 'Showing saved, deduplicated image candidates',
   taskLookupFailed: 'Source details could not be retrieved',
@@ -44,6 +45,7 @@ export const feedbackEn = {
   taskStageRetrieving: 'Retrieving originals', taskStageScreening: 'Screening images', taskStageReviewing: 'Final review', taskStageCropping: 'Rendering crops', taskStageExporting: 'Saving results',
 }
 export const feedbackZh: typeof feedbackEn = {
+  taskMinimize: '收为悬浮胶囊', taskRestore: '展开任务卡片',
   searchLaunchDatasetAutomatic: '自动选择当前完整包', searchLaunchDatasetAutomaticHint: '优先复用当前完整包，缺少时在新会话中整理生成后继续找图',
   searchLaunchDatasetAutoSelected: '自动选用', searchLaunchDatasetReady: '可直接使用', searchLaunchDatasetPrepareTitle: '准备当前风格包', searchLaunchDatasetPrepareHint: '开始后会在新会话中整理生成完整包，再继续找图', searchLaunchDatasetRoles: '正例 {positive} · 反例 {negative}', searchLaunchDatasetUpdated: '保存于 {date}',
   searchLaunchNegativesAutomatic: '自动加入有效反例', searchLaunchNegativesSummary: '{datasets} 个反例数据集 · {references} 张反例图片（去重）', searchLaunchNegativesHint: '使用当前素材集已保存的观察；重复图片只带一份，已移除或已改为正例的历史参考不会加入。', searchLaunchNegativesFailed: '反例数据集未能通过核验，请刷新或重新生成对应包后继续原任务。',
@@ -68,8 +70,8 @@ export const feedbackZh: typeof feedbackEn = {
   taskResizeWidth: '调整任务卡片宽度', taskResizeWidthHint: '拖动左边缘调整宽度，双击恢复默认；也可使用左右方向键及 Home、End', taskDockNoResults: '暂未保存图片结果', taskDockDeliveryPending: '尚无交付回执',
   taskConversation: '视觉策展任务', taskSwitch: '选择任务', taskExpand: '展开结果', taskCollapse: '收起结果', taskCallReturned: '调用已返回',
   taskLaunchTarget: '目标图片', taskLaunchPendingHint: '找图要求已保存；模型开始检索后，这里会显示实际图片进度。',
-  taskLaunchAwaitingSearch: '检索准备中', taskLaunchCollapse: '收起详情',
-  taskLaunchAttachingHint: '正在准备画像附件和会话任务', taskLaunchSubmittingHint: '正在将任务提交到会话', taskLaunchAcceptedHint: '会话已启动，图片检索尚未开始',
+  taskLaunchAwaitingSearch: '会话准备检索', taskLaunchCollapse: '收起详情',
+  taskLaunchAttachingHint: '正在准备画像附件和会话任务', taskLaunchSubmittingHint: '正在将任务提交到会话', taskLaunchAcceptedHint: '会话已接收需求，等待模型调用找图工具',
   taskMoreResults: '加载更多图片', taskSavedCandidatesHint: '列表展示已保存的去重图片候选',
   taskLookupFailed: '暂时无法获取图库来源信息',
   taskReadProgress: '读取任务进度', taskReading: '正在读取已保存进度', taskLive: '实时任务数据', taskSaved: '已保存任务数据',

@@ -5,7 +5,6 @@ import type {} from '@deepseek-ai/dsh-client-resources/client'
 import type { ImageViewTask } from '../shared/image-view.ts'
 import { imageSessionAddress } from './resource.ts'
 import { imageEstimate, imageTaskActive, recordedImageTask, selectImageTask, sessionGallery, type GalleryImage } from './model.ts'
-import { mountLoadingDots } from './motion.ts'
 import type {} from './locales.ts'
 import type {} from './conversation.ts'
 
@@ -17,7 +16,7 @@ type SurfaceProps = Pick<ImageCardProps, 'sessionId' | 'callId' | 'useResource' 
   settled: boolean; failed: boolean; live?: boolean | undefined; saved?: ImageViewTask | undefined
 }
 type ReactRuntime = typeof import('react')
-type Primitives = Pick<typeof import('@deepseek-ai/dsh-client-ui-primitives'), 'Modal' | 'FileTypeIcon'> & { IconCloseOutlineRegular: import('react').ComponentType<{ size: number }> }
+type Primitives = Pick<typeof import('@deepseek-ai/dsh-client-ui-primitives'), 'Modal' | 'FileTypeIcon' | 'ImageGenerationSkeleton'> & { IconCloseOutlineRegular: import('react').ComponentType<{ size: number }> }
 
 /** Build stable component identities once from the shell's React and Modal instances.
  * @param React Shared framework instance.
@@ -25,17 +24,12 @@ type Primitives = Pick<typeof import('@deepseek-ai/dsh-client-ui-primitives'), '
  * @returns Compact tool renderer and independent conversation image renderer.
  */
 export function createImageCard(React: ReactRuntime, ui: Primitives) {
-  const { Modal, IconCloseOutlineRegular, FileTypeIcon } = ui
-  function Dots() {
-    const canvas = React.useRef<HTMLCanvasElement>(null)
-    React.useEffect(() => canvas.current ? mountLoadingDots(canvas.current) : undefined, [])
-    return <canvas ref={canvas} className="ci-dots" aria-hidden="true" />
-  }
+  const { Modal, IconCloseOutlineRegular, FileTypeIcon, ImageGenerationSkeleton } = ui
   function GeneratedImage({ image, mediaUrl, t, open }: { image: GalleryImage; open(): void } & Pick<ImageCardProps, 'mediaUrl' | 't'>) {
     const [ready, setReady] = React.useState(false), [failed, setFailed] = React.useState(false), [attempt, setAttempt] = React.useState(0)
     return <div className="ci-image-item">
       <button type="button" className="ci-frame ci-result" aria-label={t('openImage')} aria-busy={!ready && !failed} disabled={!ready || failed} onClick={open}>
-        {!ready && !failed && <Dots />}
+        {!ready && !failed && <ImageGenerationSkeleton className="ci-dots" />}
         {!failed && <img src={mediaUrl(image.taskId, image.assetId, 'preview', attempt)} alt={image.name || t('image')} decoding="async" data-ready={ready} onLoad={() => setReady(true)} onError={() => setFailed(true)} />}
         {failed && <span className="ci-media-failure">{t('imageFailed')}</span>}
       </button>
@@ -86,7 +80,7 @@ export function createImageCard(React: ReactRuntime, ui: Primitives) {
         : !settled ? t('preparing') : t('unavailable')
     return <article className="ci-tool" data-codex-image-card data-state={state ?? (settled ? 'result' : 'start')} data-compact={false} aria-label={active && !progress && settled ? t('loadingImage') : title}>
       {assets.length > 0 ? <div className="ci-images">{assets.map(image => <GeneratedImage key={image.key} image={image} mediaUrl={mediaUrl} t={t} open={() => setSelected(image.key)} />)}</div>
-        : <div className="ci-frame ci-pending" aria-busy={active}>{active && <Dots />}{(!active || progress) && <div className="ci-pill" role={progress ? 'progressbar' : 'status'} aria-label={progress ? t('estimated') : title}
+        : <div className="ci-frame ci-pending" aria-busy={active}>{active && <ImageGenerationSkeleton className="ci-dots" />}{(!active || progress) && <div className="ci-pill" role={progress ? 'progressbar' : 'status'} aria-label={progress ? t('estimated') : title}
           aria-valuemin={progress ? 0 : undefined} aria-valuemax={progress ? 100 : undefined} aria-valuenow={progress ? imageEstimate(task, now) : undefined}>
           {progress ? <><small>{t('estimated')}</small><span>{imageEstimate(task, now)}%</span></> : title}</div>}</div>}
       {resource.status === 'failed' && <p className="ci-notice" role="status">{t('reconnecting')}</p>}

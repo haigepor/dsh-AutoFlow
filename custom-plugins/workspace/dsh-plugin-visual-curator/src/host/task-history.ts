@@ -18,9 +18,9 @@ export function hiddenLaunchIds(repository: DomainRepository): ReadonlySet<strin
   return new Set(repository.manifests('workflow-history-hidden:').flatMap(manifest => workflowHistoryMarkerSchema.parse(manifest.state).launchIds))
 }
 
-/** @param repository Owning profile. @param run Already-authorized run. @param operationId Idempotent human action. @returns Durable deletion receipt; saved results remain addressable. */
-export async function deleteTaskHistory(repository: DomainRepository, run: RunRecord, operationId: string): Promise<{ runId: string; deleted: true }> {
-  if (!['completed', 'failed', 'cancelled'].includes(run.status)) throw new CuratorError('constraint-conflict', 'task-delete', 'Stop the task before deleting its history entry.')
+/** @param repository Owning profile. @param run Already-authorized list entry. @param operationId Idempotent human action. @param current Authorized current snapshot when this entry aggregates revisions; the caller checks execution blockers. @returns Durable deletion receipt; saved results remain addressable. */
+export async function deleteTaskHistory(repository: DomainRepository, run: RunRecord, operationId: string, current = run): Promise<{ runId: string; deleted: true }> {
+  if (!['completed', 'failed', 'cancelled'].includes(current.status)) throw new CuratorError('constraint-conflict', 'task-delete', 'Stop the task before deleting its history entry.')
   const aggregateId = `${prefix}${run.id}`, prior = repository.manifest(aggregateId)
   await repository.commit({ aggregateId, expectedRevision: prior?.revision ?? 0, operationId, request: { runId: run.id }, records: [], state: { runId: run.id, hidden: true } })
   return { runId: run.id, deleted: true }

@@ -86,6 +86,22 @@ test('spent text quota does not imply image entitlement or change the saved cred
   } finally { await f.close() }
 })
 
+test('automatic image probes pin the requested account and recheck included quota before dispatch', async () => {
+  let used = 0, calls = 0
+  const f = await fixture(async () => Response.json({ rate_limit: { allowed: true, primary_window: { used_percent: used, reset_at: 2000000000 } }, credits: { has_credits: false, unlimited: false } }))
+  try {
+    await f.seed(['a', 'b'])
+    for (const id of ['a', 'b']) await f.accounts.update(keyFor(id), { revision: 1, allowCredits: false })
+    const request = { kind: 'image' as const, accountKey: keyFor('b'), includedQuotaOnly: { minimumRemainingPercent: 50 } }
+    assert.equal(await f.accounts.withAccount(request, async lease => { calls++; return lease.accountKey }), keyFor('b'))
+    used = 90; await f.accounts.refreshAccount(keyFor('b'))
+    await assert.rejects(f.accounts.withAccount(request, async () => { calls++ }), { code: 'NO_AVAILABLE_ACCOUNT' })
+    assert.equal(calls, 1)
+    assert.equal(await f.accounts.withAccount({ kind: 'image', accountKey: keyFor('b') }, async () => true), true)
+    assert.equal((await f.accounts.getAccountStatus(keyFor('b'))).allowCredits, false)
+  } finally { await f.close() }
+})
+
 test('a model rejection switches accounts without blocking other models on the first account', async () => {
   const f = await fixture(async input => String(input).includes('/codex/models')
     ? Response.json({ models: [{ slug: 'gpt-6.1-sol' }, { slug: 'gpt-6-sol' }] }) : Response.json({ rate_limit: {} }))

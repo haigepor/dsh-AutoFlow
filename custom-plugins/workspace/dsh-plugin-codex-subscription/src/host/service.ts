@@ -26,6 +26,7 @@ import { resolveOptions, type Config, type SubscriptionOptions } from './config.
 import { configureSchema, managementSchema, snapshotSchema, type ManagementSnapshot } from '../shared/management.ts'
 import { saveModelCatalogSchema, type ModelCatalog } from '../shared/model-catalog.ts'
 import type { CodexModelView } from './accounts/types.ts'
+import { openImageCatalog } from './image-catalog.ts'
 
 /** Independent Home-scoped gateway credential; all active profiles observe its revocation. */
 export const GATEWAY_KEY = credentialKey('codex-subscription', 'gateway')
@@ -52,6 +53,7 @@ export interface SubscriptionHost {
 export interface SubscriptionDependencies {
   readonly fetch?: typeof globalThis.fetch
   readonly openRepository?: typeof openImageTaskRepository
+  readonly openImageCatalog?: typeof openImageCatalog
   readonly startRelay?: typeof startRelay
 }
 
@@ -65,6 +67,7 @@ export class CodexSubscriptionService {
   readonly accounts: CodexAccounts
   images!: ImageService
   private repository: ImageTaskRepository | undefined
+  private imageCatalog: Awaited<ReturnType<typeof openImageCatalog>> | undefined
   private readonly transport: CodexResponsesTransport
   private readonly upstream: CodexUpstream
   private readonly versions: CodexVersion
@@ -134,8 +137,18 @@ export class CodexSubscriptionService {
     const candidates = await this.accounts.models()
     const { revision, options } = this.catalogConfiguration()
     return { revision, entries: structuredClone(options.catalog), defaultImageModel: options.images.defaultModel,
+      ...(this.imageCatalog ? { imageDiscovery: this.imageCatalog.read() } : {}),
       candidates: candidates.map(model => ({ id: model.id, name: model.name, contextWindow: model.contextWindow, maxTokens: model.maxTokens, input: [...model.input],
         ...model.nativeWebSearch === undefined ? {} : { nativeWebSearch: model.nativeWebSearch } })) }
+  }
+
+  /** List configured and officially published image choices without changing the default.
+   * @returns Configured and cached image IDs; listing them never probes a model or account.
+   */
+  imageModels(): { id: string; name: string }[] {
+    const models = new Map(this.options.catalog.filter(entry => entry.kind === 'image').map(entry => [entry.id, { id: entry.id, name: entry.name }]))
+    for (const model of this.imageCatalog?.models() ?? []) if (!models.has(model.id)) models.set(model.id, { id: model.id, name: model.name })
+    return [...models.values()]
   }
 
   private catalogConfiguration(): { revision: number; options: SubscriptionOptions } {
@@ -173,6 +186,10 @@ export class CodexSubscriptionService {
         this.ctx.logger.error('Codex image task state could not be persisted; inspect task history before retrying.')
       } })
     await this.images.initialize()
+    this.imageCatalog = await (this.dependencies.openImageCatalog ?? openImageCatalog)({ storage: this.ctx.storageDomain, domainName: `codex_subscription_image_catalog_${profileId}`,
+      accounts: this.accounts, images: this.images, fetch: this.fetch, options: () => this.options.imageDiscovery,
+      pollIntervalMs: () => this.options.images.uiPollIntervalMs, signal: this.lifetime.signal,
+      reportError: () => { this.ctx.logger.error('Image model discovery failed; inspect model verification status before retrying.') } })
     try { await this.reconfigure(this.options) } catch (error) {
       if (!(error instanceof ManagementError) || !['GATEWAY_KEY_REQUIRED', 'RELAY_START_FAILED'].includes(error.code)) throw error
       // 中转状态单独报告；端口冲突或密钥撤销不能撤下订阅模型和授权管理能力。
@@ -461,8 +478,9 @@ export class CodexSubscriptionService {
     await Promise.allSettled([this.initialization, this.updates, this.controls])
     const results = await Promise.allSettled([this.relay?.close(), this.transport.dispose(), this.images?.dispose()])
     await Promise.allSettled(this.foreground)
+    const catalogResult = await Promise.allSettled([this.imageCatalog?.close()])
     const repositoryResult = await Promise.allSettled([this.repository?.close(), this.versions.dispose()])
-    const failures = [...results, ...await accountResults, ...repositoryResult].filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+    const failures = [...results, ...await accountResults, ...catalogResult, ...repositoryResult].filter((result): result is PromiseRejectedResult => result.status === 'rejected')
     if (failures.length > 0) throw new AggregateError(failures.map(result => result.reason), 'Codex subscription shutdown did not release every resource')
   }
 }

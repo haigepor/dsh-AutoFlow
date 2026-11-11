@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-menu-density",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator menus use consistent moderate spacing and readable text, with narrower popups that no longer expand to match wide fields.",
+    "zh-CN": "视觉策展菜单统一采用适中字号与间距，收紧弹出菜单和选择框，宽输入框不再强制撑大菜单。"
+  }
+}

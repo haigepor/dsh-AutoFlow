@@ -1,5 +1,9 @@
 # Third-party notices
 
+ESPCN x3 luminance super-resolution model: [ONNX Model Zoo](https://github.com/onnx/models/tree/main/validated/vision/super_resolution/sub_pixel_cnn_2016), Apache-2.0; full license is in `assets/models/espcn-LICENSE`. The shipped 240078-byte model has SHA256 `85f36ff88cc504a24af5e0602148bc56a8aa09a58eca8c0da2756f3e8186035e`, verified against the official Git LFS pointer. It creates inferred detail, not evidence that missing real detail was recovered.
+
+CPU inference: [ONNX Runtime](https://github.com/microsoft/onnxruntime), MIT, loaded through `onnxruntime-web/wasm` only in the bounded enhancement worker. Its dependency distribution includes its license.
+
 License for the Cropper.js v2.3.1 development dependency, `@cropper/elements` and its component modules.
 
 Source: https://github.com/fengyuanchen/cropperjs

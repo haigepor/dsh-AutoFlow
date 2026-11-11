@@ -6,15 +6,15 @@ import ipaddr from 'ipaddr.js'
 import { checkCancelled, invalidInput, MediaError } from './errors.ts'
 
 /** Per-attempt bounds, already reserved by the Run owner; this layer never retries. */
-export interface RequestBounds { maxBytes: number; timeoutMs: number; maxRedirects: number; signal?: AbortSignal | undefined; connectTimeoutMs?: number | undefined }
+export interface RequestBounds { maxBytes: number; timeoutMs: number; maxRedirects: number; signal?: AbortSignal | undefined; connectTimeoutMs?: number | undefined; idleTimeoutMs?: number | undefined }
 /** Request parameters; authentication is sent only to the initial exact origin. */
-export interface HttpRequest extends RequestBounds { method: 'GET' | 'POST'; headers?: Readonly<Record<string, string>>; body?: Uint8Array | undefined; onChunk?: (chunk: Uint8Array, contentType: string) => void }
+export interface HttpRequest extends RequestBounds { method: 'GET' | 'POST'; headers?: Readonly<Record<string, string>>; body?: Uint8Array | undefined; onChunk?: (chunk: Uint8Array, contentType: string) => void; /** Optional observer receives successful response-body byte counts, starting at zero; absent performs no observation. */ onProgress?: (progress: { receivedBytes: number; totalBytes?: number }) => void }
 /** Bounded response bytes; upstream URLs and raw failures are not exposed. */
 export interface HttpResponse { status: number; headers: Readonly<Record<string, string>>; bytes: Buffer; remoteAddress?: string }
 /** An injected fixture implements this interface without changing production DNS policy. */
 export interface HttpClient { request(url: string, request: HttpRequest): Promise<HttpResponse> }
-/** Only deployment-approved origins may be contacted; the fixed local exception is vision-only. */
-export interface NetworkPolicy { allowedOrigins: readonly string[]; localVisionOrigin?: string }
+/** Public media stays HTTPS-only; private vision and server API exceptions are exact deployment origins. */
+export interface NetworkPolicy { allowedOrigins: readonly string[]; localVisionOrigin?: string; localServerOrigin?: string }
 /** DNS records are resolved once and pinned for the ensuing connection. */
 export type DnsResolver = (hostname: string) => Promise<readonly { address: string; family: number }[]>
 
@@ -33,7 +33,7 @@ export function isPublicAddress(address: string): boolean {
   }
 }
 
-function blocked(): MediaError { return new MediaError('invalid-input', 'network', false, 'The request destination is not permitted.', 'Use an approved public origin or the configured fixed local vision service.') }
+function blocked(): MediaError { return new MediaError('invalid-input', 'network', false, 'The request destination is not permitted.', 'Use an approved public origin or an explicitly configured fixed local service.') }
 
 /** Validate a configured endpoint without resolving DNS or starting a request.
  * @param raw Endpoint URL, never copied into error messages.
@@ -48,7 +48,7 @@ export function validateEndpoint(raw: string, policy: NetworkPolicy): URL {
     throw blocked()
   }
   if (url.username || url.password || url.hash || !['http:', 'https:'].includes(url.protocol)) throw blocked()
-  const local = policy.localVisionOrigin !== undefined && url.origin === policy.localVisionOrigin
+  const local = url.origin === policy.localVisionOrigin || url.origin === policy.localServerOrigin
   if (!local && (url.protocol !== 'https:' || !policy.allowedOrigins.includes(url.origin))) throw blocked()
   return url
 }
@@ -68,11 +68,12 @@ export class SafeHttpClient implements HttpClient {
         if (error instanceof Error) throw invalidInput('Allowed network origins must be valid URLs.')
         throw invalidInput('Allowed network origins must be valid URLs.')
       }
-      if (url.origin !== origin || (url.protocol !== 'https:' && origin !== policy.localVisionOrigin) || url.username || url.password) throw invalidInput('Allowed network origins must be exact HTTPS origins or the fixed local vision origin.')
+      if (url.origin !== origin || (url.protocol !== 'https:' && origin !== policy.localVisionOrigin && origin !== policy.localServerOrigin) || url.username || url.password) throw invalidInput('Allowed network origins must be exact HTTPS origins or an explicitly configured fixed local service.')
     }
-    if (policy.localVisionOrigin !== undefined) {
-      const url = new URL(policy.localVisionOrigin)
-      if (url.origin !== policy.localVisionOrigin || !['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw invalidInput('The local vision exception must be one exact HTTP or HTTPS origin.')
+    for (const localOrigin of [policy.localVisionOrigin, policy.localServerOrigin]) {
+      if (localOrigin === undefined) continue
+      const url = new URL(localOrigin)
+      if (url.origin !== localOrigin || !['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw invalidInput('A local service exception must be one exact HTTP or HTTPS origin.')
     }
   }
 
@@ -83,7 +84,7 @@ export class SafeHttpClient implements HttpClient {
    */
   async request(raw: string, input: HttpRequest): Promise<HttpResponse> {
     if (!Number.isSafeInteger(input.maxBytes) || input.maxBytes <= 0 || !Number.isSafeInteger(input.timeoutMs) || input.timeoutMs <= 0
-      || !Number.isSafeInteger(input.maxRedirects) || input.maxRedirects < 0) throw invalidInput('HTTP request bounds must be finite positive integers.')
+      || !Number.isSafeInteger(input.maxRedirects) || input.maxRedirects < 0 || input.idleTimeoutMs !== undefined && (!Number.isSafeInteger(input.idleTimeoutMs) || input.idleTimeoutMs <= 0)) throw invalidInput('HTTP request bounds must be finite positive integers.')
     checkCancelled(input.signal)
     const initialOrigin = validateEndpoint(raw, this.policy).origin
     const controller = new AbortController()
@@ -138,7 +139,7 @@ export class SafeHttpClient implements HttpClient {
       ])
     } finally { if (abortDns !== undefined) input.signal?.removeEventListener('abort', abortDns) }
     checkCancelled(input.signal)
-    if (records.length === 0 || records.some(record => record.family !== 4 && record.family !== 6) || (url.origin !== this.policy.localVisionOrigin && records.some(record => !isPublicAddress(record.address)))) throw blocked()
+    if (records.length === 0 || records.some(record => record.family !== 4 && record.family !== 6) || (url.origin !== this.policy.localVisionOrigin && url.origin !== this.policy.localServerOrigin && records.some(record => !isPublicAddress(record.address)))) throw blocked()
     const address = records[0]
     if (address === undefined || (address.family !== 4 && address.family !== 6)) throw blocked()
     return await new Promise<HttpResponse>((resolveResponse, reject) => {
@@ -163,11 +164,14 @@ export class SafeHttpClient implements HttpClient {
         if (declared !== undefined && (!/^\d+$/.test(declared) || Number(declared) > input.maxBytes)) { response.destroy(); reject(new MediaError('budget-exhausted', 'network', false, 'The remote response exceeds the configured byte limit.', 'Increase the allowed response size or request a smaller resource.')); return }
         const chunks: Buffer[] = []
         let size = 0
+        const successful = response.statusCode !== undefined && response.statusCode >= 200 && response.statusCode < 300
+        const notifyProgress = () => { if (successful) input.onProgress?.({ receivedBytes: size, ...(declared === undefined ? {} : { totalBytes: Number(declared) }) }) }
+        try { notifyProgress() } catch (error) { response.destroy(); reject(error); return }
         response.on('data', (chunk: Buffer) => {
           size += chunk.length
           if (size > input.maxBytes) { response.destroy(); reject(new MediaError('budget-exhausted', 'network', false, 'The remote response exceeds the configured byte limit.', 'Request a smaller resource.')); return }
           chunks.push(chunk)
-          try { if (response.statusCode && response.statusCode >= 200 && response.statusCode < 300) input.onChunk?.(chunk, headers['content-type'] ?? '') }
+          try { notifyProgress(); if (successful) input.onChunk?.(chunk, headers['content-type'] ?? '') }
           catch (error) { response.destroy(); reject(error) }
         })
         response.on('error', reject)
@@ -179,6 +183,7 @@ export class SafeHttpClient implements HttpClient {
         }, input.connectTimeoutMs)
         request.on('socket', socket => socket.once(url.protocol === 'https:' ? 'secureConnect' : 'connect', clearConnectTimer))
       }
+      if (input.idleTimeoutMs !== undefined) request.setTimeout(input.idleTimeoutMs, () => request.destroy(new MediaError('remote-idle-timeout', 'network', true, 'The original transfer stopped receiving data.', 'Retry within the original transfer and byte budgets.')))
       request.on('close', clearConnectTimer)
       request.on('error', error => {
         clearConnectTimer()

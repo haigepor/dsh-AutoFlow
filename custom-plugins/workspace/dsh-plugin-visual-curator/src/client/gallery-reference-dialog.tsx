@@ -5,18 +5,18 @@
 import type { ConfigurationView, StyleView } from './contract.ts'
 import type { WorkbenchProps } from './workbench.tsx'
 import type { WorkbenchText } from './workbench-locale.ts'
-import type { GalleryCollection, GalleryPage, GalleryPhoto, GalleryPhotoScope } from '../shared/gallery.ts'
+import type { GalleryAccountId, GalleryCollection, GalleryPage, GalleryPhoto, GalleryPhotoScope } from '../shared/gallery.ts'
 import { readCollectionPhotos, filterGalleryPhotos } from './gallery-reference.ts'
 import { galleryTaskActive, galleryTaskProgress, type GalleryTaskView } from '../shared/gallery-task.ts'
 import { createGalleryMedia, galleryImageSource } from './gallery-media.tsx'
 import { createReferenceStateHook } from './reference-state.ts'
 
-interface Props {
-  config: ConfigurationView; style: StyleView; role: 'positive' | 'negative'; actions: WorkbenchProps['actions']; t: WorkbenchText
+type Props = {
+  config: ConfigurationView; actions: WorkbenchProps['actions']; t: WorkbenchText
   scopeSessionId?: string | undefined
-  task: GalleryTaskView | undefined
   onClose(): void; onManageAccounts(): void
-}
+} & ({ purpose?: 'references'; style: StyleView; role: 'positive' | 'negative'; task: GalleryTaskView | undefined }
+  | { purpose: 'originals'; style?: never; role?: never; task?: never; onSelect(accountId: GalleryAccountId, photos: GalleryPhoto[]): void })
 
 type ReferenceSource = { kind: 'bookmarks' } | { kind: 'collection'; collection: GalleryCollection }
 
@@ -29,9 +29,11 @@ export function createGalleryReferenceDialog(React: typeof import('react'), ui: 
   const { Button, Modal, Checkbox, Tag, StateDot, Input, Tooltip } = ui
   const { GallerySkeleton, GalleryPhotoPreview, GalleryLoadMore } = createGalleryMedia(React, ui)
   const useReferenceState = createReferenceStateHook(React)
-  return function GalleryReferenceDialog({ config, style, role, actions, t, onClose, onManageAccounts, task, scopeSessionId }: Props) {
+  return function GalleryReferenceDialog(props: Props) {
+    const { config, style, actions, t, onClose, onManageAccounts, task, scopeSessionId } = props
+    const selecting = props.purpose === 'originals', selectionLimit = config.limits.maxImportFiles
     const accounts = config.source.unsplash.accounts
-    const membership = useReferenceState(actions.referenceState, style.styleId, style.revision, `${task?.status ?? ''}:${config.revision}`, scopeSessionId)
+    const membership = useReferenceState(actions.referenceState, style?.styleId ?? '', style?.revision ?? 0, `${task?.status ?? ''}:${config.revision}`, scopeSessionId, !selecting)
     const imported = new Set(membership.displayPlan?.entries.filter(entry => entry.providerId === 'unsplash').map(entry => entry.photoId) ?? [])
     const [accountId, setAccountId] = React.useState(config.source.unsplash.defaultAccountId ?? accounts[0]?.id ?? '')
     const account = accounts.find(item => item.id === accountId)
@@ -107,6 +109,13 @@ export function createGalleryReferenceDialog(React: typeof import('react'), ui: 
     const activeTask = !!task && galleryTaskActive(task.status)
     const locked = saving || activeTask
     const addReferences = async () => {
+      if (props.purpose === 'originals') {
+        if (locked || !chosen.size || chosen.size > selectionLimit || !account || !source) return
+        ++sequence.current; request.current?.abort(); prefetch.current?.abort()
+        props.onSelect(account.id, photos.filter(photo => chosen.has(photo.id)))
+        return
+      }
+      const { style, role } = props
       if (locked || uncertain || !chosen.size || !account || !source || !membership.plan) return
       if (!actions.getSnapshot().snapshot?.collectionPaging) { setError(t('galleryReferenceUnavailable')); return }
       const photoIds = [...chosen]
@@ -120,28 +129,29 @@ export function createGalleryReferenceDialog(React: typeof import('react'), ui: 
       finally { if (alive.current) setSaving(false) }
     }
     const uncertain = task?.status === 'needs-review'
-    const eligible = membership.plan ? photos.filter(photo => !imported.has(photo.id)) : []
+    const eligible = selecting ? photos : membership.plan ? photos.filter(photo => !imported.has(photo.id)) : []
     const chosen = new Set(eligible.filter(photo => allIntent ? !excluded.current.has(photo.id) : selected.has(photo.id)).map(photo => photo.id))
     const filteredFolders = folders.filter(item => item.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
     const showBookmarks = t('galleryBookmarks').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
     const filteredPhotos = React.useMemo(() => filterGalleryPhotos(photos, query), [photos, query])
     const visiblePhotos = filteredPhotos.slice(0, (page + 1) * config.limits.pageSize)
-    const toggle = (id: string, enabled: boolean) => { if (enabled) excluded.current.delete(id); else excluded.current.add(id); setSelected(current => { const next = new Set(current); if (enabled) next.add(id); else next.delete(id); return next }) }
+    const toggle = (id: string, enabled: boolean) => { if (selecting && enabled && chosen.size >= selectionLimit) return; if (enabled) excluded.current.delete(id); else excluded.current.add(id); setSelected(current => { const next = new Set(current); if (enabled) next.add(id); else next.delete(id); return next }) }
     const clearSelection = () => {
       if (loading && allIntent) { ++sequence.current; request.current?.abort(); prefetch.current?.abort(); setLoading(false); setAppending(false) }
       setAllIntent(false); excluded.current.clear(); setSelected(new Set())
     }
     const selectAll = () => {
       if (!source) return
+      if (selecting) { setAllIntent(false); excluded.current.clear(); setSelected(new Set(eligible.slice(0, selectionLimit).map(photo => photo.id))); return }
       excluded.current.clear(); setSelected(new Set(eligible.map(photo => photo.id))); setAllIntent(true)
       if (!enumerated) void loadPhotos(source, true, photos.length > 0)
     }
-    return <Modal open onClose={onClose} closeOnBackdropClick={false} title={t('galleryReference')} description={activeTask || saving ? t('galleryBackgroundHint') : t('galleryReferenceHint')} closeLabel={t('close')} className="vc-gallery-reference-modal" contentClassName="vc-gallery-reference-frame" footer={<div className="vc-gallery-reference-footer">
-      <div role="status" aria-live="polite">{activeTask && task ? <><StateDot state="ongoing" />{t('galleryTaskRunning')} {galleryTaskProgress(task).referenced} / {task.total}</> : <><span>{style.name}</span><Tag>{t(role)}</Tag>{source && <span>{t('gallerySelected')} {chosen.size} · {t('referenceLoaded')} {photos.length}</span>}</>}</div>
+    return <Modal open onClose={onClose} closeOnBackdropClick={false} title={t(selecting ? 'directCropGallery' : 'galleryReference')} description={selecting ? t('directCropOriginalHint') : activeTask || saving ? t('galleryBackgroundHint') : t('galleryReferenceHint')} closeLabel={t('close')} className="vc-gallery-reference-modal" contentClassName="vc-gallery-reference-frame" footer={<div className="vc-gallery-reference-footer">
+      <div role="status" aria-live="polite">{activeTask && task ? <><StateDot state="ongoing" />{t('galleryTaskRunning')} {galleryTaskProgress(task).referenced} / {task.total}</> : <>{props.purpose === 'originals' ? <span>{t('directCropSelected')} {chosen.size} / {selectionLimit}</span> : <><span>{props.style.name}</span><Tag>{t(props.role)}</Tag></>}{!selecting && source && <span>{t('gallerySelected')} {chosen.size} · {t('referenceLoaded')} {photos.length}</span>}</>}</div>
       {loading && source && <Button size="sm" variant="outline" onClick={() => { ++sequence.current; request.current?.abort(); prefetch.current?.abort(); setLoading(false); setAppending(false); setEnumerated(false); setError(t('galleryReadCancelled')) }}>{t('galleryCancelRead')}</Button>}
       <Button size="sm" variant="outline" onClick={onClose}>{t('close')}</Button>
       {activeTask && task && <Button size="sm" variant="outline" disabled={stopping || task.status === 'cancelling'} onClick={() => { setStopping(true); void actions.stopGalleryReferences(task.id).catch(() => { if (alive.current) setError(t('galleryConnectionError')) }).finally(() => { if (alive.current) setStopping(false) }) }}>{t(task.status === 'cancelling' ? 'galleryStopping' : 'galleryStopImport')}</Button>}
-      <Button size="sm" variant="primary" disabled={locked || !account || !source || !chosen.size || uncertain} onClick={() => { void addReferences() }}>{locked && <StateDot state="ongoing" />}{t(locked ? 'busy' : 'galleryImport')}{!locked && !!chosen.size && (' ' + chosen.size)}</Button>
+      <Button size="sm" variant="primary" disabled={locked || !account || !source || !chosen.size || uncertain} onClick={() => { void addReferences() }}>{locked && <StateDot state="ongoing" />}{t(locked ? 'busy' : selecting ? 'directCropChooseOriginals' : 'galleryImport')}{!locked && !!chosen.size && (' ' + chosen.size)}</Button>
     </div>}>
       <div className="vc-gallery-reference-layout">
         <nav className="vc-gallery-reference-accounts" aria-label={t('galleryChooseAccount')}><small>{t('galleryChooseAccount')}</small>{accounts.map(item => <Button key={item.id} size="sm" variant="ghost" className="vc-gallery-account" aria-pressed={item.id === accountId} disabled={locked} onClick={() => setAccountId(item.id)}><span className="vc-gallery-avatar" aria-hidden="true">{(item.name || item.label).slice(0, 1)}</span><span><strong>{item.label}</strong><small>@{item.username}</small></span></Button>)}<Button size="sm" variant="ghost" disabled={locked} onClick={onManageAccounts}>{t('galleryManageAccounts')}<ui.IconChevronRightOutlineRegular size={12} /></Button></nav>
@@ -153,8 +163,8 @@ export function createGalleryReferenceDialog(React: typeof import('react'), ui: 
           {!accounts.length ? <div className="vc-gallery-empty"><ui.IconFolderOpenOutlineRegular size={28} /><strong>{t('galleryNoAccounts')}</strong><Button size="sm" variant="outline" onClick={onManageAccounts}>{t('galleryManageAccounts')}</Button></div> : source ? <>
             {!!photos.length && <div className="vc-gallery-reference-selection">
               <div className="vc-gallery-selection-actions">
-                <Checkbox checked={eligible.length > 0 && chosen.size === eligible.length && (allIntent || enumerated)} label={t('gallerySelectAllShort')} disabled={locked || uncertain || !eligible.length || loading && allIntent} onChange={enabled => { if (enabled) selectAll(); else clearSelection() }} />
-                <span className="vc-gallery-selection-count">{t('gallerySelected')} {chosen.size}</span><span>{t('galleryAlreadyImported')} {photos.filter(photo => imported.has(photo.id)).length}</span>
+                <Checkbox checked={eligible.length > 0 && (selecting ? chosen.size === Math.min(eligible.length, selectionLimit) : chosen.size === eligible.length && (allIntent || enumerated))} label={t(selecting ? 'directCropSelectLoaded' : 'gallerySelectAllShort')} disabled={locked || uncertain || !eligible.length || loading && allIntent} onChange={enabled => { if (enabled) selectAll(); else clearSelection() }} />
+                <span className="vc-gallery-selection-count">{t('gallerySelected')} {chosen.size}</span>{!selecting && <span>{t('galleryAlreadyImported')} {photos.filter(photo => imported.has(photo.id)).length}</span>}
                 <Button size="sm" variant="ghost" aria-label={t('galleryClearSelection')} disabled={locked || uncertain || !chosen.size} onClick={clearSelection}>{t('galleryClearSelectionShort')}</Button>
               </div>
               <div className="vc-gallery-selection-status">
@@ -162,7 +172,7 @@ export function createGalleryReferenceDialog(React: typeof import('react'), ui: 
                 {photos.some(photo => photo.premium) && <Tooltip label={t('galleryPremiumPreview')} openOnClick portal side="bottom" align="end" maxWidth={280}><Button size="sm" variant="ghost" className="vc-gallery-selection-info" aria-label={t('galleryPhotoAvailability')}><ui.IconInfoOutlineRegular size={16} /></Button></Tooltip>}
               </div>
             </div>}
-            <div className="vc-gallery-photos">{visiblePhotos.map(photo => <figure key={photo.id} data-selected={chosen.has(photo.id)} data-imported={imported.has(photo.id)}><GalleryPhotoPreview photo={photo} selected={chosen.has(photo.id)} imported={imported.has(photo.id)} disabled={locked || uncertain || !membership.plan || imported.has(photo.id)} onToggle={() => toggle(photo.id, !chosen.has(photo.id))} t={t} /><figcaption><Checkbox checked={chosen.has(photo.id)} label={photo.title || photo.id} disabled={locked || uncertain || !membership.plan || imported.has(photo.id)} onChange={enabled => toggle(photo.id, enabled)} /><small>{photo.photographer}{photo.premium && ` · ${t('galleryPremiumBrand')}`}</small></figcaption></figure>)}</div>
+            <div className="vc-gallery-photos">{visiblePhotos.map(photo => <figure key={photo.id} data-selected={chosen.has(photo.id)} data-imported={imported.has(photo.id)}><GalleryPhotoPreview photo={photo} selected={chosen.has(photo.id)} imported={imported.has(photo.id)} disabled={locked || uncertain || !selecting && (!membership.plan || imported.has(photo.id)) || selecting && chosen.size >= selectionLimit && !chosen.has(photo.id)} onToggle={() => toggle(photo.id, !chosen.has(photo.id))} t={t} /><figcaption><Checkbox checked={chosen.has(photo.id)} label={photo.title || photo.id} disabled={locked || uncertain || !selecting && (!membership.plan || imported.has(photo.id)) || selecting && chosen.size >= selectionLimit && !chosen.has(photo.id)} onChange={enabled => toggle(photo.id, enabled)} /><small>{photo.photographer}{photo.premium && ` · ${t('galleryPremiumBrand')}`}</small></figcaption></figure>)}</div>
             {!loading && !filteredPhotos.length && !error && <div className="vc-gallery-empty">{t(query ? 'noMatches' : source.kind === 'bookmarks' ? 'galleryEmptyBookmarks' : 'galleryEmptyPhotos')}</div>}
             <GalleryLoadMore hasMore={visiblePhotos.length < filteredPhotos.length || !!photoCursor} loading={loading && appending && !allIntent} disabled={locked || loading || !!error} version={`${visiblePhotos.length}:${photoCursor}`} kind="photos" label={t('galleryLoading')} onLoad={() => { setPage(value => value + 1); if (visiblePhotos.length >= filteredPhotos.length && photoCursor) void loadPhotos(source, false, true) }} />
           </> : <><div className="vc-gallery-folders">{showBookmarks && <Button variant="ghost" className="vc-gallery-folder" onClick={() => { void loadPhotos({ kind: 'bookmarks' }) }}><span className="vc-gallery-folder-cover"><ui.IconPinOutlineRegular size={24} /></span><span className="vc-gallery-folder-info"><strong>{t('galleryBookmarks')}</strong><small><Tag>{t('galleryPrivate')}</Tag></small></span></Button>}{filteredFolders.map(item => <Button key={item.id} variant="ghost" className="vc-gallery-folder" onClick={() => { void loadPhotos({ kind: 'collection', collection: item }) }}>{item.coverUrl ? <img src={galleryImageSource(item.coverPath, item.coverUrl)} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : <span className="vc-gallery-folder-cover"><ui.IconFolderOpenOutlineRegular size={24} /></span>}<span className="vc-gallery-folder-info"><strong>{item.title}</strong><small>{item.totalPhotos} {t('galleryPhotoUnit')}{item.private && <Tag>{t('galleryPrivate')}</Tag>}</small></span></Button>)}</div>{!loading && !showBookmarks && !filteredFolders.length && !error && <div className="vc-gallery-empty"><ui.IconFolderOpenOutlineRegular size={28} /><strong>{t(query ? 'noMatches' : 'galleryEmptyFoldersTitle')}</strong><p>{t('galleryReferenceEmpty')}</p></div>}<GalleryLoadMore hasMore={!!nextCursor} loading={loading && appending} disabled={locked || !!error} version={folders.length} kind="folders" label={t('galleryLoading')} onLoad={() => { if (nextCursor) void loadFolders(nextCursor) }} /></>}

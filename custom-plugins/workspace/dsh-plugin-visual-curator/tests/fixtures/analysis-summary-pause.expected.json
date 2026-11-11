@@ -1,0 +1,20 @@
+{
+  "paused": {
+    "status": "paused",
+    "stage": "finalizing",
+    "observations": 1,
+    "summarySaved": true,
+    "profiles": 0,
+    "datasets": 0,
+    "modelRequests": 2
+  },
+  "resumed": {
+    "status": "completed",
+    "outcome": "target-met",
+    "observations": 1,
+    "profiles": 1,
+    "datasets": 1,
+    "modelRequests": 2
+  },
+  "operations": ["analyze:", "summarize:"]
+}

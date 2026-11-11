@@ -12,6 +12,7 @@ import { recordedImageTask } from '../src/client/model.ts'
 import { zh } from '../src/client/locales.ts'
 
 const { ConversationCard: Card, ToolCard } = createImageCard(React, { Modal: () => null, IconCloseOutlineRegular: () => null,
+  ImageGenerationSkeleton: ({ className }) => React.createElement('canvas', { className, 'aria-hidden': true }),
   FileTypeIcon: () => React.createElement('svg', { 'data-image-icon': true }) })
 const common = {
   sessionId: brandString<ImageCardProps['sessionId']>('card-session'), callId: 'generate-call', toolName: 'codex_image_generate', t: makeTranslate(zh),

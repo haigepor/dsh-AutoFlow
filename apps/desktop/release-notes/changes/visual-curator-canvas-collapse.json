@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-canvas-collapse",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator restores collapsed workflow cards after refresh and keeps each batch's local layout separate.",
+    "zh-CN": "视觉策展刷新后可恢复卡片折叠状态，并按批次分别保存本机画布布局。"
+  }
+}

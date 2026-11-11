@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx React.createElement */
 /** @jsxFrag React.Fragment */
-/** Graphical edits preserve scene evidence and commit source-normalized regions on release. */
+/** Graphical edits commit source-normalized regions on release; preview zoom never changes placement or protection data. */
 import type { WallpaperPlan, WallpaperSettings } from '../shared/wallpaper.ts'
 import type { WorkbenchText } from './workbench-locale.ts'
 import { createSelectField } from './select-field.tsx'
@@ -16,6 +16,8 @@ export interface WallpaperPlanEditorProps {
   t: WorkbenchText
   disabled?: boolean
 }
+type Preview = { x: number; y: number; zoom: number }
+type PreviewDrag = { pointerId: number; x: number; y: number; view: Preview; a: number; b: number; c: number; d: number }
 type Drag = { pointerId: number; x: number; y: number; plan: WallpaperPlan; region?: number; resize: boolean }
 
 /** @param React Shared application runtime. @param ui Existing form and button primitives. @returns A template-aligned editor whose pointer moves stay in a local draft. */
@@ -33,10 +35,14 @@ export function createWallpaperPlanEditor(React: typeof import('react'), ui: typ
   return function WallpaperPlanEditor({ plan, settings, source, onChange, t, disabled = false }: WallpaperPlanEditorProps) {
     const [draft, setDraft] = React.useState(plan), current = React.useRef(plan), drag = React.useRef<Drag | null>(null)
     const [selected, setSelected] = React.useState<number | null>(null), [failed, setFailed] = React.useState(false), [retry, setRetry] = React.useState(0)
+    const [preview, setPreview] = React.useState<Preview>({ x: 0, y: 0, zoom: 1 }), previewRef = React.useRef(preview), pan = React.useRef<PreviewDrag | null>(null)
     const svg = React.useRef<SVGSVGElement>(null), id = React.useId().replace(/:/g, '')
     React.useEffect(() => { drag.current = null; current.current = plan; setDraft(plan); setSelected(value => value !== null && value < plan.regions.length ? value : null) }, [plan])
     React.useEffect(() => { if (disabled) { drag.current = null; current.current = plan; setDraft(plan) } }, [disabled, plan])
     React.useEffect(() => setFailed(false), [source.previewPath])
+    const changePreview = (next: Preview) => { previewRef.current = next; setPreview(next) }
+    const fitPreview = () => { pan.current = null; changePreview({ x: 0, y: 0, zoom: 1 }) }
+    React.useEffect(fitPreview, [plan.imageVersionId, settings.width, settings.height, source.width, source.height])
     const local = (next: WallpaperPlan) => { current.current = next; setDraft(next) }
     const commit = (next: WallpaperPlan) => { if (disabled) return; local(next); onChange(next) }
     const point = (event: { clientX: number; clientY: number }) => {
@@ -45,8 +51,34 @@ export function createWallpaperPlanEditor(React: typeof import('react'), ui: typ
       const at = element.createSVGPoint(); at.x = event.clientX; at.y = event.clientY
       return at.matrixTransform(matrix.inverse())
     }
+    const zoomPreview = (factor: number, anchor?: { x: number; y: number }) => {
+      if (drag.current || pan.current) return
+      const before = previewRef.current, zoom = Math.max(0.5, Math.min(6, before.zoom * factor))
+      const at = anchor ?? { x: before.x + settings.width / before.zoom / 2, y: before.y + settings.height / before.zoom / 2 }
+      changePreview({ zoom, x: at.x - (at.x - before.x) * before.zoom / zoom, y: at.y - (at.y - before.y) * before.zoom / zoom })
+    }
+    React.useEffect(() => {
+      const element = svg.current
+      if (!element) return
+      const wheel = (event: WheelEvent) => {
+        if (!event.ctrlKey) return
+        event.preventDefault(); event.stopPropagation()
+        const at = point(event)
+        if (at) zoomPreview(Math.exp(-Math.max(-120, Math.min(120, event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientHeight : 1))) * 0.002), at)
+      }
+      element.addEventListener('wheel', wheel, { passive: false })
+      return () => element.removeEventListener('wheel', wheel)
+    }, [settings.width, settings.height])
     const begin = (event: import('react').PointerEvent<SVGElement>, region?: number, resize = false) => {
-      if (disabled || failed || drag.current || event.button !== 0) return
+      if (drag.current || pan.current) return
+      if (event.ctrlKey || event.button === 1) {
+        const inverse = svg.current?.getScreenCTM()?.inverse()
+        if (!inverse) return
+        event.preventDefault(); event.stopPropagation(); svg.current?.focus({ preventScroll: true }); svg.current?.setPointerCapture(event.pointerId)
+        pan.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, view: previewRef.current, a: inverse.a, b: inverse.b, c: inverse.c, d: inverse.d }
+        return
+      }
+      if (disabled || failed || event.button !== 0) return
       const at = point(event)
       if (!at) return
       event.preventDefault(); event.stopPropagation()
@@ -55,12 +87,15 @@ export function createWallpaperPlanEditor(React: typeof import('react'), ui: typ
       drag.current = { pointerId: event.pointerId, x: at.x, y: at.y, plan: current.current, ...(region === undefined ? {} : { region }), resize }
     }
     const cancel = () => {
+      const moving = pan.current
+      if (moving) { pan.current = null; changePreview(moving.view); if (svg.current?.hasPointerCapture(moving.pointerId)) svg.current.releasePointerCapture(moving.pointerId); return }
       const active = drag.current
       if (!active) return
       drag.current = null; local(active.plan)
       if (svg.current?.hasPointerCapture(active.pointerId)) svg.current.releasePointerCapture(active.pointerId)
     }
     const finish = (event: import('react').PointerEvent<SVGSVGElement>) => {
+      if (pan.current?.pointerId === event.pointerId) { pan.current = null; if (svg.current?.hasPointerCapture(event.pointerId)) svg.current.releasePointerCapture(event.pointerId); return }
       const active = drag.current
       if (!active || active.pointerId !== event.pointerId) return
       drag.current = null
@@ -74,16 +109,33 @@ export function createWallpaperPlanEditor(React: typeof import('react'), ui: typ
       commit({ ...draft, regions: draft.regions.map((value, index) => index === selected ? { ...value, ...patch } : value) })
     }
     const setPlacement = (patch: Partial<WallpaperPlan['placement']>) => commit({ ...draft, placement: { ...placement, ...patch } })
-    return <div className="vc-plan-editor" data-disabled={disabled || undefined} onKeyDown={event => { if (event.key === 'Escape' && drag.current) { event.preventDefault(); event.stopPropagation(); cancel() } }}>
+    const legend = [
+      ['safe', 'wallpaperEditorSafe', 'wallpaperEditorSafeHint'], ['clock', 'wallpaperEditorClock', 'wallpaperEditorClockHint'],
+      ['buffer', 'wallpaperEditorBuffer', 'wallpaperEditorBufferHint'], ['center', 'wallpaperEditorCenter', 'wallpaperEditorCenterHint'],
+      ['overflow', 'wallpaperEditorOverflow', 'wallpaperEditorOverflowHint'], ['subject', 'wallpaperEditorSubject', 'wallpaperEditorSubjectHint'],
+      ['critical', 'wallpaperEditorCritical', 'wallpaperEditorCriticalHint'], ['anchor', 'wallpaperEditorAnchor', 'wallpaperEditorAnchorHint'],
+    ] as const
+    return <div className="vc-plan-editor" data-disabled={disabled || undefined} onKeyDown={event => { if (event.key === 'Escape' && (drag.current || pan.current)) { event.preventDefault(); event.stopPropagation(); cancel() } }}>
       <div className="vc-plan-editor-preview">
-        <svg ref={svg} role="group" tabIndex={0} aria-label={t('wallpaperEditorTitle')} aria-describedby={`${id}-help`} viewBox={`0 0 ${settings.width} ${settings.height}`} preserveAspectRatio="xMidYMid meet"
+        <div className="vc-plan-editor-preview-heading"><strong>{t('wallpaperEditorPreview')}</strong><span>{settings.width} × {settings.height}</span></div>
+        <div className="vc-plan-editor-zoom" role="group" aria-label={t('wallpaperEditorPreviewZoom')}>
+          <span>{t('wallpaperEditorZoomHint')}</span>
+          <div><ui.Button size="sm" variant="ghost" aria-label={t('wallpaperEditorZoomOut')} disabled={preview.zoom <= 0.5} onClick={() => zoomPreview(1 / 1.25)}>−</ui.Button><output aria-live="polite">{Math.round(preview.zoom * 100)}%</output><ui.Button size="sm" variant="ghost" aria-label={t('wallpaperEditorZoomIn')} disabled={preview.zoom >= 6} onClick={() => zoomPreview(1.25)}>+</ui.Button><ui.Button size="sm" variant="outline" onClick={fitPreview}>{t('wallpaperEditorFitPreview')}</ui.Button></div>
+        </div>
+        <div className="vc-plan-editor-stage">
+        <svg ref={svg} role="group" tabIndex={0} aria-label={t('wallpaperEditorTitle')} aria-describedby={`${id}-help`} viewBox={`${preview.x} ${preview.y} ${settings.width / preview.zoom} ${settings.height / preview.zoom}`} data-preview-zoom={preview.zoom} preserveAspectRatio="xMidYMid meet"
           onPointerMove={event => {
+            const moving = pan.current
+            if (moving?.pointerId === event.pointerId) {
+              const x = event.clientX - moving.x, y = event.clientY - moving.y
+              changePreview({ ...moving.view, x: moving.view.x - x * moving.a - y * moving.c, y: moving.view.y - x * moving.b - y * moving.d }); return
+            }
             const active = drag.current
             if (!active || active.pointerId !== event.pointerId) return
             const at = point(event)
             if (!at) return
             local(dragWallpaperPlan(active.plan, source, { x: at.x - active.x, y: at.y - active.y }, active.region, active.resize))
-          }} onPointerUp={finish} onPointerCancel={event => { if (drag.current?.pointerId === event.pointerId) cancel() }} onLostPointerCapture={() => { if (drag.current) cancel() }}>
+          }} onPointerUp={finish} onPointerCancel={event => { if (drag.current?.pointerId === event.pointerId || pan.current?.pointerId === event.pointerId) cancel() }} onLostPointerCapture={() => { if (drag.current || pan.current) cancel() }}>
           <rect width={settings.width} height={settings.height} fill="transparent" onPointerDown={event => begin(event)} />
           <image key={`${source.previewPath}:${retry}`} className="vc-plan-editor-image" href={source.previewPath} x={placement.left} y={placement.top} width={size.width} height={size.height} preserveAspectRatio="none" onPointerDown={event => begin(event)} onError={() => { cancel(); setFailed(true) }} onLoad={() => setFailed(false)} />
           <g className="vc-plan-editor-guides" fill="none" strokeWidth={2}>
@@ -103,13 +155,13 @@ export function createWallpaperPlanEditor(React: typeof import('react'), ui: typ
             </g>
           })}
         </svg>
+        </div>
         <p className="vc-plan-editor-help" id={`${id}-help`}>{t('wallpaperEditorHelp')}</p>
-        <div className="vc-plan-editor-legend"><ui.Tag tone="success">{t('wallpaperEditorSafe')}</ui.Tag><ui.Tag tone="danger">{t('wallpaperEditorClock')}</ui.Tag><ui.Tag tone="warning">{t('wallpaperEditorBuffer')}</ui.Tag><ui.Tag>{t('wallpaperEditorCenter')}</ui.Tag><ui.Tag>{t('wallpaperEditorOverflow')}</ui.Tag></div>
-        <p className="vc-plan-editor-help">{t('wallpaperEditorOverflowHelp')}</p>
         {failed && <div className="vc-plan-editor-error" role="alert"><p>{t('wallpaperEditorImageFailed')}</p><ui.Button size="sm" variant="outline" onClick={() => { setFailed(false); setRetry(value => value + 1) }}>{t('wallpaperEditorRetryImage')}</ui.Button></div>}
       </div>
       <div className="vc-plan-editor-controls">
-        <fieldset disabled={disabled}><legend>{t('wallpaperEditorPlacement')}</legend><div className="vc-plan-editor-fields">
+        <details className="vc-plan-editor-key" open><summary>{t('wallpaperEditorLegend')}</summary><div className="vc-plan-editor-legend">{legend.map(([kind, label, hint]) => <div key={kind} className="vc-plan-editor-legend-item"><span className="vc-plan-editor-swatch" data-kind={kind} aria-hidden="true"><i /><b /></span><span><strong>{t(label)}</strong><small>{t(hint)}</small></span></div>)}</div><p className="vc-plan-editor-help">{t('wallpaperEditorOverflowHelp')}</p></details>
+        <fieldset disabled={disabled}><legend>{t('wallpaperEditorPlacement')}</legend><div className="vc-plan-editor-fields vc-plan-editor-placement">
           <NumberField label={t('wallpaperEditorLeft')} value={placement.left} step="1" change={left => setPlacement({ left: Math.round(left) })} />
           <NumberField label={t('wallpaperEditorTop')} value={placement.top} step="1" change={top => setPlacement({ top: Math.round(top) })} />
           <NumberField label={t('wallpaperEditorScale')} value={placement.scale} min={Number.EPSILON} max={1} step="0.01" change={scale => setPlacement({ scale: Math.max(Number.EPSILON, Math.min(1, scale)) })} />
@@ -120,7 +172,7 @@ export function createWallpaperPlanEditor(React: typeof import('react'), ui: typ
             <label className="vc-plan-editor-field"><span>{t('wallpaperEditorRegionName')}</span><input key={`${selected}:${region.name}`} defaultValue={region.name} maxLength={4096} onBlur={event => { const name = event.currentTarget.value.trim(); if (name) editRegion({ name }); else event.currentTarget.value = region.name }} /></label>
             <SelectField label={t('wallpaperEditorRole')} value={region.role} options={(['subject', 'critical', 'anchor'] as const).map(value => ({ value, label: t(roleKeys[value]) }))} disabled={disabled} onChange={role => { if (role === 'subject' || role === 'critical' || role === 'anchor') editRegion({ role }) }} />
             <div className="vc-plan-editor-fields">{(['x', 'y', 'width', 'height'] as const).map(key => <NumberField key={key} label={t(({ x: 'wallpaperEditorX', y: 'wallpaperEditorY', width: 'wallpaperEditorWidth', height: 'wallpaperEditorHeight' } as const)[key])} value={region.rect[key]} min={key === 'width' || key === 'height' ? Number.EPSILON : 0} max={1} step="0.001" change={value => editRegion({ rect: editWallpaperRegion(region.rect, { [key]: value }) })} />)}</div>
-          </> : <p className="vc-plan-editor-help">{t('wallpaperEditorNoRegion')}</p>}
+          </> : null}
           <div className="vc-plan-editor-actions"><ui.Button size="sm" variant="outline" disabled={disabled || draft.regions.length >= 32} onClick={() => {
             const index = draft.regions.length
             commit({ ...draft, regions: [...draft.regions, { name: t('wallpaperEditorNewRegion').replace('{number}', String(index + 1)), role: 'critical', rect: { x: 0.25, y: 0.25, width: 0.5, height: 0.5 } }] }); setSelected(index)

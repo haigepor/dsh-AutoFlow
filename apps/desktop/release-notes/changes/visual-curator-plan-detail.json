@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-plan-detail",
+  "category": "improvements",
+  "text": {
+    "en": "Wallpaper planning can inspect saved original detail to resolve uncertain subjects, then automatically continue only after evidence and safety checks pass, while retaining previous versions and independent final review.",
+    "zh-CN": "壁纸规划支持放大保存的原图局部复核主体疑点，仅在证据充分且安全检查通过后自动继续，保留旧版本并执行独立成品复审。"
+  }
+}

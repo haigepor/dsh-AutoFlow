@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { isPublicAddress, SafeHttpClient, validateEndpoint } from './network.ts'
 import type { DnsResolver, HttpClient, HttpRequest, HttpResponse } from './network.ts'
 import { MediaError, invalidInput } from './errors.ts'
+import { unsplashDeliveryUrl } from './unsplash.ts'
 
 type Address = Awaited<ReturnType<DnsResolver>>[number]
 interface Resolution { addresses: readonly Address[]; ttlMs: number; expiresAt?: number }
@@ -24,7 +25,7 @@ export interface MediaRoutingDependencies {
   query?: (endpoint: string, hostname: string, signal: AbortSignal) => Promise<Resolution>
   createClient?: (resolve: DnsResolver) => HttpClient
 }
-const policy = { allowedOrigins: ['https://images.unsplash.com', 'https://plus.unsplash.com'] }
+const policy = { allowedOrigins: ['https://images.unsplash.com', 'https://plus.unsplash.com', 'https://delivery.unsplash.com'] }
 const answerSchema = z.object({ Status: z.number().int(), Answer: z.array(z.object({ type: z.number().int(), data: z.string(), TTL: z.number().nonnegative() })).optional() })
 function connectionFailure(error: unknown): boolean {
   return error instanceof MediaError && error.retryable && (error.code === 'remote-connect-timeout' || error.code === 'source-dns-failed'
@@ -102,6 +103,7 @@ export class GalleryMediaClient implements HttpClient {
   /** @param raw Authorized public image URL. @param input One shared byte/deadline budget. @returns Image bytes from a verified address without changing the URL. */
   async request(raw: string, input: HttpRequest): Promise<HttpResponse> {
     const target = validateEndpoint(raw, policy)
+    if (target.hostname === 'delivery.unsplash.com') unsplashDeliveryUrl(raw)
     if (input.method !== 'GET') throw invalidInput('The image routing client accepts read-only requests.')
     const deadlineAt = Date.now() + input.timeoutMs, deadline = AbortSignal.timeout(input.timeoutMs)
     const signal = AbortSignal.any([this.lifetime.signal, deadline, ...(input.signal ? [input.signal] : [])])

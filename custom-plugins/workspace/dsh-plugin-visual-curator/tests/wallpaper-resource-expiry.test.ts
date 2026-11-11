@@ -23,7 +23,8 @@ test('single-item wallpaper reads retain full counts and history while paging on
       const attempts = saved.state.items[0]!.attempts.map((attempt, round) => ({ ...attempt, plan: { ...attempt.plan, imageVersionId: id }, canvasId: `${id}-round-${round}-canvas`, analysisId: `${id}-round-${round}-analysis`, simulationId: `${id}-round-${round}-simulation`, outputId: `${id}-round-${round}-output` }))
       for (const key of [id, ...attempts.flatMap(attempt => [attempt.canvasId, attempt.analysisId, attempt.simulationId, attempt.outputId])]) {
         const image = imageVersionSchema.parse({ ...original, id: key, versionKind: key === id ? 'normalized' : 'composition', parentImageVersionId: key === id ? original.id : id })
-        records.push(image, imageVersionSchema.parse({ ...image, id: `${key}:preview`, versionKind: 'preview', parentImageVersionId: image.id }))
+        records.push(image)
+        if (key !== 'detail-image-0') records.push(imageVersionSchema.parse({ ...image, id: `${key}:preview`, versionKind: 'preview', parentImageVersionId: image.id }))
       }
       return { ...saved.state.items[0]!, imageVersionId: id, originalId: id, status: statuses[index % statuses.length]!, attempts }
     })
@@ -49,6 +50,7 @@ test('single-item wallpaper reads retain full counts and history while paging on
     assert.deepEqual(first.view.counts, full.view.counts); assert.deepEqual(second.view.counts, full.view.counts)
     for (const status of statuses) assert.equal(first.view.counts[status], 5)
     assert.deepEqual(first.view.state.items[0], full.view.state.items[0]); assert.deepEqual(second.view.state.items[0], full.view.state.items[1])
+    assert.equal(new URL(first.view.sourceImages['detail-image-0']!.previewPath, 'https://owner.example').searchParams.get('preview'), 'thumbnail')
     for (const page of [first.view, second.view]) {
       const item = page.state.items[0]!, ids = [item.originalId!, ...item.attempts.flatMap(attempt => [attempt.analysisId!, attempt.simulationId!, attempt.outputId!])]
       assert.equal(item.attempts.length, 3)

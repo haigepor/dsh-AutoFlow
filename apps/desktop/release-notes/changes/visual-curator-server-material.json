@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-server-material",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator adds a denser server-images dialog, a separate connection form, loading table rows, horizontal canvas controls and fixed dialog actions with dividers.",
+    "zh-CN": "视觉策展降低服务器图片弹窗透明度，连接配置使用独立弹窗，获取图片时显示表格加载动画；画布操作水平排列，弹窗底部按钮固定并增加分割线，原图说明改为状态旁的标签。"
+  }
+}

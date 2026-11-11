@@ -1,4 +1,5 @@
 /** Shared durable image tasks; credentials and inline image bytes never enter these records. */
+import { z } from 'zod'
 import type { FileAttachmentRef, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type { AccountsFacade } from '../accounts/types.ts'
 import type { ImageAssetId, ImageTaskId } from './ids.ts'
@@ -19,12 +20,27 @@ export interface ImageInput {
   mask?: string | undefined
 }
 
+const requestId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
+const size = z.string().regex(/^(auto|[1-9]\d{0,4}x[1-9]\d{0,4}|[1-9]\d{0,2}:[1-9]\d{0,2})$/)
+/** Only explicit request options and bounded response labels/identifiers are durable; absent fields are unrecorded, not defaults or measured pixel facts. */
+export const imageTaskEvidenceSchema = z.strictObject({
+  requested: z.strictObject({ size: size.optional(), quality: z.enum(['auto', 'low', 'medium', 'high']).optional(), outputFormat: z.enum(['png', 'jpeg', 'webp']).optional(), imagegenRequestId: requestId.optional(), imageTurnId: requestId.optional() }),
+  reported: z.strictObject({ size: size.optional(), quality: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,31}$/).optional(), outputFormat: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,15}$/).optional(), imagegenRequestId: requestId.optional(), oaiRequestId: requestId.optional(), requestId: requestId.optional() }).optional(),
+})
+/** Requested settings, safe correlation IDs and provider-reported labels never establish actual image quality or dimensions. */
+export type ImageTaskEvidence = z.infer<typeof imageTaskEvidenceSchema>
+/** A provider generation identifier is an opaque label, never a URL or credential. */
+export const imageGenerationIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/)
+
 /** One original image and the AttachmentStore's normalized, model-safe preview. */
 export interface ImageAsset {
   id: string
   mimeType: ImageMediaType
   original: FileAttachmentRef
+  /** Original visual dimensions are preview.originalDimensions when reduced, otherwise preview width/height; neither is a provider-reported size. */
   preview: ImageAttachmentRef
+  /** Present only when this response supplied a valid generation_id; historical assets remain unlabelled. */
+  generationId?: string
 }
 
 /** Sent includes the durable dispatch marker; its remote outcome is uncertain after interruption. */
@@ -48,6 +64,8 @@ export interface ImageTask {
   error?: ImageFailure
   /** Present only for idempotent auxiliary operations; legacy native tools omit it. */
   operation?: { id: string; digest: string }
+  /** Present only on newly accepted tasks; missing historical evidence is never reconstructed as a request or response fact. */
+  evidence?: ImageTaskEvidence
   /** A cleared auxiliary task retains its operation receipt to prevent another paid dispatch. */
   pruned?: boolean
 }

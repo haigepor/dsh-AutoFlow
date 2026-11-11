@@ -1,0 +1,8 @@
+{
+  "status": "failed",
+  "runIds": [],
+  "qualified": 0,
+  "error": "remote-request-failed",
+  "stage": "search-launch-conversation",
+  "modelRequests": 1
+}

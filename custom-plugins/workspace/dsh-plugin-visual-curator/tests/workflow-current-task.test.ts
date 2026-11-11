@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { searchBatchSchema } from '../src/shared/search-batches.ts'
 import { modelProfileSchema } from '../src/shared/model.ts'
-import { preferredWorkflowBatch, workflowWallpaperPhase, workflowBatchPhase, workflowReferencePhase } from '../src/client/workflow-current-task.ts'
+import { preferredWorkflowBatch, workflowWallpaperPhase, workflowBatchPhase, workflowReferencePhase, workflowLaunchPhase, workflowSearchStage } from '../src/client/workflow-current-task.ts'
 import { wallpaperStage } from '../src/client/workflow-node-state.ts'
 import { wallpaperProgress, wallpaperReviewKeys, wallpaperStateSchema } from '../src/shared/wallpaper.ts'
 const batch = (runId: string, status: string, extras = {}) => searchBatchSchema.parse({ runId, status, kind: 'search', createdAt: '2026-11-07T00:00:00Z', taskBrief: 'Find scenes', matched: 0, unavailable: false, images: [], ...extras })
@@ -64,4 +64,14 @@ test('pending historical references retain saved dataset evidence during a diffe
  assert.equal(workflowReferencePhase('failed', 'frozen-profile', 'current-profile', undefined), 'queued')
  assert.equal(workflowReferencePhase('failed', 'frozen-profile', 'current-profile', { ...historical, modelProfileId: modelProfileSchema.shape.id.parse('different-profile') }), 'queued')
  assert.equal(workflowReferencePhase('running', 'current-profile', 'current-profile', historical), 'running')
+})
+
+test('accepted conversation preparation remains distinct from committed search stages', () => {
+ assert.equal(workflowLaunchPhase({status:'accepted'}),'running')
+ assert.equal(workflowLaunchPhase({status:'accepted',runStatus:'paused'}),'paused')
+ assert.equal(workflowSearchStage(batch('waiting','running')),undefined)
+ for(const [stage,key] of [['planning','workflowSearchPreparing'],['retrieving','taskStageRetrieving'],['screening','taskStageScreening'],['reviewing','taskStageReviewing'],['finalizing','workflowSearchFinalizing']]) {
+  assert.equal(workflowSearchStage(batch('active','running',{progress:{stage,counts:{qualified:0},requests:1}})),key)
+ }
+ assert.equal(workflowSearchStage(batch('done','completed',{progress:{stage:'reviewing',counts:{},requests:0}})),undefined)
 })

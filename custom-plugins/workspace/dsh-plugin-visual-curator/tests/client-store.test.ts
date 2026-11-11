@@ -150,6 +150,21 @@ test('refresh replaces an archived or missing selected collection and leaves no 
   } finally { store.dispose() }
 })
 
+test('choosing a collection exits the pinned task and background refresh cannot restore its previous collection', async () => {
+  const style = (styleId: string): StyleView => ({ styleId, name: styleId, archived: false, revision: 1, draftId: styleId + '-draft', draftRevision: 1, rules: [], conflicts: [], referenceIds: [], releases: [], candidates: [] })
+  const run: RunView = { runId: 'old-task', styleId: 'old', kind: 'search', status: 'completed', counts: {}, results: [], taskBrief: '', warnings: [] }
+  const current = { ...snapshot(), styles: [style('old'), style('new')], runs: [run] }
+  const store = createCuratorStore({ invoke: async operation => operation === 'session-open' ? { sessionToken: 'grant' } : operation === 'run-get' ? run : current })
+  try {
+    await store.openTask(run.runId, 'session')
+    store.selectStyle('new')
+    await store.reload()
+    assert.equal(store.getSnapshot().styleId, 'new')
+    assert.equal(store.getSnapshot().taskTarget, null)
+    assert.equal(store.getSnapshot().runId, '')
+  } finally { store.dispose() }
+})
+
 test('background refresh retains filters, image selection, open preview and task identity', async () => {
   let current = snapshot()
   const store = createCuratorStore({ invoke: async () => current })

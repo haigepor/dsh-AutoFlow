@@ -34,7 +34,7 @@ export interface ClientState {
   referencePages: Record<string, ReferencePageState>
   snapshot: CuratorSnapshot | null
   workspace: Workspace
-  taskTarget: { runId: string } | null
+  taskTarget: { runId: string; followLatestWallpaper?: boolean } | null
   styleId: string
   runId: string
   candidateId: string
@@ -142,6 +142,14 @@ export function createCuratorStore(transport: ClientTransport) {
   const analysisCache = createAnalysisDetailCache()
   const abortInputs = () => { for (const read of inputReads.values()) read.controller.abort(); inputReads.clear() }
   const clearCrop = () => ({ candidateId: '', cropRunId: '', cropSelection: state.cropSelection + 1 })
+  // Lightweight metadata does not revoke the loaded result window or its established workflow identities.
+  const retainRunDetails = (run: RunView, previous: RunView | undefined): RunView => {
+    if (!previous) return run
+    const saved = previous.wallpaper
+    const wallpaper = saved ? { runId: saved.runId, sourceRunId: saved.sourceRunId, total: saved.total, outputs: saved.outputs.map(output => ({ imageVersionId: output.imageVersionId, sourceImageVersionId: output.sourceImageVersionId })) } : saved
+    return { ...run, ...(run.wallpaper === undefined && wallpaper !== undefined ? { wallpaper } : {}),
+      ...(previous.resultFilter ? { resultFilter: previous.resultFilter } : {}), results: previous.results, ...(previous.pageToken ? { pageToken: previous.pageToken } : {}) }
+  }
   const mergeImages = (fresh: ImageView[], previous: ImageView[]) => [...new Map([...previous, ...fresh].map(image => [image.referenceId ?? image.imageVersionId, image])).values()]
 
   function publish(update: Partial<ClientState>): void {
@@ -375,7 +383,7 @@ export function createCuratorStore(transport: ClientTransport) {
     taskRead = work
     return work
   }
-  async function loadRun(runId: string, append = false, resultFilter = runFilters.get(runId) ?? 'all'): Promise<void> {
+  async function loadRun(runId: string, append = false, resultFilter = runFilters.get(runId) ?? 'all', followLatestWallpaper = false): Promise<void> {
     if (!state.snapshot || state.scopeSessionId && !state.sessionToken) return
     const changedFilter = runFilters.get(runId) !== resultFilter
     let retainedCategory = false
@@ -398,10 +406,17 @@ export function createCuratorStore(transport: ClientTransport) {
     if (append && !prior?.pageToken) return
     runControllers.set(runId, controller)
     if (state.runId === runId || state.cropRunId === runId) publish({ runLoading: !retainedCategory, runError: null })
-    const request = invoke('run-get', { runId, resultFilter, ...(append && prior?.pageToken ? { pageToken: prior.pageToken } : {}) }, controller.signal).then(value => {
-      if (typeof value !== 'object' || value === null || !('runId' in value) || value.runId !== runId || !('results' in value) || !Array.isArray(value.results)) throw new Error('invalid-run')
+    const request = invoke('run-get', { runId, resultFilter, ...(followLatestWallpaper ? { followLatestWallpaper: true } : {}), ...(append && prior?.pageToken ? { pageToken: prior.pageToken } : {}) }, controller.signal).then(value => {
+      if (typeof value !== 'object' || value === null || !('runId' in value) || typeof value.runId !== 'string' || value.runId !== runId && !(followLatestWallpaper && 'resolvedFromRunId' in value && value.resolvedFromRunId === runId) || !('results' in value) || !Array.isArray(value.results)) throw new Error('invalid-run')
       if (disposed || controller.signal.aborted || scope !== scopeSequence || version !== runVersions.get(runId) || !state.snapshot) return
       const run = value as RunView
+      if (run.runId !== runId) {
+        if (state.taskTarget?.runId !== runId || state.runId !== runId) return
+        runFilters.set(run.runId, resultFilter)
+        runCache.set(runCacheKey(run.runId, resultFilter), { run, firstCursor: run.pageToken, readAt: startedAt, savedAt: Date.now() })
+        publish({ runId: run.runId, taskTarget: { runId: run.runId }, runLoading: false, runError: null, ...(run.styleId ? { styleId: run.styleId } : {}), snapshot: { ...state.snapshot, runs: [...state.snapshot.runs.filter(row => row.runId !== run.runId), run] } })
+        return
+      }
       const previous = state.snapshot.runs.find(item => item.runId === runId)
       const firstCursor = runFirstCursors.get(runId)
       const sameFirstCursor = previous?.resultFilter === resultFilter && firstCursor !== undefined && run.pageToken === firstCursor
@@ -440,11 +455,11 @@ export function createCuratorStore(transport: ClientTransport) {
       imagesFirstCursor = nextPageToken
       const merged: CuratorSnapshot = { ...fields, images: mergeImages(snapshot.images, previous?.images ?? []),
         styles: snapshot.styles.map(style => retainStyleEvidence(style, previous?.styles.find(item => item.styleId === style.styleId))),
-        runs: snapshot.runs.map(run => { const old = previous?.runs.find(item => item.runId === run.runId); return old ? { ...run, ...(old.resultFilter ? { resultFilter: old.resultFilter } : {}), results: old.results, ...(old.pageToken ? { pageToken: old.pageToken } : {}) } : run }),
+        runs: snapshot.runs.map(run => retainRunDetails(run, previous?.runs.find(item => item.runId === run.runId))),
         ...(nextCursor ? { nextPageToken: nextCursor } : {}) }
-      publish({ snapshot: merged, loading: false, error: null,
-        styleId: snapshot.styles.some(style => style.styleId === state.styleId && !style.archived) ? state.styleId : snapshot.styles.find(style => !style.archived)?.styleId ?? '',
-        runId: skipSelectedRuns ? state.runId : state.runId || snapshot.runs[0]?.runId || '' })
+      const styleId = state.taskTarget && !previous ? snapshot.runs.find(run => run.runId === state.taskTarget?.runId)?.styleId ?? state.styleId : snapshot.styles.some(style => style.styleId === state.styleId && !style.archived) ? state.styleId : snapshot.styles.find(style => !style.archived)?.styleId ?? ''
+      publish({ snapshot: merged, loading: false, error: null, styleId,
+        runId: skipSelectedRuns ? state.runId : state.runId || snapshot.runs.find(run => !styleId || run.styleId === styleId)?.runId || '' })
       if (state.workspace !== 'tasks' && snapshot.collectionPaging && state.styleId && (!reuseReferences || !referencesCurrent(state.styleId))) { await referenceReads.get(state.styleId); if (disposed || sequence !== readSequence) return; await loadReferences(state.styleId) }
       if (disposed || sequence !== readSequence) return
       if (!skipSelectedRuns && state.runId) await loadRun(state.runId)
@@ -502,7 +517,7 @@ export function createCuratorStore(transport: ClientTransport) {
           const style = styleValue(value, result.id)
           if (disposed || scope !== scopeSequence || !state.snapshot) return result
           ++readSequence; refreshing = undefined
-          publish({ ...clearCrop(), snapshot: { ...state.snapshot, styles: [...state.snapshot.styles.filter(item => item.styleId !== style.styleId), style] }, styleId: style.styleId, workspace: 'styles', runId: '', selectedImageIds: [], previewId: '', page: 0, toast: { id: ++toastId, success: true, code: 'saved' } })
+          publish({ ...clearCrop(), snapshot: { ...state.snapshot, styles: [...state.snapshot.styles.filter(item => item.styleId !== style.styleId), style] }, styleId: style.styleId, workspace: 'styles', taskTarget: null, runId: '', runLoading: false, selectedImageIds: [], previewId: '', page: 0, toast: { id: ++toastId, success: true, code: 'saved' } })
           if (state.snapshot?.collectionPaging) await loadReferences(style.styleId)
           return result
         }
@@ -527,7 +542,7 @@ export function createCuratorStore(transport: ClientTransport) {
         if (!result || typeof result !== 'object' || !('runId' in result) || result.runId !== controlledRun || !('results' in result) || !Array.isArray(result.results)) throw new Error('invalid-run-control-response')
         if (disposed || scope !== scopeSequence || version !== runVersions.get(controlledRun) || controlVersion !== analysisControlVersions.get(controlledRun) || !state.snapshot) return result
         const run = result as RunView, previous = state.snapshot.runs.find(item => item.runId === controlledRun)
-        const updated = { ...run, ...(previous ? { results: previous.results, ...(previous.resultFilter ? { resultFilter: previous.resultFilter } : {}), ...(previous.pageToken ? { pageToken: previous.pageToken } : {}) } : {}) }
+        const updated = retainRunDetails(run, previous)
         // 控制回执比此前发出的轮询新；保留已加载图片和结果，且旧暂停不能覆盖后发取消。
         ++taskReadVersion; taskRead = undefined
         publish({ snapshot: { ...state.snapshot,
@@ -578,12 +593,12 @@ export function createCuratorStore(transport: ClientTransport) {
     publish({ snapshot: { ...state.snapshot, styles: state.snapshot.styles.map(item => item.styleId === styleId ? updated : item) } })
   }
 
-  function openSession(sessionId: string, taskRunId?: string): Promise<void> {
-    const target = taskRunId ? { runId: taskRunId } : null
+  function openSession(sessionId: string, taskRunId?: string, followLatestWallpaper = false): Promise<void> {
+    const target = taskRunId ? { runId: taskRunId, ...(followLatestWallpaper ? { followLatestWallpaper: true } : {}) } : null
     if (state.scopeSessionId === sessionId && state.sessionToken && state.snapshot) {
       if (!target) return Promise.resolve()
       publish({ ...clearCrop(), workspace: 'tasks', taskTarget: target, runId: target.runId, runError: null })
-      return loadRun(target.runId, false, runFilters.get(target.runId) ?? 'selected')
+      return loadRun(target.runId, false, runFilters.get(target.runId) ?? 'selected', target.followLatestWallpaper)
     }
     if (sessionOpening?.sessionId === sessionId && state.scopeSessionId === sessionId) {
       if (target) publish({ workspace: 'tasks', taskTarget: target, runId: target.runId, runLoading: true, runError: null })
@@ -613,7 +628,7 @@ export function createCuratorStore(transport: ClientTransport) {
       publish({ sessionToken, galleryTaskError: null, page: 0 })
       await reload(!!state.taskTarget)
       if (disposed || opening !== scopeSequence || !state.taskTarget) return
-      await loadRun(state.taskTarget.runId, false, runFilters.get(state.taskTarget.runId) ?? 'selected')
+      await loadRun(state.taskTarget.runId, false, runFilters.get(state.taskTarget.runId) ?? 'selected', state.taskTarget.followLatestWallpaper)
     })().finally(() => { if (sessionOpening?.work === work) sessionOpening = undefined; if (sessionReadController === controller) sessionReadController = undefined })
     sessionOpening = { sessionId, work }
     return work
@@ -634,8 +649,11 @@ export function createCuratorStore(transport: ClientTransport) {
     if (!ownerOnly) void reload(true, !!cached)
   }
 
-  async function openTask(runId: string, sessionId?: string): Promise<void> {
-    if (sessionId) return openSession(sessionId, runId)
+  async function openTask(runId: string, sessionId?: string, followLatestWallpaper = false): Promise<void> {
+    if (sessionId) {
+      await openSession(sessionId, runId, followLatestWallpaper)
+      return
+    }
     if (state.scopeSessionId) closeSession()
     const target = { runId }, scope = scopeSequence, run = state.snapshot?.runs.find(item => item.runId === runId)
     publish({ ...clearCrop(), workspace: 'tasks', taskTarget: target, runId, ...(run?.styleId ? { styleId: run.styleId } : {}), runLoading: true, runError: null })
@@ -760,7 +778,11 @@ export function createCuratorStore(transport: ClientTransport) {
     },
     openSession, closeSession, openTask,
     selectWorkspace(workspace: Workspace) { publish({ ...clearCrop(), workspace, taskTarget: null, page: 0, filter: 'all' }) },
-    selectStyle(styleId: string) { publish({ styleId, page: 0 }); if (state.snapshot?.collectionPaging && !referencesCurrent(styleId)) void readReferences(styleId, false, !!state.referencePages[styleId] && state.referencePages[styleId]!.taskVersion !== referenceTaskVersion(styleId)) },
+    selectStyle(styleId: string) {
+      if (state.taskTarget && state.styleId !== styleId) { stopRunReads(); publish({ ...clearCrop(), styleId, workspace: 'styles', taskTarget: null, runId: '', runLoading: false, runError: null, page: 0 }) }
+      else publish({ styleId, page: 0 })
+      if (state.snapshot?.collectionPaging && !referencesCurrent(styleId)) void readReferences(styleId, false, !!state.referencePages[styleId] && state.referencePages[styleId]!.taskVersion !== referenceTaskVersion(styleId))
+    },
     selectRun(runId: string) { const run = state.snapshot?.runs.find(item => item.runId === runId); publish({ ...clearCrop(), runId, ...(state.taskTarget ? { taskTarget: { runId } } : {}), ...(run?.styleId ? { styleId: run.styleId } : {}), page: 0 }); void loadRun(runId, false, run?.kind === 'search' || run?.kind === 'crop' ? 'selected' : 'all') },
     setFilter(filter: string) { publish({ ...clearCrop(), filter, page: 0 }) },
     setPage(page: number) { publish({ ...clearCrop(), page: Math.max(0, page) }) },

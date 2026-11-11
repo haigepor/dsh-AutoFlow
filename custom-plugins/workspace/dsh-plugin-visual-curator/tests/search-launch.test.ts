@@ -49,6 +49,7 @@ class NativeFixture implements NativeSearchSessions {
     if (this.fail === 'create-ack') { this.fail = undefined; throw new Error('Lost creation acknowledgement') }
   }
   async accepted(id: string, requestId: string) { return this.messages.some(item => item.sessionId === id && item.requestId === requestId) }
+  failure() { return undefined }
   async name() {}
   async submit(sessionId: string, requestId: string, text: string, _name: string, bytes: Uint8Array) {
     if (this.fail === 'attach') { this.fail = undefined; throw new Error('Attachment unavailable') }

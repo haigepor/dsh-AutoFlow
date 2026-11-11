@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-review-feedback",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator shows safe-area annotations during final review, links rejected reviews back to production, and reuses the conversation image-generation loading texture.",
+    "zh-CN": "视觉策展在质量复审中显示成品安全区标注，将未通过复审的节点连回制作步骤，并复用会话生图的点阵骨架屏。"
+  }
+}

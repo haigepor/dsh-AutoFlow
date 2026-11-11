@@ -2,10 +2,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
+import { readFile } from 'node:fs/promises'
 import { z } from 'zod'
 import sharp from 'sharp'
 import { serviceFixture } from './helpers/service-fixture.ts'
-import { dataOf } from '../src/host/runtime.ts'
+import { dataOf, toJson } from '../src/host/runtime.ts'
 import { MediaError } from '../src/media/errors.ts'
 import { analysisDetailSchema } from '../src/shared/analysis-process.ts'
 
@@ -14,6 +15,77 @@ function deferred() {
   const promise = new Promise<void>(accept => { resolve = accept })
   return { promise, resolve }
 }
+
+test('pausing during summary retains the finished response and resumes dataset packaging without another model request', { timeout: 15_000 }, async () => {
+  const f = await serviceFixture(), entered = deferred(), release = deferred()
+  const request = f.http.request.bind(f.http)
+  f.http.request = async (url, input) => {
+    if (url.startsWith('https://vision.example.test') && input.body) {
+      const body = JSON.parse(Buffer.from(input.body).toString('utf8'))
+      if (JSON.parse(body.messages[1].content[0].text).input.operation === 'summarize') {
+        entered.resolve()
+        await release.promise
+      }
+    }
+    return request(url, input)
+  }
+  try {
+    await f.service.initialize()
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'summary-pause-style', name: 'Summary pause' }))
+    await f.action('reference-import', { operationId: 'summary-pause-image', styleId, expectedRevision: 1, files: [{ name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'summary-pause-run', styleId, buildDataset: true }))
+    await entered.promise
+    await f.action('analysis-pause', { runId })
+    release.resolve()
+    await f.jobs.drain()
+    const paused = f.domain.require('run', runId), saved = dataOf(paused)
+    assert.equal(paused.status, 'paused', JSON.stringify(saved.error))
+    const before = { status: paused.status, stage: paused.stage, observations: f.repository.list('observation').length, summarySaved: saved.checkpoint.styleAnalysis !== undefined, profiles: f.repository.list('modelProfile').length, datasets: f.repository.list('profileExport').length, modelRequests: saved.budget.vision }
+    await f.action('analysis-resume', { runId })
+    await f.jobs.drain()
+    const complete = f.domain.require('run', runId), result = dataOf(complete)
+    assert.deepEqual(result.checkpoint.analysisResultIds, saved.checkpoint.analysisResultIds)
+    assert.deepEqual(result.checkpoint.styleAnalysis, saved.checkpoint.styleAnalysis)
+    assert.equal(result.error, undefined)
+    assert.deepEqual({ paused: before, resumed: { status: complete.status, outcome: complete.outcome, observations: f.repository.list('observation').length, profiles: f.repository.list('modelProfile').length, datasets: f.repository.list('profileExport').length, modelRequests: result.budget.vision }, operations: f.http.operations }, JSON.parse(await readFile(new URL('./fixtures/analysis-summary-pause.expected.json', import.meta.url), 'utf8')))
+  } finally { release.resolve(); await f.cleanup() }
+})
+
+for (const changed of [false, true]) test(`saved dataset conflicts ${changed ? 'still reject changed references' : 'recover without another model request'}`, { timeout: 15_000 }, async () => {
+  const f = await serviceFixture(), entered = deferred(), release = deferred()
+  const request = f.http.request.bind(f.http)
+  f.http.request = async (url, input) => {
+    if (url.startsWith('https://vision.example.test') && input.body) {
+      const body = JSON.parse(Buffer.from(input.body).toString('utf8'))
+      if (JSON.parse(body.messages[1].content[0].text).input.operation === 'summarize') { entered.resolve(); await release.promise }
+    }
+    return request(url, input)
+  }
+  try {
+    await f.service.initialize()
+    const { id: styleId } = z.object({ id: z.string() }).parse(await f.action('style-create', { operationId: 'saved-conflict-style', name: 'Saved conflict' }))
+    const file = { name: 'reference.png', mime: 'image/png', base64: f.http.image.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }
+    await f.action('reference-import', { operationId: 'saved-conflict-image', styleId, expectedRevision: 1, files: [file] })
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('reference-analyze', { operationId: 'saved-conflict-run', styleId, buildDataset: true }))
+    await entered.promise
+    await f.action('analysis-pause', { runId })
+    release.resolve(); await f.jobs.drain()
+    const paused = f.domain.require('run', runId), data = dataOf(paused), aggregateId = `run:${runId}`
+    assert.ok(data.checkpoint.styleAnalysis)
+    const legacy = { ...paused, revision: paused.revision + 1, status: 'failed' as const, data: toJson({ ...data, error: { code: 'revision-conflict', stage: 'dataset-export', retryable: false, safeMessage: 'The reference collection changed during analysis.', suggestedAction: 'Review the operation and retry with current records.' } }) }
+    await f.repository.commit({ aggregateId, expectedRevision: f.repository.manifest(aggregateId)!.revision, operationId: 'saved-conflict-record', request: {}, records: [legacy], state: {} })
+    if (changed) await f.action('reference-import', { operationId: 'saved-conflict-new-image', styleId, expectedRevision: f.domain.require('style', styleId).revision, files: [{ ...file, name: 'additional.png' }] })
+    const detail = analysisDetailSchema.parse(await f.action('analysis-detail', { runId }))
+    assert.equal(detail.task.continuation?.allowed, true)
+    await f.action('analysis-resume', { runId }); await f.jobs.drain()
+    const result = f.domain.require('run', runId)
+    assert.equal(result.status, changed ? 'failed' : 'completed')
+    assert.equal(f.repository.list('profileExport').length, changed ? 0 : 1)
+    assert.deepEqual(f.http.operations, ['analyze:', 'summarize:'])
+    assert.deepEqual(dataOf(result).checkpoint.styleAnalysis, data.checkpoint.styleAnalysis)
+    if (changed) assert.equal(dataOf(result).error?.code, 'revision-conflict')
+  } finally { release.resolve(); await f.cleanup() }
+})
 
 test('a failed summary exposes its cause and continues the same task without repeating saved observations', async () => {
   const f = await serviceFixture(undefined, { maxRetryAttempts: 0 }), send = f.http.request.bind(f.http)

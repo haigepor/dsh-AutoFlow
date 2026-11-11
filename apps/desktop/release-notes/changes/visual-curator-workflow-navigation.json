@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-workflow-navigation",
+  "category": "improvements",
+  "text": {
+    "en": "Switch between task results, batch canvas and individual image workflows with shared tabs and breadcrumbs. A reorganized task header groups filters, progress and actions, including when inspecting archived collections.",
+    "zh-CN": "任务结果、批次画布与单图流程通过统一标签和面包屑衔接；任务头部重排需求、筛选、进度和操作，归档素材集也可查看历史工作流。"
+  }
+}

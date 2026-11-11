@@ -20,7 +20,7 @@ import { hiddenLaunchIds, hiddenTaskIds } from './task-history.ts'
 import { freezeSearchNegatives, searchNegativeSummary } from './search-reference-datasets.ts'
 import { listDatasets, readDatasetDirectory, type DatasetReads } from './datasets.ts'
 import { removedDatasetIds } from '../domain/dataset-removal.ts'
-import { wallpaperProgress } from '../shared/wallpaper.ts'
+import { wallpaperWorkImage, wallpaperProgress } from '../shared/wallpaper.ts'
 import { wallpaperRunState } from './wallpaper-state.ts'
 import { launchPresentationSchema } from '../shared/task-presentation.ts'
 import { presentRun } from './task-presentation.ts'
@@ -217,9 +217,9 @@ export class SearchLaunches {
     const wallpaperRun = savedRuns.filter(run => specOf(run).input.workflow === 'wallpaper-v1' && runIds.includes(String(specOf(run).input.sourceRunId))).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
     const state = wallpaperRun ? wallpaperRunState(this.deps.domain, wallpaperRun) : undefined
     const wallpaperSpec = wallpaperRun ? specOf(wallpaperRun) : undefined
-    const progress = state ? wallpaperProgress(state, wallpaperSpec?.input.continuationKind === 'recompose' && typeof wallpaperSpec.input.recomposedImageId === 'string' ? wallpaperSpec.input.recomposedImageId : undefined) : undefined
-    const wallpaper = wallpaperRun && state && progress ? { runId: wallpaperRun.id, status: wallpaperRun.status, total: state.items.length, passed: progress.passed ?? 0, attention: (progress['needs-review'] ?? 0) + (progress['technical-failed'] ?? 0) + (progress.rejected ?? 0) } : undefined
-    const fault = value.status === 'stopped' ? undefined : this.faults.get(value.input.operationId) ?? value.error ?? (runs[0] ? runFailure(runs[0]) : undefined)
+    const progress = state ? wallpaperProgress(state, wallpaperSpec ? wallpaperWorkImage(wallpaperSpec.input) : undefined, wallpaperRun?.status) : undefined
+    const wallpaper = wallpaperRun && state && progress ? { runId: wallpaperRun.id, status: wallpaperRun.status, total: state.items.length, passed: progress.passed ?? 0, attention: progress.attention ?? 0 } : undefined
+    const fault = value.status === 'stopped' ? undefined : this.faults.get(value.input.operationId) ?? value.error ?? (runs[0] ? runFailure(runs[0]) : value.status === 'accepted' ? this.deps.native()?.failure(value.sessionId, value.requestId) : undefined)
     const sessionReady = this.sessionReady(value, runs)
     return searchLaunchViewSchema.parse({ sessionReady, id: value.input.operationId, input: value.input, sessionId: value.sessionId, stage: value.stage, status: fault ? 'failed' : value.status, createdAt: value.createdAt, updatedAt: value.updatedAt, ...(value.datasetId ? { datasetId: value.datasetId } : {}), ...(value.negativeReferences ? { negativeReferences: { datasets: value.negativeReferences.datasets.length, references: value.negativeReferences.samples.length } } : {}), runIds, qualified, ...(wallpaper ? { wallpaper } : {}), ...(runs[0] ? { continuation: readRunContinuation(runs[0], this.deps.domain.repository) } : {}), ...(value.stopRequested && value.status !== 'stopped' ? { stopping: true } : {}), ...(runStatus ? { runStatus } : {}), ...(directory ? { directory } : {}), ...(fault ? { error: fault } : {}), ...(this.presentationState.has(value.input.operationId) ? { presentation: this.presentationState.get(value.input.operationId) } : {}) })
   }

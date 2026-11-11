@@ -23,7 +23,7 @@ import { visionBounds } from './providers.ts'
 import { validObservationReuse } from './reference-state.ts'
 import { reusedObservationSchema } from '../shared/reference-state.ts'
 import { analysisScopeSchema, datasetScopeSchema, type DatasetProgress } from '../shared/datasets.ts'
-import { observationRole, referenceRoleInstruction } from './analysis-selection.ts'
+import { observationRole, referenceRoleInstruction, referenceDetailInstruction } from './analysis-selection.ts'
 import { datasetOrganizationInstruction } from './dataset-organization-prompt.ts'
 
 /** All I/O remains owned by the current Run and its shared budget. */
@@ -77,6 +77,10 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
   const references = z.array(referenceSchema).parse(ctx.spec.fixed.references)
   const analysisScope = analysisScopeSchema.parse(ctx.spec.input.analysisScope ?? 'all')
   const roleAware = ctx.spec.fixed.referencePrompts === 'role-aware-v1'
+  const strictDimensions = ctx.spec.fixed.referenceDetailPrompts === 'subject-context-v2'
+  const preciseObservations = strictDimensions || ctx.spec.fixed.referenceDetailPrompts === 'subject-context-v1'
+  const preciseEvidence = ctx.spec.fixed.datasetPrompts === 'evidence-scoped-v1'
+  const summaryPromptVersion = preciseEvidence ? 'visual-curator-summary-v5' : 'visual-curator-summary-v4'
   const feedback = z.array(feedbackSchema).parse(ctx.spec.fixed.feedback)
   const roleOf = (reference: typeof references[number]) => referenceFeedbackRole(draft.rules, reference, feedback)
   const selectedImages = new Set(references.filter(reference => analysisScope === 'all' || roleOf(reference) === analysisScope).map(reference => reference.imageVersionId))
@@ -153,7 +157,7 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
     const imageIds = new Set<string>(batch.map(item => item.image.id))
     // 每批只发送当前图片的判断；完整反馈留在冻结输入和最终归纳，避免逐批重复整个素材集。
     const applicableFeedback = feedback.filter(item => item.subject.kind === 'pair' ? imageIds.has(item.subject.leftImageVersionId) && imageIds.has(item.subject.rightImageVersionId) : imageIds.has(item.subject.imageVersionId))
-    const input: VisionInput = { requestId, promptVersion: 'visual-curator-reference-v2', ...(analysisOutput ? { analysisOutput } : {}), taskBrief: JSON.stringify({ instruction: (roleAware ? referenceRoleInstruction(analysisRole) + ' ' : '') + 'Analyze only the selected reference dimensions. Describe color palette and saturation, light direction and contrast, material and grain, composition and negative space, density and depth. Separate subject content from style unless subject is selected. Record uncertainty, never infer hidden facts. Use the fixed human judgments; original import intent is historical context and does not override revised judgments. ' + (analysisOutput === 'observations-only' ? 'Return only per-image observations. Do not propose rules or a shared style profile in this stage; rule induction runs separately after all observations are saved. ' : 'Return observations and unconfirmed rule suggestions. ') + 'Write descriptions in Simplified Chinese.', ...(roleAware ? { analysisRole } : {}), styleId: draft.styleId, draftRevision: draft.revision, applicableFeedback: modelFeedback(applicableFeedback) }), rules: draft.rules, images: batch.map(i => i.pixels) }
+    const input: VisionInput = { requestId, promptVersion: strictDimensions ? 'visual-curator-reference-v4' : preciseObservations ? 'visual-curator-reference-v3' : 'visual-curator-reference-v2', ...(analysisOutput ? { analysisOutput } : {}), taskBrief: JSON.stringify({ instruction: (roleAware ? referenceRoleInstruction(analysisRole) + ' ' : '') + (preciseObservations ? referenceDetailInstruction(strictDimensions) + ' ' : '') + 'Analyze only the selected reference dimensions. Describe color palette and saturation, light direction and contrast, material and grain, composition and negative space, density and depth. Separate subject content from style unless subject is selected. Record uncertainty, never infer hidden facts. Use the fixed human judgments; original import intent is historical context and does not override revised judgments. ' + (analysisOutput === 'observations-only' ? 'Return only per-image observations. Do not propose rules or a shared style profile in this stage; rule induction runs separately after all observations are saved. ' : 'Return observations and unconfirmed rule suggestions. ') + 'Write descriptions in Simplified Chinese.', ...(roleAware ? { analysisRole } : {}), styleId: draft.styleId, draftRevision: draft.revision, applicableFeedback: modelFeedback(applicableFeedback) }), rules: draft.rules, images: batch.map(i => i.pixels) }
     const cached = savedResponse(deps, ctx, requestId)
     const descriptor = cached?.descriptor ?? toJson(provider.describeRequest(input, 'analyze'))
     ctx.report({ phase: 'analyzing', imageIds: batch.map(item => item.image.id), batch: Math.floor(checkpoint.analysisDoneImageIds.length / maxImages) + 1, resetOutput: true })
@@ -201,8 +205,8 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
     representatives.push(await imagePixels(deps, image, JSON.stringify({ role: roleOf(reference), importedRole: reference.role, intent: reference.intent }), ctx)); totalBytes += image.blob.byteLength
   }
   const requestId = `summary-${contentDigest({ runId: ctx.runId, samples }).slice(10, 50)}`
-  const input: VisionInput = { requestId, rules: draft.rules, images: representatives, taskBrief: JSON.stringify({
-    instruction: datasetOrganizationInstruction(awaiting.length > 0, roleAware),
+  const input: VisionInput = { requestId, summaryPromptVersion, rules: draft.rules, images: representatives, taskBrief: JSON.stringify({
+    instruction: datasetOrganizationInstruction(awaiting.length > 0, roleAware, preciseEvidence),
     styleId: draft.styleId, coverage: { observed: observedImages.size, total: new Set(references.map(reference => reference.imageVersionId)).size, partial: awaiting.length > 0, representativePixels: representatives.length, representativeImageIds: representatives.map(image => image.imageVersionId), pixelLimits: { maxImages, maxBytes } },
     applicableFeedback: modelFeedback(feedback.filter(item => item.subject.kind === 'pair' ? observedImages.has(item.subject.leftImageVersionId) && observedImages.has(item.subject.rightImageVersionId) : observedImages.has(item.subject.imageVersionId))),
     samples: samples.map(sample => ({ imageVersionId: sample.reference.imageVersionId, role: roleOf(sample.reference), importedRole: sample.reference.role, intent: sample.reference.intent, observation: observations.find(item => item.id === sample.observationId) })),
@@ -216,25 +220,25 @@ async function analyze(deps: DataWorkerDependencies, ctx: WorkContext): Promise<
   const validateOrganization = (summary: StyleSummary): StyleSummary => {
     const organized = organizationOf(summary)
     if (!organized) throw new CuratorError('vision-invalid-output', 'analyze', 'The model organization is missing scoped rejection reasons or rule applicability. Continue with the retained observations to retry organization.', { retryable: true })
-    return { ...summary, negativeReasons: organized.negativeReasons.map(reason => ({ ...reason, uncertain: reason.uncertain || !feedback.some(item => item.subject.kind !== 'pair' && item.subject.imageVersionId === reason.imageVersionId && (item.judgment.kind === 'style-verdict' && item.judgment.value === 'reject' || item.judgment.kind === 'dimension-verdict' && item.judgment.dimension === reason.dimension && item.judgment.value === 'reject') && (!!item.comment?.trim() || item.reasonCodes.length > 0)) })) }
+    return { ...summary, ...(preciseEvidence && !feedback.some(item => (item.judgment.kind === 'style-verdict' || item.judgment.kind === 'dimension-verdict') && item.judgment.value === 'reject' && (!!item.comment?.trim() || item.reasonCodes.length > 0)) ? { avoidTerms: [] } : {}), negativeReasons: organized.negativeReasons.map(reason => ({ ...reason, uncertain: reason.uncertain || !feedback.some(item => item.subject.kind !== 'pair' && item.subject.imageVersionId === reason.imageVersionId && (item.judgment.kind === 'style-verdict' && item.judgment.value === 'reject' || item.judgment.kind === 'dimension-verdict' && item.judgment.dimension === reason.dimension && item.judgment.value === 'reject') && (!!item.comment?.trim() || item.reasonCodes.length > 0)) })) }
   }
   let cached = savedResponse(deps, ctx, requestId)
   if (cached) {
     const saved = styleSummarySchema.safeParse(cached.output)
     // Old requests could commit a response before its rejection coverage was checked.
-    if (!saved.success || z.object({ promptVersion: z.string() }).parse(cached.descriptor).promptVersion === 'visual-curator-summary-v4' && !organizationOf(saved.data)) cached = undefined
+    if (!saved.success || ['visual-curator-summary-v4', 'visual-curator-summary-v5'].includes(z.object({ promptVersion: z.string() }).parse(cached.descriptor).promptVersion) && !organizationOf(saved.data)) cached = undefined
   }
   ctx.report({ phase: 'summarizing', imageIds: representatives.map(image => image.imageVersionId), resetOutput: true })
   const summaryInput = !cached && deps.compactSummary ? await deps.compactSummary(input, provider, ctx) : input
   if (summaryInput !== input) ctx.report({ phase: 'summarizing', imageIds: representatives.map(image => image.imageVersionId), resetOutput: true })
   let summary = cached ? styleSummarySchema.parse(cached.output) : await ctx.request('vision', toJson(provider.describeRequest(summaryInput, 'summarize')), async (signal, recordMetadata) => validateOrganization(await provider.summarize(summaryInput, samples.map(sample => sample.reference.imageVersionId), { ...visionBounds(ctx.spec.config, ctx, signal, recordMetadata), onPhase: phase => ctx.report({ phase: phase === 'analyzing' ? 'summarizing' : phase }), onOutput: delta => ctx.report({ phase: 'receiving', ...delta }) })))
-  if (cached && z.object({ promptVersion: z.string() }).parse(cached.descriptor).promptVersion === 'visual-curator-summary-v4') {
+  if (cached && ['visual-curator-summary-v4', 'visual-curator-summary-v5'].includes(z.object({ promptVersion: z.string() }).parse(cached.descriptor).promptVersion)) {
     summary = validateOrganization(summary)
   }
   ctx.report({ phase: 'saving' })
   const analysis = styleAnalysisSchema.parse({ formatVersion: 1, runId: ctx.runId, styleId: draft.styleId, draftId: draft.id, draftRevision: draft.revision,
     referenceDigest: analysisReferenceDigest(references, feedback.map(item => item.id)), feedbackIds: feedback.map(item => item.id), recipeId: recipe.id, model: provider.config.model, declaredModelVersion: provider.config.declaredModelVersion ?? null,
-    observationPromptVersion: observationPromptVersion(observations, deps.domain.repository.list('request')), summaryPromptVersion: cached ? z.object({ promptVersion: z.enum(['visual-curator-summary-v1', 'visual-curator-summary-v2', 'visual-curator-summary-v3', 'visual-curator-summary-v4']) }).parse(cached.descriptor).promptVersion : 'visual-curator-summary-v4', summaryRequestId: requestId, samples, summary })
+    observationPromptVersion: observationPromptVersion(observations, deps.domain.repository.list('request')), summaryPromptVersion: cached ? z.object({ promptVersion: z.enum(['visual-curator-summary-v1', 'visual-curator-summary-v2', 'visual-curator-summary-v3', 'visual-curator-summary-v4', 'visual-curator-summary-v5']) }).parse(cached.descriptor).promptVersion : summaryPromptVersion, summaryRequestId: requestId, samples, summary })
   const suggestions = summary.suggestedRules.map((rule, index) => suggestionSchema.parse({ ...recordBase(ctx, 'suggestion', { requestId, index }), kind: 'suggestion', status: 'pending', access: ctx.current().owner.kind === 'session' ? { kind: 'session-run', sessionId: actor.sessionId } : { kind: 'profile-library' }, author: { kind: 'model', sourceId: recipe.model }, text: JSON.stringify({ ...rule, requestId, draftId: draft.id, draftRevision: draft.revision, recipeId: recipe.id }), feedbackIds: feedback.map(item => item.id) }))
   await ctx.save('finalizing', { checkpoint: { ...dataOf(ctx.current()).checkpoint, styleAnalysis: toJson(analysis), ...(roleAware && !references.some(reference => roleOf(reference) === 'positive') ? { analysisNeedsPositiveReferences: true } : {}) }, resultIds: [...checkpoint.analysisResultIds, ...suggestions.map(item => item.id)], counts: { ...dataOf(ctx.current()).counts, observed: observations.length, suggestions: suggestions.length, summarized: samples.length } }, suggestions)
 }
@@ -362,8 +366,10 @@ export function createDataWorker(deps: DataWorkerDependencies): Worker {
     switch (ctx.spec.kind) {
       case 'analyze': {
         await analyze(deps, ctx)
+        ctx.checkAdmission()
         const profiles = new ModelProfiles(deps.domain), actor = runActor(ctx)
         const profile = await profiles.adopt(ctx.current(), actor, true)
+        ctx.checkAdmission()
         if (ctx.spec.fixed.autoExportDataset === true) {
           if (!profile) throw new CuratorError('revision-conflict', 'dataset-export', 'The reference collection changed during analysis. Saved observations are retained; analyze the current collection to organize and save its dataset.')
           const complete = profile.rules.some(isMatchingRule) && dataOf(ctx.current()).checkpoint.analysisNeedsPositiveReferences !== true

@@ -94,6 +94,9 @@ export function createPreviewSearchWorker(deps: SearchDependencies): Worker {
         try {
           if (!imageId) {
             const item = locations.get(photoId) ?? await ctx.request('search', toJson({ providerAssetId: photoId, operation: 'lookup' }), signal => source.lookup(photoId, { ...requestBounds(ctx.spec.config, ctx), signal }), () => ({ refreshed: true }))
+            if (ctx.spec.fixed.wallpaperAuto === true && (item.originalUnavailable || !item.originalUrl)) {
+              state.issues.push({ candidateId: photoId, stage: 'download', category: 'unavailable', code: item.originalUnavailable ? 'source-original-restricted' : 'source-original-unavailable' }); await save(); return
+            }
             const dimensions = z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).parse(item)
             // Only verified public descriptors enter preview searches; original bytes remain a separate operation.
             const blob = remoteReferenceBlob({ providerId: 'unsplash', photoId, accountId: owner.accountIdentity, url: item.previewUrl, thumbnailUrl: item.thumbnailUrl ?? item.previewUrl })

@@ -91,6 +91,7 @@ async function setup(pages: SearchFixture['pages'], options: { original?: boolea
   let saveCount = 0
   let afterSave: ((records: readonly { kind: string }[]) => void) | undefined
   const context: WorkContext = { runId: run.id, get signal() { return currentSignal }, spec, ledger, current: () => domain.require('run', run.id),
+    checkAdmission: () => currentSignal.throwIfAborted(),
     report: () => { /* 此夹具只运行搜图与裁图，不产生分析消息。 */ },
     save: async (stage, patch, records = []) => {
       currentSignal.throwIfAborted()

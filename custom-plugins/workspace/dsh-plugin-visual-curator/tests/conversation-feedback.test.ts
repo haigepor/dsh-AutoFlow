@@ -141,6 +141,33 @@ const pendingLaunch = (sessionId: string) => {
   return { id, input: { operationId: id, workspaceId: 'photos', modelProfileId: 'profile', datasetId: 'profile-export-fixture', taskBrief: 'Find muted green landscape images.', targetCount: 10, output: { kind: 'preview' } }, sessionId, status: 'working', stage: 'attaching', createdAt: '2026-10-31T00:00:00Z', updatedAt: '2026-10-31T00:00:00Z', runIds: [], qualified: 0 }
 }
 
+test('completed search keeps observing wallpaper production and discovers its external continuation', async () => {
+  const timers = new Set<() => void>()
+  let childStatus = 'running', childId = 'wallpaper', passed = 0, detailReads = 0
+  const store = createConversationFeedback({ schedule: work => { timers.add(work); return () => timers.delete(work) }, invoke: async operation => {
+    if (operation === 'session-open') return { sessionToken: 'grant', expiresAt: Date.now() + 100000, pollIntervalMs: 17 }
+    const wallpaper = { runId: childId, status: childStatus, total: 1, passed, attention: childStatus === 'completed' && !passed ? 1 : 0 }
+    if (operation === 'conversation-runs') return { sessionId: 'owner', tasks: [{ runId: 'run', kind: 'search', status: 'completed', revision: 7, taskBrief: 'Wallpaper' }], launch: { ...pendingLaunch('owner'), status: 'accepted', runIds: ['run'], wallpaper } }
+    detailReads++
+    return { ...report('owner', 'run', 'completed'), revision: 7, launchId: pendingLaunch('owner').id, wallpaperRequired: true, workflowComplete: passed === 1, wallpaper: { ...wallpaper, sourceRunId: 'run', complete: passed === 1, attentionTotal: wallpaper.attention } }
+  } })
+  const source = store.sessionSource('owner'), close = source.subscribe(() => {})
+  const poll = async () => { const pending = [...timers]; timers.clear(); pending.forEach(work => work()); await setImmediate() }
+  try {
+    await setImmediate()
+    assert.equal(source.getSnapshot().runs.run?.run?.wallpaper?.status, 'running')
+    childStatus = 'completed'; await poll()
+    assert.equal(source.getSnapshot().runs.run?.run?.wallpaper?.status, 'completed')
+    const stoppedAt = detailReads
+    await poll(); assert.equal(detailReads, stoppedAt, 'settled production must stop detail polling')
+    childStatus = 'running'; childId = 'continued-wallpaper'; await poll()
+    assert.equal(source.getSnapshot().runs.run?.run?.wallpaper?.runId, childId, 'a child continuation changes without changing the parent revision')
+    childStatus = 'completed'; passed = 1; await poll()
+    assert.equal(source.getSnapshot().runs.run?.run?.workflowComplete, true)
+  } finally { close(); store.dispose() }
+  assert.equal(timers.size, 0)
+})
+
 test('a saved launch shows its requirements before the first Run and stops through its owning Session grant', async () => {
   const launch = pendingLaunch('owner'), calls: string[] = [], timers = new Set<() => void>()
   let offline = false

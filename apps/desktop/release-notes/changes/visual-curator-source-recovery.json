@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-source-recovery",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator reports partial original downloads, replaces restricted sources using the frozen visual rules, retains saved image work and restores historical image thumbnails.",
+    "zh-CN": "视觉策展正确展示原图下载的部分失败，按冻结的视觉规则补找受限来源，保留已保存图片和处理结果，并恢复历史图片缩略图。"
+  }
+}

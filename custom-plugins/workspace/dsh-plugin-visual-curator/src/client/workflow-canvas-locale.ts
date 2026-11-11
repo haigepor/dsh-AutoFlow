@@ -1,11 +1,16 @@
 /** Automatic workflow nodes keep execution copy separate from canvas navigation. */
 export const workflowCanvasEn = {
+  workflowSavedTask: 'Saved task', workflowLocatingTask: 'Loading the saved task…', workflowNavigation: 'Workflow views', workflowBreadcrumb: 'Workflow location', workflowBatchCanvas: 'Batch canvas', workflowTaskResults: 'Task list', workflowLocatingImage: 'Locating the saved image…', workflowImageUnavailable: 'This image is unavailable in this batch. Return to its batch canvas.', workflowArchivedCollection: 'Archived collection',
+  workflowConversationPreparation: 'Conversation preparing search', workflowReadingRun: 'Loading search progress', workflowReadingRunHint: 'A search task exists. Its current progress is loading; it will not be started again.',
+  workflowDownloadPartial: 'Partially completed', workflowDownloadPending: 'Pending downloads', workflowDownloadReplaced: 'Replaced sources', workflowSearchPreparing: 'Preparing image retrieval', workflowSearchFinalizing: 'Saving results', workflowSearchNoMatchesYet: 'The task is running. Matches appear after visual review; zero matches does not mean the search has not started.',
+  workflowTaskRequirements: 'Search requirements', workflowTaskProgress: 'Selection progress', workflowTaskDiagnostics: 'Requests and diagnostics', workflowTaskRecords: 'Task record', workflowTaskCreatedAt: 'Started', workflowTaskIdentifier: 'Task ID',
+
   workflowReferenceDialogHint: 'Review the images and their roles, then start analysis when ready. Click an image to preview it.',
   workflowReferenceAllRoles: 'All reference types',
   workflowViewAllReferences: 'View all {count} images',
   workflowWaitingDatasetInput: 'Waiting for the current image observations; organization starts after they are saved',
   workflowDeleteBatch: 'Delete batch', workflowDeleteSelected: 'Delete selected batches ({count})', workflowDeleteTitle: 'Delete workflow batches', workflowDeleteScope: 'Remove the complete task batches and linked workflows belonging to the selected cards.', workflowDeletePreserve: 'Reference images, style profiles, datasets, originals and finished image files are kept.', workflowDeleteStopHint: 'Unfinished tasks and downstream processing will stop before their records are removed.', workflowDeleteCount: 'Delete {count} task batches?', workflowDeleteConfirm: 'Delete batch records', workflowDeleteStoppingConfirm: 'Stop and delete', workflowDeleting: 'Stopping and deleting…', workflowDeleteFailed: 'Removal was not confirmed for these batches. Retry to check their saved status.', workflowDeleteProgress: 'Processed {completed} / {total}', workflowDeleteActive: 'Stop first', workflowDeleteWaiting: 'Waiting for active steps to stop and saving removal. You can close this dialog; removal continues in the background. Cards disappear only after confirmation.', workflowDeleteKeyHint: 'Delete or Backspace removes selected batches',
-  workflowAwaitingRunHint: 'The request was accepted, but image search has not started. Open its session to check progress or stop this task.', workflowOpenSearchSession: 'Open search session', workflowNewSearchTask: 'New search',
+  workflowAwaitingRunHint: 'The conversation has received the request and is preparing tool calls. Candidate retrieval has not started yet; open the conversation to inspect preparation or pending confirmations.', workflowOpenSearchSession: 'Open search session', workflowNewSearchTask: 'New search',
   wallpaperDownloading: 'Download and save originals', wallpaperDownloadedCount: 'Saved originals',
   workflowDownloadHint: 'Originals are downloaded one at a time, verified and saved before processing. Temporary failures retry within the task limits; continuation reuses saved files.',
   workflowDownloadQueued: 'Waiting to download', workflowDownloadActive: 'Downloading', workflowDownloadRetrying: 'Retrying automatically', workflowDownloadSaved: 'Saved', workflowDownloadRestricted: 'Restricted original', workflowDownloadFailed: 'Download failed', workflowDownloadAttempts: 'Transfer attempts', workflowDownloadBytes: 'Saved bytes', workflowDownloadFile: 'Download saved original', workflowDownloadPreview: 'View saved original',
@@ -27,12 +32,17 @@ export const workflowCanvasEn = {
 
 /** Chinese text shares the automatic canvas keys with English. */
 export const workflowCanvasZh: typeof workflowCanvasEn = {
+  workflowSavedTask: '已保存任务', workflowLocatingTask: '正在读取该历史任务…', workflowNavigation: '工作流视图', workflowBreadcrumb: '工作流位置', workflowBatchCanvas: '批次画布', workflowTaskResults: '任务列表', workflowLocatingImage: '正在定位已保存的图片…', workflowImageUnavailable: '该图片不在当前批次中，请返回批次画布', workflowArchivedCollection: '已归档素材集',
+  workflowConversationPreparation: '会话准备检索', workflowReadingRun: '正在读取检索进度', workflowReadingRunHint: '检索任务已经创建，正在读取实际进度，不会重复启动任务。',
+  workflowDownloadPartial: '部分完成', workflowDownloadPending: '等待下载', workflowDownloadReplaced: '已补找', workflowSearchPreparing: '检索准备中', workflowSearchFinalizing: '正在保存结果', workflowSearchNoMatchesYet: '任务正在运行，通过视觉复审后才会显示匹配图片；匹配为 0 不代表尚未开始。',
+  workflowTaskRequirements: '任务需求', workflowTaskProgress: '筛选进度', workflowTaskDiagnostics: '请求与诊断', workflowTaskRecords: '任务记录', workflowTaskCreatedAt: '启动时间', workflowTaskIdentifier: '任务 ID',
+
   workflowReferenceDialogHint: '核对参考图与正反例，准备好后手动开始分析；点击图片可查看大图',
   workflowReferenceAllRoles: '全部参考类型',
   workflowViewAllReferences: '查看全部 {count} 张',
   workflowWaitingDatasetInput: '等待当前逐图观察保存完成，再开始整理数据集',
   workflowDeleteBatch: '删除所属批次', workflowDeleteSelected: '删除选中批次（{count}）', workflowDeleteTitle: '删除任务批次', workflowDeleteScope: '移除所选卡片所属的整个任务批次及关联工作流', workflowDeletePreserve: '保留参考图、风格档案、数据集、原图与成品文件', workflowDeleteStopHint: '仍在运行的任务和下游处理将先停止，再移除记录', workflowDeleteCount: '确认删除 {count} 个任务批次？', workflowDeleteConfirm: '删除批次记录', workflowDeleteStoppingConfirm: '停止并删除', workflowDeleting: '正在停止并删除…', workflowDeleteFailed: '以下批次尚未确认删除结果，可重试核对', workflowDeleteProgress: '已处理 {completed} / {total}', workflowDeleteActive: '需先停止', workflowDeleteWaiting: '正在等待执行中的步骤停止并保存删除结果。可以关闭此窗口，操作会在后台继续；确认完成后才会移除卡片。', workflowDeleteKeyHint: 'Delete 或 Backspace 删除选中批次',
-  workflowAwaitingRunHint: '需求已受理，找图尚未开始，可打开会话查看进度或停止此任务', workflowOpenSearchSession: '打开找图会话', workflowNewSearchTask: '新建找图',
+  workflowAwaitingRunHint: '会话已接收需求，等待模型调用找图工具；此时还没有检索候选。可打开会话查看准备过程或待确认操作', workflowOpenSearchSession: '打开找图会话', workflowNewSearchTask: '新建找图',
   wallpaperDownloading: '原图下载与保存', wallpaperDownloadedCount: '已保存原图',
   workflowDownloadHint: '逐张下载、校验并保存原图后再处理。临时错误按任务限额自动重试；继续任务会复用已保存文件。',
   workflowDownloadQueued: '等待下载', workflowDownloadActive: '正在下载', workflowDownloadRetrying: '正在自动重试', workflowDownloadSaved: '已保存', workflowDownloadRestricted: '原图来源受限', workflowDownloadFailed: '下载失败', workflowDownloadAttempts: '下载请求次数', workflowDownloadBytes: '已保存大小', workflowDownloadFile: '下载已保存原图', workflowDownloadPreview: '查看已保存原图',
@@ -48,6 +58,6 @@ export const workflowCanvasZh: typeof workflowCanvasEn = {
   workflowWaitingDataset: '分析后自动整理并保存数据集', workflowGeneratingDataset: '正在整理并保存数据集', workflowCreateDataset: '生成数据集', workflowDatasetDetails: '查看数据集', workflowOrganizeAgain: '模型重新整理', workflowDatasetUnavailable: '此任务已冻结风格快照，原数据包当前不可用，可在任务详情中查看',
   workflowFrozenReferences: '任务参考快照', workflowCurrentReferences: '当前参考图', workflowSnapshot: '任务冻结版本', workflowCurrent: '当前素材集', workflowReady: '已就绪', workflowWaiting: '等待中', workflowNoResults: '开始找图后，结果会自动出现在这里',
   workflowNewSearch: '开始找图', workflowMatchedResult: '匹配结果', workflowCropResult: '裁剪结果', workflowCropImage: '裁剪此图', workflowProgress: '任务进度', workflowTargetUnmet: '目标未达成', workflowHistoricalLink: '历史来源以任务详情为准',
-  workflowArrange: '自动排列', workflowFit: '适应全部', workflowZoom: '画布缩放', workflowZoomMenu: '缩放选项', workflowZoomOut: '缩小', workflowZoomIn: '放大', workflowZoomValue: '缩放 {percent}%', workflowMinimap: '工作流概览',
+  workflowArrange: '整理布局', workflowFit: '适应全部', workflowZoom: '画布缩放', workflowZoomMenu: '缩放选项', workflowZoomOut: '缩小', workflowZoomIn: '放大', workflowZoomValue: '缩放 {percent}%', workflowMinimap: '工作流概览',
   workflowHelp: '拖标题移动 · Ctrl 拖背景框选 · 滚轮缩放 · 右键操作', workflowLayoutLocal: '布局保存在本机', workflowLayoutUnsaved: '布局仅在本次页面保留', workflowPreviousImages: '上一组图片', workflowNextImages: '下一组图片',
 }

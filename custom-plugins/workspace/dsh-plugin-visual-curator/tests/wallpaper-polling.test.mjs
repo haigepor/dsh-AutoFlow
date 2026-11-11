@@ -176,11 +176,12 @@ function planDialog(control) {
     useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}], useEffect() {}, useId: () => 'plan-dialog-fixture',
   }
   const tree = createWallpaperCanvas(React, { Button: 'button', Modal: 'modal' }).Dialogs({ control, t: key => key })
-  const elements = value => Array.isArray(value) ? value.flatMap(elements) : value && typeof value === 'object' ? [value, ...elements(value.props?.children)] : []
+  const elements = value => Array.isArray(value) ? value.flatMap(elements) : value && typeof value === 'object' ? [value, ...elements(value.props?.children), ...elements(value.props?.footer)] : []
   const nodes = elements(tree)
+  const text = value => Array.isArray(value) ? value.flatMap(text) : typeof value === 'string' ? [value] : value && typeof value === 'object' ? text(value.props?.children) : []
   return {
     apply: nodes.find(node => node.type === 'button' && node.props.children.includes('wallpaperApplyPlan')),
-    messages: nodes.filter(node => ['alert', 'status'].includes(node.props?.role)).flatMap(node => node.props.children),
+    messages: nodes.filter(node => ['alert', 'status'].includes(node.props?.role)).flatMap(node => text(node.props.children)),
   }
 }
 
@@ -352,5 +353,25 @@ test('an unchanged expired wallpaper receipt triggers one renewal attempt withou
     await fixture.flush(); assert.equal(reads, 1)
     context.mock.timers.tick(1); await fixture.flush(); assert.equal(reads, 2)
     context.mock.timers.tick(20000); await fixture.flush(); assert.equal(reads, 2)
+  } finally { fixture.dispose(); context.mock.timers.reset(); globalThis.document = previous }
+})
+
+test('approved server outputs keep observing an active upload and stop after a confirmed or uncertain outcome', async context => {
+  const previous = globalThis.document, document = new EventTarget()
+  document.hidden = false; globalThis.document = document
+  let status = 'waiting', reads = 0
+  const fixture = hookFixture({ kind: 'search', runId: 'search', status: 'completed', matched: 1 }, async () => {
+    reads++
+    return { ...view('completed'), serverTransfers: { image: { status, current: true } } }
+  })
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  try {
+    await fixture.flush(); assert.equal(reads, 1)
+    status = 'uploading'; context.mock.timers.tick(2000); await fixture.flush(); assert.equal(reads, 2)
+    status = 'uploaded'; context.mock.timers.tick(2000); await fixture.flush(); assert.equal(reads, 3)
+    context.mock.timers.tick(20000); await fixture.flush(); assert.equal(reads, 3)
+    status = 'uploading'; fixture.refresh(); await fixture.flush(); assert.equal(reads, 4)
+    status = 'unknown'; context.mock.timers.tick(2000); await fixture.flush(); assert.equal(reads, 5)
+    context.mock.timers.tick(20000); await fixture.flush(); assert.equal(reads, 5)
   } finally { fixture.dispose(); context.mock.timers.reset(); globalThis.document = previous }
 })

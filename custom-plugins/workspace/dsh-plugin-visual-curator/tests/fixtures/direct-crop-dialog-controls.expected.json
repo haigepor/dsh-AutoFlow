@@ -1,0 +1,17 @@
+{
+  "gallery": {
+    "selectedTitles": [
+      "Original 2",
+      "Original 3"
+    ]
+  },
+  "details": {
+    "settledButtons": [
+      "关闭",
+      "修改规划"
+    ],
+    "runningButtons": [
+      "暂停处理"
+    ]
+  }
+}

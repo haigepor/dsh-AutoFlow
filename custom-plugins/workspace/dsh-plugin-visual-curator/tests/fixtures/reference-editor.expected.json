@@ -1,0 +1,7 @@
+{
+  "fileName": "reference.png",
+  "role": "undecided",
+  "intent": { "kind": "dimensions", "dimensions": ["texture"] },
+  "requestCount": 1,
+  "closedAfterCommit": 1
+}

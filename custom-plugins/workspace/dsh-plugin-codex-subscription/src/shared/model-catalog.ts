@@ -1,5 +1,6 @@
 /** Explicit profile-owned model choices, independent from account capability discovery. */
 import { z } from 'zod'
+import { imageCatalogViewSchema } from './image-catalog.ts'
 
 /** A model ID is sent upstream unchanged; image models never enter the conversational adapter. */
 export const catalogEntrySchema = z.strictObject({
@@ -10,10 +11,11 @@ export const catalogEntrySchema = z.strictObject({
 export const catalogEntriesSchema = z.array(catalogEntrySchema).max(256).refine(entries => new Set(entries.map(entry => `${entry.kind}:${entry.id}`)).size === entries.length, 'Duplicate model')
 /** Safe, detached catalog used by method callers and the settings page. */
 export const modelCatalogSchema = z.object({ revision: z.number().int().nonnegative(), entries: catalogEntriesSchema, defaultImageModel: z.string(),
+  imageDiscovery: imageCatalogViewSchema.optional(),
   candidates: z.array(z.object({ id: z.string(), name: z.string(), nativeWebSearch: z.boolean().optional(), contextWindow: z.number().optional(), maxTokens: z.number().optional(), input: z.array(z.enum(['text', 'image'])).optional() })),
 })
 /** Compare-and-swap input; a default image model changes only when explicitly supplied. */
-export const saveModelCatalogSchema = z.strictObject({ revision: z.number().int().nonnegative(), entries: catalogEntriesSchema, defaultImageModel: z.string().min(1).max(128).optional() })
+export const saveModelCatalogSchema = z.strictObject({ revision: z.number().int().nonnegative(), entries: catalogEntriesSchema, defaultImageModel: z.string().min(1).max(128).optional(), autoProbeImages: z.boolean().optional() })
 /** One user-selected text or image model, without account or credential references. */
 export type CatalogEntry = z.infer<typeof catalogEntrySchema>
 /** Credential-free model configuration and discovered text candidates. */

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-review-rework-routing",
+  "category": "fixes",
+  "text": {
+    "en": "Rejected wallpaper outputs return to bounded rework with their review findings. Planning and inspection revisions no longer consume image rework attempts.",
+    "zh-CN": "壁纸复审不通过后携带失败项自动进入有次数上限的返工，规划与局部复核版本不再占用图片返工次数。"
+  }
+}

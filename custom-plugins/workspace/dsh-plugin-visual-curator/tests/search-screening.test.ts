@@ -115,6 +115,17 @@ async function fixture(options: { count?: number; pool?: 50 | 100; target?: numb
   return { root, repository, domain, files, jobs, engine, worker, actor, spec, ids, calls, sourcePages, sourceQueries, mediaRequests, screeningEntered: screeningEntered.promise, allowScreening() { pauseScreen = false }, get peak() { return peak }, interruptCheckpoint() { failCheckpoint = true }, async run(id = 'search') { const started = await engine.create(spec, actor, worker, id); await jobs.drain(); return domain.require('run', started.id) }, async cleanup() { clearTimeout(overlapDeadline); screeningOverlap.resolve(); await engine.dispose(); await rm(root, { recursive: true, force: true }) } }
 }
 
+test('wallpaper searches exclude restricted originals while ordinary preview searches retain their preview-only behavior', async () => {
+  const f = await fixture({ count: 6, restrictedOriginals: true })
+  try {
+    f.spec.fixed.wallpaperAuto = true
+    const run = await f.run()
+    assert.equal(dataOf(run).counts.qualified, 0)
+    assert.ok((dataOf(run).counts.unavailable ?? 0) > 0)
+    assert.equal(f.repository.list('selection').filter(row => row.runId === run.id).length, 0)
+  } finally { await f.cleanup() }
+})
+
 test('thumbnail preparation overlaps within one batch, retains pixel order and shares three slots across the Run', async () => {
   const gates = Array.from({ length: 3 }, () => Promise.withResolvers<void>()), entered = Promise.withResolvers<void>()
   const starts: string[] = [], finishes: string[] = [], palette = ['red', 'green', 'blue'] as const

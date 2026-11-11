@@ -1,7 +1,8 @@
 /** Deployment configuration has explicit, validated limits; credentials remain references. */
 import Schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
-import { wallpaperSettingsSchema } from '../shared/wallpaper.ts'
+import { serverQueueSettingsSchema } from '../shared/server-queue.ts'
+import { applyWallpaperRecoveryLimits, wallpaperSettingsSchema } from '../shared/wallpaper.ts'
 import { createHash } from 'node:crypto'
 import { galleryAccountSchema, galleryAccountIdSchema } from '../shared/gallery.ts'
 import { defaultPreviewConcurrency, galleryCacheDefaults, previewCacheDefaults } from '../shared/gallery-cache.ts'
@@ -23,6 +24,7 @@ export const limitsSchema = z.object({
   retryDelayMs: z.number().int().min(0).max(60_000).default(1000),
   maxProcessEvents: positive.max(2000).default(200), maxProcessTextChars: positive.max(200_000).default(12_000),
   processPollIntervalMs: positive.min(100).max(5000).default(500),
+  idlePollIntervalMs: positive.min(500).max(300_000).optional(),
   analysisCacheTtlMs: z.number().int().nonnegative().default(60_000),
   analysisTaskCacheMaxEntries: z.number().int().min(0).max(4096).default(128), analysisTaskCacheMaxBytes: z.number().int().min(0).max(32 * 1024 * 1024).default(1024 * 1024),
   batchCacheTtlMs: z.number().int().min(0).max(3_600_000).default(60_000), batchCacheMaxViews: z.number().int().min(0).max(64).default(8),
@@ -34,6 +36,7 @@ export const limitsSchema = z.object({
   maxGalleryReferenceFiles: positive.default(10_000),
   maxPixels: positive.default(80_000_000), maxDimension: positive.default(20_000), previewMaxDimension: positive.default(1280),
   maxStorageBytes: positive.default(4 * 1024 * 1024 * 1024), requestTimeoutMs: positive.default(60_000),
+  originalDownloadTimeoutMs: positive.max(900_000).optional(), originalDownloadIdleTimeoutMs: positive.max(300_000).optional(),
   maxRedirects: z.number().int().min(0).max(8).default(3), maxResponseBytes: positive.default(4 * 1024 * 1024),
   maxReferenceImages: positive.default(8), maxReferenceBytes: positive.default(20 * 1024 * 1024),
   maxVisionRequestBytes: positive.default(64 * 1024 * 1024), maxVisionOutputTokens: positive.default(4096),
@@ -83,11 +86,11 @@ export const visionSettingsSchema = z.strictObject({
   reasoningEffort: z.enum(['none', 'low', 'medium', 'high', 'max']).nullable().optional(),
   supportsStreaming: z.boolean().optional(),
 })
-export const settingsSchema = z.strictObject({ source: sourceSettingsSchema.default(() => sourceSettingsSchema.parse({})), vision: visionSettingsSchema.default(() => visionSettingsSchema.parse({})), limits: limitsSchema.default(() => limitsSchema.parse({})), searchScreening: searchScreeningSettingsSchema.optional(), wallpaper: wallpaperSettingsSchema.default(() => wallpaperSettingsSchema.parse({})) })
+export const settingsSchema = z.strictObject({ serverQueue: serverQueueSettingsSchema.optional(), source: sourceSettingsSchema.default(() => sourceSettingsSchema.parse({})), vision: visionSettingsSchema.default(() => visionSettingsSchema.parse({})), limits: limitsSchema.default(() => limitsSchema.parse({})), searchScreening: searchScreeningSettingsSchema.optional(), wallpaper: wallpaperSettingsSchema.default(() => wallpaperSettingsSchema.parse({})) })
 export type CuratorConfig = z.infer<typeof settingsSchema>
 
 /** Cordis validates the envelope; the owning parser validates nested deployment settings. */
-export const Config = Schema.object({ source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), searchScreening: Schema.any(), wallpaper: Schema.any(), compaction: Schema.any() })
+export const Config = Schema.object({ serverQueue: Schema.any(), source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), searchScreening: Schema.any(), wallpaper: Schema.any(), compaction: Schema.any() })
 /** @param input Saved deployment fields. @returns Complete validated settings. */
 export function resolveConfig(input: unknown): CuratorConfig {
   const config = settingsSchema.parse(input)
@@ -120,7 +123,11 @@ export function resolveConfig(input: unknown): CuratorConfig {
  */
 export function resolveCurrentConfig(input: unknown): CuratorConfig {
   const saved = settingsSchema.parse(input), config = resolveConfig(input)
+  applyWallpaperRecoveryLimits(config.wallpaper)
   config.searchScreening ??= searchScreeningSettingsSchema.parse({})
+  config.limits.idlePollIntervalMs ??= 30_000
+  config.limits.originalDownloadTimeoutMs ??= 300_000
+  config.limits.originalDownloadIdleTimeoutMs ??= 60_000
   config.vision.backend ??= 'native'
   if (config.vision.backend === 'native') config.vision.useModelDefaults ??= true
   if (config.vision.useModelDefaults === true) delete config.vision.reasoningEffort

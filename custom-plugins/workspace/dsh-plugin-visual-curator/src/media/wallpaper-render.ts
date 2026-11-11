@@ -18,7 +18,9 @@ export async function renderWallpaper(bytes: Uint8Array, plan: WallpaperPlan, se
   const metadata = await sharp(bytes).metadata()
   if (!metadata.width || !metadata.height) throw new CuratorError('invalid-input', 'wallpaper-render', 'Source dimensions are unavailable.')
   const geometry = wallpaperGeometry({ width: metadata.width, height: metadata.height }, plan, settings)
-  const patch = await sharp(bytes).resize(geometry.width, geometry.height, { fit: 'fill', withoutEnlargement: true }).extract({ left: geometry.target.left - geometry.left, top: geometry.target.top - geometry.top, width: geometry.target.width, height: geometry.target.height }).png().toBuffer()
+  // Native-size crops retain decoded pixels; scaled placements resample once from the original.
+  const placed = geometry.width === metadata.width && geometry.height === metadata.height ? sharp(bytes) : sharp(bytes).resize(geometry.width, geometry.height, { fit: 'fill', kernel: sharp.kernel.lanczos3, withoutEnlargement: true })
+  const patch = await placed.extract({ left: geometry.target.left - geometry.left, top: geometry.target.top - geometry.top, width: geometry.target.width, height: geometry.target.height }).png().toBuffer()
   const canvas = { width: settings.width, height: settings.height, channels: 4 as const, background: { r: 0, g: 0, b: 0, alpha: 0 } }
   const seed = await sharp({ create: canvas }).composite([{ input: patch, left: geometry.target.left, top: geometry.target.top }]).png().toBuffer()
   const mask = await sharp(seed).ensureAlpha().extractChannel('alpha').raw().toBuffer({ resolveWithObject: true })

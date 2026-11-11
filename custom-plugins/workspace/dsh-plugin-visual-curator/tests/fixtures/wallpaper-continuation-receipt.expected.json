@@ -1,4 +1,12 @@
 {
+  "backgroundResolution": {
+    "nativeSize": "941x1672",
+    "reconstructedSize": "1845x3280",
+    "cumulativeImageEdits": 2,
+    "newGenerations": 0,
+    "protectedPixelChanges": 0,
+    "rejectedQualifiedOutputs": 0
+  },
   "recompose": {
     "kind": "recompose",
     "cumulativeImageEdits": 2,

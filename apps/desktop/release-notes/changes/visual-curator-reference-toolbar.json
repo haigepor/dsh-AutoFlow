@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-reference-toolbar",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator uses corner status labels on reference cards, consistent icon actions and browser-style workspace tabs. The profile opener hides while its panel is open.",
+    "zh-CN": "视觉策展的参考卡片隐藏调整按钮，状态标签贴合右上圆角；顶部操作统一为图标按钮，与浏览器风格标签页对齐，画像面板展开时隐藏入口。"
+  }
+}

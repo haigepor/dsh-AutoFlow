@@ -1,5 +1,6 @@
 /** Immutable model-adopted rules and reference packages, independent of human review records. */
 import { z } from 'zod'
+import { matchingPromptFromRules } from '../shared/matching-prompt.ts'
 import type { CuratorDomain } from './curator.ts'
 import { contentDigest, fileChecksum } from './repository.ts'
 import { removedDatasetIds } from './dataset-removal.ts'
@@ -138,8 +139,9 @@ export class ModelProfiles {
         return ref !== undefined && ruleReferenceRole(rule, ref) === 'positive'
       })
       rule.supportRefs = support.map(id => references.find(ref => ref.reference.imageVersionId === id)!.reference.id)
-      const negativeEvidence = hasNegativeRuleEvidence(rule, references) && support.length === proposed.supportImageVersionIds.length
-      if (rule.strength === 'required' && (!negativeEvidence || analysis.summaryPromptVersion === 'visual-curator-summary-v4')) rule.strength = 'preferred'
+      const explainedNegative = analysis.summary.negativeReasons?.some(reason => !reason.uncertain && reason.dimension === rule.dimension && proposed.counterImageVersionIds.includes(reason.imageVersionId) && references.some(ref => ref.reference.imageVersionId === reason.imageVersionId && ruleReferenceRole(rule, ref) === 'negative'))
+      const negativeEvidence = hasNegativeRuleEvidence(rule, references) && support.length === proposed.supportImageVersionIds.length && (analysis.summaryPromptVersion !== 'visual-curator-summary-v5' || explainedNegative === true)
+      if (rule.strength === 'required' && (!negativeEvidence || (analysis.summaryPromptVersion === 'visual-curator-summary-v4' || analysis.summaryPromptVersion === 'visual-curator-summary-v5'))) rule.strength = 'preferred'
       const selection = analysis.summary.organization?.selections.find(item => item.ruleIndex === index)
       let groupId = selection?.groupId ?? null
       if (!analysis.summary.organization && support.length && (support.length < positiveIds.size || proposed.condition.trim())) {
@@ -297,6 +299,8 @@ export class ModelProfiles {
     const aggregateId = `model-profiles:${fields.styleId}`, revision = this.domain.repository.manifest(aggregateId)?.revision ?? 0
     const access: ModelProfile['access'] = { kind: 'profile-library' }
     const rules = fields.options.filter(option => option.enabled).map(option => option.rule)
+    const analysis = styleAnalysisOf(this.domain.require('run', fields.analysisRunId))
+    if (analysis?.summaryPromptVersion === 'visual-curator-summary-v5') fields = { ...fields, matchingPrompt: matchingPromptFromRules(fields.options, fields.groups) }
     const content = { styleId: fields.styleId, draftId: fields.draftId, draftRevision: fields.draftRevision, analysisRunId: fields.analysisRunId, referenceDigest: fields.referenceDigest, model: fields.model, matchingPrompt: fields.matchingPrompt, references: fields.references, recipe: fields.recipe, groups: fields.groups, options: fields.options, rules }
     const record = modelProfileSchema.parse({ schemaVersion: 1, profileId: this.domain.profileId, id: identity('model-profile', { operationId, content }), kind: 'modelProfile', createdAt: new Date().toISOString(), ...content, access, revision: revision + 1, contentDigest: contentDigest(content), ...(previous ? { previousProfileId: previous.id } : {}) })
     await this.domain.repository.commit({ aggregateId, expectedRevision: revision, operationId, request, records: [record], state: { profileId: record.id } })

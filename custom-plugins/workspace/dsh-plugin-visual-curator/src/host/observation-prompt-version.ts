@@ -4,7 +4,7 @@ import type { Observation, RecordOf } from '../shared/model.ts'
 import type { StyleAnalysis } from '../shared/style-analysis.ts'
 
 const bundleSchema = z.object({ bundle: z.object({ requestId: z.string(), operation: z.literal('analyze'), promptVersion: z.string().optional() }) })
-const supportedVersions = z.enum(['visual-curator-v1', 'visual-curator-reference-v2'])
+const supportedVersions = z.enum(['visual-curator-v1', 'visual-curator-reference-v2', 'visual-curator-reference-v3', 'visual-curator-reference-v4'])
 
 /** @param observations Saved original or reused evidence. @param requests Authorized repository request records. @returns The single actual version, mixed known versions, or unknown when any source receipt is missing or unsupported. */
 export function observationPromptVersion(observations: readonly Observation[], requests: readonly RecordOf<'request'>[]): StyleAnalysis['observationPromptVersion'] {

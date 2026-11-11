@@ -1,0 +1,20 @@
+{
+  "packageTitle": "视觉策展",
+  "source": "D:/workspace/plugins/visual-curator/local-build/0.2.14-local.20261110/dsh-plugin-visual-curator.tgz",
+  "groups": ["技能", "脚本与工具", "页面 UI"],
+  "features": [
+    {"id": "reference", "kind": "skill", "title": "参考图与风格", "enabled": true},
+    {"id": "analysis", "kind": "skill", "title": "风格分析与校准", "enabled": true},
+    {"id": "search", "kind": "skill", "title": "按风格找图", "enabled": true},
+    {"id": "crop", "kind": "skill", "title": "智能裁图与构图", "enabled": true},
+    {"id": "feedback", "kind": "skill", "title": "人工反馈整理", "enabled": true},
+    {"id": "export", "kind": "skill", "title": "数据集与 Skill 导出", "enabled": true},
+    {"id": "read-tools", "kind": "script", "title": "只读工具", "enabled": true},
+    {"id": "crop-tools", "kind": "script", "title": "找图与裁图", "enabled": true},
+    {"id": "feedback-tools", "kind": "script", "title": "反馈建议与导出", "enabled": true},
+    {"id": "settings", "kind": "ui", "title": "设置侧栏", "enabled": false},
+    {"id": "panel", "kind": "ui", "title": "全局面板", "enabled": true},
+    {"id": "conversation", "kind": "ui", "title": "会话 Tab", "enabled": false}
+  ],
+  "selectedAfterSettings": ["reference", "analysis", "search", "crop", "feedback", "export", "read-tools", "crop-tools", "feedback-tools", "panel", "settings"]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-edge-continuity",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator keeps running connection animations continuous during canvas updates, aligns ports with curves and uses top/bottom ports for stacked nodes while retaining saved layouts.",
+    "zh-CN": "视觉策展画布更新时保持运行连线动画连续，修复端口与曲线偏移，上下排列时自动使用上下端口，并保留已保存的布局。"
+  }
+}

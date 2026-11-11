@@ -3,6 +3,8 @@
 /** @jsxFrag React.Fragment */
 /** Compact task selection and image-first results; execution and pagination remain owned by the store. */
 import type { CuratorSnapshot, ImageView, RunView } from './contract.ts'
+import { z } from 'zod'
+import { workflowImageVersionId } from './workbench-navigation.ts'
 import type { WorkbenchProps } from './workbench.tsx'
 import type { WorkbenchText } from './workbench-locale.ts'
 import { safeResourcePath } from './store.ts'
@@ -31,11 +33,13 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
   const ResultPreview = createResultPreview(React, ui)
   const icons = { analyze: ui.IconSparkleRegular, search: ui.IconSearchOutlineRegular, crop: ui.IconListPenOutlineRegular, evaluate: ui.IconListPenOutlineRegular, export: ui.IconDownloadOutlineRegular }
   const resource = (path: string) => { const safe = safeResourcePath(path); return safe ? new URL(safe.slice(1), document.baseURI).href : '' }
-  return function TaskHistory({ runs, selected, snapshot, t, loading, errorCode, actions, onSelect, onCrop, onStart, onReferences, report, pending = [] }: {
+  return function TaskHistory({ runs, selected, snapshot, t, loading, errorCode, actions, onSelect, onCrop, onSingleImage, onStart, onReferences, report, pending = [], fullHeight = false }: {
     runs: RunView[]; selected: RunView | undefined; snapshot: CuratorSnapshot; t: WorkbenchText; loading: boolean; errorCode: string | undefined
     actions: Pick<WorkbenchProps['actions'], 'execute' | 'openAnalysis' | 'loadRun'>
+    fullHeight?: boolean
     pending?: string[]
     onCrop?: ((imageVersionId: string) => void) | undefined
+    onSingleImage?: ((image: ImageView) => void) | undefined
     onStart?: (() => void) | undefined; onReferences?: (() => void) | undefined
     onSelect(runId: string): void; report(work: () => Promise<unknown>): void
   }) {
@@ -46,10 +50,11 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
     const [informationOpen, setInformationOpen] = React.useState(false)
     const [detailId, setDetailId] = React.useState<string | null>(null)
     const detailTrigger = React.useRef<HTMLElement | null>(null)
+    const reviewing = React.useRef(false), reviewOperation = React.useRef<{ key: string; id: string } | null>(null)
     const panel = React.useRef<HTMLDivElement>(null), drag = React.useRef<{ y: number; height: number } | null>(null)
     const panelId = React.useId(), maxHeight = Math.max(160, Math.min(720, viewportHeight * .7))
-    const resizable = !onReferences, clamp = (value: number) => Math.round(Math.min(maxHeight, Math.max(160, value)))
-    const railOpen = navPreference === 'open' || navPreference === 'auto' && (resizable ? runs.length > 0 : runs.length > 1)
+    const resizable = !fullHeight && !onReferences, clamp = (value: number) => Math.round(Math.min(maxHeight, Math.max(160, value)))
+    const railOpen = runs.length > 1 && navPreference !== 'collapsed'
     React.useEffect(() => {
       const resized = () => { setViewportHeight(window.innerHeight); setHeight(value => Math.min(value, Math.max(160, Math.min(720, window.innerHeight * .7)))) }
       window.addEventListener('resize', resized)
@@ -75,6 +80,7 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
     const mainMetrics = selected ? valuesOf(selected).filter(([key]) => !(goalSummary && (key === 'qualified' || key === 'finalPassed'))) : []
     const legacyWarnings = selected?.warnings.filter(warning => !selected.issues?.some(issue => warning.includes(issue.candidateId) && warning.includes(issue.code))) ?? []
     const visibleFilters = (['all', 'selected', 'review', 'rejected', 'failed', 'processing', 'pending', 'source'] as const).filter(value => !filterCounts || value === 'all' || value === 'selected' || value === 'review' || value === filter || (filterCounts[value] ?? 0) > 0)
+    const filterControls = selected && ((selected.kind === 'search' || selected.kind === 'crop') && <div className="vc-task-filters">{visibleFilters.map(value => <Button key={value} size="sm" variant={filter === value ? 'outline' : 'ghost'} aria-pressed={filter === value} onClick={() => { void actions.loadRun(selected.runId, false, value) }}><span>{t(value === 'rejected' && selected.wallpaperTask ? 'wallpaperReviewRejected' : value === 'selected' && selected.outputKind === 'preview' ? 'taskPreviewMatched' : filterKeys[value])}</span>{filterCounts?.[value] !== undefined && <>{' '}<span className="vc-task-filter-count">{filterCounts[value]}</span></>}</Button>)}</div>)
     const detailImage = selected?.results.find(item => item.imageVersionId === detailId)
     const openDetail = (imageVersionId: string, trigger: HTMLElement) => { detailTrigger.current = trigger; setDetailId(imageVersionId) }
     const closeDetail = () => {
@@ -82,7 +88,7 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
       const trigger = detailTrigger.current
       if (trigger && trigger.isConnected) setTimeout(() => trigger.focus({ preventScroll: true }), 0)
     }
-    const verdictLabel = (image: ImageView) => selected?.outputKind === 'preview' && image.selection?.kind === 'selected' ? t('taskPreviewMatched') : image.resultCategory && !['selected', 'source'].includes(image.resultCategory) ? t(filterKeys[image.resultCategory]) : image.verdict ? t(image.verdict) : t(image.selection?.kind === 'selected' ? 'taskSelected' : 'taskPending')
+    const verdictLabel = (image: ImageView) => selected?.wallpaperTask && image.verdict ? t(image.verdict === 'pass' ? 'wallpaperPassed' : image.verdict === 'reject' ? 'wallpaperReviewRejected' : 'taskReview') : selected?.outputKind === 'preview' && image.selection?.kind === 'selected' ? t('taskPreviewMatched') : image.resultCategory && !['selected', 'source'].includes(image.resultCategory) ? t(filterKeys[image.resultCategory]) : image.verdict ? t(image.verdict) : t(image.selection?.kind === 'selected' ? 'taskSelected' : 'taskPending')
     const verdictTone = (image: ImageView) => image.resultCategory === 'selected' || image.verdict === 'pass' ? 'success' : image.resultCategory === 'review' || image.verdict === 'needs-review' ? 'warning' : image.resultCategory === 'rejected' || image.resultCategory === 'failed' || image.verdict === 'reject' ? 'danger' : 'neutral'
     const styleGroupName = (image: ImageView) => image.styleMatch?.groupId && selected ? snapshot.styles.find(style => style.styleId === selected.styleId)?.modelProfile?.groups.find(group => group.groupId === image.styleMatch?.groupId)?.name || t('styleGroup') : undefined
     const selectionWarnings = (image: ImageView) => image.selection?.kind === 'selected' ? image.selection.warnings : []
@@ -131,14 +137,15 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
       {selected ? <section className="vc-task-detail" aria-label={t('taskDetails')}>
         <div className="vc-task-top" data-compact={!!goalSummary}>
           <header className="vc-task-detail-header">
-            {runs.length > 0 && <Button size="sm" variant="ghost" className="vc-run-rail-toggle" aria-label={t('taskToggleList')} aria-expanded={railOpen} onClick={() => setNavPreference(railOpen ? 'collapsed' : 'open')}><ui.IconListPenOutlineRegular size={14} /><span>{t('taskToggleList')}</span><span className="vc-task-count">{runs.length}</span></Button>}
+            {goalSummary && filterControls}
+            {runs.length > 1 && <Button size="sm" variant="ghost" className="vc-run-rail-toggle" aria-label={t('taskToggleList')} aria-expanded={railOpen} onClick={() => setNavPreference(railOpen ? 'collapsed' : 'open')}><ui.IconListPenOutlineRegular size={14} /><span>{t('taskToggleList')}</span><span className="vc-task-count">{runs.length}</span></Button>}
             {runs.length > 1 && <Menu className="vc-run-switcher" listClassName="vc-menu" open={switcherOpen} onClose={() => setSwitcherOpen(false)} portal autoFocus selectedId={selected.runId}
               items={runs.slice(0, 12).map(run => ({ id: run.runId, label: <span className="vc-collection-task-label"><span>{nameOf(run)}</span><Tag>{t(run.status)}</Tag></span> }))}
               onSelect={runId => { setSwitcherOpen(false); onSelect(runId) }}
               anchor={<Button size="sm" variant="outline" className="vc-run-switcher-trigger" aria-label={t('tasks')} aria-haspopup="menu" aria-expanded={switcherOpen} onClick={() => setSwitcherOpen(value => !value)}><span className="vc-run-switcher-name">{nameOf(selected)}</span><span className="vc-task-count">{runs.length}</span><ui.IconChevronDownOutlineRegular size={12} /></Button>} />}
-            <span className="vc-task-detail-icon" aria-hidden="true">{active(selected) ? <StateDot state="ongoing" /> : <Icon size={16} />}</span>
-            <div className="vc-task-title-block"><div className="vc-task-title-row"><h3>{nameOf(selected)}</h3><Tag tone={selected.status === 'completed' ? 'success' : selected.status === 'failed' ? 'danger' : recoverable(selected) ? 'warning' : active(selected) ? 'info' : 'neutral'}>{t(selected.status)}</Tag>{(!goalSummary || stageKey) && <span className="vc-task-phase">{!goalSummary && t(kindKey[selected.kind])}{stageKey && <>{!goalSummary && ' · '}{t(stageKey)}</>}</span>}</div>{!goalSummary && selected.taskBrief && selected.taskBrief !== nameOf(selected) && <p>{selected.taskBrief}</p>}</div>
-            {goalSummary && <div className="vc-task-progress-inline"><span>{t('taskTargetProgress')}</span><strong>{goalSummary.selected}<small> / {goalSummary.target ?? '—'}</small></strong></div>}
+            {!goalSummary && <div className="vc-task-identity"><span className="vc-task-detail-icon" aria-hidden="true">{active(selected) ? <StateDot state="ongoing" /> : <Icon size={16} />}</span>
+            <div className="vc-task-title-block"><div className="vc-task-title-row"><h3 title={goalSummary && selected.taskBrief || nameOf(selected)}>{goalSummary && selected.taskBrief || nameOf(selected)}</h3><Tag tone={selected.status === 'completed' ? 'success' : selected.status === 'failed' ? 'danger' : recoverable(selected) ? 'warning' : active(selected) ? 'info' : 'neutral'}>{t(selected.status)}</Tag>{(!goalSummary || stageKey) && <span className="vc-task-phase">{!goalSummary && t(kindKey[selected.kind])}{stageKey && <>{!goalSummary && ' · '}{t(stageKey)}</>}</span>}</div>{!goalSummary && selected.taskBrief && selected.taskBrief !== nameOf(selected) && <p>{selected.taskBrief}</p>}</div></div>}
+            {goalSummary && <div className="vc-task-result-summary"><Tag tone={selected.status === 'completed' ? 'success' : selected.status === 'failed' ? 'danger' : recoverable(selected) ? 'warning' : active(selected) ? 'info' : 'neutral'}>{t(selected.status)}</Tag>{goalSummary && <div className="vc-task-progress-inline"><span>{t('taskTargetProgress')}</span><strong>{goalSummary.selected}<small> / {goalSummary.target ?? '—'}</small></strong></div>}</div>}
             <div className="vc-task-actions">
               {goalSummary && <Menu className="vc-task-information" listClassName="vc-menu vc-task-information-menu" open={informationOpen} onClose={() => setInformationOpen(false)} portal autoFocus anchor={<Button size="sm" variant="ghost" aria-haspopup="menu" aria-expanded={informationOpen} onClick={() => setInformationOpen(value => !value)}>{t('taskRunInformation')}<ui.IconChevronDownOutlineRegular size={12} /></Button>}>{informationContent}</Menu>}
 
@@ -150,11 +157,12 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
           </header>
           {(selected.error || errorCode) && <div className="vc-notice vc-task-error-banner" role="alert"><span>{t('error')} ({selected.error?.code ?? errorCode})</span>{recoverable(selected) && <Button size="sm" variant="primary" className="vc-primary-action" disabled={requesting('resume')} onClick={() => control('resume')}>{t('resume')}</Button>}</div>}
           {!goalSummary && informationContent}
-          {(selected.kind === 'search' || selected.kind === 'crop') && <div className="vc-task-filters">{visibleFilters.map(value => <Button key={value} size="sm" variant={filter === value ? 'outline' : 'ghost'} aria-pressed={filter === value} onClick={() => { void actions.loadRun(selected.runId, false, value) }}><span>{t(value === 'selected' && selected.outputKind === 'preview' ? 'taskPreviewMatched' : filterKeys[value])}</span>{filterCounts?.[value] !== undefined && <>{' '}<span className="vc-task-filter-count">{filterCounts[value]}</span></>}</Button>)}</div>}
+          <div className="vc-task-result-toolbar">{!goalSummary && filterControls}
+          </div>
         </div>
         <div className="vc-task-results-scroll">{loading && !results.length && <div className="vc-image-grid vc-results" role="status" aria-label={t('taskBatchLoading')}>{[0, 1, 2].map(index => <div className="vc-result-card" aria-hidden="true" key={index}><span className="vc-skeleton-fill vc-search-batch-skeleton-image" /><div className="vc-result-meta"><span className="vc-skeleton-fill vc-search-batch-skeleton-tag" /></div></div>)}</div>}
           {selected.kind === 'analyze' && <p className="vc-task-retained"><ui.IconArchiveCheckOutlineRegular size={16} />{t('analysisRetainedHint')}</p>}
-          {!!results.length && <div className="vc-image-grid vc-results">{results.map(image => <figure key={image.imageVersionId} className="vc-result-card">
+          {!!results.length && <div className="vc-image-grid vc-results">{results.map(image => { const directoryImageId = workflowImageVersionId(selected, image); return <figure key={image.imageVersionId} className="vc-result-card">
             <button type="button" className="vc-result-preview" aria-label={`${t('taskImageDetails')} · ${image.name}`} onClick={event => openDetail(image.imageVersionId, event.currentTarget)}>
               <img src={resource(image.thumbnailPath ?? image.previewPath)} alt={image.name} loading="lazy" decoding="async" />
             </button>
@@ -167,10 +175,11 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
             </figcaption>
             <p className="vc-result-summary">{cardSummary(image)}</p>
             <div className="vc-result-actions">
-              <Button size="sm" variant="ghost" onClick={event => openDetail(image.imageVersionId, event.currentTarget)}>{t('taskImageDetails')}</Button>
-              {selected.outputKind === 'preview' ? <Button size="sm" variant="outline" disabled={!galleryMediaUrlSchema.safeParse(image.previewUrl).success} onClick={() => { const url = galleryMediaUrlSchema.safeParse(image.previewUrl); if (url.success) window.open(url.data, '_blank', 'noopener,noreferrer') }}>{t('taskOpenPreview')}</Button> : onCrop && <Button size="sm" variant="outline" onClick={() => onCrop(image.parentImageVersionId ?? image.imageVersionId)}>{t('taskRecrop')}</Button>}
+              <Button size="sm" variant="outline" className="vc-result-action-details" onClick={event => openDetail(image.imageVersionId, event.currentTarget)}>{t('taskImageDetails')}</Button>
+              {directoryImageId && onSingleImage && <Button size="sm" variant="outline" className="vc-result-action-flow" onClick={() => onSingleImage({ ...image, workflowImageVersionId: directoryImageId })}>{t('wallpaperImageFlow')}</Button>}
+              {selected.outputKind === 'preview' ? <Button size="sm" variant="outline" className="vc-result-action-secondary" disabled={!galleryMediaUrlSchema.safeParse(image.previewUrl).success} onClick={() => { const url = galleryMediaUrlSchema.safeParse(image.previewUrl); if (url.success) window.open(url.data, '_blank', 'noopener,noreferrer') }}>{t('taskOpenPreview')}</Button> : onCrop && <Button size="sm" variant="outline" className="vc-result-action-secondary" onClick={() => onCrop(image.parentImageVersionId ?? image.imageVersionId)}>{t('taskRecrop')}</Button>}
             </div>
-          </figure>)}</div>}
+          </figure> })}</div>}
           {!loading && !results.length && selected.kind !== 'analyze' && <p className="vc-task-empty">{t(emptyKeys[filter])}</p>}
           {selected.pageToken && <Button className="vc-task-more" variant="outline" disabled={loading} onClick={() => report(() => actions.loadRun(selected.runId, true))}>{loading && <StateDot state="ongoing" />}{t('more')}</Button>}
         </div>
@@ -178,9 +187,20 @@ export function createTaskHistory(React: typeof import('react'), ui: typeof impo
           {detailImage?.sourcePreviewPath && <a className="vc-detail-source-link" href={resource(detailImage.sourcePreviewPath)} target="_blank" rel="noreferrer">{t('taskOriginal')}</a>}
           {selected.outputKind === 'preview' && detailImage?.previewUrl && <Button variant="outline" onClick={() => { const url = galleryMediaUrlSchema.safeParse(detailImage.previewUrl); if (url.success) window.open(url.data, '_blank', 'noopener,noreferrer') }}>{t('taskOpenPreview')}</Button>}
           {selected.outputKind !== 'preview' && onCrop && detailImage && <Button variant="outline" onClick={() => { const targetId = detailImage.parentImageVersionId ?? detailImage.imageVersionId; closeDetail(); onCrop(targetId) }}>{t('taskRecrop')}</Button>}
+          {selected.wallpaperTask && detailImage && <Button variant="outline" disabled={pending.some(key => key.startsWith('wallpaper-review:'))} onClick={() => report(async () => {
+            if (reviewing.current) return
+            reviewing.current = true
+            const key = `wallpaper-review:${selected.runId}:${detailImage.imageVersionId}`
+            if (reviewOperation.current?.key !== key) reviewOperation.current = { key, id: crypto.randomUUID() }
+            try {
+              const receipt = z.object({ runId: z.string().min(1) }).parse(await actions.execute('wallpaper-continue', { runId: selected.runId, operationId: reviewOperation.current.id, review: { outputId: detailImage.imageVersionId } }, key))
+              closeDetail(); onSelect(receipt.runId)
+            } finally { reviewing.current = false }
+          })}>{t('wallpaperReviewCurrent')}</Button>}
           <Button variant="primary" onClick={closeDetail}>{t('close')}</Button>
         </div>}>
           {detailImage && <div className="vc-result-detail-body">
+            {selected.wallpaperTask && <p className="vc-flow-muted">{t('wallpaperReviewCurrentHint')}</p>}
             <div className="vc-result-detail-media" data-has-source={!!detailImage.sourcePreviewPath}>
               <div className="vc-result-detail-stage">
                 <ResultPreview src={resource(detailImage.previewPath)} thumbnailSrc={detailImage.thumbnailPath ? resource(detailImage.thumbnailPath) : undefined} alt={detailImage.name} t={t} />

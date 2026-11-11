@@ -9,29 +9,29 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import LocalAttachmentStore from '../../../../packages/attachment/attachment-local/src/index.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { BudgetLedger, dataOf, specOf, toJson, type ExecutionSpec } from '../src/host/runtime.ts'
-import { assessmentSchema, selectionSchema, imageVersionSchema, runSchema, requestSchema, type CuratorRecord, type RunRecord } from '../src/shared/model.ts'
+import { assessmentSchema, selectionSchema, assetSchema, imageVersionSchema, runSchema, requestSchema, type CuratorRecord, type RunRecord } from '../src/shared/model.ts'
 import { wallpaperPlanSchema, wallpaperReviewKeys, wallpaperReviewSchema, wallpaperSettingsSchema, wallpaperStateSchema, wallpaperProgress, wallpaperViewSchema } from '../src/shared/wallpaper.ts'
 import { wallpaperPromptBundle } from '../src/shared/wallpaper-prompts.ts'
-import { wallpaperGeometry } from '../src/media/wallpaper-render.ts'
+import { wallpaperGeometry, renderWallpaper } from '../src/media/wallpaper-render.ts'
 import { contentDigest } from '../src/domain/repository.ts'
 import { createCuratorTransport } from '../src/client/transport.ts'
 import { MediaError } from '../src/media/errors.ts'
 import { readFile } from 'node:fs/promises'
 
 const receiptSchema = z.object({ wallpaper: z.object({
-  continuation: z.object({ parentRunId: z.string(), kind: z.enum(['replan', 'recompose', 'continue']), changedImageVersionId: z.string().optional() }).optional(),
+  continuation: z.object({ parentRunId: z.string(), kind: z.enum(['replan', 'recompose', 'review', 'continue']), changedImageVersionId: z.string().optional() }).optional(),
   outputs: z.array(z.object({ imageVersionId: z.string(), sourceImageVersionId: z.string(), cumulativeImageEdits: z.number(), assessmentId: z.string().optional(), inherited: z.object({ runId: z.string(), assessmentId: z.string(), selectionId: z.string() }).nullable().optional() })),
 }) })
 
-async function fixture(twoSources = false, weightedPolicy = false) {
+async function fixture(twoSources = false, weightedPolicy = false, sessionSource = false) {
   const f = await serviceFixture(undefined, { maxVisionCalls: 20 }), context = new Context(), llm = new LlmRuntime(context), attachments = new LocalAttachmentStore(context, { dshHome: f.root })
   f.host.llm = llm; f.host.attachments = attachments
   try {
     await f.service.initialize()
-    let generationState: ImageGenerationTask['state'] = 'succeeded', rejectReview = false, startedImages = 0, offcanvasPlans = 0, styleOnlyFailure = false, invalidStyleRows = false
+    let generationState: ImageGenerationTask['state'] = 'succeeded', rejectReview = false, startedImages = 0, offcanvasPlans = 0, styleOnlyFailure = false, invalidStyleRows = false, sourceExtent = 'complete'
     const readHandles: ImageGenerationHandle[] = [], operations: string[] = []
     const generated = await sharp({ create: { width: 1845, height: 3280, channels: 3, background: '#1933d1' } }).png().toBuffer()
-    const original = await attachments.saveFile({ data: generated, name: 'saved-provider-result.png' }), previews = await attachments.saveImages([{ data: generated, mediaType: 'image/png', name: 'saved-provider-preview.png' }])
+    let original = await attachments.saveFile({ data: generated, name: 'saved-provider-result.png' }), previews = await attachments.saveImages([{ data: generated, mediaType: 'image/png', name: 'saved-provider-preview.png' }])
     const handle = { id: brandString<import('@deepseek-ai/dsh-llm').ImageGenerationId>('saved-generation'), provider: 'fixture-images', model: 'fixture-image-model', taskId: brandString<import('@deepseek-ai/dsh-llm').ImageGenerationTaskId>('saved-provider-task') }
     llm.startImageGeneration = async () => { startedImages++; throw new Error('Recomposition must never dispatch another image generation') }
     llm.getImageGeneration = async value => {
@@ -57,6 +57,11 @@ async function fixture(twoSources = false, weightedPolicy = false) {
             assert.equal(operation, 'wallpaper-review')
             const review = wallpaperReviewSchema.parse({ subject: 'The saved source is visible in the recomposed output.', checks: Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: rejectReview && key === 'background' || styleOnlyFailure && key === 'style' ? 'violated' : 'satisfied', reason: 'Scripted review of the supplied final pixels.' }])), issues: rejectReview ? [{ kind: 'background', reason: 'The background still needs human review.' }] : styleOnlyFailure ? [{ kind: 'style', reason: 'A preferred palette is absent.' }] : [] })
             result = descriptor.outputSchema.properties.styleResults ? { ...review, styleResults: descriptor.input.rules.slice(0, invalidStyleRows ? 0 : undefined).map(rule => ({ ruleId: rule.ruleId, result: styleOnlyFailure ? 'violated' : 'satisfied', reason: 'Actual final pixels.', evidenceImageVersionIds: [descriptor.input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId] })) } : review
+            if (descriptor.outputSchema.properties.subjectIntegrity) result = { ...z.record(z.string(), z.unknown()).parse(result), reviewVersion: 'wallpaper-review-v3', subjectIntegrity: { mode: 'single', source: { extent: sourceExtent, reason: 'Independent original frame evidence.', imageVersionId: descriptor.input.images.find(image => image.role === 'wallpaper-original')!.imageVersionId }, output: { extent: sourceExtent, reason: 'Independent actual-output frame evidence.', imageVersionId: descriptor.input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId }, task: { result: 'satisfied', reason: 'The unchanged task is independently reviewed.' } } }
+          }
+          if (operation === 'wallpaper-review' && z.object({ const: z.string() }).safeParse(descriptor.outputSchema.properties.reviewVersion).data?.const === 'wallpaper-review-v4') {
+            const saved = z.object({ checks: z.record(z.string(), z.unknown()) }).passthrough().parse(result)
+            result = { ...saved, reviewVersion: 'wallpaper-review-v4', checks: { ...saved.checks, clarity: { result: 'satisfied', reason: 'The actual subject is clear in this scripted fixture.' } } }
           }
           return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) }, finish_reason: 'stop' }] })) }
         }
@@ -68,27 +73,68 @@ async function fixture(twoSources = false, weightedPolicy = false) {
     const second = twoSources ? await sharp({ create: { width: 1845, height: 3280, channels: 3, background: '#367a44' } }).png().toBuffer() : undefined
     await f.action('reference-import', { operationId: 'reference', styleId: style.id, expectedRevision: 1, files: [{ name: 'source.png', mime: 'image/png', base64: source.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }, ...(second ? [{ name: 'second.png', mime: 'image/png', base64: second.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] : [])] })
     await f.action('reference-analyze', { operationId: 'analysis', styleId: style.id, buildDataset: true }); await f.jobs.drain()
-    const profile = f.repository.list('modelProfile')[0]!, images = f.repository.list('reference').map(reference => f.domain.require('imageVersion', reference.imageVersionId)), image = images.find(image => image.geometry.width === 1000)!, asset = f.domain.require('asset', image.assetId)
+    const profile = f.repository.list('modelProfile')[0]!, images = f.repository.list('reference').map(reference => f.domain.require('imageVersion', reference.imageVersionId)), importedImage = images.find(image => image.geometry.width === 1000)!, importedAsset = f.domain.require('asset', importedImage.assetId)
+    const image = sessionSource ? imageVersionSchema.parse({ ...importedImage, id: 'session-source-image', assetId: 'session-source-asset' }) : importedImage
+    const asset = sessionSource ? assetSchema.parse({ ...importedAsset, id: image.assetId, access: { kind: 'session-run', sessionId: 'source-session' } }) : importedAsset
     const stale = await f.files.importBytes(generated, 'image/png'), staleOutput = imageVersionSchema.parse({ ...image, id: 'old-composition', versionKind: 'composition', parentImageVersionId: image.id, blob: stale.normalized.blob, geometry: { ...image.geometry, width: 1845, height: 3280 } })
-    const settings = wallpaperSettingsSchema.parse({ imageProvider: handle.provider, imageModel: handle.model, learningEnabled: false })
+    const staleSimulation = imageVersionSchema.parse({ ...staleOutput, id: 'old-simulation' })
+    const settings = wallpaperSettingsSchema.parse({ imageProvider: handle.provider, imageModel: handle.model, learningEnabled: false, maxReworks: 2, maxEditsPerImage: 2 })
     const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: image.id, mode: 'single', subject: 'The original red source.', evidence: 'Actual original pixels.', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: ['subject', 'critical'].map(role => ({ name: role, role, rect: { x: 0.25, y: 0.2, width: 0.3, height: 0.2 } })), placement: { scale: 1, left: 400, top: 1100 }, reason: 'Keep the protected source inside the safe region.' })
     assert.deepEqual(wallpaperGeometry(image.geometry, plan, settings).checks, [])
     const review = wallpaperReviewSchema.parse({ subject: 'Saved prior review.', checks: Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: key === 'background' ? 'violated' : 'satisfied', reason: 'Saved old review.' }])), issues: [{ kind: 'background', reason: 'Recompose the existing provider output.' }] })
-    const state = wallpaperStateSchema.parse({ version: 1, sourceRunId: 'source-search', skillVersion: 'fixture-skill', budgetStopped: true, items: [{ imageVersionId: image.id, originalId: image.id, familyId: asset.familyId, status: 'needs-review', edits: 2, attempts: [{ revision: 1, plan, checks: [], needsOutpaint: true, canvasId: image.id, maskId: image.id, analysisId: staleOutput.id, simulationId: staleOutput.id, outputId: staleOutput.id, generation: handle, generationOperation: handle.id, editReserved: true, review }] }] })
+    const state = wallpaperStateSchema.parse({ version: 1, sourceRunId: 'source-search', skillVersion: 'fixture-skill', budgetStopped: true, items: [{ imageVersionId: image.id, originalId: image.id, familyId: asset.familyId, status: 'needs-review', edits: 2, attempts: [{ revision: 1, plan, checks: [], needsOutpaint: true, canvasId: image.id, maskId: image.id, analysisId: staleOutput.id, simulationId: staleSimulation.id, outputId: staleOutput.id, generation: handle, generationOperation: handle.id, editReserved: true, review }] }] })
     if (twoSources) {
       const other = images.find(other => other.id !== image.id)!, otherAsset = f.domain.require('asset', other.assetId)
       const otherPlan = wallpaperPlanSchema.parse({ ...plan, imageVersionId: other.id, placement: { left: 0, top: 0, scale: 1 }, regions: plan.regions.map(region => ({ ...region, rect: { x: 0.25, y: 0.4, width: 0.3, height: 0.2 } })) })
       state.items.push({ imageVersionId: other.id, originalId: other.id, familyId: otherAsset.familyId, status: 'technical-failed', failedStep: 'reviewing', edits: 0, attempts: [{ revision: 1, plan: otherPlan, checks: [], needsOutpaint: false }] })
     }
-    const prompts = { ...wallpaperPromptBundle(), outpaint: { version: 'wallpaper-outpaint-v1', text: 'Saved first-generation editing instructions.' } }
-    const spec: ExecutionSpec = { kind: 'crop', config: f.service.config, input: { workflow: 'wallpaper-v1', operationId: 'old-wallpaper', sourceRunId: state.sourceRunId, imageVersionIds: state.items.map(item => item.imageVersionId), taskBrief: 'Recompose saved source pixels.', targetCount: state.items.length }, fixed: { release: toJson(profile), ...(weightedPolicy ? { executionRecipe: toJson({ ...profile.recipe, styleMatching: { version: 2, minSatisfiedRatio: 0.75 } }) } : {}), wallpaper: toJson(settings), skill: { id: 'fixture-skill', content: 'Keep original protected pixels.' }, prompts: toJson(prompts) }, specDigest: contentDigest('saved-wallpaper') }
+    const prompts = { ...wallpaperPromptBundle('wallpaper-review-v1', 'wallpaper-plan-v2'), outpaint: { version: 'wallpaper-outpaint-v1', text: 'Saved first-generation editing instructions.' } }
+    const spec: ExecutionSpec = { kind: 'crop', config: f.service.config, input: { workflow: 'wallpaper-v1', operationId: 'old-wallpaper', sourceRunId: state.sourceRunId, imageVersionIds: state.items.map(item => item.imageVersionId), taskBrief: 'Recompose saved source pixels.', targetCount: state.items.length }, fixed: { ...(sessionSource ? { sourceSessionId: 'source-session' } : {}), release: toJson(profile), ...(weightedPolicy ? { executionRecipe: toJson({ ...profile.recipe, styleMatching: { version: 2, minSatisfiedRatio: 0.75 } }) } : {}), wallpaper: toJson(settings), skill: { id: 'fixture-skill', content: 'Keep original protected pixels.' }, prompts: toJson(prompts) }, specDigest: contentDigest('saved-wallpaper') }
     const old = runSchema.parse({ schemaVersion: 1, profileId: f.profileId, id: 'old-wallpaper', createdAt: '1970-01-01T00:00:00.000Z', kind: 'run', owner: { kind: 'profile' }, revision: 1, status: 'completed', stage: 'finalizing', outcome: 'source-exhausted', spec: toJson(spec), data: { attemptId: 'old-attempt', attempts: 1, budget: { ...new BudgetLedger(spec.config.limits).snapshot(), vision: 5, search: 2, downloadBytes: 1234 }, checkpoint: { wallpaper: toJson(state) }, counts: {}, warnings: [], requestIds: [], resultIds: [] } })
     const sourceRun = runSchema.parse({ ...old, id: state.sourceRunId, spec: toJson({ ...spec, kind: 'search', input: { taskBrief: 'Saved source search.', targetCount: state.items.length } }) })
-    await f.repository.commit({ aggregateId: 'saved-wallpaper', expectedRevision: 0, operationId: 'saved-wallpaper', request: {}, records: [sourceRun, old, staleOutput], state: {} })
+    await f.repository.commit({ aggregateId: 'saved-wallpaper', expectedRevision: 0, operationId: 'saved-wallpaper', request: {}, records: [sourceRun, old, staleOutput, staleSimulation, ...(sessionSource ? [asset, image] : [])], state: {} })
     operations.length = 0
-    return { f, old, state, image, handle, operations, readHandles, setReviewRejected() { rejectReview = true }, setStyleOnlyFailure() { styleOnlyFailure = true }, setInvalidStyleRows() { invalidStyleRows = true }, setOffcanvasPlans(n: number) { offcanvasPlans = n }, setGenerationFailed() { generationState = 'failed' }, get startedImages() { return startedImages }, async cleanup() { await f.cleanup(); await context.fiber.dispose() } }
+    return { f, old, state, image, handle, operations, readHandles, async setGenerated(bytes: Uint8Array) { original = await attachments.saveFile({ data: bytes, name: 'saved-provider-result.png' }); previews = await attachments.saveImages([{ data: bytes, mediaType: 'image/png', name: 'saved-provider-preview.png' }]) }, setSourceExtent(value: string) { sourceExtent = value }, setReviewRejected() { rejectReview = true }, setStyleOnlyFailure() { styleOnlyFailure = true }, setInvalidStyleRows() { invalidStyleRows = true }, setOffcanvasPlans(n: number) { offcanvasPlans = n }, setGenerationFailed() { generationState = 'failed' }, setGenerationState(value: ImageGenerationTask['state']) { generationState = value }, get startedImages() { return startedImages }, async cleanup() { await f.cleanup(); await context.fiber.dispose() } }
   } catch (error) { await f.cleanup(); await context.fiber.dispose(); throw error }
 }
+
+for (const [extent, expected] of [['complete', 'passed'], ['cut-off', 'rejected'], ['unknown', 'needs-review']] as const) test(`saved-output review uses current subject evidence (${extent}) without image generation or historical writes`, async () => {
+  const f = await fixture(true)
+  try {
+    f.setSourceExtent(extent)
+    const previous = structuredClone(f.old), other = structuredClone(f.state.items[1])
+    const outputId = f.state.items[0]!.attempts[0]!.outputId!
+    const args = { runId: f.old.id, operationId: `review-existing-${extent}`, review: { outputId } }
+    const receipt = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', args))
+    assert.deepEqual(await f.f.action('wallpaper-continue', args), receipt)
+    await f.f.jobs.drain()
+    const child = f.f.domain.require('run', receipt.runId), spec = specOf(child), state = wallpaperStateSchema.parse(dataOf(child).checkpoint.wallpaper), item = state.items[0]!, attempt = item.attempts.at(-1)!
+    assert.equal(item.status, expected, JSON.stringify({ reason: item.reason, errorCode: item.errorCode, runError: dataOf(child).error }))
+    assert.equal(attempt.outputId, outputId); assert.equal(item.edits, 2)
+    assert.deepEqual(state.items[1], other)
+    assert.deepEqual(f.f.domain.require('run', f.old.id), previous)
+    assert.equal(z.object({ review: z.object({ version: z.string() }) }).parse(spec.fixed.prompts).review.version, 'wallpaper-review-v4')
+    assert.equal(spec.config.vision.model, f.f.service.config.vision.model)
+    assert.deepEqual(f.operations, ['wallpaper-review']); assert.equal(f.startedImages, 0); assert.deepEqual(f.readHandles, [])
+    const result = z.object({ wallpaperTask: z.literal(true), results: z.array(z.object({ imageVersionId: z.string() })) }).parse(await f.f.action('run-get', { runId: child.id, resultFilter: extent === 'complete' ? 'selected' : extent === 'cut-off' ? 'rejected' : 'review' }))
+    assert(result.results.some(row => row.imageVersionId === outputId))
+    const opened = z.object({ runId: z.string(), resolvedFromRunId: z.string(), wallpaperTask: z.literal(true) }).parse(await f.f.action('run-get', { runId: f.state.sourceRunId, followLatestWallpaper: true }))
+    assert.equal(opened.runId, child.id)
+    assert.equal(opened.resolvedFromRunId, f.state.sourceRunId)
+    assert.equal(z.object({ runId: z.string() }).parse(await f.f.action('run-get', { runId: f.old.id })).runId, f.old.id)
+    assert.equal(dataOf(child).budget.vision, 1)
+  } finally { await f.cleanup() }
+})
+
+test('saved-output review rejects a foreign artifact without creating a task', async () => {
+  const f = await fixture()
+  try {
+    const runs = f.f.repository.list('run').length
+    await assert.rejects(f.f.action('wallpaper-continue', { runId: f.old.id, operationId: 'foreign-review', review: { outputId: f.image.id } }), { code: 'constraint-conflict', stage: 'wallpaper-review' })
+    assert.equal(f.f.repository.list('run').length, runs)
+    assert.deepEqual(f.f.domain.require('run', f.old.id), f.old)
+  } finally { await f.cleanup() }
+})
 
 test('single-image reads include a small preview directory without loading the other images plans or changing saved work',async()=>{
   const f=await fixture(true)
@@ -345,13 +391,13 @@ test('manual JSON replans reject unsafe source geometry before creating work and
     ]
     const runs = f.f.repository.list('run').length, requests = f.f.repository.list('request').length
     for (const sample of cases) {
-      await assert.rejects(f.f.action('wallpaper-plan-update', { runId: f.old.id, imageVersionId: f.image.id, operationId: `manual-invalid-${sample.name}`, plan: { ...plan, placement: sample.placement } }), { code: sample.code, stage: sample.stage }, sample.name)
+      await assert.rejects(f.f.action('wallpaper-plan-update', { runId: f.old.id, imageVersionId: f.image.id, operationId: `manual-invalid-${sample.name}`, plan: toJson({ ...plan, placement: sample.placement }) }), { code: sample.code, stage: sample.stage }, sample.name)
       assert.equal(f.f.repository.list('run').length, runs)
       assert.equal(f.f.repository.list('request').length, requests)
       assert.deepEqual(f.f.domain.require('run', f.old.id), f.old)
     }
     assert.equal(f.startedImages, 0); assert.deepEqual(f.readHandles, []); assert.deepEqual(f.operations, [])
-    const input = { runId: f.old.id, imageVersionId: f.image.id, operationId: 'manual-valid', plan }
+    const input = { runId: f.old.id, imageVersionId: f.image.id, operationId: 'manual-valid', plan: toJson(plan) }
     const started = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-plan-update', input))
     const repeated = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-plan-update', input))
     assert.equal(repeated.runId, started.runId)
@@ -364,7 +410,7 @@ test('manual JSON replans reject unsafe source geometry before creating work and
     const spec = specOf(f.old), legacy = runSchema.parse({ ...f.old, id: 'legacy-manual-child', spec: toJson({ ...spec, input: { ...spec.input, operationId, continuationKind: 'replan', continuationOf: f.old.id, replacementImageId: f.image.id, replacementPlanDigest: contentDigest(invalid) } }) })
     await f.f.repository.commit({ aggregateId: 'legacy-manual-child', expectedRevision: 0, operationId: 'seed-legacy-manual-child', request: {}, records: [legacy], state: {} })
     const beforeReplay = f.f.repository.list('run').length
-    assert.deepEqual(await f.f.action('wallpaper-plan-update', { runId: f.old.id, imageVersionId: f.image.id, operationId, plan: invalid }), { runId: legacy.id })
+    assert.deepEqual(await f.f.action('wallpaper-plan-update', { runId: f.old.id, imageVersionId: f.image.id, operationId, plan: toJson(invalid) }), { runId: legacy.id })
     assert.equal(f.f.repository.list('run').length, beforeReplay)
   } finally { await f.cleanup() }
 })
@@ -377,7 +423,7 @@ test('an explicit owner plan remains available after automatic replans stop and 
     item.reason = 'rework-limit'
     const old = runSchema.parse({ ...f.old, revision: f.old.revision + 1, data: toJson({ ...dataOf(f.old), checkpoint: { wallpaper: toJson(saved) } }) })
     await f.f.repository.commit({ aggregateId: 'saved-wallpaper', expectedRevision: 1, operationId: 'seed-exhausted-plans', request: {}, records: [old], state: {} })
-    const input = { runId: old.id, imageVersionId: item.imageVersionId, operationId: 'owner-corrected-after-limit', plan: first.plan, backgroundPolicy: 'current' }
+    const input = { runId: old.id, imageVersionId: item.imageVersionId, operationId: 'owner-corrected-after-limit', plan: toJson(first.plan), backgroundPolicy: 'current' }
     const started = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-plan-update', input))
     assert.deepEqual(await f.f.action('wallpaper-plan-update', input), started)
     const child = f.f.domain.require('run', started.runId), spec = specOf(child), initial = wallpaperStateSchema.parse(spec.fixed.initialWallpaperState)
@@ -385,7 +431,7 @@ test('an explicit owner plan remains available after automatic replans stop and 
     assert.equal(initial.items[0]!.attempts.length, 4)
     assert.equal(initial.items[0]!.edits, 2)
     assert.equal(initial.items[0]!.attempts.at(-1)!.compositionMode, 'protected-context-v2')
-    assert.equal(z.object({ outpaint: z.object({ version: z.string() }) }).parse(spec.fixed.prompts).outpaint.version, 'wallpaper-outpaint-v3')
+    assert.equal(z.object({ outpaint: z.object({ version: z.string() }) }).parse(spec.fixed.prompts).outpaint.version, 'wallpaper-outpaint-v4')
     assert.deepEqual(initial.items[0]!.attempts.slice(0, 3), item.attempts)
     await f.f.jobs.drain()
     const result = wallpaperStateSchema.parse(dataOf(f.f.domain.require('run', started.runId)).checkpoint.wallpaper)
@@ -408,6 +454,54 @@ test('an old generation cannot be relabeled as using a new subject-context reque
   } finally { await f.cleanup() }
 })
 
+test('explicit background reconstruction reuses the provider receipt, preserves protected pixels and still requires independent approval', async () => {
+  const f = await fixture()
+  try {
+    const bytes = await sharp({ create: { width: 941, height: 1672, channels: 3, background: '#1946b1' } }).png().toBuffer()
+    await f.setGenerated(bytes)
+    const state = structuredClone(f.state), prior = state.items[0]!.attempts[0]!
+    prior.compositionMode = 'protected-context-v2'
+    prior.generationInput = { version: 'wallpaper-edit-input-v1', prompt: 'Saved current-mask request.', references: [{ role: 'canvas', attachmentId: 'saved-canvas', width: 1536, height: 2730 }] }
+    const originalSpec = specOf(f.old), prompts = { ...wallpaperPromptBundle('wallpaper-review-v1'), outpaint: wallpaperPromptBundle().outpaint }
+    const parent = runSchema.parse({ ...f.old, id: 'saved-small-current-background', spec: toJson({ ...originalSpec, fixed: { ...originalSpec.fixed, prompts: toJson(prompts) } }), data: { ...dataOf(f.old), checkpoint: { wallpaper: toJson(state) } } })
+    await f.f.repository.commit({ aggregateId: parent.id, expectedRevision: 0, operationId: 'seed-small-background', request: {}, records: [parent], state: {} })
+    const denied = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: parent.id, operationId: 'native-only-small-background', recompose: { imageVersionId: f.image.id, revision: 1, mode: 'protected-context-v2' } }))
+    await f.f.jobs.drain()
+    const deniedItem = wallpaperStateSchema.parse(dataOf(f.f.domain.require('run', denied.runId)).checkpoint.wallpaper).items[0]!
+    assert.equal(deniedItem.errorCode, 'image-resolution-insufficient'); assert.equal(deniedItem.attempts.at(-1)!.outputId, undefined)
+    assert.deepEqual(f.operations, []); assert.equal(f.startedImages, 0)
+    const args = { runId: parent.id, operationId: 'reconstruct-saved-small-background', recompose: { imageVersionId: f.image.id, revision: 1, mode: 'protected-context-v2', backgroundResolution: 'current' } }
+    const receipt = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', args))
+    assert.deepEqual(await f.f.action('wallpaper-continue', args), receipt)
+    await f.f.jobs.drain()
+    const child = f.f.domain.require('run', receipt.runId), item = wallpaperStateSchema.parse(dataOf(child).checkpoint.wallpaper).items[0]!, attempt = item.attempts.at(-1)!, evidence = attempt.backgroundResolution
+    assert.equal(item.status, 'passed', JSON.stringify({ reason: item.reason, errorCode: item.errorCode, runError: dataOf(child).error }))
+    assert.equal(item.edits, 2); assert.equal(f.startedImages, 0); assert.deepEqual(attempt.generation, f.handle)
+    assert.equal(evidence?.status, 'passed'); assert.equal(evidence.model, 'espcn-x3-luma'); assert.equal(evidence.input.width, 941); assert.equal(evidence.input.height, 1672)
+    assert.deepEqual(evidence.output, { width: 1845, height: 3280 }); assert.ok(evidence.tiles! > 1)
+    const output = f.f.domain.require('imageVersion', attempt.outputId!), settings = wallpaperSettingsSchema.parse(specOf(child).fixed.wallpaper)
+    const baseline = await renderWallpaper(await f.f.files.read(f.image.blob), attempt.plan, settings, undefined, 'protected-context-v2')
+    const actual = await sharp(await f.f.files.read(output.blob)).removeAlpha().raw().toBuffer(), source = await sharp(baseline.image).removeAlpha().raw().toBuffer()
+    let protectedPixelChanges = 0
+    for (const region of baseline.geometry.regions) for (let y = Math.floor(region.top); y < Math.ceil(region.top + region.height); y++) for (let x = Math.floor(region.left); x < Math.ceil(region.left + region.width); x++) {
+      const at = (y * settings.width + x) * 3
+      assert.deepEqual(actual.subarray(at, at + 3), source.subarray(at, at + 3))
+      if (!actual.subarray(at, at + 3).equals(source.subarray(at, at + 3))) protectedPixelChanges++
+    }
+    assert.deepEqual(f.operations, ['wallpaper-review'])
+    assert.deepEqual(f.f.domain.require('run', parent.id), parent); assert.deepEqual(f.f.domain.require('run', f.old.id), f.old)
+    f.setReviewRejected()
+    const rejected = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: child.id, operationId: 'reject-reconstructed-background', review: { outputId: output.id } }))
+    await f.f.jobs.drain()
+    const rejectedRun = f.f.domain.require('run', rejected.runId), rejectedItem = wallpaperStateSchema.parse(dataOf(rejectedRun).checkpoint.wallpaper).items[0]!
+    assert.equal(rejectedItem.status, 'rejected'); assert.equal(rejectedItem.attempts.at(-1)!.backgroundResolution?.status, 'needs-review')
+    assert.equal(f.f.repository.list('selection').filter(selection => selection.runId === rejected.runId).length, 0)
+    assert.equal(f.startedImages, 0); assert.equal(rejectedItem.edits, 2)
+    const expected = JSON.parse(await readFile(new URL('./fixtures/wallpaper-continuation-receipt.expected.json', import.meta.url), 'utf8'))
+    assert.deepEqual({ nativeSize: `${evidence.input.width}x${evidence.input.height}`, reconstructedSize: `${evidence.output!.width}x${evidence.output!.height}`, cumulativeImageEdits: item.edits, newGenerations: f.startedImages, protectedPixelChanges, rejectedQualifiedOutputs: f.f.repository.list('selection').filter(selection => selection.runId === rejected.runId).length }, expected.backgroundResolution)
+  } finally { await f.cleanup() }
+})
+
 test('a two-image continuation retains truthful qualification for its already-passed sibling without another review', async () => {
   const f = await fixture(true)
   try {
@@ -420,7 +514,7 @@ test('a two-image continuation retains truthful qualification for its already-pa
     for (const operation of ['replan', 'continue'] as const) {
       const previousCalls = f.operations.length, previousReads = f.readHandles.length
       const started = z.object({ runId: z.string() }).parse(operation === 'replan'
-        ? await f.f.action('wallpaper-plan-update', { runId: prior.id, imageVersionId: target.imageVersionId, operationId: 'two-image-replan', plan: target.attempts.at(-1)!.plan })
+        ? await f.f.action('wallpaper-plan-update', { runId: prior.id, imageVersionId: target.imageVersionId, operationId: 'two-image-replan', plan: toJson(target.attempts.at(-1)!.plan) })
         : await f.f.action('wallpaper-continue', { runId: prior.id, operationId: 'two-image-continue' }))
       await f.f.jobs.drain()
       const child = f.f.domain.require('run', started.runId), childState = wallpaperStateSchema.parse(dataOf(child).checkpoint.wallpaper), selections = f.f.repository.list('selection').filter(row => row.runId === child.id)
@@ -485,5 +579,85 @@ test('a two-image continuation retains truthful qualification for its already-pa
       assert.equal(f.operations.length, calls); assert.equal(f.readHandles.length, reads); assert.equal(f.startedImages, 0)
       assert.deepEqual(f.f.domain.require('run', id), invalidParent)
     }
+  } finally { await f.cleanup() }
+})
+test('saved-output review retains the authorized task source Session without opening other Session images', async () => {
+  const f = await fixture(false, false, true)
+  try {
+    assert.throws(() => f.f.domain.authorizedImage(f.image.id, { kind: 'human', id: 'profile-owner', profileId: f.f.profileId }), /another Session/)
+    const outputId = f.state.items[0]!.attempts[0]!.outputId!
+    const receipt = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: f.old.id, operationId: 'review-session-output', review: { outputId } }))
+    await f.f.jobs.drain()
+    const child = f.f.domain.require('run', receipt.runId), item = wallpaperStateSchema.parse(dataOf(child).checkpoint.wallpaper).items[0]!
+    assert.equal(item.status, 'passed', item.reason)
+    assert.equal(specOf(child).fixed.sourceSessionId, 'source-session')
+    assert.deepEqual(f.f.domain.require('run', f.old.id), f.old)
+    assert.deepEqual(f.operations, ['wallpaper-review']); assert.equal(f.startedImages, 0)
+    assert.throws(() => f.f.domain.authorizedImage(f.image.id, { kind: 'human', id: 'other-owner', profileId: f.f.profileId, sessionId: 'another-session' }), /another Session/)
+  } finally { await f.cleanup() }
+})
+
+test('incomplete style output cannot hide validated subject truncation or create a qualified wallpaper', async () => {
+  const f = await fixture(false, true)
+  try {
+    f.setSourceExtent('cut-off'); f.setInvalidStyleRows()
+    const outputId = f.state.items[0]!.attempts[0]!.outputId!
+    const receipt = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: f.old.id, operationId: 'reject-incomplete-response', review: { outputId } }))
+    await f.f.jobs.drain()
+    const child = f.f.domain.require('run', receipt.runId), item = wallpaperStateSchema.parse(dataOf(child).checkpoint.wallpaper).items[0]!
+    assert.equal(item.status, 'rejected', item.reason); assert.equal(item.attempts.at(-1)!.review!.checks.style.result, 'unknown')
+    assert('subjectRejectionOnly' in item.attempts.at(-1)!.review!)
+    assert.equal(dataOf(child).counts.finalPassed, 0)
+    const result = z.object({ results: z.array(z.object({ imageVersionId: z.string(), reason: z.string() })) }).parse(await f.f.action('run-get', { runId: child.id, resultFilter: 'rejected' }))
+    assert(result.results.some(row => row.imageVersionId === outputId && row.reason.includes('主体完整性不通过')))
+    assert(f.f.repository.list('request').some(q => q.runId === child.id && q.state === 'outcome-unknown'))
+    assert.equal(f.startedImages, 0); assert.deepEqual(f.readHandles, []); assert.deepEqual(f.f.domain.require('run', f.old.id), f.old)
+  } finally { await f.cleanup() }
+})
+test('historical workflow reads pin the requested task and expose source-image routes without rewriting history', async () => {
+  const f = await fixture()
+  try {
+    const outputId = f.state.items[0]!.attempts[0]!.outputId!
+    const receipt = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: f.old.id, operationId: 'historical-route', review: { outputId } }))
+    await f.f.jobs.drain()
+    const latest = wallpaperViewSchema.parse(await f.f.action('wallpaper-read', { sourceRunId: f.state.sourceRunId, offset: 0, limit: 1 }))
+    const pinned = wallpaperViewSchema.parse(await f.f.action('wallpaper-read', { sourceRunId: f.state.sourceRunId, runId: f.old.id, offset: 0, limit: 1 }))
+    assert.equal(latest.runId, receipt.runId); assert.equal(pinned.runId, f.old.id)
+    assert.deepEqual(pinned.state.items, f.state.items)
+    const result = z.object({ wallpaper: z.object({ sourceRunId: z.string() }), results: z.array(z.object({ workflowImageVersionId: z.string() })) }).parse(await f.f.action('run-get', { runId: receipt.runId }))
+    assert.equal(result.wallpaper.sourceRunId, f.state.sourceRunId); assert.equal(result.results[0]!.workflowImageVersionId, f.image.id)
+    await assert.rejects(f.f.action('wallpaper-read', { sourceRunId: f.state.sourceRunId, runId: f.state.sourceRunId, offset: 0, limit: 1 }), /does not belong/)
+    assert.deepEqual(f.f.domain.require('run', f.old.id), f.old); assert.deepEqual(f.operations, ['wallpaper-review']); assert.equal(f.startedImages, 0)
+  } finally { await f.cleanup() }
+})
+
+for (const receiptState of ['failed', 'outcome-unknown', 'succeeded'] as const) test('single-image recovery checks a ' + receiptState + ' receipt before creating any new edit', async () => {
+  const f = await fixture(true)
+  try {
+    const llm = f.f.host.llm!, successful = await llm.getImageGeneration(f.handle), state = structuredClone(f.state), item = state.items[0]!
+    item.edits = 1; item.reason = 'image-operation-failed'; item.status = 'needs-review'
+    delete item.attempts[0]!.outputId; delete item.attempts[0]!.review; delete item.attempts[0]!.simulationId
+    const parent = runSchema.parse({ ...f.old, id: 'single-image-failed-parent', createdAt: new Date().toISOString(), data: { ...dataOf(f.old), checkpoint: { wallpaper: toJson(state) } } })
+    await f.f.repository.commit({ aggregateId: 'single-image-failed-seed', expectedRevision: 0, operationId: 'single-image-failed-seed', request: {}, records: [parent], state: {} })
+    let starts = 0, queries = 0
+    const nextHandle = { ...f.handle, id: brandString<import('@deepseek-ai/dsh-llm').ImageGenerationId>('new-operation'), taskId: brandString<import('@deepseek-ai/dsh-llm').ImageGenerationTaskId>('new-task') }
+    llm.getImageGeneration = async handle => {
+      queries++
+      if (handle.id === f.handle.id) return { ...successful, state: receiptState, images: receiptState === 'succeeded' ? successful.images : [] }
+      if (handle.taskId === undefined) throw Object.assign(new Error('Known absent operation'), { code: 'IMAGE_GENERATION_NOT_FOUND' })
+      return { ...successful, ...nextHandle }
+    }
+    llm.startImageGeneration = async input => { assert(queries > 0); starts++; nextHandle.id = input.id!; return { ...successful, ...nextHandle } }
+    await assert.rejects(f.f.action('wallpaper-continue', { runId: parent.id, operationId: 'old-version', retryImage: { imageVersionId: item.imageVersionId, revision: 99, step: 'rendering' } }), { code: 'constraint-conflict' })
+    const args = { runId: parent.id, operationId: 'single-image-retry', retryImage: { imageVersionId: item.imageVersionId, revision: 1, step: 'rendering' } }
+    const receipt = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', args))
+    assert.deepEqual(await f.f.action('wallpaper-continue', args), receipt)
+    await f.f.jobs.drain()
+    const after = wallpaperStateSchema.parse(dataOf(f.f.domain.require('run', receipt.runId)).checkpoint.wallpaper)
+    assert.equal(starts, receiptState === 'failed' ? 1 : 0)
+    assert.equal(after.items[0]!.edits, receiptState === 'failed' ? 2 : 1)
+    assert.equal(after.items[0]!.attempts.length, receiptState === 'failed' ? 2 : 1)
+    assert.deepEqual(after.items[1], state.items[1]); assert.deepEqual(f.f.domain.require('run', parent.id), parent)
+    if (receiptState === 'outcome-unknown') assert.equal(after.items[0]!.status, 'needs-review')
   } finally { await f.cleanup() }
 })

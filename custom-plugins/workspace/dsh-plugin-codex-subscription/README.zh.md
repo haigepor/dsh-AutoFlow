@@ -6,6 +6,8 @@ kind: "package-bundle"
 
 [English](README.md) | 中文
 
+新图片任务在可选的 `evidence` 中保留实际指定的尺寸、质量、格式及安全的请求标识，以及响应确实报告的尺寸、质量和格式。每份产物保留服务返回的 `generationId`。这些标签不能代表实际像素或视觉质量，原图尺寸须依据已保存原件或其归一化元数据。无效的辅助报告不会丢弃有效图片，历史任务不补造证据；原始响应正文、图片 base64、凭据和签名 URL 均不保存。新读取器可读旧任务，旧版严格读取器可能拒绝含新字段的任务，保留新证据时须使用兼容的读取器。
+
 ## 概述
 
 使用 ChatGPT 订阅账号进行 AutoFlow 模型调用、生图和本地 OpenAI 兼容调用。原生图片工具在会话中显示生成卡片与图库，外部客户端可以使用 HTTP MCP 服务。授权由已有的已认证调用方发起，账号和登录交互由模型设置负责；本包不新增独立设置页面。
@@ -76,7 +78,9 @@ MCP 同时接受 `/mcp/magpie/image`、Magpie 的 `reference_images` 和 `genera
 
 登录时调用 `login-start`，由调用方在用户浏览器打开返回的 `authorizationUrl`，再查询 `login-status`。自动回调与手动 `login-complete` 共用 PKCE／state 校验，支持回调端口 1455 和 1457。插件不提交密码，也不会取消其他应用的登录监听。
 
-令牌兑换和凭据保存完成后，回调才返回自动关闭的成功 HTML；浏览器拒绝脚本关闭时保留手动关闭提示。登录不添加模型或改变默认模型。`modelCatalog()` 读取明确选择和候选，`catalogModels()` 列出已选择且可路由的文字模型。通过 `model-catalog-save` 保存 `{ revision, entries: [{ kind: "text" | "image", id, name }], defaultImageModel? }`。文字 ID 必须已发现或已配置；生图 ID 原样传给上游，不据此推断权限。只有明确传入 `defaultImageModel` 才修改默认生图模型。已准备请求保留其能力。
+令牌兑换和凭据保存完成后，回调才返回自动关闭的成功 HTML；浏览器拒绝脚本关闭时保留手动关闭提示。登录不添加模型或改变默认模型。`modelCatalog()` 读取明确选择和候选，`catalogModels()` 列出已选择且可路由的文字模型。通过 `model-catalog-save` 保存 `{ revision, entries: [{ kind: "text" | "image", id, name }], defaultImageModel?, autoProbeImages? }`。文字 ID 必须已发现或已配置；生图 ID 原样传给上游，不据此推断权限。只有明确传入 `defaultImageModel` 才修改默认生图模型。已准备请求保留其能力。
+
+生图下拉选项合并已配置型号、当前生图默认项和此前保存的官方型号，并保留显式填写自定义 ID 的入口。打开设置、读取目录或启动插件均不会自动发现型号或生成探测图，即使旧 profile 的 `autoProbeImages` 或 `imageDiscovery.autoProbe` 已开启也不会执行。历史探测回执保留；它们不能证明图片响应背后的实际型号。选择型号不会改动当前默认值，只有显式保存为默认生图模型才会修改。
 
 账号身份组合用户与工作区。同一 Team 的不同成员分别保存；重新登录同一身份保留账号键、控制项和名称，包括任务或重放引用的旧账号键。信息包含用户／邮箱、工作区、token 到期时间（`tokenExpiresAt`，兼容别名为 `expiresAt`）、可选的未来订阅到期时间（`subscriptionUntil`）、套餐来源、授权状态、分操作冷却及发现时间。实时额度套餐优先于 token 声明，缺失额度保持未知。
 
@@ -113,7 +117,7 @@ Plus、Pro 和 Business 共用 OAuth 和动态发现，套餐名不代表固定�
 <details>
 <summary>实现细节</summary>
 
-配套 AutoFlow Host 还通过 `ctx.llm.registerImageProvider` 暴露已配置的图片模型目录。风格提示词等辅助图片消费方复用现有账号调度、请求限制与 ImageService 任务生命周期。每次辅助调用拥有自己的图片任务，从 profile 附件解析参考图，分别返回原图与规范化预览引用；等待被取消时中止同一个已受理任务。该能力不创建公开中转密钥，也不向 Session 添加消息。
+配套 AutoFlow Host 还通过 `ctx.llm.registerImageProvider` 暴露已配置及从官方发现的图片型号。风格提示词等辅助图片消费方复用现有账号调度、请求限制与 ImageService 任务生命周期。每次辅助调用拥有自己的图片任务，从 profile 附件解析参考图，分别返回原图与规范化预览引用；等待被取消时中止同一个已受理任务。该能力不创建公开中转密钥，也不向 Session 添加消息。
 
 [plugin.ts](src/host/plugin.ts) 注册账号、模型、发现和已认证管理能力。内部模型调用复用 `PiAiAdapter`，其 SSE 消费方与外部 Responses 共用 [upstream.ts](src/host/upstream.ts)。pi-ai 依赖必须与 Harness 适配器使用同一版本，二者共享流实例与会话类型。仅发往固定 Codex Responses 地址的流式 POST 使用 WebSocket，图片 REST 和 OAuth 调用保留 HTTP。[ImageService](src/host/images/service.ts) 为原生工具、MCP 和 Images 路由提供统一持久任务服务。
 

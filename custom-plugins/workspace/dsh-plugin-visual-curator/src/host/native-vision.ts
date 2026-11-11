@@ -66,11 +66,11 @@ export class NativeVisionProvider extends StructuredVisionProvider {
   /** Validate the current registered model before a job can reserve a paid request. */
   async preflight(signal?: AbortSignal): Promise<void> { await this.prepare(signal) }
 
-  private async prepare(signal?: AbortSignal): Promise<PreparedLlmCall> {
+  private async prepare(signal?: AbortSignal, reasoningEffort?: string): Promise<PreparedLlmCall> {
     try {
       const prepared = await this.dependencies.llm.prepareCall({ provider: this.provider, model: this.config.model,
         ...(this.useModelDefaults ? {} : { temperature: this.config.temperature, maxTokens: this.config.maxOutputTokens,
-          ...(this.config.reasoningEffort ? { reasoningEffort: ReasoningEffortId(this.config.reasoningEffort) } : {}) }) }, signal)
+          ...(this.config.reasoningEffort ? { reasoningEffort: ReasoningEffortId(this.config.reasoningEffort) } : {}) }), ...(reasoningEffort ? { reasoningEffort: ReasoningEffortId(reasoningEffort) } : {}) }, signal)
       if (!prepared.inputModalities?.includes('image')) throw new MediaError('capability-unavailable', 'vision-preflight', false, 'The native model route does not declare image input.', 'Select an image-capable model in the project model settings.')
       return prepared
     } catch (error) {
@@ -93,7 +93,7 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       // Warm shared reference attachments once, then let model streams proceed concurrently.
       await waitForImagePreparation(previousPreparation, signal)
       preparationQueueMs = Date.now() - startedAt
-      const prepared = await this.prepare(signal), inputs: SaveImageAttachment[] = [], sources: { imageVersionId: string; sourceDigest: string; byteDigest: string }[] = []
+      const prepared = await this.prepare(signal, input.reasoningEffort), inputs: SaveImageAttachment[] = [], sources: { imageVersionId: string; sourceDigest: string; byteDigest: string }[] = []
       const refsByIndex = new Map<number, ImageAttachmentRef>(), missing: { index: number; key: string }[] = []
       let totalBytes = 0, downloadedBytes = 0
       let reservation: Awaited<ReturnType<NonNullable<VisionBounds['reserveDownload']>>> | undefined

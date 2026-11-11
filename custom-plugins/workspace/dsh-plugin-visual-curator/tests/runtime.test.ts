@@ -22,6 +22,27 @@ function progressFixture() {
   return { adapter, repository, updates, completions, spec, actor, engine: new RunEngine(repository, jobs) }
 }
 
+test('settled cancellation requires owner approval and retains checkpoints and request identities', async () => {
+  const f = progressFixture()
+  try {
+    const run = await f.engine.create(f.spec, f.actor, async ctx => {
+      await ctx.save('planning', { checkpoint: { savedSource: 'original-1', pendingImage: 'image-2' }, counts: { passed: 1 } })
+      return 'source-exhausted'
+    })
+    await Promise.all(f.completions)
+    const before = f.engine.get(run.id, f.actor)
+    assert.equal((await f.engine.control(run.id, 'cancel', f.actor)).status, 'completed')
+    assert.equal((await f.engine.control(run.id, 'cancel', f.actor, undefined, true, () => false)).status, 'completed')
+    const after = await f.engine.control(run.id, 'cancel', f.actor, undefined, true, current => current.id === before.id)
+    assert.equal(after.status, 'cancelled'); assert.equal(dataOf(after).autoResume, false)
+    assert.deepEqual(dataOf(after).checkpoint, dataOf(before).checkpoint)
+    assert.deepEqual(dataOf(after).requestIds, dataOf(before).requestIds)
+    assert.deepEqual(dataOf(after).counts, dataOf(before).counts)
+    assert.equal(after.outcome, before.outcome)
+    assert.deepEqual(await f.engine.control(run.id, 'cancel', f.actor), after)
+  } finally { await f.engine.dispose() }
+})
+
 test('last shared vision reservation cannot be spent twice; retries spend again', async () => {
   const limits = { ...resolveConfig({}).limits, maxVisionCalls: 1 }
   const ledger = new BudgetLedger(limits)
@@ -144,6 +165,34 @@ test('request retries inspect only their task receipts and preserve the shared c
   } finally { f.adapter.readRecord = read; await f.engine.dispose() }
 })
 
+test('schema retries receive the exact preceding validation failure without resetting the attempt budget', async () => {
+  const f = progressFixture()
+  f.spec.config = resolveConfig({ limits: { maxRetryAttempts: 1, retryDelayMs: 0 } })
+  let calls = 0
+  try {
+    const run = await f.engine.create(f.spec, f.actor, async ctx => {
+      await ctx.request('vision', { operation: 'wallpaper-review' }, async (_signal, _metadata, previous) => {
+        calls++
+        if (calls === 1) {
+          assert.equal(previous, undefined)
+          throw new MediaError('vision-invalid-output', 'reviewing', true, 'Invalid review fields', 'Retry', { modelOutput: { subjectIntegrity: { task: { imageVersionId: '' } } }, issues: ['unrecognized_keys:subjectIntegrity.task:imageVersionId'] })
+        }
+        assert.equal(previous?.code, 'vision-invalid-output')
+        assert.deepEqual(previous?.issues, ['unrecognized_keys:subjectIntegrity.task:imageVersionId'])
+        assert.equal(previous?.requestId, dataOf(ctx.current()).requestIds[0])
+        return { repaired: true }
+      })
+      return 'target-met'
+    })
+    await Promise.all(f.completions)
+    assert.equal(f.engine.get(run.id, f.actor).outcome, 'target-met')
+    assert.equal(calls, 2)
+    assert.equal(dataOf(f.engine.get(run.id, f.actor)).budget.vision, 2)
+    const failed = f.repository.get('request', dataOf(f.engine.get(run.id, f.actor)).requestIds[0]!)!
+    assert.equal(failed.state, 'outcome-unknown')
+  } finally { await f.engine.dispose() }
+})
+
 test('missing and foreign saved request receipts stop before another paid dispatch', async () => {
   for (const mode of ['missing', 'foreign'] as const) {
     const f = progressFixture()
@@ -165,4 +214,26 @@ test('missing and foreign saved request receipts stop before another paid dispat
       assert.equal(dataOf(saved).budget.vision, 0, mode)
     } finally { await f.engine.dispose() }
   }
+})
+
+test('legacy failures without field diagnostics still consume their saved retry allowance', async () => {
+  const f = progressFixture()
+  f.spec.config = resolveConfig({ limits: { maxRetryAttempts: 0 } })
+  let dispatched = 0
+  try {
+    const run = await f.engine.create(f.spec, f.actor, async ctx => {
+      const bundle = { operation: 'wallpaper-review' }
+      await ctx.ledger.reserve('vision')
+      const prior = requestSchema.parse({ schemaVersion: 1, profileId: f.actor.profileId, id: 'legacy-failure', createdAt: '2026-11-10T00:00:00Z', kind: 'request', runId: ctx.runId, state: 'outcome-unknown', requestDigest: contentDigest(bundle), data: { bundle, error: { code: 'vision-invalid-output', stage: 'reviewing', retryable: true, safeMessage: 'Invalid response', suggestedAction: 'Inspect saved output' }, diagnostics: { responseBytes: 420 } } })
+      await ctx.save('reviewing', { requestIds: [prior.id] }, [prior])
+      await ctx.request('vision', bundle, async () => { dispatched++; return {} })
+      return 'target-met'
+    })
+    await Promise.all(f.completions)
+    const saved = f.engine.get(run.id, f.actor)
+    assert.equal(saved.status, 'failed')
+    assert.equal(dataOf(saved).error?.code, 'vision-invalid-output')
+    assert.equal(dispatched, 0)
+    assert.equal(dataOf(saved).budget.vision, 1)
+  } finally { await f.engine.dispose() }
 })

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-subject-integrity",
+  "category": "fixes",
+  "text": {
+    "en": "Wallpaper reviews reject subjects cut off in the original or final image. Saved outputs can be reviewed with current rules in a separate task while preserving history.",
+    "zh-CN": "修复原图或成品主体被截断仍可能通过壁纸复审的问题；已有成品可按当前规则建立独立复审任务，保留历史。"
+  }
+}

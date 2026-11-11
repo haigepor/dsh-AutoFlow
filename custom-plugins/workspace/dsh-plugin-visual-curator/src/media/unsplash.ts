@@ -11,7 +11,7 @@ import { invalidInput, MediaError } from './errors.ts'
 export interface UnsplashTransport { request(path: string, params: Readonly<Record<string, string | number>>, bounds: RequestBounds): Promise<unknown> }
 
 const identity = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
-const urls = z.object({ small: z.string(), regular: z.string().optional(), raw: z.string().optional() })
+const urls = z.object({ small: z.string(), regular: z.string().optional(), full: z.string().optional(), raw: z.string().optional() })
 const photoSchema = z.object({ id: identity, width: z.number().int().positive(), height: z.number().int().positive(), urls,
   alt_description: z.string().nullish(), description: z.string().nullish(), premium: z.boolean().optional(), plus: z.boolean().optional(),
   user: z.object({ name: z.string().nullish(), username: identity }).optional() })
@@ -50,11 +50,24 @@ export function unsplashMediaUrl(raw: string): string {
   return url.href
 }
 
+/** Validate only the first-party signed delivery format observed in authenticated download grants.
+ * @param raw Service-issued location. @returns An unmodified signed location; general gallery previews never use this parser.
+ */
+export function unsplashDeliveryUrl(raw: string): URL {
+  let url: URL
+  try { url = new URL(raw) } catch { throw failure() }
+  const signature = url.searchParams.getAll('s'), expires = url.searchParams.getAll('expires')
+  if (url.origin !== 'https://delivery.unsplash.com' || url.username || url.password || url.hash || !/^\/premium_photo-[A-Za-z0-9-]+$/.test(url.pathname)
+    || signature.length !== 1 || !/^[a-f0-9]{32}$/i.test(signature[0]!) || expires.length !== 1 || !/^\d+$/.test(expires[0]!) || !Number.isSafeInteger(Number(expires[0])) || Number(expires[0]) * 1000 <= Date.now()) throw failure()
+  return url
+}
+
 function photoView(raw: unknown): GalleryPhoto {
   const value = photoSchema.parse(raw), premium = value.premium === true || value.plus === true
   const regular = unsplashMediaUrl(value.urls.regular ?? value.urls.small)
+  const original = value.urls.raw ?? value.urls.full
   return { id: brandString<GalleryPhotoId>(value.id), title: value.alt_description || value.description || value.id, width: value.width, height: value.height,
-    thumbnailUrl: unsplashMediaUrl(value.urls.small), referenceUrl: regular, ...(!premium ? { originalUrl: unsplashMediaUrl(value.urls.raw ?? regular) } : {}),
+    thumbnailUrl: unsplashMediaUrl(value.urls.small), referenceUrl: regular, ...(!premium && original ? { originalUrl: unsplashMediaUrl(original) } : {}),
     pageUrl: `https://unsplash.com/photos/${encodeURIComponent(value.id)}`, photographer: value.user?.name ?? value.user?.username ?? '', photographerUrl: value.user ? `https://unsplash.com/@${encodeURIComponent(value.user.username)}` : 'https://unsplash.com', premium }
 }
 
@@ -94,6 +107,16 @@ export class UnsplashApi {
     return value
   }
 
+  /** @param id Explicitly selected photo. @param bounds Existing authenticated request limits. @param referenceUrl Verified photo location used to match the granted image. @returns The service-issued download location; this method issues only a GET and never calls billing endpoints. */
+  async download(id: string, bounds: RequestBounds, referenceUrl: string): Promise<string> {
+    identity.parse(id)
+    const value = z.object({ url: z.string() }).parse(await this.transport.request('/photos/' + encodeURIComponent(id) + '/download', {}, bounds))
+    const url = new URL(value.url), reference = new URL(unsplashMediaUrl(referenceUrl))
+    const location = url.hostname === 'delivery.unsplash.com' ? unsplashDeliveryUrl(value.url).href : unsplashMediaUrl(value.url)
+    if (url.pathname !== reference.pathname) throw failure()
+    return location
+  }
+
   private async page<T extends { id: string }>(endpoint: string, params: Record<string, string | number>, cursor: string | null, pageSize: number, bounds: RequestBounds, parse: (value: unknown) => T): Promise<GalleryPage<T>> {
     if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) throw invalidInput('The gallery page size is invalid.')
     const key = hash({ endpoint, params, pageSize })
@@ -127,6 +150,14 @@ export class UnsplashSourceProvider implements ImageSourceProvider {
     return { items: page.items.map(item => this.item(item)), nextCursor: page.nextCursor }
   }
   /** @param id Stable photo identity. @param bounds Request limits. @returns Refreshed original and preview locations. */
-  async lookup(id: string, bounds: RequestBounds): Promise<SourceItem> { return this.item(await this.api.photo(id, bounds)) }
-  private item(photo: GalleryPhoto): SourceItem { return { providerAssetId: photo.id, previewUrl: photo.referenceUrl, thumbnailUrl: photo.thumbnailUrl, ...(photo.originalUrl ? { originalUrl: photo.originalUrl } : {}), ...(photo.premium ? { originalUnavailable: 'restricted' as const } : {}), width: photo.width, height: photo.height } }
+  async lookup(id: string, bounds: RequestBounds): Promise<SourceItem> {
+    const photo = await this.api.photo(id, bounds), item = this.item(photo)
+    if (!photo.premium) return item
+    try { return { ...item, originalUrl: await this.api.download(id, bounds, photo.referenceUrl) } }
+    catch (error) {
+      if (error instanceof MediaError && error.code === 'source-access-denied') return { ...item, originalUnavailable: 'restricted' }
+      throw error
+    }
+  }
+  private item(photo: GalleryPhoto): SourceItem { return { providerAssetId: photo.id, previewUrl: photo.referenceUrl, thumbnailUrl: photo.thumbnailUrl, ...(photo.originalUrl ? { originalUrl: photo.originalUrl } : {}), width: photo.width, height: photo.height } }
 }

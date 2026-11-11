@@ -51,6 +51,8 @@ export interface AccountRequest {
   serviceTier?: string
   sessionId?: string
   accountKey?: string
+  /** Internal capability probes require fresh included allowance and never use paid credits. */
+  includedQuotaOnly?: { minimumRemainingPercent: number }
   signal?: AbortSignal
 }
 

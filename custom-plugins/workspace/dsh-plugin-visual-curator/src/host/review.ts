@@ -6,7 +6,7 @@ import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { visionReviewSchema } from '../media/index.ts'
-import type { AssetFiles, StructuredVisionProvider, VisionImage, VisionReview } from '../media/index.ts'
+import type { AssetFiles, StructuredVisionProvider, VisionImage, VisionInput, VisionReview } from '../media/index.ts'
 import { decideAssessment, toJson, type WorkContext } from './runtime.ts'
 import { visionBounds } from './providers.ts'
 import { remoteReferenceSource } from '../media/remote-reference.ts'
@@ -67,7 +67,7 @@ export function measuredRule(rule: Rule, image: ImageVersion): Assessment['ruleR
 }
 
 /** @param dependencies Domain, private files and resolved vision adapter. @param ctx Current run. @param image Authorized target. @param release Frozen release. @param stage Rule stage. @returns Persistable assessment and fixed preference score. */
-export async function reviewImage(dependencies: { domain: CuratorDomain; files: AssetFiles; vision: StructuredVisionProvider }, ctx: WorkContext, image: ImageVersion, release: StyleStandard | StyleCandidate, stage: 'source' | 'final'): Promise<{ assessment: Assessment; score: number }> {
+export async function reviewImage(dependencies: { domain: CuratorDomain; files: AssetFiles; vision: StructuredVisionProvider; prepareInput?(input: VisionInput): Promise<VisionInput> }, ctx: WorkContext, image: ImageVersion, release: StyleStandard | StyleCandidate, stage: 'source' | 'final'): Promise<{ assessment: Assessment; score: number }> {
   const actor = runActor(ctx), refs = await referenceImages(dependencies.domain, dependencies.files, release, actor, ctx.signal)
   const subject = await visionImageInput(image, dependencies.files, 'subject', ctx.signal)
   const images = [subject, ...refs.filter(ref => ref.imageVersionId !== image.id)]
@@ -78,7 +78,9 @@ export async function reviewImage(dependencies: { domain: CuratorDomain; files: 
   const brief = typeof ctx.spec.input.taskBrief === 'string' ? ctx.spec.input.taskBrief : 'Review supplied image against the frozen visual standard.'
   const taskBrief = styleReviewBrief(release, brief, ctx.spec.fixed.cropReviewPolicy === 'candidate-focus-v1' ? rules.filter(rule => rule.check.kind === 'visual').map(rule => rule.ruleId) : undefined)
   const focused = release.recipe.promptVersion === 'visual-curator-rules-v3'
-  const requestId = `review-${identity}`, input = { ...(focused ? { promptVersion: 'visual-curator-rules-v3' as const } : release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId, taskBrief, rules: rules.filter(rule => rule.check.kind === 'visual').map(rule => ({ ...rule, stage })), stage, images, ...(ctx.spec.fixed.usage ? { usage: ctx.spec.fixed.usage } : {}) }
+  const requestId = `review-${identity}`, canonical = { ...(focused ? { promptVersion: 'visual-curator-rules-v3' as const } : release.recipe.styleMatching ? { promptVersion: 'visual-curator-rules-v2' as const } : {}), requestId, taskBrief, rules: rules.filter(rule => rule.check.kind === 'visual').map(rule => ({ ...rule, stage })), stage, images, ...(ctx.spec.fixed.usage ? { usage: ctx.spec.fixed.usage } : {}) }
+  // Optional saved model views change only model pixels; measured checks retain original geometry.
+  const input = dependencies.prepareInput ? await dependencies.prepareInput(canonical) : canonical
   const descriptor = dependencies.vision.describeRequest(input, 'review')
   const bundle = toJson(descriptor), requestDigest = contentDigest(bundle)
   const saved = dependencies.domain.repository.list('request').find(request => request.runId === ctx.runId && request.state === 'committed' && request.requestDigest === requestDigest)

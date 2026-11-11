@@ -39,6 +39,44 @@ async function select(...names: string[]) {
 const pending = () => within(screen.getByRole('table', { name: en.subscriptionPendingModels }))
 const saveButton = () => screen.getByRole<HTMLButtonElement>('button', { name: en.subscriptionSaveAllModels })
 
+it('selects image models from one dropdown without probing, polling or changing the default', async () => {
+  const save = vi.fn<Props['saveCatalog']>(async () => true), load = vi.fn(async () => {})
+  const discovery: NonNullable<SubscriptionCatalog['imageDiscovery']> = { sourceUrl: 'https://developers.openai.com/api/docs/models', status: 'ready', autoProbe: true, pollIntervalMs: 1,
+    entries: ['gpt-image-2.6-sunburst', 'gpt-image-2.6-flare'].map(id => ({ id, name: id, url: 'https://developers.openai.com/api/docs/models/' + id,
+      checks: [{ accountKey: 'account', label: 'Current subscription', state: 'indeterminate', errorCode: 'IMAGE_MODEL_PARAMETER_UNVERIFIED' }] })) }
+  vi.useFakeTimers()
+  try {
+    render(<SubscriptionModels catalog={{ ...catalog, imageDiscovery: discovery }} catalogStatus="ready" catalogError={null} busy={false} onClose={() => {}} loadCatalog={load} saveCatalog={save} t={key => en[key]} />)
+    fireEvent.click(screen.getByRole('tab', { name: en.subscriptionImageModel }))
+    await act(async () => { vi.advanceTimersByTime(60_000) })
+    expect(load).not.toHaveBeenCalled(); expect(save).not.toHaveBeenCalled()
+    expect(screen.queryByRole('region', { name: en.subscriptionOfficialImages })).toBeNull()
+    expect(screen.queryByRole('switch', { name: en.subscriptionAutoImageCheck })).toBeNull()
+    expect(screen.queryByText('Current subscription')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: en.subscriptionModelId }))
+    const menu = screen.getByRole('menu'), groups = menu.querySelectorAll(':scope > [role="presentation"]')
+    expect(groups).toHaveLength(2)
+    expect(within(groups[0] as HTMLElement).queryByText(en.subscriptionCustomImageModel)).toBeNull()
+    expect(within(groups[1] as HTMLElement).getByRole('menuitem', { name: en.subscriptionCustomImageModel })).toBeDefined()
+    expect(within(menu).getAllByText('gpt-image-2.6-sunburst')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('menuitem', { name: /gpt-image-2.6-sunburst/ }))
+    expect(save).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: en.subscriptionQueueModel }))
+    await act(async () => { fireEvent.click(saveButton()) })
+    expect(save).toHaveBeenCalledExactlyOnceWith([...catalog.entries, { kind: 'image', id: 'gpt-image-2.6-sunburst', name: 'gpt-image-2.6-sunburst' }], undefined)
+  } finally { vi.useRealTimers() }
+})
+
+it('does not stage a duplicate default image model when opening the image tab', () => {
+  const save = vi.fn<Props['saveCatalog']>(async () => true)
+  render(<SubscriptionModels catalog={{ ...catalog, defaultImageModel: 'gpt-image-2', entries: [{ kind: 'image', id: 'gpt-image-2', name: 'gpt-image-2' }] }} catalogStatus="ready" catalogError={null} busy={false} onClose={() => {}} loadCatalog={async () => {}} saveCatalog={save} t={key => en[key]} />)
+  fireEvent.click(screen.getByRole('tab', { name: en.subscriptionImageModel }))
+  expect(screen.getByRole('button', { name: en.subscriptionModelId }).textContent).toContain(en.subscriptionChooseModel)
+  expect(screen.queryByText(en.subscriptionModelDuplicate)).toBeNull()
+  expect(saveButton().disabled).toBe(true)
+  expect(save).not.toHaveBeenCalled()
+})
+
 it('selects and renames several text models, then writes one combined catalog', async () => {
   const { save, close } = mount()
   await select('Alpha', 'Beta')
@@ -67,11 +105,13 @@ it('selects all available text models without duplicating configured or selected
 it('queues several image models and applies only the explicitly selected batch default', async () => {
   const { save } = mount()
   fireEvent.click(screen.getByRole('tab', { name: en.subscriptionImageModel }))
-  fireEvent.change(screen.getByRole('textbox', { name: en.subscriptionModelId }), { target: { value: 'image-a' } })
+  fireEvent.click(screen.getByRole('button', { name: en.subscriptionModelId }))
+  fireEvent.click(screen.getByRole('menuitem', { name: en.subscriptionCustomImageModel }))
+  fireEvent.change(screen.getByRole('textbox', { name: en.subscriptionCustomImageModel }), { target: { value: 'image-a' } })
   fireEvent.change(screen.getByRole('textbox', { name: en.subscriptionModelName }), { target: { value: 'Image A' } })
   fireEvent.click(screen.getByRole('switch', { name: en.subscriptionUseImageDefault }))
   fireEvent.click(screen.getByRole('button', { name: en.subscriptionQueueModel }))
-  fireEvent.change(screen.getByRole('textbox', { name: en.subscriptionModelId }), { target: { value: 'image-b' } })
+  fireEvent.change(screen.getByRole('textbox', { name: en.subscriptionCustomImageModel }), { target: { value: 'image-b' } })
   fireEvent.change(screen.getByRole('textbox', { name: en.subscriptionModelName }), { target: { value: 'Image B' } })
   fireEvent.click(screen.getByRole('button', { name: en.subscriptionQueueModel }))
   expect(save).not.toHaveBeenCalled()

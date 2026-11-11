@@ -34,6 +34,14 @@ const relay = z.strictObject({
 })
 const options = z.strictObject({
   catalog: catalogEntriesSchema.default([]),
+  imageDiscovery: z.strictObject({
+    enabled: z.boolean().default(true), autoProbe: z.boolean().default(false),
+    refreshMs: positive.min(30_000).max(86_400_000).default(3_600_000),
+    verificationTtlMs: positive.min(3_600_000).max(2_592_000_000).default(86_400_000),
+    timeoutMs: positive.min(1000).max(60_000).default(30_000),
+    maxCatalogBytes: positive.min(1024).max(4 * 1024 * 1024).default(1024 * 1024),
+    minimumRemainingPercent: z.number().min(10).max(99).default(50),
+  }).default(() => ({ enabled: true, autoProbe: false, refreshMs: 3_600_000, verificationTtlMs: 86_400_000, timeoutMs: 30_000, maxCatalogBytes: 1024 * 1024, minimumRemainingPercent: 50 })),
   images: images.default(() => images.parse({})),
   relay: relay.default(() => relay.parse({})),
   upstream: z.strictObject({ mode: z.enum(['auto', 'sse']).default('auto'), connectTimeoutMs: positive.max(120_000).default(30_000),

@@ -1,11 +1,12 @@
 {
   "total": 100,
   "overviewNodes": 6,
-  "imageNodes": 6,
+  "imageNodes": 7,
   "steps": [
     "downloading",
     "planning",
     "planning",
+    "rendering",
     "rendering",
     "reviewing",
     "reviewing"
@@ -29,5 +30,35 @@
       1
     ]
   ],
-  "editedSource": "source-99"
+  "editedSource": "source-99",
+  "initialPositions": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 470,
+      "y": 96
+    },
+    {
+      "x": 940,
+      "y": 0
+    },
+    {
+      "x": 1410,
+      "y": 96
+    },
+    {
+      "x": 1880,
+      "y": 0
+    },
+    {
+      "x": 2350,
+      "y": 96
+    },
+    {
+      "x": 2820,
+      "y": 0
+    }
+  ]
 }

@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import { defineDomain, domainTable, type DomainFacility } from '@deepseek-ai/dsh-storage-domain'
-import type { ImageTask, ImageTaskRecord, ImageTaskRepository } from '../images/types.ts'
+import { imageTaskEvidenceSchema, imageGenerationIdSchema, type ImageTask, type ImageTaskRecord, type ImageTaskRepository } from '../images/types.ts'
 import { parseImageAssetId, parseImageTaskId, type ImageTaskId } from '../images/ids.ts'
 
 const id = z.string().min(1).max(256)
@@ -30,8 +30,9 @@ const recordSchema = z.object({
   prompt: z.string(), model: id, createdAt: z.number().finite(), updatedAt: z.number().finite(), deadlineAt: z.number().finite(),
   accountKey: id.optional(),
   operation: z.object({ id, digest: z.string().min(1) }).strict().optional(),
+  evidence: imageTaskEvidenceSchema.optional(),
   pruned: z.boolean().optional(),
-  assets: z.array(z.object({ id: opaqueId, mimeType: mediaType, original: fileRef, preview: imageRef }).strict()).max(4),
+  assets: z.array(z.object({ id: opaqueId, mimeType: mediaType, original: fileRef, preview: imageRef, generationId: imageGenerationIdSchema.optional() }).strict()).max(4),
   error: z.object({ code: id, message: z.string().max(1024), status: z.number().int().optional(), retryAt: z.number().finite().optional(), requestId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/).optional() }).strict().optional(),
 }).strict()
 

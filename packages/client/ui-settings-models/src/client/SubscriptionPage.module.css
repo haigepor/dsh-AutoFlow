@@ -117,12 +117,21 @@
 .modelPickerMenu[role='menu'] { max-width: calc(100vw - 24px); max-height: min(360px, calc(100dvh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)))); }
 .modelPickerMenu [role='menuitem'] { min-height: 40px; padding: 8px 12px; font: var(--dsw-font-xs-13); }
 .modelPickerMenu [role='menuitem'] > span { white-space: normal; }
-.modelPickerMenu > [role='presentation']:first-child { overscroll-behavior: contain; }
-.modelPickerMenu > [role='presentation']:last-child:not(:first-child) { display: grid; grid-template-columns: 1fr 1fr auto; gap: 4px; margin-top: 6px; padding-top: 6px; }
-.modelPickerMenu > [role='presentation']:last-child:not(:first-child) [role='menuitem'] { min-height: 32px; padding: 6px 8px; font: var(--dsw-font-xxs-12); }
+.modelPickerMenu > [role='presentation'] { overscroll-behavior: contain; }
+.modelPickerMenu > [role='presentation'] + [role='presentation'] { display: grid; grid-template-columns: 1fr 1fr auto; gap: 4px; margin-top: 6px; padding-top: 6px; }
+.modelPickerMenu > [role='presentation'] + [role='presentation'] [role='menuitem'] { min-height: 32px; padding: 6px 8px; font: var(--dsw-font-xxs-12); }
 .modelPickerLabel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 12px; min-width: 0; }
 .modelPickerLabel strong { font: var(--dsw-font-xs-strong-13); overflow-wrap: anywhere; }
 .modelPickerLabel code { color: var(--dsw-alias-label-secondary); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; text-align: right; }
+/* Menu supplies the trigger's minimum width; choices must not widen the card. */
+.imagePickerMenu[role='menu'] { width: 0; padding: 6px; }
+.imagePickerMenu [role='menuitem'] { min-height: 38px; padding: 8px 10px; }
+.imagePickerMenu [role='menuitem'] > span { min-width: 0; }
+.imagePickerMenu > [role='presentation'] + [role='presentation'] { display: flex; gap: 0; margin-top: 4px; padding-top: 4px; }
+.imagePickerMenu > [role='presentation'] + [role='presentation'] [role='menuitem'] { min-height: 38px; padding: 8px 10px; font: var(--dsw-font-xs-13); }
+.imagePickerLabel { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.imagePickerLabel strong { overflow: hidden; font: var(--dsw-font-xs-strong-13); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.imagePickerLabel code { overflow: hidden; color: var(--dsw-alias-label-secondary); font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
 .modelDialogFooter { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; width: 100%; }
 .modelBatchCount { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
 .modelFooterActions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-left: auto; }

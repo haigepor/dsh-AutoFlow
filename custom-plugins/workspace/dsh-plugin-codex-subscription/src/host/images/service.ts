@@ -3,16 +3,38 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { ImageServiceError, imageFailure } from './errors.ts'
 import { decodeImageDataUrl, detectImageMediaType, loadImageReference } from './remote.ts'
-import type { ImageAssetRecord, ImageBytes, ImageInput, ImageOwner, ImageServiceOptions, ImageServiceSettings, ImageTask, ImageTaskRecord, ImagesFacade } from './types.ts'
+import { imageTaskEvidenceSchema, imageGenerationIdSchema, type ImageAssetRecord, type ImageBytes, type ImageInput, type ImageOwner, type ImageServiceOptions, type ImageServiceSettings, type ImageTask, type ImageTaskEvidence, type ImageTaskRecord, type ImagesFacade } from './types.ts'
 import { parseImageAssetId, parseImageTaskId, type ImageTaskId } from './ids.ts'
 import { accountRefusal } from '../accounts/failures.ts'
 import { codexUserAgent } from '../codex-request.ts'
 
-interface RunningTask { input: ImageInput; settings: ImageServiceSettings; controller: AbortController; sent: boolean; responseKnown: boolean; timer: ReturnType<typeof setTimeout> }
+interface RunningTask { input: ImageInput; settings: ImageServiceSettings; controller: AbortController; sent: boolean; responseKnown: boolean; timer: ReturnType<typeof setTimeout>; probe?: { accountKey: string; minimumRemainingPercent: number } }
 
 const wireResponse = z.object({ data: z.array(z.unknown()).min(1).max(4) })
-const wireImage = z.object({ b64_json: z.string().optional(), url: z.string().optional() })
+const wireImage = z.object({ b64_json: z.string().optional(), url: z.string().optional(), generation_id: imageGenerationIdSchema.optional().catch(undefined) })
+const wireReport = z.object({ size: z.unknown().optional(), quality: z.unknown().optional(), output_format: z.unknown().optional() })
+const reportedFields = imageTaskEvidenceSchema.shape.reported.unwrap().shape
 const terminal = (task: ImageTask) => task.state !== 'queued' && task.state !== 'sent'
+
+function requestedEvidence(input: ImageInput): ImageTaskEvidence['requested'] {
+  return { ...(input.size === undefined ? {} : { size: input.size }), ...(input.quality === undefined ? {} : { quality: input.quality }), ...(input.outputFormat === undefined ? {} : { outputFormat: input.outputFormat }) }
+}
+
+function evidenceValue<T>(schema: z.ZodType<T>, value: unknown): T | undefined {
+  const parsed = schema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
+}
+
+function reportedEvidence(response: Response, raw?: unknown): NonNullable<ImageTaskEvidence['reported']> {
+  const parsed = wireReport.safeParse(raw)
+  const size = evidenceValue(reportedFields.size, parsed.success ? parsed.data.size : undefined)
+  const quality = evidenceValue(reportedFields.quality, parsed.success ? parsed.data.quality : undefined)
+  const outputFormat = evidenceValue(reportedFields.outputFormat, parsed.success ? parsed.data.output_format : undefined)
+  const imagegenRequestId = evidenceValue(reportedFields.imagegenRequestId, response.headers.get('x-codex-imagegen-request-id'))
+  const oaiRequestId = evidenceValue(reportedFields.oaiRequestId, response.headers.get('x-oai-request-id'))
+  const requestId = evidenceValue(reportedFields.requestId, response.headers.get('x-request-id'))
+  return { ...(size === undefined ? {} : { size }), ...(quality === undefined ? {} : { quality }), ...(outputFormat === undefined ? {} : { outputFormat }), ...(imagegenRequestId === undefined ? {} : { imagegenRequestId }), ...(oaiRequestId === undefined ? {} : { oaiRequestId }), ...(requestId === undefined ? {} : { requestId }) }
+}
 
 /** One initialized service owns admission, task transitions, cancellation and drain order. */
 export class ImageService implements ImagesFacade {
@@ -59,6 +81,22 @@ export class ImageService implements ImagesFacade {
    * @returns The durable queued task, not a claim that generation completed.
    */
   submit(input: ImageInput, owner: ImageOwner, operation?: { id: string; digest: string }, admissionSignal?: AbortSignal): Promise<ImageTask> {
+    return this.accept(input, owner, operation, admissionSignal)
+  }
+
+  /** Internal model checks pin one account and recheck included allowance at dispatch.
+   * @param input Fixed small test image.
+   * @param accountKey Account whose permission is being checked.
+   * @param operation Stable receipt identity, reused after interruption.
+   * @param minimumRemainingPercent Subscription capacity that must remain available.
+   * @param signal Discovery lifetime.
+   * @returns Existing receipt or one newly admitted probe.
+   */
+  submitProbe(input: ImageInput, accountKey: string, operation: { id: string; digest: string }, minimumRemainingPercent: number, signal: AbortSignal): Promise<ImageTask> {
+    return this.accept(input, { kind: 'gateway', keyId: `model-access-probe:${accountKey}` }, operation, signal, { accountKey, minimumRemainingPercent })
+  }
+
+  private accept(input: ImageInput, owner: ImageOwner, operation?: { id: string; digest: string }, admissionSignal?: AbortSignal, probe?: { accountKey: string; minimumRemainingPercent: number }): Promise<ImageTask> {
     return this.serialize(async () => {
       admissionSignal?.throwIfAborted()
       this.assertOpen()
@@ -75,7 +113,7 @@ export class ImageService implements ImagesFacade {
       if ((await this.options.repository.list()).filter(task => !task.pruned).length >= settings.maxHistoryTasks) throw new ImageServiceError('image-history-full', 'Image task history is full. Remove completed tasks from settings before starting a new task.')
       const now = this.now()
       const task: ImageTaskRecord = { id: parseImageTaskId(this.id()), owner: structuredClone(owner), state: 'queued', prompt: resolved.prompt,
-        model: resolved.model!, createdAt: now, updatedAt: now, deadlineAt: now + settings.timeoutMs, assets: [], ...(operation ? { operation: { ...operation } } : {}) }
+        model: resolved.model!, createdAt: now, updatedAt: now, deadlineAt: now + settings.timeoutMs, assets: [], evidence: { requested: requestedEvidence(resolved) }, ...(operation ? { operation: { ...operation } } : {}), ...(probe ? { accountKey: probe.accountKey } : {}) }
       await this.options.repository.put(task)
       if (admissionSignal?.aborted) {
         const cancelled: ImageTaskRecord = { ...task, state: 'cancelled', updatedAt: this.now() }
@@ -84,7 +122,7 @@ export class ImageService implements ImagesFacade {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(new ImageServiceError('image-deadline', 'The image task exceeded its configured deadline.')), Math.max(1, task.deadlineAt - this.now()))
       timer.unref()
-      this.operations.set(task.id, { input: resolved, settings, controller, sent: false, responseKnown: false, timer })
+      this.operations.set(task.id, { input: resolved, settings, controller, sent: false, responseKnown: false, timer, ...(probe ? { probe } : {}) })
       this.queue.push(task.id)
       this.pump()
       return structuredClone(task)
@@ -230,6 +268,7 @@ export class ImageService implements ImagesFacade {
     const operation = this.operations.get(id)!
     const settings = operation.settings
     const signal = operation.controller.signal
+    let evidence: ImageTaskEvidence = { requested: requestedEvidence(operation.input) }
     try {
       signal.throwIfAborted()
       const refs: string[] = []
@@ -247,13 +286,15 @@ export class ImageService implements ImagesFacade {
         mask = `data:${image.mimeType};base64,${Buffer.from(image.data).toString('base64')}`
       }
       const task = await this.ownedRecord(id)
-      await this.options.withAccount({ kind: 'image', model: task.model, ...(task.owner.kind === 'session' ? { sessionId: task.owner.sessionId } : {}), signal }, async lease => {
+      await this.options.withAccount({ kind: 'image', model: task.model, ...(task.owner.kind === 'session' ? { sessionId: task.owner.sessionId } : {}), ...(operation.probe ? { accountKey: operation.probe.accountKey, includedQuotaOnly: { minimumRemainingPercent: operation.probe.minimumRemainingPercent } } : {}), signal }, async lease => {
         const requestSignal = AbortSignal.any([signal, lease.signal])
+        const requested = { ...requestedEvidence(operation.input), imagegenRequestId: this.id(), imageTurnId: this.id() }
+        evidence = { requested }
         await this.serialize(async () => {
           const current = await this.ownedRecord(id)
           requestSignal.throwIfAborted()
           if (terminal(current)) throw new ImageServiceError('image-cancelled', 'The image task was cancelled.')
-          await this.options.repository.put({ ...current, state: 'sent', accountKey: lease.accountKey, updatedAt: this.now() })
+          await this.options.repository.put({ ...current, state: 'sent', accountKey: lease.accountKey, updatedAt: this.now(), evidence })
           operation.sent = true
           operation.responseKnown = false
         })
@@ -266,12 +307,14 @@ export class ImageService implements ImagesFacade {
           headers: { ...lease.headers, 'Content-Type': 'application/json', Accept: 'application/json', originator: 'codex_cli_rs',
             'OpenAI-Beta': 'responses=experimental', version: this.options.clientVersion,
             'User-Agent': codexUserAgent(this.options.clientVersion),
-            'x-codex-imagegen-request-id': this.id(), 'x-codex-image-turn-id': this.id() },
+            'x-codex-imagegen-request-id': requested.imagegenRequestId, 'x-codex-image-turn-id': requested.imageTurnId },
           body: JSON.stringify(body),
         })
         const response = lease.observeResponse?.(fetched) ?? fetched
+        if (!response.ok) operation.responseKnown = true
+        const reported = reportedEvidence(response)
+        if (Object.keys(reported).length) evidence = { requested, reported }
         if (!response.ok) {
-          operation.responseKnown = true
           if ([401, 402, 403, 429].includes(response.status)) throw await accountRefusal(response, this.now(), requestSignal)
           await response.body?.cancel()
           throw new ImageServiceError('codex-image-http-error', 'Codex rejected the image request. Check account access, quota and requested image model.', response.status)
@@ -280,6 +323,8 @@ export class ImageService implements ImagesFacade {
         operation.responseKnown = true
         let raw: unknown
         try { raw = JSON.parse(responseText) } catch (_error) { throw new ImageServiceError('invalid-image-response', 'Codex returned invalid image JSON.') }
+        const reportedBody = reportedEvidence(response, raw)
+        if (Object.keys(reportedBody).length) evidence = { requested, reported: reportedBody }
         const decoded = wireResponse.safeParse(raw)
         if (!decoded.success) throw new ImageServiceError('invalid-image-response', 'Codex returned no supported image results.')
         let failed = 0
@@ -289,7 +334,11 @@ export class ImageService implements ImagesFacade {
           let assets: ImageAssetRecord[]
           try {
             const image = await this.decodeOutput(rawEntry, settings, requestSignal)
-            try { assets = await this.options.saveAssets([image]) }
+            try {
+              assets = await this.options.saveAssets([image])
+              const generationId = image.generationId
+              if (generationId !== undefined) assets = assets.map(asset => ({ ...asset, generationId }))
+            }
             catch (_error) { throw new ImageServiceError('image-result-storage-failed', 'Codex returned image bytes but saving the result failed. Check Host storage; this task will not be resent automatically.') }
           } catch (error) {
             requestSignal.throwIfAborted()
@@ -298,7 +347,7 @@ export class ImageService implements ImagesFacade {
           // 每张图片立即提交引用；后续下载、解码或写入失败不能丢掉已经付费取得的成功结果。
           await this.serialize(async () => {
             const current = await this.ownedRecord(id)
-            await this.options.repository.put({ ...current, updatedAt: this.now(), assets: [...current.assets, ...assets] })
+            await this.options.repository.put({ ...current, updatedAt: this.now(), evidence, assets: [...current.assets, ...assets] })
           })
         }
         await this.serialize(async () => {
@@ -317,7 +366,7 @@ export class ImageService implements ImagesFacade {
         const failure = unknown
           ? { code: 'image-outcome-unknown', message: 'The request was dispatched but its remote outcome could not be confirmed. It will not be resent automatically.' }
           : imageFailure(signal.aborted ? signal.reason : error)
-        await this.options.repository.put({ ...task, state: unknown ? 'outcome-unknown' : signal.aborted && !operation.sent ? 'cancelled' : 'failed', updatedAt: this.now(), error: failure })
+        await this.options.repository.put({ ...task, state: unknown ? 'outcome-unknown' : signal.aborted && !operation.sent ? 'cancelled' : 'failed', updatedAt: this.now(), evidence, error: failure })
       })
     } finally { clearTimeout(operation.timer) }
   }
@@ -330,18 +379,18 @@ export class ImageService implements ImagesFacade {
     return { ...image, mimeType: detectImageMediaType(image.data) }
   }
 
-  private async decodeOutput(raw: unknown, settings: ImageServiceSettings, signal: AbortSignal): Promise<ImageBytes> {
+  private async decodeOutput(raw: unknown, settings: ImageServiceSettings, signal: AbortSignal): Promise<ImageBytes & { generationId?: string }> {
     const parsed = wireImage.safeParse(raw)
     if (!parsed.success) throw new ImageServiceError('invalid-image-response', 'Codex returned an invalid image entry.')
     const entry = parsed.data
     if (entry.b64_json === undefined) {
       if (entry.url === undefined) throw new ImageServiceError('invalid-image-response', 'Codex returned an image without bytes or a supported URL.')
-      return this.load(entry.url, settings, signal)
+      return { ...await this.load(entry.url, settings, signal), ...(entry.generation_id === undefined ? {} : { generationId: entry.generation_id }) }
     }
     if (entry.b64_json.length > Math.ceil(settings.maxImageBytes / 3) * 4) throw new ImageServiceError('image-too-large', 'A generated image exceeds the configured limit.')
     const data = Buffer.from(entry.b64_json, 'base64')
     if (data.byteLength > settings.maxImageBytes || data.toString('base64') !== entry.b64_json) throw new ImageServiceError('invalid-image-response', 'Codex returned invalid or oversized image base64.')
-    return { data, mimeType: detectImageMediaType(data) }
+    return { data, mimeType: detectImageMediaType(data), ...(entry.generation_id === undefined ? {} : { generationId: entry.generation_id }) }
   }
 
   private assertOpen(): void {

@@ -46,7 +46,7 @@ import { searchLaunchViewSchema } from '../src/shared/search-launch.ts'
 import { nativeSearchSessions, type NativeSearchSessions } from '../src/host/native-search-session.ts'
 import { CompatibleVisionProvider, SourceHttpProvider } from '../src/media/index.ts'
 
-for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-completion'] as const) test(stopSession === 'normal-completion' ? 'a naturally completed conversation leaves its accepted image search running' : stopSession ? `stopping the native Session cancels its image search without waking it or stopping independent work (${stopSession === true ? 'job wait' : stopSession})` : 'Loader launch logs a native file prompt, creates a Workspace member, executes owned tools and unloads contributions', { timeout: 30000 }, async () => {
+for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-completion', 'conversation-failure'] as const) test(stopSession === 'conversation-failure' ? 'a failed native conversation reports a failed launch before an image search exists' : stopSession === 'normal-completion' ? 'a naturally completed conversation leaves its accepted image search running' : stopSession ? `stopping the native Session cancels its image search without waking it or stopping independent work (${stopSession === true ? 'job wait' : stopSession})` : 'Loader launch logs a native file prompt, creates a Workspace member, executes owned tools and unloads contributions', { timeout: 30000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'curator-native-launch-')), ctx = new Context(), external = await serviceFixture()
   let service: CuratorService | undefined, toolOwner: Awaited<ReturnType<Context['plugin']>> | undefined, searchArgs: Record<string, unknown> = {}, step = 0, assemblyError: unknown, nativeFailure: unknown
   const preparationEntered = Promise.withResolvers<void>(), releasePreparation = Promise.withResolvers<void>()
@@ -64,6 +64,11 @@ for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-co
     override async resolveModel(provider: string, id: string) { return { provider, id, name: id, context: { contextWindow: 1000000 } } }
     override async listModels(provider: string) { return [await this.resolveModel(provider, 'fixture'), await this.resolveModel(provider, 'alternate')] }
     async *stream(options: GenerateOptions): AsyncGenerator<StreamChunk> {
+      if (stopSession === 'conversation-failure') {
+        step++
+        yield { type: 'finish', reason: { kind: 'error', failure: { code: 'RATE_LIMIT', message: 'The fixture model limit was reached.', status: 429 } } }
+        return
+      }
       if (step++ === 0) {
         yield { type: 'tool-call-delta', index: 0, id: ToolCallId('native-search'), name: 'visual_search_start', argumentsDelta: JSON.stringify(searchArgs) }
         yield { type: 'finish', reason: { kind: 'tool-calls' } }
@@ -211,6 +216,16 @@ for (const stopSession of [false, true, 'model-cleanup', 'admission', 'normal-co
     assert.equal(submitted, 1)
     assert.equal(selectedModels, 1)
     releasePreparation.resolve()
+    if (stopSession === 'conversation-failure') {
+      const agent = ctx.agents.get(owningSessionId)!
+      await agent.whenIdle()
+      const launch = z.array(searchLaunchViewSchema).parse(await invoke('search-launch-list')).find(item => item.sessionId === owningSessionId)!
+      assert.equal(launch.status, 'failed')
+      assert.deepEqual({ status: launch.status, runIds: launch.runIds, qualified: launch.qualified, error: launch.error?.code, stage: launch.error?.stage, modelRequests: step }, JSON.parse(await readFile(new URL('./fixtures/search-launch-conversation-failure.expected.json', import.meta.url), 'utf8')))
+      assert.equal(agent.session.snapshotEvents().filter(event => event.type === 'assistant/message').length, 0)
+      assert.deepEqual(ctx.agentDefaultModel.currentSelection(), defaultSelection)
+      return
+    }
     const cancellationSnapshot = JSON.parse(await readFile(new URL('./fixtures/session-cancellation.expected.json', import.meta.url), 'utf8'))
     if (stopSession === 'normal-completion') {
       await waitEvent(reviewEntered.promise, 'image review')

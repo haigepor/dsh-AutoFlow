@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-archived-task",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator keeps saved task results accessible when their reference collection has been archived or removed.",
+    "zh-CN": "视觉策展在参考训练集已归档或移除时仍可打开历史任务和已保存的结果。"
+  }
+}

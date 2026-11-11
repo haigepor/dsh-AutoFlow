@@ -2,18 +2,46 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveConfig } from '../src/host/config.ts'
+import { MediaError } from '../src/media/errors.ts'
 import { UnsplashApi, UnsplashSourceProvider, normalizeCookie } from '../src/media/unsplash.ts'
 import { CurlRequestError, retryCurlRead, curlResolveArgument } from '../src/media/unsplash-transport.ts'
 
 const photo = (id: string) => ({ id, width: 1200, height: 800, urls: { small: `https://images.unsplash.com/${id}?w=400`, regular: `https://images.unsplash.com/${id}?w=1200`, raw: `https://images.unsplash.com/${id}` }, alt_description: 'Green park', links: { html: `https://unsplash.com/photos/${id}` }, user: { name: 'Photographer', username: 'artist' }, premium: false })
 const bounds = { maxBytes: 1_000_000, timeoutMs: 10_000, maxRedirects: 2 }
 
-test('restricted Unsplash originals remain explicit instead of becoming missing reference images', async () => {
+test('original downloads prefer raw, then full, and never relabel a regular preview as an original', async () => {
+  const high = photo('high')
+  const full = { ...photo('full'), urls: { small: 'https://images.unsplash.com/full?w=400', regular: 'https://images.unsplash.com/full?w=1080', full: 'https://images.unsplash.com/full?w=4000' } }
+  const previewOnly = { ...photo('preview'), urls: { small: 'https://images.unsplash.com/preview?w=400', regular: 'https://images.unsplash.com/preview?w=1080' } }
+  const api = new UnsplashApi({ request: async () => ({ total: 3, total_pages: 1, results: [high, full, previewOnly] }) })
+  const result = await new UnsplashSourceProvider(api).search({ query: 'car', pageSize: 20 }, null, bounds)
+  assert.equal(result.items[0]?.originalUrl, 'https://images.unsplash.com/high')
+  assert.equal(result.items[1]?.originalUrl, 'https://images.unsplash.com/full?w=4000')
+  assert.equal(result.items[2]?.originalUrl, undefined)
+  assert.equal(result.items[2]?.previewUrl, 'https://images.unsplash.com/preview?w=1080')
+})
+
+test('premium search labels do not decide account download access', async () => {
   const api = new UnsplashApi({ request: async () => ({ total: 1, total_pages: 1, results: [{ ...photo('restricted'), premium: true }] }) })
   const page = await new UnsplashSourceProvider(api).search({ query: 'car', pageSize: 20 }, null, bounds)
   assert.equal(page.items[0]?.originalUrl, undefined)
-  assert.equal(page.items[0]?.originalUnavailable, 'restricted')
+  assert.equal(page.items[0]?.originalUnavailable, undefined)
   assert.equal(page.items[0]?.previewUrl, 'https://images.unsplash.com/restricted?w=1200')
+})
+
+test('premium original acquisition uses the service-issued authenticated download location and rejects unavailable grants', async () => {
+  const paths: string[] = [], original = 'https://plus.unsplash.com/member?download=original'
+  const api = new UnsplashApi({ request: async path => { paths.push(path); return path.endsWith('/download') ? { url: original } : { ...photo('member'), premium: true } } })
+  const item = await new UnsplashSourceProvider(api).lookup('member', bounds)
+  assert.equal(item.originalUrl, original); assert.equal(item.originalUnavailable, undefined)
+  assert.deepEqual(paths, ['/photos/member', '/photos/member/download'])
+  for (const code of ['source-access-denied', 'source-auth-required', 'source-request-timeout']) {
+    const denied = new UnsplashApi({ request: async path => { if (path.endsWith('/download')) throw new MediaError(code, 'gallery', code === 'source-request-timeout', 'Isolated grant response.', 'Retry within authorization.'); return { ...photo('member'), premium: true } } })
+    if (code === 'source-access-denied') { const result = await new UnsplashSourceProvider(denied).lookup('member', bounds); assert.equal(result.originalUnavailable, 'restricted'); assert.equal(result.originalUrl, undefined) }
+    else await assert.rejects(new UnsplashSourceProvider(denied).lookup('member', bounds), { code })
+  }
+  const unsafe = new UnsplashApi({ request: async () => ({ url: 'https://unapproved.example/original' }) })
+  await assert.rejects(unsafe.download('member', bounds, 'https://plus.unsplash.com/member'))
 })
 
 test('each curl connection receives the complete checked address set including IPv6 and rotated fallback order', () => {

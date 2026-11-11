@@ -1,0 +1,7 @@
+[
+  {"status":"running","passed":0,"label":"后台处理中","state":"ongoing","metric":"合格成品0 / 2"},
+  {"status":"paused","passed":0,"label":"已暂停","state":"idle","metric":"合格成品0 / 2"},
+  {"status":"completed","passed":0,"label":"待处理","state":"idle","metric":"合格成品0 / 2"},
+  {"status":"completed","passed":1,"label":"待处理","state":"idle","metric":"合格成品1 / 2"},
+  {"status":"completed","passed":2,"label":"已完成","state":"done","metric":"合格成品2 / 2"}
+]

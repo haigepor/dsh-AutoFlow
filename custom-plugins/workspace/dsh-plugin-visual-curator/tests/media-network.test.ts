@@ -8,6 +8,28 @@ import type { RequestBounds } from '../src/media/index.ts'
 const bounds: RequestBounds = { maxBytes: 128, maxRedirects: 2, timeoutMs: 5000 }
 const hasCode = (code: string) => (error: unknown) => error instanceof MediaError && error.code === code
 
+test('successful response bodies report actual bytes without counting redirects or inventing an unknown total', async () => {
+  for (const known of [true, false]) {
+    const release = Promise.withResolvers<void>(), arrived = Promise.withResolvers<void>(), progress: { receivedBytes: number; totalBytes?: number }[] = []
+    const server = createServer((request, response) => {
+      if (request.url === '/redirect') { response.writeHead(302, { location: '/body' }); response.end('redirect-body'); return }
+      response.writeHead(200, { 'content-type': 'application/octet-stream', ...(known ? { 'content-length': '8' } : {}) }); response.write('abcd')
+      void release.promise.then(() => response.end('efgh'))
+    })
+    server.listen(0, '127.0.0.1'); await once(server, 'listening')
+    const address = server.address(); assert.ok(address && typeof address !== 'string')
+    const origin = 'http://vision.test:' + address.port, http = new SafeHttpClient({ allowedOrigins: [], localVisionOrigin: origin }, async () => [{ address: '127.0.0.1', family: 4 }])
+    try {
+      const pending = http.request(origin + '/redirect', { ...bounds, method: 'GET', onProgress: value => { progress.push(value); if (value.receivedBytes === 4) arrived.resolve() } })
+      await Promise.race([arrived.promise, pending.then(() => { throw new Error('The body completed without reporting its first chunk') })])
+      assert.deepEqual(progress.at(-1), { receivedBytes: 4, ...(known ? { totalBytes: 8 } : {}) })
+      release.resolve(); assert.equal((await pending).bytes.toString(), 'abcdefgh')
+      assert.deepEqual(progress.at(-1), { receivedBytes: 8, ...(known ? { totalBytes: 8 } : {}) }); assert.equal(progress[0]!.receivedBytes, 0)
+      assert(progress.every(value => value.receivedBytes <= 8))
+    } finally { release.resolve(); server.closeAllConnections(); server.close(); await once(server, 'close') }
+  }
+})
+
 test('connection racing uses only validated addresses and sends a POST body once to the winning connection', async () => {
   let hits = 0, received = ''
   const server = createServer((request, response) => { hits++; request.on('data', chunk => { received += chunk }); request.on('end', () => response.end('ok')) })
@@ -19,6 +41,22 @@ test('connection racing uses only validated addresses and sends a POST body once
     const response = await http.request(origin, { ...bounds, connectTimeoutMs: 2000, method: 'POST', body: Buffer.from('one-body') })
     assert.equal(response.status, 200); assert.equal(response.remoteAddress, '127.0.0.1')
     assert.equal(hits, 1); assert.equal(received, 'one-body')
+  } finally { server.closeAllConnections(); server.close(); await once(server, 'close') }
+})
+
+test('an explicitly fixed local server API does not authorize private image origins or redirected destinations', async () => {
+  let hits = 0
+  const server = createServer((_request, response) => { hits++; response.end('ok') })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening')
+  const address = server.address(); assert.ok(address && typeof address !== 'string')
+  const origin = `http://server.test:${address.port}`, resolve = async () => [{ address: '127.0.0.1', family: 4 }]
+  try {
+    const api = new SafeHttpClient({ allowedOrigins: [origin], localServerOrigin: origin }, resolve)
+    assert.equal((await api.request(origin + '/pull', { ...bounds, method: 'GET' })).bytes.toString(), 'ok')
+    await assert.rejects(api.request('http://other.test:' + address.port, { ...bounds, method: 'GET' }), hasCode('invalid-input'))
+    const media = new SafeHttpClient({ allowedOrigins: ['https://images.test'] }, resolve)
+    await assert.rejects(media.request('https://images.test/original', { ...bounds, method: 'GET' }), hasCode('invalid-input'))
+    assert.equal(hits, 1)
   } finally { server.closeAllConnections(); server.close(); await once(server, 'close') }
 })
 

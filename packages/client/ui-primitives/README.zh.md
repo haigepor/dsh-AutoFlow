@@ -81,6 +81,7 @@ Modal 遮罩透明并保留共享背景模糊；弹窗使用主题的 `--dsw-sha
 | `HoverCard`、`HoverCardGroup` | 可阅读、可选带复制按钮的悬停预览；物理列表可选择让卡片共享首次显示等待，并互斥显示。 |
 | `DraggableImage` | 通过显式传递与反馈回调提供原图拖放。 |
 | `ImageLightbox` | 共享图片浮层，支持焦点恢复与 Esc 关闭。 |
+| `ImageGenerationSkeleton` | 共享生图点阵骨架屏；任务暂停、页面隐藏或启用减少动态效果时停止动画，卸载时清理监听。调用方提供容器与无障碍状态。 |
 | `useAnchoredPosition` | 随浏览器缩放、滚动和尺寸变化持续跟随锚点的 fixed 面板坐标。 |
 | `Toast` | 顶部居中的瞬时横幅，保持时长由所有者的 `holdMs` 决定。 |
 | `SettingsForm`、`SettingsValueField`、`SettingsSecretField` | 插件设置页的框架与控件：框架以 `labels` 接收文案，只在按钮点击时保存，卸载即丢弃；值字段显示暂存文本以及已覆盖标签和重置；密文字段每次为空，请求浏览器不要自动填入已保存的密码，只报告是否已配置。 |

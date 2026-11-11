@@ -86,6 +86,8 @@ export interface StyleAnalysisView {
 
 /** A visible image and its authorized resources; preview searches may expose an unsigned public preview URL. */
 export interface ImageView {
+  /** Source directory identity for the single-image workflow, which can differ from the direct parent artifact. */
+  workflowImageVersionId?: string
   previewUrl?: string
   resultCategory?: Exclude<import('../shared/search-feedback.ts').RunResultFilter, 'all'>
   styleMatch?: import('../shared/style-matching.ts').StyleMatch
@@ -162,6 +164,10 @@ export interface UsageView {
 
 /** Durable run state is independent of its current process job. */
 export interface RunView {
+  /** True only for saved wallpaper workflows that support review of an existing output. */
+  wallpaperTask?: boolean
+  /** Existing workflow receipt identifies both source tasks and exact wallpaper continuations. */
+  wallpaper?: { runId: string; sourceRunId: string; total: number; outputs: { imageVersionId: string; sourceImageVersionId: string }[] } | null
   continuation?: import('../shared/run-continuation.ts').RunContinuation
   revision?: number
   outputKind?: import('../shared/search-launch.ts').SearchLaunchInput['output']['kind']
@@ -240,11 +246,13 @@ export interface ConfigurationView {
   }
   vision: { backend?: 'native' | 'compatible' | undefined; useModelDefaults?: boolean | undefined; provider?: string | undefined; endpoint: string; model: string; credentialRef: string; supportsMultipleImages: boolean; supportsJson: boolean; supportsStreaming?: boolean | undefined; localOrigin: string; vendorVersion: string | null; reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'max' | null | undefined }
   searchScreening?: (Omit<import('../shared/search-screening.ts').SearchScreeningPolicy, 'version'> & { enabled?: boolean | undefined }) | undefined
-  limits: { maxVisionCalls: number; maxSearchPages: number; maxCandidates: number; maxDownloadBytes: number; maxCropCandidatesPerImage: number; maxConcurrentRequests: number; maxRetryAttempts: number; requestTimeoutMs: number; maxVisionOutputTokens: number; deadlineMs: number; pollIntervalMs: number; processPollIntervalMs?: number; analysisCacheTtlMs?: number; analysisTaskCacheMaxEntries?: number; analysisTaskCacheMaxBytes?: number; batchCacheTtlMs?: number; batchCacheMaxViews?: number; datasetCacheTtlMs?: number; datasetCacheMaxViews?: number; datasetCacheMaxBytes?: number; sessionGrantTtlMs?: number; pageSize: number; maxImportFiles: number; maxImportBytes: number; maxGalleryReferenceFiles: number }
+  limits: { maxVisionCalls: number; maxSearchPages: number; maxCandidates: number; maxDownloadBytes: number; maxCropCandidatesPerImage: number; maxConcurrentRequests: number; maxRetryAttempts: number; requestTimeoutMs: number; originalDownloadTimeoutMs?: number | undefined; originalDownloadIdleTimeoutMs?: number | undefined; maxVisionOutputTokens: number; deadlineMs: number; pollIntervalMs: number; processPollIntervalMs?: number; idlePollIntervalMs?: number | undefined; analysisCacheTtlMs?: number; analysisTaskCacheMaxEntries?: number; analysisTaskCacheMaxBytes?: number; batchCacheTtlMs?: number; batchCacheMaxViews?: number; datasetCacheTtlMs?: number; datasetCacheMaxViews?: number; datasetCacheMaxBytes?: number; sessionGrantTtlMs?: number; pageSize: number; maxImportFiles: number; maxImportBytes: number; maxGalleryReferenceFiles: number }
 }
 
 /** Complete profile projection; polling refreshes data while viewing state stays in the Client store. */
 export interface CuratorSnapshot {
+  /** Stable profile namespace for saved workbench location; contains no credentials. */
+  ownerScopeId?: string
   collectionPaging?: boolean
   workspaceRevision?: string
   styles: StyleView[]

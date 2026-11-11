@@ -1,7 +1,7 @@
 /** Requirements for organizing saved observations into a reviewable reference dataset. */
 
-/** @param partial Whether any frozen references still lack observations. @param roleAware Whether the task pins effective reference roles. @returns Organization instructions; the supplied JSON schema owns field types and limits. */
-export function datasetOrganizationInstruction(partial: boolean, roleAware: boolean): string {
+/** @param partial Whether any frozen references still lack observations. @param roleAware Whether the task pins effective reference roles. @param preciseEvidence Whether the new task pins evidence-scoped exclusions. @returns Organization instructions; the supplied JSON schema owns field types and limits. */
+export function datasetOrganizationInstruction(partial: boolean, roleAware: boolean, preciseEvidence = false): string {
   return [
     '你是参考图片数据集整理员。根据本次输入的全部逐图观察、人工判断和代表图像素，整理可复用、可审核的风格档案与候选图片匹配提示词。结果是参考数据，不是人工确认、模型训练或图片生成任务。',
     partial ? '覆盖范围尚不完整：只整理已有观察，明确缺少的覆盖与待验证结论，不声称已形成完整风格包。' : '覆盖范围完整：综合所有已保存观察，不能把最后一批或附带的少量代表图当成整个素材集。',
@@ -43,7 +43,16 @@ export function datasetOrganizationInstruction(partial: boolean, roleAware: bool
     '只有人工确认且 strength=required 的已启用规则才可表述为硬性检查；没有此类规则时，不得在 matchingPrompt 新增硬性条件或把 preferred 升级为必选。',
     'matchingPrompt 不能写成绘图、渲染或图片生成指令，也不能声称凭文字检索已验证候选图像素。',
     '',
-    '七、输出前核对',
+    ...(preciseEvidence ? [
+      '七、精确匹配的证据约束',
+      '负例仅有拒绝标签、没有 reasonCodes/comment 明确说明原因时，negativeReasons 中的推测只能进入待验证说明；不得进入 avoidTerms、排除条件、必须/禁止判据，不能把 uncertain=true 换个措辞写进规则。没有明确排除依据时 avoidTerms 返回 []。',
+      '规则先写正例共同支持的正向可见偏好。不要在同一条规则末尾拼入推测的负例禁忌：例如拒绝一张暖棕色半车，不能因此禁止暖棕色；完整车身要求来自任务或明确人工说明，构图偏好来自正例，分别说明来源。',
+      'matchingPrompt 只复述 organization 中启用的规则和明确人工要求，不新增无人物、仅一辆车、指定天气、品牌、媒介等门槛。照片中没有某个元素不代表用户禁止该元素。主体与题材以实际任务为准，reference-only 的题材不能成为第一道淘汰条件。',
+      '远景、小主体、俯拍与特写分别描述；报告主体相对大小、可辨结构、遮挡、画框截断与主次对象。自然视角下看不到的部件不能等同于裁断。小主体标识不可辨时保留未知，不能补造身份、轮数、车牌或清晰度结论。',
+      '重复的同一车辆、同一场景、已处理结果不形成多份独立证据；整体正例与局部维度参考分别计入所选维度，禁止将色彩参考的主体和构图转化成要求。',
+      '',
+    ] : []),
+    preciseEvidence ? '八、输出前核对' : '七、输出前核对',
     '只返回符合 outputSchema 的一个完整 JSON 对象，不附 Markdown 围栏、说明段落或推理过程。所有描述使用简体中文，固定字段名与枚举保持原文。',
     '完整提供 name、summary、matchingPrompt、searchHints、avoidTerms、dimensions、conflicts、suggestedRules、negativeReasons、organization；空集合仍返回 []，共享规则的 groupId 返回 null。核对全部引用、反例覆盖、规则索引与适用性，保持文本简洁并遵守每个字符串最多 4096 字符，避免输出被截断。',
   ].join('\n')

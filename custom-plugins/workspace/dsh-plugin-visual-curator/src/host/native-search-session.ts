@@ -16,6 +16,7 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionTaskSnapshot, SessionTaskPublisher } from '@deepseek-ai/dsh-api-session-controller/types'
 import { z } from 'zod'
+import type { RunData } from './runtime.ts'
 import type {} from '@deepseek-ai/dsh-session-title'
 
 /** Optional GUI capability; the independent headless provider never requires it. */
@@ -28,6 +29,8 @@ export interface NativeSearchSessions {
   ensure(workspace: SearchWorkspace, sessionId: string, signal: AbortSignal): Promise<void>
   /** @param sessionId Existing native Session. @param requestId Frozen prompt identity. @returns Whether the prompt is logged, pending, or claimed by its still-running turn. */
   accepted(sessionId: string, requestId: string): Promise<boolean>
+  /** @param sessionId Owning Session. @param requestId Frozen prompt identity. @returns Its settled conversation failure, or absence for unloaded, running or successful conversations; never activates a Session. */
+  failure(sessionId: string, requestId: string): RunData['error']
   /** @param sessionId Newly admitted native Session. @param model Frozen catalog route. @param signal Launch lifetime. @returns After recording this Session's route without saving a profile default. */
   selectModel(sessionId: string, model: SearchConversationModel, signal: AbortSignal): Promise<void>
   name(sessionId: string, title: string): Promise<void>
@@ -127,6 +130,19 @@ export function nativeSearchSessions(ctx: Pick<Context, 'get'>): NativeSearchSes
         }
       }
       return agent.status === 'running' && activeTurn && claimed
+    },
+    failure(id, requestId) {
+      const agent = agents.get(brandString<SessionId>(id))
+      if (!agent || agent.status === 'running') return undefined
+      let entered = false, failed = false
+      for (const event of agent.session.snapshotEvents()) {
+        if (event.type === 'user/message' && event.data.source.kind === 'user' && 'rpcId' in event.data.source && event.data.source.rpcId === requestId) { entered = true; failed = false }
+        else if (entered && event.type === 'turn/start') failed = false
+        else if (entered && event.type === 'turn/end') failed = event.data.reason.kind === 'error'
+      }
+      return failed ? { code: 'remote-request-failed', stage: 'search-launch-conversation', retryable: true,
+        safeMessage: 'The conversation failed before starting image search. Its saved data and task requirements remain available.',
+        suggestedAction: 'Open the conversation to inspect the model error, then retry there or stop this task.' } : undefined
     },
     async selectModel(id, selection, signal) {
       signal.throwIfAborted()

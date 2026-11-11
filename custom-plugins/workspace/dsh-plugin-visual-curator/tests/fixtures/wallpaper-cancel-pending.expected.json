@@ -1,0 +1,9 @@
+{
+  "status": "cancelled",
+  "autoResume": false,
+  "keptCheckpoint": true,
+  "keptImages": true,
+  "keptReceipts": true,
+  "keptQualifications": true,
+  "newImageGenerations": 0
+}

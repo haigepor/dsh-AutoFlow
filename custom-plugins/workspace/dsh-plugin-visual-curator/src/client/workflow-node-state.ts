@@ -32,7 +32,7 @@ export function wallpaperStage(kind: WallpaperStep, status: string, total: numbe
   const result = (phase: WorkflowPhase): WallpaperStage => ({ phase, done, total, failed, blocked, active })
   const running = ['created', 'running', 'pausing', 'cancelling'].includes(status)
   if (active > 0 && running) return result('running')
-  if (failed > 0) return result('failed')
+  if (failed > 0) return result(kind === 'downloading' && done > 0 ? 'attention' : 'failed')
   if (total > 0 && done === total) return result(kind === 'reviewing' && (counts.passed ?? 0) < total ? 'attention' : 'completed')
   if (attention > 0) return result('attention')
   if (blocked > 0 && done + blocked >= total) return result(done ? 'attention' : 'blocked')

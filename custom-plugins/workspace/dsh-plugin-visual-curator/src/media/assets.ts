@@ -28,7 +28,10 @@ export interface CropFile extends ImageFile {
 
 function digest(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex') }
 function storageRef(hash: string): string { return `blobs/${hash.slice(0, 2)}/${hash}` }
-function sniff(bytes: Uint8Array): string {
+/** Identify supported raster bytes independently of remote Content-Type headers.
+ * @param bytes Original response bytes. @returns JPEG, PNG or WebP MIME type; other signatures are rejected.
+ */
+export function rasterMime(bytes: Uint8Array): string {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg'
   if (Buffer.from(bytes.subarray(0, 8)).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return 'image/png'
   if (Buffer.from(bytes.subarray(0, 4)).toString('ascii') === 'RIFF' && Buffer.from(bytes.subarray(8, 12)).toString('ascii') === 'WEBP') return 'image/webp'
@@ -76,7 +79,7 @@ export class AssetFiles {
     checkCancelled(signal)
     if (input.byteLength === 0 || input.byteLength > this.limits.maxFileBytes) throw invalidInput('Image bytes exceed the configured import limit.')
     const bytes = Buffer.from(input)
-    const mime = sniff(bytes)
+    const mime = rasterMime(bytes)
     rejectAnimation(bytes, mime)
     if (declaredMime !== undefined && declaredMime.split(';')[0]?.trim().toLowerCase() !== mime) throw invalidInput('The declared image MIME does not match its bytes.')
     try {
@@ -142,7 +145,7 @@ export class AssetFiles {
       const canonical = await realpath(path)
       if ((await lstat(path)).isSymbolicLink()) throw this.unavailable()
       const bytes = await this.localOriginal(canonical, signal)
-      const mime = sniff(bytes); rejectAnimation(bytes, mime)
+      const mime = rasterMime(bytes); rejectAnimation(bytes, mime)
       const metadata = await sharp(bytes, { limitInputPixels: this.limits.maxPixels, animated: true }).metadata()
       if (!metadata.width || !metadata.height || metadata.width > this.limits.maxDimension || metadata.height > this.limits.maxDimension || (metadata.pages ?? 1) !== 1) throw invalidInput('The local image dimensions or format are unsupported.')
       const processorVersion = `${this.processorVersion}/path-reference-v1`
@@ -184,7 +187,7 @@ export class AssetFiles {
     // 原图每次都校验；有界内存缓存只避免重复编码，不允许变更后的原图复用旧结果。
     const work = this.localReading.then(async () => {
       const original = await this.localOriginal(source.path, signal)
-      if (original.length !== source.byteLength || digest(original) !== source.digest || sniff(original) !== source.mime || blob.storageRef !== `local-files/${blob.digest}`) throw this.unavailable()
+      if (original.length !== source.byteLength || digest(original) !== source.digest || rasterMime(original) !== source.mime || blob.storageRef !== `local-files/${blob.digest}`) throw this.unavailable()
       let pixels = this.localCache.get(blob.digest)
       if (pixels) { this.localCache.delete(blob.digest); this.localCache.set(blob.digest, pixels) }
       else {
@@ -200,6 +203,18 @@ export class AssetFiles {
     })
     this.localReading = work.then(() => {}, () => {})
     try { return await work } catch (error) { if (error instanceof MediaError) throw error; throw this.unavailable() }
+  }
+
+  /** Derive a bounded preview without changing original bytes or committed image history.
+   * @param blob Authorized local raster reference.
+   * @param signal Optional cancellation.
+   * @returns EXIF-corrected WebP pixels within the configured preview dimension.
+   */
+  async thumbnail(blob: BlobRef, signal?: AbortSignal): Promise<Buffer> {
+    const bytes = await this.read(blob, signal)
+    const preview = await sharp(bytes, { limitInputPixels: this.limits.maxPixels }).autoOrient().toColourspace('srgb').resize({ width: this.limits.previewMaxDimension, height: this.limits.previewMaxDimension, fit: 'inside', withoutEnlargement: true }).webp({ lossless: true }).toBuffer()
+    checkCancelled(signal)
+    return preview
   }
 
   /** Read an authorized blob after checking the private path, byte count and SHA-256.

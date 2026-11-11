@@ -1,0 +1,13 @@
+{
+  "operations": ["wallpaper-decision", "wallpaper-review", "wallpaper-decision"],
+  "decisions": [
+    { "round": 1, "status": "applied", "action": "continue_current_plan", "sourceStage": "planning", "targetStage": "rendering" },
+    { "round": 2, "status": "manual", "action": "manual_review", "sourceStage": "reviewing", "targetStage": "decision" }
+  ],
+  "itemStatus": "needs-review",
+  "otherStatus": "passed",
+  "finalBackground": "violated",
+  "originalDetail": "unresolved",
+  "outputDetail": "unresolved",
+  "imageStarts": 0
+}

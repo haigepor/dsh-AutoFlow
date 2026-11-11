@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-plan-editor-layout",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator keeps plan preview and controls in separate columns, explains guide colors and line styles, and keeps validation and save actions visible.",
+    "zh-CN": "视觉策展的规划弹窗分栏展示预览与编辑控件，说明辅助线颜色和线型，并固定显示校验结果与保存按钮。"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-final-navigation",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator opens the wallpaper production task from its final-result count, keeping source search and finished output distinct.",
+    "zh-CN": "视觉策展从合格成品入口打开对应壁纸制作任务，正确展示最终输出。"
+  }
+}

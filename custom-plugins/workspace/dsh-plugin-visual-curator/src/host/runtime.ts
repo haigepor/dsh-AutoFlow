@@ -116,12 +116,12 @@ function jobProgress(stage: RunRecord['stage'], counts: RunData['counts'], targe
 /** @param run Authorized saved analysis. @param prepared Spec and data already validated from this record during the same read. @param now Evaluation time; live controls use the current clock. @returns Explicit continuation eligibility under its original budget and terminal state. */
 export function analysisContinuation(run: RunRecord, prepared?: { spec: ExecutionSpec; data: RunData }, now = Date.now()): AnalysisContinuation {
   const spec = prepared?.spec ?? specOf(run), data = prepared?.data ?? dataOf(run)
-  return analysisContinuationFromFacts({ kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, errorCode: data.error?.code, deadlineAt: taskTiming(spec) === 'native-model' ? null : data.budget.deadlineAt,
+  return analysisContinuationFromFacts({ kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, errorCode: data.error?.code, errorStage: data.error?.stage, deadlineAt: taskTiming(spec) === 'native-model' ? null : data.budget.deadlineAt,
     observed: data.counts.observed ?? 0, total: Array.isArray(spec.fixed.references) ? spec.fixed.references.length : 0, buildDataset: spec.input.buildDataset === true,
     hasSummary: data.checkpoint.styleAnalysis !== undefined, vision: data.budget.vision, maxVisionCalls: spec.config.limits.maxVisionCalls }, now)
 }
 /** Minimal continuation inputs; a null deadline delegates analysis timing to the native model adapter. */
-export interface AnalysisContinuationFacts { kind: ExecutionSpec['kind']; status: RunRecord['status']; retryable: boolean; errorCode?: string | undefined; deadlineAt: number | null; observed: number; total: number; buildDataset: boolean; hasSummary: boolean; vision: number; maxVisionCalls: number }
+export interface AnalysisContinuationFacts { kind: ExecutionSpec['kind']; status: RunRecord['status']; retryable: boolean; errorCode?: string | undefined; errorStage?: string | undefined; deadlineAt: number | null; observed: number; total: number; buildDataset: boolean; hasSummary: boolean; vision: number; maxVisionCalls: number }
 /** @param facts Validated run facts. @param now Evaluation clock; live task controls evaluate eligibility afresh. @returns The same continuation decision used by task controls and read-only summaries. */
 export function analysisContinuationFromFacts(facts: AnalysisContinuationFacts, now = Date.now()): AnalysisContinuation {
   const denied = (reason: AnalysisContinuation['reason']): AnalysisContinuation => ({ allowed: false, reason })
@@ -130,7 +130,9 @@ export function analysisContinuationFromFacts(facts: AnalysisContinuationFacts, 
   if (facts.status === 'completed') return denied('completed')
   if (facts.status === 'cancelled') return denied('cancelled')
   // Older model-format failures were saved as non-retryable even though their observations remain usable.
-  if (facts.status === 'failed' && !facts.retryable && !['vision-invalid-output', 'vision-output-truncated'].includes(facts.errorCode ?? '')) return denied('not-retryable')
+  // Pausing older workers could misreport their saved summary as a dataset conflict; adoption still verifies current references.
+  const savedDatasetConflict = facts.hasSummary && facts.errorCode === 'revision-conflict' && facts.errorStage === 'dataset-export'
+  if (facts.status === 'failed' && !facts.retryable && !savedDatasetConflict && !['vision-invalid-output', 'vision-output-truncated'].includes(facts.errorCode ?? '')) return denied('not-retryable')
   if (!['paused', 'interrupted', 'failed'].includes(facts.status)) return denied('unavailable')
   if (facts.deadlineAt !== null && now >= facts.deadlineAt) return denied('deadline')
   const needsVision = facts.observed < facts.total || facts.buildDataset && !facts.hasSummary
@@ -188,16 +190,21 @@ function runContinuationWithRequests(run: RunRecord, requests: (data: RunData) =
 }
 interface LiveRun { run: RunRecord; controller: AbortController; pauseAdmissions: AbortController; completion: Promise<JobOutcome>; command: 'pause' | 'cancel' | 'interrupt' | undefined }
 
+/** Parser feedback belongs to one failed attempt of the same saved request. */
+export interface PreviousRequestFailure { requestId: string; code: string; issues: readonly string[] }
+
 /** Workers expose committed checkpoints and bounded live provider output. */
 export interface WorkContext {
   readonly runId: string
   readonly signal: AbortSignal
   readonly spec: ExecutionSpec
   readonly ledger: BudgetLedger
+  /** Reject new phases after an accepted pause or cancellation; committed responses remain available. */
+  checkAdmission(): void
   current(): RunRecord
   report(update: ProcessUpdate): void
   save(stage: NonNullable<RunRecord['stage']>, patch: Partial<RunData>, records?: CuratorRecord[]): Promise<void>
-  request<T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>) => Promise<T>, summarize?: (result: T) => Json): Promise<T>
+  request<T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>, previous?: PreviousRequestFailure) => Promise<T>, summarize?: (result: T) => Json): Promise<T>
 }
 export type Worker = (context: WorkContext) => Promise<NonNullable<RunRecord['outcome']>>
 
@@ -352,16 +359,23 @@ export class RunEngine {
       }
     }
   }
-  create(spec: ExecutionSpec, actor: DomainActor, worker: Worker, operationId: string = randomUUID()): Promise<RunRecord> {
+  /** @param operationId Stable admission identity. @param actor Authenticated task owner. @returns The durable identity shared by admission and queued execution. */
+  operationRunId(operationId: string, actor: DomainActor): string { return contentDigest({ profileId: actor.profileId, sessionId: actor.sessionId ?? null, operationId }).slice(10) }
+  /** Accept a task with a new budget or a settled predecessor's unchanged counters.
+   * @param spec Frozen task inputs and limits. @param actor Authenticated owner. @param worker Processing implementation.
+   * @param operationId Stable admission identity. @param inheritedBudgetFrom Authorized predecessor whose limits and continuation identity must match.
+   * @returns Accepted or previously accepted task.
+   */
+  create(spec: ExecutionSpec, actor: DomainActor, worker: Worker, operationId: string = randomUUID(), inheritedBudgetFrom?: string): Promise<RunRecord> {
     if (this.closed) return Promise.reject(new CuratorError('capability-unavailable', 'run-start', 'The plugin is stopping.'))
-    const task = this.admissions.then(() => this.createNow(spec, actor, worker, operationId))
+    const task = this.admissions.then(() => this.createNow(spec, actor, worker, operationId, inheritedBudgetFrom))
     this.admissions = task.then(() => {}, () => {})
     return task
   }
-  private async createNow(spec: ExecutionSpec, actor: DomainActor, worker: Worker, operationId: string): Promise<RunRecord> {
+  private async createNow(spec: ExecutionSpec, actor: DomainActor, worker: Worker, operationId: string, inheritedBudgetFrom?: string): Promise<RunRecord> {
     if (this.closed) throw new CuratorError('capability-unavailable', 'run-start', 'The plugin is stopping.')
     if (actor.kind === 'agent' && !actor.sessionId) throw new CuratorError('owner-denied', 'run-start', 'Agent tasks require their Session.')
-    const id = contentDigest({ profileId: actor.profileId, sessionId: actor.sessionId ?? null, operationId }).slice(10), now = new Date().toISOString()
+    const id = this.operationRunId(operationId, actor), now = new Date().toISOString()
     const existing = this.repository.get('run', id)
     if (existing) {
       this.authorize(existing, actor)
@@ -369,7 +383,10 @@ export class RunEngine {
       return existing
     }
     if (spec.kind === 'analyze' && this.repository.list('run').some(run => specOf(run).kind === 'analyze' && specOf(run).input.styleId === spec.input.styleId && ['created', 'running', 'pausing', 'paused', 'cancelling', 'interrupted'].includes(run.status))) throw new CuratorError('constraint-conflict', 'analysis-start', 'This collection already has an unfinished analysis. Resume or cancel it before starting another.')
-    const run = runSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id, createdAt: now, kind: 'run', owner: actor.sessionId ? { kind: 'session', sessionId: actor.sessionId } : { kind: 'profile' }, revision: 1, status: 'created', stage: null, spec: toJson(spec), data: toJson({ attemptId: randomUUID(), attempts: 1, budget: new BudgetLedger(spec.config.limits, undefined, Date.now, taskTiming(spec)).snapshot(), checkpoint: {}, counts: {}, warnings: [], resultIds: [], requestIds: [], ...(spec.kind === 'analyze' || spec.kind === 'search' && spec.fixed.workflowExecution === true || spec.input.workflow === 'wallpaper-v1' || spec.fixed.wallpaperLearning === true ? { autoResume: true } : {}) }) })
+    const predecessor = inheritedBudgetFrom ? this.get(inheritedBudgetFrom, actor) : undefined
+    if (predecessor && (spec.input.continuationOf !== predecessor.id || ['created', 'running', 'pausing', 'cancelling'].includes(predecessor.status) || contentDigest(specOf(predecessor).config.limits) !== contentDigest(spec.config.limits) || taskTiming(specOf(predecessor)) !== taskTiming(spec))) throw new CuratorError('constraint-conflict', 'run-start', 'The continuation must retain its settled predecessor and frozen budget policy.')
+    const initialBudget = predecessor ? dataOf(predecessor).budget : undefined
+    const run = runSchema.parse({ schemaVersion: 1, profileId: actor.profileId, id, createdAt: now, kind: 'run', owner: actor.sessionId ? { kind: 'session', sessionId: actor.sessionId } : { kind: 'profile' }, revision: 1, status: 'created', stage: null, spec: toJson(spec), data: toJson({ attemptId: randomUUID(), attempts: 1, budget: new BudgetLedger(spec.config.limits, initialBudget, Date.now, taskTiming(spec)).snapshot(), checkpoint: {}, counts: {}, warnings: [], resultIds: [], requestIds: [], ...(spec.kind === 'analyze' || spec.kind === 'search' && spec.fixed.workflowExecution === true || (spec.input.workflow === 'wallpaper-v1' || spec.input.workflow === 'wallpaper-direct-v1') || spec.fixed.wallpaperLearning === true ? { autoResume: true } : {}) }) })
     await this.repository.commit({ aggregateId: `run:${id}`, expectedRevision: 0, operationId: id, request: run, records: [run], state: { runId: id, presentationUpdatedAt: now } })
     this.onCommitted?.(run)
     if (this.closed) {
@@ -422,8 +439,8 @@ export class RunEngine {
       const ctx: WorkContext = {
         runId: id, signal: executionSignal, spec, ledger,
         current: () => this.repository.get('run', id)!, report: update => this.report(id, update),
-        save,
-        request: async <T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>) => Promise<T>, summarize?: (result: T) => Json): Promise<T> => {
+        save, checkAdmission,
+        request: async <T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>, previous?: PreviousRequestFailure) => Promise<T>, summarize?: (result: T) => Json): Promise<T> => {
           checkAdmission()
           // 用持久化的失败回执计算余量，服务重启不能重新获得同一批的重试次数。
           const digest = contentDigest(bundle)
@@ -433,11 +450,14 @@ export class RunEngine {
           const markerIndex = marker === undefined ? -1 : currentData.requestIds.indexOf(marker)
           if (marker !== undefined && markerIndex < 0) throw new CuratorError('reference-unavailable', 'analysis-resume', 'The saved continuation request is unavailable.')
           const retryIds = marker === undefined ? undefined : new Set(currentData.requestIds.slice(markerIndex + 1))
+          let previousFailure: PreviousRequestFailure | undefined
           const previousFailures = currentData.requestIds.flatMap(requestId => {
             const request = this.repository.get('request', requestId)
             if (!request || request.runId !== id) throw new CuratorError('reference-unavailable', 'request-history', 'A saved task request receipt is unavailable or belongs to another task.')
             if ((retryIds && !retryIds.has(request.id)) || request.requestDigest !== digest || request.state !== 'outcome-unknown') return []
             const parsed = z.object({ error: runDataSchema.shape.error.unwrap() }).safeParse(request.data)
+            const diagnostics = z.object({ diagnostics: z.object({ issues: z.array(z.string()) }) }).safeParse(request.data)
+            if (parsed.success && parsed.data.error.code !== 'cancelled') previousFailure = { requestId: request.id, code: parsed.data.error.code, issues: diagnostics.success ? diagnostics.data.diagnostics.issues : [] }
             return parsed.success && parsed.data.error.code !== 'cancelled' ? [parsed.data.error] : []
           })
           const prior = previousFailures.at(-1)
@@ -468,7 +488,7 @@ export class RunEngine {
               let completed: RecordOf<'request'> | undefined
               try {
                 if (kind === 'vision') this.audit?.(saved, request)
-                const result = await work(executionSignal, recordMetadata)
+                const result = await work(executionSignal, recordMetadata, previousFailure)
                 executionSignal.throwIfAborted()
                 const committed = { ...request, state: 'committed' as const, data: toJson({ bundle, output: summarize ? summarize(result) : result, ...(metadata === undefined ? {} : { metadata }) }) }
                 completed = committed
@@ -487,6 +507,7 @@ export class RunEngine {
                 }
                 const failure = safeFailure(error)
                 const diagnostics = error instanceof MediaError && error.diagnostics ? jsonSchema.safeParse(error.diagnostics) : undefined
+                previousFailure = { requestId: request.id, code: failure.code, issues: error instanceof MediaError ? error.diagnostics?.issues ?? [] : [] }
                 if (kind === 'vision' && spec.kind === 'analyze' && failure.retryable && retry < spec.config.limits.maxRetryAttempts) ctx.report({ phase: 'retrying' })
                 await ctx.save(ctx.current().stage ?? 'planning', {}, [{ ...request, state: 'outcome-unknown', data: toJson({ bundle, error: failure, ...(metadata === undefined ? {} : { metadata }), ...(diagnostics?.success ? { diagnostics: diagnostics.data } : {}) }) }])
                 if (!failure.retryable || retry >= spec.config.limits.maxRetryAttempts) throw error
@@ -497,7 +518,7 @@ export class RunEngine {
       }
       const outcome = await worker(ctx)
       executionSignal.throwIfAborted()
-      if (spec.kind === 'analyze') this.report(id, { phase: 'completed' })
+      if (spec.kind === 'analyze') { checkAdmission(); this.report(id, { phase: 'completed' }) }
       await this.update(id, old => ({ run: { ...old, status: 'completed', stage: 'finalizing', outcome, data: toJson({ ...dataOf(old), ...(this.process(old) ? { process: this.process(old) } : {}) }) } }))
       await this.completeDownstream(id)
       return { status: 'completed', result: JSON.stringify({ runId: id, outcome }) }
@@ -524,13 +545,19 @@ export class RunEngine {
     try { await this.onCompleted(this.repository.get('run', id)!) }
     catch (error) { const failure = safeFailure(error); await this.update(id, old => ({ run: { ...old, data: toJson({ ...dataOf(old), checkpoint: { ...dataOf(old).checkpoint, postProcessingFailure: toJson(failure) }, warnings: [...dataOf(old).warnings, `Post-processing requires attention: ${failure.code}.`] }) } })) }
   }
-  async control(id: string, command: 'pause' | 'resume' | 'cancel', actor: DomainActor, worker?: Worker, wait = true): Promise<RunRecord> {
+  /** Control execution; settled cancellation requires an explicit owning-workflow policy.
+   * @param id Authorized task. @param command Requested lifecycle action. @param actor Current owner.
+   * @param worker Existing worker used only for resume. @param wait Whether to await active cancellation.
+   * @param cancelSettled Optional permission rechecked against committed state under the serialized writer.
+   * @returns The committed task, preserving all previous checkpoints and result records.
+   */
+  async control(id: string, command: 'pause' | 'resume' | 'cancel', actor: DomainActor, worker?: Worker, wait = true, cancelSettled?: (run: RunRecord) => boolean): Promise<RunRecord> {
     const run = this.get(id, actor)
     if (command === 'resume' && run.status === 'completed') {
       const pending = this.completionReplays.get(id)
       if (pending) return pending
       // 完成回调可创建下游 Run，不能持有全局 Run 受理锁等待它。
-      const work = this.controlNow(id, command, actor, worker, wait).finally(() => this.completionReplays.delete(id))
+      const work = this.controlNow(id, command, actor, worker, wait, cancelSettled).finally(() => this.completionReplays.delete(id))
       this.completionReplays.set(id, work)
       return work
     }
@@ -539,8 +566,8 @@ export class RunEngine {
       const replay = this.completionReplays.get(id)
       if (wait && replay) await Promise.allSettled([replay])
     }
-    if (command !== 'resume') return this.controlNow(id, command, actor, worker, wait)
-    const task = this.admissions.then(() => this.controlNow(id, command, actor, worker, wait))
+    if (command !== 'resume') return this.controlNow(id, command, actor, worker, wait, cancelSettled)
+    const task = this.admissions.then(() => this.controlNow(id, command, actor, worker, wait, cancelSettled))
     this.admissions = task.then(() => {}, () => {})
     return task
   }
@@ -554,7 +581,7 @@ export class RunEngine {
     this.get(id, actor)
     await this.update(id, old => ({ run: { ...old, data: toJson({ ...dataOf(old), warnings: [...new Set([...dataOf(old).warnings, warning])] }) } }))
   }
-  private async controlNow(id: string, command: 'pause' | 'resume' | 'cancel', actor: DomainActor, worker?: Worker, wait = true): Promise<RunRecord> {
+  private async controlNow(id: string, command: 'pause' | 'resume' | 'cancel', actor: DomainActor, worker?: Worker, wait = true, cancelSettled?: (run: RunRecord) => boolean): Promise<RunRecord> {
     const run = this.get(id, actor), live = this.live.get(id)
     if (command === 'resume') {
       const spec = specOf(run)
@@ -585,10 +612,21 @@ export class RunEngine {
         const { error: previousError, ...data } = dataOf(old)
         // 显式重试失败分析可获得新的单批重试窗口；原总额度、期限与回执均保留。
         const retryAfterRequestId = old.status === 'failed' ? data.requestIds.at(-1) : undefined
-        return { run: { ...old, status: 'created', data: toJson({ ...data, ...(spec.kind === 'analyze' || spec.kind === 'search' || spec.input.workflow === 'wallpaper-v1' || spec.fixed.wallpaperLearning === true ? { autoResume: true, ...(retryAfterRequestId ? { checkpoint: { ...data.checkpoint, ...(spec.kind === 'analyze' ? { analysisRetryAfterRequestId: retryAfterRequestId } : { requestRetryAfterRequestId: retryAfterRequestId }) } } : {}) } : previousError ? { error: previousError } : {}), attempts: data.attempts + 1, attemptId: randomUUID() }) } }
+        return { run: { ...old, status: 'created', data: toJson({ ...data, ...(spec.kind === 'analyze' || spec.kind === 'search' || (spec.input.workflow === 'wallpaper-v1' || spec.input.workflow === 'wallpaper-direct-v1') || spec.fixed.wallpaperLearning === true ? { autoResume: true, ...(retryAfterRequestId ? { checkpoint: { ...data.checkpoint, ...(spec.kind === 'analyze' ? { analysisRetryAfterRequestId: retryAfterRequestId } : { requestRetryAfterRequestId: retryAfterRequestId }) } } : {}) } : previousError ? { error: previousError } : {}), attempts: data.attempts + 1, attemptId: randomUUID() }) } }
       })
       if (!resumed || this.stopIntents.has(id)) return this.get(id, actor)
       await this.enqueue(this.repository.get('run', id)!, worker)
+    } else if (command === 'cancel' && cancelSettled && ['completed', 'failed'].includes(run.status)) {
+      try {
+        await this.update(id, old => ({ run: ['completed', 'failed'].includes(old.status) && cancelSettled(old)
+          ? { ...old, status: 'cancelled', data: toJson({ ...dataOf(old), autoResume: false }) } : old }))
+        const controlled = this.get(id, actor)
+        if (controlled.status === 'cancelled' && live) {
+          live.command = 'cancel'; live.controller.abort()
+          if (wait) await live.completion
+        }
+        return this.get(id, actor)
+      } finally { this.stopIntents.delete(id) }
     } else if (live) {
       // 取消是终止意图；迟到的暂停不能把它降为可恢复的任务。
       if (command === 'pause' && (this.stopIntents.has(id) || live.command === 'cancel' || run.status === 'cancelling')) return run

@@ -14,7 +14,7 @@ import css from './SubscriptionPage.module.css'
 type Props = Pick<SubscriptionState, 'catalog' | 'catalogStatus' | 'catalogError'> & {
   busy: boolean
   onClose: () => void
-  loadCatalog: () => ReturnType<SubscriptionController['loadCatalog']>
+  loadCatalog: SubscriptionController['loadCatalog']
   saveCatalog: (...args: Parameters<SubscriptionController['saveCatalog']>) => ReturnType<SubscriptionController['saveCatalog']>
   t: (key: ModelsKey) => string
 }
@@ -32,6 +32,12 @@ export function SubscriptionModels({ catalog, catalogStatus, catalogError, busy,
   const [pending, setPending] = useState<readonly SubscriptionCatalogEntry[]>([])
   const [pendingDefault, setPendingDefault] = useState<string | undefined>()
   const [imageDirty, setImageDirty] = useState(false)
+  const [customImage, setCustomImage] = useState(false)
+  const discovery = catalog?.imageDiscovery
+  const imageChoices = [...new Map([
+    ...(catalog?.defaultImageModel ? [{ id: catalog.defaultImageModel, name: catalog.defaultImageModel }] : []),
+    ...(discovery?.entries ?? []), ...(catalog?.entries.filter(entry => entry.kind === 'image') ?? []),
+  ].map(model => [model.id, model])).values()]
   const keyOf = (entry: Pick<SubscriptionCatalogEntry, 'kind' | 'id'>): string => `${entry.kind}:${entry.id}`
   const validId = (value: string): boolean => /^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]{0,255}$/.test(value)
   const candidate = catalog?.candidates.find(model => model.id === modelId)
@@ -54,13 +60,13 @@ export function SubscriptionModels({ catalog, catalogStatus, catalogError, busy,
   const edit = (entry: SubscriptionCatalogEntry): void => {
     setNativeWebSearch(entry.nativeWebSearch)
     setEditing(entry); setKind(entry.kind); setModelId(entry.id); setName(entry.name)
-    setMakeDefault(false); setImageDirty(false); setModelOpen(false)
+    setMakeDefault(false); setImageDirty(false); setModelOpen(false); setCustomImage(false)
   }
   const chooseKind = (value: 'text' | 'image'): void => {
     setNativeWebSearch(undefined)
-    setKind(value); setEditing(null); setModelOpen(false); setMakeDefault(false); setImageDirty(false)
-    setModelId(value === 'image' ? catalog?.defaultImageModel ?? '' : '')
-    setName(value === 'image' ? catalog?.defaultImageModel ?? '' : '')
+    setKind(value); setEditing(null); setModelOpen(false); setCustomImage(false); setMakeDefault(false); setImageDirty(false)
+    const initial = value === 'image' && !catalog?.entries.some(entry => entry.kind === 'image' && entry.id === catalog.defaultImageModel) ? catalog?.defaultImageModel ?? '' : ''
+    setModelId(initial); setName(initial)
   }
   const selectModel = (value: string): void => {
     if (value === '$done') { setModelOpen(false); return }
@@ -157,9 +163,22 @@ export function SubscriptionModels({ catalog, catalogStatus, catalogError, busy,
                   <span className={css['modelSelection']}><IconCodeOutlineRegular size={16} /><span>{editing !== null ? candidate?.name ?? modelId
                     : selectedText.length > 0 ? t('subscriptionSelectedModels').replace('{count}', String(selectedText.length)) : t('subscriptionChooseModel')}</span></span>
                   <IconChevronDownOutlineRegular size={16} /></Button>} />
-                : <Input id={`${id}-model`} className={css['modelInput'] as string} icon={<IconCodeOutlineRegular size={16} />}
+                : <><Menu open={modelOpen} portal autoFocus minWidthFromAnchor listClassName={`${css['modelPickerMenu']} ${css['imagePickerMenu']}`} selectedId={customImage ? '$custom' : modelId}
+                  onClose={() => { setModelOpen(false) }} items={[
+                    ...imageChoices.map(model => ({ id: model.id, label: <span className={css['imagePickerLabel']}><strong>{model.name}</strong>{model.name !== model.id && <code>{model.id}</code>}</span>,
+                      disabled: busy || !ready || !validId(model.id) || catalog.entries.some(entry => entry.kind === 'image' && entry.id === model.id && (editing === null || keyOf(entry) !== keyOf(editing)))
+                        || pending.some(entry => entry.kind === 'image' && entry.id === model.id) })),
+                  ]} footer={[{ id: '$custom', label: t('subscriptionCustomImageModel'), icon: <IconPlusOutlineRegular size={16} />, disabled: busy }]} onSelect={(value) => {
+                    setModelOpen(false); setCustomImage(value === '$custom'); setImageDirty(true)
+                    const model = imageChoices.find(entry => entry.id === value)
+                    setModelId(model?.id ?? ''); setName(model?.name ?? '')
+                  }} anchor={<Button id={`${id}-model`} variant="outline" className={css['modelSelect']} disabled={busy || !ready}
+                    aria-haspopup="menu" aria-expanded={modelOpen} onClick={() => { setModelOpen(value => !value) }}>
+                    <span className={css['modelSelection']}><IconCodeOutlineRegular size={16} /><span>{customImage ? t('subscriptionCustomImageModel') : imageChoices.find(model => model.id === modelId)?.name ?? t('subscriptionChooseModel')}</span></span>
+                    <IconChevronDownOutlineRegular size={16} /></Button>} />
+                {customImage && <Input className={css['modelInput'] as string} aria-label={t('subscriptionCustomImageModel')} icon={<IconCodeOutlineRegular size={16} />}
                   value={modelId} maxLength={128} disabled={busy} spellCheck={false}
-                  onChange={(event) => { setModelId(event.target.value); setImageDirty(true) }} />}
+                  onChange={(event) => { setModelId(event.target.value); setImageDirty(true) }} />}</>}
               {kind === 'text' && editing !== null && candidate !== undefined && <code className={css['modelIdPreview']}>{candidate.id}</code>}
               {kind === 'text' && catalog.candidates.length === 0 && <p className={css['fieldHint']}>{t('subscriptionNoCandidates')}</p>}
             </div>

@@ -30,3 +30,21 @@ export function workflowReferencePhase(current: WorkflowPhase, launchProfileId: 
   if (!launchProfileId || launchProfileId === currentProfileId) return current
   return dataset?.modelProfileId === launchProfileId ? workflowPhase(dataset.status) : 'queued'
 }
+
+/** @param launch Confirmed admission and linked execution state. @returns Preparation remains active without claiming that image retrieval has started. */
+export function workflowLaunchPhase(launch: { status: string; runStatus?: string | undefined }): WorkflowPhase {
+  if (launch.status === 'accepted') return launch.runStatus ? workflowPhase(launch.runStatus) : 'running'
+  return launch.status === 'working' ? 'running' : workflowPhase(launch.status)
+}
+
+/** @param batch Committed task stage and lifecycle. @returns A precise active search label; settled tasks keep their terminal status. */
+export function workflowSearchStage(batch: Pick<SearchBatch, 'kind' | 'status'> & { progress?: { stage: string | null } | undefined }) {
+  if (batch.kind !== 'search' || !active(batch.status) || !batch.progress) return undefined
+  switch (batch.progress.stage) {
+    case 'retrieving': return 'taskStageRetrieving' as const
+    case 'screening': return 'taskStageScreening' as const
+    case 'reviewing': return 'taskStageReviewing' as const
+    case 'finalizing': return 'workflowSearchFinalizing' as const
+    default: return 'workflowSearchPreparing' as const
+  }
+}

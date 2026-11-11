@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-progress-density",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator limits moving arrows by connection length, distinguishes conversation preparation from search progress, groups task details and wallpaper settings and offers a floating task capsule only in sufficiently wide Chat views.",
+    "zh-CN": "视觉策展按连线长度控制移动箭头密度，区分会话准备与实际检索进度，优化任务详情和壁纸设置分组，并在宽度足够的对话页提供悬浮任务胶囊。"
+  }
+}

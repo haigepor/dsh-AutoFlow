@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-dialog-controls",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator shares its gallery picker with direct cropping, clarifies planning reasons and dialog actions, and supports Ctrl-wheel preview zoom without changing crop geometry.",
+    "zh-CN": "视觉策展的直接裁剪复用收藏夹选图弹窗，优化规划原因与底部操作区，并支持 Ctrl＋滚轮缩放预览，保持实际裁剪坐标不变。"
+  }
+}

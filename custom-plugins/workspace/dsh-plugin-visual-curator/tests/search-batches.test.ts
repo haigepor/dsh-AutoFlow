@@ -45,6 +45,8 @@ test('collection batches retain both profile and Session results without mixing 
     assert.equal(page.batches.every(batch => batch.images.length === 1), true)
     const live = searchBatchPageSchema.parse(await f.action('search-batches', { styleId: f.styleId }))
     assert.equal(live.batches.find(batch => batch.runId === 'session-batch')?.unavailable, true)
+    assert.equal(live.batches.find(batch => batch.runId === 'session-batch')?.progress, undefined)
+    assert.deepEqual(live.batches.find(batch => batch.runId === f.original.id)?.progress, { stage: f.original.stage, counts: dataOf(f.original).counts, requests: dataOf(f.original).requestIds.length })
     assert.equal(live.batches.find(batch => batch.runId === f.original.id)?.images.length, 1)
     const sessions = new SessionStore(new Context())
     sessions.create(brandString<SessionId>('session-session-batch'), { meta: { cwd: f.root } })

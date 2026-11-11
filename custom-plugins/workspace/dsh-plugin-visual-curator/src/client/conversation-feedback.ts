@@ -11,6 +11,8 @@ export const conversationRunSchema = z.object({
   kind: z.enum(['search', 'crop', 'analyze', 'evaluate', 'export']),
   status: z.enum(['created', 'running', 'pausing', 'paused', 'interrupted', 'cancelling', 'cancelled', 'completed', 'failed']),
   stage: z.string().optional(), counts: z.record(z.string(), z.number()), warnings: z.array(z.string()),
+  wallpaperRequired: z.boolean().optional(), workflowComplete: z.boolean().optional(),
+  wallpaper: z.object({ runId: z.string().min(1), sourceRunId: z.string().min(1), status: z.enum(['created', 'running', 'pausing', 'paused', 'interrupted', 'cancelling', 'cancelled', 'completed', 'failed']), total: z.number().int().nonnegative(), passed: z.number().int().nonnegative(), complete: z.boolean(), attentionTotal: z.number().int().nonnegative() }).nullable().optional(),
   resultFilter: runResultFilterSchema.optional(), pageToken: z.string().optional(),
   resultSummary: z.object({ selected: z.number(), needsReview: z.number(), candidates: z.number(), target: z.number().nullable(), rejected: z.number().optional(), technicalFailed: z.number().optional(), processing: z.number().optional(), pending: z.number().optional(), sourceImages: z.number().optional(), unavailable: z.number().optional() }).optional(),
   issues: z.array(searchIssueSchema).default([]),
@@ -137,6 +139,9 @@ export function createConversationFeedback(dependencies: Pick<ClientTransport, '
         } while (pageToken && results.length < item.resultLimit)
         if (publishRun(item.sessionId, runId, { run: { ...run, results }, resultFilter: item.resultFilter, freshness: 'current' })) item.resultGrant = item.grant.sessionToken
         again = ['created', 'running', 'pausing', 'cancelling'].includes(run.status)
+          || !!run.wallpaperRequired && run.status === 'completed' && (run.wallpaper
+            ? ['created', 'running', 'pausing', 'cancelling'].includes(run.wallpaper.status)
+            : !run.workflowComplete && (run.resultSummary?.selected ?? 0) > 0)
       } else {
         const list = taskListSchema.parse(await dependencies.invoke('conversation-runs', { sessionId: item.sessionId, sessionToken: item.grant.sessionToken }, controller.signal))
         if (!current()) return
@@ -148,9 +153,11 @@ export function createConversationFeedback(dependencies: Pick<ClientTransport, '
         const saved = selectedId ? session(item.sessionId).snapshot.runs[selectedId]?.run : undefined
         const selectedObservation = selectedId ? observations.get(key(item.sessionId, selectedId)) : undefined
         const task = session(item.sessionId).snapshot.tasks?.items.find(task => task.runId === selectedId)
+        const child = list.launch?.id === saved?.launchId && (list.launch?.runIds.at(-1) === selectedId || list.launch?.wallpaper?.runId === saved?.wallpaper?.runId) ? list.launch?.wallpaper : undefined
+        const childChanged = !!child && (child.runId !== saved?.wallpaper?.runId || child.status !== saved.wallpaper.status || child.passed !== saved.wallpaper.passed || child.total !== saved.wallpaper.total || child.attention !== saved.wallpaper.attentionTotal)
         // 新状态撤回旧详情请求，终态和外部恢复不能被迟到或停滞的响应挡住。
-        if (saved && selectedObservation && task && task.status !== saved.status
-          && (task.revision === undefined || saved.revision === undefined || task.revision > saved.revision)) {
+        if (saved && selectedObservation && task && (childChanged || task.status !== saved.status
+          && (task.revision === undefined || saved.revision === undefined || task.revision > saved.revision))) {
           cancel(selectedObservation)
           void read(selectedObservation)
         }

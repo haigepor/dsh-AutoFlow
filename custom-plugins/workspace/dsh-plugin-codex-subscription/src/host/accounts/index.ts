@@ -7,7 +7,7 @@ import type { AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import { AccountError, AccountRejected, accountErrorCause, credentialTag, readCredential, readGrant, type StoredAccount, type AccountsGrant } from './record.ts'
 import { accountRefusal, failureDetails } from './failures.ts'
 import { preflightResponse } from './preflight.ts'
-import { parseAccountUsage, quotaBlocks, resetCreditExpiry } from './quota.ts'
+import { parseAccountUsage, quotaBlocks, resetCreditExpiry, imageProbeQuotaAllowed } from './quota.ts'
 import { createOAuthAttempt, exchangeTokens, tokenMetadata, type OAuthAttempt } from './oauth.ts'
 import type { AccountsFacade, AccountsOptions, AccountView, LoginView, AccountLease, AccountRequest, AccountOperation, CodexModelView, CodexModelRouteView, AccountUsage, AccountReadOptions } from './types.ts'
 import { buildModelRoutes, selectModelRoute, type CodexModelRoute } from './routes.ts'
@@ -444,7 +444,7 @@ export class CodexAccounts implements AccountsFacade {
       allowed = new Set(route?.view.accountKeys ?? [])
       wireModel = route?.view.baseModelId
     }
-    if (request.kind === 'text') {
+    if (request.kind === 'text' || request.includedQuotaOnly) {
       // 调度不能依赖账号页面被打开；额度查询失败仅使额度未知，不撤销模型权限。
       const candidates = Object.values((await this.grant()).accounts).filter(account => account.enabled
         && (allowed === undefined || allowed.has(account.accountKey)) && (request.accountKey === undefined || request.accountKey === account.accountKey))
@@ -461,7 +461,8 @@ export class CodexAccounts implements AccountsFacade {
       && (request.accountKey === undefined || request.accountKey === account.accountKey)
       && (this.cooldowns.get(account.accountKey)?.[request.kind] ?? 0) <= now
       && (this.modelWait(account.accountKey, request, wireModel ?? request.model)?.until ?? 0) <= now
-      && !(request.kind === 'text' && quotaBlocks(this.usageCache.get(account.accountKey), account.allowCredits, now)))
+      && !(request.kind === 'text' && quotaBlocks(this.usageCache.get(account.accountKey), account.allowCredits, now))
+      && (!request.includedQuotaOnly || imageProbeQuotaAllowed(this.usageCache.get(account.accountKey), account.allowCredits, request.includedQuotaOnly.minimumRemainingPercent)))
     const affinityKey = request.sessionId === undefined ? undefined : `${request.kind}:${request.model ?? ''}:${request.sessionId}`
     const sticky = affinityKey === undefined ? undefined : this.affinity.get(affinityKey)
     eligible.sort((a, b) => (b.priority - a.priority) || ((this.inflight.get(a.accountKey) ?? 0) - (this.inflight.get(b.accountKey) ?? 0))

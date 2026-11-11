@@ -1,3 +1,4 @@
+import { createDirectCropPage, directCropVisible, directCropWorkspaceKey, type DirectCropInvoke } from './direct-crop.tsx'
 import { isMatchingRule } from '../shared/reference-semantics.ts'
 import { createImageGallery } from './image-gallery.tsx'
 import { createReferenceStateHook } from './reference-state.ts'
@@ -10,6 +11,7 @@ import type { PropsRenderFactories } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { CuratorSnapshot, ConfigurationView, StyleView } from './contract.ts'
 import type { ClientState, CuratorStore } from './store.ts'
+import { workflowSourceRunId, type ExecutionNavigation, type WorkflowLocation } from './workbench-navigation.ts'
 import { safeResourcePath } from './store.ts'
 import { importPickedReferences, type ImportRow } from './local-import.ts'
 import { archiveCollections, dimensions, filterReferences, resultId } from './workbench-actions.ts'
@@ -26,6 +28,7 @@ import { createDatasetProgress, datasetNotice } from './dataset-progress.tsx'
 import { createDatasetWorkspace } from './dataset-workspace.tsx'
 import { createGalleryMedia } from './gallery-media.tsx'
 import { createReferencePreview } from './reference-preview.tsx'
+import { createReferenceEditor } from './reference-edit.tsx'
 import { createReferenceVirtualGrid } from './reference-virtual-grid.ts'
 import { createTaskReferenceDialog } from './task-reference-dialog.tsx'
 import { analysisActive } from '../shared/analysis-process.ts'
@@ -36,6 +39,7 @@ import type { SearchLaunchState, SearchLaunchStore } from './search-launch-store
 import { createSelectField } from './select-field.tsx'
 import { createCanvasTaskDialog } from './canvas-task-dialog.tsx'
 import { createTaskHistory } from './task-history.tsx'
+import { createWorkflowNavigation } from './workflow-navigation.tsx'
 import { createWorkbenchSelector } from './workbench-state.ts'
 import referenceEmptyArtwork from '../../assets/reference-collection-empty-v1.webp'
 import analysisScopeArtwork from '../../assets/analysis-scope-v1.webp'
@@ -55,6 +59,9 @@ export interface WorkbenchProps extends PropsRenderFactories {
   welcomeImage: string
   logoImage: string
   actions: Pick<CuratorStore, 'selectWorkspace' | 'openSession' | 'closeSession' | 'openTask' | 'prepareTask' | 'execute' | 'reload' | 'getSnapshot' | 'selectStyle' | 'selectRun' | 'loadMoreImages' | 'loadRun' | 'loadReferences' | 'startGalleryReferences' | 'resumeGalleryReferences' | 'stopGalleryReferences' | 'startAnalysis' | 'referenceState' | 'stopAnalysis' | 'pauseAnalysis' | 'resumeAnalysis' | 'openAnalysis' | 'closeAnalysis' | 'refreshAnalysisDetail' | 'loadAnalysisInput' | 'saveConfiguration' | 'reconcileProfile'> & {
+    directCrop?: DirectCropInvoke
+    directScope?(): string
+    directView?(active: boolean): void
     wallpaper?: import('./wallpaper-canvas.tsx').WallpaperInvoke
     datasets: Pick<DatasetStore, 'start' | 'refresh' | 'loadMore' | 'filter' | 'open' | 'moreSamples' | 'filterSamples' | 'closeDetail' | 'dismiss' | 'remove'>
     batches?: Pick<SearchBatchesStore, 'watch' | 'select' | 'refresh' | 'more' | 'moreImages' | 'remove' | 'removeWorkflow' | 'detail'>
@@ -64,7 +71,7 @@ export interface WorkbenchProps extends PropsRenderFactories {
     loadVisionModels(): Promise<void>
     reloadVisionModels(): void
     openModelSettings(): void
-    pickLocalReferences(kind: 'file' | 'folder' | 'references', signal: AbortSignal): Promise<unknown>
+    pickLocalReferences(kind: 'file' | 'folder' | 'references', signal: AbortSignal, title?: string): Promise<unknown>
     listLocalReferences(path: string, kind: 'file' | 'folder', signal: AbortSignal): Promise<unknown>
     galleryRead(operation: string, args: import('./contract.ts').ActionArgs, signal: AbortSignal, options?: { refresh?: boolean }): Promise<unknown>
     readTaskReferences(args: import('./contract.ts').ActionArgs, signal: AbortSignal): Promise<unknown>
@@ -75,6 +82,7 @@ export interface WorkbenchProps extends PropsRenderFactories {
  * @param React Shell React runtime. @param ui Existing DSH primitive library. @returns Slot-ready workspace component.
  */
 export function createWorkbench(React: typeof import('react'), ui: typeof import('@deepseek-ai/dsh-client-ui-primitives')) {
+  const DirectCropPage = createDirectCropPage(React, ui)
   const CanvasTaskDialog = createCanvasTaskDialog(React, ui)
   const { Button, Input, TextArea, Tag, Pill, StateDot, Modal, Menu, SegmentedTabs, DisclosureRow, AnimatedCollapse, Checkbox } = ui
   const id = () => crypto.randomUUID()
@@ -89,7 +97,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const state = useDatasets(value => value), notice = datasetNotice(state, style.styleId)
     return <DatasetProgress {...notice} t={t} readError={state.error} onRefresh={() => { void actions.datasets.refresh() }} onOpen={onOpen} onView={onView} onRetry={() => { if (notice.submission) void actions.datasets.start({ id: notice.submission.profileId, styleId: style.styleId, sampleScope: notice.submission.sampleScope }) }} onDismiss={() => { if (notice.entry) actions.datasets.dismiss(notice.entry.id) }} />
   }
-  const ReferencePreview = createReferencePreview(React, ui), ImageGallery = createImageGallery(React, ui)
+  const ReferencePreview = createReferencePreview(React, ui), ImageGallery = createImageGallery(React, ui), ReferenceEditor = createReferenceEditor(React, ui)
   const TaskReferenceDialog = createTaskReferenceDialog(React, ui)
   const { GalleryLoadMore, GallerySkeleton } = createGalleryMedia(React, ui)
   const AnalysisDialog = createAnalysisDialog(React, ui)
@@ -101,6 +109,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     return <AnalysisDialog state={state} t={t} renderFactorySlot={renderFactorySlot} onReadInput={requestId => void actions.loadAnalysisInput(requestId)} onClose={actions.closeAnalysis} onStop={runId => void actions.stopAnalysis(runId)} onPause={runId => void actions.pauseAnalysis(runId)} onResume={runId => void actions.resumeAnalysis(runId)} onReanalyze={onReanalyze} reanalysisDisabled={reanalysisDisabled} onRetry={() => void actions.refreshAnalysisDetail()} />
   }
   const TaskHistory = createTaskHistory(React, ui)
+  const WorkflowNavigation = createWorkflowNavigation(React, ui)
   const SearchBatchResults = createSearchBatchResults(React, ui), BatchSkeleton = createSearchBatchSkeleton(React)
   const TaskDialog = createTaskDialog(React, ui)
   const SearchLaunch = createSearchLaunchUI(React, ui)
@@ -227,12 +236,14 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const counts = analysisRoleCounts(plan, scope)
     return <span id={id} className="vc-analysis-scope-roles">{(['positive', 'negative', 'undecided', 'mixed'] as const).filter(role => role === 'positive' || role === 'negative' || counts[role] > 0).map(role => <Tag key={role} tone={role === 'positive' ? 'success' : role === 'negative' ? 'warning' : 'neutral'}>{t(role === 'mixed' ? 'analysisMixedRoles' : role)} <strong>{counts[role]}</strong></Tag>)}</span>
   }
-  function StyleEditor({ canvasAction, onSearch, canSearch, hasRecoverableRun, scopeSessionId, onCloseSession, searchTrigger, style, snapshot, actions, t, report, busy, query, onQuery, clearQuery, openGallerySettings, task, referencePage, pendingStart, analysisRequest, onAnalysisRequestHandled, previewRefresh, workspaceView, onViewChange, viewId, useDatasets }: { canvasAction?: { serial: number; kind: 'references' | 'profile' } | undefined; onSearch(): void; canSearch: boolean; hasRecoverableRun?: boolean | undefined; scopeSessionId?: string | undefined; onCloseSession?: (() => void) | undefined; searchTrigger: React.RefObject<HTMLButtonElement>; pendingStart: boolean; analysisRequest?: number | undefined; onAnalysisRequestHandled(): void; previewRefresh: number; style: StyleView; snapshot: CuratorSnapshot; actions: WorkbenchProps['actions']; t: WorkbenchText; report(work: () => Promise<unknown>): void; busy: boolean; query: string; onQuery(value: string): void; clearQuery(): void; openGallerySettings(): void; task: GalleryTaskView | undefined; referencePage: ClientState['referencePages'][string] | undefined; workspaceView: 'references' | 'execution' | 'datasets'; onViewChange(value: 'references' | 'execution' | 'datasets'): void; viewId: string; useDatasets: WorkbenchProps['useDatasets'] }) {
+  function StyleEditor({ canvasAction, onSearch, onDirectCrop, canSearch, hasRecoverableRun, scopeSessionId, searchTrigger, style, snapshot, actions, t, report, busy, query, onQuery, clearQuery, openGallerySettings, task, referencePage, pendingStart, analysisRequest, onAnalysisRequestHandled, previewRefresh, workspaceView, onViewChange, viewId, useDatasets }: { canvasAction?: { serial: number; kind: 'references' | 'profile' } | undefined; onSearch(): void; onDirectCrop?: (() => void) | undefined; canSearch: boolean; hasRecoverableRun?: boolean | undefined; scopeSessionId?: string | undefined; searchTrigger: React.RefObject<HTMLButtonElement>; pendingStart: boolean; analysisRequest?: number | undefined; onAnalysisRequestHandled(): void; previewRefresh: number; style: StyleView; snapshot: CuratorSnapshot; actions: WorkbenchProps['actions']; t: WorkbenchText; report(work: () => Promise<unknown>): void; busy: boolean; query: string; onQuery(value: string): void; clearQuery(): void; openGallerySettings(): void; task: GalleryTaskView | undefined; referencePage: ClientState['referencePages'][string] | undefined; workspaceView: 'references' | 'execution' | 'datasets'; onViewChange(value: 'references' | 'execution' | 'datasets'): void; viewId: string; useDatasets: WorkbenchProps['useDatasets'] }) {
     const referencesView = workspaceView === 'references'
     const referencing = !!task && galleryTaskActive(task.status)
     const referenceProgress = task ? galleryTaskProgress(task) : undefined
     const rules = style.modelProfile ? style.modelProfile.options.filter(option => option.enabled && isMatchingRule(option.rule)).map(option => option.rule) : style.rules.filter(isMatchingRule)
     const [role, setRole] = React.useState<'positive' | 'negative'>('positive')
+    const [editingReference, setEditingReference] = React.useState<CuratorSnapshot['images'][number] | null>(null)
+    React.useEffect(() => { setEditingReference(null) }, [style.styleId])
     const [filter, setFilter] = React.useState<'all' | 'positive' | 'negative' | 'undecided'>('all')
     const [view, setView] = React.useState<'grid' | 'list'>('grid'), [dragging, setDragging] = React.useState(false)
     const [inspectorOpen, setInspectorOpen] = React.useState(true)
@@ -348,7 +359,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const importPages = Math.max(1, Math.ceil(imports.length / importing.pageSize)), currentImportPage = Math.min(importPage, importPages - 1)
     const summary = style.modelProfile?.summary ?? analysis?.summary
     const groups = style.modelProfile?.groups ?? summary?.organization?.groups ?? []
-    const closeInspector = () => { setInspectorOpen(false); inspectorToggle.current?.focus() }
+    const closeInspector = () => { setInspectorOpen(false); requestAnimationFrame(() => inspectorToggle.current?.focus({ preventScroll: true })) }
     // 两种容器共用同一份内容和展开状态；窄屏焦点与 Escape 由原生 Modal 管理。
     const profileContent = <>
       <div className="vc-profile-state" data-analyzing={analysisBusy} role="status" aria-live="polite">
@@ -371,20 +382,21 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     </>
     const secondaryCreate = workspaceView === 'execution' && !!hasRecoverableRun
     return <div className="vc-image-workspace" data-inspector-open={inspectorOpen && referencesView} data-view={workspaceView}>
-      <div className="vc-execution-nav"><SegmentedTabs className="vc-workspace-tabs vc-execution-tabs" variant="underline" label={t('workbench')} value={workspaceView} onChange={onViewChange} items={[{ value: 'references', label: t('referencesView'), id: `${viewId}-references-tab`, panelId: `${viewId}-references` }, { value: 'execution', label: t('execution'), id: `${viewId}-execution-tab`, panelId: `${viewId}-execution` }, { value: 'datasets', label: t('datasets'), id: `${viewId}-datasets-tab`, panelId: `${viewId}-datasets` }]} />
-        <div className="vc-reference-actions">{scopeSessionId && onCloseSession && <span className="vc-session-badge"><Tag tone="info">{t('taskSession')}</Tag><Button size="sm" variant="ghost" onClick={onCloseSession}>{t('taskLibrary')}</Button></span>}{referencesView && <>
-          <Button ref={inspectorToggle} className="vc-profile-dock-toggle" variant="ghost" aria-label={t('profileInspector')} aria-expanded={inspectorOpen} aria-controls={inspectorId} onClick={() => setInspectorOpen(value => !value)}><ui.IconListPenOutlineRegular size={16} />{t('profileInspector')}{analysisBusy && !inspectorOpen && <Tag tone="info" aria-hidden="true">{t('analysisBusy')}</Tag>}</Button>
-          <Button className="vc-profile-modal-toggle" variant="ghost" aria-label={t('profileInspector')} aria-haspopup="dialog" aria-expanded={inspectorModalOpen} onClick={() => setInspectorModalOpen(true)}><ui.IconListPenOutlineRegular size={16} />{t('profileInspector')}{analysisBusy && !inspectorModalOpen && <Tag tone="info" aria-hidden="true">{t('analysisBusy')}</Tag>}</Button>
+      <div className="vc-execution-nav"><SegmentedTabs className="vc-workspace-tabs vc-execution-tabs" variant="segmented" label={t('workbench')} value={workspaceView} onChange={onViewChange} items={[{ value: 'references', label: t('referencesView'), id: `${viewId}-references-tab`, panelId: `${viewId}-references` }, { value: 'execution', label: t('execution'), id: `${viewId}-execution-tab`, panelId: `${viewId}-execution` }, { value: 'datasets', label: t('datasets'), id: `${viewId}-datasets-tab`, panelId: `${viewId}-datasets` }]} />
+        <div className="vc-execution-actions">{scopeSessionId && <span className="vc-session-badge"><Tag tone="info">{t('taskSession')}</Tag></span>}<div className="vc-reference-actions">{referencesView && <>
+          <ui.Tooltip portal side="bottom" disabled={inspectorOpen} label={t(analysisBusy ? 'analysisBusy' : 'profileInspector')}><Button ref={inspectorToggle} hidden={inspectorOpen} className="vc-toolbar-action vc-profile-dock-toggle" variant="ghost" aria-label={t('profileInspector')} aria-expanded={inspectorOpen} aria-controls={inspectorId} onClick={() => setInspectorOpen(true)}>{analysisBusy ? <StateDot state="ongoing" /> : <ui.IconListPenOutlineRegular size={16} />}<span>{t('profileInspector')}</span></Button></ui.Tooltip>
+          <ui.Tooltip portal side="bottom" disabled={inspectorModalOpen} label={t(analysisBusy ? 'analysisBusy' : 'profileInspector')}><Button hidden={inspectorModalOpen} className="vc-toolbar-action vc-profile-modal-toggle" variant="ghost" aria-label={t('profileInspector')} aria-haspopup="dialog" aria-expanded={inspectorModalOpen} onClick={() => setInspectorModalOpen(true)}>{analysisBusy ? <StateDot state="ongoing" /> : <ui.IconListPenOutlineRegular size={16} />}<span>{t('profileInspector')}</span></Button></ui.Tooltip>
           <Menu className="vc-import-picker" listClassName="vc-menu" open={importMenuOpen} onClose={() => setImportMenuOpen(false)} portal autoFocus selectedId={`role:${role}`} items={[
             { type: 'label', id: 'import-role', text: t('role') },
             ...(['positive', 'negative'] as const).map(value => ({ id: `role:${value}`, label: t(value) })),
             { type: 'separator', id: 'role-separator' },
             { id: 'local', label: t('referenceLocal'), disabled: busy || referencing }, { id: 'gallery', label: t('galleryReference'), disabled: busy }, { id: 'task', label: t('taskReferenceTitle'), disabled: busy || referencing }, { id: 'path', label: t('referenceByPath'), disabled: busy || referencing },
           ]} onSelect={value => { if (value === 'role:positive' || value === 'role:negative') { setRole(value === 'role:positive' ? 'positive' : 'negative'); return }; setImportMenuOpen(false); if (value === 'path') { importTrigger.current?.focus({ preventScroll: true }); setPathError(''); setPathOpen(true) } else if (value === 'gallery') openGalleryFromMenu(); else if (value === 'task') setTaskReferenceOpen(true); else if (value === 'local') openPaths() }}
-            anchor={<Button ref={importTrigger} variant="outline" className="vc-add-reference" disabled={busy} aria-haspopup="menu" aria-expanded={importMenuOpen} onClick={() => setImportMenuOpen(value => !value)}><ui.IconPlusOutlineRegular size={16} />{t('importMaterials')}<ui.IconChevronDownOutlineRegular size={12} /></Button>} />
+            anchor={<ui.Tooltip portal side="bottom" label={t('importMaterials')} disabled={importMenuOpen}><Button ref={importTrigger} variant="ghost" className="vc-toolbar-action vc-add-reference" aria-label={t('importMaterials')} disabled={busy} aria-haspopup="menu" aria-expanded={importMenuOpen} onClick={() => setImportMenuOpen(value => !value)}><ui.IconPlusOutlineRegular size={16} /><span>{t('importMaterials')}</span></Button></ui.Tooltip>} />
         </>}
-          <Button ref={searchTrigger} variant={secondaryCreate ? 'outline' : 'primary'} className={secondaryCreate ? 'vc-find-action' : 'vc-primary-action vc-find-action'} disabled={!canSearch} onClick={onSearch}><ui.IconSearchOutlineRegular size={16} />{t('newTask')}</Button>
-        </div>
+          {onDirectCrop && <ui.Tooltip portal side="bottom" label={t('directCrop')}><Button variant="ghost" className="vc-toolbar-action vc-find-action" aria-label={t('directCrop')} onClick={onDirectCrop}><ui.IconEditOutlineRegular size={16} /><span>{t('directCrop')}</span></Button></ui.Tooltip>}
+          <ui.Tooltip portal side="bottom" label={t('newTask')}><Button ref={searchTrigger} variant={secondaryCreate ? 'ghost' : 'primary'} className="vc-toolbar-action vc-find-action" aria-label={t('newTask')} disabled={!canSearch} onClick={onSearch}><ui.IconSearchOutlineRegular size={16} /><span>{t('newTask')}</span></Button></ui.Tooltip>
+        </div></div>
       </div>
       <div className="vc-reference-panel" id={`${viewId}-references`} role="tabpanel" aria-labelledby={`${viewId}-references-tab`} hidden={!referencesView}><div className="vc-library-pane" ref={referencePane} onScroll={event => { if (referencesView && referenceWindow.ready) referenceScroll.current = event.currentTarget.scrollTop }}>{referencesView && <>
       <DatasetBackground useDatasets={useDatasets} actions={actions} style={style} t={t} onOpen={() => setDatasetOpen(true)} onView={() => onViewChange('datasets')} />
@@ -411,8 +423,8 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
           {visibleRefs.slice(referenceWindow.start, referenceWindow.end).map((image, index) => {
           const status = referenceStates.get(image.imageVersionId)
           return <figure role="listitem" aria-posinset={referenceWindow.start + index + 1} aria-setsize={visibleRefs.length} key={image.referenceId} style={{ '--vc-image-ratio': image.width / image.height } as React.CSSProperties}>
-            <div className="vc-reference-media"><ReferencePreview src={resource(image.thumbnailPath ?? image.previewPath)} href={resource(image.previewPath)} alt={image.name} width={image.width} height={image.height} refreshKey={previewRefresh} t={t} onPreview={() => setPreviewId(image.referenceId ?? image.imageVersionId)} />{status && <Tag className="vc-reference-status" tone={status === 'analyzed' ? 'success' : status === 'needs-update' ? 'warning' : 'neutral'}>{t(status === 'analyzed' ? 'referenceAnalyzed' : status === 'needs-update' ? 'referenceNeedsUpdate' : 'referencePending')}</Tag>}</div>
-            <figcaption><span className="vc-image-name" title={image.localPath ?? image.name}>{image.source === 'provider' ? image.name : image.name.split(/[\\/]/).at(-1)}</span><small>{image.width} × {image.height}</small><Tag tone={image.role === 'positive' ? 'info' : image.role === 'negative' ? 'danger' : 'neutral'}>{t(image.role === 'positive' ? 'positive' : image.role === 'negative' ? 'negative' : 'undecided')}</Tag></figcaption>
+            <div className="vc-reference-media"><ReferencePreview src={resource(image.thumbnailPath ?? image.previewPath)} href={resource(image.previewPath)} alt={image.name} width={image.width} height={image.height} refreshKey={previewRefresh} t={t} onPreview={() => setPreviewId(image.referenceId ?? image.imageVersionId)} /></div>{status && <Tag className="vc-reference-status" tone={status === 'analyzed' ? 'success' : status === 'needs-update' ? 'warning' : 'neutral'}>{t(status === 'analyzed' ? 'referenceAnalyzed' : status === 'needs-update' ? 'referenceNeedsUpdate' : 'referencePending')}</Tag>}
+            <figcaption><span className="vc-image-name" title={image.localPath ?? image.name}>{image.source === 'provider' ? image.name : image.name.split(/[\\/]/).at(-1)}</span><small>{image.width} × {image.height}</small><Tag tone={image.role === 'positive' ? 'info' : image.role === 'negative' ? 'danger' : 'neutral'}>{t(image.role === 'positive' ? 'positive' : image.role === 'negative' ? 'negative' : 'undecided')}</Tag>{image.intent === 'dimensions' && <small className="vc-reference-dimensions">{image.dimensions?.map(dimension => t(dimension)).join(' · ')}</small>}</figcaption>
           </figure>
         })}
           {referenceWindow.after && <div aria-hidden="true" style={{ gridColumn: '1 / -1', height: referenceWindow.bottom }} />}
@@ -441,6 +453,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
         <div className="vc-profile-content">{profileContent}</div>
       </aside>
       {task && galleryTaskRecoverable(task.status) && dismissedRecoveryId !== task.id && <GalleryTaskRecovery key={task.id} task={task} name={style.name} t={t} onClose={() => setDismissedRecoveryId(task.id)} onResume={() => actions.resumeGalleryReferences(task.id)} onCancel={() => actions.stopGalleryReferences(task.id)} />}
+      {editingReference && <ReferenceEditor key={editingReference.referenceId} image={editingReference} style={style} actions={actions} t={t} onClose={() => setEditingReference(null)} />}
       <ImageGallery key={scopeSessionId ?? ''} images={previewRefs.flatMap(image => { const path = resource(image.previewPath); return path ? [{ id: image.referenceId ?? image.imageVersionId, path, name: image.name }] : [] })} selectedId={referencesView || canvasReferencesOpen ? previewId : null} onSelect={setPreviewId} onClose={closePreview} t={t} />
       {taskReferenceOpen && <TaskReferenceDialog key={scopeSessionId ?? ''} style={style} role={role} onRole={setRole} maxFiles={snapshot.configuration.limits.maxImportFiles} cachePolicy={{ ttlMs: snapshot.configuration.limits.batchCacheTtlMs ?? 0, maxViews: snapshot.configuration.limits.batchCacheMaxViews ?? 0, resourceTtlMs: snapshot.configuration.limits.sessionGrantTtlMs ?? 0 }} actions={actions} t={t} onClose={() => { setTaskReferenceOpen(false); importTrigger.current?.focus({ preventScroll: true }) }} />}
       <Modal open={inspectorModalOpen && referencesView} onClose={() => setInspectorModalOpen(false)} title={t('profileInspector')} closeLabel={t('close')} className="vc-profile-modal" contentClassName="vc-profile-modal-scroll"><div className="vc-profile-content">{profileContent}</div></Modal>
@@ -520,10 +533,19 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const setWorkspaceView = (value: 'references' | 'execution' | 'datasets') => { if (value !== 'execution') setLibraryView(value); setExecutionView(value === 'execution') }
     const [taskForm, setTaskForm] = React.useState<{ serial: number; imageVersionId?: string; browsingDatasets?: boolean; wallpaper?: boolean; briefSupplement?: string; canvas?: boolean } | null>(null)
     const [canvasAction, setCanvasAction] = React.useState<{ serial: number; kind: 'references' | 'profile' } | undefined>(undefined)
-    const [canvasDatasets, setCanvasDatasets] = React.useState(false), [canvasTask, setCanvasTask] = React.useState<string | null>(null)
+    const [canvasDatasets, setCanvasDatasets] = React.useState(false), [canvasTask, setCanvasTask] = React.useState<{ runId: string; sessionId?: string | undefined } | null>(null)
     const searchTrigger = React.useRef<HTMLButtonElement>(null)
     const [analysisRequest, setAnalysisRequest] = React.useState<{ styleId: string; serial: number } | null>(null)
     const taskTarget = state.taskTarget ?? null
+    const directScope = snapshot?.ownerScopeId ?? 'uninitialized'
+    const [directSelection, setDirectSelection] = React.useState(() => ({ scope: directScope, value: directCropVisible(directScope) }))
+    const directOpen = directSelection.scope === directScope ? directSelection.value : directCropVisible(directScope)
+    const showDirect = (value: boolean) => {
+      try { window.localStorage.setItem(directCropWorkspaceKey(directScope), value ? 'direct' : 'workbench') } catch (failure) { /* Task storage is independent of optional location preferences. */ }
+      setDirectSelection({ scope: directScope, value }); actions.directView?.(value)
+    }
+    React.useEffect(() => { actions.directView?.(directOpen) }, [directOpen, actions])
+    React.useEffect(() => { if (taskTarget) showDirect(false) }, [taskTarget])
     const [tabSelection, setTabSelection] = React.useState<{ target: typeof taskTarget; value: 'workbench' | 'settings' }>({ target: taskTarget, value: 'workbench' })
     const tab = tabSelection.target === taskTarget ? tabSelection.value : 'workbench'
     const setTab = (value: 'workbench' | 'settings') => setTabSelection({ target: taskTarget, value })
@@ -537,6 +559,8 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const [deleteProgress, setDeleteProgress] = React.useState(0)
     const [collectionOpen, setCollectionOpen] = React.useState(false)
     const [tasksOpen, setTasksOpen] = React.useState(false)
+    const [executionSelection, setExecutionSelection] = React.useState<{ scope: string; value: ExecutionNavigation } | null>(null)
+    const [workflowLocation, setWorkflowLocation] = React.useState<{ scope: string; value: WorkflowLocation } | null>(null)
     const [taskSelection, setTaskSelection] = React.useState({ styleId: state.styleId, runId: '' })
     const [imageSearch, setImageSearch] = React.useState({ styleId: state.styleId, value: '' })
     // 顶部搜索归属当前素材集，切换时先屏蔽旧条件，再清空本地输入。
@@ -551,7 +575,8 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
         else setError(failure instanceof Error && failure.message === 'import-limit' ? t('importLimit') : t('error'))
       }).finally(() => setWorking(false))
     }
-    const style = snapshot?.styles.find(item => item.styleId === state.styleId && !item.archived)
+    const editingStyleId = taskTarget ? snapshot?.runs.find(run => run.runId === taskTarget.runId)?.styleId : state.styleId
+    const style = snapshot?.styles.find(item => item.styleId === editingStyleId && !item.archived)
     const styles = snapshot?.styles.filter(item => !item.archived) ?? []
     const collectionPreview = style && snapshot?.images.find(image => image.referenceId && style.referenceIds.includes(image.referenceId))
     const canSearch = !!style?.modelProfile
@@ -564,7 +589,35 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const selectedRun = executionView ? snapshot?.runs.find(run => run.runId === state.runId && (run.kind === 'search' || run.kind === 'crop')) : snapshot?.runs.find(run => run.runId === (taskSelection.styleId === state.styleId ? taskSelection.runId : '')) ?? currentAnalysisRun ?? snapshot?.runs.find(run => run.runId === state.runId && (run.kind !== 'analyze' || run.styleId === state.styleId))
     const historyRuns = snapshot?.runs.filter(run => (!run.styleId || run.styleId === state.styleId) && (run.kind !== 'analyze' || run.styleId === state.styleId || run.runId === style?.analysis?.runId)).slice().reverse() ?? []
     const orderedRuns = currentAnalysisRun ? [currentAnalysisRun, ...historyRuns.filter(run => run.runId !== currentAnalysisRun.runId)] : historyRuns
-    const displayedRuns = executionView ? orderedRuns.filter(run => (run.kind === 'search' || run.kind === 'crop') && (run.runId === state.runId || !run.styleId || run.styleId === state.styleId)) : orderedRuns
+    const displayedRuns = taskTarget ? selectedRun ? [selectedRun] : [] : executionView ? orderedRuns.filter(run => (run.kind === 'search' || run.kind === 'crop') && (run.runId === state.runId || !run.styleId || run.styleId === state.styleId)) : orderedRuns
+    const historyWithoutCollection = !!taskTarget && !style
+    const workflowStyle = snapshot?.styles.find(item => item.styleId === (editingStyleId || state.styleId))
+    const navigationScope = JSON.stringify([editingStyleId || state.styleId, state.scopeSessionId, taskTarget?.runId ?? ''])
+    const navigation: ExecutionNavigation = executionSelection?.scope === navigationScope ? executionSelection.value : { view: taskTarget ? 'results' : 'canvas', sourceRunId: workflowSourceRunId(selectedRun), runId: selectedRun?.wallpaperTask ? selectedRun.runId : undefined, serial: 0 }
+    const navigationTaskId = navigation.view === 'results' ? selectedRun?.runId : navigation.runId
+    const location = workflowLocation?.scope === navigationScope ? workflowLocation.value : undefined
+    const breadcrumbSourceId = navigation.sourceRunId === '' ? undefined : navigation.sourceRunId ?? location?.sourceRunId
+    const breadcrumbBatchId = breadcrumbSourceId && (workflowSourceRunId(selectedRun) === breadcrumbSourceId ? selectedRun?.launchId ?? breadcrumbSourceId : breadcrumbSourceId)
+    const canvasAvailable = !!workflowStyle && !!useSearchBatches && !!actions.batches && (!taskTarget || !!selectedRun && (!selectedRun.wallpaperTask || !!workflowSourceRunId(selectedRun)))
+    const imageAvailable = canvasAvailable && (navigation.view === 'results' ? !!selectedRun && (!!selectedRun.wallpaper || !!selectedRun.wallpaperTask) && ((selectedRun.wallpaper?.total ?? selectedRun.counts.retrievedUnique ?? 0) > 0 || selectedRun.results.length > 0) : navigation.sourceRunId !== '' && (!navigation.sourceRunId || location?.sourceRunId === navigation.sourceRunId) && (location?.imageCount ?? 0) > 0)
+    const navigateExecution = (value: Omit<ExecutionNavigation, 'serial'>) => {
+      setExecutionSelection(current => ({ scope: navigationScope, value: { ...value, serial: (current?.value.serial ?? 0) + 1 } }))
+    }
+    const receiveWorkflowLocation = React.useCallback((value: WorkflowLocation) => {
+      setWorkflowLocation(current => current?.scope === navigationScope && JSON.stringify(current.value) === JSON.stringify(value) ? current : { scope: navigationScope, value })
+      setExecutionSelection(current => current?.scope === navigationScope && current.value.sourceRunId !== undefined ? current : { scope: navigationScope, value: { ...(current?.scope === navigationScope ? current.value : { view: 'canvas' as const, serial: 0 }), sourceRunId: value.sourceRunId } })
+    }, [navigationScope])
+    const chooseExecutionView = (view: ExecutionNavigation['view']) => {
+      const sourceRunId = navigation.view === 'results' ? workflowSourceRunId(selectedRun) : navigation.sourceRunId === '' ? location?.sourceRunId : navigation.sourceRunId ?? location?.sourceRunId
+      if (view === 'results' && navigation.view !== 'results' && location) {
+        navigateExecution({ view, sourceRunId, imageVersionId: location.imageVersionId, runId: location.runId !== sourceRunId ? location.runId : undefined })
+        if (location.runId !== selectedRun?.runId) report(() => actions.openTask(location.runId, location.sessionId ?? (state.scopeSessionId || undefined)))
+        return
+      }
+      const runId = navigation.view === 'results' ? selectedRun?.wallpaperTask ? selectedRun.runId : undefined : navigation.runId
+      const imageVersionId = navigation.view === 'results' ? selectedRun?.results[0]?.workflowImageVersionId : navigation.imageVersionId ?? location?.imageVersionId
+      navigateExecution({ view, sourceRunId, runId, ...(view === 'image' ? { imageVersionId } : {}) })
+    }
     const requestReanalysis = (styleId: string) => {
       if (executionView && styleId === state.styleId) { actions.closeAnalysis(); setAnalysisRequest({ styleId, serial: Date.now() }); return }
       actions.closeAnalysis(); if (state.scopeSessionId) actions.closeSession(); actions.selectStyle(styleId); actions.selectWorkspace('styles')
@@ -574,7 +627,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const canvasSearch = (briefSupplement?: string) => setTaskForm({ serial: Date.now(), canvas: true, ...(briefSupplement ? { briefSupplement } : {}) })
     const canvasAnalyze = () => { if (style) setAnalysisRequest({ styleId: style.styleId, serial: Date.now() }) }
     const canvasDataset = (datasetId?: string) => { if (datasetId) void actions.datasets.open(datasetId); else actions.datasets.closeDetail(); setCanvasDatasets(true) }
-    const canvasOpenTask = async (runId: string) => { setCanvasTask(runId) }
+    const canvasOpenTask = async (runId: string, sessionId?: string) => { setCanvasTask({ runId, sessionId }) }
     React.useEffect(() => { setCanvasDatasets(false); setCanvasTask(null); setCanvasAction(undefined) }, [state.styleId])
     // 引导按钮会随页面切换卸载；先将焦点交回仍保留的参考标签。
     const showReferences = () => { if (executionView && style) { setCanvasAction({ kind: 'references', serial: Date.now() }); return }; document.getElementById(`${viewId}-references-tab`)?.focus({ preventScroll: true }); setWorkspaceView('references') }
@@ -605,7 +658,8 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
         setRenameError(t(failure && typeof failure === 'object' && 'code' in failure && failure.code === 'revision-conflict' ? 'renameCollectionChanged' : 'renameCollectionFailed'))
       } finally { setWorking(false) }
     }
-    return <div className="vc-page-frame"><section className="vc-workbench" data-welcome={!!snapshot && !style && tab !== 'settings'} aria-label={t('title')} aria-busy={working || state.loading}>
+    if (directOpen && snapshot && actions.directCrop && actions.directScope) return <div className="vc-page-frame"><section className="vc-workbench"><DirectCropPage configuration={snapshot.configuration} actions={actions} t={t} onBack={() => { showDirect(false); setExecutionView(true) }} onManageAccounts={() => { showDirect(false); setSettingsPanel('source'); setTab('settings') }} /></section></div>
+    return <div className="vc-page-frame"><section className="vc-workbench" data-welcome={!!snapshot && !style && !taskTarget && tab !== 'settings'} aria-label={t('title')} aria-busy={working || state.loading}>
       <header className="vc-pagebar"><div className="vc-collection-context"><Menu className="vc-collection-picker" listClassName="vc-menu" open={collectionOpen} onClose={() => setCollectionOpen(false)} portal autoFocus
         selectedId={style ? `style:${style.styleId}` : undefined}
         items={styles.map(item => { const task = state.galleryTasks.find(task => task.styleId === item.styleId && galleryTaskActive(task.status)); const analysis = state.analysisTasks.find(task => task.styleId === item.styleId && analysisActive(task.status)); return { id: `style:${item.styleId}`, label: <span className="vc-collection-task-label"><span>{item.name}</span>{(task || analysis) && <><StateDot state="ongoing" /><small>{task ? `${galleryTaskProgress(task).referenced} / ${task.total}` : `${analysis!.observed} / ${analysis!.total}`}</small></>}</span> } })}
@@ -628,36 +682,36 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
         {style?.releases.length ? <div className="vc-context-meta"><Tag>{style.releases.at(-1)?.label}</Tag></div> : null}
         {style && tab === 'workbench' && headerAnalysis && ( <Button size="sm" variant="ghost" className="vc-search-launch-trigger vc-analysis-header" aria-label={`${t('analysisProcess')} · ${headerAnalysisPhase} · ${headerAnalysis.observed} / ${headerAnalysis.total}`} onClick={() => actions.openAnalysis(headerAnalysis.runId)}><StateDot state="ongoing" /><span className="vc-search-launch-trigger-label">{t('analysisProcess')}</span><span className="vc-search-launch-trigger-state" aria-live="polite">{headerAnalysisPhase}</span><small>{headerAnalysis.observed} / {headerAnalysis.total}</small><ui.IconChevronRightOutlineRegular size={12} /></Button>)}</div>
         {snapshot && <><SegmentedTabs className="vc-primary-tabs" label={t('title')} value={tab} onChange={setTab}
-          items={[{ value: 'workbench', label: t('workbench'), id: `${viewId}-workbench-tab`, panelId: `${viewId}-workbench` }, { value: 'settings', label: t('modelSettings'), id: `${viewId}-settings-tab`, panelId: `${viewId}-settings` }]} /><div className="vc-command-actions"><span className="vc-model-state"><StateDot state={snapshot.configuration.visionConfigured ? 'done' : 'idle'} />{t('vision')} · {t(snapshot.configuration.visionConfigured ? 'configured' : 'unconfigured')}</span><Button variant="ghost" disabled={working} onClick={() => { setPreviewRefresh(value => value + 1); report(actions.reload) }}><ui.IconRefreshOutlineRegular size={16} />{t('refresh')}</Button></div></>}
+          items={[{ value: 'workbench', label: t('workbench'), id: `${viewId}-workbench-tab`, panelId: `${viewId}-workbench` }, { value: 'settings', label: t('modelSettings'), id: `${viewId}-settings-tab`, panelId: `${viewId}-settings` }]} /><div className="vc-command-actions">{actions.directCrop && !style && <Button variant="outline" onClick={() => showDirect(true)}>{t('directCrop')}</Button>}<span className="vc-model-state"><StateDot state={snapshot.configuration.visionConfigured ? 'done' : 'idle'} />{t('vision')} · {t(snapshot.configuration.visionConfigured ? 'configured' : 'unconfigured')}</span><Button variant="ghost" disabled={working} onClick={() => { setPreviewRefresh(value => value + 1); report(actions.reload) }}><ui.IconRefreshOutlineRegular size={16} />{t('refresh')}</Button></div></>}
       </header>
-      {state.scopeSessionId && (!style || tab !== 'workbench') && <div className="vc-execution-nav vc-session-scope"><span>{t('taskSession')}</span><Button size="sm" variant="outline" onClick={actions.closeSession}>{t('taskLibrary')}</Button></div>}
-      <main className={`vc-main${style && tab === 'workbench' ? ' vc-main-workspace' : ''}`}>
+      {state.scopeSessionId && (!style || tab !== 'workbench') && <div className="vc-execution-nav vc-session-scope"><span>{t('taskSession')}</span></div>}
+      <main className={`vc-main${(style || historyWithoutCollection) && tab === 'workbench' ? ' vc-main-workspace' : ''}`}>
         {(error || state.error) && <div className="vc-notice" role="alert">{error || `${t('error')} (${state.error?.code})`}<Button size="sm" onClick={() => report(actions.reload)}>{t('retry')}</Button></div>}
         {state.galleryTaskError && <div className="vc-notice" role="alert">{t('galleryConnectionError')}</div>}
         {!snapshot && (taskTarget ? <TaskPending target={taskTarget.runId} loading={state.loading || state.runLoading} errorCode={state.error?.code ?? state.runError?.code} t={t} onRetry={() => report(() => actions.openTask(taskTarget.runId, state.scopeSessionId || undefined))} /> : state.loading && executionView ? <div className="vc-search-batches" aria-busy="true"><div className="vc-search-batches-scroll"><BatchSkeleton label={t('taskBatchLoading')} /></div></div> : <div className="vc-empty">{state.loading ? <StateDot state="ongoing" /> : <Button onClick={() => report(actions.reload)}>{t('retry')}</Button>}</div>)}
         {/* 参考区保留草稿和筛选；任务折叠区按 Tab 重建，避免退出动画保留另一页内容。 */}
         {snapshot && <>
-          <div className={style ? 'vc-workbench-panel' : undefined} id={`${viewId}-workbench`} role="tabpanel" aria-labelledby={`${viewId}-workbench-tab`} hidden={tab !== 'workbench'}>{style ? <StyleEditor canvasAction={canvasAction} useDatasets={useDatasets} onSearch={executionView ? () => canvasSearch() : startSearch} canSearch={canSearch} hasRecoverableRun={!!selectedRun && ['created', 'running', 'pausing', 'paused', 'interrupted'].includes(selectedRun.status)} scopeSessionId={state.scopeSessionId} onCloseSession={actions.closeSession} searchTrigger={searchTrigger} pendingStart={state.pending.includes(`analysis:${style.styleId}`)} analysisRequest={analysisRequest?.styleId === style.styleId ? analysisRequest.serial : undefined} onAnalysisRequestHandled={() => setAnalysisRequest(null)} key={style.styleId} task={referenceTask} referencePage={state.referencePages[style.styleId]} previewRefresh={previewRefresh} style={style} snapshot={snapshot} actions={actions} t={t} report={report} busy={working} query={query} onQuery={value => setImageSearch({ styleId: state.styleId, value })} clearQuery={() => setImageSearch({ styleId: state.styleId, value: '' })} openGallerySettings={() => { setSettingsPanel('source'); setTab('settings') }} workspaceView={workspaceView} viewId={viewId} onViewChange={value => { setWorkspaceView(value); if (value === 'execution') { const run = orderedRuns.find(item => (item.kind === 'search' || item.kind === 'crop') && item.styleId === state.styleId); if (run) actions.selectRun(run.runId) } }} />
-            : <section className="vc-welcome"><img className="vc-welcome-art" src={welcomeImage} alt="" width={558} height={242} decoding="async" /><h2>{t('welcomeTitle')}</h2><p>{t('welcomeHint')}</p><Button variant="primary" className="vc-primary-action vc-welcome-create" disabled={working} onClick={() => { setError(''); setCreateOpen(true) }}><ui.IconPlusOutlineRegular size={18} />{t('createCollectionAction')}</Button><small>{t('welcomeFormats')}</small></section>}
-        {style && workspaceView !== 'datasets' && (snapshot.runs.length > 0 || !!style.referenceIds.length || executionView) && (executionView
-          ? <div className="vc-history-region" data-execution="true" id={`${viewId}-execution`} role="tabpanel" aria-labelledby={`${viewId}-execution-tab`}><div className="vc-task-panel vc-execution-panel">{useSearchBatches && actions.batches && style && !taskTarget ? <SearchBatchResults styleId={style.styleId} pageSize={snapshot.configuration.limits.pageSize} t={t} useBatches={useSearchBatches} actions={actions.batches} onOpen={canvasOpenTask} workflow={{
-                style, useLaunches, launches: actions.launches, profileActions: actions, onProfile: () => setCanvasAction({ kind: 'profile', serial: Date.now() }), referencePage: state.referencePages[style.styleId], referenceImages: filterReferences(snapshot.images, style, '', 'all'), referenceTask,
-                analysis: state.analysisTasks.find(task => task.styleId === style.styleId && analysisActive(task.status)) ?? style.analysis,
+          <div className={style || historyWithoutCollection ? 'vc-workbench-panel' : undefined} id={`${viewId}-workbench`} role="tabpanel" aria-labelledby={`${viewId}-workbench-tab`} hidden={tab !== 'workbench'}>{style ? <StyleEditor canvasAction={canvasAction} useDatasets={useDatasets} onDirectCrop={actions.directCrop ? () => showDirect(true) : undefined} onSearch={executionView ? () => canvasSearch() : startSearch} canSearch={canSearch} hasRecoverableRun={!!selectedRun && ['created', 'running', 'pausing', 'paused', 'interrupted'].includes(selectedRun.status)} scopeSessionId={state.scopeSessionId} searchTrigger={searchTrigger} pendingStart={state.pending.includes(`analysis:${style.styleId}`)} analysisRequest={analysisRequest?.styleId === style.styleId ? analysisRequest.serial : undefined} onAnalysisRequestHandled={() => setAnalysisRequest(null)} key={style.styleId} task={referenceTask} referencePage={state.referencePages[style.styleId]} previewRefresh={previewRefresh} style={style} snapshot={snapshot} actions={actions} t={t} report={report} busy={working} query={query} onQuery={value => setImageSearch({ styleId: state.styleId, value })} clearQuery={() => setImageSearch({ styleId: state.styleId, value: '' })} openGallerySettings={() => { setSettingsPanel('source'); setTab('settings') }} workspaceView={workspaceView} viewId={viewId} onViewChange={value => { setWorkspaceView(value); if (value === 'execution') { const run = orderedRuns.find(item => (item.kind === 'search' || item.kind === 'crop') && item.styleId === state.styleId); if (run) actions.selectRun(run.runId) } }} />
+            : historyWithoutCollection ? null : <section className="vc-welcome"><img className="vc-welcome-art" src={welcomeImage} alt="" width={558} height={242} decoding="async" /><h2>{t('welcomeTitle')}</h2><p>{t('welcomeHint')}</p><Button variant="primary" className="vc-primary-action vc-welcome-create" disabled={working} onClick={() => { setError(''); setCreateOpen(true) }}><ui.IconPlusOutlineRegular size={18} />{t('createCollectionAction')}</Button><small>{t('welcomeFormats')}</small></section>}
+        {(historyWithoutCollection || style && workspaceView !== 'datasets' && (snapshot.runs.length > 0 || !!style.referenceIds.length || executionView)) && (executionView
+          ? <div className="vc-history-region" data-execution="true" id={`${viewId}-execution`} role="tabpanel" aria-labelledby={`${viewId}-execution-tab`}><WorkflowNavigation viewId={viewId} view={navigation.view} collectionName={workflowStyle?.name ?? t('taskLibrary')} archived={!!workflowStyle?.archived} batchId={breadcrumbBatchId} taskId={navigationTaskId} image={navigation.view === 'image' && location && (!navigation.imageVersionId || navigation.imageVersionId === location.imageVersionId) ? { index: location.imageIndex, total: location.imageCount } : undefined} canvasAvailable={canvasAvailable} resultsAvailable={navigation.view === 'results' || !!location} imageAvailable={imageAvailable} t={t} onOverview={() => navigateExecution({ view: 'canvas', sourceRunId: '' })} onBatch={() => chooseExecutionView('canvas')} onViewChange={chooseExecutionView} /><div className="vc-task-panel vc-execution-panel" id={viewId + '-execution-content'} role="tabpanel" aria-labelledby={viewId + (navigation.view === 'results' ? '-results-view' : navigation.view === 'image' ? '-image-view' : '-canvas-view')}>{useSearchBatches && actions.batches && navigation.view !== 'results' && workflowStyle ? <SearchBatchResults navigation={navigation} onNavigate={navigateExecution} onLocation={receiveWorkflowLocation} styleId={workflowStyle.styleId} pageSize={snapshot.configuration.limits.pageSize} t={t} useBatches={useSearchBatches} actions={actions.batches} onOpen={canvasOpenTask} workflow={{
+                style: workflowStyle, useLaunches, launches: actions.launches, profileActions: actions, onProfile: () => setCanvasAction({ kind: 'profile', serial: Date.now() }), referencePage: state.referencePages[workflowStyle.styleId], referenceImages: filterReferences(snapshot.images, workflowStyle, '', 'all'), referenceTask,
+                analysis: state.analysisTasks.find(task => task.styleId === workflowStyle.styleId && analysisActive(task.status)) ?? workflowStyle.analysis,
                 busy: working, canSearch, useDatasets, ...(actions.wallpaper ? { wallpaper: actions.wallpaper } : {}), pollIntervalMs: snapshot.configuration.limits.pollIntervalMs, onWallpaperSearch: canvasSearch,
                 onReferences: () => setCanvasAction({ kind: 'references', serial: Date.now() }), onAnalyze: canvasAnalyze, onAnalysis: actions.openAnalysis,
                 onDatasets: canvasDataset,
                 onRefreshDatasets: () => { void actions.datasets.refresh() },
-                onGenerateDataset: () => { const profile = style.modelProfile; if (profile) report(() => actions.datasets.start({ id: profile.id, styleId: style.styleId, sampleScope: profile.options.some(option => option.enabled && isMatchingRule(option.rule)) ? 'all' : 'observations' })) },
+                onGenerateDataset: () => { const profile = workflowStyle.modelProfile; if (profile && !workflowStyle.archived) report(() => actions.datasets.start({ id: profile.id, styleId: workflowStyle.styleId, sampleScope: profile.options.some(option => option.enabled && isMatchingRule(option.rule)) ? 'all' : 'observations' })) },
                 onOrganize: canvasAnalyze, onSearch: canvasSearch,
                 onCrop: async (batch, imageId) => { await actions.loadRun(batch.runId); setTaskForm({ serial: Date.now(), imageVersionId: imageId }) },
-              }} /> : <div className="vc-search-batch-detail">{useSearchBatches && <Button size="sm" variant="ghost" onClick={actions.closeSession}>{t('taskAllBatches')}</Button>}{taskTarget && !selectedRun ? <TaskPending target={taskTarget.runId} loading={state.runLoading} errorCode={state.runError?.code} t={t} onRetry={() => { void actions.loadRun(taskTarget.runId, false, 'selected') }} /> : <TaskHistory key={selectedRun?.runId} onStart={canSearch ? startSearch : undefined} onReferences={showReferences} onCrop={imageVersionId => setTaskForm({ serial: Date.now(), imageVersionId })} runs={displayedRuns} selected={selectedRun} snapshot={snapshot} t={t} loading={state.runLoading} pending={state.pending} errorCode={state.runError?.code} actions={actions} onSelect={runId => { setTaskSelection({ styleId: state.styleId, runId }); actions.selectRun(runId) }} report={report} />}</div>}</div></div>
+              }} /> : <div className="vc-search-batch-detail">{taskTarget && !selectedRun ? <TaskPending target={taskTarget.runId} loading={state.runLoading} errorCode={state.runError?.code} t={t} onRetry={() => { void actions.loadRun(taskTarget.runId, false, 'selected') }} /> : <TaskHistory fullHeight onSingleImage={canvasAvailable ? image => navigateExecution({ view: 'image', sourceRunId: workflowSourceRunId(selectedRun), runId: selectedRun?.wallpaperTask ? selectedRun.runId : undefined, imageVersionId: image.workflowImageVersionId }) : undefined} key={selectedRun?.runId} onStart={canSearch ? startSearch : undefined} onReferences={style ? showReferences : undefined} onCrop={style ? imageVersionId => setTaskForm({ serial: Date.now(), imageVersionId }) : undefined} runs={displayedRuns} selected={selectedRun} snapshot={snapshot} t={t} loading={state.runLoading} pending={state.pending} errorCode={state.runError?.code} actions={actions} onSelect={runId => { setTaskSelection({ styleId: state.styleId, runId }); actions.selectRun(runId) }} report={report} />}</div>}</div></div>
           : <div className="vc-history-region" data-execution="false"><DisclosureRow key="history" className="vc-task-section" rowClassName="vc-task-toggle" leadingClassName="vc-task-chevron" previewChevron={false} icon={<ui.IconChevronDownOutlineRegular size={14} />} title={t('taskHistory')} open={tasksOpen} expandable expandOnRowClick onToggle={() => setTasksOpen(value => !value)} headerAccessory={<span className="vc-task-meta"><span className="vc-task-count">{displayedRuns.length}</span>{activeTasks > 0 && <small><StateDot state="ongoing" />{t('running')} · {activeTasks}</small>}</span>}><div className="vc-task-panel"><TaskHistory onCrop={imageVersionId => setTaskForm({ serial: Date.now(), imageVersionId })} runs={displayedRuns} selected={selectedRun} snapshot={snapshot} t={t} loading={state.runLoading} pending={state.pending} errorCode={state.runError?.code} actions={actions} onSelect={runId => { setTaskSelection({ styleId: state.styleId, runId }); actions.selectRun(runId) }} report={report} />{style && <div className="vc-task-notes" role="note"><div className="vc-library-caption"><span>{t('loadedImages')} {loadedReferences} / {style.referenceIds.length}</span><span>{t('previewHint')}</span></div><p className="vc-task-analysis-note"><ui.IconSparkleRegular size={14} />{t('modelNotes')}</p></div>}</div></DisclosureRow></div>)}
           </div>
           <div id={`${viewId}-settings`} role="tabpanel" aria-labelledby={`${viewId}-settings-tab`} hidden={tab !== 'settings'}>{tab === 'settings' && <Configuration useVisionModels={useVisionModels} saving={state.configSaving} saveError={state.configError} config={snapshot.configuration} actions={actions} t={t} report={report} styles={styles} selectedStyleId={state.styleId} initialPanel={settingsPanel} openWorkbench={styleId => { actions.selectStyle(styleId); setTab('workbench') }} />}</div>
         </>}
       </main>
       {style && snapshot && canvasDatasets && executionView && <DatasetWorkspace useDatasets={useDatasets} actions={actions} t={t} dialog={{ onClose: () => setCanvasDatasets(false) }} currentProfile={style.modelProfile} canGenerate={!!style.modelProfile && !style.modelProfile.stale} onGenerate={() => { setCanvasDatasets(false); setCanvasAction({ kind: 'profile', serial: Date.now() }) }} onOrganize={() => { setCanvasDatasets(false); canvasAnalyze() }} canOrganize={!working && !!style.referenceIds.length && snapshot.configuration.visionConfigured && !analysisActive(style.analysis?.status ?? '') && !['paused', 'interrupted'].includes(style.analysis?.status ?? '')} />}
-      {style && canvasTask && actions.batches && <CanvasTaskDialog key={`${style.styleId}:${canvasTask}`} open={executionView} runId={canvasTask} read={actions.batches.detail} pollMs={snapshot?.configuration.limits.pollIntervalMs ?? 2000} t={t} onClose={() => setCanvasTask(null)} />}
+      {workflowStyle && canvasTask && actions.batches && <CanvasTaskDialog key={`${workflowStyle.styleId}:${canvasTask.runId}`} open={executionView} runId={canvasTask.runId} read={actions.batches.detail} pollMs={snapshot?.configuration.limits.pollIntervalMs ?? 2000} t={t} onClose={() => setCanvasTask(null)} onOpenResults={() => { const target = canvasTask; setCanvasTask(null); setExecutionSelection(null); report(() => actions.openTask(target.runId, target.sessionId ?? (state.scopeSessionId || undefined))) }} />}
       {taskForm && style && snapshot && (taskForm.imageVersionId ? <TaskDialog open={tab === 'workbench'} key={`${style.styleId}:${state.scopeSessionId}:${taskForm.serial}`} style={style} snapshot={snapshot} actions={actions} t={t} imageVersionId={taskForm.imageVersionId} onClose={() => setTaskForm(null)} onSettings={() => setTab('settings')} onStarted={runId => { setTaskForm(null); actions.selectRun(runId); setExecutionView(true) }} /> : <SearchLaunch.Dialog fresh={taskForm.canvas === true} stayOnCanvas={taskForm.canvas === true} briefSupplement={taskForm.briefSupplement} wallpaperInitial={taskForm.wallpaper === true} open={tab === 'workbench' && !taskForm.browsingDatasets} key={`${style.styleId}:${state.scopeSessionId}:${taskForm.serial}`} style={style} snapshot={snapshot} actions={actions.launches} useLaunches={useLaunches} t={t} onClose={() => setTaskForm(null)} onDatasets={datasetId => { if (executionView) canvasDataset(datasetId); else { setTaskForm(current => current ? { ...current, browsingDatasets: true } : null); setWorkspaceView('datasets'); if (datasetId) void actions.datasets.open(datasetId) } }} />)}
       <AnalysisDialogRegion useWorkbench={useWorkbench} actions={actions} t={t} renderFactorySlot={renderFactorySlot} onReanalyze={requestReanalysis} />
       <Modal open={createOpen} onClose={() => { if (!working) setCreateOpen(false) }} title={t('create')} closeLabel={t('close')} className="vc-create-modal"><CreateCollection name={name} onName={setName} onSubmit={createCollection} busy={working} error={error} t={t} /></Modal>

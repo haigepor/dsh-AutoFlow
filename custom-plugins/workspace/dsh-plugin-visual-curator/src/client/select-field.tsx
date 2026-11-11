@@ -5,7 +5,7 @@
 /** @param React Shell React. @param ui Existing primitives. @returns Stable field component using the shared Menu. */
 export function createSelectField(React: typeof import('react'), ui: typeof import('@deepseek-ai/dsh-client-ui-primitives')) {
   const { Menu, Button } = ui
-  return function SelectField({ label, value, options, disabled = false, required = false, validationMessage, menuClassName, matchAnchorWidth = true, onChange }: {
+  return function SelectField({ label, value, options, disabled = false, required = false, validationMessage, menuClassName, matchAnchorWidth = false, onChange }: {
     label: string; value: string; options: readonly { value: string; label: string }[]; disabled?: boolean; required?: boolean; validationMessage?: string; menuClassName?: string; matchAnchorWidth?: boolean; onChange(value: string): void
   }) {
     const [open, setOpen] = React.useState(false), [attempted, setAttempted] = React.useState(false)

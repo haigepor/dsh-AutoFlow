@@ -62,6 +62,70 @@ test('Codex generations use JSON image headers, preserve original assets, and ne
   } finally { await f.service.dispose() }
 })
 
+test('image receipts separate requested settings, provider reports and saved pixel dimensions without retaining private payloads', async () => {
+  let calls = 0, saves = 0
+  let sentHeaders = new Headers()
+  const savedBytes: Uint8Array[] = []
+  const f = await fixture({ fetch: async (_url, init) => {
+    calls++
+    sentHeaders = new Headers(init?.headers)
+    return Response.json({ size: '941x1672', quality: 'low', output_format: 'png', data: [
+      { b64_json: png.toString('base64'), generation_id: 'generation-one', url: 'https://images.example/result?signature=private-signed-query' },
+      { b64_json: png.toString('base64'), generation_id: 'generation-two' },
+    ], privateBody: 'private-response-body' }, { headers: { 'x-codex-imagegen-request-id': 'image-response-one', 'x-oai-request-id': 'oai-response-one', 'x-request-id': 'response-one', authorization: 'Bearer private-response-token', 'set-cookie': 'private-cookie' } })
+  }, saveAssets: async images => { savedBytes.push(...images.map(image => image.data)); return [{ ...asset, id: parseImageAssetId(`asset-${++saves}`) }] } })
+  try {
+    const accepted = await f.service.submit({ prompt: 'Keep requested and actual facts separate', size: '1872x3328', quality: 'high', outputFormat: 'webp', n: 2 }, owner)
+    const done = await f.service.getResult(accepted.id, owner, { waitMs: 1000 })
+    const headers = sentHeaders
+    const requested = { size: '1872x3328', quality: 'high', outputFormat: 'webp', imagegenRequestId: headers.get('x-codex-imagegen-request-id'), imageTurnId: headers.get('x-codex-image-turn-id') }
+    assert.equal(done.state, 'succeeded')
+    assert.equal(calls, 1)
+    assert.deepEqual(done.evidence, { requested, reported: { size: '941x1672', quality: 'low', outputFormat: 'png', imagegenRequestId: 'image-response-one', oaiRequestId: 'oai-response-one', requestId: 'response-one' } })
+    assert.deepEqual(f.writes.find(task => task.state === 'sent')?.evidence?.requested, requested)
+    assert.deepEqual(done.assets.map(image => image.generationId), ['generation-one', 'generation-two'])
+    assert.deepEqual(done.assets.map(image => [image.preview.width, image.preview.height]), [[1, 1], [1, 1]])
+    assert.deepEqual(savedBytes, [png, png])
+    assert.deepEqual(imageTaskSchema.parse(f.records.get(parseImageTaskId(done.id))).evidence, done.evidence)
+    assert.deepEqual(imageTaskSchema.parse(f.records.get(parseImageTaskId(done.id))).assets, done.assets)
+    const durable = JSON.stringify(f.writes)
+    for (const privateValue of ['base64', png.toString('base64'), 'do-not-persist-token', 'private-signed-query', 'private-response-body', 'private-response-token', 'private-cookie']) assert.equal(durable.includes(privateValue), false)
+  } finally { await f.service.dispose() }
+})
+
+test('malformed advisory metadata cannot discard a paid image or become a durable signed URL', async () => {
+  let calls = 0
+  const f = await fixture({ fetch: async () => { calls++; return Response.json({ size: 'https://images.example/private', quality: { token: 'private-metadata' }, output_format: 'Bearer private-metadata', data: [{ b64_json: png.toString('base64'), generation_id: 'https://images.example/private?token=secret' }] }, { headers: { 'x-oai-request-id': 'https://images.example/private', 'x-request-id': 'Bearer private-metadata' } }) } })
+  try {
+    const accepted = await f.service.submit({ prompt: 'No explicit size or quality' }, owner)
+    const done = await f.service.getResult(accepted.id, owner, { waitMs: 1000 })
+    assert.equal(done.state, 'succeeded')
+    assert.equal(calls, 1)
+    assert.equal(done.evidence?.requested.size, undefined)
+    assert.equal(done.evidence?.requested.quality, undefined)
+    assert.equal(done.evidence?.requested.outputFormat, undefined)
+    assert.equal(done.evidence?.reported, undefined)
+    assert.equal(done.assets[0]?.generationId, undefined)
+    assert.deepEqual((await f.service.readAsset(done.id, 'asset-one', owner)).data, png)
+    assert.equal(JSON.stringify(f.writes).includes('private-metadata'), false)
+    assert.equal(JSON.stringify(f.writes).includes('https://images.example'), false)
+  } finally { await f.service.dispose() }
+})
+
+test('historical tasks remain readable without invented request, response or generation metadata', async () => {
+  const legacy: ImageTask = { id: 'legacy-image', owner, state: 'succeeded', prompt: 'An older image', model: 'gpt-image-2', createdAt: 1, updatedAt: 2, deadlineAt: 3, assets: [asset] }
+  const f = await fixture({}, [legacy])
+  try {
+    const task = await f.service.getResult(legacy.id, owner)
+    assert.deepEqual(task, legacy)
+    assert.equal(task.evidence, undefined)
+    assert.equal(task.assets[0]?.generationId, undefined)
+    assert.deepEqual(imageTaskSchema.parse(JSON.parse(JSON.stringify(legacy))), legacy)
+    assert.equal(f.writes.length, 0)
+    assert.equal(f.requests.length, 0)
+  } finally { await f.service.dispose() }
+})
+
 test('image refusal metadata survives durable task projection without retrying or exposing the body', async () => {
   const now = Date.now()
   let calls = 0
@@ -73,8 +137,28 @@ test('image refusal metadata survives durable task projection without retrying o
     const task = await f.service.getResult(submitted.id, owner, { waitMs: 1000 })
     assert.equal(task.state, 'failed'); assert.equal(calls, 1)
     assert.equal(task.error?.status, 429); assert.equal(task.error?.retryAt, now + 120000); assert.equal(task.error?.requestId, 'req_image_quota')
+    assert.equal(task.evidence?.reported?.requestId, 'req_image_quota')
     assert.deepEqual(imageTaskSchema.parse(f.records.get(parseImageTaskId(task.id))).error, task.error)
     assert.equal(JSON.stringify(task).includes('private upstream'), false)
+  } finally { await f.service.dispose() }
+})
+
+test('automatic model checks carry account and quota guards and reuse an uncertain receipt', async () => {
+  let admitted = 0
+  const f = await fixture({ withAccount: async (request, operation) => {
+    assert.equal(request.accountKey, 'account-probe'); assert.deepEqual(request.includedQuotaOnly, { minimumRemainingPercent: 50 }); admitted++
+    return operation({ accountKey: 'account-probe', accountId: 'workspace-probe', accessToken: 'fixture', signal: request.signal!, headers: {} })
+  } })
+  try {
+    const input = { prompt: 'Probe', model: 'gpt-image-2.6-sunburst', size: '1024x1024' }, operation = { id: 'probe-operation', digest: 'probe-digest' }
+    const submitted = await f.service.submitProbe(input, 'account-probe', operation, 50, new AbortController().signal)
+    const probeOwner: ImageOwner = { kind: 'gateway', keyId: 'model-access-probe:account-probe' }
+    const done = await f.service.getResult(submitted.id, probeOwner, { waitMs: 1000 })
+    assert.equal(done.state, 'succeeded'); assert.equal(done.accountKey, 'account-probe')
+    f.records.set(parseImageTaskId(done.id), imageTaskSchema.parse({ ...done, state: 'outcome-unknown' }))
+    const recovered = await f.service.submitProbe(input, 'account-probe', operation, 50, new AbortController().signal)
+    assert.equal(recovered.id, done.id); assert.equal(recovered.state, 'outcome-unknown')
+    assert.equal(admitted, 1); assert.equal(f.requests.length, 1)
   } finally { await f.service.dispose() }
 })
 
@@ -271,7 +355,12 @@ test('received image bytes followed by attachment failure are a known storage fa
 test('failed durable dispatch prevents the paid request', async () => {
   const f = await fixture()
   const originalPut = f.options.repository.put
-  f.options.repository.put = task => task.state === 'sent' ? Promise.reject(new Error('storage offline')) : originalPut(task)
+  f.options.repository.put = task => {
+    if (task.state !== 'sent') return originalPut(task)
+    assert.ok(task.evidence?.requested.imagegenRequestId)
+    assert.ok(task.evidence?.requested.imageTurnId)
+    return Promise.reject(new Error('storage offline'))
+  }
   try {
     const started = await f.service.submit({ prompt: 'Persist before sending' }, owner)
     assert.equal((await f.service.getResult(started.id, owner, { waitMs: 1000 })).state, 'failed')

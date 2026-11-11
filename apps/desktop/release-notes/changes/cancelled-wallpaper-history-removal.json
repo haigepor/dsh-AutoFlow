@@ -1,0 +1,8 @@
+{
+  "id": "cancelled-wallpaper-history-removal",
+  "category": "fixes",
+  "text": {
+    "en": "Cancelled wallpaper batches can be removed despite older paused snapshots while active work still blocks removal. Cancelled nodes show retained progress without execution actions.",
+    "zh-CN": "修复取消壁纸批次后，历史暂停记录仍阻止移除列表记录的问题；执行中任务仍会被拦截。已取消节点保留进度并关闭继续执行入口。"
+  }
+}

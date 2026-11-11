@@ -16,7 +16,6 @@ import {
   powerMonitor,
   nativeImage,
   nativeTheme,
-  net,
   protocol,
   session,
   shell,
@@ -533,9 +532,16 @@ async function main(): Promise<void> {
     return {
       start: async () => {
         const ready = await host.start()
-        hostCookie = await authenticateWebHost(ready.url)
+        const cookie = await authenticateWebHost(ready.url)
+        hostCookie = cookie
         hostUrl = ready.url
-        welcomeBackend = await connectDesktopWelcome(ready.url, (input, init) => net.fetch(input, init), async () => (await session.defaultSession.cookies.get({ url: ready.url })).map(cookie => `${cookie.name}=${cookie.value}`).join('; '))
+        // Chromium shares loopback cookies across ports. Native operations use only this Host's
+        // cookie so previous launches cannot overflow the HTTP header limit.
+        welcomeBackend = await connectDesktopWelcome(new URL('/', ready.url).href, (input, init) => {
+          const headers = new Headers(init?.headers)
+          headers.set('cookie', cookie)
+          return fetch(input, { ...init, headers })
+        }, () => Promise.resolve(cookie))
         analyticsEnabled = await welcomeBackend.analyticsEnabled().catch(() => false)
         if (!reportedLaunch) { reportedLaunch = true; void track('desktop_app_launch', {}) }
         stopAccount?.()

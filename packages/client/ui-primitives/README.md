@@ -81,6 +81,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | `HoverCard`, `HoverCardGroup` | Readable, optionally copyable hover preview; a physical list can opt cards into shared first-display dwell and exclusive display. |
 | `DraggableImage` | Original-image gestures with explicit transfer and feedback callbacks. |
 | `ImageLightbox` | Shared image modal with focus restoration and Escape dismissal. |
+| `ImageGenerationSkeleton` | Shared decorative image-generation dot texture; pauses for an inactive task, a hidden page or reduced motion, and releases its observers on unmount. The owner supplies the frame and accessible status. |
 | `useAnchoredPosition` | Fixed-panel coordinates that follow the anchor through browser zoom, scrolling, and resizing. |
 | `Toast` | Transient top-center banner held for the owner's `holdMs`. |
 | `SettingsForm`, `SettingsValueField`, `SettingsSecretField` | The frame and the controls of a plugin's settings page: the frame takes its copy as `labels`, saves only on its button, and discards on unmount; a value field shows staged text with the overridden badge and reset; a secret field starts blank, requests no saved-password autofill, and reports only whether a value is configured. |

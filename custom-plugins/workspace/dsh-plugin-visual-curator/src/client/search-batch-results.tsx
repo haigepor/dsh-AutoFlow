@@ -9,10 +9,11 @@ import { createSelectField } from './select-field.tsx'
 import { createImageGallery } from './image-gallery.tsx'
 import { createReferencePreview } from './reference-preview.tsx'
 import { createReferenceVirtualGrid } from './reference-virtual-grid.ts'
+import type { ExecutionNavigation, WorkflowLocation } from './workbench-navigation.ts'
 import type { SearchBatch } from '../shared/search-batches.ts'
 import { createAutomaticWorkflowCanvas, type AutomaticWorkflowContext } from './workflow-canvas.tsx'
 
-interface Props { styleId: string; pageSize?: number; t: WorkbenchText; workflow?: AutomaticWorkflowContext; useBatches<T>(select: (state: SearchBatchesState) => T): T; actions: Pick<SearchBatchesStore, 'watch' | 'select' | 'refresh' | 'more' | 'moreImages' | 'remove' | 'removeWorkflow'>; onOpen(runId: string, sessionId?: string): Promise<void> }
+interface Props { navigation?: ExecutionNavigation | undefined; onNavigate?(value: Omit<ExecutionNavigation, 'serial'>): void; onLocation?(value: WorkflowLocation): void; styleId: string; pageSize?: number; t: WorkbenchText; workflow?: AutomaticWorkflowContext; useBatches<T>(select: (state: SearchBatchesState) => T): T; actions: Pick<SearchBatchesStore, 'watch' | 'select' | 'refresh' | 'more' | 'moreImages' | 'remove' | 'removeWorkflow'>; onOpen(runId: string, sessionId?: string): Promise<void> }
 
 /** @param React Shared runtime. @returns Decorative batch placeholders using the existing loading tokens and caller-owned accessible label. */
 export function createSearchBatchSkeleton(React: typeof import('react')) {

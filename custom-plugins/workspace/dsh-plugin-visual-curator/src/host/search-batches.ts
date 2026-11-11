@@ -7,7 +7,7 @@ import { datasetRoleCounts } from '../shared/datasets.ts'
 import type { SearchBatchPage } from '../shared/search-batches.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { specOf, dataOf, readRunContinuation } from './runtime.ts'
-import { wallpaperProgress } from '../shared/wallpaper.ts'
+import { wallpaperWorkImage, wallpaperProgress } from '../shared/wallpaper.ts'
 import { wallpaperRunState } from './wallpaper-state.ts'
 import { hiddenTaskIds, deleteTaskHistory } from './task-history.ts'
 import { rankedRunSelections } from './projection.ts'
@@ -78,7 +78,7 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
     const start = input.batchId ? 0 : offset(input.pageToken, scope, selected.map(run => run.id)), page = selected.slice(start, start + pageSize)
     let previews: Map<string, RecordOf<'imageVersion'>> | undefined
     const previewOf = (image: RecordOf<'imageVersion'>) => {
-      if (!previews) previews = new Map(domain.repository.list('imageVersion').flatMap(row => row.versionKind === 'preview' && row.parentImageVersionId ? [[row.parentImageVersionId, row] as const] : []))
+      if (!previews) previews = new Map(domain.repository.list('imageVersion').flatMap(row => row.versionKind === 'preview' && row.parentImageVersionId && !row.processing?.requestedRect ? [[row.parentImageVersionId, row] as const] : []))
       const preview = previews.get(image.id)
       return preview?.assetId === image.assetId ? preview : undefined
     }
@@ -91,8 +91,8 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
       const wallpaper = child && saved ? { runId: child.id, status: child.status, total: saved.items.length,
         planned: saved.items.filter(item => item.attempts.at(-1) && !item.attempts.at(-1)!.checks.length).length,
         rendered: saved.items.filter(item => item.attempts.at(-1)?.outputId).length, reviewed: saved.items.filter(item => item.attempts.at(-1)?.review).length,
-        passed: saved.items.filter(item => item.status === 'passed').length, attention: saved.items.filter(item => ['needs-review', 'technical-failed', 'rejected'].includes(item.status)).length,
-        budgetStopped: saved.budgetStopped, counts: wallpaperProgress(saved, childSpec?.input.continuationKind === 'recompose' && typeof childSpec.input.recomposedImageId === 'string' ? childSpec.input.recomposedImageId : undefined), ...(childData?.error ? { errorCode: childData.error.code } : {}) } : undefined
+        passed: saved.items.filter(item => item.status === 'passed').length, attention: wallpaperProgress(saved, childSpec ? wallpaperWorkImage(childSpec.input) : undefined, child.status).attention ?? 0,
+        budgetStopped: saved.budgetStopped, counts: wallpaperProgress(saved, childSpec ? wallpaperWorkImage(childSpec.input) : undefined, child.status), ...(childData?.error ? { errorCode: childData.error.code } : {}) } : undefined
       const postProcessing = z.object({ code: z.string() }).safeParse(data.checkpoint.postProcessingFailure)
       const frozen = reader ? modelProfileSchema.safeParse(spec.fixed.release) : undefined
       const workflowSource = frozen?.success ? { modelProfileId: frozen.data.id, analysisRunId: frozen.data.analysisRunId, revision: frozen.data.revision, references: frozen.data.references.length,
@@ -106,7 +106,7 @@ export function readSearchBatches(domain: CuratorDomain, actor: DomainActor, arg
         try { return [domain.authorizedImage(id, reader!.actor)] }
         catch (error) { if (error instanceof CuratorError && error.code === 'owner-denied') return []; throw error }
       })
-      return { runId: run.id, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}), kind: spec.kind === 'crop' ? 'crop' as const : 'search' as const, status: run.status, ...(reader ? { continuation: readRunContinuation(run, domain.repository) } : {}), createdAt: run.createdAt, taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', matched: matches.get(run.id)?.size ?? 0, unavailable: !reader,
+      return { runId: run.id, ...(run.owner.kind === 'session' ? { sessionId: run.owner.sessionId } : {}), kind: spec.kind === 'crop' ? 'crop' as const : 'search' as const, status: run.status, ...(reader ? { progress: { stage: run.stage, counts: data.counts, requests: data.requestIds.length } } : {}), ...(reader ? { continuation: readRunContinuation(run, domain.repository) } : {}), createdAt: run.createdAt, taskBrief: typeof spec.input.taskBrief === 'string' ? spec.input.taskBrief : '', matched: matches.get(run.id)?.size ?? 0, unavailable: !reader,
         ...(workflowSource ? { workflowSource } : {}), ...(reader && typeof spec.input.datasetId === 'string' ? { datasetId: spec.input.datasetId } : {}),
         ...(typeof spec.input.targetCount === 'number' && spec.input.targetCount > 0 ? { targetCount: spec.input.targetCount } : {}), ...(output.success ? { previewOnly: output.data.kind === 'preview' } : {}),
         ...(typeof spec.fixed.searchLaunchId === 'string' ? { launchId: spec.fixed.searchLaunchId } : {}), wallpaperRequested: spec.fixed.wallpaperAuto === true,

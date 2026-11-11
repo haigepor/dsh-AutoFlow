@@ -14,10 +14,20 @@ import { CuratorError } from '../shared/errors.ts'
 import { createHash } from 'node:crypto'
 
 /** @param config Frozen task settings. @param context Current budget and abort signal. @returns Bounded one-attempt settings. */
-export function requestBounds(config: CuratorConfig, context: WorkContext): RequestBounds {
+export function requestBounds(config: CuratorConfig, context: Pick<WorkContext, 'ledger' | 'signal'>): RequestBounds {
   const remaining = context.ledger.remainingTimeMs()
   if (remaining !== undefined && remaining <= 0) throw new CuratorError('budget-exhausted', 'request', 'The task deadline has passed.')
   return { signal: context.signal, maxBytes: config.limits.maxResponseBytes, timeoutMs: remaining === undefined ? config.limits.requestTimeoutMs : Math.min(config.limits.requestTimeoutMs, remaining), maxRedirects: config.limits.maxRedirects }
+}
+
+/** Original bytes have a separate bounded transfer policy; absent fields retain frozen legacy timing.
+ * @param config Frozen task settings. @param context Owning cancellation and budget.
+ * @returns Transfer bounds capped by the remaining task lifetime.
+ */
+export function originalRequestBounds(config: CuratorConfig, context: Pick<WorkContext, 'ledger' | 'signal'>): RequestBounds {
+  const bounds = requestBounds(config, context), remaining = context.ledger.remainingTimeMs()
+  const timeout = config.limits.originalDownloadTimeoutMs ?? config.limits.requestTimeoutMs
+  return { ...bounds, timeoutMs: remaining === undefined ? timeout : Math.min(timeout, remaining), ...(config.limits.originalDownloadIdleTimeoutMs === undefined ? {} : { idleTimeoutMs: config.limits.originalDownloadIdleTimeoutMs }) }
 }
 
 /** @param config Frozen limits. @param context Durable owner. @param signal Attempt cancellation. @param onMetadata Durable native request recorder. @returns Native and legacy bounds sharing one download budget. */

@@ -1,5 +1,11 @@
 /** Locale-owned graphical wallpaper planning controls. */
 export const wallpaperPlanEditorEn = {
+  wallpaperEditorPreviewZoom: 'Preview zoom', wallpaperEditorZoomIn: 'Zoom preview in', wallpaperEditorZoomOut: 'Zoom preview out', wallpaperEditorFitPreview: 'Fit canvas', wallpaperEditorZoomHint: 'Ctrl + wheel to zoom · Ctrl + drag to pan',
+  wallpaperEditorPreview: 'Canvas preview', wallpaperEditorLegend: 'Lines and colors', wallpaperEditorReady: 'Geometry checks passed. The saved revision still needs an independent final review.',
+  wallpaperEditorSafeHint: 'Green solid lines · protected content stays inside', wallpaperEditorClockHint: 'Red fill · clock background',
+  wallpaperEditorBufferHint: 'Amber fill · no protected regions', wallpaperEditorCenterHint: 'Gray dashes · horizontal and vertical alignment',
+  wallpaperEditorOverflowHint: 'Blue dashes · non-critical subject edges only', wallpaperEditorSubjectHint: 'Blue box · full visible subject',
+  wallpaperEditorCriticalHint: 'Amber box · key details stay inside the safe area', wallpaperEditorAnchorHint: 'Green box · composition focus stays inside the safe area',
   wallpaperEditorTitle: 'Visual layout', wallpaperEditorHelp: 'Drag the image or an annotation. Drag the selected corner to resize. Escape cancels a drag; changes are applied when you release.',
   wallpaperEditorPlacement: 'Image placement', wallpaperEditorLeft: 'Left (px)', wallpaperEditorTop: 'Top (px)', wallpaperEditorScale: 'Scale',
   wallpaperEditorRegions: 'Source annotations', wallpaperEditorAddRegion: 'Add protected region', wallpaperEditorDeleteRegion: 'Delete selected region',
@@ -14,6 +20,12 @@ export const wallpaperPlanEditorEn = {
 }
 /** Chinese controls use the same keys as English. */
 export const wallpaperPlanEditorZh: typeof wallpaperPlanEditorEn = {
+  wallpaperEditorPreviewZoom: '预览缩放', wallpaperEditorZoomIn: '放大预览', wallpaperEditorZoomOut: '缩小预览', wallpaperEditorFitPreview: '适配画布', wallpaperEditorZoomHint: 'Ctrl＋滚轮缩放 · Ctrl＋拖动平移',
+  wallpaperEditorPreview: '画布预览', wallpaperEditorLegend: '线条与颜色', wallpaperEditorReady: '几何检查通过，保存后仍需独立复审',
+  wallpaperEditorSafeHint: '绿色实线 · 保护内容的边界', wallpaperEditorClockHint: '红色填充 · 时间显示背景',
+  wallpaperEditorBufferHint: '黄色填充 · 保护框不得进入', wallpaperEditorCenterHint: '灰色虚线 · 水平与竖直对齐',
+  wallpaperEditorOverflowHint: '蓝色虚线 · 仅容纳非关键轮廓', wallpaperEditorSubjectHint: '蓝色框 · 完整可见主体',
+  wallpaperEditorCriticalHint: '黄色框 · 关键部位留在安全区内', wallpaperEditorAnchorHint: '绿色框 · 构图焦点留在安全区内',
   wallpaperEditorTitle: '图形规划', wallpaperEditorHelp: '拖动图片或标注，拖动选中框的右下角调整大小。按 Escape 取消拖动，松开后提交修改。',
   wallpaperEditorPlacement: '图片定位', wallpaperEditorLeft: '左侧位置（px）', wallpaperEditorTop: '顶部位置（px）', wallpaperEditorScale: '等比缩放',
   wallpaperEditorRegions: '原图标注', wallpaperEditorAddRegion: '添加保护框', wallpaperEditorDeleteRegion: '删除选中区域',

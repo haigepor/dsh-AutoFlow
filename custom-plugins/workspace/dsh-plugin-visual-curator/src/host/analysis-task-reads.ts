@@ -20,7 +20,7 @@ function factsOf(run: Readonly<RunRecord>, prepared?: Prepared): TaskFacts | nul
     reasoningEffort: spec.config.vision.reasoningEffort ?? null, attempts: data.attempts, startedAt: run.createdAt, autoResume: data.autoResume === true,
     ...(data.counts.awaiting ? { awaitingReferences: data.counts.awaiting } : {}), ...(data.checkpoint.analysisNeedsPositiveReferences === true ? { needsPositiveReferences: true } : {}), ...(typeof data.checkpoint.finalDatasetId === 'string' ? { finalDatasetId: data.checkpoint.finalDatasetId } : {}), ...(typeof data.checkpoint.observationDatasetId === 'string' ? { observationDatasetId: data.checkpoint.observationDatasetId } : {}),
     ...(run.outcome ? { outcome: run.outcome } : {}), ...(data.error ? { error: data.error } : {}) }, savedPhase: data.process?.phase,
-    continuation: { kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, errorCode: data.error?.code, deadlineAt: taskTiming(spec) === 'native-model' ? null : data.budget.deadlineAt, observed, total,
+    continuation: { kind: spec.kind, status: run.status, retryable: data.error?.retryable === true, errorCode: data.error?.code, errorStage: data.error?.stage, deadlineAt: taskTiming(spec) === 'native-model' ? null : data.budget.deadlineAt, observed, total,
       buildDataset: spec.input.buildDataset === true, hasSummary: data.checkpoint.styleAnalysis !== undefined, vision: data.budget.vision, maxVisionCalls: spec.config.limits.maxVisionCalls } }
 }
 

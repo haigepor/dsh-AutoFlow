@@ -54,7 +54,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // Older supported hosts lack the auxiliary image registry.
   if (typeof ctx.llm.registerImageProvider === 'function') {
     ctx.effect(() => ctx.llm.registerImageProvider('autoflow-codex', imageLlmProvider(service.images, ctx.attachments,
-      async () => (await service.modelCatalog()).entries.filter(entry => entry.kind === 'image').map(entry => ({ id: entry.id, name: entry.name })), () => service.imageTimeoutMs)), 'Codex subscription image provider')
+      async () => service.imageModels(), () => service.imageTimeoutMs)), 'Codex subscription image provider')
   } else ctx.logger.warn('Update AutoFlow Desktop to expose Codex image generation to canvas workflows.')
   ctx.effect(() => ctx.llm.registerConfigurableProviders([{ provider: 'autoflow-codex', displayName: 'ChatGPT / Codex', settingsNs, settingsPath: [],
     nativeAuth: { env: [], oauth: true } }]), 'Codex subscription model directory')

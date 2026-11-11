@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-summary-pause",
+  "category": "fixes",
+  "text": {
+    "en": "Pausing Visual Curator during style summarization retains the completed response and resumes dataset packaging without repeating the model request.",
+    "zh-CN": "修复视觉策展在风格归纳时暂停被误报为参考集变化的问题；继续时复用已保存的回答完成数据集。"
+  }
+}

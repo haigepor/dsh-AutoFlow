@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-five-edit-limit",
+  "category": "improvements",
+  "text": {
+    "en": "Wallpaper editing and automatic rework allow up to five attempts, retaining consumed counts when continuing an existing task.",
+    "zh-CN": "壁纸编辑与自动返工上限统一为 5 次，继续已有任务时保留已消耗次数。"
+  }
+}

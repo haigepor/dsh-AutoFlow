@@ -21,14 +21,15 @@ async function entrySource() {
 }
 
 test('only mounted workbenches read and poll, and reopening or reconnecting refreshes their scope', async context => {
-  const fixture = await serviceFixture()
+  const fixture = await serviceFixture(undefined, { idlePollIntervalMs: 30_000 })
   await fixture.service.initialize()
   await fixture.action('style-create', { operationId: 'entry-poll-style', name: 'Polling fixture collection' })
   const source = await entrySource(), previous = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch }
   const counts = {}, pending = new Set(), registered = [], effects = [], events = new Map(), observers = new Set()
   let definition
   globalThis.window = { __ModuleLoader__: { load(module) { definition = module } } }
-  globalThis.document = { baseURI: 'http://fixture.invalid/', createElement: () => ({ textContent: '', remove() {} }), head: { append() {} } }
+  const visibility = new Map()
+  globalThis.document = { hidden: false, addEventListener: (name, listener) => visibility.set(name, listener), removeEventListener: name => visibility.delete(name), baseURI: 'http://fixture.invalid/', createElement: () => ({ textContent: '', remove() {} }), head: { append() {} } }
   globalThis.fetch = async (_url, init) => {
     const { operation, args } = JSON.parse(init.body)
     counts[operation] = (counts[operation] ?? 0) + 1
@@ -73,10 +74,15 @@ test('only mounted workbenches read and poll, and reopening or reconnecting refr
     await flush()
     assert.equal(counts['search-launch-list'], 1)
     await advance(6)
-    assert.equal(counts['gallery-reference-tasks'], 3)
+    assert.equal(counts['gallery-reference-tasks'], undefined, 'idle workbenches do not poll every two seconds')
     assert.equal(counts['search-launch-list'], 1, 'an empty visible launch list stays idle')
-    first(); await advance(2)
-    assert.equal(counts['gallery-reference-tasks'], 4, 'one remaining workbench keeps observation alive')
+    first(); await advance(24)
+    assert.equal(counts['gallery-reference-tasks'], 1, 'one remaining workbench discovers external work after the idle interval')
+    document.hidden = true; visibility.get('visibilitychange')(); const hidden = { ...counts }
+    await advance(60)
+    assert.deepEqual(counts, hidden, 'hidden workbenches stop directory polling')
+    document.hidden = false; visibility.get('visibilitychange')(); await flush()
+    assert.equal(counts.snapshot, hidden.snapshot + 1, 'returning to a visible workbench immediately refreshes')
     second(); closeLaunches()
     const closed = { ...counts }
     await advance(60)
@@ -88,7 +94,7 @@ test('only mounted workbenches read and poll, and reopening or reconnecting refr
     assert.equal(counts['search-launch-list'], closed['search-launch-list'] + 1)
     await fixture.action('style-create', { operationId: 'entry-poll-external-style', name: 'External fixture collection' })
     const beforeExternal = counts['search-launch-list']
-    await advance(2)
+    await advance(30)
     assert.equal(counts['search-launch-list'], beforeExternal + 1, 'a changed workspace checks an idle launch directory')
     const beforeReset = counts.snapshot
     events.get('connection/reset')(); await flush()

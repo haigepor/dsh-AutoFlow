@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-conversation-failure",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator reports failed search conversations and keeps conversation cards in sync with wallpaper production, pause, recovery and final review.",
+    "zh-CN": "视觉策展准确显示找图会话失败，并让对话任务卡片同步壁纸制作、暂停、恢复和最终复审状态。"
+  }
+}

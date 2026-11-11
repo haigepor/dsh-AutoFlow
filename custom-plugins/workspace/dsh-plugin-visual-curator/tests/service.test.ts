@@ -1,8 +1,26 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { z } from 'zod'
+import sharp from 'sharp'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { specOf, dataOf } from '../src/host/runtime.ts'
+
+test('local thumbnail delivery bounds saved original pixels without changing image history or full downloads', async () => {
+  const f = await serviceFixture(undefined, { previewMaxDimension: 128 }); await f.service.initialize()
+  try {
+    const style = z.object({ id: z.string() }).parse(await f.action('style-create', { name: 'Preview regression', operationId: 'preview-style' }))
+    await f.action('reference-import', { operationId: 'preview-import', styleId: style.id, expectedRevision: 1, bytesAllowed: true, files: [{ name: 'source.png', mime: 'image/png', base64: f.referenceImage.toString('base64'), role: 'positive', intent: 'overall', dimensions: [] }] })
+    const images = f.repository.list('imageVersion'), image = images.find(row => row.versionKind === 'normalized')!
+    const url = `https://owner.example/api/visual-curator/resource?imageVersionId=${image.id}`
+    const full = Buffer.from(await (await f.service.resource(new Request(url))).arrayBuffer())
+    const response = await f.service.resource(new Request(url + '&preview=thumbnail'))
+    assert.equal(response.status, 200); assert.equal(response.headers.get('content-type'), 'image/webp')
+    const preview = Buffer.from(await response.arrayBuffer()), dimensions = await sharp(preview).metadata()
+    assert.equal(dimensions.width, 128); assert.equal(dimensions.height, 64)
+    assert.deepEqual(f.repository.list('imageVersion'), images)
+    assert.deepEqual(Buffer.from(await (await f.service.resource(new Request(url))).arrayBuffer()), full)
+  } finally { await f.cleanup() }
+})
 
 test('real service imports references, publishes explicitly, searches/crops, revises feedback and exports immutable supervision', async () => {
   const f = await serviceFixture()

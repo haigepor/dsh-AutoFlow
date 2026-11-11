@@ -1,0 +1,9 @@
+{
+  "status": "cancelled",
+  "removable": true,
+  "attention": 0,
+  "remainingBatches": 0,
+  "pausedHistoryKept": true,
+  "evidenceKept": true,
+  "newImageGenerations": 0
+}

@@ -1,0 +1,8 @@
+{
+  "id": "plugin-install-dialog-layout",
+  "category": "improvements",
+  "text": {
+    "en": "Plugin installation dialogs use a compact introduction, readable package details, grouped feature choices and fixed bottom actions.",
+    "zh-CN": "插件安装弹窗采用紧凑介绍区，安装结果突出插件信息，功能按类型分组，底部操作固定显示。"
+  }
+}

@@ -1,0 +1,10 @@
+[
+  {"kind":"safe","label":"固定安全区","meaning":"绿色实线 · 保护内容的边界"},
+  {"kind":"clock","label":"时间区","meaning":"红色填充 · 时间显示背景"},
+  {"kind":"buffer","label":"顶部缓冲区","meaning":"黄色填充 · 保护框不得进入"},
+  {"kind":"center","label":"中心参考线","meaning":"灰色虚线 · 水平与竖直对齐"},
+  {"kind":"overflow","label":"主体边缘容差","meaning":"蓝色虚线 · 仅容纳非关键轮廓"},
+  {"kind":"subject","label":"主体","meaning":"蓝色框 · 完整可见主体"},
+  {"kind":"critical","label":"保护细节","meaning":"黄色框 · 关键部位留在安全区内"},
+  {"kind":"anchor","label":"构图锚点","meaning":"绿色框 · 构图焦点留在安全区内"}
+]

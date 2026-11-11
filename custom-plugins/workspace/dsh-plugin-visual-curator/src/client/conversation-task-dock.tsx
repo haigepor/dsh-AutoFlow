@@ -35,6 +35,7 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
     const entry = runId ? state.runs[runId] : undefined, run = entry?.run
     const launch = !task ? tasks?.launch : undefined
     const [metric, setMetric] = React.useState<{ runId: string; key: 'selected' | 'candidates' | 'unique' | 'review' }>()
+    const [capsule, setCapsule] = React.useState(false)
     const [expanded, setExpanded] = React.useState(false), [opening, setOpening] = React.useState(false), [openFailed, setOpenFailed] = React.useState(false)
     const [transitioning, setTransitioning] = React.useState(false)
     const [stopping, setStopping] = React.useState(false), [stopFailed, setStopFailed] = React.useState(false)
@@ -51,6 +52,20 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
       try { await retryPresentation(id) } catch (error) { setSyncError(true) } finally { setSyncing(false) }
     }}>{t('taskPresentationSync')}</ui.Button>}</div> : null
     const visible = !!task || !!launch || !!tasks?.error
+    React.useLayoutEffect(() => {
+      const node = card.current, body = node?.closest<HTMLElement>('[data-conversation-content]')
+      if (!node || !body) return
+      const property = '--vc-task-card-width', previous = body.style.getPropertyValue(property)
+      let owned = ''
+      const update = () => {
+        const next = `${node.getBoundingClientRect().width}px`
+        if (next === owned) return
+        owned = next; body.style.setProperty(property, next)
+      }
+      update()
+      const observer = new ResizeObserver(update); observer.observe(node)
+      return () => { observer.disconnect(); if (body.style.getPropertyValue(property) === owned) { if (previous) body.style.setProperty(property, previous); else body.style.removeProperty(property) } }
+    }, [visible, capsule])
     React.useLayoutEffect(() => {
       const node = card.current
       if (!node) return
@@ -76,12 +91,34 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
       setWidth(cancelled ? current.previous : clamp(current.width + current.x - event.clientX, current.max))
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
     }
+    // 目录先收到终态时不能继续显示较旧详情中的运行状态。
+    const newerTask = task?.revision !== undefined && (run?.revision === undefined || task.revision > run.revision)
+    const sourceStatus = newerTask ? task.status : run?.status ?? task?.status
+    const wallpaperGoal = !!run?.wallpaperRequired
+    const status = wallpaperGoal && sourceStatus === 'completed' ? run.wallpaper?.status ?? (run.workflowComplete ? 'completed' : 'created') : sourceStatus
+    const attention = wallpaperGoal && sourceStatus === 'completed' && status === 'completed' && !run.workflowComplete
+    const active = !!status && ['created', 'running', 'pausing', 'cancelling'].includes(status)
+    const label = attention ? 'wallpaperAttention' : wallpaperGoal && sourceStatus === 'completed' && active ? 'wallpaperWorking' : status ?? 'taskReading'
+    const passed = wallpaperGoal ? run.wallpaper?.passed ?? 0 : run?.resultSummary?.selected ?? 0
+    const openSelectedTask = () => {
+      const target = runId
+      if (!target || opening) return
+      setOpening(true); setOpenFailed(false)
+      void openTask(target).catch(() => setOpenFailed(true)).finally(() => setOpening(false))
+    }
+
+    const minimize = <ui.Tooltip portal label={t('taskMinimize')}><ui.Button className="vc-conversation-task-minimize" size="sm" variant="ghost" aria-label={t('taskMinimize')} onClick={() => setCapsule(true)}><ui.IconChevronDownOutlineRegular size={14} /></ui.Button></ui.Tooltip>
+    if (visible && capsule) {
+      const preparing = !task && !!launch, live = preparing ? launch.status === 'working' || launch.status === 'accepted' : active
+      const capsuleLabel = preparing ? launch.status === 'failed' ? 'failed' : launch.status === 'stopped' ? 'searchLaunchBadgeStopped' : 'workflowConversationPreparation' : label
+      return <section ref={card} className="vc-conversation-task" data-conversation-task="" data-capsule="" data-task-run={runId} aria-label={t('taskConversation')}><ui.Tooltip portal label={t('taskRestore')}><ui.Button className="vc-conversation-task-capsule" size="sm" variant="ghost" aria-label={t('taskRestore')} onClick={() => setCapsule(false)}><ui.StateDot state={live ? 'ongoing' : (preparing ? launch.status : status) === 'failed' ? 'error' : attention || status === 'paused' || status === 'interrupted' ? 'idle' : 'done'} /><span>{t('searchKind')}</span>{run?.resultSummary && <strong>{passed}{run.resultSummary.target !== null ? ' / ' + run.resultSummary.target : ''}</strong>}<small>{t(capsuleLabel)}</small><ui.IconChevronDownOutlineRegular size={12} /></ui.Button></ui.Tooltip></section>
+    }
     if (!task && launch) {
       const active = launch.status === 'working' || launch.status === 'accepted'
       const badge = launch.status === 'failed' ? 'failed' : launch.status === 'stopped' ? 'searchLaunchBadgeStopped' : launch.status === 'accepted' ? 'taskLaunchAwaitingSearch' : 'searchLaunchBadgePreparing'
       return <section ref={card} className="vc-conversation-task vc-conversation-launch" data-conversation-task="" data-conversation-launch={launch.id} data-expanded={expanded || undefined} aria-label={t('taskConversation')}
         onKeyDown={event => { if (event.key === 'Escape' && expanded) { event.stopPropagation(); setExpanded(false); toggle.current?.focus() } }}>
-        <header className="vc-conversation-task-header"><span className="vc-conversation-task-title"><ui.IconSearchOutlineRegular size={16} />{t('searchKind')}</span><ui.Tag className="vc-conversation-task-status" tone={launch.status === 'failed' ? 'danger' : active ? 'info' : 'neutral'}><ui.StateDot state={active ? 'ongoing' : launch.status === 'failed' ? 'error' : 'idle'} />{t(badge)}</ui.Tag></header>
+        <header className="vc-conversation-task-header"><span className="vc-conversation-task-title"><ui.IconSearchOutlineRegular size={16} />{t('searchKind')}</span><ui.Tag className="vc-conversation-task-status" tone={launch.status === 'failed' ? 'danger' : active ? 'info' : 'neutral'}><ui.StateDot state={active ? 'ongoing' : launch.status === 'failed' ? 'error' : 'idle'} />{t(badge)}</ui.Tag>{minimize}</header>
         <p className="vc-conversation-task-brief" title={launch.input.taskBrief}>{launch.input.taskBrief}</p>
         <div className="vc-conversation-launch-target"><span>{t('taskLaunchTarget')}</span><strong>{launch.input.targetCount}</strong></div>
         {active && <p className="vc-conversation-launch-phase" role="status">{t(launch.status === 'accepted' ? 'taskLaunchAcceptedHint' : launch.stage === 'preparing-dataset' ? 'searchLaunchDatasetPreparing' : launch.stage === 'submitting' ? 'taskLaunchSubmittingHint' : 'taskLaunchAttachingHint')}</p>}
@@ -96,10 +133,6 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
       </section>
     }
     if (!task && !tasks?.error) return null
-    // 目录先收到终态时不能继续显示较旧详情中的运行状态。
-    const newerTask = task?.revision !== undefined && (run?.revision === undefined || task.revision > run.revision)
-    const status = newerTask ? task.status : run?.status ?? task?.status
-    const active = !!status && ['created', 'running', 'pausing', 'cancelling'].includes(status)
     const categoryKey = { selected: run?.outputKind === 'preview' ? 'taskPreviewMatched' : 'taskFinal', review: 'taskReview', rejected: 'taskRejected', failed: 'taskTechnical', processing: 'taskProcessing', pending: 'taskPending', source: 'taskSourceImage' } as const
     const categoryTone = { selected: 'success', review: 'warning', rejected: 'quiet', failed: 'danger', processing: 'info', pending: 'neutral', source: 'info' } as const
     const resource = (path: string) => { const safe = safeResourcePath(path); return safe ? new URL(safe.slice(1), document.baseURI).href : undefined }
@@ -144,15 +177,15 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
       </ui.Tooltip>
       <header className="vc-conversation-task-header">
         <span className="vc-conversation-task-title">{task?.kind === 'crop' ? <ui.IconListPenOutlineRegular size={16} /> : <ui.IconSearchOutlineRegular size={16} />}{t(task?.kind === 'crop' ? 'cropKind' : 'searchKind')}</span>
-        <ui.Tag className="vc-conversation-task-status" tone={status === 'failed' ? 'danger' : active ? 'info' : status === 'completed' ? 'success' : status === 'paused' || status === 'interrupted' ? 'warning' : 'neutral'}><ui.StateDot state={status === 'failed' ? 'error' : active ? 'ongoing' : status === 'completed' ? 'done' : 'idle'} />{status ? t(status) : t('taskReading')}</ui.Tag>
+        <ui.Tag className="vc-conversation-task-status" tone={status === 'failed' ? 'danger' : active ? 'info' : attention || status === 'paused' || status === 'interrupted' ? 'warning' : status === 'completed' ? 'success' : 'neutral'}><ui.StateDot state={status === 'failed' ? 'error' : active ? 'ongoing' : status === 'completed' && !attention ? 'done' : 'idle'} />{t(label)}</ui.Tag>{minimize}
       </header>
       {tasks && tasks.items.length > 1
         ? <div className="vc-conversation-task-selector"><SelectField label={t('taskSwitch')} value={runId ?? ''} options={tasks.items.map(item => ({ value: item.runId, label: item.taskBrief || t(item.kind === 'crop' ? 'cropKind' : 'searchKind') }))} onChange={selectTask} /></div>
         : task?.taskBrief && <p className="vc-conversation-task-brief" title={task.taskBrief}>{task.taskBrief}</p>}
       {run && <div className="vc-conversation-task-metrics" role="group" aria-label={t('taskRunInformation')}>
-        {run.resultSummary && <button type="button" data-result="selected" aria-pressed={selectedMetric === 'selected'} onClick={() => chooseMetric('selected', 'selected')}>
-          <span className="vc-conversation-task-metric-label" title={t(run.outputKind === 'preview' ? 'taskPreviewMatched' : 'taskFinal')}>{t(run.outputKind === 'preview' ? 'taskPreviewMatched' : 'taskFinal')}</span>
-          <span className="vc-conversation-task-stat"><strong>{run.resultSummary.selected}</strong>{run.resultSummary.target !== null && <small> / {run.resultSummary.target}</small>}</span>
+        {run.resultSummary && <button type="button" data-result="selected" aria-pressed={!wallpaperGoal && selectedMetric === 'selected'} disabled={wallpaperGoal && opening} onClick={() => wallpaperGoal ? openSelectedTask() : chooseMetric('selected', 'selected')}>
+          <span className="vc-conversation-task-metric-label" title={t(wallpaperGoal ? 'wallpaperFinalCount' : run.outputKind === 'preview' ? 'taskPreviewMatched' : 'taskFinal')}>{t(wallpaperGoal ? 'wallpaperFinalCount' : run.outputKind === 'preview' ? 'taskPreviewMatched' : 'taskFinal')}</span>
+          <span className="vc-conversation-task-stat"><strong>{passed}</strong>{run.resultSummary.target !== null && <small> / {run.resultSummary.target}</small>}</span>
         </button>}
         {run.counts.candidates !== undefined && <button type="button" data-result="candidates" aria-pressed={selectedMetric === 'candidates'} onClick={() => chooseMetric('candidates', 'all')}>
           <span className="vc-conversation-task-metric-label" title={t('taskCandidates')}>{t('taskCandidates')}</span>
@@ -170,7 +203,7 @@ export function createConversationTaskDock(React: typeof import('react'), ui: ty
       {(tasks?.error || entry?.error) && <p className="vc-conversation-task-notice" role="status">{t('taskReadFailed')} <ui.Button size="sm" variant="ghost" onClick={refresh}>{t('taskRefresh')}</ui.Button></p>}
       {presentationNotice}
       <div className="vc-conversation-task-actions">
-        {runId && <ui.Button size="sm" variant="outline" disabled={opening} onClick={() => { setOpening(true); setOpenFailed(false); void openTask(runId).catch(() => setOpenFailed(true)).finally(() => setOpening(false)) }}>{t('taskOpen')}</ui.Button>}
+        {runId && <ui.Button size="sm" variant="outline" disabled={opening} onClick={openSelectedTask}>{t('taskOpen')}</ui.Button>}
         {active && runId && stopTask && <ui.Button size="sm" variant="ghost" disabled={stopping || status === 'cancelling'} onClick={() => { setStopping(true); setStopFailed(false); void stopTask(runId).catch(() => setStopFailed(true)).finally(() => setStopping(false)) }}>{t(stopping || status === 'cancelling' ? 'cancelling' : 'taskStopBackground')}</ui.Button>}
         <ui.Button ref={toggle} size="sm" variant="ghost" aria-expanded={expanded} aria-controls={detailsId} onClick={() => changeExpanded(!expanded)}>{t(expanded ? 'taskCollapse' : 'taskExpand')}<ui.IconChevronDownOutlineRegular size={12} /></ui.Button>
       </div>

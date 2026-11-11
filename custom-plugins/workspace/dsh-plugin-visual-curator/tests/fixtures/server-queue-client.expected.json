@@ -1,0 +1,28 @@
+{
+  "dialogs": [
+    "服务器图片",
+    "服务器连接"
+  ],
+  "authenticationChoices": [
+    "手动填写 token",
+    "只读 Postman 文件",
+    "已有凭据引用"
+  ],
+  "retainedReceipts": [
+    {
+      "id": "69670",
+      "upload": "上传结果待核对",
+      "actions": [
+        "打开流程",
+        "核对已保存回执"
+      ]
+    },
+    {
+      "id": "69674",
+      "upload": "服务器已接收",
+      "actions": [
+        "打开流程"
+      ]
+    }
+  ]
+}

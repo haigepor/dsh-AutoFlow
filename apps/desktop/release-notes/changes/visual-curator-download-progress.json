@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-download-progress",
+  "category": "improvements",
+  "text": {
+    "en": "Original download nodes and thumbnails share real byte progress and explicit saving or failure states. Direct crop nodes retain their measured dimensions across failures and image changes. Compact image navigation adds single-original retry and subscriber download access checks.",
+    "zh-CN": "原图节点与缩略图同步显示真实下载进度，区分校验保存与失败状态；修复直接裁剪在失败或切图后节点被隐藏的问题，并提供紧凑图片导航、单图重试与会员下载授权检查。"
+  }
+}

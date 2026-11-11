@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-toolbar-layout",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator groups workflow navigation and status on the left, with actions on the right and grouped wrapping in narrower canvases.",
+    "zh-CN": "视觉策展工作流工具栏将导航与状态集中到左侧，操作保留在右侧，并在窄画布中按组换行。"
+  }
+}

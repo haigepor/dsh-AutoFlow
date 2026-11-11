@@ -2,7 +2,10 @@
 /** @jsx React.createElement */
 /** @jsxFrag React.Fragment */
 /** Batch summaries and independent image workflows reuse saved task evidence and existing actions. */
-import { ReactFlow, Background, MiniMap, Handle, Position, Panel, NodeResizer, MarkerType, SelectionMode, useViewport, useReactFlow, type Node, type NodeProps, type ReactFlowInstance } from '@xyflow/react'
+import { ReactFlow, Background, MiniMap, Handle, Position, Panel, NodeResizer, SelectionMode, MarkerType, useViewport, useReactFlow, useUpdateNodeInternals, type Node, type NodeProps, type ReactFlowInstance } from '@xyflow/react'
+import type { ExecutionNavigation, WorkflowLocation } from './workbench-navigation.ts'
+import { z } from 'zod'
+import { wallpaperVerdict } from '../shared/wallpaper.ts'
 import type { WorkbenchProps } from './workbench.tsx'
 import type { ImageView, ReferencePageView, StyleView, StyleAnalysisView } from './contract.ts'
 import type { AnalysisTask } from '../shared/analysis-process.ts'
@@ -17,7 +20,7 @@ import type { SearchBatchesState, SearchBatchesStore } from './search-batches-st
 import type { SearchLaunchDraft } from './search-launch-store.ts'
 import type { SearchLaunchView } from '../shared/search-launch.ts'
 import type { WorkflowHistoryTarget } from '../shared/workflow-history.ts'
-import { preferredWorkflowBatch, workflowWallpaperPhase, workflowBatchPhase, workflowReferencePhase } from './workflow-current-task.ts'
+import { preferredWorkflowBatch, workflowWallpaperPhase, workflowBatchPhase, workflowReferencePhase, workflowLaunchPhase, workflowSearchStage } from './workflow-current-task.ts'
 import { createWorkflowEdge, type WorkflowEdge } from './workflow-edge.tsx'
 import { wallpaperStage, workflowPhase, workflowPhaseKeys, type WorkflowPhase, type WallpaperStep } from './workflow-node-state.ts'
 import { createCanvasStyleSidebar } from './canvas-style-sidebar.tsx'
@@ -26,10 +29,11 @@ import { safeResourcePath } from './store.ts'
 import { createImageGallery } from './image-gallery.tsx'
 import { createReferencePreview } from './reference-preview.tsx'
 import { createSelectField } from './select-field.tsx'
-import { createWorkflowCanvasLayout, type WorkflowNodeKind } from './workflow-canvas-layout.ts'
+import { workflowConnectionSpacing, createWorkflowCanvasLayout, workflowStaggeredPositions, type WorkflowNodeKind } from './workflow-canvas-layout.ts'
+import { wallpaperImageWorkStatus } from '../shared/wallpaper.ts'
 import { createWallpaperCanvas, type WallpaperInvoke } from './wallpaper-canvas.tsx'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
-import { fixedImageWorkflowNodeId, imageWorkflowStages, type ImageWorkflowStage, planningImageLane, imageWorkflowPhase } from './workflow-image-branches.ts'
+import { imageWorkflowWindow, imageWorkflowRework, imageWorkflowStageReached, fixedImageWorkflowNodeId, imageWorkflowPresentationStages, imageWorkflowConnections, type ImageWorkflowStage, planningImageLane, imageWorkflowPhase, imageWorkflowStagePhase } from './workflow-image-branches.ts'
 type WallpaperController = ReturnType<ReturnType<typeof createWallpaperCanvas>['useWallpaper']>
 
 /** Current collection and task actions; historical nodes use the task's frozen source metadata. */
@@ -47,6 +51,9 @@ export interface AutomaticWorkflowContext {
 
 /** Narrow result observation remains independent of the selected task Session. */
 export interface AutomaticWorkflowProps {
+  navigation?: ExecutionNavigation | undefined
+  onNavigate?(value: Omit<ExecutionNavigation, 'serial'>): void
+  onLocation?(value: WorkflowLocation): void
   styleId: string; pageSize?: number; t: WorkbenchText; workflow: AutomaticWorkflowContext
   useBatches<T>(select: (state: SearchBatchesState) => T): T
   actions: Pick<SearchBatchesStore, 'watch' | 'select' | 'refresh' | 'more' | 'moreImages' | 'remove' | 'removeWorkflow'>
@@ -54,18 +61,18 @@ export interface AutomaticWorkflowProps {
 }
 
 const preparedSession = (launch: LaunchCard) => launch.sessionReady === false || ['preparing', 'creating-session', 'unknown', 'rejected'].includes(launch.stage) ? undefined : launch.sessionId
-type LaunchCard = { id: string; input: SearchLaunchDraft; stage: SearchLaunchView['stage'] | 'unknown' | 'rejected'; status: string; sessionId?: string; sessionReady?: boolean; stopping?: boolean; createdAt?: string; errorCode?: string }
+type LaunchCard = { id: string; input: SearchLaunchDraft; stage: SearchLaunchView['stage'] | 'unknown' | 'rejected'; status: string; sessionId?: string; sessionReady?: boolean; runIds?: string[]; runStatus?: string; stopping?: boolean; createdAt?: string; errorCode?: string }
 type Lane = { id: string; batch?: SearchBatch; launch?: LaunchCard }
 type Removal = { target: WorkflowHistoryTarget; label: string; active: boolean; operationId: string }
 type NodeData = {
-  image?: { id: string; index: number; stage: ImageWorkflowStage }
-  processing?: boolean; finals?: boolean
-  kind: WorkflowNodeKind; phase: WorkflowPhase; size: { width: number; height?: number | undefined }; resize(value: { width: number; height: number }): void; beginResize(): void; endResize(): void; resetSize(): void; laneId: string; label: string; launch: LaunchCard | undefined; focused: boolean; collapsed: boolean; collapse(): void; focus(): void; settings(): void; context: AutomaticWorkflowContext; t: WorkbenchText; dataset: DatasetEntry | undefined
+  image?: { id: string; index: number; stage: ImageWorkflowStage; ordinal?: number; upcoming?: boolean; previousReview?: boolean }
+  upcoming?: boolean; processing?: boolean; finals?: boolean
+  kind: WorkflowNodeKind | 'decision'; phase: WorkflowPhase; size: { width: number; height?: number | undefined }; resize(value: { width: number; height: number }): void; beginResize(): void; endResize(): void; resetSize(): void; laneId: string; label: string; launch: LaunchCard | undefined; focused: boolean; collapsed: boolean; collapse(): void; focus(): void; settings(): void; context: AutomaticWorkflowContext; t: WorkbenchText; dataset: DatasetEntry | undefined
   datasets: DatasetClientState; batch: SearchBatch | undefined; loading: boolean; opening: boolean; refreshKey: number; pageSize: number
   preview(imageId: string): void; resume(): void; open(): void; crop(imageId: string): void; remove(): void; moreImages(): Promise<void>
   deleting: boolean; hasInput: boolean; hasOutput: boolean; wallpaper: WallpaperController
   appearances: Set<string>
-  receiving: boolean
+  receiving: boolean; ports?: { id: string; type: 'source' | 'target'; side: Position; phase: WorkflowPhase }[]
 }
 type FlowNode = Node<NodeData, 'workflow'>
 
@@ -83,7 +90,7 @@ function nodePhase(data: Pick<NodeData, 'kind' | 'context' | 'batch' | 'dataset'
     if (batch?.status === 'failed' || batch?.status === 'completed' && !batch.matched) return 'blocked'
     return 'queued'
   }
-  if (kind === 'results') return batch ? workflowPhase(batch.status) : launch?.status === 'working' ? 'running' : launch?.status === 'accepted' ? 'queued' : launch?.status === 'unknown' ? 'attention' : launch?.status === 'rejected' ? 'failed' : workflowPhase(launch?.status)
+  if (kind === 'results') return batch ? workflowPhase(batch.status) : launch && ['working', 'accepted'].includes(launch.status) ? workflowLaunchPhase(launch) : launch?.status === 'unknown' ? 'attention' : launch?.status === 'rejected' ? 'failed' : workflowPhase(launch?.status)
   if (kind === 'dataset') {
     if (launch?.stage === 'preparing-dataset' && launch.status === 'working') return 'running'
     if (!batch && !launch) {
@@ -97,9 +104,31 @@ function nodePhase(data: Pick<NodeData, 'kind' | 'context' | 'batch' | 'dataset'
   const current = context.referenceTask && galleryTaskActive(context.referenceTask.status) ? 'running' : workflowPhase(context.analysis?.status)
   return workflowReferencePhase(current, launch?.input.modelProfileId, context.style.modelProfile?.id, dataset)
 }
-function connection(id: string, source: string, target: string, phase: WorkflowPhase, rework = false, label?: string, waitingForInput = false, motionPaused = false): WorkflowEdge {
+function connection(id: string, source: string, target: string, phase: WorkflowPhase, rework = false, label?: string, waitingForInput = false): WorkflowEdge {
   const flowing = phase === 'running' || waitingForInput
-  return { id, source, target, type: 'workflow', data: { phase, rework, flowing, motionPaused }, ...(label ? { label } : {}), ...(flowing ? { markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, markerUnits: 'userSpaceOnUse', color: 'var(--dsw-alias-link)' } } : {}) }
+  return { id, source, target, type: 'workflow', data: { phase, rework, flowing }, ...(rework ? { markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--dsw-alias-state-warn-primary)' } } : {}), ...(label ? { label } : {}) }
+}
+
+function connectPorts(nodes: FlowNode[], edges: WorkflowEdge[], epoch: number) {
+  const lookup = new Map(nodes.map(node => [node.id, node]))
+  for (const node of nodes) node.data.ports = []
+  for (const edge of edges) {
+    const source = lookup.get(edge.source), target = lookup.get(edge.target)
+    if (!edge.data || !source || !target) continue
+    edge.data.motionEpoch = epoch
+    const width = source.data.size.width, height = source.measured?.height ?? source.data.size.height ?? 260
+    const targetWidth = target.data.size.width, targetHeight = target.measured?.height ?? target.data.size.height ?? 260
+    const dx = target.position.x + targetWidth / 2 - source.position.x - width / 2
+    const dy = target.position.y + targetHeight / 2 - source.position.y - height / 2
+    const horizontalGap = Math.abs(dx) - (width + targetWidth) / 2, verticalGap = Math.abs(dy) - (height + targetHeight) / 2
+    const vertical = verticalGap > Math.max(24, horizontalGap)
+    const from = vertical ? dy >= 0 ? Position.Bottom : Position.Top : dx >= 0 ? Position.Right : Position.Left
+    const to = vertical ? dy >= 0 ? Position.Top : Position.Bottom : dx >= 0 ? Position.Left : Position.Right
+    const phase = edge.data.flowing ? 'running' : edge.data.phase
+    edge.sourceHandle = edge.id + ':source'; edge.targetHandle = edge.id + ':target'
+    source.data.ports!.push({ id: edge.sourceHandle, type: 'source', side: from, phase })
+    target.data.ports!.push({ id: edge.targetHandle, type: 'target', side: to, phase })
+  }
 }
 
 /** @param React Shared application runtime. @param ui Existing controls and preview primitives. @returns Automatic workflow canvas with local-only geometry and existing business actions. */
@@ -107,7 +136,7 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
   const { Button, Tag, StateDot, ZoomControls, AnimatedCollapse, Modal } = ui
   const ReferencePreview = createReferencePreview(React, ui), ImageGallery = createImageGallery(React, ui), SelectField = createSelectField(React, ui)
   const useLayout = createWorkflowCanvasLayout(React), StyleSidebar = createCanvasStyleSidebar(React, ui)
-  const { useWallpaper, ImageNavigator, ImageStepCard, Dialogs: WallpaperDialogs } = createWallpaperCanvas(React, ui)
+  const { useWallpaper, ImageNavigator, ImageStepCard, DecisionCard, UpcomingStepCard, StepHistory, Dialogs: WallpaperDialogs } = createWallpaperCanvas(React, ui)
   const resource = (path: string) => { const safe = safeResourcePath(path); return safe ? new URL(safe.slice(1), document.baseURI).href : undefined }
 
   function ReferencesNode({ data }: { data: NodeData }) {
@@ -169,7 +198,7 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
     }
     return <div className="vc-flow-node-body vc-flow-results-body nodrag nopan nowheel">
       <div className="vc-flow-result-heading"><div className="vc-flow-node-badges"><Tag tone="info">{t(batch.kind === 'crop' ? 'cropKind' : 'searchKind')}</Tag><Tag tone={batch.status === 'failed' ? 'danger' : batch.status === 'completed' ? 'success' : 'neutral'}>{t(batch.status)}</Tag></div><time dateTime={batch.createdAt}>{new Date(batch.createdAt).toLocaleString()}</time></div>
-      {batch.taskBrief && <p className="vc-flow-task-brief">{batch.taskBrief}</p>}
+      {batch.taskBrief && <p className="vc-flow-task-brief">{batch.taskBrief}</p>}<SearchProgress batch={batch} t={t} />
       <div className="vc-flow-metrics"><strong>{batch.matched}</strong>{batch.targetCount && <span>/ {batch.targetCount}</span>}<span>{t(batch.previewOnly ? 'taskPreviewMatched' : 'workflowMatchedResult')}</span></div>
       {batch.status === 'completed' && batch.targetCount && batch.matched < batch.targetCount && <Tag tone="warning">{t('workflowTargetUnmet')}</Tag>}
       {(batch.errorCode || batch.postProcessingError && !batch.wallpaper) && <div className="vc-notice" role="alert">{t(batch.postProcessingError ? 'workflowHandoffFailed' : 'wallpaperTechnicalFailure')} <code>{batch.postProcessingError ?? batch.errorCode}</code></div>}
@@ -193,19 +222,25 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
     const { launch, t, context } = data
     if (!launch) return null
     const failure = ['failed', 'rejected', 'unknown'].includes(launch.status), sessionId = preparedSession(launch)
-    const stage = { preparing: 'searchLaunchBadgePreparing', 'creating-session': 'searchLaunchBadgePreparing', 'preparing-dataset': 'workflowGeneratingDataset', attaching: 'workflowAttaching', submitting: 'workflowSubmitting', accepted: 'workflowAwaitingRun', stopped: 'searchLaunchBadgeStopped', unknown: 'searchLaunchBadgeUnknown', rejected: 'failed' } as const
+    const stage = { preparing: 'searchLaunchBadgePreparing', 'creating-session': 'searchLaunchBadgePreparing', 'preparing-dataset': 'workflowGeneratingDataset', attaching: 'workflowAttaching', submitting: 'workflowSubmitting', accepted: launch.runIds?.length ? 'workflowReadingRun' : 'workflowConversationPreparation', stopped: 'searchLaunchBadgeStopped', unknown: 'searchLaunchBadgeUnknown', rejected: 'failed' } as const
     return <div className="vc-flow-node-body nodrag nopan nowheel">
       <div className="vc-flow-node-badges"><Tag tone={failure ? 'warning' : 'info'}>{t(stage[launch.stage])}</Tag><span className="vc-flow-muted">{t('targetCountLabel')} {launch.input.targetCount}</span></div>
-      <p className="vc-flow-task-brief">{launch.input.taskBrief}</p><p className="vc-flow-muted" role={launch.status === 'accepted' ? 'status' : undefined}>{t(launch.status === 'accepted' ? 'workflowAwaitingRunHint' : 'workflowPreparationHint')}</p>
+      <p className="vc-flow-task-brief">{launch.input.taskBrief}</p><p className="vc-flow-muted" role={launch.status === 'accepted' ? 'status' : undefined}>{t(launch.status === 'accepted' ? launch.runIds?.length ? 'workflowReadingRunHint' : 'workflowAwaitingRunHint' : 'workflowPreparationHint')}</p>
       {launch.errorCode && <div className="vc-notice" role="alert">{t('searchLaunchTaskAttention')} <code>{launch.errorCode}</code></div>}
       <div className="vc-flow-node-actions">{sessionId && <Button size="sm" variant="outline" onClick={() => { context.launches.openSession(sessionId) }}>{t('workflowOpenSearchSession')}</Button>}{failure && <Button size="sm" variant="outline" onClick={() => { void context.launches.refresh() }}>{t('refresh')}</Button>}{['failed', 'unknown'].includes(launch.status) && <Button size="sm" variant="outline" disabled={launch.stopping} onClick={() => { void context.launches.start(launch.input) }}>{t('retry')}</Button>}{stoppableLaunch(launch) && <Button size="sm" variant="ghost" disabled={launch.stopping} onClick={() => { void context.launches.stop(launch.id) }}>{t(launch.stopping ? 'searchLaunchBadgeStopping' : 'searchLaunchStop')}</Button>}<Button size="sm" variant="ghost" className="vc-search-batch-delete" disabled={data.deleting} onClick={data.remove}><ui.IconTrashOutlineRegular size={14} />{t('workflowDeleteBatch')}</Button></div>
     </div>
   }
 
+  function SearchProgress({ batch, t }: { batch: SearchBatch; t: WorkbenchText }) {
+    const label = workflowSearchStage(batch), progress = batch.progress
+    if (!progress || batch.kind !== 'search') return null
+    return <div className="vc-flow-search-progress" role="status">{label && <Tag tone="info">{t(label)}</Tag>}<div className="vc-flow-facts"><span>{t('taskCandidates')} {progress.counts.candidates ?? 0}</span><span>{t('taskScreeningReviewed')} {progress.counts.screeningReviewed ?? 0}</span><span>{t('taskDeepReviewed')} {progress.counts.deepReviewed ?? 0}</span></div>{activeTask(batch.status) && !batch.matched && <p className="vc-flow-muted">{t('workflowSearchNoMatchesYet')}</p>}</div>
+  }
+
   function BatchResults({ data }: { data: NodeData }) {
     const { batch, t } = data
     if (!batch) return <ResultsNode data={data} />
-    return <div className="vc-flow-node-body nodrag nopan nowheel"><div className="vc-flow-metrics"><strong>{batch.matched}</strong><span>/ {batch.targetCount ?? batch.matched}</span><Tag tone={data.phase === 'completed' ? 'success' : 'neutral'}>{t(batch.previewOnly ? 'taskPreviewMatched' : 'workflowMatchedResult')}</Tag></div><p className="vc-planning-image-subject">{batch.taskBrief}</p><div className="vc-flow-node-actions"><Button size="sm" variant="outline" disabled={data.opening} onClick={data.open}>{t('taskRunInformation')}</Button>{batch.status === 'completed' && batch.matched > 0 && !batch.wallpaper && data.wallpaper.enabled && <Button size="sm" variant="outline" onClick={data.settings}>{t('wallpaperStartBatch')}</Button>}</div></div>
+    return <div className="vc-flow-node-body nodrag nopan nowheel"><div className="vc-flow-metrics"><strong>{batch.matched}</strong><span>/ {batch.targetCount ?? batch.matched}</span><Tag tone={data.phase === 'completed' ? 'success' : 'neutral'}>{t(batch.previewOnly ? 'taskPreviewMatched' : 'workflowMatchedResult')}</Tag></div><p className="vc-planning-image-subject">{batch.taskBrief}</p><SearchProgress batch={batch} t={t} /><div className="vc-flow-node-actions"><Button size="sm" variant="outline" disabled={data.opening} onClick={data.open}>{t('taskRunInformation')}</Button>{batch.status === 'completed' && batch.matched > 0 && !batch.wallpaper && data.wallpaper.enabled && <Button size="sm" variant="outline" onClick={data.settings}>{t('wallpaperStartBatch')}</Button>}</div></div>
   }
 
   function DownstreamSummary({ data }: { data: NodeData }) {
@@ -215,67 +250,116 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
     const ownsHandoff = kind === 'downloading' && !!batch?.postProcessingError
     const reason = !data.context.wallpaper ? 'wallpaperMissingCapability' : batch?.postProcessingError ? ownsHandoff ? 'workflowHandoffFailed' : 'workflowStepBlocked' : batch?.status === 'cancelled' ? 'workflowSearchCancelled' : batch?.outcome === 'budget-exhausted' ? 'taskBudgetExhausted' : !batch?.matched ? 'workflowNoQualified' : 'workflowAwaitingWallpaper'
     return <div className="vc-flow-node-body nodrag nopan nowheel">
-      {summary ? <><div className="vc-flow-metrics"><strong>{done}</strong><span>/ {summary.total}</span><Tag tone={summary.status === 'failed' ? 'danger' : summary.attention > 0 ? 'warning' : 'neutral'}>{t(workflowPhaseKeys[data.phase])}</Tag></div><div className="vc-flow-facts"><span>{t('wallpaperFinalCount')} {summary.passed}</span><span>{t('wallpaperAttention')} {summary.attention}</span></div>{summary.budgetStopped && <p className="vc-notice">{t('wallpaperBudget')}</p>}{summary.errorCode && <p className="vc-notice" role="alert"><code>{summary.errorCode}</code></p>}<Button size="sm" variant="outline" onClick={data.focus}>{t('wallpaperOpenImageFlow')}</Button></> : <><p className={ownsHandoff ? 'vc-notice' : 'vc-flow-muted'} role={ownsHandoff ? 'alert' : undefined}>{t(reason)}</p>{ownsHandoff && <code>{batch?.postProcessingError}</code>}{kind === 'downloading' && batch?.status === 'completed' && batch.matched > 0 && data.wallpaper.enabled && <Button size="sm" variant="outline" onClick={data.settings}>{t('wallpaperStartBatch')}</Button>}</>}
+      {summary ? <><div className="vc-flow-metrics"><strong>{done}</strong><span>/ {summary.total}</span><Tag tone={data.phase === 'failed' ? 'danger' : data.phase === 'attention' ? 'warning' : 'neutral'}>{t(kind === 'downloading' && data.phase === 'attention' ? 'workflowDownloadPartial' : workflowPhaseKeys[data.phase])}</Tag></div>{kind === 'downloading' ? <div className="vc-flow-facts"><span>{t('workflowDownloadSaved')} {done}</span><span>{t('workflowDownloadRestricted')} {summary.counts?.downloadingRestricted ?? 0}</span><span>{t('workflowDownloadFailed')} {Math.max(0, (summary.counts?.downloadingFailed ?? 0) - (summary.counts?.downloadingRestricted ?? 0))}</span><span>{t('workflowDownloadPending')} {Math.max(0, summary.total - done - (summary.counts?.downloadingFailed ?? 0))}</span>{!!summary.counts?.downloadingReplaced && <span>{t('workflowDownloadReplaced')} {summary.counts.downloadingReplaced}</span>}</div> : <div className="vc-flow-facts"><span>{t('wallpaperFinalCount')} {summary.passed}</span><span>{t('wallpaperAttention')} {summary.attention}</span></div>}{summary.budgetStopped && <p className="vc-notice">{t('wallpaperBudget')}</p>}{summary.errorCode && <p className="vc-notice" role="alert"><code>{summary.errorCode}</code></p>}<Button size="sm" variant="outline" onClick={data.focus}>{t('wallpaperOpenImageFlow')}</Button></> : <><p className={ownsHandoff ? 'vc-notice' : 'vc-flow-muted'} role={ownsHandoff ? 'alert' : undefined}>{t(reason)}</p>{ownsHandoff && <code>{batch?.postProcessingError}</code>}{kind === 'downloading' && batch?.status === 'completed' && batch.matched > 0 && data.wallpaper.enabled && <Button size="sm" variant="outline" onClick={data.settings}>{t('wallpaperStartBatch')}</Button>}</>}
       {data.processing && detail && <div className="vc-flow-node-actions">{activeTask(detail.status) ? <><Button size="sm" variant="outline" disabled={data.wallpaper.busy} onClick={() => data.wallpaper.control('pause')}>{t('wallpaperPause')}</Button><Button size="sm" variant="ghost" disabled={data.wallpaper.busy} onClick={() => data.wallpaper.control('cancel')}>{t('wallpaperCancel')}</Button></> : ['paused', 'interrupted'].includes(detail.status) ? <Button size="sm" variant="outline" disabled={data.wallpaper.busy} onClick={() => data.wallpaper.control('resume')}>{t('wallpaperResume')}</Button> : (detail.counts.queued ?? 0) + (detail.counts['technical-failed'] ?? 0) > 0 && <Button size="sm" variant="outline" disabled={data.wallpaper.busy} onClick={data.wallpaper.continue}>{t('wallpaperContinue')}</Button>}</div>}
     </div>
   }
 
+  function WorkflowPorts({ id, ports }: { id: string; ports: NonNullable<NodeData['ports']> }) {
+    const update = useUpdateNodeInternals(), geometry = ports.map(port => port.id + ':' + port.side).join('|')
+    React.useLayoutEffect(() => { update(id) }, [id, geometry, update])
+    return <>{ports.map(port => <Handle key={port.id} id={port.id} type={port.type} position={port.side} isConnectable={false} data-phase={port.phase} />)}</>
+  }
+
   function WorkflowNode({ data, selected }: NodeProps<FlowNode>) {
-    const titles = { references: 'workflowReferences', dataset: 'workflowDataset', results: 'workflowResults', downloading: 'wallpaperDownloading', planning: 'wallpaperPlanning', rendering: 'wallpaperRendering', reviewing: 'wallpaperReviewing' } as const
+    const titles = { decision: 'wallpaperDecision', references: 'workflowReferences', dataset: 'workflowDataset', results: 'workflowResults', downloading: 'wallpaperDownloading', planning: 'wallpaperPlanning', rendering: 'wallpaperRendering', reviewing: 'wallpaperReviewing' } as const
     const contentId = React.useId()
     const identity = data.image ? fixedImageWorkflowNodeId(data.laneId, data.image.stage) : `${data.laneId}:${data.kind}`, [entering, setEntering] = React.useState(() => !data.appearances.has(identity))
     React.useEffect(() => { data.appearances.add(identity) }, [data.appearances, identity])
     const dot = data.phase === 'running' ? 'ongoing' : data.phase === 'completed' ? 'done' : data.phase === 'failed' ? 'error' : ['attention', 'paused'].includes(data.phase) ? 'warning' : 'idle'
-    return <article className="vc-flow-node" data-entering={entering || undefined} data-kind={data.kind} data-image-stage={data.image?.stage} data-selected={selected || undefined} data-phase={data.phase} data-image-id={data.image?.id} data-current-image={data.image && data.image.index === data.wallpaper.offset || undefined} data-search-batch={data.kind === 'results' ? data.batch?.runId : undefined} data-collapsed={data.collapsed} style={{ '--vc-node-body-height': data.size.height ? `${Math.max(90, data.size.height - (data.image ? 64 : 90))}px` : undefined } as import('react').CSSProperties} onAnimationEnd={event => { if (event.target === event.currentTarget && event.animationName === 'vc-workflow-enter') setEntering(false) }}>
+    return <article className="vc-flow-node" data-entering={entering || undefined} data-kind={data.kind} data-image-stage={data.image?.stage} data-selected={selected || undefined} data-phase={data.phase} data-upcoming={data.image?.upcoming || data.upcoming || undefined} data-image-id={data.image?.id} data-current-image={data.image && data.image.index === data.wallpaper.offset || undefined} data-search-batch={data.kind === 'results' ? data.batch?.runId : undefined} data-collapsed={data.collapsed} style={{ '--vc-node-body-height': data.size.height ? `${Math.max(90, data.size.height - (data.image ? 64 : 90))}px` : undefined } as import('react').CSSProperties} onAnimationEnd={event => { if (event.target === event.currentTarget && event.animationName === 'vc-workflow-enter') setEntering(false) }}>
       <NodeResizer isVisible={selected} minWidth={data.kind === 'results' ? 360 : 280} maxWidth={1200} minHeight={data.collapsed ? data.image ? 64 : 62 : 180} maxHeight={data.collapsed ? data.image ? 64 : 62 : 1200} handleClassName="vc-node-resize-handle" lineClassName="vc-node-resize-line" onResizeStart={data.beginResize} onResize={(_event, value) => data.resize(value)} onResizeEnd={data.endResize} />
-      {data.hasInput && <Handle type="target" position={Position.Left} isConnectable={false} data-arrow-active={data.receiving || undefined} />}
-      <header className="vc-flow-node-titlebar"><StateDot state={dot} /><div><strong>{data.image ? data.t(imageWorkflowStages.find(step => step.stage === data.image!.stage)!.title) : data.t(data.processing ? 'wallpaperProcessingGroup' : data.finals ? 'wallpaperFinalResults' : titles[data.kind])}</strong><small>{data.image ? data.t(workflowPhaseKeys[data.phase]) : data.label}</small></div><span className="vc-flow-step-number">{data.image ? String(imageWorkflowStages.findIndex(step => step.stage === data.image!.stage) + 1).padStart(2, '0') : String(['references', 'dataset', 'results', 'downloading', 'planning', 'rendering', 'reviewing'].indexOf(data.kind) + 1).padStart(2, '0')}</span>
+      <WorkflowPorts id={identity} ports={data.ports ?? []} />
+      <header className="vc-flow-node-titlebar"><StateDot state={dot} /><div><strong>{data.image ? data.t(imageWorkflowPresentationStages.find(step => step.stage === data.image!.stage)!.title) : data.t(data.processing ? 'wallpaperProcessingGroup' : data.finals ? 'wallpaperFinalResults' : titles[data.kind])}</strong><small>{data.image ? data.image.previousReview ? data.t('wallpaperPreviousReview') + ' · ' + data.wallpaper.attempt?.revision : data.image.upcoming ? data.t(data.image.stage === 'reviewing' ? 'wallpaperReviewPending' : 'wallpaperNextStep') : data.t(workflowPhaseKeys[data.phase]) : data.upcoming ? data.t('wallpaperNextStep') : data.label}</small></div><span className="vc-flow-step-number">{data.image ? String(data.image.ordinal ?? imageWorkflowPresentationStages.findIndex(step => step.stage === data.image!.stage) + 1).padStart(2, '0') : String(['references', 'dataset', 'results', 'downloading', 'planning', 'rendering', 'reviewing'].indexOf(data.kind) + 1).padStart(2, '0')}</span>
         <ui.Tooltip portal label={data.t('workflowResetSize')}><Button className="nodrag nopan vc-flow-reset" size="sm" variant="ghost" aria-label={data.t('workflowResetSize')} onPointerDown={event => event.stopPropagation()} onClick={data.resetSize}><ui.IconRefreshOutlineRegular size={13} /></Button></ui.Tooltip>
         <ui.Tooltip portal label={data.t(data.collapsed ? 'taskExpand' : 'taskCollapse')}><Button className="nodrag nopan vc-flow-collapse" size="sm" variant="ghost" aria-expanded={!data.collapsed} aria-controls={contentId} aria-label={data.t(data.collapsed ? 'taskExpand' : 'taskCollapse')} onPointerDown={event => event.stopPropagation()} onClick={data.collapse}><ui.IconChevronDownOutlineRegular size={14} /></Button></ui.Tooltip>
       </header>
       <AnimatedCollapse id={contentId} open={!data.collapsed} className="vc-flow-collapse-region">
-        {!data.image && <div className="vc-flow-status-strip" data-phase={data.phase}><span>{data.t(workflowPhaseKeys[data.phase])}</span><small>{data.kind === 'references' && data.batch?.workflowSource ? `${data.batch.workflowSource.references} ${data.t('datasetImagesUnit')} · v${data.batch.workflowSource.revision}` : data.kind === 'dataset' && data.dataset ? `v${data.dataset.profileRevision}` : ''}</small></div>}
-        {data.image ? <ImageStepCard stage={data.image.stage} kind={data.kind as WallpaperStep} control={data.wallpaper} t={data.t} /> : data.kind === 'references' ? <ReferencesNode data={data} /> : data.kind === 'dataset' ? <DatasetNode data={data} /> : data.kind === 'results' ? <BatchResults data={data} /> : <DownstreamSummary data={data} />}
+        {!data.image && <div className="vc-flow-status-strip" data-phase={data.phase}><span>{data.t(data.upcoming ? 'wallpaperNextStep' : data.kind === 'results' && !data.batch && data.launch?.status === 'accepted' ? data.launch.runIds?.length ? 'workflowReadingRun' : 'workflowConversationPreparation' : data.kind === 'downloading' && data.phase === 'attention' ? 'workflowDownloadPartial' : workflowPhaseKeys[data.phase])}</span><small>{data.kind === 'references' && data.batch?.workflowSource ? `${data.batch.workflowSource.references} ${data.t('datasetImagesUnit')} · v${data.batch.workflowSource.revision}` : data.kind === 'dataset' && data.dataset ? `v${data.dataset.profileRevision}` : ''}</small></div>}
+        {data.image ? data.kind === 'decision' ? <DecisionCard control={data.wallpaper} t={data.t} /> : data.image.upcoming ? <UpcomingStepCard control={data.wallpaper} t={data.t} waitingLabel={data.image.stage === 'final' ? data.t('wallpaperAwaitingApproval') : undefined} /> : <ImageStepCard stage={data.image.stage} kind={data.kind as WallpaperStep} control={data.wallpaper} t={data.t} /> : data.kind === 'references' ? <ReferencesNode data={data} /> : data.kind === 'dataset' ? <DatasetNode data={data} /> : data.kind === 'results' ? <BatchResults data={data} /> : <DownstreamSummary data={data} />}
       </AnimatedCollapse>
-      {data.hasOutput && <Handle type="source" position={Position.Right} isConnectable={false} />}
     </article>
   }
 
   const nodeTypes = { workflow: WorkflowNode }, edgeTypes = { workflow: createWorkflowEdge(React) }
-  function Navigation({ t, fit, focus, navigate, focusLabel }: { t: WorkbenchText; fit(): void; focus(): void; navigate(): void; focusLabel?: string }) {
+  function Navigation({ t, fit, focus, navigate, focusLabel, arrange }: { t: WorkbenchText; fit(): void; focus(): void; navigate(): void; focusLabel?: string; arrange?(): void }) {
     const { zoom } = useViewport(), flow = useReactFlow<FlowNode, WorkflowEdge>()
-    return <Panel position="bottom-left" className="vc-workflow-navigation"><ZoomControls visible zoom={zoom} labels={{ controls: t('workflowZoom'), menu: t('workflowZoomMenu'), out: t('workflowZoomOut'), into: t('workflowZoomIn'), value: percent => t('workflowZoomValue').replace('{percent}', String(percent)) }} fit={{ label: t('workflowFit'), selected: false, onSelect: fit }} onZoom={value => { navigate(); void flow.zoomTo(value) }} onActiveChange={() => {}} /><Button size="sm" variant="outline" onClick={focus}>{focusLabel ?? t('workflowFocusBatch')}</Button></Panel>
+    return <Panel position="bottom-left" className="vc-workflow-navigation"><ZoomControls visible zoom={zoom} labels={{ controls: t('workflowZoom'), menu: t('workflowZoomMenu'), out: t('workflowZoomOut'), into: t('workflowZoomIn'), value: percent => t('workflowZoomValue').replace('{percent}', String(percent)) }} fit={{ label: t('workflowFit'), selected: false, onSelect: fit }} onZoom={value => { navigate(); void flow.zoomTo(value) }} onActiveChange={() => {}} /><Button className="vc-flow-focus" size="sm" variant="outline" onClick={focus}>{focusLabel ?? t('workflowFocusBatch')}</Button>{arrange && <Button size="sm" variant="outline" onClick={arrange}>{t('workflowArrange')}</Button>}</Panel>
   }
 
-  function ImageFlow({ base }: { base: NodeData }) {
+  type ImageFlowNavigation = { focus(stage: ImageWorkflowStage): void; fit(): void }
+  function ImageFlow({ base, inspected, selected, onSelect: setSelected, navigationRef }: { base: NodeData; inspected: ImageWorkflowStage | undefined; selected: string; onSelect(id: string): void; navigationRef: import('react').Ref<ImageFlowNavigation> }) {
     const control = base.wallpaper, t = base.t, imageId = control.item?.imageVersionId ?? control.itemIndex?.[control.offset]?.imageVersionId ?? String(control.offset)
-    const layout = useLayout(`${base.context.style.styleId}:fixed-image-flow:${control.sourceId}`)
-    const [instance, setInstance] = React.useState<ReactFlowInstance<FlowNode, WorkflowEdge> | null>(null), [selected, setSelected] = React.useState(''), [interacting, setInteracting] = React.useState(false)
+    const layout = useLayout(`${base.context.style.styleId}:fixed-image-flow:${control.sourceId}:progressive-v2`)
+    const [instance, setInstance] = React.useState<ReactFlowInstance<FlowNode, WorkflowEdge> | null>(null), [interacting, setInteracting] = React.useState(false)
     const [menu, setMenu] = React.useState<{ x: number; y: number; kind: WallpaperStep } | null>(null)
-    const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({})
-    const container = React.useRef<HTMLDivElement>(null), cameraEpoch = React.useRef(0)
-    const navigated = React.useRef(!!layout.initialViewport), steps = imageWorkflowStages
+    const { collapsed, setCollapsed } = layout
+    const labelMeasure = React.useRef<HTMLSpanElement>(null), [labelWidth, setLabelWidth] = React.useState(0)
+    const container = React.useRef<HTMLDivElement>(null), cameraEpoch = React.useRef(0), motionEpoch = React.useRef(performance.now())
+    const navigated = React.useRef(!!layout.initialViewport), steps = imageWorkflowWindow(control.item, control.attempt, inspected)
     const navigate = () => { navigated.current = true; cameraEpoch.current++ }
+    const automatic = workflowStaggeredPositions(steps.map(step => { const id = fixedImageWorkflowNodeId(base.laneId, step.stage); return { id, width: layout.measuredDimensions(id)?.width ?? layout.sizes[id]?.width ?? 330 } }))
     const nodes: FlowNode[] = steps.map(({ kind, stage }, index) => {
-      const id = fixedImageWorkflowNodeId(base.laneId, stage), position = layout.position(id, kind, base.laneId, { x: index * 400, y: 0 })
-      const observedPhase = control.value && control.item ? imageWorkflowPhase(kind, control.item, control.value.status, control.attempt) : 'queued'
+      const nodeControl = control
+      const upcoming = stage !== 'decision' && !imageWorkflowStageReached(stage, control.item, control.attempt)
+      const id = fixedImageWorkflowNodeId(base.laneId, stage), position = layout.position(id, kind === 'decision' ? 'planning' : kind, base.laneId, automatic[id], index)
+      const observedPhase = control.value && control.item ? imageWorkflowStagePhase(stage, control.item, wallpaperImageWorkStatus(control.value, control.item.imageVersionId), nodeControl.attempt) : 'queued'
       const phase = stage === 'final' && observedPhase === 'completed' && (control.item?.status !== 'passed' || !control.attempt?.outputId || control.attempt !== control.item.attempts.at(-1)) ? 'blocked' : observedPhase
       const size = layout.sizes[id] ?? { width: 330 }, measured = layout.measuredDimensions(id)
       return { id, type: 'workflow', position, ...(measured ? { measured } : {}), selected: selected === id, style: { width: size.width }, dragHandle: '.vc-flow-node-titlebar', data: {
-        ...base, kind, image: { id: imageId, index: control.offset, stage }, processing: false, finals: false, phase, size, collapsed: collapsed[id] ?? false, receiving: phase === 'running', hasInput: index > 0, hasOutput: index < steps.length - 1,
-        collapse: () => setCollapsed(value => ({ ...value, [id]: !value[id] })), focus: () => control.setDetails(kind),
+        ...base, wallpaper: nodeControl, kind, image: { id: imageId, index: control.offset, stage, ordinal: index + 1, upcoming, previousReview: false }, processing: false, finals: false, phase, size, collapsed: collapsed[id] ?? false, receiving: phase === 'running', hasInput: index > 0, hasOutput: index < steps.length - 1,
+        collapse: () => setCollapsed(value => ({ ...value, [id]: !value[id] })), focus: () => control.setDetails(stage === 'clarity' || stage === 'detail' ? stage : kind),
         resize: size => layout.resize(id, size, collapsed[id]), resetSize: () => layout.resetSize(id), beginResize: () => { navigate(); setInteracting(true) }, endResize: () => { setInteracting(false); layout.save(instance?.getViewport()) },
       } }
     })
-    const edges = nodes.slice(1).map((node, index) => connection(`${node.id}:input`, nodes[index]!.id, node.id, node.data.phase, false, undefined, false, interacting))
+    const imageNodeIds = nodes.map(node => node.id).join('|')
+    React.useEffect(() => { if (!interacting && nodes.every(node => layout.measuredDimensions(node.id))) layout.reconcile(instance?.getViewport(), nodes.map(node => node.id)) }, [imageNodeIds, layout.geometryRevision, interacting])
+    const edges = imageWorkflowConnections(steps.map(step => step.stage), control.item, control.attempt).map(({ source, target }) => {
+      const from = fixedImageWorkflowNodeId(base.laneId, source), to = fixedImageWorkflowNodeId(base.laneId, target)
+      return connection(`${from}:${to}`, from, to, nodes.find(node => node.id === to)!.data.phase, false, undefined, false)
+    })
     const latest = control.item?.attempts.at(-1)
-    if (latest?.retryFrom && latest.retryTarget && control.item?.status === latest.retryTarget && control.value && activeTask(control.value.status)) {
+    const rework = imageWorkflowRework(control.item, control.value && control.item ? wallpaperImageWorkStatus(control.value, control.item.imageVersionId) : 'created', control.attempt)
+    if (rework) {
+      const from = nodes.find(node => node.data.image?.stage === 'reviewing'), to = nodes.find(node => node.data.image?.stage === 'rendering')
+      const label = rework.stage === 'rendering' ? t('wallpaperReviewReturn') : rework.stage === 'passed' ? t('wallpaperPassed') : t('wallpaperStageReview') + ' · ' + t(workflowPhaseKeys[rework.phase])
+      const wire = from && to ? connection(`${base.laneId}:rework`, from.id, to.id, rework.phase, true, label, false) : undefined
+      if (wire) edges.push({ ...wire, data: { ...wire.data!, reworkStage: rework.stage, flowing: rework.flowing, returnY: Math.min(...nodes.map(node => node.position.y)) - 64 }, markerEnd: { type: MarkerType.ArrowClosed, color: rework.stage === 'rendering' ? 'var(--dsw-alias-state-error-primary)' : rework.stage === 'passed' ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-state-warn-primary)' }, ariaLabel: label })
+    } else if (latest?.retryFrom && latest.retryTarget && control.item?.status === latest.retryTarget && control.value && activeTask(control.value.status)) {
       const from = nodes.find(node => node.data.kind === latest.retryFrom), to = nodes.find(node => node.data.kind === latest.retryTarget)
-      if (from && to) edges.push(connection(`${base.laneId}:rework`, from.id, to.id, 'running', true, `${t('wallpaperRound')} ${latest.revision}`, false, interacting))
+      if (from && to) edges.push(connection(`${base.laneId}:rework`, from.id, to.id, 'running', true, `${t('wallpaperRound')} ${latest.revision}`, false))
     }
+    const labeledRework = edges.find(edge => edge.data?.rework && typeof edge.label === 'string')
+    const spacingText = typeof labeledRework?.label === 'string' ? labeledRework.label : ''
+    if (labeledRework?.data && labelWidth) labeledRework.data.labelWidth = labelWidth
+    React.useLayoutEffect(() => {
+      const element = labelMeasure.current
+      if (!spacingText || !element) { setLabelWidth(0); return }
+      setLabelWidth(Math.ceil(element.getBoundingClientRect().width))
+    }, [spacingText])
+    React.useLayoutEffect(() => {
+      if (!labeledRework || !labelWidth || interacting) return
+      const rectangles = nodes.map(node => ({ id: node.id, position: node.position, width: node.measured?.width ?? node.data.size.width, height: node.measured?.height ?? node.data.size.height ?? 260 }))
+      const targets = workflowConnectionSpacing(rectangles, labeledRework.source, labeledRework.target, labelWidth + 64)
+      if (!Object.keys(targets).length) return
+      const origins = new Map(rectangles.map(node => [node.id, node.position]))
+      const durationText = container.current ? getComputedStyle(container.current).getPropertyValue('--ds-transition-duration-slow').trim() : ''
+      const duration = (parseFloat(durationText) || .32) * (durationText.endsWith('ms') ? 1 : 1000)
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { layout.place(targets); layout.save(); return }
+      const start = performance.now(); let frame = 0
+      const advance = () => {
+        const progress = Math.min(1, (performance.now() - start) / duration), eased = (1 - Math.cos(Math.PI * progress)) / 2
+        layout.place(Object.fromEntries(Object.entries(targets).map(([id, target]) => { const origin = origins.get(id)!; return [id, { x: origin.x + (target.x - origin.x) * eased, y: origin.y + (target.y - origin.y) * eased }] })))
+        if (progress < 1) frame = requestAnimationFrame(advance); else layout.save()
+      }
+      frame = requestAnimationFrame(advance)
+      return () => { cancelAnimationFrame(frame); layout.save() }
+    }, [labeledRework?.id, labelWidth, layout.geometryRevision, interacting])
+    connectPorts(nodes, edges, motionEpoch.current)
     const fit = () => { navigate(); void instance?.fitView({ padding: 0.12, maxZoom: 1 }) }
+    React.useImperativeHandle(navigationRef, () => ({ fit, focus(stage) { const id = fixedImageWorkflowNodeId(base.laneId, stage); navigate(); setSelected(id); void instance?.fitView({ nodes: [{ id }], padding: 0.12, maxZoom: 1, duration: 220 }) } }))
     const focusNodes = () => {
-      const count = (container.current?.clientWidth ?? 1600) >= 1100 ? 3 : (container.current?.clientWidth ?? 1600) >= 700 ? 2 : 1
+      const count = nodes.length
       const active = nodes.findIndex(node => ['running', 'failed', 'attention', 'paused'].includes(node.data.phase))
       const start = Math.min(Math.max(0, active - 1), nodes.length - count)
       return nodes.slice(start, start + count)
@@ -297,25 +381,28 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
       return () => { cancelled = true; cancelAnimationFrame(first); cancelAnimationFrame(second) }
     }, [instance, layout.geometryRevision])
     React.useEffect(() => setMenu(null), [imageId])
-    return <div ref={container} className="vc-single-image-scope"><ReactFlow<FlowNode, WorkflowEdge> className="vc-single-image-canvas" nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onInit={setInstance} {...(layout.initialViewport ? { defaultViewport: layout.initialViewport } : {})} proOptions={{ hideAttribution: true }} onlyRenderVisibleElements minZoom={0.15} maxZoom={2} nodesConnectable={false} edgesReconnectable={false} deleteKeyCode={null} zoomOnDoubleClick={false} panOnDrag={[0, 1]} panActivationKeyCode="Space"
+    return <div ref={container} className="vc-single-image-scope"><span ref={labelMeasure} aria-hidden="true" className="vc-workflow-rework-label vc-workflow-rework-measure">{spacingText}</span><ReactFlow<FlowNode, WorkflowEdge> className="vc-single-image-canvas" nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onInit={setInstance} {...(layout.initialViewport ? { defaultViewport: layout.initialViewport } : {})} proOptions={{ hideAttribution: true }} onlyRenderVisibleElements minZoom={0.15} maxZoom={2} nodesConnectable={false} edgesReconnectable={false} deleteKeyCode={null} zoomOnDoubleClick={false} panOnDrag={[0, 1]} panActivationKeyCode="Space"
       onNodesChange={changes => { for (const change of changes) { if (change.type === 'position' && change.position) layout.move(change.id, change.position); if (change.type === 'dimensions' && change.dimensions) layout.measure(change.id, change.dimensions) } }}
       onNodeClick={(_event, node) => setSelected(node.id)} onNodeDoubleClick={(_event, node) => { navigate(); void instance?.fitView({ nodes: [{ id: node.id }], padding: 0.2, maxZoom: 1 }) }}
-      onNodeContextMenu={(event, node) => { event.preventDefault(); setSelected(node.id); setMenu({ x: event.clientX, y: event.clientY, kind: node.data.kind as WallpaperStep }) }} onPaneClick={() => { setSelected(''); setMenu(null) }}
-      onNodeDragStart={() => { navigate(); setInteracting(true); setMenu(null) }} onNodeDragStop={() => { setInteracting(false); layout.reconcile(instance?.getViewport()) }}
+      onNodeContextMenu={(event, node) => { event.preventDefault(); setSelected(node.id); if (node.data.image?.stage === 'detail' || node.data.kind === 'decision') { control.setDetails(node.data.image?.stage === 'detail' ? 'detail' : 'decision'); return }; setMenu({ x: event.clientX, y: event.clientY, kind: node.data.kind as WallpaperStep }) }} onPaneClick={() => { setSelected(''); setMenu(null) }}
+      onNodeDragStart={() => { navigate(); setInteracting(true); setMenu(null) }} onNodeDragStop={() => { setInteracting(false); layout.reconcile(instance?.getViewport(), nodes.map(node => node.id)) }}
       onMoveStart={event => { setInteracting(true); if (event) navigate() }} onMoveEnd={(event, at) => { setInteracting(false); if (event || navigated.current) layout.save(at) }}
       ariaLabelConfig={{ 'node.a11yDescription.default': t('workflowHelp'), 'edge.a11yDescription.default': t('workflowAutomatic'), 'minimap.ariaLabel': t('workflowMinimap') }}>
-      <Background gap={24} size={1} /><Panel position="top-left" className="vc-image-stage-shortcuts">{nodes.map(node => <Button key={node.id} size="sm" variant={selected === node.id ? 'outline' : 'ghost'} onClick={() => { navigate(); setSelected(node.id); void instance?.fitView({ nodes: [{ id: node.id }], padding: 0.12, maxZoom: 1 }) }}>{`${imageWorkflowStages.findIndex(step => step.stage === node.data.image!.stage) + 1} · ${t(imageWorkflowStages.find(step => step.stage === node.data.image!.stage)!.title)}`}</Button>)}<Button size="sm" variant="ghost" onClick={fit}>{t('workflowFit')}</Button></Panel><Navigation t={t} fit={fit} focus={focus} focusLabel={t('wallpaperFitImage')} navigate={navigate} />
+      <Background gap={24} size={1} /><Navigation t={t} fit={fit} focus={focus} focusLabel={t('wallpaperFitImage')} navigate={navigate} arrange={() => { navigate(); layout.place(workflowStaggeredPositions(nodes.map(node => ({ id: node.id, width: node.measured?.width ?? node.data.size.width }))), true); requestAnimationFrame(fit) }} />
     </ReactFlow><ui.Menu listClassName="vc-menu" open={!!menu} anchor={null} portal autoFocus contextual getAnchorRect={() => menu ? new DOMRect(menu.x, menu.y, 0, 0) : null} items={[{ id: 'details', label: t('wallpaperStepDetails') }, { id: 'fit', label: t('wallpaperFitImage') }]} onClose={() => setMenu(null)} onSelect={id => { if (id === 'details' && menu) control.setDetails(menu.kind); else focus(); setMenu(null) }} /></div>
   }
 
-  function Canvas({ styleId, pageSize = 0, t, workflow: context, useBatches, actions, onOpen }: AutomaticWorkflowProps) {
+  function Canvas({ styleId, pageSize = 0, t, workflow: context, useBatches, actions, onOpen, navigation, onNavigate, onLocation }: AutomaticWorkflowProps) {
     const state = useBatches(value => value), datasets = context.useDatasets(value => value), launches = context.useLaunches(value => value), layout = useLayout(styleId)
-    const navigated = React.useRef(false), rows = React.useRef(new Map<string, number>())
+    const navigated = React.useRef(false), rows = React.useRef(new Map<string, number>()), motionEpoch = React.useRef(performance.now())
     const [instance, setInstance] = React.useState<ReactFlowInstance<FlowNode, WorkflowEdge> | null>(null), [interacting, setInteracting] = React.useState(false)
     const [preview, setPreview] = React.useState<{ batchId: string; imageId: string } | null>(null), [refreshKey, setRefreshKey] = React.useState(0)
     const [opening, setOpening] = React.useState(false), [openError, setOpenError] = React.useState(false), [notice, setNotice] = React.useState<{ id: number; success: boolean } | null>(null)
-    const [focused, setFocused] = React.useState(''), [selected, setSelected] = React.useState<Set<string>>(() => new Set()), [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({})
-    const [overview, setOverview] = React.useState(false), [imageFlowSource, setImageFlowSource] = React.useState('')
+    const [focused, setFocused] = React.useState(navigation?.sourceRunId ?? ''), [selected, setSelected] = React.useState<Set<string>>(() => new Set())
+    const imageNavigation = React.useRef<ImageFlowNavigation>(null), [imageSelected, setImageSelected] = React.useState('')
+    const [imageHistory, setImageHistory] = React.useState<{ source: string; image: string; revision: number | undefined; stage: ImageWorkflowStage | undefined }>()
+    const { collapsed, setCollapsed } = layout
+    const [overview, setOverview] = React.useState(navigation?.sourceRunId === ''), [imageFlowSource, setImageFlowSource] = React.useState(navigation?.view === 'image' ? navigation.sourceRunId ?? '' : '')
     const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; ids: string[]; origin: HTMLElement | null } | null>(null)
     const [pendingSettings, setPendingSettings] = React.useState(''), [styleOpen, setStyleOpen] = React.useState(false), [notes, setNotes] = React.useState(() => { try { return window.localStorage.getItem(`visual-curator:canvas-brief:${styleId}`) ?? '' } catch (error) { return '' } })
     const [notesSaved, setNotesSaved] = React.useState(true), styleToggle = React.useRef<HTMLButtonElement>(null)
@@ -327,29 +414,74 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
     React.useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
     React.useLayoutEffect(() => actions.watch(styleId), [actions, styleId])
     const launchProgress = launches.entries.map(entry => `${entry.id}:${entry.status}:${entry.runStatus ?? ''}:${entry.qualified}:${entry.runIds.join(',')}`).join('|')
-    React.useEffect(() => { if (launchProgress) actions.refresh() }, [launchProgress, actions])
+    const observedLaunchProgress = React.useRef({ styleId, value: launchProgress })
+    React.useEffect(() => {
+      const previous = observedLaunchProgress.current
+      observedLaunchProgress.current = { styleId, value: launchProgress }
+      if (previous.styleId === styleId && previous.value !== launchProgress && launchProgress) actions.refresh()
+    }, [styleId, launchProgress, actions])
     const page = state.styleId === styleId ? state.page : null
     const batches = page?.batches ?? []
     const activeBatch = preferredWorkflowBatch(batches, pendingSettings || focused || state.batchId)
+    React.useLayoutEffect(() => {
+      if (!navigation) return
+      if (navigation.sourceRunId !== undefined) { setFocused(navigation.sourceRunId); setOverview(navigation.sourceRunId === '') }
+      setImageFlowSource(navigation.view === 'image' ? navigation.sourceRunId ?? '' : '')
+      if (navigation.sourceRunId !== undefined && state.styleId === styleId && state.batchId !== navigation.sourceRunId && (navigation.sourceRunId === '' || !batches.some(batch => batch.runId === navigation.sourceRunId))) actions.select(navigation.sourceRunId)
+      navigated.current = false
+    }, [navigation?.serial, navigation?.view, navigation?.sourceRunId, state.styleId, styleId, actions])
     const preparingLaunch = launches.submission?.input.operationId ?? launches.entries.find(entry => entry.status === 'working')?.id
     React.useEffect(() => { if (preparingLaunch) { setFocused(preparingLaunch); setOverview(false); navigated.current = false } }, [preparingLaunch])
-    const wallpaper = useWallpaper(activeBatch, context.wallpaper, context.pollIntervalMs ?? 2000, pageSize || 20, refreshKey)
-    React.useEffect(() => { if (wallpaper.value?.runId) actions.refresh() }, [wallpaper.value?.runId, wallpaper.value?.status, actions])
+    const wallpaperInvoke: WallpaperInvoke | undefined = context.wallpaper ? async (operation, args, signal) => {
+      const value = await context.wallpaper!(operation, args, signal)
+      if (['wallpaper-start', 'wallpaper-control', 'wallpaper-continue', 'wallpaper-plan-update'].includes(operation)) {
+        const receipt = z.object({ runId: z.string() }).safeParse(value)
+        if (receipt.success && navigation) onNavigate?.({ ...navigation, runId: receipt.data.runId })
+      }
+      return value
+    } : undefined
+    const savedWallpaper = useWallpaper(activeBatch, wallpaperInvoke, context.pollIntervalMs ?? 2000, pageSize || 20, refreshKey, 1, navigation?.runId)
+    const wallpaper = { ...savedWallpaper, page(index: number) {
+      const imageVersionId = savedWallpaper.value?.itemIndex?.[index]?.imageVersionId
+      if (activeBatch) onNavigate?.({ view: 'image', sourceRunId: activeBatch.runId, imageVersionId, runId: navigation?.runId })
+      savedWallpaper.page(index)
+    } }
+    const requestedImageIndex = navigation?.imageVersionId ? savedWallpaper.value?.itemIndex?.findIndex(item => item.imageVersionId === navigation.imageVersionId) : undefined
+    const routePending = !!navigation?.runId && !savedWallpaper.value || navigation?.view === 'image' && !!navigation.imageVersionId && (savedWallpaper.sourceId !== navigation.sourceRunId || requestedImageIndex === undefined || requestedImageIndex === -1 || savedWallpaper.value?.state.items[0]?.imageVersionId !== navigation.imageVersionId)
+    React.useEffect(() => {
+      if (navigation?.view === 'image' && requestedImageIndex !== undefined && requestedImageIndex >= 0 && savedWallpaper.offset !== requestedImageIndex) savedWallpaper.page(requestedImageIndex)
+    }, [navigation?.imageVersionId, navigation?.view, requestedImageIndex, savedWallpaper.offset, savedWallpaper.page])
+    React.useEffect(() => {
+      if (!activeBatch || navigation?.sourceRunId && activeBatch.runId !== navigation.sourceRunId) return
+      const current = savedWallpaper.sourceId === activeBatch.runId ? savedWallpaper.value : undefined
+      onLocation?.({ sourceRunId: activeBatch.runId, runId: current?.runId ?? activeBatch.runId, sessionId: activeBatch.sessionId, imageVersionId: current?.state.items[0]?.imageVersionId, imageIndex: savedWallpaper.offset, imageCount: current?.total ?? activeBatch.wallpaper?.total ?? 0 })
+    }, [activeBatch?.runId, activeBatch?.sessionId, activeBatch?.wallpaper?.total, savedWallpaper.sourceId, savedWallpaper.value?.runId, savedWallpaper.value?.state.items[0]?.imageVersionId, savedWallpaper.offset, savedWallpaper.value?.total, navigation?.sourceRunId, onLocation])
+    React.useEffect(() => { if (wallpaper.value?.runId && !navigation?.runId) actions.refresh() }, [wallpaper.value?.runId, wallpaper.value?.status, navigation?.runId, actions])
     React.useEffect(() => { if (pendingSettings && wallpaper.sourceId === pendingSettings) { setPendingSettings(''); wallpaper.openSettings() } }, [pendingSettings, wallpaper.sourceId])
     for (const batch of batches) if (batch.launchId) preparations.current.delete(batch.launchId)
-    const pending: LaunchCard[] = state.batchId ? [] : launches.entries.filter(entry => !batches.some(batch => batch.launchId === entry.id || entry.runIds.includes(batch.runId)) && (preparations.current.has(entry.id) || entry.status !== 'accepted' || !entry.runIds.length || !!entry.runStatus && activeTask(entry.runStatus))).map(entry => ({ id: entry.id, input: entry.input, stage: entry.stage, status: entry.status, sessionId: entry.sessionId, ...(entry.stopping ? { stopping: true } : {}), createdAt: entry.createdAt, ...(entry.error ? { errorCode: entry.error.code } : {}) }))
+    const pending: LaunchCard[] = state.batchId ? [] : launches.entries.filter(entry => !batches.some(batch => batch.launchId === entry.id || entry.runIds.includes(batch.runId)) && (preparations.current.has(entry.id) || entry.status !== 'accepted' || !entry.runIds.length || !!entry.runStatus && activeTask(entry.runStatus))).map(entry => ({ id: entry.id, input: entry.input, stage: entry.stage, status: entry.status, sessionId: entry.sessionId, ...(entry.sessionReady === undefined ? {} : { sessionReady: entry.sessionReady }), runIds: entry.runIds, ...(entry.runStatus ? { runStatus: entry.runStatus } : {}), ...(entry.stopping ? { stopping: true } : {}), createdAt: entry.createdAt, ...(entry.error ? { errorCode: entry.error.code } : {}) }))
     if (!state.batchId && launches.submission && !batches.some(batch => batch.launchId === launches.submission!.input.operationId) && !pending.some(entry => entry.id === launches.submission!.input.operationId)) pending.push({ id: launches.submission.input.operationId, input: launches.submission.input, stage: launches.submission.status === 'submitting' ? 'preparing' : launches.submission.status, status: launches.submission.status === 'submitting' ? 'working' : launches.submission.status, ...(launches.submission.error ? { errorCode: launches.submission.error } : {}) })
     for (const launch of pending) preparations.current.add(launch.id)
     const seen = new Set<string>()
-    const lanes: Lane[] = batches.map(batch => { const id = layout.lane(batch.launchId, batch.runId, launches.entries.find(entry => entry.id === batch.launchId)?.runIds ?? []); seen.add(id); return { id, batch } })
+    const displayedBatches = batches.map(batch => {
+      const value = navigation?.runId && savedWallpaper.value?.runId === navigation.runId && savedWallpaper.value.sourceRunId === batch.runId ? savedWallpaper.value : undefined
+      if (!value) return batch
+      const counts = value.counts
+      return { ...batch, wallpaper: { runId: value.runId, status: value.status, total: value.total, planned: counts.planned ?? 0, rendered: counts.rendered ?? 0, reviewed: counts.reviewed ?? 0, passed: counts.passed ?? 0, attention: (counts.rejected ?? 0) + (counts['needs-review'] ?? 0) + (counts['technical-failed'] ?? 0), budgetStopped: value.state.budgetStopped, counts } }
+    })
+    const lanes: Lane[] = displayedBatches.map(batch => { const id = layout.lane(batch.launchId, batch.runId, launches.entries.find(entry => entry.id === batch.launchId)?.runIds ?? []); seen.add(id); return { id, batch } })
     for (const launch of pending) if (!seen.has(launch.id)) lanes.push({ id: launch.id, launch })
     if (!lanes.length) lanes.push({ id: 'current' })
     const allLanes = [...lanes]
     const currentLane = lanes.find(lane => lane.batch?.runId === focused || lane.launch?.id === focused) ?? lanes.find(lane => lane.launch?.status === 'working') ?? lanes.find(lane => lane.batch?.runId === activeBatch?.runId) ?? lanes[0]!
-    const currentPhase = currentLane.batch ? workflowBatchPhase(currentLane.batch) : 'idle'
+    const currentPhase = currentLane.batch ? workflowBatchPhase(currentLane.batch) : currentLane.launch ? workflowLaunchPhase(currentLane.launch) : 'idle'
     if (!overview) lanes.splice(0, lanes.length, currentLane)
     const nodes: FlowNode[] = [], edges: WorkflowEdge[] = [], arrangement: { id: string; kind: WorkflowNodeKind; row: number; imageSlot?: number }[] = []
     const imageView = !!wallpaper.sourceId && imageFlowSource === wallpaper.sourceId
+    const imageId = wallpaper.item?.imageVersionId ?? wallpaper.itemIndex?.[wallpaper.offset]?.imageVersionId ?? String(wallpaper.offset)
+    const inspected = imageHistory?.source === wallpaper.sourceId && imageHistory?.image === imageId && imageHistory?.revision === wallpaper.attempt?.revision ? imageHistory?.stage : undefined
+    const imageUnavailable = requestedImageIndex === -1 && savedWallpaper.sourceId === navigation?.sourceRunId
+    const navigationLoading = !imageUnavailable && !wallpaper.error && !state.error && !openError && !launches.error && (routePending || state.loading && !page || wallpaper.loading)
     const runAction = async (work: () => Promise<void>) => {
       if (opening) return
       setOpening(true); setOpenError(false)
@@ -391,7 +523,7 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
             const removed = new Set<string>([...receipt.runIds, ...receipt.launchIds]), keepNode = (id: string) => !removed.has(planningImageLane(id) ?? id.slice(0, id.lastIndexOf(':')))
             layout.forget([...removed])
             for (const id of removed) { rows.current.delete(id); preparations.current.delete(id) }
-            setSelected(current => new Set([...current].filter(keepNode))); setCollapsed(current => Object.fromEntries(Object.entries(current).filter(([id]) => keepNode(id))))
+            setSelected(current => new Set([...current].filter(keepNode)))
             setFocused(current => removed.has(current) ? '' : current); setPendingSettings(current => removed.has(current) ? '' : current)
             setPreview(current => current && removed.has(current.batchId) ? null : current)
           } catch (error) {
@@ -416,20 +548,29 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
       const showDataset = !!dataset || !!batch?.workflowSource || !!lane.launch || !!context.style.modelProfile || !!context.analysis || context.style.referenceIds.length > 0 || !!context.referenceTask && galleryTaskActive(context.referenceTask.status) || datasets.submissions.some(item => item.styleId === styleId)
       const detailed = !!batch && batch.runId === wallpaper.sourceId
       const hasWallpaper = !!batch?.wallpaper || detailed && !!wallpaper.value
-      const downstream = hasWallpaper || !!batch?.wallpaperRequested && !activeTask(batch.status)
+      const downstream = hasWallpaper || !!batch?.wallpaperRequested
 
-      const kinds: WorkflowNodeKind[] = ['references', ...(showDataset ? ['dataset' as const] : []), ...(batch || lane.launch ? ['results' as const] : []), ...(downstream ? ['downloading', 'planning', 'reviewing'] as const : [])]
+      const availableKinds: WorkflowNodeKind[] = ['references', ...(showDataset ? ['dataset' as const] : []), ...(batch || lane.launch ? ['results' as const] : []), ...(downstream ? ['downloading', 'planning', 'reviewing'] as const : [])]
+      const summary = detailed && wallpaper.value ? wallpaper.value : batch?.wallpaper, counts = summary?.counts ?? {}
+      const reached = new Set<WorkflowNodeKind>(['references'])
+      if (dataset || batch?.workflowSource || context.style.modelProfile || context.analysis || lane.launch?.stage === 'preparing-dataset') reached.add('dataset')
+      if (batch || lane.launch) reached.add('results')
+      if ((counts.downloaded ?? 0) > 0 || (counts.downloading ?? 0) > 0 || (counts.downloadingFailed ?? 0) > 0 || summary?.errorCode || batch?.postProcessingError) reached.add('downloading')
+      if (['planned', 'planning', 'rendered', 'rendering', 'planningFailed', 'planningAttention', 'renderingFailed', 'renderingAttention'].some(key => (counts[key] ?? 0) > 0)) reached.add('planning')
+      if (['reviewed', 'reviewing', 'passed', 'rejected', 'reviewingFailed', 'reviewingAttention'].some(key => (counts[key] ?? 0) > 0)) reached.add('reviewing')
+      const reachedIndex = availableKinds.reduce((last, kind, index) => reached.has(kind) ? index : last, 0)
+      const kinds = availableKinds.slice(0, reachedIndex + 2)
       const label = batch || lane.launch ? `${t('workflowBatch')} ${lane.id.slice(0, 8)} · ${batch?.createdAt || lane.launch?.createdAt ? new Date(batch?.createdAt ?? lane.launch!.createdAt!).toLocaleString() : t('searchLaunchBadgePreparing')}` : t('workflowCurrent')
       const nodeId = (kind: WorkflowNodeKind) => `${lane.id}:${kind}`
       for (const kind of kinds) {
         const id = nodeId(kind), at = layout.position(id, kind, lane.id)
         const folded = collapsed[id] ?? (!!batch && (kind === 'references' || kind === 'dataset'))
-        const phase = kind === 'planning' && batch?.wallpaper ? workflowWallpaperPhase(batch.wallpaper) : nodePhase({ kind, batch, context, dataset, launch: lane.launch, focused: detailed, wallpaper }), size = layout.sizes[id] ?? { width: kind === 'results' ? 560 : ['downloading', 'planning', 'rendering', 'reviewing'].includes(kind) ? 380 : 340 }
+        const phase = !reached.has(kind) ? 'blocked' : kind === 'planning' && batch?.wallpaper ? workflowWallpaperPhase(batch.wallpaper) : nodePhase({ kind, batch, context, dataset, launch: lane.launch, focused: detailed, wallpaper }), size = layout.sizes[id] ?? { width: kind === 'results' ? 560 : ['downloading', 'planning', 'rendering', 'reviewing'].includes(kind) ? 380 : 340 }
         arrangement.push({ id, kind, row })
         // Controlled replacements must retain observed dimensions so ReactFlow keeps measured handles visible.
         const measured = layout.measuredDimensions(id)
         nodes.push({ id, type: 'workflow', position: at, ...(measured ? { measured } : {}), selected: selected.has(id), style: { width: size.width }, dragHandle: '.vc-flow-node-titlebar', data: {
-          kind, processing: kind === 'planning', finals: kind === 'reviewing', phase, size, resize: value => layout.resize(id, value, folded), beginResize: () => { navigated.current = true; setInteracting(true) }, endResize: () => { setInteracting(false); layout.save(instance?.getViewport()) }, resetSize: () => layout.resetSize(id), laneId: lane.id, label, launch: lane.launch, focused: detailed, collapsed: folded, collapse: () => setCollapsed(value => ({ ...value, [id]: !folded })), focus: () => { if (batch) { setFocused(batch.runId); setImageFlowSource(batch.runId); setSelected(new Set()); setContextMenu(null) } }, settings: () => { if (batch) { setFocused(batch.runId); setPendingSettings(batch.runId) } }, context: { ...context, onSearch: () => context.onSearch(notes) }, t, dataset, datasets, batch, wallpaper,
+          kind, upcoming: !reached.has(kind), processing: kind === 'planning', finals: kind === 'reviewing', phase, size, resize: value => layout.resize(id, value, folded), beginResize: () => { navigated.current = true; setInteracting(true) }, endResize: () => { setInteracting(false); layout.save(instance?.getViewport()) }, resetSize: () => layout.resetSize(id), laneId: lane.id, label, launch: lane.launch, focused: detailed, collapsed: folded, collapse: () => setCollapsed(value => ({ ...value, [id]: !folded })), focus: () => { if (batch) { setFocused(batch.runId); setImageFlowSource(batch.runId); onNavigate?.({ view: 'image', sourceRunId: batch.runId, imageVersionId: wallpaper.sourceId === batch.runId ? wallpaper.value?.state.items[0]?.imageVersionId : undefined, runId: navigation?.sourceRunId === batch.runId ? navigation.runId : undefined }); setSelected(new Set()); setContextMenu(null) } }, settings: () => { if (batch) { setFocused(batch.runId); setPendingSettings(batch.runId) } }, context: { ...context, onSearch: () => context.onSearch(notes) }, t, dataset, datasets, batch, wallpaper,
           loading: state.loading, opening, refreshKey, pageSize: pageSize || 8, deleting: deleting || state.deleting.length > 0, appearances: appearances.current, receiving: false, hasInput: kind !== 'references', hasOutput: kind !== kinds.at(-1),
           resume: () => { if (batch?.launchId) void runAction(async () => { await context.launches.retry(batch.launchId!); await actions.refresh() }) },
           preview: imageId => { if (batch) setPreview({ batchId: batch.runId, imageId }) }, open: () => { if (batch) void runAction(() => onOpen(batch.runId, batch.sessionId)) }, crop: imageId => { if (batch) void runAction(() => context.onCrop(batch, imageId)) },
@@ -441,12 +582,13 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
         const source = kinds[i - 1]!, target = kinds[i]!
         const destination = laneNodes.get(nodeId(target))!
         const origin = laneNodes.get(nodeId(source))!
-        const waitingForInput = origin.data.phase === 'running' && ['queued', 'idle'].includes(destination.data.phase)
+        const waitingForInput = !destination.data.upcoming && origin.data.phase === 'running' && ['queued', 'idle'].includes(destination.data.phase)
         destination.data.receiving = waitingForInput || destination.data.phase === 'running'
-        edges.push(connection(`${lane.id}:${source}-${target}`, nodeId(source), nodeId(target), destination.data.phase, false, undefined, waitingForInput, interacting))
+        edges.push(connection(`${lane.id}:${source}-${target}`, nodeId(source), nodeId(target), destination.data.phase, false, undefined, waitingForInput))
       }
 
     }
+    connectPorts(nodes, edges, motionEpoch.current)
     const focusNodes = (laneId: string) => {
       const laneNodes = nodes.filter(node => node.data.laneId === laneId)
       const target = laneNodes.findIndex(node => ['failed', 'attention', 'running', 'paused'].includes(node.data.phase))
@@ -538,7 +680,7 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
       menuEntries.push({ type: 'separator', id: 'selection' })
       addMenuAction('clear', t('workflowClearSelection'), () => setSelected(new Set()))
     }
-    return <section ref={canvasRef} tabIndex={-1} className="vc-workflow-canvas vc-search-batches" aria-label={t('workflowCanvas')} data-interacting={interacting || undefined} onKeyDown={event => {
+    return <section ref={canvasRef} tabIndex={-1} className="vc-workflow-canvas vc-search-batches" aria-label={t('workflowCanvas')} data-interacting={interacting || undefined} data-route-pending={navigationLoading || imageUnavailable || undefined} onKeyDown={event => {
       if (imageView) return
       const target = event.target
       if (!(target instanceof Element) || !event.currentTarget.contains(target) || target.closest('input, textarea, select, button, a, [contenteditable="true"], [role="textbox"], [role="dialog"], [role="menu"], .vc-canvas-style-sidebar')) return
@@ -553,8 +695,8 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
       event.preventDefault(); const rect = element.getBoundingClientRect(), ids = selected.has(node.id) ? nodes.filter(row => selected.has(row.id)).map(row => row.id) : [node.id]
       setSelected(new Set(ids)); setContextMenu({ x: rect.left + Math.min(32, rect.width / 2), y: rect.top + 32, ids, origin: element }); if (node.data.batch) setFocused(node.data.batch.runId)
     }}>
-      <header className="vc-workflow-toolbar" data-level={imageView ? 'image' : 'batch'}><Button size="sm" variant={imageView ? 'ghost' : 'outline'} onClick={() => { setImageFlowSource(''); setSelected(new Set()); navigated.current = false }}>{t('wallpaperBatchOverview')}</Button>{imageView && <span className="vc-flow-muted">/ {t('wallpaperImageFlow')} · {t('wallpaperImage')} {wallpaper.offset + 1}</span>}<div className="vc-workflow-heading">{!imageView && <strong>{t('workflowCanvas')}</strong>}<span>{allLanes.length} {t('workflowBatchUnit')}</span>{!overview && currentLane.batch && <><Tag tone={currentPhase === 'failed' ? 'danger' : currentPhase === 'completed' ? 'success' : ['attention', 'paused'].includes(currentPhase) ? 'warning' : ['running', 'queued'].includes(currentPhase) ? 'info' : 'neutral'}>{t(currentPhase === 'failed' ? 'failed' : workflowPhaseKeys[currentPhase])}</Tag><small>{t(currentLane.batch.previewOnly ? 'taskPreviewMatched' : 'workflowMatchedResult')} {currentLane.batch.matched} / {currentLane.batch.targetCount ?? currentLane.batch.matched}{currentLane.batch.wallpaper ? ` · ${t('wallpaperFinalCount')} ${currentLane.batch.wallpaper.passed} / ${currentLane.batch.wallpaper.total} · ${t(workflowPhaseKeys[workflowWallpaperPhase(currentLane.batch.wallpaper)])}` : ''}</small></>}</div><div className="vc-workflow-actions">
-        <SelectField label={t('taskBatchFilter')} value={overview ? '__all' : currentLane.batch?.runId ?? currentLane.launch?.id ?? ''} options={[{ value: '__all', label: t('taskAllBatches') }, ...allLanes.filter(lane => lane.batch || lane.launch).map(lane => ({ value: lane.batch?.runId ?? lane.launch!.id, label: `${t('workflowBatch')} ${lane.id.slice(0, 8)} · ${lane.batch?.createdAt || lane.launch?.createdAt ? new Date(lane.batch?.createdAt ?? lane.launch!.createdAt!).toLocaleString() : t('searchLaunchBadgePreparing')}` }))]} disabled={state.deleting.length > 0} onChange={value => { setPreview(null); setSelected(new Set()); setOverview(value === '__all'); setImageFlowSource(''); if (value !== '__all') setFocused(value); navigated.current = false }} />
+      <header className="vc-workflow-toolbar" data-level={imageView ? 'image' : 'batch'}><div className="vc-workflow-context">{!navigation && <Button size="sm" variant={imageView ? 'ghost' : 'outline'} onClick={() => { setImageFlowSource(''); onNavigate?.({ view: 'canvas', sourceRunId: activeBatch?.runId }); setSelected(new Set()); navigated.current = false }}>{t('wallpaperBatchOverview')}</Button>}{!navigation && imageView && <span className="vc-flow-muted">/ {t('wallpaperImageFlow')} · {t('wallpaperImage')} {wallpaper.offset + 1}</span>}{imageView ? <div className="vc-workflow-stage-links">{imageWorkflowWindow(wallpaper.item, wallpaper.attempt, inspected).map((step, ordinal) => <Button key={step.stage} size="sm" variant={imageSelected === fixedImageWorkflowNodeId(currentLane.id, step.stage) ? "outline" : "ghost"} disabled={navigationLoading || imageUnavailable} onClick={() => imageNavigation.current?.focus(step.stage)}>{`${ordinal + 1} · ${t(step.title)}`}</Button>)}<Button size="sm" variant="ghost" disabled={navigationLoading || imageUnavailable} onClick={() => imageNavigation.current?.fit()}>{t("workflowFit")}</Button></div> : <div className="vc-workflow-heading">{!imageView && <strong>{t('workflowCanvas')}</strong>}<span>{allLanes.length} {t('workflowBatchUnit')}</span>{!overview && currentLane.batch && <><Tag tone={currentPhase === 'failed' ? 'danger' : currentPhase === 'completed' ? 'success' : ['attention', 'paused'].includes(currentPhase) ? 'warning' : ['running', 'queued'].includes(currentPhase) ? 'info' : 'neutral'}>{t(currentPhase === 'failed' ? 'failed' : workflowPhaseKeys[currentPhase])}</Tag><small>{t(currentLane.batch.previewOnly ? 'taskPreviewMatched' : 'workflowMatchedResult')} {currentLane.batch.matched} / {currentLane.batch.targetCount ?? currentLane.batch.matched}{currentLane.batch.wallpaper ? ` · ${t('wallpaperFinalCount')} ${currentLane.batch.wallpaper.passed} / ${currentLane.batch.wallpaper.total} · ${t(workflowPhaseKeys[workflowWallpaperPhase(currentLane.batch.wallpaper)])}` : ''}</small></>}</div>}</div><div className="vc-workflow-actions">{imageView && !navigationLoading && !imageUnavailable && <div className="vc-workflow-history"><StepHistory control={wallpaper} t={t} value={inspected} onChange={stage => { setImageHistory({ source: wallpaper.sourceId, image: imageId, revision: wallpaper.attempt?.revision, stage }); if (stage) requestAnimationFrame(() => imageNavigation.current?.focus(stage)) }} /></div>}
+        <SelectField label={t('taskBatchFilter')} value={overview ? '__all' : currentLane.batch?.runId ?? currentLane.launch?.id ?? ''} options={[{ value: '__all', label: t('taskAllBatches') }, ...allLanes.filter(lane => lane.batch || lane.launch).map(lane => ({ value: lane.batch?.runId ?? lane.launch!.id, label: `${t('workflowBatch')} ${lane.id.slice(0, 8)} · ${lane.batch?.createdAt || lane.launch?.createdAt ? new Date(lane.batch?.createdAt ?? lane.launch!.createdAt!).toLocaleString() : t('searchLaunchBadgePreparing')}` }))]} disabled={state.deleting.length > 0} onChange={value => { setPreview(null); setSelected(new Set()); setOverview(value === '__all'); setImageFlowSource(''); if (value !== '__all') setFocused(value); onNavigate?.({ view: 'canvas', sourceRunId: value === '__all' ? '' : value }); navigated.current = false }} />
         {page?.nextPageToken && <Button size="sm" variant="ghost" disabled={state.loading} onClick={() => { void actions.more() }}>{t('taskMoreBatches')}</Button>}
         {context.onWallpaperSearch && <Button size="sm" variant="primary" disabled={!context.canSearch || context.busy} onClick={() => context.onWallpaperSearch?.(notes)}>{t('workflowNewSearch')}</Button>}
         {!imageView && selectedTargets.length > 0 && <ui.Tooltip portal label={t('workflowDeleteKeyHint')}><Button size="sm" variant="ghost" className="vc-search-batch-delete" disabled={deleting || state.deleting.length > 0} onClick={() => requestDelete(nodes.filter(node => selected.has(node.id)))}><ui.IconTrashOutlineRegular size={14} />{t('workflowDeleteSelected').replace('{count}', String(selectedTargets.length))}</Button></ui.Tooltip>}
@@ -563,11 +705,12 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
         {!imageView && <Button size="sm" variant="ghost" onClick={() => { rows.current = new Map(lanes.map((lane, index) => [lane.id, index])); layout.arrange(arrangement.map(node => ({ ...node, row: rows.current.get(node.id.slice(0, node.id.lastIndexOf(':'))) ?? node.row }))); requestAnimationFrame(() => fit()) }}>{t('workflowArrange')}</Button>}
         <Button size="sm" variant="ghost" disabled={state.loading || state.deleting.length > 0} onClick={() => { setRefreshKey(value => value + 1); actions.refresh(); void context.launches.refresh() }}><ui.IconRefreshOutlineRegular size={14} />{t('refresh')}</Button>
       </div></header>
+      {imageUnavailable && <div className="vc-notice" role="alert">{t('workflowImageUnavailable')}</div>}
       {wallpaper.error && <div className="vc-notice" role="alert">{t('wallpaperFailed')}<Button size="sm" variant="ghost" onClick={() => { setFocused(activeBatch?.runId ?? ''); actions.refresh() }}>{t('refresh')}</Button></div>}
       {(state.error || openError || launches.error) && <div className="vc-notice" role="alert">{t(openError ? 'taskScopeFailed' : 'taskBatchReadFailed')}{!openError && (state.failure || launches.error) && <code>{state.failure?.stage ?? launches.failure?.stage} {state.failure?.code ?? launches.error}</code>}<Button size="sm" variant="ghost" onClick={() => { setOpenError(false); actions.refresh(); void context.launches.refresh() }}>{t('retry')}</Button></div>}
-      <div className="vc-workflow-content" data-level={imageView ? 'image' : 'batch'}>
-        {imageView && <ImageNavigator control={wallpaper} t={t} onSelect={() => setSelected(new Set())} />}<div className="vc-workflow-stage" data-workflow-node-count={imageView ? imageWorkflowStages.length : nodes.length}>
-        {imageView && nodes.find(node => node.data.kind === 'planning' && node.data.batch?.runId === wallpaper.sourceId) ? <ImageFlow key={wallpaper.sourceId} base={nodes.find(node => node.data.kind === 'planning' && node.data.batch?.runId === wallpaper.sourceId)!.data} /> : <ReactFlow<FlowNode, WorkflowEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onInit={setInstance} {...(layout.initialViewport ? { defaultViewport: layout.initialViewport } : {})} proOptions={{ hideAttribution: true }} onlyRenderVisibleElements minZoom={0.15} maxZoom={2} panOnDrag={[0, 1]} panActivationKeyCode="Space" selectionKeyCode={['Control', 'Meta', 'Shift']} multiSelectionKeyCode={['Control', 'Meta']} selectionMode={SelectionMode.Partial} nodeDragThreshold={6} nodeClickDistance={6} paneClickDistance={6} zoomOnDoubleClick={false} nodesConnectable={false} edgesReconnectable={false} deleteKeyCode={null}
+      <div className="vc-workflow-surface" aria-busy={navigationLoading}><div className="vc-workflow-content" data-level={imageView ? 'image' : 'batch'} aria-hidden={navigationLoading || imageUnavailable || undefined}>
+        {imageView && <ImageNavigator control={wallpaper} t={t} onSelect={() => { setSelected(new Set()); setImageSelected('') }} />}<div className="vc-workflow-stage" data-workflow-node-count={imageView ? 2 : nodes.length}>
+        {imageView && nodes.find(node => node.data.kind === 'planning' && node.data.batch?.runId === wallpaper.sourceId) ? <ImageFlow key={wallpaper.sourceId} base={nodes.find(node => node.data.kind === 'planning' && node.data.batch?.runId === wallpaper.sourceId)!.data} inspected={inspected} selected={imageSelected} onSelect={setImageSelected} navigationRef={imageNavigation} /> : <ReactFlow<FlowNode, WorkflowEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onInit={setInstance} {...(layout.initialViewport ? { defaultViewport: layout.initialViewport } : {})} proOptions={{ hideAttribution: true }} onlyRenderVisibleElements minZoom={0.15} maxZoom={2} panOnDrag={[0, 1]} panActivationKeyCode="Space" selectionKeyCode={['Control', 'Meta', 'Shift']} multiSelectionKeyCode={['Control', 'Meta']} selectionMode={SelectionMode.Partial} nodeDragThreshold={6} nodeClickDistance={6} paneClickDistance={6} zoomOnDoubleClick={false} nodesConnectable={false} edgesReconnectable={false} deleteKeyCode={null}
           onNodesChange={changes => {
             for (const change of changes) if (change.type === 'position' && change.position) layout.move(change.id, change.position)
             for (const change of changes) if (change.type === 'dimensions' && change.dimensions) layout.measure(change.id, change.dimensions)
@@ -580,9 +723,9 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
           onNodeDragStart={() => { setContextMenu(null); navigated.current = true; setInteracting(true) }} onNodeDragStop={() => { setInteracting(false); layout.reconcile(instance?.getViewport()); canvasRef.current?.focus({ preventScroll: true }) }} onMoveStart={event => { setInteracting(true); if (event) { setContextMenu(null); navigated.current = true } }} onMoveEnd={(event, at) => { setInteracting(false); if (event || navigated.current) layout.save(at) }}
           ariaLabelConfig={{ 'node.a11yDescription.default': t('workflowHelp'), 'node.a11yDescription.keyboardDisabled': t('workflowHelp'), 'edge.a11yDescription.default': t('workflowAutomatic'), 'handle.ariaLabel': t('workflowAutomatic'), 'minimap.ariaLabel': t('workflowMinimap') }}>
           <Background gap={24} size={1} /><MiniMap pannable zoomable nodeClassName="vc-workflow-minimap-node" />
-          <Navigation t={t} fit={() => fit()} focus={focusBatch} navigate={() => { navigated.current = true }} />
+          <Navigation t={t} fit={() => fit()} focus={focusBatch} navigate={() => { navigated.current = true }}  />
         </ReactFlow>}<div className="vc-workflow-help"><span>{t('workflowHelp')}</span></div>
-      </div><StyleSidebar open={styleOpen} style={context.style} actions={context.profileActions} t={t} notes={notes} onNotes={editNotes} onClose={closeStyle} onProfile={() => { closeStyle(); context.onProfile() }} onReferences={context.onReferences} onSearch={value => context.onSearch(value)} /></div>
+      </div><StyleSidebar open={styleOpen} style={context.style} actions={context.profileActions} t={t} notes={notes} onNotes={editNotes} onClose={closeStyle} onProfile={() => { closeStyle(); context.onProfile() }} onReferences={context.onReferences} onSearch={value => context.onSearch(value)} /></div>{navigationLoading && <div className="vc-canvas-loading" role="status" aria-label={t('wallpaperLoadingImage')}><StateDot state="ongoing" size={18} /></div>}</div>
       {!notesSaved && <p className="vc-notice" role="status">{t('workflowNotesUnsaved')}</p>}
       <ui.Menu listClassName="vc-menu" open={!!contextMenu && menuNodes.length > 0} anchor={null} portal autoFocus contextual returnFocus={() => contextMenu?.origin?.isConnected ? contextMenu.origin : null} getAnchorRect={() => contextMenu ? new DOMRect(contextMenu.x, contextMenu.y, 0, 0) : null} items={menuEntries} onClose={() => setContextMenu(null)} onSelect={id => { const action = menuActions.get(id); setContextMenu(null); action?.() }} />
       <WallpaperDialogs control={wallpaper} t={t} />

@@ -55,6 +55,7 @@ async function fixture(options: { enabled?: boolean; noKey?: boolean; failNext?:
     logger: { error: () => {} },
   }
   const dependencies: SubscriptionDependencies = {
+    openImageCatalog: async () => ({ read: () => ({ sourceUrl: 'https://developers.openai.com/api/docs/models', status: 'ready', autoProbe: false, pollIntervalMs: 1000, entries: [] }), models: () => [], close: async () => {} }),
     fetch: options.network ?? (async () => { throw new Error('Real upstream calls are forbidden in this fixture') }),
     openRepository: async () => { await options.repositoryGate; return repository },
     startRelay: async (config, operations) => {

@@ -142,6 +142,8 @@ export {
 } from './plugin-artwork.tsx'
 export { GuideArtworkBrowser, GuideArtworkFiles } from './guide-artwork.tsx'
 export { ImageLightbox } from './ImageLightbox.tsx'
+export { ImageGenerationSkeleton } from './ImageGenerationSkeleton.tsx'
+export type { ImageGenerationSkeletonProps } from './ImageGenerationSkeleton.tsx'
 export { waitForAbortableDelay } from './abortable-delay.ts'
 export type { ImageLightboxLabels, ImageLightboxNavigation } from './ImageLightbox.tsx'
 

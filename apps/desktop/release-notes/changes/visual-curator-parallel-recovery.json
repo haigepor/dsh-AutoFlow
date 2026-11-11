@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-parallel-recovery",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator validates signed subscriber downloads, gives originals separate transfer limits, processes direct crops concurrently and shows the current and next required steps while retaining failed review evidence during repair. Earlier node images keep their own artifacts. Task bars keep their height during image switches and loading; compact failure dialogs offer recovery for the selected image and latest version, checking image receipts before another edit. Automatic card slots stay separate when images or processing stages change.",
+    "zh-CN": "Visual Curator 支持校验会员签名原图、独立原图传输时限及直接裁剪并发处理，画布显示当前与下一必要步骤，返工保留失败复审依据，前序节点图片保持各自处理结果。任务栏在切图与加载时保持固定高度，紧凑的失败详情可恢复当前图片的最新版本，再次编辑前先核对生成回执。 图片或阶段切换时，两个自动节点槽位保持分开，避免卡片重叠。"
+  }
+}

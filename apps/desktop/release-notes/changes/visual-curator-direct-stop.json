@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-direct-stop",
+  "category": "fixes",
+  "text": {
+    "en": "Direct crop distinguishes unresolved images from approved completion, displays the blocking reason on workflow cards, and provides visible task controls.",
+    "zh-CN": "直接裁剪明确区分待处理图片与合格完成，在流程卡片显示阻塞原因，并提供可见的任务控制入口。"
+  }
+}

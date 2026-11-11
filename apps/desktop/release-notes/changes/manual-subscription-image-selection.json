@@ -1,0 +1,8 @@
+{
+  "id": "manual-subscription-image-selection",
+  "category": "improvements",
+  "text": {
+    "en": "Choose ChatGPT image models from a dropdown without automatic discovery or test-image probes.",
+    "zh-CN": "ChatGPT 生图模型改用下拉选择，停止自动发现及测试图探测。"
+  }
+}

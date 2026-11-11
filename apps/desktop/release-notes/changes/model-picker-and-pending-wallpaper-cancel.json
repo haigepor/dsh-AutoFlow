@@ -1,0 +1,8 @@
+{
+  "id": "model-picker-and-pending-wallpaper-cancel",
+  "category": "fixes",
+  "text": {
+    "en": "Image model menus use compact vertical rows and keep custom models in the footer. Wallpaper batches awaiting confirmation can be cancelled while retaining saved images and results.",
+    "zh-CN": "修复生图型号菜单横向展开和文字重复的问题，自定义型号入口独立放在底部。等待确认的壁纸批次支持取消处理，并保留已有图片及结果。"
+  }
+}

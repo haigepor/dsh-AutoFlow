@@ -1,0 +1,14 @@
+[
+  { "name": "complete-object", "mode": "single", "source": "complete", "output": "complete", "task": "satisfied", "verdict": "pass" },
+  { "name": "half-car-source", "mode": "single", "source": "cut-off", "output": "cut-off", "task": "satisfied", "verdict": "reject" },
+  { "name": "new-output-crop", "mode": "single", "source": "complete", "output": "cut-off", "task": "satisfied", "verdict": "reject" },
+  { "name": "missing-source-evidence", "mode": "single", "source": "unknown", "output": "complete", "task": "satisfied", "verdict": "needs-review" },
+  { "name": "unresolved-occlusion", "mode": "single", "source": "occluded", "output": "occluded", "task": "satisfied", "verdict": "needs-review" },
+  { "name": "object-cannot-skip-completeness", "mode": "single", "source": "not-applicable", "output": "not-applicable", "task": "satisfied", "verdict": "needs-review" },
+  { "name": "uncertain-subject", "mode": "uncertain", "source": "complete", "output": "complete", "task": "satisfied", "verdict": "needs-review" },
+  { "name": "scenery", "mode": "scene", "source": "not-applicable", "output": "not-applicable", "task": "satisfied", "verdict": "pass" },
+  { "name": "abstract-pattern", "mode": "abstract", "source": "not-applicable", "output": "not-applicable", "task": "satisfied", "verdict": "pass" },
+  { "name": "scene-label-cannot-hide-cut-off", "mode": "scene", "source": "cut-off", "output": "cut-off", "task": "satisfied", "verdict": "reject" },
+  { "name": "task-requirement-is-independent", "mode": "single", "source": "complete", "output": "complete", "task": "violated", "verdict": "reject" },
+  { "name": "uncertain-task-fit", "mode": "single", "source": "complete", "output": "complete", "task": "unknown", "verdict": "needs-review" }
+]

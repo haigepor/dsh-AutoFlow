@@ -61,6 +61,8 @@ ChatGPT 订阅页签通过 Host 操作管理可选的 [Codex 订阅插件](../..
 
 Host 配置 `credentialOnboarding` 默认为 `true`。Electron preload 标记会抑制自动凭证引导和 Web 欢迎须知；模型设置页与显式 API Key 编辑仍然可用。[账号插件](../ui-settings-account/README.zh.md#desktop-onboarding)负责 Desktop 引导。其他原生壳可以通过 `credentialOnboarding: false` 仅禁用凭证步骤。Host 通过 `webserver/index-inject` 发布这个公开的布尔值，Client 在注册弹窗前校验它。它是页面初始化数据，不是持久化的完成标记。
 
+生图模型管理分别显示官方发布状态与各订阅的检测结果。自动检测开关不修改账号积分设置或默认模型。小测试图消耗订阅内额度；检测受阻或结果不明时保留原因和回执。后台进度读取保留草稿、合并重叠读取，并在关闭弹窗后停止。添加发现的生图型号仍通过显式保存目录完成。
+
 ### API 密钥
 
 API 密钥输入框初始为空，并通过 `autocomplete="new-password"` 请求浏览器不要自动填入已保存的登录密码。输入非空时，显示与会话密钥遮罩一致的眼睛按钮：**显示密钥**展示当前输入，**隐藏密钥**重新遮住输入。修改或清空输入后会重新遮住密钥。已保存凭据从不读入输入框。

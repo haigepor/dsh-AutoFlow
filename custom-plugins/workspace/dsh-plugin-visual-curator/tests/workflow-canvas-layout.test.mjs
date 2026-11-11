@@ -10,9 +10,67 @@ const root = fileURLToPath(new URL('../', import.meta.url))
 const compiled = await build({ entryPoints: [resolve(root, 'src/client/workflow-canvas-layout.ts')], bundle: true, write: false, packages: 'external', platform: 'node', format: 'cjs', logLevel: 'silent' })
 const filename = resolve(root, 'tests/workflow-layout-memory.cjs'), capsule = new Module(filename)
 capsule.filename = filename; capsule.paths = Module._nodeModulePaths(dirname(filename)); capsule._compile(compiled.outputFiles[0].text, filename)
-const { createWorkflowCanvasLayout, workflowPositions } = capsule.exports
+const { createWorkflowCanvasLayout, workflowPositions, workflowConnectionSpacing, workflowStaggeredPositions } = capsule.exports
 const kinds = ['references', 'dataset', 'results', 'downloading', 'planning', 'rendering', 'reviewing']
 const dimensions = kind => ({ width: kind === 'results' ? 560 : kinds.indexOf(kind) > 2 ? 380 : 340, height: kind === 'results' ? 420 : 260 })
+
+test('staggered stages leave clear horizontal ranges for wide cards and preserve unrelated manual positions', () => {
+  const nodes = [330, 720, 380, 410, 1200, 360, 500].map((width, index) => ({ id: `batch:image-step:${index}:planning`, width, height: index % 2 ? 1100 : 240 }))
+  const positions = workflowStaggeredPositions(nodes)
+  assert.equal(new Set(Object.values(positions).map(point => point.y)).size, 2)
+  for (let index = 1; index < nodes.length; index++) assert(positions[nodes[index].id].x >= positions[nodes[index - 1].id].x + nodes[index - 1].width + 100)
+  const env = environment('staggered')
+  try {
+    const layout = env.render(); layout.position('other:references', 'references', 'other'); layout.move('other:references', { x: 50, y: 900 })
+    layout.position(nodes[0].id, 'planning', 'batch'); layout.move(nodes[0].id, { x: -100, y: -100 })
+    layout.place(positions, true)
+    assert.deepEqual(env.read().positions['other:references'], { x: 50, y: 900 }); assert.deepEqual(env.read().manual, ['other:references'])
+    for (const node of nodes) assert.deepEqual(env.read().positions[node.id], positions[node.id])
+  } finally { env.restore() }
+})
+
+test('decision cards participate in measured spacing and push later automatic steps past their full width', () => {
+  const env = environment('decision-spacing')
+  try {
+    const layout = env.render(), stages = [['geometry', 'planning'], ['decision', 'decision'], ['rendering', 'rendering'], ['clarity', 'rendering']]
+    const ids = stages.map(([stage, kind], index) => {
+      const id = `batch:image-step:${stage}:${kind}`
+      layout.position(id, kind === 'decision' ? 'planning' : kind, 'batch', { x: index === 1 ? 570 : index * 480, y: index % 2 ? 96 : 0 }, index)
+      layout.measure(id, { width: index === 1 ? 640 : 380, height: index === 1 ? 1100 : 420 })
+      return id
+    })
+    layout.reconcile(undefined, ids)
+    const saved = env.read()
+    for (let index = 1; index < ids.length; index++) assert(saved.positions[ids[index]].x >= saved.positions[ids[index - 1]].x + (index === 2 ? 640 : 380) + 100)
+    const unchanged = structuredClone(saved.positions)
+    layout.reconcile(undefined, ids)
+    assert.deepEqual(env.read().positions, unchanged)
+    layout.resize(ids[1], { width: 720, height: 1100 }); layout.save()
+    assert.equal(env.read().sizes[ids[1]].width, 720)
+    assert(env.read().positions[ids[2]].x >= env.read().positions[ids[1]].x + 820)
+  } finally { env.restore() }
+})
+
+test('automatic image spacing avoids a pinned decision without moving manual cards or other batches', () => {
+  const env = environment('pinned-decision')
+  try {
+    const layout = env.render(), geometry = 'batch:image-step:geometry:planning', decision = 'batch:image-step:decision:decision', render = 'batch:image-step:rendering:rendering'
+    for (const [id, kind, x] of [[geometry, 'planning', 0], [decision, 'planning', 400], [render, 'rendering', 560]]) {
+      layout.position(id, kind, 'batch', { x, y: 0 }); layout.measure(id, { width: 380, height: 600 })
+    }
+    layout.move(decision, { x: 400, y: 0 })
+    // A real drag differs from the preceding automatic location.
+    layout.move(decision, { x: 420, y: 0 })
+    layout.position('other:references', 'references', 'other', { x: 30, y: 2000 }); layout.move('other:references', { x: 50, y: 2000 })
+    layout.reconcile(undefined, [geometry, decision, render])
+    const saved = env.read()
+    assert.deepEqual(saved.positions[decision], { x: 420, y: 0 })
+    assert.deepEqual(saved.positions['other:references'], { x: 50, y: 2000 })
+    assert(saved.manual.includes(decision)); assert(saved.manual.includes('other:references'))
+    const rectangles = [geometry, decision, render].map(id => ({ ...saved.positions[id], width: 380, height: 600 }))
+    for (let index = 0; index < rectangles.length; index++) for (let next = index + 1; next < rectangles.length; next++) assert.equal(overlaps(rectangles[index], rectangles[next]), false)
+  } finally { env.restore() }
+})
 
 function environment(style = 'fixture', storage = new Map()) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'window')
@@ -36,6 +94,64 @@ function addLane(layout, lane, row = 0) {
     return { id, kind, row }
   })
 }
+
+test('collapsed nodes survive reopening without changing other batches or their geometry', () => {
+  const env = environment('collapse-recovery')
+  try {
+    const layout = env.render(); addLane(layout, 'batch-a'); addLane(layout, 'batch-b', 1); layout.save({ x: 10, y: 20, zoom: .8 })
+    const before = env.read()
+    layout.setCollapsed({ 'batch-a:reviewing': true, 'batch-b:reviewing': false })
+    const restored = env.reopen()()
+    assert.deepEqual(restored.collapsed, { 'batch-a:reviewing': true, 'batch-b:reviewing': false })
+    assert.deepEqual(env.read().positions, before.positions)
+    assert.deepEqual(restored.initialViewport, before.viewport)
+    restored.forget(['batch-a'])
+    assert.deepEqual(env.reopen()().collapsed, { 'batch-b:reviewing': false })
+    const saved = env.read(); delete saved.collapsed; env.storage.set('visual-curator:workflow-canvas:v7:collapse-recovery', JSON.stringify(saved))
+    const legacy = env.reopen()()
+    assert.deepEqual(legacy.collapsed, {})
+    assert.deepEqual(legacy.initialViewport, before.viewport)
+  } finally { env.restore() }
+})
+
+test('two-card slots move automatic review placement when switching from completed to failed images', () => {
+  const env = environment('pair-window')
+  try {
+    const layout = env.render(), lane = 'batch', review = lane + ':image-step:reviewing:reviewing', final = lane + ':image-step:final:reviewing', render = lane + ':image-step:rendering:rendering'
+    layout.position(review, 'reviewing', lane, { x: 0, y: 0 }, 0)
+    layout.position(final, 'reviewing', lane, { x: 540, y: 0 }, 1)
+    assert.deepEqual(layout.position(render, 'rendering', lane, { x: 0, y: 0 }, 0), { x: 0, y: 0 })
+    assert.deepEqual(layout.position(review, 'reviewing', lane, { x: 540, y: 0 }, 1), { x: 540, y: 0 })
+    layout.place({ [review]: { x: 640, y: 0 } })
+    assert.deepEqual(env.render().position(review, 'reviewing', lane, { x: 540, y: 0 }, 1), { x: 640, y: 0 })
+    layout.save({ x: 12, y: 24, zoom: .8 })
+    const recovered = env.reopen()()
+    assert.deepEqual(recovered.position(render, 'rendering', lane, { x: 0, y: 0 }, 0), { x: 0, y: 0 })
+    assert.deepEqual(recovered.position(review, 'reviewing', lane, { x: 540, y: 0 }, 1), { x: 540, y: 0 })
+    assert.deepEqual(recovered.initialViewport, { x: 12, y: 24, zoom: .8 })
+    recovered.move(review, { x: 720, y: 30 })
+    assert.deepEqual(recovered.position(review, 'reviewing', lane, { x: 0, y: 0 }, 0), { x: 720, y: 30 })
+  } finally { env.restore() }
+})
+
+test('adding the clarity step preserves historical positions, collapse state and viewport', () => {
+  const env = environment('clarity-history')
+  try {
+    const initial = env.render(), stages = [['original', 'downloading'], ['planning', 'planning'], ['geometry', 'planning'], ['rendering', 'rendering'], ['reviewing', 'reviewing'], ['final', 'reviewing']]
+    for (const [index, [stage, kind]] of stages.entries()) {
+      const id = 'batch:image-step:' + stage + ':' + kind
+      initial.position(id, kind, 'batch', { x: index * 480, y: 20 }); initial.measure(id, { width: 380, height: 420 })
+    }
+    initial.setCollapsed({ 'batch:image-step:reviewing:reviewing': true }); initial.save({ x: -42, y: 110, zoom: .7 })
+    const before = env.read(), reopened = env.reopen()(), id = 'batch:image-step:clarity:rendering'
+    const at = reopened.position(id, 'rendering', 'batch', { x: 1920, y: 20 }); reopened.save()
+    const after = env.read()
+    for (const [key, position] of Object.entries(before.positions)) assert.deepEqual(after.positions[key], position)
+    assert.deepEqual(after.collapsed, before.collapsed); assert.deepEqual(after.viewport, before.viewport)
+    assert(at.y >= 540, 'the new step occupies a separate row below the saved cards')
+    assert.deepEqual(env.reopen()().position(id, 'rendering', 'batch'), at)
+  } finally { env.restore() }
+})
 
 test('resizing fixed image slots pushes later presentation steps forward even when they share a processing stage', () => {
   const env = environment('fixed-slots')
@@ -129,7 +245,7 @@ test('left and top resize keep the opposite corner anchored and reject later unc
 test('all legacy layout generations retain their original keys and migrate positions as manual', () => {
   for (const version of [1, 2, 3, 4, 5, 6]) {
     const style = `legacy-${version}`, storage = new Map(), viewport = { x: 37, y: -21, zoom: 0.7 }
-    const positions = Object.fromEntries(kinds.map(kind => [version < 3 ? kind : `batch:${kind}`, { ...workflowPositions[kind] }]))
+    const positions = Object.fromEntries(kinds.map(kind => [version < 3 ? kind : `batch:${kind}`, { ...workflowPositions[kind], y: 0 }]))
     const old = { version, positions, viewport, ...(version >= 4 ? { sizes: {} } : {}), ...(version === 6 ? { owners: { launch: 'run' } } : {}) }
     const key = `visual-curator:workflow-canvas:v${version}:${style}`, bytes = JSON.stringify(old)
     storage.set(key, bytes)
@@ -242,4 +358,35 @@ test('planning image cards stay in their batch, preserve manual positions and ar
     assert(cards.every(card => !Object.hasOwn(env.read().positions, card.id)))
     assert(Object.keys(env.read().positions).every(id => id.startsWith('other:')))
   } finally { env.restore() }
+})
+
+test('new layouts stagger ports while existing automatic image positions remain stable', () => {
+  const env=environment('stable-stagger')
+  try {
+    const layout=env.render()
+    assert.equal(layout.position('b:references','references','b').y,0)
+    assert.equal(layout.position('b:dataset','dataset','b').y,48)
+    const id='b:image-step:planning:planning'
+    layout.position(id,'planning','b',{x:440,y:48})
+    layout.save()
+    assert.deepEqual(layout.position(id,'planning','b',{x:880,y:96}),{x:440,y:48})
+    assert.deepEqual(env.reopen()().position(id,'planning','b',{x:880,y:96}),{x:440,y:48})
+  } finally { env.restore() }
+})
+
+test('rework labels open only the crowded image gap and shift its right neighbors together', () => {
+  const nodes = [
+    { id: 'original', position: { x: 0, y: 0 }, width: 330, height: 400 },
+    { id: 'render', position: { x: 1500, y: 48 }, width: 380, height: 400 },
+    { id: 'review', position: { x: 1980, y: 0 }, width: 330, height: 400 },
+    { id: 'final', position: { x: 2480, y: 48 }, width: 330, height: 400 },
+  ]
+  const shifted = workflowConnectionSpacing(nodes, 'review', 'render', 240)
+  assert.deepEqual(shifted, { review: { x: 2120, y: 0 }, final: { x: 2620, y: 48 } })
+  assert.equal(shifted.review.x - nodes[1].position.x - nodes[1].width, 240)
+  assert.equal(shifted.final.x - shifted.review.x, 500)
+  const spaced = nodes.map(node => ({ ...node, position: shifted[node.id] ?? node.position }))
+  assert.deepEqual(workflowConnectionSpacing(spaced, 'review', 'render', 240), {})
+  assert.deepEqual(workflowConnectionSpacing(nodes, 'render', 'review', 240), shifted)
+  assert.deepEqual(workflowConnectionSpacing(nodes.map(node => node.id === 'review' ? { ...node, position: { x: 1980, y: 1000 } } : node), 'review', 'render', 240), {})
 })
