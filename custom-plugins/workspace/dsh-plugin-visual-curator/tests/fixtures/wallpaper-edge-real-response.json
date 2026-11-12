@@ -1,0 +1,418 @@
+{
+  "source": {
+    "runId": "52706dcd5b6734f66a071b2553991003e86b8db2fca6b912958d873d8c377f62",
+    "imageVersionId": "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+    "detailRequestId": "a01baab7-3565-4f7d-b2f9-1ad3b1960734",
+    "decisionRequestId": "5e6390f4-cc02-474d-95b5-36db58cdbcc5"
+  },
+  "plan": {
+    "version": 1,
+    "imageVersionId": "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+    "mode": "group",
+    "subject": "一簇盛开的生石花（活石）群落：中央为粉橘色大株，左上为奶油色株，右上为蓝灰色株，周围穿插桃粉、奶油和蓝灰色小株，均带白色舌状花瓣与黄色花心；背景是粉彩荒漠、层叠远山和蓝粉橙晚霞。",
+    "evidence": "画面下半部清晰可见多组肉质叶瓣，叶面有半透明窗状斑纹和细密斑点，每株中心抽出白色花；低机位近地视角，前景岩块较大，远山位于画面上部约三分之一处，天空有横向丝状云。未见可辨认的文字或标识。",
+    "priorities": [
+      "中央粉橘色生石花及其花朵的轮廓、叶瓣分割、斑纹、白色花瓣和黄色花心保持原样。",
+      "左上奶油色株与右上蓝灰色株的位置、比例、纹理及花朵完整保留。",
+      "左中桃粉色、右下奶油色、左下蓝灰色以及右上珊瑚色背景小株全部保留，不删除、不缩小。",
+      "保留粉彩夕照的蓝粉橙渐变、远山层叠轮廓和碎石坡的近地透视。",
+      "仅在画框边缘做背景与地面延续，左缘和底边截断先局部确认再自然续接。",
+      "扩图不得新增主体、移动或重绘现有植株，也不得伪造被遮挡叶瓣或未知结构。"
+    ],
+    "anchors": [
+      "顶部约四分之一为蓝、粉、橙渐变天空，横向丝状云层向右上延展。",
+      "远山横贯画面上部约 y=0.25–0.36，蓝紫与灰粉色层叠，山脊柔和。",
+      "中景至前景为粉彩碎石坡，低机位近地视角，岩石由中景向底边逐渐增大。",
+      "主体群落呈前中后层次：中央粉橘大株最前，左上奶油色与右上蓝灰色两株居后，小株穿插两侧。",
+      "左侧和右侧的细干花茎只作竖向背景点缀，不构成主体。",
+      "整体为柔和漫射夕照，暖杏色从右上方进入，阴影浅淡。"
+    ],
+    "truncations": [
+      "左缘约 y=0.69–0.88 的小型蓝灰生石花被画框截断，左侧叶瓣在画外。",
+      "底边前景碎石与浅色岩块被画框截断，可在新增区域沿同一坡面自然延续。"
+    ],
+    "uncertainties": [
+      "左缘小型蓝灰生石花在画框外的叶瓣数量、形状和斑纹连续性无法确认。",
+      "右上珊瑚色背景多肉被蓝灰主株遮挡，完整轮廓和叶瓣数量不明。",
+      "两侧细干花茎的画外长度与具体植物种类不明，只能作为背景线索。"
+    ],
+    "regions": [
+      {
+        "name": "中央粉橘生石花及主花",
+        "role": "subject",
+        "rect": {
+          "x": 0.125,
+          "y": 0.535,
+          "width": 0.6,
+          "height": 0.355
+        }
+      },
+      {
+        "name": "左上奶油色生石花及花",
+        "role": "critical",
+        "rect": {
+          "x": 0.12,
+          "y": 0.285,
+          "width": 0.475,
+          "height": 0.285
+        }
+      },
+      {
+        "name": "右上蓝灰色生石花及花",
+        "role": "critical",
+        "rect": {
+          "x": 0.405,
+          "y": 0.395,
+          "width": 0.55,
+          "height": 0.27
+        }
+      },
+      {
+        "name": "左中桃粉色生石花及花",
+        "role": "critical",
+        "rect": {
+          "x": 0.035,
+          "y": 0.49,
+          "width": 0.34,
+          "height": 0.245
+        }
+      },
+      {
+        "name": "右下奶油色生石花及花",
+        "role": "critical",
+        "rect": {
+          "x": 0.64,
+          "y": 0.605,
+          "width": 0.345,
+          "height": 0.225
+        }
+      },
+      {
+        "name": "左下蓝灰色小生石花",
+        "role": "critical",
+        "rect": {
+          "x": 0,
+          "y": 0.69,
+          "width": 0.285,
+          "height": 0.205
+        }
+      },
+      {
+        "name": "右上珊瑚色背景生石花群",
+        "role": "critical",
+        "rect": {
+          "x": 0.52,
+          "y": 0.335,
+          "width": 0.36,
+          "height": 0.115
+        }
+      }
+    ],
+    "placement": {
+      "scale": 1,
+      "left": 452,
+      "top": 700
+    },
+    "reason": "原图是低机位粉彩荒漠插画，植物群落占据下半部并形成明确视觉中心，因此按多株群落处理，而非把远山当主体。中央粉橘大株与左上、右上两株构成三角主次，其他小株补足群落密度。扩图应只延续天空、山体和碎石坡，左缘与底边的画框裁切需局部核实后顺接；主体像素、位置和比例不变，不使用插值或超分声称恢复细节。",
+    "editPrompt": "以原图像素为唯一依据，只向画框外延伸同一片粉彩荒漠场景，不重画、不放大、不叠加一份新的主体。固定现有全部生石花的位置、数量、比例、叶瓣分割、斑点与半透明窗纹：中央粉橘大株、左上奶油色株、右上蓝灰色株及其白色花朵的瓣形、黄色花心和投影均不得改动；左中、右下、左下与右上珊瑚色小株同样保留。光线为柔和低角度夕照，暖杏色从右上方照入，阴影淡而短；天空延续蓝、粉、橙渐变和横向丝状云，远山保持淡蓝紫与灰粉层叠，山脊仍位于画面上部约四分之一至三分之一；中景到前景延续粉质碎石坡和浅粉、灰白岩块，岩石越靠近底边越大，透视保持低机位近地视角。材质上保留哑光蜡质叶面、纸质花瓣和颗粒感岩面，整体维持细腻彩色铅笔与粉彩笔触。新增区域只允许是天空、山体、坡面和既有边缘元素；左缘被截断的小型蓝灰生石花须先局部确认原截断轮廓，再按原有叶瓣与斑纹自然续接，不能创造新株；底边岩石与坡面顺接并逐渐淡出。不得生成文字、标识或新的花卉主体。"
+  },
+  "detail": {
+    "version": "wallpaper-plan-detail-v4",
+    "imageVersionId": "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+    "findings": [
+      {
+        "concernId": "uncertainty:0",
+        "result": "unresolved",
+        "reason": "左侧局部裁片显示该小型蓝灰生石花可见两枚叶瓣，叶面为浅蓝灰底色、布满深蓝褐色块状斑纹，边缘与浅粉碎石相接；画框外是否还有叶瓣、其形状与斑纹如何延续，没有像素依据可确认，只能依据可见瓣面做最小延续，不得添加新叶瓣、花朵或新株。",
+        "evidenceImageVersionIds": [
+          "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+          "wallpaper-detail-e4a519c685d9bec376d2d815556ace84a74f98d177089faabb7cfa0df12cb1f5"
+        ]
+      },
+      {
+        "concernId": "uncertainty:1",
+        "result": "unresolved",
+        "reason": "整图与下部大裁片显示右上珊瑚色多肉被蓝灰色主株从前方遮住，属于正常自遮挡，而非画框截断；被遮挡部分的完整轮廓与叶瓣数量在像素上不可见，保持未知，不补造背面结构。",
+        "evidenceImageVersionIds": [
+          "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+          "wallpaper-detail-3baa9ce75aee0fc3f2f274c6b8106d032b98a917eaf0165810f160a1c273764e"
+        ]
+      },
+      {
+        "concernId": "uncertainty:2",
+        "result": "unresolved",
+        "reason": "两侧细干花茎在整图中呈浅褐色细线，带稀疏小花苞，仅作竖向背景点缀；其画外长度与具体植物种类在像素上不可辨，保持未知，扩图时只按现有方向与色调作极短背景线条，不补造可辨认花序。",
+        "evidenceImageVersionIds": [
+          "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+          "wallpaper-detail-3baa9ce75aee0fc3f2f274c6b8106d032b98a917eaf0165810f160a1c273764e"
+        ]
+      },
+      {
+        "concernId": "source-extent",
+        "result": "resolved",
+        "reason": "整图看，左下部小型蓝灰生石花的叶片在 x=0 处被画框切边；左缘局部裁片的 sourceRect 从 x=0 开始，同样显示其外轮廓止于裁片左边界，故主体范围记 cut-off。该截断的连接方向、叶形、蓝灰底色与斑纹密度清楚，属于可延续的画框边缘截断，已确认修复目标（不代表成品通过）。底边的截断只涉及前景碎石与浅色岩块，属于陪衬背景；中央粉橘大株、左上奶油色株、右上蓝灰色株与各小株均在画框内可辨，未见其它主体截断。",
+        "evidenceImageVersionIds": [
+          "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+          "wallpaper-detail-e4a519c685d9bec376d2d815556ace84a74f98d177089faabb7cfa0df12cb1f5",
+          "wallpaper-detail-3baa9ce75aee0fc3f2f274c6b8106d032b98a917eaf0165810f160a1c273764e"
+        ]
+      }
+    ],
+    "observation": {
+      "version": 1,
+      "imageVersionId": "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+      "mode": "group",
+      "subject": "低机位粉彩荒漠插画中的生石花群落：中央粉橘色大株、左上奶油色株、右上蓝灰色株为主体，周围穿插左中桃粉色株、右下奶油色株与左下蓝灰小株，右上另有被遮挡的珊瑚色丛；每株中心抽出白瓣黄心花。",
+      "evidence": "画面下半部由多组肉质叶瓣构成视觉中心，叶面呈哑光蜡质并带半透明窗状斑纹与细密斑点；花瓣为纸质白瓣、花心黄。上部约四分之一为蓝粉橙渐变天空与横向丝状云，其下为蓝紫、灰粉层叠远山，中景至前景是粉彩碎石坡，石块越近底边越大。左侧细干花茎作竖向点缀，未见文字或标识。",
+      "priorities": [
+        "保留中央粉橘色大株的位置、比例、双瓣分割、斑纹分布及白花黄心的瓣形。",
+        "保留左上奶油色株与右上蓝灰色株的轮廓、斑纹密度与花朵结构，不移动、不缩放。",
+        "保留左中桃粉色、右下奶油色、左下蓝灰色小株及右上珊瑚色丛的可见像素，不删除、不新增植株。",
+        "保留粉彩夕照天空的蓝粉橙渐变、横向丝状云与远山层叠山脊。",
+        "保留前景碎石坡的低机位近地透视与石块由中景向底边增大的尺度关系。",
+        "仅在画框边缘延续天空、山体、坡面与已确认的左侧蓝灰小株外轮廓。",
+        "不伪造右上珊瑚色丛被遮挡的背面结构，不补造未知花茎的具体花序。",
+        "不添加文字、标识或新的花卉主体，整体保持彩色铅笔与粉彩质感。"
+      ],
+      "anchors": [
+        "顶部约四分之一为蓝、粉、橙渐变天空，横向丝状云向画面右上延展。",
+        "远山横贯约为 y=0.25–0.36，蓝紫与灰粉色层叠，山脊柔和。",
+        "中景至前景为粉彩碎石坡，岩石越近底边越大，透视保持低机位近地视角。",
+        "主体群落呈前中后层次：中央粉橘大株在前，左上奶油色与右上蓝灰色两株稍后，小株穿插两侧。",
+        "柔和漫射夕照，暖杏色自右上方进入，阴影浅而短。",
+        "左右两侧的细干花茎为竖向背景线条，不构成主体。"
+      ],
+      "uncertainties": [
+        "右上珊瑚色多肉被蓝灰主株自遮挡，完整轮廓与叶瓣数量无像素依据。",
+        "右缘中段珊瑚粉块状物究为岩石还是生石花无法确认，不据此补画结构。",
+        "两侧细干花茎的植物种类与画外长度不可辨，仅按现有方向作极短线条。"
+      ],
+      "regions": [
+        {
+          "name": "中央粉橘色生石花大株及白花",
+          "role": "subject",
+          "rect": {
+            "x": 0.155,
+            "y": 0.585,
+            "width": 0.535,
+            "height": 0.29
+          }
+        },
+        {
+          "name": "左上奶油色生石花及花",
+          "role": "critical",
+          "rect": {
+            "x": 0.14,
+            "y": 0.28,
+            "width": 0.45,
+            "height": 0.3
+          }
+        },
+        {
+          "name": "右上蓝灰色生石花及花",
+          "role": "critical",
+          "rect": {
+            "x": 0.42,
+            "y": 0.39,
+            "width": 0.55,
+            "height": 0.3
+          }
+        },
+        {
+          "name": "左中桃粉色生石花及花",
+          "role": "critical",
+          "rect": {
+            "x": 0.03,
+            "y": 0.485,
+            "width": 0.35,
+            "height": 0.265
+          }
+        },
+        {
+          "name": "右下奶油色生石花及花",
+          "role": "critical",
+          "rect": {
+            "x": 0.655,
+            "y": 0.595,
+            "width": 0.33,
+            "height": 0.245
+          }
+        },
+        {
+          "name": "左下蓝灰小生石花（左缘切边处）",
+          "role": "critical",
+          "rect": {
+            "x": 0,
+            "y": 0.69,
+            "width": 0.225,
+            "height": 0.2
+          }
+        },
+        {
+          "name": "右上珊瑚色背景生石花群",
+          "role": "critical",
+          "rect": {
+            "x": 0.52,
+            "y": 0.335,
+            "width": 0.345,
+            "height": 0.12
+          }
+        }
+      ],
+      "reason": "本图是低机位粉彩荒漠插画，生石花群落占据下半部形成视觉中心，故按 group 处理。左缘局部裁片（sourceRect x=0）确认小型蓝灰生石花在画框左边界被切，但材质、叶形、斑纹与相邻碎石关系清楚，属可延续的边缘截断；底边只切到前景碎石与浅色岩块，属陪衬背景截断。右上珊瑚色丛为自遮挡、非截断，保持未知不补背面。",
+      "editPrompt": "以原图像素为唯一依据向画框外延伸同一片粉彩荒漠，不重画、不放大、不叠加第二份主体。固定现有全部生石花的位置、数量、比例：中央粉橘大株、左上奶油色株、右上蓝灰色株及其白瓣黄心的花形、斑纹与投影不变；左中桃粉、右下奶油、左下蓝灰及右上珊瑚色丛同样保留。底边新增区域将前景碎石坡与浅粉、灰白岩块沿同一坡面继续向下，石块越靠近底边越大，保持颗粒质感、颜色层次与自右上方来的暖杏夕照阴影方向。左缘仅在 x=0 处对可见蓝灰小株的外轮廓做最小收口，沿用其浅蓝灰底色、深蓝褐色块状斑纹密度与哑光蜡质质感，不添加新叶瓣、花朵或新株；轮廓走向不明处以浅粉碎石与柔和阴影过渡。天空继续蓝、粉、橙渐变与横向丝状云，远山保持蓝紫与灰粉层叠、山脊仍在画面上部约四分之一至三分之一。材质维持哑光叶面、纸质花瓣与粉彩颗粒感笔触。不得生成文字、标识或新的花卉主体，不补画右上珊瑚色丛被遮挡的背面。"
+    },
+    "protectedSubjectExtent": {
+      "extent": "cut-off",
+      "reason": "整图中左下小型蓝灰生石花的叶片外轮廓在画框左缘 x=0 处断开；左缘局部裁片同样显示该株叶瓣止于裁片左边界（sourceRect 从 x=0 起），因此主体范围为 cut-off，而不是 complete。中央粉橘大株、左上奶油色株、右上蓝灰色株、左中桃粉株与右下奶油株均在画框内可见，底边只截断前景碎石与浅色岩块等陪衬背景。",
+      "evidenceImageVersionIds": [
+        "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+        "wallpaper-detail-e4a519c685d9bec376d2d815556ace84a74f98d177089faabb7cfa0df12cb1f5",
+        "wallpaper-detail-3baa9ce75aee0fc3f2f274c6b8106d032b98a917eaf0165810f160a1c273764e"
+      ]
+    },
+    "backgroundTruncations": [
+      "底边前景碎石与浅粉、灰白岩块被画框截断，可在新增区域沿同一坡面自然延续。",
+      "左侧细干花茎靠近左缘处被画框切断，仅按现有竖向方向作极短延续。"
+    ],
+    "edgeRepair": {
+      "classification": "edge-continuation",
+      "edges": [
+        "left",
+        "bottom"
+      ],
+      "reason": "左缘：局部裁片显示蓝灰生石花在 x=0 处被切，其可见叶瓣轮廓、蓝灰底色与深蓝斑纹密度足以指导最小延续，不涉及身份、文字或关键机械结构。底边：前景碎石坡与浅色岩块被切，石块尺度递增方向、颗粒质感与暖杏夕照光影一致，可直接顺接。",
+      "instruction": "底边新增区域沿同一低机位碎石坡向下延续：浅粉、灰白岩块逐渐增大，保持颗粒感、色阶与自右上暖光形成的短阴影，越出画框后自然淡出。左缘仅在 x=0 处对可见蓝灰生石花的既有叶瓣外轮廓做最小收口，沿用其原有底色、斑纹密度与哑光质感；不添加新的叶瓣、花朵或植株，轮廓不确定处以浅粉碎石与柔和阴影过渡。其余方向只延续天空渐变、横向丝状云与远山山脊，不新增主体，不生成文字与标识。"
+    }
+  },
+  "decision": {
+    "version": "wallpaper-decision-v1",
+    "imageVersionId": "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+    "planRevision": 1,
+    "findings": [
+      {
+        "concernId": "uncertainty:0",
+        "scope": "critical",
+        "classification": "observation-limit",
+        "blocking": false,
+        "reason": "左缘局部裁片显示小型蓝灰生石花可见叶瓣止于原画框 x=0；画框外的叶瓣数量、形状与斑纹连续性没有像素依据，只能沿可见外轮廓做最小收口，不新增叶瓣或新株。该画外信息缺失不阻塞继续处理。",
+        "evidenceImageVersionIds": [
+          "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+          "wallpaper-detail-e19e8874f675ad97de5885bed8c36f33e9460e39a605dc7d5bbe8a403a48670d"
+        ],
+        "sourceRegion": {
+          "x": 0,
+          "y": 0.69,
+          "width": 0.19,
+          "height": 0.205
+        }
+      },
+      {
+        "concernId": "uncertainty:1",
+        "scope": "critical",
+        "classification": "normal-occlusion",
+        "blocking": false,
+        "reason": "整图及上部原生裁片显示右上珊瑚色多肉位于蓝灰主株后方，被前景正常遮挡，不是画框截断；被遮部分轮廓不可见，不得补造背面或叶瓣，故不阻塞。",
+        "evidenceImageVersionIds": [
+          "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+          "wallpaper-detail-9505a00b3fb93a09f9a832623003e41a607eb99570561d7f485985ebee95aa6f"
+        ],
+        "sourceRegion": {
+          "x": 0.52,
+          "y": 0.335,
+          "width": 0.36,
+          "height": 0.115
+        }
+      },
+      {
+        "concernId": "uncertainty:2",
+        "scope": "background",
+        "classification": "background-crop",
+        "blocking": false,
+        "reason": "两侧细干花茎是竖向背景点缀，框内可见且不构成主体；其具体种类与画外长度无像素依据，按背景取景处理，不补造花序。",
+        "evidenceImageVersionIds": [
+          "ea0de8ba-abd7-4589-b2bc-13afa0691272"
+        ]
+      },
+      {
+        "concernId": "source-extent",
+        "scope": "subject",
+        "classification": "frame-truncation",
+        "blocking": true,
+        "reason": "整图与左缘原生裁片确认小型蓝灰生石花在 x=0、y≈0.69–0.90 处被原画框真实切断；中央粉橘、左上奶油、右上蓝灰及左中、右下各株均在框内，底边仅碎石与浅色岩块被切，属背景。",
+        "evidenceImageVersionIds": [
+          "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+          "wallpaper-detail-e19e8874f675ad97de5885bed8c36f33e9460e39a605dc7d5bbe8a403a48670d"
+        ],
+        "sourceRegion": {
+          "x": 0,
+          "y": 0.69,
+          "width": 0.2,
+          "height": 0.205
+        }
+      }
+    ],
+    "sourceExtent": {
+      "extent": "cut-off",
+      "reason": "左缘小型蓝灰生石花为真实主体截断，需按可见叶瓣外轮廓做最小边缘续接并独立复审；其余主体在画框内，底边仅截断碎石与浅色岩块等背景。"
+    },
+    "action": {
+      "kind": "continue_current_plan"
+    },
+    "reason": "左缘截断已由局部裁片定位，可见轮廓、蓝灰底色与斑纹足以支持最小收口；现有规划明确不新增主体，只延续边缘，且保留全部保护框。继续执行后续处理与独立复审，不宣告成品合格。"
+  },
+  "decisionIssues": [
+    "custom:sourceExtent:decision-complete-source-required",
+    "custom:action:decision-blocking-findings"
+  ],
+  "nativeDetails": [
+    {
+      "imageVersionId": "wallpaper-detail-e4a519c685d9bec376d2d815556ace84a74f98d177089faabb7cfa0df12cb1f5",
+      "sourceRect": {
+        "x": 0,
+        "y": 0.6895933014354066,
+        "width": 0.24017003188097769,
+        "height": 0.21052631578947367
+      }
+    },
+    {
+      "imageVersionId": "wallpaper-detail-3baa9ce75aee0fc3f2f274c6b8106d032b98a917eaf0165810f160a1c273764e",
+      "sourceRect": {
+        "x": 0,
+        "y": 0.20873205741626794,
+        "width": 1,
+        "height": 0.7625598086124402
+      }
+    }
+  ],
+  "decisionInput": {
+    "concerns": [
+      {
+        "id": "uncertainty:0",
+        "text": "左缘小型蓝灰生石花在画框外的叶瓣数量、形状和斑纹连续性无法确认。"
+      },
+      {
+        "id": "uncertainty:1",
+        "text": "右上珊瑚色背景多肉被蓝灰主株遮挡，完整轮廓和叶瓣数量不明。"
+      },
+      {
+        "id": "uncertainty:2",
+        "text": "两侧细干花茎的画外长度与具体植物种类不明，只能作为背景线索。"
+      },
+      {
+        "id": "source-extent",
+        "text": "Verify the complete subject against the whole original frame before any rendering or expansion. Distinguish actual frame truncation from normal perspective or self-occlusion: 左缘约 y=0.69–0.88 的小型蓝灰生石花被画框截断，左侧叶瓣在画外。；底边前景碎石与浅色岩块被画框截断，可在新增区域沿同一坡面自然延续。"
+      }
+    ],
+    "context": {
+      "mode": "group",
+      "hasProtectedSubject": true
+    },
+    "images": [
+      "ea0de8ba-abd7-4589-b2bc-13afa0691272",
+      "wallpaper-detail-e19e8874f675ad97de5885bed8c36f33e9460e39a605dc7d5bbe8a403a48670d",
+      "wallpaper-detail-9505a00b3fb93a09f9a832623003e41a607eb99570561d7f485985ebee95aa6f"
+    ]
+  },
+  "malformedDecision": "{\"version\":\"wallpaper-decision-v1\",\"imageVersionId\":\"ea0de8ba-abd7-4589-b2bc-13afa0691272\",\"planRevision\":1,\"findings\":[{\"concernId\":\"uncertainty:0\",\"classification\":\"frame-truncation\",\"blocking\":true,\"reason\":\"左缘下部小型蓝灰生石花的最左叶瓣在画框左边界处断开；提供的左缘原生裁片显示其外轮廓止于裁片左边界，而画框外叶瓣数量、形状和斑纹连续性仍无像素依据，属于真实主体截断。\",\"evidenceImageVersionIds\":[\"ea0de8ba-abd7-4589-b2bc-13afa0691272\",\"wallpaper-detail-e19e8874f675ad97de5885bed8c36f33e9460e39a605dc7d5bbe8a403a48670d\"]},{\"concernId\":\"uncertainty:1\",\"classification\":\"normal-occlusion\",\"blocking\":false,\"reason\":\"右上珊瑚色背景多肉被前景蓝灰主株遮挡，其外轮廓未在画框边断开，属于正常前后遮挡；被遮住的叶瓣数量和背面没有像素依据，保持未知且不补造。\",\"evidenceImageVersionIds\":[\"ea0de8ba-abd7-4589-b2bc-13afa0691272\",\"wallpaper-detail-9505a00b3fb93a09f9a832623003e41a607eb99570561d7f485985ebee95aa6f\"]},{\"concernId\":\"uncertainty:2\",\"classification\":\"unknown\",\"blocking\":false,\"reason\":\"两侧浅褐细干花茎仅呈细线与稀疏花苞，整图和下部裁片均不足以辨明其种类或画外长度，只能作为背景点缀；该信息不足不阻塞主体与关键结构处理。\",\"evidenceImageVersionIds\":[\"ea0de8ba-abd7-4589-b2bc-13afa0691272\",\"wallpaper-detail-9505a00b3fb93a09f9a832623003e41a607eb99570561d7f485985ebee95aa6f\"]},{\"concernId\":\"source-extent\",\"classification\":\"frame-truncation\",\"blocking\":true,\"reason\":\"整图中左下部蓝灰小株真实触边截断，左缘原生裁片再次确认其轮廓止于画框边界；底边只截到前景碎石与浅色岩块，其余主要植株在画框内可见。因此主体范围是 cut-off，而非 complete。\",\"evidenceImageVersionIds\":[\"ea0de8ba-abd7-4589-b2bc-13afa0691272\",\"wallpaper-detail-e19e8874f675ad97de5885bed8c36f33e9460e39a605dc7d5bbe8a403a48670d\",\"wallpaper-detail-9505a00b3fb93a09f9a832623003e41a607eb99570561d7f485985ebee95aa6f\"]}],\"sourceExtent\":{\"extent\":\"cut-off\",\"reason\":\"左下小型蓝灰生石花的叶瓣在左画框边界处断开，左缘裁片确认其可见轮廓止于该边界；底边仅前景碎石和浅色岩块被截。主体范围仍为 cut-off。\"},\"action\":{\"kind\":\"replan\",\"guidance\":\"保留原图及全部现有主体、关键结构保护框，不删除、不缩小、不移动任何植株。仅按已确认的裁切处理画框边缘：左缘只对已可见的蓝灰小株叶瓣外轮廓做最小续接，沿用其蓝灰底色、深色斑纹密度和哑光质感，不新增叶瓣、花或植株；底边只沿同一低机位碎石坡延续浅粉与灰白岩块并自然淡出；天空、云和远山只作连续背景。右上珊瑚色小株的遮挡与两侧细干花茎保持未知，不补造背面、完整轮廓或花序。重算几何后交独立八项复审。\",\"reason\":\"局部复核已确认左下小株在左画框边界处存在真实主体截断；该发现阻塞当前输出，且不能以继续原规划消除。应保留保护范围和原图像素，将左缘最小续接与底边背景延续纳入重算几何，并保留遮挡与背景线索的未知状态，随后独立复审。\"}"
+}

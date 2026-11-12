@@ -1,0 +1,18 @@
+[
+  {
+    "bright": false,
+    "statuses": ["passed", "passed"],
+    "modelRequests": 5,
+    "edits": [0, 0],
+    "inheritedOutputUnchanged": true,
+    "qualified": 2
+  },
+  {
+    "bright": true,
+    "statuses": ["passed", "rejected"],
+    "modelRequests": 5,
+    "edits": [0, 0],
+    "inheritedOutputUnchanged": true,
+    "qualified": 1
+  }
+]

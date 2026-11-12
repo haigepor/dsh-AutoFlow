@@ -206,6 +206,7 @@ test('manual plan validation blocks unsafe geometry before Apply and guards dire
   try {
     for (const sample of cases) {
       const response = view('paused'), updates = []
+      response.settings = wallpaperSettingsSchema.parse({ ...response.settings, processing: { clockContrast: {} } })
       response.state.items = [{ imageVersionId: 'candidate', originalId: 'original', familyId: 'source-family', status: 'needs-review', edits: 0, attempts: [{ revision: 1, plan: valid, checks: [], needsOutpaint: true }] }]
       response.total = 1
       response.sourceImages = sample.missingSource ? {} : { original: { width: 1000, height: 2000, previewPath: '/api/visual-curator/resource?imageVersionId=original' } }

@@ -2,8 +2,26 @@ import assert from 'node:assert/strict'
 import {test} from 'node:test'
 import {planningImagesPerPage,planningWindowStart,planningImageNodeId,planningImageLane,planningImagePhase,imageWorkflowNodeId,imageWorkflowPhase,imageWorkflowStagePhase,imageNavigationPageSize,imageWorkflowStages,imageWorkflowWindow,imageWorkflowConnections,imageWorkflowArtifact,imageWorkflowRework,imageWorkflowDecisionRecord,fixedImageWorkflowNodeId} from '../src/client/workflow-image-branches.ts'
 import {wallpaperRecovery,wallpaperCanDecide} from '../src/client/wallpaper-recovery.ts'
+import {imageWorkflowPreviousReview} from '../src/client/workflow-image-branches.ts'
 import {wallpaperDecisionRecordSchema} from '../src/shared/wallpaper-decision.ts'
-import {wallpaperCanCancel,wallpaperImageWorkStatus,wallpaperPendingDecision,wallpaperProgress,wallpaperStateSchema,wallpaperViewSchema,wallpaperItemSchema,wallpaperPlanSchema,wallpaperReviewSchema,wallpaperReviewKeys} from '../src/shared/wallpaper.ts'
+
+test('a stopped alignment retry exposes saved-canvas review at the edit limit and retains the preceding quality failure', () => {
+  const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode: 'single', subject: 'Hanging plant', evidence: 'Original pixels', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: [], placement: { scale: 1, left: 0, top: 0 }, reason: 'Saved placement' })
+  const review = wallpaperReviewSchema.parse({ subject: 'Hanging plant', checks: Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: key === 'readability' ? 'violated' : 'satisfied', reason: key === 'readability' ? 'White date blends into a bright highlight' : 'Observed pixels' }])), issues: [{ kind: 'readability', reason: 'White date blends into a bright highlight' }] })
+  const item = wallpaperItemSchema.parse({ imageVersionId: 'source', originalId: 'source', familyId: 'family', status: 'needs-review', edits: 5, attempts: [
+    { revision: 4, plan, checks: [], needsOutpaint: true, outputId: 'previous-output', review },
+    { revision: 5, plan, checks: [], needsOutpaint: true, compositionMode: 'protected-context-v2', generatedImageId: 'saved-generation', generation: { id: 'operation', provider: 'autoflow-codex', model: 'gpt-image-2', taskId: 'saved-task' }, generationInput: { version: 'wallpaper-edit-input-v3', prompt: 'Extend this placed canvas', references: [{ role: 'canvas', attachmentId: 'canvas', width: 941, height: 1672 }] }, generationAlignment: { result: 'misaligned-source', wholeSourceCorrelation: 0.69, placedSourceCorrelation: 0.66, protectedSourceCorrelation: 0.61 } },
+  ] })
+  const value = wallpaperViewSchema.parse({ runId: 'stopped', sourceRunId: 'root', status: 'completed', settings: {}, state: { version: 2, sourceRunId: 'root', skillVersion: 'direct', items: [item], budgetStopped: false }, resources: {}, sourceImages: {}, total: 1, offset: 0, counts: {}, warnings: [] })
+  assert.equal(imageWorkflowStagePhase('rendering', item, 'completed'), 'attention')
+  assert.equal(imageWorkflowStagePhase('reviewing', item, 'completed'), 'blocked')
+  assert.deepEqual(wallpaperRecovery(value, item, item.attempts.at(-1)), { kind: 'canvas' })
+  assert.equal(imageWorkflowPreviousReview(item)?.review?.checks.readability.result, 'violated')
+  assert.equal(item.edits, 5)
+  value.status = 'cancelled'
+  assert.deepEqual(wallpaperRecovery(value, item, item.attempts.at(-1)), { kind: 'none' })
+})
+import {wallpaperBackgroundReview,wallpaperCanCancel,wallpaperImageWorkStatus,wallpaperPendingDecision,wallpaperProgress,wallpaperStateSchema,wallpaperViewSchema,wallpaperItemSchema,wallpaperPlanSchema,wallpaperReviewSchema,wallpaperReviewKeys} from '../src/shared/wallpaper.ts'
 
 test('settled pending images remain cancellable while completed or already cancelled batches do not',()=>{
   assert.equal(wallpaperCanCancel('completed',5,4),true)
@@ -103,6 +121,24 @@ test('progressive image flows retain completed nodes, preview one next step and 
   assert.equal(imageWorkflowArtifact('rendering',item),'output');assert.equal(imageWorkflowArtifact('reviewing',item),'simulation')
   attempt.clarity={status:'not-needed',reason:'No enhancement needed'}
   assert.deepEqual(stages(),['original','planning','geometry','rendering','clarity','reviewing','final'])
+})
+
+test('a generated canvas shows native review before super-resolution and keeps the reviewed pixels distinct from delivery', () => {
+  const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode: 'single', subject: 'Fox', evidence: 'Saved source', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: [], placement: { scale: 1, left: 0, top: 0 }, reason: 'Saved layout' })
+  const review = wallpaperReviewSchema.parse({ subject: 'Fox', checks: Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: 'satisfied', reason: 'Observed native image' }])), issues: [] })
+  const item = wallpaperItemSchema.parse({ imageVersionId: 'source', originalId: 'source', familyId: 'family', status: 'rendering', attempts: [{ revision: 1, plan, checks: [], needsOutpaint: true, canvasId: 'canvas', compositionMode: 'generated-canvas-v1', simulationId: 'simulation', review, preResolutionReview: { nativeId: 'native', nativeDigest: 'digest', previewId: 'layout', simulationId: 'simulation' } }] })
+  const attempt = item.attempts[0]!
+  assert.deepEqual(imageWorkflowWindow(item).map(step => step.stage), ['original', 'planning', 'geometry', 'rendering', 'reviewing', 'clarity', 'final'])
+  assert.equal(imageWorkflowStagePhase('rendering', item, 'running'), 'completed')
+  assert.equal(imageWorkflowStagePhase('reviewing', item, 'running'), 'completed')
+  assert.equal(imageWorkflowStagePhase('clarity', item, 'running'), 'queued')
+  assert.equal(imageWorkflowArtifact('rendering', item), 'native')
+  assert.equal(imageWorkflowArtifact('reviewing', item), 'simulation')
+  attempt.outputId = 'delivered'; attempt.preResolutionReview!.finalId = 'delivered'; item.status = 'passed'
+  assert.deepEqual(imageWorkflowWindow(item).map(step => step.stage), ['original', 'planning', 'geometry', 'rendering', 'reviewing', 'clarity', 'final'])
+  assert.equal(imageWorkflowStagePhase('clarity', item, 'completed'), 'completed')
+  assert.equal(imageWorkflowStagePhase('final', item, 'completed'), 'completed')
+  assert.equal(imageWorkflowArtifact('final', item), 'delivered')
 })
 
 test('review repair follows current pixels through red remake, yellow review and green acceptance without reusing earlier conclusions',()=>{
@@ -227,4 +263,17 @@ test('receipt and saved review recovery keep priority over manual decisions',()=
   item.status='needs-review';assert.equal(wallpaperCanDecide(item),false)
   delete item.attempts[0]!.outputId;item.attempts[0]!.generation={id:'operation',provider:'provider',model:'image',taskId:'task'}
   assert.equal(wallpaperCanDecide(item),false)
+})
+
+test('completed canvas reconstruction and a recorded clarity pass reach the clarity node despite another quality failure', () => {
+  const item = wallpaperItemSchema.parse({ imageVersionId: 'source', originalId: 'source', familyId: 'family', status: 'needs-review', edits: 5, attempts: [{ revision: 1, plan: { version: 1, imageVersionId: 'source', mode: 'single', subject: 'Plant', evidence: 'Pixels', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: [{ name: 'Plant', role: 'subject', rect: { x: 0.2, y: 0.2, width: 0.6, height: 0.6 } }], placement: { scale: 1, left: 0, top: 0 }, reason: 'Source' }, checks: [], needsOutpaint: true, outputId: 'final', review: { subject: 'Plant', checks: { ...Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: key === 'composition' ? 'violated' : 'satisfied', reason: 'Saved quality evidence' }])), clarity: { result: 'satisfied', reason: 'Actual final details are clear' } }, issues: [{ kind: 'layout', reason: 'Another stage needs attention' }], styleResults: [], reviewVersion: 'wallpaper-review-v4', subjectIntegrity: { mode: 'single', source: { extent: 'complete', reason: 'Visible', imageVersionId: 'source' }, output: { extent: 'complete', reason: 'Visible', imageVersionId: 'final' }, task: { result: 'satisfied', reason: 'Visible' } } } }] })
+  item.attempts[0]!.backgroundResolution = { status: 'needs-review', reason: 'Old whole-image status', input: { width: 941, height: 1672, digest: 'saved-input' }, enhancedId: 'enhanced', output: { width: 1845, height: 3280 } }
+  assert.deepEqual(wallpaperBackgroundReview(item.attempts[0]!.review!), { status: 'passed', reason: '' })
+  assert.equal(imageWorkflowStagePhase('clarity', item, 'completed'), 'completed')
+  assert.equal(imageWorkflowStagePhase('reviewing', item, 'completed'), 'attention')
+  assert.equal(imageWorkflowStagePhase('final', item, 'completed'), 'blocked')
+  assert.ok('clarity' in item.attempts[0]!.review!.checks)
+  item.attempts[0]!.review!.checks.clarity = { result: 'violated', reason: 'Blur is present' }
+  assert.equal(imageWorkflowStagePhase('clarity', item, 'completed'), 'attention')
+  assert.deepEqual(wallpaperBackgroundReview(item.attempts[0]!.review!), { status: 'needs-review', reason: 'Blur is present' })
 })

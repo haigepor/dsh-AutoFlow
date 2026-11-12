@@ -1,5 +1,6 @@
 /** Direct-original execution uses real storage/rendering with explicitly isolated model responses. */
 import assert from 'node:assert/strict'
+import { wallpaperFixtureResponse } from './helpers/wallpaper-response.ts'
 import { test } from 'node:test'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -7,25 +8,28 @@ import sharp from 'sharp'
 import { z } from 'zod'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { dataOf, specOf, toJson } from '../src/host/runtime.ts'
-import { wallpaperStateSchema, wallpaperReviewKeys, wallpaperReviewOutputSchema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
+import { wallpaperStateSchema, wallpaperReviewKeys, wallpaperReviewOutputSchema, wallpaperStoredSourceReviewV4Schema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
 import { directCropBatchSchema } from '../src/shared/direct-crop.ts'
 import { applyWallpaperSourceReview } from '../src/host/wallpaper-review.ts'
 import { createCuratorTransport } from '../src/client/transport.ts'
 import { CuratorError } from '../src/shared/errors.ts'
 import { contentDigest } from '../src/domain/repository.ts'
 import { wallpaperDecisionSettingsSchema } from '../src/shared/wallpaper-decision.ts'
+import { wallpaperProcessingSchema } from '../src/shared/wallpaper-policy.ts'
 
 async function fixture(extent: 'complete' | 'cut-off' = 'complete', appearance: 'satisfied' | 'unknown' = 'satisfied', detailMode?: 'resolved' | 'unresolved' | 'violated', maxVisionCalls = 20, maxRetryAttempts = 0) {
-  let exportDirectory = '', corruptDetail = false, sourceTruncation = false, wholeFrameSubject = false, readabilityFailure = false, changedSubject = false, changedReadability = false, shrinkReplan = false, planCalls = 0, reviewCalls = 0
+  let exportDirectory = '', corruptDetail = false, sourceTruncation = false, wholeFrameSubject = false, readabilityFailure = false, changedSubject = false, changedReadability = false, shrinkReplan = false, criticalUnknownOnce = false, planCalls = 0, reviewCalls = 0
   const f = await serviceFixture(undefined, { maxVisionCalls, maxRetryAttempts }, { pickLocalPaths: async kind => kind === 'folder' ? [exportDirectory] : null })
   exportDirectory = join(f.root, 'exports'); await mkdir(exportDirectory)
+  f.service.config.wallpaper.decision = wallpaperDecisionSettingsSchema.parse({ enabled: false })
+  f.service.config.wallpaper.repairPolicy = { version: 'subject-repair-v1', mode: 'preserve', maxRepeatedDefects: 2 }
   await f.service.initialize()
   const path = join(f.root, 'direct-original.png'), bytes = await sharp({ create: { width: 2400, height: 4000, channels: 3, background: '#536f53' } }).png().toBuffer()
   await writeFile(path, bytes)
-  const observations: string[] = [], detailRequests: object[] = [], send = f.http.request.bind(f.http)
+  const observations: string[] = [], detailRequests: object[] = [], reviewRequests: { effort: string | undefined; roles: string[] }[] = [], send = f.http.request.bind(f.http)
   f.http.request = async (url, request) => {
     if (!url.startsWith('https://vision.example.test')) return send(url, request)
-    const envelope = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ text: z.string().optional() }).passthrough())]) })) }).parse(JSON.parse(Buffer.from(request.body!).toString('utf8')))
+    const envelope = z.object({ reasoning_effort: z.string().optional(), messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ text: z.string().optional() }).passthrough())]) })) }).parse(JSON.parse(Buffer.from(request.body!).toString('utf8')))
     const content = envelope.messages.find(row => row.role === 'user')!.content
     assert.ok(Array.isArray(content))
     const input = z.object({ input: z.object({ operation: z.string(), rules: z.array(z.unknown()), requestId: z.string(), usage: z.record(z.string(), z.unknown()).optional(), images: z.array(z.object({ imageVersionId: z.string(), role: z.string() })) }) }).parse(JSON.parse(content[0]!.text!)).input
@@ -57,20 +61,88 @@ async function fixture(extent: 'complete' | 'cut-off' = 'complete', appearance: 
     if (shrinkReplan && input.operation === 'wallpaper-plan' && planCalls > 1) { const plan=z.object({regions:z.array(z.object({name:z.string(),role:z.string(),rect:z.unknown()}))}).parse(result);result={...result,regions:plan.regions.filter(r=>r.role==='subject').map(r=>({...r,rect:{x:0.4,y:0.55,width:0.1,height:0.1}}))} }
     if (input.operation === 'wallpaper-review') {
       reviewCalls++
+      reviewRequests.push({ effort: envelope.reasoning_effort, roles: input.images.map(image => image.role) })
+      if (criticalUnknownOnce && reviewCalls === 1) { const review = z.object({ checks: z.record(z.string(), z.unknown()), subjectIntegrity: z.object({ output: z.object({ imageVersionId: z.string(), reason: z.string(), extent: z.string() }) }) }).parse(result); result = { ...result, checks: { ...review.checks, subject: { result: 'unknown', reason: 'Critical structure needs a native crop.' } }, subjectIntegrity: { ...z.object({ subjectIntegrity: z.unknown() }).parse(result).subjectIntegrity as object, output: { ...review.subjectIntegrity.output, extent: 'unknown' } }, sourceCorrespondence: { result: 'unknown', reason: 'Critical structure needs a native crop.' }, issues: [{ kind: 'unknown', reason: 'Critical structure needs a native crop.', detail: { sourceRect: { x: 0.44, y: 0.55, width: 0.08, height: 0.08 }, outputRect: { x: 0.44, y: 0.55, width: 0.08, height: 0.08 }, question: 'Is the visible critical connection complete?' } }] } }
       if (readabilityFailure && !(changedSubject && reviewCalls > 1)) { const review = z.object({ checks: z.record(z.string(), z.unknown()) }).parse(result); result = { ...result, checks: { ...review.checks, [changedSubject && !changedReadability ? 'subject' : 'readability']: { result: 'violated', reason: 'Scripted failed pixel evidence.' } }, issues: [{ kind: changedSubject && !changedReadability ? 'preservation' : 'readability', reason: 'Scripted failed pixel evidence.' }] } }
     }
-    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) }, finish_reason: 'stop' }] })) }
+    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), result)) }, finish_reason: 'stop' }] })) }
   }
   const input = { operationId: 'direct-local', name: 'Isolated direct-original batch', source: { kind: 'local' as const, files: [{ path, name: 'direct-original.png' }] } }
-  return { ...f, path, bytes, input, observations, detailRequests, setReadabilityFailure(changed = false, unchangedDate = false) { readabilityFailure = true; changedSubject = changed; changedReadability = unchangedDate }, setShrinkingReplan() { readabilityFailure = true; shrinkReplan = true }, setWholeFrameSubject() { wholeFrameSubject = true }, setSourceTruncation() { sourceTruncation = true }, setCorruptDetailOnce() { corruptDetail = true }, setDetailMode(value: 'resolved' | 'unresolved' | 'violated') { detailMode = value } }
+  return { ...f, path, bytes, input, observations, detailRequests, reviewRequests, setCriticalUnknownOnce() { criticalUnknownOnce = true }, setReadabilityFailure(changed = false, unchangedDate = false) { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ clockContrast: {} }); readabilityFailure = true; changedSubject = changed; changedReadability = unchangedDate }, setShrinkingReplan() { f.service.config.wallpaper.processing = wallpaperProcessingSchema.parse({ clockContrast: {} }); readabilityFailure = true; shrinkReplan = true }, setWholeFrameSubject() { wholeFrameSubject = true }, setSourceTruncation() { sourceTruncation = true }, setCorruptDetailOnce() { corruptDetail = true }, setDetailMode(value: 'resolved' | 'unresolved' | 'violated') { detailMode = value } }
 }
+
+test('selected-image cancellation and replacement retain the other image and predecessor budgets', async () => {
+  const f = await fixture()
+  try {
+    f.setReadabilityFailure()
+    const secondPath = join(f.root, 'second.png')
+    await writeFile(secondPath, await sharp({ create: { width: 2400, height: 4000, channels: 3, background: '#334455' } }).png().toBuffer())
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', { ...f.input, source: { kind: 'local', files: [...f.input.source.files, { path: secondPath, name: 'second.png' }] } }))
+    await f.jobs.drain()
+    const recordedRun = f.domain.require('run', runId), recordedData = dataOf(recordedRun)
+    const before = wallpaperStateSchema.parse(recordedData.checkpoint.wallpaper)
+    before.items[0]!.edits = 3
+    const aggregateId = 'run:' + runId
+    await f.repository.commit({ aggregateId, expectedRevision: f.repository.manifest(aggregateId)!.revision, operationId: 'record-spent-image-edits', request: {}, state: { runId }, records: [{ ...recordedRun, data: toJson({ ...recordedData, checkpoint: { ...recordedData.checkpoint, wallpaper: toJson(before) } }) }] })
+    assert.equal(before.items.length, 2)
+    assert.equal(before.items[0]!.status, 'needs-review')
+    const calls = f.observations.length
+    const cancelArgs = { runId, operationId: 'cancel-selected-only', imageAction: { action: 'cancel', imageVersionId: before.items[0]!.imageVersionId } }
+    const cancelled = z.object({ runId: z.string() }).parse(await f.action('wallpaper-continue', cancelArgs))
+    await f.jobs.drain()
+    const stopped = wallpaperStateSchema.parse(dataOf(f.domain.require('run', cancelled.runId)).checkpoint.wallpaper)
+    assert.equal(stopped.items[0]!.status, 'cancelled')
+    assert.equal(stopped.items[0]!.edits, before.items[0]!.edits)
+    assert.deepEqual(stopped.items[0]!.attempts, before.items[0]!.attempts)
+    assert.deepEqual(stopped.items[1], before.items[1])
+    assert.equal(f.observations.length, calls)
+    assert.deepEqual(await f.action('wallpaper-continue', cancelArgs), cancelled)
+    const path = join(f.root, 'replacement.png')
+    await writeFile(path, await sharp({ create: { width: 2400, height: 4000, channels: 3, background: '#223322' } }).png().toBuffer())
+    const replacementArgs = { runId: cancelled.runId, imageVersionId: stopped.items[0]!.imageVersionId, operationId: 'replace-selected-only', file: { path, name: 'replacement.png' } }
+    const replaced = z.object({ runId: z.string() }).parse(await f.action('direct-crop-replace', replacementArgs))
+    await f.jobs.drain()
+    const after = wallpaperStateSchema.parse(dataOf(f.domain.require('run', replaced.runId)).checkpoint.wallpaper)
+    assert.equal(after.items.length, 2)
+    assert.notEqual(after.items[0]!.imageVersionId, stopped.items[0]!.imageVersionId)
+    assert.equal(after.items[0]!.replacementOf?.imageVersionId, stopped.items[0]!.imageVersionId)
+    assert(after.items[0]!.attempts.length > 0)
+    assert.equal(after.items[0]!.attempts[0]!.plan.imageVersionId, after.items[0]!.originalId)
+    assert.deepEqual(after.items[1], before.items[1])
+    assert.deepEqual(wallpaperStateSchema.parse(dataOf(f.domain.require('run', runId)).checkpoint.wallpaper), before)
+    assert.deepEqual(await f.action('direct-crop-replace', replacementArgs), replaced)
+    await assert.rejects(f.action('direct-crop-replace', { ...replacementArgs, runId: replaced.runId, imageVersionId: after.items[0]!.imageVersionId, operationId: 'same-pixels-cannot-reset' }), /different original/)
+    await assert.rejects(f.action('direct-crop-replace', { ...replacementArgs, runId: replaced.runId, imageVersionId: after.items[0]!.imageVersionId, operationId: 'old-original-cannot-reset', file: { path: f.path, name: 'original-again.png' } }), /different original/)
+    const reencoded = join(f.root, 'same-pixels-new-encoding.png')
+    await sharp(path).png({ compressionLevel: 1 }).toFile(reencoded)
+    await assert.rejects(f.action('direct-crop-replace', { ...replacementArgs, runId: replaced.runId, imageVersionId: after.items[0]!.imageVersionId, operationId: 'encoding-cannot-reset', file: { path: reencoded, name: 'same-pixels-new-encoding.png' } }), /different original/)
+
+    assert.deepEqual({ cancelledImages: stopped.items.filter(i => i.status === 'cancelled').length, untouchedImages: after.items.filter(i => i.imageVersionId === before.items[1]!.imageVersionId).length, replacementSaved: !!after.items[0]!.originalId, oldHistoryRetained: stopped.items[0]!.attempts.length > 0 }, JSON.parse(await readFile(new URL('./fixtures/wallpaper-image-actions.expected.json', import.meta.url), 'utf8')))
+  } finally { await f.cleanup() }
+})
+
+test('an unresolved critical finding receives one high request with original and output native crops', async () => {
+  const f = await fixture()
+  try {
+    f.setCriticalUnknownOnce()
+    const { runId } = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', f.input)); await f.jobs.drain()
+    const item = wallpaperStateSchema.parse(dataOf(f.domain.require('run', runId)).checkpoint.wallpaper).items[0]!
+    assert.equal(item.status, 'passed', item.reason)
+    assert.deepEqual(f.reviewRequests.map(request => request.effort), ['medium', 'high'])
+    assert.equal(f.reviewRequests[1]!.roles.filter(role => role.endsWith('-detail-only')).length, 2)
+    assert.deepEqual(f.observations, ['wallpaper-plan', 'wallpaper-review', 'wallpaper-review'])
+    assert.deepEqual(wallpaperStoredSourceReviewV4Schema.parse(item.attempts.at(-1)!.review).criticalDetail?.resolvedChecks, ['subject', 'sourceCorrespondence'])
+  } finally { await f.cleanup() }
+})
 
 test('local originals produce a separate crop batch without creating styles, references or searches', async () => {
   const f = await fixture()
   try {
     const receipt = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', f.input)); await f.jobs.drain()
     const run = f.domain.require('run', receipt.runId), state = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper), item = state.items[0]!, spec = specOf(run)
-    assert.equal(run.status, 'completed'); assert.equal(run.outcome, 'target-met'); assert.equal(item.status, 'passed')
+    assert.equal(run.status, 'completed'); assert.equal(run.outcome, 'target-met', JSON.stringify({ status: item.status, reason: item.reason, errorCode: item.errorCode, attempts: item.attempts.map(attempt => ({ checks: attempt.checks, review: attempt.review })) })); assert.equal(item.status, 'passed')
+    assert.equal(item.attempts[0]!.compositionMode, 'generated-canvas-v1')
+    assert.equal(z.object({ review: z.object({ version: z.literal('wallpaper-review-source-v4') }) }).parse(spec.fixed.prompts).review.version, 'wallpaper-review-source-v4')
     assert.equal(spec.fixed.release, undefined); assert.equal(spec.fixed.executionRecipe, undefined)
     assert.equal(spec.config.wallpaper.learningEnabled, true, 'The profile configuration is not rewritten')
     const settings = z.object({ learningEnabled: z.literal(false), autoPromote: z.literal(false) }).parse(spec.fixed.wallpaper)
@@ -87,7 +159,7 @@ test('local originals produce a separate crop batch without creating styles, ref
     assert.deepEqual(await readFile(join(exported.directory, manifest.files[0]!.name)), await f.files.read(output.blob))
     assert.deepEqual(await f.action('direct-crop-export', { runId: receipt.runId, title: 'Export isolated results' }), exported)
     const assessment = f.repository.list('assessment')[0]!
-    assert.equal(assessment.releaseId, undefined); assert.equal(assessment.standard, undefined); assert.equal(assessment.directPolicy?.version, 'source-faithful-v1')
+    assert.equal(assessment.releaseId, undefined); assert.equal(assessment.standard, undefined); assert.equal(assessment.directPolicy?.version, 'source-faithful-v2')
     const list = z.object({ batches: z.array(directCropBatchSchema) }).parse(await f.action('direct-crop-list'))
     assert.equal(list.batches[0]!.kind, 'crop'); assert.equal(list.batches[0]!.runId, receipt.runId)
     const actual = { workflow: spec.input.workflow, stateVersion: state.version, origin: list.batches[0]!.origin, reviewVersion: item.attempts[0]!.review && 'reviewVersion' in item.attempts[0]!.review ? item.attempts[0]!.review.reviewVersion : null, modelOperations: f.observations, trainingRecords: Object.fromEntries(['style', 'reference', 'modelProfile', 'release'].map(kind => [kind, f.repository.list(kind as 'style' | 'reference' | 'modelProfile' | 'release').length])) }
@@ -261,8 +333,8 @@ test('a rejected revision retains its history while remade pixels clear stale re
     const { runId } = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', f.input))
     await f.jobs.drain()
     const run = f.domain.require('run', runId), item = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper).items[0]!
-    const prompts = z.object({ plan: z.object({ version: z.literal('wallpaper-plan-v6') }), outpaint: z.object({ version: z.literal('wallpaper-outpaint-v4') }) }).parse(specOf(run).fixed.prompts)
-    assert.equal(prompts.plan.version, 'wallpaper-plan-v6'); assert.equal(prompts.outpaint.version, 'wallpaper-outpaint-v4')
+    const prompts = z.object({ plan: z.object({ version: z.literal('wallpaper-plan-v7') }), outpaint: z.object({ version: z.literal('wallpaper-outpaint-v6') }) }).parse(specOf(run).fixed.prompts)
+    assert.equal(prompts.plan.version, 'wallpaper-plan-v7'); assert.equal(prompts.outpaint.version, 'wallpaper-outpaint-v6')
     const saved = checkpoints.filter(checkpoint => checkpoint.runId === runId).map(checkpoint => checkpoint.state.items[0]!)
     const rejected = saved.find(checkpoint => checkpoint.attempts.length === 1 && checkpoint.reason === 'Scripted failed pixel evidence.')
     assert(rejected, 'The first rejection remains acknowledged before the replacement attempt starts')

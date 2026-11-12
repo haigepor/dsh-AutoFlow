@@ -24,6 +24,15 @@ export const imageWorkflowStages = [
 /** Native detail inspection and routing appear only when the current image needs them. */
 export const imageWorkflowPresentationStages = [...imageWorkflowStages.slice(0, 3), { stage: 'detail', kind: 'planning', title: 'directCropReinspect' } as const, { stage: 'decision', kind: 'decision', title: 'wallpaperDecision' } as const, ...imageWorkflowStages.slice(3)]
 
+/** New generated canvases review native pixels before optional reconstruction; earlier saved revisions retain their original display order. */
+function presentationOrder(attempt: WallpaperItem['attempts'][number] | undefined) {
+  if (!attempt?.generationBrief && !attempt?.preResolutionReview) return imageWorkflowPresentationStages
+  const ordered = [...imageWorkflowPresentationStages]
+  const clarity = ordered.findIndex(step => step.stage === 'clarity'), review = ordered.findIndex(step => step.stage === 'reviewing')
+  ;[ordered[clarity], ordered[review]] = [ordered[review]!, ordered[clarity]!]
+  return ordered
+}
+
 /** A presentation step can share processing evidence with another step. */
 export type ImageWorkflowStage = typeof imageWorkflowPresentationStages[number]['stage']
 
@@ -48,12 +57,29 @@ function decisionHoldsProcessing(item: WallpaperItem | undefined, attempt = item
   return !!item && item.status !== 'passed' && (attempt === item.attempts.at(-1) && item.reason === 'decision-round-limit' || !!record && ['running', 'manual', 'failed', 'skipped'].includes(record.status))
 }
 
+/** Derive clarity only from saved enhancement work or this output's independent quality check.
+ * @param attempt Displayed immutable output revision.
+ * @returns Recorded clarity evidence; absent checks never imply completion.
+ */
+export function imageWorkflowClarity(attempt: WallpaperItem['attempts'][number] | undefined): WallpaperItem['attempts'][number]['clarity'] {
+  if (attempt?.preResolutionReview) {
+    const resolution = attempt.backgroundResolution
+    return resolution ? { status: resolution.status === 'enhancing' ? 'enhancing' : resolution.status === 'passed' ? 'passed' : resolution.status === 'failed' ? 'failed' : 'reviewing', reason: resolution.reason } : attempt.preResolutionReview.finalId ? { status: 'not-needed', reason: '' } : { status: 'pending', reason: '' }
+  }
+  const check = attempt?.review && 'clarity' in attempt.review.checks ? attempt.review.checks.clarity : undefined
+  if (check) return { ...attempt?.clarity, status: check.result === 'satisfied' ? attempt?.clarity?.enhancedOutputId || attempt?.backgroundResolution?.enhancedId ? 'passed' : 'not-needed' : 'needs-review', reason: check.reason }
+  if (attempt?.clarity) return attempt.clarity
+  const resolution = attempt?.backgroundResolution
+  return resolution ? { status: resolution.status === 'enhancing' ? 'enhancing' : resolution.status === 'needs-review' ? 'needs-review' : 'reviewing', reason: resolution.reason } : undefined
+}
+
 /** @param stage Visible processing step. @param item Saved image evidence. @param status Owning lifecycle. @param attempt Selected plan revision. @returns Clarity stays unexecuted for history with no recorded check. */
 export function imageWorkflowStagePhase(stage: ImageWorkflowStage, item: WallpaperItem, status: string, attempt = item.attempts.at(-1)): WorkflowPhase {
+  if (item.status === 'cancelled' && attempt === item.attempts.at(-1)) status = 'cancelled'
   if (stage === 'detail') {
     const inspection = imageWorkflowDetail(item, attempt)
     if (!inspection) return 'idle'
-    if (inspection.status === 'resolved') return 'completed'
+    if (inspection.status === 'resolved' || inspection.status === 'ready-for-edit') return 'completed'
     if (inspection.status === 'failed') return 'failed'
     if (inspection.status !== 'queued' && inspection.status !== 'running') return 'attention'
     if (status === 'cancelled' || status === 'failed') return status
@@ -78,7 +104,7 @@ export function imageWorkflowStagePhase(stage: ImageWorkflowStage, item: Wallpap
     if (stage === 'final') return item.status === 'passed' && attempt === item.attempts.at(-1) ? 'completed' : 'blocked'
     return imageWorkflowPhase(imageWorkflowStages.find(step => step.stage === stage)!.kind, item, status, attempt)
   }
-  const clarity = attempt?.clarity
+  const clarity = imageWorkflowClarity(attempt)
   if (!clarity) return 'idle'
   if (clarity.status === 'not-needed' || clarity.status === 'passed') return 'completed'
   if (status === 'cancelled' && attempt === item.attempts.at(-1)) return 'cancelled'
@@ -103,9 +129,9 @@ export function imageWorkflowStageReached(stage: ImageWorkflowStage, item: Wallp
   if (stage === 'planning') return !!attempt || item.status === 'planning' || failed === 'planning'
   if (stage === 'geometry') return !!attempt
   if (stage === 'rendering') return !!attempt && (!!attempt.canvasId || !!attempt.generation || !!attempt.outputId || item.status === 'rendering' || failed === 'rendering')
-  if (stage === 'clarity') return !!attempt?.clarity
+  if (stage === 'clarity') return !!attempt?.preResolutionReview && wallpaperVerdict(attempt.review!) === 'pass' || !!imageWorkflowClarity(attempt) && !attempt?.preResolutionReview
   if (stage === 'reviewing') return !!attempt && (!!attempt.review || !!attempt.simulationId || item.status === 'reviewing' || failed === 'reviewing')
-  return !!attempt?.outputId && !!attempt.review && wallpaperVerdict(attempt.review) === 'pass'
+  return !!attempt?.outputId && !!attempt.review && wallpaperVerdict(attempt.review) === 'pass' && (!attempt.preResolutionReview || attempt.preResolutionReview.finalId === attempt.outputId)
 }
 
 /** Stage images stay bound to their own inputs and outputs as later processing completes.
@@ -116,8 +142,8 @@ export function imageWorkflowArtifact(stage: ImageWorkflowStage, item: Wallpaper
   if (stage === 'decision' || stage === 'detail') return item.originalId
   if (stage === 'original' || stage === 'planning') return item.originalId
   if (stage === 'geometry') return attempt?.layoutAnalysisId ?? attempt?.canvasId ?? (!attempt?.outputId && !attempt?.generation ? attempt?.analysisId : undefined)
-  if (stage === 'rendering') return attempt?.clarity?.originalOutputId ?? attempt?.outputId
-  if (stage === 'clarity') return attempt?.clarity?.enhancedOutputId ?? attempt?.clarity?.originalOutputId ?? attempt?.outputId
+  if (stage === 'rendering') return attempt?.preResolutionReview?.nativeId ?? attempt?.clarity?.originalOutputId ?? attempt?.outputId ?? attempt?.backgroundResolution?.originalId ?? attempt?.generatedImageId
+  if (stage === 'clarity') return attempt?.preResolutionReview ? attempt.backgroundResolution?.enhancedId ?? attempt.preResolutionReview.nativeId : attempt?.clarity?.enhancedOutputId ?? attempt?.clarity?.originalOutputId ?? attempt?.outputId ?? attempt?.backgroundResolution?.enhancedId ?? attempt?.backgroundResolution?.originalId ?? attempt?.generatedImageId
   if (stage === 'reviewing') return attempt?.simulationId
   return attempt?.outputId
 }
@@ -142,7 +168,7 @@ export function imageWorkflowRework(item: WallpaperItem | undefined, status: str
   const precedingRejection = item.attempts.some(prior => prior.revision < attempt.revision && prior.review && wallpaperVerdict(prior.review) !== 'pass')
   if (!rejected && !precedingRejection && attempt.retryFrom !== 'reviewing') return undefined
   if (attempt.review && wallpaperVerdict(attempt.review) === 'pass' && (!current || item.status === 'passed')) return { stage: 'passed', phase: 'completed', flowing: false }
-  if (status === 'cancelled' && current) return { stage: attempt.outputId ? 'reviewing' : 'rendering', phase: 'cancelled', flowing: false }
+  if ((status === 'cancelled' || item.status === 'cancelled') && current) return { stage: attempt.outputId ? 'reviewing' : 'rendering', phase: 'cancelled', flowing: false }
   const active = current && ['created', 'running', 'pausing', 'cancelling'].includes(status)
   if (rejected || !attempt.outputId || current && item.status === 'rendering') {
     const flowing = active && item.status === 'rendering'
@@ -161,20 +187,24 @@ export function imageWorkflowWindow(item: WallpaperItem | undefined, attempt = i
   const repairing = item && attempt === item.attempts.at(-1) && item.attempts.some(prior => prior.revision < (attempt?.revision ?? 0) && prior.review && wallpaperVerdict(prior.review) !== 'pass') && (['rendering', 'reviewing'].includes(item.status) || item.status === 'technical-failed' && wallpaperFailedStep(item) === 'reviewing')
   const repair = !inspected && (failedReview || repairing || imageWorkflowPreviousReview(item, attempt))
   const failed = item && wallpaperFailedStep(item)
+  const newOrder = !!attempt?.generationBrief || !!attempt?.preResolutionReview
   const current: ImageWorkflowStage = !item?.originalId || failed === 'downloading' ? 'original'
     : failed === 'planning' || item.status === 'planning' || !attempt || attempt.checks.length || attempt.plan.mode === 'uncertain' ? 'planning'
+    : attempt.preResolutionReview && wallpaperVerdict(attempt.review!) === 'pass' && !attempt.preResolutionReview.finalId ? 'clarity'
     : attempt.clarity?.originalOutputId && !['not-needed', 'passed'].includes(attempt.clarity.status) ? 'clarity'
-    : failed === 'rendering' || item.status === 'rendering' || !attempt.outputId ? 'rendering'
+    : item.status === 'reviewing' && attempt.simulationId && !attempt.review ? 'reviewing'
+    : failed === 'rendering' || item.status === 'rendering' && !attempt.preResolutionReview || !attempt.outputId && !attempt.preResolutionReview ? 'rendering'
     : !attempt.review || wallpaperVerdict(attempt.review) !== 'pass' ? 'reviewing' : 'final'
   const record = imageWorkflowDecisionRecord(item, attempt), limited = attempt === item?.attempts.at(-1) && item?.reason === 'decision-round-limit'
   const detail = imageWorkflowDetail(item, attempt)
   const inspecting = detail?.status === 'queued' || detail?.status === 'running'
   const manualDetail = detail?.origin === 'manual' && !record
   const deciding = !inspecting && !manualDetail && (decisionHoldsProcessing(item, attempt) || wallpaperCanDecide(item, attempt))
-  const selected = inspected ?? (inspecting || manualDetail && detail.status !== 'resolved' ? 'detail' : deciding ? 'decision' : repair ? 'rendering' : current)
-  const next = selected === 'decision' ? limited ? undefined : record?.targetStage : selected === 'detail' ? undefined : imageWorkflowStages[imageWorkflowStages.findIndex(step => step.stage === selected) + 1]?.stage
+  const selected = inspected ?? (inspecting || manualDetail && detail.status !== 'resolved' && detail.status !== 'ready-for-edit' ? 'detail' : deciding ? 'decision' : repair ? 'rendering' : current)
+  const ordered = newOrder ? presentationOrder(attempt).filter(step => !['detail', 'decision'].includes(step.stage)) : imageWorkflowStages
+  const next = selected === 'decision' ? limited ? undefined : record?.targetStage : selected === 'detail' ? undefined : ordered[ordered.findIndex(step => step.stage === selected) + 1]?.stage
   const decision = !!record || !inspecting && !manualDetail && (wallpaperCanDecide(item, attempt) || limited)
-  const stages = imageWorkflowPresentationStages.filter(step => step.stage === 'decision' ? decision : imageWorkflowStageReached(step.stage, item, attempt) || step.stage === selected || step.stage === next || !!repair && step.stage === 'reviewing')
+  const stages = presentationOrder(attempt).filter(step => step.stage === 'decision' ? decision : imageWorkflowStageReached(step.stage, item, attempt) || step.stage === selected || step.stage === next || !!repair && step.stage === 'reviewing')
   if (detail?.origin === 'decision' && record && detail.decisionId === record.id) {
     const detailIndex = stages.findIndex(step => step.stage === 'detail'), decisionIndex = stages.findIndex(step => step.stage === 'decision')
     if (detailIndex >= 0 && decisionIndex > detailIndex) {
@@ -219,14 +249,19 @@ export function imageWorkflowNodeId(lane: string, imageId: string, kind: Wallpap
 
 /** @param kind Image processing step. @param item Saved image evidence. @param status Owning task lifecycle. @param attempt Selected saved revision; absence uses the latest. @returns This image's stage status without another image's aggregate progress. */
 export function imageWorkflowPhase(kind: WallpaperStep, item: WallpaperItem, status: string, attempt = item.attempts.at(-1)): WorkflowPhase {
+  if (item.status === 'cancelled' && attempt === item.attempts.at(-1)) {
+    if (kind === 'downloading' && item.originalId || kind === 'planning' && attempt && !attempt.checks.length && attempt.plan.mode !== 'uncertain' || kind === 'rendering' && attempt?.outputId) return 'completed'
+    return 'cancelled'
+  }
   const latest = attempt === item.attempts.at(-1), failed = latest ? wallpaperFailedStep(item) : undefined
   if (status === 'cancelled' && latest && item.status !== 'passed' && (failed === kind || item.status === kind)) return 'cancelled'
   if (failed === kind) return item.errorCode ? 'failed' : 'attention'
   if (kind === 'downloading' && item.originalId) return 'completed'
   if (kind === 'planning') return planningImagePhase(latest ? item : { ...item, attempts: attempt ? [attempt] : [] }, latest ? status : 'completed')
-  if (kind === 'rendering' && attempt?.outputId) return 'completed'
+  if (kind === 'rendering' && (attempt?.outputId || attempt?.preResolutionReview)) return 'completed'
+  if (latest && kind === 'rendering' && item.status === 'needs-review' && attempt?.generation && !attempt.outputId) return 'attention'
   if (kind === 'reviewing' && attempt?.review) return wallpaperVerdict(attempt.review) === 'pass' ? 'completed' : 'attention'
-  if (kind !== 'downloading' && !item.originalId || kind === 'rendering' && (!attempt || attempt.checks.length > 0 || attempt.plan.mode === 'uncertain') || kind === 'reviewing' && !attempt?.outputId) return 'blocked'
+  if (kind !== 'downloading' && !item.originalId || kind === 'rendering' && (!attempt || attempt.checks.length > 0 || attempt.plan.mode === 'uncertain') || kind === 'reviewing' && !attempt?.outputId && !attempt?.simulationId) return 'blocked'
   if (latest && item.status === kind) {
     if (['created', 'running', 'pausing', 'cancelling'].includes(status)) return 'running'
     if (['paused', 'interrupted'].includes(status)) return 'paused'
@@ -253,6 +288,7 @@ export function planningImageLane(id: string): string | undefined {
 
 /** @param item Saved per-image evidence. @param status Owning task lifecycle. @returns Planning state, independent of later rendering or review failures. */
 export function planningImagePhase(item: WallpaperItem, status: string): WorkflowPhase {
+  if (item.status === 'cancelled') return 'cancelled'
   const attempt = item.attempts.at(-1)
   if (wallpaperFailedStep(item) === 'downloading') return 'blocked'
   if (decisionHoldsProcessing(item, attempt)) {

@@ -1,0 +1,7 @@
+{
+  "first": { "reuseSaved": false, "newHigh": true },
+  "sameQuestion": { "reuseSaved": true, "newHigh": false },
+  "differentQuestion": { "reuseSaved": false, "newHigh": false },
+  "differentCrop": { "reuseSaved": false, "newHigh": false },
+  "legacyUsed": { "reuseSaved": false, "newHigh": false }
+}

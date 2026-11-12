@@ -1,5 +1,6 @@
 /** Real isolated wallpaper jobs keep decisions bounded, preserve legacy evidence and never treat routing as qualification. */
 import assert from 'node:assert/strict'
+import { wallpaperFixtureResponse } from './helpers/wallpaper-response.ts'
 import { test } from 'node:test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -16,6 +17,7 @@ import { contentDigest } from '../src/domain/repository.ts'
 import { runSchema, type RunRecord } from '../src/shared/model.ts'
 import { wallpaperStateSchema, wallpaperPlanSchema, wallpaperReviewKeys, wallpaperSettingsSchema, wallpaperPromptBundleSchema } from '../src/shared/wallpaper.ts'
 import { wallpaperDecisionSettingsSchema, wallpaperDecisionActionKinds, type WallpaperDecisionAction, type WallpaperDecisionResponse } from '../src/shared/wallpaper-decision.ts'
+import { wallpaperPlanDetailPrompt } from '../src/shared/wallpaper-prompts.ts'
 
 const rectSchema = z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
 const concernSchema = z.object({ id: z.string(), text: z.string(), scope: z.enum(['subject', 'critical', 'background', 'technical']).optional(), detailImageVersionIds: z.array(z.string()).optional() })
@@ -35,7 +37,7 @@ function answer(packet: Packet, action: WallpaperDecisionAction, extent: 'comple
   const decision = packet.input.usage.decision!
   const sourceId = packet.input.images.find(image => image.role === 'wallpaper-original')!.imageVersionId
   return {
-    version: 'wallpaper-decision-v1', imageVersionId: sourceId, planRevision: decision.planRevision,
+    version: z.object({ const: z.enum(['wallpaper-decision-v1', 'wallpaper-decision-v2']) }).parse(packet.outputSchema.properties.version).const, imageVersionId: sourceId, planRevision: decision.planRevision,
     findings: decision.concerns.map(concern => {
       const background = concern.text.includes('tree')
       const technical = concern.scope === 'technical' || decision.stage === 'reviewing' || decision.stage === 'rendering'
@@ -112,7 +114,7 @@ async function fixture(scenario: Scenario = 'held', rounds = 2, options: { autoD
           subjectIntegrity: { mode: 'single', source: { extent: 'complete', reason: 'Complete source.', imageVersionId: sourceId }, output: { extent: 'complete', reason: 'Complete output.', imageVersionId: outputId }, task: { result: 'satisfied', reason: 'Independent unchanged task check.' } } }
       }
     }
-    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: typeof result === 'string' ? result : JSON.stringify(result) }, finish_reason: 'stop' }] })) }
+    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: typeof result === 'string' ? result : JSON.stringify(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), result)) }, finish_reason: 'stop' }] })) }
   }
   const engine = new RunEngine(f.repository, f.jobs, undefined, undefined, undefined, undefined, run => {
     const saved = wallpaperStateSchema.safeParse(dataOf(run).checkpoint.wallpaper)
@@ -132,9 +134,18 @@ async function fixture(scenario: Scenario = 'held', rounds = 2, options: { autoD
     const receipt = z.object({ runId: z.string() }).parse(await f.action('direct-crop-start', { operationId: 'legacy-batch', name: 'Isolated decision recovery', source: { kind: 'local', files } }))
     await f.jobs.drain()
     const initial = f.domain.require('run', receipt.runId), oldSpec = specOf(initial), settings = wallpaperSettingsSchema.parse(oldSpec.fixed.wallpaper), prompts = wallpaperPromptBundleSchema.parse(oldSpec.fixed.prompts)
-    if (!options.autoDecision) { delete settings.decision; delete prompts.decision }
+    const legacyState = wallpaperStateSchema.parse(dataOf(initial).checkpoint.wallpaper)
+    if (!options.autoDecision) {
+      delete settings.decision; delete prompts.decision
+      // These cases own the frozen V3 recovery behavior; current readiness has a separate real-response regression.
+      prompts.detail = wallpaperPlanDetailPrompt
+      for (const item of legacyState.items) for (const attempt of item.attempts) if (attempt.detailAnalysis) {
+        const { requestId, outcome, protectedSubjectExtent } = attempt.detailAnalysis
+        attempt.detailAnalysis = { version: 'wallpaper-plan-detail-v3', requestId, outcome, ...(protectedSubjectExtent ? { protectedSubjectExtent } : {}) }
+      }
+    }
     const fixed = { ...oldSpec.fixed, wallpaper: toJson(settings), prompts: toJson(prompts) }
-    const old = runSchema.parse({ ...initial, spec: toJson({ ...oldSpec, fixed, specDigest: contentDigest({ ...oldSpec, fixed }) }) })
+    const old = runSchema.parse({ ...initial, data: toJson({ ...dataOf(initial), checkpoint: { ...dataOf(initial).checkpoint, wallpaper: toJson(legacyState) } }), spec: toJson({ ...oldSpec, fixed, specDigest: contentDigest({ ...oldSpec, fixed }) }) })
     const aggregateId = `run:${old.id}`
     await f.repository.commit({ aggregateId, expectedRevision: f.repository.manifest(aggregateId)!.revision, operationId: 'fixture-legacy-settings', request: {}, records: [old], state: { runId: old.id } })
     const before = structuredClone(f.domain.require('run', old.id)), state = wallpaperStateSchema.parse(dataOf(before).checkpoint.wallpaper)
@@ -545,7 +556,7 @@ test('a new batch freezes the default decision policy and automatically routes a
   try {
     const settings = wallpaperSettingsSchema.parse(specOf(t.before).fixed.wallpaper), prompts = wallpaperPromptBundleSchema.parse(specOf(t.before).fixed.prompts)
     assert.equal(settings.decision?.enabled, true); assert.equal(settings.decision.maxRoundsPerImage, 2)
-    assert.equal(prompts.decision?.version, 'wallpaper-decision-v1'); assert.equal(t.initialDecisionPackets.length, 1)
+    assert.equal(prompts.decision?.version, 'wallpaper-decision-v2'); assert.equal(t.initialDecisionPackets.length, 1)
     assert.equal(t.state.items[0]!.decisions?.[0]?.response?.action.kind, 'manual_review')
     assert.notEqual(t.state.items[0]!.status, 'passed'); assert.equal(t.state.items[1]!.status, 'passed')
     assert.equal(t.starts, 0)

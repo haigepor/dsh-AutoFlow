@@ -1,4 +1,8 @@
 /** Versioned model instructions for source-grounded wallpaper layout and independently reviewed pixels. */
+import { wallpaperDirectPlanPrompt, wallpaperEdgeDetailPrompt, wallpaperEdgeDecisionPrompt, wallpaperOpaqueCanvasPrompt, wallpaperCanvasReviewPromptV4 } from './wallpaper-edit-prompts.ts'
+import { wallpaperGenerativeRepair, wallpaperRepairInstructions } from './wallpaper-policy.ts'
+import { wallpaperRepairPlanPrompt, wallpaperRepairGenerationPrompt, wallpaperRepairReviewPrompt } from './wallpaper-repair-prompts.ts'
+import type { WallpaperSettings } from './wallpaper.ts'
 /** A decision selects one executable recovery action from actual evidence; it never changes acceptance policy. */
 export const wallpaperDecisionPrompt = { version: 'wallpaper-decision-v1' as const, text: `你是壁纸处理流程的决策控制器。根据本次实际证据，从allowedActions选择一个下一步动作，使当前图片进入继续处理、独立复审或有原因的异常终态。你不能直接宣布成品合格，也不能假定动作已经执行成功。
 只返回outputSchema指定的完整JSON，使用双引号和合法JSON字面量，字段和枚举原样输出。给出简短、可核验的像素依据及准确动作参数，不输出分析草稿、Markdown、代码、修复标记或额外字段。imageVersionId与planRevision必须对应本次指定原图和当前规划，不引用其他图片或旧版本。
@@ -93,10 +97,16 @@ export const wallpaperBaseSkill = `# Wallpaper composition
 Identify the actual visual focal content before choosing a layout. Handle objects, groups, scenery and abstract patterns separately. Preserve task-critical regions and intentional close-ups. Use the frozen template, isotropic geometry and actual final-pixel review. Prefer crop, then reposition, then background-only outpainting. Keep key subject contours below the clock region; apply configured side and bottom allowances. Treat uncertain regions as inferred evidence requiring review. Inspect seams, structure changes, text and readability. Save concrete failure reasons and stop at the task's retry budget. Experience never changes template requirements or authorizes editing the main subject.
 `
 
-/** Frozen direct-original protocols keep the template and all independent quality gates. */
-export function sourceFaithfulWallpaperPrompts() {
+/** @param settings Frozen task authorization; omission retains conservative source fidelity. @returns Direct-original protocols retaining the template and all independent quality requirements. */
+export function sourceFaithfulWallpaperPrompts(settings?: WallpaperSettings) {
   const bundle = wallpaperPromptBundle()
-  return { ...bundle, plan: { ...bundle.plan, text: bundle.plan.text + '\n本任务直接处理指定原图，不使用风格训练集、不检索替代图片。保留原图可见主体与关键部位，逐项记录原图截断、遮挡与不确定性；原图本来缺失的主体不得靠扩图补造。普通背景不是必须保护的主体，保护框应精确贴合真实主体及不可替代结构。' }, review: { version: 'wallpaper-review-source-v1' as const, text: wallpaperSourceReviewPrompt } }
+  const noClock = settings && !settings.processing?.clockContrast
+  const generationText = noClock ? `${wallpaperRepairGenerationPrompt}\n本任务没有时钟背景对比要求，topBuffer不构成额外保护边界。只让真正主体及关键结构处于冻结safe安全区；扩图保持自然原有明度，不为了模拟时钟压暗健康背景。生成图本身仍不能含新增日期、时间或界面。` : wallpaperRepairGenerationPrompt
+  const reviewText = noClock ? `${wallpaperRepairReviewPrompt}\n本任务未设置时钟对比规则，主体上沿只需达到safe.top，不附加topBuffer。clock和readability只记录“未启用”，不得因模拟白字、日期、时间的亮度或背景干扰判失败；主体完整范围和安全区由subject/protection及实际坐标严格核查。生成图自身新增的日期、时间或界面仍须在background报告为缺陷，原图真实且需保留的文字不删。` : wallpaperRepairReviewPrompt
+  if (settings && wallpaperGenerativeRepair(settings)) return { ...bundle, plan: { version: 'wallpaper-plan-v7' as const, text: noClock ? `${wallpaperRepairPlanPrompt}\n本任务未启用时钟规则；主体上沿只须满足safe.top，topBuffer不增加约束，其他安全区边界不变。` : wallpaperRepairPlanPrompt }, detail: wallpaperEdgeDetailPrompt, decision: { ...wallpaperEdgeDecisionPrompt, text: `${wallpaperRepairInstructions}\n技术恢复必须遵循allowedActions和已保存回执；未知生图结果先查询原请求，不重复派发。所有最终质量要求独立验收。` },
+    outpaint: { version: 'wallpaper-outpaint-v6' as const, text: generationText }, review: { version: 'wallpaper-review-source-v4' as const, text: reviewText } }
+  return { ...bundle, plan: { version: 'wallpaper-plan-v7' as const, text: noClock ? `${wallpaperDirectPlanPrompt}\n本任务未启用时钟规则；主体上沿只须满足safe.top，topBuffer不增加约束。` : wallpaperDirectPlanPrompt }, detail: wallpaperEdgeDetailPrompt, decision: wallpaperEdgeDecisionPrompt,
+    outpaint: { version: 'wallpaper-outpaint-v6' as const, text: noClock ? `${wallpaperOpaqueCanvasPrompt}\n本任务不为模拟时钟调整背景明度。` : wallpaperOpaqueCanvasPrompt }, review: { version: 'wallpaper-review-source-v4' as const, text: noClock ? `${wallpaperCanvasReviewPromptV4}\n本任务未启用时钟对比；clock和readability只记录未启用，不因模拟白字背景判失败。真实主体与关键结构仍须完整位于安全区，生成图自身新增的时间文字按background缺陷报告。` : wallpaperCanvasReviewPromptV4 } }
 }
 
 /** Original appearance is an independent requirement, never a synthetic dataset-match result. */

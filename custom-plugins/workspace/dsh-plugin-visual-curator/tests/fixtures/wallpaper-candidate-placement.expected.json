@@ -1,0 +1,11 @@
+{
+  "operations": ["wallpaper-plan", "wallpaper-review", "wallpaper-review"],
+  "generations": 2,
+  "reviews": 2,
+  "edits": 2,
+  "referencesPerGeneration": 1,
+  "originalObservationRetained": true,
+  "referenceIsPreviousOutput": true,
+  "completedDamageNotReopened": true,
+  "status": "passed"
+}

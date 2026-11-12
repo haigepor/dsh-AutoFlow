@@ -101,8 +101,8 @@ test('plan editor explains every guide and protection role without changing save
 test('review cards show the actual output annotations before approval and both views after approval',()=>environment(async({paint,doc})=>{
  const {ImageStepCard}=capsule.exports.createWallpaperCanvas(React,ui),checks=Object.fromEntries(['subject','protection','clock','readability','composition','background','style'].map(key=>[key,{result:'satisfied',reason:'Actual output pixels'}]))
  const attempt={revision:1,plan:{placement:{scale:0.4,left:0,top:0}},checks:[],needsOutpaint:true,outputId:'clean',analysisId:'annotated-output',simulationId:'clock-output',review:{issues:[],checks:{...checks,background:{result:'violated',reason:'Visible seam'}}}}
- const item={imageVersionId:'source',status:'needs-review',edits:1,attempts:[attempt]},value={status:'completed',settings:capsule.exports.wallpaperSettingsSchema.parse({}),sourceImages:{},resources:{clean:'/api/visual-curator/resource?imageVersionId=clean', 'annotated-output':'/api/visual-curator/resource?imageVersionId=annotated', 'clock-output':'/api/visual-curator/resource?imageVersionId=clock'},previewResources:{clean:'/api/visual-curator/resource?imageVersionId=clean-preview','annotated-output':'/api/visual-curator/resource?imageVersionId=annotated-preview','clock-output':'/api/visual-curator/resource?imageVersionId=clock-preview'}}
- const control={item,attempt,value,setPreview(){},setDetails(){}},actual=[]
+ const item={imageVersionId:'source',status:'needs-review',edits:1,attempts:[attempt]},value={status:'completed',state:{version:2},settings:capsule.exports.wallpaperSettingsSchema.parse({}),sourceImages:{},resources:{clean:'/api/visual-curator/resource?imageVersionId=clean', 'annotated-output':'/api/visual-curator/resource?imageVersionId=annotated', 'clock-output':'/api/visual-curator/resource?imageVersionId=clock'},previewResources:{clean:'/api/visual-curator/resource?imageVersionId=clean-preview','annotated-output':'/api/visual-curator/resource?imageVersionId=annotated-preview','clock-output':'/api/visual-curator/resource?imageVersionId=clock-preview'}}
+ const history=[],control={item,attempt,value,setPreview(){},setDetails(){},setHistoryOpen(open){history.push(open)}},actual=[]
  await paint(h(ImageStepCard,{kind:'reviewing',stage:'reviewing',control,t}))
  actual.push({state:'rejected',labels:[...doc.querySelectorAll('.vc-image-review-previews button')].map(e=>e.getAttribute('aria-label')),images:[...doc.querySelectorAll('.vc-image-review-previews img')].map(e=>e.getAttribute('src'))})
  attempt.review.checks=checks;item.status='passed'
@@ -119,8 +119,24 @@ test('review cards show the actual output annotations before approval and both v
  attempt.generation={id:'operation',taskId:'image-task',provider:'codex',model:'image-model'}
  await paint(h(ImageStepCard,{kind:'rendering',stage:'rendering',control,t}))
  assert.equal(doc.querySelector('[data-image-generation-skeleton]').dataset.active,'true')
+ await act(async()=>[...doc.querySelectorAll('button')].find(button=>button.textContent===zh.wallpaperHistoryTitle).click())
+ assert.deepEqual(history,[true])
  value.status='paused';await paint(h(ImageStepCard,{kind:'rendering',stage:'rendering',control,t}))
  assert.equal(doc.querySelector('[data-image-generation-skeleton]').dataset.active,'false')
+}))
+
+test('image history dialog shows saved milestones and selects the requested revision',()=>environment(async({paint,doc})=>{
+ const {Dialogs}=capsule.exports.createWallpaperCanvas(React,ui),selected=[],closed=[]
+ const checks=Object.fromEntries(['subject','protection','clock','readability','composition','background','style'].map(key=>[key,{result:'satisfied',reason:''}]))
+ const attempt={revision:1,createdAt:'2026-11-12T01:01:00.000Z',plan:{subject:'Fox in a forest'},generatedImageId:'native',preResolutionReview:{nativeId:'native'},review:{checks,issues:[]},reviewedAt:'2026-11-12T01:03:00.000Z',outputId:'native'}
+ const item={imageVersionId:'source',originalId:'original',status:'needs-review',attempts:[attempt]}
+ const value={runId:'run',status:'completed',state:{items:[item],version:2},resources:{original:'/api/visual-curator/resource?imageVersionId=original',native:'/api/visual-curator/resource?imageVersionId=native'},previewResources:{},artifactTimes:{original:'2026-11-12T01:00:00.000Z',native:'2026-11-12T01:02:00.000Z'},sourceImages:{}}
+ const control={sourceId:'batch',offset:0,pageSize:10,details:null,historyOpen:true,item,attempt,detailAttempt:attempt,value,settings:capsule.exports.wallpaperSettingsSchema.parse({}),models:[],settingsOpen:false,planText:null,experienceOpen:false,experience:null,sample:null,setRevision(value){selected.push(value)},setDetailRevision(){throw Error('History selected the details revision')},setHistoryOpen(open){closed.push(open)},setDetails(){}}
+ await paint(h(Dialogs,{control,t}))
+ const milestones=[...doc.querySelectorAll('.vc-image-history > li')].map(row=>({kind:row.dataset.kind,label:row.querySelector('.vc-image-history-heading strong').textContent,time:row.querySelector('time').dateTime}))
+ assert.deepEqual({milestones},JSON.parse(await readFile(new URL('./fixtures/wallpaper-history.expected.json',import.meta.url),'utf8')))
+ await act(async()=>[...doc.querySelectorAll('.vc-image-history button')].find(button=>button.textContent===zh.wallpaperHistoryViewRevision).click())
+ assert.deepEqual(selected,[{image:'source',revision:1}]);assert.deepEqual(closed,[false])
 }))
 test('saved wallpaper results start one current-policy review and retain ordinary crop actions',()=>environment(async({paint,doc})=>{
  const History=capsule.exports.createTaskHistory(React,ui),calls=[],selectedIds=[]

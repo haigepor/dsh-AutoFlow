@@ -322,7 +322,7 @@ export function createAutomaticWorkflowCanvas(React: typeof import('react'), ui:
     const rework = imageWorkflowRework(control.item, control.value && control.item ? wallpaperImageWorkStatus(control.value, control.item.imageVersionId) : 'created', control.attempt)
     if (rework) {
       const from = nodes.find(node => node.data.image?.stage === 'reviewing'), to = nodes.find(node => node.data.image?.stage === 'rendering')
-      const label = rework.stage === 'rendering' ? t('wallpaperReviewReturn') : rework.stage === 'passed' ? t('wallpaperPassed') : t('wallpaperStageReview') + ' · ' + t(workflowPhaseKeys[rework.phase])
+      const label = rework.stage === 'rendering' ? t(rework.phase === 'attention' ? 'directCropReworkStopped' : 'wallpaperReviewReturn') : rework.stage === 'passed' ? t('wallpaperPassed') : t('wallpaperStageReview') + ' · ' + t(workflowPhaseKeys[rework.phase])
       const wire = from && to ? connection(`${base.laneId}:rework`, from.id, to.id, rework.phase, true, label, false) : undefined
       if (wire) edges.push({ ...wire, data: { ...wire.data!, reworkStage: rework.stage, flowing: rework.flowing, returnY: Math.min(...nodes.map(node => node.position.y)) - 64 }, markerEnd: { type: MarkerType.ArrowClosed, color: rework.stage === 'rendering' ? 'var(--dsw-alias-state-error-primary)' : rework.stage === 'passed' ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-state-warn-primary)' }, ariaLabel: label })
     } else if (latest?.retryFrom && latest.retryTarget && control.item?.status === latest.retryTarget && control.value && activeTask(control.value.status)) {

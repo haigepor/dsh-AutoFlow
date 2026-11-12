@@ -10,7 +10,7 @@ const settings = wallpaperSettingsSchema.parse({})
 const plan = (top: number) => wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode: 'single', subject: 'Visible source', evidence: 'Source pixels', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: ['subject', 'critical'].map(role => ({ name: role, role, rect: { x: 0.1, y: top / 2000, width: 0.1, height: 0.1 } })), placement: { scale: 1, left: 400, top: 0 }, reason: 'Keep protected source content.' })
 
 test('planning requests use the complete protected band while legacy planning text remains reconstructable', () => {
-  assert.deepEqual(wallpaperProtectedBounds(settings), { top: 1064, clockBottom: 1032, critical: { left: 258, right: 1587, bottom: 2718 }, subject: { left: 192, right: 1653, bottom: 2802 } })
+  assert.deepEqual(wallpaperProtectedBounds(settings), { top: 1032, clockBottom: 1032, critical: { left: 258, right: 1587, bottom: 2718 }, subject: { left: 192, right: 1653, bottom: 2802 } })
   assert.equal(wallpaperProtectedBounds({ ...settings, topBuffer: 0 }).top, 1032)
   assert.equal(wallpaperPromptBundle().plan.version, 'wallpaper-plan-v6')
   assert.equal(wallpaperPromptBundle().outpaint.version, 'wallpaper-outpaint-v4')
@@ -20,6 +20,7 @@ test('planning requests use the complete protected band while legacy planning te
 })
 
 test('the measured upper buffer begins at the safety line and permits its exact lower edge', () => {
+  const settings = wallpaperSettingsSchema.parse({ processing: { clockContrast: {} } })
   const source = { width: 1000, height: 2000 }
   assert.ok(wallpaperGeometry(source, plan(1031), settings).checks.includes('clock-overlap:subject'))
   assert.ok(wallpaperGeometry(source, plan(1032), settings).checks.includes('top-buffer-overlap:subject'))

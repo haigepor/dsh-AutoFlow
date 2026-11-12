@@ -8,7 +8,8 @@ import { z as z3 } from "zod";
 
 // src/shared/clarity.ts
 import { z } from "zod";
-var claritySettingsSchema = z.strictObject({
+var espcnWeightsDigest = "85f36ff88cc504a24af5e0602148bc56a8aa09a58eca8c0da2756f3e8186035e";
+var legacyClaritySettingsSchema = z.strictObject({
   version: z.literal("espcn-luma-v1").default("espcn-luma-v1"),
   enabled: z.boolean().default(true),
   maxSubjectPixels: z.number().int().min(4096).max(2e6).default(8e5),
@@ -16,27 +17,33 @@ var claritySettingsSchema = z.strictObject({
   blend: z.number().positive().max(0.5).default(0.35),
   featherPixels: z.number().int().min(1).max(32).default(8)
 });
+var realEsrganRuntimeSchema = z.strictObject({ executable: z.string().min(1).optional(), tileSize: z.number().int().min(32).max(512).default(128), gpuId: z.number().int().nonnegative().default(0) });
+var claritySettingsSchema = z.union([legacyClaritySettingsSchema, legacyClaritySettingsSchema.extend({ version: z.literal("realesrgan-general-v1").default("realesrgan-general-v1"), maxSubjectPixels: z.number().int().min(4096).max(2e6).default(2e6), timeoutMs: z.number().int().min(1e3).max(6e5).default(3e5), runtime: realEsrganRuntimeSchema.default(() => realEsrganRuntimeSchema.parse({})) })]);
 var clarityStateSchema = z.strictObject({
   status: z.enum(["pending", "not-needed", "enhancing", "reviewing", "passed", "needs-review", "failed"]),
   reason: z.string(),
   originalOutputId: z.string().optional(),
   enhancedOutputId: z.string().optional(),
-  model: z.literal("espcn-x3-luma").optional(),
+  model: z.enum(["espcn-x3-luma", "realesrgan-x4plus"]).optional(),
   modelSha256: z.string().optional(),
+  nativeOutput: z.strictObject({ width: z.number().int().positive(), height: z.number().int().positive() }).optional(),
   durationMs: z.number().nonnegative().optional(),
+  queueMs: z.number().nonnegative().optional(),
   pixels: z.number().int().nonnegative().optional(),
   tiles: z.number().int().nonnegative().optional(),
   changedPixels: z.number().int().nonnegative().optional()
 });
+var resolutionProgressSchema = z.strictObject({ completed: z.number().int().nonnegative(), total: z.number().int().nonnegative(), unit: z.enum(["tiles", "percent"]).default("tiles") }).refine((value) => value.completed <= value.total, "Completed work cannot exceed total work.");
 
 // src/shared/background-resolution.ts
 import { z as z2 } from "zod";
-var backgroundResolutionSettingsSchema = z2.strictObject({
+var legacyBackgroundResolutionSettingsSchema = z2.strictObject({
   version: z2.literal("espcn-background-v1").default("espcn-background-v1"),
   enabled: z2.boolean().default(true),
   maxInputPixels: z2.number().int().min(4096).max(2e6).default(2e6),
   timeoutMs: z2.number().int().min(1e3).max(12e4).default(12e4)
 });
+var backgroundResolutionSettingsSchema = z2.union([legacyBackgroundResolutionSettingsSchema, legacyBackgroundResolutionSettingsSchema.extend({ version: z2.literal("realesrgan-background-v1").default("realesrgan-background-v1"), timeoutMs: z2.number().int().min(1e3).max(6e5).default(3e5), runtime: realEsrganRuntimeSchema.default(() => realEsrganRuntimeSchema.parse({})) })]);
 var dimensions = z2.strictObject({ width: z2.number().int().positive(), height: z2.number().int().positive() });
 var backgroundResolutionStateSchema = z2.strictObject({
   status: z2.enum(["enhancing", "reviewing", "passed", "needs-review", "failed"]),
@@ -45,11 +52,15 @@ var backgroundResolutionStateSchema = z2.strictObject({
   originalId: z2.string().optional(),
   enhancedId: z2.string().optional(),
   output: dimensions.optional(),
-  model: z2.literal("espcn-x3-luma").optional(),
+  model: z2.enum(["espcn-x3-luma", "realesrgan-x4plus"]).optional(),
   modelSha256: z2.string().optional(),
+  nativeOutput: dimensions.optional(),
+  queueMs: z2.number().nonnegative().optional(),
   durationMs: z2.number().nonnegative().optional(),
   pixels: z2.number().int().positive().optional(),
-  tiles: z2.number().int().positive().optional()
+  tiles: z2.number().int().positive().optional(),
+  reusedFromRevision: z2.number().int().positive().optional(),
+  policyDigest: z2.string().optional()
 });
 
 // src/media/clarity-worker.ts
@@ -59,12 +70,12 @@ var taskSchema = z3.discriminatedUnion("kind", [
   z3.strictObject({ ...common, kind: z3.literal("subject"), regions: z3.array(pixelRect).min(1).max(32), protectedRegions: z3.array(pixelRect).max(32), policy: claritySettingsSchema }),
   z3.strictObject({ ...common, kind: z3.literal("background"), width: z3.number().int().positive(), height: z3.number().int().positive(), policy: backgroundResolutionSettingsSchema })
 ]);
-var modelDigest = "85f36ff88cc504a24af5e0602148bc56a8aa09a58eca8c0da2756f3e8186035e";
+var modelDigest = espcnWeightsDigest;
 var tile = 224;
 var halo = 8;
 var core = tile - 2 * halo;
 var scale = 3;
-async function resolveRgb(rgb, width, height, session) {
+async function resolveRgb(rgb, width, height, session, completed) {
   const resolved = Buffer.alloc(width * scale * height * scale * 3);
   const interpolated = await sharp(rgb, { raw: { width, height, channels: 3 } }).resize(width * scale, height * scale, { kernel: "cubic" }).raw().toBuffer();
   let tiles = 0;
@@ -89,6 +100,7 @@ async function resolveRgb(rgb, width, height, session) {
     }
     values.dispose();
     tiles++;
+    completed();
   }
   return { resolved, tiles };
 }
@@ -96,7 +108,7 @@ async function run() {
   const task = taskSchema.parse(workerData), started = performance.now();
   let pixels;
   if (task.kind === "subject") {
-    pixels = task.regions.reduce((total, rect) => total + rect.width * rect.height, 0);
+    pixels = task.regions.reduce((total2, rect) => total2 + rect.width * rect.height, 0);
     if (pixels > task.policy.maxSubjectPixels) throw new Error("clarity-region-budget-exceeded");
   } else {
     if (!task.policy.enabled) throw new Error("background-resolution-disabled");
@@ -109,6 +121,16 @@ async function run() {
     if (task.width > metadata.width * scale || task.height > metadata.height * scale) throw new Error("background-resolution-scale-exceeded");
     if (Math.abs(metadata.width - metadata.height * task.width / task.height) > 1) throw new Error("background-resolution-ratio-mismatch");
   }
+  const dimensions2 = await sharp(task.bytes, { limitInputPixels: task.maxPixels }).metadata();
+  const regions = task.kind === "subject" ? task.regions : [{ width: dimensions2.width, height: dimensions2.height }];
+  const total = regions.reduce((sum, region) => sum + Math.ceil(region.width / core) * Math.ceil(region.height / core), 0);
+  let completed = 0;
+  const progress = () => parentPort.postMessage({ type: "progress", completed, total });
+  progress();
+  const tileCompleted = () => {
+    completed++;
+    progress();
+  };
   const model = await readFile(task.modelPath);
   if (createHash("sha256").update(model).digest("hex") !== modelDigest) throw new Error("clarity-model-digest-mismatch");
   ort.env.wasm.numThreads = 1;
@@ -117,7 +139,7 @@ async function run() {
     const decoded = await sharp(task.bytes, { limitInputPixels: task.maxPixels }).removeAlpha().toColourspace("srgb").raw().toBuffer({ resolveWithObject: true });
     const { width, height } = decoded.info;
     if (task.kind === "background") {
-      const { resolved, tiles: tiles2 } = await resolveRgb(decoded.data, width, height, session);
+      const { resolved, tiles: tiles2 } = await resolveRgb(decoded.data, width, height, session, tileCompleted);
       const image2 = await sharp(resolved, { raw: { width: width * scale, height: height * scale, channels: 3 } }).resize(task.width, task.height, { fit: "fill", kernel: "lanczos3" }).png().toBuffer();
       return { bytes: image2, model: "espcn-x3-luma", modelSha256: modelDigest, durationMs: performance.now() - started, pixels, tiles: tiles2, sourceWidth: width, sourceHeight: height, outputWidth: task.width, outputHeight: task.height };
     }
@@ -126,7 +148,7 @@ async function run() {
     let tiles = 0;
     for (const rect of task.regions) {
       const rgb = await sharp(decoded.data, { raw: { width, height, channels: 3 } }).extract(rect).raw().toBuffer();
-      const resolution = await resolveRgb(rgb, rect.width, rect.height, session), resolved = resolution.resolved;
+      const resolution = await resolveRgb(rgb, rect.width, rect.height, session, tileCompleted), resolved = resolution.resolved;
       tiles += resolution.tiles;
       const sampled = await sharp(resolved, { raw: { width: rect.width * scale, height: rect.height * scale, channels: 3 } }).resize(rect.width, rect.height, { kernel: "lanczos3" }).raw().toBuffer();
       for (let y = 0; y < rect.height; y++) for (let x = 0; x < rect.width; x++) {

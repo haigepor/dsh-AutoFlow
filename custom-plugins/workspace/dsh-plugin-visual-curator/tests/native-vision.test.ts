@@ -138,6 +138,18 @@ it('applies supported request-only reasoning without changing later model defaul
   } finally { await f.cleanup() }
 })
 
+it('selects the greatest advertised reviewer effort without guessing a high or max identifier', async () => {
+  const f = await fixture(true)
+  f.adapter.resolveModel = async () => ({ provider: 'native-fixture', id: 'vision-model', name: 'Vision fixture', inputModalities: ['text', 'image'], reasoning: { efforts: [{ id: ReasoningEffortId('medium'), name: 'Medium' }, { id: ReasoningEffortId('route-maximum'), name: 'Highest supported' }], defaultEffort: ReasoningEffortId('medium') } })
+  try {
+    const effort = await f.provider.maximumReasoningEffort(new AbortController().signal)
+    assert.equal(effort, 'route-maximum')
+    await f.provider.analyze({ ...f.input, reasoningEffort: effort }, f.bounds)
+    await f.provider.analyze(f.input, f.bounds)
+    assert.deepEqual(f.adapter.calls.map(call => call.reasoningEffort), ['route-maximum', 'medium'])
+  } finally { await f.cleanup() }
+})
+
 it('native summary records short model labels and restores complete canonical evidence', async () => {
   const f = await fixture(true), imageIds = Array.from({ length: 24 }, (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`)
   f.adapter.resolveModel = async () => ({ provider: 'native-fixture', id: 'vision-model', name: 'Vision fixture', inputModalities: ['text', 'image'], context: { contextWindow: 1_000_000 }, defaultMaxTokens: 65_536 })

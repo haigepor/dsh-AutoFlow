@@ -1,8 +1,9 @@
 /** Deployment configuration has explicit, validated limits; credentials remain references. */
 import Schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
+import { wallpaperPromptPreparationPolicySchema } from '../shared/wallpaper-generation-brief.ts'
 import { serverQueueSettingsSchema } from '../shared/server-queue.ts'
-import { applyWallpaperRecoveryLimits, wallpaperSettingsSchema } from '../shared/wallpaper.ts'
+import { applyWallpaperEspcn, applyWallpaperRecoveryLimits, wallpaperSettingsSchema } from '../shared/wallpaper.ts'
 import { createHash } from 'node:crypto'
 import { galleryAccountSchema, galleryAccountIdSchema } from '../shared/gallery.ts'
 import { defaultPreviewConcurrency, galleryCacheDefaults, previewCacheDefaults } from '../shared/gallery-cache.ts'
@@ -76,6 +77,7 @@ export const sourceSettingsSchema = z.strictObject({
   allowedMediaOrigins: z.array(z.string().url()).default([]), lookupEndpoint: z.string().default(''),
 })
 export const visionSettingsSchema = z.strictObject({
+  wallpaperPromptPreparation: wallpaperPromptPreparationPolicySchema.optional(),
   backend: z.enum(['native', 'compatible']).optional(),
   useModelDefaults: z.boolean().optional(),
   provider: z.string().trim().optional(),
@@ -124,6 +126,7 @@ export function resolveConfig(input: unknown): CuratorConfig {
 export function resolveCurrentConfig(input: unknown): CuratorConfig {
   const saved = settingsSchema.parse(input), config = resolveConfig(input)
   applyWallpaperRecoveryLimits(config.wallpaper)
+  applyWallpaperEspcn(config.wallpaper)
   config.searchScreening ??= searchScreeningSettingsSchema.parse({})
   config.limits.idlePollIntervalMs ??= 30_000
   config.limits.originalDownloadTimeoutMs ??= 300_000

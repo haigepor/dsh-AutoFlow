@@ -11,7 +11,10 @@ test('super-resolution creates independent same-size pixels and preserves critic
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) { const at = (y * width + x) * 3; pixels[at] = (x * 3 + y) % 256; pixels[at + 1] = (x + y * 2) % 256; pixels[at + 2] = Math.floor(x / 8) % 2 ? 180 : 80 }
   const bytes = await sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer(), before = Buffer.from(bytes)
   const region = { left: 20, top: 40, width: 420, height: 300 }, protectedRegion = { left: 200, top: 160, width: 40, height: 30 }
-  const result = await enhanceWallpaper({ bytes, regions: [region], protectedRegions: [protectedRegion], maxPixels: width * height, policy: claritySettingsSchema.parse({}) }, new AbortController().signal)
+  const progress: { completed: number; total: number }[] = []
+  const result = await enhanceWallpaper({ bytes, regions: [region], protectedRegions: [protectedRegion], maxPixels: width * height, policy: claritySettingsSchema.parse({ version: 'espcn-luma-v1',}) }, new AbortController().signal, value => progress.push(value))
+  assert.equal(progress.at(-1)!.completed, progress.at(-1)!.total)
+  assert.ok(progress.length > 2)
   const actual = await sharp(result.bytes).removeAlpha().raw().toBuffer({ resolveWithObject: true })
   assert.equal(actual.info.width, width); assert.equal(actual.info.height, height)
   assert.deepEqual(bytes, before)
@@ -28,7 +31,7 @@ test('super-resolution creates independent same-size pixels and preserves critic
 
 test('cancelled and oversized enhancement jobs stop without changing the source or bypassing their pixel budget', async () => {
   const bytes = await sharp({ create: { width: 100, height: 100, channels: 3, background: '#56789a' } }).png().toBuffer()
-  const input = { bytes, regions: [{ left: 0, top: 0, width: 100, height: 100 }], protectedRegions: [], maxPixels: 10000, policy: claritySettingsSchema.parse({ maxSubjectPixels: 4096 }) }
+  const input = { bytes, regions: [{ left: 0, top: 0, width: 100, height: 100 }], protectedRegions: [], maxPixels: 10000, policy: claritySettingsSchema.parse({ version: 'espcn-luma-v1', maxSubjectPixels: 4096 }) }
   await assert.rejects(enhanceWallpaper(input, new AbortController().signal), { code: 'clarity-region-budget-exceeded' })
   const controller = new AbortController(); controller.abort(new Error('stop-test'))
   await assert.rejects(enhanceWallpaper(input, controller.signal), /stop-test/)
@@ -42,7 +45,7 @@ test('a 941 by 1672 background uses real tiled 3x inference before one resize to
     rgb[at] = (x * 3 + y) % 256; rgb[at + 1] = (x + y * 2) % 256; rgb[at + 2] = Math.floor(x / 8) % 2 ? 180 : 80
   }
   const bytes = await sharp(rgb, { raw: { width: sourceWidth, height: sourceHeight, channels: 3 } }).png().toBuffer(), before = Buffer.from(bytes)
-  const result = await superResolveWallpaperBackground({ bytes, width, height, maxPixels: sourceWidth * sourceHeight * 9, policy: backgroundResolutionSettingsSchema.parse({}) }, new AbortController().signal)
+  const result = await superResolveWallpaperBackground({ bytes, width, height, maxPixels: sourceWidth * sourceHeight * 9, policy: backgroundResolutionSettingsSchema.parse({ version: 'espcn-background-v1',}) }, new AbortController().signal)
   const actual = await sharp(result.bytes).raw().toBuffer({ resolveWithObject: true })
   assert.equal(actual.info.width, width); assert.equal(actual.info.height, height); assert.equal(actual.info.channels, 3)
   assert.deepEqual(bytes, before)
@@ -60,7 +63,7 @@ test('a 941 by 1672 background uses real tiled 3x inference before one resize to
 
 test('background inference rejects disabled, over-budget, distorted and more-than-3x requests before publishing pixels', async () => {
   const bytes = await sharp({ create: { width: 100, height: 100, channels: 3, background: '#56789a' } }).png().toBuffer(), before = Buffer.from(bytes)
-  const input = { bytes, width: 200, height: 200, maxPixels: 100000, policy: backgroundResolutionSettingsSchema.parse({}) }
+  const input = { bytes, width: 200, height: 200, maxPixels: 100000, policy: backgroundResolutionSettingsSchema.parse({ version: 'espcn-background-v1',}) }
   await assert.rejects(superResolveWallpaperBackground({ ...input, policy: { ...input.policy, enabled: false } }, new AbortController().signal), { code: 'background-resolution-disabled' })
   await assert.rejects(superResolveWallpaperBackground({ ...input, policy: { ...input.policy, maxInputPixels: 4096 } }, new AbortController().signal), { code: 'background-resolution-input-budget-exceeded' })
   await assert.rejects(superResolveWallpaperBackground({ ...input, maxPixels: 89999 }, new AbortController().signal), { code: 'background-resolution-intermediate-budget-exceeded' })
@@ -72,7 +75,7 @@ test('background inference rejects disabled, over-budget, distorted and more-tha
 
 test('background cancellation terminates active worker work and leaves the shared enhancement queue usable', async () => {
   const bytes = await sharp({ create: { width: 100, height: 100, channels: 3, background: '#56789a' } }).png().toBuffer(), before = Buffer.from(bytes)
-  const input = { bytes, width: 200, height: 200, maxPixels: 100000, policy: backgroundResolutionSettingsSchema.parse({}) }
+  const input = { bytes, width: 200, height: 200, maxPixels: 100000, policy: backgroundResolutionSettingsSchema.parse({ version: 'espcn-background-v1',}) }
   const controller = new AbortController(); controller.abort(new Error('background-cancelled-before-start'))
   await assert.rejects(superResolveWallpaperBackground(input, controller.signal), /background-cancelled-before-start/)
   const running = new AbortController(), cancelled = superResolveWallpaperBackground(input, running.signal)

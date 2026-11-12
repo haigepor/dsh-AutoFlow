@@ -307,14 +307,12 @@ export class AssetFiles {
   }
 
   private async storedBytes(directory: string): Promise<number> {
-    let total = 0
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const sizes = await Promise.all((await readdir(directory, { withFileTypes: true })).map(async entry => {
       const path = join(directory, entry.name)
       if (entry.isSymbolicLink()) throw this.unavailable()
-      if (entry.isDirectory()) total += await this.storedBytes(path)
-      else if (entry.isFile()) total += (await lstat(path)).size
-    }
-    return total
+      return entry.isDirectory() ? this.storedBytes(path) : entry.isFile() ? (await lstat(path)).size : 0
+    }))
+    return sizes.reduce((total, size) => total + size, 0)
   }
 
   private async put(bytes: Buffer, mime: string, signal?: AbortSignal): Promise<BlobRef> {

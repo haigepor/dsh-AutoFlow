@@ -14,10 +14,10 @@ const { createWorkflowCanvasLayout, workflowPositions, workflowConnectionSpacing
 const kinds = ['references', 'dataset', 'results', 'downloading', 'planning', 'rendering', 'reviewing']
 const dimensions = kind => ({ width: kind === 'results' ? 560 : kinds.indexOf(kind) > 2 ? 380 : 340, height: kind === 'results' ? 420 : 260 })
 
-test('staggered stages leave clear horizontal ranges for wide cards and preserve unrelated manual positions', () => {
+test('image stages share a top edge, leave clear horizontal ranges and preserve unrelated manual positions', () => {
   const nodes = [330, 720, 380, 410, 1200, 360, 500].map((width, index) => ({ id: `batch:image-step:${index}:planning`, width, height: index % 2 ? 1100 : 240 }))
   const positions = workflowStaggeredPositions(nodes)
-  assert.equal(new Set(Object.values(positions).map(point => point.y)).size, 2)
+  assert.equal(new Set(Object.values(positions).map(point => point.y)).size, 1)
   for (let index = 1; index < nodes.length; index++) assert(positions[nodes[index].id].x >= positions[nodes[index - 1].id].x + nodes[index - 1].width + 100)
   const env = environment('staggered')
   try {
@@ -26,6 +26,39 @@ test('staggered stages leave clear horizontal ranges for wide cards and preserve
     layout.place(positions, true)
     assert.deepEqual(env.read().positions['other:references'], { x: 50, y: 900 }); assert.deepEqual(env.read().manual, ['other:references'])
     for (const node of nodes) assert.deepEqual(env.read().positions[node.id], positions[node.id])
+  } finally { env.restore() }
+})
+
+test('generated images keep review before clarity after measured layout, resizing and saved-position recovery', () => {
+  const env = environment('review-before-clarity')
+  try {
+    const layout = env.render()
+    const stages = ['rendering:rendering', 'reviewing:reviewing', 'clarity:rendering', 'final:reviewing']
+    const ids = stages.map(stage => `batch:image-step:${stage}`)
+    layout.place(Object.fromEntries(ids.map((id, index) => [id, { x: index === 1 ? 1040 : index === 2 ? 520 : index * 520, y: 0 }])))
+    for (const id of ids) layout.measure(id, { width: 380, height: 420 })
+    layout.reconcile(undefined, ids)
+    const positions = env.read().positions
+    for (let index = 1; index < ids.length; index++) assert(positions[ids[index]].x >= positions[ids[index - 1]].x + 520)
+    layout.resize(ids[1], { width: 540, height: 420 }); layout.reconcile(undefined, ids)
+    assert(env.read().positions[ids[2]].x >= env.read().positions[ids[1]].x + 640)
+    const reopened = env.reopen()(); reopened.reconcile(undefined, ids)
+    assert(env.read().positions[ids[2]].x >= env.read().positions[ids[1]].x + 640)
+  } finally { env.restore() }
+})
+
+test('visible image steps compact stale automatic gaps while keeping dragged coordinates', () => {
+  const env = environment('compact-visible')
+  try {
+    const layout = env.render(), first = 'batch:image-step:rendering:rendering', second = 'batch:image-step:reviewing:reviewing'
+    const visible = [first, second], automatic = workflowStaggeredPositions(visible.map(id => ({ id, width: 380 })))
+    layout.place({ [first]: { x: 0, y: 0 }, [second]: { x: 1800, y: 0 } })
+    for (const id of visible) layout.measure(id, { width: 380, height: 420 })
+    layout.reconcile(undefined, visible, automatic)
+    assert.deepEqual(env.read().positions[second], { x: 520, y: 0 })
+    layout.move(second, { x: 900, y: 40 }); layout.save()
+    layout.reconcile(undefined, visible, automatic)
+    assert.deepEqual(env.read().positions[second], { x: 900, y: 40 })
   } finally { env.restore() }
 })
 

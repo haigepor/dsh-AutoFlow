@@ -1,6 +1,34 @@
 {
   "initial": [
     {
+      "name": "apply_patch",
+      "description": "Create, update, delete, or move UTF-8 text files with one Codex-style patch; prefer it over multiple edit calls when a change spans several files or separated regions.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "string",
+            "description": "Codex patch text: start with *** Begin Patch and end with *** End Patch. Use *** Add File: path with + lines; *** Update File: path, optionally followed by *** Move to: path, with @@ or @@ context and space-prefixed context, + added, or - removed lines; *** End of File anchors the last hunk to the file end. Use *** Delete File: path to delete. Paths are relative to the Session working directory."
+          },
+          "sandbox_permissions": {
+            "type": "string",
+            "description": "The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval.",
+            "enum": [
+              "workspace-write",
+              "danger-full-access"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request."
+          }
+        },
+        "required": [
+          "input"
+        ]
+      }
+    },
+    {
       "name": "create_goal",
       "description": "Create a persisted goal that keeps this session working across automatic continuation rounds. Use it when the direct human request is a long-running objective, even if the user did not say \"goal\"; not for single-turn work.",
       "parameters": {
@@ -59,22 +87,6 @@
           "file_path",
           "old_string",
           "new_string"
-        ]
-      }
-    },
-    {
-      "name": "exit_plan_mode",
-      "description": "Use only in plan mode. Present your plan for the user's review and, on approval, leave plan mode. The user may approve (carry out the plan from your next step) or keep planning — their feedback comes back in the tool result; revise and present again.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "plan": {
-            "type": "string",
-            "description": "The complete plan, as markdown, starting with a # heading that names it."
-          }
-        },
-        "required": [
-          "plan"
         ]
       }
     },
@@ -645,7 +657,7 @@
     },
     {
       "name": "visual_run_get",
-      "description": "Read a saved run belonging to this original Session, including durable status/stage/outcome, distinct stage counts and authorized result references. Technical failures are not visual rejections. Only selection records are final selections. Use resultFilter selected, review, rejected, failed, processing, pending, source or all, and keep the same filter with a returned pageToken. Use job_output for bounded waits; do not poll unchanged reports repeatedly.",
+      "description": "Read this Session's saved run and authorized results. When wallpaperRequired is true, a completed search is intermediate: wallpaper identifies the real child Run, job and planning/rendering/review counts. Read its runId and use job_output for bounded waits. No child yet means pending handoff, not completion or permission to restart. workflowComplete requires passed, independently reviewed wallpaper artifacts at the frozen target dimensions; report partial, failed and needs-review outcomes honestly. Final wallpaper outputs use profile artifact storage: view/download previewPath or use the workbench, never scan source delivery or other Session directories or present source originals as finals. Associate outputs by sourceImageVersionId, label sourceName and report the saved outputKind, not array order. Technical failures are not visual rejections. Preview selections do not verify originals. Use resultFilter selected, review, rejected, failed, processing, pending, source or all, retaining the same filter with pageToken. Use timing to distinguish native-model timing from enforced bounded deadlines; configuredDeadlineMs is not elapsed time. Do not poll unchanged reports repeatedly.",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -686,7 +698,7 @@
     },
     {
       "name": "visual_search_start",
-      "description": "Start a background image search with an explicit published release or fresh modelProfile.id as releaseId, configured source and explicit output. Use output {kind: original} to preserve source files without cropping or a usage; usage output and legacy calls require usageRevisionId. Supply all hard budgets. Returns runId/jobId immediately; launch acknowledgment does not mean images qualified. Only saved actual pixel reviews determine qualified results. Model style groups are alternatives. Never loosen required rules or invent IDs.",
+      "description": "Start a background image search with a published release or fresh modelProfile.id, configured source and explicit output. Supply all hard budgets. Returns runId/jobId immediately; read saved results for actual matches. Model style groups are alternatives. Keep the current rules and identifiers fixed.",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -697,9 +709,11 @@
               "kind": {
                 "type": "string",
                 "enum": [
+                  "preview",
                   "original",
                   "usage"
-                ]
+                ],
+                "description": "preview returns public Unsplash preview links without original downloads or a usage; original downloads and verifies available source files and never substitutes a preview for an unavailable original; usage produces a sized crop."
               },
               "usageRevisionId": {
                 "type": "string",
@@ -756,7 +770,7 @@
               "minLength": 1,
               "maxLength": 4000
             },
-            "description": "Optional concise retrieval keywords. An Unsplash model profile defaults to its saved search hints; taskBrief remains the visual review objective."
+            "description": "For a launched preview search, supply short English queries with the subject first and one enabled scene or style anchor, within maxSearchPages. Other searches may use saved hints. Put detailed visual requirements in taskBrief."
           },
           "taskBrief": {
             "type": "string",
@@ -875,7 +889,7 @@
     },
     {
       "name": "visual_task_prepare",
-      "description": "Prepare a search or crop without jobs or paid requests. Discover saved usages, source ID and limits; report missing inputs or blockers. Use normalizedInput and preparationDigest with the start tool. Humans create missing usages in the workbench.",
+      "description": "Prepare a search or crop without jobs or paid requests. Discover saved usages, source ID and limits; report missing inputs or blockers. Use normalizedInput and preparationDigest with the start tool. Read timing for deadline applicability: configuredDeadlineMs is configuration, not elapsed time or a native-model completion guarantee. Humans create missing usages in the workbench.",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -903,9 +917,11 @@
               "kind": {
                 "type": "string",
                 "enum": [
+                  "preview",
                   "original",
                   "usage"
-                ]
+                ],
+                "description": "preview returns public Unsplash preview links without original downloads or a usage; original downloads and verifies available source files and never substitutes a preview for an unavailable original; usage produces a sized crop."
               },
               "usageRevisionId": {
                 "type": "string",
@@ -1186,6 +1202,34 @@
   "changes": [
     [
       {
+        "name": "apply_patch",
+        "description": "Create, update, delete, or move UTF-8 text files with one Codex-style patch; prefer it over multiple edit calls when a change spans several files or separated regions.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "Codex patch text: start with *** Begin Patch and end with *** End Patch. Use *** Add File: path with + lines; *** Update File: path, optionally followed by *** Move to: path, with @@ or @@ context and space-prefixed context, + added, or - removed lines; *** End of File anchors the last hunk to the file end. Use *** Delete File: path to delete. Paths are relative to the Session working directory."
+            },
+            "sandbox_permissions": {
+              "type": "string",
+              "description": "The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval.",
+              "enum": [
+                "workspace-write",
+                "danger-full-access"
+              ]
+            },
+            "justification": {
+              "type": "string",
+              "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request."
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      },
+      {
         "name": "create_goal",
         "description": "Create a persisted goal that keeps this session working across automatic continuation rounds. Use it when the direct human request is a long-running objective, even if the user did not say \"goal\"; not for single-turn work.",
         "parameters": {
@@ -1244,22 +1288,6 @@
             "file_path",
             "old_string",
             "new_string"
-          ]
-        }
-      },
-      {
-        "name": "exit_plan_mode",
-        "description": "Use only in plan mode. Present your plan for the user's review and, on approval, leave plan mode. The user may approve (carry out the plan from your next step) or keep planning — their feedback comes back in the tool result; revise and present again.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "plan": {
-              "type": "string",
-              "description": "The complete plan, as markdown, starting with a # heading that names it."
-            }
-          },
-          "required": [
-            "plan"
           ]
         }
       },

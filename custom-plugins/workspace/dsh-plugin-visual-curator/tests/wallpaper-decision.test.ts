@@ -25,7 +25,7 @@ test('new decision limits are bounded while legacy settings, prompts and image h
   assert.equal(wallpaperItemSchema.parse({ imageVersionId: 'source', familyId: 'family', status: 'queued' }).decisions, undefined)
   assert.equal(wallpaperSettingsSchema.parse({ decision: {} }).decision?.maxRoundsPerImage, 2)
   assert.equal(wallpaperPromptBundle().decision?.version, 'wallpaper-decision-v1')
-  assert.equal(sourceFaithfulWallpaperPrompts().decision?.version, 'wallpaper-decision-v1')
+  assert.equal(sourceFaithfulWallpaperPrompts().decision?.version, 'wallpaper-decision-v2')
   assert.equal(wallpaperPrompts['wallpaper-decision'], wallpaperDecisionPrompt.text)
   assert.equal(wallpaperWorkImage({ continuationKind: 'decision', decidedImageId: 'source', retryImageId: 'other' }), 'source')
   assert.equal(wallpaperWorkImage({ continuationKind: 'decision' }), undefined)

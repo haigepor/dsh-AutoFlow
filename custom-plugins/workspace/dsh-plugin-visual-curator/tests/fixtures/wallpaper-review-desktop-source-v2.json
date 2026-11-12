@@ -1,0 +1,195 @@
+{
+  "requestId": "33df0871-eef7-4b0d-8b53-50dbcd58fa8b",
+  "sourceId": "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+  "outputId": "wallpaper-final-0836b960b96ea4bba3559e9635d205f7b7abb8763d94a99da8645b9cbde488ae",
+  "imageIds": [
+    "wallpaper-final-0836b960b96ea4bba3559e9635d205f7b7abb8763d94a99da8645b9cbde488ae",
+    "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+    "wallpaper-simulation-ae363bb7daa3fa94373c66e439cc737d8f9b020598d0b8738d2832c30caf412d",
+    "wallpaper-seed-3842de573b90371772d95e63ef367e9cde2a407fb3ba1f4be5d4ed651637834b",
+    "wallpaper-detail-747b95974e1712c2235c14336fde7972b8473e7753a86db695850b8eb5cf646a",
+    "wallpaper-detail-abb49159f520a3cb66f6097f2a76c8707060f4db6a2d2e41357845ebfbfc3696"
+  ],
+  "output": {
+    "subject": "两组浅色多肉植物（粉橙色与蓝灰色）连同白色雏菊状花朵，处在沙漠砾石与岩块之间，背景为粉蓝渐变的夕阳天空与山脊。",
+    "checks": {
+      "subject": {
+        "result": "violated",
+        "reason": "成品混入原图并不存在的重复多肉与额外花朵，主体数量与身份已偏离原图。"
+      },
+      "protection": {
+        "result": "violated",
+        "reason": "多肉主群横向和纵向均越出中央安全区，右下方新增部位贴近并超出右缘与底缘，存在被系统界面裁切或遮挡的风险。"
+      },
+      "clock": {
+        "result": "satisfied",
+        "reason": "模拟锁屏的日期与时间位于上部天空，未压住多肉主体，落点在安全区内，且不遮挡主体。"
+      },
+      "readability": {
+        "result": "violated",
+        "reason": "白色日期与时间落在浅粉、浅蓝的云带上，文字与背景亮度接近，笔画边缘发虚，对比不足。"
+      },
+      "composition": {
+        "result": "violated",
+        "reason": "画面出现竖向笔直接缝，多肉与花朵重复，主体整体缩小，摆放和比例均与原图不符。"
+      },
+      "background": {
+        "result": "violated",
+        "reason": "岩石与背景交界处有笔直纵向接缝和矩形回贴痕迹，右侧多肉与岩石的前后关系错乱，天空经超分后过度平滑。"
+      },
+      "style": {
+        "result": "violated",
+        "reason": "虽保留柔和彩色铅笔质感的粉蓝调，但重复主体与接缝改变了原图结构，回贴区颜色偏灰白。"
+      },
+      "clarity": {
+        "result": "violated",
+        "reason": "目标尺寸下花瓣与叶面被过度平滑，接缝与重复边缘产生重影和轻微锐化光晕，细节弱于原图局部。"
+      }
+    },
+    "issues": [
+      {
+        "kind": "layout",
+        "reason": "多肉主群越出中央安全区，底部与右缘有被系统界面裁切的风险。"
+      },
+      {
+        "kind": "layout",
+        "reason": "右缘新增白花与多肉被画框截断，原图同一位置并无该组主体。"
+      },
+      {
+        "kind": "preservation",
+        "reason": "左缘出现整株重复的粉橙与蓝灰多肉并留下硬接缝，未沿原叶瓣轮廓自然闭合。"
+      },
+      {
+        "kind": "background",
+        "reason": "岩石与背景处存在贯穿画面的竖向直线接缝和矩形回贴痕迹。"
+      },
+      {
+        "kind": "background",
+        "reason": "右侧多肉与岩石的遮挡层级错乱，天空与山体超分后涂抹感明显。"
+      },
+      {
+        "kind": "readability",
+        "reason": "白色日期与时间落在浅粉、浅蓝云带上，对比不足且小号日期更难辨认。"
+      },
+      {
+        "kind": "style",
+        "reason": "重复主体与接缝改变原图结构，回贴区颜色偏灰白，画风一致性受损。"
+      },
+      {
+        "kind": "clarity",
+        "reason": "花瓣与叶面被过度平滑，重复边缘出现重影与锐化光晕。"
+      }
+    ],
+    "styleResults": [],
+    "reviewVersion": "wallpaper-review-source-v2",
+    "subjectIntegrity": {
+      "mode": "group",
+      "source": {
+        "extent": "cut-off",
+        "reason": "原图左缘的粉橙与蓝灰多肉叶体被画框截断，叶面斑纹与叶瓣方向在边缘处中断。",
+        "imageVersionId": "5fe58b7b-92c5-48fc-affc-6994ffab0312"
+      },
+      "output": {
+        "extent": "cut-off",
+        "reason": "右缘新增的白花与多肉被画框切掉，左侧叶体也未形成自然闭合轮廓，本视角应见的主体不完整。",
+        "imageVersionId": "wallpaper-final-0836b960b96ea4bba3559e9635d205f7b7abb8763d94a99da8645b9cbde488ae"
+      },
+      "task": {
+        "result": "violated",
+        "reason": "成品出现原图不存在的重复多肉与额外花朵，右缘新增花叶被画框截断，主体完整性与数量关系被破坏。"
+      }
+    },
+    "sourceRepair": {
+      "result": "violated",
+      "reason": "授权仅限左缘窄条自然延续，但成品在左缘重复整株粉橙与蓝灰多肉并留下硬接缝，右侧还新增被截断的花叶，属于超出授权范围的新增内容。"
+    }
+  },
+  "originalIssues": [
+    "invalid_value:issues.7.kind:allowed=[\"layout\",\"preservation\",\"background\",\"readability\",\"style\",\"unknown\"]"
+  ],
+  "acceptedEvidence": {
+    "requestId": "4ad57f78-f789-4248-9414-5472db87810a",
+    "imageIds": [
+      "wallpaper-final-0836b960b96ea4bba3559e9635d205f7b7abb8763d94a99da8645b9cbde488ae",
+      "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+      "wallpaper-simulation-ae363bb7daa3fa94373c66e439cc737d8f9b020598d0b8738d2832c30caf412d",
+      "wallpaper-seed-3842de573b90371772d95e63ef367e9cde2a407fb3ba1f4be5d4ed651637834b",
+      "wallpaper-detail-a2364e865d697f3b73a201b343b8ddc42567846337b9e7b81d69ec2f5d853fce",
+      "wallpaper-detail-2c53da0ed5df3288ad4cde89c1cae4575a157843857b713a6da7394c227200e8"
+    ],
+    "output": {
+      "subject": "沙漠夕阳下的多肉（生石花）群像：粉橙、蓝灰与米色叶体与白色花朵，置于砾石与远山之间。",
+      "checks": {
+        "subject": {
+          "result": "violated",
+          "reason": "左缘粉橙与蓝灰多肉的叶体仍直接止于画框，本视角应闭合的外轮廓未形成，主体不完整；其余植株的形态、颜色与数量与原图一致。"
+        },
+        "protection": {
+          "result": "violated",
+          "reason": "左侧多肉主体越过冻结安全区左界并超出允许的侧向容差，被截断的叶体落在保护范围之外；时钟覆盖区无主体侵入。"
+        },
+        "clock": {
+          "result": "satisfied",
+          "reason": "日期与时间位于上部天空，未压在花体或砾石上，距顶边留有余量。"
+        },
+        "readability": {
+          "result": "satisfied",
+          "reason": "锁屏模拟中白色时间清晰，较小日期叠在浅色云层上对比偏弱但仍可辨认，无主体干扰。"
+        },
+        "composition": {
+          "result": "satisfied",
+          "reason": "主体群居中呈金字塔布局，天空、山脊与砾石层次和透视自然；左缘截断属来源延续问题，不需要重排构图。"
+        },
+        "background": {
+          "result": "satisfied",
+          "reason": "天空渐变、远山与前景砾石的光线与色调连续，未见上下重复山景、镜像或明显回贴接缝。"
+        },
+        "style": {
+          "result": "satisfied",
+          "reason": "粉彩渐变、点状斑纹和手绘笔触质感与原图一致，未新增文字或标识。"
+        },
+        "clarity": {
+          "result": "violated",
+          "reason": "主体由941宽原图放大至目标尺寸，斑纹与花瓣边缘发虚、细节过度平滑，不属原生清晰。"
+        }
+      },
+      "issues": [
+        {
+          "kind": "preservation",
+          "reason": "左缘粉橙与蓝灰多肉叶体仍被画框截断，未形成闭合轮廓，主体完整性未达成。"
+        },
+        {
+          "kind": "preservation",
+          "reason": "目标尺寸下主体纹理与花瓣边缘明显发软、过度平滑，呈超分放大痕迹。"
+        },
+        {
+          "kind": "layout",
+          "reason": "左侧多肉超出冻结安全区左界与侧向容差，保护范围或主体位置需调整。"
+        }
+      ],
+      "styleResults": [],
+      "reviewVersion": "wallpaper-review-source-v2",
+      "subjectIntegrity": {
+        "mode": "group",
+        "source": {
+          "extent": "cut-off",
+          "reason": "原图左缘两组多肉的叶体被画框切断，叶面斑纹与轮廓在边缘中断。",
+          "imageVersionId": "5fe58b7b-92c5-48fc-affc-6994ffab0312"
+        },
+        "output": {
+          "extent": "cut-off",
+          "reason": "成品同一左缘仍见叶体与斑纹止于画框，闭合轮廓未出现，主体仍为截断。",
+          "imageVersionId": "wallpaper-final-0836b960b96ea4bba3559e9635d205f7b7abb8763d94a99da8645b9cbde488ae"
+        },
+        "task": {
+          "result": "violated",
+          "reason": "原图左缘截断的叶体在成品中仍直接止于画框，未见闭合轮廓与自然终点，主体完整性未通过。"
+        }
+      },
+      "sourceRepair": {
+        "result": "violated",
+        "reason": "授权的左缘延续未获完成：成品左缘叶体仍被画框切开，连接方向、自然终点与材质连续均无法确认。"
+      }
+    }
+  }
+}

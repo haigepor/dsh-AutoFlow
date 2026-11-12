@@ -45,7 +45,7 @@ test('moving and resizing cannot create out-of-source or empty protection rectan
 
 test('manual placement uses the same safety and upper-buffer checks through the shared and renderer imports', () => {
   assert.equal(sharedGeometry, wallpaperGeometry)
-  const settings = wallpaperSettingsSchema.parse({}), source = { width: 1000, height: 2000 }
+  const settings = wallpaperSettingsSchema.parse({ processing: { clockContrast: {} } }), source = { width: 1000, height: 2000 }
   const editable = wallpaperPlanSchema.parse({ ...plan, mode: 'single', uncertainties: [], placement: { left: 400, top: 900, scale: 0.5 }, regions: [
     { name: 'Subject', role: 'subject', rect: { x: 0.2, y: 0.2, width: 0.4, height: 0.5 } },
     { name: 'Critical', role: 'critical', rect: { x: 0.3, y: 0.25, width: 0.2, height: 0.4 } },

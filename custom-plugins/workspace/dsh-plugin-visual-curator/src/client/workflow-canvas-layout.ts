@@ -24,14 +24,14 @@ function insertDownloadColumn(positions: WorkflowCanvasLayout['positions']): Wor
 }
 
 type Dimensions = { width: number; height: number }
-/** Place sequential cards in alternating rows; disjoint horizontal ranges remain clear at every height.
+/** Place sequential cards on one readable row; disjoint horizontal ranges leave room for return connections.
  * @param nodes Ordered cards with their measured or configured widths.
  * @returns Automatic positions with room for forward and return connections.
  */
 export function workflowStaggeredPositions(nodes: readonly { id: string; width: number }[]): Record<string, { x: number; y: number }> {
   let left = 0
-  return Object.fromEntries(nodes.map((node, index) => {
-    const position = { x: left, y: index % 2 ? 96 : 0 }; left += node.width + 140
+  return Object.fromEntries(nodes.map(node => {
+    const position = { x: left, y: 0 }; left += node.width + 140
     return [node.id, position]
   }))
 }
@@ -66,11 +66,11 @@ function nodeDimensions(id: string, kind: WorkflowNodeKind, sizes: WorkflowCanva
 function separateImageNodes(positions: WorkflowCanvasLayout['positions'], sizes: WorkflowCanvasLayout['sizes'], measured: ReadonlyMap<string, Dimensions>, manual: readonly string[], visible: readonly string[]): WorkflowCanvasLayout['positions'] {
   type Rectangle = Dimensions & { id: string; x: number; y: number; order: number }
   const lanes = new Map<string, Rectangle[]>()
-  for (const id of visible) {
+  for (const [order, id] of visible.entries()) {
     const identity = nodeIdentity(id), at = positions[id]
     if (!id.includes(':image-step:') || !identity || !at) continue
     const size = measured.get(id) ?? nodeDimensions(id, identity.kind, sizes, measured)
-    const rectangle = { id, ...at, ...size, order: identity.order }, lane = lanes.get(identity.lane)
+    const rectangle = { id, ...at, ...size, order }, lane = lanes.get(identity.lane)
     if (lane) lane.push(rectangle); else lanes.set(identity.lane, [rectangle])
   }
   let result = positions
@@ -123,7 +123,7 @@ function separateLanes(positions: WorkflowCanvasLayout['positions'], sizes: Work
   return result
 }
 
-function resizeWithinLane(layout: WorkflowCanvasLayout, measured: ReadonlyMap<string, Dimensions>, id: string, requested: Dimensions & { x?: number; y?: number }) {
+function resizeWithinLane(layout: WorkflowCanvasLayout, measured: ReadonlyMap<string, Dimensions>, orderById: ReadonlyMap<string, number>, id: string, requested: Dimensions & { x?: number; y?: number }) {
   const identity = nodeIdentity(id), at = layout.positions[id]
   if (!identity || !at) return { positions: layout.positions, size: requested }
   type Rectangle = Dimensions & { x: number; y: number }
@@ -141,9 +141,9 @@ function resizeWithinLane(layout: WorkflowCanvasLayout, measured: ReadonlyMap<st
     const prior = otherLanes.get(lane), x = Math.min(prior?.x ?? rectangle.x, rectangle.x), y = Math.min(prior?.y ?? rectangle.y, rectangle.y)
     otherLanes.set(lane, { x, y, width: Math.max(prior ? prior.x + prior.width : rectangle.x + rectangle.width, rectangle.x + rectangle.width) - x, height: Math.max(prior ? prior.y + prior.height : rectangle.y + rectangle.height, rectangle.y + rectangle.height) - y })
   }
-  const order = identity.order
+  const order = orderById.get(id) ?? identity.order
   const automatic = siblings.filter(([key]) => !layout.manual.includes(key)).sort(([a], [b]) => {
-    const first = nodeIdentity(a)!.order - order, second = nodeIdentity(b)!.order - order
+    const first = (orderById.get(a) ?? nodeIdentity(a)!.order) - order, second = (orderById.get(b) ?? nodeIdentity(b)!.order) - order
     return Math.abs(first) - Math.abs(second)
   })
   const fit = (size: Dimensions) => {
@@ -154,7 +154,7 @@ function resizeWithinLane(layout: WorkflowCanvasLayout, measured: ReadonlyMap<st
     for (const [key, rectangle] of automatic) {
       const conflicts = [...changed.values()].filter(other => overlaps(rectangle, other))
       if (!conflicts.length) continue
-      const after = nodeIdentity(key)!.order > order
+      const after = (orderById.get(key) ?? nodeIdentity(key)!.order) > order
       const x = after ? Math.max(rectangle.x, ...conflicts.map(other => other.x + other.width + 100)) : Math.min(rectangle.x, ...conflicts.map(other => other.x - rectangle.width - 100))
       const moved = { ...rectangle, x }, swept = { ...rectangle, x: Math.min(x, rectangle.x), width: rectangle.width + Math.abs(x - rectangle.x) }
       if (fixed.some(other => overlaps(swept, other))) return undefined
@@ -211,6 +211,7 @@ export function createWorkflowCanvasLayout(React: typeof import('react')) {
     const [available, setAvailable] = React.useState(initial.available)
     const measured = React.useRef(new Map<string, Dimensions>())
     const automaticSlots = React.useRef(new Map<string, number>())
+    const visibleOrder = React.useRef(new Map<string, number>())
     // XYResizer reports raw node changes after onResize has constrained the rectangle.
     const resizing = React.useRef(new Map<string, { requested: Dimensions & { x: number; y: number }; size: Dimensions }>())
     const [geometryRevision, setGeometryRevision] = React.useState(0)
@@ -264,14 +265,19 @@ export function createWorkflowCanvasLayout(React: typeof import('react')) {
         if (prior?.width === value.width && prior.height === value.height) return
         measured.current.set(id, value); setGeometryRevision(revision => revision + 1)
       },
-      reconcile(at = current.current.viewport, visibleImageIds?: readonly string[]) {
-        const own = visibleImageIds ? separateImageNodes(current.current.positions, current.current.sizes, measured.current, current.current.manual, visibleImageIds) : current.current.positions
+      reconcile(at = current.current.viewport, visibleImageIds?: readonly string[], automaticPositions?: Readonly<Record<string, { x: number; y: number }>>) {
+        if (visibleImageIds) visibleOrder.current = new Map(visibleImageIds.map((id, index) => [id, index]))
+        const positions = automaticPositions ? { ...current.current.positions } : current.current.positions
+        if (automaticPositions) for (const [id, position] of Object.entries(automaticPositions)) {
+          if (positions[id] && !current.current.manual.includes(id)) positions[id] = position
+        }
+        const own = visibleImageIds ? separateImageNodes(positions, current.current.sizes, measured.current, current.current.manual, visibleImageIds) : positions
         const next = separateLanes(own, current.current.sizes, measured.current, current.current.manual)
         current.current = { ...current.current, positions: next }; setPositions(next); save(at)
       },
       resize(id: string, value: Dimensions & { x?: number; y?: number }, collapsed = false) {
         const previous = current.current.sizes[id]
-        const fitted = resizeWithinLane(current.current, measured.current, id, value)
+        const fitted = resizeWithinLane(current.current, measured.current, visibleOrder.current, id, value)
         const next = { width: fitted.size.width, ...(collapsed ? previous?.height ? { height: previous.height } : {} : { height: fitted.size.height }) }
         const at = current.current.positions[id], positioned = fitted.positions[id]
         if (at) resizing.current.set(id, { requested: { ...value, x: value.x ?? at.x, y: value.y ?? at.y }, size: fitted.size })

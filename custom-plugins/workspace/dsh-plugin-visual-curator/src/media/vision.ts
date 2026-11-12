@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import { wallpaperGenerationBriefOutputSchema } from '../shared/wallpaper-generation-brief.ts'
 import { VisionStream, type VisionDelta } from './vision-stream.ts'
 import { invalidInput, MediaError } from './errors.ts'
 import type { HttpClient, RequestBounds } from './network.ts'
@@ -8,10 +9,11 @@ import type { RemoteImageSource } from '../shared/gallery.ts'
 import { remoteReferenceDigest } from './remote-reference.ts'
 import { remoteImageSourceSchema } from '../shared/gallery.ts'
 import { dimensionSchema } from '../shared/model.ts'
-import { wallpaperPlanSchema, wallpaperObservationPlanSchema, wallpaperReviewOutputSchema, wallpaperDistillationSchema } from '../shared/wallpaper.ts'
+import { wallpaperPlanSchema, wallpaperObservationPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperReviewOutputSchema, wallpaperDistillationSchema } from '../shared/wallpaper.ts'
 import { wallpaperPlanDetailOutputSchema } from '../shared/wallpaper-detail.ts'
+import { wallpaperGenerativeRepair, wallpaperRepairPolicySchema } from '../shared/wallpaper-policy.ts'
 import { wallpaperPrompts } from '../shared/wallpaper-prompts.ts'
-import { wallpaperDecisionActionKinds, wallpaperDecisionOutputSchema } from '../shared/wallpaper-decision.ts'
+import { wallpaperDecisionActionKinds, wallpaperDecisionOutputSchema, wallpaperDecisionEditEvidenceSchema } from '../shared/wallpaper-decision.ts'
 import { parseModelJson } from '../shared/model-json.ts'
 import type { Json } from '../shared/model.ts'
 import { encodeSummaryImages, restoreSummaryImages, summaryImageInstructions } from './summary-image-aliases.ts'
@@ -101,7 +103,7 @@ export interface VisionInput { promptVersion?: 'visual-curator-rules-v2' | 'visu
   /** Optional per-request effort is frozen by the decision policy; it never changes model defaults. */
   reasoningEffort?: string
   /** Task-frozen instructions used only by the wallpaper operation family. */
-  wallpaperPrompt?: { version: 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-plan-v3' | 'wallpaper-plan-v4' | 'wallpaper-plan-v5' | 'wallpaper-plan-v6' | 'wallpaper-plan-detail-v1' | 'wallpaper-plan-detail-v2' | 'wallpaper-plan-detail-v3' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-review-v3' | 'wallpaper-review-v4' | 'wallpaper-review-source-v1' | 'wallpaper-distill-v1' | 'wallpaper-decision-v1'; text: string }
+  wallpaperPrompt?: { version: 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-plan-v3' | 'wallpaper-plan-v4' | 'wallpaper-plan-v5' | 'wallpaper-plan-v6' | 'wallpaper-plan-v7' | 'wallpaper-generation-brief-v1' | 'wallpaper-plan-detail-v1' | 'wallpaper-plan-detail-v2' | 'wallpaper-plan-detail-v3' | 'wallpaper-plan-detail-v4' | 'wallpaper-plan-detail-v5' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-review-v3' | 'wallpaper-review-v4' | 'wallpaper-review-source-v1' | 'wallpaper-review-source-v2' | 'wallpaper-review-source-v3' | 'wallpaper-review-source-v4' | 'wallpaper-distill-v1' | 'wallpaper-decision-v1' | 'wallpaper-decision-v2'; text: string }
 }
 /** Exact textual messages and saved image identities, sufficient to rebuild the transmitted body. */
 export interface VisionRequestDescriptor {
@@ -110,7 +112,7 @@ export interface VisionRequestDescriptor {
   model: string
   declaredModelVersion: string | null
   replayLimitation: string | null
-  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-summary-v4' | 'visual-curator-summary-v5' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2' | 'visual-curator-reference-v3' | 'visual-curator-reference-v4' | 'visual-curator-screening-v1' | 'visual-curator-search-plan-v1' | 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-plan-v3' | 'wallpaper-plan-v4' | 'wallpaper-plan-v5' | 'wallpaper-plan-v6' | 'wallpaper-plan-detail-v1' | 'wallpaper-plan-detail-v2' | 'wallpaper-plan-detail-v3' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-review-v3' | 'wallpaper-review-v4' | 'wallpaper-review-source-v1' | 'wallpaper-distill-v1' | 'wallpaper-decision-v1'
+  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-summary-v4' | 'visual-curator-summary-v5' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2' | 'visual-curator-reference-v3' | 'visual-curator-reference-v4' | 'visual-curator-screening-v1' | 'visual-curator-search-plan-v1' | 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-plan-v3' | 'wallpaper-plan-v4' | 'wallpaper-plan-v5' | 'wallpaper-plan-v6' | 'wallpaper-plan-v7' | 'wallpaper-generation-brief-v1' | 'wallpaper-plan-detail-v1' | 'wallpaper-plan-detail-v2' | 'wallpaper-plan-detail-v3' | 'wallpaper-plan-detail-v4' | 'wallpaper-plan-detail-v5' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-review-v3' | 'wallpaper-review-v4' | 'wallpaper-review-source-v1' | 'wallpaper-review-source-v2' | 'wallpaper-review-source-v3' | 'wallpaper-review-source-v4' | 'wallpaper-distill-v1' | 'wallpaper-decision-v1' | 'wallpaper-decision-v2'
   schemaVersion: 1
   instructions: string
   inputText: string
@@ -167,13 +169,13 @@ export function decodeVisionReview(raw: unknown, input: VisionInput): VisionRevi
  * @param input Prepared and logged decision request. @returns Strict routing response parser.
  */
 export function wallpaperDecisionVisionSchema(input: VisionInput) {
-  const usage = z.object({ decision: z.object({ planRevision: z.number().int().positive(), concerns: z.array(z.object({ id: z.string(), text: z.string(), scope: z.enum(['subject', 'critical', 'background', 'technical']).optional(), detailImageVersionIds: z.array(z.string()).optional() })), allowedActions: z.array(z.enum(wallpaperDecisionActionKinds)), context: z.object({ mode: wallpaperPlanSchema.shape.mode, hasProtectedSubject: z.boolean() }) }), imageRepresentations: z.array(z.object({ imageVersionId: z.string(), sourceImageVersionId: z.string().optional(), sourceRect: rectSchema.optional() })).optional() }).parse(input.usage)
+  const usage = z.object({ decision: z.object({ planRevision: z.number().int().positive(), concerns: z.array(z.object({ id: z.string(), text: z.string(), scope: z.enum(['subject', 'critical', 'background', 'technical']).optional(), detailImageVersionIds: z.array(z.string()).optional() })), allowedActions: z.array(z.enum(wallpaperDecisionActionKinds)), context: z.object({ mode: wallpaperPlanSchema.shape.mode, hasProtectedSubject: z.boolean(), editEvidence: wallpaperDecisionEditEvidenceSchema.optional() }) }), imageRepresentations: z.array(z.object({ imageVersionId: z.string(), sourceImageVersionId: z.string().optional(), sourceRect: rectSchema.optional() })).optional() }).parse(input.usage)
   const decision = usage.decision
   const source = input.images.find(image => image.role === 'wallpaper-original')
   if (!source) throw invalidInput('A routing decision requires the saved original.')
   const nativeIds = input.images.filter(image => image.role === 'wallpaper-original-detail-only').map(image => image.imageVersionId)
   const nativeDetails = (usage.imageRepresentations ?? []).filter(view => view.sourceImageVersionId === source.imageVersionId && nativeIds.includes(view.imageVersionId))
-  return wallpaperDecisionOutputSchema(source.imageVersionId, decision.planRevision, decision.concerns, decision.allowedActions, input.images.map(image => image.imageVersionId), decision.context).superRefine((value, ctx) => {
+  return wallpaperDecisionOutputSchema(source.imageVersionId, decision.planRevision, decision.concerns, decision.allowedActions, input.images.map(image => image.imageVersionId), decision.context, input.wallpaperPrompt?.version === 'wallpaper-decision-v2' ? 'wallpaper-decision-v2' : 'wallpaper-decision-v1').superRefine((value, ctx) => {
     for (const [index, finding] of value.findings.entries()) {
       if (finding.scope !== 'critical' || finding.classification !== 'resolved' && value.action.kind !== 'continue_current_plan' || !finding.sourceRegion) continue
       const region = finding.sourceRegion, detailIds = decision.concerns.find(concern => concern.id === finding.concernId)?.detailImageVersionIds
@@ -186,14 +188,33 @@ export function wallpaperDecisionVisionSchema(input: VisionInput) {
   })
 }
 
+/** @param input Prepared request with measured image representations. @returns Only supplied native crops belonging to the original; absent measurements cannot authorize V5 repair. */
+export function wallpaperNativeDetails(input: VisionInput) {
+  const sourceId = input.images.find(image => image.role === 'wallpaper-original')?.imageVersionId
+  const usage = z.object({ imageRepresentations: z.array(z.object({ imageVersionId: z.string(), sourceImageVersionId: z.string().optional(), sourceRect: rectSchema.optional() })).optional() }).parse(input.usage)
+  return (usage.imageRepresentations ?? []).filter(view => view.sourceImageVersionId === sourceId && input.images.some(image => image.imageVersionId === view.imageVersionId && image.role === 'wallpaper-original-detail-only'))
+}
+
+function wallpaperRepairRequest(input: VisionInput): boolean {
+  const usage = z.object({ settings: z.object({ repairPolicy: wallpaperRepairPolicySchema.optional() }) }).safeParse(input.usage)
+  return usage.success && wallpaperGenerativeRepair(usage.data.settings)
+}
 function wallpaperPlanningSchema(input: VisionInput) {
   const version = input.wallpaperPrompt?.version
-  if (version === 'wallpaper-plan-detail-v1' || version === 'wallpaper-plan-detail-v2' || version === 'wallpaper-plan-detail-v3') return wallpaperPlanDetailOutputSchema(input.images[0]!.imageVersionId, z.object({ concerns: z.array(z.object({ id: z.string(), text: z.string() })) }).parse(input.usage).concerns, input.images.filter(image => image.role === 'wallpaper-original-detail-only').map(image => image.imageVersionId), version)
-  if (version === 'wallpaper-plan-v6') return wallpaperObservationPlanSchema.required({ editPrompt: true })
+  if (version === 'wallpaper-generation-brief-v1') return wallpaperGenerationBriefOutputSchema.safeExtend({ sourceImageVersionId: z.literal(input.images[0]!.imageVersionId), canvasImageVersionId: z.literal(input.images[1]!.imageVersionId) })
+  if (version === 'wallpaper-plan-detail-v1' || version === 'wallpaper-plan-detail-v2' || version === 'wallpaper-plan-detail-v3' || version === 'wallpaper-plan-detail-v4' || version === 'wallpaper-plan-detail-v5') return wallpaperPlanDetailOutputSchema(input.images[0]!.imageVersionId, z.object({ concerns: z.array(z.object({ id: z.string(), text: z.string() })) }).parse(input.usage).concerns, input.images.filter(image => image.role === 'wallpaper-original-detail-only').map(image => image.imageVersionId), version, wallpaperNativeDetails(input))
+  if (version === 'wallpaper-plan-v6' || version === 'wallpaper-plan-v7') return wallpaperRepairRequest(input) ? wallpaperRepairObservationPlanSchema : wallpaperObservationPlanSchema.required({ editPrompt: true })
   return version === 'wallpaper-plan-v4' || version === 'wallpaper-plan-v5' ? wallpaperObservationPlanSchema : wallpaperPlanSchema
 }
 /** Shared visual prompts and response validation, independent of the model transport. */
 export abstract class StructuredVisionProvider {
+  /** Resolve the greatest selectable effort from the owning model registry; legacy HTTP adapters require an explicit configured effort.
+   * @param signal Lookup lifetime. @returns The route's actual effort identifier.
+   */
+  async maximumReasoningEffort(signal: AbortSignal): Promise<string> {
+    signal.throwIfAborted()
+    throw new MediaError('capability-unavailable', 'generation-brief', false, 'The image reviewer has no registered reasoning-effort metadata.', 'Select a registered model with reasoning controls, or explicitly configure a supported prompt-preparation effort.')
+  }
   readonly config: VisionConfig
   constructor(config: VisionConfig) {
     this.config = structuredClone(config)
@@ -233,11 +254,11 @@ export abstract class StructuredVisionProvider {
     const summary = operation === 'summarize' ? encodeSummaryImages(input.taskBrief, images.map(image => image.imageVersionId), input.summaryEvidenceIds) : undefined
     const payload = { operation, taskBrief: summary?.taskBrief ?? input.taskBrief, stage: input.stage, rules: input.rules, usage: input.usage, protectedContent: input.protectedContent, maxCropCandidates: input.maxCropCandidates, ...(input.analysisOutput ? { analysisOutput: input.analysisOutput } : {}), images: summary ? modelImages.map(image => ({ ...image, imageVersionId: summary.imageAliases[image.imageVersionId] ?? image.imageVersionId })) : modelImages, requestId: input.requestId }
     const focusedReview = operation === 'review' && input.promptVersion === 'visual-curator-rules-v3'
-    const wallpaperSchema = operation === 'wallpaper-decision' ? wallpaperDecisionVisionSchema(input) : operation === 'wallpaper-plan' ? wallpaperPlanningSchema(input) : operation === 'wallpaper-review' ? wallpaperReviewOutputSchema(input.wallpaperPrompt?.version ?? 'wallpaper-review-v1', input.rules.map(rule => rule.ruleId), input.images.map(image => image.imageVersionId), input.images.find(image => image.role === 'actual-wallpaper')?.imageVersionId, input.images.find(image => image.role === 'wallpaper-original')?.imageVersionId) : operation === 'wallpaper-distill' ? wallpaperDistillationSchema : undefined
+    const wallpaperSchema = operation === 'wallpaper-decision' ? wallpaperDecisionVisionSchema(input) : operation === 'wallpaper-plan' ? wallpaperPlanningSchema(input) : operation === 'wallpaper-review' ? wallpaperReviewOutputSchema(input.wallpaperPrompt?.version ?? 'wallpaper-review-v1', input.rules.map(rule => rule.ruleId), input.images.map(image => image.imageVersionId), input.images.find(image => image.role === 'actual-wallpaper')?.imageVersionId, input.images.find(image => image.role === 'wallpaper-original')?.imageVersionId, wallpaperRepairRequest(input)) : operation === 'wallpaper-distill' ? wallpaperDistillationSchema : undefined
     const schema = operation === 'plan-search' ? visionSearchPlanSchema : wallpaperSchema ?? (operation === 'screen' ? visionScreeningSchema : operation === 'review' ? focusedReview ? focusedReviewSchema : reviewSchema : operation === 'analyze' ? input.promptVersion === 'visual-curator-reference-v4' ? input.analysisOutput === 'observations-only' ? preciseAnalysisSchema.pick({ observations: true }) : preciseAnalysisSchema : input.analysisOutput === 'observations-only' ? analysisSchema.pick({ observations: true }) : analysisSchema : operation === 'summarize' ? organizedStyleSummarySchema : cropSchema)
     const wallpaperInstructions = operation === 'wallpaper-plan' || operation === 'wallpaper-review' || operation === 'wallpaper-distill' || operation === 'wallpaper-decision' ? input.wallpaperPrompt?.text ?? wallpaperPrompts[operation] : undefined
     const wallpaperVersion = wallpaperInstructions ? input.wallpaperPrompt?.version ?? (operation === 'wallpaper-plan' ? 'wallpaper-plan-v1' : operation === 'wallpaper-review' ? 'wallpaper-review-v1' : operation === 'wallpaper-decision' ? 'wallpaper-decision-v1' : 'wallpaper-distill-v1') : undefined
-    const currentWallpaperReview = operation === 'wallpaper-review' && (wallpaperVersion === 'wallpaper-review-v4' || wallpaperVersion === 'wallpaper-review-source-v1')
+    const currentWallpaperReview = operation === 'wallpaper-review' && (wallpaperVersion === 'wallpaper-review-v4' || wallpaperVersion === 'wallpaper-review-source-v1' || wallpaperVersion === 'wallpaper-review-source-v2' || wallpaperVersion === 'wallpaper-review-source-v3' || wallpaperVersion === 'wallpaper-review-source-v4')
     return {
       requestId: input.requestId, operation, model: this.config.model, declaredModelVersion: this.config.declaredModelVersion ?? null,
       replayLimitation: [this.config.declaredModelVersion === undefined ? 'The provider has not declared a fixed model version; deterministic model replay is unavailable.' : '', input.images.some(image => image.remoteSource) ? 'Remote URLs identify provider references, not verified pixel bytes; their content and vendor-side download cost cannot be pinned or measured by this Host.' : ''].filter(Boolean).join(' ') || null,
@@ -262,7 +283,7 @@ export abstract class StructuredVisionProvider {
    */
   async wallpaper(input: VisionInput, operation: keyof typeof wallpaperPrompts, bounds: VisionBounds) {
     const raw = await this.invoke(input, operation, bounds)
-    const result = operation === 'wallpaper-decision' ? wallpaperDecisionVisionSchema(input).safeParse(raw) : operation === 'wallpaper-plan' ? wallpaperPlanningSchema(input).safeParse(raw) : operation === 'wallpaper-review' ? wallpaperReviewOutputSchema(input.wallpaperPrompt?.version ?? 'wallpaper-review-v1', input.rules.map(rule => rule.ruleId), input.images.map(image => image.imageVersionId), input.images.find(image => image.role === 'actual-wallpaper')?.imageVersionId, input.images.find(image => image.role === 'wallpaper-original')?.imageVersionId).safeParse(raw) : wallpaperDistillationSchema.safeParse(raw)
+    const result = operation === 'wallpaper-decision' ? wallpaperDecisionVisionSchema(input).safeParse(raw) : operation === 'wallpaper-plan' ? wallpaperPlanningSchema(input).safeParse(raw) : operation === 'wallpaper-review' ? wallpaperReviewOutputSchema(input.wallpaperPrompt?.version ?? 'wallpaper-review-v1', input.rules.map(rule => rule.ruleId), input.images.map(image => image.imageVersionId), input.images.find(image => image.role === 'actual-wallpaper')?.imageVersionId, input.images.find(image => image.role === 'wallpaper-original')?.imageVersionId, wallpaperRepairRequest(input)).safeParse(raw) : wallpaperDistillationSchema.safeParse(raw)
     if (!result.success) throw invalidOutput(raw, result.error.issues.map(issue => `${issue.code}:${issue.path.join('.')}${issue.code === 'unrecognized_keys' ? `:${issue.keys.join(',')}` : issue.code === 'custom' ? `:${issue.message}` : issue.code === 'invalid_value' ? `:allowed=${JSON.stringify(issue.values)}` : ''}`), true)
     if (operation === 'wallpaper-plan' && 'imageVersionId' in result.data && result.data.imageVersionId !== input.images[0]?.imageVersionId) throw invalidOutput(raw, ['wallpaper-source-mismatch'], false)
     return result.data

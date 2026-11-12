@@ -141,10 +141,10 @@ export function createWallpaperPlanEditor(React: typeof import('react'), ui: typ
           <g className="vc-plan-editor-guides" fill="none" strokeWidth={2}>
             <rect className="vc-plan-editor-clock" width={settings.width} height={settings.safe.top} />
             <rect className="vc-plan-editor-safe" x={settings.safe.left} y={settings.safe.top} width={settings.safe.width} height={settings.safe.height} />
-            <rect className="vc-plan-editor-overflow" x={settings.safe.left - settings.sideOverflow} y={settings.safe.top + settings.topBuffer} width={settings.safe.width + 2 * settings.sideOverflow} height={settings.safe.height + settings.bottomOverflow - settings.topBuffer} />
-            <rect className="vc-plan-editor-buffer" y={settings.safe.top} width={settings.width} height={settings.topBuffer} />
+            <rect className="vc-plan-editor-overflow" x={settings.safe.left - settings.sideOverflow} y={settings.safe.top + (settings.processing?.clockContrast ? settings.topBuffer : 0)} width={settings.safe.width + 2 * settings.sideOverflow} height={settings.safe.height + settings.bottomOverflow - (settings.processing?.clockContrast ? settings.topBuffer : 0)} />
+            {settings.processing?.clockContrast && <rect className="vc-plan-editor-buffer" y={settings.safe.top} width={settings.width} height={settings.topBuffer} />}
             <path className="vc-plan-editor-safe-lines" vectorEffect="non-scaling-stroke" d={`M${settings.safe.left} 0V${settings.height}M${settings.safe.left + settings.safe.width} 0V${settings.height}M0 ${settings.safe.top}H${settings.width}M0 ${settings.safe.top + settings.safe.height}H${settings.width}`} />
-            <path className="vc-plan-editor-guide" vectorEffect="non-scaling-stroke" d={`M${settings.width / 2} 0V${settings.height}M0 ${settings.height / 2}H${settings.width}M0 ${settings.safe.top + settings.topBuffer}H${settings.width}`} />
+            <path className="vc-plan-editor-guide" vectorEffect="non-scaling-stroke" d={`M${settings.width / 2} 0V${settings.height}M0 ${settings.height / 2}H${settings.width}${settings.processing?.clockContrast ? `M0 ${settings.safe.top + settings.topBuffer}H${settings.width}` : ''}`} />
           </g>
           {draft.regions.map((value, index) => {
             const x = placement.left + value.rect.x * size.width, y = placement.top + value.rect.y * size.height, width = value.rect.width * size.width, height = value.rect.height * size.height

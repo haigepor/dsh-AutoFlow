@@ -36,6 +36,14 @@ async function mount(ctx: Context): Promise<void> {
   await handle.close()
   const repository = new DomainRepository('visual-curator-snapshot', new MemoryDomainAdapter())
   const http = new FixtureHttp()
+  const request = http.request.bind(http)
+  http.request = async (url, input) => {
+    if (url.startsWith('https://source.example.test')) {
+      const variant = http.mode === 'pass' ? '' : `-${http.mode}`
+      return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ items: [{ id: `one${variant}`, previewUrl: `https://images.example.test/preview${variant}`, originalUrl: `https://images.example.test/original${variant}` }], nextCursor: null })) }
+    }
+    return await request(url, input)
+  }
   http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#536f53' } }).png().toBuffer()
   const config = resolveConfig({ source: { endpoint: 'https://source.example.test/search', credentialRef: '' }, vision: { endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '', vendorVersion: 'fixture-v1' }, limits: { maxRetryAttempts: 0, maxImportBytes: 1_000_000, maxReferenceBytes: 1_000_000, maxVisionCalls: 40, maxSearchPages: 4, maxCropCandidatesPerImage: 2 } })
   const vision = new CompatibleVisionProvider({ endpoint: config.vision.endpoint, model: config.vision.model, supportsMultiImage: true, maxImages: 10, maxImageBytes: 1_000_000, maxRequestBytes: 10_000_000, maxOutputTokens: 4000, temperature: 0, declaredModelVersion: 'fixture-v1' }, http)
@@ -80,18 +88,22 @@ async function mount(ctx: Context): Promise<void> {
         const run = repository.get('run', runId)
         assert.ok(run, `Search admission failed: ${JSON.stringify(agent.session.snapshotEvents().findLast(event => event.type === 'tool/result'))}`)
         if (id === 'search-pass') assert.equal(run.outcome, 'target-met')
-        if (id === 'search-rejected') assert.ok(repository.list('assessment').some(a => a.runId === run.id && a.stage === 'final' && a.verdict === 'reject'))
+        if (id === 'search-rejected') assert.ok(repository.list('assessment').some(a => a.runId === run.id && a.stage === 'final' && a.verdict === 'reject'), JSON.stringify({ status: run.status, outcome: run.outcome }))
         if (id === 'search-invalid') assert.ok(repository.list('assessment').filter(a => a.runId === run.id).every(a => a.technicalStatus === 'failed' && a.verdict === undefined))
       }
       if (id === 'run-pass') {
         http.mode = 'reject-final'
+        http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#638063' } }).png().toBuffer()
         if (!repository.get('run', 'foreign-owned-run')) {
           const original = repository.list('run')[0]!
           const foreign = runSchema.parse({ ...original, id: 'foreign-owned-run', owner: { kind: 'session', sessionId: 'foreign-session' } })
           await repository.commit({ aggregateId: 'run:foreign-owned-run', operationId: 'seed-foreign-run', expectedRevision: 0, request: {}, records: [foreign], state: {} })
         }
       }
-      if (id === 'run-rejected') http.mode = 'bad-json'
+      if (id === 'run-rejected') {
+        http.mode = 'bad-json'
+        http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#738f73' } }).png().toBuffer()
+      }
       if (id === 'forged-human') await toolsFork.dispose()
       if (id === 'disabled-tools') {
         assert.equal(repository.list('feedback').length, initialFeedback)

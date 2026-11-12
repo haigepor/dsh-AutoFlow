@@ -52,7 +52,7 @@ test('single-item wallpaper reads retain full counts and history while paging on
     assert.deepEqual(first.view.state.items[0], full.view.state.items[0]); assert.deepEqual(second.view.state.items[0], full.view.state.items[1])
     assert.equal(new URL(first.view.sourceImages['detail-image-0']!.previewPath, 'https://owner.example').searchParams.get('preview'), 'thumbnail')
     for (const page of [first.view, second.view]) {
-      const item = page.state.items[0]!, ids = [item.originalId!, ...item.attempts.flatMap(attempt => [attempt.analysisId!, attempt.simulationId!, attempt.outputId!])]
+      const item = page.state.items[0]!, ids = [item.originalId!, ...item.attempts.flatMap(attempt => [attempt.canvasId!, attempt.analysisId!, attempt.simulationId!, attempt.outputId!])]
       assert.equal(item.attempts.length, 3)
       assert.deepEqual(new Set(Object.keys(page.resources)), new Set(ids))
       assert.deepEqual(new Set(Object.keys(page.previewResources)), new Set(ids))

@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto'
 import sharp from 'sharp'
 import * as ort from 'onnxruntime-web/wasm'
 import { z } from 'zod'
-import { claritySettingsSchema } from '../shared/clarity.ts'
+import { claritySettingsSchema, espcnWeightsDigest } from '../shared/clarity.ts'
 import { backgroundResolutionSettingsSchema } from '../shared/background-resolution.ts'
 
 const pixelRect = z.strictObject({ left: z.number().int().nonnegative(), top: z.number().int().nonnegative(), width: z.number().int().positive(), height: z.number().int().positive() })
@@ -14,11 +14,11 @@ const taskSchema = z.discriminatedUnion('kind', [
   z.strictObject({ ...common, kind: z.literal('subject'), regions: z.array(pixelRect).min(1).max(32), protectedRegions: z.array(pixelRect).max(32), policy: claritySettingsSchema }),
   z.strictObject({ ...common, kind: z.literal('background'), width: z.number().int().positive(), height: z.number().int().positive(), policy: backgroundResolutionSettingsSchema }),
 ])
-const modelDigest = '85f36ff88cc504a24af5e0602148bc56a8aa09a58eca8c0da2756f3e8186035e'
+const modelDigest = espcnWeightsDigest
 // The released ESPCN network consumes fixed 224px tiles and emits 3x luminance. The halo excludes convolution borders.
 const tile = 224, halo = 8, core = tile - 2 * halo, scale = 3
 
-async function resolveRgb(rgb: Buffer, width: number, height: number, session: ort.InferenceSession) {
+async function resolveRgb(rgb: Buffer, width: number, height: number, session: ort.InferenceSession, completed: () => void) {
   const resolved = Buffer.alloc(width * scale * height * scale * 3)
   const interpolated = await sharp(rgb, { raw: { width, height, channels: 3 } }).resize(width * scale, height * scale, { kernel: 'cubic' }).raw().toBuffer()
   let tiles = 0
@@ -41,7 +41,7 @@ async function resolveRgb(rgb: Buffer, width: number, height: number, session: o
       const delta = Math.max(0, Math.min(255, value * 255)) - old
       for (let c = 0; c < 3; c++) resolved[at + c] = Math.max(0, Math.min(255, Math.round(interpolated[at + c]! + delta)))
     }
-    values.dispose(); tiles++
+    values.dispose(); tiles++; completed()
   }
   return { resolved, tiles }
 }
@@ -63,6 +63,13 @@ async function run() {
     if (task.width > metadata.width * scale || task.height > metadata.height * scale) throw new Error('background-resolution-scale-exceeded')
     if (Math.abs(metadata.width - metadata.height * task.width / task.height) > 1) throw new Error('background-resolution-ratio-mismatch')
   }
+  const dimensions = await sharp(task.bytes, { limitInputPixels: task.maxPixels }).metadata()
+  const regions = task.kind === 'subject' ? task.regions : [{ width: dimensions.width!, height: dimensions.height! }]
+  const total = regions.reduce((sum, region) => sum + Math.ceil(region.width / core) * Math.ceil(region.height / core), 0)
+  let completed = 0
+  const progress = () => parentPort!.postMessage({ type: 'progress', completed, total })
+  progress()
+  const tileCompleted = () => { completed++; progress() }
   const model = await readFile(task.modelPath)
   if (createHash('sha256').update(model).digest('hex') !== modelDigest) throw new Error('clarity-model-digest-mismatch')
   ort.env.wasm.numThreads = 1
@@ -71,7 +78,7 @@ async function run() {
     const decoded = await sharp(task.bytes, { limitInputPixels: task.maxPixels }).removeAlpha().toColourspace('srgb').raw().toBuffer({ resolveWithObject: true })
     const { width, height } = decoded.info
     if (task.kind === 'background') {
-      const { resolved, tiles } = await resolveRgb(decoded.data, width, height, session)
+      const { resolved, tiles } = await resolveRgb(decoded.data, width, height, session, tileCompleted)
       const image = await sharp(resolved, { raw: { width: width * scale, height: height * scale, channels: 3 } }).resize(task.width, task.height, { fit: 'fill', kernel: 'lanczos3' }).png().toBuffer()
       return { bytes: image, model: 'espcn-x3-luma' as const, modelSha256: modelDigest, durationMs: performance.now() - started, pixels, tiles, sourceWidth: width, sourceHeight: height, outputWidth: task.width, outputHeight: task.height }
     }
@@ -80,7 +87,7 @@ async function run() {
     let tiles = 0
     for (const rect of task.regions) {
       const rgb = await sharp(decoded.data, { raw: { width, height, channels: 3 } }).extract(rect).raw().toBuffer()
-      const resolution = await resolveRgb(rgb, rect.width, rect.height, session), resolved = resolution.resolved
+      const resolution = await resolveRgb(rgb, rect.width, rect.height, session, tileCompleted), resolved = resolution.resolved
       tiles += resolution.tiles
       const sampled = await sharp(resolved, { raw: { width: rect.width * scale, height: rect.height * scale, channels: 3 } }).resize(rect.width, rect.height, { kernel: 'lanczos3' }).raw().toBuffer()
       for (let y = 0; y < rect.height; y++) for (let x = 0; x < rect.width; x++) {

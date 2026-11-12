@@ -1,0 +1,7 @@
+{
+  "operations": ["wallpaper-plan", "detail", "wallpaper-review", "wallpaper-review"],
+  "generations": 3,
+  "reviews": 2,
+  "edits": 3,
+  "referencesPerGeneration": 1
+}

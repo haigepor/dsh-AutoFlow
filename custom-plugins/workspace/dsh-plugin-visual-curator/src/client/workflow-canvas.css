@@ -657,6 +657,18 @@
 .vc-server-file small { display: block; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-secondary); margin-top: 4px; }
 @media (max-width: 640px) { .vc-server-settings { grid-template-columns: minmax(0, 1fr); } .vc-server-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .vc-server-connection small { max-width: 240px; } .vc-server-footer { flex-wrap: wrap; } .vc-server-footer > div:last-child { margin-left: auto; } .vc-server-table td, .vc-server-table th { padding: 8px; } }
 .vc-wallpaper-modal.vc-image-details-modal { width: min(860px, 100%); }
+.vc-wallpaper-modal.vc-image-history-modal { width: min(820px, 100%); max-height: 100%; gap: 0; overflow: hidden; }
+.vc-image-history-shell { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 16px 24px 20px; }
+.vc-image-history { list-style: none; margin: 0; padding: 0 0 0 28px; border-left: 1px solid var(--dsw-alias-border-l3); }
+.vc-image-history > li { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 0 0 16px; padding: 14px 16px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-1); }
+.vc-image-history > li:last-child { margin-bottom: 0; }
+.vc-image-history > li::before { position: absolute; left: -35px; top: 18px; width: 11px; height: 11px; border-radius: 50%; background: var(--dsw-alias-link); content: ''; }
+.vc-image-history-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; width: 100%; }
+.vc-image-history-heading strong { font-weight: 500; }
+.vc-image-history-heading time { color: var(--dsw-alias-label-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.vc-image-history > li > p { overflow-wrap: anywhere; }
+.vc-image-history .vc-wallpaper-artifact { width: min(180px, 100%); }
+.vc-image-history .vc-wallpaper-artifact img { max-height: 180px; }
 .vc-wallpaper-modal.vc-image-details-failure-modal { width: min(760px, 100%); }
 .vc-image-detail-context { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid var(--dsw-alias-border-l3); font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .vc-image-detail-context .vc-select { min-width: 140px; }
@@ -678,10 +690,20 @@
 @media (max-width: 640px) { .vc-image-details-modal .vc-image-planning-grid, .vc-image-result-grid, .vc-image-review-detail-checks { grid-template-columns: minmax(0, 1fr); gap: 16px; } .vc-image-details-modal .vc-image-planning-preview .vc-image-step-preview, .vc-image-result-preview .vc-image-step-preview { height: 220px; } .vc-image-result-preview .vc-image-step-preview[data-generating] { height: auto; } }
 
 /* Modal footers sit outside each content scroll region so actions stay visible. */
-:is(.vc-image-details-modal, .vc-plan-modal, .vc-wallpaper-settings-modal, .vc-server-modal, .vc-server-settings-modal, .vc-direct-import-modal, .vc-direct-delete-modal, .vc-gallery-reference-modal) { padding-bottom: 0; gap: 0; overflow: hidden; max-height: 100%; }
-:is(.vc-image-details-modal, .vc-plan-modal, .vc-wallpaper-settings-modal, .vc-server-modal, .vc-server-settings-modal, .vc-direct-import-modal, .vc-direct-delete-modal, .vc-gallery-reference-modal) > :last-child { position: relative; z-index: 1; flex: none; padding: 16px 24px 20px; border-top: 1px solid var(--dsw-alias-border-l3); background: var(--dsw-alias-bg-layer-2); }
+:is(.vc-image-details-modal, .vc-image-history-modal, .vc-plan-modal, .vc-wallpaper-settings-modal, .vc-server-modal, .vc-server-settings-modal, .vc-direct-import-modal, .vc-direct-delete-modal, .vc-gallery-reference-modal) { padding-bottom: 0; gap: 0; overflow: hidden; max-height: 100%; }
+:is(.vc-image-details-modal, .vc-image-history-modal, .vc-plan-modal, .vc-wallpaper-settings-modal, .vc-server-modal, .vc-server-settings-modal, .vc-direct-import-modal, .vc-direct-delete-modal, .vc-gallery-reference-modal) > :last-child { position: relative; z-index: 1; flex: none; padding: 16px 24px 20px; border-top: 1px solid var(--dsw-alias-border-l3); background: var(--dsw-alias-bg-layer-2); }
 :is(.vc-server-settings-modal, .vc-direct-import-modal, .vc-direct-delete-modal) > :first-child { flex: 1; min-height: 0; overflow: hidden; }
 :is(.vc-server-settings-modal, .vc-direct-import-modal, .vc-direct-delete-modal) > :first-child > :first-child { flex: none; }
 :is(.vc-server-settings-modal, .vc-direct-import-modal, .vc-direct-delete-modal) > :first-child > :last-child { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-bottom: 20px; }
 .vc-image-details-shell > :last-child { padding-bottom: 20px; }
-@media (max-width: 640px) { :is(.vc-image-details-modal, .vc-plan-modal, .vc-wallpaper-settings-modal, .vc-server-modal, .vc-server-settings-modal, .vc-direct-import-modal, .vc-direct-delete-modal, .vc-gallery-reference-modal) > :last-child { padding: 14px 16px 16px; } }
+@media (max-width: 640px) { .vc-image-history-shell { padding: 14px 16px; } :is(.vc-image-details-modal, .vc-image-history-modal, .vc-plan-modal, .vc-wallpaper-settings-modal, .vc-server-modal, .vc-server-settings-modal, .vc-direct-import-modal, .vc-direct-delete-modal, .vc-gallery-reference-modal) > :last-child { padding: 14px 16px 16px; } }
+
+.vc-resolution-overlay { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); pointer-events: none; color: var(--dsw-alias-state-business-primary); overflow: hidden; }
+.vc-resolution-scan { transform-box: view-box; animation: vc-resolution-sweep 2.4s ease-in-out infinite alternate; animation-play-state: paused; }
+.vc-resolution-overlay[data-moving] .vc-resolution-scan { animation-play-state: running; }
+.vc-resolution-badge { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 20px); padding: 3px 8px; border: 1px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font-size: 11px; white-space: nowrap; pointer-events: none; }
+@keyframes vc-resolution-sweep { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@media (prefers-reduced-motion: reduce) { .vc-resolution-scan { animation: none; transform: translateY(50%); } }
+
+.vc-generation-brief { display: grid; gap: 6px; min-width: 0; }
+.vc-generation-prompt-text { white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -3,12 +3,15 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import sharp from 'sharp'
 import { z } from 'zod'
-import { serviceFixture } from './helpers/service-fixture.ts'
+import { useHistoricalWallpaperCpu, serviceFixture } from './helpers/service-fixture.ts'
 import { dataOf, specOf } from '../src/host/runtime.ts'
 import { wallpaperStateSchema, wallpaperReviewKeys, wallpaperViewSchema } from '../src/shared/wallpaper.ts'
+import { wallpaperDecisionSettingsSchema } from '../src/shared/wallpaper-decision.ts'
 
 async function execute(clarity: 'satisfied' | 'violated' | 'unknown', cutOff = false) {
   const f = await serviceFixture(undefined, { maxReferenceImages: 6, maxReferenceBytes: 8_000_000, maxImportBytes: 24_000_000 })
+  useHistoricalWallpaperCpu(f)
+  f.service.config.wallpaper.decision = wallpaperDecisionSettingsSchema.parse({ enabled: false })
   await f.service.initialize()
   const width = 2000, height = 3500, raw = Buffer.alloc(width * height * 3)
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) { const at = (y * width + x) * 3; raw[at] = Math.floor(x / 12) % 2 ? 70 : 130; raw[at + 1] = (x + y) % 180 + 40; raw[at + 2] = Math.floor(y / 8) % 2 ? 80 : 120 }
@@ -23,7 +26,7 @@ async function execute(clarity: 'satisfied' | 'violated' | 'unknown', cutOff = f
     let result: object
     if (input.operation === 'wallpaper-plan') result = { version: 1, imageVersionId: input.images[0]!.imageVersionId, mode: 'single', subject: 'Visible vehicle', evidence: 'Scripted source annotations.', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: [
       { name: 'Whole vehicle', role: 'subject', rect: { x: 0.3, y: 0.4, width: 0.3, height: 0.1 } }, { name: 'Identity marking', role: 'critical', rect: { x: 0.43, y: 0.46, width: 0.02, height: 0.02 } },
-    ], reason: 'Source covers the canvas without generation.' }
+    ], reason: 'Source covers the canvas without generation.', editPrompt: 'Retain the original subject pixels and continuous surrounding source texture.' }
     else {
       const usage = z.object({ imageRepresentations: z.array(z.object({ imageVersionId: z.string(), sourceImageVersionId: z.string().optional(), sourceRect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional() })) }).parse(input.usage)
       reviewInputs.push({ images: input.images, usage })

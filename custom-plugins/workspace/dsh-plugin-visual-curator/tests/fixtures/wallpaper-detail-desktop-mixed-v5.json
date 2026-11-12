@@ -1,0 +1,639 @@
+{
+  "requestId": "167f2cfb-4e3e-4daa-854a-d5156da118a3",
+  "priorPlan": {
+    "version": 1,
+    "imageVersionId": "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+    "mode": "group",
+    "subject": "一簇生长在干旱砾石地上的低矮多肉植物，具对生肉质叶、斑点纹理和白色雏菊状花；物种无法仅凭像素确认。中央粉橙色多肉及其大花为主视觉，右中蓝灰色多肉为第二视觉重点，周围散布多个较小株丛。",
+    "evidence": "画面下半部集中多株肉质叶、带斑纹的多肉，各株顶部开放白色、花心淡黄的花朵；上半部为浅蓝至桃橙的斜向夕照云层和低饱和蓝紫远山，底部及两侧为粉灰、米白、浅褐色岩块与细砾。整体为柔和黄昏光、粉彩低饱和和细腻纸面颗粒质感。",
+    "priorities": [
+      "保留中央粉橙色大型多肉及其白色主花的完整轮廓和位置，不缩小、不遮挡。",
+      "保留右中蓝灰斑纹多肉与花的体量、朝向和斑纹，作为第二视觉重点。",
+      "保留左上米色、左侧粉橙、左下蓝灰和右下浅米色等多肉株丛的既有数量、相对关系与斑点纹理。",
+      "保留白色花瓣的放射方向、淡黄花心、肉质叶的粉感表面及柔和阴影。",
+      "保留粉蓝至桃橙的天空、远山层次、前景砾石与岩块，以及低机位造成的近大远小关系。",
+      "扩图只延续原场景边界，不添加文字、标识、人物、动物、额外花冠或与原图无关的新主体。"
+    ],
+    "anchors": [
+      "天空：上部浅蓝向中下部桃橙过渡的斜向云带，靠近日落处更暖、更亮，纹理为细密粉彩笔触。",
+      "远山：位于天空与植物之间，低对比蓝紫色层叠山脊，山脚带轻微粉橙雾气，不替代主体。",
+      "前景基底：浅色岩块、碎石和细砾包围并承托多肉，大小颗粒混合，受柔暖黄昏光照。",
+      "环境枝条：左侧细长干枯花茎与右后方稀疏枯枝只作为低对比环境层次，不抢主体。",
+      "光线与透视：低机位、由右上方黄昏天空方向照入的柔光，阴影浅而偏暖，前景颗粒比远山更清晰。"
+    ],
+    "truncations": [
+      "左侧中下部多肉丛和左下蓝灰小株紧贴画框，局部叶体可能被裁切；需确认切线位置，只在新增区域延续可见轮廓和斑纹。",
+      "底部前景岩块与砾石连续延伸至画框外，岩层和颗粒在底边被截断；可按原图粒径、层理和阴影自然延续，不覆盖现有主体根部。",
+      "右侧下部前景岩块触及画框，部分岩面纹理可能在画外继续；需局部确认边界后接续，避免形成生硬直边。"
+    ],
+    "uncertainties": [
+      "多肉的具体物种或栽培品种无法仅凭像素确认，不应据此添加标签或鉴定文字。",
+      "左侧被画框切掉的多肉实际延伸范围，以及相邻岩块后是否还有被遮挡植株，无法确定。",
+      "底部岩块遮盖下的植株根部和砾石层真实结构不可见，只能按现有可见纹理谨慎推测。"
+    ],
+    "regions": [
+      {
+        "name": "中央粉橙色多肉与主花",
+        "role": "subject",
+        "rect": {
+          "x": 0.16,
+          "y": 0.55,
+          "width": 0.53,
+          "height": 0.36
+        }
+      },
+      {
+        "name": "右中蓝灰斑纹多肉与花",
+        "role": "subject",
+        "rect": {
+          "x": 0.45,
+          "y": 0.4,
+          "width": 0.52,
+          "height": 0.34
+        }
+      },
+      {
+        "name": "左上米色多肉与花",
+        "role": "critical",
+        "rect": {
+          "x": 0.12,
+          "y": 0.29,
+          "width": 0.46,
+          "height": 0.27
+        }
+      },
+      {
+        "name": "左侧粉橙多肉丛与小花",
+        "role": "critical",
+        "rect": {
+          "x": 0,
+          "y": 0.49,
+          "width": 0.44,
+          "height": 0.26
+        }
+      },
+      {
+        "name": "右下浅米色多肉与花",
+        "role": "critical",
+        "rect": {
+          "x": 0.63,
+          "y": 0.6,
+          "width": 0.35,
+          "height": 0.2
+        }
+      },
+      {
+        "name": "左下蓝灰小多肉",
+        "role": "critical",
+        "rect": {
+          "x": 0,
+          "y": 0.72,
+          "width": 0.3,
+          "height": 0.2
+        }
+      },
+      {
+        "name": "右上粉红小多肉丛",
+        "role": "critical",
+        "rect": {
+          "x": 0.54,
+          "y": 0.36,
+          "width": 0.31,
+          "height": 0.14
+        }
+      }
+    ],
+    "placement": {
+      "scale": 1,
+      "left": 452,
+      "top": 796
+    },
+    "reason": "画面是低机位沙漠黄昏中的多肉植物群，真实主次由中央粉橙色大株与右中蓝灰大株建立，周围株丛和白色花朵形成次要焦点。主体必须完整保留，不能为摆放裁切或重绘；天空、山脊和砾石属于环境锚点，不用横贯整图的硬保护框。原图左侧与底部有可经局部确认后自然延续的边界截断，适合只向画外扩展同质环境，不新增植株。",
+    "editPrompt": "以这张原图为唯一场景依据：上方是浅蓝到桃橙的斜向夕阳云带，下面是低饱和蓝紫色层叠远山；中下部为多株具斑点纹理的低矮多肉，中央粉橙色大株开一朵白色放射状花，右中蓝灰色大株开白花，周围还有米色、粉橙和浅米色小株与花朵；底部是粉灰、米白、浅褐色层状岩块和细砾，整体为柔和黄昏侧光、粉彩低饱和和细腻纸面颗粒质感，低机位近大远小。扩图仅向外延续这一场景：保持所有现有主体的位置、比例、数量、轮廓、花朵朝向、斑点、颜色和阴影不变；上方和右侧只延展天空云纹、远山轮廓、稀疏枯枝及同质岩面，山脊高度和透视关系保持连续。左侧新增区域自然接续被画框截断的粉橙多肉与左下蓝灰小株的可见叶体和斑纹，只延续既有轮廓，不新增花朵或独立植株。底部新增区域沿用现有砾石的粒径、层理、暖灰阴影和粉彩色调，从接缝平滑过渡，不遮盖或重画现有主体根部。不添加文字、标识、人物、动物、额外花冠或强烈对比的新元素。"
+  },
+  "concerns": [
+    {
+      "id": "uncertainty:0",
+      "text": "多肉的具体物种或栽培品种无法仅凭像素确认，不应据此添加标签或鉴定文字。"
+    },
+    {
+      "id": "uncertainty:1",
+      "text": "左侧被画框切掉的多肉实际延伸范围，以及相邻岩块后是否还有被遮挡植株，无法确定。"
+    },
+    {
+      "id": "uncertainty:2",
+      "text": "底部岩块遮盖下的植株根部和砾石层真实结构不可见，只能按现有可见纹理谨慎推测。"
+    },
+    {
+      "id": "source-extent",
+      "text": "Verify the complete subject against the whole original frame before any rendering or expansion. Distinguish actual frame truncation from normal perspective or self-occlusion: 左侧中下部多肉丛和左下蓝灰小株紧贴画框，局部叶体可能被裁切；需确认切线位置，只在新增区域延续可见轮廓和斑纹。；底部前景岩块与砾石连续延伸至画框外，岩层和颗粒在底边被截断；可按原图粒径、层理和阴影自然延续，不覆盖现有主体根部。；右侧下部前景岩块触及画框，部分岩面纹理可能在画外继续；需局部确认边界后接续，避免形成生硬直边。"
+    }
+  ],
+  "nativeDetails": [
+    {
+      "imageVersionId": "wallpaper-detail-1ce7b598d698707ce9afa56240533e8873ab572965d4c3821a2ed6a4d3c013cb",
+      "sourceImageVersionId": "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+      "sourceDigest": "0a07941166cdc4152329458ebf3c88d7d8aa29002be475b2110824bee2e94125",
+      "sourceWidth": 941,
+      "sourceHeight": 1672,
+      "sourceRect": {
+        "x": 0,
+        "y": 0.2111244019138756,
+        "width": 1,
+        "height": 0.7876794258373205
+      },
+      "viewWidth": 915,
+      "viewHeight": 1280,
+      "encoding": "image/webp",
+      "processorVersion": "sharp-0.35.5/vips-8.18.7/visual-normalize-v1/wallpaper-detail-view-v1"
+    }
+  ],
+  "output": {
+    "version": "wallpaper-plan-detail-v5",
+    "imageVersionId": "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+    "findings": [
+      {
+        "concernId": "uncertainty:0",
+        "scope": "subject",
+        "classification": "unseen-detail",
+        "blocking": false,
+        "reason": "仅凭可见的肉质叶、斑纹和白色花形不足以确认物种或栽培品种；该身份信息保持未知，不添加标签、鉴定文字，也不依据物种名改画结构。",
+        "evidenceImageVersionIds": [
+          "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+          "wallpaper-detail-1ce7b598d698707ce9afa56240533e8873ab572965d4c3821a2ed6a4d3c013cb"
+        ],
+        "sourceRegion": {
+          "x": 0.16,
+          "y": 0.55,
+          "width": 0.53,
+          "height": 0.36
+        },
+        "result": "unresolved"
+      },
+      {
+        "concernId": "uncertainty:1",
+        "scope": "subject",
+        "classification": "edge-continuation",
+        "blocking": false,
+        "reason": "左画框 x=0 处可见左中粉橙小株和左下蓝灰小株叶体的竖直切线，叶瓣弧度与斑纹足以指导最小自然延续；画外实际延伸长度和岩块后是否有植株不臆造。",
+        "evidenceImageVersionIds": [
+          "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+          "wallpaper-detail-1ce7b598d698707ce9afa56240533e8873ab572965d4c3821a2ed6a4d3c013cb"
+        ],
+        "sourceRegion": {
+          "x": 0,
+          "y": 0.49,
+          "width": 0.16,
+          "height": 0.38
+        },
+        "result": "resolved"
+      },
+      {
+        "concernId": "uncertainty:2",
+        "scope": "subject",
+        "classification": "normal-occlusion",
+        "blocking": false,
+        "reason": "前景岩块遮住植株根部与下层砾石，现有可见外表和阴影足以保持现状；这是正常遮挡，无需编辑或补造不可见根部和岩下结构。",
+        "evidenceImageVersionIds": [
+          "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+          "wallpaper-detail-1ce7b598d698707ce9afa56240533e8873ab572965d4c3821a2ed6a4d3c013cb"
+        ],
+        "sourceRegion": {
+          "x": 0.12,
+          "y": 0.82,
+          "width": 0.6,
+          "height": 0.17
+        },
+        "result": "unresolved"
+      },
+      {
+        "concernId": "source-extent",
+        "scope": "subject",
+        "classification": "edge-continuation",
+        "blocking": false,
+        "reason": "整张原图确认左缘中下部主体确有画框截断，需在新增区最小延续；底边与右边主要是前景岩块和砾石截断，已另记，不改变主体布局。",
+        "evidenceImageVersionIds": [
+          "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+          "wallpaper-detail-1ce7b598d698707ce9afa56240533e8873ab572965d4c3821a2ed6a4d3c013cb"
+        ],
+        "sourceRegion": {
+          "x": 0,
+          "y": 0.49,
+          "width": 0.16,
+          "height": 0.38
+        },
+        "result": "resolved"
+      }
+    ],
+    "observation": {
+      "version": 1,
+      "imageVersionId": "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+      "mode": "group",
+      "subject": "一簇生长在干旱砾石地上的低矮多肉植物，具对生肉质叶、斑纹和白色雏菊状花；物种无法仅凭像素确认。中央粉橙色大株及白花为主视觉，右中蓝灰斑纹大株为第二重点，周围散布米色、粉橙和蓝灰小株。",
+      "evidence": "本次同时核对整张原图与真实局部裁片：上部为浅蓝至桃橙的斜向夕照云层和低饱和蓝紫远山；中下部多株带斑纹肉质叶，中央粉橙色大株与右中蓝灰大株各开白色放射状花，周围有米色、粉橙、蓝灰小株和花；底部为粉灰、米白、浅褐色岩块与细砾。左缘中下部可见小株叶体在画框处被竖直切断，底边和右边主要是背景岩块与砾石截断。",
+      "priorities": [
+        "保留中央粉橙色大株及白色主花的轮廓、位置和花心细节，不缩小、不遮挡。",
+        "保留右中蓝灰斑纹大株及花的体量、朝向和斑纹，作为第二视觉重点。",
+        "保留左中粉橙小株、左上米色小株、左下蓝灰小株和右下浅米色小株的既有数量、相对关系与斑点纹理。",
+        "保留白色花瓣的放射方向、淡黄花心、肉质叶的粉感表面和柔和阴影。",
+        "保留粉蓝至桃橙的天空、远山层次、前景砾石与岩块，以及低机位近大远小关系。",
+        "扩图只延续原场景边界，不添加文字、标识、人物、动物、额外花冠或与原图无关的新主体。"
+      ],
+      "anchors": [
+        "天空：上部浅蓝向中下部桃橙过渡的斜向云带，靠近日落处更暖更亮，纹理为细密粉彩笔触。",
+        "远山：位于天空与植物之间的低对比蓝紫色层叠山脊，山脚带轻微粉橙雾气。",
+        "前景基底：浅色岩块、碎石和细砾包围并承托多肉，大小颗粒混合，受柔暖黄昏光照。",
+        "环境枝条：左侧细长干枯花茎与右后方稀疏枯枝只作为低对比环境层次。",
+        "光线与透视：低机位、由右上方黄昏天空方向照入的柔光，阴影浅而偏暖，前景颗粒比远山更清晰。"
+      ],
+      "uncertainties": [
+        "多肉的具体物种或栽培品种无法仅凭像素确认，不应据此添加标签或鉴定文字。",
+        "左侧被画框切掉的多肉实际延伸范围，以及相邻岩块后是否还有被遮挡植株，无法确定。",
+        "底部岩块遮盖下的植株根部和砾石层真实结构不可见，只能按现有可见纹理谨慎推测。"
+      ],
+      "regions": [
+        {
+          "name": "中央粉橙色多肉与主花",
+          "role": "subject",
+          "rect": {
+            "x": 0.16,
+            "y": 0.55,
+            "width": 0.53,
+            "height": 0.36
+          }
+        },
+        {
+          "name": "右中蓝灰斑纹多肉与花",
+          "role": "subject",
+          "rect": {
+            "x": 0.44,
+            "y": 0.41,
+            "width": 0.53,
+            "height": 0.35
+          }
+        },
+        {
+          "name": "左上米色多肉与花",
+          "role": "critical",
+          "rect": {
+            "x": 0.12,
+            "y": 0.28,
+            "width": 0.46,
+            "height": 0.28
+          }
+        },
+        {
+          "name": "左侧粉橙多肉丛与小花",
+          "role": "critical",
+          "rect": {
+            "x": 0,
+            "y": 0.49,
+            "width": 0.44,
+            "height": 0.29
+          }
+        },
+        {
+          "name": "右下浅米色多肉与花",
+          "role": "critical",
+          "rect": {
+            "x": 0.62,
+            "y": 0.6,
+            "width": 0.36,
+            "height": 0.22
+          }
+        },
+        {
+          "name": "左下蓝灰小多肉",
+          "role": "critical",
+          "rect": {
+            "x": 0,
+            "y": 0.72,
+            "width": 0.3,
+            "height": 0.21
+          }
+        },
+        {
+          "name": "右上粉红小多肉丛",
+          "role": "critical",
+          "rect": {
+            "x": 0.54,
+            "y": 0.36,
+            "width": 0.32,
+            "height": 0.15
+          }
+        }
+      ],
+      "reason": "主次由中央粉橙色大株与右中蓝灰大株建立，左缘小株被画框切断是需最小延续的主体边缘；底部和右侧为背景岩块截断。整体为暖黄昏柔光与粉彩低饱和，无需新增植株或文字。",
+      "editPrompt": "以这张原图为唯一场景依据：上部是浅蓝到桃橙的斜向夕阳云带，下面是低饱和蓝紫色层叠远山；中下部为多株具斑点纹理的低矮多肉，中央粉橙色大株开一朵白色放射状花，右中蓝灰色大株开白花，周围还有米色、粉橙和浅米色小株与花朵；底部是粉灰、米白、浅褐色层状岩块和细砾，整体为柔和黄昏侧光、粉彩低饱和和细腻纸面颗粒质感，低机位近大远小。保持所有现有主体的位置、比例、数量、轮廓、花朵朝向、斑点、颜色和阴影不变；上方和右侧只延展同质天空云纹、远山轮廓、稀疏枯枝及同质岩面，山脊高度和透视关系保持连续。左侧新增区域只最小延续被画框截断的左中橙色小株与左下蓝灰小株：顺着现有叶瓣弧度、斑纹和暖色阴影，在新增区形成实心、自然闭合的外轮廓，并停在合理弧顶，不增加新叶瓣、花朵或独立植株，不补画岩块后的不可见背面。底部新增区域沿用现有砾石的粒径、层理、暖灰阴影和粉彩色调，从接缝平滑过渡，不遮盖或重画现有主体根部。不添加文字、标识、人物、动物、额外花冠或强烈对比的新元素；禁止用淡出、半透明、雾化、碎石或阴影吞没主体轮廓；只做画框外扩图，不重画或缩放原图主体，最终成品需独立复审。"
+    },
+    "protectedSubjectExtent": {
+      "extent": "cut-off",
+      "reason": "左中下部粉橙小株与左下蓝灰小株的叶体在左画框 x=0 处被竖直切断，因此整组保护主体不是 complete；中央与右侧主体本身无截断，底部岩块遮挡属于正常前景遮挡而非主体截断。",
+      "evidenceImageVersionIds": [
+        "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+        "wallpaper-detail-1ce7b598d698707ce9afa56240533e8873ab572965d4c3821a2ed6a4d3c013cb"
+      ]
+    },
+    "backgroundTruncations": [
+      "底部前景岩块与细砾连续延伸至画框底边外，岩层和颗粒在底边被截断。",
+      "右侧中下部前景岩面在画框右边被截断，部分岩面纹理延续到画外。",
+      "左侧中下部背景岩块在画框左边被截断，但不属于主体延续目标，不借它改变主体布局。"
+    ],
+    "edgeRepair": {
+      "classification": "edge-continuation",
+      "edges": [
+        "left"
+      ],
+      "reason": "左画框中部至下部可见橙色小株与蓝灰小株的叶缘在 x=0 被竖直切断，切线与画框重合，不是局部裁片边界；叶面斑纹、叶瓣圆弧和暖侧光提供最小延续依据。",
+      "instruction": "仅向左画框外新增区域延续这两处已有小株的叶体和斑纹，顺着现有叶瓣弧度在新增区形成实心、自然闭合的外轮廓并停在合理弧顶；不增加新叶瓣、花朵或独立植株，不补画岩后遮挡背面，不用淡出、半透明或雾化收边。",
+      "concernIds": [
+        "source-extent",
+        "uncertainty:1"
+      ],
+      "sourceRegion": {
+        "x": 0,
+        "y": 0.49,
+        "width": 0.16,
+        "height": 0.38
+      },
+      "evidenceImageVersionIds": [
+        "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+        "wallpaper-detail-1ce7b598d698707ce9afa56240533e8873ab572965d4c3821a2ed6a4d3c013cb"
+      ]
+    },
+    "retainedUncertainties": [
+      {
+        "concernId": "uncertainty:0",
+        "text": "多肉的具体物种或栽培品种无法仅凭像素确认，不应据此添加标签或鉴定文字。"
+      },
+      {
+        "concernId": "uncertainty:1",
+        "text": "左侧被画框切掉的多肉实际延伸范围，以及相邻岩块后是否还有被遮挡植株，无法确定。"
+      },
+      {
+        "concernId": "uncertainty:2",
+        "text": "底部岩块遮盖下的植株根部和砾石层真实结构不可见，只能按现有可见纹理谨慎推测。"
+      }
+    ]
+  },
+  "originalIssues": [
+    "custom:retainedUncertainties:detail-retained-uncertainty-mismatch"
+  ],
+  "acceptedEvidence": {
+    "requestId": "a96d4363-50e2-4087-9eb5-04526c698c29",
+    "nativeDetails": [
+      {
+        "imageVersionId": "wallpaper-detail-b9f3e071b9e443cb950658c1e5aea312f518b987f9f07d1dd9b7fa59d5b4a908",
+        "sourceImageVersionId": "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+        "sourceDigest": "0a07941166cdc4152329458ebf3c88d7d8aa29002be475b2110824bee2e94125",
+        "sourceWidth": 941,
+        "sourceHeight": 1672,
+        "sourceRect": {
+          "x": 0,
+          "y": 0.2111244019138756,
+          "width": 1,
+          "height": 0.7876794258373205
+        },
+        "viewWidth": 915,
+        "viewHeight": 1280,
+        "encoding": "image/webp",
+        "processorVersion": "sharp-0.35.5/vips-8.18.7/visual-normalize-v1/wallpaper-detail-view-v1"
+      }
+    ],
+    "output": {
+      "version": "wallpaper-plan-detail-v5",
+      "imageVersionId": "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+      "findings": [
+        {
+          "concernId": "uncertainty:0",
+          "scope": "subject",
+          "classification": "unseen-detail",
+          "blocking": false,
+          "reason": "仅凭肉质叶与白花不能确认物种或品种，画面也没有可读标签；保持未知，不添加鉴定文字。",
+          "evidenceImageVersionIds": [
+            "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+            "wallpaper-detail-b9f3e071b9e443cb950658c1e5aea312f518b987f9f07d1dd9b7fa59d5b4a908"
+          ],
+          "result": "unresolved"
+        },
+        {
+          "concernId": "uncertainty:1",
+          "scope": "subject",
+          "classification": "edge-continuation",
+          "blocking": false,
+          "reason": "左侧中下部粉橙多肉和左下蓝灰多肉的叶体在左缘画框处被截断，可见叶形、斑纹与相邻砾石方向连续，能据此作最小延续；画外实际延伸长度不在像素内。",
+          "evidenceImageVersionIds": [
+            "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+            "wallpaper-detail-b9f3e071b9e443cb950658c1e5aea312f518b987f9f07d1dd9b7fa59d5b4a908"
+          ],
+          "sourceRegion": {
+            "x": 0,
+            "y": 0.47,
+            "width": 0.24,
+            "height": 0.45
+          },
+          "result": "resolved"
+        },
+        {
+          "concernId": "source-extent",
+          "scope": "subject",
+          "classification": "edge-continuation",
+          "blocking": false,
+          "reason": "整图核对显示主体叶体仅在左缘被截断；底部和右侧触边的是前景岩块与砾石，作为背景截断单独记录，不构成主体身份或结构的阻塞。",
+          "evidenceImageVersionIds": [
+            "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+            "wallpaper-detail-b9f3e071b9e443cb950658c1e5aea312f518b987f9f07d1dd9b7fa59d5b4a908"
+          ],
+          "sourceRegion": {
+            "x": 0,
+            "y": 0.47,
+            "width": 0.24,
+            "height": 0.45
+          },
+          "result": "resolved"
+        },
+        {
+          "concernId": "uncertainty:2",
+          "scope": "subject",
+          "classification": "normal-occlusion",
+          "blocking": false,
+          "reason": "前景岩块遮住植株根部和下方砾石，属正常遮挡；可见叶体和花朵完整，无需补画不可见根部。",
+          "evidenceImageVersionIds": [
+            "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+            "wallpaper-detail-b9f3e071b9e443cb950658c1e5aea312f518b987f9f07d1dd9b7fa59d5b4a908"
+          ],
+          "sourceRegion": {
+            "x": 0.04,
+            "y": 0.82,
+            "width": 0.92,
+            "height": 0.17
+          },
+          "result": "unresolved"
+        },
+        {
+          "concernId": "observation:1",
+          "scope": "subject",
+          "classification": "unseen-detail",
+          "blocking": false,
+          "reason": "画外左侧多肉实际延伸长度及岩块后是否另有植株，均无像素证据；保持未知，不新增植株或花朵。",
+          "evidenceImageVersionIds": [
+            "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+            "wallpaper-detail-b9f3e071b9e443cb950658c1e5aea312f518b987f9f07d1dd9b7fa59d5b4a908"
+          ],
+          "result": "unresolved"
+        }
+      ],
+      "observation": {
+        "version": 1,
+        "imageVersionId": "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+        "mode": "group",
+        "subject": "一簇生长在干旱砾石地上的低矮多肉植物，具对生肉质叶、斑点纹理和白色雏菊状花；中央粉橙色大株及主花为第一视觉，右中蓝灰斑纹大株为第二视觉，周围另有米色、粉橙和浅米色小株。",
+        "evidence": "上部为浅蓝向桃橙过渡的斜向晚霞云带，中部是低饱和蓝紫远山和稀疏枯枝；中下部多株肉质叶多肉与白花集中在画框左缘至右下，底部及两侧为粉灰、米白、浅褐色层状岩块与细砾，整体呈柔和黄昏侧光和粉彩低饱和质感。",
+        "priorities": [
+          "保留中央粉橙色多肉及其白色主花的完整轮廓、位置和比例。",
+          "保留右中蓝灰斑纹多肉及白花的体量、朝向和斑纹。",
+          "保留左上米色、左侧粉橙、左下蓝灰、右上粉红及右下浅米色株丛的既有数量与相对关系。",
+          "保留白色花瓣的放射方向、淡黄花心、肉质叶表面和柔和阴影。",
+          "保留粉蓝至桃橙天空、低对比远山、稀疏枯枝、前景砾石和低机位近大远小关系。",
+          "左侧画框边缘被截断的多肉只延续可见叶体和斑纹，不新增花朵或独立植株。",
+          "扩图不添加文字、标识、人物、动物或强烈对比的新元素。"
+        ],
+        "anchors": [
+          "天空：上部浅蓝向中下部桃橙过渡的斜向云带，靠近日落处更暖更亮，纹理为细密粉彩笔触。",
+          "远山：位于天空与植物之间，低对比蓝紫色层叠山脊，山脚带轻微粉橙雾气。",
+          "前景基底：浅色岩块、碎石和细砾承托多肉，粒径混合，受柔暖黄昏光照。",
+          "环境枝条：左侧细长干枯花茎与右后方稀疏枯枝只作为低对比环境层次。",
+          "光线与透视：低机位、由右上方黄昏天空方向照入的柔光，阴影浅而偏暖，前景颗粒比远山更清晰。"
+        ],
+        "uncertainties": [
+          "多肉的具体物种或栽培品种无法仅凭像素确认，不应据此添加标签或鉴定文字。",
+          "左侧画框外多肉的实际延伸长度，以及相邻岩块后是否还有被遮挡植株，无法仅凭像素确认；保持未知，不新增植株或花朵。",
+          "底部岩块遮盖下的植株根部和砾石层真实结构不可见，只能按现有可见纹理谨慎推测。"
+        ],
+        "regions": [
+          {
+            "name": "中央粉橙色多肉与主花",
+            "role": "subject",
+            "rect": {
+              "x": 0.16,
+              "y": 0.55,
+              "width": 0.53,
+              "height": 0.36
+            }
+          },
+          {
+            "name": "右中蓝灰斑纹多肉与花",
+            "role": "subject",
+            "rect": {
+              "x": 0.45,
+              "y": 0.4,
+              "width": 0.52,
+              "height": 0.34
+            }
+          },
+          {
+            "name": "左上米色多肉与花",
+            "role": "critical",
+            "rect": {
+              "x": 0.12,
+              "y": 0.29,
+              "width": 0.46,
+              "height": 0.27
+            }
+          },
+          {
+            "name": "左侧粉橙多肉丛与小花",
+            "role": "critical",
+            "rect": {
+              "x": 0,
+              "y": 0.49,
+              "width": 0.44,
+              "height": 0.26
+            }
+          },
+          {
+            "name": "右下浅米色多肉与花",
+            "role": "critical",
+            "rect": {
+              "x": 0.63,
+              "y": 0.6,
+              "width": 0.35,
+              "height": 0.2
+            }
+          },
+          {
+            "name": "左下蓝灰小多肉",
+            "role": "critical",
+            "rect": {
+              "x": 0,
+              "y": 0.72,
+              "width": 0.3,
+              "height": 0.2
+            }
+          },
+          {
+            "name": "右上粉红小多肉丛",
+            "role": "critical",
+            "rect": {
+              "x": 0.54,
+              "y": 0.36,
+              "width": 0.31,
+              "height": 0.14
+            }
+          }
+        ],
+        "reason": "主体是砾石地上的多肉群，中央粉橙大株和右中蓝灰大株形成主次，白花、斑点与岩块受柔和黄昏侧光。整图核对只发现左侧两组多肉在左缘被截断，底部与右侧为前景岩块和砾石触边，适合分别按主体与背景作最小延续。",
+        "editPrompt": "以这张原图为唯一依据：上方浅蓝至桃橙斜向晚霞与低饱和蓝紫远山，中下部粉橙、蓝灰、米色多肉群及白色雏菊状花，底部粉灰、米白、浅褐层状岩块与细砾；保留所有现有主体的位置、数量、比例、轮廓、花朵朝向、斑点、颜色和柔和黄昏侧光。左侧仅在最边缘新增窄条内沿可见粉橙和蓝灰叶体的实心叶面、斑纹与阴影自然延续，形成闭合外轮廓并接到原有砾石；未知的画外延伸、岩块后可能植株及不可见根部保持未知，不新添花冠、独立植株或背面。底部和右侧只延续背景岩块与细砾的粒径、层理和暖灰阴影，不覆盖现有主体。禁止用淡出、半透明、雾化、碎石或阴影吞没轮廓，不添加文字、标识、人物、动物或强烈对比元素。"
+      },
+      "protectedSubjectExtent": {
+        "extent": "cut-off",
+        "reason": "左侧中下部粉橙色多肉和左下蓝灰多肉的肉质叶在画面左缘直接断开，因此完整主体为被画框截断；其余可见多肉未见主体画框截断，前景岩块触边另记背景截断。",
+        "evidenceImageVersionIds": [
+          "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+          "wallpaper-detail-b9f3e071b9e443cb950658c1e5aea312f518b987f9f07d1dd9b7fa59d5b4a908"
+        ]
+      },
+      "backgroundTruncations": [
+        "底部前景岩块与细砾在画框下缘截断，可按原有粒径、层理和暖灰阴影自然延续，不覆盖现有主体根部。",
+        "右侧下部前景岩块与细砾在画框右缘截断，仅延续岩面纹理和颗粒，不改变主体位置。",
+        "左侧画框边缘的砾石与岩块在多肉叶体之外也被截断，按原有粒径与阴影作背景延续。"
+      ],
+      "edgeRepair": {
+        "classification": "edge-continuation",
+        "edges": [
+          "left"
+        ],
+        "reason": "左侧粉橙和蓝灰多肉的叶体在原图左缘被截断，叶面斑纹、叶瓣方向和相邻砾石关系连续，具备最小自然延续依据。",
+        "instruction": "仅在左缘新增窄条内，沿可见叶瓣轮廓和斑点把两组多肉的截断叶体收拢成自然闭合的实心外轮廓，末端落在原有砾石与岩块间隙；不增加新叶瓣、花朵、独立植株或不可见背面，不改变现有主体位置、比例和数量。",
+        "concernIds": [
+          "uncertainty:1",
+          "source-extent"
+        ],
+        "sourceRegion": {
+          "x": 0,
+          "y": 0.47,
+          "width": 0.24,
+          "height": 0.45
+        },
+        "evidenceImageVersionIds": [
+          "5fe58b7b-92c5-48fc-affc-6994ffab0312",
+          "wallpaper-detail-b9f3e071b9e443cb950658c1e5aea312f518b987f9f07d1dd9b7fa59d5b4a908"
+        ]
+      },
+      "retainedUncertainties": [
+        {
+          "concernId": "uncertainty:0",
+          "text": "多肉的具体物种或栽培品种无法仅凭像素确认，不应据此添加标签或鉴定文字。"
+        },
+        {
+          "concernId": "observation:1",
+          "text": "左侧画框外多肉的实际延伸长度，以及相邻岩块后是否还有被遮挡植株，无法仅凭像素确认；保持未知，不新增植株或花朵。"
+        },
+        {
+          "concernId": "uncertainty:2",
+          "text": "底部岩块遮盖下的植株根部和砾石层真实结构不可见，只能按现有可见纹理谨慎推测。"
+        }
+      ]
+    }
+  }
+}

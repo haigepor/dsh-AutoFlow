@@ -7,7 +7,7 @@ import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { type ImageGenerationHandle, type ImageGenerationTask } from '@deepseek-ai/dsh-llm'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import LocalAttachmentStore from '../../../../packages/attachment/attachment-local/src/index.ts'
-import { serviceFixture } from './helpers/service-fixture.ts'
+import { useHistoricalWallpaperCpu, serviceFixture } from './helpers/service-fixture.ts'
 import { BudgetLedger, dataOf, specOf, toJson, type ExecutionSpec } from '../src/host/runtime.ts'
 import { assessmentSchema, selectionSchema, assetSchema, imageVersionSchema, runSchema, requestSchema, type CuratorRecord, type RunRecord } from '../src/shared/model.ts'
 import { wallpaperPlanSchema, wallpaperReviewKeys, wallpaperReviewSchema, wallpaperSettingsSchema, wallpaperStateSchema, wallpaperProgress, wallpaperViewSchema } from '../src/shared/wallpaper.ts'
@@ -25,6 +25,7 @@ const receiptSchema = z.object({ wallpaper: z.object({
 
 async function fixture(twoSources = false, weightedPolicy = false, sessionSource = false) {
   const f = await serviceFixture(undefined, { maxVisionCalls: 20 }), context = new Context(), llm = new LlmRuntime(context), attachments = new LocalAttachmentStore(context, { dshHome: f.root })
+  useHistoricalWallpaperCpu(f)
   f.host.llm = llm; f.host.attachments = attachments
   try {
     await f.service.initialize()
@@ -78,7 +79,7 @@ async function fixture(twoSources = false, weightedPolicy = false, sessionSource
     const asset = sessionSource ? assetSchema.parse({ ...importedAsset, id: image.assetId, access: { kind: 'session-run', sessionId: 'source-session' } }) : importedAsset
     const stale = await f.files.importBytes(generated, 'image/png'), staleOutput = imageVersionSchema.parse({ ...image, id: 'old-composition', versionKind: 'composition', parentImageVersionId: image.id, blob: stale.normalized.blob, geometry: { ...image.geometry, width: 1845, height: 3280 } })
     const staleSimulation = imageVersionSchema.parse({ ...staleOutput, id: 'old-simulation' })
-    const settings = wallpaperSettingsSchema.parse({ imageProvider: handle.provider, imageModel: handle.model, learningEnabled: false, maxReworks: 2, maxEditsPerImage: 2 })
+    const settings = wallpaperSettingsSchema.parse({ imageProvider: handle.provider, imageModel: handle.model, learningEnabled: false, maxReworks: 2, maxEditsPerImage: 2, recoveryLimitVersion: 'five-attempts-v1' })
     const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: image.id, mode: 'single', subject: 'The original red source.', evidence: 'Actual original pixels.', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: ['subject', 'critical'].map(role => ({ name: role, role, rect: { x: 0.25, y: 0.2, width: 0.3, height: 0.2 } })), placement: { scale: 1, left: 400, top: 1100 }, reason: 'Keep the protected source inside the safe region.' })
     assert.deepEqual(wallpaperGeometry(image.geometry, plan, settings).checks, [])
     const review = wallpaperReviewSchema.parse({ subject: 'Saved prior review.', checks: Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: key === 'background' ? 'violated' : 'satisfied', reason: 'Saved old review.' }])), issues: [{ kind: 'background', reason: 'Recompose the existing provider output.' }] })
@@ -234,7 +235,7 @@ test('a failed saved generation cannot be replaced by a new image dispatch', asy
     const { runId } = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: f.old.id, operationId: 'failed-recomposition', recompose: { imageVersionId: f.image.id, revision: 1 } }))
     await f.f.jobs.drain()
     const item = wallpaperStateSchema.parse(dataOf(f.f.domain.require('run', runId)).checkpoint.wallpaper).items[0]!
-    assert.equal(item.status, 'needs-review'); assert.equal(item.attempts.length, 2); assert.equal(item.edits, 2)
+    assert.equal(item.status, 'technical-failed'); assert.equal(item.failedStep, 'rendering'); assert.equal(item.attempts.length, 2); assert.equal(item.edits, 2)
     assert.equal(item.attempts.at(-1)!.outputId, undefined); assert.equal(f.startedImages, 0); assert.deepEqual(f.operations, [])
     assert.deepEqual(f.f.domain.require('run', f.old.id), f.old)
   } finally { await f.cleanup() }
@@ -262,7 +263,7 @@ test('current review rejects an unfrozen legacy style policy and accepts its ori
   try {
     const spec = specOf(f.old), release = z.object({ recipe: z.record(z.string(), z.json()) }).passthrough().parse(spec.fixed.release)
     delete release.recipe.styleMatching
-    const old = runSchema.parse({ ...f.old, id: 'legacy-no-threshold', spec: toJson({ ...spec, fixed: { ...spec.fixed, release } }) })
+    const old = runSchema.parse({ ...f.old, id: 'legacy-no-threshold', createdAt: new Date().toISOString(), spec: toJson({ ...spec, fixed: { ...spec.fixed, release } }) })
     await f.f.repository.commit({ aggregateId: old.id, expectedRevision: 0, operationId: old.id, request: {}, records: [old], state: {} })
     const before = f.f.repository.list('run').length
     await assert.rejects(f.f.action('wallpaper-continue', { runId: old.id, operationId: 'ineligible-current', recompose: { imageVersionId: f.image.id, revision: 1, reviewPolicy: 'current' } }), { code: 'constraint-conflict', stage: 'wallpaper-review-policy' })
@@ -327,7 +328,7 @@ test('schema-valid off-canvas model plans are retained and bounded; a committed 
     const seed = async (id: string, legacy: boolean) => {
       const state = structuredClone(f.state), other = state.items[1]!, valid = other.attempts[0]!.plan
       state.items = [{ ...other, status: 'technical-failed', failedStep: 'planning', attempts: [] }]
-      const old = runSchema.parse({ ...f.old, id, data: toJson({ ...dataOf(f.old), checkpoint: { wallpaper: toJson(state) } }) })
+      const old = runSchema.parse({ ...f.old, id, createdAt: new Date().toISOString(), data: toJson({ ...dataOf(f.old), checkpoint: { wallpaper: toJson(state) } }) })
       const records: CuratorRecord[] = [old]
       if (legacy) {
         const bundle = { operation: 'wallpaper-plan', requestId: `${id}:${other.imageVersionId}:plan:1` }
@@ -347,7 +348,7 @@ test('schema-valid off-canvas model plans are retained and bounded; a committed 
     const legacy = await seed('legacy-bad', true)
     let ancestor = legacy
     for (const number of [1, 2]) {
-      const inheritedSpec = specOf(ancestor), next = runSchema.parse({ ...ancestor, id: `recomposed-descendant-${number}`, spec: toJson({ ...inheritedSpec, input: { ...inheritedSpec.input, continuationKind: 'recompose', continuationOf: ancestor.id, operationId: `ancestor-${number}`, recomposedImageId: f.image.id } }) })
+      const inheritedSpec = specOf(ancestor), next = runSchema.parse({ ...ancestor, id: `recomposed-descendant-${number}`, createdAt: new Date().toISOString(), spec: toJson({ ...inheritedSpec, input: { ...inheritedSpec.input, continuationKind: 'recompose', continuationOf: ancestor.id, operationId: `ancestor-${number}`, recomposedImageId: f.image.id } }) })
       await f.f.repository.commit({ aggregateId: next.id, expectedRevision: 0, operationId: next.id, request: {}, records: [next], state: {} }); ancestor = next
     }
     const recovered = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: ancestor.id, operationId: 'reuse-plan' })); await f.f.jobs.drain()
@@ -371,11 +372,20 @@ test('schema-valid off-canvas model plans are retained and bounded; a committed 
 test('private media quota preserves committed history and persists its safe cause', async () => {
   const f = await fixture()
   try {
+    const importBytes = f.f.files.importBytes.bind(f.f.files)
     f.f.files.importBytes = async () => { throw new MediaError('budget-exhausted', 'media', false, 'The private media storage limit is exhausted.', 'Increase the storage limit or choose a smaller import.') }
     const receipt = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: f.old.id, operationId: 'quota', recompose: { imageVersionId: f.image.id, revision: 1 } })); await f.f.jobs.drain()
     const run = f.f.domain.require('run', receipt.runId), data = dataOf(run), state = wallpaperStateSchema.parse(data.checkpoint.wallpaper)
     assert.equal(run.outcome, 'budget-exhausted'); assert.equal(state.budgetStopped, true); assert.equal(data.error?.stage, 'media'); assert.match(data.error!.safeMessage, /private media storage/)
     assert.ok(data.warnings.some(message => message.includes('private media storage'))); assert.ok(f.f.domain.require('imageVersion', f.state.items[0]!.attempts[0]!.outputId!)); assert.deepEqual(f.f.domain.require('run', f.old.id), f.old); assert.equal(f.startedImages, 0)
+    const item = state.items[0]!
+    assert.equal(item.status, 'technical-failed'); assert.equal(item.failedStep, 'rendering'); assert.equal(item.errorCode, 'budget-exhausted'); assert.equal(item.reason, data.error!.safeMessage)
+    f.f.files.importBytes = importBytes
+    const resumed = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: run.id, operationId: 'quota-recovery', retryImage: { imageVersionId: item.imageVersionId, revision: item.attempts.at(-1)!.revision, step: 'rendering' } }))
+    await f.f.jobs.drain()
+    const recovered = wallpaperStateSchema.parse(dataOf(f.f.domain.require('run', resumed.runId)).checkpoint.wallpaper).items[0]!
+    assert.equal(recovered.status, 'passed'); assert.equal(recovered.edits, item.edits); assert.equal(f.startedImages, 0)
+    assert.deepEqual(recovered.attempts.at(-1)!.generation, item.attempts.at(-1)!.generation)
   } finally { await f.cleanup() }
 })
 
@@ -384,11 +394,11 @@ test('manual JSON replans reject unsafe source geometry before creating work and
   try {
     const plan = f.state.items[0]!.attempts[0]!.plan
     const cases = [
-      { name: 'clock', placement: { ...plan.placement, top: 0 }, code: 'constraint-conflict', stage: 'wallpaper-replan' },
-      { name: 'buffer', placement: { ...plan.placement, top: 650 }, code: 'constraint-conflict', stage: 'wallpaper-replan' },
+      { name: 'above-safe-area', placement: { ...plan.placement, top: 0 }, code: 'constraint-conflict', stage: 'wallpaper-replan' },
       { name: 'critical', placement: { ...plan.placement, left: 0 }, code: 'constraint-conflict', stage: 'wallpaper-replan' },
       { name: 'off-canvas', placement: { ...plan.placement, left: 1846 }, code: 'invalid-input', stage: 'wallpaper-layout' },
     ]
+    assert.deepEqual(wallpaperGeometry(f.image.geometry, { ...plan, placement: { ...plan.placement, top: 650 } }, wallpaperSettingsSchema.parse(specOf(f.old).fixed.wallpaper)).checks, [], 'Without an explicit clock rule, safe content needs no extra clock buffer')
     const runs = f.f.repository.list('run').length, requests = f.f.repository.list('request').length
     for (const sample of cases) {
       await assert.rejects(f.f.action('wallpaper-plan-update', { runId: f.old.id, imageVersionId: f.image.id, operationId: `manual-invalid-${sample.name}`, plan: toJson({ ...plan, placement: sample.placement }) }), { code: sample.code, stage: sample.stage }, sample.name)
@@ -470,7 +480,7 @@ test('explicit background reconstruction reuses the provider receipt, preserves 
     const deniedItem = wallpaperStateSchema.parse(dataOf(f.f.domain.require('run', denied.runId)).checkpoint.wallpaper).items[0]!
     assert.equal(deniedItem.errorCode, 'image-resolution-insufficient'); assert.equal(deniedItem.attempts.at(-1)!.outputId, undefined)
     assert.deepEqual(f.operations, []); assert.equal(f.startedImages, 0)
-    const args = { runId: parent.id, operationId: 'reconstruct-saved-small-background', recompose: { imageVersionId: f.image.id, revision: 1, mode: 'protected-context-v2', backgroundResolution: 'current' } }
+    const args = { runId: denied.runId, operationId: 'reconstruct-saved-small-background', recompose: { imageVersionId: f.image.id, revision: deniedItem.attempts.at(-1)!.revision, mode: 'protected-context-v2', backgroundResolution: 'current' } }
     const receipt = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', args))
     assert.deepEqual(await f.f.action('wallpaper-continue', args), receipt)
     await f.f.jobs.drain()
@@ -499,10 +509,18 @@ test('explicit background reconstruction reuses the provider receipt, preserves 
     assert.equal(f.startedImages, 0); assert.equal(rejectedItem.edits, 2)
     const expected = JSON.parse(await readFile(new URL('./fixtures/wallpaper-continuation-receipt.expected.json', import.meta.url), 'utf8'))
     assert.deepEqual({ nativeSize: `${evidence.input.width}x${evidence.input.height}`, reconstructedSize: `${evidence.output!.width}x${evidence.output!.height}`, cumulativeImageEdits: item.edits, newGenerations: f.startedImages, protectedPixelChanges, rejectedQualifiedOutputs: f.f.repository.list('selection').filter(selection => selection.runId === rejected.runId).length }, expected.backgroundResolution)
+    const savedRevision = rejectedItem.attempts.at(-1)!.revision
+    const repeated = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: rejected.runId, operationId: 'reuse-espcn-background', recompose: { imageVersionId: f.image.id, revision: savedRevision, mode: 'protected-context-v2', backgroundResolution: 'current' } }))
+    await f.f.jobs.drain()
+    const reused = wallpaperStateSchema.parse(dataOf(f.f.domain.require('run', repeated.runId)).checkpoint.wallpaper).items[0]!.attempts.at(-1)!.backgroundResolution
+    assert.equal(reused?.enhancedId, evidence.enhancedId)
+    assert.equal(reused?.durationMs, evidence.durationMs)
+    assert.equal(reused?.reusedFromRevision, savedRevision)
+    assert.equal(f.startedImages, 0)
   } finally { await f.cleanup() }
 })
 
-test('a two-image continuation retains truthful qualification for its already-passed sibling without another review', async () => {
+for (const operation of ['replan', 'continue'] as const) test(`a two-image ${operation} retains truthful qualification for its already-passed sibling without another review`, async () => {
   const f = await fixture(true)
   try {
     const parent = z.object({ runId: z.string() }).parse(await f.f.action('wallpaper-continue', { runId: f.old.id, operationId: 'two-image-parent', recompose: { imageVersionId: f.image.id, revision: 1 } }))
@@ -511,7 +529,7 @@ test('a two-image continuation retains truthful qualification for its already-pa
     assert.ok(kept); assert.ok(target)
     const priorSelection = f.f.repository.list('selection').find(row => row.runId === prior.id && row.imageVersionId === kept.attempts.at(-1)!.outputId)!
     const priorAssessment = f.f.domain.require('assessment', priorSelection.assessmentId)
-    for (const operation of ['replan', 'continue'] as const) {
+    {
       const previousCalls = f.operations.length, previousReads = f.readHandles.length
       const started = z.object({ runId: z.string() }).parse(operation === 'replan'
         ? await f.f.action('wallpaper-plan-update', { runId: prior.id, imageVersionId: target.imageVersionId, operationId: 'two-image-replan', plan: toJson(target.attempts.at(-1)!.plan) })
@@ -548,7 +566,7 @@ test('a two-image continuation retains truthful qualification for its already-pa
         records.push(different); retained.attempts.at(-1)!.outputId = different.id; outputId = different.id
       }
       const invalidState = wallpaperStateSchema.parse({ ...saved, items: [retained] }), originalSpec = specOf(prior)
-      const invalidParent = runSchema.parse({ ...prior, id, spec: toJson({ ...originalSpec, input: { ...originalSpec.input, operationId: id, imageVersionIds: [retained.imageVersionId], targetCount: 1 }, fixed: { ...originalSpec.fixed, initialWallpaperState: toJson(invalidState) } }), data: toJson({ ...dataOf(prior), requestIds: [], checkpoint: { wallpaper: toJson(invalidState) } }) })
+      const invalidParent = runSchema.parse({ ...prior, id, createdAt: new Date().toISOString(), spec: toJson({ ...originalSpec, input: { ...originalSpec.input, operationId: id, imageVersionIds: [retained.imageVersionId], targetCount: 1 }, fixed: { ...originalSpec.fixed, initialWallpaperState: toJson(invalidState) } }), data: toJson({ ...dataOf(prior), requestIds: [], checkpoint: { wallpaper: toJson(invalidState) } }) })
       records.push(invalidParent)
       if (failure !== 'missing-selection') {
         const evidence = z.object({ settings: z.record(z.string(), z.json()) }).passthrough().parse(priorAssessment.data)
@@ -658,6 +676,6 @@ for (const receiptState of ['failed', 'outcome-unknown', 'succeeded'] as const) 
     assert.equal(after.items[0]!.edits, receiptState === 'failed' ? 2 : 1)
     assert.equal(after.items[0]!.attempts.length, receiptState === 'failed' ? 2 : 1)
     assert.deepEqual(after.items[1], state.items[1]); assert.deepEqual(f.f.domain.require('run', parent.id), parent)
-    if (receiptState === 'outcome-unknown') assert.equal(after.items[0]!.status, 'needs-review')
+    if (receiptState === 'outcome-unknown') { assert.equal(after.items[0]!.status, 'technical-failed'); assert.equal(after.items[0]!.failedStep, 'rendering') }
   } finally { await f.cleanup() }
 })

@@ -37,15 +37,15 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     const imageVersionId=`source-${index}`,plan=wallpaperPlanSchema.parse({version:1,imageVersionId,mode:'single',subject:`汽车 ${index+1}`,evidence:'Actual fixture source',priorities:[],anchors:[],truncations:[],uncertainties:[],regions:['subject','critical'].map(role=>({name:role,role,rect:{x:0.2,y:0.2,width:0.3,height:0.3}})),placement:{scale:1,left:400,top:1100},reason:'Saved valid source geometry'})
     return {imageVersionId,originalId:imageVersionId,familyId:imageVersionId,status:'passed',edits:0,attempts:[{revision:1,plan,checks:[],needsOutpaint:true,canvasId:`canvas-${index}`,layoutAnalysisId:`layout-${index}`,outputId:`output-${index}`,simulationId:`simulation-${index}`,analysisId:`analysis-${index}`,clarity:{status:'not-needed',reason:'Recorded sufficient source resolution'},review:{subject:`Car ${index+1}`,checks:Object.fromEntries(['subject','protection','clock','readability','composition','background','style'].map(key=>[key,{result:'satisfied',reason:'Recorded fixture review'}])),issues:[]}} ]}
   })
-  const counts={downloaded:100,planned:100,rendered:100,reviewed:100,passed:100},calls=[],mutations=[],waiting=[];let hold=false,workflowStatus='completed',decisionPolicy
+  const counts={downloaded:100,planned:100,rendered:100,reviewed:100,passed:100},calls=[],mutations=[],waiting=[];let hold=false,workflowStatus='completed',decisionPolicy,enhancementProgress
   const batch={runId:'fixture-search',kind:'search',createdAt:'2026-11-07T00:00:00.000Z',status:'completed',outcome:'target-met',matched:100,targetCount:100,images:[],wallpaperRequested:true,workflowSource:{modelProfileId:'profile',references:1,positive:1,negative:0,revision:1},wallpaper:{runId:'fixture-wallpaper',status:'completed',total:100,passed:100,planned:100,rendered:100,reviewed:100,attention:0,counts,complete:true}}
   const state={styleId:'fixture-style',page:{batches:[batch]},loading:false,opening:false,deleting:[]},datasets={entries:[],submissions:[]},launches={entries:[],submission:null},noop=()=>{},actions={watch:()=>noop,select:noop,refresh:noop,more:noop,moreImages:noop,remove:noop,removeWorkflow:noop}
   const workflow={style:{styleId:'fixture-style',name:'100 张隔离验证',referenceIds:[]},referenceImages:[],busy:false,canSearch:true,useDatasets:select=>select(datasets),useLaunches:select=>select(launches),launches:{openSession:noop},profileActions:{execute:noop,reconcileProfile:noop},onReferences:noop,onAnalyze:noop,onAnalysis:noop,onDatasets:noop,onRefreshDatasets:noop,onGenerateDataset:noop,onOrganize:noop,onSearch:noop,onCrop:async()=>{},onProfile:noop,wallpaper:async(operation,args)=>{
     if(operation==='wallpaper-continue'||operation==='wallpaper-control'){mutations.push({operation,args});return {runId:'fixture-wallpaper'}}
     assert.equal(operation,'wallpaper-read');calls.push([args.offset,args.limit]);if(args.runId)assert.equal(args.runId,'fixture-wallpaper');if(hold&&args.offset===99)await new Promise(resolve=>waiting.push(resolve))
     const page=items.slice(args.offset,args.offset+args.limit),resources={},previewResources={},sourceImages={}
-    for(const item of page){const id=item.attempts[0].analysisId;resources[id]=`/api/visual-curator/resource?imageVersionId=${id}`;previewResources[id]=`/api/visual-curator/resource?imageVersionId=${id}-preview`;sourceImages[item.originalId]={width:1000,height:2000,previewPath:`/api/visual-curator/resource?imageVersionId=${item.originalId}-preview`}}
-    return {runId:'fixture-wallpaper',sourceRunId:batch.runId,status:workflowStatus,settings:wallpaperSettingsSchema.parse(decisionPolicy?{decision:decisionPolicy}:{}),state:{version:1,sourceRunId:batch.runId,skillVersion:'fixture',items:page,budgetStopped:false},itemIndex:items.map(i=>({imageVersionId:i.imageVersionId,status:i.status,planned:true,previewPath:`/api/visual-curator/resource?imageVersionId=${i.imageVersionId}-preview`})),resources,previewResources,sourceImages,total:100,offset:args.offset,counts,warnings:[]}
+    for(const item of page){const id=item.attempts[0].analysisId;resources[id]=`/api/visual-curator/resource?imageVersionId=${id}`;previewResources[id]=`/api/visual-curator/resource?imageVersionId=${id}-preview`;sourceImages[item.originalId]={width:1000,height:2000,previewPath:`/api/visual-curator/resource?imageVersionId=${item.originalId}-preview`};if(item.attempts.at(-1)?.generatedImageId)for(const generatedId of [item.attempts.at(-1)?.generatedImageId,item.attempts.at(-1)?.outputId].filter(Boolean)){resources[generatedId]=`/api/visual-curator/resource?imageVersionId=${generatedId}`;previewResources[generatedId]=`/api/visual-curator/resource?imageVersionId=${generatedId}-preview`}}
+    return {runId:'fixture-wallpaper',sourceRunId:batch.runId,status:workflowStatus,settings:wallpaperSettingsSchema.parse(decisionPolicy?{decision:decisionPolicy}:{}),state:{version:1,sourceRunId:batch.runId,skillVersion:'fixture',items:page,budgetStopped:false},itemIndex:items.map(i=>({imageVersionId:i.imageVersionId,status:i.status,planned:true,previewPath:`/api/visual-curator/resource?imageVersionId=${i.imageVersionId}-preview`})),resources,previewResources,sourceImages,total:100,offset:args.offset,counts,warnings:[],...(enhancementProgress?{enhancements:enhancementProgress}:{})}
   }}
   const Canvas=createAutomaticWorkflowCanvas(React,ui),rootNode=createRoot(win.document.getElementById('root')),expected=JSON.parse(await readFile(new URL('./fixtures/workflow-image-branches.expected.json',import.meta.url),'utf8'))
   const flush=async()=>{await setImmediate();await setImmediate()}
@@ -111,7 +111,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     const feedback=globalThis.__vcPlanningProjection.edges.find(edge=>edge.data.rework)
     assert(feedback);assert(feedback.source.endsWith(':image-step:reviewing:reviewing'));assert(feedback.target.endsWith(':image-step:rendering:rendering'))
     assert.equal(feedback.data.phase,'attention');assert.equal(feedback.markerEnd.type,'arrow');assert.equal(feedback.data.flowing,false)
-    assert.equal(feedback.label,zh.wallpaperReviewReturn);assert.equal(feedback.ariaLabel,zh.wallpaperReviewReturn)
+    assert.equal(feedback.label,zh.directCropReworkStopped);assert.equal(feedback.ariaLabel,zh.directCropReworkStopped)
     const current={...reviewedAttempt,revision:2,retryFrom:'reviewing',retryTarget:'rendering'}
     for(const key of ['review','outputId','simulationId','analysisId','clarity'])delete current[key]
     reviewed.attempts.push(current);reviewed.status='rendering';workflowStatus='running'
@@ -199,7 +199,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     assert.deepEqual(mutations.at(-1).args.decision,{imageVersionId:'source-99'})
     assert.equal(decision.round,1);assert.equal(decision.status,'running')
     const batchMenuButton=()=>[...win.document.querySelectorAll('button')].find(button=>button.textContent.includes(zh.wallpaperBatchActions))
-    const batchCancel=()=>[...win.document.querySelectorAll('[role=menuitem]')].find(button=>button.textContent===zh.wallpaperCancel)
+    const batchCancel=()=>[...win.document.querySelectorAll('[role=menuitem]')].find(button=>button.textContent===zh.wallpaperCancelAllImages)
     await click(batchMenuButton());assert.equal(batchCancel().disabled,true,'A fully passed completed batch has no pending processing to cancel')
     await click(batchMenuButton())
     counts.passed=99;counts.attention=1;await directRender('pending-batch-cancel')
@@ -223,7 +223,7 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     decision.response={version:'wallpaper-decision-v1',imageVersionId:'source-99',planRevision:2,sourceExtent:{extent:'complete',reason:'The source frame is complete.'},action:{kind:'continue_current_plan'},reason:'Continue processing the existing evidence.',findings:[{concernId:'occlusion',scope:'subject',classification:'normal-occlusion',blocking:false,reason:'Preserve the observed self-occlusion without inventing hidden structure.',evidenceImageVersionIds:['source-99']}]}
     reviewed.status='rendering';await directRender(7)
     assert.equal(decisionNode().data.phase,'completed')
-    const routed=globalThis.__vcPlanningProjection.edges.find(edge=>edge.id==='direct-decision-output')
+    const routed=globalThis.__vcPlanningProjection.edges.find(edge=>edge.source===decisionNode().id&&edge.target.endsWith(':image-step:rendering:rendering'))
     assert(routed);assert.equal(routed.source,decisionNode().id);assert(routed.target.endsWith(':image-step:rendering:rendering'))
     const directStages=globalThis.__vcPlanningProjection.nodes
     for(let index=1;index<directStages.length;index++)assert(directStages[index].position.x>=directStages[index-1].position.x+directStages[index-1].style.width+100,'direct steps keep clear columns in displayed order')
@@ -250,5 +250,35 @@ test('the production canvas reuses seven mounted workflow slots across one hundr
     const automaticStages=globalThis.__vcPlanningProjection.nodes
     for(let index=1;index<automaticStages.length;index++)assert(automaticStages[index].position.x>=automaticStages[index-1].position.x+automaticStages[index-1].style.width+100,'automatic steps keep clear columns in displayed order')
     assert.equal(globalThis.__vcPlanningProjection.edges.some(edge=>edge.source.endsWith(':image-step:geometry:planning')&&edge.target.endsWith(':image-step:rendering:rendering')),false)
+    const retainedUnknown='被遮挡的叶瓣数量保持未知，不补造背面'
+    reviewed.detailInspection={origin:'manual',status:'ready-for-edit',planRevision:2,requestId:'native-ready',decisionRoundAtStart:1,reason:'左缘修复位置已确认，成品尚未复审'}
+    current.detailAnalysis={version:'wallpaper-plan-detail-v5',requestId:'native-ready',outcome:'ready-for-edit',protectedSubjectExtent:'cut-off',retainedUncertainties:[{concernId:'occluded',text:retainedUnknown}]}
+    await directRender(10)
+    let readyDetail=globalThis.__vcPlanningProjection.nodes.find(node=>node.data.stage==='detail')
+    assert(readyDetail);assert.equal(readyDetail.data.phase,'completed')
+    assert(win.document.body.textContent.includes(zh.directCropDetailReady));assert(win.document.body.textContent.includes(retainedUnknown))
+    assert(!win.document.body.textContent.includes(zh.directCropDetailUnresolved))
+    await act(async()=>{rootNode.render(h(Canvas,{styleId:'fixture-style',workflow,t:key=>zh[key],useBatches:select=>select(state),actions,onOpen:async()=>{},navigation:{view:'image',sourceRunId:batch.runId,runId:'fixture-wallpaper',imageVersionId:'source-99',serial:11}}));await flush()})
+    readyDetail=globalThis.__vcPlanningProjection.nodes.find(node=>node.data.image?.stage==='detail')
+    assert(readyDetail);assert.equal(readyDetail.data.phase,'completed')
+    assert(win.document.body.textContent.includes(retainedUnknown));assert.equal(current.review,undefined)
+    reviewed.status='rendering';workflowStatus='running';current.generatedImageId='raw-99';delete current.outputId;delete current.review
+    current.backgroundResolution={status:'enhancing',reason:'',originalId:'raw-99',input:{width:941,height:1672,digest:'raw'}}
+    enhancementProgress={'source-99':{revision:current.revision,step:'background',progress:{completed:3700,total:10000,unit:'percent'}}}
+    await directRender(20)
+    assert(win.document.querySelector('.vc-image-step-preview[data-enhancing] img[src*="raw-99"]'),'Saved generator pixels remain visible during enhancement')
+    assert(win.document.querySelector('.vc-resolution-overlay[data-moving] .vc-resolution-scan'))
+    assert(win.document.body.textContent.includes('37%'))
+    workflowStatus='paused';await directRender(21)
+    assert.equal(win.document.querySelector('.vc-resolution-overlay[data-moving]'),null,'Paused work stops scanning')
+    await click([...win.document.querySelectorAll('button')].find(button=>button.textContent.includes(zh.wallpaperBatchActions)))
+    const continuePaused=[...win.document.querySelectorAll('[role=menuitem]')].find(button=>button.textContent===zh.wallpaperContinue)
+    assert(continuePaused);assert.equal(continuePaused.disabled,false,'Saved pending images remain continuable when paused activity counters are zero')
+    const beforeContinue=mutations.length;await click(continuePaused)
+    assert.equal(mutations.length,beforeContinue+1);assert.equal(mutations.at(-1).operation,'wallpaper-continue')
+    assert.equal(mutations.at(-1).args.runId,'fixture-wallpaper');assert.equal('retryImage' in mutations.at(-1).args,false)
+    workflowStatus='completed';current.backgroundResolution.status='reviewing';current.outputId='enhanced-99';enhancementProgress=undefined
+    await directRender(22)
+    assert.equal(win.document.querySelector('.vc-resolution-overlay'),null,'Finished inference removes its processing overlay')
   }finally{await act(async()=>rootNode.unmount());dom.window.close();delete globalThis.__vcPlanningProjection;for(const[key,descriptor]of Object.entries(previous)){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key]}}
 })

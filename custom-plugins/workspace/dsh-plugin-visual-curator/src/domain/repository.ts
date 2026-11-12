@@ -243,7 +243,7 @@ export class DomainRepository {
   }
   /** @param kind Record tag. @returns Committed records in stable ID order. */
   list<K extends RecordKind>(kind: K): RecordOf<K>[] {
-    return this.recordIds(kind).map(id => this.get(kind, id)).filter((record): record is RecordOf<K> => record !== undefined)
+    return this.readSnapshot(() => this.recordIds(kind).map(id => this.get(kind, id)).filter((record): record is RecordOf<K> => record !== undefined))
   }
   /** @param input Complete aggregate mutation. @returns Original operation receipt after durability. */
   commit(input: CommitInput): Promise<CommitResult> {

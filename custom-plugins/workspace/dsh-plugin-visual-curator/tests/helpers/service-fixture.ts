@@ -67,7 +67,7 @@ export async function serviceFixture(directory?: string, limits: Partial<Limits>
   const adapter = new MemoryDomainAdapter(), repository = new DomainRepository(profileId, adapter), jobs = new FixtureJobs(), http = new FixtureHttp()
   http.image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#536f53' } }).png().toBuffer()
   const referenceImage = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#617b61' } }).png().toBuffer()
-  const config = resolveConfig({ source: { endpoint: 'https://source.example.test/search', credentialRef: '', ...sourceSettings }, vision: { backend: 'compatible', endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '', vendorVersion: 'fixture-v1' }, limits: { maxRetryAttempts: 0, maxImportBytes: 1_000_000, maxReferenceBytes: 1_000_000, maxVisionCalls: 40, maxSearchPages: 4, maxCropCandidatesPerImage: 2, ...limits } })
+  const config = resolveConfig({ wallpaper: { repairPolicy: { mode: 'preserve' } }, source: { endpoint: 'https://source.example.test/search', credentialRef: '', ...sourceSettings }, vision: { wallpaperPromptPreparation: { enabled: false }, backend: 'compatible', endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '', vendorVersion: 'fixture-v1' }, limits: { maxRetryAttempts: 0, maxImportBytes: 1_000_000, maxReferenceBytes: 1_000_000, maxVisionCalls: 40, maxSearchPages: 4, maxCropCandidatesPerImage: 2, ...limits } })
   const provider = (config: CuratorConfig) => new CompatibleVisionProvider({ endpoint: config.vision.endpoint, model: config.vision.model, supportsMultiImage: true, maxImages: 10, maxImageBytes: 1_000_000, maxRequestBytes: 10_000_000, maxOutputTokens: 4000, temperature: 0, declaredModelVersion: config.vision.vendorVersion ?? 'fixture-v1' }, http)
   const source = new SourceHttpProvider({ endpoint: config.source.endpoint, method: 'GET', request: { query: 'q', cursor: 'cursor', pageSize: 'limit' }, response: { items: '/items', id: '/id', previewUrl: '/previewUrl', originalUrl: '/originalUrl', nextCursor: '/nextCursor' }, maxPageSize: 20 }, http)
   const host: CuratorHost = { profileContext: { dir: root }, jobs, sessions: { get: () => undefined }, credentials: { resolve: async () => undefined, set: async () => { throw new Error('Fixture credential writes require an explicit observer') } }, storageDomain: { open: async () => { throw new Error('Fixture uses an explicit memory domain') } }, configEditor: { entries: () => [], edit: async () => { throw new Error('Profile editing is unavailable in this isolated fixture') } } }
@@ -78,4 +78,14 @@ export async function serviceFixture(directory?: string, limits: Partial<Limits>
   const actor: DomainActor = { kind: 'human', id: 'fixture-owner', profileId }
   const action = async (operation: string, args: Record<string, Json> = {}) => service.action({ operation, args }, actor, new AbortController().signal)
   return { root, profileId, service, jobs, http, providers, adapter, referenceImage, repository, actor, action, host, get domain() { return domain }, get files() { return mediaFiles }, cleanup: async () => { await service.dispose(); if (!directory) await rm(root, { recursive: true, force: true }) } }
+}
+
+/** Freeze portable CPU policies for recorded historical workflow regressions; production defaults remain the native general model.
+ * @param fixture Isolated service whose saved historical scenarios use the original model and budgets.
+ */
+export function useHistoricalWallpaperCpu(fixture: { service: { config: CuratorConfig } }): void {
+  const wallpaper = resolveConfig({ wallpaper: { clarity: { version: 'espcn-luma-v1' }, backgroundResolution: { version: 'espcn-background-v1' } } }).wallpaper
+  fixture.service.config.wallpaper.clarity = wallpaper.clarity
+  fixture.service.config.wallpaper.backgroundResolution = wallpaper.backgroundResolution
+  fixture.service.config.wallpaper.repairPolicy = { version: 'subject-repair-v1', mode: 'preserve', maxRepeatedDefects: 2 }
 }

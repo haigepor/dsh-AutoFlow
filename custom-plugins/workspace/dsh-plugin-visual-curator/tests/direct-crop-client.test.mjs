@@ -73,7 +73,7 @@ test('direct import requires no collection, retains selection after failure and 
     assert.deepEqual(starts[1].args.source, { kind: 'local', files: [{ path: 'C:/isolated/source.png', name: 'source.png' }] })
     assert.equal('styleId' in starts[1].args, false); assert.equal('sourceRunId' in starts[1].args, false)
     assert.equal(document.querySelector('[role="dialog"]'), null)
-    await act(async () => button(zh.directCropBatches).click())
+    assert(button(zh.directCropAddImages), 'The empty batch projection keeps the import entry reachable')
     await act(async () => button(zh.directCropAddImages).click())
     await act(async () => menuItem(zh.directCropGallery).click())
     assert(pendingGallery && !pendingGallery.aborted)
@@ -229,7 +229,7 @@ test('server connection opens separately and pending-list loads retain receipts 
   try {
     await act(async () => rendered.render(React.createElement(React.StrictMode, null, React.createElement(Queue, { ready: true, invoke, t: key => zh[key], pollMs: 60000, limit: 20, onClose() {}, onStarted() { throw Error('Must not start image work') } }))))
     assert.equal(dialogs().length, 1)
-    await act(async () => button(zh.serverFilterAll).click())
+    await act(async () => [...document.querySelectorAll('button[aria-pressed]')].find(element => element.textContent.trim().startsWith(zh.serverFilterAll)).click())
     await act(async () => button(zh.serverSettings).click())
     assert.deepEqual(dialogs().map(dialog => dialog.getAttribute('aria-label')), fixture.dialogs)
     assert.equal(document.querySelector('.vc-server-modal .vc-server-settings'), null)

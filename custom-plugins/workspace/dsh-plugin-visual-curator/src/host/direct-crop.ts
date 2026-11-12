@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve, join, sep } from 'node:path'
 import sharp from 'sharp'
 import { z } from 'zod'
+import { wallpaperPromptPreparationPolicySchema, wallpaperGenerationBriefPrompt } from '../shared/wallpaper-generation-brief.ts'
 import type { CuratorDomain } from '../domain/curator.ts'
 import { contentDigest } from '../domain/repository.ts'
 import { importedRecords } from './imports.ts'
@@ -11,7 +12,8 @@ import { directCropStartSchema, directCropMetadataSchema, directCropBatchSchema,
 import { claritySettingsSchema } from '../shared/clarity.ts'
 import { backgroundResolutionSettingsSchema } from '../shared/background-resolution.ts'
 import { wallpaperDecisionSettingsSchema } from '../shared/wallpaper-decision.ts'
-import { wallpaperWorkImage, wallpaperProgress, wallpaperSettingsSchema, wallpaperVerdict } from '../shared/wallpaper.ts'
+import { resolveWallpaperProcessing, wallpaperRepairPolicySchema, wallpaperGenerativeRepair, wallpaperRepairInstructions } from '../shared/wallpaper-policy.ts'
+import { applyWallpaperEspcn, applyWallpaperConcurrency, wallpaperWorkImage, wallpaperProgress, wallpaperSettingsSchema, wallpaperVerdict } from '../shared/wallpaper.ts'
 import { sourceFaithfulWallpaperPrompts, wallpaperBaseSkill } from '../shared/wallpaper-prompts.ts'
 import { assetSchema, imageVersionSchema, type DomainActor, type CuratorRecord, type RunRecord } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
@@ -41,6 +43,32 @@ export class DirectCropTasks {
   /** @param raw Explicit original selection. @param actor Authenticated human. @param signal Admission lifetime. @returns Stable root task identity. */
   start(raw: unknown, actor: DomainActor, signal: AbortSignal): Promise<{ runId: string }> {
     const work = this.admissions.then(() => this.startNow(raw, actor, signal))
+    this.admissions = work.then(() => {}, () => {})
+    return work
+  }
+  /** Replace one source in a settled batch; the preceding run retains its original, edits and outputs.
+   * @param raw Current task, selected image and one local file. @param actor Authenticated profile owner. @param signal Import lifetime.
+   * @returns Stable continuation identity for the replacement alone.
+   */
+  replace(raw: unknown, actor: DomainActor, signal: AbortSignal): Promise<{ runId: string }> {
+    const work = this.admissions.then(async () => {
+      if (actor.kind !== 'human' || actor.profileId !== this.deps.domain.profileId) throw new CuratorError('owner-denied', 'direct-crop-replace', 'Replacement requires the authenticated profile owner.')
+      const input = z.strictObject({ runId: z.string(), imageVersionId: z.string(), operationId: z.string(), file: z.strictObject({ path: z.string().min(1), name: z.string().min(1) }) }).parse(raw)
+      const old = this.deps.engine.get(input.runId, actor)
+      if (!isDirectCropRun(old) || ['created', 'running', 'pausing', 'cancelling', 'cancelled'].includes(old.status)) throw new CuratorError('constraint-conflict', 'direct-crop-replace', 'Pause or finish the current direct batch before replacing one original.')
+      if (!wallpaperRunState(this.deps.domain, old).items.some(item => item.imageVersionId === input.imageVersionId)) throw new CuratorError('constraint-conflict', 'direct-crop-replace', 'Refresh the selected image before replacing its original.')
+      const aggregateId = `direct-replacement:${contentDigest({ operationId: input.operationId, owner: actor })}`, inputDigest = contentDigest(input)
+      const receipt = this.deps.domain.repository.manifest(aggregateId)
+      let imageId: string
+      if (receipt) imageId = z.object({ inputDigest: z.literal(inputDigest), imageId: z.string() }).parse(receipt.state).imageId
+      else {
+        const imported = await this.deps.files.importFile(input.file.path, signal)
+        const saved = importedRecords(actor.profileId, actor, imported, { kind: 'local-import', description: input.file.name }, 'bytes-allowed')
+        imageId = saved.image.id
+        await this.deps.domain.repository.commit({ aggregateId, expectedRevision: 0, operationId: aggregateId, request: { inputDigest }, records: saved.records, state: { inputDigest, imageId } })
+      }
+      return await this.deps.wallpaper.continue({ runId: input.runId, operationId: input.operationId, imageAction: { action: 'replace', imageVersionId: input.imageVersionId, replacementId: imageId } }, actor)
+    })
     this.admissions = work.then(() => {}, () => {})
     return work
   }
@@ -89,15 +117,16 @@ export class DirectCropTasks {
       await this.deps.domain.repository.commit({ aggregateId, expectedRevision: 0, operationId: aggregateId, request: { inputDigest, index }, records, state: { inputDigest, imageId } })
       images.push(imageId)
     }
-    const requested = wallpaperSettingsSchema.parse({ ...config.wallpaper, decision: config.wallpaper.decision ?? wallpaperDecisionSettingsSchema.parse({}), clarity: config.wallpaper.clarity ?? claritySettingsSchema.parse({}), backgroundResolution: config.wallpaper.backgroundResolution ?? backgroundResolutionSettingsSchema.parse({}), learningEnabled: false, autoPromote: false })
+    const requested = wallpaperSettingsSchema.parse({ ...config.wallpaper, backgroundAlignment: config.wallpaper.backgroundAlignment ?? wallpaperSettingsSchema.shape.backgroundAlignment.unwrap().parse({}), sourceFrameRepair: config.wallpaper.sourceFrameRepair ?? wallpaperSettingsSchema.shape.sourceFrameRepair.unwrap().parse({}), decision: config.wallpaper.decision ?? wallpaperDecisionSettingsSchema.parse({}), clarity: config.wallpaper.clarity ?? claritySettingsSchema.parse({}), backgroundResolution: config.wallpaper.backgroundResolution ?? backgroundResolutionSettingsSchema.parse({}), learningEnabled: false, autoPromote: false })
     let imageModel = requested.imageModel
     if (!imageModel && this.deps.imageModels) {
       try { imageModel = (await this.deps.imageModels(requested.imageProvider))[0]?.id ?? '' }
       catch (error) { /* An unavailable optional image route leaves pure cropping available. */ }
     }
-    const prompts = sourceFaithfulWallpaperPrompts(), settings = { ...requested, imageModel }
-    const normalized = { workflow: 'wallpaper-direct-v1', operationId: input.operationId, sourceRunId: runId, imageVersionIds: images, targetCount: images.length, taskBrief: '忠于指定原图；完整保留主体、关键结构、颜色、材质和标识，严格遵守锁屏安全区与可读性要求' }
-    const fixed = { directCrop: toJson({ version: 'direct-crop-v1', name: input.name, origin: input.source.kind, inputDigest }), directPolicy: toJson({ version: 'source-faithful-v1', promptDigest: contentDigest(prompts) }), prompts: toJson(prompts), promptDigest: contentDigest(prompts), wallpaper: toJson(settings), skill: { id: 'direct-original-base-v1', content: wallpaperBaseSkill } }
+    const settings = { ...requested, imageModel, processing: resolveWallpaperProcessing(requested.processing), repairPolicy: requested.repairPolicy ?? wallpaperRepairPolicySchema.parse({}) }, prompts = sourceFaithfulWallpaperPrompts(settings)
+    applyWallpaperConcurrency(settings); applyWallpaperEspcn(settings)
+    const normalized = { workflow: 'wallpaper-direct-v1', operationId: input.operationId, sourceRunId: runId, imageVersionIds: images, targetCount: images.length, taskBrief: wallpaperGenerativeRepair(settings) ? wallpaperRepairInstructions : '忠于指定原图；保留现有主体、关键结构、颜色、材质和标识；允许经局部核实的画框边缘自然扩图，新增部位必须独立复审；严格遵守主体安全区与画面质量要求' }
+    const fixed = { reviewOrder: 'generation-before-resolution-v1', generationPrompt: toJson(wallpaperGenerationBriefPrompt), generationPromptPolicy: toJson(wallpaperPromptPreparationPolicySchema.parse(config.vision.wallpaperPromptPreparation ?? {})), directCrop: toJson({ version: 'direct-crop-v1', name: input.name, origin: input.source.kind, inputDigest }), directPolicy: toJson({ version: wallpaperGenerativeRepair(settings) ? 'subject-repair-v1' : 'source-faithful-v2', promptDigest: contentDigest(prompts) }), prompts: toJson(prompts), promptDigest: contentDigest(prompts), wallpaper: toJson(settings), skill: { id: 'direct-original-base-v1', content: wallpaperGenerativeRepair(settings) ? wallpaperRepairInstructions : wallpaperBaseSkill } }
     const spec = executionSchema.parse({ kind: 'crop', config, input: normalized, fixed, specDigest: contentDigest({ kind: 'crop', config, input: normalized, fixed }) })
     return { runId: (await this.deps.engine.create(spec, owner, this.deps.wallpaper.worker(), input.operationId)).id }
   }
@@ -105,18 +134,30 @@ export class DirectCropTasks {
   /** @param actor Authenticated human. @param offset First root batch. @returns Bounded newest-first actual crop batches, each following its latest continuation. */
   list(actor: DomainActor, offset = 0, runId?: string): { batches: DirectCropBatch[]; total: number; nextOffset?: number } {
     if (actor.kind !== 'human' || actor.profileId !== this.deps.domain.profileId) throw new CuratorError('owner-denied', 'direct-crop-list', 'Direct batches require the profile owner.')
-    const runs = this.deps.domain.repository.list('run').filter(isDirectCropRun)
-    const hidden = hiddenTaskIds(this.deps.domain.repository)
-    const roots = runs.filter(run => !hidden.has(run.id) && specOf(run).input.sourceRunId === run.id && (!runId || run.id === runId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
-    const limit = this.deps.config().limits.pageSize
-    const batches = roots.slice(offset, offset + limit).map(root => {
-      this.deps.engine.get(root.id, actor)
-      const batch = wallpaperBatch(this.deps.domain, root), current = batch.current
-      this.deps.engine.get(current.id, actor)
-      const metadata = directCropMetadataSchema.parse(specOf(root).fixed.directCrop), state = wallpaperRunState(this.deps.domain, current), counts = wallpaperProgress(state, wallpaperWorkImage(specOf(current).input), current.status), data = dataOf(current)
-      return directCropBatchSchema.parse({ runId: root.id, directCrop: true, removable: batch.stopped, name: metadata.name, origin: metadata.origin, kind: 'crop', status: current.status, createdAt: root.createdAt, taskBrief: metadata.name, matched: state.items.length, unavailable: false, images: [], wallpaper: { runId: current.id, status: current.status, total: state.items.length, planned: counts.planned, rendered: counts.rendered, reviewed: counts.reviewed, passed: counts.passed, attention: counts.attention, budgetStopped: state.budgetStopped, counts, ...(data.error ? { errorCode: data.error.code } : {}) } })
+    return this.deps.domain.repository.readSnapshot(() => {
+      const runs = this.deps.domain.repository.list('run').filter(isDirectCropRun)
+      const continuations = new Map<string, RunRecord[]>()
+      for (const run of runs) {
+        const sourceRunId = specOf(run).input.sourceRunId
+        if (typeof sourceRunId !== 'string') throw new CuratorError('reference-unavailable', 'direct-crop-list', 'A direct-crop task is missing its source run identity.')
+        const related = continuations.get(sourceRunId) ?? []
+        related.push(run)
+        continuations.set(sourceRunId, related)
+      }
+      for (const related of continuations.values()) related.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+      const hidden = hiddenTaskIds(this.deps.domain.repository)
+      const roots = runs.filter(run => !hidden.has(run.id) && specOf(run).input.sourceRunId === run.id && (!runId || run.id === runId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+      const limit = this.deps.config().limits.pageSize
+      const batches = roots.slice(offset, offset + limit).map(root => {
+        this.deps.engine.authorize(root, actor)
+        const related = continuations.get(root.id)!, current = related[0]!
+        this.deps.engine.authorize(current, actor)
+        const stopped = ['completed', 'failed', 'cancelled'].includes(current.status) && !related.some(run => ['created', 'running', 'pausing', 'cancelling'].includes(run.status))
+        const metadata = directCropMetadataSchema.parse(specOf(root).fixed.directCrop), state = wallpaperRunState(this.deps.domain, current), counts = wallpaperProgress(state, wallpaperWorkImage(specOf(current).input), current.status), data = dataOf(current)
+        return directCropBatchSchema.parse({ runId: root.id, directCrop: true, removable: stopped, name: metadata.name, origin: metadata.origin, kind: 'crop', status: current.status, createdAt: root.createdAt, taskBrief: metadata.name, matched: state.items.length, unavailable: false, images: [], wallpaper: { runId: current.id, status: current.status, total: state.items.length, planned: counts.planned, rendered: counts.rendered, reviewed: counts.reviewed, passed: counts.passed, attention: counts.attention, budgetStopped: state.budgetStopped, counts, ...(data.error ? { errorCode: data.error.code } : {}) } })
+      })
+      return { batches, total: roots.length, ...(offset + limit < roots.length ? { nextOffset: offset + limit } : {}) }
     })
-    return { batches, total: roots.length, ...(offset + limit < roots.length ? { nextOffset: offset + limit } : {}) }
   }
 
   /** @param raw Confirmed root batch and idempotent action identity. @param actor Profile owner. @returns Durable list removal; original files, outputs and all run records remain addressable. */
@@ -142,7 +183,7 @@ export class DirectCropTasks {
     const run = this.deps.engine.get(runId, actor)
     if (actor.kind !== 'human' || !isDirectCropRun(run)) throw new CuratorError('owner-denied', 'direct-crop-output', 'Choose a direct-original task owned by this profile.')
     const state = wallpaperRunState(this.deps.domain, run), item = state.items.find(item => item.imageVersionId === imageVersionId), attempt = item?.attempts.at(-1)
-    if (!item || item.status !== 'passed' || !attempt?.review || wallpaperVerdict(attempt.review) !== 'pass' || attempt.checks.length || !attempt.outputId) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'The current output has not passed independent review.')
+    if (!item || item.status !== 'passed' || !attempt?.review || wallpaperVerdict(attempt.review) !== 'pass' || attempt.checks.length || !attempt.outputId || attempt.preResolutionReview && attempt.preResolutionReview.finalId !== attempt.outputId) throw new CuratorError('constraint-conflict', 'direct-crop-output', 'The current output has no matching generated-image review and completed processing evidence.')
     const latest = this.deps.domain.repository.list('run').filter(row => isDirectCropRun(row) && specOf(row).input.sourceRunId === state.sourceRunId).sort((a,b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0]
     if (latest?.id !== run.id) throw new CuratorError('revision-conflict', 'direct-crop-output', 'A newer task owns this image; inspect its latest result.')
     const image = this.deps.domain.authorizedImage(attempt.outputId, actor).image, settings = wallpaperSettingsSchema.parse(specOf(run).fixed.wallpaper)
@@ -175,7 +216,7 @@ export class DirectCropTasks {
       const name = String(state.items.indexOf(item) + 1).padStart(3, '0') + '-' + image.id.slice(-12) + '.png'
       await save(join(output, name), bytes)
       const source = this.deps.domain.authorizedImage(item.originalId!, actor), original = item.download?.originalBlob ?? source.asset.originalBlob ?? source.image.blob
-      rows.push({ name, imageVersionId: image.id, sourceImageVersionId: item.originalId!, sourceDigest: original.digest, outputDigest: image.blob.digest, width: settings.width, height: settings.height, review: attempt.review })
+      rows.push({ name, imageVersionId: image.id, sourceImageVersionId: item.originalId!, sourceDigest: original.digest, outputDigest: image.blob.digest, width: settings.width, height: settings.height, reviewedImageVersionId: attempt.preResolutionReview?.nativeId ?? image.id, postProcessing: attempt.preResolutionReview ? attempt.backgroundResolution ? { kind: 'super-resolution', model: attempt.backgroundResolution.model, modelSha256: attempt.backgroundResolution.modelSha256, postResolutionModelReview: false } : { kind: 'layout-render-only', postResolutionModelReview: false } : { kind: 'legacy-output-review' }, review: attempt.review })
     }
     await save(join(output, 'manifest.json'), Buffer.from(JSON.stringify({ version: 'direct-crop-export-v1', runId: run.id, sourceRunId: state.sourceRunId, policy: specOf(run).fixed.directPolicy, files: rows, excluded: state.items.length - accepted.length }, null, 2) + '\n', 'utf8'))
     return { directory: output, files: rows.length, excluded: state.items.length - accepted.length }

@@ -1,5 +1,7 @@
 /** Protocol integration uses real media, persistence and crop/review code with isolated vision responses. */
 import assert from 'node:assert/strict'
+import { wallpaperFixtureResponse } from './helpers/wallpaper-response.ts'
+import { wallpaperGenerationBriefOutputSchema, wallpaperPromptPreparationPolicySchema } from '../src/shared/wallpaper-generation-brief.ts'
 import { test } from 'node:test'
 import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -27,7 +29,7 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
   const f = await serviceFixture(); await f.service.initialize()
   const config = resolveConfig({ source: { endpoint: 'https://source.example.test', credentialRef: '' }, vision: { backend: 'compatible', endpoint: 'https://vision.example.test/chat', model: 'fixture', credentialRef: '' }, limits: { maxRetryAttempts: 0 } })
   const scenario = options.rework ? serverReworkScenario(f.root) : undefined
-  if (scenario) { config.wallpaper.imageProvider = 'isolated-images'; config.wallpaper.imageModel = 'isolated-background'; config.wallpaper.maxReworks = 1 }
+  if (scenario) { config.wallpaper.imageProvider = 'isolated-images'; config.wallpaper.imageModel = 'isolated-background'; config.wallpaper.maxReworks = 1; config.wallpaper.repairPolicy = { version: 'subject-repair-v1', mode: 'preserve', maxRepeatedDefects: 2 }; config.vision.wallpaperPromptPreparation = wallpaperPromptPreparationPolicySchema.parse({ reasoningEffort: 'high' }) }
   const original = await sharp({ create: { width: 2400, height: 4000, channels: 3, background: '#536f53' } }).png().toBuffer()
   const md5 = createHash('md5').update(original).digest('hex'), items = Array.from({ length: count }, (_, index) => ({ id: String(index + 11), name: 'same-name.png', title: 'Untrusted article text', img_url: 'https://images.example.test/' + index, md5, size: String(original.length), update_time: '123' }))
   let mode: 'success' | 'timeout' | 'wrong-id' | 'rejected' = 'success', badReview = false, downloads = 0, maxActive = 0, active = 0
@@ -60,6 +62,14 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
     if (!url.startsWith('https://vision.example.test')) return oldRequest(url, request)
     const messages = z.object({ messages: z.array(z.object({ role: z.string(), content: z.union([z.string(), z.array(z.object({ text: z.string().optional() }).passthrough())]) })) }).parse(JSON.parse(Buffer.from(request.body!).toString('utf8'))).messages
     const content = messages.find(row => row.role === 'user')!.content; assert.ok(Array.isArray(content))
+    const preparedBrief = wallpaperGenerationBriefOutputSchema.safeParse(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), {}))
+    if (preparedBrief.success) {
+      const usage = z.object({ input: z.object({ usage: z.object({ plan: z.object({ editPrompt: z.string().optional() }), previousReview: z.object({ checks: z.record(z.string(), z.object({ result: z.string(), reason: z.string() })) }).optional() }) }) }).parse(JSON.parse(content[0]!.text!)).input.usage
+      const repair = [usage.plan.editPrompt, ...Object.values(usage.previousReview?.checks ?? {}).filter(check => check.result !== 'satisfied').map(check => check.reason)].filter(Boolean).join('\n')
+      const authored = { ...preparedBrief.data, ...(repair ? { repairInstructions: repair, generationPrompt: `${preparedBrief.data.generationPrompt}\n${repair}` } : {}) }
+      observations.push('wallpaper-generation-brief')
+      return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(authored) }, finish_reason: 'stop' }] })) }
+    }
     const input = z.object({ input: z.object({ operation: z.string(), images: z.array(z.object({ role: z.string(), imageVersionId: z.string() })), usage: z.unknown().optional() }) }).parse(JSON.parse(content[0]!.text!)).input
     observations.push(input.operation)
     if (input.operation === 'wallpaper-review' && observations.filter(operation => operation === 'wallpaper-review').length === 2) await options.secondReview
@@ -67,7 +77,7 @@ async function fixture(count = 1, options: { autoDeliver?: boolean; secondReview
       reviewVersion: 'wallpaper-review-source-v1', subject: 'Isolated central subject', checks: { ...Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: badReview && key === 'background' ? 'violated' : 'satisfied', reason: 'Isolated observation.' }])), clarity: { result: 'satisfied', reason: 'Isolated clarity.' } }, issues: [], styleResults: [], subjectIntegrity: { mode: 'single', source: { extent: 'complete', reason: 'Isolated source.', imageVersionId: input.images.find(image => image.role === 'wallpaper-original')!.imageVersionId }, output: { extent: 'complete', reason: 'Isolated output.', imageVersionId: input.images.find(image => image.role === 'actual-wallpaper')!.imageVersionId }, task: { result: 'satisfied', reason: 'Isolated task.' } },
     }
     const reply = scenario ? scenario.reply(input, result) : result
-    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(reply) }, finish_reason: 'stop' }] })) }
+    return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(wallpaperFixtureResponse(JSON.parse(content[0]!.text!), reply)) }, finish_reason: 'stop' }] })) }
   }
   let queue: ServerQueue
   const engine = new RunEngine(f.repository, f.jobs), wallpaper = new WallpaperWorkflows({ domain: f.domain, files: f.files, engine, config: () => config, vision: f.providers.vision, source: f.providers.source, media: f.providers.media, skill: () => ({ id: 'isolated', content: 'Scripted fixture' }), ...(scenario ? { llm: scenario.llm, attachments: scenario.attachments } : {}), ...(options.autoDeliver ? { approved: (run, imageVersionId) => queue.deliver(run, imageVersionId) } : {}) })

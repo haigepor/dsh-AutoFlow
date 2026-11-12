@@ -13,6 +13,7 @@ import { jsonSchema, runSchema, requestSchema, type Json, type RunRecord, type D
 import { settingsSchema, type Limits } from './config.ts'
 import { analysisProcessSchema, type AnalysisProcess, type ProcessUpdate, type AnalysisStreamFrame, type AnalysisContinuation } from '../shared/analysis-process.ts'
 import { updateAnalysisProcess } from './analysis-process.ts'
+import { wallpaperSettingsSchema } from '../shared/wallpaper.ts'
 
 declare module '@deepseek-ai/dsh-jobs' { interface JobKindMap { visualCurator: 'visual-curator' } }
 const countersSchema = z.strictObject({ vision: z.number().int().nonnegative(), search: z.number().int().nonnegative(), downloadBytes: z.number().int().nonnegative(), deadlineAt: z.number().finite() })
@@ -50,6 +51,11 @@ export class BudgetLedger {
     return this.snapshot()
   }
   snapshot(): BudgetCounters { return structuredClone(this.counters) }
+  /** Return an unused wallpaper review slot only when no vision request was dispatched against it. */
+  releaseUnusedVision(): void {
+    if (this.counters.vision <= 0) throw new CuratorError('constraint-conflict', 'budget', 'There is no unused vision reservation to release.')
+    this.counters.vision--
+  }
   remainingBytes(): number { return this.limits.maxDownloadBytes - this.counters.downloadBytes }
   /** Known complete downloads release unused reserved bytes; unknown attempts keep their reservation. */
   settleDownload(reservedBytes: number, actualBytes: number): void {
@@ -204,7 +210,7 @@ export interface WorkContext {
   current(): RunRecord
   report(update: ProcessUpdate): void
   save(stage: NonNullable<RunRecord['stage']>, patch: Partial<RunData>, records?: CuratorRecord[]): Promise<void>
-  request<T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>, previous?: PreviousRequestFailure) => Promise<T>, summarize?: (result: T) => Json): Promise<T>
+  request<T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>, previous?: PreviousRequestFailure) => Promise<T>, summarize?: (result: T) => Json, options?: { reservedVision?: boolean }): Promise<T>
 }
 export type Worker = (context: WorkContext) => Promise<NonNullable<RunRecord['outcome']>>
 
@@ -440,7 +446,7 @@ export class RunEngine {
         runId: id, signal: executionSignal, spec, ledger,
         current: () => this.repository.get('run', id)!, report: update => this.report(id, update),
         save, checkAdmission,
-        request: async <T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>, previous?: PreviousRequestFailure) => Promise<T>, summarize?: (result: T) => Json): Promise<T> => {
+        request: async <T>(kind: 'vision' | 'search' | 'download', bundle: Json, work: (signal: AbortSignal, recordMetadata: (metadata: Json) => Promise<void>, previous?: PreviousRequestFailure) => Promise<T>, summarize?: (result: T) => Json, options?: { reservedVision?: boolean }): Promise<T> => {
           checkAdmission()
           // 用持久化的失败回执计算余量，服务重启不能重新获得同一批的重试次数。
           const digest = contentDigest(bundle)
@@ -468,9 +474,12 @@ export class RunEngine {
               try { await waitForRetry(spec.config.limits.retryDelayMs * retry, undefined, { signal: admissionSignal }) }
               catch (error) { admissionSignal.throwIfAborted(); throw error }
             }
-            const release = kind === 'vision' ? await this.acquireVision(this.capacity?.maxConcurrentRequests ?? spec.config.limits.maxConcurrentRequests, admissionSignal) : () => {}
+            const wallpaper = spec.input.workflow === 'wallpaper-v1' || spec.input.workflow === 'wallpaper-direct-v1'
+            const concurrency = wallpaper ? wallpaperSettingsSchema.parse(spec.fixed.wallpaper).concurrency : this.capacity?.maxConcurrentRequests ?? spec.config.limits.maxConcurrentRequests
+            const release = kind === 'vision' ? await this.acquireVision(concurrency, admissionSignal) : () => {}
             try {
-              checkAdmission(); await ledger.reserve(kind)
+              checkAdmission()
+              if (!(kind === 'vision' && retry === 0 && options?.reservedVision)) await ledger.reserve(kind)
               if (retry > 0 && kind === 'vision' && spec.kind === 'analyze') {
                 const previous = this.process(ctx.current())?.messages?.at(-1)
                 ctx.report({ phase: previous?.kind === 'summary' ? 'summarizing' : 'analyzing', resetOutput: true, ...(previous ? { imageIds: previous.imageIds, ...(previous.batch !== undefined ? { batch: previous.batch } : {}) } : {}) })

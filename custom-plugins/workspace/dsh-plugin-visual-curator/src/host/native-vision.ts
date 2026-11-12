@@ -14,7 +14,7 @@ import { toJson } from './runtime.ts'
 
 /** Capabilities resolved by the profile, with no private HTTP model adapter. */
 export interface NativeVisionDependencies {
-  llm: Pick<LlmRuntime, 'prepareCall'>
+  llm: Pick<LlmRuntime, 'prepareCall'> & Partial<Pick<LlmRuntime, 'resolveModelInfo'>>
   attachments: Pick<AttachmentStore, 'saveImages' | 'readImage'>
   media: HttpClient
 }
@@ -66,6 +66,15 @@ export class NativeVisionProvider extends StructuredVisionProvider {
   /** Validate the current registered model before a job can reserve a paid request. */
   async preflight(signal?: AbortSignal): Promise<void> { await this.prepare(signal) }
 
+  /** @param signal Registry lookup lifetime. @returns The greatest effort advertised for this exact registered route. */
+  override async maximumReasoningEffort(signal: AbortSignal): Promise<string> {
+    const resolve = this.dependencies.llm.resolveModelInfo
+    if (!resolve) return await super.maximumReasoningEffort(signal)
+    const info = await resolve.call(this.dependencies.llm, this.provider, this.config.model, signal)
+    const effort = info.reasoning?.efforts.at(-1)?.id
+    if (!effort) return await super.maximumReasoningEffort(signal)
+    return effort
+  }
   private async prepare(signal?: AbortSignal, reasoningEffort?: string): Promise<PreparedLlmCall> {
     try {
       const prepared = await this.dependencies.llm.prepareCall({ provider: this.provider, model: this.config.model,
@@ -93,7 +102,9 @@ export class NativeVisionProvider extends StructuredVisionProvider {
       // Warm shared reference attachments once, then let model streams proceed concurrently.
       await waitForImagePreparation(previousPreparation, signal)
       preparationQueueMs = Date.now() - startedAt
-      const prepared = await this.prepare(signal, input.reasoningEffort), inputs: SaveImageAttachment[] = [], sources: { imageVersionId: string; sourceDigest: string; byteDigest: string }[] = []
+      const prepared = await this.prepare(signal, input.reasoningEffort)
+      if (input.wallpaperPrompt?.version === 'wallpaper-generation-brief-v1' && prepared.config.reasoningEffort !== input.reasoningEffort) throw new MediaError('capability-unavailable', 'generation-brief', false, 'The requested prompt-preparation reasoning effort was not applied.', 'Check the selected reviewer route; authoring cannot silently reduce its requested reasoning level.')
+      const inputs: SaveImageAttachment[] = [], sources: { imageVersionId: string; sourceDigest: string; byteDigest: string }[] = []
       const refsByIndex = new Map<number, ImageAttachmentRef>(), missing: { index: number; key: string }[] = []
       let totalBytes = 0, downloadedBytes = 0
       let reservation: Awaited<ReturnType<NonNullable<VisionBounds['reserveDownload']>>> | undefined

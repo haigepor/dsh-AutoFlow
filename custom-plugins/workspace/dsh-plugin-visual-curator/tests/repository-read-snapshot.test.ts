@@ -98,6 +98,17 @@ test('one synchronous read scope verifies each record once and returns independe
   } finally { await repository.close() }
 })
 
+test('list outside a caller scope reads manifests once while verifying records', async () => {
+  const { adapter, repository, commit } = setup()
+  try {
+    await commit(0, 'initial')
+    adapter.resetReads()
+    assert.equal(repository.list('suggestion')[0]?.text, 'Saved content')
+    assert.equal(adapter.manifestReads, 1)
+    assert.equal(adapter.recordReads, 1)
+  } finally { await repository.close() }
+})
+
 test('nested read scopes share a snapshot and an exception releases only the scope that owns it', async () => {
   const { adapter, repository, commit } = setup()
   try {

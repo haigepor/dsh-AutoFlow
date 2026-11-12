@@ -2,7 +2,7 @@
   "workflow": "wallpaper-direct-v1",
   "stateVersion": 2,
   "origin": "local",
-  "reviewVersion": "wallpaper-review-source-v1",
+  "reviewVersion": "wallpaper-review-source-v4",
   "modelOperations": ["wallpaper-plan", "wallpaper-review"],
   "trainingRecords": { "style": 0, "reference": 0, "modelProfile": 0, "release": 0 }
 }

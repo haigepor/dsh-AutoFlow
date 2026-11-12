@@ -9,7 +9,8 @@ import type { AssetFiles } from '../media/assets.ts'
 import { wallpaperDecisionVisionSchema } from '../media/vision.ts'
 import { wallpaperGeometry } from '../media/wallpaper-render.ts'
 import { wallpaperPlanConcerns, wallpaperPlanDetailRect } from '../shared/wallpaper-detail.ts'
-import { wallpaperPlanSchema, wallpaperSourceRestricted, wallpaperVerdict, wallpaperReworkCount, type WallpaperItem, type WallpaperSettings } from '../shared/wallpaper.ts'
+import { wallpaperPlanSchema, wallpaperSourceRestricted, wallpaperVerdict, wallpaperReworkCount, wallpaperEdgeRepairAuthorized, type WallpaperItem, type WallpaperSettings } from '../shared/wallpaper.ts'
+import { wallpaperFindingBlocksEditing } from '../shared/wallpaper-evidence.ts'
 import type { WallpaperDecisionActionKind, WallpaperDecisionConcern, WallpaperDecisionRecord, WallpaperDecisionResponse } from '../shared/wallpaper-decision.ts'
 import type { CuratorRecord, ImageVersion } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
@@ -28,7 +29,7 @@ export interface WallpaperDecisionDependencies {
   source: ImageVersion
   original: VisionImage
   settings: WallpaperSettings
-  prompt?: { version: 'wallpaper-decision-v1'; text: string }
+  prompt?: { version: 'wallpaper-decision-v1' | 'wallpaper-decision-v2'; text: string }
   taskBrief: string
   rules: readonly VisionRule[]
   supportsDetail: boolean
@@ -59,7 +60,12 @@ export function wallpaperDecisionReplan(item: WallpaperItem, revision: number): 
 }
 
 function concernsFor(item: WallpaperItem, attempt: Attempt): WallpaperDecisionConcern[] {
-  const concerns: WallpaperDecisionConcern[] = wallpaperPlanConcerns(attempt.plan).map(concern => concern.id === 'protected-regions' ? { ...concern, scope: 'critical' as const } : concern)
+  const detail = attempt.detailAnalysis
+  const base = detail?.version === 'wallpaper-plan-detail-v5' && detail.concerns ? detail.concerns : wallpaperPlanConcerns(attempt.plan)
+  const concerns: WallpaperDecisionConcern[] = base.map(concern => {
+    const savedScope = detail?.findings?.find(finding => finding.concernId === concern.id)?.scope ?? item.decisions?.findLast(record => record.planRevision === attempt.revision && record.response?.findings.some(finding => finding.concernId === concern.id))?.response?.findings.find(finding => finding.concernId === concern.id)?.scope
+    return savedScope ? { ...concern, scope: savedScope } : concern.id === 'protected-regions' ? { ...concern, scope: 'critical' as const } : concern
+  })
   if (attempt.detailAnalysis?.outcome === 'violated') concerns.push({ id: 'source-violation', text: item.reason || 'Saved native source review established a source integrity violation.', scope: 'subject' })
   if (attempt.review) for (const [key, check] of Object.entries(attempt.review.checks)) if (check.result !== 'satisfied') concerns.push({ id: `review:${key}`, text: check.reason, ...(key === 'subject' ? { scope: 'subject' as const } : key === 'protection' ? { scope: 'critical' as const } : {}) })
   if (item.errorCode) concerns.push({ id: `technical:${item.failedStep ?? 'planning'}`, text: `${item.errorCode}: ${item.reason ?? 'Saved processing step failed.'}`, scope: 'technical' })
@@ -67,26 +73,37 @@ function concernsFor(item: WallpaperItem, attempt: Attempt): WallpaperDecisionCo
   return concerns
 }
 
-/** Bind known critical concerns to native views that cover every saved critical region.
+function editEvidenceFor(attempt: Attempt, settings: WallpaperSettings) {
+  const detail = attempt.detailAnalysis
+  if (detail?.version !== 'wallpaper-plan-detail-v5' || !detail.protectedSubjectExtent || !detail.findings) return {}
+  return { editEvidence: { outcome: detail.outcome, sourceExtent: detail.protectedSubjectExtent, findings: detail.findings.map(({ result: _result, ...finding }) => finding), ...(wallpaperEdgeRepairAuthorized(attempt, settings) ? { edgeRepair: detail.edgeRepair } : {}) } }
+}
+
+/** Bind each critical concern to covering native views; an unlocalized concern requires all saved critical regions.
  * @param input Prepared decision input with Host-measured crop representations.
  * @returns The logged input retaining explicit crop restrictions and unresolved missing coverage.
  */
 export function bindWallpaperDecisionEvidence(input: VisionInput): VisionInput {
-  const usage = z.object({ decision: z.object({ concerns: z.array(z.object({ id: z.string(), text: z.string(), scope: z.string().optional(), detailImageVersionIds: z.array(z.string()).optional() }).passthrough()), plan: wallpaperPlanSchema }).passthrough(), imageRepresentations: z.array(z.object({ imageVersionId: z.string(), sourceImageVersionId: z.string().optional(), sourceRect: rectSchema.optional() }).passthrough()) }).passthrough().parse(input.usage)
+  const usage = z.object({ decision: z.object({ concerns: z.array(z.object({ id: z.string(), text: z.string(), scope: z.string().optional(), detailImageVersionIds: z.array(z.string()).optional() }).passthrough()), plan: wallpaperPlanSchema, detailAnalysis: z.object({ findings: z.array(z.object({ concernId: z.string(), sourceRegion: rectSchema.optional() })).optional() }).nullable().optional() }).passthrough(), imageRepresentations: z.array(z.object({ imageVersionId: z.string(), sourceImageVersionId: z.string().optional(), sourceRect: rectSchema.optional() }).passthrough()) }).passthrough().parse(input.usage)
   const sourceId = input.images.find(image => image.role === 'wallpaper-original')!.imageVersionId
   const regions = usage.decision.plan.regions.filter(region => region.role === 'critical')
-  const covering = usage.imageRepresentations.filter(view => view.sourceImageVersionId === sourceId && view.sourceRect && input.images.some(image => image.imageVersionId === view.imageVersionId && image.role === 'wallpaper-original-detail-only') && regions.length && regions.every(region => region.rect.x >= view.sourceRect!.x && region.rect.y >= view.sourceRect!.y && region.rect.x + region.rect.width <= view.sourceRect!.x + view.sourceRect!.width && region.rect.y + region.rect.height <= view.sourceRect!.y + view.sourceRect!.height)).map(view => view.imageVersionId)
-  return { ...input, usage: { ...usage, decision: { ...usage.decision, concerns: usage.decision.concerns.map(concern => concern.scope === 'critical' && concern.detailImageVersionIds === undefined ? { ...concern, detailImageVersionIds: covering } : concern) } } }
+  return { ...input, usage: { ...usage, decision: { ...usage.decision, concerns: usage.decision.concerns.map(concern => {
+    if (concern.scope !== 'critical' || concern.detailImageVersionIds !== undefined) return concern
+    const observed = usage.decision.detailAnalysis?.findings?.find(finding => finding.concernId === concern.id)?.sourceRegion
+    const required = observed ? [observed] : regions.map(region => region.rect)
+    const covering = usage.imageRepresentations.filter(view => view.sourceImageVersionId === sourceId && view.sourceRect && input.images.some(image => image.imageVersionId === view.imageVersionId && image.role === 'wallpaper-original-detail-only') && required.length && required.every(region => region.x >= view.sourceRect!.x && region.y >= view.sourceRect!.y && region.x + region.width <= view.sourceRect!.x + view.sourceRect!.width && region.y + region.height <= view.sourceRect!.y + view.sourceRect!.height)).map(view => view.imageVersionId)
+    return { ...concern, detailImageVersionIds: covering }
+  }) } } }
 }
 
 function allowedFor(deps: WallpaperDecisionDependencies, attempt: Attempt): WallpaperDecisionActionKind[] {
   const { item, settings } = deps, actions: WallpaperDecisionActionKind[] = []
-  const sourceBlocked = wallpaperSourceRestricted(item) || attempt.detailAnalysis?.outcome === 'violated' || attempt.review && 'subjectIntegrity' in attempt.review && attempt.review.subjectIntegrity.source.extent === 'cut-off'
+  const sourceBlocked = wallpaperSourceRestricted(item) || attempt.detailAnalysis?.outcome === 'violated' || attempt.review && 'subjectIntegrity' in attempt.review && attempt.review.subjectIntegrity.source.extent === 'cut-off' && !wallpaperEdgeRepairAuthorized(attempt, settings)
   if (!sourceBlocked) {
     const receipt = !!(attempt.generation || attempt.generationOperation)
     const planningHold = !attempt.outputId && !receipt && !item.errorCode
     if (planningHold) {
-      if (attempt.plan.mode !== 'uncertain' && !attempt.checks.includes('source-outside-canvas') && !wallpaperGeometry(deps.source.geometry, { ...attempt.plan, uncertainties: [] }, settings).checks.length) actions.push('continue_current_plan')
+      if (attempt.plan.mode !== 'uncertain' && !attempt.checks.includes('source-outside-canvas') && !attempt.detailAnalysis?.findings?.some(wallpaperFindingBlocksEditing) && !(attempt.detailAnalysis?.protectedSubjectExtent === 'cut-off' && !wallpaperEdgeRepairAuthorized(attempt, settings)) && (attempt.detailAnalysis?.version !== 'wallpaper-plan-detail-v5' || ['resolved', 'ready-for-edit'].includes(attempt.detailAnalysis.outcome)) && !wallpaperGeometry(deps.source.geometry, { ...attempt.plan, uncertainties: [] }, settings).checks.length) actions.push('continue_current_plan')
       const extraDetails = item.decisions?.filter(record => record.detailRect).length ?? 0
       if (deps.supportsDetail && deps.maxImages >= 2 && wallpaperPlanConcerns(attempt.plan).length && extraDetails < (settings.decision?.maxDetailRequests ?? 0)) actions.push('inspect_region')
     }
@@ -125,7 +142,7 @@ async function inspectPlanningHold(deps: WallpaperDecisionDependencies, attempt:
   const nativeRect = wallpaperPlanDetailRect(attempt.plan)
   if (!nativeRect || item.attempts.some(prior => prior.detailAnalysis?.protectedSubjectExtent === 'cut-off' || prior.review && 'subjectIntegrity' in prior.review && prior.review.subjectIntegrity.source.extent === 'cut-off') ||
       item.decisions?.some(prior => prior.planRevision === attempt.revision && prior.response?.sourceExtent.extent === 'cut-off')) return false
-  const legacyViolation = detail.version !== 'wallpaper-plan-detail-v3' && detail.outcome === 'violated'
+  const legacyViolation = (detail.version === 'wallpaper-plan-detail-v1' || detail.version === 'wallpaper-plan-detail-v2') && detail.outcome === 'violated'
   if (!legacyViolation && detail.outcome !== 'unresolved') return false
   // A legacy image-wide violation can be reclassified once by the subject-scoped protocol.
   // With current evidence, inspect only a newly localized blocking region.
@@ -134,8 +151,8 @@ async function inspectPlanningHold(deps: WallpaperDecisionDependencies, attempt:
   return await queueInspection(deps, attempt, record, rect)
 }
 function cloneFor(attempt: Attempt, item: WallpaperItem, stage: 'rendering' | 'reviewing'): Attempt {
-  const next = { ...structuredClone(attempt), revision: (item.attempts.at(-1)?.revision ?? 0) + 1, retryFrom: 'reviewing' as const, retryTarget: stage }
-  delete next.review
+  const next = { ...structuredClone(attempt), revision: (item.attempts.at(-1)?.revision ?? 0) + 1, createdAt: new Date().toISOString(), retryFrom: 'reviewing' as const, retryTarget: stage }
+  delete next.review; delete next.reviewedAt
   if (stage === 'rendering') { delete next.outputId; delete next.analysisId; delete next.simulationId; delete next.clarity; delete next.clarityBaseReview }
   item.attempts.push(next)
   return next
@@ -167,8 +184,8 @@ export async function executeWallpaperDecision(deps: WallpaperDecisionDependenci
     const admittedRects = uniqueRects.slice(0, Math.max(0, deps.maxImages - (output ? 2 : 1)))
     const evidence = { source: source.blob.digest, placement: attempt.plan.placement, regions: attempt.plan.regions, checks: attempt.checks, concernIds: concerns.map(concern => concern.id), output: output?.blob.digest, generation: attempt.generation?.id ?? attempt.generationOperation, errorCode: item.errorCode, detailRects: admittedRects }
     const evidenceDigest = contentDigest(evidence).slice(10)
-    const snapshot = pending?.input ? snapshotSchema.parse(pending.input) : { detailRects: admittedRects, usage: toJson({ decision: { planRevision: attempt.revision, concerns, allowedActions, context: { mode: attempt.plan.mode, hasProtectedSubject: attempt.plan.regions.some(region => region.role === 'subject') || ['single', 'group', 'uncertain'].includes(attempt.plan.mode) }, remaining: { rounds: policy.maxRoundsPerImage - history.length, details: policy.maxDetailRequests - history.filter(record => record.detailRect).length, edits: settings.maxEditsPerImage - item.edits, reworks: Math.max(0, settings.maxReworks - wallpaperReworkCount(item)) }, priorDecisions: history.map(record => ({ round: record.round, status: record.status, action: record.response?.action, evidenceDigest: record.evidenceDigest, reason: record.reason })), stage: sourceStage, errorCode: item.errorCode, reason: item.reason, detailAnalysis: attempt.detailAnalysis, plan: attempt.plan, review: attempt.review, receipts: { generation: attempt.generation, operation: attempt.generationOperation, generationInput: attempt.generationInput, backgroundResolution: attempt.backgroundResolution }, sourceGeometry: source.geometry, settings } }) }
-    const record: WallpaperDecisionRecord = pending ?? { id: `${ctx.runId}:${item.imageVersionId}:decision:${history.length + 1}`, version: 'wallpaper-decision-v1', planRevision: attempt.revision, round: history.length + 1, status: 'running', reason: item.reason || 'processing-decision', sourceStage, evidenceDigest, inputDigest: contentDigest(snapshot).slice(10), input: toJson(snapshot), targetStage: 'decision' }
+    const snapshot = pending?.input ? snapshotSchema.parse(pending.input) : { detailRects: admittedRects, usage: toJson({ decision: { planRevision: attempt.revision, concerns, allowedActions, context: { mode: attempt.plan.mode, hasProtectedSubject: attempt.plan.regions.some(region => region.role === 'subject') || ['single', 'group', 'uncertain'].includes(attempt.plan.mode), ...editEvidenceFor(attempt, settings) }, remaining: { rounds: policy.maxRoundsPerImage - history.length, details: policy.maxDetailRequests - history.filter(record => record.detailRect).length, edits: settings.maxEditsPerImage - item.edits, reworks: Math.max(0, settings.maxReworks - wallpaperReworkCount(item)) }, priorDecisions: history.map(record => ({ round: record.round, status: record.status, action: record.response?.action, evidenceDigest: record.evidenceDigest, reason: record.reason })), stage: sourceStage, errorCode: item.errorCode, reason: item.reason, detailAnalysis: attempt.detailAnalysis, plan: attempt.plan, review: attempt.review, receipts: { generation: attempt.generation, operation: attempt.generationOperation, generationInput: attempt.generationInput, backgroundResolution: attempt.backgroundResolution }, sourceGeometry: source.geometry, settings } }) }
+    const record: WallpaperDecisionRecord = pending ?? { id: `${ctx.runId}:${item.imageVersionId}:decision:${history.length + 1}`, version: prompt.version, planRevision: attempt.revision, round: history.length + 1, status: 'running', reason: item.reason || 'processing-decision', sourceStage, evidenceDigest, inputDigest: contentDigest(snapshot).slice(10), input: toJson(snapshot), targetStage: 'decision' }
     if (!pending) history.push(record)
     item.status = 'planning'; await deps.save()
     try {
@@ -191,7 +208,7 @@ export async function executeWallpaperDecision(deps: WallpaperDecisionDependenci
         case 'continue_current_plan': {
           const plan = wallpaperPlanSchema.parse({ ...attempt.plan, uncertainties: [] }), geometry = wallpaperGeometry(source.geometry, plan, settings)
           if (geometry.checks.length) throw new CuratorError('constraint-conflict', 'wallpaper-decision', 'The protected source regions do not fit the frozen wallpaper template.')
-          const next: Attempt = { revision: attempt.revision + 1, plan, checks: geometry.checks, needsOutpaint: geometry.needsOutpaint, compositionMode: attempt.compositionMode, detailAnalysis: attempt.detailAnalysis, retryFrom: 'planning', retryTarget: 'rendering', ...(attempt.clarity ? { clarity: { status: 'pending', reason: '' } } : {}) }
+          const next: Attempt = { revision: attempt.revision + 1, createdAt: new Date().toISOString(), plan, checks: geometry.checks, needsOutpaint: geometry.needsOutpaint, compositionMode: attempt.compositionMode, detailAnalysis: attempt.detailAnalysis, retryFrom: 'planning', retryTarget: 'rendering', ...(attempt.clarity ? { clarity: { status: 'pending', reason: '' } } : {}) }
           item.attempts.push(next); record.targetRevision = next.revision; record.targetStage = 'rendering'; item.status = 'rendering'; resetFailure(item); await deps.save(); return true
         }
         case 'inspect_region': {

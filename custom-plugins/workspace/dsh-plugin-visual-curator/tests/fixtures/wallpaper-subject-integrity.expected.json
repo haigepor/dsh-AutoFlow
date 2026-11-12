@@ -8,6 +8,10 @@
   { "name": "uncertain-subject", "mode": "uncertain", "source": "complete", "output": "complete", "task": "satisfied", "verdict": "needs-review" },
   { "name": "scenery", "mode": "scene", "source": "not-applicable", "output": "not-applicable", "task": "satisfied", "verdict": "pass" },
   { "name": "abstract-pattern", "mode": "abstract", "source": "not-applicable", "output": "not-applicable", "task": "satisfied", "verdict": "pass" },
+  { "name": "complete-abstract-focus", "mode": "abstract", "source": "complete", "output": "complete", "task": "satisfied", "verdict": "pass" },
+  { "name": "abstract-label-cannot-hide-cut-off", "mode": "abstract", "source": "complete", "output": "cut-off", "task": "satisfied", "verdict": "reject" },
+  { "name": "uncertain-abstract-focus", "mode": "abstract", "source": "complete", "output": "unknown", "task": "satisfied", "verdict": "needs-review" },
+  { "name": "occluded-abstract-focus", "mode": "abstract", "source": "complete", "output": "occluded", "task": "satisfied", "verdict": "needs-review" },
   { "name": "scene-label-cannot-hide-cut-off", "mode": "scene", "source": "cut-off", "output": "cut-off", "task": "satisfied", "verdict": "reject" },
   { "name": "task-requirement-is-independent", "mode": "single", "source": "complete", "output": "complete", "task": "violated", "verdict": "reject" },
   { "name": "uncertain-task-fit", "mode": "single", "source": "complete", "output": "complete", "task": "unknown", "verdict": "needs-review" }
