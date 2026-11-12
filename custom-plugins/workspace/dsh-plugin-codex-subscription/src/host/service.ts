@@ -148,7 +148,8 @@ export class CodexSubscriptionService {
   imageModels(): { id: string; name: string }[] {
     const models = new Map(this.options.catalog.filter(entry => entry.kind === 'image').map(entry => [entry.id, { id: entry.id, name: entry.name }]))
     for (const model of this.imageCatalog?.models() ?? []) if (!models.has(model.id)) models.set(model.id, { id: model.id, name: model.name })
-    return [...models.values()]
+    const preferred = models.get(this.options.images.defaultModel)
+    return preferred ? [preferred, ...[...models.values()].filter(model => model.id !== preferred.id)] : [...models.values()]
   }
 
   private catalogConfiguration(): { revision: number; options: SubscriptionOptions } {

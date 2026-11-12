@@ -115,11 +115,12 @@ test('discovered accounts do not publish models until the owner explicitly saves
     const initial = modelCatalogSchema.parse(await f.service.action({ operation: 'model-catalog' }, signal()))
     assert.equal(initial.candidates[0]?.id, 'gpt-6.1-sol'); assert.deepEqual(initial.entries, [])
     assert.deepEqual(await f.service.catalogModels(), [])
-    const entries = [{ kind: 'text', id: 'gpt-6.1-sol', name: 'My GPT' }, { kind: 'image', id: 'gpt-image-2', name: 'My images' }]
+    const entries = [{ kind: 'text', id: 'gpt-6.1-sol', name: 'My GPT' }, { kind: 'image', id: 'gpt-image-1', name: 'Older images' }, { kind: 'image', id: 'gpt-image-2', name: 'My images' }]
     await f.service.action({ operation: 'model-catalog-save', args: { revision: initial.revision, entries } }, signal())
     assert.equal((await f.service.catalogModels())[0]?.name, 'My GPT')
     assert.equal((await f.service.catalogModels()).length, 1)
     assert.equal(f.settings().images.defaultModel, 'gpt-image-2')
+    assert.deepEqual(f.service.imageModels().map(model => model.id), ['gpt-image-2', 'gpt-image-1'], 'The configured default leads the image API rather than catalog insertion order')
     await assert.rejects(f.service.action({ operation: 'model-catalog-save', args: { revision: initial.revision, entries: [] } }, signal()), { code: 'REVISION_CONFLICT' })
     const current = modelCatalogSchema.parse(await f.service.action({ operation: 'model-catalog' }, signal()))
     await assert.rejects(f.service.action({ operation: 'model-catalog-save', args: { revision: current.revision, entries: [{ kind: 'text', id: 'unsupported', name: 'Bad' }] } }, signal()), { code: 'MODEL_NOT_AVAILABLE' })
