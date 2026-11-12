@@ -3508,7 +3508,7 @@ describe('registry versions and updates', () => {
 })
 
 it('groups installed features, retains existing choices and keeps the complete source available', () => {
-  const expected: { packageTitle: string; source: string; groups: string[]; features: Array<{ id: string; kind: 'skill' | 'script' | 'ui'; title: string; enabled: boolean }>; selectedAfterSettings: string[] } = JSON.parse(readFileSync(join(import.meta.dirname, 'expected', 'install-dialog-layout-zh.json'), 'utf8'))
+  const expected = JSON.parse(readFileSync(join(import.meta.dirname, 'expected', 'install-dialog-layout-zh.json'), 'utf8')) as { packageTitle: string; source: string; groups: string[]; features: Array<{ id: string; kind: 'skill' | 'script' | 'ui'; title: string; enabled: boolean }>; selectedAfterSettings: string[] }
   const name = 'dsh-plugin-visual-curator'
   const bundle = pkg({
     name,

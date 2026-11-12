@@ -1846,8 +1846,9 @@ function InstallDialog({
                       label={resolveText(feature.title)}
                       checked={selectedFeatures.includes(feature.id)}
                       disabled={install.enabling}
-                      onChange={checked => setSelectedFeatures(current =>
-                        checked ? [...current, feature.id] : current.filter(id => id !== feature.id))}
+                      onChange={(checked) => {
+                        setSelectedFeatures(current => checked ? [...current, feature.id] : current.filter(id => id !== feature.id))
+                      }}
                     />
                   ))}</div>
                 </section>)}</div>
