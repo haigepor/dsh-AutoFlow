@@ -1,354 +1,54 @@
-version: 0.2.2-rc.1.20261111.1
+version: 0.2.2-rc.1.20261112.1
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261111.1-unsigned/deepseek-harness-0.2.2-rc.1.20261111.1-win-x64-unsigned.exe
-    sha512: LVXJZ2nHAKTP0idtrAODl4Is1vVsDxwmUwTte2y7BsTIkfrYApDoADMUdY+zWvd7r4D9rg7H0DKXFE6FDKZEzg==
-    size: 431727809
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261111.1-unsigned/deepseek-harness-0.2.2-rc.1.20261111.1-win-x64-unsigned.exe
-sha512: LVXJZ2nHAKTP0idtrAODl4Is1vVsDxwmUwTte2y7BsTIkfrYApDoADMUdY+zWvd7r4D9rg7H0DKXFE6FDKZEzg==
-releaseDate: '2026-11-11T09:05:40.932Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261112.1-unsigned/deepseek-harness-0.2.2-rc.1.20261112.1-win-x64-unsigned.exe
+    sha512: bxGbtmtvT4hPcUKBOCwcSkQfmsUnmDGaOnxccRazXD0S/wEVDrnbUZz9maEwCxgMLh/sy7grdDQVcMHNIf135A==
+    size: 432011347
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261112.1-unsigned/deepseek-harness-0.2.2-rc.1.20261112.1-win-x64-unsigned.exe
+sha512: bxGbtmtvT4hPcUKBOCwcSkQfmsUnmDGaOnxccRazXD0S/wEVDrnbUZz9maEwCxgMLh/sy7grdDQVcMHNIf135A==
+releaseDate: '2026-11-12T12:39:20.251Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261111.1
+  version: 0.2.2-rc.1.20261112.1
   items:
-    - id: better-sidebar-builtin-management
+    - id: codex-preferred-image-model
       category: fixes
       text:
-        en: Better Sidebar and other independently updated built-in plugins remain visible in Plugins, without a false missing-package error in development installations.
-        zh-CN: 修复开发环境中 Better Sidebar 误报插件包未安装的问题，并保留这类内置插件及其更新器的管理入口。
-    - id: cancelled-wallpaper-history-removal
-      category: fixes
-      text:
-        en: Cancelled wallpaper batches can be removed despite older paused snapshots while active work still blocks removal. Cancelled nodes show retained progress without execution actions.
-        zh-CN: 修复取消壁纸批次后，历史暂停记录仍阻止移除列表记录的问题；执行中任务仍会被拦截。已取消节点保留进度并关闭继续执行入口。
-    - id: codex-image-account-entitlement
-      category: fixes
-      text:
-        en: Codex image requests use enabled, authorized accounts without requiring extra text credits. Image access and quota are determined by the image backend; saved failed tasks are retained.
-        zh-CN: 修复 Codex 生图强制要求开启文字额外积分的问题，使用已启用且授权有效的账号派发，由图片后端判断生图权限与额度，并保留已有失败任务。
-    - id: conversation-local-image-previews
-      category: fixes
-      text:
-        en: Replies and hover cards display bounded previews of local images, while opening, downloading and dragging retain the original files.
-        zh-CN: 对话正文和悬浮卡片使用有界本地图片预览，打开、下载和拖拽仍使用原文件。
-    - id: desktop-welcome-cookie-header
-      category: fixes
-      text:
-        en: Desktop can start when cookies from previous local launches exceed the request header limit.
-        zh-CN: 修复历史本地 Cookie 累积导致请求头过大、桌面启动认证失败的问题。
-    - id: manual-subscription-image-selection
+        en: Image workflows prefer the configured Codex image model when selecting from available subscription models.
+        zh-CN: 图片流程选择 Codex 订阅生图模型时，优先使用配置中的默认模型。
+    - id: visual-curator-generation-review-espcn
       category: improvements
       text:
-        en: Choose ChatGPT image models from a dropdown without automatic discovery or test-image probes.
-        zh-CN: ChatGPT 生图模型改用下拉选择，停止自动发现及测试图探测。
-    - id: model-picker-and-pending-wallpaper-cancel
-      category: fixes
-      text:
-        en: Image model menus use compact vertical rows and keep custom models in the footer. Wallpaper batches awaiting confirmation can be cancelled while retaining saved images and results.
-        zh-CN: 修复生图型号菜单横向展开和文字重复的问题，自定义型号入口独立放在底部。等待确认的壁纸批次支持取消处理，并保留已有图片及结果。
-    - id: plugin-install-dialog-layout
+        en: Wallpaper processing reviews generated images before ESPCN x3 super-resolution, preserves generated pixels without source overlays and checks final file dimensions without another model review.
+        zh-CN: 壁纸处理先复审生成图，通过后使用 ESPCN x3 超分；直接保留生图返回画面，不再回贴原图，最终校验尺寸和文件，不重复调用模型复审。
+    - id: visual-curator-image-actions-history-layout
       category: improvements
       text:
-        en: Plugin installation dialogs use a compact introduction, readable package details, grouped feature choices and fixed bottom actions.
-        zh-CN: 插件安装弹窗采用紧凑介绍区，安装结果突出插件信息，功能按类型分组，底部操作固定显示。
-    - id: plugin-reload-current-boot
+        en: Add per-image replacement, cancellation and retry controls, a processing-history timeline and tighter workflow layouts. Recovery preserves saved generation receipts and unchanged approved outputs.
+        zh-CN: 完善单张图片的替换、取消与重试入口，增加历史处理时间线并优化节点排列；恢复任务时保留已保存生图回执及未变更图片的合格记录。
+    - id: visual-curator-source-fidelity-prompts
       category: fixes
       text:
-        en: Reloading the window after a plugin update loads the current plugin interface instead of requesting outdated files.
-        zh-CN: 修复插件更新后刷新窗口仍请求旧文件，导致插件界面无法加载的问题。
-    - id: visual-curator-archived-task
-      category: fixes
-      text:
-        en: Visual Curator keeps saved task results accessible when their reference collection has been archived or removed.
-        zh-CN: 视觉策展在参考训练集已归档或移除时仍可打开历史任务和已保存的结果。
-    - id: visual-curator-background-recovery
-      category: fixes
-      text:
-        en: Saved image edits can be recomposed and reviewed without generating again. Wallpaper style review follows the task's fixed rule weights, and resumed work retains planning failures and reports storage limits.
-        zh-CN: 支持复用已保存扩图结果重新合成和复审，避免重复生图；壁纸风格复核遵守固定规则权重，恢复任务保留规划失败依据并明确报告存储上限。
-    - id: visual-curator-batch-cards
-      category: improvements
-      text:
-        en: Direct crop batches use a compact table with row selection and confirmed bulk removal that retains unstopped work, saved images and planning history.
-        zh-CN: 直接裁剪批次改为紧凑表格，支持勾选与确认后批量移除记录，保留未停止任务、原图、成品及历史规划。
-    - id: visual-curator-canvas-collapse
-      category: fixes
-      text:
-        en: Visual Curator restores collapsed workflow cards after refresh and keeps each batch's local layout separate.
-        zh-CN: 视觉策展刷新后可恢复卡片折叠状态，并按批次分别保存本机画布布局。
-    - id: visual-curator-conversation-failure
-      category: fixes
-      text:
-        en: Visual Curator reports failed search conversations and keeps conversation cards in sync with wallpaper production, pause, recovery and final review.
-        zh-CN: 视觉策展准确显示找图会话失败，并让对话任务卡片同步壁纸制作、暂停、恢复和最终复审状态。
-    - id: visual-curator-conversation-progress
-      category: fixes
-      text:
-        en: Image workflow conversations show confirmed requirements, saved execution progress, request failures and result directories, with controls for the original task and recoverable display synchronization.
-        zh-CN: 修复图片工作流会话正文为空的问题，展示确认需求、已保存进度、请求失败和结果目录，并支持控制原任务及恢复展示同步。
-    - id: visual-curator-dialog-controls
-      category: improvements
-      text:
-        en: Visual Curator shares its gallery picker with direct cropping, clarifies planning reasons and dialog actions, and supports Ctrl-wheel preview zoom without changing crop geometry.
-        zh-CN: 视觉策展的直接裁剪复用收藏夹选图弹窗，优化规划原因与底部操作区，并支持 Ctrl＋滚轮缩放预览，保持实际裁剪坐标不变。
-    - id: visual-curator-direct-crop
-      category: features
-      text:
-        en: Visual Curator can process local originals and gallery favorites directly, with safety planning, independent quality review and approved-image export, without creating a training collection.
-        zh-CN: 视觉策展支持直接处理本地原图与收藏夹图片，无需创建训练集，即可进行安全区规划、独立质量复审和合格成品导出。
-    - id: visual-curator-direct-import
-      category: fixes
-      text:
-        en: Direct crop shows local file size and import limits before starting, retains failed selections for retry, and places its entry next to image search.
-        zh-CN: 直接裁剪在开始前显示本地图片大小与导入限制，失败后保留所选原图供重试，并将入口移至开始找图旁。
-    - id: visual-curator-direct-stop
-      category: fixes
-      text:
-        en: Direct crop distinguishes unresolved images from approved completion, displays the blocking reason on workflow cards, and provides visible task controls.
-        zh-CN: 直接裁剪明确区分待处理图片与合格完成，在流程卡片显示阻塞原因，并提供可见的任务控制入口。
-    - id: visual-curator-download-progress
-      category: improvements
-      text:
-        en: Original download nodes and thumbnails share real byte progress and explicit saving or failure states. Direct crop nodes retain their measured dimensions across failures and image changes. Compact image navigation adds single-original retry and subscriber download access checks.
-        zh-CN: 原图节点与缩略图同步显示真实下载进度，区分校验保存与失败状态；修复直接裁剪在失败或切图后节点被隐藏的问题，并提供紧凑图片导航、单图重试与会员下载授权检查。
-    - id: visual-curator-edge-continuity
-      category: fixes
-      text:
-        en: Visual Curator keeps running connection animations continuous during canvas updates, aligns ports with curves and uses top/bottom ports for stacked nodes while retaining saved layouts.
-        zh-CN: 视觉策展画布更新时保持运行连线动画连续，修复端口与曲线偏移，上下排列时自动使用上下端口，并保留已保存的布局。
-    - id: visual-curator-final-navigation
-      category: fixes
-      text:
-        en: Visual Curator opens the wallpaper production task from its final-result count, keeping source search and finished output distinct.
-        zh-CN: 视觉策展从合格成品入口打开对应壁纸制作任务，正确展示最终输出。
-    - id: visual-curator-fixed-image-flow
-      category: improvements
-      text:
-        en: Visual Curator reuses six fixed image-processing nodes when switching images, retaining the layout and camera, with a resizable thumbnail sidebar and clearer image selection.
-        zh-CN: 视觉策展切换图片时复用六个固定处理节点，保留布局与视角，提供可调整宽度的缩略图侧栏和更清晰的图片选择菜单。
-    - id: visual-curator-history-loading
-      category: improvements
-      text:
-        en: Image workspaces load task history more efficiently and release cached superseded records while retaining saved data. Continued tasks distinguish inherited results, the current change and images needing attention, while image paging keeps the editor on the selected image.
-        zh-CN: 提升图片工作台历史任务的加载效率，释放已替代版本的内存缓存并保留保存的数据；续跑任务区分复用成品、当前修改和需处理图片，翻页时编辑器始终对应选中的图片。
-    - id: visual-curator-image-branches
-      category: improvements
-      text:
-        en: Visual Curator shows individual image-planning cards in groups of four, uses larger menus, and includes secondary subjects and the top buffer when planning safe crops.
-        zh-CN: 视觉策展按四张一组展示独立图片规划卡片，统一放大菜单，并在安全裁剪规划中纳入次要主体和顶部缓冲。
-    - id: visual-curator-launch-capabilities
-      category: fixes
-      text:
-        en: Starting an image search reads native conversation capabilities and no longer incorrectly asks to update an already current service.
-        zh-CN: 修复开始找图时因读取模式不一致而误报应用服务需要更新的问题。
-    - id: visual-curator-menu-density
-      category: improvements
-      text:
-        en: Visual Curator menus use consistent moderate spacing and readable text, with narrower popups that no longer expand to match wide fields.
-        zh-CN: 视觉策展菜单统一采用适中字号与间距，收紧弹出菜单和选择框，宽输入框不再强制撑大菜单。
-    - id: visual-curator-original-preview
-      category: fixes
-      text:
-        en: Visual Curator creates bounded previews for saved originals without preview records, separates image loading from generation animation, and keeps card facts clear of action dividers.
-        zh-CN: 视觉策展为缺少预览记录的历史原图提供受限尺寸预览，区分图片加载与生图动画，并修复卡片信息挤压操作分隔线的问题。
-    - id: visual-curator-parallel-recovery
-      category: fixes
-      text:
-        en: Visual Curator validates signed subscriber downloads, gives originals separate transfer limits, processes direct crops concurrently and shows the current and next required steps while retaining failed review evidence during repair. Earlier node images keep their own artifacts. Task bars keep their height during image switches and loading; compact failure dialogs offer recovery for the selected image and latest version, checking image receipts before another edit. Automatic card slots stay separate when images or processing stages change.
-        zh-CN: Visual Curator 支持校验会员签名原图、独立原图传输时限及直接裁剪并发处理，画布显示当前与下一必要步骤，返工保留失败复审依据，前序节点图片保持各自处理结果。任务栏在切图与加载时保持固定高度，紧凑的失败详情可恢复当前图片的最新版本，再次编辑前先核对生成回执。 图片或阶段切换时，两个自动节点槽位保持分开，避免卡片重叠。
-    - id: visual-curator-plan-detail
-      category: improvements
-      text:
-        en: Wallpaper planning can inspect saved original detail to resolve uncertain subjects, then automatically continue only after evidence and safety checks pass, while retaining previous versions and independent final review.
-        zh-CN: 壁纸规划支持放大保存的原图局部复核主体疑点，仅在证据充分且安全检查通过后自动继续，保留旧版本并执行独立成品复审。
-    - id: visual-curator-plan-editor-layout
-      category: improvements
-      text:
-        en: Visual Curator keeps plan preview and controls in separate columns, explains guide colors and line styles, and keeps validation and save actions visible.
-        zh-CN: 视觉策展的规划弹窗分栏展示预览与编辑控件，说明辅助线颜色和线型，并固定显示校验结果与保存按钮。
-    - id: visual-curator-progress-density
-      category: improvements
-      text:
-        en: Visual Curator limits moving arrows by connection length, distinguishes conversation preparation from search progress, groups task details and wallpaper settings and offers a floating task capsule only in sufficiently wide Chat views.
-        zh-CN: 视觉策展按连线长度控制移动箭头密度，区分会话准备与实际检索进度，优化任务详情和壁纸设置分组，并在宽度足够的对话页提供悬浮任务胶囊。
-    - id: visual-curator-reference-toolbar
-      category: improvements
-      text:
-        en: Visual Curator uses corner status labels on reference cards, consistent icon actions and browser-style workspace tabs. The profile opener hides while its panel is open.
-        zh-CN: 视觉策展的参考卡片隐藏调整按钮，状态标签贴合右上圆角；顶部操作统一为图标按钮，与浏览器风格标签页对齐，画像面板展开时隐藏入口。
-    - id: visual-curator-review-feedback
-      category: improvements
-      text:
-        en: Visual Curator shows safe-area annotations during final review, links rejected reviews back to production, and reuses the conversation image-generation loading texture.
-        zh-CN: 视觉策展在质量复审中显示成品安全区标注，将未通过复审的节点连回制作步骤，并复用会话生图的点阵骨架屏。
-    - id: visual-curator-review-pipeline
-      category: fixes
-      text:
-        en: Original-image searches retain their current query plan. Reviews use stage-specific rules and recheck focal content after cropping; canvas status distinguishes failed work from results needing review. Thumbnail preparation runs within a shared concurrency limit.
-        zh-CN: 修复原图搜索检索词被覆盖和审核阶段规则混淆的问题，裁剪后重新核对主体，画布区分失败与待复核，并在共享并发上限内准备缩略图。
-    - id: visual-curator-server-material
-      category: improvements
-      text:
-        en: Visual Curator adds a denser server-images dialog, a separate connection form, loading table rows, horizontal canvas controls and fixed dialog actions with dividers.
-        zh-CN: 视觉策展降低服务器图片弹窗透明度，连接配置使用独立弹窗，获取图片时显示表格加载动画；画布操作水平排列，弹窗底部按钮固定并增加分割线，原图说明改为状态旁的标签。
-    - id: visual-curator-source-recovery
-      category: fixes
-      text:
-        en: Visual Curator reports partial original downloads, replaces restricted sources using the frozen visual rules, retains saved image work and restores historical image thumbnails.
-        zh-CN: 视觉策展正确展示原图下载的部分失败，按冻结的视觉规则补找受限来源，保留已保存图片和处理结果，并恢复历史图片缩略图。
-    - id: visual-curator-subject-integrity
-      category: fixes
-      text:
-        en: Wallpaper reviews reject subjects cut off in the original or final image. Saved outputs can be reviewed with current rules in a separate task while preserving history.
-        zh-CN: 修复原图或成品主体被截断仍可能通过壁纸复审的问题；已有成品可按当前规则建立独立复审任务，保留历史。
-    - id: visual-curator-summary-pause
-      category: fixes
-      text:
-        en: Pausing Visual Curator during style summarization retains the completed response and resumes dataset packaging without repeating the model request.
-        zh-CN: 修复视觉策展在风格归纳时暂停被误报为参考集变化的问题；继续时复用已保存的回答完成数据集。
-    - id: visual-curator-task-focus
-      category: improvements
-      text:
-        en: Image searches use one start flow with explicit wallpaper output. The canvas focuses the current task with compact previews and separate search and wallpaper progress.
-        zh-CN: 统一找图启动入口并明确壁纸输出，画布默认聚焦当前任务，收紧图片预览，分别展示找图与壁纸进度。
-    - id: visual-curator-toolbar-layout
-      category: improvements
-      text:
-        en: Visual Curator groups workflow navigation and status on the left, with actions on the right and grouped wrapping in narrower canvases.
-        zh-CN: 视觉策展工作流工具栏将导航与状态集中到左侧，操作保留在右侧，并在窄画布中按组换行。
-    - id: visual-curator-two-level-canvas
-      category: improvements
-      text:
-        en: Visual Curator separates batch overviews from independent image workflows, with compact previews, thumbnail navigation and separate positions for each image.
-        zh-CN: 视觉策展将批次总览与独立单图流程分层展示，提供紧凑预览、缩略图导航，并分别保留每张图片的布局位置。
-    - id: visual-curator-workflow-navigation
-      category: improvements
-      text:
-        en: Switch between task results, batch canvas and individual image workflows with shared tabs and breadcrumbs. A reorganized task header groups filters, progress and actions, including when inspecting archived collections.
-        zh-CN: 任务结果、批次画布与单图流程通过统一标签和面包屑衔接；任务头部重排需求、筛选、进度和操作，归档素材集也可查看历史工作流。
-    - id: visual-curator-inspection-routing
-      category: fixes
-      text:
-        en: Wallpaper decisions can automatically inspect saved source details and show the inspection progress, result and retry action on the canvas.
-        zh-CN: 壁纸决策可自动复核已保存的原图局部，并在画布显示复核进度、结果和重试入口。
-    - id: visual-curator-review-rework-routing
-      category: fixes
-      text:
-        en: Rejected wallpaper outputs return to bounded rework with their review findings. Planning and inspection revisions no longer consume image rework attempts.
-        zh-CN: 壁纸复审不通过后携带失败项自动进入有次数上限的返工，规划与局部复核版本不再占用图片返工次数。
-    - id: visual-curator-five-edit-limit
-      category: improvements
-      text:
-        en: Wallpaper editing and automatic rework allow up to five attempts, retaining consumed counts when continuing an existing task.
-        zh-CN: 壁纸编辑与自动返工上限统一为 5 次，继续已有任务时保留已消耗次数。
+        en: Improve image-edit prompts and review consistency for core subjects, supporting objects, intentional source crops and original textures. Wallpaper backgrounds no longer need special clock-area treatment unless explicitly configured.
+        zh-CN: 完善生图提示词与复审的一致性，区分核心主体、陪衬物和原图有意截断内容，保留原有画风及纹理；未配置时钟规则时，不再特意处理时钟区域。
 releaseNotes: |-
-  ## 新增功能
-
-  - 视觉策展支持直接处理本地原图与收藏夹图片，无需创建训练集，即可进行安全区规划、独立质量复审和合格成品导出。
-
   ## 体验优化
 
-  - ChatGPT 生图模型改用下拉选择，停止自动发现及测试图探测。
-  - 插件安装弹窗采用紧凑介绍区，安装结果突出插件信息，功能按类型分组，底部操作固定显示。
-  - 直接裁剪批次改为紧凑表格，支持勾选与确认后批量移除记录，保留未停止任务、原图、成品及历史规划。
-  - 视觉策展的直接裁剪复用收藏夹选图弹窗，优化规划原因与底部操作区，并支持 Ctrl＋滚轮缩放预览，保持实际裁剪坐标不变。
-  - 原图节点与缩略图同步显示真实下载进度，区分校验保存与失败状态；修复直接裁剪在失败或切图后节点被隐藏的问题，并提供紧凑图片导航、单图重试与会员下载授权检查。
-  - 视觉策展切换图片时复用六个固定处理节点，保留布局与视角，提供可调整宽度的缩略图侧栏和更清晰的图片选择菜单。
-  - 提升图片工作台历史任务的加载效率，释放已替代版本的内存缓存并保留保存的数据；续跑任务区分复用成品、当前修改和需处理图片，翻页时编辑器始终对应选中的图片。
-  - 视觉策展按四张一组展示独立图片规划卡片，统一放大菜单，并在安全裁剪规划中纳入次要主体和顶部缓冲。
-  - 视觉策展菜单统一采用适中字号与间距，收紧弹出菜单和选择框，宽输入框不再强制撑大菜单。
-  - 壁纸规划支持放大保存的原图局部复核主体疑点，仅在证据充分且安全检查通过后自动继续，保留旧版本并执行独立成品复审。
-  - 视觉策展的规划弹窗分栏展示预览与编辑控件，说明辅助线颜色和线型，并固定显示校验结果与保存按钮。
-  - 视觉策展按连线长度控制移动箭头密度，区分会话准备与实际检索进度，优化任务详情和壁纸设置分组，并在宽度足够的对话页提供悬浮任务胶囊。
-  - 视觉策展的参考卡片隐藏调整按钮，状态标签贴合右上圆角；顶部操作统一为图标按钮，与浏览器风格标签页对齐，画像面板展开时隐藏入口。
-  - 视觉策展在质量复审中显示成品安全区标注，将未通过复审的节点连回制作步骤，并复用会话生图的点阵骨架屏。
-  - 视觉策展降低服务器图片弹窗透明度，连接配置使用独立弹窗，获取图片时显示表格加载动画；画布操作水平排列，弹窗底部按钮固定并增加分割线，原图说明改为状态旁的标签。
-  - 统一找图启动入口并明确壁纸输出，画布默认聚焦当前任务，收紧图片预览，分别展示找图与壁纸进度。
-  - 视觉策展工作流工具栏将导航与状态集中到左侧，操作保留在右侧，并在窄画布中按组换行。
-  - 视觉策展将批次总览与独立单图流程分层展示，提供紧凑预览、缩略图导航，并分别保留每张图片的布局位置。
-  - 任务结果、批次画布与单图流程通过统一标签和面包屑衔接；任务头部重排需求、筛选、进度和操作，归档素材集也可查看历史工作流。
-  - 壁纸编辑与自动返工上限统一为 5 次，继续已有任务时保留已消耗次数。
+  - 壁纸处理先复审生成图，通过后使用 ESPCN x3 超分；直接保留生图返回画面，不再回贴原图，最终校验尺寸和文件，不重复调用模型复审。
+  - 完善单张图片的替换、取消与重试入口，增加历史处理时间线并优化节点排列；恢复任务时保留已保存生图回执及未变更图片的合格记录。
 
   ## 问题修复
 
-  - 修复开发环境中 Better Sidebar 误报插件包未安装的问题，并保留这类内置插件及其更新器的管理入口。
-  - 修复取消壁纸批次后，历史暂停记录仍阻止移除列表记录的问题；执行中任务仍会被拦截。已取消节点保留进度并关闭继续执行入口。
-  - 修复 Codex 生图强制要求开启文字额外积分的问题，使用已启用且授权有效的账号派发，由图片后端判断生图权限与额度，并保留已有失败任务。
-  - 对话正文和悬浮卡片使用有界本地图片预览，打开、下载和拖拽仍使用原文件。
-  - 修复历史本地 Cookie 累积导致请求头过大、桌面启动认证失败的问题。
-  - 修复生图型号菜单横向展开和文字重复的问题，自定义型号入口独立放在底部。等待确认的壁纸批次支持取消处理，并保留已有图片及结果。
-  - 修复插件更新后刷新窗口仍请求旧文件，导致插件界面无法加载的问题。
-  - 视觉策展在参考训练集已归档或移除时仍可打开历史任务和已保存的结果。
-  - 支持复用已保存扩图结果重新合成和复审，避免重复生图；壁纸风格复核遵守固定规则权重，恢复任务保留规划失败依据并明确报告存储上限。
-  - 视觉策展刷新后可恢复卡片折叠状态，并按批次分别保存本机画布布局。
-  - 视觉策展准确显示找图会话失败，并让对话任务卡片同步壁纸制作、暂停、恢复和最终复审状态。
-  - 修复图片工作流会话正文为空的问题，展示确认需求、已保存进度、请求失败和结果目录，并支持控制原任务及恢复展示同步。
-  - 直接裁剪在开始前显示本地图片大小与导入限制，失败后保留所选原图供重试，并将入口移至开始找图旁。
-  - 直接裁剪明确区分待处理图片与合格完成，在流程卡片显示阻塞原因，并提供可见的任务控制入口。
-  - 视觉策展画布更新时保持运行连线动画连续，修复端口与曲线偏移，上下排列时自动使用上下端口，并保留已保存的布局。
-  - 视觉策展从合格成品入口打开对应壁纸制作任务，正确展示最终输出。
-  - 修复开始找图时因读取模式不一致而误报应用服务需要更新的问题。
-  - 视觉策展为缺少预览记录的历史原图提供受限尺寸预览，区分图片加载与生图动画，并修复卡片信息挤压操作分隔线的问题。
-  - Visual Curator 支持校验会员签名原图、独立原图传输时限及直接裁剪并发处理，画布显示当前与下一必要步骤，返工保留失败复审依据，前序节点图片保持各自处理结果。任务栏在切图与加载时保持固定高度，紧凑的失败详情可恢复当前图片的最新版本，再次编辑前先核对生成回执。 图片或阶段切换时，两个自动节点槽位保持分开，避免卡片重叠。
-  - 修复原图搜索检索词被覆盖和审核阶段规则混淆的问题，裁剪后重新核对主体，画布区分失败与待复核，并在共享并发上限内准备缩略图。
-  - 视觉策展正确展示原图下载的部分失败，按冻结的视觉规则补找受限来源，保留已保存图片和处理结果，并恢复历史图片缩略图。
-  - 修复原图或成品主体被截断仍可能通过壁纸复审的问题；已有成品可按当前规则建立独立复审任务，保留历史。
-  - 修复视觉策展在风格归纳时暂停被误报为参考集变化的问题；继续时复用已保存的回答完成数据集。
-  - 壁纸决策可自动复核已保存的原图局部，并在画布显示复核进度、结果和重试入口。
-  - 壁纸复审不通过后携带失败项自动进入有次数上限的返工，规划与局部复核版本不再占用图片返工次数。
+  - 图片流程选择 Codex 订阅生图模型时，优先使用配置中的默认模型。
+  - 完善生图提示词与复审的一致性，区分核心主体、陪衬物和原图有意截断内容，保留原有画风及纹理；未配置时钟规则时，不再特意处理时钟区域。
 
   ---
 
-  ## New features
-
-  - Visual Curator can process local originals and gallery favorites directly, with safety planning, independent quality review and approved-image export, without creating a training collection.
-
   ## Improvements
 
-  - Choose ChatGPT image models from a dropdown without automatic discovery or test-image probes.
-  - Plugin installation dialogs use a compact introduction, readable package details, grouped feature choices and fixed bottom actions.
-  - Direct crop batches use a compact table with row selection and confirmed bulk removal that retains unstopped work, saved images and planning history.
-  - Visual Curator shares its gallery picker with direct cropping, clarifies planning reasons and dialog actions, and supports Ctrl-wheel preview zoom without changing crop geometry.
-  - Original download nodes and thumbnails share real byte progress and explicit saving or failure states. Direct crop nodes retain their measured dimensions across failures and image changes. Compact image navigation adds single-original retry and subscriber download access checks.
-  - Visual Curator reuses six fixed image-processing nodes when switching images, retaining the layout and camera, with a resizable thumbnail sidebar and clearer image selection.
-  - Image workspaces load task history more efficiently and release cached superseded records while retaining saved data. Continued tasks distinguish inherited results, the current change and images needing attention, while image paging keeps the editor on the selected image.
-  - Visual Curator shows individual image-planning cards in groups of four, uses larger menus, and includes secondary subjects and the top buffer when planning safe crops.
-  - Visual Curator menus use consistent moderate spacing and readable text, with narrower popups that no longer expand to match wide fields.
-  - Wallpaper planning can inspect saved original detail to resolve uncertain subjects, then automatically continue only after evidence and safety checks pass, while retaining previous versions and independent final review.
-  - Visual Curator keeps plan preview and controls in separate columns, explains guide colors and line styles, and keeps validation and save actions visible.
-  - Visual Curator limits moving arrows by connection length, distinguishes conversation preparation from search progress, groups task details and wallpaper settings and offers a floating task capsule only in sufficiently wide Chat views.
-  - Visual Curator uses corner status labels on reference cards, consistent icon actions and browser-style workspace tabs. The profile opener hides while its panel is open.
-  - Visual Curator shows safe-area annotations during final review, links rejected reviews back to production, and reuses the conversation image-generation loading texture.
-  - Visual Curator adds a denser server-images dialog, a separate connection form, loading table rows, horizontal canvas controls and fixed dialog actions with dividers.
-  - Image searches use one start flow with explicit wallpaper output. The canvas focuses the current task with compact previews and separate search and wallpaper progress.
-  - Visual Curator groups workflow navigation and status on the left, with actions on the right and grouped wrapping in narrower canvases.
-  - Visual Curator separates batch overviews from independent image workflows, with compact previews, thumbnail navigation and separate positions for each image.
-  - Switch between task results, batch canvas and individual image workflows with shared tabs and breadcrumbs. A reorganized task header groups filters, progress and actions, including when inspecting archived collections.
-  - Wallpaper editing and automatic rework allow up to five attempts, retaining consumed counts when continuing an existing task.
+  - Wallpaper processing reviews generated images before ESPCN x3 super-resolution, preserves generated pixels without source overlays and checks final file dimensions without another model review.
+  - Add per-image replacement, cancellation and retry controls, a processing-history timeline and tighter workflow layouts. Recovery preserves saved generation receipts and unchanged approved outputs.
 
   ## Bug fixes
 
-  - Better Sidebar and other independently updated built-in plugins remain visible in Plugins, without a false missing-package error in development installations.
-  - Cancelled wallpaper batches can be removed despite older paused snapshots while active work still blocks removal. Cancelled nodes show retained progress without execution actions.
-  - Codex image requests use enabled, authorized accounts without requiring extra text credits. Image access and quota are determined by the image backend; saved failed tasks are retained.
-  - Replies and hover cards display bounded previews of local images, while opening, downloading and dragging retain the original files.
-  - Desktop can start when cookies from previous local launches exceed the request header limit.
-  - Image model menus use compact vertical rows and keep custom models in the footer. Wallpaper batches awaiting confirmation can be cancelled while retaining saved images and results.
-  - Reloading the window after a plugin update loads the current plugin interface instead of requesting outdated files.
-  - Visual Curator keeps saved task results accessible when their reference collection has been archived or removed.
-  - Saved image edits can be recomposed and reviewed without generating again. Wallpaper style review follows the task's fixed rule weights, and resumed work retains planning failures and reports storage limits.
-  - Visual Curator restores collapsed workflow cards after refresh and keeps each batch's local layout separate.
-  - Visual Curator reports failed search conversations and keeps conversation cards in sync with wallpaper production, pause, recovery and final review.
-  - Image workflow conversations show confirmed requirements, saved execution progress, request failures and result directories, with controls for the original task and recoverable display synchronization.
-  - Direct crop shows local file size and import limits before starting, retains failed selections for retry, and places its entry next to image search.
-  - Direct crop distinguishes unresolved images from approved completion, displays the blocking reason on workflow cards, and provides visible task controls.
-  - Visual Curator keeps running connection animations continuous during canvas updates, aligns ports with curves and uses top/bottom ports for stacked nodes while retaining saved layouts.
-  - Visual Curator opens the wallpaper production task from its final-result count, keeping source search and finished output distinct.
-  - Starting an image search reads native conversation capabilities and no longer incorrectly asks to update an already current service.
-  - Visual Curator creates bounded previews for saved originals without preview records, separates image loading from generation animation, and keeps card facts clear of action dividers.
-  - Visual Curator validates signed subscriber downloads, gives originals separate transfer limits, processes direct crops concurrently and shows the current and next required steps while retaining failed review evidence during repair. Earlier node images keep their own artifacts. Task bars keep their height during image switches and loading; compact failure dialogs offer recovery for the selected image and latest version, checking image receipts before another edit. Automatic card slots stay separate when images or processing stages change.
-  - Original-image searches retain their current query plan. Reviews use stage-specific rules and recheck focal content after cropping; canvas status distinguishes failed work from results needing review. Thumbnail preparation runs within a shared concurrency limit.
-  - Visual Curator reports partial original downloads, replaces restricted sources using the frozen visual rules, retains saved image work and restores historical image thumbnails.
-  - Wallpaper reviews reject subjects cut off in the original or final image. Saved outputs can be reviewed with current rules in a separate task while preserving history.
-  - Pausing Visual Curator during style summarization retains the completed response and resumes dataset packaging without repeating the model request.
-  - Wallpaper decisions can automatically inspect saved source details and show the inspection progress, result and retry action on the canvas.
-  - Rejected wallpaper outputs return to bounded rework with their review findings. Planning and inspection revisions no longer consume image rework attempts.
+  - Image workflows prefer the configured Codex image model when selecting from available subscription models.
+  - Improve image-edit prompts and review consistency for core subjects, supporting objects, intentional source crops and original textures. Wallpaper backgrounds no longer need special clock-area treatment unless explicitly configured.
