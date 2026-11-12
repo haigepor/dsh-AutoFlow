@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-source-fidelity-prompts",
+  "category": "fixes",
+  "text": {
+    "en": "Improve image-edit prompts and review consistency for core subjects, supporting objects, intentional source crops and original textures. Wallpaper backgrounds no longer need special clock-area treatment unless explicitly configured.",
+    "zh-CN": "完善生图提示词与复审的一致性，区分核心主体、陪衬物和原图有意截断内容，保留原有画风及纹理；未配置时钟规则时，不再特意处理时钟区域。"
+  }
+}

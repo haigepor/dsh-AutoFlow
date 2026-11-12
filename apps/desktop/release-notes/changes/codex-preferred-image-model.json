@@ -1,0 +1,8 @@
+{
+  "id": "codex-preferred-image-model",
+  "category": "fixes",
+  "text": {
+    "en": "Image workflows prefer the configured Codex image model when selecting from available subscription models.",
+    "zh-CN": "图片流程选择 Codex 订阅生图模型时，优先使用配置中的默认模型。"
+  }
+}

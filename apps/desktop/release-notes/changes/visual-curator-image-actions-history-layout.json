@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-image-actions-history-layout",
+  "category": "improvements",
+  "text": {
+    "en": "Add per-image replacement, cancellation and retry controls, a processing-history timeline and tighter workflow layouts. Recovery preserves saved generation receipts and unchanged approved outputs.",
+    "zh-CN": "完善单张图片的替换、取消与重试入口，增加历史处理时间线并优化节点排列；恢复任务时保留已保存生图回执及未变更图片的合格记录。"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-generation-review-espcn",
+  "category": "improvements",
+  "text": {
+    "en": "Wallpaper processing reviews generated images before ESPCN x3 super-resolution, preserves generated pixels without source overlays and checks final file dimensions without another model review.",
+    "zh-CN": "壁纸处理先复审生成图，通过后使用 ESPCN x3 超分；直接保留生图返回画面，不再回贴原图，最终校验尺寸和文件，不重复调用模型复审。"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.1.20261112.1",
+  "items": [
+    {
+      "id": "codex-preferred-image-model",
+      "category": "fixes",
+      "text": {
+        "en": "Image workflows prefer the configured Codex image model when selecting from available subscription models.",
+        "zh-CN": "图片流程选择 Codex 订阅生图模型时，优先使用配置中的默认模型。"
+      }
+    },
+    {
+      "id": "visual-curator-generation-review-espcn",
+      "category": "improvements",
+      "text": {
+        "en": "Wallpaper processing reviews generated images before ESPCN x3 super-resolution, preserves generated pixels without source overlays and checks final file dimensions without another model review.",
+        "zh-CN": "壁纸处理先复审生成图，通过后使用 ESPCN x3 超分；直接保留生图返回画面，不再回贴原图，最终校验尺寸和文件，不重复调用模型复审。"
+      }
+    },
+    {
+      "id": "visual-curator-image-actions-history-layout",
+      "category": "improvements",
+      "text": {
+        "en": "Add per-image replacement, cancellation and retry controls, a processing-history timeline and tighter workflow layouts. Recovery preserves saved generation receipts and unchanged approved outputs.",
+        "zh-CN": "完善单张图片的替换、取消与重试入口，增加历史处理时间线并优化节点排列；恢复任务时保留已保存生图回执及未变更图片的合格记录。"
+      }
+    },
+    {
+      "id": "visual-curator-source-fidelity-prompts",
+      "category": "fixes",
+      "text": {
+        "en": "Improve image-edit prompts and review consistency for core subjects, supporting objects, intentional source crops and original textures. Wallpaper backgrounds no longer need special clock-area treatment unless explicitly configured.",
+        "zh-CN": "完善生图提示词与复审的一致性，区分核心主体、陪衬物和原图有意截断内容，保留原有画风及纹理；未配置时钟规则时，不再特意处理时钟区域。"
+      }
+    }
+  ]
+}
