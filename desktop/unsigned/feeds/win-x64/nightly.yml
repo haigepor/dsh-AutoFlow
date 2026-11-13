@@ -1,54 +1,27 @@
-version: 0.2.2-rc.1.20261112.1
+version: 0.2.2-rc.1.20261113.1
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261112.1-unsigned/deepseek-harness-0.2.2-rc.1.20261112.1-win-x64-unsigned.exe
-    sha512: bxGbtmtvT4hPcUKBOCwcSkQfmsUnmDGaOnxccRazXD0S/wEVDrnbUZz9maEwCxgMLh/sy7grdDQVcMHNIf135A==
-    size: 432011347
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261112.1-unsigned/deepseek-harness-0.2.2-rc.1.20261112.1-win-x64-unsigned.exe
-sha512: bxGbtmtvT4hPcUKBOCwcSkQfmsUnmDGaOnxccRazXD0S/wEVDrnbUZz9maEwCxgMLh/sy7grdDQVcMHNIf135A==
-releaseDate: '2026-11-12T12:39:20.251Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.1-unsigned/deepseek-harness-0.2.2-rc.1.20261113.1-win-x64-unsigned.exe
+    sha512: tbH2gJU26nz7MNWqR7RbxlUCQmbOZhD0EKMbzl0v9x2WCWQ815uKIif24/0kddkp5uGsvUVzSOK09mr66E3WTg==
+    size: 432068423
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.1-unsigned/deepseek-harness-0.2.2-rc.1.20261113.1-win-x64-unsigned.exe
+sha512: tbH2gJU26nz7MNWqR7RbxlUCQmbOZhD0EKMbzl0v9x2WCWQ815uKIif24/0kddkp5uGsvUVzSOK09mr66E3WTg==
+releaseDate: '2026-11-13T05:06:54.016Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261112.1
+  version: 0.2.2-rc.1.20261113.1
   items:
-    - id: codex-preferred-image-model
+    - id: visual-curator-focal-subject-safety
       category: fixes
       text:
-        en: Image workflows prefer the configured Codex image model when selecting from available subscription models.
-        zh-CN: 图片流程选择 Codex 订阅生图模型时，优先使用配置中的默认模型。
-    - id: visual-curator-generation-review-espcn
-      category: improvements
-      text:
-        en: Wallpaper processing reviews generated images before ESPCN x3 super-resolution, preserves generated pixels without source overlays and checks final file dimensions without another model review.
-        zh-CN: 壁纸处理先复审生成图，通过后使用 ESPCN x3 超分；直接保留生图返回画面，不再回贴原图，最终校验尺寸和文件，不重复调用模型复审。
-    - id: visual-curator-image-actions-history-layout
-      category: improvements
-      text:
-        en: Add per-image replacement, cancellation and retry controls, a processing-history timeline and tighter workflow layouts. Recovery preserves saved generation receipts and unchanged approved outputs.
-        zh-CN: 完善单张图片的替换、取消与重试入口，增加历史处理时间线并优化节点排列；恢复任务时保留已保存生图回执及未变更图片的合格记录。
-    - id: visual-curator-source-fidelity-prompts
-      category: fixes
-      text:
-        en: Improve image-edit prompts and review consistency for core subjects, supporting objects, intentional source crops and original textures. Wallpaper backgrounds no longer need special clock-area treatment unless explicitly configured.
-        zh-CN: 完善生图提示词与复审的一致性，区分核心主体、陪衬物和原图有意截断内容，保留原有画风及纹理；未配置时钟规则时，不再特意处理时钟区域。
+        en: Visual Curator now keeps focal subjects distinct from supporting objects during wallpaper planning, retries and review. It also preserves candidate placement and checks generated canvases before ESPCN reconstruction.
+        zh-CN: 修复多物体扩图的主次识别、候选对齐和重试摆放问题；规划与复审分别检查主角安全区和陪衬保真，生成图通过后才执行 ESPCN 超分。
 releaseNotes: |-
-  ## 体验优化
-
-  - 壁纸处理先复审生成图，通过后使用 ESPCN x3 超分；直接保留生图返回画面，不再回贴原图，最终校验尺寸和文件，不重复调用模型复审。
-  - 完善单张图片的替换、取消与重试入口，增加历史处理时间线并优化节点排列；恢复任务时保留已保存生图回执及未变更图片的合格记录。
-
   ## 问题修复
 
-  - 图片流程选择 Codex 订阅生图模型时，优先使用配置中的默认模型。
-  - 完善生图提示词与复审的一致性，区分核心主体、陪衬物和原图有意截断内容，保留原有画风及纹理；未配置时钟规则时，不再特意处理时钟区域。
+  - 修复多物体扩图的主次识别、候选对齐和重试摆放问题；规划与复审分别检查主角安全区和陪衬保真，生成图通过后才执行 ESPCN 超分。
 
   ---
 
-  ## Improvements
-
-  - Wallpaper processing reviews generated images before ESPCN x3 super-resolution, preserves generated pixels without source overlays and checks final file dimensions without another model review.
-  - Add per-image replacement, cancellation and retry controls, a processing-history timeline and tighter workflow layouts. Recovery preserves saved generation receipts and unchanged approved outputs.
-
   ## Bug fixes
 
-  - Image workflows prefer the configured Codex image model when selecting from available subscription models.
-  - Improve image-edit prompts and review consistency for core subjects, supporting objects, intentional source crops and original textures. Wallpaper backgrounds no longer need special clock-area treatment unless explicitly configured.
+  - Visual Curator now keeps focal subjects distinct from supporting objects during wallpaper planning, retries and review. It also preserves candidate placement and checks generated canvases before ESPCN reconstruction.
