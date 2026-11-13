@@ -1,27 +1,40 @@
-version: 0.2.2-rc.1.20261113.1
+version: 0.2.2-rc.1.20261113.2
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.1-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261113.1-mac-x64-unsigned.zip
-    sha512: XJuWQHGl3x4hQiBCjUkUacozMbDSQfMm8jEopdd0HsEGieSDyd/7TdZf1+z9JZytO/3EBmoE4B/DpyThvM9obQ==
-    size: 496913917
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.1-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261113.1-mac-x64-unsigned.zip
-sha512: XJuWQHGl3x4hQiBCjUkUacozMbDSQfMm8jEopdd0HsEGieSDyd/7TdZf1+z9JZytO/3EBmoE4B/DpyThvM9obQ==
-releaseDate: '2026-11-13T05:27:33.681Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261113.2-mac-x64-unsigned.zip
+    sha512: F7r9f6RFqeDiSEP+pdL/AVI42EjW47OC0b3JN4S/oYf43JaTy3jVgIujKEaR2FfYb+xNdN5OmZ5ZsxvvgOil5A==
+    size: 496924133
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261113.2-mac-x64-unsigned.zip
+sha512: F7r9f6RFqeDiSEP+pdL/AVI42EjW47OC0b3JN4S/oYf43JaTy3jVgIujKEaR2FfYb+xNdN5OmZ5ZsxvvgOil5A==
+releaseDate: '2026-11-13T09:42:33.513Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261113.1
+  version: 0.2.2-rc.1.20261113.2
   items:
-    - id: visual-curator-focal-subject-safety
+    - id: visual-curator-image-sources
+      category: features
+      text:
+        en: Visual Curator can select a Codex image account or a configured OpenAI API key and its available image model for each new crop batch; official-key images are reviewed at their native resolution without super-resolution.
+        zh-CN: Visual Curator 可为新裁剪批次选择 Codex 生图账号，或已配置的 OpenAI API Key 及其可用模型；官方 Key 生成图按原生分辨率复审，不再超分。
+    - id: visual-curator-internal-crop-completion
       category: fixes
       text:
-        en: Visual Curator now keeps focal subjects distinct from supporting objects during wallpaper planning, retries and review. It also preserves candidate placement and checks generated canvases before ESPCN reconstruction.
-        zh-CN: 修复多物体扩图的主次识别、候选对齐和重试摆放问题；规划与复审分别检查主角安全区和陪衬保真，生成图通过后才执行 ESPCN 超分。
+        en: Visual Curator completes cosmetic products where an old source crop becomes visible inside the new wallpaper, and checks those details before accepting the result.
+        zh-CN: 修复视觉策展扩图后原图裁切边进入成品内部时彩妆物体仍留有平切的问题，并在接受成品前检查这些细节。
 releaseNotes: |-
+  ## 新增功能
+
+  - Visual Curator 可为新裁剪批次选择 Codex 生图账号，或已配置的 OpenAI API Key 及其可用模型；官方 Key 生成图按原生分辨率复审，不再超分。
+
   ## 问题修复
 
-  - 修复多物体扩图的主次识别、候选对齐和重试摆放问题；规划与复审分别检查主角安全区和陪衬保真，生成图通过后才执行 ESPCN 超分。
+  - 修复视觉策展扩图后原图裁切边进入成品内部时彩妆物体仍留有平切的问题，并在接受成品前检查这些细节。
 
   ---
 
+  ## New features
+
+  - Visual Curator can select a Codex image account or a configured OpenAI API key and its available image model for each new crop batch; official-key images are reviewed at their native resolution without super-resolution.
+
   ## Bug fixes
 
-  - Visual Curator now keeps focal subjects distinct from supporting objects during wallpaper planning, retries and review. It also preserves candidate placement and checks generated canvases before ESPCN reconstruction.
+  - Visual Curator completes cosmetic products where an old source crop becomes visible inside the new wallpaper, and checks those details before accepting the result.
