@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-settings-left-alignment",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator aligns its settings tabs, forms and footer with the gallery's left edge while retaining readable form widths in large windows.",
+    "zh-CN": "视觉策展的设置页签、表单和底部操作区与图库共用左侧对齐线，宽窗口下继续保留适合阅读的表单宽度。"
+  }
+}

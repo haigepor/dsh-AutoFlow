@@ -4,7 +4,7 @@
 
 ## Summary
 
-0.2.17：新裁剪批次可选择 Codex 生图账号，或已配置的 OpenAI API Key 和生图模型。官方 Key 成品按复审通过的原生分辨率使用；Codex 成品复审通过后才用 ESPCN x3 超分。原图裁切边进入壁纸内部的彩妆物体会补出自然末端。
+0.2.19：设置页签、表单及底部操作区与图库统一靠左，保留适合阅读的表单宽度。复审沿用规划中的主体角色，陪衬越过内侧安全区只作提示，自动返工仅针对明确不合格项。图片历史可按版本对比原图与成品，图片及大图预览支持保存完整资源。新裁剪批次可选择 Codex 生图账号，或已配置的 OpenAI API Key 和生图模型。官方 Key 成品按复审通过的原生分辨率使用；Codex 成品复审通过后才用 ESPCN x3 超分。
 
 本包随 AutoFlow 分发，在已安装插件中展示，保留已有启用选择。[release.config.json](../release.config.json) 负责稳定的 `visual-curator-v<version>` 标签族和 `visual-curator-update.json` 元数据，与 AFP、应用分别发版。
 
