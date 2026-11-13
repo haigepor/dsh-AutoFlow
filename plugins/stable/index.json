@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "haigepor/dsh-AutoFlow",
-  "generatedAt": "2026-11-13T06:25:00.732Z",
+  "generatedAt": "2026-11-13T16:08:03.349Z",
   "plugins": [
     {
       "schemaVersion": 1,
@@ -70,17 +70,17 @@
     {
       "schemaVersion": 1,
       "package": "dsh-plugin-visual-curator",
-      "version": "0.2.16",
+      "version": "0.2.20",
       "repository": "haigepor/dsh-AutoFlow",
       "channel": "stable",
-      "tag": "visual-curator-v0.2.16",
-      "sourceCommit": "c0432b8f45e5ab0d2f214602595af7da1e7d5659",
+      "tag": "visual-curator-v0.2.20",
+      "sourceCommit": "56c6ed137f48a3ef173bab28812efcc89cd183ce",
       "sourceDirty": false,
       "asset": {
-        "name": "dsh-plugin-visual-curator-0.2.16.tgz",
-        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/visual-curator-v0.2.16/dsh-plugin-visual-curator-0.2.16.tgz",
-        "sha256": "6c24a93609dcc398546decbff9f0477e15ca9c7206066781776e4a4fe0878548",
-        "size": 22641857
+        "name": "dsh-plugin-visual-curator-0.2.20.tgz",
+        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/visual-curator-v0.2.20/dsh-plugin-visual-curator-0.2.20.tgz",
+        "sha256": "a9c858db4d63c30accfb6551188a686cbb7b57aadc7d2a7f5429b83789a33cdd",
+        "size": 22658250
       }
     }
   ]
