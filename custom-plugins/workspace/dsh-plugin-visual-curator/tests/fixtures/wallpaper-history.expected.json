@@ -1,6 +1,8 @@
 {
-  "milestones": [
-    { "kind": "original", "label": "原图与保存", "time": "2026-11-12T01:00:00.000Z" },
+  "sourceMilestones": [
+    { "kind": "original", "label": "原图与保存", "time": "2026-11-12T01:00:00.000Z" }
+  ],
+  "revisionMilestones": [
     { "kind": "plan", "label": "规划已保存", "time": "2026-11-12T01:01:00.000Z" },
     { "kind": "image", "label": "图片已生成", "time": "2026-11-12T01:02:00.000Z" },
     { "kind": "review", "label": "图片已复审", "time": "2026-11-12T01:03:00.000Z" }

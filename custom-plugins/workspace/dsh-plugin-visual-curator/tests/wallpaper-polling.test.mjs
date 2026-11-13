@@ -285,7 +285,7 @@ test('the canvas loads large wallpaper artifacts and experience through the HTTP
     action: async () => { throw new Error('The bounded action route would reject this view') },
     fetch: async (_url, options) => {
       const input = JSON.parse(options.body); operations.push(input.operation)
-      return Response.json({ ok: true, value: input.operation === 'wallpaper-read' ? saved : input.operation === 'wallpaper-experience' ? experience : { settings: saved.settings, models: [] } })
+      return Response.json({ ok: true, value: input.operation === 'wallpaper-read' ? saved : input.operation === 'wallpaper-experience' ? experience : { settings: saved.settings, models: [], providers: [] } })
     },
   })
   const fixture = hookFixture({ kind: 'search', runId: 'search', status: 'completed', matched: 1, wallpaper: { runId: 'wallpaper', status: 'completed' } }, transport.invoke)

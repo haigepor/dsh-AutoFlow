@@ -130,12 +130,20 @@ test('image history dialog shows saved milestones and selects the requested revi
  const checks=Object.fromEntries(['subject','protection','clock','readability','composition','background','style'].map(key=>[key,{result:'satisfied',reason:''}]))
  const attempt={revision:1,createdAt:'2026-11-12T01:01:00.000Z',plan:{subject:'Fox in a forest'},generatedImageId:'native',preResolutionReview:{nativeId:'native'},review:{checks,issues:[]},reviewedAt:'2026-11-12T01:03:00.000Z',outputId:'native'}
  const item={imageVersionId:'source',originalId:'original',status:'needs-review',attempts:[attempt]}
- const value={runId:'run',status:'completed',state:{items:[item],version:2},resources:{original:'/api/visual-curator/resource?imageVersionId=original',native:'/api/visual-curator/resource?imageVersionId=native'},previewResources:{},artifactTimes:{original:'2026-11-12T01:00:00.000Z',native:'2026-11-12T01:02:00.000Z'},sourceImages:{}}
- const control={sourceId:'batch',offset:0,pageSize:10,details:null,historyOpen:true,item,attempt,detailAttempt:attempt,value,settings:capsule.exports.wallpaperSettingsSchema.parse({}),models:[],settingsOpen:false,planText:null,experienceOpen:false,experience:null,sample:null,setRevision(value){selected.push(value)},setDetailRevision(){throw Error('History selected the details revision')},setHistoryOpen(open){closed.push(open)},setDetails(){}}
+ const settings=capsule.exports.wallpaperSettingsSchema.parse({}),value={runId:'run',status:'completed',settings,state:{items:[item],version:2},resources:{original:'/api/visual-curator/resource?imageVersionId=original',native:'/api/visual-curator/resource?imageVersionId=native'},previewResources:{},artifactTimes:{original:'2026-11-12T01:00:00.000Z',native:'2026-11-12T01:02:00.000Z'},sourceImages:{}}
+ const control={sourceId:'batch',offset:0,pageSize:10,details:null,historyOpen:true,item,attempt,detailAttempt:attempt,value,settings,models:[],providers:[],settingsOpen:false,planText:null,experienceOpen:false,experience:null,sample:null,setRevision(value){selected.push(value)},setDetailRevision(){throw Error('History selected the details revision')},setHistoryOpen(open){closed.push(open)},setDetails(){}}
  await paint(h(Dialogs,{control,t}))
- const milestones=[...doc.querySelectorAll('.vc-image-history > li')].map(row=>({kind:row.dataset.kind,label:row.querySelector('.vc-image-history-heading strong').textContent,time:row.querySelector('time').dateTime}))
- assert.deepEqual({milestones},JSON.parse(await readFile(new URL('./fixtures/wallpaper-history.expected.json',import.meta.url),'utf8')))
- await act(async()=>[...doc.querySelectorAll('.vc-image-history button')].find(button=>button.textContent===zh.wallpaperHistoryViewRevision).click())
+ const expected=JSON.parse(await readFile(new URL('./fixtures/wallpaper-history.expected.json',import.meta.url),'utf8'))
+ const milestones=()=>[...doc.querySelectorAll('.vc-image-history > li')].map(row=>({kind:row.dataset.kind,label:row.querySelector('.vc-image-history-heading strong').textContent,time:row.querySelector('time').dateTime}))
+ assert.deepEqual(milestones(),expected.revisionMilestones)
+ assert.deepEqual([...doc.querySelectorAll('.vc-image-history-comparison img')].map(image=>new URL(image.src).searchParams.get('imageVersionId')),['original','native'])
+ const versions=[...doc.querySelectorAll('.vc-image-history-versions button')]
+ await act(async()=>versions[0].click())
+ assert.deepEqual(milestones(),expected.sourceMilestones)
+ assert.equal(doc.querySelectorAll('.vc-image-history-comparison img').length,1)
+ await act(async()=>versions[1].click())
+ assert.deepEqual(milestones(),expected.revisionMilestones)
+ await act(async()=>[...doc.querySelectorAll('.vc-image-history-toolbar button')].find(button=>button.textContent===zh.wallpaperHistoryViewRevision).click())
  assert.deepEqual(selected,[{image:'source',revision:1}]);assert.deepEqual(closed,[false])
 }))
 test('saved wallpaper results start one current-policy review and retain ordinary crop actions',()=>environment(async({paint,doc})=>{
@@ -190,7 +198,7 @@ test('planning reasons precede the preview and task controls share one modal foo
  const Dialogs=capsule.exports.createWallpaperCanvas(React,ui).Dialogs,events=[]
  const plan={version:1,imageVersionId:'source',mode:'single',subject:'A cut-off car',evidence:'The source frame ends at the rear body.',priorities:[],anchors:[],truncations:['Rear body cut off'],uncertainties:[],regions:[],placement:{left:0,top:0,scale:0.5},reason:'Keep visible pixels'}
  const attempt={revision:1,plan,checks:[],needsOutpaint:false,detailAnalysis:{outcome:'violated'}},item={imageVersionId:'source',originalId:'source',status:'rejected',edits:0,attempts:[attempt],reason:'Original subject is cut off.'}
- const settings=capsule.exports.wallpaperSettingsSchema.parse({}),control={sourceId:'batch',offset:0,pageSize:10,details:'planning',busy:false,value:{runId:'run',status:'completed',warnings:[],total:1,state:{items:[item],version:2},settings,counts:{rejected:1},resources:{},sourceImages:{}},item,attempt,detailAttempt:attempt,settings,models:[],settingsOpen:false,planText:null,experienceOpen:false,experience:null,sample:null,setDetails(){},showExperience:()=>events.push('experience'),editPlan:()=>events.push('edit'),control:action=>events.push(action),continue:()=>events.push('continue')}
+ const settings=capsule.exports.wallpaperSettingsSchema.parse({}),control={sourceId:'batch',offset:0,pageSize:10,details:'planning',busy:false,value:{runId:'run',status:'completed',warnings:[],total:1,state:{items:[item],version:2},settings,counts:{rejected:1},resources:{},sourceImages:{}},item,attempt,detailAttempt:attempt,settings,models:[],providers:[],settingsOpen:false,planText:null,experienceOpen:false,experience:null,sample:null,setDetails(){},showExperience:()=>events.push('experience'),editPlan:()=>events.push('edit'),control:action=>events.push(action),continue:()=>events.push('continue')}
  await paint(h(Dialogs,{control,t}))
  const expected=JSON.parse(await readFile(new URL('./fixtures/direct-crop-dialog-controls.expected.json',import.meta.url),'utf8')).details
  assert.equal(doc.querySelector('.vc-image-detail-reason p').textContent,'Original subject is cut off.')

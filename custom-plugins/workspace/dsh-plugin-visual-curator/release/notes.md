@@ -1,4 +1,4 @@
-## Visual Curator 0.2.19
+## Visual Curator 0.2.20
 
 - Settings tabs, forms and the footer align with the gallery's left edge while retaining readable form widths.
 - Reviews retain the planned subject roles. Supporting props outside the inner safe area are nonblocking; automatic rework requires a confirmed failure. Uncertain evidence keeps the saved image pending review.
@@ -7,7 +7,7 @@
 
 This is an independent plugin update; reinstalling Desktop is unnecessary. Update after active tasks finish, then restart AutoFlow to load the matching Host, Client and profile patch. Existing settings, accounts, task data and saved results are retained; saved tasks keep their frozen prompts and roles.
 
-## Visual Curator 0.2.19 更新说明
+## Visual Curator 0.2.20 更新说明
 
 - 设置页签、表单和底部操作区与图库共用左侧对齐线，保留适合阅读的表单宽度。
 - 复审沿用规划中的主体角色，陪衬越过内侧安全区只作提示；自动返工仅针对明确不合格项，证据不确定时保留已保存图片等待复核。
