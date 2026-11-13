@@ -1,40 +1,47 @@
-version: 0.2.2-rc.1.20261113.2
+version: 0.2.2-rc.1.20261113.3
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261113.2-mac-x64-unsigned.zip
-    sha512: F7r9f6RFqeDiSEP+pdL/AVI42EjW47OC0b3JN4S/oYf43JaTy3jVgIujKEaR2FfYb+xNdN5OmZ5ZsxvvgOil5A==
-    size: 496924133
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261113.2-mac-x64-unsigned.zip
-sha512: F7r9f6RFqeDiSEP+pdL/AVI42EjW47OC0b3JN4S/oYf43JaTy3jVgIujKEaR2FfYb+xNdN5OmZ5ZsxvvgOil5A==
-releaseDate: '2026-11-13T09:42:33.513Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.3-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261113.3-mac-x64-unsigned.zip
+    sha512: Ka/azUWcaKIaqAjgheTIJ4SPDhlHe7GFGQ/vTRS3mEXbLNPLrRMKCiyPmwJVQKVfY/Fi0wn39zeOJGNWgp+BbQ==
+    size: 496929952
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261113.3-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261113.3-mac-x64-unsigned.zip
+sha512: Ka/azUWcaKIaqAjgheTIJ4SPDhlHe7GFGQ/vTRS3mEXbLNPLrRMKCiyPmwJVQKVfY/Fi0wn39zeOJGNWgp+BbQ==
+releaseDate: '2026-11-13T11:54:08.693Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261113.2
+  version: 0.2.2-rc.1.20261113.3
   items:
-    - id: visual-curator-image-sources
-      category: features
-      text:
-        en: Visual Curator can select a Codex image account or a configured OpenAI API key and its available image model for each new crop batch; official-key images are reviewed at their native resolution without super-resolution.
-        zh-CN: Visual Curator 可为新裁剪批次选择 Codex 生图账号，或已配置的 OpenAI API Key 及其可用模型；官方 Key 生成图按原生分辨率复审，不再超分。
-    - id: visual-curator-internal-crop-completion
+    - id: visual-curator-focal-review
       category: fixes
       text:
-        en: Visual Curator completes cosmetic products where an old source crop becomes visible inside the new wallpaper, and checks those details before accepting the result.
-        zh-CN: 修复视觉策展扩图后原图裁切边进入成品内部时彩妆物体仍留有平切的问题，并在接受成品前检查这些细节。
+        en: Visual Curator retains the planned subject protection scope, treats supporting props outside the inner safe area as nonblocking and reserves automatic rework for confirmed failures. Uncertain reviews retain the saved image for follow-up.
+        zh-CN: 视觉策展沿用规划确定的主体保护范围，陪衬越过内侧安全区只作提示；自动返工仅针对明确不合格项，证据不确定时保留图片等待复核。
+    - id: visual-curator-history-comparison
+      category: improvements
+      text:
+        en: Image history now compares saved versions with the original and offers full-resolution saving from images and previews. Canvas review failures identify model-estimated safety overflow instead of only showing an internal error code.
+        zh-CN: 图片历史支持按版本对比原图与成品，历史图片和大图预览支持保存完整清晰度图片；画布复审失败会说明模型估计的安全区越界原因。
+    - id: visual-curator-settings-layout
+      category: improvements
+      text:
+        en: Visual Curator groups original imports and image generation settings into clearer sections, keeps settings readable in wide windows, and opens API key editing only when needed.
+        zh-CN: 视觉策展重新整理原图导入与生图设置的分区，限制宽窗口下的表单宽度，并在需要时打开 API Key 编辑。
 releaseNotes: |-
-  ## 新增功能
+  ## 体验优化
 
-  - Visual Curator 可为新裁剪批次选择 Codex 生图账号，或已配置的 OpenAI API Key 及其可用模型；官方 Key 生成图按原生分辨率复审，不再超分。
+  - 图片历史支持按版本对比原图与成品，历史图片和大图预览支持保存完整清晰度图片；画布复审失败会说明模型估计的安全区越界原因。
+  - 视觉策展重新整理原图导入与生图设置的分区，限制宽窗口下的表单宽度，并在需要时打开 API Key 编辑。
 
   ## 问题修复
 
-  - 修复视觉策展扩图后原图裁切边进入成品内部时彩妆物体仍留有平切的问题，并在接受成品前检查这些细节。
+  - 视觉策展沿用规划确定的主体保护范围，陪衬越过内侧安全区只作提示；自动返工仅针对明确不合格项，证据不确定时保留图片等待复核。
 
   ---
 
-  ## New features
+  ## Improvements
 
-  - Visual Curator can select a Codex image account or a configured OpenAI API key and its available image model for each new crop batch; official-key images are reviewed at their native resolution without super-resolution.
+  - Image history now compares saved versions with the original and offers full-resolution saving from images and previews. Canvas review failures identify model-estimated safety overflow instead of only showing an internal error code.
+  - Visual Curator groups original imports and image generation settings into clearer sections, keeps settings readable in wide windows, and opens API key editing only when needed.
 
   ## Bug fixes
 
-  - Visual Curator completes cosmetic products where an old source crop becomes visible inside the new wallpaper, and checks those details before accepting the result.
+  - Visual Curator retains the planned subject protection scope, treats supporting props outside the inner safe area as nonblocking and reserves automatic rework for confirmed failures. Uncertain reviews retain the saved image for follow-up.
