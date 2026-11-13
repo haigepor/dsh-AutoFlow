@@ -3,9 +3,9 @@
   "channel": "nightly",
   "targets": {
     "win-x64": {
-      "latestVersion": "0.2.2-rc.1.20261113.1",
+      "latestVersion": "0.2.2-rc.1.20261113.2",
       "minimumSupportedVersion": "0.0.0",
-      "downloadPage": "https://github.com/haigepor/dsh-AutoFlow/releases/tag/desktop-v0.2.2-rc.1.20261113.1-unsigned"
+      "downloadPage": "https://github.com/haigepor/dsh-AutoFlow/releases/tag/desktop-v0.2.2-rc.1.20261113.2-unsigned"
     },
     "mac-arm64": {
       "latestVersion": "0.2.2-rc.1.20261111.1",
