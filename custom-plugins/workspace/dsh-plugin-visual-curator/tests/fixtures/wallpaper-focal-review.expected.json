@@ -1,0 +1,8 @@
+{
+  "companionOutside": { "verdict": "pass", "rework": false },
+  "uncertainDetail": { "verdict": "needs-review", "rework": false },
+  "visibleDamage": { "verdict": "reject", "rework": true },
+  "subjectOutside": { "verdict": "reject", "rework": true },
+  "companionPromotionRejected": true,
+  "missingSubjectRejected": true
+}

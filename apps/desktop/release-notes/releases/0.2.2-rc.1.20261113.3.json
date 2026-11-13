@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.1.20261113.3",
+  "items": [
+    {
+      "id": "visual-curator-focal-review",
+      "category": "fixes",
+      "text": {
+        "en": "Visual Curator retains the planned subject protection scope, treats supporting props outside the inner safe area as nonblocking and reserves automatic rework for confirmed failures. Uncertain reviews retain the saved image for follow-up.",
+        "zh-CN": "视觉策展沿用规划确定的主体保护范围，陪衬越过内侧安全区只作提示；自动返工仅针对明确不合格项，证据不确定时保留图片等待复核。"
+      }
+    },
+    {
+      "id": "visual-curator-history-comparison",
+      "category": "improvements",
+      "text": {
+        "en": "Image history now compares saved versions with the original and offers full-resolution saving from images and previews. Canvas review failures identify model-estimated safety overflow instead of only showing an internal error code.",
+        "zh-CN": "图片历史支持按版本对比原图与成品，历史图片和大图预览支持保存完整清晰度图片；画布复审失败会说明模型估计的安全区越界原因。"
+      }
+    },
+    {
+      "id": "visual-curator-settings-layout",
+      "category": "improvements",
+      "text": {
+        "en": "Visual Curator groups original imports and image generation settings into clearer sections, keeps settings readable in wide windows, and opens API key editing only when needed.",
+        "zh-CN": "视觉策展重新整理原图导入与生图设置的分区，限制宽窗口下的表单宽度，并在需要时打开 API Key 编辑。"
+      }
+    }
+  ]
+}

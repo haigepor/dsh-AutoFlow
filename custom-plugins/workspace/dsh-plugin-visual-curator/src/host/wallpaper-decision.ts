@@ -107,7 +107,7 @@ function allowedFor(deps: WallpaperDecisionDependencies, attempt: Attempt): Wall
       const extraDetails = item.decisions?.filter(record => record.detailRect).length ?? 0
       if (deps.supportsDetail && deps.maxImages >= 2 && wallpaperPlanConcerns(attempt.plan).length && extraDetails < (settings.decision?.maxDetailRequests ?? 0)) actions.push('inspect_region')
     }
-    if (!receipt && wallpaperReworkCount(item) < settings.maxReworks && (!attempt.needsOutpaint || item.edits < settings.maxEditsPerImage) && (!item.errorCode || item.failedStep === 'planning')) actions.push('replan')
+    if (!attempt.outputId && !receipt && wallpaperReworkCount(item) < settings.maxReworks && (!attempt.needsOutpaint || item.edits < settings.maxEditsPerImage) && (!item.errorCode || item.failedStep === 'planning')) actions.push('replan')
     if (!attempt.outputId && item.failedStep === 'rendering' && item.errorCode && referenceErrors.has(item.errorCode) && !attempt.generation && !attempt.generationInput) actions.push('retry_reference_preparation')
     if (!attempt.outputId && receipt && deps.llm) actions.push('query_saved_generation')
     if (attempt.generation && attempt.needsOutpaint && !attempt.outputId && !attempt.checks.length && item.failedStep === 'rendering' && wallpaperReworkCount(item) < settings.maxReworks) {

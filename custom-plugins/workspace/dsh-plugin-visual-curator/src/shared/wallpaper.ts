@@ -78,7 +78,7 @@ export function applyWallpaperRecoveryLimits(settings: WallpaperSettings): void 
 /** Modes describe visual organization rather than a closed list of object classes. */
 export const wallpaperModeSchema = z.enum(['single', 'group', 'scene', 'abstract', 'uncertain'])
 /** Source entities keep one identity and one task role across planning, editing and review. */
-export const wallpaperObjectRoleSchema = z.strictObject({ entityId: id, name: text, role: z.enum(['primary', 'critical-part', 'supporting']), evidence: text, rect, sourceEdges: z.array(z.enum(['left', 'top', 'right', 'bottom'])).max(4) })
+export const wallpaperObjectRoleSchema = z.strictObject({ entityId: id, name: text, role: z.enum(['primary', 'critical-part', 'supporting']).describe('Primary is the visual subject; critical-part is an indispensable part of that subject. Mere containment, support or contact does not make a separate prop critical. A food bowl is supporting unless the vessel itself is the requested subject.'), evidence: text, rect, sourceEdges: z.array(z.enum(['left', 'top', 'right', 'bottom'])).max(4) })
 export type WallpaperObjectRole = z.infer<typeof wallpaperObjectRoleSchema>
 /** Inferred regions on the EXIF-oriented source; they are not measured segmentation masks. */
 export const wallpaperPlanSchema = z.strictObject({
@@ -327,7 +327,7 @@ export function wallpaperReworkCount(item: WallpaperItem): number {
 export function wallpaperReviewReworkAvailable(item: WallpaperItem, settings: WallpaperSettings): boolean {
   const attempt = item.attempts.at(-1), review = attempt?.review
   const repair = wallpaperGenerativeRepair(settings)
-  if (!item.originalId || item.status === 'passed' || !attempt?.outputId || attempt.checks.length || !review || wallpaperVerdict(review) === 'pass' || !repair && wallpaperVerdict(review) !== 'reject' || !('subjectIntegrity' in review)) return false
+  if (!item.originalId || item.status === 'passed' || !attempt?.outputId || attempt.checks.length || !review || wallpaperVerdict(review) !== 'reject' || !('subjectIntegrity' in review)) return false
   if (!repair && !attempt.needsOutpaint && !review.issues.some(issue => issue.kind === 'layout' || issue.kind === 'readability')) return false
   const { source, output, mode } = review.subjectIntegrity
   if (source.imageVersionId !== item.originalId || output.imageVersionId !== (attempt.preResolutionReview?.nativeId ?? attempt.outputId) || attempt.plan.imageVersionId !== item.originalId) return false

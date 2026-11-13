@@ -10,9 +10,16 @@ const root = fileURLToPath(new URL('../', import.meta.url))
 const compiled = await build({ entryPoints: [resolve(root, 'src/client/wallpaper-history.ts')], bundle: true, write: false, packages: 'external', platform: 'node', format: 'cjs', logLevel: 'silent' })
 const filename = resolve(root, 'tests/wallpaper-history-memory.cjs'), capsule = new Module(filename)
 capsule.filename = filename; capsule.paths = Module._nodeModulePaths(dirname(filename)); capsule._compile(compiled.outputFiles[0].text, filename)
-const { wallpaperImageHistory } = capsule.exports
+const { wallpaperImageHistory, wallpaperReviewReasons } = capsule.exports
 
 const checks = Object.fromEntries(['subject', 'protection', 'clock', 'readability', 'composition', 'background', 'style'].map(key => [key, { result: 'satisfied', reason: '' }]))
+
+test('review explanations identify estimated overflow and retain failed checks without issue rows', () => {
+  const text = { wallpaperBoundaryEstimate: '{name}: estimated overflow · {edges}', wallpaperBoundaryRight: 'Right' }
+  const review = { checks: { ...checks, protection: { result: 'violated', reason: 'critical-outside:Vase' }, clarity: { result: 'unknown', reason: 'Fine edges could not be confirmed.' } }, issues: [{ reason: 'critical-outside:Vase' }], actualLayout: { regions: [{ name: 'Vase', rect: { x: 0.8, y: 0.4, width: 0.1, height: 0.2 } }] } }
+  const settings = { width: 1845, height: 3280, safe: { left: 258, top: 1032, width: 1329, height: 1686 }, sideOverflow: 66, bottomOverflow: 84, topBuffer: 32 }
+  assert.deepEqual(wallpaperReviewReasons(review, settings, key => text[key] ?? key), ['Vase: estimated overflow · Right 74 px', 'Fine edges could not be confirmed.'])
+})
 
 test('new generated revisions show native review before optional resolution with saved times and final output', () => {
   const item = { originalId: 'original', status: 'passed', download: { savedAt: '2026-11-12T01:00:00.000Z' }, attempts: [{

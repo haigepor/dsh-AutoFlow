@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import sharp from 'sharp'
-import { wallpaperPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperRoleObservationPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperHasBackgroundAnchors, wallpaperSettingsSchema, wallpaperSubjectCheck, wallpaperStoredSourceReviewV4Schema, wallpaperReviewKeys } from '../src/shared/wallpaper.ts'
+import { wallpaperPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperRoleObservationPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperHasBackgroundAnchors, wallpaperSettingsSchema, wallpaperSubjectCheck, wallpaperStoredSourceReviewV4Schema, wallpaperReviewKeys, wallpaperReviewOutputSchema, wallpaperReviewReworkAvailable, wallpaperVerdict } from '../src/shared/wallpaper.ts'
+import { applyWallpaperSourceReview } from '../src/host/wallpaper-review.ts'
 import { wallpaperCandidatePlacement, wallpaperGeometry, wallpaperObjectProtectionRegions, wallpaperSourceExtensionEdges, wallpaperSourceContinuationTargets, wallpaperSourceContinuationReviewRegions, fitWallpaperPlacement } from '../src/shared/wallpaper-geometry.ts'
 import { retainWallpaperRegions, retainWallpaperObjectRoles, wallpaperPlanConcerns } from '../src/shared/wallpaper-detail.ts'
 import { wallpaperRepairMask, wallpaperSourceRepairNeeded } from '../src/media/wallpaper-repair.ts'
@@ -12,7 +13,7 @@ import { wallpaperGenerationRetry, wallpaperEditingRetry, wallpaperItemSchema } 
 import { sourceFaithfulWallpaperPrompts } from '../src/shared/wallpaper-prompts.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
 import { specOf } from '../src/host/runtime.ts'
-import { writeFile } from 'node:fs/promises'
+import { writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 
@@ -30,6 +31,36 @@ test('new direct admissions freeze generated repair by default while historical 
     assert.equal(z.object({ plan: z.object({ version: z.literal('wallpaper-plan-v8') }) }).parse(frozen.prompts).plan.version, 'wallpaper-plan-v8')
     await fixture.jobs.drain()
   } finally { await fixture.cleanup() }
+})
+
+test('frozen food subjects ignore companion safety overflow and reserve rework for confirmed defects', async () => {
+  const settings = wallpaperSettingsSchema.parse({ repairPolicy: {} })
+  const subject = { entityId: 'berries', name: 'Berries', role: 'primary' as const, evidence: 'The food is the visual subject.', rect: { x: 0.4, y: 0.45, width: 0.3, height: 0.2 }, sourceEdges: [] }
+  const bowl = { entityId: 'bowl', name: 'Serving bowl', role: 'supporting' as const, evidence: 'A separate vessel containing the food.', rect: { x: 0.55, y: 0.48, width: 0.4, height: 0.3 }, sourceEdges: [] }
+  const objects = [subject, bowl]
+  const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode: 'single', subject: 'Berries', evidence: subject.evidence, priorities: [], anchors: [], truncations: [], uncertainties: [], objectRoles: objects,
+    regions: [{ entityId: subject.entityId, name: subject.name, role: 'subject', rect: subject.rect }], placement: { scale: 1, left: 0, top: 0 }, reason: 'Protect the food; retain the bowl as a prop.' })
+  const raw = { reviewVersion: 'wallpaper-review-source-v4', subject: 'Berries', checks: Object.fromEntries([...wallpaperReviewKeys, 'clarity'].map(key => [key, { result: 'satisfied', reason: 'Independent final pixels retain the source scene.' }])), issues: [], styleResults: [],
+    sourceRepair: { result: 'satisfied', reason: 'Natural complete scene.' }, sourceCorrespondence: { result: 'satisfied', reason: 'The companion bowl extends beyond the inner guide; its appearance is retained.' },
+    actualLayout: { imageVersionId: 'output', regions: plan.regions.map(region => ({ ...region, scope: 'core' })) },
+    subjectIntegrity: { mode: 'single', source: { extent: 'complete', imageVersionId: 'source', reason: 'Whole visible subject.' }, output: { extent: 'complete', imageVersionId: 'output', reason: 'Whole visible subject.' }, task: { result: 'satisfied', reason: 'Food remains the subject.' } } }
+  const schema = wallpaperReviewOutputSchema('wallpaper-review-source-v4', [], ['source', 'output'], 'output', 'source', true, objects)
+  const review = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(schema.parse(raw), true, settings))
+  const item = wallpaperItemSchema.parse({ imageVersionId: 'source', originalId: 'source', familyId: 'synthetic-food', status: 'needs-review', edits: 1, attempts: [{ revision: 1, plan, checks: [], needsOutpaint: true, outputId: 'output', review }] })
+  const result = (review: typeof item.attempts[number]['review']) => {
+    const candidate = structuredClone(item); candidate.attempts[0]!.review = review
+    return { verdict: wallpaperVerdict(review!), rework: wallpaperReviewReworkAvailable(candidate, settings) }
+  }
+  const unknown = structuredClone(review); unknown.checks.clarity = { result: 'unknown', reason: 'A detail remains unclear.' }
+  const damaged = structuredClone(review); damaged.checks.clarity = { result: 'violated', reason: 'Fruit edges are visibly smeared.' }
+  const outside = structuredClone(raw); outside.actualLayout.regions[0]!.rect = { x: 0.7, y: 0.45, width: 0.25, height: 0.2 }
+  const outsideReview = applyWallpaperSourceReview(schema.parse(outside), true, settings)
+  const actual = {
+    companionOutside: result(review), uncertainDetail: result(unknown), visibleDamage: result(damaged), subjectOutside: result(outsideReview),
+    companionPromotionRejected: !schema.safeParse({ ...raw, actualLayout: { ...raw.actualLayout, regions: [...raw.actualLayout.regions, { entityId: bowl.entityId, name: bowl.name, role: 'critical', scope: 'core', rect: bowl.rect }] } }).success,
+    missingSubjectRejected: !schema.safeParse({ ...raw, actualLayout: { ...raw.actualLayout, regions: [] } }).success,
+  }
+  assert.deepEqual(actual, JSON.parse(await readFile(new URL('./fixtures/wallpaper-focal-review.expected.json', import.meta.url), 'utf8')))
 })
 
 test('localized source uncertainty permits a candidate only with frozen generated-repair authorization', async () => {

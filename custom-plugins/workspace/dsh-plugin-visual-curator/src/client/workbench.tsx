@@ -145,6 +145,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const [imageError, setImageError] = React.useState('')
     const [newKeyLabel, setNewKeyLabel] = React.useState(''), [newKeyValue, setNewKeyValue] = React.useState('')
     const [replaceKeyId, setReplaceKeyId] = React.useState(''), [replaceKeyValue, setReplaceKeyValue] = React.useState('')
+    const [keyDialog, setKeyDialog] = React.useState<'add' | 'replace' | null>(null), [keySaving, setKeySaving] = React.useState(false)
     const [connectionOpen, setConnectionOpen] = React.useState(false), [advancedOpen, setAdvancedOpen] = React.useState(false)
     const settingsId = React.useId()
     React.useEffect(() => { if (panel === 'vision' && catalog.status === 'idle') void actions.loadVisionModels() }, [panel, catalog.status, actions])
@@ -163,9 +164,11 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     }
     const addImageKey = async () => {
       if (!newKeyLabel.trim() || !newKeyValue.trim()) return
+      setKeySaving(true)
       const id = crypto.randomUUID(), credentialRef = `VISUAL_CURATOR_IMAGE_${id.replaceAll('-', '_')}`
-      if (await saveImageConfig({ apiKeys: [...config.imageSources.apiKeys.map(({ configured: _configured, ...profile }) => profile), { id, label: newKeyLabel.trim(), credentialRef }] }, imageRoute, { ref: credentialRef, value: newKeyValue.trim() })) {
+      if (await saveImageConfig({ apiKeys: [...config.imageSources.apiKeys.map(({ configured: _configured, ...profile }) => profile), { id, label: newKeyLabel.trim(), credentialRef }] }, config.wallpaperImage, { ref: credentialRef, value: newKeyValue.trim() })) {
         setNewKeyLabel(''); setNewKeyValue('')
+        setKeyDialog(null)
         try {
           const options = imageOptionsSchema.parse(await actions.imageOptions())
           setImageOptions(options)
@@ -173,13 +176,16 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
           setImageRoute({ ...route, imageModel: defaultImageModel(options, route) })
         } catch { setImageError(t('imageGenerationLoadError')) }
       }
+      setKeySaving(false)
     }
     const replaceImageKey = async () => {
       const profile = config.imageSources.apiKeys.find(item => item.id === replaceKeyId)
       if (!profile || !replaceKeyValue.trim()) return
       setImageError('')
-      try { await actions.saveCredential(profile.credentialRef, replaceKeyValue.trim()); await actions.reload(); setImageOptions(imageOptionsSchema.parse(await actions.imageOptions())); setReplaceKeyValue('') }
+      setKeySaving(true)
+      try { await actions.saveCredential(profile.credentialRef, replaceKeyValue.trim()); await actions.reload(); setImageOptions(imageOptionsSchema.parse(await actions.imageOptions())); setReplaceKeyValue(''); setKeyDialog(null) }
       catch (error) { setImageError(t('imageGenerationSaveError')) }
+      finally { setKeySaving(false) }
     }
     const save = async (kind: 'vision' | 'source' = 'vision') => {
       try {
@@ -190,7 +196,8 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
         const saved = actions.getSnapshot().snapshot?.configuration; if (saved) { setVision(saved.vision); setSource(saved.source) }; if (kind === 'source') setAdvancedOpen(false)
       } catch (error) { /* 保存失败由共享配置状态显示，导航和其他任务继续可用。 */ }
     }
-    return <><form className="vc-settings" onSubmit={event => { event.preventDefault(); if (panel === 'vision') void save() }}>
+    const closeKeyDialog = () => { if (!keySaving && !saving) { setKeyDialog(null); setNewKeyValue(''); setReplaceKeyValue(''); setImageError('') } }
+    return <><form className="vc-settings" data-panel={panel} onSubmit={event => { event.preventDefault(); if (panel === 'vision') void save() }}>
       <SegmentedTabs className="vc-settings-tabs" label={t('settings')} value={panel} onChange={setPanel} items={[
         { value: 'vision', label: <span className="vc-settings-tab-label"><ui.IconSparkleRegular size={16} />{t('vision')}<StateDot state={savedModelAvailable ? 'done' : 'idle'} /></span>, id: `${settingsId}-vision-tab`, panelId: `${settingsId}-vision` },
         { value: 'source', label: <span className="vc-settings-tab-label"><ui.IconFolderOpenOutlineRegular size={16} />{t('gallery')}<StateDot state={config.sourceConfigured ? 'done' : 'idle'} /></span>, id: `${settingsId}-source-tab`, panelId: `${settingsId}-source` },
@@ -198,10 +205,9 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
       ]} />
       {(['vision', 'source', 'image'] as const).map(value => <div key={value} id={`${settingsId}-${value}`} role="tabpanel" aria-labelledby={`${settingsId}-${value}-tab`} hidden={panel !== value}>{panel === value && <fieldset data-panel={value} className="vc-settings-panel vc-stack" disabled={saving}>
       {value === 'vision' ? <>
-        <div className="vc-row"><h3>{t('vision')}</h3><Tag tone={savedModelAvailable ? 'success' : 'neutral'}>{t(savedModelAvailable ? 'configured' : 'unconfigured')}</Tag></div>
-        <p>{t('managedModelsHint')}</p>
-        <label>{t('configuredModel')}<SelectField label={t('configuredModel')} value={selectedKey} disabled={catalog.status !== 'ready' || !catalog.value?.models.length} options={(catalog.value?.models ?? []).map(model => ({ value: visionModelKey(model), label: `${model.name} · ${model.providerName}` }))} onChange={key => { const model = catalog.value?.models.find(item => visionModelKey(item) === key); if (model) setVision({ ...vision, backend: 'native', provider: model.provider, model: model.id }) }} /></label>
-        <div className="vc-row"><small role="status">{catalog.status === 'loading' ? <StateDot state="ongoing" /> : catalog.status === 'error' ? t('modelsLoadError') : !catalog.value?.models.length ? t('modelsEmpty') : vision.model && !selectedModel ? t('modelUnavailable') : catalog.value.unavailable.length > 0 ? t('modelsPartial') : t('managedModelsShared')}</small><div className="vc-dataset-actions"><Button variant="ghost" disabled={catalog.status === 'loading'} onClick={actions.reloadVisionModels}>{t('refresh')}</Button><Button variant="outline" onClick={actions.openModelSettings}>{t('manageModels')}<ui.IconChevronRightOutlineRegular size={12} /></Button></div></div>
+        <div className="vc-settings-heading"><div><h3>{t('vision')}</h3><p>{t('managedModelsHint')}</p></div><Tag tone={savedModelAvailable ? 'success' : 'neutral'}>{t(savedModelAvailable ? 'configured' : 'unconfigured')}</Tag></div>
+        <label>{t('configuredModel')}<SelectField matchAnchorWidth label={t('configuredModel')} value={selectedKey} disabled={catalog.status !== 'ready' || !catalog.value?.models.length} options={(catalog.value?.models ?? []).map(model => ({ value: visionModelKey(model), label: `${model.name} · ${model.providerName}` }))} onChange={key => { const model = catalog.value?.models.find(item => visionModelKey(item) === key); if (model) setVision({ ...vision, backend: 'native', provider: model.provider, model: model.id }) }} /></label>
+        <div className="vc-model-connection"><small role="status">{catalog.status === 'loading' ? <StateDot state="ongoing" /> : catalog.status === 'error' ? t('modelsLoadError') : !catalog.value?.models.length ? t('modelsEmpty') : vision.model && !selectedModel ? t('modelUnavailable') : catalog.value.unavailable.length > 0 ? t('modelsPartial') : t('managedModelsShared')}</small><div className="vc-dataset-actions"><Button variant="ghost" disabled={catalog.status === 'loading'} onClick={actions.reloadVisionModels}>{t('refresh')}</Button><Button variant="outline" onClick={actions.openModelSettings}>{t('manageModels')}<ui.IconChevronRightOutlineRegular size={12} /></Button></div></div>
         <DisclosureRow className="vc-settings-advanced" icon={<ui.IconChevronDownOutlineRegular size={14} />} title={t('visionOptions')} open={connectionOpen} expandable expandOnRowClick onToggle={() => setConnectionOpen(value => !value)}><div className="vc-settings-fields">
           <label>{t('requestTimeout')}<Input required type="number" min={1} step={1} value={requestTimeoutMs / 1000} onChange={event => setRequestTimeoutMs(Number(event.target.value) * 1000)} /></label>
           <label>{t('maxRetryAttempts')}<Input required type="number" min={0} max={5} step={1} value={maxRetryAttempts} onChange={event => setMaxRetryAttempts(Number(event.target.value))} /></label>
@@ -224,25 +230,38 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
         }} />
 
       </> : <>
-        <div className="vc-row"><h3>{t('imageGenerationSource')}</h3><Tag tone="neutral">{t('imageGenerationDefault')}</Tag></div>
-        <p>{t('imageGenerationHint')}</p>
-        <div className="vc-settings-fields">
-          <label>{t('imageGenerationSource')}<SelectField label={t('imageGenerationSource')} value={imageRoute.imageProvider} options={(imageOptions?.providers ?? []).map(provider => ({ value: provider.id, label: provider.name }))} disabled={!imageOptions} onChange={imageProvider => setImageRoute({ imageProvider, imageSourceId: '', imageModel: '' })} /></label>
-          <label>{t('imageGenerationAccount')}<SelectField label={t('imageGenerationAccount')} value={imageRoute.imageSourceId} options={[...(imageRoute.imageProvider === 'autoflow-codex' ? [{ value: '', label: t('imageGenerationAutomaticAccount') }] : []), ...(imageOptions?.providers.find(provider => provider.id === imageRoute.imageProvider)?.sources ?? []).map(source => ({ value: source.id, label: `${source.name}${!source.available ? ` · ${t('unconfigured')}` : source.modelError ? ` · ${t('modelsLoadError')}` : ''}` }))]} disabled={!imageOptions} onChange={imageSourceId => { const route = { imageProvider: imageRoute.imageProvider, imageSourceId }; setImageRoute({ ...route, imageModel: defaultImageModel(imageOptions, route) }) }} /></label>
-          <label>{t('wallpaperImageModel')}<SelectField label={t('wallpaperImageModel')} value={imageRoute.imageModel} options={[{ value: '', label: t('wallpaperAutomaticModel') }, ...imageModelsForRoute(imageOptions, imageRoute).map(model => ({ value: model.id, label: model.name }))]} disabled={!imageOptions} onChange={imageModel => setImageRoute({ ...imageRoute, imageModel })} /></label>
+        <div className="vc-image-settings-grid">
+          <section className="vc-settings-card" aria-labelledby={`${settingsId}-image-heading`}>
+            <div className="vc-settings-heading"><div><h3 id={`${settingsId}-image-heading`}>{t('imageGenerationDefaultTitle')}</h3><p>{t('imageGenerationHint')}</p></div></div>
+            <div className="vc-image-route-fields">
+              <label>{t('imageGenerationSource')}<SelectField matchAnchorWidth label={t('imageGenerationSource')} value={imageRoute.imageProvider} options={(imageOptions?.providers ?? []).map(provider => ({ value: provider.id, label: provider.name }))} disabled={!imageOptions} onChange={imageProvider => setImageRoute({ imageProvider, imageSourceId: '', imageModel: '' })} /></label>
+              <label>{t(imageRoute.imageProvider === 'visual-curator-openai' ? 'imageGenerationApiKey' : 'imageGenerationCodexAccount')}<SelectField matchAnchorWidth label={t('imageGenerationAccount')} value={imageRoute.imageSourceId} options={[...(imageRoute.imageProvider === 'autoflow-codex' ? [{ value: '', label: t('imageGenerationAutomaticAccount') }] : []), ...(imageOptions?.providers.find(provider => provider.id === imageRoute.imageProvider)?.sources ?? []).map(source => ({ value: source.id, label: `${source.name}${!source.available ? ` · ${t('unconfigured')}` : source.modelError ? ` · ${t('modelsLoadError')}` : ''}` }))]} disabled={!imageOptions} onChange={imageSourceId => { const route = { imageProvider: imageRoute.imageProvider, imageSourceId }; setImageRoute({ ...route, imageModel: defaultImageModel(imageOptions, route) }) }} /></label>
+              <label className="vc-image-model-field">{t('wallpaperImageModel')}<SelectField matchAnchorWidth label={t('wallpaperImageModel')} value={imageRoute.imageModel} options={[{ value: '', label: t('wallpaperAutomaticModel') }, ...imageModelsForRoute(imageOptions, imageRoute).map(model => ({ value: model.id, label: model.name }))]} disabled={!imageOptions} onChange={imageModel => setImageRoute({ ...imageRoute, imageModel })} /></label>
+            </div>
+            {imageError && !keyDialog && <p className="vc-notice" role="alert">{imageError}</p>}
+            <div className="vc-settings-card-footer"><Button type="button" variant="primary" disabled={saving || !imageRouteReady(imageOptions, imageRoute)} aria-busy={saving} onClick={() => { void saveImageConfig() }}>{saving && <StateDot state="ongoing" />}{t('imageGenerationSaveDefault')}</Button></div>
+          </section>
+          <section className="vc-settings-card vc-image-keys" aria-labelledby={`${settingsId}-keys-heading`}>
+            <div className="vc-settings-heading"><div><h3 id={`${settingsId}-keys-heading`}>{t('imageGenerationKeys')}</h3><p>{t('imageGenerationKeysHint')}</p></div></div>
+            {config.imageSources.apiKeys.length ? <div className="vc-image-key-list">{config.imageSources.apiKeys.map(profile => <div className="vc-image-key-row" key={profile.id}><div><span>{profile.label}</span><Tag tone={profile.configured ? 'success' : 'neutral'}>{t(profile.configured ? 'keySaved' : 'keyMissing')}</Tag></div><Button type="button" size="sm" variant="ghost" onClick={() => { setReplaceKeyId(profile.id); setReplaceKeyValue(''); setImageError(''); setKeyDialog('replace') }}>{t('imageGenerationEditKey')}</Button></div>)}</div> : <p className="vc-image-keys-empty">{t('imageGenerationKeysEmpty')}</p>}
+            <div className="vc-settings-card-footer"><Button type="button" variant="outline" onClick={() => { setImageError(''); setKeyDialog('add') }}><ui.IconPlusOutlineRegular size={16} />{t('imageGenerationAddKey')}</Button></div>
+          </section>
         </div>
-        <Button type="button" variant="primary" disabled={saving || !imageRouteReady(imageOptions, imageRoute)} onClick={() => { void saveImageConfig() }}>{t('imageGenerationSaveDefault')}</Button>
-        <h3>{t('imageGenerationKeys')}</h3>
-        {config.imageSources.apiKeys.map(profile => <div className="vc-row" key={profile.id}><span>{profile.label}</span><Tag tone={profile.configured ? 'success' : 'neutral'}>{t(profile.configured ? 'keySaved' : 'keyMissing')}</Tag></div>)}
-        <div className="vc-settings-fields"><label>{t('imageGenerationKeyLabel')}<Input value={newKeyLabel} maxLength={80} onChange={event => setNewKeyLabel(event.target.value)} /></label><label>{t('apiKey')}<Input type="password" autoComplete="new-password" value={newKeyValue} onChange={event => setNewKeyValue(event.target.value)} /></label></div>
-        <Button type="button" variant="outline" disabled={saving || !newKeyLabel.trim() || !newKeyValue.trim()} onClick={() => { void addImageKey() }}>{t('imageGenerationAddKey')}</Button>
-        {!!config.imageSources.apiKeys.length && <div className="vc-settings-fields"><label>{t('imageGenerationReplaceKey')}<SelectField label={t('imageGenerationReplaceKey')} value={replaceKeyId} options={[{ value: '', label: t('imageGenerationChooseKey') }, ...config.imageSources.apiKeys.map(profile => ({ value: profile.id, label: profile.label }))]} onChange={setReplaceKeyId} /></label><label>{t('apiKey')}<Input type="password" autoComplete="new-password" value={replaceKeyValue} onChange={event => setReplaceKeyValue(event.target.value)} /></label><Button type="button" variant="outline" disabled={saving || !replaceKeyId || !replaceKeyValue.trim()} onClick={() => { void replaceImageKey() }}>{t('imageGenerationReplaceKey')}</Button></div>}
-        {imageError && <p role="alert">{imageError}</p>}
       </>}
       </fieldset>}</div>)}
       {saveError && <p role="alert">{t('error')} · {saveError.safeMessage || saveError.code}</p>}
       {panel === 'vision' && <footer className="vc-settings-footer"><small>{t('configHint')}</small><Button variant="primary" className="vc-primary-action" type="submit" disabled={saving || catalog.status !== 'ready' || !selectedModel} aria-busy={saving}>{saving && <StateDot state="ongoing" />}{t(saving ? 'busy' : 'saveConfig')}</Button></footer>}
     </form>
+    <Modal open={keyDialog !== null} onClose={closeKeyDialog} title={t(keyDialog === 'replace' ? 'imageGenerationReplaceKey' : 'imageGenerationAddKey')} closeLabel={t('close')} className="vc-image-key-modal" footer={<div className="vc-direct-dialog-actions"><Button variant="outline" disabled={saving || keySaving} onClick={closeKeyDialog}>{t('cancel')}</Button><Button variant="primary" type="submit" form={`${settingsId}-key-form`} disabled={saving || keySaving || (keyDialog === 'replace' ? !replaceKeyValue.trim() : !newKeyLabel.trim() || !newKeyValue.trim())} aria-busy={keySaving}>{keySaving && <StateDot state="ongoing" />}{t(keyDialog === 'replace' ? 'imageGenerationReplaceKey' : 'imageGenerationAddKey')}</Button></div>}>
+      <form id={`${settingsId}-key-form`} onSubmit={event => { event.preventDefault(); if (!keySaving && !saving) void (keyDialog === 'replace' ? replaceImageKey() : addImageKey()) }}>
+        <fieldset className="vc-settings-modal-fields vc-image-key-form" disabled={saving || keySaving}>
+          <label htmlFor={`${settingsId}-key-name`}>{t('imageGenerationKeyLabel')}<Input id={`${settingsId}-key-name`} required readOnly={keyDialog === 'replace'} value={keyDialog === 'replace' ? config.imageSources.apiKeys.find(profile => profile.id === replaceKeyId)?.label ?? '' : newKeyLabel} maxLength={80} onChange={event => setNewKeyLabel(event.target.value)} /></label>
+          <label htmlFor={`${settingsId}-key-value`}>{t('apiKey')}<Input id={`${settingsId}-key-value`} required type="password" autoComplete="new-password" value={keyDialog === 'replace' ? replaceKeyValue : newKeyValue} onChange={event => keyDialog === 'replace' ? setReplaceKeyValue(event.target.value) : setNewKeyValue(event.target.value)} /></label>
+          <p className="vc-settings-description">{t('imageGenerationKeysHint')}</p>
+          {imageError && <p className="vc-notice" role="alert">{imageError}</p>}
+        </fieldset>
+      </form>
+    </Modal>
     <Modal open={advancedOpen} onClose={() => { if (!saving) { setAdvancedOpen(false); setSource(config.source); setSourceKey('') } }} title={t('galleryCustomSource')} closeLabel={t('close')} className="vc-custom-source-modal" contentClassName="vc-custom-source-scroll" footer={<div className="vc-dataset-actions"><Button variant="outline" disabled={saving} onClick={() => { setAdvancedOpen(false); setSource(config.source); setSourceKey('') }}>{t('cancel')}</Button><Button variant="primary" type="submit" form={settingsId + '-source-form'} disabled={saving}>{t(saving ? 'busy' : 'saveConfig')}</Button></div>}>
       <form id={settingsId + '-source-form'} onSubmit={event => { event.preventDefault(); save('source') }}><fieldset className="vc-settings-modal-fields" disabled={saving}><div className="vc-stack">
           <p>{t('galleryHint')}</p>

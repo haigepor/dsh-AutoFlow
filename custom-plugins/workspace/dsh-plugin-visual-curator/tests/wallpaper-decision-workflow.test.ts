@@ -168,6 +168,27 @@ async function fixture(scenario: Scenario = 'held', rounds = 2, options: { autoD
   } catch (error) { await engine.dispose(); await f.cleanup(); await context.fiber.dispose(); throw error }
 }
 
+test('an uncertain saved review cannot route through replanning to regenerate the image', async () => {
+  const t = await fixture('review-format', 2, { maxReworks: 1, singleImage: true })
+  try {
+    const item = t.state.items[0]!, attempt = item.attempts.at(-1)!, outputId = attempt.outputId
+    assert.ok(outputId)
+    attempt.review = wallpaperReviewSchema.parse({ subject: 'Saved product', checks: Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: key === 'background' ? 'unknown' : 'satisfied', reason: 'The saved pixels do not resolve a background detail.' }])), issues: [] })
+    delete attempt.generation; delete attempt.generationOperation
+    item.status = 'needs-review'; delete item.errorCode; delete item.failedStep; delete item.reason
+    const updated = runSchema.parse({ ...t.before, data: toJson({ ...dataOf(t.before), checkpoint: { ...dataOf(t.before).checkpoint, wallpaper: t.state } }) })
+    const aggregateId = 'run:' + updated.id
+    await t.f.repository.commit({ aggregateId, expectedRevision: t.f.repository.manifest(aggregateId)!.revision, operationId: 'uncertain-saved-review', request: {}, records: [updated], state: { runId: updated.id } })
+    t.setAction(packet => {
+      assert.equal(packet.input.usage.decision!.allowedActions.includes('replan'), false)
+      return { kind: 'manual_review' }
+    })
+    const run = await t.resume(), after = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper).items[0]!
+    assert.equal(after.status, 'needs-review'); assert.equal(after.attempts.at(-1)!.outputId, outputId)
+    assert.equal(after.attempts.length, item.attempts.length); assert.equal(t.starts, 0)
+  } finally { await t.cleanup() }
+})
+
 test('review composition and background concerns retain Host-owned scopes during routing', async () => {
   const t = await fixture('review-format')
   try {

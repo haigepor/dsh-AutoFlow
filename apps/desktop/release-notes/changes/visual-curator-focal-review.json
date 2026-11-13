@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-focal-review",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator retains the planned subject protection scope, treats supporting props outside the inner safe area as nonblocking and reserves automatic rework for confirmed failures. Uncertain reviews retain the saved image for follow-up.",
+    "zh-CN": "视觉策展沿用规划确定的主体保护范围，陪衬越过内侧安全区只作提示；自动返工仅针对明确不合格项，证据不确定时保留图片等待复核。"
+  }
+}

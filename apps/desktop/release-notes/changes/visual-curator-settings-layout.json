@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-settings-layout",
+  "category": "improvements",
+  "text": {
+    "en": "Visual Curator groups original imports and image generation settings into clearer sections, keeps settings readable in wide windows, and opens API key editing only when needed.",
+    "zh-CN": "视觉策展重新整理原图导入与生图设置的分区，限制宽窗口下的表单宽度，并在需要时打开 API Key 编辑。"
+  }
+}
