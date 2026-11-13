@@ -9,6 +9,7 @@ import { wallpaperPrompts } from '../src/shared/wallpaper-prompts.ts'
 import { wallpaperReviewKeys, wallpaperReviewSchema, wallpaperReviewOutputSchema, wallpaperSourceReviewV2Schema, wallpaperSourceReviewV4Schema, wallpaperStoredSourceReviewV4Schema, wallpaperSettingsSchema, wallpaperVerdict } from '../src/shared/wallpaper.ts'
 import { applyWallpaperSourceReview, applyWallpaperSourceSeams, applyWallpaperStyleReview, wallpaperReviewVersion, wallpaperStylePolicy, wallpaperCriticalReviewTargets, wallpaperCriticalReviewFocus, wallpaperCriticalReviewHistory, applyWallpaperCriticalDetail } from '../src/host/wallpaper-review.ts'
 import { serviceFixture } from './helpers/service-fixture.ts'
+import { wallpaperBoundaryReviewNeeded, applyWallpaperBoundaryDetail } from '../src/host/wallpaper-review.ts'
 
 const baseReview = () => wallpaperReviewSchema.parse({ subject: 'Final red source vehicle.', checks: Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: key === 'style' ? 'violated' : 'satisfied', reason: 'Actual final pixels.' }])), issues: [{ kind: 'style', reason: 'The preferred palette is not present.' }] })
 
@@ -119,6 +120,29 @@ function balancedReview() {
     sourceCorrespondence: { result: 'satisfied', reason: 'Original structure retained' } })
 }
 
+test('a disputed core boundary gets one independent measurement and cannot clear actual content damage', () => {
+  const settings = wallpaperSettingsSchema.parse({ processing: {} }), wire = balancedReview()
+  wire.actualLayout.regions = wire.actualLayout.regions.filter(region => region.scope === 'core')
+  wire.actualLayout.regions[0]!.rect.y = 0.26
+  wire.issues = [{ kind: 'layout', check: 'protection', code: 'other', reason: 'Claimed top overflow' }]
+  const initial = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(wire, false, settings))
+  assert.equal(wallpaperBoundaryReviewNeeded(initial), true)
+  const corrected = structuredClone(wire)
+  corrected.actualLayout.regions[0]!.rect.y = 0.4
+  corrected.actualLayout.regions[0]!.rect.height = 0.3
+  corrected.checks.protection = { result: 'satisfied', reason: 'Observed whole-image coordinates are within the supplied guide' }
+  corrected.issues = []
+  const measured = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(corrected, false, settings))
+  const confirmed = applyWallpaperBoundaryDetail(initial, measured, 'review:boundary-detail')
+  assert.equal(wallpaperVerdict(confirmed), 'pass')
+  assert.equal(wallpaperBoundaryReviewNeeded(confirmed), false, 'Unchanged reviewed pixels do not request another boundary measurement')
+  assert.equal(wallpaperVerdict(applyWallpaperBoundaryDetail(initial, initial, 'review:boundary-detail')), 'reject', 'A confirmed overflow remains rejected')
+  const damaged = structuredClone(initial)
+  damaged.checks.clarity.result = 'violated'; damaged.modelIssues.push({ kind: 'preservation', check: 'clarity', code: 'other', reason: 'Actual subject blur' })
+  assert.equal(wallpaperBoundaryReviewNeeded(damaged), false)
+  assert.equal(applyWallpaperBoundaryDetail(damaged, measured, 'invalid-boundary-request'), damaged, 'A layout recheck cannot erase content failures')
+})
+
 test('small peripheral leaves warn, while substantial or core overflow and other quality failures still block', () => {
   const settings = wallpaperSettingsSchema.parse({ processing: {} }), wire = balancedReview()
   const schema = wallpaperReviewOutputSchema('wallpaper-review-source-v4', [], ['original', 'final'], 'final', 'original')
@@ -168,6 +192,36 @@ test('scene review accepts independently complete objects while retaining core p
   assert.notEqual(wallpaperVerdict(applyWallpaperSourceReview(missing, true, settings)), 'pass')
 })
 
+test('V8 review measures focal products while supporting cosmetics remain fidelity obligations', () => {
+  const objects = [
+    { entityId: 'red-lipstick', name: 'Red lipstick', role: 'primary' as const, evidence: 'Foreground focus', rect: { x: 0.4, y: 0.4, width: 0.12, height: 0.3 }, sourceEdges: [] },
+    { entityId: 'black-lipstick', name: 'Black lipstick', role: 'primary' as const, evidence: 'Second focus', rect: { x: 0.54, y: 0.33, width: 0.1, height: 0.29 }, sourceEdges: [] },
+    { entityId: 'foundation', name: 'Foundation bottle', role: 'supporting' as const, evidence: 'Peripheral product', rect: { x: 0, y: 0.1, width: 0.22, height: 0.5 }, sourceEdges: ['left' as const] },
+  ]
+  const review = balancedReview()
+  review.actualLayout.regions = [
+    { name: 'Red lipstick', entityId: 'red-lipstick', role: 'subject', scope: 'core', rect: { x: 0.4, y: 0.45, width: 0.13, height: 0.26 } },
+    { name: 'Black lipstick', entityId: 'black-lipstick', role: 'subject', scope: 'core', rect: { x: 0.55, y: 0.38, width: 0.11, height: 0.27 } },
+  ]
+  review.checks.protection = { result: 'satisfied', reason: 'Both lipsticks fit the safe area.' }
+  review.issues = []
+  const schema = wallpaperReviewOutputSchema('wallpaper-review-source-v4', [], ['original', 'final'], 'final', 'original', true, objects)
+  assert.equal(schema.safeParse(review).success, true)
+  assert.equal(wallpaperVerdict(applyWallpaperSourceReview(review, true, wallpaperSettingsSchema.parse({ repairPolicy: {} }))), 'pass')
+  const misplaced = structuredClone(review)
+  misplaced.actualLayout.regions.push({ name: 'Foundation bottle', entityId: 'foundation', role: 'subject', scope: 'core', rect: { x: 0.02, y: 0.4, width: 0.2, height: 0.3 } })
+  assert.equal(schema.safeParse(misplaced).success, false, 'A supporting product cannot become a safety subject in review')
+  const omitted = structuredClone(review)
+  omitted.actualLayout.regions.pop()
+  assert.equal(schema.safeParse(omitted).success, false, 'The reviewer must locate both focal lipsticks')
+  const noIdentity = structuredClone(review)
+  delete noIdentity.actualLayout.regions[0]!.entityId
+  assert.equal(schema.safeParse(noIdentity).success, false)
+  const lostMaterial = structuredClone(review)
+  lostMaterial.sourceCorrespondence = { result: 'violated', reason: 'Supporting foundation bottle material changed.' }
+  assert.equal(wallpaperVerdict(applyWallpaperSourceReview(lostMaterial, true, wallpaperSettingsSchema.parse({ repairPolicy: {} }))), 'reject', 'Supporting products still require source fidelity')
+})
+
 test('an actual core subject inside the safe area does not require a clock buffer unless configured', () => {
   const wire = balancedReview()
   wire.checks.protection = { result: 'satisfied', reason: 'Observed core pixels are inside the safe area.' }
@@ -192,6 +246,10 @@ test('a measured extension seam overrides a model background pass without erasin
   assert.equal(rejected.checks.background.result, 'violated')
   assert.deepEqual(rejected.sourceCorrespondence, accepted.sourceCorrespondence)
   assert.match(rejected.issues.at(-1)!.reason, /重新生成外侧背景/)
+  const generated = applyWallpaperSourceSeams(accepted, [{ edge: 'top', from: 260, to: 516, across: 52.9, adjacent: 11.3 }], 'generated-canvas')
+  assert.equal(wallpaperVerdict(generated), 'reject')
+  assert.match(generated.issues.at(-1)!.reason, /沿可见轮廓短距离自然收口/)
+  assert.doesNotMatch(generated.issues.at(-1)!.reason, /保持原图不变/)
 })
 
 test('high local review resolves only unknown critical findings and cannot erase earlier definite evidence', () => {

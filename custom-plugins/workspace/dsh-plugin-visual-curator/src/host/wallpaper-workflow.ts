@@ -13,10 +13,10 @@ import { recoverWallpaperSources } from './wallpaper-source-recovery.ts'
 import { bindWallpaperDecisionEvidence, executeWallpaperDecision, wallpaperDecisionApproved, wallpaperDecisionReplan } from './wallpaper-decision.ts'
 import { wallpaperDecisionSettingsSchema } from '../shared/wallpaper-decision.ts'
 import { wallpaperCanvasReviewPromptV4 } from '../shared/wallpaper-edit-prompts.ts'
-import { resolveWallpaperProcessing, wallpaperProcessingSchema, wallpaperGenerativeRepair, wallpaperRepairInstructions } from '../shared/wallpaper-policy.ts'
+import { resolveWallpaperProcessing, wallpaperProcessingSchema, wallpaperGenerativeRepair, wallpaperRepairInstructions, wallpaperReviewNeedsSubjectEdit } from '../shared/wallpaper-policy.ts'
 import { wallpaperPromptPreparationPolicySchema, wallpaperGenerationBriefOutputSchema, wallpaperGenerationBriefPrompt } from '../shared/wallpaper-generation-brief.ts'
 import { wallpaperPlanDetailPrompt } from '../shared/wallpaper-prompts.ts'
-import { retainWallpaperRegions, wallpaperPlanConcerns, wallpaperPlanDetailRect, wallpaperPlanDetailOutputSchema, resolveWallpaperPlanDetail } from '../shared/wallpaper-detail.ts'
+import { retainWallpaperRegions, retainWallpaperObjectRoles, wallpaperPlanConcerns, wallpaperPlanDetailRect, wallpaperPlanDetailOutputSchema, resolveWallpaperPlanDetail } from '../shared/wallpaper-detail.ts'
 import { wallpaperVisionInput } from './wallpaper-vision.ts'
 import { findWallpaperResponse } from './wallpaper-requests.ts'
 import { enhanceWallpaper } from '../media/clarity.ts'
@@ -26,7 +26,7 @@ import { backgroundResolutionSettingsSchema, legacyRealEsrganWeightsDigest } fro
 import { superResolveWallpaperBackground } from '../media/background-resolution.ts'
 import { espcnWeightsDigest } from '../shared/clarity.ts'
 import { applyWallpaperEspcn } from '../shared/wallpaper.ts'
-import { renderWallpaper, wallpaperGeometry, wallpaperOverlays, wallpaperSourceSeams } from '../media/wallpaper-render.ts'
+import { renderWallpaper, wallpaperGeometry, wallpaperOverlays, wallpaperSourceSeams, wallpaperGeneratedFrameSeams } from '../media/wallpaper-render.ts'
 import { wallpaperGenerationReferences, wallpaperGenerationPrompt } from '../media/wallpaper-generation.ts'
 import { wallpaperClockContrast } from '../media/wallpaper-clock.ts'
 import { wallpaperRepairMask, wallpaperSourceRepairNeeded } from '../media/wallpaper-repair.ts'
@@ -36,7 +36,7 @@ import { applyWallpaperConcurrency, wallpaperHasBackgroundAnchors, wallpaperSubj
 import { legacyManualInspection, wallpaperBatch, wallpaperAcceptsWork, wallpaperRunState } from './wallpaper-state.ts'
 import { WallpaperDownloads } from './wallpaper-downloads.ts'
 import { wallpaperPromptBundle, sourceFaithfulWallpaperPrompts } from '../shared/wallpaper-prompts.ts'
-import { applyWallpaperRecoveryLimits, wallpaperEditingRetry, wallpaperPendingDecision, wallpaperWorkImage, wallpaperPromptBundleSchema, wallpaperSettingsSchema, wallpaperPlanSchema, wallpaperObservationPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperReviewOutputSchema, wallpaperStoredReviewSchema, wallpaperStoredSourceReviewV4Schema, wallpaperCompositionModeSchema, wallpaperGenerationInputSchema, wallpaperStateSchema, wallpaperProgress, wallpaperDownloadProgress, wallpaperReviewReworkAvailable, wallpaperReworkCount, wallpaperStartSchema, wallpaperVerdict, wallpaperBackgroundReview, wallpaperSourceRestricted, wallpaperFailedStep, type WallpaperSettings, type WallpaperPlan, type WallpaperItem, type WallpaperExperience, type WallpaperState, type WallpaperView } from '../shared/wallpaper.ts'
+import { applyWallpaperRecoveryLimits, wallpaperEditingRetry, wallpaperGenerationRetry, wallpaperPendingDecision, wallpaperWorkImage, wallpaperPromptBundleSchema, wallpaperSettingsSchema, wallpaperPlanSchema, wallpaperObservationPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperReviewOutputSchema, wallpaperStoredReviewSchema, wallpaperStoredSourceReviewV4Schema, wallpaperCompositionModeSchema, wallpaperGenerationInputSchema, wallpaperStateSchema, wallpaperProgress, wallpaperDownloadProgress, wallpaperReviewReworkAvailable, wallpaperReworkCount, wallpaperStartSchema, wallpaperVerdict, wallpaperBackgroundReview, wallpaperSourceRestricted, wallpaperFailedStep, type WallpaperSettings, type WallpaperPlan, type WallpaperItem, type WallpaperExperience, type WallpaperState, type WallpaperView } from '../shared/wallpaper.ts'
 import { blobRefSchema, imageVersionSchema, styleStandardSchema, assessmentSchema, selectionSchema, type CuratorRecord, type DomainActor, type ImageVersion, type Json, type RunRecord } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
 import { resolveCurrentConfig, type CuratorConfig } from './config.ts'
@@ -44,8 +44,8 @@ import { RunEngine, dataOf, executionSchema, specOf, toJson, safeFailure, type W
 import { originalRequestBounds, requestBounds, sourceIdentity, visionBounds } from './providers.ts'
 import { executionStandard } from './style-execution.ts'
 import { styleReviewBrief } from './review.ts'
-import { applyWallpaperClockContrast, applyWallpaperNoClockRequirement, applyWallpaperSourceSeams, wallpaperSubjectRejection, wallpaperReviewVersion, wallpaperStylePolicy, applyWallpaperStyleReview, applyWallpaperSourceReview, wallpaperCriticalReviewTargets, wallpaperCriticalReviewFocus, wallpaperCriticalReviewHistory, applyWallpaperCriticalDetail } from './wallpaper-review.ts'
-import { wallpaperProtectedBounds, fitWallpaperPlacement, wallpaperObjectProtectionRegions } from '../shared/wallpaper-geometry.ts'
+import { applyWallpaperClockContrast, applyWallpaperNoClockRequirement, applyWallpaperSourceSeams, wallpaperSubjectRejection, wallpaperReviewVersion, wallpaperStylePolicy, applyWallpaperStyleReview, applyWallpaperSourceReview, wallpaperCriticalReviewTargets, wallpaperCriticalReviewFocus, wallpaperCriticalReviewHistory, applyWallpaperCriticalDetail, wallpaperBoundaryReviewNeeded, applyWallpaperBoundaryDetail } from './wallpaper-review.ts'
+import { wallpaperProtectedBounds, fitWallpaperPlacement, wallpaperObjectProtectionRegions, wallpaperLayoutCoordinates, wallpaperSourceExtensionEdges } from '../shared/wallpaper-geometry.ts'
 
 /** Existing native capabilities and domain storage are the only dispatch and persistence owners. */
 export interface WallpaperDependencies {
@@ -474,7 +474,7 @@ export class WallpaperWorkflows {
       const protectedContext = ['wallpaper-outpaint-v4', 'wallpaper-outpaint-v5', 'wallpaper-outpaint-v6'].includes(prompts.outpaint.version)
       const wholeGeneratedCanvas = direct && reviewBeforeResolution && promptPreparation?.version === 'style-brief-v3'
       const compositionMode = direct && (prompts.review.version === 'wallpaper-review-source-v3' || prompts.review.version === 'wallpaper-review-source-v4') ? reviewBeforeResolution && !wholeGeneratedCanvas ? 'generated-canvas-protected-v2' : 'generated-canvas-v1' : protectedContext ? 'protected-context-v2' : 'source-edge-v1'
-      const placementPolicy = wholeGeneratedCanvas || compositionMode === 'generated-canvas-protected-v2' ? 'source-preserving-v3' : ['wallpaper-plan-v6', 'wallpaper-plan-v7'].includes(prompts.plan.version) ? 'subject-first-v2' : 'crop-first-v1'
+      const placementPolicy = wholeGeneratedCanvas || compositionMode === 'generated-canvas-protected-v2' ? 'source-preserving-v3' : ['wallpaper-plan-v6', 'wallpaper-plan-v7', 'wallpaper-plan-v8'].includes(prompts.plan.version) ? 'subject-first-v2' : 'crop-first-v1'
       const actor: DomainActor = { kind: 'human', id: 'wallpaper-worker', profileId: this.deps.domain.profileId, ...(typeof ctx.spec.fixed.sourceSessionId === 'string' ? { sessionId: ctx.spec.fixed.sourceSessionId } : {}) }
       let providerPromise: Promise<StructuredVisionProvider> | undefined, stopped: unknown
       const queued = state.items.filter(item => pending(item) && (!(reworkOnly || decisionOnly || recomposeOnly || reviewOnly || detailOnly || originalOnly) || item.imageVersionId === wallpaperWorkImage(ctx.spec.input))), ready = new Map<string, { promise: Promise<ImageVersion | undefined>; resolve(image: ImageVersion | undefined): void }>()
@@ -607,9 +607,10 @@ export class WallpaperWorkflows {
                 if (provider.config.supportsMultiImage && provider.config.maxImages >= 2) input.images = [original, { imageVersionId: previous.id, digest: previous.blob.digest, mime: previous.blob.mime, bytes: await this.deps.files.read(previous.blob, ctx.signal), role: 'rejected-wallpaper' }]
                 input.usage = { ...z.record(z.string(), z.unknown()).parse(input.usage), revisionTask: 'Correct the failed checks and issues from the last independent review in your new placement, protection regions and scene-specific editPrompt. Use the original as the fidelity reference. The rejected wallpaper illustrates the defects.' }
               }
-              const observed = await committed(input, 'wallpaper-plan', wallpaperGenerativeRepair(settings) ? wallpaperRepairObservationPlanSchema : ['wallpaper-plan-v6', 'wallpaper-plan-v7'].includes(prompts.plan.version) ? wallpaperObservationPlanSchema.required({ editPrompt: true }) : prompts.plan.version === 'wallpaper-plan-v4' || prompts.plan.version === 'wallpaper-plan-v5' ? wallpaperObservationPlanSchema : wallpaperPlanSchema)
+              const observed = await committed(input, 'wallpaper-plan', prompts.plan.version === 'wallpaper-plan-v8' && wallpaperGenerativeRepair(settings) ? wallpaperRoleObservationOutputSchema(attempt?.plan.objectRoles) : wallpaperGenerativeRepair(settings) ? wallpaperRepairObservationPlanSchema : ['wallpaper-plan-v6', 'wallpaper-plan-v7'].includes(prompts.plan.version) ? wallpaperObservationPlanSchema.required({ editPrompt: true }) : prompts.plan.version === 'wallpaper-plan-v4' || prompts.plan.version === 'wallpaper-plan-v5' ? wallpaperObservationPlanSchema : wallpaperPlanSchema)
               if (wallpaperGenerativeRepair(settings)) observed.regions = wallpaperObjectProtectionRegions(observed)
-              const retained = (prompts.detail || decisionReplan) && attempt ? { ...observed, regions: retainWallpaperRegions(wallpaperGenerativeRepair(settings) ? attempt.plan.regions.filter(region => region.role !== 'anchor') : attempt.plan.regions, observed.regions) } : observed
+              const retained = (prompts.detail || decisionReplan) && attempt ? { ...observed, regions: retainWallpaperRegions(wallpaperGenerativeRepair(settings) && observed.objectRoles && !attempt.plan.objectRoles ? [] : wallpaperGenerativeRepair(settings) ? attempt.plan.regions.filter(region => region.role !== 'anchor') : attempt.plan.regions, observed.regions) } : observed
+              if (attempt?.plan.objectRoles && retained.objectRoles) retained.objectRoles = retainWallpaperObjectRoles(attempt.plan.objectRoles, retained.objectRoles)
               const plan = wallpaperPlanSchema.parse({ ...retained, placement: 'placement' in retained ? retained.placement : fitWallpaperPlacement(source.geometry, retained, settings, placementPolicy) })
               let geometry: ReturnType<typeof wallpaperGeometry> | undefined
               try { geometry = wallpaperGeometry(source.geometry, plan, settings) }
@@ -667,17 +668,19 @@ export class WallpaperWorkflows {
             item.status = reviewOnly ? 'reviewing' : 'rendering'; delete item.reason; delete item.errorCode; delete item.failedStep; await save()
             if (attempt.compositionMode === 'generated-canvas-protected-v2' && !attempt.generationInput) {
               const priorReview = item.attempts.slice(0, -1).findLast(row => row.review)?.review
-              const subjectRepair = wallpaperSourceRepairNeeded(attempt.plan, settings) || !!priorReview && ['subject', 'clarity', 'composition', 'style'].some(key => priorReview.checks[key as keyof typeof priorReview.checks]?.result !== 'satisfied')
+              const subjectRepair = wallpaperSourceRepairNeeded(attempt.plan, settings) || wallpaperReviewNeedsSubjectEdit(priorReview)
               if (subjectRepair) { attempt.compositionMode = 'generated-canvas-v1'; await save() }
             }
             const sourceRestoredCanvas = attempt.compositionMode === 'generated-canvas-protected-v2'
             const generatedCanvas = attempt.compositionMode === 'generated-canvas-v1' || sourceRestoredCanvas
             let rendered = await renderWallpaper(bytes, attempt.plan, settings, undefined, attempt.compositionMode)
+            let editingBytes = bytes
             const editingPlan = attempt.layoutCorrection?.plan ?? attempt.plan, editingGeometry = attempt.layoutCorrection ? settings : source.geometry
-            if (attempt.layoutCorrection && !attempt.generation) {
+            if (attempt.layoutCorrection) {
               const candidate = this.deps.domain.authorizedImage(editingPlan.imageVersionId, actor).image
               if (candidate.parentImageVersionId !== source.id || candidate.assetId !== source.assetId || candidate.geometry.width !== settings.width || candidate.geometry.height !== settings.height) throw new CuratorError('reference-unavailable', 'wallpaper-edit', 'The saved complete candidate does not belong to this original and frozen canvas.')
-              rendered = await renderWallpaper(await this.deps.files.read(candidate.blob, ctx.signal), editingPlan, settings, undefined, 'generated-canvas-v1')
+              editingBytes = await this.deps.files.read(candidate.blob, ctx.signal)
+              rendered = await renderWallpaper(editingBytes, editingPlan, settings, undefined, 'generated-canvas-v1')
             }
             if (!attempt.layoutCorrection && prompts.outpaint.version === 'wallpaper-outpaint-v5' && attempt.retryFrom === 'reviewing' && attempt.retryTarget === 'rendering' && !attempt.generation && !attempt.canvasId) {
               const rejected = item.attempts.slice(0, -1).findLast(row => row.outputId && row.review)
@@ -730,7 +733,7 @@ export class WallpaperWorkflows {
                   const editCanvas = this.deps.domain.require('imageVersion', attempt.opaqueCanvasId!), editCanvasBytes = await this.deps.files.read(editCanvas.blob, ctx.signal)
                   const result = await committed({ requestId: brief.requestId, wallpaperPrompt: generationPrompt!, reasoningEffort: brief.reasoningEffort, taskBrief, rules: visualRules,
                     images: [original, { imageVersionId: editCanvas.id, digest: editCanvas.blob.digest, mime: editCanvas.blob.mime, bytes: editCanvasBytes, role: 'positioned-edit-canvas' }],
-                     usage: toJson({ settings: requestSettings, plan: editingPlan, previousReview: item.attempts.slice(0, -1).findLast(row => row.review)?.review, generationReferenceRoles: preparedInputs.map(input => input.role === 'canvas' ? 'positioned-canvas-master' : 'original-style-and-detail-only') }) }, 'wallpaper-plan', wallpaperGenerationBriefOutputSchema.safeExtend({ sourceImageVersionId: z.literal(source.id), canvasImageVersionId: z.literal(editCanvas.id) }))
+                     usage: toJson({ settings: requestSettings, plan: editingPlan, objectPolicy: { mode: attempt.plan.mode, regions: attempt.plan.regions, objectRoles: attempt.plan.objectRoles }, sourceEdgeContinuation: { edges: wallpaperSourceExtensionEdges(editingPlan, settings), marginPixels: settings.sourceFrameRepair?.marginPixels ?? 0 }, referenceLayout: { ...wallpaperLayoutCoordinates(settings), referenceImageVersionId: editingPlan.imageVersionId, referenceTransformAlreadyApplied: true, layoutCorrectionApplied: !!attempt.layoutCorrection }, previousReview: item.attempts.slice(0, -1).findLast(row => row.review)?.review, generationReferenceRoles: preparedInputs.map(input => input.role === 'canvas' ? 'positioned-canvas-master' : 'original-style-and-detail-only') }) }, 'wallpaper-plan', wallpaperGenerationBriefOutputSchema.safeExtend({ sourceImageVersionId: z.literal(source.id), canvasImageVersionId: z.literal(editCanvas.id) }))
                   attempt.generationBrief = { ...brief, status: 'saved', result }; await save()
                 }
                 const inputs = preparedInputs
@@ -749,7 +752,7 @@ export class WallpaperWorkflows {
                 catch (error) {
                   if (!(error instanceof Error) || !('code' in error) || error.code !== 'IMAGE_GENERATION_NOT_FOUND') throw error
                   const identities = inputs.map((input, index) => ({ role: input.role, attachmentId: references[index]!.attachmentId, width: references[index]!.width, height: references[index]!.height, ...('sourceRect' in input && input.sourceRect ? { sourceRect: input.sourceRect } : {}) }))
-                  const prompt = protectedContext || attempt.generationBrief?.status === 'saved' ? wallpaperGenerationPrompt(prompts.outpaint.text, editingPlan, settings, identities, item.attempts, singleCanvas ? editingGeometry : undefined, opaqueCanvas, attempt.generationBrief?.status === 'saved' ? attempt.generationBrief.result : undefined) : prompts.outpaint.text
+                  const prompt = attempt.generationInput?.prompt ?? (protectedContext || attempt.generationBrief?.status === 'saved' ? wallpaperGenerationPrompt(prompts.outpaint.text, editingPlan, settings, identities, item.attempts, singleCanvas ? editingGeometry : undefined, opaqueCanvas, attempt.generationBrief?.status === 'saved' ? attempt.generationBrief.result : undefined) : prompts.outpaint.text)
                   const generationInput = wallpaperGenerationInputSchema.parse({ version: opaqueCanvas ? 'wallpaper-edit-input-v3' : singleCanvas ? 'wallpaper-edit-input-v2' : 'wallpaper-edit-input-v1', prompt, references: identities })
                   if (wallpaperGenerativeRepair(settings)) {
                     const failures = item.attempts.filter(row => row !== attempt && row.generationInput?.prompt === prompt && row.review && wallpaperVerdict(row.review) !== 'pass')
@@ -780,13 +783,13 @@ export class WallpaperWorkflows {
                   const artifact = await this.artifact(source, generatedBytes, ctx, 'seed', item, attempt.revision)
                   attempt.generatedImageId = artifact.image.id; await save(artifact.records)
                 }
-                attempt.generationAlignment ??= await wallpaperGenerationAlignment(bytes, generatedBytes, attempt.plan, settings, opaqueCanvas)
+                attempt.generationAlignment ??= await wallpaperGenerationAlignment(editingBytes, generatedBytes, editingPlan, settings, opaqueCanvas)
                 await save()
-                if (attempt.generationAlignment && !recomposeOnly && (!generatedCanvas || !wallpaperSourceRepairNeeded(attempt.plan, settings)) && ['reframed-source', 'misaligned-source'].includes(attempt.generationAlignment.result)) {
+                if (attempt.generationAlignment && !recomposeOnly && !(reviewBeforeResolution && generatedCanvas && !sourceRestoredCanvas) && (!generatedCanvas || !wallpaperSourceRepairNeeded(attempt.plan, settings)) && ['reframed-source', 'misaligned-source'].includes(attempt.generationAlignment.result)) {
                   if (attempt.reviewReserved) { ctx.ledger.releaseUnusedVision(); delete attempt.reviewReserved }
                   item.reason = '生成结果未保持目标画布中受保护主体的位置或内容；已保留原始结果与回执，须重新编辑，不能回贴制造重复主体。'
                   if (item.edits >= settings.maxEditsPerImage || wallpaperReworkCount(item) >= settings.maxReworks) { item.status = 'needs-review'; item.reason = item.edits >= settings.maxEditsPerImage ? 'edit-limit' : 'rework-limit'; await save(); return }
-                  item.attempts.push({ revision: attempt.revision + 1, createdAt: new Date().toISOString(), plan: structuredClone(attempt.plan), checks: [], needsOutpaint: true, compositionMode: attempt.compositionMode, ...(attempt.detailAnalysis ? { detailAnalysis: structuredClone(attempt.detailAnalysis) } : {}), retryFrom: 'rendering', retryTarget: 'rendering' })
+                  item.attempts.push(wallpaperGenerationRetry(attempt, new Date().toISOString()))
                   item.status = 'rendering'; await save(); continue
                 }
               }
@@ -816,7 +819,7 @@ export class WallpaperWorkflows {
                     await save()
                     if (recomposeOnly || reviewOnly) throw new CuratorError('constraint-conflict', 'wallpaper-background', 'The saved generated canvas has the wrong aspect ratio. Continue image processing to correct it within the edit budget; review or reconstruction alone cannot generate another image.')
                     if (item.edits >= settings.maxEditsPerImage || wallpaperReworkCount(item) >= settings.maxReworks) { item.status = 'needs-review'; item.reason = item.edits >= settings.maxEditsPerImage ? 'edit-limit' : 'rework-limit'; await save(); return }
-                    item.attempts.push({ revision: attempt.revision + 1, createdAt: new Date().toISOString(), plan: structuredClone(attempt.plan), checks: [], needsOutpaint: true, compositionMode: attempt.compositionMode, ...(attempt.detailAnalysis ? { detailAnalysis: structuredClone(attempt.detailAnalysis) } : {}), retryFrom: 'rendering', retryTarget: 'rendering' })
+                    item.attempts.push(wallpaperGenerationRetry(attempt, new Date().toISOString()))
                     item.status = 'rendering'; await save(); continue
                   }
                 }
@@ -833,7 +836,9 @@ export class WallpaperWorkflows {
                 if (reviewBeforeResolution && generatedCanvas && !attempt.preResolutionReview) {
                   const native = nativeReviewArtifact!
                   const layout = await renderWallpaper(bytes, attempt.plan, settings, generatedBytes, attempt.compositionMode)
-                  const sourceSeams = sourceRestoredCanvas ? await wallpaperSourceSeams(layout.image, layout.geometry.target, settings) : []
+                  const sourceSeams = sourceRestoredCanvas
+                    ? await wallpaperSourceSeams(layout.image, layout.geometry.target, settings)
+                    : await wallpaperGeneratedFrameSeams(generatedBytes, layout.geometry.target, settings, { width: actual.width!, height: actual.height! }, wallpaperSourceExtensionEdges(attempt.plan, settings), settings)
                   const preview = await this.artifact(source, layout.image, ctx, 'analysis', item, attempt.revision)
                   const overlays = await wallpaperOverlays(layout.image, { ...layout.geometry, regions: [] }, settings)
                   const analysis = await this.artifact(source, overlays.analysis, ctx, 'analysis', item, attempt.revision)
@@ -845,7 +850,8 @@ export class WallpaperWorkflows {
                   const input: VisionInput = { wallpaperPrompt: prompts.review, requestId: `${ctx.runId}:${item.imageVersionId}:review:${attempt.revision}`, taskBrief, rules: visualRules,
                     images: [{ imageVersionId: native.image.id, digest: native.image.blob.digest, mime: native.image.blob.mime, bytes: nativeBytes, role: 'actual-wallpaper' }, original, ...(settings.processing?.clockContrast ? [{ imageVersionId: simulation.image.id, digest: simulation.image.blob.digest, mime: simulation.image.blob.mime, bytes: await this.deps.files.read(simulation.image.blob, ctx.signal), role: 'lock-screen-simulation-only' }] : [])],
                      usage: toJson({ settings: requestSettings, ...(attempt.generationBrief?.status === 'saved' ? { originalStyleAndDetailRequirements: attempt.generationBrief.result } : {}), composition: { mode: attempt.compositionMode, nativeSourceRestored: sourceRestoredCanvas, sourcePlacement: attempt.plan.placement, reviewStage: 'native-generation-before-super-resolution', reviewedPixels: native.image.id, layoutPreview: preview.image.id, simulationIsResampledPreview: true, instruction: sourceRestoredCanvas ? 'Review the native-size generated background with deterministically restored healthy source pixels. Judge background transitions, actual subject placement, source correspondence, style, detail and clarity before super-resolution. Only an explicitly configured clock rule uses simulation.' : 'Review the complete native generated image. Compare its visible subjects, structure, style and details against the original after the planned uniform placement; model redrawing outside the blank area alone is not a defect. Independently check actual subject bounds and visible defects. The layout preview and optional lock-screen simulation are stored separately; only an explicitly configured clock rule uses simulation. Insufficient native dimensions alone call for super-resolution after this review, not automatic acceptance.' }, measured: { width: actual.width, height: actual.height, targetWidth: settings.width, targetHeight: settings.height } }) }
-                  const schema = (prepared: VisionInput) => wallpaperReviewOutputSchema(prompts.review.version, prepared.rules.map(rule => rule.ruleId), prepared.images.map(image => image.imageVersionId), native.image.id, source.id, wallpaperGenerativeRepair(settings))
+                  input.usage = toJson({ ...typeof input.usage === 'object' && input.usage !== null ? input.usage : {}, objectPolicy: { mode: attempt.plan.mode, regions: attempt.plan.regions, objectRoles: attempt.plan.objectRoles }, sourceEdgeContinuation: { edges: wallpaperSourceExtensionEdges(attempt.plan, settings), marginPixels: settings.sourceFrameRepair?.marginPixels ?? 0 }, layoutCoordinates: wallpaperLayoutCoordinates(settings), alignmentDiagnosticOnly: !sourceRestoredCanvas, generationAlignment: attempt.generationAlignment })
+                  const schema = (prepared: VisionInput) => wallpaperReviewOutputSchema(prompts.review.version, prepared.rules.map(rule => rule.ruleId), prepared.images.map(image => image.imageVersionId), native.image.id, source.id, wallpaperGenerativeRepair(settings), attempt.plan.objectRoles)
                   const reviewed = await committed(input, 'wallpaper-review', schema, attempt.reviewReserved === true)
                   attempt.review = release ? applyWallpaperStyleReview(reviewed, release, prompts.review.version) : applyWallpaperSourceReview(reviewed, wallpaperSubjectRepairAuthorized(attempt, settings), settings)
                   if (!settings.processing?.clockContrast) {
@@ -854,15 +860,30 @@ export class WallpaperWorkflows {
                   }
                   if (sourceSeams.length) {
                     const currentReview = wallpaperStoredSourceReviewV4Schema.safeParse(attempt.review)
-                    if (currentReview.success) attempt.review = applyWallpaperSourceSeams(currentReview.data, sourceSeams)
+                    if (currentReview.success) attempt.review = applyWallpaperSourceSeams(currentReview.data, sourceSeams, sourceRestoredCanvas ? 'source-restored' : 'generated-canvas')
                   }
                   let sourceReview = wallpaperStoredSourceReviewV4Schema.safeParse(attempt.review)
+                  let boundaryReviewUnavailable = false
                   if (sourceReview.success && settings.processing?.clockContrast) {
                     const contrast = await wallpaperClockContrast(layout.image, preview.image.id, settings, settings.processing.clockContrast)
                     attempt.review = applyWallpaperClockContrast(sourceReview.data, contrast)
                     sourceReview = wallpaperStoredSourceReviewV4Schema.safeParse(attempt.review)
                   }
-                  if (sourceReview.success && settings.processing) {
+                  if (sourceReview.success && settings.processing && wallpaperBoundaryReviewNeeded(sourceReview.data)) {
+                    const provider = await (providerPromise ??= this.deps.vision(ctx.spec.config))
+                    const pendingReviews = state.items.filter(row => row !== item && pending(row)).length
+                    if (provider.config.supportsMultiImage && provider.config.maxImages >= input.images.length + 1 && ctx.ledger.snapshot().vision < ctx.spec.config.limits.maxVisionCalls - pendingReviews) {
+                      const requestId = `${input.requestId}:boundary-detail`
+                      const boundaryInput: VisionInput = { ...input, requestId, reasoningEffort: settings.processing.criticalReasoningEffort,
+                        wallpaperPrompt: { ...input.wallpaperPrompt!, text: `${input.wallpaperPrompt!.text}\n本次仅复核纯布局失败的实际边界。wallpaper-layout-only是同一候选叠加精确安全区的辅助图，线条和色罩不属于成品。以usage.layoutCoordinates和完整actual-wallpaper为坐标系，重新逐边量取核心主体，核对前次actualLayout与图上真实轮廓是否一致；不要用局部图坐标或主观占比，不照抄前次框。主体内容、完整性和布局分别判断；真实越界仍拒绝，不确定仍unknown。` },
+                        images: [...input.images, { imageVersionId: analysis.image.id, digest: analysis.image.blob.digest, mime: analysis.image.blob.mime, bytes: await this.deps.files.read(analysis.image.blob, ctx.signal), role: 'wallpaper-layout-only' }],
+                        usage: toJson({ ...typeof input.usage === 'object' && input.usage !== null ? input.usage : {}, boundaryReview: { initialLayout: sourceReview.data.actualLayout, initialChecks: sourceReview.data.checks, diagnosticOnly: true } }) }
+                      const measured = wallpaperStoredSourceReviewV4Schema.parse(applyWallpaperSourceReview(await committed(boundaryInput, 'wallpaper-review', schema), wallpaperSubjectRepairAuthorized(attempt, settings), settings))
+                      attempt.review = applyWallpaperBoundaryDetail(sourceReview.data, measured, requestId)
+                      sourceReview = wallpaperStoredSourceReviewV4Schema.safeParse(attempt.review)
+                    } else boundaryReviewUnavailable = true
+                  }
+                  if (sourceReview.success && settings.processing && !sourceReview.data.criticalDetail) {
                     const targets = wallpaperCriticalReviewTargets(sourceReview.data), focus = wallpaperCriticalReviewFocus(sourceReview.data)
                     const provider = await (providerPromise ??= this.deps.vision(ctx.spec.config))
                     if (targets.length && focus && provider.config.supportsMultiImage && provider.config.maxImages >= 5) {
@@ -886,11 +907,15 @@ export class WallpaperWorkflows {
                   if (earlyVerdict !== 'pass') {
                     attempt.outputId = preview.image.id
                     item.reason = attempt.review.issues.map(issue => issue.reason).join('；')
+                    if (boundaryReviewUnavailable) { item.status = 'needs-review'; item.reason = 'boundary-review-unavailable'; await save(); return }
                     if (!reviewOnly && wallpaperReviewReworkAvailable(item, settings)) { item.status = wallpaperEditingRetry(item, settings) ? 'rendering' : 'planning'; await save(); continue }
                     if (!reviewOnly && (wallpaperGenerativeRepair(settings) || attempt.needsOutpaint) && item.edits >= settings.maxEditsPerImage) item.reason = 'edit-limit'
                     else if (!reviewOnly && wallpaperReworkCount(item) >= settings.maxReworks) item.reason = 'rework-limit'
                     item.status = earlyVerdict === 'reject' && reviewOnly ? 'rejected' : 'needs-review'; await save(); return
                   }
+                }
+                if (reviewBeforeResolution && generatedCanvas && (!attempt.preResolutionReview || !attempt.review || wallpaperVerdict(attempt.review) !== 'pass')) {
+                  item.status = 'needs-review'; item.reason = 'native-review-required'; await save(); return
                 }
                 if (actual.width < settings.width || actual.height < settings.height) {
                   if (!settings.backgroundResolution?.enabled || !generatedCanvas && attempt.compositionMode !== 'protected-context-v2') throw new CuratorError('image-resolution-insufficient', 'wallpaper-background', `Generated background is ${actual.width}×${actual.height}; at least ${settings.width}×${settings.height} is required. The original result and receipt are retained. Explicit reconstruction and independent review are required; do not interpolate or request another image automatically.`)
@@ -1015,7 +1040,8 @@ export class WallpaperWorkflows {
                 input.images = [...input.images, { imageVersionId: background.id, digest: background.blob.digest, mime: background.blob.mime, bytes: await this.deps.files.read(background.blob, ctx.signal), role: 'background-before-super-resolution-only' }]
                 input.usage = { ...typeof input.usage === 'object' && input.usage !== null ? input.usage : {}, backgroundResolution: { ...attempt.backgroundResolution, policy: settings.backgroundResolution, nativeGeneration: false, protectedSourceRegions: !generatedCanvas, acceptance: wallpaperGenerativeRepair(settings) ? wallpaperRepairInstructions : generatedCanvas ? `This standalone canvas is the complete saved model image, reconstructed by ${attempt.backgroundResolution.model}. No original pixels were pasted over it. Compare every subject, identity, structure, relative arrangement, color, material, text and marking against the supplied original after accounting for whole-group translation and uniform scale. Verify actual full-frame subject safety bounds, completeness and clarity; apply clock readability only when explicitly configured. Reject changes, missing structures, duplicated objects, invented textures, blur or uncertainty. Saved native placement is a planning reference, not evidence that generated subjects stayed inside it.` : `The saved low-resolution background was reconstructed by ${attempt.backgroundResolution.model}, not generated at the target resolution. Compare editable background against its original and the actual final wallpaper. Reject visible tile seams, ringing, halos, changed color, invented structures or unnatural ground, sky and horizon transitions. Source subject and critical regions were pasted last from the original; judge their actual clarity and every existing check without relaxing any criterion.` } }
               }
-              const reviewSchema = (prepared: VisionInput) => wallpaperReviewOutputSchema(prompts.review.version, prepared.rules.map(rule => rule.ruleId), prepared.images.map(image => image.imageVersionId), output.id, source.id, wallpaperGenerativeRepair(settings))
+              input.usage = toJson({ ...typeof input.usage === 'object' && input.usage !== null ? input.usage : {}, layoutCoordinates: wallpaperLayoutCoordinates(settings), objectPolicy: { mode: attempt.plan.mode, regions: attempt.plan.regions, objectRoles: attempt.plan.objectRoles }, sourceEdgeContinuation: { edges: wallpaperSourceExtensionEdges(attempt.plan, settings), marginPixels: settings.sourceFrameRepair?.marginPixels ?? 0 } })
+              const reviewSchema = (prepared: VisionInput) => wallpaperReviewOutputSchema(prompts.review.version, prepared.rules.map(rule => rule.ruleId), prepared.images.map(image => image.imageVersionId), output.id, source.id, wallpaperGenerativeRepair(settings), attempt.plan.objectRoles)
               const review = await committed(input, 'wallpaper-review', reviewSchema)
               attempt.review = release ? applyWallpaperStyleReview(review, release, prompts.review.version) : applyWallpaperSourceReview(review, wallpaperSubjectRepairAuthorized(attempt, settings), settings)
               if (!settings.processing?.clockContrast) {
@@ -1112,7 +1138,7 @@ export class WallpaperWorkflows {
             }
             if (settings.decision?.enabled && prompts.decision) { item.status = 'needs-review'; await save(); if (await decide(item, source, original)) continue; return }
             if (wallpaperReworkCount(item) >= settings.maxReworks) { item.status = 'needs-review'; item.reason ||= 'rework-limit'; await save(); return }
-            if (attempt.needsOutpaint && attempt.review.issues.length > 0 && attempt.review.issues.every(issue => issue.kind === 'background')) { item.attempts.push({ revision: attempt.revision + 1, createdAt: new Date().toISOString(), plan: attempt.plan, checks: [], needsOutpaint: true, ...(attempt.compositionMode ? { compositionMode: attempt.compositionMode } : {}), retryFrom: 'reviewing', retryTarget: 'rendering' }); delete item.reason; await save() }
+            if (attempt.needsOutpaint && attempt.review.issues.length > 0 && attempt.review.issues.every(issue => issue.kind === 'background')) { item.attempts.push({ ...wallpaperGenerationRetry(attempt, new Date().toISOString()), retryFrom: 'reviewing' }); delete item.reason; await save() }
           }
         } catch (error) {
           await failed(item, error)
@@ -1225,8 +1251,8 @@ export class WallpaperWorkflows {
       const { backgroundContextPixels: _context, ...legacySettings } = settings
       const requestSettings = z.object({ backgroundContextPixels: z.number().optional() }).parse(previousSpec.fixed.wallpaper).backgroundContextPixels === undefined ? legacySettings : settings
       const input: VisionInput = { wallpaperPrompt: prompts.plan, requestId: `${ctx.runId}:${sample.id}:${variant}:${rounds}:plan`, taskBrief: styleReviewBrief(release, String(previousSpec.input.taskBrief)), rules: release.rules.filter(rule => rule.check.kind === 'visual'), images: [original], usage: toJson({ settings: requestSettings, sourceGeometry: source.geometry, ...(prompts.plan.version === 'wallpaper-plan-v2' ? { protectedBounds: wallpaperProtectedBounds(settings) } : {}), skill: { content }, previousFailures: failures }) }
-      const observed = await this.evaluationRequest(ctx, provider, input, 'wallpaper-plan', wallpaperGenerativeRepair(settings) ? wallpaperRepairObservationPlanSchema : ['wallpaper-plan-v6', 'wallpaper-plan-v7'].includes(prompts.plan.version) ? wallpaperObservationPlanSchema.required({ editPrompt: true }) : prompts.plan.version === 'wallpaper-plan-v4' || prompts.plan.version === 'wallpaper-plan-v5' ? wallpaperObservationPlanSchema : wallpaperPlanSchema)
-      const plan = wallpaperPlanSchema.parse({ ...observed, placement: 'placement' in observed ? observed.placement : fitWallpaperPlacement(source.geometry, observed, settings, ['wallpaper-plan-v6', 'wallpaper-plan-v7'].includes(prompts.plan.version) ? 'subject-first-v2' : 'crop-first-v1') }), geometry = wallpaperGeometry(source.geometry, plan, settings)
+      const observed = await this.evaluationRequest(ctx, provider, input, 'wallpaper-plan', prompts.plan.version === 'wallpaper-plan-v8' && wallpaperGenerativeRepair(settings) ? wallpaperRoleObservationOutputSchema() : wallpaperGenerativeRepair(settings) ? wallpaperRepairObservationPlanSchema : ['wallpaper-plan-v6', 'wallpaper-plan-v7'].includes(prompts.plan.version) ? wallpaperObservationPlanSchema.required({ editPrompt: true }) : prompts.plan.version === 'wallpaper-plan-v4' || prompts.plan.version === 'wallpaper-plan-v5' ? wallpaperObservationPlanSchema : wallpaperPlanSchema)
+      const plan = wallpaperPlanSchema.parse({ ...observed, placement: 'placement' in observed ? observed.placement : fitWallpaperPlacement(source.geometry, observed, settings, ['wallpaper-plan-v6', 'wallpaper-plan-v7', 'wallpaper-plan-v8'].includes(prompts.plan.version) ? 'subject-first-v2' : 'crop-first-v1') }), geometry = wallpaperGeometry(source.geometry, plan, settings)
       if (geometry.checks.includes('uncertain-subject') || geometry.checks.includes('missing-protected-regions')) return { verdict: 'needs-review' as const, rounds, needsGeneration: false }
       if (geometry.checks.length) {
         if (rounds > settings.maxReworks) return { verdict: 'reject' as const, rounds, needsGeneration: false }
@@ -1241,8 +1267,8 @@ export class WallpaperWorkflows {
       const actual = await this.artifact(source, finalBytes, ctx, 'analysis', prior, variant * 100 + rounds)
       const overlays = await wallpaperOverlays(finalBytes, geometry, settings), simulation = await this.artifact(source, overlays.simulation, ctx, 'simulation', prior, variant * 100 + rounds)
       await ctx.save('reviewing', {}, [...actual.records, ...simulation.records])
-      const reviewInput: VisionInput = { wallpaperPrompt: prompts.review, requestId: `${ctx.runId}:${sample.id}:${variant}:${rounds}:review`, taskBrief: styleReviewBrief(release, String(previousSpec.input.taskBrief)), rules: release.rules.filter(rule => rule.check.kind === 'visual'), images: [{ imageVersionId: actual.image.id, digest: actual.image.blob.digest, mime: actual.image.blob.mime, bytes: finalBytes, role: 'actual-wallpaper' }, original, { imageVersionId: simulation.image.id, digest: simulation.image.blob.digest, mime: simulation.image.blob.mime, bytes: overlays.simulation, role: 'lock-screen-simulation-only' }], usage: toJson({ settings: z.object({ backgroundContextPixels: z.number().optional() }).parse(previousSpec.fixed.wallpaper).backgroundContextPixels === undefined ? Object.fromEntries(Object.entries(settings).filter(([key]) => key !== 'backgroundContextPixels')) : settings, ...(prompts.review.version === 'wallpaper-review-v2' || prompts.review.version === 'wallpaper-review-v3' && wallpaperReviewVersion(release) === 'wallpaper-review-v2' ? { stylePolicy: wallpaperStylePolicy(release) } : {}), measured: { width: actual.image.geometry.width, height: actual.image.geometry.height } }) }
-      const rawReview = await this.evaluationRequest(ctx, provider, reviewInput, 'wallpaper-review', wallpaperReviewOutputSchema(prompts.review.version, reviewInput.rules.map(rule => rule.ruleId), reviewInput.images.map(image => image.imageVersionId), actual.image.id, source.id, wallpaperGenerativeRepair(settings)))
+      const reviewInput: VisionInput = { wallpaperPrompt: prompts.review, requestId: `${ctx.runId}:${sample.id}:${variant}:${rounds}:review`, taskBrief: styleReviewBrief(release, String(previousSpec.input.taskBrief)), rules: release.rules.filter(rule => rule.check.kind === 'visual'), images: [{ imageVersionId: actual.image.id, digest: actual.image.blob.digest, mime: actual.image.blob.mime, bytes: finalBytes, role: 'actual-wallpaper' }, original, { imageVersionId: simulation.image.id, digest: simulation.image.blob.digest, mime: simulation.image.blob.mime, bytes: overlays.simulation, role: 'lock-screen-simulation-only' }], usage: toJson({ settings: z.object({ backgroundContextPixels: z.number().optional() }).parse(previousSpec.fixed.wallpaper).backgroundContextPixels === undefined ? Object.fromEntries(Object.entries(settings).filter(([key]) => key !== 'backgroundContextPixels')) : settings, ...(prompts.review.version === 'wallpaper-review-v2' || prompts.review.version === 'wallpaper-review-v3' && wallpaperReviewVersion(release) === 'wallpaper-review-v2' ? { stylePolicy: wallpaperStylePolicy(release) } : {}), objectPolicy: { mode: plan.mode, regions: plan.regions, objectRoles: plan.objectRoles }, measured: { width: actual.image.geometry.width, height: actual.image.geometry.height } }) }
+      const rawReview = await this.evaluationRequest(ctx, provider, reviewInput, 'wallpaper-review', wallpaperReviewOutputSchema(prompts.review.version, reviewInput.rules.map(rule => rule.ruleId), reviewInput.images.map(image => image.imageVersionId), actual.image.id, source.id, wallpaperGenerativeRepair(settings), plan.objectRoles))
       const review = applyWallpaperStyleReview(rawReview, release, prompts.review.version)
       const verdict = wallpaperVerdict(review)
       if (verdict !== 'reject' || rounds > settings.maxReworks) return { verdict, rounds, needsGeneration: false }

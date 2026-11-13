@@ -1,4 +1,4 @@
-/** Detect whole-source reframing before a generated image is combined with native protected pixels. */
+/** Measure reference similarity for preservation compositors and complete-canvas review diagnostics. */
 import sharp from 'sharp'
 import type { WallpaperPlan, WallpaperSettings } from '../shared/wallpaper.ts'
 import { wallpaperGeometry } from '../shared/wallpaper-geometry.ts'
@@ -14,7 +14,7 @@ function correlation(a: Uint8Array, b: Uint8Array): number {
 }
 
 /** A negative screen catches a source copied across the output instead of kept at its planned position; it never approves image quality.
- * @param original Unmodified source pixels.
+ * @param original Effective original or saved complete-candidate pixels used to prepare this attempt's reference.
  * @param generated Saved provider result before enhancement or composition.
  * @param plan Confirmed placement.
  * @param settings Task-frozen sample dimensions and detection thresholds; an absent policy performs no screen.

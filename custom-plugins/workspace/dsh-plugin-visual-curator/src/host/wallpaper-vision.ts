@@ -47,5 +47,8 @@ export async function wallpaperVisionInput(input: VisionInput, files: AssetFiles
   }
   signal.throwIfAborted()
   const usage = typeof input.usage === 'object' && input.usage !== null && !Array.isArray(input.usage) ? input.usage : { context: input.usage }
-  return { ...input, images, usage: { ...usage, imageRepresentations: representations, coordinateInstructions: 'Regions use normalized EXIF-oriented source coordinates. Placement scale uses sourceWidth/sourceHeight, never the reduced model-view dimensions. Model views are resized representations; rendering uses the saved full-size original. Detail-only images are crops of sourceRect, not independent whole frames; map local coordinates through sourceRect and use the canonical whole frame for subject extent.' } }
+  const coordinateInstructions = input.wallpaperPrompt?.version === 'wallpaper-review-source-v4' && 'layoutCoordinates' in usage
+    ? 'Every region uses normalized coordinates of the canonical complete frame identified by its imageVersionId. Review actualLayout regions refer to the complete actual-wallpaper, never to the original or a crop. Safety bounds use complete output coordinates from layoutCoordinates. Model views retain the entire frame. Detail-only images are crops of sourceRect in their identified parent frame; map local coordinates through sourceRect. The separately labelled wallpaper-layout-only safety guide is diagnostic and is not generated content.'
+    : 'Regions use normalized EXIF-oriented source coordinates. Placement scale uses sourceWidth/sourceHeight, never the reduced model-view dimensions. Model views are resized representations; rendering uses the saved full-size original. Detail-only images are crops of sourceRect, not independent whole frames; map local coordinates through sourceRect and use the canonical whole frame for subject extent.'
+  return { ...input, images, usage: { ...usage, imageRepresentations: representations, coordinateInstructions } }
 }

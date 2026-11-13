@@ -18,6 +18,7 @@ import { runSchema, type RunRecord } from '../src/shared/model.ts'
 import { wallpaperStateSchema, wallpaperPlanSchema, wallpaperReviewKeys, wallpaperSettingsSchema, wallpaperPromptBundleSchema } from '../src/shared/wallpaper.ts'
 import { wallpaperDecisionSettingsSchema, wallpaperDecisionActionKinds, type WallpaperDecisionAction, type WallpaperDecisionResponse } from '../src/shared/wallpaper-decision.ts'
 import { wallpaperPlanDetailPrompt } from '../src/shared/wallpaper-prompts.ts'
+import { wallpaperReviewSchema } from '../src/shared/wallpaper.ts'
 
 const rectSchema = z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
 const concernSchema = z.object({ id: z.string(), text: z.string(), scope: z.enum(['subject', 'critical', 'background', 'technical']).optional(), detailImageVersionIds: z.array(z.string()).optional() })
@@ -166,6 +167,29 @@ async function fixture(scenario: Scenario = 'held', rounds = 2, options: { autoD
     }
   } catch (error) { await engine.dispose(); await f.cleanup(); await context.fiber.dispose(); throw error }
 }
+
+test('review composition and background concerns retain Host-owned scopes during routing', async () => {
+  const t = await fixture('review-format')
+  try {
+    const item = t.state.items[0]!, attempt = item.attempts.at(-1)!
+    attempt.review = wallpaperReviewSchema.parse({ subject: 'Saved product group', checks: Object.fromEntries(wallpaperReviewKeys.map(key => [key, { result: key === 'composition' || key === 'background' ? 'violated' : 'satisfied', reason: key === 'composition' ? 'Group is outside the planned position' : 'Visible background patch seam' }])), issues: [{ kind: 'layout', reason: 'Position failure' }, { kind: 'background', reason: 'Patch seam' }] })
+    item.status = 'needs-review'; delete item.errorCode; delete item.failedStep; delete item.reason
+    const updated = runSchema.parse({ ...t.before, data: toJson({ ...dataOf(t.before), checkpoint: { ...dataOf(t.before).checkpoint, wallpaper: t.state } }) })
+    const aggregateId = 'run:' + updated.id
+    await t.f.repository.commit({ aggregateId, expectedRevision: t.f.repository.manifest(aggregateId)!.revision, operationId: 'saved-product-quality-failures', request: {}, records: [updated], state: { runId: updated.id } })
+    t.setAction(packet => {
+      const concerns = packet.input.usage.decision!.concerns
+      assert.equal(concerns.find(concern => concern.id === 'review:composition')?.scope, 'subject')
+      assert.equal(concerns.find(concern => concern.id === 'review:background')?.scope, 'background')
+      return { kind: 'manual_review' }
+    })
+    const run = await t.resume()
+    const after = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper).items[0]!
+    assert.equal(after.decisions?.at(-1)?.response?.action.kind, 'manual_review')
+    assert.equal(after.status, 'needs-review')
+    assert.equal(t.starts, 0, 'A decision cannot convert a content failure into another image automatically')
+  } finally { await t.cleanup() }
+})
 
 test('a completed targeted continuation resumes an inherited unfinished decision at its existing final round', async () => {
   const t = await fixture('held', 1)

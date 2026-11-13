@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.1.20261113.1",
+  "items": [
+    {
+      "id": "visual-curator-focal-subject-safety",
+      "category": "fixes",
+      "text": {
+        "en": "Visual Curator now keeps focal subjects distinct from supporting objects during wallpaper planning, retries and review. It also preserves candidate placement and checks generated canvases before ESPCN reconstruction.",
+        "zh-CN": "修复多物体扩图的主次识别、候选对齐和重试摆放问题；规划与复审分别检查主角安全区和陪衬保真，生成图通过后才执行 ESPCN 超分。"
+      }
+    }
+  ]
+}

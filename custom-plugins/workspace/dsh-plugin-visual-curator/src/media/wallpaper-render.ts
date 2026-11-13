@@ -122,9 +122,10 @@ async function blendWallpaperSourceExterior(image: Uint8Array, target: { left: n
  * @param image Native composed canvas before optional super-resolution.
  * @param target Placed source intersection with the canvas.
  * @param settings Frozen segmentation and jump thresholds.
- * @returns Edge segments whose cross-boundary color jump greatly exceeds both adjacent rows or columns.
+ * @param comparison Generated candidates compare with the placed source interior; source-restored composites compare with both sides.
+ * @returns Edge segments whose cross-boundary color jump greatly exceeds the selected adjacent rows or columns.
  */
-export async function wallpaperSourceSeams(image: Uint8Array, target: { left: number; top: number; width: number; height: number }, settings: WallpaperSettings) {
+export async function wallpaperSourceSeams(image: Uint8Array, target: { left: number; top: number; width: number; height: number }, settings: WallpaperSettings, comparison: 'both' | 'source-interior' = 'both') {
   const decoded = await sharp(image).removeAlpha().toColourspace('srgb').raw().toBuffer({ resolveWithObject: true })
   const { width, height, channels } = decoded.info, pixels = decoded.data
   const policy = wallpaperProcessingSchema.parse(settings.processing ?? {}).sourceSeam
@@ -140,7 +141,8 @@ export async function wallpaperSourceSeams(image: Uint8Array, target: { left: nu
         across += Math.abs(sample(-1) - sample(0))
         after += Math.abs(sample(0) - sample(1))
       }
-      const count = (to - from) * 3, crossMean = across / count, neighborMean = Math.max(before, after) / count
+      const count = (to - from) * 3, crossMean = across / count
+      const neighborMean = (comparison === 'source-interior' ? edge === 'top' || edge === 'left' ? after : before : Math.max(before, after)) / count
       if (crossMean >= policy.minimumCrossMean && crossMean >= policy.minimumRelative * neighborMean) defects.push({ edge, from, to, across: Math.round(crossMean * 10) / 10, adjacent: Math.round(neighborMean * 10) / 10 })
     }
   }
@@ -151,6 +153,23 @@ export async function wallpaperSourceSeams(image: Uint8Array, target: { left: nu
   const right = target.left + target.width
   if (right >= 2 && right + 1 < width) assess('right', target.top, target.top + target.height, right, false)
   return defects
+}
+
+/** Check authorized source-frame contacts in the native generated image before super-resolution can hide a hard cut.
+ * @param image Complete native generated candidate.
+ * @param target Placed source rectangle in target-canvas pixels.
+ * @param canvas Frozen target-canvas dimensions.
+ * @param native Actual candidate dimensions.
+ * @param edges Source edges with authorized local continuation.
+ * @param settings Frozen seam thresholds.
+ * @returns Measured hard cuts at authorized contacts only.
+ */
+export async function wallpaperGeneratedFrameSeams(image: Uint8Array, target: { left: number; top: number; width: number; height: number }, canvas: { width: number; height: number }, native: { width: number; height: number }, edges: readonly ('top' | 'bottom' | 'left' | 'right')[], settings: WallpaperSettings) {
+  if (!edges.length) return []
+  const left = Math.round(target.left * native.width / canvas.width), top = Math.round(target.top * native.height / canvas.height)
+  const right = Math.round((target.left + target.width) * native.width / canvas.width)
+  const bottom = Math.round((target.top + target.height) * native.height / canvas.height)
+  return (await wallpaperSourceSeams(image, { left, top, width: right - left, height: bottom - top }, settings, 'source-interior')).filter(seam => edges.includes(seam.edge))
 }
 
 /** Produce separate annotations and a simulated lock screen; clean output bytes remain unchanged.

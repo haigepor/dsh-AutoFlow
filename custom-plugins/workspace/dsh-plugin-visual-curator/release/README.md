@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Release 0.2.14: Connect reference analysis, organized datasets, search results, original downloads, composition planning, crop or background expansion, and visual review in one recoverable wallpaper workflow. Improve batch layouts, reference galleries, dataset dialogs, node selection and deletion. Keep imports manual, generate datasets after analysis, and retain manual model selection. Persist stop intent before cancellation and protect saved progress during concurrent writes.
+Release 0.2.16: Wallpaper planning distinguishes focal subjects from supporting objects. Stable identities carry through retries and native-image review, while supporting products retain their source details and natural frame edges. Generated images enter ESPCN x3 reconstruction only after review passes. The recoverable workflow retains saved settings, accounts and tasks.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

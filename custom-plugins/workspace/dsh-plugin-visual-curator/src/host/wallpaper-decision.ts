@@ -67,7 +67,7 @@ function concernsFor(item: WallpaperItem, attempt: Attempt): WallpaperDecisionCo
     return savedScope ? { ...concern, scope: savedScope } : concern.id === 'protected-regions' ? { ...concern, scope: 'critical' as const } : concern
   })
   if (attempt.detailAnalysis?.outcome === 'violated') concerns.push({ id: 'source-violation', text: item.reason || 'Saved native source review established a source integrity violation.', scope: 'subject' })
-  if (attempt.review) for (const [key, check] of Object.entries(attempt.review.checks)) if (check.result !== 'satisfied') concerns.push({ id: `review:${key}`, text: check.reason, ...(key === 'subject' ? { scope: 'subject' as const } : key === 'protection' ? { scope: 'critical' as const } : {}) })
+  if (attempt.review) for (const [key, check] of Object.entries(attempt.review.checks)) if (check.result !== 'satisfied') concerns.push({ id: `review:${key}`, text: check.reason, scope: key === 'protection' ? 'critical' : ['background', 'clock', 'readability'].includes(key) ? 'background' : 'subject' })
   if (item.errorCode) concerns.push({ id: `technical:${item.failedStep ?? 'planning'}`, text: `${item.errorCode}: ${item.reason ?? 'Saved processing step failed.'}`, scope: 'technical' })
   if (!concerns.length) concerns.push({ id: 'processing-hold', text: item.reason || 'The saved image has an unresolved processing hold.' })
   return concerns

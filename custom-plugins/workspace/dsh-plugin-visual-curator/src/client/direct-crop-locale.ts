@@ -1,5 +1,7 @@
 /** Direct-original UI copy is independent of training-collection terminology. */
 export const directCropEn = {
+  directCropBoundaryReviewRequired: 'The saved candidate needs an independent safety-boundary review. The route or remaining review budget cannot provide it; review this candidate before further editing.',
+  directCropNativeReviewRequired: 'The generated image has not passed independent review. Super-resolution is stopped; review the saved generated image first.',
   directCropDetailReady: 'Ready for editing; final review pending', directCropRetainedUnknowns: 'Retained unknowns that do not block editing', wallpaperDecisionEdgeContinuation: 'Bounded edge continuation', wallpaperDecisionUnseenDetail: 'Unseen detail kept unchanged',
   directCropDeleteListTitle: 'Batch records',
   directCropDetailManual: 'Requested manually', directCropDetailDecision: 'Requested by decision', directCropDetailAutomatic: 'Automatic inspection', directCropDetailRunning: 'Inspecting original detail', directCropDetailFailed: 'Detail inspection failed', directCropDetailInvalidOutput: 'The model response could not be read as a detail inspection. Retry with the saved original.', directCropDetailRegion: 'Region (left, top, width, height)',
@@ -22,6 +24,8 @@ export const directCropEn = {
 }
 /** Chinese copy has the same keys and retains strict processing terminology. */
 export const directCropZh: Record<keyof typeof directCropEn, string> = {
+  directCropBoundaryReviewRequired: '当前通道或剩余复审额度不足以确认安全区边界，候选已保留。请先复审这张候选，再继续编辑。',
+  directCropNativeReviewRequired: '生成图尚未通过独立复审，已停止超分。请先复审保存的生成图。',
   directCropDetailReady: '可进入编辑，成品仍待独立复审', directCropRetainedUnknowns: '保留的非阻塞未知', wallpaperDecisionEdgeContinuation: '受限边缘延续', wallpaperDecisionUnseenDetail: '不可见细节保留未知',
   directCropDetailManual: '手动发起', directCropDetailDecision: '决策请求', directCropDetailAutomatic: '自动复核', directCropDetailRunning: '正在核对原图局部', directCropDetailFailed: '局部复核失败', directCropDetailInvalidOutput: '模型响应未能解析为局部复核结果，可用已保存的原图重试。', directCropDetailRegion: '原图区域（左、上、宽、高）',
   directCropDeleteListTitle: '批次清单',

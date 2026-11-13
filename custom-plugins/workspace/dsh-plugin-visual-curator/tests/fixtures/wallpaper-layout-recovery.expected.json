@@ -1,0 +1,39 @@
+{
+  "generationRequest": {
+    "protectedPixels": { "left": 258, "top": 1032, "right": 1587, "bottom": 2718 },
+    "referenceImageVersionId": "saved-candidate",
+    "referenceTransformAlreadyApplied": true,
+    "layoutCorrectionApplied": true,
+    "placement": { "scale": 1, "left": 0, "top": 243 }
+  },
+  "pre-review-alignment": {
+    "status": "passed",
+    "edits": 1,
+    "generations": 1,
+    "nativeReviews": 1,
+    "correlationIsDiagnostic": true,
+    "boundaryReview": false,
+    "superResolution": true,
+    "model": "espcn-x3-luma"
+  },
+  "pre-review-alignment-reject": {
+    "status": "needs-review",
+    "edits": 1,
+    "generations": 1,
+    "nativeReviews": 1,
+    "correlationIsDiagnostic": true,
+    "boundaryReview": false,
+    "superResolution": false,
+    "model": null
+  },
+  "pre-review-boundary": {
+    "status": "passed",
+    "edits": 1,
+    "generations": 1,
+    "nativeReviews": 2,
+    "correlationIsDiagnostic": true,
+    "boundaryReview": true,
+    "superResolution": true,
+    "model": "espcn-x3-luma"
+  }
+}

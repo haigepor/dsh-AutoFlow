@@ -1,6 +1,6 @@
 /** Bounded source-detail evidence can resolve a planning hold without weakening protection or final review. */
 import {z} from 'zod'
-import {wallpaperEdgeRepairSchema,wallpaperObservationPlanSchema,type WallpaperPlan} from './wallpaper.ts'
+import {wallpaperEdgeRepairSchema,wallpaperObservationPlanSchema,type WallpaperPlan,type WallpaperObjectRole} from './wallpaper.ts'
 import { wallpaperEdgeRepairEvidenceSchema, wallpaperFindingSchema, wallpaperFindingBlocksEditing, wallpaperRetainedUncertaintySchema, wallpaperNativeDetailCovers, type WallpaperNativeDetail } from './wallpaper-evidence.ts'
 const text=z.string().trim().min(1).max(4096),id=z.string().min(1).max(256)
 /** A second observation reports every prior concern and cites actual saved source crops. */
@@ -29,7 +29,8 @@ export function wallpaperPlanConcerns(plan:WallpaperPlan):{id:string;text:string
  const concerns=plan.uncertainties.map((text,index)=>({id:'uncertainty:'+index,text}))
  if(plan.truncations.length)concerns.push({id:'source-extent',text:'Verify the complete subject against the whole original frame before any rendering or expansion. Distinguish actual frame truncation from normal perspective or self-occlusion: '+plan.truncations.join('；')})
  if(plan.mode==='uncertain')concerns.push({id:'subject-mode',text:'Identify the visible main subject and its complete source-frame extent.'})
- if(!plan.regions.length||(plan.mode==='single'||plan.mode==='group')&&(!plan.regions.some(r=>r.role==='subject')||!plan.regions.some(r=>r.role==='critical')))concerns.push({id:'protected-regions',text:'Locate the complete visible subject and its critical structures in source coordinates.'})
+ const requiresCritical = plan.objectRoles ? plan.objectRoles.some(object => object.role === 'critical-part') : plan.mode === 'single' || plan.mode === 'group'
+ if (!plan.regions.length || (plan.mode === 'single' || plan.mode === 'group') && (!plan.regions.some(region => region.role === 'subject') || requiresCritical && !plan.regions.some(region => region.role === 'critical'))) concerns.push({ id: 'protected-regions', text: 'Locate the complete visible subject and its critical structures in source coordinates.' })
  return concerns
 }
 /** @param plan Existing source-coordinate protection. @returns One context-bearing subject crop; no image-wide substitute for missing localization. */
@@ -108,21 +109,32 @@ export function resolveWallpaperPlanDetail(prior:WallpaperPlan,detail:WallpaperP
  const retainedUncertainties = detail.version === 'wallpaper-plan-detail-v5' ? detail.retainedUncertainties : []
  const blockingUncertainties = observation.uncertainties.filter(text => !retainedUncertainties.some(entry => entry.text === text))
  const findingsReady = detail.version === 'wallpaper-plan-detail-v5' ? detail.findings.every(finding => !wallpaperFindingBlocksEditing(finding)) : detail.findings.every(f=>f.result==='resolved')
- const resolved=!violated&&complete&&findingsReady&&detail.observation.mode!=='uncertain'&&!blockingUncertainties.length
+  const roleMismatch=!!prior.objectRoles&&detail.observation.regions.some(region=>!region.entityId||!prior.objectRoles?.some(object=>object.entityId===region.entityId&&object.role!=='supporting'&&region.role===(object.role==='critical-part'?'critical':'subject')))
+  const resolved=!violated&&complete&&findingsReady&&detail.observation.mode!=='uncertain'&&!blockingUncertainties.length&&!roleMismatch
  const ready = resolved && detail.version === 'wallpaper-plan-detail-v5' && (edgeRepair || detail.findings.some(finding => finding.result === 'unresolved') || retainedUncertainties.length > 0)
- const regions=retainWallpaperRegions(prior.regions,detail.observation.regions)
- return {outcome:violated?'violated' as const:ready?'ready-for-edit' as const:resolved?'resolved' as const:'unresolved' as const,observation:wallpaperObservationPlanSchema.parse({...observation,uncertainties:blockingUncertainties,regions}),retainedUncertainties,reason:extent.reason+'；'+detail.findings.map(f=>f.reason).join('；')}
+  const regions=retainWallpaperRegions(prior.regions,roleMismatch?[]:detail.observation.regions)
+  return {outcome:violated?'violated' as const:ready?'ready-for-edit' as const:resolved?'resolved' as const:'unresolved' as const,observation:wallpaperObservationPlanSchema.parse({...observation,objectRoles:prior.objectRoles??observation.objectRoles,uncertainties:blockingUncertainties,regions}),retainedUncertainties,reason:extent.reason+'；'+detail.findings.map(f=>f.reason).join('；')+(roleMismatch?'；局部复核未沿用已冻结的实体ID和角色':'')}
 }
 
 /** @param prior Saved protected regions. @param observed New observations. @returns Cumulative protection that automatic rework cannot remove or shrink. */
 export function retainWallpaperRegions(prior:WallpaperPlan['regions'],observed:WallpaperPlan['regions']):WallpaperPlan['regions']{
  const regions=prior.map(r=>structuredClone(r))
  for(const region of observed){
-  const old=regions.find(r=>r.name===region.name&&r.role===region.role)
+   const old=regions.find(r=>r.role===region.role&&(region.entityId&&r.entityId?region.entityId===r.entityId:!region.entityId&&!r.entityId&&r.name===region.name))
   if(!old){regions.push(structuredClone(region));continue}
   if(region.rect.x>=old.rect.x&&region.rect.y>=old.rect.y&&region.rect.x+region.rect.width<=old.rect.x+old.rect.width&&region.rect.y+region.rect.height<=old.rect.y+old.rect.height)continue
   const x=Math.min(old.rect.x,region.rect.x),y=Math.min(old.rect.y,region.rect.y)
   old.rect={x,y,width:Math.max(old.rect.width,Math.max(old.rect.x+old.rect.width,region.rect.x+region.rect.width)-x),height:Math.max(old.rect.height,Math.max(old.rect.y+old.rect.height,region.rect.y+region.rect.height)-y)}
  }
  return regions
+}
+
+/** @param prior Frozen source identities. @param observed Same identities after reinspection. @returns Updated descriptions without losing an established source-frame crop or visible extent. */
+export function retainWallpaperObjectRoles(prior:readonly WallpaperObjectRole[],observed:readonly WallpaperObjectRole[]):WallpaperObjectRole[]{
+ return observed.map(object=>{
+  const old=prior.find(entry=>entry.entityId===object.entityId)
+  if(!old)return structuredClone(object)
+  const x=Math.min(old.rect.x,object.rect.x),y=Math.min(old.rect.y,object.rect.y)
+  return {...object,rect:{x,y,width:Math.max(old.rect.x+old.rect.width,object.rect.x+object.rect.width)-x,height:Math.max(old.rect.y+old.rect.height,object.rect.y+object.rect.height)-y},sourceEdges:[...new Set([...old.sourceEdges,...object.sourceEdges])]}
+ })
 }

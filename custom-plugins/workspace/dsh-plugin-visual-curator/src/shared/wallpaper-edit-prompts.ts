@@ -45,6 +45,7 @@ clock只判断遮挡；readability独立判断真实白字的对比，不能因�
 
 /** V4 records actual peripheral detail separately so the Host can measure bounded warnings. */
 export const wallpaperCanvasReviewPromptV4 = `${wallpaperCanvasReviewPrompt.replaceAll('wallpaper-review-source-v3', 'wallpaper-review-source-v4')}
+以usage.layoutCoordinates.protectedNormalized为完整actual-wallpaper的精确边界；局部图和wallpaper-layout-only辅助图不改变坐标系。辅助图只标记安全区，不是生成图中的文字、线框或接缝。先逐边观察实际核心轮廓，再给actualLayout坐标，不能把顶部留白或画面占比当作测量值。纯整体位置或等比缩放问题只记protection/composition的layout问题；主体实际完整、内容和连接正确时，subjectIntegrity.output、subjectIntegrity.task、sourceRepair与sourceCorrespondence仍分别按这些内容事实判断，不因安全区位置失败重复判成主体损坏。陪衬和原图有意裁切范围保持原分类。
 V4：actualLayout.regions每个框增加scope=core或peripheral。core覆盖主体群的主要结构及关键部位；peripheral只用于少量细枝、叶尖等不承载身份、轮廓完整性或关键结构的外围细节。对象型画面必须至少有core的subject与core的critical框。完整保留所有实际外围细节的位置，不能为通过而漏框、拆分明显越界的整株植物、花盆、人物或主体，也不能把主体核心改称外围。背景山石、地平线或光影不冒充主体。
 少量外围枝叶跨出安全区但仍在画布内、避开时间区、没有破坏主体完整性或白字可读性时，在protection与issues中标明这是minor-peripheral-overflow；Host会测量单框及累计越界面积，合格时改成非阻塞提醒。明显越界、主体核心或关键部位越界、画布裁断、时间区干扰、形变、伪细节、原图对应关系或其它质量问题仍须violated/unknown。不得因外围容差而放宽其它检查。
 V4每个issues条目必须增加check（对应checks键，或sourceRepair/sourceCorrespondence）和code（minor-peripheral-overflow或other）。只有确实仅涉及零星外围枝叶安全区越界的protection问题才用minor-peripheral-overflow，其他原因一律other。原图固有柔和画风、自然景深与实际主体失焦分开判断；高清文件尺寸和超分不能代替可辨细节。若局部证据不足，保留unknown等待一次真实局部复核，不猜测通过。`

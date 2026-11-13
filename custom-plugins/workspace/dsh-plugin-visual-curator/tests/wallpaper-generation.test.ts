@@ -8,7 +8,7 @@ import { CompatibleVisionProvider, MediaError } from '../src/media/index.ts'
 import type { VisionConfig, VisionInput } from '../src/media/index.ts'
 import { wallpaperGenerationPrompt, wallpaperGenerationReferences } from '../src/media/wallpaper-generation.ts'
 import { wallpaperPromptPreparationPolicySchema } from '../src/shared/wallpaper-generation-brief.ts'
-import { renderWallpaper, wallpaperOverlays, wallpaperSourceSeams } from '../src/media/wallpaper-render.ts'
+import { renderWallpaper, wallpaperOverlays, wallpaperSourceSeams, wallpaperGeneratedFrameSeams } from '../src/media/wallpaper-render.ts'
 import { fitWallpaperPlacement } from '../src/shared/wallpaper-geometry.ts'
 import { wallpaperAttemptSchema, wallpaperPlanSchema, wallpaperSettingsSchema, wallpaperSourceReviewSchema } from '../src/shared/wallpaper.ts'
 import { wallpaperPromptBundle } from '../src/shared/wallpaper-prompts.ts'
@@ -205,6 +205,21 @@ test('source-edge continuity catches a hard generated seam without rejecting an 
   const target = { left: 0, top: 8, width: 64, height: 56 }
   assert.deepEqual(await wallpaperSourceSeams(source, target, settings), [])
   assert.deepEqual((await wallpaperSourceSeams(broken, target, settings)).map(seam => seam.edge), ['top'])
+})
+
+test('native generated-frame check finds an authorized hard cut before super-resolution', async () => {
+  const outside = await sharp({ create: { width: 120, height: 200, channels: 3, background: '#f0d0a0' } }).png().toBuffer()
+  const inside = await sharp({ create: { width: 40, height: 60, channels: 3, background: '#205080' } }).png().toBuffer()
+  const broken = await sharp(outside).composite([{ input: inside, left: 10, top: 20 }]).png().toBuffer()
+  const target = { left: 20, top: 40, width: 80, height: 120 }
+  const canvas = { width: 240, height: 400 }, native = { width: 120, height: 200 }
+  const seams = await wallpaperGeneratedFrameSeams(broken, target, canvas, native, ['top'], settings)
+  assert.deepEqual(seams.map(seam => seam.edge), ['top'])
+  assert.deepEqual(await wallpaperGeneratedFrameSeams(broken, target, canvas, native, [], settings), [])
+  assert.deepEqual(await wallpaperGeneratedFrameSeams(outside, target, canvas, native, ['top'], settings), [])
+  const feathered = await sharp(broken).composite([{ input: await sharp({ create: { width: 40, height: 1, channels: 3, background: '#a09070' } }).png().toBuffer(), left: 10, top: 19 }]).png().toBuffer()
+  assert.deepEqual((await wallpaperSourceSeams(feathered, { left: 10, top: 20, width: 40, height: 60 }, settings)).filter(seam => seam.edge === 'top'), [])
+  assert.deepEqual((await wallpaperGeneratedFrameSeams(feathered, target, canvas, native, ['top'], settings)).map(seam => seam.edge), ['top'])
 })
 
 test('source-restored composition closes the generated seam outside the original without editing source pixels', async () => {

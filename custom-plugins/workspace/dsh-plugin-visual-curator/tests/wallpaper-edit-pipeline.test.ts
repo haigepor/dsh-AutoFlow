@@ -21,7 +21,7 @@ import { realWallpaperEdgeEvidence, realWallpaperEdgeDetail } from './helpers/wa
 import { contentDigest } from '../src/domain/repository.ts'
 import { MediaError } from '../src/media/index.ts'
 
-for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-review', 'whole-canvas-clarity', 'authorized-repair', 'authorized-repair-placement', 'authorized-repair-clock', 'authorized-repair-budget', 'authorized-repair-ratio', 'authorized-repair-ratio-large', 'pre-review-repair', 'pre-review-resolution', 'pre-review-resume'] as const) test(`saved source-edge repair ${mode} retains its frozen composition and independent acceptance`, async () => {
+for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-review', 'whole-canvas-clarity', 'authorized-repair', 'authorized-repair-placement', 'authorized-repair-clock', 'authorized-repair-budget', 'authorized-repair-ratio', 'authorized-repair-ratio-large', 'pre-review-repair', 'pre-review-resolution', 'pre-review-resume', 'pre-review-alignment', 'pre-review-alignment-reject', 'pre-review-boundary'] as const) test(`saved source-edge repair ${mode} retains its frozen composition and independent acceptance`, async () => {
   const newOrder = mode.startsWith('pre-review'), authorized = mode.startsWith('authorized-repair') || newOrder, wholeCanvas = mode.startsWith('whole-canvas') || authorized
   const f = await serviceFixture(undefined, { maxVisionCalls: 30, maxImportBytes: 8_000_000 }), context = new Context()
   const attachments = new LocalAttachmentStore(context, { dshHome: f.root }), llm = new LlmRuntime(context)
@@ -30,7 +30,7 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
   if (mode === 'authorized-repair-clock') f.service.config.wallpaper.processing = wallpaperSettingsSchema.parse({ processing: { clockContrast: {} } }).processing
   f.host.attachments = attachments; f.host.llm = llm
   f.service.config.wallpaper.imageModel = 'isolated-edit-model'
-  if (mode === 'framing-limit' || wholeCanvas) f.service.config.wallpaper.maxEditsPerImage = authorized ? 2 : 1
+  if (mode === 'framing-limit' || wholeCanvas) f.service.config.wallpaper.maxEditsPerImage = authorized && !mode.startsWith('pre-review-alignment') && mode !== 'pre-review-boundary' ? 2 : 1
   const width = 941, height = 1672, pixels = Buffer.alloc(width * height * 3)
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     const index = (y * width + x) * 3
@@ -77,7 +77,13 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
     const detail = input.images.find(image => image.role === 'wallpaper-original-detail-only')
     operations.push(input.operation === 'wallpaper-plan' && detail ? 'detail' : input.operation)
     const { placement: _savedPlacement, ...savedObservation } = realWallpaperEdgeEvidence.plan
-    const observation = mode === 'real-response' ? { ...savedObservation, imageVersionId: source.imageVersionId } : { version: 1, imageVersionId: source.imageVersionId, mode: 'single', subject: 'An isolated vine touching the bottom frame.', evidence: 'Scripted source observation.', priorities: [], anchors: [], truncations: ['The vine continues across the bottom source edge.'], uncertainties: [], regions: [{ name: 'Vine', role: 'subject', rect: { x: 0.2, y: 0.18, width: 0.6, height: 0.82 } }, { name: 'Pot', role: 'critical', rect: { x: 0.35, y: 0.25, width: 0.3, height: 0.3 } }], reason: 'Keep the source pixels and leave room for the trailing edge.', editPrompt: 'Continue the existing vine naturally below the saved source edge without changing visible leaves or the pot.' }
+    const noFrameCrop = mode.startsWith('pre-review-alignment') || mode === 'pre-review-boundary'
+    const vineRect = { x: 0.2, y: 0.18, width: 0.6, height: noFrameCrop ? 0.79 : 0.82 }
+    const potRect = { x: 0.35, y: 0.25, width: 0.3, height: 0.3 }
+    const observation = mode === 'real-response' ? { ...savedObservation, imageVersionId: source.imageVersionId } : { version: 1, imageVersionId: source.imageVersionId, mode: 'single', subject: 'An isolated vine touching the bottom frame.', evidence: 'Scripted source observation.', priorities: [], anchors: [], truncations: ['The vine continues across the bottom source edge.'], uncertainties: [],
+      ...(authorized ? { objectRoles: [{ entityId: 'vine', name: 'Vine', role: 'primary', evidence: 'The primary plant.', rect: vineRect, sourceEdges: noFrameCrop ? [] : ['bottom'] }, { entityId: 'pot', name: 'Pot', role: 'critical-part', evidence: 'Required supporting structure for the vine.', rect: potRect, sourceEdges: [] }] } : {}),
+      regions: [{ name: 'Vine', ...(authorized ? { entityId: 'vine' } : {}), role: 'subject', rect: vineRect }, { name: 'Pot', ...(authorized ? { entityId: 'pot' } : {}), role: 'critical', rect: potRect }], reason: 'Keep the source pixels and leave room for the trailing edge.', editPrompt: 'Continue the existing vine naturally below the saved source edge without changing visible leaves or the pot.' }
+    if (mode.startsWith('pre-review-alignment') || mode === 'pre-review-boundary') observation.truncations = []
     let result: object = observation
     if (input.operation === 'wallpaper-plan' && detail) {
       const { truncations: _truncations, ...updated } = observation
@@ -96,8 +102,12 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
         const detail = views.find(view => view.sourceImageVersionId === final!.imageVersionId)
         assert.ok(detail?.sourceRect && detail.sourceRect.width < 0.8 && detail.sourceRect.height < 0.8, 'Known output bounds produce a native foreground crop, not another reduced full-frame view')
       }
-      const failed = (++reviews === 1 || mode === 'authorized-repair-budget') && !mode.startsWith('authorized-repair-ratio') && mode !== 'authorized-repair-clock' && mode !== 'pre-review-resolution' && mode !== 'pre-review-resume', failedKey = mode === 'authorized-repair-placement' ? 'protection' : mode === 'whole-canvas-clarity' ? 'clarity' : 'background', failedReason = failedKey === 'clarity' ? 'The actual subject edges are blurred.' : 'The editable background has a visible seam.'
-      result = { reviewVersion: wholeCanvas ? 'wallpaper-review-source-v4' : 'wallpaper-review-source-v2', ...(wholeCanvas ? { actualLayout: { imageVersionId: final!.imageVersionId, regions: [{ name: 'Whole vine', role: 'subject', scope: 'core', rect: mode === 'authorized-repair-placement' && failed ? { x: 0.01, y: 0.1, width: 0.98, height: 0.88 } : { x: 0.3, y: 0.4, width: 0.4, height: 0.2 } }, { name: 'Pot', role: 'critical', scope: 'core', rect: { x: 0.35, y: 0.5, width: 0.2, height: 0.1 } }] }, sourceCorrespondence: { result: 'satisfied', reason: 'Same visible structure' } } : {}), sourceRepair: { result: 'satisfied', reason: 'Scripted independent edge-completion observation.' }, subject: observation.subject, styleResults: [], checks: { ...Object.fromEntries([...wallpaperReviewKeys, 'clarity'].map(key => [key, { result: failed && key === failedKey ? 'violated' : 'satisfied', reason: failed && key === failedKey ? failedReason : 'Scripted actual-pixel observation.' }])) }, issues: failed ? [{ kind: failedKey === 'protection' ? 'layout' : failedKey === 'clarity' ? 'preservation' : 'background', ...(wholeCanvas ? { check: failedKey, code: 'other' } : {}), reason: failedReason }] : [], subjectIntegrity: { mode: 'single', source: { extent: 'cut-off', reason: 'Original frame damage stays recorded.', imageVersionId: source.imageVersionId }, output: { extent: 'complete', reason: 'The scripted completed edge is visible.', imageVersionId: final!.imageVersionId }, task: { result: 'satisfied', reason: 'Existing source content is preserved.' } } }
+      const failed = (++reviews === 1 || mode === 'authorized-repair-budget') && !mode.startsWith('authorized-repair-ratio') && mode !== 'authorized-repair-clock' && mode !== 'pre-review-resolution' && mode !== 'pre-review-resume' && mode !== 'pre-review-alignment', failedKey = mode === 'authorized-repair-placement' || mode === 'pre-review-boundary' ? 'protection' : mode === 'whole-canvas-clarity' ? 'clarity' : 'background', failedReason = failedKey === 'clarity' ? 'The actual subject edges are blurred.' : 'The editable background has a visible seam.'
+      result = { reviewVersion: wholeCanvas ? 'wallpaper-review-source-v4' : 'wallpaper-review-source-v2', ...(wholeCanvas ? { actualLayout: { imageVersionId: final!.imageVersionId, regions: [{ name: 'Whole vine', ...(authorized ? { entityId: 'vine' } : {}), role: 'subject', scope: 'core', rect: (mode === 'authorized-repair-placement' || mode === 'pre-review-boundary') && failed ? { x: 0.01, y: 0.1, width: 0.98, height: 0.88 } : { x: 0.3, y: 0.4, width: 0.4, height: 0.2 } }, { name: 'Pot', ...(authorized ? { entityId: 'pot' } : {}), role: 'critical', scope: 'core', rect: { x: 0.35, y: 0.5, width: 0.2, height: 0.1 } }] }, sourceCorrespondence: { result: 'satisfied', reason: 'Same visible structure' } } : {}), sourceRepair: { result: 'satisfied', reason: 'Scripted independent edge-completion observation.' }, subject: observation.subject, styleResults: [], checks: { ...Object.fromEntries([...wallpaperReviewKeys, 'clarity'].map(key => [key, { result: failed && key === failedKey ? 'violated' : 'satisfied', reason: failed && key === failedKey ? failedReason : 'Scripted actual-pixel observation.' }])) }, issues: failed ? [{ kind: failedKey === 'protection' ? 'layout' : failedKey === 'clarity' ? 'preservation' : 'background', ...(wholeCanvas ? { check: failedKey, code: 'other' } : {}), reason: failedReason }] : [], subjectIntegrity: { mode: 'single', source: { extent: 'cut-off', reason: 'Original frame damage stays recorded.', imageVersionId: source.imageVersionId }, output: { extent: 'complete', reason: 'The scripted completed edge is visible.', imageVersionId: final!.imageVersionId }, task: { result: 'satisfied', reason: 'Existing source content is preserved.' } } }
+      if (mode === 'pre-review-boundary' && reviews === 2) {
+        assert.ok(input.images.some(image => image.role === 'wallpaper-layout-only'), 'A separate safety guide accompanies the independent boundary measurement')
+        assert.ok(input.usage.layoutCoordinates)
+      }
     }
     return { status: 200, headers: { 'content-type': 'application/json' }, bytes: Buffer.from(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) }, finish_reason: 'stop' }] })) }
   }
@@ -133,18 +143,36 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
       await f.jobs.drain()
     }
     const run = f.domain.require('run', completedRunId), item = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper).items[0]!
+    if (mode.startsWith('pre-review-alignment') || mode === 'pre-review-boundary') {
+      const final = item.attempts.at(-1)!
+      const expected = JSON.parse(await readFile(new URL('./fixtures/wallpaper-layout-recovery.expected.json', import.meta.url), 'utf8'))
+      assert.deepEqual({ status: item.status, edits: item.edits, generations: generations.size, nativeReviews: reviews,
+        correlationIsDiagnostic: final.generationAlignment?.result !== 'not-detected', boundaryReview: !!(final.review && 'criticalDetail' in final.review && final.review.criticalDetail?.requestId.endsWith(':boundary-detail')),
+        superResolution: !!final.backgroundResolution, model: final.backgroundResolution?.model ?? null }, expected[mode])
+      if (final.backgroundResolution) assert.equal(final.backgroundResolution.input.digest, `sha256-v1:${final.preResolutionReview!.nativeDigest}`, 'ESPCN receives exactly the native image that passed review')
+    }
+    if (mode === 'pre-review-alignment-reject') {
+      assert.equal(item.status, 'needs-review'); assert.equal(item.edits, 1)
+      assert.equal(reviews, 1, 'The final edit retains its reserved native review despite low correlation')
+      assert.notEqual(item.attempts[0]!.generationAlignment?.result, 'not-detected')
+      assert.ok(item.attempts[0]!.preResolutionReview)
+      assert.equal(item.attempts[0]!.backgroundResolution, undefined, 'A rejected native image never reaches super-resolution')
+      return
+    }
     if (newOrder) {
       assert.equal(item.status, 'passed', item.reason)
       assert.equal(z.object({ version: z.literal('style-brief-v3') }).parse(specOf(run).fixed.generationPromptPolicy).version, 'style-brief-v3')
       assert.deepEqual(item.attempts[0]!.generationInput?.references.map(reference => reference.role), ['canvas'])
-      assert.equal(reviews, mode === 'pre-review-repair' ? 2 : 1)
+      assert.equal(reviews, mode === 'pre-review-repair' || mode === 'pre-review-boundary' ? 2 : 1)
       assert.equal(generations.size, mode === 'pre-review-repair' ? 2 : 1)
       assert.ok(item.attempts.every(attempt => attempt.preResolutionReview))
       if (mode === 'pre-review-repair') assert.equal(item.attempts[0]!.backgroundResolution, undefined, 'A rejected generated image never reaches super-resolution')
       const final = item.attempts.at(-1)!
       assert.equal(final.compositionMode, 'generated-canvas-v1')
       assert.equal(final.preResolutionReview!.finalId, final.outputId)
-      assert.equal(!!final.backgroundResolution, mode === 'pre-review-resolution' || mode === 'pre-review-resume')
+      assert.equal(!!final.backgroundResolution, mode === 'pre-review-resolution' || mode === 'pre-review-resume' || mode === 'pre-review-alignment' || mode === 'pre-review-boundary')
+      if (mode === 'pre-review-alignment') assert.notEqual(final.generationAlignment?.result, 'not-detected', 'A semantic review can accept legitimate whole-canvas changes despite the diagnostic signal')
+      if (mode === 'pre-review-boundary') assert.ok(final.review && 'criticalDetail' in final.review && final.review.criticalDetail?.requestId.endsWith(':boundary-detail'))
       if (mode === 'pre-review-repair') {
         const output = f.domain.require('imageVersion', final.outputId!)
         const pixel = await sharp(await f.files.read(output.blob)).extract({ left: 900, top: 1500, width: 1, height: 1 }).removeAlpha().raw().toBuffer()

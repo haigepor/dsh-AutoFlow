@@ -10,6 +10,7 @@ import { toJson } from './runtime.ts'
 import { contentDigest } from '../domain/repository.ts'
 import type { wallpaperClockContrastSchema } from '../shared/wallpaper-policy.ts'
 import type { wallpaperSourceSeams } from '../media/wallpaper-render.ts'
+import { wallpaperReviewNeedsSubjectEdit } from '../shared/wallpaper-policy.ts'
 
 /** Retain model findings while rejecting objectively unreadable white clock pixels.
  * @param review Independent actual-output review. @param measurement Same output's frozen pixel-contrast evidence.
@@ -33,11 +34,13 @@ export function applyWallpaperNoClockRequirement(review: z.infer<typeof wallpape
 }
 
 /** A measured source-to-extension seam rejects a model pass while preserving its other findings. */
-export function applyWallpaperSourceSeams(review: z.infer<typeof wallpaperStoredSourceReviewV4Schema>, seams: Awaited<ReturnType<typeof wallpaperSourceSeams>>): z.infer<typeof wallpaperStoredSourceReviewV4Schema> {
+export function applyWallpaperSourceSeams(review: z.infer<typeof wallpaperStoredSourceReviewV4Schema>, seams: Awaited<ReturnType<typeof wallpaperSourceSeams>>, mode: 'source-restored' | 'generated-canvas' = 'source-restored'): z.infer<typeof wallpaperStoredSourceReviewV4Schema> {
   if (!seams.length) return review
   const names = { top: '顶部', bottom: '底部', left: '左侧', right: '右侧' }
   const first = seams[0]!
-  const reason = `原图与生成扩图的${names[first.edge]}交界在${first.from}–${first.to}像素段出现明显断层：跨界平均颜色差${first.across}，相邻区域最大差${first.adjacent}；保持原图不变，重新生成外侧背景与原有景深。`
+  const reason = mode === 'generated-canvas'
+    ? `生成图在原图${names[first.edge]}截断位置的${first.from}–${first.to}像素段仍有平直断层：跨界平均颜色差${first.across}，相邻区域最大差${first.adjacent}；保持整组位置，沿可见轮廓短距离自然收口并接续背景。`
+    : `原图与生成扩图的${names[first.edge]}交界在${first.from}–${first.to}像素段出现明显断层：跨界平均颜色差${first.across}，相邻区域最大差${first.adjacent}；保持原图不变，重新生成外侧背景与原有景深。`
   return wallpaperStoredSourceReviewV4Schema.parse({ ...review,
     checks: { ...review.checks, background: { result: 'violated', reason: review.checks.background.result === 'violated' ? `${review.checks.background.reason}；${reason}` : reason } },
     issues: [...review.issues, { kind: 'background', check: 'background', code: 'other', reason }],
@@ -158,6 +161,22 @@ export function applyWallpaperSourceReview(output: unknown, edgeRepairAuthorized
 
 type BalancedReview = z.infer<typeof wallpaperStoredSourceReviewV4Schema>
 type CriticalCheck = keyof BalancedReview['checks'] | 'sourceRepair' | 'sourceCorrespondence'
+
+/** @param review Full-frame findings. @returns Whether a layout-only failure needs one independent boundary measurement before its coordinates can move the candidate. */
+export function wallpaperBoundaryReviewNeeded(review: BalancedReview): boolean {
+  return !review.criticalDetail && review.subjectIntegrity.output.extent === 'complete' && review.sourceCorrespondence.result === 'satisfied'
+    && !wallpaperReviewNeedsSubjectEdit(review) && review.checks.background.result === 'satisfied'
+    && review.modelIssues.every(issue => issue.kind === 'layout' || issue.kind === 'readability')
+    && (review.layoutChecks.length > 0 || review.checks.protection.result !== 'satisfied')
+}
+
+/** @param review Earlier layout-only findings. @param measured Independent high-effort review using actual pixels and a separate safety guide. @param requestId Logged boundary request. @returns The independently measured review, retaining a record that its coordinates were rechecked; correlation alone never changes a verdict. */
+export function applyWallpaperBoundaryDetail(review: BalancedReview, measured: BalancedReview, requestId: string): BalancedReview {
+  if (!wallpaperBoundaryReviewNeeded(review)) return review
+  const examinedChecks = ['protection', 'composition', 'subject', 'sourceRepair'] as const
+  const result = { ...measured, criticalDetail: { requestId, examinedChecks: [...examinedChecks], resolvedChecks: examinedChecks.filter(key => (key === 'sourceRepair' ? measured.sourceRepair : measured.checks[key]).result !== 'unknown') } }
+  return review.clockContrast ? applyWallpaperClockContrast(result, review.clockContrast) : result
+}
 
 /** @param review Saved medium-effort review. @returns Unresolved critical checks worth one focused high-effort request. */
 export function wallpaperCriticalReviewTargets(review: BalancedReview): CriticalCheck[] {

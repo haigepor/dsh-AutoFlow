@@ -9,7 +9,7 @@ import type { RemoteImageSource } from '../shared/gallery.ts'
 import { remoteReferenceDigest } from './remote-reference.ts'
 import { remoteImageSourceSchema } from '../shared/gallery.ts'
 import { dimensionSchema } from '../shared/model.ts'
-import { wallpaperPlanSchema, wallpaperObservationPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperReviewOutputSchema, wallpaperDistillationSchema } from '../shared/wallpaper.ts'
+import { wallpaperPlanSchema, wallpaperObservationPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperObjectRoleSchema, wallpaperReviewOutputSchema, wallpaperDistillationSchema } from '../shared/wallpaper.ts'
 import { wallpaperPlanDetailOutputSchema } from '../shared/wallpaper-detail.ts'
 import { wallpaperGenerativeRepair, wallpaperRepairPolicySchema } from '../shared/wallpaper-policy.ts'
 import { wallpaperPrompts } from '../shared/wallpaper-prompts.ts'
@@ -103,7 +103,7 @@ export interface VisionInput { promptVersion?: 'visual-curator-rules-v2' | 'visu
   /** Optional per-request effort is frozen by the decision policy; it never changes model defaults. */
   reasoningEffort?: string
   /** Task-frozen instructions used only by the wallpaper operation family. */
-  wallpaperPrompt?: { version: 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-plan-v3' | 'wallpaper-plan-v4' | 'wallpaper-plan-v5' | 'wallpaper-plan-v6' | 'wallpaper-plan-v7' | 'wallpaper-generation-brief-v1' | 'wallpaper-plan-detail-v1' | 'wallpaper-plan-detail-v2' | 'wallpaper-plan-detail-v3' | 'wallpaper-plan-detail-v4' | 'wallpaper-plan-detail-v5' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-review-v3' | 'wallpaper-review-v4' | 'wallpaper-review-source-v1' | 'wallpaper-review-source-v2' | 'wallpaper-review-source-v3' | 'wallpaper-review-source-v4' | 'wallpaper-distill-v1' | 'wallpaper-decision-v1' | 'wallpaper-decision-v2'; text: string }
+  wallpaperPrompt?: { version: 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-plan-v3' | 'wallpaper-plan-v4' | 'wallpaper-plan-v5' | 'wallpaper-plan-v6' | 'wallpaper-plan-v7' | 'wallpaper-plan-v8' | 'wallpaper-generation-brief-v1' | 'wallpaper-plan-detail-v1' | 'wallpaper-plan-detail-v2' | 'wallpaper-plan-detail-v3' | 'wallpaper-plan-detail-v4' | 'wallpaper-plan-detail-v5' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-review-v3' | 'wallpaper-review-v4' | 'wallpaper-review-source-v1' | 'wallpaper-review-source-v2' | 'wallpaper-review-source-v3' | 'wallpaper-review-source-v4' | 'wallpaper-distill-v1' | 'wallpaper-decision-v1' | 'wallpaper-decision-v2'; text: string }
 }
 /** Exact textual messages and saved image identities, sufficient to rebuild the transmitted body. */
 export interface VisionRequestDescriptor {
@@ -112,7 +112,7 @@ export interface VisionRequestDescriptor {
   model: string
   declaredModelVersion: string | null
   replayLimitation: string | null
-  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-summary-v4' | 'visual-curator-summary-v5' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2' | 'visual-curator-reference-v3' | 'visual-curator-reference-v4' | 'visual-curator-screening-v1' | 'visual-curator-search-plan-v1' | 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-plan-v3' | 'wallpaper-plan-v4' | 'wallpaper-plan-v5' | 'wallpaper-plan-v6' | 'wallpaper-plan-v7' | 'wallpaper-generation-brief-v1' | 'wallpaper-plan-detail-v1' | 'wallpaper-plan-detail-v2' | 'wallpaper-plan-detail-v3' | 'wallpaper-plan-detail-v4' | 'wallpaper-plan-detail-v5' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-review-v3' | 'wallpaper-review-v4' | 'wallpaper-review-source-v1' | 'wallpaper-review-source-v2' | 'wallpaper-review-source-v3' | 'wallpaper-review-source-v4' | 'wallpaper-distill-v1' | 'wallpaper-decision-v1' | 'wallpaper-decision-v2'
+  promptVersion: 'visual-curator-v1' | 'visual-curator-summary-v1' | 'visual-curator-summary-v2' | 'visual-curator-summary-v3' | 'visual-curator-summary-v4' | 'visual-curator-summary-v5' | 'visual-curator-rules-v2' | 'visual-curator-rules-v3' | 'visual-curator-reference-v2' | 'visual-curator-reference-v3' | 'visual-curator-reference-v4' | 'visual-curator-screening-v1' | 'visual-curator-search-plan-v1' | 'wallpaper-plan-v1' | 'wallpaper-plan-v2' | 'wallpaper-plan-v3' | 'wallpaper-plan-v4' | 'wallpaper-plan-v5' | 'wallpaper-plan-v6' | 'wallpaper-plan-v7' | 'wallpaper-plan-v8' | 'wallpaper-generation-brief-v1' | 'wallpaper-plan-detail-v1' | 'wallpaper-plan-detail-v2' | 'wallpaper-plan-detail-v3' | 'wallpaper-plan-detail-v4' | 'wallpaper-plan-detail-v5' | 'wallpaper-review-v1' | 'wallpaper-review-v2' | 'wallpaper-review-v3' | 'wallpaper-review-v4' | 'wallpaper-review-source-v1' | 'wallpaper-review-source-v2' | 'wallpaper-review-source-v3' | 'wallpaper-review-source-v4' | 'wallpaper-distill-v1' | 'wallpaper-decision-v1' | 'wallpaper-decision-v2'
   schemaVersion: 1
   instructions: string
   inputText: string
@@ -203,6 +203,10 @@ function wallpaperPlanningSchema(input: VisionInput) {
   const version = input.wallpaperPrompt?.version
   if (version === 'wallpaper-generation-brief-v1') return wallpaperGenerationBriefOutputSchema.safeExtend({ sourceImageVersionId: z.literal(input.images[0]!.imageVersionId), canvasImageVersionId: z.literal(input.images[1]!.imageVersionId) })
   if (version === 'wallpaper-plan-detail-v1' || version === 'wallpaper-plan-detail-v2' || version === 'wallpaper-plan-detail-v3' || version === 'wallpaper-plan-detail-v4' || version === 'wallpaper-plan-detail-v5') return wallpaperPlanDetailOutputSchema(input.images[0]!.imageVersionId, z.object({ concerns: z.array(z.object({ id: z.string(), text: z.string() })) }).parse(input.usage).concerns, input.images.filter(image => image.role === 'wallpaper-original-detail-only').map(image => image.imageVersionId), version, wallpaperNativeDetails(input))
+  if (version === 'wallpaper-plan-v8' && wallpaperRepairRequest(input)) {
+    const previous = z.object({ previous: z.array(z.object({ plan: z.object({ objectRoles: z.array(wallpaperObjectRoleSchema).optional() }) })).optional() }).safeParse(input.usage)
+    return wallpaperRoleObservationOutputSchema(previous.success ? previous.data.previous?.at(-1)?.plan.objectRoles : undefined)
+  }
   if (version === 'wallpaper-plan-v6' || version === 'wallpaper-plan-v7') return wallpaperRepairRequest(input) ? wallpaperRepairObservationPlanSchema : wallpaperObservationPlanSchema.required({ editPrompt: true })
   return version === 'wallpaper-plan-v4' || version === 'wallpaper-plan-v5' ? wallpaperObservationPlanSchema : wallpaperPlanSchema
 }

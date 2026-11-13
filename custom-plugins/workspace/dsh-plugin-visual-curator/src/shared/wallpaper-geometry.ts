@@ -1,7 +1,20 @@
 /** Source transforms and protected-region checks run without image decoding. */
 import type { WallpaperItem, WallpaperPlan, WallpaperSettings } from './wallpaper.ts'
-import { wallpaperGenerativeRepair } from './wallpaper-policy.ts'
+import { wallpaperGenerativeRepair, wallpaperReviewNeedsSubjectEdit } from './wallpaper-policy.ts'
 import { CuratorError } from './errors.ts'
+
+/** Locate source-frame contacts that need bounded continuation after placing a cropped object inside the canvas.
+ * @param observed Source truncations and protected rectangles; background crops alone grant no subject edits.
+ * @param settings Frozen generated-repair and frame-continuation authorization.
+ * @returns Source edges requiring extension room, or none when continuation is disabled or no protected object touches the frame.
+ */
+export function wallpaperSourceExtensionEdges(observed: Pick<WallpaperPlan, 'truncations' | 'regions' | 'objectRoles'>, settings: WallpaperSettings): ('left' | 'top' | 'right' | 'bottom')[] {
+  if (!wallpaperGenerativeRepair(settings) || !settings.sourceFrameRepair?.enabled) return []
+  if (observed.objectRoles?.length) return (['left', 'top', 'right', 'bottom'] as const).filter(edge => observed.objectRoles!.some(object => object.sourceEdges.includes(edge)))
+  if (!observed.truncations.length) return []
+  const regions = observed.regions.filter(region => region.role !== 'anchor')
+  return (['left', 'top', 'right', 'bottom'] as const).filter(edge => regions.some(({ rect }) => edge === 'left' ? rect.x === 0 : edge === 'top' ? rect.y === 0 : edge === 'right' ? rect.x + rect.width >= 1 : rect.y + rect.height >= 1))
+}
 
 /** Protect the whole observed object with strict core bounds when no smaller critical rectangle was identified.
  * @param plan Observed object mode and source rectangles.
@@ -20,16 +33,18 @@ export function wallpaperObjectProtectionRegions(plan: Pick<WallpaperPlan, 'mode
 export function wallpaperCandidatePlacement(prior: Pick<WallpaperItem['attempts'][number], 'plan' | 'review' | 'outputId' | 'compositionMode'>, settings: WallpaperSettings): WallpaperPlan | undefined {
   const review = prior.review
   if (!wallpaperGenerativeRepair(settings) || prior.compositionMode !== 'generated-canvas-v1' || !prior.outputId || !review || !('reviewVersion' in review) || review.reviewVersion !== 'wallpaper-review-source-v4') return undefined
-  if (review.subjectIntegrity.output.extent !== 'complete' || review.subjectIntegrity.task.result !== 'satisfied' || review.sourceCorrespondence.result !== 'satisfied' || review.sourceRepair.result !== 'satisfied') return undefined
-  const layoutDefect = review.issues.some(issue => issue.kind === 'layout')
-  if (!review.issues.length || review.issues.some(issue => issue.kind !== 'layout' && issue.kind !== 'readability')) return undefined
-  if (Object.entries(review.checks).some(([key, check]) => !['protection', 'clock', 'readability'].includes(key) && check.result !== 'satisfied')) return undefined
+  if (review.subjectIntegrity.output.extent !== 'complete' || review.sourceCorrespondence.result !== 'satisfied' || wallpaperReviewNeedsSubjectEdit(review)) return undefined
+  const issues = review.modelIssues.length ? review.modelIssues : review.issues
+  const layoutDefect = issues.some(issue => issue.kind === 'layout')
+  if (!issues.length || issues.some(issue => issue.kind !== 'layout' && issue.kind !== 'readability')) return undefined
+  if (Object.entries(review.checks).some(([key, check]) => !['subject', 'composition', 'protection', 'clock', 'readability'].includes(key) && check.result !== 'satisfied')) return undefined
+  if ((review.subjectIntegrity.task.result !== 'satisfied' || review.sourceRepair.result !== 'satisfied') && !review.modelIssues.some(issue => issue.kind === 'layout')) return undefined
   if (review.actualLayout.regions.some(region => region.role === 'anchor' || region.role === 'critical' && region.scope !== 'core')) return undefined
-  const region = ({ name, role, rect }: typeof review.actualLayout.regions[number]) => ({ name, role, rect: { ...rect } })
+  const region = ({ name, entityId, role, rect }: typeof review.actualLayout.regions[number]) => ({ name, ...(entityId ? { entityId } : {}), role, rect: { ...rect } })
   const core = review.actualLayout.regions.filter(region => region.scope === 'core').map(region)
   if (!core.some(region => region.role === 'subject')) return undefined
   const regions = [...wallpaperObjectProtectionRegions({ mode: 'group', regions: core }), ...review.actualLayout.regions.filter(region => region.scope === 'peripheral').map(region)]
-  const observed = { ...prior.plan, imageVersionId: prior.outputId, mode: 'group' as const, evidence: review.sourceCorrespondence.reason, regions, truncations: [], uncertainties: [],
+  const observed = { ...prior.plan, imageVersionId: prior.outputId, mode: 'group' as const, evidence: review.sourceCorrespondence.reason, regions, objectRoles: prior.plan.objectRoles?.map(object => ({ ...object, sourceEdges: [] })), truncations: [], uncertainties: [],
     editPrompt: `保持已保存完整候选的对象、结构、取景、纹理和内部相对位置。整幅画面已按实际主体框等比缩放定位，只补新露出的外围背景${settings.processing?.clockContrast ? '，并按显式时钟规则改善顶部白色时间背景对比' : ''}；不要把中间画面放大铺满，不重画主体。`,
     reason: 'Uniform placement derived from independently reviewed candidate regions; subject and image quality remain subject to final review.' }
   const placement = layoutDefect ? fitWallpaperPlacement(settings, observed, settings, 'subject-first-v2') : { scale: 1, left: 0, top: 0 }
@@ -46,6 +61,14 @@ export function wallpaperProtectedBounds(settings: WallpaperSettings) {
     subject: { left: safe.left - settings.sideOverflow, right: safe.left + safe.width + settings.sideOverflow, bottom: safe.top + safe.height + settings.bottomOverflow } }
 }
 
+/** @param settings Frozen canvas and protection policy. @returns Pixel and normalized bounds in the complete output coordinate system, independent of reference attachment resizing. */
+export function wallpaperLayoutCoordinates(settings: WallpaperSettings) {
+  const bounds = wallpaperProtectedBounds(settings)
+  return { coordinateSystem: 'whole-output-top-left', canvas: { width: settings.width, height: settings.height },
+    protectedPixels: { left: bounds.critical.left, top: bounds.top, right: bounds.critical.right, bottom: bounds.critical.bottom },
+    protectedNormalized: { left: bounds.critical.left / settings.width, top: bounds.top / settings.height, right: bounds.critical.right / settings.width, bottom: bounds.critical.bottom / settings.height } }
+}
+
 /** Fit all inferred protected regions with the same rounded source geometry used by rendering.
  * @param source Oriented original dimensions. @param observed Model observations without pixel placement. @param settings Frozen safe area and output size. @param policy V2 centers protected objects; V3 minimizes new pixels for a full-size healthy source.
  * @param extensionEdges Confirmed source edges requiring new pixels; omission reserves no additional space.
@@ -54,15 +77,17 @@ export function wallpaperProtectedBounds(settings: WallpaperSettings) {
 export function fitWallpaperPlacement(source: { width: number; height: number }, observed: Omit<WallpaperPlan, 'placement'>, settings: WallpaperSettings, policy: 'crop-first-v1' | 'subject-first-v2' | 'source-preserving-v3' = 'crop-first-v1', extensionEdges: readonly ('left' | 'top' | 'right' | 'bottom')[] = []): WallpaperPlan['placement'] {
   const bounds = wallpaperProtectedBounds(settings)
   const margin = settings.sourceFrameRepair?.marginPixels ?? 0
+  const inset = settings.processing?.layoutInsetPixels ?? 0
+  const edges = extensionEdges.length ? extensionEdges : wallpaperSourceExtensionEdges(observed, settings)
   const intervals = (scale: number) => {
     const width = Math.max(1, Math.round(source.width * scale)), height = Math.max(1, Math.round(source.height * scale))
     let left = -width + 1, right = settings.width - 1, top = -height + 1, bottom = settings.height - 1
     for (const region of observed.regions) {
       const base = region.role === 'subject' ? bounds.subject : bounds.critical
-      const allowed = { left: base.left + (extensionEdges.includes('left') ? margin : 0), right: base.right - (extensionEdges.includes('right') ? margin : 0), bottom: base.bottom - (extensionEdges.includes('bottom') ? margin : 0) }
+      const allowed = { left: base.left + inset + (edges.includes('left') ? margin : 0), right: base.right - inset - (edges.includes('right') ? margin : 0), bottom: base.bottom - inset - (edges.includes('bottom') ? margin : 0) }
       left = Math.max(left, Math.ceil(Math.max(0, allowed.left) - region.rect.x * width))
       right = Math.min(right, Math.floor(Math.min(settings.width, allowed.right) - (region.rect.x + region.rect.width) * width))
-      top = Math.max(top, Math.ceil(bounds.top + (extensionEdges.includes('top') ? margin : 0) - region.rect.y * height))
+      top = Math.max(top, Math.ceil(bounds.top + inset + (edges.includes('top') ? margin : 0) - region.rect.y * height))
       bottom = Math.min(bottom, Math.floor(Math.min(settings.height, allowed.bottom) - (region.rect.y + region.rect.height) * height))
     }
     return { width, height, left, right, top, bottom, feasible: left <= right && top <= bottom }

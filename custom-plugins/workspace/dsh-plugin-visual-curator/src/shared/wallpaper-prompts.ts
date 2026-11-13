@@ -1,7 +1,7 @@
 /** Versioned model instructions for source-grounded wallpaper layout and independently reviewed pixels. */
 import { wallpaperDirectPlanPrompt, wallpaperEdgeDetailPrompt, wallpaperEdgeDecisionPrompt, wallpaperOpaqueCanvasPrompt, wallpaperCanvasReviewPromptV4 } from './wallpaper-edit-prompts.ts'
 import { wallpaperGenerativeRepair, wallpaperRepairInstructions } from './wallpaper-policy.ts'
-import { wallpaperRepairPlanPrompt, wallpaperRepairGenerationPrompt, wallpaperRepairReviewPrompt } from './wallpaper-repair-prompts.ts'
+import { wallpaperRepairPlanPromptV8, wallpaperRepairGenerationPrompt, wallpaperRepairReviewPromptV8 } from './wallpaper-repair-prompts.ts'
 import type { WallpaperSettings } from './wallpaper.ts'
 /** A decision selects one executable recovery action from actual evidence; it never changes acceptance policy. */
 export const wallpaperDecisionPrompt = { version: 'wallpaper-decision-v1' as const, text: `你是壁纸处理流程的决策控制器。根据本次实际证据，从allowedActions选择一个下一步动作，使当前图片进入继续处理、独立复审或有原因的异常终态。你不能直接宣布成品合格，也不能假定动作已经执行成功。
@@ -102,9 +102,8 @@ export function sourceFaithfulWallpaperPrompts(settings?: WallpaperSettings) {
   const bundle = wallpaperPromptBundle()
   const noClock = settings && !settings.processing?.clockContrast
   const generationText = noClock ? `${wallpaperRepairGenerationPrompt}\n本任务没有时钟背景对比要求，topBuffer不构成额外保护边界。只让真正主体及关键结构处于冻结safe安全区；扩图保持自然原有明度，不为了模拟时钟压暗健康背景。生成图本身仍不能含新增日期、时间或界面。` : wallpaperRepairGenerationPrompt
-  const reviewText = noClock ? `${wallpaperRepairReviewPrompt}\n本任务未设置时钟对比规则，主体上沿只需达到safe.top，不附加topBuffer。clock和readability只记录“未启用”，不得因模拟白字、日期、时间的亮度或背景干扰判失败；主体完整范围和安全区由subject/protection及实际坐标严格核查。生成图自身新增的日期、时间或界面仍须在background报告为缺陷，原图真实且需保留的文字不删。` : wallpaperRepairReviewPrompt
-  if (settings && wallpaperGenerativeRepair(settings)) return { ...bundle, plan: { version: 'wallpaper-plan-v7' as const, text: noClock ? `${wallpaperRepairPlanPrompt}\n本任务未启用时钟规则；主体上沿只须满足safe.top，topBuffer不增加约束，其他安全区边界不变。` : wallpaperRepairPlanPrompt }, detail: wallpaperEdgeDetailPrompt, decision: { ...wallpaperEdgeDecisionPrompt, text: `${wallpaperRepairInstructions}\n技术恢复必须遵循allowedActions和已保存回执；未知生图结果先查询原请求，不重复派发。所有最终质量要求独立验收。` },
-    outpaint: { version: 'wallpaper-outpaint-v6' as const, text: generationText }, review: { version: 'wallpaper-review-source-v4' as const, text: reviewText } }
+  if (settings && wallpaperGenerativeRepair(settings)) return { ...bundle, plan: { version: 'wallpaper-plan-v8' as const, text: noClock ? `${wallpaperRepairPlanPromptV8}\n本任务未启用时钟规则；主体上沿只须满足safe.top，topBuffer不增加约束，其他安全区边界不变。` : wallpaperRepairPlanPromptV8 }, detail: wallpaperEdgeDetailPrompt, decision: { ...wallpaperEdgeDecisionPrompt, text: `${wallpaperRepairInstructions}\n技术恢复必须遵循allowedActions和已保存回执；未知生图结果先查询原请求，不重复派发。所有最终质量要求独立验收。` },
+    outpaint: { version: 'wallpaper-outpaint-v6' as const, text: `${generationText}\nusage.objectPolicy.objectRoles给出主角、必要结构和陪衬的冻结身份。只有主角及必要结构须进入内侧安全区；陪衬仍须保留原有外观与自然场景关系，可在最终外画框裁切，不能在画面内部留下平切边。不要为了让全部陪衬进入安全区而缩小整组。` }, review: { version: 'wallpaper-review-source-v4' as const, text: noClock ? `${wallpaperRepairReviewPromptV8}\n本任务未设置时钟对比规则，主体上沿只需达到safe.top，不附加topBuffer。clock和readability只记录“未启用”，不得因模拟白字、日期、时间的亮度或背景干扰判失败；主体完整范围和安全区由subject/protection及实际坐标严格核查。生成图自身新增的日期、时间或界面仍须在background报告为缺陷，原图真实且需保留的文字不删。` : wallpaperRepairReviewPromptV8 } }
   return { ...bundle, plan: { version: 'wallpaper-plan-v7' as const, text: noClock ? `${wallpaperDirectPlanPrompt}\n本任务未启用时钟规则；主体上沿只须满足safe.top，topBuffer不增加约束。` : wallpaperDirectPlanPrompt }, detail: wallpaperEdgeDetailPrompt, decision: wallpaperEdgeDecisionPrompt,
     outpaint: { version: 'wallpaper-outpaint-v6' as const, text: noClock ? `${wallpaperOpaqueCanvasPrompt}\n本任务不为模拟时钟调整背景明度。` : wallpaperOpaqueCanvasPrompt }, review: { version: 'wallpaper-review-source-v4' as const, text: noClock ? `${wallpaperCanvasReviewPromptV4}\n本任务未启用时钟对比；clock和readability只记录未启用，不因模拟白字背景判失败。真实主体与关键结构仍须完整位于安全区，生成图自身新增的时间文字按background缺陷报告。` : wallpaperCanvasReviewPromptV4 } }
 }
