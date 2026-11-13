@@ -883,7 +883,7 @@ interface LlmCallConfigAdapterDefaults {
 <a id="service-and-provider-contracts"></a>
 ## 服务与提供方约定
 
-辅助生图通过 `registerImageProvider(provider, implementation)` 注册到现有文本适配器旁，注册由该代适配器持有，释放时撤回目录与执行器。`listImageModels(provider)` 提供明确的图片模型；`generateImages(request)` 保留单次调用方式。提供方可实现 `start`、`get` 和 `cancel`，支持对应 `LlmRuntime` 任务方法；没有任务能力时以 `UNSUPPORTED_OPTION` 在派发前失败。调用方先持久化 `ImageGenerationId` 和确切输入，提供方按所有者与 ID 持久去重，同一身份的不同输入必须拒绝，返回 `ImageGenerationTask`。`ImageGenerationHandle` 固定提供方、模型及可选的提供方任务 ID；省略任务 ID 仅查找已受理操作，不创建工作。操作不存在时返回 `IMAGE_GENERATION_NOT_FOUND`。读取可按提供方限制等待，并单独接受读取取消。任务状态为 `queued`、`sent`、`succeeded`、`failed`、`cancelled` 和 `outcome-unknown`；结果未知不得导致自动重新派发。取消保留产物，不保证撤回已发送的供应商操作。可选 `mask` 是带透明通道的 PNG 文件附件，与首张参考画布等尺寸；透明像素允许编辑。原文件和规范化预览引用分别保存。此 API 不增加对话输出或改变 Session 格式。[图片生成类型](../../packages/llm/llm/src/image-generation.ts)定义提供方与消费方字段。
+辅助生图通过 `registerImageProvider(provider, implementation)` 注册到已有文本适配器旁，也可单独注册纯图片提供方。前者随适配器一代生效，后者由自己的释放函数撤回。`listImageModels(provider)` 列出图片模型，`listImageSources(provider)` 返回可安全展示的账号或凭据名称；提供方支持来源选择时，`ImageGenerationRequest.sourceId` 指定其中一个。`generateImages(request)` 保留单次调用方式。提供方可实现 `start`、`get` 和 `cancel`，支持对应 `LlmRuntime` 任务方法；没有任务能力时以 `UNSUPPORTED_OPTION` 在派发前失败。调用方先持久化 `ImageGenerationId` 和确切输入，提供方按所有者与 ID 持久去重，同一身份的不同输入必须拒绝，返回 `ImageGenerationTask`。`ImageGenerationHandle` 固定提供方、模型及可选的提供方任务 ID；省略任务 ID 仅查找已受理操作，不创建工作。操作不存在时返回 `IMAGE_GENERATION_NOT_FOUND`。读取可按提供方限制等待，并单独接受读取取消。任务状态为 `queued`、`sent`、`succeeded`、`failed`、`cancelled` 和 `outcome-unknown`；结果未知不得导致自动重新派发。取消保留产物，不保证撤回已发送的供应商操作。可选 `mask` 是带透明通道的 PNG 文件附件，与首张参考画布等尺寸；透明像素允许编辑。原文件和规范化预览引用分别保存。此 API 不增加对话输出或改变 Session 格式。[图片生成类型](../../packages/llm/llm/src/image-generation.ts)定义提供方与消费方字段。
 
 `LlmAdapter` 是提供方约定：创建子类、实现 `stream()`，再用 `ctx.llm.registerAdapter(providers, adapter)` 注册一个适配器实例。`GenerateOptions.provider` 选择已注册适配器；`GenerateOptions.model` 会传给该适配器，无需在生命周期启动时注册。重复提供方路由会原子失败。可选的 `providerRetryPolicy()` 会按路由捕获并填入 normal 默认值，`providerInfo()` 与异步 `listModels()` 方法则为 `LlmRuntime.listProviders()` / `listModels()` 提供分离的 selector 元数据。该目录仅供参考，不是请求白名单：适配器仍是权威，并可接受未列出的模型 id。单次异步 `resolveModel()` 查询返回确切模型身份，以及可选的对正确性敏感的上下文容量、适配器配置的 `defaultMaxTokens`、由模型持有的有序推理强度 ID 和可选的部署默认值；字段缺失表示元数据不可用或保留提供方持有的行为，而不表示目录成员关系无效。解析器会接收可选的取消信号，并且必须在信号中止后迅速完成结算。`LlmRuntime.resolveModelInfo()` 会校验聚合结果并返回分离值。在最终适配器边界，`resolveCallConfig()` 仅在 `maxTokens` 缺失时填入输出默认值，并校验和填入推理强度，因此直接调用也无法绕过任何一项已配置行为；直接分派会在等待解析前捕获一项适配器注册。agent loop 则使用 `prepareCall()`，使模型解析、请求头持久记录和分派全程使用同一项注册，保留来自同一次查询的分离上下文元数据，并报告适配器填入的配置字段。适配器查找发生在 `llm/stream` waterfall 的终端 continuation，因此 listener 可以在查找前短路调用，或路由一个可变的一次性请求。AgentLoop 在外层 waterfall 返回流句柄时观察到一次请求尝试；这个有限边界不能证明惰性终端适配器已构造完成或开始提供方 I/O。`block-start` / `block-end` 的 `index` 关联与 assembler 共同意味着适配器只需 emit 格式正确的分片——块重组不是每个适配器各自的问题。`ctx.llm.stream()` 与 `llm/stream` waterfall 在一个轮次中的位置见 [architecture.md](../architecture.zh.md#turn-flow)。
 
@@ -1176,7 +1176,7 @@ async resolveModelInfo( provider: string, model: string, signal?: AbortSignal, )
 async searchNative(request: NativeWebSearchRequest): Promise<NativeWebSearchResult>
 
 /** Register auxiliary image generation for an existing model route.
- * @param provider Registered LLM provider identity.
+ * @param provider Image provider identity; an existing LLM route binds its adapter lifetime.
  * @param implementation Provider-owned image models, credentials and attachment persistence.
  * @returns Disposer removing only this registration.
  */
@@ -1187,6 +1187,12 @@ registerImageProvider(provider: string, implementation: ImageGenerationProvider)
  * @returns Configured image models; text-only routes return an empty list.
  */
 async listImageModels(provider: string): Promise<readonly ImageGenerationModel[]>
+
+/** List safe account or credential labels for an image route.
+ * @param provider Registered image provider identity.
+ * @returns Provider-owned selectable sources, or an empty list when selection is unavailable.
+ */
+async listImageSources(provider: string): Promise<readonly ImageGenerationSource[]>
 
 /** Execute one explicit image request without conversation streaming or automatic retries.
  * @param request Input already persisted by its owning auxiliary task.

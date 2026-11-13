@@ -6,7 +6,7 @@ import type { CuratorSnapshot } from '../src/client/contract.ts'
 import type { AnalysisTask, AnalysisDetail } from '../src/shared/analysis-process.ts'
 
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(accept => { resolve = accept }); return { promise, resolve } }
-const snapshot = (): CuratorSnapshot => ({ collectionPaging: true, styles: [], images: [], runs: [], usages: [], splits: [], evaluations: [], exports: [], suggestions: [], configuration: { ...resolveCurrentConfig({}), revision: 'one', sourceConfigured: false, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false } })
+const snapshot = (): CuratorSnapshot => ({ collectionPaging: true, styles: [], images: [], runs: [], usages: [], splits: [], evaluations: [], exports: [], suggestions: [], configuration: { ...resolveCurrentConfig({}), revision: 'one', sourceConfigured: false, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false, imageSources: { apiKeys: [] }, wallpaperImage: { imageProvider: 'autoflow-codex', imageSourceId: '', imageModel: '' } } })
 const task = (runId = 'run', status: AnalysisTask['status'] = 'running'): AnalysisTask => ({ runId, styleId: 'style', name: 'Synthetic', status, observed: 1, total: 2, model: 'synthetic', reasoningEffort: null, attempts: 1, startedAt: 'now', phase: status === 'paused' ? 'paused' : 'receiving', autoResume: status === 'running' })
 const detail = (runId: string): AnalysisDetail => ({ task: task(runId), observations: [], images: [], requests: [] })
 

@@ -10,6 +10,16 @@ class TextAdapter extends LlmAdapter {
 const request = (): ImageGenerationRequest => ({ id: brandString<ImageGenerationId>('aux-image'), provider: 'image-route', model: 'image-model', prompt: 'A blue cup', references: [], size: '1024x1024', quality: 'auto', signal: new AbortController().signal })
 
 describe('auxiliary image generation', () => {
+  it('accepts an image-only provider and exposes selectable source labels', async () => {
+    const ctx = new Context(), llm = new LlmRuntime(ctx)
+    const provider: ImageGenerationProvider = { listModels: async () => [{ id: 'image-model', name: 'Images' }], listSources: async () => [{ id: 'account-a', name: 'Account A', available: true }], generate: async (request) => { expect(request.sourceId).toBe('account-a'); return [] } }
+    const dispose = llm.registerImageProvider('image-route', provider)
+    try {
+      expect(await llm.listImageModels('image-route')).toHaveLength(1)
+      expect(await llm.listImageSources('image-route')).toEqual([{ id: 'account-a', name: 'Account A', available: true }])
+      await llm.generateImages({ ...request(), sourceId: 'account-a' })
+    } finally { dispose(); await ctx.fiber.dispose() }
+  })
   it('publishes models only after registration and removes the provider with its effect', async () => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)

@@ -8,7 +8,7 @@ import type { CuratorSnapshot } from '../src/client/contract.ts'
 
 const detail = (runId = 'run', status = 'completed') => analysisDetailSchema.parse({ task: { runId, styleId: 's', name: 'Saved analysis', status, observed: 1, total: 1, model: 'vision', reasoningEffort: null, attempts: 1, startedAt: 'now', phase: status === 'running' ? 'receiving' : 'completed', autoResume: false }, observations: [] })
 const input = { requestId: 'request', instructions: 'Saved instructions', inputText: 'Saved input', images: [] }
-const snapshot = (): CuratorSnapshot => ({ styles: [], images: [], runs: [], usages: [], splits: [], evaluations: [], exports: [], suggestions: [], configuration: { ...resolveCurrentConfig({}), revision: 'config', sourceConfigured: false, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false } })
+const snapshot = (): CuratorSnapshot => ({ styles: [], images: [], runs: [], usages: [], splits: [], evaluations: [], exports: [], suggestions: [], configuration: { ...resolveCurrentConfig({}), revision: 'config', sourceConfigured: false, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false, imageSources: { apiKeys: [] }, wallpaperImage: { imageProvider: 'autoflow-codex', imageSourceId: '', imageModel: '' } } })
 
 test('cache lifetime starts at the successful read and is not extended by reopening or retained input', () => {
   const cache = createAnalysisDetailCache(), saved = detail()

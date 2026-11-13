@@ -25,11 +25,11 @@ import { createAnalysisTaskReads, type AnalysisTaskReads } from './analysis-task
 import { searchScreeningSummary } from './search-screening-state.ts'
 
 /** @param config Current defaults. @param credentialStatus Presence only, never secret values. @returns Lightweight settings projection. */
-export function projectConfiguration(config: CuratorConfig, credentialStatus: { source: boolean; vision: boolean }): ConfigurationView {
+export function projectConfiguration(config: CuratorConfig, credentialStatus: { source: boolean; vision: boolean; imageKeys?: Record<string, boolean> }): ConfigurationView {
   const { reasoningEffort, ...vision } = config.vision
   return { revision: configRevision(config), sourceConfigured: config.source.provider === 'unsplash' ? credentialStatus.source : !!config.source.endpoint && (!config.source.credentialRef || credentialStatus.source),
     visionConfigured: !!config.vision.model && config.vision.supportsMultipleImages && config.vision.supportsJson && (config.vision.backend === 'native' || config.vision.provider && config.vision.backend !== 'compatible' ? !!config.vision.provider : !!config.vision.endpoint && (!config.vision.credentialRef || credentialStatus.vision)),
-    sourceCredentialConfigured: credentialStatus.source, visionCredentialConfigured: credentialStatus.vision, source: config.source, vision: { ...vision, ...(reasoningEffort ? { reasoningEffort } : {}) }, limits: config.limits, ...(config.searchScreening ? { searchScreening: config.searchScreening } : {}) }
+    sourceCredentialConfigured: credentialStatus.source, visionCredentialConfigured: credentialStatus.vision, imageSources: { apiKeys: config.imageSources.apiKeys.map(item => ({ ...item, configured: credentialStatus.imageKeys?.[item.id] === true })) }, wallpaperImage: { imageProvider: config.wallpaper.imageProvider, imageSourceId: config.wallpaper.imageSourceId, imageModel: config.wallpaper.imageModel }, source: config.source, vision: { ...vision, ...(reasoningEffort ? { reasoningEffort } : {}) }, limits: config.limits, ...(config.searchScreening ? { searchScreening: config.searchScreening } : {}) }
 }
 
 /** @param domain Saved collections. @param engine Task owner. @param actor Authenticated reader. @param reads Optional service-owned bounded summary reuse. @returns Authorized task summaries without image projection or full Run clones. */

@@ -78,8 +78,8 @@ export async function mountCurator(ctx: Context, service: CuratorService): Promi
   const executionArtwork = createExecutionArtwork()
   // 初始化可能立即恢复任务，必须先注册可控制这些任务的能力。
   ctx.effect(() => ctx.jobs.attachController('visual-curator'), 'Visual Curator profile jobs')
+  try { await service.initialize() } catch (error) { await service.dispose(); throw error }
   ctx.effect(() => () => service.dispose(), 'Visual Curator task drain')
-  await service.initialize()
   ctx.provide('visualCurator', service)
   ctx.inject(['skills'], owner => owner.effect(() => {
     let current = service.wallpaperSkill(), dispose = owner.skills.register({ name: 'visual-wallpaper-composition', source: 'bundled', provider: 'dsh-plugin-visual-curator', description: 'Identify arbitrary visual subjects, plan lock-screen wallpaper layouts, preserve originals and inspect actual final pixels.', content: current.content })

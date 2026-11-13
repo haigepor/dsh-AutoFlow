@@ -4,7 +4,7 @@
 
 ## Summary
 
-0.2.16：壁纸规划区分视觉主角与陪衬，重试和原生生成图复审沿用稳定身份；陪衬保留原图细节与自然画框边缘。只有生成图复审通过后才使用 ESPCN x3 超分。可续跑任务保留已有设置、账号和任务数据。
+0.2.17：新裁剪批次可选择 Codex 生图账号，或已配置的 OpenAI API Key 和生图模型。官方 Key 成品按复审通过的原生分辨率使用；Codex 成品复审通过后才用 ESPCN x3 超分。原图裁切边进入壁纸内部的彩妆物体会补出自然末端。
 
 本包随 AutoFlow 分发，在已安装插件中展示，保留已有启用选择。[release.config.json](../release.config.json) 负责稳定的 `visual-curator-v<version>` 标签族和 `visual-curator-update.json` 元数据，与 AFP、应用分别发版。
 

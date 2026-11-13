@@ -1,0 +1,8 @@
+{
+  "id": "visual-curator-internal-crop-completion",
+  "category": "fixes",
+  "text": {
+    "en": "Visual Curator completes cosmetic products where an old source crop becomes visible inside the new wallpaper, and checks those details before accepting the result.",
+    "zh-CN": "修复视觉策展扩图后原图裁切边进入成品内部时彩妆物体仍留有平切的问题，并在接受成品前检查这些细节。"
+  }
+}

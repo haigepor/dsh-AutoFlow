@@ -16,6 +16,70 @@ export function wallpaperSourceExtensionEdges(observed: Pick<WallpaperPlan, 'tru
   return (['left', 'top', 'right', 'bottom'] as const).filter(edge => regions.some(({ rect }) => edge === 'left' ? rect.x === 0 : edge === 'top' ? rect.y === 0 : edge === 'right' ? rect.x + rect.width >= 1 : rect.y + rect.height >= 1))
 }
 
+type SourceEdge = 'left' | 'top' | 'right' | 'bottom'
+
+/** One source-frame contact after placement; only contacts inside the delivered frame need a new visible ending. */
+export interface WallpaperSourceContinuationTarget {
+  readonly entityId: string
+  readonly name: string
+  readonly edge: SourceEdge
+  readonly disposition: 'interior' | 'final-frame-crop'
+  readonly rect?: WallpaperPlan['regions'][number]['rect']
+}
+
+/** Classify each observed source-frame contact against the actual output frame.
+ * @param plan Frozen source observation and placement. @param settings Output frame and repair policy. @param source Oriented source pixels used by the placement.
+ * @returns Per-object contacts, including final-frame crops that must not be reconstructed inside the source.
+ */
+export function wallpaperSourceContinuationTargets(plan: WallpaperPlan, settings: WallpaperSettings, source: { width: number; height: number }): WallpaperSourceContinuationTarget[] {
+  const edges = wallpaperSourceExtensionEdges(plan, settings)
+  if (!edges.length) return []
+  const width = Math.max(1, Math.round(source.width * plan.placement.scale)), height = Math.max(1, Math.round(source.height * plan.placement.scale))
+  const positions = { left: plan.placement.left, top: plan.placement.top, right: plan.placement.left + width, bottom: plan.placement.top + height }
+  const inside = (edge: SourceEdge, rect?: WallpaperPlan['regions'][number]['rect']) => {
+    const contactInside = edge === 'left' || edge === 'right'
+      ? positions[edge] > 0 && positions[edge] < settings.width
+      : positions[edge] > 0 && positions[edge] < settings.height
+    if (!contactInside || !rect) return contactInside
+    return edge === 'left' || edge === 'right'
+      ? plan.placement.top + (rect.y + rect.height) * height > 0 && plan.placement.top + rect.y * height < settings.height
+      : plan.placement.left + (rect.x + rect.width) * width > 0 && plan.placement.left + rect.x * width < settings.width
+  }
+  const objects = plan.objectRoles?.length
+    ? plan.objectRoles.map(object => ({ entityId: object.entityId, name: object.name, rect: object.rect, edges: object.sourceEdges }))
+    : edges.map(edge => ({ entityId: `source-${edge}`, name: `Source ${edge} edge`, rect: undefined, edges: [edge] }))
+  return objects.flatMap(object => object.edges.filter(edge => edges.includes(edge)).map(edge => ({
+    entityId: object.entityId, name: object.name, edge, disposition: inside(edge, object.rect) ? 'interior' as const : 'final-frame-crop' as const,
+    ...(object.rect ? { rect: object.rect } : {}),
+  })))
+}
+
+/** @param plan Frozen placement. @param settings Output policy. @param source Reference dimensions. @returns Model-visible per-object edit permission without treating final-frame crops as interior defects. */
+export function wallpaperSourceContinuationContext(plan: WallpaperPlan, settings: WallpaperSettings, source: { width: number; height: number }) {
+  return { targets: wallpaperSourceContinuationTargets(plan, settings, source), marginPixels: settings.sourceFrameRepair?.marginPixels ?? 0 }
+}
+
+/** Map each internal source cut to a full-output crop for the independent native review.
+ * @param plan Frozen placement and source object rectangles. @param settings Output frame. @param source Oriented source dimensions.
+ * @returns Local views including generated pixels beyond the old cut and the adjacent source object.
+ */
+export function wallpaperSourceContinuationReviewRegions(plan: WallpaperPlan, settings: WallpaperSettings, source: { width: number; height: number }) {
+  const width = Math.round(source.width * plan.placement.scale), height = Math.round(source.height * plan.placement.scale)
+  const clamp = (value: number) => Math.max(0, Math.min(1, value))
+  return wallpaperSourceContinuationTargets(plan, settings, source).filter(target => target.disposition === 'interior' && target.rect).map(target => {
+    const object = target.rect!
+    const left = (plan.placement.left + object.x * width) / settings.width
+    const top = (plan.placement.top + object.y * height) / settings.height
+    const right = (plan.placement.left + (object.x + object.width) * width) / settings.width
+    const bottom = (plan.placement.top + (object.y + object.height) * height) / settings.height
+    const x0 = clamp(left - (target.edge === 'left' ? 0.08 : 0.03))
+    const y0 = clamp(top - (target.edge === 'top' ? 0.08 : 0.03))
+    const x1 = clamp(right + (target.edge === 'right' ? 0.08 : 0.03))
+    const y1 = clamp(bottom + (target.edge === 'bottom' ? 0.08 : 0.03))
+    return { entityId: target.entityId, name: target.name, edge: target.edge, rect: { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } }
+  }).filter(target => target.rect.width > 0 && target.rect.height > 0)
+}
+
 /** Protect the whole observed object with strict core bounds when no smaller critical rectangle was identified.
  * @param plan Observed object mode and source rectangles.
  * @returns Original rectangles plus complete-object core protection, without inventing unobserved structure.

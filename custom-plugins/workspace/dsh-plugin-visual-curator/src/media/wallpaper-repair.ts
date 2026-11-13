@@ -2,7 +2,7 @@
 import sharp from 'sharp'
 import type { WallpaperItem, WallpaperPlan, WallpaperSettings } from '../shared/wallpaper.ts'
 import { wallpaperGenerativeRepair, wallpaperReviewNeedsSubjectEdit } from '../shared/wallpaper-policy.ts'
-import { wallpaperSourceExtensionEdges } from '../shared/wallpaper-geometry.ts'
+import { wallpaperSourceContinuationTargets, wallpaperSourceExtensionEdges } from '../shared/wallpaper-geometry.ts'
 
 /** @param plan Source observations. @param settings Frozen authorization. @returns Whether observed source truncation needs a generated candidate; truncation alone never unlocks healthy subject interiors. */
 export function wallpaperSourceRepairNeeded(plan: WallpaperPlan, settings: WallpaperSettings): boolean {
@@ -14,21 +14,27 @@ export async function wallpaperRepairMask(mask: Buffer<ArrayBuffer>, plan: Wallp
   if (!wallpaperGenerativeRepair(settings)) return mask
   const review = attempts.findLast(attempt => attempt.review)?.review
   const subjectDefect = wallpaperReviewNeedsSubjectEdit(review)
-  const edges = wallpaperSourceExtensionEdges(plan, settings)
+  const edgeTargets = wallpaperSourceContinuationTargets(plan, settings, source).filter(target => target.disposition === 'interior')
   const readabilityDefect = !!settings.processing?.clockContrast && (clockBackgroundNeedsEdit || review?.checks.readability.result !== undefined && review.checks.readability.result !== 'satisfied')
-  if (!subjectDefect && !readabilityDefect && !edges.length) return mask
+  if (!subjectDefect && !readabilityDefect && !edgeTargets.length) return mask
   const width = Math.round(source.width * plan.placement.scale), height = Math.round(source.height * plan.placement.scale)
   const regions = review && 'actualLayout' in review ? review.actualLayout.regions.map(region => ({ left: region.rect.x * settings.width, top: region.rect.y * settings.height, width: region.rect.width * settings.width, height: region.rect.height * settings.height })) : plan.regions.map(region => ({ left: plan.placement.left + region.rect.x * width, top: plan.placement.top + region.rect.y * height, width: region.rect.width * width, height: region.rect.height * height }))
   const targets = subjectDefect ? regions : []
   const { data, info } = await sharp(mask).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
   const margin = settings.sourceFrameRepair?.marginPixels ?? 0
-  for (const edge of edges) {
+  for (const target of edgeTargets) {
+    const edge = target.edge
     const left = Math.max(0, plan.placement.left), top = Math.max(0, plan.placement.top)
     const right = Math.min(info.width, plan.placement.left + width), bottom = Math.min(info.height, plan.placement.top + height)
-    const x0 = edge === 'right' ? Math.max(left, right - margin) : left
-    const y0 = edge === 'bottom' ? Math.max(top, bottom - margin) : top
-    const x1 = edge === 'left' ? Math.min(right, left + margin) : right
-    const y1 = edge === 'top' ? Math.min(bottom, top + margin) : bottom
+    const rect = target.rect
+    const objectLeft = rect ? plan.placement.left + Math.floor(rect.x * width) : left
+    const objectTop = rect ? plan.placement.top + Math.floor(rect.y * height) : top
+    const objectRight = rect ? plan.placement.left + Math.ceil((rect.x + rect.width) * width) : right
+    const objectBottom = rect ? plan.placement.top + Math.ceil((rect.y + rect.height) * height) : bottom
+    const x0 = edge === 'right' ? Math.max(left, right - margin) : edge === 'top' || edge === 'bottom' ? Math.max(left, objectLeft - margin) : left
+    const y0 = edge === 'bottom' ? Math.max(top, bottom - margin) : edge === 'left' || edge === 'right' ? Math.max(top, objectTop - margin) : top
+    const x1 = edge === 'left' ? Math.min(right, left + margin) : edge === 'top' || edge === 'bottom' ? Math.min(right, objectRight + margin) : right
+    const y1 = edge === 'top' ? Math.min(bottom, top + margin) : edge === 'left' || edge === 'right' ? Math.min(bottom, objectBottom + margin) : bottom
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) data[(y * info.width + x) * info.channels + info.channels - 1] = 0
   }
   for (const target of targets) {

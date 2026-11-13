@@ -5,7 +5,7 @@ import type { wallpaperGenerationBriefOutputSchema } from '../shared/wallpaper-g
 import type { WallpaperPlan, WallpaperItem, WallpaperSettings } from '../shared/wallpaper.ts'
 import { wallpaperEdgeRepairAuthorized } from '../shared/wallpaper.ts'
 import { wallpaperGenerativeRepair } from '../shared/wallpaper-policy.ts'
-import { wallpaperLayoutCoordinates, wallpaperSourceExtensionEdges } from '../shared/wallpaper-geometry.ts'
+import { wallpaperLayoutCoordinates, wallpaperSourceContinuationTargets } from '../shared/wallpaper-geometry.ts'
 
 type Region = WallpaperPlan['regions'][number]['rect']
 type Reference = { data: Uint8Array; mediaType: 'image/png' | 'image/webp'; name: string; role: 'canvas' | 'original' | 'subject-detail' | 'critical-detail' | 'layout-only'; sourceRect?: Region }
@@ -62,14 +62,17 @@ export function wallpaperGenerationPrompt(instruction: string, plan: WallpaperPl
       : '壁纸本身不绘制系统时间、日期或界面。'
     const correction = latest?.layoutCorrection ? '第1张是已保存的完整候选，Host已执行本轮整体等比缩放和平移。保持参考画布中的当前位置、内部比例和对象；只补新露出的背景。历史复审中的下移、缩小等动作已经完成，不要再次执行，也不要为铺满画布放大主体。' : ''
     const repair = !latest?.layoutCorrection && latest && wallpaperEdgeRepairAuthorized(latest, settings) ? latest.detailAnalysis?.edgeRepair?.instruction : undefined
-    const sourceEdgeContinuation = { edges: wallpaperSourceExtensionEdges(plan, settings), marginPixels: settings.sourceFrameRepair?.marginPixels ?? 0 }
+    const continuationTargets = wallpaperSourceContinuationTargets(plan, settings, sourceGeometry)
+    const interiorTargets = continuationTargets.filter(target => target.disposition === 'interior')
+    const frameCrops = continuationTargets.filter(target => target.disposition === 'final-frame-crop')
     return [referenceRoles, brief.generationPrompt, clock,
-      '输出与第1张相同视野的完整竖幅画面。保留原图的共同主体、原有细节和自然取景，消除灰色占位、重复主体与扩图接缝。',
+      '输出与第1张相同视野的完整竖幅画面。保留原图的共同主体、健康细节和自然取景；新增画布区域可依据原有光线、透视、景深和材质主动生成合理场景细节，形成完整画面，消除灰色占位、重复主体与扩图接缝。',
       sourceLock ? 'Host会在交付时逐像素恢复画布中全部健康原图；重点让新增画布与原图边界的颜色、轮廓、景深和纹理自然相接。原图边缘已裁切的花束等陪衬不可变成清晰的新花瓣或重复物体；整幅生成背景必须不透明。' : '',
       opaqueCanvas ? `灰色区域及蒙版透明处需要补画；${settings.processing?.clockContrast ? '按显式时钟规则自然调整必要的背景亮度；' : ''}其余不透明原图像素尽量保留。` : '',
       correction, repair ?? '',
-      `分项执行要求：${JSON.stringify({ preserveInstructions: brief.preserveInstructions, extensionInstructions: brief.extensionInstructions, repairInstructions: brief.repairInstructions, negativeInstructions: brief.negativeInstructions, styleAnchors: brief.styleAnchors, detailAnchors: brief.detailAnchors })}`,
-      `sourceEdgeContinuation：${JSON.stringify(sourceEdgeContinuation)}。${sourceEdgeContinuation.edges.length ? `本轮原图截断记录：${JSON.stringify(plan.truncations)}。已定位画布把这些断口移到画面内部；在蒙版开放的有限范围内，沿可见轴线、弧面和透视短距离延续，使局部可见外轮廓完整闭合，切口与新背景自然接触，不留下平直截线或照片矩形边。分项要求中的“不补完整瓶盖、盘框、刷柄端头”仅限制凭空制造大块未知结构，不能阻止这里明确授权的小范围自然收口。` : '空edges不授权主体边缘补全。'}保留健康主体内部，不补造身份、额外产品、额外盘格或未知背面。`,
+      `画风与关键细节：${JSON.stringify({ styleAnchors: brief.styleAnchors, detailAnchors: brief.detailAnchors })}`,
+      interiorTargets.length ? `成品内部需要自然补全的原图断口：${JSON.stringify(interiorTargets.map(({ entityId, name, edge }) => ({ entityId, name, edge })))}。此处优先于前文任何“短距收口”或“不补完整”的旧表述：根据每件物体已有的轴线、材质、透视和光照，合理生成成品视角下应当可见的完整局部外形，允许重绘蒙版开放的断口及相邻过渡；盖顶、侧壁、刷柄端头和盘框所需的可见延续不受固定长度限制。保留产品身份、数量和主次关系，不虚构品牌或未知背面。` : '',
+      frameCrops.length ? `仍处于最终画框裁切的原图边缘：${JSON.stringify(frameCrops.map(({ entityId, name, edge }) => ({ entityId, name, edge })))}。这些部分可以自然出画，不为补全它们而移动或缩小核心主体。` : '',
       brief.clockText.action === 'remove-generated-overlay' ? '擦除上一轮生成图中新添的日期或时间，并补回自然背景。' : '',
       `Host布局数据：${JSON.stringify({ ...wallpaperLayoutCoordinates(settings), referenceImageVersionId: plan.imageVersionId, referenceTransformAlreadyApplied: true, placement: plan.placement, layoutCorrectionApplied: !!latest?.layoutCorrection, objectRoles: plan.objectRoles })}。所有坐标均以输出整张画布为基准；核心主体及关键部位须完整位于protectedNormalized内，陪衬和原图有意截断内容不冒充核心主体。保持本轮参考中已定位的主体，不重复执行历史位移动作。输出较小图片时保持同一视野与比例，复审通过后再由Host超分。`,
     ].filter(Boolean).join('\n')

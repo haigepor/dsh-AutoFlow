@@ -2076,7 +2076,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'registerImageProvider(provider: string, implementation: ImageGenerationProvider): () => void',
         description: 'Register auxiliary image generation for an existing model route.',
-        parameters: [{ name: 'provider', description: 'Registered LLM provider identity.' }, { name: 'implementation', description: 'Provider-owned image models, credentials and attachment persistence.' }],
+        parameters: [{ name: 'provider', description: 'Image provider identity; an existing LLM route binds its adapter lifetime.' }, { name: 'implementation', description: 'Provider-owned image models, credentials and attachment persistence.' }],
         returns: 'Disposer removing only this registration.',
       },
       {
@@ -2084,6 +2084,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'List configured image models without inferring image output from vision input.',
         parameters: [{ name: 'provider', description: 'Existing provider route.' }],
         returns: 'Configured image models; text-only routes return an empty list.',
+      },
+      {
+        signature: 'async listImageSources(provider: string): Promise<readonly ImageGenerationSource[]>',
+        description: 'List safe account or credential labels for an image route.',
+        parameters: [{ name: 'provider', description: 'Registered image provider identity.' }],
+        returns: 'Provider-owned selectable sources, or an empty list when selection is unavailable.',
       },
       {
         signature: 'async generateImages(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>',
@@ -7155,7 +7161,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ImageGenerationProvider',
-    declaration: 'export interface ImageGenerationProvider {\n    listModels(): Promise<readonly ImageGenerationModel[]>;\n    generate(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>;\n    start?(request: ImageGenerationRequest): Promise<ImageGenerationTask>;\n    get?(handle: ImageGenerationHandle, options?: ImageGenerationReadOptions): Promise<ImageGenerationTask>;\n    cancel?(handle: ImageGenerationHandle): Promise<ImageGenerationTask>;\n}',
+    declaration: 'export interface ImageGenerationProvider {\n    listModels(): Promise<readonly ImageGenerationModel[]>;\n    listSources?(): Promise<readonly ImageGenerationSource[]>;\n    generate(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]>;\n    start?(request: ImageGenerationRequest): Promise<ImageGenerationTask>;\n    get?(handle: ImageGenerationHandle, options?: ImageGenerationReadOptions): Promise<ImageGenerationTask>;\n    cancel?(handle: ImageGenerationHandle): Promise<ImageGenerationTask>;\n}',
   },
   {
     name: 'ImageGenerationReadOptions',
@@ -7163,7 +7169,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ImageGenerationRequest',
-    declaration: 'export interface ImageGenerationRequest {\n    readonly id: ImageGenerationId;\n    readonly provider: string;\n    readonly model: string;\n    readonly prompt: string;\n    readonly references: readonly ImageAttachmentRef[];\n    readonly mask?: FileAttachmentRef;\n    readonly size: string;\n    readonly quality: \'auto\' | \'low\' | \'medium\' | \'high\';\n    readonly signal: AbortSignal;\n}',
+    declaration: 'export interface ImageGenerationRequest {\n    readonly id: ImageGenerationId;\n    readonly provider: string;\n    readonly model: string;\n    readonly sourceId?: string;\n    readonly prompt: string;\n    readonly references: readonly ImageAttachmentRef[];\n    readonly mask?: FileAttachmentRef;\n    readonly size: string;\n    readonly quality: \'auto\' | \'low\' | \'medium\' | \'high\';\n    readonly signal: AbortSignal;\n}',
+  },
+  {
+    name: 'ImageGenerationSource',
+    declaration: 'export interface ImageGenerationSource {\n    readonly id: string;\n    readonly name: string;\n    readonly available: boolean;\n    readonly models?: readonly ImageGenerationModel[];\n    readonly modelError?: string;\n}',
   },
   {
     name: 'ImageGenerationTask',

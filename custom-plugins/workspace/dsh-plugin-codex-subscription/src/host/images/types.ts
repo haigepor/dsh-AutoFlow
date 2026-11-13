@@ -121,7 +121,7 @@ export interface ImageServiceOptions extends ImageServiceSettings {
 
 /** Shared task operations. Cancelling a result wait does not cancel its accepted generation. */
 export interface ImagesFacade {
-  submit(input: ImageInput, owner: ImageOwner, operation?: { id: string; digest: string }, admissionSignal?: AbortSignal): Promise<ImageTask>
+  submit(input: ImageInput, owner: ImageOwner, operation?: { id: string; digest: string }, admissionSignal?: AbortSignal, accountKey?: string): Promise<ImageTask>
   getResult(id: string, owner: ImageOwner, options?: { waitMs?: number; signal?: AbortSignal }): Promise<ImageTask>
   cancel(id: string, owner: ImageOwner): Promise<ImageTask>
   list(owner: ImageOwner): Promise<ImageTask[]>

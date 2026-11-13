@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.1.20261113.2",
+  "items": [
+    {
+      "id": "visual-curator-image-sources",
+      "category": "features",
+      "text": {
+        "en": "Visual Curator can select a Codex image account or a configured OpenAI API key and its available image model for each new crop batch; official-key images are reviewed at their native resolution without super-resolution.",
+        "zh-CN": "Visual Curator 可为新裁剪批次选择 Codex 生图账号，或已配置的 OpenAI API Key 及其可用模型；官方 Key 生成图按原生分辨率复审，不再超分。"
+      }
+    },
+    {
+      "id": "visual-curator-internal-crop-completion",
+      "category": "fixes",
+      "text": {
+        "en": "Visual Curator completes cosmetic products where an old source crop becomes visible inside the new wallpaper, and checks those details before accepting the result.",
+        "zh-CN": "修复视觉策展扩图后原图裁切边进入成品内部时彩妆物体仍留有平切的问题，并在接受成品前检查这些细节。"
+      }
+    }
+  ]
+}

@@ -13,7 +13,7 @@ import { claritySettingsSchema } from '../shared/clarity.ts'
 import { backgroundResolutionSettingsSchema } from '../shared/background-resolution.ts'
 import { wallpaperDecisionSettingsSchema } from '../shared/wallpaper-decision.ts'
 import { resolveWallpaperProcessing, wallpaperRepairPolicySchema, wallpaperGenerativeRepair, wallpaperRepairInstructions } from '../shared/wallpaper-policy.ts'
-import { applyWallpaperEspcn, applyWallpaperConcurrency, wallpaperWorkImage, wallpaperProgress, wallpaperSettingsSchema, wallpaperVerdict } from '../shared/wallpaper.ts'
+import { applyWallpaperEspcn, applyOfficialImageResolution, applyWallpaperConcurrency, wallpaperWorkImage, wallpaperProgress, wallpaperSettingsSchema, wallpaperVerdict } from '../shared/wallpaper.ts'
 import { sourceFaithfulWallpaperPrompts, wallpaperBaseSkill } from '../shared/wallpaper-prompts.ts'
 import { assetSchema, imageVersionSchema, type DomainActor, type CuratorRecord, type RunRecord } from '../shared/model.ts'
 import { CuratorError } from '../shared/errors.ts'
@@ -29,7 +29,7 @@ import type { WallpaperWorkflows } from './wallpaper-workflow.ts'
 export interface DirectCropDependencies {
   domain: CuratorDomain; files: AssetFiles; engine: RunEngine; wallpaper: WallpaperWorkflows
   config(): CuratorConfig
-  imageModels?(provider: string): Promise<readonly { id: string }[]>
+  imageModels?(provider: string, sourceId: string): Promise<readonly { id: string }[]>
 }
 
 /** @param run Saved execution. @returns Whether it explicitly owns direct-original processing. */
@@ -117,14 +117,14 @@ export class DirectCropTasks {
       await this.deps.domain.repository.commit({ aggregateId, expectedRevision: 0, operationId: aggregateId, request: { inputDigest, index }, records, state: { inputDigest, imageId } })
       images.push(imageId)
     }
-    const requested = wallpaperSettingsSchema.parse({ ...config.wallpaper, backgroundAlignment: config.wallpaper.backgroundAlignment ?? wallpaperSettingsSchema.shape.backgroundAlignment.unwrap().parse({}), sourceFrameRepair: config.wallpaper.sourceFrameRepair ?? wallpaperSettingsSchema.shape.sourceFrameRepair.unwrap().parse({}), decision: config.wallpaper.decision ?? wallpaperDecisionSettingsSchema.parse({}), clarity: config.wallpaper.clarity ?? claritySettingsSchema.parse({}), backgroundResolution: config.wallpaper.backgroundResolution ?? backgroundResolutionSettingsSchema.parse({}), learningEnabled: false, autoPromote: false })
+    const requested = wallpaperSettingsSchema.parse({ ...config.wallpaper, ...input.imageRoute, backgroundAlignment: config.wallpaper.backgroundAlignment ?? wallpaperSettingsSchema.shape.backgroundAlignment.unwrap().parse({}), sourceFrameRepair: config.wallpaper.sourceFrameRepair ?? wallpaperSettingsSchema.shape.sourceFrameRepair.unwrap().parse({}), decision: config.wallpaper.decision ?? wallpaperDecisionSettingsSchema.parse({}), clarity: config.wallpaper.clarity ?? claritySettingsSchema.parse({}), backgroundResolution: config.wallpaper.backgroundResolution ?? backgroundResolutionSettingsSchema.parse({}), learningEnabled: false, autoPromote: false })
     let imageModel = requested.imageModel
     if (!imageModel && this.deps.imageModels) {
-      try { imageModel = (await this.deps.imageModels(requested.imageProvider))[0]?.id ?? '' }
+      try { imageModel = (await this.deps.imageModels(requested.imageProvider, requested.imageSourceId))[0]?.id ?? '' }
       catch (error) { /* An unavailable optional image route leaves pure cropping available. */ }
     }
     const settings = { ...requested, imageModel, processing: resolveWallpaperProcessing(requested.processing), repairPolicy: requested.repairPolicy ?? wallpaperRepairPolicySchema.parse({}) }, prompts = sourceFaithfulWallpaperPrompts(settings)
-    applyWallpaperConcurrency(settings); applyWallpaperEspcn(settings)
+    applyWallpaperConcurrency(settings); applyWallpaperEspcn(settings); applyOfficialImageResolution(settings)
     const normalized = { workflow: 'wallpaper-direct-v1', operationId: input.operationId, sourceRunId: runId, imageVersionIds: images, targetCount: images.length, taskBrief: wallpaperGenerativeRepair(settings) ? wallpaperRepairInstructions : '忠于指定原图；保留现有主体、关键结构、颜色、材质和标识；允许经局部核实的画框边缘自然扩图，新增部位必须独立复审；严格遵守主体安全区与画面质量要求' }
     const fixed = { reviewOrder: 'generation-before-resolution-v1', generationPrompt: toJson(wallpaperGenerationBriefPrompt), generationPromptPolicy: toJson(wallpaperPromptPreparationPolicySchema.parse(config.vision.wallpaperPromptPreparation ?? {})), directCrop: toJson({ version: 'direct-crop-v1', name: input.name, origin: input.source.kind, inputDigest }), directPolicy: toJson({ version: wallpaperGenerativeRepair(settings) ? 'subject-repair-v1' : 'source-faithful-v2', promptDigest: contentDigest(prompts) }), prompts: toJson(prompts), promptDigest: contentDigest(prompts), wallpaper: toJson(settings), skill: { id: 'direct-original-base-v1', content: wallpaperGenerativeRepair(settings) ? wallpaperRepairInstructions : wallpaperBaseSkill } }
     const spec = executionSchema.parse({ kind: 'crop', config, input: normalized, fixed, specDigest: contentDigest({ kind: 'crop', config, input: normalized, fixed }) })

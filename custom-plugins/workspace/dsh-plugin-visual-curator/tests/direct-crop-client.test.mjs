@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 import { build } from 'esbuild'
 import { JSDOM } from 'jsdom'
+import { wallpaperSettingsSchema } from '../src/shared/wallpaper.ts'
 
 const expected = JSON.parse(await readFile(new URL('./fixtures/direct-crop-import.expected.json', import.meta.url), 'utf8'))
 const root = fileURLToPath(new URL('../', import.meta.url)), require = createRequire(import.meta.url)
@@ -17,6 +18,8 @@ const compiled = await build({ stdin: { contents, resolveDir: root, loader: 'ts'
 const filename = resolve(root, 'tests/direct-crop-memory.cjs'), capsule = new Module(filename)
 capsule.filename = filename; capsule.paths = Module._nodeModulePaths(dirname(filename)); capsule._compile(compiled.outputFiles.find(file => file.path.endsWith('.cjs')).text, filename)
 const { ui: primitives, createDirectCropPage, directCropVisible, directCropWorkspaceKey, createServerQueue, zh } = capsule.exports
+const imageConfig = { wallpaperImage: { imageProvider: 'autoflow-codex', imageSourceId: '', imageModel: '' }, imageSources: { apiKeys: [] } }
+const imageOptions = { settings: wallpaperSettingsSchema.parse({}), models: [{ id: 'gpt-image-1.5', name: 'GPT Image' }], providers: [{ id: 'autoflow-codex', name: 'Codex', models: [{ id: 'gpt-image-1.5', name: 'GPT Image' }], sources: [] }, { id: 'visual-curator-openai', name: 'OpenAI API', models: [{ id: 'gpt-image-2', name: 'GPT Image 2' }], sources: [{ id: 'key-one', name: 'Personal key', available: true, models: [{ id: 'gpt-image-2', name: 'GPT Image 2' }] }] }] }
 // Decorative icons do not own form semantics in this isolated DOM check.
 const ui = { ...primitives, ...Object.fromEntries(['IconPlusOutlineRegular', 'IconFolderOpenOutlineRegular', 'IconChevronLeftOutlineRegular', 'IconChevronRightOutlineRegular', 'IconChevronDownOutlineRegular', 'IconRefreshOutlineRegular', 'IconBrowseOutlineRegular', 'IconTrashOutlineRegular', 'IconSearchOutlineRegular', 'IconPinOutlineRegular', 'IconInfoOutlineRegular'].map(name => [name, () => React.createElement('span', { 'aria-hidden': true })])) }
 
@@ -26,8 +29,8 @@ test('direct import requires no collection, retains selection after failure and 
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, getComputedStyle: dom.window.getComputedStyle.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
   const rendered = createRoot(document.getElementById('root')), Page = createDirectCropPage(React, ui), calls = []
   let fail = true, pendingGallery, pickedCalls = 0
-  const configuration = { visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 30, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 2000, deadlineMs: 60000, requestTimeoutMs: 10000, maxGalleryReferenceFiles: 1000 }, source: { unsplash: { accounts: [{ id: 'account', label: 'Gallery account' }], defaultAccountId: 'account' } } }
-  const actions = { directScope: () => 'profile-a', directCrop: async (operation, args, signal) => { signal?.throwIfAborted(); calls.push({ operation, args, signal }); if (operation === 'direct-crop-list') return { batches: [], total: 0 }; if (operation === 'direct-crop-start') { if (fail) throw new Error('Isolated network interruption'); return { runId: 'accepted' } } throw new Error('Unexpected operation') }, pickLocalReferences: async (_kind, signal, title) => {
+  const configuration = { ...imageConfig, visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 30, maxImportBytes: 20 * 1024 * 1024, pollIntervalMs: 2000, deadlineMs: 60000, requestTimeoutMs: 10000, maxGalleryReferenceFiles: 1000 }, source: { unsplash: { accounts: [{ id: 'account', label: 'Gallery account' }], defaultAccountId: 'account' } } }
+  const actions = { directScope: () => 'profile-a', directCrop: async (operation, args, signal) => { signal?.throwIfAborted(); calls.push({ operation, args, signal }); if (operation === 'direct-crop-list') return { batches: [], total: 0 }; if (operation === 'wallpaper-options') return imageOptions; if (operation === 'direct-crop-start') { if (fail) throw new Error('Isolated network interruption'); return { runId: 'accepted' } } throw new Error('Unexpected operation') }, pickLocalReferences: async (_kind, signal, title) => {
     signal.throwIfAborted(); assert.equal(title, zh.directCropChoosePhotos)
     if (++pickedCalls === 1) throw { code: 'capability-unavailable', stage: 'local-reference' }
     return { files: [
@@ -59,6 +62,10 @@ test('direct import requires no collection, retains selection after failure and 
     assert.deepEqual({name:largeRow.querySelector('span').textContent,size:largeRow.querySelector('small').textContent,reason:largeRow.querySelector('p').textContent,startDisabled:button(zh.directCropStart).disabled}, expected.oversized)
     assert.equal(calls.filter(call => call.operation === 'direct-crop-start').length, 0)
     for (const name of ['large.png', 'empty.png', 'missing.png']) await act(async () => document.querySelector('button[aria-label="' + zh.directCropRemove + ' ' + name + '"]').click())
+    await act(async () => document.querySelector('button[aria-label="' + zh.imageGenerationSource + '"]').click())
+    await act(async () => menuItem('OpenAI API').click())
+    await act(async () => document.querySelector('button[aria-label="' + zh.imageGenerationAccount + '"]').click())
+    await act(async () => menuItem('Personal key').click())
     assert.equal(button(zh.directCropStart).disabled, false)
     await act(async () => button(zh.directCropStart).click())
     assert(document.querySelector('[role="dialog"]'), 'Failed admission keeps its original selection')
@@ -71,6 +78,7 @@ test('direct import requires no collection, retains selection after failure and 
     const starts = calls.filter(call => call.operation === 'direct-crop-start')
     assert.equal(starts.length, 2); assert.equal(starts[0].args.operationId, starts[1].args.operationId)
     assert.deepEqual(starts[1].args.source, { kind: 'local', files: [{ path: 'C:/isolated/source.png', name: 'source.png' }] })
+    assert.deepEqual(starts[1].args.imageRoute, { imageProvider: 'visual-curator-openai', imageSourceId: 'key-one', imageModel: 'gpt-image-2' })
     assert.equal('styleId' in starts[1].args, false); assert.equal('sourceRunId' in starts[1].args, false)
     assert.equal(document.querySelector('[role="dialog"]'), null)
     assert(button(zh.directCropAddImages), 'The empty batch projection keeps the import entry reachable')
@@ -79,7 +87,7 @@ test('direct import requires no collection, retains selection after failure and 
     assert(pendingGallery && !pendingGallery.aborted)
     await act(async () => button(zh.close).click())
     assert.equal(pendingGallery.aborted, true)
-    assert(calls.every(call => call.operation.startsWith('direct-crop-')))
+    assert(calls.every(call => call.operation.startsWith('direct-crop-') || call.operation === 'wallpaper-options'))
     const chooserExpected=JSON.parse(await readFile(new URL('./fixtures/direct-crop-dialog-controls.expected.json',import.meta.url),'utf8')).gallery
     configuration.limits.maxImportFiles=2
     actions.referenceState=async()=>{throw new Error('Direct selection must not request training membership')}
@@ -114,7 +122,7 @@ test('batch table confirms removal, retains unknown outcomes for retry and ignor
  const rendered=createRoot(document.getElementById('root')),Page=createDirectCropPage(React,ui),expected=JSON.parse(await readFile(new URL('./fixtures/direct-crop-batches.expected.json',import.meta.url),'utf8'))
  const rows=expected.batches.map((row,index)=>({...row,directCrop:true,removable:['completed','failed','cancelled'].includes(row.status),kind:'crop',origin:'local',createdAt:'2026-11-10T00:00:00Z',taskBrief:row.name,matched:2,unavailable:false,images:[],wallpaper:{runId:row.runId+'-latest',status:row.status,total:2,planned:2,rendered:1,reviewed:1,passed:1,attention:index===1?0:1,budgetStopped:false,counts:{passed:1}}}))
  const calls=[],hidden=new Set();let hold=false,late,loseReply=true
- const configuration={visionConfigured:true,limits:{pageSize:20,maxImportFiles:30,maxImportBytes:20*1024*1024,pollIntervalMs:60000,deadlineMs:10000},source:{unsplash:{accounts:[]}}}
+ const configuration={...imageConfig,visionConfigured:true,limits:{pageSize:20,maxImportFiles:30,maxImportBytes:20*1024*1024,pollIntervalMs:60000,deadlineMs:10000},source:{unsplash:{accounts:[]}}}
  const actions={directScope:()=> 'batch-table-fixture',directCrop:async(operation,args)=>{calls.push({operation,args});if(operation==='direct-crop-list'){if(hold){hold=false;return new Promise(resolve=>{late=resolve})}const batches=rows.filter(row=>!hidden.has(row.runId));return {batches,total:batches.length}}if(operation==='direct-crop-delete'){hidden.add(args.runId);if(loseReply){loseReply=false;throw new Error('Isolated receipt loss after commit')}return {runId:args.runId,deleted:true}}throw new Error('Unexpected operation: '+operation)}}
  const button=text=>[...document.querySelectorAll('button')].find(e=>e.textContent===text),remove=row=>document.querySelector('button[aria-label="'+zh.directCropDelete+' '+row.name+'"]')
  try{
@@ -148,7 +156,7 @@ test('bulk table removal confirms all pages, excludes later batches and retries 
  const row=(id,status='completed')=>({runId:'batch-'+id,name:'Batch '+id.toUpperCase(),directCrop:true,removable:['completed','failed','cancelled'].includes(status),kind:'crop',origin:'local',status,createdAt:'2026-11-10T00:00:00Z',taskBrief:'Batch '+id,matched:1,unavailable:false,images:[],wallpaper:{runId:'wallpaper-'+id,status,total:1,planned:1,rendered:1,reviewed:1,passed:status==='completed'?1:0,attention:status==='completed'?0:1,budgetStopped:false,counts:{passed:status==='completed'?1:0}}})
  const rows=[row('a'),{...row('b','cancelled'),removable:false},row('c'),row('d','paused'),row('e')],hidden=new Set(),calls=[]
  let loseReply=true,listChanged=false
- const configuration={visionConfigured:true,limits:{pageSize:2,maxImportFiles:30,maxImportBytes:20*1024*1024,pollIntervalMs:60000,deadlineMs:10000},source:{unsplash:{accounts:[]}}}
+ const configuration={...imageConfig,visionConfigured:true,limits:{pageSize:2,maxImportFiles:30,maxImportBytes:20*1024*1024,pollIntervalMs:60000,deadlineMs:10000},source:{unsplash:{accounts:[]}}}
  const actions={directScope:()=> 'bulk-table-fixture',directCrop:async(operation,args,signal)=>{
   signal?.throwIfAborted();calls.push({operation,args})
   if(operation==='direct-crop-list'){
@@ -320,7 +328,7 @@ test('direct page shows and polls a background import with no batches, preserves
   let rendered = createRoot(document.getElementById('root')), reads = 0
   const Page = createDirectCropPage(React, ui), polled = Promise.withResolvers(), calls = []
   let entry = { runId: 'background-batch', name: 'Queued originals', status: 'importing', saved: 0, total: 2, receivedBytes: 1024 }
-  const configuration = { visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 20, pollIntervalMs: 20 }, source: { unsplash: { accounts: [] } } }
+  const configuration = { ...imageConfig, visionConfigured: true, limits: { pageSize: 20, maxImportFiles: 20, pollIntervalMs: 20 }, source: { unsplash: { accounts: [] } } }
   const actions = { directScope: () => 'background-profile', saveCredential: async () => {}, directCrop: async (operation, args) => {
     calls.push({ operation, args })
     if (operation === 'direct-crop-list') { if (++reads >= 2) polled.resolve(); return { batches: [], total: 0, imports: [entry] } }

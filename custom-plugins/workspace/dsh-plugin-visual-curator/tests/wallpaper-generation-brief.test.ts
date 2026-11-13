@@ -32,15 +32,16 @@ test('authored edits retain exact whole-canvas safety bounds and state that cand
   assert.match(prompt, /Preserve original watercolor paper grain/)
 })
 
-test('a cropped product edge receives an explicit local closure instruction even when an authored brief forbids invented products', () => {
+test('a cropped product edge asks for a credible visible ending without repeating the authored negative list', () => {
   const settings = wallpaperSettingsSchema.parse({ repairPolicy: { mode: 'repair-when-needed' }, sourceFrameRepair: { enabled: true, marginPixels: 128 } })
-  const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode: 'single', subject: 'Cosmetic bottle', evidence: 'Cap is cut by the original top frame', priorities: [], anchors: [], truncations: ['顶部米色瓶盖被原图上边框截断'], uncertainties: [], regions: [{ name: '米色瓶', role: 'subject', rect: { x: 0.3, y: 0, width: 0.3, height: 0.5 } }, { name: '瓶盖', role: 'critical', rect: { x: 0.35, y: 0, width: 0.2, height: 0.1 } }], placement: { scale: 0.5, left: 450, top: 1100 }, reason: 'Leave room for local closure' })
+  const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'source', mode: 'single', subject: 'Cosmetic bottle', evidence: 'Cap is cut by the original top frame', priorities: [], anchors: [], truncations: ['顶部米色瓶盖被原图上边框截断'], uncertainties: [], regions: [{ entityId: 'bottle', name: '米色瓶', role: 'subject', rect: { x: 0.3, y: 0, width: 0.3, height: 0.5 } }, { entityId: 'cap', name: '瓶盖', role: 'critical', rect: { x: 0.35, y: 0, width: 0.2, height: 0.1 } }], objectRoles: [{ entityId: 'bottle', name: '米色瓶', role: 'primary', evidence: 'Visible product', rect: { x: 0.3, y: 0, width: 0.3, height: 0.5 }, sourceEdges: ['top'] }], placement: { scale: 0.5, left: 450, top: 1100 }, reason: 'Leave room for local closure' })
   const prompt = wallpaperGenerationPrompt('Frozen instruction', plan, settings, [{ role: 'canvas', width: 941, height: 1672 }], [], { width: 1845, height: 3280 }, true, wallpaperGenerationBriefOutputSchema.parse({ ...brief, negativeInstructions: ['不要补出完整瓶盖或额外产品'] }))
-  assert.match(wallpaperGenerationBriefPrompt.text, /局部外轮廓/)
-  assert.match(prompt, /顶部米色瓶盖被原图上边框截断/)
-  assert.match(prompt, /局部可见外轮廓完整闭合/)
-  assert.match(prompt, /不能阻止这里明确授权的小范围自然收口/)
-  assert.match(prompt, /"edges":\["top"\]/)
+  assert.match(wallpaperGenerationBriefPrompt.text, /合理补出成品视角下应当可见的局部完整结构/)
+  assert.match(prompt, /成品内部需要自然补全的原图断口/)
+  assert.match(prompt, /"name":"米色瓶"/)
+  assert.match(prompt, /合理生成成品视角下应当可见的完整局部外形/)
+  assert.doesNotMatch(prompt, /分项执行要求/)
+  assert.doesNotMatch(prompt, /不要补出完整瓶盖或额外产品/)
 })
 
 test('the positioned canvas stays first while the original supplies its unscaled style pixels separately', async () => {

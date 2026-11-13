@@ -80,8 +80,8 @@ export class ImageService implements ImagesFacade {
    * @param owner Identity required for later reads and cancellation.
    * @returns The durable queued task, not a claim that generation completed.
    */
-  submit(input: ImageInput, owner: ImageOwner, operation?: { id: string; digest: string }, admissionSignal?: AbortSignal): Promise<ImageTask> {
-    return this.accept(input, owner, operation, admissionSignal)
+  submit(input: ImageInput, owner: ImageOwner, operation?: { id: string; digest: string }, admissionSignal?: AbortSignal, accountKey?: string): Promise<ImageTask> {
+    return this.accept(input, owner, operation, admissionSignal, undefined, accountKey)
   }
 
   /** Internal model checks pin one account and recheck included allowance at dispatch.
@@ -96,7 +96,7 @@ export class ImageService implements ImagesFacade {
     return this.accept(input, { kind: 'gateway', keyId: `model-access-probe:${accountKey}` }, operation, signal, { accountKey, minimumRemainingPercent })
   }
 
-  private accept(input: ImageInput, owner: ImageOwner, operation?: { id: string; digest: string }, admissionSignal?: AbortSignal, probe?: { accountKey: string; minimumRemainingPercent: number }): Promise<ImageTask> {
+  private accept(input: ImageInput, owner: ImageOwner, operation?: { id: string; digest: string }, admissionSignal?: AbortSignal, probe?: { accountKey: string; minimumRemainingPercent: number }, accountKey?: string): Promise<ImageTask> {
     return this.serialize(async () => {
       admissionSignal?.throwIfAborted()
       this.assertOpen()
@@ -113,7 +113,7 @@ export class ImageService implements ImagesFacade {
       if ((await this.options.repository.list()).filter(task => !task.pruned).length >= settings.maxHistoryTasks) throw new ImageServiceError('image-history-full', 'Image task history is full. Remove completed tasks from settings before starting a new task.')
       const now = this.now()
       const task: ImageTaskRecord = { id: parseImageTaskId(this.id()), owner: structuredClone(owner), state: 'queued', prompt: resolved.prompt,
-        model: resolved.model!, createdAt: now, updatedAt: now, deadlineAt: now + settings.timeoutMs, assets: [], evidence: { requested: requestedEvidence(resolved) }, ...(operation ? { operation: { ...operation } } : {}), ...(probe ? { accountKey: probe.accountKey } : {}) }
+        model: resolved.model!, createdAt: now, updatedAt: now, deadlineAt: now + settings.timeoutMs, assets: [], evidence: { requested: requestedEvidence(resolved) }, ...(operation ? { operation: { ...operation } } : {}), ...((accountKey ?? probe?.accountKey) ? { accountKey: accountKey ?? probe!.accountKey } : {}) }
       await this.options.repository.put(task)
       if (admissionSignal?.aborted) {
         const cancelled: ImageTaskRecord = { ...task, state: 'cancelled', updatedAt: this.now() }
@@ -286,7 +286,7 @@ export class ImageService implements ImagesFacade {
         mask = `data:${image.mimeType};base64,${Buffer.from(image.data).toString('base64')}`
       }
       const task = await this.ownedRecord(id)
-      await this.options.withAccount({ kind: 'image', model: task.model, ...(task.owner.kind === 'session' ? { sessionId: task.owner.sessionId } : {}), ...(operation.probe ? { accountKey: operation.probe.accountKey, includedQuotaOnly: { minimumRemainingPercent: operation.probe.minimumRemainingPercent } } : {}), signal }, async lease => {
+      await this.options.withAccount({ kind: 'image', model: task.model, ...(task.owner.kind === 'session' ? { sessionId: task.owner.sessionId } : {}), ...(task.accountKey ? { accountKey: task.accountKey } : {}), ...(operation.probe ? { includedQuotaOnly: { minimumRemainingPercent: operation.probe.minimumRemainingPercent } } : {}), signal }, async lease => {
         const requestSignal = AbortSignal.any([signal, lease.signal])
         const requested = { ...requestedEvidence(operation.input), imagegenRequestId: this.id(), imageTurnId: this.id() }
         evidence = { requested }

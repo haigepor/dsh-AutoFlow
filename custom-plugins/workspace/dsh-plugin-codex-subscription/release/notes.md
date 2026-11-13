@@ -1,3 +1,15 @@
+## Codex Subscription 0.2.6
+
+Expose selectable subscription image accounts to Visual Curator. Preserve image-edit masks, durable task handles and cancellation receipts when a specific account is selected.
+
+Included with AutoFlow Desktop 0.2.2-rc.1.20261113.2. Existing settings, accounts, task data and saved results are retained.
+
+## Codex Subscription 0.2.6 更新说明
+
+视觉策展可以指定订阅生图账号；指定账号后仍保留图片编辑蒙版、持久化任务句柄及取消回执。
+
+随 AutoFlow Desktop 0.2.2-rc.1.20261113.2 提供，保留现有设置、账号、任务数据和已保存结果。
+
 ## Codex Subscription 0.2.5
 
 Prefer the configured image-generation model when listing subscription image models, so image workflows use the owner's default choice. Continue to preserve image-edit masks, accepted operations, task ownership and cancellation receipts during recovery.

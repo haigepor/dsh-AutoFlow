@@ -1,6 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveConfig, resolveCurrentConfig, reviewerRevision, searchScreeningPolicySchema } from '../src/host/config.ts'
+import { applyOfficialImageResolution } from '../src/shared/wallpaper.ts'
+
+test('official image tasks disable reconstruction while Codex tasks retain ESPCN', () => {
+  const official = resolveCurrentConfig({ wallpaper: { imageProvider: 'visual-curator-openai', imageSourceId: 'personal' }, imageSources: { apiKeys: [{ id: 'personal', label: 'Personal', credentialRef: 'VISUAL_CURATOR_IMAGE_PERSONAL' }] } }).wallpaper
+  applyOfficialImageResolution(official)
+  assert.equal(official.clarity?.enabled, false)
+  assert.equal(official.backgroundResolution?.enabled, false)
+  const codex = resolveCurrentConfig({ wallpaper: { backgroundResolution: { enabled: true } } }).wallpaper
+  applyOfficialImageResolution(codex)
+  assert.equal(codex.backgroundResolution?.enabled, true)
+})
 
 test('current wallpaper limits upgrade the former defaults once and retain explicit later choices', () => {
   const legacy = resolveConfig({ wallpaper: { maxEditsPerImage: 2, maxReworks: 2 } })

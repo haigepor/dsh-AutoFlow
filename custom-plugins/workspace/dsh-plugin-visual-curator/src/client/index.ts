@@ -153,6 +153,7 @@ function createEntry() {
           listLocalReferences: (path, kind, signal) => transport.invoke('local-files-list', { path, kind }, signal),
           galleryRead: gallery.read,
           readTaskReferences: (args, signal) => transport.invoke('task-reference-list', args, signal),
+          imageOptions: () => store.invoke('wallpaper-options', {}),
           loadVisionModels: modelDirectory.load,
           reloadVisionModels: () => modelDirectory.invalidate(),
           openModelSettings: () => ctx.layout.selectPanel('settings', { fullWindow: true }),

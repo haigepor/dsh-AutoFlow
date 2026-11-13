@@ -7,7 +7,7 @@ import { createGalleryCache } from '../src/client/gallery-cache.ts'
 import type { CuratorSnapshot, ImageView, RunView } from '../src/client/contract.ts'
 
 test('selected search and followed crop receive results while another collection keeps analyzing', async () => {
-  const configuration = { ...resolveCurrentConfig({}), revision: 'config', sourceConfigured: true, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false }
+  const configuration = { ...resolveCurrentConfig({}), revision: 'config', sourceConfigured: true, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false, imageSources: { apiKeys: [] }, wallpaperImage: { imageProvider: 'autoflow-codex' as const, imageSourceId: '', imageModel: '' } }
   const search: RunView = { runId: 'search', kind: 'search', status: 'running', taskBrief: 'A landscape', counts: { reviewed: 0 }, results: [], warnings: [] }
   const crop: RunView = { runId: 'crop', kind: 'crop', status: 'running', taskBrief: 'A vertical crop', counts: { reviewed: 0 }, results: [], warnings: [] }
   const image = (imageVersionId: string): ImageView => ({ imageVersionId, assetId: 'asset', familyId: 'family', width: 100, height: 100, kind: 'normalized', previewPath: `/api/visual-curator/resource?imageVersionId=${imageVersionId}`, name: imageVersionId, source: 'fixture', exportPermission: 'references-only', groupingStatus: 'confirmed' })
@@ -72,7 +72,7 @@ test('gallery memory cache does not retain a page larger than maxBytes without b
 })
 
 test('a refreshed search adopts the new ranking and discards pages from the old cursor generation', async () => {
-  const configuration = { ...resolveCurrentConfig({}), revision: 'config', sourceConfigured: true, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false }
+  const configuration = { ...resolveCurrentConfig({}), revision: 'config', sourceConfigured: true, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false, imageSources: { apiKeys: [] }, wallpaperImage: { imageProvider: 'autoflow-codex' as const, imageSourceId: '', imageModel: '' } }
   const image = (imageVersionId: string, reason = imageVersionId): ImageView => ({ imageVersionId, assetId: imageVersionId, familyId: imageVersionId, width: 100, height: 100, kind: 'normalized', previewPath: `/api/visual-curator/resource?imageVersionId=${imageVersionId}`, name: imageVersionId, reason, source: 'fixture', exportPermission: 'references-only', groupingStatus: 'confirmed' })
   const run: RunView = { runId: 'search', kind: 'search', status: 'running', taskBrief: 'Ranked candidates', counts: {}, results: [], warnings: [] }
   const snapshot: CuratorSnapshot = { configuration, styles: [], images: [], runs: [run], usages: [], splits: [], evaluations: [], exports: [], suggestions: [] }
@@ -99,7 +99,7 @@ test('a refreshed search adopts the new ranking and discards pages from the old 
 })
 
 test('a stable search cursor refreshes result fields while retaining loaded pages and their next cursor', async () => {
-  const configuration = { ...resolveCurrentConfig({}), revision: 'config', sourceConfigured: true, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false }
+  const configuration = { ...resolveCurrentConfig({}), revision: 'config', sourceConfigured: true, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false, imageSources: { apiKeys: [] }, wallpaperImage: { imageProvider: 'autoflow-codex' as const, imageSourceId: '', imageModel: '' } }
   const image = (imageVersionId: string, reason = imageVersionId): ImageView => ({ imageVersionId, assetId: imageVersionId, familyId: imageVersionId, width: 100, height: 100, kind: 'normalized', previewPath: `/api/visual-curator/resource?imageVersionId=${imageVersionId}`, name: imageVersionId, reason, source: 'fixture', exportPermission: 'references-only', groupingStatus: 'confirmed' })
   const run: RunView = { runId: 'search', kind: 'search', status: 'running', taskBrief: 'Stable candidates', counts: {}, results: [], warnings: [] }
   const snapshot: CuratorSnapshot = { configuration, styles: [], images: [], runs: [run], usages: [], splits: [], evaluations: [], exports: [], suggestions: [] }

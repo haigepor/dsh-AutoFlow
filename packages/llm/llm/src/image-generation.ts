@@ -14,11 +14,24 @@ export interface ImageGenerationModel {
   readonly name: string
 }
 
+/** Provider-owned selectable account or credential profile; the value is never a secret. */
+export interface ImageGenerationSource {
+  readonly id: string
+  readonly name: string
+  readonly available: boolean
+  /** Source-specific models when the provider retrieves a credential-owned catalog. */
+  readonly models?: readonly ImageGenerationModel[]
+  /** Safe catalog failure code; never includes a credential or remote response body. */
+  readonly modelError?: string
+}
+
 /** Exact auxiliary request. Providers honor cancellation and never retry an uncertain dispatch. */
 export interface ImageGenerationRequest {
   readonly id: ImageGenerationId
   readonly provider: string
   readonly model: string
+  /** Omitted for provider-managed selection; otherwise pins one provider-owned source. */
+  readonly sourceId?: string
   readonly prompt: string
   readonly references: readonly ImageAttachmentRef[]
   /** Optional PNG edit mask for the first reference; omission generates or edits without a mask. */
@@ -54,12 +67,14 @@ export interface ImageGenerationTask extends ImageGenerationHandle {
 /** Optional task waits are bounded by the provider; omission reads the current durable state. */
 export interface ImageGenerationReadOptions { readonly waitMs?: number; readonly signal?: AbortSignal }
 
-/** Provider implementation registered for one existing LLM route. */
+/** Provider implementation registered beside a text route or as an image-only route. */
 export interface ImageGenerationProvider {
   /** List configured image-generation models.
    * @returns Explicit image-generation models currently configured for this provider.
    */
   listModels(): Promise<readonly ImageGenerationModel[]>
+  /** List safe source labels for explicit account selection, if supported. */
+  listSources?(): Promise<readonly ImageGenerationSource[]>
   /** Generate and persist images without retrying an uncertain dispatch.
    * @param request Frozen caller-owned input.
    * @returns Persisted image attachments after successful generation.

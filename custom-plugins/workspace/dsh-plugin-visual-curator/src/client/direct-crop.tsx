@@ -12,6 +12,8 @@ import { createServerQueue } from './server-queue.tsx'
 import { createGalleryReferenceDialog } from './gallery-reference-dialog.tsx'
 import { createDirectCropCanvas } from './direct-crop-canvas.tsx'
 import { serverImportViewSchema, type ServerImportView } from '../shared/server-queue.ts'
+import { defaultImageModel, imageModelsForRoute, imageOptionsSchema, imageRouteReady, type ImageOptions } from './image-sources.ts'
+import { createSelectField } from './select-field.tsx'
 
 /** Direct UI operations remain authenticated native actions, not a public server API. */
 export type DirectCropInvoke = (operation: string, args: Record<string, Json>, signal?: AbortSignal) => Promise<unknown>
@@ -51,6 +53,7 @@ export function directCropVisible(scope: string): boolean {
 /** @param React Shared Host runtime. @param ui Existing project primitives. @returns Direct workbench and source picker. */
 export function createDirectCropPage(React: typeof import('react'), ui: typeof import('@deepseek-ai/dsh-client-ui-primitives')) {
   const ServerQueue = createServerQueue(React, ui), Canvas = createDirectCropCanvas(React, ui), GalleryPicker = createGalleryReferenceDialog(React, ui)
+  const SelectField = createSelectField(React, ui)
   const { Button, Modal, Input, Tag, StateDot, Checkbox, Menu } = ui
   return function DirectCropPage({ configuration, actions, t, onBack, onManageAccounts }: { configuration: ConfigurationView; actions: WorkbenchProps['actions']; t: WorkbenchText; onBack(): void; onManageAccounts(): void }) {
     const scope = actions.directScope!(), key = `visual-curator:direct-route:${scope}`, invoke = actions.directCrop!
@@ -63,6 +66,7 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
     const [localDetails, setLocalDetails] = React.useState(new Map<string, z.infer<typeof pickedSchema>['files'][number]>())
     const retryAction = React.useRef<'local' | 'export' | 'more' | null>(null)
     const [selection, setSelection] = React.useState<DirectSelection | null>(null), [importMenuOpen, setImportMenuOpen] = React.useState(false), [serverOpen, setServerOpen] = React.useState(false), [galleryOpen, setGalleryOpen] = React.useState(false), [name, setName] = React.useState(''), [busy, setBusy] = React.useState(false)
+    const [imageRoute, setImageRoute] = React.useState(configuration.wallpaperImage), [imageOptions, setImageOptions] = React.useState<ImageOptions | null>(null)
     const [exported, setExported] = React.useState<{ directory: string; files: number; excluded: number } | null>(null), [revision, refresh] = React.useState(0)
     const alive = React.useRef(true), lifetime = React.useRef(new AbortController()), request = React.useRef<{ value: string; operationId: string } | null>(null)
     const [checkedIds, setCheckedIds] = React.useState(new Set<string>()), [batchTotal, setBatchTotal] = React.useState(0)
@@ -81,6 +85,12 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
       const controller = new AbortController(); lifetime.current = controller; alive.current = true
       return () => { alive.current = false; controller.abort() }
     }, [])
+    React.useEffect(() => {
+      if (!selection) return
+      const controller = new AbortController()
+      void invoke('wallpaper-options', {}, controller.signal).then(value => { if (!controller.signal.aborted) setImageOptions(imageOptionsSchema.parse(value)) }).catch(() => { if (!controller.signal.aborted) setImageOptions(null) })
+      return () => controller.abort()
+    }, [!!selection, invoke])
     React.useEffect(() => {
       const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined, reading = false
       const read = async () => {
@@ -105,7 +115,7 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
       document.addEventListener('visibilitychange', visible); void read()
       return () => { controller.abort(); clearTimeout(timer); document.removeEventListener('visibilitychange', visible) }
     }, [invoke, revision, configuration.limits.pollIntervalMs, t])
-    const choose = (source: DirectSelection) => { request.current = null; retryAction.current = null; setLocalDetails(new Map()); setSelection(source); setName(`${t('directCropDefaultName')} ${new Date().toLocaleString()}`); setGalleryOpen(false); setError('') }
+    const choose = (source: DirectSelection) => { request.current = null; retryAction.current = null; setLocalDetails(new Map()); setImageRoute(configuration.wallpaperImage); setImageOptions(null); setSelection(source); setName(`${t('directCropDefaultName')} ${new Date().toLocaleString()}`); setGalleryOpen(false); setError('') }
     const local = async () => {
       if (busy) return
       setBusy(true); setError(''); retryAction.current = 'local'
@@ -119,7 +129,7 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
     }
     const start = async () => {
       if (!selection || busy || !name.trim() || files.some(file => !!file.issue)) return
-      const input = { name: name.trim(), source: selection }, value = JSON.stringify(input)
+      const input = { name: name.trim(), source: selection, imageRoute }, value = JSON.stringify(input)
       if (request.current?.value !== value) request.current = { value, operationId: `direct-crop:${crypto.randomUUID()}` }
       setBusy(true); setError('')
       try {
@@ -272,8 +282,10 @@ export function createDirectCropPage(React: typeof import('react'), ui: typeof i
       </Modal>
       {serverOpen && <ServerQueue saveCredential={actions.saveCredential} ready={configuration.visionConfigured} invoke={invoke} t={t} pollMs={configuration.limits.pollIntervalMs} limit={configuration.limits.maxImportFiles} onClose={() => { setServerOpen(false); refresh(value => value + 1) }} onStarted={runId => { setServerOpen(false); setLoading(true);  setRoute({ runId: '' }); refresh(value => value + 1) }} />}
       {galleryOpen && <GalleryPicker purpose="originals" config={configuration} actions={actions} t={t} onClose={() => setGalleryOpen(false)} onManageAccounts={() => { setGalleryOpen(false); onManageAccounts() }} onSelect={(accountId, photos) => choose({ kind: 'gallery', accountId, photos: photos.map(photo => ({ id: photo.id, title: photo.title, width: photo.width, height: photo.height, referenceUrl: photo.referenceUrl, thumbnailUrl: photo.thumbnailUrl })) })} />}
-      <Modal open={!!selection} onClose={closeImport} title={t('directCropImport')} closeLabel={t('close')} className="vc-direct-import-modal" footer={<div className="vc-direct-dialog-actions"><Button variant="outline" disabled={busy} onClick={closeImport}>{t('cancel')}</Button><Button variant="primary" disabled={busy || !files.length || files.some(file => !!file.issue) || !name.trim() || !configuration.visionConfigured} onClick={() => { void start() }}>{busy && <StateDot state="ongoing" />}{t('directCropStart')}</Button></div>}>
-        <label className="vc-direct-name" htmlFor={pageId + '-name'}>{t('directCropName')}<Input id={pageId + '-name'} value={name} disabled={busy} maxLength={160} onChange={event => setName(event.currentTarget.value)} /></label><p>{t('directCropOriginalHint')}</p>{selection?.kind === 'local' && <p>{t('directCropFileHint').replace('{limit}', sizeLabel(configuration.limits.maxImportBytes))}</p>}<div className="vc-direct-import-list" role="list" aria-label={t('directCropSelected')}>{files.map(file => <div role="listitem" key={file.id} data-invalid={!!file.issue}><ui.IconBrowseOutlineRegular size={16} /><div className="vc-direct-file"><span title={file.name}>{file.name}</span>{file.size !== undefined && <small>{sizeLabel(file.size)}</small>}{file.issue && <p role="alert">{file.issue}</p>}</div><Button size="sm" variant="ghost" disabled={busy} aria-label={t('directCropRemove') + ' ' + file.name} onClick={() => setSelection(previous => previous?.kind === 'local' ? { ...previous, files: previous.files.filter(item => item.path !== file.id) } : previous ? { ...previous, photos: previous.photos.filter(item => item.id !== file.id) } : null)}><ui.IconTrashOutlineRegular size={14} /></Button></div>)}</div>{error && <p className="vc-notice" role="alert">{error}</p>}
+      <Modal open={!!selection} onClose={closeImport} title={t('directCropImport')} closeLabel={t('close')} className="vc-direct-import-modal" footer={<div className="vc-direct-dialog-actions"><Button variant="outline" disabled={busy} onClick={closeImport}>{t('cancel')}</Button><Button variant="primary" disabled={busy || !files.length || files.some(file => !!file.issue) || !name.trim() || !configuration.visionConfigured || !imageRouteReady(imageOptions, imageRoute)} onClick={() => { void start() }}>{busy && <StateDot state="ongoing" />}{t('directCropStart')}</Button></div>}>
+        <label className="vc-direct-name" htmlFor={pageId + '-name'}>{t('directCropName')}<Input id={pageId + '-name'} value={name} disabled={busy} maxLength={160} onChange={event => setName(event.currentTarget.value)} /></label><p>{t('directCropOriginalHint')}</p>{selection?.kind === 'local' && <p>{t('directCropFileHint').replace('{limit}', sizeLabel(configuration.limits.maxImportBytes))}</p>}
+        <div className="vc-settings-fields"><label>{t('imageGenerationSource')}<SelectField label={t('imageGenerationSource')} value={imageRoute.imageProvider} disabled={!imageOptions} options={(imageOptions?.providers ?? []).map(provider => ({ value: provider.id, label: provider.name }))} onChange={imageProvider => setImageRoute({ imageProvider, imageSourceId: '', imageModel: '' })} /></label><label>{t('imageGenerationAccount')}<SelectField label={t('imageGenerationAccount')} value={imageRoute.imageSourceId} disabled={!imageOptions} options={[...(imageRoute.imageProvider === 'autoflow-codex' ? [{ value: '', label: t('imageGenerationAutomaticAccount') }] : []), ...(imageOptions?.providers.find(provider => provider.id === imageRoute.imageProvider)?.sources ?? []).map(source => ({ value: source.id, label: `${source.name}${!source.available ? ` · ${t('unconfigured')}` : source.modelError ? ` · ${t('modelsLoadError')}` : ''}` }))]} onChange={imageSourceId => { const route = { imageProvider: imageRoute.imageProvider, imageSourceId }; setImageRoute({ ...route, imageModel: defaultImageModel(imageOptions, route) }) }} /></label><label>{t('wallpaperImageModel')}<SelectField label={t('wallpaperImageModel')} value={imageRoute.imageModel} disabled={!imageOptions} options={[{ value: '', label: t('wallpaperAutomaticModel') }, ...imageModelsForRoute(imageOptions, imageRoute).map(model => ({ value: model.id, label: model.name }))]} onChange={imageModel => setImageRoute({ ...imageRoute, imageModel })} /></label></div>
+        <div className="vc-direct-import-list" role="list" aria-label={t('directCropSelected')}>{files.map(file => <div role="listitem" key={file.id} data-invalid={!!file.issue}><ui.IconBrowseOutlineRegular size={16} /><div className="vc-direct-file"><span title={file.name}>{file.name}</span>{file.size !== undefined && <small>{sizeLabel(file.size)}</small>}{file.issue && <p role="alert">{file.issue}</p>}</div><Button size="sm" variant="ghost" disabled={busy} aria-label={t('directCropRemove') + ' ' + file.name} onClick={() => setSelection(previous => previous?.kind === 'local' ? { ...previous, files: previous.files.filter(item => item.path !== file.id) } : previous ? { ...previous, photos: previous.photos.filter(item => item.id !== file.id) } : null)}><ui.IconTrashOutlineRegular size={14} /></Button></div>)}</div>{error && <p className="vc-notice" role="alert">{error}</p>}
       </Modal>
     </section>
   }

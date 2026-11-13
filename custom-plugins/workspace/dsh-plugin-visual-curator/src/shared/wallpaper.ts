@@ -35,7 +35,7 @@ export const wallpaperSettingsSchema = z.strictObject({
   sourceFrameRepair: z.strictObject({ enabled: z.boolean().default(true), marginPixels: z.number().int().min(0).max(512).default(128) }).optional(),
   concurrency: z.number().int().min(1).max(8).default(5), concurrencyVersion: z.literal('five-workers-v1').optional(), maxReworks: z.number().int().min(0).max(5).default(5), maxEditsPerImage: z.number().int().min(0).max(5).default(5),
   recoveryLimitVersion: z.literal('five-attempts-v1').optional(),
-  imageProvider: z.string().min(1).default('autoflow-codex'), imageModel: z.string().default(''), imageSize: z.string().min(1).default('1872x3328'), imageQuality: z.enum(['auto', 'low', 'medium', 'high']).default('high'),
+  imageProvider: z.string().min(1).default('autoflow-codex'), imageSourceId: z.string().default(''), imageModel: z.string().default(''), imageSize: z.string().min(1).default('1872x3328'), imageQuality: z.enum(['auto', 'low', 'medium', 'high']).default('high'),
   clarity: claritySettingsSchema.optional(),
   backgroundResolution: backgroundResolutionSettingsSchema.optional(),
   processing: wallpaperProcessingSchema.optional(),
@@ -51,6 +51,12 @@ export type WallpaperSettings = z.infer<typeof wallpaperSettingsSchema>
 export function applyWallpaperEspcn(settings: WallpaperSettings): void {
   if (settings.clarity) settings.clarity = resolveEspcnClarity(settings.clarity)
   if (settings.backgroundResolution) settings.backgroundResolution = resolveEspcnBackground(settings.backgroundResolution)
+}
+/** Official native-size edits must pass review and dimensions without ESPCN fallback. */
+export function applyOfficialImageResolution(settings: WallpaperSettings): void {
+  if (settings.imageProvider !== 'visual-curator-openai') return
+  settings.clarity = claritySettingsSchema.parse({ ...settings.clarity, enabled: false })
+  settings.backgroundResolution = backgroundResolutionSettingsSchema.parse({ ...settings.backgroundResolution, enabled: false })
 }
 /** Apply the five-worker default when accepting new work or an explicit continuation.
  * @param settings Settings for the accepted operation; saved predecessors remain unchanged.

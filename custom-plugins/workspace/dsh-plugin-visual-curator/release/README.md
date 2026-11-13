@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Release 0.2.16: Wallpaper planning distinguishes focal subjects from supporting objects. Stable identities carry through retries and native-image review, while supporting products retain their source details and natural frame edges. Generated images enter ESPCN x3 reconstruction only after review passes. The recoverable workflow retains saved settings, accounts and tasks.
+Release 0.2.17: Choose a Codex image account or a configured OpenAI API key and image model for each new crop batch. Official-key results use their reviewed native resolution; Codex results use ESPCN x3 only after review. Cosmetic objects that cross the original crop receive natural endings inside the finished wallpaper.
 
 AutoFlow ships this independent bundle and lists it under Installed plugins. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `visual-curator-v<version>` family and `visual-curator-update.json` metadata, separately from AFP and application releases.
 

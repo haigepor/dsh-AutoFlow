@@ -69,6 +69,7 @@ import { nativeSearchSessions, type NativeSearchSessions } from './native-search
 import { originalSearchResult } from './search-results.ts'
 import { ServerQueue } from './server-queue.ts'
 import { DirectCropTasks, isDirectCropRun } from './direct-crop.ts'
+import { openOfficialImageProvider } from './official-image-provider.ts'
 import { WallpaperWorkflows, isWallpaperRun } from './wallpaper-workflow.ts'
 import { WallpaperExperienceStore } from './wallpaper-experience.ts'
 import { wallpaperCanCancel, wallpaperPendingDecision, wallpaperWorkImage, wallpaperSettingsSchema, wallpaperStateSchema, wallpaperProgress, wallpaperVerdict } from '../shared/wallpaper.ts'
@@ -92,6 +93,7 @@ export interface CuratorServiceDependencies {
 /** Minimal Host capabilities used by this provider; Cordis owns their actual implementations. */
 export interface CuratorHost {
   get?: Context['get']
+  effect?: Context['effect']
   llm?: import('@deepseek-ai/dsh-llm').LlmRuntime
   attachments?: import('@deepseek-ai/dsh-attachment').AttachmentStore
   fiber?: Pick<Context['fiber'], 'entry'>
@@ -128,6 +130,8 @@ export class CuratorService {
   private readonly files: AssetFiles
   private readonly providers: Pick<ProviderFactory, 'vision' | 'source' | 'media'> & Partial<Pick<ProviderFactory, 'dispose'>>
   private galleryProviders: ProviderFactory | undefined
+  private officialImages: { close(): Promise<void> } | undefined
+  private officialImageRegistration: (() => void) | undefined
   private stopping = false
   private selectingLocalFiles = false
   private readonly lifetime = new AbortController()
@@ -148,6 +152,13 @@ export class CuratorService {
   async initialize(): Promise<void> {
     if (this.domainValue || this.stopping) throw new CuratorError('capability-unavailable', 'initialize', 'The provider is already initialized or stopping.')
     this.domainValue = this.dependencies.openDomain ? await this.dependencies.openDomain(this.files) : await openCuratorDomain({ profileId: this.profileId, facility: this.ctx.storageDomain, lockPath: join(this.files.root, 'writer.lock'), commitRetry: () => ({ attempts: this.config.limits.maxRetryAttempts, delayMs: this.config.limits.retryDelayMs }), verifyImage: async image => { await this.files.verifyReference(image.blob) } })
+    // An injected in-memory workflow domain has no matching profile storage for image receipts.
+    if (!this.dependencies.openDomain && this.ctx.llm && this.ctx.attachments) {
+      const official = await openOfficialImageProvider({ storage: this.ctx.storageDomain, domainName: `visual_curator_openai_images_${this.profileId.slice(0, 24)}`, attachments: this.ctx.attachments, credentials: this.ctx.credentials, config: () => this.config, report: () => { /* Durable task errors are exposed through saved receipts. */ } })
+      this.officialImages = official
+      const register = () => this.ctx.llm!.registerImageProvider('visual-curator-openai', official.provider)
+      this.officialImageRegistration = this.ctx.effect ? this.ctx.effect(register, 'Visual Curator official image provider') : register()
+    }
     const galleryFactory = new ProviderFactory(this.ctx.credentials)
     this.galleryProviders = galleryFactory
     this.logins = new GalleryLogins(this.config, this.lifetime.signal, signal => (this.dependencies.launchGalleryLogin ?? launchGalleryLogin)(this.config, signal), async (cookie, signal) => {
@@ -189,7 +200,13 @@ export class CuratorService {
       newest.add(analysis.styleId)
       await new ModelProfiles(this.domain).adopt(run, { kind: 'human', id: 'profile-owner', profileId: this.profileId })
     }
-    this.directCropValue = new DirectCropTasks({ domain: this.domain, files: this.files, engine: this.engine, wallpaper: this.wallpaperValue!, config: () => this.config, ...(this.ctx.llm && typeof this.ctx.llm.listImageModels === 'function' ? { imageModels: (provider: string) => this.ctx.llm!.listImageModels(provider) } : {}) })
+    this.directCropValue = new DirectCropTasks({ domain: this.domain, files: this.files, engine: this.engine, wallpaper: this.wallpaperValue!, config: () => this.config, ...(this.ctx.llm && typeof this.ctx.llm.listImageModels === 'function' ? { imageModels: async (provider: string, sourceId: string) => {
+      if (sourceId) {
+        const source = (await this.ctx.llm!.listImageSources(provider)).find(item => item.id === sourceId)
+        if (source?.models) return source.models
+      }
+      return this.ctx.llm!.listImageModels(provider)
+    } } : {}) })
     this.serverQueueValue = new ServerQueue({ domain: this.domain, files: this.files, engine: this.engine, direct: this.directCropValue, config: () => this.config, credentials: this.ctx.credentials, signal: this.lifetime.signal })
     await this.serverQueueValue.initialize()
     this.organizationValue = new ReferenceOrganization(this.domain, async intent => {
@@ -370,9 +387,11 @@ export class CuratorService {
         this.human(actor)
         const workflows = this.wallpaperValue!
         if (operation === 'wallpaper-options') {
-          let models: readonly import('@deepseek-ai/dsh-llm').ImageGenerationModel[] = []
-          if (this.ctx.llm && typeof this.ctx.llm.listImageModels === 'function') { try { models = await this.ctx.llm.listImageModels(this.config.wallpaper.imageProvider) } catch (error) { /* Optional image-provider absence does not disable pure cropping. */ } }
-          return toJson({ settings: this.config.wallpaper, models })
+          const providers = await Promise.all([{ id: 'autoflow-codex', name: 'Codex subscription' }, { id: 'visual-curator-openai', name: 'OpenAI API Key' }].map(async entry => {
+            try { return { ...entry, models: await this.ctx.llm!.listImageModels(entry.id), sources: await this.ctx.llm!.listImageSources(entry.id) } }
+            catch (error) { return { ...entry, models: [], sources: [] } }
+          }))
+          return toJson({ settings: this.config.wallpaper, models: providers.find(entry => entry.id === this.config.wallpaper.imageProvider)?.models ?? [], providers })
         }
         if (operation === 'wallpaper-experience') return toJson(this.experienceValue!.read())
         if (operation === 'wallpaper-case') {
@@ -823,10 +842,11 @@ export class CuratorService {
     const continuation = typeof parentRunId === 'string' && (kind === 'rework' || kind === 'replan' || kind === 'recompose' || kind === 'continue' || kind === 'review') ? { parentRunId, kind, ...(typeof changedImageVersionId === 'string' ? { changedImageVersionId } : {}) } : undefined
     return { runId: run.id, sourceRunId: state.sourceRunId, artifactStorage: 'profile', ...(continuation ? { continuation } : {}), status: run.status, ...(run.stage ? { stage: run.stage } : {}), ...(run.outcome ? { outcome: run.outcome } : {}), ...(data.jobId ? { jobId: data.jobId } : {}), targetWidth: settings.width, targetHeight: settings.height, requestedCount: typeof requestedCount === 'number' ? requestedCount : null, total: state.items.length, passed: outputs.filter(output => output.passed).length, complete: run.status === 'completed' && state.items.length > 0 && outputs.filter(output => output.passed).length === state.items.length, counts: wallpaperProgress(state, wallpaperWorkImage(spec.input), run.status), budgetStopped: state.budgetStopped, attentionTotal: attentionItems.length, attention, outputs: outputs.slice(0, pageSize), ...(data.error ? { errorCode: data.error.code } : {}) }
   }
-  private async credentialStatus(): Promise<{ source: boolean; vision: boolean }> {
+  private async credentialStatus(): Promise<{ source: boolean; vision: boolean; imageKeys: Record<string, boolean> }> {
     const { credentialRef } = await import('@deepseek-ai/dsh-credentials')
     const sourceRef = this.config.source.provider === 'unsplash' ? this.config.source.unsplash.accounts.find(item => item.id === this.config.source.unsplash.defaultAccountId)?.credentialRef : this.config.source.credentialRef
-    return { source: !sourceRef || !!await this.ctx.credentials.resolve(credentialRef(sourceRef)), vision: !this.config.vision.credentialRef || !!await this.ctx.credentials.resolve(credentialRef(this.config.vision.credentialRef)) }
+    const imageKeys = Object.fromEntries(await Promise.all(this.config.imageSources.apiKeys.map(async item => [item.id, !!await this.ctx.credentials.resolve(credentialRef(item.credentialRef))] as const)))
+    return { source: !sourceRef || !!await this.ctx.credentials.resolve(credentialRef(sourceRef)), vision: !this.config.vision.credentialRef || !!await this.ctx.credentials.resolve(credentialRef(this.config.vision.credentialRef)), imageKeys }
   }
   private recipe(operationId: Json | undefined): EvaluationRecipe {
     const id = `recipe-${contentDigest({ config: this.config, operationId }).slice(10, 42)}`, existing = this.domain.repository.get('recipe', id)
@@ -1178,9 +1198,9 @@ export class CuratorService {
     return toJson({ exportId: snapshot.id, kind: snapshot.exportKind, status: 'ready', downloadPath: `/api/visual-curator/resource?exportId=${encodeURIComponent(id)}${actor.sessionId ? `&sessionId=${encodeURIComponent(actor.sessionId)}` : ''}`, checksum: contentDigest(snapshot.files), preview: snapshot.files.map(file => `${file.name}\n${file.content}`).join('\n\n'), exclusions: Object.entries(snapshot.exclusions).map(([reason, count]) => ({ reason, count })) })
   }
   private async saveConfig(args: Record<string, Json>): Promise<Json> {
-    const input = z.object({ revision: z.string(), source: z.record(z.string(), jsonSchema), vision: z.record(z.string(), jsonSchema), limits: z.record(z.string(), jsonSchema), searchScreening: z.record(z.string(), jsonSchema).optional() }).parse(args)
+    const input = z.object({ revision: z.string(), source: z.record(z.string(), jsonSchema), vision: z.record(z.string(), jsonSchema), limits: z.record(z.string(), jsonSchema), searchScreening: z.record(z.string(), jsonSchema).optional(), imageSources: z.record(z.string(), jsonSchema).optional(), wallpaperImage: z.strictObject({ imageProvider: z.enum(['autoflow-codex', 'visual-curator-openai']), imageSourceId: z.string(), imageModel: z.string() }).optional() }).parse(args)
     if (input.revision !== configRevision(this.config)) throw new CuratorError('revision-conflict', 'configuration', 'Configuration changed; refresh before saving.')
-    const next = resolveCurrentConfig({ ...(this.config.serverQueue ? { serverQueue: this.config.serverQueue } : {}), wallpaper: this.config.wallpaper, source: { ...this.config.source, ...input.source }, vision: { ...this.config.vision, reasoningEffort: this.config.vision.reasoningEffort ?? null, ...input.vision }, limits: { ...this.config.limits, ...input.limits }, searchScreening: { ...this.config.searchScreening, ...input.searchScreening } })
+    const next = resolveCurrentConfig({ ...(this.config.serverQueue ? { serverQueue: this.config.serverQueue } : {}), wallpaper: { ...this.config.wallpaper, ...input.wallpaperImage }, imageSources: { ...this.config.imageSources, ...input.imageSources }, source: { ...this.config.source, ...input.source }, vision: { ...this.config.vision, reasoningEffort: this.config.vision.reasoningEffort ?? null, ...input.vision }, limits: { ...this.config.limits, ...input.limits }, searchScreening: { ...this.config.searchScreening, ...input.searchScreening } })
     if (next.vision.backend === 'native' && (next.vision.backend !== this.config.vision.backend || next.vision.provider !== this.config.vision.provider || next.vision.model !== this.config.vision.model)) {
       await requireVisionModel(this.ctx.llm, next.vision.provider, next.vision.model, this.lifetime.signal)
     }
@@ -1200,6 +1220,8 @@ export class CuratorService {
         ...(configRevision(previous.limits) !== configRevision(next.limits) ? { limits: next.limits } : {}),
         ...(configRevision(previous.searchScreening) !== configRevision(next.searchScreening) ? { searchScreening: next.searchScreening } : {}),
         ...(configRevision(previous.vision) !== configRevision(next.vision) ? { vision: { ...next.vision, reasoningEffort: next.vision.reasoningEffort ?? null } } : {}),
+        ...(configRevision(previous.imageSources) !== configRevision(next.imageSources) ? { imageSources: next.imageSources } : {}),
+        ...(configRevision(previous.wallpaper) !== configRevision(next.wallpaper) ? { wallpaper: { ...z.record(z.string(), z.unknown()).parse(raw.wallpaper ?? {}), ...input.wallpaperImage } } : {}),
       }
     })
     this.configValue = next
@@ -1347,6 +1369,8 @@ export class CuratorService {
       if (rejected) throw rejected.reason
     } finally {
       this.sessionGrants.clear()
+      this.officialImageRegistration?.()
+      await this.officialImages?.close()
       await this.domainValue?.close()
     }
   }

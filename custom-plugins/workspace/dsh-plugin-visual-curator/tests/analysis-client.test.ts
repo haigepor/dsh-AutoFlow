@@ -5,7 +5,7 @@ import { resolveCurrentConfig } from '../src/host/config.ts'
 import type { CuratorSnapshot } from '../src/client/contract.ts'
 
 function snapshot(): CuratorSnapshot {
-  return { collectionPaging: true, workspaceRevision: 'initial', styles: [], images: [], runs: [], usages: [], splits: [], evaluations: [], exports: [], suggestions: [], configuration: { ...resolveCurrentConfig({}), revision: 'one', sourceConfigured: false, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false } }
+  return { collectionPaging: true, workspaceRevision: 'initial', styles: [], images: [], runs: [], usages: [], splits: [], evaluations: [], exports: [], suggestions: [], configuration: { ...resolveCurrentConfig({}), revision: 'one', sourceConfigured: false, visionConfigured: true, sourceCredentialConfigured: false, visionCredentialConfigured: false, imageSources: { apiKeys: [] }, wallpaperImage: { imageProvider: 'autoflow-codex', imageSourceId: '', imageModel: '' } } }
 }
 
 test('analysis acceptance returns before the follow-up task list finishes loading', async () => {

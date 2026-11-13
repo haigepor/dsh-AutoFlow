@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import sharp from 'sharp'
 import { wallpaperPlanSchema, wallpaperRepairObservationPlanSchema, wallpaperRoleObservationPlanSchema, wallpaperRoleObservationOutputSchema, wallpaperHasBackgroundAnchors, wallpaperSettingsSchema, wallpaperSubjectCheck, wallpaperStoredSourceReviewV4Schema, wallpaperReviewKeys } from '../src/shared/wallpaper.ts'
-import { wallpaperCandidatePlacement, wallpaperGeometry, wallpaperObjectProtectionRegions, wallpaperSourceExtensionEdges, fitWallpaperPlacement } from '../src/shared/wallpaper-geometry.ts'
+import { wallpaperCandidatePlacement, wallpaperGeometry, wallpaperObjectProtectionRegions, wallpaperSourceExtensionEdges, wallpaperSourceContinuationTargets, wallpaperSourceContinuationReviewRegions, fitWallpaperPlacement } from '../src/shared/wallpaper-geometry.ts'
 import { retainWallpaperRegions, retainWallpaperObjectRoles, wallpaperPlanConcerns } from '../src/shared/wallpaper-detail.ts'
 import { wallpaperRepairMask, wallpaperSourceRepairNeeded } from '../src/media/wallpaper-repair.ts'
 import { wallpaperRepairPolicySchema } from '../src/shared/wallpaper-policy.ts'
@@ -72,6 +72,34 @@ test('localized source uncertainty permits a candidate only with frozen generate
   assert.equal(clockPixels[(500 * 1845 + 100) * 4 + 3], 255, 'Other source pixels remain protected')
   assert.match(sourceFaithfulWallpaperPrompts(authorized).plan.text, /已看清的严重缺失直接/)
   assert.match(sourceFaithfulWallpaperPrompts(authorized).review.text, /sourceCorrespondence/)
+})
+
+test('placed cosmetic source edges open only interior object endings, not the final-frame bottom crop', async () => {
+  const settings = wallpaperSettingsSchema.parse({ repairPolicy: {}, sourceFrameRepair: { enabled: true, marginPixels: 128 } })
+  const rect = (x: number, y: number, width: number, height: number) => ({ x, y, width, height })
+  const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'cosmetics-source', mode: 'group', subject: 'Two lipsticks', evidence: 'The lipsticks lead a makeup still life.', priorities: [], anchors: [], truncations: [], uncertainties: [],
+    regions: [{ entityId: 'lipstick', name: 'Lipstick', role: 'subject', rect: rect(0.4, 0.4, 0.2, 0.3) }],
+    objectRoles: [
+      { entityId: 'lipstick', name: 'Lipstick', role: 'primary', evidence: 'Central focal object', rect: rect(0.4, 0.4, 0.2, 0.3), sourceEdges: [] },
+      { entityId: 'top-bottle', name: 'Top bottle', role: 'supporting', evidence: 'Visible upper bottle', rect: rect(0.35, 0, 0.25, 0.28), sourceEdges: ['top'] },
+      { entityId: 'left-bottle', name: 'Left bottle', role: 'supporting', evidence: 'Visible left bottle', rect: rect(0, 0.2, 0.22, 0.4), sourceEdges: ['left'] },
+      { entityId: 'right-brush', name: 'Right brush', role: 'supporting', evidence: 'Visible right brush', rect: rect(0.73, 0.35, 0.27, 0.2), sourceEdges: ['right'] },
+      { entityId: 'bottom-palette', name: 'Bottom palette', role: 'supporting', evidence: 'Visible bottom palette', rect: rect(0.3, 0.8, 0.35, 0.2), sourceEdges: ['bottom'] },
+    ], placement: { scale: 0.88125, left: 110, top: 586 }, reason: 'Saved makeup placement' })
+  const source = { width: 1845, height: 3280 }
+  const targets = wallpaperSourceContinuationTargets(plan, settings, source)
+  assert.deepEqual(targets.map(({ entityId, disposition }) => [entityId, disposition]), [
+    ['top-bottle', 'interior'], ['left-bottle', 'interior'], ['right-brush', 'interior'], ['bottom-palette', 'final-frame-crop'],
+  ])
+  const reviewRegions = wallpaperSourceContinuationReviewRegions(plan, settings, source)
+  assert.deepEqual(reviewRegions.map(({ entityId }) => entityId), ['top-bottle', 'left-bottle', 'right-brush'])
+  assert.ok(reviewRegions[0]!.rect.y < plan.placement.top / settings.height, 'The enlarged review sees generated pixels above the old top cut')
+  assert.ok(reviewRegions[0]!.rect.y + reviewRegions[0]!.rect.height > plan.placement.top / settings.height, 'The same view also sees the original bottle')
+  const mask = await sharp({ create: { width: settings.width, height: settings.height, channels: 4, background: '#ffffff' } }).png().toBuffer()
+  const alpha = await sharp(await wallpaperRepairMask(mask, plan, settings, [], source)).extractChannel('alpha').raw().toBuffer()
+  assert.equal(alpha[600 * settings.width + 900], 0, 'The old top cut inside the frame can be redrawn')
+  assert.equal(alpha[600 * settings.width + 1500], 255, 'Unrelated healthy pixels along the same source edge remain protected')
+  assert.equal(alpha[3200 * settings.width + 900], 255, 'The final-frame bottom crop does not open healthy pixels')
 })
 
 test('generated completion keeps the damaged source fact and requires a complete independently checked output', () => {

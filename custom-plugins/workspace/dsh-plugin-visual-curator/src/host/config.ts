@@ -88,14 +88,18 @@ export const visionSettingsSchema = z.strictObject({
   reasoningEffort: z.enum(['none', 'low', 'medium', 'high', 'max']).nullable().optional(),
   supportsStreaming: z.boolean().optional(),
 })
-export const settingsSchema = z.strictObject({ serverQueue: serverQueueSettingsSchema.optional(), source: sourceSettingsSchema.default(() => sourceSettingsSchema.parse({})), vision: visionSettingsSchema.default(() => visionSettingsSchema.parse({})), limits: limitsSchema.default(() => limitsSchema.parse({})), searchScreening: searchScreeningSettingsSchema.optional(), wallpaper: wallpaperSettingsSchema.default(() => wallpaperSettingsSchema.parse({})) })
+export const imageSourcesSchema = z.strictObject({ apiKeys: z.array(z.strictObject({ id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/), label: z.string().trim().min(1).max(80), credentialRef: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/) })).max(20).default([]) })
+export const settingsSchema = z.strictObject({ serverQueue: serverQueueSettingsSchema.optional(), source: sourceSettingsSchema.default(() => sourceSettingsSchema.parse({})), vision: visionSettingsSchema.default(() => visionSettingsSchema.parse({})), limits: limitsSchema.default(() => limitsSchema.parse({})), searchScreening: searchScreeningSettingsSchema.optional(), imageSources: imageSourcesSchema.default(() => imageSourcesSchema.parse({})), wallpaper: wallpaperSettingsSchema.default(() => wallpaperSettingsSchema.parse({})) })
 export type CuratorConfig = z.infer<typeof settingsSchema>
 
 /** Cordis validates the envelope; the owning parser validates nested deployment settings. */
-export const Config = Schema.object({ serverQueue: Schema.any(), source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), searchScreening: Schema.any(), wallpaper: Schema.any(), compaction: Schema.any() })
+export const Config = Schema.object({ serverQueue: Schema.any(), source: Schema.any(), vision: Schema.any().volatile(), limits: Schema.any(), searchScreening: Schema.any(), imageSources: Schema.any(), wallpaper: Schema.any(), compaction: Schema.any() })
 /** @param input Saved deployment fields. @returns Complete validated settings. */
 export function resolveConfig(input: unknown): CuratorConfig {
   const config = settingsSchema.parse(input)
+  if (new Set(config.imageSources.apiKeys.map(item => item.id)).size !== config.imageSources.apiKeys.length || new Set(config.imageSources.apiKeys.map(item => item.credentialRef)).size !== config.imageSources.apiKeys.length) throw new TypeError('Image API key profiles require distinct IDs and credential references.')
+  if (config.imageSources.apiKeys.some(item => item.credentialRef === config.source.credentialRef || item.credentialRef === config.vision.credentialRef)) throw new TypeError('Image API credentials must not share gallery or vision references.')
+  if (config.wallpaper.imageProvider === 'visual-curator-openai' && config.wallpaper.imageSourceId && !config.imageSources.apiKeys.some(item => item.id === config.wallpaper.imageSourceId)) throw new TypeError('The selected image API key profile is unavailable.')
   if (!config.vision.provider) delete config.vision.provider
   const accounts = config.source.unsplash.accounts
   if (accounts.some(account => account.id === 'public') || new Set(accounts.map(account => account.id)).size !== accounts.length || new Set(accounts.map(account => account.userId)).size !== accounts.length || new Set(accounts.map(account => account.credentialRef)).size !== accounts.length) throw new TypeError('Gallery accounts require distinct IDs, users and credential references; public is reserved.')

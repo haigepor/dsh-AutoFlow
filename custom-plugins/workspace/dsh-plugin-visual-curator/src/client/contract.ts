@@ -235,6 +235,8 @@ export interface ConfigurationView {
   visionConfigured: boolean
   sourceCredentialConfigured: boolean
   visionCredentialConfigured: boolean
+  imageSources: { apiKeys: { id: string; label: string; credentialRef: string; configured: boolean }[] }
+  wallpaperImage: { imageProvider: string; imageSourceId: string; imageModel: string }
   source: {
     provider: 'generic' | 'unsplash'
     unsplash: { accounts: GalleryAccount[]; defaultAccountId: string | null; curlBinary: string; userAgent: string; readRetryAttempts?: number; readRetryDelayMs?: number; previewConcurrency?: number; previewCache?: import('../shared/gallery-cache.ts').PreviewCachePolicy; cache?: import('../shared/gallery-cache.ts').GalleryCachePolicy; login: { browser: 'auto' | 'msedge' | 'chrome'; executablePath: string; timeoutMs: number; launchTimeoutMs: number; pollIntervalMs: number } }

@@ -38,7 +38,7 @@ import type { ConfigureCall, LlmCallConfig, LlmCallConfigAdapterDefaults } from 
 import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
 import { normalizeApiKey } from './api-key.ts'
-import type { ImageGenerationModel, ImageGenerationProvider, ImageGenerationRequest, GeneratedImage, ImageGenerationHandle, ImageGenerationTask, ImageGenerationReadOptions } from './image-generation.ts'
+import type { ImageGenerationModel, ImageGenerationSource, ImageGenerationProvider, ImageGenerationRequest, GeneratedImage, ImageGenerationHandle, ImageGenerationTask, ImageGenerationReadOptions } from './image-generation.ts'
 import {
   contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModel, projectToolUpdates,
 } from './content.ts'
@@ -365,7 +365,7 @@ export interface DirectoryRegistrationHandle {
  */
 export class LlmRuntime extends TypertRemoteService {
   private adapters = new Map<string, AdapterRegistration>()
-  private readonly imageProviders = new Map<string, { adapter: LlmAdapter; implementation: ImageGenerationProvider }>()
+  private readonly imageProviders = new Map<string, { adapter: LlmAdapter | undefined; implementation: ImageGenerationProvider }>()
   private directory = new Map<string, LlmConfigurableProvider>()
   private discoveries = new Map<
     string,
@@ -798,12 +798,13 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /** Register auxiliary image generation for an existing model route.
-   * @param provider Registered LLM provider identity.
+   * @param provider Image provider identity; an existing LLM route binds its adapter lifetime.
    * @param implementation Provider-owned image models, credentials and attachment persistence.
    * @returns Disposer removing only this registration.
    */
   registerImageProvider(provider: string, implementation: ImageGenerationProvider): () => void {
-    const adapter = this.registration(provider).adapter
+    if (!provider) throw new LlmError('Image provider identity is required', 'INVALID_ADAPTER')
+    const adapter = this.adapters.get(provider)?.adapter
     if (this.imageProviders.has(provider)) throw new LlmError('Image provider is already registered', 'DUPLICATE_PROVIDER')
     const binding = { adapter, implementation }
     this.imageProviders.set(provider, binding)
@@ -816,10 +817,21 @@ export class LlmRuntime extends TypertRemoteService {
    * @returns Configured image models; text-only routes return an empty list.
    */
   async listImageModels(provider: string): Promise<readonly ImageGenerationModel[]> {
-    const adapter = this.registration(provider).adapter, binding = this.imageProviders.get(provider)
-    if (!binding || binding.adapter !== adapter) return []
+    const binding = this.imageProviders.get(provider)
+    if (!binding) { this.registration(provider); return [] }
+    if (binding.adapter !== this.adapters.get(provider)?.adapter) return []
     const models = await binding.implementation.listModels()
-    return structuredClone(this.imageProviders.get(provider) === binding && this.registration(provider).adapter === adapter ? models : [])
+    const active = this.imageProviders.get(provider) === binding && binding.adapter === this.adapters.get(provider)?.adapter
+    return structuredClone(active ? models : [])
+  }
+
+  /** List safe account or credential labels for an image route.
+   * @param provider Registered image provider identity.
+   * @returns Provider-owned selectable sources, or an empty list when selection is unavailable.
+   */
+  async listImageSources(provider: string): Promise<readonly ImageGenerationSource[]> {
+    const implementation = this.imageTaskProvider(provider)
+    return structuredClone(await implementation.listSources?.() ?? [])
   }
 
   /** Execute one explicit image request without conversation streaming or automatic retries.
@@ -828,11 +840,12 @@ export class LlmRuntime extends TypertRemoteService {
    */
   async generateImages(request: ImageGenerationRequest): Promise<readonly GeneratedImage[]> {
     request.signal.throwIfAborted()
-    const adapter = this.registration(request.provider).adapter, binding = this.imageProviders.get(request.provider)
-    const implementation = binding?.adapter === adapter ? binding.implementation : undefined
-    if (!implementation || !(await implementation.listModels()).some(model => model.id === request.model)) throw new LlmError('Image generation is unavailable for this model', 'UNSUPPORTED_OPTION')
+    const binding = this.imageProviders.get(request.provider)
+    if (!binding || binding.adapter !== this.adapters.get(request.provider)?.adapter) throw new LlmError('Image generation is unavailable for this model', 'UNSUPPORTED_OPTION')
+    const implementation = binding.implementation
+    if (!(await implementation.listModels()).some(model => model.id === request.model)) throw new LlmError('Image generation is unavailable for this model', 'UNSUPPORTED_OPTION')
     request.signal.throwIfAborted()
-    if (this.imageProviders.get(request.provider) !== binding || this.registration(request.provider).adapter !== adapter) throw new LlmError('Image provider was removed before dispatch', 'UNSUPPORTED_OPTION')
+    if (this.imageProviders.get(request.provider) !== binding || binding.adapter !== this.adapters.get(request.provider)?.adapter) throw new LlmError('Image provider was removed before dispatch', 'UNSUPPORTED_OPTION')
     return implementation.generate(request)
   }
 
@@ -871,8 +884,8 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   private imageTaskProvider(provider: string): ImageGenerationProvider {
-    const adapter = this.registration(provider).adapter, binding = this.imageProviders.get(provider)
-    if (!binding || binding.adapter !== adapter) throw new LlmError('Image generation provider is unavailable', 'UNSUPPORTED_OPTION')
+    const binding = this.imageProviders.get(provider)
+    if (!binding || binding.adapter !== this.adapters.get(provider)?.adapter) throw new LlmError('Image generation provider is unavailable', 'UNSUPPORTED_OPTION')
     return binding.implementation
   }
 

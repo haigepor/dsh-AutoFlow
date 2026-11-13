@@ -37,6 +37,7 @@ import { createTaskDialog } from './task-dialog.tsx'
 import { createSearchLaunchUI } from './search-launch-dialog.tsx'
 import type { SearchLaunchState, SearchLaunchStore } from './search-launch-store.ts'
 import { createSelectField } from './select-field.tsx'
+import { defaultImageModel, imageModelsForRoute, imageOptionsSchema, imageRouteReady, type ImageOptions } from './image-sources.ts'
 import { createCanvasTaskDialog } from './canvas-task-dialog.tsx'
 import { createTaskHistory } from './task-history.tsx'
 import { createWorkflowNavigation } from './workflow-navigation.tsx'
@@ -68,6 +69,7 @@ export interface WorkbenchProps extends PropsRenderFactories {
     launches: Pick<SearchLaunchStore, 'start' | 'retry' | 'stop' | 'forget' | 'refresh' | 'loadOptions' | 'loadDatasets' | 'openSession'>
     publish(style: StyleView): Promise<string>
     saveCredential(ref: string, value: string): Promise<void>
+    imageOptions(): Promise<unknown>
     loadVisionModels(): Promise<void>
     reloadVisionModels(): void
     openModelSettings(): void
@@ -125,7 +127,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     </form>
   }
 
-  function Configuration({ config, actions, t, report, styles, selectedStyleId, openWorkbench, initialPanel, saving, saveError, useVisionModels }: { config: ConfigurationView; actions: WorkbenchProps['actions']; t: WorkbenchText; report(work: () => Promise<unknown>): void; styles: StyleView[]; selectedStyleId: string; openWorkbench(styleId: string): void; initialPanel: 'vision' | 'source'; saving: boolean; saveError: ClientState['configError']; useVisionModels: WorkbenchProps['useVisionModels'] }) {
+  function Configuration({ config, actions, t, report, styles, selectedStyleId, openWorkbench, initialPanel, saving, saveError, useVisionModels }: { config: ConfigurationView; actions: WorkbenchProps['actions']; t: WorkbenchText; report(work: () => Promise<unknown>): void; styles: StyleView[]; selectedStyleId: string; openWorkbench(styleId: string): void; initialPanel: 'vision' | 'source' | 'image'; saving: boolean; saveError: ClientState['configError']; useVisionModels: WorkbenchProps['useVisionModels'] }) {
     const [vision, setVision] = React.useState(config.vision)
     const catalog = useVisionModels(state => state)
     const selectedKey = visionModelKey({ provider: vision.provider ?? '', id: vision.model })
@@ -137,11 +139,48 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const [deadlineMs, setDeadlineMs] = React.useState(config.limits.deadlineMs)
     const [screening, setScreening] = React.useState(config.searchScreening)
     const [sourceKey, setSourceKey] = React.useState('')
-    const [panel, setPanel] = React.useState<'vision' | 'source'>(initialPanel)
+    const [panel, setPanel] = React.useState<'vision' | 'source' | 'image'>(initialPanel)
+    const [imageRoute, setImageRoute] = React.useState(config.wallpaperImage)
+    const [imageOptions, setImageOptions] = React.useState<ImageOptions | null>(null)
+    const [imageError, setImageError] = React.useState('')
+    const [newKeyLabel, setNewKeyLabel] = React.useState(''), [newKeyValue, setNewKeyValue] = React.useState('')
+    const [replaceKeyId, setReplaceKeyId] = React.useState(''), [replaceKeyValue, setReplaceKeyValue] = React.useState('')
     const [connectionOpen, setConnectionOpen] = React.useState(false), [advancedOpen, setAdvancedOpen] = React.useState(false)
     const settingsId = React.useId()
     React.useEffect(() => { if (panel === 'vision' && catalog.status === 'idle') void actions.loadVisionModels() }, [panel, catalog.status, actions])
-    React.useEffect(() => { setSource(config.source); setScreening(config.searchScreening) }, [config.revision])
+    React.useEffect(() => { if (panel !== 'image') return; let active = true; void actions.imageOptions().then(value => { if (active) { setImageOptions(imageOptionsSchema.parse(value)); setImageError('') } }).catch(() => { if (active) setImageError(t('imageGenerationLoadError')) }); return () => { active = false } }, [panel, config.revision, actions, t])
+    React.useEffect(() => { setSource(config.source); setScreening(config.searchScreening); setImageRoute(config.wallpaperImage) }, [config.revision])
+    const saveImageConfig = async (imageSources?: { apiKeys: { id: string; label: string; credentialRef: string }[] }, wallpaperImage = imageRoute, secret?: { ref: string; value: string }): Promise<boolean> => {
+      setImageError('')
+      try {
+        await actions.saveConfiguration({ revision: config.revision, source: {}, vision: {}, limits: {}, ...(imageSources ? { imageSources } : {}), wallpaperImage }, secret ? () => actions.saveCredential(secret.ref, secret.value) : undefined)
+        const updated = actions.getSnapshot().snapshot?.configuration
+        if (updated) setImageRoute(updated.wallpaperImage)
+        try { setImageOptions(imageOptionsSchema.parse(await actions.imageOptions())) }
+        catch { setImageError(t('imageGenerationLoadError')) }
+        return true
+      } catch (error) { setImageError(t('imageGenerationSaveError')); return false }
+    }
+    const addImageKey = async () => {
+      if (!newKeyLabel.trim() || !newKeyValue.trim()) return
+      const id = crypto.randomUUID(), credentialRef = `VISUAL_CURATOR_IMAGE_${id.replaceAll('-', '_')}`
+      if (await saveImageConfig({ apiKeys: [...config.imageSources.apiKeys.map(({ configured: _configured, ...profile }) => profile), { id, label: newKeyLabel.trim(), credentialRef }] }, imageRoute, { ref: credentialRef, value: newKeyValue.trim() })) {
+        setNewKeyLabel(''); setNewKeyValue('')
+        try {
+          const options = imageOptionsSchema.parse(await actions.imageOptions())
+          setImageOptions(options)
+          const route = { imageProvider: 'visual-curator-openai', imageSourceId: id }
+          setImageRoute({ ...route, imageModel: defaultImageModel(options, route) })
+        } catch { setImageError(t('imageGenerationLoadError')) }
+      }
+    }
+    const replaceImageKey = async () => {
+      const profile = config.imageSources.apiKeys.find(item => item.id === replaceKeyId)
+      if (!profile || !replaceKeyValue.trim()) return
+      setImageError('')
+      try { await actions.saveCredential(profile.credentialRef, replaceKeyValue.trim()); await actions.reload(); setImageOptions(imageOptionsSchema.parse(await actions.imageOptions())); setReplaceKeyValue('') }
+      catch (error) { setImageError(t('imageGenerationSaveError')) }
+    }
     const save = async (kind: 'vision' | 'source' = 'vision') => {
       try {
         if (kind === 'vision' && (catalog.status !== 'ready' || !catalog.value || !selectedModel)) return
@@ -151,12 +190,13 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
         const saved = actions.getSnapshot().snapshot?.configuration; if (saved) { setVision(saved.vision); setSource(saved.source) }; if (kind === 'source') setAdvancedOpen(false)
       } catch (error) { /* 保存失败由共享配置状态显示，导航和其他任务继续可用。 */ }
     }
-    return <><form className="vc-settings" onSubmit={event => { event.preventDefault(); save() }}>
+    return <><form className="vc-settings" onSubmit={event => { event.preventDefault(); if (panel === 'vision') void save() }}>
       <SegmentedTabs className="vc-settings-tabs" label={t('settings')} value={panel} onChange={setPanel} items={[
         { value: 'vision', label: <span className="vc-settings-tab-label"><ui.IconSparkleRegular size={16} />{t('vision')}<StateDot state={savedModelAvailable ? 'done' : 'idle'} /></span>, id: `${settingsId}-vision-tab`, panelId: `${settingsId}-vision` },
         { value: 'source', label: <span className="vc-settings-tab-label"><ui.IconFolderOpenOutlineRegular size={16} />{t('gallery')}<StateDot state={config.sourceConfigured ? 'done' : 'idle'} /></span>, id: `${settingsId}-source-tab`, panelId: `${settingsId}-source` },
+        { value: 'image', label: <span className="vc-settings-tab-label"><ui.IconSparkleRegular size={16} />{t('imageGenerationSource')}<StateDot state={config.wallpaperImage.imageProvider === 'autoflow-codex' || config.imageSources.apiKeys.some(item => item.id === config.wallpaperImage.imageSourceId && item.configured) ? 'done' : 'idle'} /></span>, id: `${settingsId}-image-tab`, panelId: `${settingsId}-image` },
       ]} />
-      {(['vision', 'source'] as const).map(value => <div key={value} id={`${settingsId}-${value}`} role="tabpanel" aria-labelledby={`${settingsId}-${value}-tab`} hidden={panel !== value}>{panel === value && <fieldset data-panel={value} className="vc-settings-panel vc-stack" disabled={saving}>
+      {(['vision', 'source', 'image'] as const).map(value => <div key={value} id={`${settingsId}-${value}`} role="tabpanel" aria-labelledby={`${settingsId}-${value}-tab`} hidden={panel !== value}>{panel === value && <fieldset data-panel={value} className="vc-settings-panel vc-stack" disabled={saving}>
       {value === 'vision' ? <>
         <div className="vc-row"><h3>{t('vision')}</h3><Tag tone={savedModelAvailable ? 'success' : 'neutral'}>{t(savedModelAvailable ? 'configured' : 'unconfigured')}</Tag></div>
         <p>{t('managedModelsHint')}</p>
@@ -177,12 +217,27 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
           <label>{t('modelOutputDefault')}<Input readOnly value={selectedModel?.maxOutputTokens?.toLocaleString() ?? t('providerDefault')} /></label>
           <p>{t('requestLimitsHint')}</p>
         </div></DisclosureRow>
-      </> : <>
+      </> : value === 'source' ? <>
         <GallerySettings config={{ ...config, source }} actions={actions} t={t} styles={styles} selectedStyleId={selectedStyleId} openWorkbench={openWorkbench} openAdvanced={() => setAdvancedOpen(true)} saveSource={async next => {
           await actions.saveConfiguration({ revision: config.revision, source: { ...next }, vision: {}, limits: {} })
           setSource(actions.getSnapshot().snapshot?.configuration.source ?? next)
         }} />
 
+      </> : <>
+        <div className="vc-row"><h3>{t('imageGenerationSource')}</h3><Tag tone="neutral">{t('imageGenerationDefault')}</Tag></div>
+        <p>{t('imageGenerationHint')}</p>
+        <div className="vc-settings-fields">
+          <label>{t('imageGenerationSource')}<SelectField label={t('imageGenerationSource')} value={imageRoute.imageProvider} options={(imageOptions?.providers ?? []).map(provider => ({ value: provider.id, label: provider.name }))} disabled={!imageOptions} onChange={imageProvider => setImageRoute({ imageProvider, imageSourceId: '', imageModel: '' })} /></label>
+          <label>{t('imageGenerationAccount')}<SelectField label={t('imageGenerationAccount')} value={imageRoute.imageSourceId} options={[...(imageRoute.imageProvider === 'autoflow-codex' ? [{ value: '', label: t('imageGenerationAutomaticAccount') }] : []), ...(imageOptions?.providers.find(provider => provider.id === imageRoute.imageProvider)?.sources ?? []).map(source => ({ value: source.id, label: `${source.name}${!source.available ? ` · ${t('unconfigured')}` : source.modelError ? ` · ${t('modelsLoadError')}` : ''}` }))]} disabled={!imageOptions} onChange={imageSourceId => { const route = { imageProvider: imageRoute.imageProvider, imageSourceId }; setImageRoute({ ...route, imageModel: defaultImageModel(imageOptions, route) }) }} /></label>
+          <label>{t('wallpaperImageModel')}<SelectField label={t('wallpaperImageModel')} value={imageRoute.imageModel} options={[{ value: '', label: t('wallpaperAutomaticModel') }, ...imageModelsForRoute(imageOptions, imageRoute).map(model => ({ value: model.id, label: model.name }))]} disabled={!imageOptions} onChange={imageModel => setImageRoute({ ...imageRoute, imageModel })} /></label>
+        </div>
+        <Button type="button" variant="primary" disabled={saving || !imageRouteReady(imageOptions, imageRoute)} onClick={() => { void saveImageConfig() }}>{t('imageGenerationSaveDefault')}</Button>
+        <h3>{t('imageGenerationKeys')}</h3>
+        {config.imageSources.apiKeys.map(profile => <div className="vc-row" key={profile.id}><span>{profile.label}</span><Tag tone={profile.configured ? 'success' : 'neutral'}>{t(profile.configured ? 'keySaved' : 'keyMissing')}</Tag></div>)}
+        <div className="vc-settings-fields"><label>{t('imageGenerationKeyLabel')}<Input value={newKeyLabel} maxLength={80} onChange={event => setNewKeyLabel(event.target.value)} /></label><label>{t('apiKey')}<Input type="password" autoComplete="new-password" value={newKeyValue} onChange={event => setNewKeyValue(event.target.value)} /></label></div>
+        <Button type="button" variant="outline" disabled={saving || !newKeyLabel.trim() || !newKeyValue.trim()} onClick={() => { void addImageKey() }}>{t('imageGenerationAddKey')}</Button>
+        {!!config.imageSources.apiKeys.length && <div className="vc-settings-fields"><label>{t('imageGenerationReplaceKey')}<SelectField label={t('imageGenerationReplaceKey')} value={replaceKeyId} options={[{ value: '', label: t('imageGenerationChooseKey') }, ...config.imageSources.apiKeys.map(profile => ({ value: profile.id, label: profile.label }))]} onChange={setReplaceKeyId} /></label><label>{t('apiKey')}<Input type="password" autoComplete="new-password" value={replaceKeyValue} onChange={event => setReplaceKeyValue(event.target.value)} /></label><Button type="button" variant="outline" disabled={saving || !replaceKeyId || !replaceKeyValue.trim()} onClick={() => { void replaceImageKey() }}>{t('imageGenerationReplaceKey')}</Button></div>}
+        {imageError && <p role="alert">{imageError}</p>}
       </>}
       </fieldset>}</div>)}
       {saveError && <p role="alert">{t('error')} · {saveError.safeMessage || saveError.code}</p>}
@@ -549,7 +604,7 @@ export function createWorkbench(React: typeof import('react'), ui: typeof import
     const [tabSelection, setTabSelection] = React.useState<{ target: typeof taskTarget; value: 'workbench' | 'settings' }>({ target: taskTarget, value: 'workbench' })
     const tab = tabSelection.target === taskTarget ? tabSelection.value : 'workbench'
     const setTab = (value: 'workbench' | 'settings') => setTabSelection({ target: taskTarget, value })
-    const [settingsPanel, setSettingsPanel] = React.useState<'vision' | 'source'>('vision')
+    const [settingsPanel, setSettingsPanel] = React.useState<'vision' | 'source' | 'image'>('vision')
     const [name, setName] = React.useState(''), [error, setError] = React.useState(''), [working, setWorking] = React.useState(false)
     const [createOpen, setCreateOpen] = React.useState(false)
     const [renameTarget, setRenameTarget] = React.useState<{ styleId: string; revision: number; operationId: string } | null>(null)

@@ -8,6 +8,7 @@ const galleryPhoto = z.strictObject({ id: z.string().regex(/^[A-Za-z0-9_-]{1,128
 /** Explicit local, gallery or Host-imported server selections may admit direct work. */
 export const directCropStartSchema = z.strictObject({
   operationId: z.string().min(1), name: z.string().trim().min(1).max(160),
+  imageRoute: z.strictObject({ imageProvider: z.enum(['autoflow-codex', 'visual-curator-openai']), imageSourceId: z.string(), imageModel: z.string() }).optional(),
   source: z.discriminatedUnion('kind', [z.strictObject({ kind: z.literal('local'), files: z.array(localFile).min(1) }), z.strictObject({ kind: z.literal('gallery'), accountId: galleryAccountIdSchema, photos: z.array(galleryPhoto).min(1) }), z.strictObject({ kind: z.literal('server'), photos: z.array(z.strictObject({ id: z.string().min(1), title: z.string().max(512) })).min(1) })]),
 })
 /** Human-selected inputs, before original acquisition and pixel observations. */

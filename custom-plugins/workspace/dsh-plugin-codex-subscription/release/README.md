@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Release 0.2.4: Support image editing masks and durable image-task handles. Reuse accepted operations across recovery, and preserve task ownership and cancellation receipts for canvas workflows.
+Release 0.2.6: Expose selectable subscription image accounts to Visual Curator while preserving image-edit masks, durable task handles and cancellation receipts.
 
 This independent Host-only bundle ships with AutoFlow and uses the Installed plugins section. Existing activation choices remain unchanged. [release.config.json](../release.config.json) owns the stable `codex-subscription-v<version>` tag family and `codex-subscription-update.json` asset; AFP and application releases use separate families.
 

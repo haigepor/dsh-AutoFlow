@@ -4,7 +4,7 @@
 
 ## Summary
 
-0.2.4：支持图片编辑蒙版及持久化图片任务句柄；恢复时复用已受理操作，并保存任务归属和取消回执，供节点画布工作流使用。
+0.2.6：向视觉策展提供可选择的订阅生图账号，继续保留图片编辑蒙版、持久化任务句柄及取消回执。
 
 本包是随 AutoFlow 分发的独立 Host 插件，显示在已安装插件分区，保留已有启用选择。[release.config.json](../release.config.json) 负责稳定的 `codex-subscription-v<version>` 标签族和 `codex-subscription-update.json` 资产；AFP 与应用使用独立版本族。
 

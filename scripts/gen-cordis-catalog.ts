@@ -617,6 +617,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   NativeWebSearchRequest: 'llm-streaming.md',
   ImageGenerationProvider: 'llm-streaming.md',
   ImageGenerationModel: 'llm-streaming.md',
+  ImageGenerationSource: 'llm-streaming.md',
   ImageGenerationRequest: 'llm-streaming.md',
   ImageGenerationHandle: 'llm-streaming.md',
   ImageGenerationTask: 'llm-streaming.md',

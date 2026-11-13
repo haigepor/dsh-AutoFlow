@@ -7,7 +7,7 @@ import { resolveConfig } from '../src/host/config.ts'
 function snapshot(): CuratorSnapshot {
   const config = resolveConfig({})
   return { styles: [], images: [], usages: [], runs: [], splits: [], evaluations: [], exports: [], suggestions: [], configuration: {
-    ...config, revision: 'r1', sourceConfigured: false, visionConfigured: false, sourceCredentialConfigured: false, visionCredentialConfigured: false,
+    ...config, revision: 'r1', sourceConfigured: false, visionConfigured: false, sourceCredentialConfigured: false, visionCredentialConfigured: false, imageSources: { apiKeys: [] }, wallpaperImage: { imageProvider: 'autoflow-codex', imageSourceId: '', imageModel: '' },
   } }
 }
 function deferred<T>() {

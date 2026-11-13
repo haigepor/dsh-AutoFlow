@@ -95,6 +95,11 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
         const composition = z.object({ mode: z.literal('generated-canvas-v1'), nativeSourceRestored: z.literal(false), sourcePlacement: z.object({ scale: z.number(), left: z.number(), top: z.number() }) }).parse(input.usage.composition)
         assert.ok(composition.sourcePlacement.scale > 0)
         assert.match(String(messages[0]?.content), /整张图由模型重绘，不能仅凭健康区域像素不同/)
+        if (mode === 'pre-review-resolution' && reviews === 0) {
+          const details = input.images.filter(image => image.role === 'actual-wallpaper-detail-only')
+          assert.ok(details.length > 0, 'The native review includes the moved interior source cut before ESPCN')
+          assert.equal(z.array(z.object({ entityId: z.string(), rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }) })).parse(input.usage.sourceEdgeReviewDetails).length, details.length)
+        }
       }
       if (!authorized) assert.equal(z.object({ classification: z.string() }).parse(input.usage.edgeRepair).classification, 'edge-continuation')
       if (wholeCanvas && !authorized && reviews === 1) {

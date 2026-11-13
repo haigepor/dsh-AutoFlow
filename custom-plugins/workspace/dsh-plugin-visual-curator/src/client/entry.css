@@ -708,7 +708,7 @@ body:has([role='dialog'][aria-modal='true']) .vc-analysis-complete::before { ani
 .vc-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
 .vc-card { min-width: 0; padding: 24px; border: 1px solid var(--vc-line); border-radius: var(--dsw-radius-lg); background: var(--vc-surface); }
 .vc-settings { display: flex; flex-direction: column; gap: 20px; min-width: 0; width: 100%; margin: 4px 0 0; }
-.vc-settings-tabs { width: min(420px, 100%); }
+.vc-settings-tabs { width: min(620px, 100%); }
 .vc-settings-tabs [role='tab'] { font-weight: 500; }
 .vc-settings-tab-label { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .vc-settings-panel { min-width: 0; margin: 0; padding: 20px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); background: var(--vc-surface); }
