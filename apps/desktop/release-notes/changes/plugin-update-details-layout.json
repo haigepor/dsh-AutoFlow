@@ -1,0 +1,8 @@
+{
+  "id": "plugin-update-details-layout",
+  "category": "improvements",
+  "text": {
+    "en": "Plugin update details show compact script permission notices, clear retry actions and separate check history and technical logs.",
+    "zh-CN": "优化插件详情页更新区域：压缩脚本授权提示，突出重试操作，分开呈现检查记录与技术日志。"
+  }
+}

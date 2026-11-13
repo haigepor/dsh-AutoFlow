@@ -840,6 +840,7 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
   const metadataFailed = update.status === 'error' && update.failureStage === 'metadata'
   const buildBlocked = update.status === 'error' && update.failureStage === 'install' && update.installFailure?.kind === 'build-blocked'
   const pendingBuilds = buildBlocked ? update.installFailure?.pendingBuilds ?? [] : []
+  const awaitingApproval = buildBlocked && !requestFailed
   const checkFailureKeys = {
     'rate-limited': 'updatesRateLimited', forbidden: 'updatesCheckForbidden', network: 'updatesCheckNetwork',
     'invalid-metadata': 'updatesCheckInvalid', cache: 'updatesCheckCache',
@@ -848,58 +849,71 @@ function UpdatesSection({ pkg, t, language, busy, checking, onCheck, onUpdate, o
   const active = !update.restartRequired && (installing || checking)
   const status = update.restartRequired ? t('updatesRestart') : installing ? bundleDownloadLabel(update, t) : checking ? t('updatesChecking')
     : requestFailed ? t('updatesRequestFailed') : update.status === 'available' ? t('releaseUpdateAvailable', { version: update.version ?? '' })
-      : t(update.status === 'current' ? 'updatesCurrent' : metadataFailed ? 'updatesCheckUnavailable' : update.status === 'error' ? 'updatesError' : 'updatesUnchecked')
+      : t(update.status === 'current' ? 'updatesCurrent' : metadataFailed ? 'updatesCheckUnavailable' : awaitingApproval ? 'installApprovalTitle' : update.status === 'error' ? 'updatesError' : 'updatesUnchecked')
+  const diagnostic = requestFailed ? pkg.updateRequestError : update.status === 'error' ? update.diagnostic : undefined
   return <details className={`${css.detailSection} ${css.updatesDisclosure}`} open={open}
     onToggle={(event) => { setOpen(event.currentTarget.open) }} data-plugin-updates>
     <summary className={css.updatesHead}>
       <IconChevronRightOutlineRegular size={14} className={css.partsChevron} aria-hidden="true" />
       <span className={css.sectionTitle}>{t('updatesTitle')}</span>
       {pkg.version === undefined ? null : <span className={css.updateVersion}>{t('updatesVersion', { version: pkg.version })}</span>}
-      {open ? null : <span className={css.updateSummary} role="status" aria-live="polite" data-error={failed}>
+      {open ? null : <span className={css.updateSummary} role="status" aria-live="polite" data-error={failed && !awaitingApproval} data-warning={awaitingApproval}>
         {active ? <PluginUpdateActivity compact label={status} percent={bundleDownloadPercent(update)} /> : status}
       </span>}
     </summary>
     <div className={css.updatesBody}>
       <div className={css.updateRelease}>
-        {open ? <div className={css.updateStatus} role="status" aria-live="polite" data-error={failed}>
-          {active ? <PluginUpdateActivity label={status} percent={bundleDownloadPercent(update)} /> : status}
-        </div> : null}
+        <div className={css.updateOverview}>
+          {open ? <div className={css.updateStatus} role="status" aria-live="polite" data-error={failed && !awaitingApproval} data-warning={awaitingApproval}>
+            {active ? <PluginUpdateActivity label={status} percent={bundleDownloadPercent(update)} />
+              : <span className={css.updateStatusText}><StateDot state={update.restartRequired || update.status === 'current' ? 'done'
+                : awaitingApproval ? 'warning' : failed ? 'error' : 'idle'} />{status}</span>}
+          </div> : null}
+          {awaitingApproval && update.version !== undefined ? <Tag tone="info">{t('releaseUpdateAvailable', { version: update.version })}</Tag> : null}
+        </div>
         <div className={css.updateActions}>
-          <Button variant="outline" size="sm" disabled={busy || checking || installing || update.restartRequired} onClick={onCheck}>
+          <Button variant="outline" size="sm" icon={<IconRefreshOutlineRegular size={14} />}
+            disabled={busy || checking || installing || update.restartRequired} onClick={onCheck}>
             {t(checking ? 'updatesChecking' : 'updatesCheck')}
           </Button>
-          {update.restartRequired ? <Button size="sm" onClick={onRestart}>{t('updatesRestartGuide')}</Button>
-            : update.status !== 'available' ? null : <Button size="sm" disabled={busy} onClick={() => { onUpdate() }}>{t('updatesInstall')}</Button>}
+          {update.restartRequired ? <Button variant="primary" size="sm" onClick={onRestart}>{t('updatesRestartGuide')}</Button>
+            : update.status !== 'available' ? null : <Button variant="primary" size="sm" disabled={busy} onClick={() => { onUpdate() }}>{t('updatesInstall')}</Button>}
         </div>
       </div>
-      {requestFailed ? <details className={css.reason}>
-        <summary>{t('updatesTechnicalDetails')}</summary><p>{pkg.updateRequestError}</p>
-      </details> : metadataFailed ? <div role="status" aria-live="polite">
+      {requestFailed ? null : metadataFailed ? <div role="status" aria-live="polite">
         <p className={css.reason}>{t(update.checkFailure === undefined ? 'updatesCheckUnavailable' : checkFailureKeys[update.checkFailure.kind])}
           {update.checkFailure?.retryAt === undefined ? null : <> {t('updatesRetryAt', { time: formatTime(update.checkFailure.retryAt) })}</>}
         </p>
-        {update.diagnostic === undefined ? null : <details className={css.reason}>
-          <summary>{t('updatesTechnicalDetails')}</summary><p>{update.diagnostic}</p>
-        </details>}
       </div> : update.status !== 'error' ? null : <div>
-        {buildBlocked ? <div className={css.approval} role="status">
-          <p className={css.approvalTitle}>{t('installApprovalTitle')}</p>
-          <p>{t(pendingBuilds.length === 0 ? 'installFailureBuildBlockedManual' : 'installApprovalDescription')}</p>
-          {pendingBuilds.length === 0 ? null : <>
-            <ul>{pendingBuilds.map(name => <li key={name}><code>{name}</code></li>)}</ul>
-            <p>{t('installApprovalConsequence')}</p><p>{t('installApprovalCaution')}</p>
-            <Button size="sm" disabled={busy || checking} onClick={() => { onUpdate(pendingBuilds) }}>{t('installApproveAndRetry')}</Button>
-          </>}
+        {buildBlocked ? <div className={`${css.approval} ${css.updateApproval}`} role="group" aria-label={t('installApprovalTitle')}>
+          <div className={css.updateApprovalBody}>
+            <IconWarningOutlineRegular size={18} className={css.updateApprovalIcon} aria-hidden="true" />
+            <div className={css.updateApprovalContent}>
+              <p className={css.approvalText}>{t(pendingBuilds.length === 0 ? 'installFailureBuildBlockedManual' : 'installApprovalDescription')}</p>
+              {pendingBuilds.length === 0 ? null : <>
+                <ul className={css.approvalList}>{pendingBuilds.map(name => <li key={name}><code>{name}</code></li>)}</ul>
+                <p className={css.approvalText}>{t('installApprovalConsequence')}</p>
+              </>}
+            </div>
+          </div>
+          {pendingBuilds.length === 0 ? null : <div className={css.updateApprovalFooter}>
+            <p className={css.approvalCaution}>{t('installApprovalCaution')}</p>
+            <Button variant="primary" size="sm" disabled={busy || checking} onClick={() => { onUpdate(pendingBuilds) }}>
+              {t('installApproveAndRetry')}
+            </Button>
+          </div>}
         </div> : update.failureStage === undefined ? null : <p className={css.reason}>
           {t(update.failureStage === 'download' ? 'updatesDownloadFailed' : 'updatesInstallFailed')}</p>}
-        {update.diagnostic === undefined ? null : <details className={css.reason}>
-          <summary>{t('updatesTechnicalDetails')}</summary><p>{update.diagnostic}</p>
+      </div>}
+      {update.lastCheckedAt === undefined && diagnostic === undefined ? null : <div className={css.updateRecord}>
+        {update.lastCheckedAt === undefined ? null : <p className={css.updateHint}>
+          {t('updatesLastSuccess', { time: formatTime(update.lastCheckedAt) })}
+          {update.lastKnownVersion === undefined ? null : <span>{t('updatesLastKnownVersion', { version: update.lastKnownVersion })}</span>}
+        </p>}
+        {diagnostic === undefined ? null : <details className={css.updateDiagnostics}>
+          <summary>{t('updatesTechnicalDetails')}</summary><p>{diagnostic}</p>
         </details>}
       </div>}
-      {update.lastCheckedAt === undefined ? null : <p className={css.updateHint}>
-        {t('updatesLastSuccess', { time: formatTime(update.lastCheckedAt) })}
-        {update.lastKnownVersion === undefined ? null : <> · {t('updatesLastKnownVersion', { version: update.lastKnownVersion })}</>}
-      </p>}
       <div className={css.updatePreference}>
         <div className={css.updatePreferenceText}><span className={css.updatePreferenceTitle}>{t('updatesAutomatic')}</span><p className={css.updateHint}>{t('updatesHint')}</p></div>
         <Switch checked={update.automatic} disabled={busy || installing} label={t('updatesAutomatic')} onChange={onAutoUpdate} />

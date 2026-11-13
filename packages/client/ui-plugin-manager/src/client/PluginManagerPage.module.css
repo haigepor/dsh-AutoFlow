@@ -2822,6 +2822,7 @@ button.versionSummary:focus-visible {
 .updateSummary[data-error='true'], .updateStatus[data-error='true'],
 :global([data-plugin-update-card] [data-update-summary][data-error='true']),
 :global([data-plugin-update-card] [data-update-status][data-error='true']) { color: var(--dsw-alias-state-error-primary); }
+.updateSummary[data-warning='true'], .updateStatus[data-warning='true'] { color: var(--dsw-alias-label-primary); }
 .updatesBody,
 :global([data-plugin-update-card] [data-update-body]) { display: flex; flex-direction: column; gap: 12px; padding: 0 16px 14px; }
 .updateRelease,
@@ -2839,6 +2840,32 @@ button.versionSummary:focus-visible {
 .updateHint,
 :global([data-plugin-update-card] [data-update-preference] [data-update-hint]) { margin: 2px 0 0; }
 
+.updateVersion {
+  padding: 1px 8px;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.updateOverview { display: flex; flex: 1; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.updateOverview .updateStatus { flex: 0 1 auto; }
+.updateStatusText { display: inline-flex; align-items: center; gap: 8px; }
+.updateApproval { gap: 12px; padding: 14px 16px; border-width: 1px; }
+.updateApprovalBody { display: flex; align-items: flex-start; gap: 10px; }
+.updateApprovalIcon { flex: none; margin-top: 1px; color: var(--dsw-alias-state-warn-primary); }
+.updateApprovalContent { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 10px; }
+.updateApproval .approvalText, .updateApproval .approvalCaution { font-size: 13px; line-height: 20px; }
+.updateApproval .approvalList code { max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
+.updateApproval .approvalList li { min-width: 0; max-width: 100%; }
+.updateApprovalFooter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-inline-start: 28px; }
+.updateApprovalFooter > button { flex: none; max-width: 100%; height: auto; min-height: 28px; white-space: normal; text-align: start; }
+.updateRecord { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.updateRecord > .updateHint { display: flex; flex: 1 1 280px; flex-wrap: wrap; gap: 2px 12px; margin: 0; }
+.updateDiagnostics { min-width: 0; max-width: 100%; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.updateDiagnostics summary { width: fit-content; cursor: pointer; }
+.updateDiagnostics summary:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.updateDiagnostics[open] { flex-basis: 100%; }
+.updateDiagnostics p { max-height: 180px; margin: 8px 0 0; padding: 10px 12px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-2); font-family: var(--ds-font-family-code); white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; }
+
 @media (max-width: 640px) {
   .updatesHead,
   :global([data-plugin-update-card] > summary) { column-gap: 6px; }
@@ -2846,6 +2873,10 @@ button.versionSummary:focus-visible {
   :global([data-plugin-update-card] [data-update-summary]) { flex-basis: 100%; margin-inline-start: 20px; }
   .updateRelease,
   :global([data-plugin-update-card] [data-update-release]) { align-items: flex-start; }
+  .updateOverview { flex-basis: 100%; }
+  .updateApproval { padding: 12px; }
+  .updateApprovalFooter { padding-inline-start: 0; }
+  .updateApprovalFooter > button { width: 100%; justify-content: center; text-align: center; }
 }
 
 /* Installation shares the settings dialogs' compact introduction, groups and fixed action row. */

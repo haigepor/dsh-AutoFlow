@@ -1,5 +1,7 @@
 {
   "title": "需要允许安装脚本",
+  "status": "需要允许安装脚本",
+  "version": "发现新版本 v1.1.0",
   "action": "允许这些脚本并重试",
-  "dependency": "koffi@3.1.1"
+  "dependencies": ["koffi@3.1.1", "protobufjs@7.6.0"]
 }

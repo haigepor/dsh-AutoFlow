@@ -20,6 +20,28 @@ export interface SubscriptionState {
   catalogError: string | null
 }
 
+interface LoginBrowser {
+  navigate(url: string): void
+  close(): void
+}
+
+function openLoginBrowser(): LoginBrowser {
+  const popup = window.open('about:blank', '_blank')
+  if (popup !== null) {
+    popup.opener = null
+    const policy = popup.document.createElement('meta')
+    policy.name = 'referrer'; policy.content = 'no-referrer'; popup.document.head.append(policy)
+  }
+  return {
+    navigate(url) {
+      // Desktop denies the blank reservation but forwards HTTPS opens to the system browser.
+      if (popup === null) window.open(url, '_blank', 'noopener,noreferrer')
+      else if (!popup.closed) popup.location.replace(url)
+    },
+    close() { popup?.close() },
+  }
+}
+
 /** One Client plugin instance owns the optional Host connection and all polling timers. */
 export class SubscriptionController {
   /** Safe account metadata and shared operation feedback for Client consumers. */
@@ -30,11 +52,12 @@ export class SubscriptionController {
   private loading: Promise<void> | undefined
   private catalogLoading: Promise<void> | undefined
   private pollTimer: ReturnType<typeof setTimeout> | undefined
+  private loginBrowser: LoginBrowser | undefined
   private loginEpoch = 0
   private noticeId = 0
   private requested = false
 
-  constructor(private readonly refreshDirectories: () => Promise<void>) {}
+  constructor(private readonly refreshDirectories: () => Promise<void>, private readonly createLoginBrowser = openLoginBrowser) {}
 
   /** Bind only while the generated plugin-manager Remote is available.
    * @param operations Owner-authorized Host callbacks.
@@ -136,21 +159,32 @@ export class SubscriptionController {
     }, 'ACTIVATED'))
   }
 
-  /** Begin PKCE and start one nonoverlapping status poller.
+  /** Reserve a browser during the user gesture, begin PKCE and start one nonoverlapping status poller.
    * @returns Validated external login URL, or undefined after a reported refusal.
    */
   startLogin(): Promise<string | undefined> {
     return this.track((async () => {
-      if (this.store.getSnapshot().busy !== null) return undefined
+      if (this.store.getSnapshot().busy !== null || this.store.getSnapshot().login !== null) return undefined
       let url: string | undefined
-      await this.run('login', async () => {
-        const login = subscriptionLogin(await this.invoke('login-start'))
-        this.patch((state) => { state.login = login }); url = login.authorizationUrl
+      const started = await this.run('login', async () => {
         const epoch = ++this.loginEpoch
+        const browser = this.createLoginBrowser()
+        this.loginBrowser = browser
+        const login = subscriptionLogin(await this.invoke('login-start'))
+        if (epoch !== this.loginEpoch || this.lifetime.signal.aborted) return
+        this.patch((state) => { state.login = login }); url = login.authorizationUrl
+        browser.navigate(login.authorizationUrl)
         this.schedulePoll(epoch)
       })
+      if (!started || url === undefined) this.closeLoginBrowser()
       return url
     })())
+  }
+
+  private closeLoginBrowser(): void {
+    const browser = this.loginBrowser
+    this.loginBrowser = undefined
+    browser?.close()
   }
 
   private schedulePoll(epoch: number): void {
@@ -164,7 +198,7 @@ export class SubscriptionController {
     const login = subscriptionLogin(value)
     this.patch((state) => { state.login = login })
     if (login.state === 'authorized') {
-      clearTimeout(this.pollTimer); this.loginEpoch++
+      clearTimeout(this.pollTimer); this.loginEpoch++; this.closeLoginBrowser()
       this.patch((state) => { state.login = null })
       try {
         await this.reload(); await this.refreshDirectories()
@@ -172,7 +206,7 @@ export class SubscriptionController {
         this.announce('CONNECTED', true)
       } catch (_error) { this.patch((state) => { state.error = 'DIRECTORY_REFRESH_FAILED' }); this.announce('DIRECTORY_REFRESH_FAILED', false) }
     } else if (login.state === 'failed' || login.state === 'cancelled') {
-      clearTimeout(this.pollTimer); this.loginEpoch++
+      clearTimeout(this.pollTimer); this.loginEpoch++; this.closeLoginBrowser()
       if (login.state === 'failed') this.announce('LOGIN_FAILED', false)
     } else this.schedulePoll(epoch)
   }
@@ -180,7 +214,10 @@ export class SubscriptionController {
   private async poll(epoch: number): Promise<void> {
     const login = this.store.getSnapshot().login
     if (login === null || epoch !== this.loginEpoch || this.lifetime.signal.aborted) return
-    if (Date.now() >= login.expiresAt) { this.announce('LOGIN_EXPIRED', false); this.patch((state) => { state.login = null }); return }
+    if (Date.now() >= login.expiresAt) {
+      this.loginEpoch++; this.closeLoginBrowser()
+      this.announce('LOGIN_EXPIRED', false); this.patch((state) => { state.login = null }); return
+    }
     try { await this.acceptLogin(await this.invoke('login-status', { loginId: login.loginId }), epoch) }
     catch (error) { this.patch((state) => { state.error = this.code(error) }); this.schedulePoll(epoch) }
   }
@@ -204,7 +241,7 @@ export class SubscriptionController {
     return this.track(this.run('cancel', async () => {
       const login = this.store.getSnapshot().login
       if (login !== null) await this.invoke('login-cancel', { loginId: login.loginId })
-      this.loginEpoch++; clearTimeout(this.pollTimer); this.patch((state) => { state.login = null })
+      this.loginEpoch++; clearTimeout(this.pollTimer); this.closeLoginBrowser(); this.patch((state) => { state.login = null })
     }))
   }
 
@@ -258,7 +295,7 @@ export class SubscriptionController {
 
   /** Stop timer admission, cancel Remote waiters and drain owned work. */
   async dispose(): Promise<void> {
-    this.lifetime.abort(); this.loginEpoch++; clearTimeout(this.pollTimer)
+    this.lifetime.abort(); this.loginEpoch++; clearTimeout(this.pollTimer); this.closeLoginBrowser()
     await Promise.allSettled([...this.tasks, ...this.loading === undefined ? [] : [this.loading]])
   }
 }

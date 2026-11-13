@@ -15,7 +15,7 @@ Public bundle downloads show measured byte percentages in list badges and a dete
 
 Update request failures name the package in the toast and keep their diagnostic in that package's version details after refresh or navigation. Retrying clears the request error; Host progress or a different installed or offered version also clears it. Request failures do not imply a download or installation failure.
 
-An update blocked by dependency scripts lists the exact pending keys, explains the persistent permission and offers **Allow these scripts and retry**. Only that explicit action submits approvals. Technical installation logs remain folded by default; refreshing the same release keeps the pending decision visible. Script permissions and retry validation belong to the [Host updater](../../boot/plugin-manager/README.md).
+An update blocked by dependency scripts shows a warning beside the offered version, lists the exact pending keys as wrapping labels, explains the persistent permission and offers **Allow these scripts and retry** as the primary action. Only that explicit action submits approvals. Check history and folded technical logs sit below the warning; refreshing the same release keeps the pending decision visible. Script permissions and retry validation belong to the [Host updater](../../boot/plugin-manager/README.md).
 
 Independent bundle update panels can call `ctx.pluginNavigation.showUpdateRestart(packageName)` after installation to open the same save-work dialog and carrier-owned restart recovery.
 

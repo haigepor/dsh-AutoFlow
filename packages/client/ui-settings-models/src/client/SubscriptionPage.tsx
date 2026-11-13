@@ -74,16 +74,7 @@ export function SubscriptionPage(props: InjectFace<SubscriptionInjected>): React
   useEffect(() => { void ensure() }, [ensure])
   useEffect(() => { setCallback('') }, [state.login?.loginId])
   const add = (): void => {
-    // 用户手势内预留窗口，异步登录请求完成后再导航，避免被浏览器弹窗策略拦截。
-    const popup = window.open('about:blank', '_blank')
-    if (popup !== null) {
-      popup.opener = null
-      const policy = popup.document.createElement('meta'); policy.name = 'referrer'; policy.content = 'no-referrer'; popup.document.head.append(policy)
-    }
-    void startLogin().then((url) => {
-      if (url === undefined) popup?.close()
-      else if (popup !== null && !popup.closed) popup.location.replace(url)
-    }, () => { popup?.close() })
+    void startLogin()
   }
   const edit = (account: SubscriptionAccount): void => {
     setEditing(account); setName(account.label); setPriority(String(account.priority))

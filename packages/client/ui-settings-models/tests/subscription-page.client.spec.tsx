@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 /** Real page/store integration: authorization updates both catalog and provider tabs without remounting. */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
@@ -14,7 +16,7 @@ import { en } from '../src/client/locales.ts'
 import { settingsSchema } from './settings-schema.client.ts'
 
 const owners: SubscriptionController[] = []
-afterEach(async () => { cleanup(); for (const owner of owners.splice(0)) await owner.dispose(); vi.restoreAllMocks() })
+afterEach(async () => { cleanup(); for (const owner of owners.splice(0)) await owner.dispose(); vi.restoreAllMocks(); vi.useRealTimers() })
 const t: SubscriptionInjected['t'] = key => en[key]
 const rawAccount = { accountKey: 'account-fixture', accountId: 'workspace-fixture', label: 'ChatGPT fixture', email: 'owner@example.test', plan: 'plus', workspace: 'Workspace fixture',
   enabled: true, allowCredits: false, priority: 1, revision: 1, tokenExpiresAt: 2000000000000, auth: { state: 'ready' }, modelsStatus: 'ready',
@@ -28,6 +30,44 @@ function face(owner: SubscriptionController) {
     update: (account: Parameters<SubscriptionController['update']>[0], patch: Parameters<SubscriptionController['update']>[1]) => owner.update(account, patch),
     remove: (account: Parameters<SubscriptionController['remove']>[0]) => owner.remove(account), refresh: () => owner.refresh(), dismissNotice: () => { owner.dismissNotice() } }
 }
+
+it.each([false, true])('refreshes a confirmed account and closes only its reserved popup (already closed: %s)', async (closed) => {
+  vi.useFakeTimers()
+  const replace = vi.fn(), close = vi.fn(), popupDocument = document.implementation.createHTMLDocument()
+  const popup = new Proxy(window, {
+    get(_target, key) {
+      if (key === 'document') return popupDocument
+      if (key === 'location') return { replace }
+      if (key === 'close') return close
+      if (key === 'closed') return closed
+      return undefined
+    },
+    set: () => true,
+  })
+  const open = vi.spyOn(window, 'open').mockReturnValue(popup)
+  let connected = false
+  const login = (state: string) => ({ loginId: 'popup-login', state, authorizationUrl: 'https://auth.openai.com/oauth/authorize?state=fixture', expiresAt: Date.now() + 60000 })
+  const owner = new SubscriptionController(async () => {})
+  owners.push(owner)
+  owner.connect({ availability: async () => 'active', activate: async () => 'active', invoke: async (operation) => {
+    if (operation === 'account-list') return connected ? [rawAccount] : []
+    if (operation === 'model-list') return []
+    if (operation === 'login-start') return login('waiting')
+    if (operation === 'login-status') { connected = true; return login('authorized') }
+    throw new Error('Unexpected popup fixture operation')
+  } })
+  await owner.ensure()
+  render(<SubscriptionPage {...face(owner)} />)
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: en.subscriptionAdd })) })
+  expect(open).toHaveBeenCalledExactlyOnceWith('about:blank', '_blank')
+  expect(popupDocument.querySelector('meta[name="referrer"]')?.getAttribute('content')).toBe('no-referrer')
+  expect(replace.mock.calls).toEqual(closed ? [] : [['https://auth.openai.com/oauth/authorize?state=fixture']])
+  expect(close).not.toHaveBeenCalled()
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+  expect(close).toHaveBeenCalledOnce()
+  expect(screen.getByText(rawAccount.label)).toBeTruthy()
+  expect(screen.queryByRole('dialog', { name: en.subscriptionLoginTitle })).toBeNull()
+})
 
 it('sign-in only saves the account; explicitly adding a model updates both sibling directories', async () => {
   let connected = false, configured = false
@@ -53,7 +93,7 @@ it('sign-in only saves the account; explicitly adding a model updates both sibli
   } }
   const owner = new SubscriptionController(() => models.load()); owner.connect(operations); owners.push(owner)
   const injected = face(owner), useModels = bindSnapshotSelector(models.store)
-  vi.spyOn(window, 'open').mockReturnValue(null)
+  const openBrowser = vi.spyOn(window, 'open').mockReturnValue(null)
   function Page() {
     const state = useModels(value => value)
     return <><ModelsDirectory state={state} schema={settingsSchema} t={t} onEdit={() => {}} onRemove={() => {}} onRetry={() => {}}
@@ -73,6 +113,10 @@ it('sign-in only saves the account; explicitly adding a model updates both sibli
   fireEvent.click(within(dialog).getByRole('button', { name: en.subscriptionComplete }))
   await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
   expect(await screen.findByText(en.subscriptionNoticeConnected)).toBeTruthy()
+  expect({ browserRequests: openBrowser.mock.calls.map(([url, target, features]) => ({ url, target, features: features ?? '' })),
+    account: screen.getByText(rawAccount.label).textContent,
+    loginDialogClosed: screen.queryByRole('dialog', { name: en.subscriptionLoginTitle }) === null }).toEqual(
+    JSON.parse(readFileSync(join(import.meta.dirname, 'expected/subscription-login-browser-en.json'), 'utf8')))
   expect(screen.getByRole('tab', { name: en.subscriptionTab }).getAttribute('aria-selected')).toBe('true')
   expect(screen.getByText('owner@example.test')).toBeTruthy()
   expect(screen.getByRole('meter', { name: en.subscriptionPrimary }).getAttribute('aria-valuenow')).toBe('75')

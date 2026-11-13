@@ -9,6 +9,7 @@ const account = () => ({ accountKey: 'account-fixture', accountId: 'workspace-fi
   usage: { status: 'ready', freshness: 'fresh', fetchedAt: 1800000000000, primary: { usedPercent: 20, resetAt: 2000000000000 } } })
 const login = (state = 'waiting') => ({ loginId: 'login-fixture', state, authorizationUrl: 'https://auth.openai.com/oauth/authorize?state=fixture', expiresAt: Date.now() + 60000 })
 const owners: SubscriptionController[] = []
+const loginBrowser = () => ({ navigate: vi.fn(), close: vi.fn() })
 afterEach(async () => { for (const owner of owners.splice(0)) await owner.dispose(); vi.useRealTimers() })
 
 function fixture() {
@@ -33,8 +34,9 @@ function fixture() {
       throw new Error('Unexpected operation')
     },
   }
-  const owner = new SubscriptionController(changed); owner.connect(operations); owners.push(owner)
-  return { owner, calls, changed, fail: (code: string) => { nextFailure = code }, disable: () => { availability = 'disabled' }, gatePoll: (gate: Promise<unknown>) => { pollGate = gate } }
+  const browser = loginBrowser(), openBrowser = vi.fn(() => browser)
+  const owner = new SubscriptionController(changed, openBrowser); owner.connect(operations); owners.push(owner)
+  return { owner, calls, changed, browser, openBrowser, fail: (code: string) => { nextFailure = code }, disable: () => { availability = 'disabled' }, gatePoll: (gate: Promise<unknown>) => { pollGate = gate } }
 }
 
 it('validates account and login JSON while projecting away all credential values', () => {
@@ -50,7 +52,7 @@ it('model configuration is explicit, revision checked and keeps image defaults u
   const changed = vi.fn(async () => {}), calls: { operation: string; args: Record<string, unknown> }[] = []
   let revision = 3, entries: { kind: 'text' | 'image'; id: string; name: string }[] = []
   const catalog = () => ({ revision, entries, defaultImageModel: 'existing-image', candidates: [{ id: 'gpt-fixture', name: 'GPT' }] })
-  const owner = new SubscriptionController(changed); owners.push(owner)
+  const owner = new SubscriptionController(changed, loginBrowser); owners.push(owner)
   owner.connect({ availability: async () => 'active', activate: async () => 'active', invoke: async (operation, args) => {
     calls.push({ operation, args })
     if (operation === 'account-list') return [account()]
@@ -76,12 +78,56 @@ it('polls one login and refreshes accounts plus both model directories before an
   vi.useFakeTimers()
   const f = fixture(); await f.owner.ensure()
   expect(f.owner.store.getSnapshot().accounts).toHaveLength(0)
-  await f.owner.startLogin(); await vi.advanceTimersByTimeAsync(1000)
+  const pending = f.owner.startLogin()
+  expect(f.openBrowser).toHaveBeenCalledOnce()
+  await pending
+  await f.owner.startLogin()
+  expect(f.openBrowser).toHaveBeenCalledOnce()
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(f.openBrowser).toHaveBeenCalledOnce()
+  expect(f.browser.navigate).toHaveBeenCalledExactlyOnceWith(login().authorizationUrl)
+  expect(f.browser.close).toHaveBeenCalledOnce()
   expect(f.owner.store.getSnapshot()).toMatchObject({ login: null, accounts: [{ email: 'owner@example.test' }], models: [{ id: 'gpt-fixture' }], notice: { code: 'CONNECTED', success: true } })
   expect(f.changed).toHaveBeenCalledOnce()
   expect(f.calls.map(call => call.operation)).toEqual(['account-list', 'model-list', 'login-start', 'login-status', 'account-list', 'model-list'])
   await vi.advanceTimersByTimeAsync(10000)
   expect(f.calls.filter(call => call.operation === 'login-status')).toHaveLength(1)
+})
+
+it('closes the reserved browser when starting authorization fails', async () => {
+  const f = fixture()
+  f.fail('LOGIN_FAILED')
+  expect(await f.owner.startLogin()).toBeUndefined()
+  expect(f.browser.navigate).not.toHaveBeenCalled()
+  expect(f.browser.close).toHaveBeenCalledOnce()
+  expect(f.owner.store.getSnapshot()).toMatchObject({ login: null, notice: { code: 'LOGIN_FAILED', success: false } })
+})
+
+it('closes an expired login without opening another browser or reporting an account', async () => {
+  vi.useFakeTimers()
+  const f = fixture()
+  await f.owner.startLogin()
+  vi.setSystemTime(Date.now() + 60001)
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(f.browser.close).toHaveBeenCalledOnce()
+  expect(f.openBrowser).toHaveBeenCalledOnce()
+  expect(f.owner.store.getSnapshot()).toMatchObject({ login: null, accounts: [], notice: { code: 'LOGIN_EXPIRED', success: false } })
+  expect(f.calls.some(call => call.operation === 'login-status')).toBe(false)
+})
+
+it('disposal closes the reservation and prevents a late authorization response from navigating it', async () => {
+  const gate = Promise.withResolvers<unknown>(), browser = loginBrowser()
+  const owner = new SubscriptionController(async () => {}, () => browser)
+  owners.push(owner)
+  owner.connect({ availability: async () => 'active', activate: async () => 'active', invoke: async () => gate.promise })
+  const pending = owner.startLogin()
+  const disposed = owner.dispose()
+  expect(browser.close).toHaveBeenCalledOnce()
+  gate.resolve(login())
+  await Promise.all([pending, disposed])
+  expect(browser.navigate).not.toHaveBeenCalled()
+  expect(browser.close).toHaveBeenCalledOnce()
+  expect(owner.store.getSnapshot().login).toBeNull()
 })
 
 it('manual completion never stores the callback and revision-checked changes reload both directories', async () => {
@@ -101,6 +147,7 @@ it('a cancelled login ignores an older pending poll and disposal stops future po
   const f = fixture(), gate = Promise.withResolvers<unknown>()
   await f.owner.ensure(); f.gatePoll(gate.promise); await f.owner.startLogin()
   await vi.advanceTimersByTimeAsync(1000); await f.owner.cancelLogin()
+  expect(f.browser.close).toHaveBeenCalledOnce()
   gate.resolve(login('authorized')); await vi.advanceTimersByTimeAsync(1)
   expect(f.owner.store.getSnapshot().login).toBeNull(); expect(f.changed).not.toHaveBeenCalled()
   await f.owner.dispose(); await vi.advanceTimersByTimeAsync(10000)
@@ -120,7 +167,7 @@ it('activation is explicit and a failed read preserves the last good rows', asyn
 })
 
 it('a committed login with failed directory synchronization reports the remaining action', async () => {
-  const owner = new SubscriptionController(async () => { throw new Error('private transport failure') }); owners.push(owner)
+  const owner = new SubscriptionController(async () => { throw new Error('private transport failure') }, loginBrowser); owners.push(owner)
   const connected: SubscriptionOperations = { availability: async () => 'active', activate: async () => 'active', invoke: async operation =>
     operation === 'login-start' ? login() : operation === 'login-complete' ? login('authorized') : operation === 'model-list' ? [] : [account()] }
   owner.connect(connected); await owner.startLogin(); await owner.completeLogin('http://localhost:1455/auth/callback?code=fixture&state=fixture')

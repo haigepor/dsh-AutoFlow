@@ -1,0 +1,8 @@
+{
+  "id": "subscription-login-browser-lifecycle",
+  "category": "fixes",
+  "text": {
+    "en": "Adding a ChatGPT account opens the login page automatically when Desktop blocks a blank popup; completed logins refresh accounts and release their owned popup.",
+    "zh-CN": "修复桌面端新增 ChatGPT 账号未自动打开登录页的问题；登录成功后自动刷新账号，并关闭本次持有的授权弹窗。"
+  }
+}

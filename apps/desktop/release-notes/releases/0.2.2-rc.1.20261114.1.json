@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.2-rc.1.20261114.1",
+  "items": [
+    {
+      "id": "plugin-update-details-layout",
+      "category": "improvements",
+      "text": {
+        "en": "Plugin update details show compact script permission notices, clear retry actions and separate check history and technical logs.",
+        "zh-CN": "优化插件详情页更新区域：压缩脚本授权提示，突出重试操作，分开呈现检查记录与技术日志。"
+      }
+    },
+    {
+      "id": "subscription-login-browser-lifecycle",
+      "category": "fixes",
+      "text": {
+        "en": "Adding a ChatGPT account opens the login page automatically when Desktop blocks a blank popup; completed logins refresh accounts and release their owned popup.",
+        "zh-CN": "修复桌面端新增 ChatGPT 账号未自动打开登录页的问题；登录成功后自动刷新账号，并关闭本次持有的授权弹窗。"
+      }
+    },
+    {
+      "id": "visual-curator-settings-left-alignment",
+      "category": "improvements",
+      "text": {
+        "en": "Visual Curator aligns its settings tabs, forms and footer with the gallery's left edge while retaining readable form widths in large windows.",
+        "zh-CN": "视觉策展的设置页签、表单和底部操作区与图库共用左侧对齐线，宽窗口下继续保留适合阅读的表单宽度。"
+      }
+    }
+  ]
+}

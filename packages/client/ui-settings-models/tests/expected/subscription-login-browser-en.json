@@ -1,0 +1,8 @@
+{
+  "browserRequests": [
+    { "url": "about:blank", "target": "_blank", "features": "" },
+    { "url": "https://auth.openai.com/oauth/authorize?state=fixture", "target": "_blank", "features": "noopener,noreferrer" }
+  ],
+  "account": "ChatGPT fixture",
+  "loginDialogClosed": true
+}

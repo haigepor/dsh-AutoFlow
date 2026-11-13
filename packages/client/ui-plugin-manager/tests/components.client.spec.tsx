@@ -239,9 +239,10 @@ it('keeps archive and installation failures distinct from unavailable metadata',
 
 it('requires an explicit script approval in update details, localizes it and hides raw logs by default', async () => {
   const name = 'dsh-better-sidebar'
-  const b = renderTab({ packages: [pkg({ update: { name, repository: 'example/plugins', automatic: false, status: 'error',
+  const update: NonNullable<PackageView['update']> = { name, repository: 'example/plugins', automatic: false, status: 'error',
     version: '1.1.0', failureStage: 'install', restartRequired: false, diagnostic: 'ERR_PNPM_IGNORED_BUILDS: koffi@3.1.1',
-    installFailure: { kind: 'build-blocked', pendingBuilds: ['koffi@3.1.1'] } } })] })
+    installFailure: { kind: 'build-blocked', pendingBuilds: ['koffi@3.1.1', 'protobufjs@7.6.0'] } }
+  const b = renderTab({ packages: [pkg({ update })] })
   fireEvent.click(screen.getByRole('button', { name: `View ${name}` }))
   expect(screen.getByText('koffi@3.1.1')).toBeTruthy()
   expect(screen.getByText(en.installApprovalConsequence)).toBeTruthy()
@@ -250,12 +251,22 @@ it('requires an explicit script approval in update details, localizes it and hid
   expect(b.actions.updateBundle).not.toHaveBeenCalled()
   await act(async () => { b.setLanguage(zh) })
   expect(screen.getByText(zh.installApprovalCaution)).toBeTruthy()
+  const disclosure = screen.getByText(zh.updatesTitle).closest('details')!
+  const approval = within(disclosure).getByRole('group', { name: zh.installApprovalTitle })
   expect({ title: screen.getByText(zh.installApprovalTitle).textContent,
+    status: within(disclosure).getByRole('status').textContent,
+    version: within(disclosure).getByText('发现新版本 v1.1.0').textContent,
     action: screen.getByRole('button', { name: zh.installApproveAndRetry }).textContent,
-    dependency: screen.getByText('koffi@3.1.1').textContent }).toEqual(
+    dependencies: within(approval).getAllByRole('listitem').map(item => item.textContent) }).toEqual(
     JSON.parse(readFileSync(join(import.meta.dirname, 'expected/update-build-approval-zh.json'), 'utf8')))
+  fireEvent.click(within(disclosure).getByRole('button', { name: zh.updatesCheck }))
+  expect(b.actions.checkUpdates).toHaveBeenCalledOnce()
+  expect(b.actions.updateBundle).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: zh.installApproveAndRetry }))
-  expect(b.actions.updateBundle).toHaveBeenCalledExactlyOnceWith(name, ['koffi@3.1.1'])
+  expect(b.actions.updateBundle).toHaveBeenCalledExactlyOnceWith(name, ['koffi@3.1.1', 'protobufjs@7.6.0'])
+  b.set({ packages: [pkg({ update: { ...update, installFailure: { kind: 'build-blocked' } } })] })
+  expect(screen.getByText(zh.installFailureBuildBlockedManual)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: zh.installApproveAndRetry })).toBeNull()
 })
 
 function pkg(overrides: Partial<PackageView> = {}): PackageView {
