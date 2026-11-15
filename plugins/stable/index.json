@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "haigepor/dsh-AutoFlow",
-  "generatedAt": "2026-11-13T16:08:03.349Z",
+  "generatedAt": "2026-11-15T08:26:00.036Z",
   "plugins": [
     {
       "schemaVersion": 1,
@@ -38,17 +38,17 @@
     {
       "schemaVersion": 1,
       "package": "dsh-plugin-codex-subscription",
-      "version": "0.2.4",
+      "version": "0.2.7",
       "repository": "haigepor/dsh-AutoFlow",
       "channel": "stable",
-      "tag": "codex-subscription-v0.2.4",
-      "sourceCommit": "f4c03f7c93dbeb7f248111f5a0587be43cd01d43",
+      "tag": "codex-subscription-v0.2.7",
+      "sourceCommit": "affa9d81d388012ed8712aadb420e956862be11b",
       "sourceDirty": false,
       "asset": {
-        "name": "dsh-plugin-codex-subscription-0.2.4.tgz",
-        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/codex-subscription-v0.2.4/dsh-plugin-codex-subscription-0.2.4.tgz",
-        "sha256": "46a0c029a15a7f3b94bc633360f6a168626ce847c88456e421506ea30aa8db7c",
-        "size": 237943
+        "name": "dsh-plugin-codex-subscription-0.2.7.tgz",
+        "url": "https://github.com/haigepor/dsh-AutoFlow/releases/download/codex-subscription-v0.2.7/dsh-plugin-codex-subscription-0.2.7.tgz",
+        "sha256": "d2b719fbbccc0c38d4a9ef46f9a61ed3c493f3b02cba41b8c9989eda3a741076",
+        "size": 241957
       }
     },
     {
