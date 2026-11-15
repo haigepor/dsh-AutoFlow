@@ -100,6 +100,7 @@ export function wallpaperCandidatePlacement(prior: Pick<WallpaperItem['attempts'
   if (review.subjectIntegrity.output.extent !== 'complete' || review.sourceCorrespondence.result !== 'satisfied' || wallpaperReviewNeedsSubjectEdit(review)) return undefined
   const issues = review.modelIssues.length ? review.modelIssues : review.issues
   const layoutDefect = issues.some(issue => issue.kind === 'layout')
+  if (review.checks.background.result === 'unknown') return undefined
   if (!issues.length || issues.some(issue => !['layout', 'readability', 'background'].includes(issue.kind))) return undefined
   if (Object.entries(review.checks).some(([key, check]) => !['subject', 'composition', 'protection', 'clock', 'readability', 'background'].includes(key) && check.result !== 'satisfied')) return undefined
   if ((review.subjectIntegrity.task.result !== 'satisfied' || review.sourceRepair.result !== 'satisfied') && !review.modelIssues.some(issue => issue.kind === 'layout')) return undefined

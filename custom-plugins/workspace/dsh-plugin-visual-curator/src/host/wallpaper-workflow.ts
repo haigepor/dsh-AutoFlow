@@ -452,7 +452,7 @@ export class WallpaperWorkflows {
     const canvasReview = state.items.some(item => (item.imageVersionId === reviewedImageId || item.imageVersionId === input.recompose?.imageVersionId) && ['generated-canvas-v1', 'generated-canvas-protected-v2'].includes(item.attempts.at(-1)?.compositionMode ?? ''))
     if (canvasReview && (input.review || input.recompose?.reviewPolicy === 'current')) fixed.prompts = toJson({ ...wallpaperPromptBundleSchema.parse(fixed.prompts), review: { version: 'wallpaper-review-source-v4', text: wallpaperGenerativeRepair(wallpaperSettingsSchema.parse(fixed.wallpaper)) ? sourceFaithfulWallpaperPrompts(wallpaperSettingsSchema.parse(fixed.wallpaper)).review.text : wallpaperCanvasReviewPromptV4 } })
     if (input.decision || input.reinspect || input.review || input.recompose?.reviewPolicy === 'current') fixed.promptDigest = contentDigest(fixed.prompts)
-    fixed.finalReviewPolicy = 'final-output-v1'
+    if (input.review || input.recompose?.reviewPolicy === 'current') fixed.finalReviewPolicy = 'final-output-v1'
     const current = resolveCurrentConfig(this.deps.config())
     let config = input.review ? { ...spec.config, vision: current.vision } : input.retryOriginal ? { ...spec.config, limits: { ...spec.config.limits, originalDownloadTimeoutMs: current.limits.originalDownloadTimeoutMs, originalDownloadIdleTimeoutMs: current.limits.originalDownloadIdleTimeoutMs } } : spec.config
     if (genericContinue) config = { ...config, limits: { ...config.limits, maxStorageBytes: current.limits.maxStorageBytes } }

@@ -88,7 +88,7 @@ test('future canvas steps stay absent and recovery never targets an older displa
   item.attempts.at(-1)!.outputId = 'saved-output'; item.status = 'technical-failed'; item.failedStep = 'reviewing'
   for (const error of ['vision-invalid-output', 'vision-output-truncated']) {
     item.errorCode = error
-    assert.equal(wallpaperRecovery(view, item, item.attempts.at(-1)).kind, 'review')
+    assert.deepEqual(wallpaperRecovery(view, item, item.attempts.at(-1)), { kind: 'retry', step: 'reviewing' })
     assert.equal(wallpaperRecovery(view, item, old).kind, 'history')
   }
   item.errorCode = 'remote-timeout'

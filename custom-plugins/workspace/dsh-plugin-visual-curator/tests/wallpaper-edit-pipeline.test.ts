@@ -158,7 +158,7 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
       const created = f.domain.require('run', start.runId), spec = specOf(created)
       const prompts = authorized ? z.record(z.string(), z.json()).parse(spec.fixed.prompts) : { ...z.record(z.string(), z.json()).parse(spec.fixed.prompts), review: { version: 'wallpaper-review-source-v2', text: wallpaperDirectReviewPrompt } }
       // This fixture exercises the saved legacy order; the new order has its own focused cases.
-      const { reviewOrder: _reviewOrder, ...legacyFixed } = spec.fixed
+      const { reviewOrder: _reviewOrder, finalReviewPolicy: _finalReviewPolicy, ...legacyFixed } = spec.fixed
       const fixed = { ...legacyFixed, ...(newOrder ? { reviewOrder: 'generation-before-resolution-v1' } : {}), ...(!authorized ? { prompts, promptDigest: contentDigest(prompts), directPolicy: { version: 'source-faithful-v2', promptDigest: contentDigest(prompts) } } : {}) }
       const recorded = runSchema.parse({ ...created, spec: toJson({ ...spec, fixed, specDigest: contentDigest({ kind: spec.kind, config: spec.config, input: spec.input, fixed }) }) })
       const aggregateId = 'run:' + created.id
@@ -177,6 +177,7 @@ for (const mode of ['recover', 'framing-limit', 'real-response', 'whole-canvas-r
       completedRunId = z.object({ runId: z.string() }).parse(await f.action('wallpaper-continue', { runId: start.runId, operationId: 'resume-saved-generation' })).runId
       await f.jobs.drain()
       assert.equal(receiptReads, readsBeforeResume, 'Review recovery reads saved native pixels without querying generation again')
+      assert.equal(specOf(f.domain.require('run', completedRunId)).fixed.finalReviewPolicy, undefined, 'Continuing an old task does not silently opt into a new final-review policy')
       assert.equal(dataOf(f.domain.require('run', completedRunId)).budget.vision, 1, 'The child continuation accounts for its one actual review call')
     }
     const run = f.domain.require('run', completedRunId), item = wallpaperStateSchema.parse(dataOf(run).checkpoint.wallpaper).items[0]!

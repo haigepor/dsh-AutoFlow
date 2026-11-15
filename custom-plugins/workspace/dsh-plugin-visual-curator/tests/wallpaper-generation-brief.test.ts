@@ -18,16 +18,16 @@ test('a generated clock overlay requires removal while required original text re
 test('authored edits retain exact whole-canvas safety bounds and state that candidate positioning is already applied', async () => {
   const settings = wallpaperSettingsSchema.parse({})
   const plan = wallpaperPlanSchema.parse({ version: 1, imageVersionId: 'saved-candidate', mode: 'single', subject: 'Complete bowl', evidence: 'Same content', priorities: [], anchors: [], truncations: [], uncertainties: [], regions: [], placement: { scale: 1, left: 0, top: 243 }, reason: 'Uniform candidate correction' })
-  const latest = { revision: 2, plan, checks: [], needsOutpaint: true, compositionMode: 'generated-canvas-v1' as const, layoutCorrection: { version: 'candidate-placement-v1' as const, plan } }
+  const latest = { revision: 2, plan, opaqueCanvasId: 'positioned-candidate', checks: [], needsOutpaint: true, compositionMode: 'generated-canvas-v1' as const, layoutCorrection: { version: 'candidate-placement-v1' as const, plan } }
   const prompt = wallpaperGenerationPrompt('Frozen instruction', plan, settings, [{ role: 'canvas', width: 941, height: 1672 }], [latest], settings, true, wallpaperGenerationBriefOutputSchema.parse(brief))
-  const layout = JSON.parse(prompt.split('Host布局数据：')[1]!.split('。所有坐标')[0]!)
+  const layout = JSON.parse(prompt.split('Host布局数据：')[1]!.split('。positionedRegions')[0]!)
   assert.deepEqual(layout.protectedPixels, { left: 258, top: 1032, right: 1587, bottom: 2718 })
   assert.equal(layout.protectedNormalized.top, 1032 / 3280)
-  assert.equal(layout.referenceImageVersionId, 'saved-candidate')
+  assert.equal(layout.referenceImageVersionId, 'positioned-candidate')
   assert.equal(layout.referenceTransformAlreadyApplied, true)
   assert.equal(layout.layoutCorrectionApplied, true)
   const expected = JSON.parse(await readFile(new URL('./fixtures/wallpaper-layout-recovery.expected.json', import.meta.url), 'utf8'))
-  assert.deepEqual({ protectedPixels: layout.protectedPixels, referenceImageVersionId: layout.referenceImageVersionId, referenceTransformAlreadyApplied: layout.referenceTransformAlreadyApplied, layoutCorrectionApplied: layout.layoutCorrectionApplied, placement: layout.placement }, expected.generationRequest)
+  assert.deepEqual({ protectedPixels: layout.protectedPixels, referenceImageVersionId: layout.referenceImageVersionId, referenceTransformAlreadyApplied: layout.referenceTransformAlreadyApplied, layoutCorrectionApplied: layout.layoutCorrectionApplied, placement: layout.appliedSourceTransform }, expected.generationRequest)
   assert.match(prompt, /历史复审中的下移、缩小等动作已经完成/)
   assert.match(prompt, /Preserve original watercolor paper grain/)
 })

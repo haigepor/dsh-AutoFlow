@@ -1,7 +1,7 @@
 {
   "generationRequest": {
     "protectedPixels": { "left": 258, "top": 1032, "right": 1587, "bottom": 2718 },
-    "referenceImageVersionId": "saved-candidate",
+    "referenceImageVersionId": "positioned-candidate",
     "referenceTransformAlreadyApplied": true,
     "layoutCorrectionApplied": true,
     "placement": { "scale": 1, "left": 0, "top": 243 }
