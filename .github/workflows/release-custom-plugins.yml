@@ -123,7 +123,26 @@ jobs:
       - name: Verify unmodified plugin source
         run: git diff --exit-code -- "custom-plugins/workspace/${{ needs.select.outputs.package }}"
       - name: Run native plugin regressions
+        if: ${{ !(needs.select.outputs.package == 'dsh-plugin-visual-curator' && matrix.platform == 'macos-x64') }}
         run: pnpm --filter "${{ needs.select.outputs.package }}" run test
+      # The five-image media fixture must not compete with other test files on Intel runners.
+      - name: Run Intel Visual Curator media regressions without competing test files
+        if: ${{ needs.select.outputs.package == 'dsh-plugin-visual-curator' && matrix.platform == 'macos-x64' }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readdirSync } from 'node:fs'
+          import { resolve, join } from 'node:path'
+          import { spawnSync } from 'node:child_process'
+          const directory = resolve('custom-plugins/workspace/dsh-plugin-visual-curator')
+          const files = readdirSync(join(directory, 'tests')).filter(name => /\.test\.(ts|mjs)$/.test(name)).map(name => 'tests/' + name)
+          const media = 'tests/server-queue.test.ts'
+          for (const group of [[media], files.filter(file => file !== media)]) {
+            const child = spawnSync(process.execPath, ['--import', 'tsx/esm', '--test', ...group], { cwd: directory, stdio: 'inherit' })
+            if (child.error) throw child.error
+            if (child.status !== 0) process.exit(child.status ?? 1)
+          }
+          NODE
 
   prepare:
     needs: select
