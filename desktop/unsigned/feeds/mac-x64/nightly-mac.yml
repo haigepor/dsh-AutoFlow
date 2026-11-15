@@ -1,40 +1,27 @@
-version: 0.2.2-rc.1.20261115.1
+version: 0.2.2-rc.1.20261115.2
 files:
-  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261115.1-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261115.1-mac-x64-unsigned.zip
-    sha512: Y44xBLDOUaso7WrIHJ2sjfgrl3FCyWgL+3g+6Y3CYVlmVt+0dXU89guOcUm5FeopLLartPSJYqCC5g86CoceZQ==
-    size: 496960079
-path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261115.1-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261115.1-mac-x64-unsigned.zip
-sha512: Y44xBLDOUaso7WrIHJ2sjfgrl3FCyWgL+3g+6Y3CYVlmVt+0dXU89guOcUm5FeopLLartPSJYqCC5g86CoceZQ==
-releaseDate: '2026-11-15T06:30:40.129Z'
+  - url: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261115.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261115.2-mac-x64-unsigned.zip
+    sha512: l9KcaJTXPJ9bjNhYGDjHMFqepzLtEE/ofXOsoxpZmgAGDhfPpx+WW5hDmlLC97Ms6MEehmi55ZZj/T7fEIqadw==
+    size: 496966429
+path: https://github.com/haigepor/dsh-AutoFlow/releases/download/desktop-v0.2.2-rc.1.20261115.2-mac-x64-unsigned/deepseek-harness-0.2.2-rc.1.20261115.2-mac-x64-unsigned.zip
+sha512: l9KcaJTXPJ9bjNhYGDjHMFqepzLtEE/ofXOsoxpZmgAGDhfPpx+WW5hDmlLC97Ms6MEehmi55ZZj/T7fEIqadw==
+releaseDate: '2026-11-15T08:46:51.348Z'
 dshReleaseNotes:
   schemaVersion: 1
-  version: 0.2.2-rc.1.20261115.1
+  version: 0.2.2-rc.1.20261115.2
   items:
-    - id: visual-curator-quality-first-pipeline
-      category: fixes
-      text:
-        en: Visual Curator retains generated candidates during review recovery and independently checks final wallpapers. Stage-specific previews preserve failed-version evidence. Image inspection adds pixel rulers, edge measurements and pointer crosshairs. History supports resizable navigation. Detail dialogs use image workspaces and a read-only prompt editor.
-        zh-CN: 视觉策展在复审故障恢复时保留生成候选，独立检查最终图片质量。流程节点展示所属阶段的图片，保留未通过版本的证据。大图支持像素标尺、边缘尺寸与鼠标十字线，历史版本栏可拖拽调宽。详情采用图片工作区与检查信息分栏，生图提示词在独立只读编辑器查看。
-    - id: visual-curator-review-evidence-gallery
+    - id: codex-subscription-quota-scopes
       category: improvements
       text:
-        en: Visual Curator workflow cards let you browse saved images, safety guides and review concerns by version, including failed and stopped attempts. Expanded previews retain annotations, and review recovery rejects skip decisions when no blocking concern remains and the saved image can still be reviewed.
-        zh-CN: 视觉策展流程节点可按版本切换已保存图片、安全区标注和复审问题，未通过或停止返工的证据仍可查看，放大预览保留标注。已有图片可继续复审且没有阻塞问题时，不再接受跳过图片的矛盾决策。
+        en: Account cards separate Work/Codex quota from Chat image-count observations, label unverified metering, and retain last-known observations after read failures.
+        zh-CN: 账号卡片分开展示 Work/Codex 额度与 Chat 图片计数观测值，明确标注计量未验证，并在读取失败时保留上次成功值。
 releaseNotes: |-
   ## 体验优化
 
-  - 视觉策展流程节点可按版本切换已保存图片、安全区标注和复审问题，未通过或停止返工的证据仍可查看，放大预览保留标注。已有图片可继续复审且没有阻塞问题时，不再接受跳过图片的矛盾决策。
-
-  ## 问题修复
-
-  - 视觉策展在复审故障恢复时保留生成候选，独立检查最终图片质量。流程节点展示所属阶段的图片，保留未通过版本的证据。大图支持像素标尺、边缘尺寸与鼠标十字线，历史版本栏可拖拽调宽。详情采用图片工作区与检查信息分栏，生图提示词在独立只读编辑器查看。
+  - 账号卡片分开展示 Work/Codex 额度与 Chat 图片计数观测值，明确标注计量未验证，并在读取失败时保留上次成功值。
 
   ---
 
   ## Improvements
 
-  - Visual Curator workflow cards let you browse saved images, safety guides and review concerns by version, including failed and stopped attempts. Expanded previews retain annotations, and review recovery rejects skip decisions when no blocking concern remains and the saved image can still be reviewed.
-
-  ## Bug fixes
-
-  - Visual Curator retains generated candidates during review recovery and independently checks final wallpapers. Stage-specific previews preserve failed-version evidence. Image inspection adds pixel rulers, edge measurements and pointer crosshairs. History supports resizable navigation. Detail dialogs use image workspaces and a read-only prompt editor.
+  - Account cards separate Work/Codex quota from Chat image-count observations, label unverified metering, and retain last-known observations after read failures.
